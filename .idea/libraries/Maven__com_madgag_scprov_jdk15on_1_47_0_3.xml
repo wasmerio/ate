@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="Maven: com.madgag:scprov-jdk15on:1.47.0.3">
+    <CLASSES>
+      <root url="jar://$MAVEN_REPOSITORY$/com/madgag/scprov-jdk15on/1.47.0.3/scprov-jdk15on-1.47.0.3.jar!/" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$MAVEN_REPOSITORY$/com/madgag/scprov-jdk15on/1.47.0.3/scprov-jdk15on-1.47.0.3-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$MAVEN_REPOSITORY$/com/madgag/scprov-jdk15on/1.47.0.3/scprov-jdk15on-1.47.0.3-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>
