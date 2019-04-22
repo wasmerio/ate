@@ -4,7 +4,7 @@ import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.scopes.ResourceScoped;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
-import org.tomitribe.microscoped.core.ScopeContext;
+import com.tokera.ate.scopes.ScopeContext;
 
 import javax.annotation.Priority;
 import javax.enterprise.context.RequestScoped;

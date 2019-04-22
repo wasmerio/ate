@@ -11,7 +11,7 @@ import javax.enterprise.inject.spi.BeforeBeanDiscovery;
 import javax.enterprise.inject.spi.Extension;
 
 import com.tokera.ate.scopes.ResourceScoped;
-import org.tomitribe.microscoped.core.ScopeContext;
+import com.tokera.ate.scopes.ScopeContext;
 
 /**
  * Extension that injects the method scope into the dependency injection system

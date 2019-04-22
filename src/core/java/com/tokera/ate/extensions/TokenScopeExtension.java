@@ -11,7 +11,7 @@ import javax.enterprise.event.Observes;
 import javax.enterprise.inject.spi.AfterBeanDiscovery;
 import javax.enterprise.inject.spi.BeforeBeanDiscovery;
 import javax.enterprise.inject.spi.Extension;
-import org.tomitribe.microscoped.core.ScopeContext;
+import com.tokera.ate.scopes.ScopeContext;
 
 /**
  * Extension that injects the token scope into the dependency injection system

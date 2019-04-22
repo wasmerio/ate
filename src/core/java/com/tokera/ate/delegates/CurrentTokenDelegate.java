@@ -14,7 +14,7 @@ import com.tokera.ate.scopes.TokenScoped;
 import com.tokera.ate.units.DaoId;
 import com.tokera.ate.dto.TokenDto;
 import org.checkerframework.checker.nullness.qual.Nullable;
-import org.tomitribe.microscoped.core.ScopeContext;
+import com.tokera.ate.scopes.ScopeContext;
 
 import javax.enterprise.context.RequestScoped;
 import javax.enterprise.event.Observes;
