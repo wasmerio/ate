@@ -1,6 +1,5 @@
 package com.tokera.ate.test;
 
-import junit.framework.Assert;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.junit.jupiter.api.Assertions;
 
@@ -16,9 +15,9 @@ public class TestTools {
         assert obj1 != null : "@AssumeAssertion(nullness): Must not be null";
         assert obj2 != null : "@AssumeAssertion(nullness): Must not be null";
 
-        Assert.assertNotNull(obj1);
-        Assert.assertNotNull(obj2);
-        Assert.assertEquals(obj1.getClass(), obj2.getClass());
+        Assertions.assertNotNull(obj1);
+        Assertions.assertNotNull(obj2);
+        Assertions.assertEquals(obj1.getClass(), obj2.getClass());
 
         if (obj1.getClass().isArray()) {
             if (obj1 instanceof int[]) {
@@ -42,7 +41,7 @@ public class TestTools {
             }
 
         } else {
-            Assert.assertEquals(obj1, obj2);
+            Assertions.assertEquals(obj1, obj2);
         }
     }
 }

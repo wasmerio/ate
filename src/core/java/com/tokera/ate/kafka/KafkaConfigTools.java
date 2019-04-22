@@ -78,10 +78,10 @@ public class KafkaConfigTools {
     }
     
     public KafkaProducer<String, MessageBase> newProducer(TopicRole role, TopicType type, String bootstraps) {
-        return new KafkaProducer(generateConfig(role, type, bootstraps));
+        return new KafkaProducer<>(generateConfig(role, type, bootstraps));
     }
     
     public KafkaConsumer<String, MessageBase> newConsumer(TopicRole role, TopicType type, String bootstraps) {
-        return new KafkaConsumer(generateConfig(role, type, bootstraps));
+        return new KafkaConsumer<>(generateConfig(role, type, bootstraps));
     }
 }

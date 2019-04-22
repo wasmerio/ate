@@ -194,6 +194,7 @@ public class MemoryCacheIO implements IAteIO
                 .collect(Collectors.toSet());
     }
 
+    @SuppressWarnings({"unchecked"})
     @Override
     public <T extends BaseDao> Set<T> getAll(Class<T> type) {
         TopicCache c = this.getTopicCache();
@@ -214,9 +215,10 @@ public class MemoryCacheIO implements IAteIO
         throw new NotImplementedException();
     }
 
+    @SuppressWarnings({"unchecked"})
     @Override
     public <T extends BaseDao> List<T> getMany(Collection<@DaoId UUID> ids, Class<T> type) {
-        List<T> ret = new LinkedList();
+        List<T> ret = new LinkedList<>();
         for (UUID id : ids) {
             @Nullable BaseDao entity = this.getOrNull(id);
             if (entity == null) continue;

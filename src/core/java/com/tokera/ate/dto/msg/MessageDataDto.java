@@ -7,11 +7,11 @@ package com.tokera.ate.dto.msg;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.google.api.client.util.Base64;
 import com.google.flatbuffers.FlatBufferBuilder;
-import com.google.gson.annotations.Expose;
+import com.tokera.ate.common.CopyOnWrite;
 import com.tokera.ate.dao.msg.*;
 import com.tokera.ate.annotations.YamlTag;
+import org.apache.commons.codec.binary.Base64;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.validation.constraints.NotNull;
@@ -23,7 +23,7 @@ import java.nio.ByteBuffer;
  * Represents a data message on the distributed commit log
  */
 @YamlTag("msg.data")
-public class MessageDataDto extends MessageBaseDto implements Serializable {
+public class MessageDataDto extends MessageBaseDto implements Serializable, CopyOnWrite {
 
     private static final long serialVersionUID = -5267155098387197834L;
 
@@ -31,15 +31,12 @@ public class MessageDataDto extends MessageBaseDto implements Serializable {
     @JsonIgnore
     private transient MessageData fb;
 
-    @Expose
     @JsonProperty
     @NotNull
     private MessageDataHeaderDto header;
-    @Expose
     @JsonProperty
     @Nullable
     private MessageDataDigestDto digest;
-    @Expose
     @JsonProperty
     private byte @Nullable [] payloadAsBytes;
 
@@ -90,8 +87,9 @@ public class MessageDataDto extends MessageBaseDto implements Serializable {
             throw new WebApplicationException("Invalidate message type [expected=MessageData, actual=" + val.msgType() + "]");
         }
     }
-    
-    private void copyOnWrite() {
+
+    @Override
+    public void copyOnWrite() {
         MessageData lfb = fb;
         if (lfb == null) return;
 

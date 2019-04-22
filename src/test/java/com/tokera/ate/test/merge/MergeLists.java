@@ -17,7 +17,7 @@ package com.tokera.ate.test.merge;
 
 import com.tokera.ate.test.dao.MyAccount;
 import com.tokera.ate.io.merge.DataMerger;
-import junit.framework.Assert;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 
@@ -44,56 +44,56 @@ public class MergeLists {
 
     @Test
     public void testEmpty3way() {
-        MyAccount result = (MyAccount) merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.things.size() == 0);
+        Assertions.assertTrue(result.things.size() == 0);
     }
 
     @Test
     public void testEmpty2way() {
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.things.size() == 0);
+        Assertions.assertTrue(result.things.size() == 0);
     }
 
     @Test
     public void testAddLeft3way() {
         left.things.add(leftUUID);
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.things.size() == 1);
-        Assert.assertTrue(result.things.contains(leftUUID));
+        Assertions.assertTrue(result.things.size() == 1);
+        Assertions.assertTrue(result.things.contains(leftUUID));
     }
 
     @Test
     public void testAddLeft2way() {
         left.things.add(leftUUID);
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.things.size() == 1);
-        Assert.assertTrue(result.things.contains(leftUUID));
+        Assertions.assertTrue(result.things.size() == 1);
+        Assertions.assertTrue(result.things.contains(leftUUID));
     }
 
     @Test
     public void testRight3way() {
         right.things.add(rightUUID);
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.things.size() == 1);
-        Assert.assertTrue(result.things.contains(rightUUID));
+        Assertions.assertTrue(result.things.size() == 1);
+        Assertions.assertTrue(result.things.contains(rightUUID));
     }
 
     @Test
     public void testRight2way() {
         right.things.add(rightUUID);
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.things.size() == 1);
-        Assert.assertTrue(result.things.contains(rightUUID));
+        Assertions.assertTrue(result.things.size() == 1);
+        Assertions.assertTrue(result.things.contains(rightUUID));
     }
     
     @Test
@@ -101,11 +101,11 @@ public class MergeLists {
         left.things.add(leftUUID);
         right.things.add(rightUUID);
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.things.size() == 2);
-        Assert.assertTrue(result.things.contains(leftUUID));
-        Assert.assertTrue(result.things.contains(rightUUID));
+        Assertions.assertTrue(result.things.size() == 2);
+        Assertions.assertTrue(result.things.contains(leftUUID));
+        Assertions.assertTrue(result.things.contains(rightUUID));
     }
 
     @Test
@@ -113,41 +113,41 @@ public class MergeLists {
         left.things.add(leftUUID);
         right.things.add(rightUUID);
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.things.size() == 2);
-        Assert.assertTrue(result.things.contains(leftUUID));
-        Assert.assertTrue(result.things.contains(rightUUID));
+        Assertions.assertTrue(result.things.size() == 2);
+        Assertions.assertTrue(result.things.contains(leftUUID));
+        Assertions.assertTrue(result.things.contains(rightUUID));
     }
 
     @Test
     public void testAddLeftAndRight3wayB() {
-        List<UUID> common = new ArrayList();
-        List<UUID> left = new ArrayList();
-        List<UUID> right = new ArrayList();
+        List<UUID> common = new ArrayList<>();
+        List<UUID> left = new ArrayList<>();
+        List<UUID> right = new ArrayList<>();
         left.add(leftUUID);
         right.add(rightUUID);
 
-        List<UUID> result = (List<UUID>)merger.mergeThreeWay(common, left, right);
+        List<UUID> result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.size() == 2);
-        Assert.assertTrue(result.contains(leftUUID));
-        Assert.assertTrue(result.contains(rightUUID));
+        Assertions.assertTrue(result.size() == 2);
+        Assertions.assertTrue(result.contains(leftUUID));
+        Assertions.assertTrue(result.contains(rightUUID));
     }
 
     @Test
     public void testAddLeftAndRight2wayB() {
-        List<UUID> common = new ArrayList();
-        List<UUID> left = new ArrayList();
-        List<UUID> right = new ArrayList();
+        List<UUID> common = new ArrayList<>();
+        List<UUID> left = new ArrayList<>();
+        List<UUID> right = new ArrayList<>();
         left.add(leftUUID);
         right.add(rightUUID);
 
-        List<UUID> result = (List<UUID>)merger.mergeApply(common, left, right);
+        List<UUID> result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.size() == 2);
-        Assert.assertTrue(result.contains(leftUUID));
-        Assert.assertTrue(result.contains(rightUUID));
+        Assertions.assertTrue(result.size() == 2);
+        Assertions.assertTrue(result.contains(leftUUID));
+        Assertions.assertTrue(result.contains(rightUUID));
     }
 
     @Test
@@ -160,10 +160,10 @@ public class MergeLists {
 
         right.things.add(leftUUID);
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.things.size() == 1);
-        Assert.assertTrue(result.things.contains(leftUUID));
+        Assertions.assertTrue(result.things.size() == 1);
+        Assertions.assertTrue(result.things.contains(leftUUID));
     }
 
     @Test
@@ -176,10 +176,10 @@ public class MergeLists {
 
         right.things.add(leftUUID);
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.things.size() == 1);
-        Assert.assertTrue(result.things.contains(leftUUID));
+        Assertions.assertTrue(result.things.size() == 1);
+        Assertions.assertTrue(result.things.contains(leftUUID));
     }
 
     @Test
@@ -192,10 +192,10 @@ public class MergeLists {
         right.things.add(leftUUID);
         right.things.add(rightUUID);
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.things.size() == 1);
-        Assert.assertTrue(result.things.contains(rightUUID));
+        Assertions.assertTrue(result.things.size() == 1);
+        Assertions.assertTrue(result.things.contains(rightUUID));
     }
 
     @Test
@@ -208,10 +208,10 @@ public class MergeLists {
         right.things.add(leftUUID);
         right.things.add(rightUUID);
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.things.size() == 1);
-        Assert.assertTrue(result.things.contains(rightUUID));
+        Assertions.assertTrue(result.things.size() == 1);
+        Assertions.assertTrue(result.things.contains(rightUUID));
     }
 
     @Test
@@ -223,9 +223,9 @@ public class MergeLists {
 
         right.things.add(leftUUID);
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.things.size() == 0);
+        Assertions.assertTrue(result.things.size() == 0);
     }
 
     @Test
@@ -237,9 +237,9 @@ public class MergeLists {
 
         right.things.add(leftUUID);
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.things.size() == 0);
+        Assertions.assertTrue(result.things.size() == 0);
     }
 
     @Test
@@ -256,9 +256,9 @@ public class MergeLists {
             right.things.add(rightUUID);
         }
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.things.size() == 20000);
+        Assertions.assertTrue(result.things.size() == 20000);
     }
 
     @Test
@@ -275,63 +275,63 @@ public class MergeLists {
             right.things.add(rightUUID);
         }
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.things.size() == 20000);
+        Assertions.assertTrue(result.things.size() == 20000);
     }
 
     @Test
     public void testEmptyFromNull32way() {
-        MyAccount result = (MyAccount)merger.mergeThreeWay(null, left, right);
+        MyAccount result = merger.mergeThreeWay(null, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.things.size() == 0);
+        Assertions.assertTrue(result.things.size() == 0);
     }
 
     @Test
     public void testEmptyFromNull2way() {
-        MyAccount result = (MyAccount)merger.mergeApply(null, left, right);
+        MyAccount result = merger.mergeApply(null, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.things.size() == 0);
+        Assertions.assertTrue(result.things.size() == 0);
     }
 
     @Test
     public void testAddLeftFromNull3way() {
         left.things.add(leftUUID);
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(null, left, null);
+        MyAccount result = merger.mergeThreeWay(null, left, null);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.things.size() == 1);
-        Assert.assertTrue(result.things.contains(leftUUID));
+        Assertions.assertTrue(result.things.size() == 1);
+        Assertions.assertTrue(result.things.contains(leftUUID));
     }
 
     @Test
     public void testAddLeftFromNull2way() {
         left.things.add(leftUUID);
 
-        MyAccount result = (MyAccount)merger.mergeApply(null, left, null);
+        MyAccount result = merger.mergeApply(null, left, null);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.things.size() == 1);
-        Assert.assertTrue(result.things.contains(leftUUID));
+        Assertions.assertTrue(result.things.size() == 1);
+        Assertions.assertTrue(result.things.contains(leftUUID));
     }
 
     @Test
     public void testRightFromNull3wayA() {
         right.things.add(rightUUID);
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(null, null, right);
+        MyAccount result = merger.mergeThreeWay(null, null, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.things.size() == 1);
-        Assert.assertTrue(result.things.contains(rightUUID));
+        Assertions.assertTrue(result.things.size() == 1);
+        Assertions.assertTrue(result.things.contains(rightUUID));
     }
 
     @Test
     public void testRightFromNull2wayA() {
         right.things.add(rightUUID);
 
-        MyAccount result = (MyAccount)merger.mergeApply(null, null, right);
+        MyAccount result = merger.mergeApply(null, null, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.things.size() == 1);
-        Assert.assertTrue(result.things.contains(rightUUID));
+        Assertions.assertTrue(result.things.size() == 1);
+        Assertions.assertTrue(result.things.contains(rightUUID));
     }
 
     @Test
@@ -339,10 +339,10 @@ public class MergeLists {
         List<UUID> right = new ArrayList<>();
         right.add(rightUUID);
 
-        List<UUID> result = (List<UUID>)merger.mergeThreeWay(null, null, right);
+        List<UUID> result = merger.mergeThreeWay(null, null, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.size() == 1);
-        Assert.assertTrue(result.contains(rightUUID));
+        Assertions.assertTrue(result.size() == 1);
+        Assertions.assertTrue(result.contains(rightUUID));
     }
 
     @Test
@@ -350,10 +350,10 @@ public class MergeLists {
         List<UUID> right = new ArrayList<>();
         right.add(rightUUID);
 
-        List<UUID> result = (List<UUID>)merger.mergeApply(null, null, right);
+        List<UUID> result = merger.mergeApply(null, null, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.size() == 1);
-        Assert.assertTrue(result.contains(rightUUID));
+        Assertions.assertTrue(result.size() == 1);
+        Assertions.assertTrue(result.contains(rightUUID));
     }
 
     @Test
@@ -361,11 +361,11 @@ public class MergeLists {
         left.things.add(leftUUID);
         right.things.add(rightUUID);
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(null, left, right);
+        MyAccount result = merger.mergeThreeWay(null, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.things.size() == 2);
-        Assert.assertTrue(result.things.contains(leftUUID));
-        Assert.assertTrue(result.things.contains(rightUUID));
+        Assertions.assertTrue(result.things.size() == 2);
+        Assertions.assertTrue(result.things.contains(leftUUID));
+        Assertions.assertTrue(result.things.contains(rightUUID));
     }
 
     @Test
@@ -373,10 +373,10 @@ public class MergeLists {
         left.things.add(leftUUID);
         right.things.add(rightUUID);
 
-        MyAccount result = (MyAccount)merger.mergeApply(null, left, right);
+        MyAccount result = merger.mergeApply(null, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.things.size() == 2);
-        Assert.assertTrue(result.things.contains(leftUUID));
-        Assert.assertTrue(result.things.contains(rightUUID));
+        Assertions.assertTrue(result.things.size() == 2);
+        Assertions.assertTrue(result.things.contains(leftUUID));
+        Assertions.assertTrue(result.things.contains(rightUUID));
     }
 }

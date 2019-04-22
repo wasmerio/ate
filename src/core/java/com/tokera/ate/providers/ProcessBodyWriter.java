@@ -1,5 +1,7 @@
 package com.tokera.ate.providers;
 
+import com.google.common.io.ByteStreams;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -11,7 +13,6 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.ext.MessageBodyWriter;
 import javax.ws.rs.ext.Provider;
-import org.apache.commons.io.IOUtils;
 
 /**
  * Serializer for rest easy that copies InputStreams into the REST return byte stream
@@ -35,6 +36,6 @@ public class ProcessBodyWriter implements MessageBodyWriter<InputStream> {
             MediaType mediaType, MultivaluedMap<String, Object> httpHeaders,
             OutputStream entity) throws IOException
     {
-        IOUtils.copy(o, entity);
+        ByteStreams.copy(o, entity);
     }
 }

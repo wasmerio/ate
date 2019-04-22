@@ -26,7 +26,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-import junit.framework.Assert;
 import org.apache.commons.codec.binary.Base64;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
@@ -65,7 +64,7 @@ public class AesTests {
         Assertions.assertArrayEquals(plainBytes, decryptedPayload);
         
         String decryptedString = new String(decryptedPayload);
-        Assert.assertTrue("Plain text is not equal", Objects.equal(plain, decryptedString));
+        Assertions.assertTrue(Objects.equal(plain, decryptedString), "Plain text is not equal");
     }
     
     @Test

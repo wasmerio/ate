@@ -49,6 +49,7 @@ class Scope<Key> {
      * @param <T> the Java type of the bean instance itself
      * @return existing or newly created bean instance, never null
      */
+    @SuppressWarnings({"unchecked"})
     public <T> T get(final Contextual<T> contextual, final CreationalContext<T> creationalContext) {
         return (T) instances.computeIfAbsent(contextual, c -> new Instance<>(contextual, creationalContext)).get();
     }
@@ -60,6 +61,7 @@ class Scope<Key> {
      * @param <T> the Java type of the bean instance itself
      * @return existing the bean instance or null
      */
+    @SuppressWarnings({"unchecked"})
     public <T> T get(final Contextual<T> contextual) {
         return (T) instances.getOrDefault(contextual, NOTHING).get();
     }

@@ -42,6 +42,7 @@ public class CurrentTokenDelegate {
     /**
      * Enters the Token scope hased on a hash of the token itself
      */
+    @SuppressWarnings({"unchecked"})
     public void enterTokenScope(String tokenHash)
     {
         // Create the requestContext object

@@ -29,7 +29,7 @@ public class RequestContextDelegate {
     @Context
     private ContainerRequestContext     requestContext;
     private @MonotonicNonNull UriInfo   requestUriInfo;
-    private Stack<@TopicName String>    topicNameStack = new Stack();
+    private Stack<@TopicName String>    topicNameStack = new Stack<>();
 
     /**
      * Requests the currentRights container currentRights requestContext that was earlier stored by an filter/interceptor

@@ -29,12 +29,12 @@ import java.util.List;
  * known.
  * @author <a href="mailto:misc@n4te.com">Nathan Sweet</a> */
 @DefaultQualifier(Nullable.class)
-@SuppressWarnings({"argument.type.incompatible", "return.type.incompatible", "dereference.of.nullable", "iterating.over.nullable", "method.invocation.invalid", "override.return.invalid", "unnecessary.equals", "known.nonnull", "flowexpr.parse.error.postcondition", "unboxing.of.nullable", "accessing.nullable", "type.invalid.annotations.on.use", "switching.nullable", "initialization.fields.uninitialized"})
+@SuppressWarnings({"argument.type.incompatible", "return.type.incompatible", "dereference.of.nullable", "iterating.over.nullable", "method.invocation.invalid", "override.return.invalid", "unnecessary.equals", "known.nonnull", "flowexpr.parse.error.postcondition", "unboxing.of.nullable", "accessing.nullable", "type.invalid.annotations.on.use", "switching.nullable", "initialization.fields.uninitialized", "unchecked"})
 class DeferredConstruction {
 	private final Constructor constructor;
 	private final String[] parameterNames;
 	private final ParameterValue[] parameterValues;
-	private final List<PropertyValue> propertyValues = new ArrayList(16);
+	private final List<PropertyValue> propertyValues = new ArrayList<>(16);
 
 	public DeferredConstruction (Constructor constructor, String[] parameterNames) {
 		this.constructor = constructor;

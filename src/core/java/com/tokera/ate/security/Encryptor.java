@@ -48,6 +48,7 @@ import javax.ws.rs.WebApplicationException;
 import javax.xml.bind.DatatypeConverter;
 
 import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.lang.time.StopWatch;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.spongycastle.crypto.AsymmetricCipherKeyPair;
@@ -251,11 +252,12 @@ public class Encryptor implements Runnable
             }
         }
         
-        Stopwatch timer = Stopwatch.createStarted();
+        StopWatch timer = new StopWatch();
+        timer.start();
         while (true) {
             try {
                 // Perform all the generation that is required
-                long delta = timer.elapsed(TimeUnit.SECONDS) - c_KeyPreGenDelay;
+                long delta = (timer.getTime()/1000L) - c_KeyPreGenDelay;
                 if (delta > 0) {
                     long cap = 2L + (delta / 8L);
                     runGenerateKeys(cap);

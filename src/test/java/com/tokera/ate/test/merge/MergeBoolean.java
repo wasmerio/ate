@@ -17,7 +17,7 @@ package com.tokera.ate.test.merge;
 
 import com.tokera.ate.io.merge.DataMerger;
 import com.tokera.ate.test.dao.MyAccount;
-import junit.framework.Assert;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 
@@ -40,9 +40,9 @@ public class MergeBoolean {
         left.isPublic = false;
         right.isPublic = false;
 
-        MyAccount result = (MyAccount) merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(false, result.isPublic);
+        Assertions.assertEquals(false, result.isPublic);
     }
 
     @Test
@@ -51,9 +51,9 @@ public class MergeBoolean {
         left.isPublic = false;
         right.isPublic = false;
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(false, result.isPublic);
+        Assertions.assertEquals(false, result.isPublic);
     }
 
     @Test
@@ -62,9 +62,9 @@ public class MergeBoolean {
         left.isPublic = true;
         right.isPublic = true;
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(true, result.isPublic);
+        Assertions.assertEquals(true, result.isPublic);
     }
 
     @Test
@@ -73,9 +73,9 @@ public class MergeBoolean {
         left.isPublic = true;
         right.isPublic = true;
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(true, result.isPublic);
+        Assertions.assertEquals(true, result.isPublic);
     }
 
     @Test
@@ -84,9 +84,9 @@ public class MergeBoolean {
         left.isPublic = false;
         right.isPublic = true;
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(true, result.isPublic);
+        Assertions.assertEquals(true, result.isPublic);
     }
 
     @Test
@@ -95,9 +95,9 @@ public class MergeBoolean {
         left.isPublic = false;
         right.isPublic = true;
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(true, result.isPublic);
+        Assertions.assertEquals(true, result.isPublic);
     }
 
     @Test
@@ -106,9 +106,9 @@ public class MergeBoolean {
         left.isPublic = true;
         right.isPublic = false;
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(false, result.isPublic);
+        Assertions.assertEquals(false, result.isPublic);
     }
 
     @Test
@@ -117,9 +117,9 @@ public class MergeBoolean {
         left.isPublic = true;
         right.isPublic = false;
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(false, result.isPublic);
+        Assertions.assertEquals(false, result.isPublic);
     }
 
     @Test
@@ -128,9 +128,9 @@ public class MergeBoolean {
         left.isPublic = true;
         right.isPublic = false;
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(true, result.isPublic);
+        Assertions.assertEquals(true, result.isPublic);
     }
 
     @Test
@@ -139,9 +139,9 @@ public class MergeBoolean {
         left.isPublic = true;
         right.isPublic = false;
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(true, result.isPublic);
+        Assertions.assertEquals(true, result.isPublic);
     }
 
     @Test
@@ -150,9 +150,9 @@ public class MergeBoolean {
         left.isPublic = false;
         right.isPublic = true;
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(false, result.isPublic);
+        Assertions.assertEquals(false, result.isPublic);
     }
 
     @Test
@@ -161,9 +161,9 @@ public class MergeBoolean {
         left.isPublic = false;
         right.isPublic = true;
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(false, result.isPublic);
+        Assertions.assertEquals(false, result.isPublic);
     }
 
     @Test
@@ -172,9 +172,9 @@ public class MergeBoolean {
         left.isPublic = true;
         right.isPublic = true;
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(true, result.isPublic);
+        Assertions.assertEquals(true, result.isPublic);
     }
 
     @Test
@@ -183,9 +183,9 @@ public class MergeBoolean {
         left.isPublic = true;
         right.isPublic = true;
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(true, result.isPublic);
+        Assertions.assertEquals(true, result.isPublic);
     }
 
     @Test
@@ -194,9 +194,9 @@ public class MergeBoolean {
         left.isPublic = false;
         right.isPublic = false;
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(false, result.isPublic);
+        Assertions.assertEquals(false, result.isPublic);
     }
 
     @Test
@@ -205,8 +205,8 @@ public class MergeBoolean {
         left.isPublic = false;
         right.isPublic = false;
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(false, result.isPublic);
+        Assertions.assertEquals(false, result.isPublic);
     }
 }

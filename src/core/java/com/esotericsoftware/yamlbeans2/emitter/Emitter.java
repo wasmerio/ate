@@ -57,9 +57,9 @@ public class Emitter {
 	final EmitterWriter writer;
 	final EmitterState[] table = new EmitterState[18];
 	int state = S_STREAM_START;
-	final List<Integer> states = new ArrayList();
-	final List<Event> events = new ArrayList();
-	final List<Integer> indents = new ArrayList();
+	final List<Integer> states = new ArrayList<>();
+	final List<Event> events = new ArrayList<>();
+	final List<Integer> indents = new ArrayList<>();
 	boolean isVersion10 = false;
 	Event event;
 	int flowLevel = 0;
@@ -150,12 +150,12 @@ public class Emitter {
 					}
 					if ((documentStartEvent.version != null && documentStartEvent.version.equals(1, 0)) || config.version.equals(1, 0)) {
 						isVersion10 = true;
-						tagPrefixes = new HashMap(DEFAULT_TAG_PREFIXES_1_0);
+						tagPrefixes = new HashMap<>(DEFAULT_TAG_PREFIXES_1_0);
 					} else
-						tagPrefixes = new HashMap(DEFAULT_TAG_PREFIXES_1_1);
+						tagPrefixes = new HashMap<>(DEFAULT_TAG_PREFIXES_1_1);
 
 					if (documentStartEvent.tags != null) {
-						Set<String> handles = new TreeSet();
+						Set<String> handles = new TreeSet<>();
 						handles.addAll(documentStartEvent.tags.keySet());
 						for (Iterator<String> iter = handles.iterator(); iter.hasNext();) {
 							String handle = iter.next();
@@ -636,8 +636,8 @@ public class Emitter {
 	static private final int S_BLOCK_MAPPING_KEY = 16;
 	static private final int S_FIRST_BLOCK_SEQUENCE_ITEM = 17;
 
-	static final Map<String, String> DEFAULT_TAG_PREFIXES_1_0 = new HashMap();
-	static final Map<String, String> DEFAULT_TAG_PREFIXES_1_1 = new HashMap();
+	static final Map<String, String> DEFAULT_TAG_PREFIXES_1_0 = new HashMap<>();
+	static final Map<String, String> DEFAULT_TAG_PREFIXES_1_1 = new HashMap<>();
 	static {
 		DEFAULT_TAG_PREFIXES_1_0.put("tag:yaml.org,2002:", "!");
 

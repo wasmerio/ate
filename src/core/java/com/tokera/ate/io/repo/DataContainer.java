@@ -148,7 +148,7 @@ public class DataContainer {
 
         // Build a merge set of the headers for this
         ArrayList<MergePair<MessageDataHeaderDto>> mergeSet = new ArrayList<>();
-        leaves.stream().map(n -> new MergePair(
+        leaves.stream().map(n -> new MergePair<>(
                 (n.parentNode != null ? n.parentNode.msg.getData().getHeader() : null),
                 n.msg.getData().getHeader()))
             .forEach(a -> mergeSet.add(a));

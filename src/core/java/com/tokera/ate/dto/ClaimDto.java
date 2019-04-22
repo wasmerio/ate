@@ -6,7 +6,6 @@
 package com.tokera.ate.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.google.gson.annotations.Expose;
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.units.Alias;
 import com.tokera.ate.units.Claim;
@@ -21,13 +20,11 @@ import javax.validation.constraints.Size;
 @YamlTag("dto.claim")
 public class ClaimDto {
 
-    @Expose
     @JsonProperty
     @NotNull
     @Size(min=1, max=64)
     @Pattern(regexp = "^[a-zA-Z0-9_\\-\\:\\@\\.]+$")
     private @Alias String key;
-    @Expose
     @JsonProperty
     @NotNull
     @Size(min=1)

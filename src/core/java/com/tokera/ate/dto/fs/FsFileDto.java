@@ -6,7 +6,6 @@
 package com.tokera.ate.dto.fs;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.google.gson.annotations.Expose;
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.units.Alias;
 
@@ -20,37 +19,29 @@ import javax.validation.constraints.Size;
 @YamlTag("dto.fs.file")
 public class FsFileDto {
 
-    @Expose
     @JsonProperty
     @NotNull
     @Size(min=1, max=64)
     @Pattern(regexp = "^[a-zA-Z0-9_\\-\\:\\@\\.]+$")
     private @Alias String name;
-    @Expose
     @JsonProperty
     @NotNull
     private Boolean execute = false;
-    @Expose
     @JsonProperty
     @NotNull
     private Boolean writeable = false;
-    @Expose
     @JsonProperty
     @NotNull
     private Boolean cacheResults = false;
-    @Expose
     @JsonProperty
     @NotNull
     private Boolean partialPut = false;
-    @Expose
     @JsonProperty
     @NotNull
     private Boolean passthrough = false;
-    @Expose
     @JsonProperty
     @NotNull
     private Boolean createPass = false;
-    @Expose
     @JsonProperty
     @NotNull
     private Boolean ethereal = false;

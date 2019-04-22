@@ -1,6 +1,5 @@
 package com.tokera.ate.io.repo;
 
-import com.google.common.base.Stopwatch;
 import com.tokera.ate.configuration.AteConstants;
 import com.tokera.ate.dao.kafka.MessageSerializer;
 import com.tokera.ate.kafka.KafkaConfigTools;
@@ -20,6 +19,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
+
+import org.apache.commons.lang.time.StopWatch;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -98,7 +99,8 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
         LoggerHook LOG = new LoggerHook(KafkaTopicBridge.class);
         
         // Enter the main processing loop
-        Stopwatch timer = Stopwatch.createStarted();
+        StopWatch timer = new StopWatch();
+        timer.start();
         while (isRunning) {
             try {
         
@@ -120,10 +122,10 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
                 if (isLoaded == false) {
                     if (hasLoadingMessages) {
                         if (numRecords <= 0) isLoaded = true;
-                        else if (timer.elapsed(TimeUnit.SECONDS) > 15) isLoaded = true;
+                        else if (timer.getTime() > 15000) isLoaded = true;
                     } else {
                         if (numRecords > 0 || this.isCreated) hasLoadingMessages = true;
-                        else if (timer.elapsed(TimeUnit.SECONDS) > 15) isLoaded = true;
+                        else if (timer.getTime() > 15000) isLoaded = true;
                     }
                 }
                 
@@ -302,10 +304,11 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
 
     public void waitTillLoaded()  {
         if (isLoaded == false) {
-            Stopwatch waitTime = Stopwatch.createStarted();
+            StopWatch waitTime = new StopWatch();
+            waitTime.start();
             while (isLoaded == false) {
                 if (isEthereal) return;
-                if (waitTime.elapsed(TimeUnit.SECONDS) > 20L) {
+                if (waitTime.getTime() > 20000L) {
                     throw new WebApplicationException("Busy loading data topic [" + m_topic.getTopicName() + "]", Response.Status.REQUEST_TIMEOUT);
                 }
                 try {
@@ -381,7 +384,9 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
         //touchConsumer();
 
         // Wait for the topic to go into an Ethereal status or load
-        Stopwatch waitTime = Stopwatch.createStarted();
+        StopWatch waitTime = new StopWatch();
+        waitTime.start();
+
         waitTillLoaded();
         
         // Load the properties for the zookeeper instance
@@ -457,7 +462,7 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
 
         // Wait for the topic to come online
         while (isLoaded == false) {
-            if (waitTime.elapsed(TimeUnit.SECONDS) > 20L) {
+            if (waitTime.getTime() > 20000L) {
                 throw new WebApplicationException("Busy while creating data topic [" + m_topic.getTopicName() + "]", Response.Status.REQUEST_TIMEOUT);
             }
             try {
@@ -471,7 +476,7 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
     public void send(MessageBaseDto msg)
     {
         // Send the message do Kafka
-        ProducerRecord record = new ProducerRecord(this.m_topic.getTopicName(), MessageSerializer.getKey(msg), msg.createBaseFlatBuffer());
+        ProducerRecord<String, MessageBase> record = new ProducerRecord<>(this.m_topic.getTopicName(), MessageSerializer.getKey(msg), msg.createBaseFlatBuffer());
         waitTillLoaded();
         
         // If we are Ethereal then we should attempt to create the topic and

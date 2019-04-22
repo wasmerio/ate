@@ -7,7 +7,8 @@ import java.lang.reflect.Type;
 
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.MultivaluedMap;
-import org.apache.commons.io.IOUtils;
+
+import com.google.common.io.ByteStreams;
 
 import javax.ws.rs.Consumes;
 import javax.ws.rs.WebApplicationException;
@@ -28,6 +29,6 @@ public class ProcessBodyReader implements MessageBodyReader<byte[]> {
 
     @Override
     public byte[] readFrom(Class<byte[]> type, Type type1, Annotation[] antns, MediaType mt, MultivaluedMap<String, String> mm, InputStream in) throws IOException, WebApplicationException {
-        return IOUtils.toByteArray(in);
+        return ByteStreams.toByteArray(in);
     }
 }

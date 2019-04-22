@@ -7,15 +7,15 @@ package com.tokera.ate.dto.msg;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.google.api.client.repackaged.com.google.common.base.Objects;
-import com.google.gson.annotations.Expose;
+import com.google.common.base.Objects;
+import com.tokera.ate.common.CopyOnWrite;
 import com.tokera.ate.constraints.PrivateKeyConstraint;
 import com.tokera.ate.dao.msg.*;
-import com.google.api.client.repackaged.org.apache.commons.codec.binary.Base64;
 import com.google.flatbuffers.FlatBufferBuilder;
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.security.Encryptor;
 import com.tokera.ate.units.*;
+import org.apache.commons.codec.binary.Base64;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -32,14 +32,13 @@ import java.nio.ByteBuffer;
  */
 @PrivateKeyConstraint
 @YamlTag("msg.private.key")
-public class MessagePrivateKeyDto extends MessagePublicKeyDto implements Serializable, ConstraintValidator {
+public class MessagePrivateKeyDto extends MessagePublicKeyDto implements Serializable, ConstraintValidator, CopyOnWrite {
 
     private static final long serialVersionUID = -75643860128199913L;
 
     @Nullable
     private transient MessagePrivateKey pfb;
 
-    @Expose
     @JsonProperty
     @MonotonicNonNull
     @Size(min=43, max=43)
@@ -47,7 +46,6 @@ public class MessagePrivateKeyDto extends MessagePublicKeyDto implements Seriali
     private @Hash String privateKeyHash;
     @JsonIgnore
     private transient @Secret byte @MonotonicNonNull [] privateKeyBytes;
-    @Expose
     @JsonProperty
     @MonotonicNonNull
     @Size(min = 2)
@@ -115,8 +113,11 @@ public class MessagePrivateKeyDto extends MessagePublicKeyDto implements Seriali
         this.privateKey = org.apache.commons.codec.binary.Base64.encodeBase64URLSafeString(privateKeyBytes);
         this.privateKeyHash = org.apache.commons.codec.binary.Base64.encodeBase64URLSafeString(Encryptor.hashShaStatic(null, privateKeyBytes));
     }
-    
-    private void privateCopyOnWrite() {
+
+    @Override
+    public void copyOnWrite() {
+        super.copyOnWrite();
+
         MessagePrivateKey lfb = pfb;
         if (lfb == null) return;
 
@@ -162,7 +163,7 @@ public class MessagePrivateKeyDto extends MessagePublicKeyDto implements Seriali
     }
 
     public void setPrivateKeyHash(@Hash String hash) {
-        privateCopyOnWrite();
+        copyOnWrite();
         this.hashCache = null;
         this.privateKeyHash = hash;
     }
@@ -191,7 +192,7 @@ public class MessagePrivateKeyDto extends MessagePublicKeyDto implements Seriali
     }
 
     public void setPrivateKey(@Secret String privateKey) {
-        privateCopyOnWrite();
+        copyOnWrite();
         this.hashCache = null;
         this.privateKeyBytes = Base64.decodeBase64(privateKey);
         this.privateKey = privateKey;
@@ -278,7 +279,7 @@ public class MessagePrivateKeyDto extends MessagePublicKeyDto implements Seriali
         Integer ret = this.hashCache;
         if (ret != null) return ret.intValue();
 
-        ret = (int)0;
+        ret = 0;
         if (this.alias != null) ret += this.alias.hashCode();
         if (this.publicKeyHash != null) ret += this.publicKeyHash.hashCode();
         if (this.privateKeyHash != null) ret += this.privateKeyHash.hashCode();

@@ -170,6 +170,7 @@ public class HeadIO implements IAteIO
         return back.getOrNull(id);
     }
 
+    @SuppressWarnings({"unchecked"})
     protected <T extends BaseDao> T get(@DaoId UUID id, Class<T> type) {
         try {
             BaseDao ret = back.getOrNull(id);

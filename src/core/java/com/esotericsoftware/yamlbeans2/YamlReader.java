@@ -47,11 +47,11 @@ import org.checkerframework.framework.qual.DefaultQualifier;
 /** Deserializes Java objects from YAML.
  * @author <a href="mailto:misc@n4te.com">Nathan Sweet</a> */
 @DefaultQualifier(Nullable.class)
-@SuppressWarnings({"argument.type.incompatible", "return.type.incompatible", "dereference.of.nullable", "iterating.over.nullable", "method.invocation.invalid", "override.return.invalid", "unnecessary.equals", "known.nonnull", "flowexpr.parse.error.postcondition", "unboxing.of.nullable", "accessing.nullable", "type.invalid.annotations.on.use", "switching.nullable", "initialization.fields.uninitialized"})
+@SuppressWarnings({"argument.type.incompatible", "return.type.incompatible", "dereference.of.nullable", "iterating.over.nullable", "method.invocation.invalid", "override.return.invalid", "unnecessary.equals", "known.nonnull", "flowexpr.parse.error.postcondition", "unboxing.of.nullable", "accessing.nullable", "type.invalid.annotations.on.use", "switching.nullable", "initialization.fields.uninitialized", "unchecked"})
 public class YamlReader {
 	private final YamlConfig config;
 	Parser parser;
-    private final Map<String, Object> anchors = new HashMap();
+    private final Map<String, Object> anchors = new HashMap<>();
 
 	public YamlReader (@NonNull Reader reader) {
 		this(reader, new YamlConfig());

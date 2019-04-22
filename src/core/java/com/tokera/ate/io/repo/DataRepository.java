@@ -561,6 +561,7 @@ public class DataRepository implements IAteIO {
         return ret;
     }
 
+    @SuppressWarnings({"unchecked"})
     @Override
     public <T extends BaseDao> Set<T> getAll(Class<T> type)
     {
@@ -601,6 +602,7 @@ public class DataRepository implements IAteIO {
         }
     }
 
+    @SuppressWarnings({"unchecked"})
     @Override
     public <T extends BaseDao> List<T> getMany(Collection<UUID> ids, Class<T> type) {
         List<T> ret = new ArrayList<>();

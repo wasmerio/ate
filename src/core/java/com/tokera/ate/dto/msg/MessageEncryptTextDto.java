@@ -2,8 +2,8 @@ package com.tokera.ate.dto.msg;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.flatbuffers.FlatBufferBuilder;
-import com.google.gson.annotations.Expose;
 import com.tokera.ate.annotations.YamlTag;
+import com.tokera.ate.common.CopyOnWrite;
 import com.tokera.ate.dao.msg.MessageBase;
 import com.tokera.ate.dao.msg.MessageEncryptText;
 import com.tokera.ate.dao.msg.MessageType;
@@ -27,26 +27,23 @@ import javax.ws.rs.WebApplicationException;
  * set of publickey and text based hashes used before the encryption took place
  */
 @YamlTag("msg.encrypt.text")
-public class MessageEncryptTextDto extends MessageBaseDto implements Serializable {
+public class MessageEncryptTextDto extends MessageBaseDto implements Serializable, CopyOnWrite {
 
     private static final long serialVersionUID = -5434346989770912304L;
 
     @Nullable
     private transient MessageEncryptText fb;
 
-    @Expose
     @JsonProperty
     @MonotonicNonNull
     @Size(min=43, max=43)
     @Pattern(regexp = "^(?:[A-Za-z0-9+\\/\\-_])*(?:[A-Za-z0-9+\\/\\-_]{2}==|[A-Za-z0-9+\\/\\-_]{3}=)?$")
     private @Hash String publicKeyHash;
-    @Expose
     @JsonProperty
     @MonotonicNonNull
     @Size(min=43, max=43)
     @Pattern(regexp = "^(?:[A-Za-z0-9+\\/\\-_])*(?:[A-Za-z0-9+\\/\\-_]{2}==|[A-Za-z0-9+\\/\\-_]{3}=)?$")
     private @Hash String textHash;
-    @Expose
     @JsonProperty
     @MonotonicNonNull
     @Size(min = 2)
@@ -80,8 +77,9 @@ public class MessageEncryptTextDto extends MessageBaseDto implements Serializabl
             throw new WebApplicationException("Invalidate message type [expected=MessageEncryptText, actual=" + val.msgType() + "]");
         }
     }
-    
-    private void copyOnWrite() {
+
+    @Override
+    public void copyOnWrite() {
         MessageEncryptText lfb = fb;
         if (lfb == null) return;
 

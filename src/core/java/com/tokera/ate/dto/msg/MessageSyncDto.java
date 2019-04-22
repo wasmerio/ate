@@ -7,8 +7,8 @@ package com.tokera.ate.dto.msg;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.flatbuffers.FlatBufferBuilder;
-import com.google.gson.annotations.Expose;
 import com.tokera.ate.annotations.YamlTag;
+import com.tokera.ate.common.CopyOnWrite;
 import com.tokera.ate.dao.msg.*;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -21,7 +21,7 @@ import java.util.*;
  * Represents a synchronization point for a bunch of data that was pushed onto the BUS
  */
 @YamlTag("msg.sync")
-public class MessageSyncDto extends MessageBaseDto implements Serializable {
+public class MessageSyncDto extends MessageBaseDto implements Serializable, CopyOnWrite {
 
     private static final long serialVersionUID = -8152777200711190736L;
 
@@ -30,11 +30,9 @@ public class MessageSyncDto extends MessageBaseDto implements Serializable {
     private transient MessageSync fb;
 
     // Fields that are serialized
-    @Expose
     @JsonProperty
     @NotNull
     private long ticket1;                   // Ticket ID that we will be waiting for
-    @Expose
     @JsonProperty
     @NotNull
     private long ticket2;                   // Ticket ID that we will be waiting for
@@ -68,7 +66,8 @@ public class MessageSyncDto extends MessageBaseDto implements Serializable {
     public void setFlatBuffer(MessageSync val) {
         this.fb = val;
     }
-    
+
+    @Override
     public void copyOnWrite()
     {
         MessageSync lfb = fb;

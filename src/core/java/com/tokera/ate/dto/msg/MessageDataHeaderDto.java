@@ -8,7 +8,7 @@ package com.tokera.ate.dto.msg;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.flatbuffers.FlatBufferBuilder;
-import com.google.gson.annotations.Expose;
+import com.tokera.ate.common.CopyOnWrite;
 import com.tokera.ate.common.ImmutalizableHashSet;
 import com.tokera.ate.common.UUIDTools;
 import com.tokera.ate.dao.ObjId;
@@ -34,7 +34,7 @@ import java.util.UUID;
  * Represents key properties of a data message before its placed on the distributed commit log
  */
 @YamlTag("msg.data.header")
-public class MessageDataHeaderDto extends MessageBaseDto implements Serializable {
+public class MessageDataHeaderDto extends MessageBaseDto implements Serializable, CopyOnWrite {
 
     private static final long serialVersionUID = -8052777200722290736L;
 
@@ -43,49 +43,38 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
     private transient MessageDataHeader fb;
 
     // Fields that are serialized
-    @Expose
     @JsonProperty
     @MonotonicNonNull
     private @DaoId UUID id;                                 // ID of the entity within this topic
-    @Expose
     @JsonProperty
     @Nullable
     private @DaoId UUID version;                            // New version of this entity
-    @Expose
     @JsonProperty
     @Nullable
     private @DaoId UUID parentId;                           // ID of the parent that the object is attached to
-    @Expose
     @JsonProperty
     @Nullable
     private UUID previousVersion;                           // Previous version that this data object inherits from (used for data merging)
-    @Expose
     @JsonProperty
     private ImmutalizableHashSet<UUID> merges = new ImmutalizableHashSet<>();             // List all of the versions that have been merged by this version
-    @Expose
     @JsonProperty
     @MonotonicNonNull
     private Boolean inheritRead;                            // Should inherit read permissions from its parent
-    @Expose
     @JsonProperty
     @MonotonicNonNull
     private Boolean inheritWrite;                           // Should inherit write permissions from its parent
-    @Expose
     @JsonProperty
     @Nullable
     @Size(min=1)
     private @ClassName String payloadClazz;                 // Class of object held within this payload
-    @Expose
     @JsonProperty
     @MonotonicNonNull
     @Size(min=43, max=43)
     @Pattern(regexp = "^(?:[A-Za-z0-9+\\/\\-_])*(?:[A-Za-z0-9+\\/\\-_]{2}==|[A-Za-z0-9+\\/\\-_]{3}=)?$")
     private @Hash String encryptKeyHash;          // Hash of the encryption key used for this payload
-    @Expose
     @JsonProperty
     @NotNull
     private ImmutalizableHashSet<@Hash String> allowRead = new ImmutalizableHashSet<>();    // List of all the public key hashes roles that are allowed attach to this parent as a right to
-    @Expose
     @JsonProperty
     @NotNull
     private ImmutalizableHashSet<@Hash String> allowWrite = new ImmutalizableHashSet<>();   // List of all the public key hashes roles that are allowed attach to this parent as a right to
@@ -131,6 +120,7 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
         this.fb = val;
     }
 
+    @Override
     public void copyOnWrite()
     {
         MessageDataHeader lfb = fb;
@@ -260,7 +250,7 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
     public void setMerges(Set<UUID> mergeVersions) {
         assert this._immutable == false;
         copyOnWrite();
-        this.merges = new ImmutalizableHashSet(mergeVersions);
+        this.merges = new ImmutalizableHashSet<>(mergeVersions);
     }
 
     public @Nullable @DaoId UUID getParentId() {
@@ -336,7 +326,7 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
     public void setAllowRead(Set<@Hash String> allowRead) {
         assert this._immutable == false;
         copyOnWrite();
-        this.allowRead = new ImmutalizableHashSet(allowRead);
+        this.allowRead = new ImmutalizableHashSet<>(allowRead);
     }
 
     public Set<@Hash String> getAllowWrite() {
@@ -357,7 +347,7 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
     public void setAllowWrite(Set<@Hash String> allowWrite) {
         assert this._immutable == false;
         copyOnWrite();
-        this.allowWrite = new ImmutalizableHashSet(allowWrite);
+        this.allowWrite = new ImmutalizableHashSet<>(allowWrite);
     }
 
     public boolean getInheritRead() {

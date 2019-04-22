@@ -5,8 +5,8 @@ import com.tokera.ate.extensions.DaoParentDiscoveryExtension;
 import com.tokera.ate.delegates.YamlDelegate;
 import com.tokera.ate.dto.msg.MessageBaseDto;
 import com.tokera.ate.enumerations.DataTopicType;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
-import javax.annotation.Nullable;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 

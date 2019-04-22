@@ -2,7 +2,7 @@ package com.tokera.ate.test.msg;
 
 import com.tokera.ate.dao.msg.MessageBase;
 import com.tokera.ate.dto.msg.MessageSyncDto;
-import junit.framework.Assert;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 
@@ -24,13 +24,13 @@ public class MessageSyncTests
         );
 
         MessageSyncDto data2 = new MessageSyncDto(data.createFlatBuffer());
-        Assert.assertEquals(data.getTicket1(), data2.getTicket1());
-        Assert.assertEquals(data.getTicket2(), data2.getTicket2());
+        Assertions.assertEquals(data.getTicket1(), data2.getTicket1());
+        Assertions.assertEquals(data.getTicket2(), data2.getTicket2());
 
         MessageBase base = data.createBaseFlatBuffer();
         data2 = new MessageSyncDto(base);
-        Assert.assertEquals(data.getTicket1(), data2.getTicket1());
-        Assert.assertEquals(data.getTicket2(), data2.getTicket2());
+        Assertions.assertEquals(data.getTicket1(), data2.getTicket1());
+        Assertions.assertEquals(data.getTicket2(), data2.getTicket2());
     }
     
     @Test
@@ -51,7 +51,7 @@ public class MessageSyncTests
         WritableByteChannel channel2 = Channels.newChannel(stream2);
         channel2.write(data2.createFlatBuffer().getByteBuffer().duplicate());
 
-        Assert.assertEquals(data.getTicket1(), data2.getTicket1());
-        Assert.assertEquals(data.getTicket2(), data2.getTicket2());
+        Assertions.assertEquals(data.getTicket1(), data2.getTicket1());
+        Assertions.assertEquals(data.getTicket2(), data2.getTicket2());
     }
 }

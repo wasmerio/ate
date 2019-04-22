@@ -30,6 +30,7 @@ public class ResourceScopeInterceptor implements ContainerRequestFilter, Contain
     @MonotonicNonNull
     private ScopeContext<Method> context;
 
+    @SuppressWarnings({"unchecked"})
     @Override
     public void filter(ContainerRequestContext requestContext) {
         ResourceInfo resourceInfo = this.resourceInfo;

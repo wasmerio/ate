@@ -1,7 +1,6 @@
 package com.tokera.ate.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.google.gson.annotations.Expose;
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.common.UUIDTools;
 import com.tokera.ate.dao.enumerations.RiskRole;
@@ -41,18 +40,15 @@ import javax.ws.rs.WebApplicationException;
 @YamlTag("dto.token")
 public class TokenDto {
 
-    @Expose
     @JsonProperty
     @NotNull
     @Size(min=1)
     private @TextDocument String xmlToken;
-    @Expose
     @JsonProperty
     @Nullable
     @Size(min=43, max=43)
     @Pattern(regexp = "^(?:[A-Za-z0-9+\\/\\-_])*(?:[A-Za-z0-9+\\/\\-_]{2}==|[A-Za-z0-9+\\/\\-_]{3}=)?$")
     private @Hash String tokenHash;
-    @Expose
     @JsonProperty
     @Nullable
     private List<ClaimDto> claimsCache = null;
@@ -155,7 +151,7 @@ public class TokenDto {
         Assertion assertion = getAssertion();
 
         // Get the claims
-        ret = new ArrayList();
+        ret = new ArrayList<>();
         for (AttributeStatement statement : assertion.getAttributeStatements()) {
             for (Attribute att : statement.getAttributes()) {
                 if (att.getName().length() <= 0) {

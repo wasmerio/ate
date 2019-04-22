@@ -1,6 +1,5 @@
 package com.tokera.ate.test.msg;
 
-import com.google.api.client.repackaged.org.apache.commons.codec.binary.Base64;
 import com.google.common.base.Objects;
 import com.tokera.ate.dao.msg.MessageDataDigest;
 import com.tokera.ate.dto.msg.MessageDataDigestDto;
@@ -14,7 +13,7 @@ import java.util.UUID;
 
 import com.tokera.ate.dto.msg.MessageDataHeaderDto;
 import com.tokera.ate.test.dao.MyAccount;
-import junit.framework.Assert;
+import org.apache.commons.codec.binary.Base64;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
@@ -43,12 +42,12 @@ public class MessageDataDigestTests
         
         MessageDataDigest digest = header.createFlatBuffer();
         MessageDataDigestDto header2 = new MessageDataDigestDto(digest);
-        
-        Assert.assertTrue("Seed is not equal", Objects.equal(header.getSeed(), header2.getSeed()));
+
+        Assertions.assertTrue(Objects.equal(header.getSeed(), header2.getSeed()), "Seed is not equal");
         header2.setSeed(Base64.encodeBase64URLSafeString(bytes1));
-        Assert.assertTrue("Public key hash is not equal", Objects.equal(header.getPublicKeyHash(), header2.getPublicKeyHash()));
-        Assert.assertTrue("Digest is not equal", Objects.equal(header.getDigest(), header2.getDigest()));
-        Assert.assertTrue("Signature is not equal", Objects.equal(header.getSignature(), header2.getSignature()));
+        Assertions.assertTrue(Objects.equal(header.getPublicKeyHash(), header2.getPublicKeyHash()), "Public key hash is not equal");
+        Assertions.assertTrue(Objects.equal(header.getDigest(), header2.getDigest()), "Digest is not equal");
+        Assertions.assertTrue(Objects.equal(header.getSignature(), header2.getSignature()), "Signature is not equal");
     }
     
     @Test
@@ -86,16 +85,16 @@ public class MessageDataDigestTests
         MessageDataDto data2 = new MessageDataDto(data.createFlatBuffer());
         MessageDataDigestDto header2 = data2.getDigest();
         assert header2 != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(header2);
+        Assertions.assertNotNull(header2);
         
         ByteArrayOutputStream stream2 = new ByteArrayOutputStream();
         WritableByteChannel channel2 = Channels.newChannel(stream2);
         channel2.write(header2.createFlatBuffer().getByteBuffer().duplicate());
-        
-        Assert.assertTrue("Seed is not equal", Objects.equal(digest.getSeed(), header2.getSeed()));
-        Assert.assertTrue("Public key hash is not equal", Objects.equal(digest.getPublicKeyHash(), header2.getPublicKeyHash()));
-        Assert.assertTrue("Digest is not equal", Objects.equal(digest.getDigest(), header2.getDigest()));
-        Assert.assertTrue("Signature is not equal", Objects.equal(digest.getSignature(), header2.getSignature()));
+
+        Assertions.assertTrue(Objects.equal(digest.getSeed(), header2.getSeed()), "Seed is not equal");
+        Assertions.assertTrue(Objects.equal(digest.getPublicKeyHash(), header2.getPublicKeyHash()), "Public key hash is not equal");
+        Assertions.assertTrue(Objects.equal(digest.getDigest(), header2.getDigest()), "Digest is not equal");
+        Assertions.assertTrue(Objects.equal(digest.getSignature(), header2.getSignature()), "Signature is not equal");
         
         byte[] streamBytes1 = stream.toByteArray();
         byte[] streamBytes2 = stream2.toByteArray();

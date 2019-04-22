@@ -5,7 +5,8 @@
  */
 package com.tokera.ate.common;
 
-import com.google.api.client.util.Strings;
+import com.google.common.base.Strings;
+
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.Arrays;
 import java.util.Collections;

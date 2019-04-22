@@ -6,7 +6,6 @@
 package com.tokera.ate.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.google.gson.annotations.Expose;
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.IRights;
@@ -29,24 +28,19 @@ import java.util.Set;
 @YamlTag("dto.effective.permissions")
 public class EffectivePermissions
 {
-    @Expose
     @JsonProperty
     @Nullable
     @Secret
     public String encryptKeyHash;
-    @Expose
     @JsonProperty
     @NotNull
     public List<@Hash String> rolesRead;
-    @Expose
     @JsonProperty
     @NotNull
     public List<@Hash String> rolesWrite;
-    @Expose
     @JsonProperty
     @NotNull
     public List<@Hash String> anchorRolesRead;
-    @Expose
     @JsonProperty
     @NotNull
     public List<@Hash String> anchorRolesWrite;

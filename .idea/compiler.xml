@@ -18,7 +18,7 @@
   </component>
   <component name="JavacSettings">
     <option name="ADDITIONAL_OPTIONS_OVERRIDE">
-      <module name="ate" options="-Xmaxerrs 10000 -Xmaxwarns 10000 -Xbootclasspath/p:$MAVEN_REPOSITORY$/org/checkerframework/jdk8/2.5.8/jdk8-2.5.8.jar -XDignore.symbol.file -Werror -Awarns -Alint=all" />
+      <module name="ate" options="-Xmaxerrs 10000 -Xmaxwarns 10000 -Xbootclasspath/p:$MAVEN_REPOSITORY$/org/checkerframework/jdk8/2.5.8/jdk8-2.5.8.jar -XDignore.symbol.file -Werror -Awarns -Alint=all -Xlint:unchecked" />
     </option>
   </component>
 </project>

@@ -30,7 +30,7 @@ import org.checkerframework.framework.qual.DefaultQualifier;
 @DefaultQualifier(Nullable.class)
 @SuppressWarnings({"argument.type.incompatible", "return.type.incompatible", "dereference.of.nullable", "iterating.over.nullable", "method.invocation.invalid", "override.return.invalid", "unnecessary.equals", "known.nonnull", "flowexpr.parse.error.postcondition", "unboxing.of.nullable", "accessing.nullable", "type.invalid.annotations.on.use", "switching.nullable", "initialization.fields.uninitialized"})
 class EmitterWriter {
-	private static final Map<Integer, String> ESCAPE_REPLACEMENTS = new HashMap();
+	private static final Map<Integer, String> ESCAPE_REPLACEMENTS = new HashMap<>();
 	static {
 		ESCAPE_REPLACEMENTS.put((int)'\0', "0");
 		ESCAPE_REPLACEMENTS.put((int)Unicode.BELL, "a");

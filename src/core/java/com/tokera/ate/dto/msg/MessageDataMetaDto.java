@@ -6,7 +6,6 @@
 package com.tokera.ate.dto.msg;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.google.gson.annotations.Expose;
 import com.tokera.ate.annotations.YamlTag;
 
 import javax.validation.constraints.NotNull;
@@ -21,11 +20,9 @@ public class MessageDataMetaDto implements Serializable {
 
     private static final long serialVersionUID = 234340464367516609L;
 
-    @Expose
     @JsonProperty
     @NotNull
     private MessageDataDto data;
-    @Expose
     @JsonProperty
     @NotNull
     private MessageMetaDto meta;

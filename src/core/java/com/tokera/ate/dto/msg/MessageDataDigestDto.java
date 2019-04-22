@@ -7,15 +7,15 @@ package com.tokera.ate.dto.msg;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.google.api.client.repackaged.org.apache.commons.codec.binary.Base64;
 import com.google.flatbuffers.FlatBufferBuilder;
-import com.google.gson.annotations.Expose;
+import com.tokera.ate.common.CopyOnWrite;
 import com.tokera.ate.dao.msg.*;
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.units.Hash;
 import com.tokera.ate.units.PlainText;
 import com.tokera.ate.units.Salt;
 import com.tokera.ate.units.Signature;
+import org.apache.commons.codec.binary.Base64;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -29,7 +29,7 @@ import java.nio.ByteBuffer;
  * Represents the digest of a data payload signed by an authorized user
  */
 @YamlTag("msg.data.digest")
-public class MessageDataDigestDto extends MessageBaseDto implements Serializable {
+public class MessageDataDigestDto extends MessageBaseDto implements Serializable, CopyOnWrite {
 
     private static final long serialVersionUID = 3992438221645570455L;
 
@@ -38,21 +38,17 @@ public class MessageDataDigestDto extends MessageBaseDto implements Serializable
     private transient MessageDataDigest fb;
     
     // Fields that are serialized
-    @Expose
     @JsonProperty
     @MonotonicNonNull
     private @Salt String seed;                // Seed added to the digest calculation
-    @Expose
     @JsonProperty
     @MonotonicNonNull
     private @Signature String signature;           // digitally signed digest of the payload _after_ it was encrypted
-    @Expose
     @JsonProperty
     @MonotonicNonNull
     @Size(min=43, max=43)
     @Pattern(regexp = "^(?:[A-Za-z0-9+\\/\\-_])*(?:[A-Za-z0-9+\\/\\-_]{2}==|[A-Za-z0-9+\\/\\-_]{3}=)?$")
     private @Hash String digest;              // Digest of the header and its payload
-    @Expose
     @JsonProperty
     @MonotonicNonNull
     @Size(min=43, max=43)
@@ -88,7 +84,8 @@ public class MessageDataDigestDto extends MessageBaseDto implements Serializable
         assert this._immutable == false;
         this.fb = val;
     }
-    
+
+    @Override
     public void copyOnWrite() {
         MessageDataDigest lfb = fb;
         if (lfb == null) return;

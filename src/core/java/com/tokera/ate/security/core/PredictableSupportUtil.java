@@ -29,7 +29,7 @@ public class PredictableSupportUtil {
         Integer minusOne = -1;
         Integer zero = 0;
 
-        List list = new ArrayList();
+        List<Integer> list = new ArrayList<>();
         for (int i = 0; i < numOnes; i++) {
             list.add(one);
         }
@@ -44,7 +44,7 @@ public class PredictableSupportUtil {
 
         int[] arr = new int[N];
         for (int i = 0; i < N; i++) {
-            arr[i] = ((Integer) list.get(i));
+            arr[i] = list.get(i);
         }
         return arr;
     }

@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicReference;
 @SuppressWarnings({"argument.type.incompatible", "return.type.incompatible", "dereference.of.nullable", "iterating.over.nullable", "method.invocation.invalid", "override.return.invalid", "unnecessary.equals", "known.nonnull", "flowexpr.parse.error.postcondition", "unboxing.of.nullable", "accessing.nullable", "type.invalid.annotations.on.use", "switching.nullable", "initialization.fields.uninitialized", "bound.type.incompatible", "methodref.receiver.bound.invalid", "override.receiver.invalid", "override.param.invalid"})
 public class ScopeContext<Key> implements Context {
 
-    private final Cache<Key, Scope> scopes;
+    private final Cache<Key, Scope<Key>> scopes;
 
     /**
      * The use of an AtomicReference inside the ThreadLocal is a clever way to
@@ -79,7 +79,7 @@ public class ScopeContext<Key> implements Context {
 
         final Scope<Key> scope;
         try {
-            scope = scopes.get(key, () -> new Scope(key));
+            scope = scopes.get(key, () -> new Scope<>(key));
             return scope().getAndSet(scope).getKey();
         } catch (ExecutionException ex) {
             return null;
@@ -92,6 +92,7 @@ public class ScopeContext<Key> implements Context {
      *
      * @param previous the key of the previously active scope or null
      */
+    @SuppressWarnings({"unchecked method invocation", "unchecked_conversion"})
     public void exit(Key previous) {
         final AtomicReference<Scope<Key>> reference = scope();
 
@@ -102,7 +103,7 @@ public class ScopeContext<Key> implements Context {
         } else {
 
             // Can possibly be null of Scope was destroyed
-            final Scope scope = scopes.getIfPresent(previous);
+            final Scope<Key> scope = scopes.getIfPresent(previous);
             if (scope != null) {
                 reference.set(scope);
             }
@@ -123,7 +124,7 @@ public class ScopeContext<Key> implements Context {
     }
 
     public void destroyAll() {
-        Map<Key, Scope> scopesMap = scopes.asMap();
+        Map<Key, Scope<Key>> scopesMap = scopes.asMap();
         scopesMap.values().stream().forEach(Scope::destroy);
         scopes.invalidateAll();
     }

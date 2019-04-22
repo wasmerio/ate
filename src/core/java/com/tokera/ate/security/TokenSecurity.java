@@ -126,7 +126,7 @@ public class TokenSecurity
             return readRightsCache;
         }
         
-        Set<MessagePrivateKeyDto> ret = new HashSet();
+        Set<MessagePrivateKeyDto> ret = new HashSet<>();
         
         if (token == null) return new HashSet<>();
         
@@ -143,7 +143,7 @@ public class TokenSecurity
             return writeRightsCache;
         }
         
-        Set<MessagePrivateKeyDto> ret = new HashSet();
+        Set<MessagePrivateKeyDto> ret = new HashSet<>();
         
         if (token == null) return new HashSet<>();
         

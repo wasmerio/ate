@@ -18,7 +18,7 @@ package com.tokera.ate.test.merge;
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.test.dao.MyAccount;
 import com.tokera.ate.io.merge.DataMerger;
-import junit.framework.Assert;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 
@@ -48,79 +48,79 @@ public class MergeMaps {
 
     @Test
     public void testEmpty3way() {
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.textFiles.size() == 0);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.textFiles.size() == 0);
 
-        result = (MyAccount)merger.mergeApply(common, left, right);
+        result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.textFiles.size() == 0);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.textFiles.size() == 0);
     }
 
     @Test
     public void testEmpty2way() {
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.textFiles.size() == 0);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.textFiles.size() == 0);
     }
 
     @Test
     public void testAddLeft3way() {
         left.textFiles.put("1", leftVal);
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.textFiles.size() == 1);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.textFiles.size() == 1);
 
         UUID id = MapTools.getOrNull(result.textFiles, "1");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(leftVal, id);
+        Assertions.assertEquals(leftVal, id);
     }
 
     @Test
     public void testAddLeft2way() {
         left.textFiles.put("1", leftVal);
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.textFiles.size() == 1);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.textFiles.size() == 1);
 
         UUID id = MapTools.getOrNull(result.textFiles, "1");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(leftVal, id);
+        Assertions.assertEquals(leftVal, id);
     }
 
     @Test
     public void testAddRight3way() {
         right.textFiles.put("2", rightVal);
 
-        MyAccount result = (MyAccount) merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.textFiles.size() == 1);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.textFiles.size() == 1);
 
         UUID id = MapTools.getOrNull(result.textFiles, "2");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(rightVal, id);
+        Assertions.assertEquals(rightVal, id);
     }
 
     @Test
     public void testAddRight2way() {
         right.textFiles.put("2", rightVal);
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.textFiles.size() == 1);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.textFiles.size() == 1);
 
         UUID id = MapTools.getOrNull(result.textFiles, "2");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(rightVal, id);
+        Assertions.assertEquals(rightVal, id);
     }
     
     @Test
@@ -128,18 +128,18 @@ public class MergeMaps {
         left.textFiles.put("1", leftVal);
         right.textFiles.put("2", rightVal);
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.textFiles.size() == 2);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.textFiles.size() == 2);
 
         UUID id = MapTools.getOrNull(result.textFiles, "1");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(leftVal, id);
+        Assertions.assertEquals(leftVal, id);
 
         id = MapTools.getOrNull(result.textFiles, "2");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(rightVal, id);
+        Assertions.assertEquals(rightVal, id);
     }
 
     @Test
@@ -147,18 +147,18 @@ public class MergeMaps {
         left.textFiles.put("1", leftVal);
         right.textFiles.put("2", rightVal);
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.textFiles.size() == 2);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.textFiles.size() == 2);
 
         UUID id = MapTools.getOrNull(result.textFiles, "1");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(leftVal, id);
+        Assertions.assertEquals(leftVal, id);
 
         id = MapTools.getOrNull(result.textFiles, "2");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(rightVal, id);
+        Assertions.assertEquals(rightVal, id);
     }
 
     @Test
@@ -166,14 +166,14 @@ public class MergeMaps {
         left.textFiles.put("1", leftVal);
         right.textFiles.put("1", rightVal);
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.textFiles.size() == 1);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.textFiles.size() == 1);
 
         UUID id = MapTools.getOrNull(result.textFiles, "1");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(rightVal, id);
+        Assertions.assertEquals(rightVal, id);
     }
 
     @Test
@@ -181,14 +181,14 @@ public class MergeMaps {
         left.textFiles.put("1", leftVal);
         right.textFiles.put("1", rightVal);
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.textFiles.size() == 1);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.textFiles.size() == 1);
 
         UUID id = MapTools.getOrNull(result.textFiles, "1");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(leftVal, id);
+        Assertions.assertEquals(leftVal, id);
     }
 
     @Test
@@ -200,18 +200,18 @@ public class MergeMaps {
         right.textFiles.put("1", commonVal);
         right.textFiles.put("2", commonVal);
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.textFiles.size() == 2);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.textFiles.size() == 2);
 
         UUID id = MapTools.getOrNull(result.textFiles, "2");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(commonVal, id);
+        Assertions.assertEquals(commonVal, id);
 
         id = MapTools.getOrNull(result.textFiles, "1");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(leftVal, id);
+        Assertions.assertEquals(leftVal, id);
     }
 
     @Test
@@ -223,18 +223,18 @@ public class MergeMaps {
         right.textFiles.put("1", commonVal);
         right.textFiles.put("2", commonVal);
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.textFiles.size() == 2);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.textFiles.size() == 2);
 
         UUID id = MapTools.getOrNull(result.textFiles, "2");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(commonVal, id);
+        Assertions.assertEquals(commonVal, id);
 
         id = MapTools.getOrNull(result.textFiles, "1");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(leftVal, id);
+        Assertions.assertEquals(leftVal, id);
     }
 
     @Test
@@ -246,18 +246,18 @@ public class MergeMaps {
         right.textFiles.put("1", commonVal);
         right.textFiles.put("2", rightVal);
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.textFiles.size() == 2);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.textFiles.size() == 2);
 
         UUID id = MapTools.getOrNull(result.textFiles, "1");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(commonVal, id);
+        Assertions.assertEquals(commonVal, id);
 
         id = MapTools.getOrNull(result.textFiles, "2");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(rightVal, id);
+        Assertions.assertEquals(rightVal, id);
     }
 
     @Test
@@ -269,18 +269,18 @@ public class MergeMaps {
         right.textFiles.put("1", commonVal);
         right.textFiles.put("2", rightVal);
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.textFiles.size() == 2);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.textFiles.size() == 2);
 
         UUID id = MapTools.getOrNull(result.textFiles, "1");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(commonVal, id);
+        Assertions.assertEquals(commonVal, id);
 
         id = MapTools.getOrNull(result.textFiles, "2");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(rightVal, id);
+        Assertions.assertEquals(rightVal, id);
     }
 
     @Test
@@ -292,17 +292,17 @@ public class MergeMaps {
         right.textFiles.put("1", commonVal);
         right.textFiles.put("2", rightVal);
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.textFiles.size() == 2);
+        Assertions.assertTrue(result.textFiles.size() == 2);
 
         UUID id = MapTools.getOrNull(result.textFiles, "1");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(leftVal, id);
+        Assertions.assertEquals(leftVal, id);
 
         id = MapTools.getOrNull(result.textFiles, "2");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(rightVal, id);
+        Assertions.assertEquals(rightVal, id);
     }
 
     @Test
@@ -314,17 +314,17 @@ public class MergeMaps {
         right.textFiles.put("1", commonVal);
         right.textFiles.put("2", rightVal);
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.textFiles.size() == 2);
+        Assertions.assertTrue(result.textFiles.size() == 2);
 
         UUID id = MapTools.getOrNull(result.textFiles, "1");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(leftVal, id);
+        Assertions.assertEquals(leftVal, id);
 
         id = MapTools.getOrNull(result.textFiles, "2");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(rightVal, id);
+        Assertions.assertEquals(rightVal, id);
     }
 
     @Test
@@ -333,14 +333,14 @@ public class MergeMaps {
         left.textFiles.put("1", leftVal);
         right.textFiles.put("1", rightVal);
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.textFiles.size() == 1);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.textFiles.size() == 1);
 
         UUID id = MapTools.getOrNull(result.textFiles, "1");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(rightVal, id);
+        Assertions.assertEquals(rightVal, id);
     }
 
     @Test
@@ -349,14 +349,14 @@ public class MergeMaps {
         left.textFiles.put("1", leftVal);
         right.textFiles.put("1", rightVal);
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.textFiles.size() == 1);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.textFiles.size() == 1);
 
         UUID id = MapTools.getOrNull(result.textFiles, "1");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(leftVal, id);
+        Assertions.assertEquals(leftVal, id);
     }
 
     @Test
@@ -369,14 +369,14 @@ public class MergeMaps {
 
         right.textFiles.put("1", leftVal);
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.textFiles.size() == 1);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.textFiles.size() == 1);
 
         UUID id = MapTools.getOrNull(result.textFiles, "1");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(leftVal, id);
+        Assertions.assertEquals(leftVal, id);
     }
 
     @Test
@@ -389,18 +389,18 @@ public class MergeMaps {
 
         right.textFiles.put("1", leftVal);
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.textFiles.size() == 2);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.textFiles.size() == 2);
 
         UUID id = MapTools.getOrNull(result.textFiles, "1");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(leftVal, id);
+        Assertions.assertEquals(leftVal, id);
 
         id = MapTools.getOrNull(result.textFiles, "2");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(rightVal, id);
+        Assertions.assertEquals(rightVal, id);
     }
 
     @Test
@@ -413,14 +413,14 @@ public class MergeMaps {
         right.textFiles.put("1", leftVal);
         right.textFiles.put("2", rightVal);
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.textFiles.size() == 1);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.textFiles.size() == 1);
 
         UUID id = MapTools.getOrNull(result.textFiles, "2");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(rightVal, id);
+        Assertions.assertEquals(rightVal, id);
     }
 
     @Test
@@ -433,14 +433,14 @@ public class MergeMaps {
         right.textFiles.put("1", leftVal);
         right.textFiles.put("2", rightVal);
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.textFiles.size() == 1);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.textFiles.size() == 1);
 
         UUID id = MapTools.getOrNull(result.textFiles, "2");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(rightVal, id);
+        Assertions.assertEquals(rightVal, id);
     }
 
     @Test
@@ -452,10 +452,10 @@ public class MergeMaps {
 
         right.textFiles.put("1", leftVal);
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.textFiles.size() == 0);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.textFiles.size() == 0);
     }
 
     @Test
@@ -467,14 +467,14 @@ public class MergeMaps {
 
         right.textFiles.put("1", leftVal);
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.textFiles.size() == 1);
-        Assert.assertTrue(result.textFiles.containsKey("2"));
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.textFiles.size() == 1);
+        Assertions.assertTrue(result.textFiles.containsKey("2"));
         UUID id = result.textFiles.get("2");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(rightVal, id);
+        Assertions.assertEquals(rightVal, id);
     }
 
     @Test
@@ -490,14 +490,14 @@ public class MergeMaps {
 
         right.put("1", leftVal);
 
-        Map<String, UUID> result = (Map<String, UUID>)merger.mergeApply(common, left, right);
+        Map<String, UUID> result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.size() == 1);
-        Assert.assertTrue(result.containsKey("2"));
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.size() == 1);
+        Assertions.assertTrue(result.containsKey("2"));
         UUID id = result.get("2");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(rightVal, id);
+        Assertions.assertEquals(rightVal, id);
     }
 
     @Test
@@ -515,19 +515,19 @@ public class MergeMaps {
             right.textFiles.put(Integer.toString(n), rightVal);
         }
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.textFiles.size() == 10000);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.textFiles.size() == 10000);
         for (int n = 0; n < 5000; n++) {
             UUID id = MapTools.getOrNull(result.textFiles, Integer.toString(n));
             assert id != null : "@AssumeAssertion(nullness): Must not be null";
-            Assert.assertEquals(leftVal, id);
+            Assertions.assertEquals(leftVal, id);
         }
         for (int n = 5000; n < 10000; n++) {
             UUID id = MapTools.getOrNull(result.textFiles, Integer.toString(n));
             assert id != null : "@AssumeAssertion(nullness): Must not be null";
-            Assert.assertEquals(rightVal, id);
+            Assertions.assertEquals(rightVal, id);
         }
     }
 
@@ -546,19 +546,19 @@ public class MergeMaps {
             right.textFiles.put(Integer.toString(n), rightVal);
         }
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.textFiles.size() == 10000);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.textFiles.size() == 10000);
         for (int n = 0; n < 5000; n++) {
             UUID id = MapTools.getOrNull(result.textFiles, Integer.toString(n));
             assert id != null : "@AssumeAssertion(nullness): Must not be null";
-            Assert.assertEquals(leftVal, id);
+            Assertions.assertEquals(leftVal, id);
         }
         for (int n = 5000; n < 10000; n++) {
             UUID id = MapTools.getOrNull(result.textFiles, Integer.toString(n));
             assert id != null : "@AssumeAssertion(nullness): Must not be null";
-            Assert.assertEquals(rightVal, id);
+            Assertions.assertEquals(rightVal, id);
         }
     }
 
@@ -566,54 +566,54 @@ public class MergeMaps {
     public void testAddLeftFromNull3way() {
         left.textFiles.put("1", leftVal);
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(null, left, right);
+        MyAccount result = merger.mergeThreeWay(null, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.textFiles.size() == 1);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.textFiles.size() == 1);
 
         UUID id = MapTools.getOrNull(result.textFiles, "1");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(leftVal, id);
+        Assertions.assertEquals(leftVal, id);
     }
 
     @Test
     public void testAddLeftFromNull2way() {
         left.textFiles.put("1", leftVal);
 
-        MyAccount result = (MyAccount)merger.mergeApply(null, left, right);
+        MyAccount result = merger.mergeApply(null, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.textFiles.size() == 1);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.textFiles.size() == 1);
 
         UUID id = MapTools.getOrNull(result.textFiles, "1");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(leftVal, id);
+        Assertions.assertEquals(leftVal, id);
     }
 
     @Test
     public void testAddRightFromNull3way() {
         right.textFiles.put("2", rightVal);
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(null, left, right);
+        MyAccount result = merger.mergeThreeWay(null, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.textFiles.size() == 1);
+        Assertions.assertTrue(result.textFiles.size() == 1);
 
         UUID id = MapTools.getOrNull(result.textFiles, "2");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(rightVal, id);
+        Assertions.assertEquals(rightVal, id);
     }
 
     @Test
     public void testAddRightFromNull2way() {
         right.textFiles.put("2", rightVal);
 
-        MyAccount result = (MyAccount)merger.mergeApply(null, left, right);
+        MyAccount result = merger.mergeApply(null, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.textFiles.size() == 1);
+        Assertions.assertTrue(result.textFiles.size() == 1);
 
         UUID id = MapTools.getOrNull(result.textFiles, "2");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(rightVal, id);
+        Assertions.assertEquals(rightVal, id);
     }
 
     @Test
@@ -621,17 +621,17 @@ public class MergeMaps {
         left.textFiles.put("1", leftVal);
         right.textFiles.put("2", rightVal);
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(null, left, right);
+        MyAccount result = merger.mergeThreeWay(null, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.textFiles.size() == 2);
+        Assertions.assertTrue(result.textFiles.size() == 2);
 
         UUID id = MapTools.getOrNull(result.textFiles, "1");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(leftVal, id);
+        Assertions.assertEquals(leftVal, id);
 
         id = MapTools.getOrNull(result.textFiles, "2");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(rightVal, id);
+        Assertions.assertEquals(rightVal, id);
     }
 
     @Test
@@ -639,17 +639,17 @@ public class MergeMaps {
         left.textFiles.put("1", leftVal);
         right.textFiles.put("2", rightVal);
 
-        MyAccount result = (MyAccount)merger.mergeApply(null, left, right);
+        MyAccount result = merger.mergeApply(null, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertTrue(result.textFiles.size() == 2);
+        Assertions.assertTrue(result.textFiles.size() == 2);
 
         UUID id = MapTools.getOrNull(result.textFiles, "1");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(leftVal, id);
+        Assertions.assertEquals(leftVal, id);
 
         id = MapTools.getOrNull(result.textFiles, "2");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(rightVal, id);
+        Assertions.assertEquals(rightVal, id);
     }
 
     @Test
@@ -657,14 +657,14 @@ public class MergeMaps {
         left.textFiles.put("1", leftVal);
         right.textFiles.put("1", rightVal);
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(null, left, right);
+        MyAccount result = merger.mergeThreeWay(null, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.textFiles.size() == 1);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.textFiles.size() == 1);
 
         UUID id = MapTools.getOrNull(result.textFiles, "1");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(rightVal, id);
+        Assertions.assertEquals(rightVal, id);
     }
 
     @Test
@@ -672,13 +672,13 @@ public class MergeMaps {
         left.textFiles.put("1", leftVal);
         right.textFiles.put("1", rightVal);
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(null, left, right);
+        MyAccount result = merger.mergeThreeWay(null, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.textFiles.size() == 1);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.textFiles.size() == 1);
 
         UUID id = MapTools.getOrNull(result.textFiles, "1");
         assert id != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertEquals(rightVal, id);
+        Assertions.assertEquals(rightVal, id);
     }
 }

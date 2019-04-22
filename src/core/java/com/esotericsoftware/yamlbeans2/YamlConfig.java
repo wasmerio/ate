@@ -47,15 +47,15 @@ public class YamlConfig {
 	public final ReadConfig readConfig = new ReadConfig();
 
 	@NonNull
-	final Map<String, String> classNameToTag = new HashMap();
+	final Map<String, String> classNameToTag = new HashMap<>();
 	@NonNull
-	final Map<String, Class> tagToClass = new HashMap();
+	final Map<String, Class> tagToClass = new HashMap<>();
 	@NonNull
-	final Map<Class, ScalarSerializer> scalarSerializers = new IdentityHashMap();
+	final Map<Class, ScalarSerializer> scalarSerializers = new IdentityHashMap<>();
 	@NonNull
-	final Map<Property, Class> propertyToElementType = new HashMap();
+	final Map<Property, Class> propertyToElementType = new HashMap<>();
 	@NonNull
-	final Map<Property, Class> propertyToDefaultType = new HashMap();
+	final Map<Property, Class> propertyToDefaultType = new HashMap<>();
 	boolean beanProperties = true;
 	boolean privateFields;
 	boolean privateConstructors = true;
@@ -238,10 +238,11 @@ public class YamlConfig {
 		}
 	}
 
+	@SuppressWarnings({"unchecked"})
 	static public class ReadConfig {
 		Version defaultVersion = new Version(1, 1);
 		ClassLoader classLoader;
-		final Map<Class, ConstructorParameters> constructorParameters = new IdentityHashMap();
+		final Map<Class, ConstructorParameters> constructorParameters = new IdentityHashMap<>();
 		boolean ignoreUnknownProperties;
 		boolean autoMerge = true;
 		boolean classTags = true;

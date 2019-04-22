@@ -9,7 +9,6 @@ import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.annotations.YamlTags;
 import com.tokera.ate.extensions.YamlTagDiscoveryExtension;
 import com.tokera.ate.providers.*;
-import edu.emory.mathcs.backport.java.util.Arrays;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -18,6 +17,7 @@ import java.io.OutputStreamWriter;
 import java.io.Reader;
 import java.io.StringWriter;
 import java.io.Writer;
+import java.util.Arrays;
 import java.util.List;
 import java.util.ArrayList;
 import javax.annotation.PostConstruct;
@@ -55,7 +55,8 @@ public class YamlDelegate {
         m_config_no_marker.writeConfig.setExplicitFirstDocument(false);
         m_config_no_marker.writeConfig.setExplicitEndDocument(false);
     }
-    
+
+    @SuppressWarnings({"unchecked.method.invocation", "unchecked.conversion"})
     public static void initConfig(YamlConfig cfg, YamlTagDiscoveryExtension discovery)
     {
         for (Class<?> clazz : discovery.getYamlTagClasses()) {

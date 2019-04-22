@@ -317,6 +317,7 @@ public class DataSerializer {
         return ret;
     }
 
+    @SuppressWarnings({"unchecked"})
     private <T extends BaseDao> @Nullable T lintDataObject(@Nullable T _orig, MessageDataDto msg) {
         T orig = _orig;
         if (orig == null) return null;
@@ -330,6 +331,7 @@ public class DataSerializer {
         return ret;
     }
 
+    @SuppressWarnings({"unchecked"})
     protected <T extends BaseDao> @Nullable T readObjectFromDataMessage(MessageDataDto msg, boolean shouldThrow)
     {
         // We need to decrypt the data using an encryption key, search for it
@@ -370,6 +372,7 @@ public class DataSerializer {
         return d.encryptor.decryptAes(aesKey, encPayloadBytes);
     }
 
+    @SuppressWarnings({"unchecked"})
     private <T extends BaseDao> @Nullable T readObjectFromDataMessageInternal(@Hash String cacheKey, byte[] aesKey, MessageDataDto msg)
     {
         byte[] payloadBytes;

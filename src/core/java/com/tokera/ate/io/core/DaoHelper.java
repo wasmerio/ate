@@ -127,7 +127,7 @@ public class DaoHelper {
     }
     
     public List<BaseDao> getObjAndParents(BaseDao entity) {
-        ArrayList<BaseDao> ret = new ArrayList();
+        ArrayList<BaseDao> ret = new ArrayList<>();
         ret.add(entity);
         
         Set<BaseDao> done = new HashSet<>(); 
@@ -144,7 +144,7 @@ public class DaoHelper {
     }
     
     public List<BaseDao> getParents(BaseDao entity) {
-        ArrayList<BaseDao> ret = new ArrayList();
+        ArrayList<BaseDao> ret = new ArrayList<>();
         
         Set<BaseDao> done = new HashSet<>(); 
         

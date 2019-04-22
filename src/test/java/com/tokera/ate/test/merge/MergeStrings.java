@@ -17,7 +17,7 @@ package com.tokera.ate.test.merge;
 
 import com.tokera.ate.io.merge.DataMerger;
 import com.tokera.ate.test.dao.MyAccount;
-import junit.framework.Assert;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 
@@ -40,14 +40,14 @@ public class MergeStrings {
         left.description = "www.test.com";
         right.description = "www.test.com";
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
+        Assertions.assertNotNull(result);
 
         String desc = result.description;
         assert desc != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(desc);
-        Assert.assertEquals("www.test.com", desc);
+        Assertions.assertNotNull(desc);
+        Assertions.assertEquals("www.test.com", desc);
     }
 
     @Test
@@ -56,14 +56,14 @@ public class MergeStrings {
         left.description = "www.test.com";
         right.description = "www.test.com";
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
+        Assertions.assertNotNull(result);
 
         String desc = result.description;
         assert desc != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(desc);
-        Assert.assertEquals("www.test.com", desc);
+        Assertions.assertNotNull(desc);
+        Assertions.assertEquals("www.test.com", desc);
     }
     
     @Test
@@ -72,14 +72,14 @@ public class MergeStrings {
         left.description = "test left";
         right.description = "www.test.com";
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
+        Assertions.assertNotNull(result);
 
         String desc = result.description;
         assert desc != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(desc);
-        Assert.assertEquals("www.test.com", desc);
+        Assertions.assertNotNull(desc);
+        Assertions.assertEquals("www.test.com", desc);
     }
 
     @Test
@@ -88,14 +88,14 @@ public class MergeStrings {
         left.description = "test left";
         right.description = "www.test.com";
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
+        Assertions.assertNotNull(result);
 
         String desc = result.description;
         assert desc != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(desc);
-        Assert.assertEquals("test left", desc);
+        Assertions.assertNotNull(desc);
+        Assertions.assertEquals("test left", desc);
     }
 
     @Test
@@ -104,14 +104,14 @@ public class MergeStrings {
         left.description = "test base";
         right.description = "www.test.com";
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
+        Assertions.assertNotNull(result);
 
         String desc = result.description;
         assert desc != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(desc);
-        Assert.assertEquals("www.test.com", desc);
+        Assertions.assertNotNull(desc);
+        Assertions.assertEquals("www.test.com", desc);
     }
 
     @Test
@@ -120,14 +120,14 @@ public class MergeStrings {
         left.description = "test base";
         right.description = "www.test.com";
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
+        Assertions.assertNotNull(result);
 
         String desc = result.description;
         assert desc != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(desc);
-        Assert.assertEquals("www.test.com", desc);
+        Assertions.assertNotNull(desc);
+        Assertions.assertEquals("www.test.com", desc);
     }
 
     @Test
@@ -136,14 +136,14 @@ public class MergeStrings {
         left.description = "test left";
         right.description = "test base";
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
+        Assertions.assertNotNull(result);
 
         String desc = result.description;
         assert desc != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(desc);
-        Assert.assertEquals("test left", desc);
+        Assertions.assertNotNull(desc);
+        Assertions.assertEquals("test left", desc);
     }
 
     @Test
@@ -152,14 +152,14 @@ public class MergeStrings {
         left.description = "test left";
         right.description = "test base";
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
+        Assertions.assertNotNull(result);
 
         String desc = result.description;
         assert desc != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(desc);
-        Assert.assertEquals("test left", desc);
+        Assertions.assertNotNull(desc);
+        Assertions.assertEquals("test left", desc);
     }
 
     @Test
@@ -168,13 +168,13 @@ public class MergeStrings {
         left.description = "test base";
         right.description = null;
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
+        Assertions.assertNotNull(result);
 
         String desc = result.description;
         assert desc == null : "@AssumeAssertion(nullness): Must be null";
-        Assert.assertTrue(desc == null);
+        Assertions.assertTrue(desc == null);
     }
 
     @Test
@@ -183,13 +183,13 @@ public class MergeStrings {
         left.description = "test base";
         right.description = null;
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
+        Assertions.assertNotNull(result);
 
         String desc = result.description;
         assert desc == null : "@AssumeAssertion(nullness): Must be null";
-        Assert.assertTrue(desc == null);
+        Assertions.assertTrue(desc == null);
     }
 
     @Test
@@ -198,14 +198,14 @@ public class MergeStrings {
         left.description =  null;
         right.description = "www.test.com";
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
+        Assertions.assertNotNull(result);
 
         String desc = result.description;
         assert desc != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(desc);
-        Assert.assertEquals("www.test.com", desc);
+        Assertions.assertNotNull(desc);
+        Assertions.assertEquals("www.test.com", desc);
     }
 
     @Test
@@ -214,9 +214,9 @@ public class MergeStrings {
         left.description =  null;
         right.description = "www.test.com";
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
+        Assertions.assertNotNull(result);
 
         String desc = result.description;
         assert desc == null;
@@ -228,13 +228,13 @@ public class MergeStrings {
         left.description = null;
         right.description = null;
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
+        Assertions.assertNotNull(result);
 
         String desc = result.description;
         assert desc == null : "@AssumeAssertion(nullness): Must be null";
-        Assert.assertTrue(desc == null);
+        Assertions.assertTrue(desc == null);
     }
 
     @Test
@@ -243,13 +243,13 @@ public class MergeStrings {
         left.description = null;
         right.description = null;
 
-        MyAccount result = (MyAccount)merger.mergeApply(common, left, right);
+        MyAccount result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
+        Assertions.assertNotNull(result);
 
         String desc = result.description;
         assert desc == null : "@AssumeAssertion(nullness): Must be null";
-        Assert.assertTrue(desc == null);
+        Assertions.assertTrue(desc == null);
     }
 
     @Test
@@ -258,14 +258,14 @@ public class MergeStrings {
         left.description = "test left";
         right.description = null;
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
+        Assertions.assertNotNull(result);
 
         String desc = result.description;
         assert desc != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(desc);
-        Assert.assertEquals("test left", desc);
+        Assertions.assertNotNull(desc);
+        Assertions.assertEquals("test left", desc);
     }
 
     @Test
@@ -274,14 +274,14 @@ public class MergeStrings {
         left.description = "test left";
         right.description = null;
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
+        Assertions.assertNotNull(result);
 
         String desc = result.description;
         assert desc != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(desc);
-        Assert.assertEquals("test left", desc);
+        Assertions.assertNotNull(desc);
+        Assertions.assertEquals("test left", desc);
     }
 
     @Test
@@ -290,14 +290,14 @@ public class MergeStrings {
         left.description = "test left";
         right.description = "test right";
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
+        Assertions.assertNotNull(result);
 
         String desc = result.description;
         assert desc != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(desc);
-        Assert.assertEquals("test right", desc);
+        Assertions.assertNotNull(desc);
+        Assertions.assertEquals("test right", desc);
     }
 
     @Test
@@ -306,14 +306,14 @@ public class MergeStrings {
         left.description = "test left";
         right.description = "test right";
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
+        Assertions.assertNotNull(result);
 
         String desc = result.description;
         assert desc != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(desc);
-        Assert.assertEquals("test right", desc);
+        Assertions.assertNotNull(desc);
+        Assertions.assertEquals("test right", desc);
     }
 
     @Test
@@ -322,14 +322,14 @@ public class MergeStrings {
         left.description = null;
         right.description = "test right";
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
+        Assertions.assertNotNull(result);
 
         String desc = result.description;
         assert desc != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(desc);
-        Assert.assertEquals("test right", desc);
+        Assertions.assertNotNull(desc);
+        Assertions.assertEquals("test right", desc);
     }
 
     @Test
@@ -338,13 +338,13 @@ public class MergeStrings {
         left.description = null;
         right.description = "test right";
 
-        MyAccount result = (MyAccount)merger.mergeThreeWay(common, left, right);
+        MyAccount result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
+        Assertions.assertNotNull(result);
 
         String desc = result.description;
         assert desc != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(desc);
-        Assert.assertEquals("test right", desc);
+        Assertions.assertNotNull(desc);
+        Assertions.assertEquals("test right", desc);
     }
 }

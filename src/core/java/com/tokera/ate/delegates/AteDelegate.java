@@ -58,7 +58,6 @@ public class AteDelegate {
     public final KafkaConfigTools kafkaConfig;
     public final CurrentTokenDelegate currentToken;
     public final YamlDelegate yaml;
-    public final JsonDelegate json;
     public final ObjectSerializerDelegate os;
     public final DaoParentDiscoveryExtension daoParents;
     public final YamlTagDiscoveryExtension yamlDiscovery;
@@ -103,6 +102,7 @@ public class AteDelegate {
         return AteDelegate.get(AteDelegate.class);
     }
 
+    @SuppressWarnings({"unchecked"})
     public static <T extends AteDelegate> T get(Class<T> clazz) {
         if (g_instance != null && clazz.isInstance(g_instance)) {
             return (T)g_instance;
@@ -131,7 +131,7 @@ public class AteDelegate {
         return AteDelegate.getUnsafe(AteDelegate.class);
     }
 
-    @SuppressWarnings({"return.type.incompatible", "argument.type.incompatible", "cast.unsafe"})
+    @SuppressWarnings({"return.type.incompatible", "argument.type.incompatible", "cast.unsafe", "unchecked"})
     public static <T extends AteDelegate> T getUnsafe(Class<T> clazz) {
         if (g_instanceInitializing != null && clazz.isInstance(g_instanceInitializing)) {
             return (T)g_instanceInitializing;
@@ -190,7 +190,6 @@ public class AteDelegate {
         this.encryptKeyCachePerRequest = getBean(EncryptKeyCachePerRequest.class);
         this.currentToken = getBean(CurrentTokenDelegate.class);
         this.yaml = getBean(YamlDelegate.class);
-        this.json = getBean(JsonDelegate.class);
         this.os = getBean(ObjectSerializerDelegate.class);
         this.implicitSecurity = getBean(ImplicitSecurityDelegate.class);
         this.daoParents = getBean(DaoParentDiscoveryExtension.class);

@@ -28,7 +28,7 @@ public class ValidationUtil {
         Validator validator = factory.getValidator();
         Set<ConstraintViolation<Object>> constraintViolations = validator.validate(bean);
         if (constraintViolations.isEmpty()) {
-            return new ArrayList();
+            return new ArrayList<>();
         }
         return getValidationErrorMessage(constraintViolations);
     }

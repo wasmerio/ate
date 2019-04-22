@@ -64,8 +64,8 @@ public class Tokenizer {
 	private final static Pattern BEG = Pattern
 		.compile("^([^\0 \t\r\n\u0085\\-?:,\\[\\]{}#&*!|>'\"%@]|([\\-?:][^\0 \t\r\n\u0085]))");
 
-	private final static Map<Character, String> ESCAPE_REPLACEMENTS = new HashMap();
-	private final static Map<Character, Integer> ESCAPE_CODES = new HashMap();
+	private final static Map<Character, String> ESCAPE_REPLACEMENTS = new HashMap<>();
+	private final static Map<Character, Integer> ESCAPE_CODES = new HashMap<>();
 
 	static {
 		ESCAPE_REPLACEMENTS.put('0', "\0");
@@ -102,9 +102,9 @@ public class Tokenizer {
 	private int pointer = 0;
 	private final StringBuilder buffer;
 	private final Reader reader;
-	private final List<Token> tokens = new LinkedList();
-	private final List<Integer> indents = new LinkedList();
-	private final Map<Integer, SimpleKey> possibleSimpleKeys = new HashMap();
+	private final List<Token> tokens = new LinkedList<>();
+	private final List<Integer> indents = new LinkedList<>();
+	private final Map<Integer, SimpleKey> possibleSimpleKeys = new HashMap<>();
 	private boolean docStart = false;
 
 	public Tokenizer (Reader reader) {

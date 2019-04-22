@@ -1,10 +1,9 @@
 package com.tokera.ate.io.merge;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.HashMultiset;
+import com.tokera.ate.common.CopyOnWrite;
 import com.tokera.ate.common.MapTools;
-import org.apache.commons.beanutils.DynaBean;
-import org.apache.commons.beanutils.DynaProperty;
-import org.apache.commons.beanutils.PropertyUtils;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.ApplicationScoped;
@@ -25,12 +24,11 @@ import java.util.stream.Collectors;
  * Class that will mergeThreeWay perform a 2-way mergeThreeWay on data objects, basic types and scales. All objects with read/write
  * properties and/or Column attribute marked fields will be in-scope of the mergeThreeWay.
  */
+@SuppressWarnings({"unchecked"})
 @ApplicationScoped
 public class DataMerger {
 
-    private final PropertyUtils propertyUtils = new PropertyUtils();
-    private final ConcurrentMap<Class<?>, List<PropertyDescriptor>> propertyDescriptorsMap = new ConcurrentHashMap<>();
-    private final ConcurrentMap<Class<?>, List<Field>> fieldDescriptorsMap = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<Class<?>, List<Field>> fieldDescriptorsMap = new ConcurrentHashMap<>();
 
     private boolean isInternal(Class<?> clazz) {
         if (clazz.isPrimitive() ||
@@ -46,21 +44,20 @@ public class DataMerger {
                 name.startsWith("oracle.");
     }
 
-    private List<PropertyDescriptor> getPropertyDescriptors(Class<?> clazz) {
-        return propertyDescriptorsMap
-                .computeIfAbsent(clazz, (c) -> Arrays.stream(PropertyUtils.getPropertyDescriptors(c))
-                        .filter(p -> p.getReadMethod() != null &&
-                                p.getWriteMethod() != null &&
-                                "class".equals(p.getName()) == false)
-                        .collect(Collectors.toList()));
+    private static boolean isDataField(Field field) {
+        if (Modifier.isTransient(field.getModifiers()) == true) return false;
+        if (field.getAnnotation(Column.class) != null) return true;
+        if (field.getAnnotation(Id.class) != null) return true;
+        if (field.getAnnotation(JsonProperty.class) != null) return true;
+        return false;
     }
 
-    private List<Field> getFieldDescriptors(Class<?> clazz) {
+    private static List<Field> getFieldDescriptors(Class<?> clazz) {
         return fieldDescriptorsMap
                 .computeIfAbsent(clazz, (c) -> {
-                    List<Field> ret = Arrays.stream(clazz.getFields())
-                            .filter(p -> p.getAnnotation(Column.class) != null || p.getAnnotation(Id.class) != null)
-                            .filter(p -> Modifier.isTransient(p.getModifiers())== false)
+                    Field[] fields = clazz.getDeclaredFields();
+                    List<Field> ret = Arrays.stream(fields)
+                            .filter(p -> isDataField(p))
                             .collect(Collectors.toList());
                     ret.stream().forEach(f -> f.setAccessible(true));
                     return ret;
@@ -86,14 +83,14 @@ public class DataMerger {
         }
 
         Object ret = newObject(clazz);
+        if (ret instanceof CopyOnWrite) {
+            ((CopyOnWrite) ret).copyOnWrite();
+        }
         if (source instanceof Map) {
             return cloneObjectMap((Map) source, (Map) ret);
         } else if (source instanceof Collection) {
             return cloneObjectCollection((Collection) source, (Collection) ret);
-        } else if (ret instanceof DynaBean) {
-            return cloneObjectDynaBean((DynaBean) source, (DynaBean) ret);
         }
-        cloneObjectProperties(clazz, source, ret);
         cloneObjectFields(clazz, source, ret);
         return ret;
     }
@@ -109,38 +106,6 @@ public class DataMerger {
     private Collection cloneObjectCollection(Collection source, Collection dest) {
         for (Object val : source) {
             dest.add(cloneObject(val));
-        }
-        return dest;
-    }
-
-    @SuppressWarnings({"argument.type.incompatible"})
-    private DynaBean cloneObjectDynaBean(DynaBean source, DynaBean dest) {
-        final DynaProperty[] origDescriptors = dest.getDynaClass().getDynaProperties();
-        for (final DynaProperty origDescriptor : origDescriptors) {
-            final String name = origDescriptor.getName();
-            if (propertyUtils.isReadable(dest, name) && propertyUtils.isWriteable(dest, name)) {
-                Object value = source.get(name);
-                dest.set(name, cloneObject(value));
-            }
-        }
-        return dest;
-    }
-
-    @SuppressWarnings({"argument.type.incompatible"})
-    private Object cloneObjectProperties(Class<?> clazz, Object source, Object dest) {
-        List<PropertyDescriptor> descriptors = this.getPropertyDescriptors(clazz);
-        for (PropertyDescriptor descriptor : descriptors) {
-            Method readMethod = descriptor.getReadMethod();
-            if (readMethod == null) continue;
-            Method writeMethod = descriptor.getWriteMethod();
-            if (writeMethod == null) continue;
-
-            try {
-                Object val = readMethod.invoke(source);
-                writeMethod.invoke(dest, cloneObject(val));
-            } catch (IllegalAccessException | InvocationTargetException e) {
-                throw new WebApplicationException("Failed to set property", e);
-            }
         }
         return dest;
     }
@@ -421,7 +386,7 @@ public class DataMerger {
     }
 
     @SuppressWarnings({"argument.type.incompatible"})
-    public @Nullable Object mergeThreeWay(final @Nullable Object common, final @Nullable Object left, final @Nullable Object right) {
+    public <T> @Nullable T mergeThreeWay(final @Nullable T common, final @Nullable T left, final @Nullable T right) {
 
         // We will need to use reflection to mergeThreeWay these objects
         Class<?> clazzCommon = common != null ? common.getClass() : null;
@@ -431,10 +396,10 @@ public class DataMerger {
         // First compare the types and if they differ then switch them to the new type (with a bias towards the right)
         if (clazzCommon != null && clazzRight != null &&
                 Objects.equals(clazzCommon, clazzRight) == false) {
-            return cloneObject(right);
+            return (T)cloneObject(right);
         } else if (clazzCommon != null && clazzLeft != null &&
                 Objects.equals(clazzCommon, clazzLeft) == false) {
-            return cloneObject(left);
+            return (T)cloneObject(left);
         }
 
         // Make sure the clazz is set (or if its all null then just return null)
@@ -448,11 +413,11 @@ public class DataMerger {
             // If its a primative type then pick the right one (otherwise fall through)
             if (isInternal(clazzCommon)) {
                 if (Objects.equals(common, right) == false) {
-                    return cloneObject(right);
+                    return (T)cloneObject(right);
                 } else if (Objects.equals(common, left) == false) {
-                    return cloneObject(left);
+                    return (T)cloneObject(left);
                 } else {
-                    return cloneObject(common);
+                    return (T)cloneObject(common);
                 }
             }
         }
@@ -467,66 +432,32 @@ public class DataMerger {
         // Now attempt to create it (assuming it has a default constructor)
         Object ret = newObject(clazzCommon);
 
+        if (common instanceof CopyOnWrite) {
+            ((CopyOnWrite) common).copyOnWrite();
+        }
+        if (left instanceof CopyOnWrite) {
+            ((CopyOnWrite) left).copyOnWrite();
+        }
+        if (right instanceof CopyOnWrite) {
+            ((CopyOnWrite) right).copyOnWrite();
+        }
+
         // If its a map then mergeThreeWay the entries
         if (ret instanceof Map) {
             mergeMapThreeWay((Map) ret, (Map) common, (Map) left, (Map) right);
-            return ret;
+            return (T)ret;
         }
 
         // If its a list then mergeThreeWay the entries
         if (ret instanceof List) {
             mergeListThreeWay((List) ret, (List) common, (List) left, (List) right);
-            return ret;
+            return (T)ret;
         }
 
         // If its a collection then mergeThreeWay the entries
         if (ret instanceof Collection) {
             mergeCollectionThreeWay((Collection) ret, (Collection) common, (Collection) left, (Collection) right);
-            return ret;
-        }
-
-        // If its a dynamic bean we have to use dynamic properties
-        if (ret instanceof DynaBean) {
-            final DynaProperty[] origDescriptors = ((DynaBean) ret).getDynaClass().getDynaProperties();
-            for (final DynaProperty origDescriptor : origDescriptors) {
-                final String name = origDescriptor.getName();
-                if (propertyUtils.isReadable(ret, name) && propertyUtils.isWriteable(ret, name)) {
-                    Object valueCommon = null;
-                    Object valueLeft = null;
-                    Object valueRight = null;
-                    if (common != null) valueCommon = ((DynaBean) common).get(name);
-                    if (left != null) valueLeft = ((DynaBean) left).get(name);
-                    if (right != null) valueRight = ((DynaBean) right).get(name);
-
-                    Object value = mergeThreeWay(valueCommon, valueLeft, valueRight);
-                    ((DynaBean) ret).set(name, value);
-                }
-            }
-            return ret;
-        }
-
-        // Otherwise treat it as a normal POJO that needs to be merged
-        // Merge all the properties themselves
-        List<PropertyDescriptor> descriptors = this.getPropertyDescriptors(clazzCommon);
-        for (PropertyDescriptor descriptor : descriptors) {
-            Method readMethod = descriptor.getReadMethod();
-            if (readMethod == null) continue;
-            Method writeMethod = descriptor.getWriteMethod();
-            if (writeMethod == null) continue;
-
-            try {
-                Object valueCommon = null;
-                Object valueLeft = null;
-                Object valueRight = null;
-                if (common != null) valueCommon = readMethod.invoke(common);
-                if (left != null) valueLeft = readMethod.invoke(left);
-                if (right != null) valueRight = readMethod.invoke(right);
-
-                Object value = mergeThreeWay(valueCommon, valueLeft, valueRight);
-                writeMethod.invoke(ret, value);
-            } catch (IllegalAccessException | InvocationTargetException e) {
-                throw new WebApplicationException("Failed to set property", e);
-            }
+            return (T)ret;
         }
 
         List<Field> fields = this.getFieldDescriptors(clazzCommon);
@@ -545,11 +476,11 @@ public class DataMerger {
                 throw new WebApplicationException("Failed to set field", e);
             }
         }
-        return ret;
+        return (T)ret;
     }
 
     @SuppressWarnings({"argument.type.incompatible"})
-    public @Nullable Object mergeApply(final @Nullable Object _base, final @Nullable Object _what, final @Nullable Object _ret) {
+    public <T> @Nullable T mergeApply(final @Nullable T _base, final @Nullable T _what, final @Nullable T _ret) {
 
         // If the new one is null then it should be null
         Object what = _what;
@@ -565,7 +496,7 @@ public class DataMerger {
 
         // If the base and return values are null then we are already done
         if (base == null && _ret == null) {
-            return cloneObject(what);
+            return (T)cloneObject(what);
         }
 
         // Maps and collections will be handled later
@@ -575,7 +506,7 @@ public class DataMerger {
                 if (Objects.equals(_base, _what) == true) {
                     return _ret;
                 } else {
-                    return cloneObject(what);
+                    return (T)cloneObject(what);
                 }
             }
         }
@@ -585,66 +516,38 @@ public class DataMerger {
         if (ret != null && Objects.equals(ret.getClass(), clazz) == false) ret = null;
         if (ret == null) ret = newObject(clazz);
 
+        if (ret instanceof CopyOnWrite) {
+            ((CopyOnWrite) ret).copyOnWrite();
+        }
+        if (base instanceof CopyOnWrite) {
+            ((CopyOnWrite) base).copyOnWrite();
+        }
+        if (what instanceof CopyOnWrite) {
+            ((CopyOnWrite) what).copyOnWrite();
+        }
+
         // If its a map then mergeThreeWay the entries
         if (ret instanceof Map) {
             mergeMapApply((Map) ret, (Map) base, (Map) what);
-            return ret;
+            return (T)ret;
         }
 
         // If its a list then mergeThreeWay the entries
         if (ret instanceof List) {
             mergeListApply((List) ret, (List) base, (List) what);
-            return ret;
+            return (T)ret;
         }
 
         // If its a collection then mergeThreeWay the entries
         if (ret instanceof Collection) {
             mergeCollectionApply((Collection) ret, (Collection) base, (Collection) what);
-            return ret;
-        }
-
-        // If its a dynamic bean we have to use dynamic properties
-        if (ret instanceof DynaBean) {
-            final DynaProperty[] origDescriptors = ((DynaBean) ret).getDynaClass().getDynaProperties();
-            for (final DynaProperty origDescriptor : origDescriptors) {
-                final String name = origDescriptor.getName();
-                if (propertyUtils.isReadable(ret, name) && propertyUtils.isWriteable(ret, name)) {
-                    Object valueBase = base != null ? ((DynaBean) base).get(name) : null;
-                    Object valueWhat = ((DynaBean) what).get(name);
-                    Object valueRet = ((DynaBean) ret).get(name);
-
-                    Object value = mergeApply(valueBase, valueWhat, valueRet);
-                    ((DynaBean) ret).set(name, value);
-                }
-            }
-            return ret;
-        }
-
-        // Otherwise treat it as a normal POJO that needs to be merged
-        // Merge all the properties themselves
-        List<PropertyDescriptor> descriptors = this.getPropertyDescriptors(clazz);
-        for (PropertyDescriptor descriptor : descriptors) {
-            Method readMethod = descriptor.getReadMethod();
-            if (readMethod == null) continue;
-            Method writeMethod = descriptor.getWriteMethod();
-            if (writeMethod == null) continue;
-
-            try {
-                Object valueBase = base != null ? readMethod.invoke(base) : null;
-                Object valueWhat = readMethod.invoke(what);
-                Object valueRet = readMethod.invoke(ret);
-
-                Object value = mergeApply(valueBase, valueWhat, valueRet);
-                writeMethod.invoke(ret, value);
-            } catch (IllegalAccessException | InvocationTargetException e) {
-                throw new WebApplicationException("Failed to set property", e);
-            }
+            return (T)ret;
         }
 
         List<Field> fields = this.getFieldDescriptors(clazz);
         for (Field field : fields) {
             try {
-                Object valueBase = base != null ? valueBase = field.get(base) : null;
+                Object valueBase = base != null ? field.get(base) : null;
                 Object valueWhat = field.get(what);
                 Object valueRet = field.get(ret);
 
@@ -654,7 +557,7 @@ public class DataMerger {
                 throw new WebApplicationException("Failed to set field", e);
             }
         }
-        return ret;
+        return (T)ret;
     }
 
     public <T> @Nullable T merge(MergeSet<T> set) {
@@ -666,7 +569,7 @@ public class DataMerger {
                 ret = null;
                 continue;
             }
-            ret = (T) mergeThreeWay(base, ret, right);
+            ret = mergeThreeWay(base, ret, right);
             if (ret == null) throw new WebApplicationException("Failed to mergeThreeWay data objects.");
         }
         return ret;
@@ -676,7 +579,7 @@ public class DataMerger {
         if (stream == null) return null;
         T ret = null;
         for (MergePair<T> pair : stream) {
-            ret = (T)this.mergeApply(pair.base, pair.what, ret);
+            ret = this.mergeApply(pair.base, pair.what, ret);
         }
         return ret;
     }

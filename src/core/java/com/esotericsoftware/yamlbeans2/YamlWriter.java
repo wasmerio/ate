@@ -56,11 +56,11 @@ public class YamlWriter {
 	private final Emitter emitter;
 	private boolean started;
 
-	private Map<Class, Object> defaultValuePrototypes = new IdentityHashMap();
+	private Map<Class, Object> defaultValuePrototypes = new IdentityHashMap<>();
 
 	private final List queuedObjects = new ArrayList();
-	private final Map<Object, Integer> referenceCount = new IdentityHashMap();
-	private final Map<Object, String> anchoredObjects = new HashMap();
+	private final Map<Object, Integer> referenceCount = new IdentityHashMap<>();
+	private final Map<Object, String> anchoredObjects = new HashMap<>();
 	private int nextAnchor = 1;
 	private boolean isRoot;
 
@@ -77,6 +77,7 @@ public class YamlWriter {
 		anchoredObjects.put(object, alias);
 	}
 
+    @SuppressWarnings({"unchecked"})
 	public void write (Object object) throws YamlException {
 		if (config.writeConfig.autoAnchor) {
 			countObjectReferences(object);
@@ -137,6 +138,7 @@ public class YamlWriter {
 		}
 	}
 
+    @SuppressWarnings({"unchecked"})
 	private void writeValue (Object object, Class fieldClass, Class elementType, Class defaultType)
 		throws EmitterException, IOException, YamlException {
 		boolean isRoot = this.isRoot;

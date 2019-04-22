@@ -18,13 +18,13 @@ package com.tokera.ate.test.encryptor;
 import com.tokera.ate.delegates.YamlDelegate;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.security.Encryptor;
-import junit.framework.Assert;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.jboss.weld.bootstrap.spi.BeanDiscoveryMode;
 import org.jboss.weld.environment.se.Weld;
 import org.jboss.weld.junit5.WeldInitiator;
 import org.jboss.weld.junit5.WeldJunit5Extension;
 import org.jboss.weld.junit5.WeldSetup;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -74,7 +74,7 @@ public class NtruTests {
 
         byte[] sig = encryptor.signNtru(keyPrivate, digest);
         boolean isValid = encryptor.verifyNtru(keyPublic, digest, sig);
-        Assert.assertTrue(isValid);
+        Assertions.assertTrue(isValid);
     }
 
     public void testEncrypt(int keySize, @Nullable String _seed) throws IOException, InvalidCipherTextException
@@ -97,7 +97,7 @@ public class NtruTests {
         byte[] plainBytes = encryptor.decryptNtruWithPrivate(keyPrivate, enc);
 
         String test = new String(plainBytes);
-        Assert.assertEquals(plain, test);
+        Assertions.assertEquals(plain, test);
     }
 
     @Test
@@ -156,7 +156,7 @@ public class NtruTests {
         byte[] plainBytes = encryptor.decryptNtruWithPrivate(keyPrivate, enc);
 
         String test = new String(plainBytes);
-        Assert.assertEquals(plain, test);
+        Assertions.assertEquals(plain, test);
     }
 
     @Test
@@ -174,7 +174,7 @@ public class NtruTests {
 
         byte[] sig = encryptor.signNtru(keyPrivate, digest);
         boolean isValid = encryptor.verifyNtru(keyPublic, digest, sig);
-        Assert.assertTrue(isValid);
+        Assertions.assertTrue(isValid);
     }
 
     //@Test

@@ -5,7 +5,7 @@
  */
 package com.tokera.ate.common;
 
-import com.google.api.client.repackaged.com.google.common.base.Objects;
+import com.google.common.base.Objects;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.UUID;

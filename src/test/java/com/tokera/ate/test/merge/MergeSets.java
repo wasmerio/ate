@@ -18,7 +18,7 @@ package com.tokera.ate.test.merge;
 import com.tokera.ate.dto.msg.MessageDataHeaderDto;
 import com.tokera.ate.io.merge.DataMerger;
 import com.tokera.ate.test.dao.MyAccount;
-import junit.framework.Assert;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 
@@ -54,62 +54,62 @@ public class MergeSets {
 
     @Test
     public void testEmpty3way() {
-        MessageDataHeaderDto result = (MessageDataHeaderDto)merger.mergeThreeWay(common, left, right);
+        MessageDataHeaderDto result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.getAllowRead().size() == 0);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.getAllowRead().size() == 0);
     }
 
     @Test
     public void testEmpty2way() {
-        MessageDataHeaderDto result = (MessageDataHeaderDto)merger.mergeApply(common, left, right);
+        MessageDataHeaderDto result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.getAllowRead().size() == 0);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.getAllowRead().size() == 0);
     }
 
     @Test
     public void testAddLeft3way() {
         left.getAllowRead().add(leftUUID);
 
-        MessageDataHeaderDto result = (MessageDataHeaderDto)merger.mergeThreeWay(common, left, right);
+        MessageDataHeaderDto result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.getAllowRead().size() == 1);
-        Assert.assertTrue(result.getAllowRead().contains(leftUUID));
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.getAllowRead().size() == 1);
+        Assertions.assertTrue(result.getAllowRead().contains(leftUUID));
     }
 
     @Test
     public void testAddLeft2way() {
         left.getAllowRead().add(leftUUID);
 
-        MessageDataHeaderDto result = (MessageDataHeaderDto)merger.mergeApply(common, left, right);
+        MessageDataHeaderDto result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.getAllowRead().size() == 1);
-        Assert.assertTrue(result.getAllowRead().contains(leftUUID));
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.getAllowRead().size() == 1);
+        Assertions.assertTrue(result.getAllowRead().contains(leftUUID));
     }
 
     @Test
     public void testRight3way() {
         right.getAllowRead().add(rightUUID);
 
-        MessageDataHeaderDto result = (MessageDataHeaderDto)merger.mergeThreeWay(common, left, right);
+        MessageDataHeaderDto result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.getAllowRead().size() == 1);
-        Assert.assertTrue(result.getAllowRead().contains(rightUUID));
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.getAllowRead().size() == 1);
+        Assertions.assertTrue(result.getAllowRead().contains(rightUUID));
     }
 
     @Test
     public void testRight2way() {
         right.getAllowRead().add(rightUUID);
 
-        MessageDataHeaderDto result = (MessageDataHeaderDto)merger.mergeApply(common, left, right);
+        MessageDataHeaderDto result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.getAllowRead().size() == 1);
-        Assert.assertTrue(result.getAllowRead().contains(rightUUID));
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.getAllowRead().size() == 1);
+        Assertions.assertTrue(result.getAllowRead().contains(rightUUID));
     }
     
     @Test
@@ -117,12 +117,12 @@ public class MergeSets {
         left.getAllowRead().add(leftUUID);
         right.getAllowRead().add(rightUUID);
 
-        MessageDataHeaderDto result = (MessageDataHeaderDto)merger.mergeThreeWay(common, left, right);
+        MessageDataHeaderDto result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.getAllowRead().size() == 2);
-        Assert.assertTrue(result.getAllowRead().contains(leftUUID));
-        Assert.assertTrue(result.getAllowRead().contains(rightUUID));
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.getAllowRead().size() == 2);
+        Assertions.assertTrue(result.getAllowRead().contains(leftUUID));
+        Assertions.assertTrue(result.getAllowRead().contains(rightUUID));
     }
 
     @Test
@@ -130,12 +130,12 @@ public class MergeSets {
         left.getAllowRead().add(leftUUID);
         right.getAllowRead().add(rightUUID);
 
-        MessageDataHeaderDto result = (MessageDataHeaderDto)merger.mergeApply(common, left, right);
+        MessageDataHeaderDto result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.getAllowRead().size() == 2);
-        Assert.assertTrue(result.getAllowRead().contains(leftUUID));
-        Assert.assertTrue(result.getAllowRead().contains(rightUUID));
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.getAllowRead().size() == 2);
+        Assertions.assertTrue(result.getAllowRead().contains(leftUUID));
+        Assertions.assertTrue(result.getAllowRead().contains(rightUUID));
     }
 
     @Test
@@ -148,11 +148,11 @@ public class MergeSets {
 
         right.getAllowRead().add(leftUUID);
 
-        MessageDataHeaderDto result = (MessageDataHeaderDto)merger.mergeThreeWay(common, left, right);
+        MessageDataHeaderDto result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.getAllowRead().size() == 1);
-        Assert.assertTrue(result.getAllowRead().contains(leftUUID));
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.getAllowRead().size() == 1);
+        Assertions.assertTrue(result.getAllowRead().contains(leftUUID));
     }
 
     @Test
@@ -165,11 +165,11 @@ public class MergeSets {
 
         right.getAllowRead().add(leftUUID);
 
-        MessageDataHeaderDto result = (MessageDataHeaderDto)merger.mergeApply(common, left, right);
+        MessageDataHeaderDto result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.getAllowRead().size() == 1);
-        Assert.assertTrue(result.getAllowRead().contains(leftUUID));
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.getAllowRead().size() == 1);
+        Assertions.assertTrue(result.getAllowRead().contains(leftUUID));
     }
 
     @Test
@@ -182,11 +182,11 @@ public class MergeSets {
         right.getAllowRead().add(leftUUID);
         right.getAllowRead().add(rightUUID);
 
-        MessageDataHeaderDto result = (MessageDataHeaderDto)merger.mergeThreeWay(common, left, right);
+        MessageDataHeaderDto result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.getAllowRead().size() == 1);
-        Assert.assertTrue(result.getAllowRead().contains(rightUUID));
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.getAllowRead().size() == 1);
+        Assertions.assertTrue(result.getAllowRead().contains(rightUUID));
     }
 
     @Test
@@ -199,11 +199,11 @@ public class MergeSets {
         right.getAllowRead().add(leftUUID);
         right.getAllowRead().add(rightUUID);
 
-        MessageDataHeaderDto result = (MessageDataHeaderDto)merger.mergeApply(common, left, right);
+        MessageDataHeaderDto result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.getAllowRead().size() == 1);
-        Assert.assertTrue(result.getAllowRead().contains(rightUUID));
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.getAllowRead().size() == 1);
+        Assertions.assertTrue(result.getAllowRead().contains(rightUUID));
     }
 
     @Test
@@ -215,10 +215,10 @@ public class MergeSets {
 
         right.getAllowRead().add(leftUUID);
 
-        MessageDataHeaderDto result = (MessageDataHeaderDto)merger.mergeThreeWay(common, left, right);
+        MessageDataHeaderDto result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.getAllowRead().size() == 0);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.getAllowRead().size() == 0);
     }
 
     @Test
@@ -230,10 +230,10 @@ public class MergeSets {
 
         right.getAllowRead().add(leftUUID);
 
-        MessageDataHeaderDto result = (MessageDataHeaderDto)merger.mergeApply(common, left, right);
+        MessageDataHeaderDto result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.getAllowRead().size() == 0);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.getAllowRead().size() == 0);
     }
 
     @Test
@@ -250,10 +250,10 @@ public class MergeSets {
             right.getAllowRead().add(rightUUID);
         }
 
-        MessageDataHeaderDto result = (MessageDataHeaderDto)merger.mergeThreeWay(common, left, right);
+        MessageDataHeaderDto result = merger.mergeThreeWay(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.getAllowRead().size() == 2);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.getAllowRead().size() == 2);
     }
 
     @Test
@@ -270,48 +270,48 @@ public class MergeSets {
             right.getAllowRead().add(rightUUID);
         }
 
-        MessageDataHeaderDto result = (MessageDataHeaderDto)merger.mergeApply(common, left, right);
+        MessageDataHeaderDto result = merger.mergeApply(common, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.getAllowRead().size() == 2);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.getAllowRead().size() == 2);
     }
 
     @Test
     public void testEmptyFromNull3way() {
-        MessageDataHeaderDto result = (MessageDataHeaderDto)merger.mergeThreeWay(null, left, right);
+        MessageDataHeaderDto result = merger.mergeThreeWay(null, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.getAllowRead().size() == 0);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.getAllowRead().size() == 0);
     }
 
     @Test
     public void testEmptyFromNull2way() {
-        MessageDataHeaderDto result = (MessageDataHeaderDto)merger.mergeApply(null, left, right);
+        MessageDataHeaderDto result = merger.mergeApply(null, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.getAllowRead().size() == 0);
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.getAllowRead().size() == 0);
     }
 
     @Test
     public void testAddLeftFromNull3wayA() {
         left.getAllowRead().add(leftUUID);
 
-        MessageDataHeaderDto result = (MessageDataHeaderDto)merger.mergeThreeWay(null, left, null);
+        MessageDataHeaderDto result = merger.mergeThreeWay(null, left, null);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.getAllowRead().size() == 1);
-        Assert.assertTrue(result.getAllowRead().contains(leftUUID));
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.getAllowRead().size() == 1);
+        Assertions.assertTrue(result.getAllowRead().contains(leftUUID));
     }
 
     @Test
     public void testAddLeftFromNull2wayA() {
         left.getAllowRead().add(leftUUID);
 
-        MessageDataHeaderDto result = (MessageDataHeaderDto)merger.mergeApply(null, left, null);
+        MessageDataHeaderDto result = merger.mergeApply(null, left, null);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.getAllowRead().size() == 1);
-        Assert.assertTrue(result.getAllowRead().contains(leftUUID));
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.getAllowRead().size() == 1);
+        Assertions.assertTrue(result.getAllowRead().contains(leftUUID));
     }
 
     @Test
@@ -319,11 +319,11 @@ public class MergeSets {
         Set<String> left = new HashSet<>();
         left.add(leftUUID);
 
-        Set<String> result = (Set<String>)merger.mergeThreeWay(null, left, null);
+        Set<String> result = merger.mergeThreeWay(null, left, null);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.size() == 1);
-        Assert.assertTrue(result.contains(leftUUID));
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.size() == 1);
+        Assertions.assertTrue(result.contains(leftUUID));
     }
 
     @Test
@@ -331,33 +331,33 @@ public class MergeSets {
         Set<String> left = new HashSet<>();
         left.add(leftUUID);
 
-        Set<String> result = (Set<String>)merger.mergeApply(null, left, null);
+        Set<String> result = merger.mergeApply(null, left, null);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.size() == 1);
-        Assert.assertTrue(result.contains(leftUUID));
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.size() == 1);
+        Assertions.assertTrue(result.contains(leftUUID));
     }
 
     @Test
     public void testRightFromNull3way() {
         right.getAllowRead().add(rightUUID);
 
-        MessageDataHeaderDto result = (MessageDataHeaderDto)merger.mergeThreeWay(null, null, right);
+        MessageDataHeaderDto result = merger.mergeThreeWay(null, null, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.getAllowRead().size() == 1);
-        Assert.assertTrue(result.getAllowRead().contains(rightUUID));
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.getAllowRead().size() == 1);
+        Assertions.assertTrue(result.getAllowRead().contains(rightUUID));
     }
 
     @Test
     public void testRightFromNull2way() {
         right.getAllowRead().add(rightUUID);
 
-        MessageDataHeaderDto result = (MessageDataHeaderDto)merger.mergeApply(null, null, right);
+        MessageDataHeaderDto result = merger.mergeApply(null, null, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
-        Assert.assertTrue(result.getAllowRead().size() == 1);
-        Assert.assertTrue(result.getAllowRead().contains(rightUUID));
+        Assertions.assertNotNull(result);
+        Assertions.assertTrue(result.getAllowRead().size() == 1);
+        Assertions.assertTrue(result.getAllowRead().contains(rightUUID));
     }
 
     @Test
@@ -365,13 +365,13 @@ public class MergeSets {
         left.getAllowRead().add(leftUUID);
         right.getAllowRead().add(rightUUID);
 
-        MessageDataHeaderDto result = (MessageDataHeaderDto)merger.mergeThreeWay(null, left, right);
+        MessageDataHeaderDto result = merger.mergeThreeWay(null, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
+        Assertions.assertNotNull(result);
 
-        Assert.assertTrue(result.getAllowRead().size() == 2);
-        Assert.assertTrue(result.getAllowRead().contains(leftUUID));
-        Assert.assertTrue(result.getAllowRead().contains(rightUUID));
+        Assertions.assertTrue(result.getAllowRead().size() == 2);
+        Assertions.assertTrue(result.getAllowRead().contains(leftUUID));
+        Assertions.assertTrue(result.getAllowRead().contains(rightUUID));
     }
 
     @Test
@@ -379,12 +379,12 @@ public class MergeSets {
         left.getAllowRead().add(leftUUID);
         right.getAllowRead().add(rightUUID);
 
-        MessageDataHeaderDto result = (MessageDataHeaderDto)merger.mergeApply(null, left, right);
+        MessageDataHeaderDto result = merger.mergeApply(null, left, right);
         assert result != null : "@AssumeAssertion(nullness): Must not be null";
-        Assert.assertNotNull(result);
+        Assertions.assertNotNull(result);
 
-        Assert.assertTrue(result.getAllowRead().size() == 2);
-        Assert.assertTrue(result.getAllowRead().contains(leftUUID));
-        Assert.assertTrue(result.getAllowRead().contains(rightUUID));
+        Assertions.assertTrue(result.getAllowRead().size() == 2);
+        Assertions.assertTrue(result.getAllowRead().contains(leftUUID));
+        Assertions.assertTrue(result.getAllowRead().contains(rightUUID));
     }
 }

@@ -8,7 +8,7 @@ package com.tokera.ate.dto.msg;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.flatbuffers.FlatBufferBuilder;
-import com.google.gson.annotations.Expose;
+import com.tokera.ate.common.CopyOnWrite;
 import com.tokera.ate.constraints.PublicKeyConstraint;
 import com.tokera.ate.dao.msg.*;
 import com.tokera.ate.annotations.YamlTag;
@@ -32,7 +32,7 @@ import javax.ws.rs.WebApplicationException;
  */
 @PublicKeyConstraint
 @YamlTag("msg.public.key")
-public class MessagePublicKeyDto extends MessageBaseDto implements Serializable
+public class MessagePublicKeyDto extends MessageBaseDto implements Serializable, CopyOnWrite
 {
     private static final long serialVersionUID = -94567964466371784L;
 
@@ -41,13 +41,11 @@ public class MessagePublicKeyDto extends MessageBaseDto implements Serializable
     @Nullable
     protected transient Integer hashCache = null;
 
-    @Expose
     @JsonProperty
     @MonotonicNonNull
     @Size(min=1, max=64)
     @Pattern(regexp = "^[a-zA-Z0-9_\\-\\:\\@\\.]+$")
     protected @Alias String alias;
-    @Expose
     @JsonProperty
     @MonotonicNonNull
     @Size(min=43, max=43)
@@ -55,7 +53,6 @@ public class MessagePublicKeyDto extends MessageBaseDto implements Serializable
     protected @Hash String publicKeyHash;
     @JsonIgnore
     protected transient @PEM byte @MonotonicNonNull [] publicKeyBytes;
-    @Expose
     @JsonProperty
     @MonotonicNonNull
     protected @PEM String publicKey;
@@ -81,8 +78,9 @@ public class MessagePublicKeyDto extends MessageBaseDto implements Serializable
             throw new WebApplicationException("Invalidate message type [expected=MessagePublicKey, actual=" + val.msgType() + "]");
         }
     }
-    
-    private void copyOnWrite() {
+
+    @Override
+    public void copyOnWrite() {
         MessagePublicKey lfb = fb;
         if (lfb == null) return;
 

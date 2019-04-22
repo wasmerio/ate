@@ -47,9 +47,9 @@ import java.util.Map;
 public class Parser {
 	Tokenizer tokenizer = null;
 	List<Production> parseStack = null;
-	final List<String> tags = new LinkedList();
-	final List<String> anchors = new LinkedList();
-	Map<String, String> tagHandles = new HashMap();
+	final List<String> tags = new LinkedList<>();
+	final List<String> anchors = new LinkedList<>();
+	Map<String, String> tagHandles = new HashMap<>();
 	Version defaultVersion, documentVersion;
 	final Production[] table = new Production[46];
 	Event peekedEvent;
@@ -68,7 +68,7 @@ public class Parser {
 
 		initProductionTable();
 
-		parseStack = new LinkedList();
+		parseStack = new LinkedList<>();
 		parseStack.add(0, table[P_STREAM]);
 	}
 
@@ -613,7 +613,7 @@ public class Parser {
 			version = defaultVersion;
 
 		Map<String, String> tags = null;
-		if (!tagHandles.isEmpty()) tags = new HashMap(tagHandles);
+		if (!tagHandles.isEmpty()) tags = new HashMap<>(tagHandles);
 		Map<String, String> baseTags = version.minor == 0 ? DEFAULT_TAGS_1_0 : DEFAULT_TAGS_1_1;
 		for (String key : baseTags.keySet())
 			if (!tagHandles.containsKey(key)) tagHandles.put(key, baseTags.get(key));
@@ -671,8 +671,8 @@ public class Parser {
 	static private final int P_ALIAS = 44;
 	static private final int P_EMPTY_SCALAR = 45;
 
-	static private final Map<String, String> DEFAULT_TAGS_1_0 = new HashMap();
-	static private final Map<String, String> DEFAULT_TAGS_1_1 = new HashMap();
+	static private final Map<String, String> DEFAULT_TAGS_1_0 = new HashMap<>();
+	static private final Map<String, String> DEFAULT_TAGS_1_1 = new HashMap<>();
 	static {
 		DEFAULT_TAGS_1_0.put("!", "tag:yaml.org,2002:");
 

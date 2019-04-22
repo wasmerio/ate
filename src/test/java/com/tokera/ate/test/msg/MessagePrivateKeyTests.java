@@ -1,8 +1,8 @@
 package com.tokera.ate.test.msg;
 
-import com.google.api.client.util.Base64;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.test.TestTools;
+import org.apache.commons.codec.binary.Base64;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 

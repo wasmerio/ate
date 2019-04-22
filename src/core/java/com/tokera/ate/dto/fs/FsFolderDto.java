@@ -6,7 +6,6 @@
 package com.tokera.ate.dto.fs;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.google.gson.annotations.Expose;
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.units.Alias;
 
@@ -24,41 +23,32 @@ import java.util.List;
 @YamlTag("dto.fs.folder")
 public class FsFolderDto {
 
-    @Expose
     @JsonProperty
     @NotNull
     @Size(min=1, max=64)
     @Pattern(regexp = "^[a-zA-Z0-9_\\-\\:\\@\\.]+$")
     private @Alias String name;
-    @Expose
     @JsonProperty
     @NotNull
     private Boolean passthrough = false;
-    @Expose
     @JsonProperty
     @NotNull
     private Boolean createPass = false;
-    @Expose
     @JsonProperty
     @NotNull
     private Boolean cacheResults = false;
-    @Expose
     @JsonProperty
     @NotNull
     private Boolean writeable = false;
-    @Expose
     @JsonProperty
     @NotNull
     private List<FsFolderDto> subFolders = new ArrayList<>();
-    @Expose
     @JsonProperty
     @NotNull
     private List<FsFileDto> files = new ArrayList<>();
-    @Expose
     @JsonProperty
     @NotNull
     private List<FsSymbolicDto> symbolics = new ArrayList<>();
-    @Expose
     @JsonProperty
     @NotNull
     private List<FsMountDto> mounts = new ArrayList<>();

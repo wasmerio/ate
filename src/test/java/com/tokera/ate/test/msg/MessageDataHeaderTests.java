@@ -7,7 +7,6 @@ import com.tokera.ate.dao.msg.MessageDataHeader;
 import com.tokera.ate.dto.msg.MessageDataDto;
 import com.tokera.ate.dto.msg.MessageDataHeaderDto;
 import com.tokera.ate.test.dao.MyAccount;
-import junit.framework.Assert;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
@@ -43,14 +42,14 @@ public class MessageDataHeaderTests
         header.getMerges().add(merge2);
         
         MessageDataHeaderDto header2 = new MessageDataHeaderDto(header.createFlatBuffer());
-        Assert.assertTrue("ID is not equal", Objects.equal(header.getIdOrThrow(), header2.getIdOrThrow()));
-        Assert.assertTrue("Version is not equal", Objects.equal(header.getVersionOrThrow(), header2.getVersionOrThrow()));
-        Assert.assertTrue("Previous Version is not equal", Objects.equal(header.getPreviousVersion(), header2.getPreviousVersion()));
+        Assertions.assertTrue(Objects.equal(header.getIdOrThrow(), header2.getIdOrThrow()), "ID is not equal");
+        Assertions.assertTrue(Objects.equal(header.getVersionOrThrow(), header2.getVersionOrThrow()), "Version is not equal");
+        Assertions.assertTrue(Objects.equal(header.getPreviousVersion(), header2.getPreviousVersion()), "Previous Version is not equal");
         header2.setId(id);
-        Assert.assertTrue("Inherit read flag is not equal", Objects.equal(header.getInheritRead(), header2.getInheritRead()));
-        Assert.assertTrue("Inherit write flag is not equal", Objects.equal(header.getInheritWrite(), header2.getInheritWrite()));
-        Assert.assertTrue("Encrypt key hash is not equal", Objects.equal(header.getEncryptKeyHash(), header2.getEncryptKeyHash()));
-        Assert.assertTrue("Payload class is not equal", Objects.equal(header.getPayloadClazzOrThrow(), header2.getPayloadClazzOrThrow()));
+        Assertions.assertTrue(Objects.equal(header.getInheritRead(), header2.getInheritRead()), "Inherit read flag is not equal");
+        Assertions.assertTrue(Objects.equal(header.getInheritWrite(), header2.getInheritWrite()), "Inherit write flag is not equal");
+        Assertions.assertTrue(Objects.equal(header.getEncryptKeyHash(), header2.getEncryptKeyHash()), "Encrypt key hash is not equal");
+        Assertions.assertTrue(Objects.equal(header.getPayloadClazzOrThrow(), header2.getPayloadClazzOrThrow()), "Payload class is not equal");
     }
     
     @Test
@@ -81,24 +80,24 @@ public class MessageDataHeaderTests
         data = new MessageDataDto(msg);
         
         MessageDataHeaderDto header2 = data.getHeader();
-        Assert.assertTrue("ID is not equal", Objects.equal(header.getIdOrThrow(), header2.getIdOrThrow()));
-        Assert.assertTrue("Version is not equal", Objects.equal(header.getVersionOrThrow(), header2.getVersionOrThrow()));
+        Assertions.assertTrue(Objects.equal(header.getIdOrThrow(), header2.getIdOrThrow()), "ID is not equal");
+        Assertions.assertTrue(Objects.equal(header.getVersionOrThrow(), header2.getVersionOrThrow()), "Version is not equal");
         header2.setId(id);
-        Assert.assertTrue("Inherit read flag is not equal", Objects.equal(header.getInheritRead(), header2.getInheritRead()));
-        Assert.assertTrue("Inherit write flag is not equal", Objects.equal(header.getInheritWrite(), header2.getInheritWrite()));
-        Assert.assertTrue("Encrypt key hash is not equal", Objects.equal(header.getEncryptKeyHash(), header2.getEncryptKeyHash()));
-        Assert.assertTrue("Payload class is not equal", Objects.equal(header.getPayloadClazzOrThrow(), header2.getPayloadClazzOrThrow()));
-        Assert.assertTrue(header.getAllowRead().size() == header2.getAllowRead().size());
-        Assert.assertTrue(header.getAllowWrite().size() == header2.getAllowWrite().size());
-        Assert.assertTrue(header.getMerges().size() == header2.getMerges().size());
+        Assertions.assertTrue(Objects.equal(header.getInheritRead(), header2.getInheritRead()), "Inherit read flag is not equal");
+        Assertions.assertTrue(Objects.equal(header.getInheritWrite(), header2.getInheritWrite()), "Inherit write flag is not equal");
+        Assertions.assertTrue(Objects.equal(header.getEncryptKeyHash(), header2.getEncryptKeyHash()), "Encrypt key hash is not equal");
+        Assertions.assertTrue(Objects.equal(header.getPayloadClazzOrThrow(), header2.getPayloadClazzOrThrow()), "Payload class is not equal");
+        Assertions.assertTrue(header.getAllowRead().size() == header2.getAllowRead().size());
+        Assertions.assertTrue(header.getAllowWrite().size() == header2.getAllowWrite().size());
+        Assertions.assertTrue(header.getMerges().size() == header2.getMerges().size());
         for (String hash : header.getAllowRead()) {
-            Assert.assertTrue(header2.getAllowRead().contains(hash));
+            Assertions.assertTrue(header2.getAllowRead().contains(hash));
         }
         for (String hash : header.getAllowWrite()) {
-            Assert.assertTrue(header2.getAllowWrite().contains(hash));
+            Assertions.assertTrue(header2.getAllowWrite().contains(hash));
         }
         for (UUID v : header.getMerges()) {
-            Assert.assertTrue(header2.getMerges().contains(v));
+            Assertions.assertTrue(header2.getMerges().contains(v));
         }
     }
     
@@ -165,25 +164,25 @@ public class MessageDataHeaderTests
         
         ByteArrayOutputStream stream2 = new ByteArrayOutputStream();
         MessageSerializer.writeBytes(stream2, data2.getHeader().createFlatBuffer());
-        
-        Assert.assertTrue("ID is not equal", Objects.equal(header.getIdOrThrow(), header2.getIdOrThrow()));
-        Assert.assertTrue("Version is not equal", Objects.equal(header.getVersionOrThrow(), header2.getVersionOrThrow()));
-        Assert.assertTrue("Inherit read flag is not equal", Objects.equal(header.getInheritRead(), header2.getInheritRead()));
-        Assert.assertTrue("Inherit write flag is not equal", Objects.equal(header.getInheritWrite(), header2.getInheritWrite()));
-        Assert.assertTrue("Encrypt key hash is not equal", Objects.equal(header.getEncryptKeyHash(), header2.getEncryptKeyHash()));
-        Assert.assertTrue("Payload class is not equal", Objects.equal(header.getPayloadClazzOrThrow(), header2.getPayloadClazzOrThrow()));
-        Assert.assertTrue(header.getAllowRead().size() == header2.getAllowRead().size());
-        Assert.assertTrue(header.getAllowWrite().size() == header2.getAllowWrite().size());
-        Assert.assertTrue(header.getMerges().size() == header2.getMerges().size());
+
+        Assertions.assertTrue(Objects.equal(header.getIdOrThrow(), header2.getIdOrThrow()), "ID is not equal");
+        Assertions.assertTrue(Objects.equal(header.getVersionOrThrow(), header2.getVersionOrThrow()), "Version is not equal");
+        Assertions.assertTrue(Objects.equal(header.getInheritRead(), header2.getInheritRead()), "Inherit read flag is not equal");
+        Assertions.assertTrue(Objects.equal(header.getInheritWrite(), header2.getInheritWrite()), "Inherit write flag is not equal");
+        Assertions.assertTrue(Objects.equal(header.getEncryptKeyHash(), header2.getEncryptKeyHash()), "Encrypt key hash is not equal");
+        Assertions.assertTrue(Objects.equal(header.getPayloadClazzOrThrow(), header2.getPayloadClazzOrThrow()), "Payload class is not equal");
+        Assertions.assertTrue(header.getAllowRead().size() == header2.getAllowRead().size());
+        Assertions.assertTrue(header.getAllowWrite().size() == header2.getAllowWrite().size());
+        Assertions.assertTrue(header.getMerges().size() == header2.getMerges().size());
         for (String hash : header.getAllowRead()) {
-            Assert.assertTrue(header2.getAllowRead().contains(hash));
+            Assertions.assertTrue(header2.getAllowRead().contains(hash));
         }
         for (String hash : header.getAllowWrite()) {
-            Assert.assertTrue(header2.getAllowWrite().contains(hash));
+            Assertions.assertTrue(header2.getAllowWrite().contains(hash));
         }
         for (UUID v : header.getMerges()) {
             Set<UUID> header2parentVersions = header2.getMerges();
-            Assert.assertTrue(header2parentVersions.contains(v));
+            Assertions.assertTrue(header2parentVersions.contains(v));
         }
         
         byte[] bytes1 = stream.toByteArray();

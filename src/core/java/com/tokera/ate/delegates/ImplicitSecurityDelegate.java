@@ -133,14 +133,15 @@ public class ImplicitSecurityDelegate {
                 if (record instanceof TXTRecord) {
                     TXTRecord txt = (TXTRecord)record;
                     
-                    final List<String> strings = txt.getStrings();
+                    final List strings = txt.getStrings();
                     if (strings.isEmpty()) {
                         continue;
                     }
 
                     StringBuilder sb = new StringBuilder();
-                    for (String str : strings) {
-                        sb.append(str);
+                    for (Object str : strings) {
+                        if (str == null) continue;
+                        sb.append(str.toString());
                     }
                     return sb.toString();
                 }
