@@ -1,0 +1,683 @@
+package com.tokera.ate.io.merge;
+
+import com.google.common.collect.HashMultiset;
+import com.tokera.ate.common.MapTools;
+import org.apache.commons.beanutils.DynaBean;
+import org.apache.commons.beanutils.DynaProperty;
+import org.apache.commons.beanutils.PropertyUtils;
+import org.checkerframework.checker.nullness.qual.Nullable;
+
+import javax.enterprise.context.ApplicationScoped;
+import javax.persistence.Column;
+import javax.persistence.Id;
+import javax.ws.rs.WebApplicationException;
+import java.beans.PropertyDescriptor;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.stream.Collectors;
+
+/**
+ * Class that will mergeThreeWay perform a 2-way mergeThreeWay on data objects, basic types and scales. All objects with read/write
+ * properties and/or Column attribute marked fields will be in-scope of the mergeThreeWay.
+ */
+@ApplicationScoped
+public class DataMerger {
+
+    private final PropertyUtils propertyUtils = new PropertyUtils();
+    private final ConcurrentMap<Class<?>, List<PropertyDescriptor>> propertyDescriptorsMap = new ConcurrentHashMap<>();
+    private final ConcurrentMap<Class<?>, List<Field>> fieldDescriptorsMap = new ConcurrentHashMap<>();
+
+    private boolean isInternal(Class<?> clazz) {
+        if (clazz.isPrimitive() ||
+                clazz.isSynthetic() ||
+                clazz.isEnum())
+            return true;
+
+        String name = clazz.getName();
+        return name.startsWith("java.") ||
+                name.startsWith("javax.") ||
+                name.startsWith("com.sun.") ||
+                name.startsWith("javax.") ||
+                name.startsWith("oracle.");
+    }
+
+    private List<PropertyDescriptor> getPropertyDescriptors(Class<?> clazz) {
+        return propertyDescriptorsMap
+                .computeIfAbsent(clazz, (c) -> Arrays.stream(PropertyUtils.getPropertyDescriptors(c))
+                        .filter(p -> p.getReadMethod() != null &&
+                                p.getWriteMethod() != null &&
+                                "class".equals(p.getName()) == false)
+                        .collect(Collectors.toList()));
+    }
+
+    private List<Field> getFieldDescriptors(Class<?> clazz) {
+        return fieldDescriptorsMap
+                .computeIfAbsent(clazz, (c) -> {
+                    List<Field> ret = Arrays.stream(clazz.getFields())
+                            .filter(p -> p.getAnnotation(Column.class) != null || p.getAnnotation(Id.class) != null)
+                            .filter(p -> Modifier.isTransient(p.getModifiers())== false)
+                            .collect(Collectors.toList());
+                    ret.stream().forEach(f -> f.setAccessible(true));
+                    return ret;
+                });
+    }
+
+    @SuppressWarnings({"return.type.incompatible", "known.nonnull"})
+    public Object newObject(Class<?> clazz) {
+        try {
+            return clazz.newInstance();
+        } catch (InstantiationException | IllegalAccessException e) {
+            throw new IllegalArgumentException("Class (" + clazz + ") must have a default constructor.", e);
+        }
+    }
+
+    @SuppressWarnings({"argument.type.incompatible"})
+    public @Nullable Object cloneObject(final @Nullable Object source) {
+        if (source == null) return null;
+        Class<?> clazz = source.getClass();
+
+        if (isInternal(clazz)) {
+            return source;
+        }
+
+        Object ret = newObject(clazz);
+        if (source instanceof Map) {
+            return cloneObjectMap((Map) source, (Map) ret);
+        } else if (source instanceof Collection) {
+            return cloneObjectCollection((Collection) source, (Collection) ret);
+        } else if (ret instanceof DynaBean) {
+            return cloneObjectDynaBean((DynaBean) source, (DynaBean) ret);
+        }
+        cloneObjectProperties(clazz, source, ret);
+        cloneObjectFields(clazz, source, ret);
+        return ret;
+    }
+
+    private Map cloneObjectMap(Map source, Map dest) {
+        for (Object key : source.keySet()) {
+            Object val = MapTools.getOrNull(source, key);
+            dest.put(cloneObject(key), cloneObject(val));
+        }
+        return dest;
+    }
+
+    private Collection cloneObjectCollection(Collection source, Collection dest) {
+        for (Object val : source) {
+            dest.add(cloneObject(val));
+        }
+        return dest;
+    }
+
+    @SuppressWarnings({"argument.type.incompatible"})
+    private DynaBean cloneObjectDynaBean(DynaBean source, DynaBean dest) {
+        final DynaProperty[] origDescriptors = dest.getDynaClass().getDynaProperties();
+        for (final DynaProperty origDescriptor : origDescriptors) {
+            final String name = origDescriptor.getName();
+            if (propertyUtils.isReadable(dest, name) && propertyUtils.isWriteable(dest, name)) {
+                Object value = source.get(name);
+                dest.set(name, cloneObject(value));
+            }
+        }
+        return dest;
+    }
+
+    @SuppressWarnings({"argument.type.incompatible"})
+    private Object cloneObjectProperties(Class<?> clazz, Object source, Object dest) {
+        List<PropertyDescriptor> descriptors = this.getPropertyDescriptors(clazz);
+        for (PropertyDescriptor descriptor : descriptors) {
+            Method readMethod = descriptor.getReadMethod();
+            if (readMethod == null) continue;
+            Method writeMethod = descriptor.getWriteMethod();
+            if (writeMethod == null) continue;
+
+            try {
+                Object val = readMethod.invoke(source);
+                writeMethod.invoke(dest, cloneObject(val));
+            } catch (IllegalAccessException | InvocationTargetException e) {
+                throw new WebApplicationException("Failed to set property", e);
+            }
+        }
+        return dest;
+    }
+
+    @SuppressWarnings({"argument.type.incompatible"})
+    private Object cloneObjectFields(Class<?> clazz, Object source, Object dest) {
+        List<Field> fields = this.getFieldDescriptors(clazz);
+        for (Field field : fields) {
+            try {
+                Object val = field.get(source);
+                field.set(dest, cloneObject(val));
+            } catch (IllegalAccessException e) {
+                throw new WebApplicationException("Failed to set field", e);
+            }
+        }
+        return dest;
+    }
+
+    private void mergeMapEntryThreeWay(Map ret, Object key, @Nullable Map common, @Nullable Map left, @Nullable Map right) {
+        Object valCommon = null;
+        Object valLeft = null;
+        Object valRight = null;
+        if (common != null) valCommon = common.getOrDefault(key, null);
+        if (left != null) valLeft = left.getOrDefault(key, null);
+        if (right != null) valRight = right.getOrDefault(key, null);
+        Object val = mergeThreeWay(valCommon, valLeft, valRight);
+        ret.put(key, val);
+    }
+
+    private void mergeMapThreeWay(Map ret, @Nullable Map common, @Nullable Map left, @Nullable Map right) {
+        HashSet existsLeft;
+        HashSet existsRight;
+        if (left != null) existsLeft = new HashSet(left.keySet());
+        else existsLeft = new HashSet();
+        if (right != null) existsRight = new HashSet(right.keySet());
+        else existsRight = new HashSet();
+
+        if (common != null) {
+            for (Object key : common.keySet()) {
+                Object valCommon = MapTools.getOrNull(common, key);
+                ret.put(key, cloneObject(valCommon));
+            }
+        }
+
+        if (left != null) {
+            left.keySet().stream().forEach(key -> mergeMapEntryThreeWay(ret, key, common, left, right));
+        }
+        if (right != null) {
+            right.keySet().stream().forEach(key -> mergeMapEntryThreeWay(ret, key, common, left, right));
+        }
+        if (common != null) {
+            common.keySet().stream()
+                    .filter(e -> existsLeft.contains(e) == false ||
+                            existsRight.contains(e) == false)
+                    .forEach(key -> ret.remove(key));
+        }
+    }
+
+    private void mergeMapApply(Map ret, @Nullable Map _base, @Nullable Map _what) {
+        Map base = _base;
+        Map what = _what;
+
+        if (what == null) {
+            if (base == null) return;
+            for (Object key : base.keySet()) {
+                ret.remove(key);
+            }
+            return;
+        }
+        if (base == null) {
+            for (Object key : what.keySet()) {
+                Object valWhat = what.get(key);
+                Object valRet = MapTools.getOrNull(ret, key);
+                if (valRet == null) valRet = valWhat;
+                ret.put(key, mergeApply(null, valWhat, valRet));
+            }
+            return;
+        }
+
+        for (Object key : base.keySet()) {
+            if (what.containsKey(key) == false) {
+                ret.remove(key);
+            }
+        }
+        for (Object key : what.keySet()) {
+            Object valBase = MapTools.getOrNull(base, key);
+            Object valWhat = what.get(key);
+            Object valRet = MapTools.getOrNull(ret, key);
+            if (valRet == null) valRet = valWhat;
+            ret.put(key, mergeApply(valBase, valWhat, valRet));
+        }
+    }
+
+    private void mergeCollectionThreeWay(Collection ret, @Nullable Collection common, @Nullable Collection left, @Nullable Collection right) {
+        HashSet existsCommon;
+        HashSet existsLeft;
+        HashSet existsRight;
+        if (common != null) existsCommon = new HashSet(common);
+        else existsCommon = new HashSet();
+        if (left != null) existsLeft = new HashSet(left);
+        else existsLeft = new HashSet();
+        if (right != null) existsRight = new HashSet(right);
+        else existsRight = new HashSet();
+
+        if (common != null) {
+            common.stream().filter(val -> existsLeft.contains(val) == true && existsRight.contains(val) == true)
+                    .forEach(val -> ret.add(cloneObject(val)));
+        }
+        if (left != null) {
+            left.stream().filter(val -> existsCommon.contains(val) == false)
+                    .forEach(val -> ret.add(cloneObject(val)));
+        }
+
+        if (right != null) {
+            right.stream().filter(val -> existsCommon.contains(val) == false && existsLeft.contains(val) == false)
+                    .forEach(val -> ret.add(cloneObject(val)));
+        }
+    }
+
+    private void mergeCollectionApply(Collection ret, @Nullable Collection _base, @Nullable Collection _what) {
+        Collection base = _base;
+        Collection what = _what;
+
+        if (what == null) {
+            if (base == null) return;
+            for (Object val : base) {
+                ret.remove(val);
+            }
+            return;
+        }
+        if (base == null) {
+            HashMultiset<Object> existingRet = HashMultiset.create(ret);
+            for (Object val : what) {
+                if (existingRet.remove(val) == false) {
+                    ret.add(cloneObject(val));
+                }
+            }
+            return;
+        }
+        {
+            HashMultiset<Object> existingWhat = HashMultiset.create(what);
+            for (Object val : base) {
+                if (existingWhat.remove(val) == false) {
+                    ret.remove(val);
+                }
+            }
+        }
+        {
+            HashMultiset<Object> existingBase = HashMultiset.create(base);
+            for (Object val : what) {
+                if (existingBase.remove(val) == false) {
+                    ret.add(cloneObject(val));
+                }
+            }
+        }
+    }
+
+    private void mergeListThreeWay(List ret, @Nullable List common, @Nullable List left, @Nullable List right) {
+        HashSet existsCommon = new HashSet();
+        HashSet existsLeft = new HashSet();
+        HashSet existsRight = new HashSet();
+        if (common != null) existsCommon = new HashSet(common);
+        if (left != null) existsLeft = new HashSet(left);
+        if (right != null) existsRight = new HashSet(right);
+
+        if (common != null) {
+            for (Object val : common) {
+                ret.add(cloneObject(val));
+            }
+        }
+
+        if (left != null) {
+            for (int n = 0; n < left.size(); n++) {
+                Object val = left.get(n);
+                if (existsCommon.contains(val) == false) {
+                    if (n + 1 == left.size()) {
+                        ret.add(cloneObject(val));
+                    } else if (n == 0) {
+                        ret.add(0, cloneObject(val));
+                    } else if (n < ret.size()) {
+                        ret.add(n, cloneObject(val));
+                    } else {
+                        ret.add(cloneObject(val));
+                    }
+                }
+            }
+        }
+
+        if (common != null) {
+            for (Object val : common) {
+                if (existsLeft.contains(val) == false) {
+                    ret.remove(val);
+                }
+            }
+        }
+
+        if (right != null) {
+            for (int n = 0; n < right.size(); n++) {
+                Object val = right.get(n);
+                if (existsCommon.contains(val) == false &&
+                        existsLeft.contains(val) == false) {
+                    if (n + 1 == right.size()) {
+                        ret.add(cloneObject(val));
+                    } else if (n == 0) {
+                        ret.add(0, cloneObject(val));
+                    } else if (n < ret.size()) {
+                        ret.add(n, cloneObject(val));
+                    } else {
+                        ret.add(cloneObject(val));
+                    }
+                }
+            }
+        }
+
+        if (common != null) {
+            for (Object val : common) {
+                if (existsRight.contains(val) == false) {
+                    ret.remove(val);
+                }
+            }
+        }
+    }
+
+    private void mergeListApply(List ret, @Nullable List _base, @Nullable List _what) {
+        List base = _base;
+        List what = _what;
+
+        if (what == null) {
+            if (base == null) return;
+            for (Object val : base) {
+                ret.remove(val);
+            }
+            return;
+        }
+        if (base == null) {
+            HashMultiset<Object> existingRet = HashMultiset.create(ret);
+            for (int n = 0; n < what.size(); n++) {
+                Object val = what.get(n);
+                if (existingRet.remove(val) == false) {
+                    if (n + 1 == what.size()) {
+                        ret.add(cloneObject(val));
+                    } else if (n == 0) {
+                        ret.add(0, cloneObject(val));
+                    } else if (n < ret.size()) {
+                        ret.add(n, cloneObject(val));
+                    } else {
+                        ret.add(cloneObject(val));
+                    }
+                }
+            }
+            return;
+        }
+        {
+            HashMultiset<Object> existingWhat = HashMultiset.create(what);
+            for (Object val : base) {
+                if (existingWhat.remove(val) == false) {
+                    ret.remove(val);
+                }
+            }
+        }
+        {
+            HashMultiset<Object> existingBase = HashMultiset.create(base);
+            for (int n = 0; n < what.size(); n++) {
+                Object val = what.get(n);
+                if (existingBase.remove(val) == false) {
+                    if (n + 1 == what.size()) {
+                        ret.add(cloneObject(val));
+                    } else if (n == 0) {
+                        ret.add(0, cloneObject(val));
+                    } else if (n < ret.size()) {
+                        ret.add(n, cloneObject(val));
+                    } else {
+                        ret.add(cloneObject(val));
+                    }
+                }
+            }
+        }
+    }
+
+    @SuppressWarnings({"argument.type.incompatible"})
+    public @Nullable Object mergeThreeWay(final @Nullable Object common, final @Nullable Object left, final @Nullable Object right) {
+
+        // We will need to use reflection to mergeThreeWay these objects
+        Class<?> clazzCommon = common != null ? common.getClass() : null;
+        Class<?> clazzLeft = left != null ? left.getClass() : null;
+        Class<?> clazzRight = right != null ? right.getClass() : null;
+
+        // First compare the types and if they differ then switch them to the new type (with a bias towards the right)
+        if (clazzCommon != null && clazzRight != null &&
+                Objects.equals(clazzCommon, clazzRight) == false) {
+            return cloneObject(right);
+        } else if (clazzCommon != null && clazzLeft != null &&
+                Objects.equals(clazzCommon, clazzLeft) == false) {
+            return cloneObject(left);
+        }
+
+        // Make sure the clazz is set (or if its all null then just return null)
+        if (clazzCommon == null) clazzCommon = clazzRight;
+        if (clazzCommon == null) clazzCommon = clazzLeft;
+        if (clazzCommon == null) return null;
+
+        // Maps and collections will be handled later
+        if (Map.class.isAssignableFrom(clazzCommon) == false &&
+                Collection.class.isAssignableFrom(clazzCommon) == false) {
+            // If its a primative type then pick the right one (otherwise fall through)
+            if (isInternal(clazzCommon)) {
+                if (Objects.equals(common, right) == false) {
+                    return cloneObject(right);
+                } else if (Objects.equals(common, left) == false) {
+                    return cloneObject(left);
+                } else {
+                    return cloneObject(common);
+                }
+            }
+        }
+
+        // Check if its been nulled (if it has then simply return the null)
+        if (right == null && common != null) {
+            return null;
+        } else if (left == null && common != null) {
+            return null;
+        }
+
+        // Now attempt to create it (assuming it has a default constructor)
+        Object ret = newObject(clazzCommon);
+
+        // If its a map then mergeThreeWay the entries
+        if (ret instanceof Map) {
+            mergeMapThreeWay((Map) ret, (Map) common, (Map) left, (Map) right);
+            return ret;
+        }
+
+        // If its a list then mergeThreeWay the entries
+        if (ret instanceof List) {
+            mergeListThreeWay((List) ret, (List) common, (List) left, (List) right);
+            return ret;
+        }
+
+        // If its a collection then mergeThreeWay the entries
+        if (ret instanceof Collection) {
+            mergeCollectionThreeWay((Collection) ret, (Collection) common, (Collection) left, (Collection) right);
+            return ret;
+        }
+
+        // If its a dynamic bean we have to use dynamic properties
+        if (ret instanceof DynaBean) {
+            final DynaProperty[] origDescriptors = ((DynaBean) ret).getDynaClass().getDynaProperties();
+            for (final DynaProperty origDescriptor : origDescriptors) {
+                final String name = origDescriptor.getName();
+                if (propertyUtils.isReadable(ret, name) && propertyUtils.isWriteable(ret, name)) {
+                    Object valueCommon = null;
+                    Object valueLeft = null;
+                    Object valueRight = null;
+                    if (common != null) valueCommon = ((DynaBean) common).get(name);
+                    if (left != null) valueLeft = ((DynaBean) left).get(name);
+                    if (right != null) valueRight = ((DynaBean) right).get(name);
+
+                    Object value = mergeThreeWay(valueCommon, valueLeft, valueRight);
+                    ((DynaBean) ret).set(name, value);
+                }
+            }
+            return ret;
+        }
+
+        // Otherwise treat it as a normal POJO that needs to be merged
+        // Merge all the properties themselves
+        List<PropertyDescriptor> descriptors = this.getPropertyDescriptors(clazzCommon);
+        for (PropertyDescriptor descriptor : descriptors) {
+            Method readMethod = descriptor.getReadMethod();
+            if (readMethod == null) continue;
+            Method writeMethod = descriptor.getWriteMethod();
+            if (writeMethod == null) continue;
+
+            try {
+                Object valueCommon = null;
+                Object valueLeft = null;
+                Object valueRight = null;
+                if (common != null) valueCommon = readMethod.invoke(common);
+                if (left != null) valueLeft = readMethod.invoke(left);
+                if (right != null) valueRight = readMethod.invoke(right);
+
+                Object value = mergeThreeWay(valueCommon, valueLeft, valueRight);
+                writeMethod.invoke(ret, value);
+            } catch (IllegalAccessException | InvocationTargetException e) {
+                throw new WebApplicationException("Failed to set property", e);
+            }
+        }
+
+        List<Field> fields = this.getFieldDescriptors(clazzCommon);
+        for (Field field : fields) {
+            try {
+                Object valueCommon = null;
+                Object valueLeft = null;
+                Object valueRight = null;
+                if (common != null) valueCommon = field.get(common);
+                if (left != null) valueLeft = field.get(left);
+                if (right != null) valueRight = field.get(right);
+
+                Object value = mergeThreeWay(valueCommon, valueLeft, valueRight);
+                field.set(ret, value);
+            } catch (IllegalAccessException e) {
+                throw new WebApplicationException("Failed to set field", e);
+            }
+        }
+        return ret;
+    }
+
+    @SuppressWarnings({"argument.type.incompatible"})
+    public @Nullable Object mergeApply(final @Nullable Object _base, final @Nullable Object _what, final @Nullable Object _ret) {
+
+        // If the new one is null then it should be null
+        Object what = _what;
+        if (what == null) {
+            if (_base == null) return _ret;
+            return null;
+        }
+        Class<?> clazz = what.getClass();
+
+        // Validate the base object is of the correct type (if it is not then null it)
+        Object base = _base;
+        if (base != null && Objects.equals(base.getClass(), clazz) == false) base = null;
+
+        // If the base and return values are null then we are already done
+        if (base == null && _ret == null) {
+            return cloneObject(what);
+        }
+
+        // Maps and collections will be handled later
+        if (Map.class.isAssignableFrom(clazz) == false && Collection.class.isAssignableFrom(clazz) == false) {
+            // If its a primative type then we just clone the value and return it
+            if (isInternal(clazz)) {
+                if (Objects.equals(_base, _what) == true) {
+                    return _ret;
+                } else {
+                    return cloneObject(what);
+                }
+            }
+        }
+
+        // Create the return object (of the correct type)
+        Object ret = _ret;
+        if (ret != null && Objects.equals(ret.getClass(), clazz) == false) ret = null;
+        if (ret == null) ret = newObject(clazz);
+
+        // If its a map then mergeThreeWay the entries
+        if (ret instanceof Map) {
+            mergeMapApply((Map) ret, (Map) base, (Map) what);
+            return ret;
+        }
+
+        // If its a list then mergeThreeWay the entries
+        if (ret instanceof List) {
+            mergeListApply((List) ret, (List) base, (List) what);
+            return ret;
+        }
+
+        // If its a collection then mergeThreeWay the entries
+        if (ret instanceof Collection) {
+            mergeCollectionApply((Collection) ret, (Collection) base, (Collection) what);
+            return ret;
+        }
+
+        // If its a dynamic bean we have to use dynamic properties
+        if (ret instanceof DynaBean) {
+            final DynaProperty[] origDescriptors = ((DynaBean) ret).getDynaClass().getDynaProperties();
+            for (final DynaProperty origDescriptor : origDescriptors) {
+                final String name = origDescriptor.getName();
+                if (propertyUtils.isReadable(ret, name) && propertyUtils.isWriteable(ret, name)) {
+                    Object valueBase = base != null ? ((DynaBean) base).get(name) : null;
+                    Object valueWhat = ((DynaBean) what).get(name);
+                    Object valueRet = ((DynaBean) ret).get(name);
+
+                    Object value = mergeApply(valueBase, valueWhat, valueRet);
+                    ((DynaBean) ret).set(name, value);
+                }
+            }
+            return ret;
+        }
+
+        // Otherwise treat it as a normal POJO that needs to be merged
+        // Merge all the properties themselves
+        List<PropertyDescriptor> descriptors = this.getPropertyDescriptors(clazz);
+        for (PropertyDescriptor descriptor : descriptors) {
+            Method readMethod = descriptor.getReadMethod();
+            if (readMethod == null) continue;
+            Method writeMethod = descriptor.getWriteMethod();
+            if (writeMethod == null) continue;
+
+            try {
+                Object valueBase = base != null ? readMethod.invoke(base) : null;
+                Object valueWhat = readMethod.invoke(what);
+                Object valueRet = readMethod.invoke(ret);
+
+                Object value = mergeApply(valueBase, valueWhat, valueRet);
+                writeMethod.invoke(ret, value);
+            } catch (IllegalAccessException | InvocationTargetException e) {
+                throw new WebApplicationException("Failed to set property", e);
+            }
+        }
+
+        List<Field> fields = this.getFieldDescriptors(clazz);
+        for (Field field : fields) {
+            try {
+                Object valueBase = base != null ? valueBase = field.get(base) : null;
+                Object valueWhat = field.get(what);
+                Object valueRet = field.get(ret);
+
+                Object value = mergeApply(valueBase, valueWhat, valueRet);
+                field.set(ret, value);
+            } catch (IllegalAccessException e) {
+                throw new WebApplicationException("Failed to set field", e);
+            }
+        }
+        return ret;
+    }
+
+    public <T> @Nullable T merge(MergeSet<T> set) {
+        if (set.stream.isEmpty()) return set.first;
+        T ret = set.first;
+        T base = set.base;
+        for (T right : set.stream) {
+            if (right == null) {
+                ret = null;
+                continue;
+            }
+            ret = (T) mergeThreeWay(base, ret, right);
+            if (ret == null) throw new WebApplicationException("Failed to mergeThreeWay data objects.");
+        }
+        return ret;
+    }
+
+    public <T> @Nullable T merge(@Nullable Iterable<MergePair<T>> stream) {
+        if (stream == null) return null;
+        T ret = null;
+        for (MergePair<T> pair : stream) {
+            ret = (T)this.mergeApply(pair.base, pair.what, ret);
+        }
+        return ret;
+    }
+}

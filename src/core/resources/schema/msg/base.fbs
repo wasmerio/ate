@@ -1,0 +1,23 @@
+// ../flatc.exe --java --gen-all ../resources/schema/msg/base.fbs
+
+include "../common.fbs";
+include "data.fbs";
+include "encrypt.text.fbs";
+include "key.fbs";
+
+namespace com.tokera.ate.dao.msg;
+
+union MessageType
+{
+  MessageData,
+  MessageEncryptText,
+  MessagePublicKey,
+  MessageSync
+}
+
+table MessageBase
+{
+  msg:MessageType;
+}
+
+root_type MessageBase;

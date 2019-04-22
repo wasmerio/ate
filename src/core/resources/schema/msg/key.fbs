@@ -1,0 +1,15 @@
+namespace com.tokera.ate.dao.msg;
+
+table MessagePublicKey
+{
+  publicKeyHash     :string;
+  publicKey         :[byte];
+  alias             :string;
+}
+
+table MessagePrivateKey
+{
+  privateKeyHash    :string;
+  privateKey        :[byte];
+  publicKey         :MessagePublicKey;
+}
