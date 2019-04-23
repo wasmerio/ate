@@ -85,18 +85,18 @@ public class YamlProvider implements MessageBodyWriter<Object>, MessageBodyReade
 
     @Override
     public long getSize(Object o, Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+        return dump(o).getBytes().length;
+    }
+
+    public static String dump(Object t) {
         try {
-            return dump(o).getBytes().length;
+            StringWriter sb = new StringWriter();
+            YamlWriter writer = AteDelegate.get().yaml.getYamlWriter(sb, true);
+            writer.write(t);
+            writer.close();
+            return sb.toString();
         } catch (YamlException e) {
             throw new WebApplicationException(e);
         }
-    }
-
-    public static String dump(Object t) throws YamlException {
-        StringWriter sb = new StringWriter();
-        YamlWriter writer = AteDelegate.get().yaml.getYamlWriter(sb, true);
-        writer.write(t);
-        writer.close();
-        return sb.toString();
     }
 }
