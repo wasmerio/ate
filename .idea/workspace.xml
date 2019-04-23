@@ -2,7 +2,8 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="1787db08-4ad1-4647-9852-a11b04b311d8" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/YamlProvider.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/YamlProvider.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Makefile" beforeDir="false" afterPath="$PROJECT_DIR$/Makefile" afterDir="false" />
     </list>
     <ignored path="$PROJECT_DIR$/target/" />
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -13,20 +14,20 @@
   </component>
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
-      <file pinned="false" current-in-tab="false">
+      <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/pom.xml">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="105">
-              <caret line="55" column="17" selection-start-line="55" selection-start-column="17" selection-end-line="62" selection-end-column="19" />
+            <state relative-caret-position="390">
+              <caret line="74" column="21" lean-forward="true" selection-start-line="74" selection-start-column="21" selection-end-line="74" selection-end-column="21" />
             </state>
           </provider>
         </entry>
       </file>
-      <file pinned="false" current-in-tab="true">
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/YamlProvider.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="485">
-              <caret line="98" column="33" selection-start-line="98" selection-start-column="33" selection-end-line="98" selection-end-column="33" />
+            <state relative-caret-position="380">
+              <caret line="91" column="13" selection-start-line="91" selection-start-column="13" selection-end-line="91" selection-end-column="13" />
             </state>
           </provider>
         </entry>
@@ -312,7 +313,7 @@
     </panes>
   </component>
   <component name="PropertiesComponent">
-    <property name="com.android.tools.idea.instantapp.provision.ProvisionBeforeRunTaskProvider.myTimeStamp" value="1556045384567" />
+    <property name="com.android.tools.idea.instantapp.provision.ProvisionBeforeRunTaskProvider.myTimeStamp" value="1556046036790" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
     <property name="project.structure.last.edited" value="Modules" />
     <property name="project.structure.proportion" value="0.15" />
@@ -411,9 +412,6 @@
     <servers />
   </component>
   <component name="TestHistory">
-    <history-entry file="com_tokera_ate_test_in_ate - 2019.04.22 at 22h 43m 04s.xml">
-      <configuration name="com.tokera.ate.test in ate" configurationId="JUnit" />
-    </history-entry>
     <history-entry file="com_tokera_ate_test_in_ate - 2019.04.22 at 22h 43m 32s.xml">
       <configuration name="com.tokera.ate.test in ate" configurationId="JUnit" />
     </history-entry>
@@ -439,6 +437,9 @@
       <configuration name="com.tokera.ate.test in ate" configurationId="JUnit" />
     </history-entry>
     <history-entry file="com_tokera_ate_test_in_ate - 2019.04.23 at 20h 23m 03s.xml">
+      <configuration name="com.tokera.ate.test in ate" configurationId="JUnit" />
+    </history-entry>
+    <history-entry file="com_tokera_ate_test_in_ate - 2019.04.23 at 20h 51m 10s.xml">
       <configuration name="com.tokera.ate.test in ate" configurationId="JUnit" />
     </history-entry>
   </component>
@@ -872,17 +873,17 @@
     <entry file="file://$PROJECT_DIR$/.idea/compiler.xml">
       <provider selected="true" editor-type-id="text-editor" />
     </entry>
-    <entry file="file://$PROJECT_DIR$/pom.xml">
+    <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/YamlProvider.java">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="105">
-          <caret line="55" column="17" selection-start-line="55" selection-start-column="17" selection-end-line="62" selection-end-column="19" />
+        <state relative-caret-position="380">
+          <caret line="91" column="13" selection-start-line="91" selection-start-column="13" selection-end-line="91" selection-end-column="13" />
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/YamlProvider.java">
+    <entry file="file://$PROJECT_DIR$/pom.xml">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="485">
-          <caret line="98" column="33" selection-start-line="98" selection-start-column="33" selection-end-line="98" selection-end-column="33" />
+        <state relative-caret-position="390">
+          <caret line="74" column="21" lean-forward="true" selection-start-line="74" selection-start-column="21" selection-end-line="74" selection-end-column="21" />
         </state>
       </provider>
     </entry>

@@ -5,7 +5,7 @@ inside:
 	./compile.sh
 
 clean:
-	rm -r -f target
+	mvn clean
 
 distclean: clean
 	rm -r -f .m2
