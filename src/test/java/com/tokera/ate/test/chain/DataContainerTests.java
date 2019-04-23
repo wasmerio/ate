@@ -1,30 +1,13 @@
 package com.tokera.ate.test.chain;
 
-import com.tokera.ate.common.LoggerHook;
-import com.tokera.ate.dao.filters.ResourceScopeInterceptor;
-import com.tokera.ate.delegates.LoggingDelegate;
 import com.tokera.ate.dto.msg.MessageDataDto;
 import com.tokera.ate.dto.msg.MessageDataHeaderDto;
-import com.tokera.ate.dto.msg.MessageDataMetaDto;
 import com.tokera.ate.dto.msg.MessageMetaDto;
-import com.tokera.ate.extensions.DaoParentDiscoveryExtension;
-import com.tokera.ate.extensions.StartupBeanExtension;
-import com.tokera.ate.extensions.YamlTagDiscoveryExtension;
-import com.tokera.ate.io.MemoryCacheIO;
-import com.tokera.ate.io.core.StorageSystemFactory;
 import com.tokera.ate.io.repo.DataContainer;
 import com.tokera.ate.io.repo.DataGraphNode;
-import com.tokera.ate.kafka.KafkaConfigTools;
-import com.tokera.ate.security.EncryptKeyCachePerRequest;
 import com.tokera.ate.test.dao.MyAccount;
-import org.jboss.weld.bootstrap.spi.BeanDiscoveryMode;
-import org.jboss.weld.environment.se.Weld;
-import org.jboss.weld.junit5.WeldInitiator;
-import org.jboss.weld.junit5.WeldJunit5Extension;
-import org.jboss.weld.junit5.WeldSetup;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
-import org.junit.jupiter.api.extension.ExtendWith;
 
 import java.util.LinkedList;
 import java.util.UUID;

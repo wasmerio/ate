@@ -2,10 +2,321 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="1787db08-4ad1-4647-9852-a11b04b311d8" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyBaseAccount.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/merge/DataMerger.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/merge/DataMerger.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyAccount.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyAccount.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Makefile" beforeDir="false" afterPath="$PROJECT_DIR$/Makefile" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ate.iml" beforeDir="false" afterPath="$PROJECT_DIR$/ate.iml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/compile.sh" beforeDir="false" afterPath="$PROJECT_DIR$/compile.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/compile-flat.sh" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/compile-flat.sh" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/cpp/base_generated.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/cpp/base_generated.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/cpp/common_generated.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/cpp/common_generated.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/cpp/data_generated.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/cpp/data_generated.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/cpp/encrypt.text_generated.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/cpp/encrypt.text_generated.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/cpp/key_generated.h" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/cpp/key_generated.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/Beans.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/Beans.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/DeferredConstruction.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/DeferredConstruction.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/Version.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/Version.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/YamlConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/YamlConfig.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/YamlException.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/YamlException.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/YamlReader.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/YamlReader.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/YamlWriter.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/YamlWriter.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/constants/Unicode.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/constants/Unicode.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/document/YamlAlias.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/document/YamlAlias.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/document/YamlDocument.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/document/YamlDocument.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/document/YamlDocumentReader.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/document/YamlDocumentReader.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/document/YamlElement.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/document/YamlElement.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/document/YamlEntry.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/document/YamlEntry.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/document/YamlMapping.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/document/YamlMapping.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/document/YamlScalar.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/document/YamlScalar.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/document/YamlSequence.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/document/YamlSequence.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/emitter/Emitter.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/emitter/Emitter.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/emitter/EmitterConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/emitter/EmitterConfig.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/emitter/EmitterException.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/emitter/EmitterException.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/emitter/EmitterWriter.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/emitter/EmitterWriter.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/emitter/ScalarAnalysis.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/emitter/ScalarAnalysis.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/parser/AliasEvent.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/parser/AliasEvent.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/parser/CollectionStartEvent.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/parser/CollectionStartEvent.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/parser/DocumentEndEvent.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/parser/DocumentEndEvent.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/parser/DocumentStartEvent.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/parser/DocumentStartEvent.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/parser/Event.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/parser/Event.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/parser/EventType.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/parser/EventType.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/parser/MappingStartEvent.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/parser/MappingStartEvent.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/parser/NodeEvent.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/parser/NodeEvent.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/parser/Parser.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/parser/Parser.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/parser/ScalarEvent.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/parser/ScalarEvent.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/parser/SequenceStartEvent.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/parser/SequenceStartEvent.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/scalar/DateSerializer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/scalar/DateSerializer.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/scalar/DateTimeParser.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/scalar/DateTimeParser.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/scalar/ScalarSerializer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/scalar/ScalarSerializer.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/tokenizer/AliasToken.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/tokenizer/AliasToken.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/tokenizer/AnchorToken.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/tokenizer/AnchorToken.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/tokenizer/DirectiveToken.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/tokenizer/DirectiveToken.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/tokenizer/ScalarToken.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/tokenizer/ScalarToken.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/tokenizer/TagToken.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/tokenizer/TagToken.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/tokenizer/Token.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/tokenizer/Token.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/tokenizer/TokenType.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/tokenizer/TokenType.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/tokenizer/Tokenizer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/tokenizer/Tokenizer.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/google/flatbuffers/ByteBufferUtil.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/google/flatbuffers/ByteBufferUtil.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/google/flatbuffers/Constants.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/google/flatbuffers/Constants.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/google/flatbuffers/FlatBufferBuilder.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/google/flatbuffers/FlatBufferBuilder.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/google/flatbuffers/Struct.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/google/flatbuffers/Struct.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/google/flatbuffers/Table.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/google/flatbuffers/Table.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/googlecode/ipv6/BitSetHelpers.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/googlecode/ipv6/BitSetHelpers.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/googlecode/ipv6/IPv6Address.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/googlecode/ipv6/IPv6Address.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/googlecode/ipv6/IPv6AddressHelpers.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/googlecode/ipv6/IPv6AddressHelpers.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/googlecode/ipv6/IPv6AddressPool.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/googlecode/ipv6/IPv6AddressPool.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/googlecode/ipv6/IPv6AddressRange.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/googlecode/ipv6/IPv6AddressRange.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/googlecode/ipv6/IPv6Network.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/googlecode/ipv6/IPv6Network.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/googlecode/ipv6/IPv6NetworkHelpers.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/googlecode/ipv6/IPv6NetworkHelpers.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/googlecode/ipv6/IPv6NetworkMask.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/googlecode/ipv6/IPv6NetworkMask.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/annotations/HideLogs.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/annotations/HideLogs.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/annotations/PermitMissingToken.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/annotations/PermitMissingToken.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/annotations/PermitParentFree.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/annotations/PermitParentFree.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/annotations/PermitParentType.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/annotations/PermitParentType.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/annotations/PermitReadEntities.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/annotations/PermitReadEntities.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/annotations/PermitReadEntity.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/annotations/PermitReadEntity.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/annotations/PermitRiskRole.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/annotations/PermitRiskRole.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/annotations/PermitUserRole.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/annotations/PermitUserRole.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/annotations/PermitWriteEntities.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/annotations/PermitWriteEntities.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/annotations/PermitWriteEntity.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/annotations/PermitWriteEntity.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/annotations/ShowLogs.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/annotations/ShowLogs.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/annotations/VerboseLog.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/annotations/VerboseLog.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/annotations/YamlTag.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/annotations/YamlTag.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/annotations/YamlTags.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/annotations/YamlTags.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/common/ApplicationConfigLoader.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/common/ApplicationConfigLoader.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/common/CompareSafe.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/common/CompareSafe.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/common/ConcurrentQueue.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/common/ConcurrentQueue.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/common/ConcurrentStack.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/common/ConcurrentStack.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/common/CopyOnWrite.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/common/CopyOnWrite.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/common/Immutalizable.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/common/Immutalizable.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/common/ImmutalizableArrayList.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/common/ImmutalizableArrayList.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/common/ImmutalizableHashMap.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/common/ImmutalizableHashMap.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/common/ImmutalizableHashSet.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/common/ImmutalizableHashSet.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/common/ImmutalizableTreeMap.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/common/ImmutalizableTreeMap.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/common/LoggerHook.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/common/LoggerHook.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/common/LoggerToRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/common/LoggerToRequest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/common/MapTools.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/common/MapTools.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/common/ResourceUtils.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/common/ResourceUtils.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/common/StringTools.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/common/StringTools.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/common/UUIDTools.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/common/UUIDTools.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/common/UriTools.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/common/UriTools.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/common/ValidationUtil.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/common/ValidationUtil.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/common/XmlUtils.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/common/XmlUtils.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/configuration/AteConstants.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/configuration/AteConstants.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/constraints/PrivateKeyConstraint.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/constraints/PrivateKeyConstraint.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/constraints/PrivateKeyValidator.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/constraints/PrivateKeyValidator.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/constraints/PublicKeyConstraint.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/constraints/PublicKeyConstraint.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/constraints/PublicKeyValidator.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/constraints/PublicKeyValidator.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dao/ILogable.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dao/ILogable.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dao/IParams.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dao/IParams.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dao/IRights.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dao/IRights.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dao/IRoles.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dao/IRoles.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dao/ObjId.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dao/ObjId.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dao/base/BaseDao.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dao/base/BaseDao.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dao/base/BaseDaoParams.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dao/base/BaseDaoParams.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dao/base/BaseDaoRights.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dao/base/BaseDaoRights.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dao/base/BaseDaoRoles.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dao/base/BaseDaoRoles.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dao/base/BaseDaoRolesRights.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dao/base/BaseDaoRolesRights.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dao/enumerations/RiskRole.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dao/enumerations/RiskRole.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dao/enumerations/UserRole.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dao/enumerations/UserRole.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dao/filters/ResourceScopeInterceptor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dao/filters/ResourceScopeInterceptor.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dao/kafka/MessageDeserializer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dao/kafka/MessageDeserializer.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dao/kafka/MessageSerializer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dao/kafka/MessageSerializer.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dao/msg/MessageBase.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dao/msg/MessageBase.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dao/msg/MessageData.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dao/msg/MessageData.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dao/msg/MessageDataDigest.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dao/msg/MessageDataDigest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dao/msg/MessageDataHeader.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dao/msg/MessageDataHeader.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dao/msg/MessageEncryptText.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dao/msg/MessageEncryptText.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dao/msg/MessagePrivateKey.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dao/msg/MessagePrivateKey.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dao/msg/MessagePublicKey.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dao/msg/MessagePublicKey.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dao/msg/MessageSync.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dao/msg/MessageSync.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dao/msg/MessageType.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dao/msg/MessageType.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/delegates/AteDelegate.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/AteDelegate.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/delegates/AuthorizationDelegate.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/AuthorizationDelegate.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/delegates/CurrentRightsDelegate.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/CurrentRightsDelegate.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/delegates/CurrentTokenDelegate.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/CurrentTokenDelegate.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/delegates/ImplicitSecurityDelegate.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/ImplicitSecurityDelegate.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/delegates/LoggingDelegate.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/LoggingDelegate.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/delegates/ObjectSerializerDelegate.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/ObjectSerializerDelegate.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/delegates/RequestContextDelegate.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/RequestContextDelegate.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/delegates/ResourceInfoDelegate.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/ResourceInfoDelegate.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/delegates/ResourceStatsDelegate.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/ResourceStatsDelegate.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/delegates/YamlDelegate.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/YamlDelegate.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dto/ClaimDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dto/ClaimDto.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dto/EffectivePermissions.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dto/EffectivePermissions.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dto/TokenDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dto/TokenDto.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dto/fs/FsFileDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dto/fs/FsFileDto.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dto/fs/FsFolderDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dto/fs/FsFolderDto.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dto/fs/FsMountDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dto/fs/FsMountDto.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dto/fs/FsSymbolicDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dto/fs/FsSymbolicDto.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dto/msg/MessageBaseDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dto/msg/MessageBaseDto.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dto/msg/MessageDataDigestDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dto/msg/MessageDataDigestDto.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dto/msg/MessageDataDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dto/msg/MessageDataDto.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dto/msg/MessageDataHeaderDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dto/msg/MessageDataHeaderDto.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dto/msg/MessageDataMetaDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dto/msg/MessageDataMetaDto.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dto/msg/MessageEncryptTextDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dto/msg/MessageEncryptTextDto.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dto/msg/MessageMetaDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dto/msg/MessageMetaDto.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dto/msg/MessagePrivateKeyDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dto/msg/MessagePrivateKeyDto.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dto/msg/MessagePublicKeyDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dto/msg/MessagePublicKeyDto.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dto/msg/MessageSyncDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dto/msg/MessageSyncDto.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/enumerations/DataTopicType.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/enumerations/DataTopicType.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/enumerations/LinuxCmds.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/enumerations/LinuxCmds.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/enumerations/LinuxErrors.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/enumerations/LinuxErrors.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/enumerations/LogLevel.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/enumerations/LogLevel.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/events/NewAccessRightsEvent.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/events/NewAccessRightsEvent.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/events/RegisterPublicTopicEvent.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/events/RegisterPublicTopicEvent.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/events/RightsDiscoverEvent.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/events/RightsDiscoverEvent.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/events/TokenDiscoveryEvent.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/events/TokenDiscoveryEvent.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/events/TokenScopeChangedEvent.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/events/TokenScopeChangedEvent.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/events/TokenStateChangedEvent.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/events/TokenStateChangedEvent.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/events/TopicSeedingEvent.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/events/TopicSeedingEvent.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/exceptions/ErrorDetail.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/exceptions/ErrorDetail.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/extensions/DaoParentDiscoveryExtension.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/extensions/DaoParentDiscoveryExtension.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/extensions/ResourceScopedExtension.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/extensions/ResourceScopedExtension.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/extensions/StartupBeanExtension.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/extensions/StartupBeanExtension.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/extensions/TokenScopeExtension.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/extensions/TokenScopeExtension.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/extensions/YamlTagDiscoveryExtension.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/extensions/YamlTagDiscoveryExtension.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/filters/AccessLogInterceptor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/filters/AccessLogInterceptor.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/filters/AuthorityInterceptor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/filters/AuthorityInterceptor.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/filters/CorsInterceptor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/filters/CorsInterceptor.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/filters/DefaultBootstrapInit.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/filters/DefaultBootstrapInit.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/filters/FixResteasyBug.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/filters/FixResteasyBug.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/filters/TopicInterceptor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/filters/TopicInterceptor.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/filters/TransactionInterceptor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/filters/TransactionInterceptor.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/AccessLogIO.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/AccessLogIO.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/BackendIO.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/BackendIO.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/HeadIO.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/HeadIO.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/IAteIO.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/IAteIO.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/LayeredIO.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/LayeredIO.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/MemoryCacheIO.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/MemoryCacheIO.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/PassThroughIO.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/PassThroughIO.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/core/DaoHelper.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/core/DaoHelper.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/core/RequestAccessLog.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/core/RequestAccessLog.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/core/StorageSystemFactory.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/core/StorageSystemFactory.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/core/TransactionCoordinator.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/core/TransactionCoordinator.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/merge/DataMerger.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/merge/DataMerger.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/merge/MergePair.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/merge/MergePair.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/merge/MergeSet.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/merge/MergeSet.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/repo/DataContainer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/repo/DataContainer.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/repo/DataGraphNode.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/repo/DataGraphNode.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/repo/DataRepoConfig.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/repo/DataRepoConfig.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/repo/DataRepository.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/repo/DataRepository.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/repo/DataSerializer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/repo/DataSerializer.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/repo/DataSignatureBuilder.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/repo/DataSignatureBuilder.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/repo/DataSubscriber.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/repo/DataSubscriber.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/repo/DataTopic.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/repo/DataTopic.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/repo/DataTopicChain.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/repo/DataTopicChain.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/repo/IDataTopicBridge.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/repo/IDataTopicBridge.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/repo/KafkaBridgeBuilder.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/repo/KafkaBridgeBuilder.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/repo/KafkaTopicBridge.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/repo/KafkaTopicBridge.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/repo/RamTopicBridge.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/repo/RamTopicBridge.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/repo/RamTopicPartition.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/repo/RamTopicPartition.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/kafka/KafkaConfigTools.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/kafka/KafkaConfigTools.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/providers/BigDecimalSerializer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/BigDecimalSerializer.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/providers/BooleanSerializer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/BooleanSerializer.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/providers/DateSerializer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/DateSerializer.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/providers/EnumSerializer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/EnumSerializer.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/providers/IntegerSerializer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/IntegerSerializer.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/providers/LongSerializer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/LongSerializer.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/providers/ProcessBodyReader.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/ProcessBodyReader.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/providers/ProcessBodyWriter.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/ProcessBodyWriter.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/providers/UuidSerializer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/UuidSerializer.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/providers/YamlProvider.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/YamlProvider.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/qualifiers/BackendStorageSystem.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/qualifiers/BackendStorageSystem.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/qualifiers/FrontendStorageSystem.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/qualifiers/FrontendStorageSystem.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/scopes/ResourceScoped.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/scopes/ResourceScoped.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/scopes/Scope.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/scopes/Scope.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/scopes/ScopeContext.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/scopes/ScopeContext.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/scopes/TokenScoped.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/scopes/TokenScoped.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/security/EffectivePermissionBuilder.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/security/EffectivePermissionBuilder.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/security/EncryptKeyCachePerRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/security/EncryptKeyCachePerRequest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/security/Encryptor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/security/Encryptor.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/security/TokenSecurity.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/security/TokenSecurity.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/security/core/EncryptionKeyPairGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/security/core/EncryptionKeyPairGenerator.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/security/core/IRandom.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/security/core/IRandom.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/security/core/PredictableSupportUtil.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/security/core/PredictableSupportUtil.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/security/core/PredictablyRandom.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/security/core/PredictablyRandom.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/security/core/SigningKeyPairGenerator.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/security/core/SigningKeyPairGenerator.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/security/core/UnPredictablyRandom.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/security/core/UnPredictablyRandom.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/token/SAMLWriter.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/token/SAMLWriter.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/token/SignAssertion.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/token/SignAssertion.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/AddressLine.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/AddressLine.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/Alias.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/Alias.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/Bytes.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/Bytes.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/BytesLimit.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/BytesLimit.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/CityTown.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/CityTown.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/Claim.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/Claim.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/ClassName.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/ClassName.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/CreditCardNumber.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/CreditCardNumber.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/DaoId.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/DaoId.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/Days.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/Days.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/DeviceMajor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/DeviceMajor.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/DeviceMinor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/DeviceMinor.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/DeviceName.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/DeviceName.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/DiskUrl.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/DiskUrl.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/DomainName.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/DomainName.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/EmailAddress.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/EmailAddress.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/Extents.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/Extents.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/Filename.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/Filename.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/Filepath.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/Filepath.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/FinancialInstitution.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/FinancialInstitution.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/Frequency.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/Frequency.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/GUID.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/GUID.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/GitUrl.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/GitUrl.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/Hash.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/Hash.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/IP.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/IP.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/IP4.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/IP4.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/IP6.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/IP6.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/Latitude.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/Latitude.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/LegalAgreement.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/LegalAgreement.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/Limit.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/Limit.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/LinuxCmd.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/LinuxCmd.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/LinuxError.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/LinuxError.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/LogText.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/LogText.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/Longitude.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/Longitude.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/MHz.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/MHz.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/MacAddress.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/MacAddress.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/MaskedCreditCardNumber.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/MaskedCreditCardNumber.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/MegaBytes.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/MegaBytes.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/Money.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/Money.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/Month.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/Month.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/Namespace.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/Namespace.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/NetworkName.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/NetworkName.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/NetworkUrl.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/NetworkUrl.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/Owner.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/Owner.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/PEM.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/PEM.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/Percentage.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/Percentage.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/PersonsName.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/PersonsName.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/PhoneNumber.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/PhoneNumber.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/PlainText.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/PlainText.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/Port.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/Port.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/Postcode.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/Postcode.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/Power.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/Power.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/Quantity.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/Quantity.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/QuantityLimit.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/QuantityLimit.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/ReferenceNumber.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/ReferenceNumber.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/Salt.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/Salt.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/Seconds.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/Seconds.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/Secret.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/Secret.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/Sectors.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/Sectors.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/ShellScript.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/ShellScript.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/Signature.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/Signature.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/SortCode.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/SortCode.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/StateProvince.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/StateProvince.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/TaxNumber.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/TaxNumber.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/TextDocument.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/TextDocument.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/TopicName.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/TopicName.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/UniqueIndex.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/UniqueIndex.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/When.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/When.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/units/Year.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/units/Year.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/resources/META-INF/beans.xml" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/META-INF/beans.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/resources/META-INF/services/javax.enterprise.inject.spi.Extension" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/META-INF/services/javax.enterprise.inject.spi.Extension" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/resources/schema/common.fbs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/schema/common.fbs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/resources/schema/msg/base.fbs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/schema/msg/base.fbs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/resources/schema/msg/data.fbs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/schema/msg/data.fbs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/resources/schema/msg/encrypt.text.fbs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/schema/msg/encrypt.text.fbs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/resources/schema/msg/key.fbs" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/schema/msg/key.fbs" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/chain/DataContainerTests.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/chain/DataContainerTests.java" afterDir="false" />
     </list>
     <ignored path="$PROJECT_DIR$/target/" />
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -16,41 +327,29 @@
   </component>
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
-      <file pinned="false" current-in-tab="false">
+      <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/pom.xml">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="3029">
-              <caret line="250" column="21" selection-start-line="250" selection-start-column="21" selection-end-line="250" selection-end-column="37" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyAccount.java">
-          <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="105">
-              <caret line="7" column="34" selection-start-line="7" selection-start-column="34" selection-end-line="7" selection-end-column="34" />
+              <caret line="55" column="17" lean-forward="true" selection-start-line="55" selection-start-column="17" selection-end-line="62" selection-end-column="19" />
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/merge/MergeStrings.java">
+        <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/chain/DataContainerTests.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="170">
-              <caret line="220" column="41" lean-forward="true" selection-start-line="220" selection-start-column="41" selection-end-line="220" selection-end-column="41" />
-              <folding>
-                <element signature="imports" expanded="true" />
-              </folding>
+            <state relative-caret-position="90">
+              <caret line="6" column="44" selection-start-line="6" selection-start-column="44" selection-end-line="6" selection-end-column="44" />
             </state>
           </provider>
         </entry>
       </file>
-      <file pinned="false" current-in-tab="true">
-        <entry file="file://$PROJECT_DIR$/src/core/java/com/tokera/ate/io/merge/DataMerger.java">
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/chain/ChainOfTrustTests.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="450">
-              <caret line="69" column="53" selection-start-line="69" selection-start-column="53" selection-end-line="69" selection-end-column="53" />
+            <state relative-caret-position="525">
+              <caret line="35" column="13" selection-start-line="35" selection-start-column="13" selection-end-line="35" selection-end-column="13" />
               <folding>
                 <element signature="imports" expanded="true" />
               </folding>
@@ -59,37 +358,49 @@
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="jar:///usr/lib/jvm/java-8-openjdk-amd64/jre/lib/rt.jar!/java/lang/Class.class">
+        <entry file="file://$PROJECT_DIR$/.idea/workspace.xml">
+          <provider selected="true" editor-type-id="text-editor" />
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/.idea/vcs.xml">
+          <provider selected="true" editor-type-id="text-editor" />
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/.idea/compiler.xml">
+          <provider selected="true" editor-type-id="text-editor" />
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/msg/MessageDataHeaderTests.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="164">
-              <caret line="620" lean-forward="true" selection-start-line="620" selection-end-line="620" />
+            <state relative-caret-position="330">
+              <caret line="22" column="13" selection-start-line="22" selection-start-column="13" selection-end-line="22" selection-end-column="13" />
+              <folding>
+                <element signature="imports" expanded="true" />
+              </folding>
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyThing.java">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="105">
-              <caret line="13" column="13" selection-start-line="13" selection-start-column="13" selection-end-line="13" selection-end-column="13" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/src/core/java/com/google/flatbuffers/Table.java">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="180">
-              <caret line="37" column="13" selection-start-line="37" selection-start-column="13" selection-end-line="37" selection-end-column="13" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/src/core/resources/META-INF/services/javax.enterprise.inject.spi.Extension">
+        <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/encryptor/NtruTests.java">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="60">
-              <caret line="4" column="46" selection-start-line="4" selection-start-column="46" selection-end-line="4" selection-end-column="46" />
+              <caret line="18" column="34" selection-start-line="18" selection-start-column="34" selection-end-line="18" selection-end-column="34" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/TestTools.java">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="425">
+              <caret line="43" column="48" selection-start-line="43" selection-start-column="48" selection-end-line="43" selection-end-column="48" />
+              <folding>
+                <element signature="imports" expanded="true" />
+              </folding>
             </state>
           </provider>
         </entry>
@@ -98,7 +409,7 @@
         <entry file="file://$PROJECT_DIR$/src/test/resources/META-INF/services/javax.enterprise.inject.spi.Extension">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="60">
-              <caret line="4" column="46" lean-forward="true" selection-start-line="4" selection-start-column="46" selection-end-line="4" selection-end-column="46" />
+              <caret line="4" column="46" selection-start-line="4" selection-start-column="46" selection-end-line="4" selection-end-column="46" />
             </state>
           </provider>
         </entry>
@@ -143,7 +454,6 @@
   <component name="IdeDocumentHistory">
     <option name="CHANGED_PATHS">
       <list>
-        <option value="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/YamlConfig.java" />
         <option value="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/YamlWriter.java" />
         <option value="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/parser/Parser.java" />
         <option value="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/YamlReader.java" />
@@ -169,7 +479,6 @@
         <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/msg/MessageEncryptTextTests.java" />
         <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/msg/MessageSyncTests.java" />
         <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/TestTools.java" />
-        <option value="$PROJECT_DIR$/pom.xml" />
         <option value="$PROJECT_DIR$/src/core/java/com/tokera/ate/dto/fs/FsMountDto.java" />
         <option value="$PROJECT_DIR$/src/core/java/com/tokera/ate/dto/fs/FsSymbolicDto.java" />
         <option value="$PROJECT_DIR$/src/core/java/com/tokera/ate/dto/fs/FsFileDto.java" />
@@ -194,6 +503,8 @@
         <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyBaseAccount.java" />
         <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyAccount.java" />
         <option value="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/merge/DataMerger.java" />
+        <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/chain/DataContainerTests.java" />
+        <option value="$PROJECT_DIR$/pom.xml" />
       </list>
     </option>
   </component>
@@ -205,10 +516,9 @@
     </option>
   </component>
   <component name="ProjectFrameBounds" extendedState="6">
-    <option name="x" value="439" />
-    <option name="y" value="1107" />
+    <option name="x" value="1920" />
     <option name="width" value="1920" />
-    <option name="height" value="1053" />
+    <option name="height" value="1080" />
   </component>
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="ProjectView">
@@ -233,85 +543,7 @@
               <item name="ate" type="b2602c69:ProjectViewProjectNode" />
               <item name="ate" type="462c0819:PsiDirectoryNode" />
               <item name="src" type="462c0819:PsiDirectoryNode" />
-              <item name="core" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
-              <item name="ate" type="462c0819:PsiDirectoryNode" />
-              <item name="src" type="462c0819:PsiDirectoryNode" />
-              <item name="core" type="462c0819:PsiDirectoryNode" />
-              <item name="java" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
-              <item name="ate" type="462c0819:PsiDirectoryNode" />
-              <item name="src" type="462c0819:PsiDirectoryNode" />
-              <item name="core" type="462c0819:PsiDirectoryNode" />
-              <item name="java" type="462c0819:PsiDirectoryNode" />
-              <item name="com" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
-              <item name="ate" type="462c0819:PsiDirectoryNode" />
-              <item name="src" type="462c0819:PsiDirectoryNode" />
-              <item name="core" type="462c0819:PsiDirectoryNode" />
-              <item name="java" type="462c0819:PsiDirectoryNode" />
-              <item name="com" type="462c0819:PsiDirectoryNode" />
-              <item name="flatbuffers" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
-              <item name="ate" type="462c0819:PsiDirectoryNode" />
-              <item name="src" type="462c0819:PsiDirectoryNode" />
-              <item name="core" type="462c0819:PsiDirectoryNode" />
-              <item name="java" type="462c0819:PsiDirectoryNode" />
-              <item name="com" type="462c0819:PsiDirectoryNode" />
-              <item name="ate" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
-              <item name="ate" type="462c0819:PsiDirectoryNode" />
-              <item name="src" type="462c0819:PsiDirectoryNode" />
-              <item name="core" type="462c0819:PsiDirectoryNode" />
-              <item name="java" type="462c0819:PsiDirectoryNode" />
-              <item name="com" type="462c0819:PsiDirectoryNode" />
-              <item name="ate" type="462c0819:PsiDirectoryNode" />
-              <item name="io" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
-              <item name="ate" type="462c0819:PsiDirectoryNode" />
-              <item name="src" type="462c0819:PsiDirectoryNode" />
-              <item name="core" type="462c0819:PsiDirectoryNode" />
-              <item name="java" type="462c0819:PsiDirectoryNode" />
-              <item name="com" type="462c0819:PsiDirectoryNode" />
-              <item name="ate" type="462c0819:PsiDirectoryNode" />
-              <item name="io" type="462c0819:PsiDirectoryNode" />
-              <item name="merge" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
-              <item name="ate" type="462c0819:PsiDirectoryNode" />
-              <item name="src" type="462c0819:PsiDirectoryNode" />
-              <item name="core" type="462c0819:PsiDirectoryNode" />
-              <item name="resources" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
-              <item name="ate" type="462c0819:PsiDirectoryNode" />
-              <item name="src" type="462c0819:PsiDirectoryNode" />
-              <item name="core" type="462c0819:PsiDirectoryNode" />
-              <item name="resources" type="462c0819:PsiDirectoryNode" />
-              <item name="META-INF" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
-              <item name="ate" type="462c0819:PsiDirectoryNode" />
-              <item name="src" type="462c0819:PsiDirectoryNode" />
-              <item name="core" type="462c0819:PsiDirectoryNode" />
-              <item name="resources" type="462c0819:PsiDirectoryNode" />
-              <item name="META-INF" type="462c0819:PsiDirectoryNode" />
-              <item name="services" type="462c0819:PsiDirectoryNode" />
+              <item name="main" type="462c0819:PsiDirectoryNode" />
             </path>
             <path>
               <item name="ate" type="b2602c69:ProjectViewProjectNode" />
@@ -341,7 +573,7 @@
               <item name="test" type="462c0819:PsiDirectoryNode" />
               <item name="java" type="462c0819:PsiDirectoryNode" />
               <item name="test" type="462c0819:PsiDirectoryNode" />
-              <item name="dao" type="462c0819:PsiDirectoryNode" />
+              <item name="encryptor" type="462c0819:PsiDirectoryNode" />
             </path>
             <path>
               <item name="ate" type="b2602c69:ProjectViewProjectNode" />
@@ -350,31 +582,7 @@
               <item name="test" type="462c0819:PsiDirectoryNode" />
               <item name="java" type="462c0819:PsiDirectoryNode" />
               <item name="test" type="462c0819:PsiDirectoryNode" />
-              <item name="merge" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
-              <item name="ate" type="462c0819:PsiDirectoryNode" />
-              <item name="src" type="462c0819:PsiDirectoryNode" />
-              <item name="test" type="462c0819:PsiDirectoryNode" />
-              <item name="resources" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
-              <item name="ate" type="462c0819:PsiDirectoryNode" />
-              <item name="src" type="462c0819:PsiDirectoryNode" />
-              <item name="test" type="462c0819:PsiDirectoryNode" />
-              <item name="resources" type="462c0819:PsiDirectoryNode" />
-              <item name="META-INF" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
-              <item name="ate" type="462c0819:PsiDirectoryNode" />
-              <item name="src" type="462c0819:PsiDirectoryNode" />
-              <item name="test" type="462c0819:PsiDirectoryNode" />
-              <item name="resources" type="462c0819:PsiDirectoryNode" />
-              <item name="META-INF" type="462c0819:PsiDirectoryNode" />
-              <item name="services" type="462c0819:PsiDirectoryNode" />
+              <item name="msg" type="462c0819:PsiDirectoryNode" />
             </path>
           </expand>
           <select />
@@ -384,9 +592,9 @@
     </panes>
   </component>
   <component name="PropertiesComponent">
-    <property name="com.android.tools.idea.instantapp.provision.ProvisionBeforeRunTaskProvider.myTimeStamp" value="1556037306765" />
+    <property name="com.android.tools.idea.instantapp.provision.ProvisionBeforeRunTaskProvider.myTimeStamp" value="1556044976968" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
-    <property name="project.structure.last.edited" value="Project" />
+    <property name="project.structure.last.edited" value="Modules" />
     <property name="project.structure.proportion" value="0.15" />
     <property name="project.structure.side.proportion" value="0.47586206" />
   </component>
@@ -407,7 +615,7 @@
       </list>
     </option>
   </component>
-  <component name="RunManager" selected="JUnit.com.tokera.ate.test.merge in ate">
+  <component name="RunManager" selected="JUnit.com.tokera.ate.test in ate">
     <configuration name="All in ate" type="JUnit" factoryName="JUnit" temporary="true" nameIsGenerated="true">
       <module name="ate" />
       <option name="PACKAGE_NAME" value="" />
@@ -462,8 +670,8 @@
     </configuration>
     <recent_temporary>
       <list>
-        <item itemvalue="JUnit.com.tokera.ate.test.merge in ate" />
         <item itemvalue="JUnit.com.tokera.ate.test in ate" />
+        <item itemvalue="JUnit.com.tokera.ate.test.merge in ate" />
         <item itemvalue="JUnit.MergeSets.testAddLeftFromNull2wayA" />
         <item itemvalue="JUnit.All in ate" />
       </list>
@@ -483,15 +691,6 @@
     <servers />
   </component>
   <component name="TestHistory">
-    <history-entry file="com_tokera_ate_test_in_ate - 2019.04.22 at 22h 38m 10s.xml">
-      <configuration name="com.tokera.ate.test in ate" configurationId="JUnit" />
-    </history-entry>
-    <history-entry file="com_tokera_ate_test_in_ate - 2019.04.22 at 22h 40m 24s.xml">
-      <configuration name="com.tokera.ate.test in ate" configurationId="JUnit" />
-    </history-entry>
-    <history-entry file="com_tokera_ate_test_in_ate - 2019.04.22 at 22h 41m 39s.xml">
-      <configuration name="com.tokera.ate.test in ate" configurationId="JUnit" />
-    </history-entry>
     <history-entry file="com_tokera_ate_test_in_ate - 2019.04.22 at 22h 43m 04s.xml">
       <configuration name="com.tokera.ate.test in ate" configurationId="JUnit" />
     </history-entry>
@@ -513,12 +712,21 @@
     <history-entry file="com_tokera_ate_test_merge_in_ate - 2019.04.23 at 18h 32m 49s.xml">
       <configuration name="com.tokera.ate.test.merge in ate" configurationId="JUnit" />
     </history-entry>
+    <history-entry file="com_tokera_ate_test_merge_in_ate - 2019.04.23 at 18h 35m 17s.xml">
+      <configuration name="com.tokera.ate.test.merge in ate" configurationId="JUnit" />
+    </history-entry>
+    <history-entry file="com_tokera_ate_test_in_ate - 2019.04.23 at 20h 19m 59s.xml">
+      <configuration name="com.tokera.ate.test in ate" configurationId="JUnit" />
+    </history-entry>
+    <history-entry file="com_tokera_ate_test_in_ate - 2019.04.23 at 20h 23m 03s.xml">
+      <configuration name="com.tokera.ate.test in ate" configurationId="JUnit" />
+    </history-entry>
   </component>
   <component name="ToolWindowManager">
-    <frame x="439" y="1107" width="1920" height="1053" extended-state="6" />
+    <frame x="1920" y="0" width="1920" height="1080" extended-state="6" />
     <editor active="true" />
     <layout>
-      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.25320512" />
+      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.2596154" />
       <window_info id="Structure" order="1" side_tool="true" weight="0.25" />
       <window_info id="Image Layers" order="2" />
       <window_info id="Designer" order="3" />
@@ -527,7 +735,7 @@
       <window_info id="Favorites" order="6" side_tool="true" />
       <window_info anchor="bottom" id="Message" order="0" />
       <window_info anchor="bottom" id="Find" order="1" weight="0.32894737" />
-      <window_info anchor="bottom" id="Run" order="2" sideWeight="0.49893162" visible="true" weight="0.32894737" />
+      <window_info anchor="bottom" id="Run" order="2" sideWeight="0.49893162" visible="true" weight="0.32800853" />
       <window_info anchor="bottom" id="Debug" order="3" weight="0.3991228" />
       <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
@@ -560,94 +768,6 @@
     </breakpoint-manager>
   </component>
   <component name="editorHistoryManager">
-    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/merge/MergeMaps.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="421">
-          <caret line="681" column="18" selection-start-line="681" selection-start-column="18" selection-end-line="681" selection-end-column="18" />
-          <folding>
-            <element signature="imports" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/merge/MergeReference.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="479">
-          <caret line="105" column="18" selection-start-line="105" selection-start-column="18" selection-end-line="105" selection-end-column="18" />
-          <folding>
-            <element signature="imports" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="jar://$MAVEN_REPOSITORY$/org/junit/jupiter/junit-jupiter-api/5.4.0/junit-jupiter-api-5.4.0-sources.jar!/org/junit/jupiter/api/Assertions.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="194">
-          <caret line="191" column="23" selection-start-line="191" selection-start-column="23" selection-end-line="191" selection-end-column="23" />
-          <folding>
-            <element signature="e#6980#6981#0" expanded="true" />
-            <element signature="e#7028#7029#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/msg/MessageDataTests.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="61">
-          <caret line="67" column="18" selection-start-line="67" selection-start-column="8" selection-end-line="67" selection-end-column="18" />
-          <folding>
-            <element signature="imports" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/msg/MessageEncryptTextTests.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="255">
-          <caret line="38" column="18" selection-start-line="38" selection-start-column="8" selection-end-line="38" selection-end-column="18" />
-          <folding>
-            <element signature="imports" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/msg/MessageSyncTests.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="45">
-          <caret line="3" column="45" selection-start-line="3" selection-start-column="45" selection-end-line="3" selection-end-column="45" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/TestTools.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="315">
-          <caret line="21" column="40" selection-start-line="21" selection-start-column="40" selection-end-line="21" selection-end-column="40" />
-          <folding>
-            <element signature="imports" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/core/java/com/tokera/ate/delegates/YamlDelegate.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="255">
-          <caret line="75" column="13" selection-start-line="75" selection-start-column="13" selection-end-line="75" selection-end-column="13" />
-          <folding>
-            <element signature="imports" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/core/java/com/tokera/ate/dto/fs/FsMountDto.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="185">
-          <caret line="25" column="5" selection-start-line="25" selection-start-column="5" selection-end-line="25" selection-end-column="5" />
-          <folding>
-            <element signature="imports" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/src/core/java/com/tokera/ate/dto/fs/FsSymbolicDto.java">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="185">
@@ -705,17 +825,7 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/src/core/java/com/tokera/ate/delegates/JsonDelegate.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="285">
-          <caret line="22" column="1" lean-forward="true" selection-start-line="22" selection-start-column="1" selection-end-line="22" selection-end-column="1" />
-          <folding>
-            <element signature="e#224#225#0" expanded="true" />
-            <element signature="e#272#273#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
+    <entry file="file://$PROJECT_DIR$/src/core/java/com/tokera/ate/delegates/JsonDelegate.java" />
     <entry file="file://$PROJECT_DIR$/src/core/java/com/tokera/ate/dto/TokenDto.java">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="245">
@@ -927,6 +1037,57 @@
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyBaseAccount.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="105">
+          <caret line="18" column="26" selection-start-line="18" selection-start-column="13" selection-end-line="18" selection-end-column="26" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/LICENSE">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyAccount.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="105">
+          <caret line="7" column="34" selection-start-line="7" selection-start-column="34" selection-end-line="7" selection-end-column="34" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/merge/MergeStrings.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="3090">
+          <caret line="220" column="41" selection-start-line="220" selection-start-column="41" selection-end-line="220" selection-end-column="41" />
+          <folding>
+            <element signature="imports" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/core/java/com/tokera/ate/io/merge/DataMerger.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="1035">
+          <caret line="69" column="53" selection-start-line="69" selection-start-column="53" selection-end-line="69" selection-end-column="53" />
+          <folding>
+            <element signature="imports" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="jar:///usr/lib/jvm/java-8-openjdk-amd64/jre/lib/rt.jar!/java/lang/Class.class">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="8070">
+          <caret line="620" selection-start-line="620" selection-end-line="620" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyThing.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="105">
+          <caret line="13" column="13" selection-start-line="13" selection-start-column="13" selection-end-line="13" selection-end-column="13" />
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/src/core/java/com/google/flatbuffers/Table.java">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="180">
@@ -944,62 +1105,67 @@
     <entry file="file://$PROJECT_DIR$/src/test/resources/META-INF/services/javax.enterprise.inject.spi.Extension">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="60">
-          <caret line="4" column="46" lean-forward="true" selection-start-line="4" selection-start-column="46" selection-end-line="4" selection-end-column="46" />
+          <caret line="4" column="46" selection-start-line="4" selection-start-column="46" selection-end-line="4" selection-end-column="46" />
         </state>
       </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/chain/DataContainerTests.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="90">
+          <caret line="6" column="44" selection-start-line="6" selection-start-column="44" selection-end-line="6" selection-end-column="44" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/chain/ChainOfTrustTests.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="525">
+          <caret line="35" column="13" selection-start-line="35" selection-start-column="13" selection-end-line="35" selection-end-column="13" />
+          <folding>
+            <element signature="imports" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/msg/MessageDataHeaderTests.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="330">
+          <caret line="22" column="13" selection-start-line="22" selection-start-column="13" selection-end-line="22" selection-end-column="13" />
+          <folding>
+            <element signature="imports" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/encryptor/NtruTests.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="60">
+          <caret line="18" column="34" selection-start-line="18" selection-start-column="34" selection-end-line="18" selection-end-column="34" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/TestTools.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="425">
+          <caret line="43" column="48" selection-start-line="43" selection-start-column="48" selection-end-line="43" selection-end-column="48" />
+          <folding>
+            <element signature="imports" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/.idea/workspace.xml">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/.idea/vcs.xml">
+      <provider selected="true" editor-type-id="text-editor" />
+    </entry>
+    <entry file="file://$PROJECT_DIR$/.idea/compiler.xml">
+      <provider selected="true" editor-type-id="text-editor" />
     </entry>
     <entry file="file://$PROJECT_DIR$/pom.xml">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="3029">
-          <caret line="250" column="21" selection-start-line="250" selection-start-column="21" selection-end-line="250" selection-end-column="37" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyThing.java">
-      <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="105">
-          <caret line="13" column="13" selection-start-line="13" selection-start-column="13" selection-end-line="13" selection-end-column="13" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyBaseAccount.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="105">
-          <caret line="18" column="26" selection-start-line="18" selection-start-column="13" selection-end-line="18" selection-end-column="26" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyAccount.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="105">
-          <caret line="7" column="34" selection-start-line="7" selection-start-column="34" selection-end-line="7" selection-end-column="34" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/merge/MergeStrings.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="170">
-          <caret line="220" column="41" lean-forward="true" selection-start-line="220" selection-start-column="41" selection-end-line="220" selection-end-column="41" />
-          <folding>
-            <element signature="imports" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="jar:///usr/lib/jvm/java-8-openjdk-amd64/jre/lib/rt.jar!/java/lang/Class.class">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="164">
-          <caret line="620" lean-forward="true" selection-start-line="620" selection-end-line="620" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/core/java/com/tokera/ate/io/merge/DataMerger.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="450">
-          <caret line="69" column="53" selection-start-line="69" selection-start-column="53" selection-end-line="69" selection-end-column="53" />
-          <folding>
-            <element signature="imports" expanded="true" />
-          </folding>
+          <caret line="55" column="17" lean-forward="true" selection-start-line="55" selection-start-column="17" selection-end-line="62" selection-end-column="19" />
         </state>
       </provider>
     </entry>

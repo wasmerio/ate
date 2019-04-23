@@ -8,6 +8,7 @@
     <artifactId>ate</artifactId>
     <version>0.1</version>
     <name>ate</name>
+    <packaging>jar</packaging>
 
     <licenses>
         <license>
@@ -17,7 +18,9 @@
         </license>
     </licenses>
 
-    <packaging>jar</packaging>
+    <scm>
+        <url>https://github.com/john-sharratt/ate</url>
+    </scm>
 
     <properties>
         <jdk.version>1.8</jdk.version>
@@ -50,7 +53,6 @@
         <!-- Uncomment to use the type annotations compiler. -->
         <!--typeAnnotationsJavac>${org.checkerframework:compiler:jar}</typeAnnotationsJavac-->
         <annotatedJdk>${settings.localRepository}/org/checkerframework/jdk8/${libs.checker}/jdk8-${libs.checker}.jar</annotatedJdk>
-
     </properties>
 
     <repositories>
@@ -61,7 +63,6 @@
     </repositories>
 
     <dependencies>
-
         <dependency>
             <groupId>org.checkerframework</groupId>
             <artifactId>checker-qual</artifactId>
@@ -328,8 +329,20 @@
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${surefire.version}</version>
+                <configuration>
+                    <parallel>classesAndMethods</parallel>
+                    <threadCount>10</threadCount>
+                    <classpathDependencyExcludes>
+                        <classpathDependencyExcludes>ch.qos.logback:logback-classic</classpathDependencyExcludes>
+                    </classpathDependencyExcludes>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.3</version>
+                <version>3.8.0</version>
                 <configuration>
                     <compilerArguments>
                         <Xmaxerrs>10000</Xmaxerrs>
@@ -351,6 +364,40 @@
                         <arg>-Alint=all</arg>
                         <arg>-Xlint:unchecked</arg>
                     </compilerArgs>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>3.1.1</version>
+                <executions>
+                    <execution>
+                        <id>copy-dependencies</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
+                            <overWriteReleases>false</overWriteReleases>
+                            <overWriteSnapshots>false</overWriteSnapshots>
+                            <overWriteIfNewer>true</overWriteIfNewer>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.1.0</version>
+                <configuration>
+                    <archive>
+                        <index>true</index>
+                        <manifest>
+                            <addClasspath>true</addClasspath>
+                            <classpathPrefix>lib</classpathPrefix>
+                        </manifest>
+                    </archive>
                 </configuration>
             </plugin>
         </plugins>
