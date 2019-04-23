@@ -2,16 +2,10 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="1787db08-4ad1-4647-9852-a11b04b311d8" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/uiDesigner.xml" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyBaseAccount.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dao/filters/ResourceScopeInterceptor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/java/com/tokera/ate/dao/filters/ResourceScopeInterceptor.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/delegates/CurrentTokenDelegate.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/java/com/tokera/ate/delegates/CurrentTokenDelegate.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/extensions/ResourceScopedExtension.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/java/com/tokera/ate/extensions/ResourceScopedExtension.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/extensions/TokenScopeExtension.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/java/com/tokera/ate/extensions/TokenScopeExtension.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/core/java/org/tomitribe/microscoped/core/Scope.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/java/com/tokera/ate/scopes/Scope.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/core/java/org/tomitribe/microscoped/core/ScopeContext.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/java/com/tokera/ate/scopes/ScopeContext.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/core/resources/META-INF/services/javax.enterprise.inject.spi.Extension" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/resources/META-INF/services/javax.enterprise.inject.spi.Extension" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/resources/META-INF/services/javax.enterprise.inject.spi.Extension" beforeDir="false" afterPath="$PROJECT_DIR$/src/test/resources/META-INF/services/javax.enterprise.inject.spi.Extension" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/merge/DataMerger.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/merge/DataMerger.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyAccount.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyAccount.java" afterDir="false" />
     </list>
     <ignored path="$PROJECT_DIR$/target/" />
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -23,46 +17,61 @@
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/src/core/java/com/googlecode/ipv6/IPv6AddressHelpers.java">
+        <entry file="file://$PROJECT_DIR$/pom.xml">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="269">
-              <caret line="36" column="46" selection-start-line="36" selection-start-column="46" selection-end-line="36" selection-end-column="46" />
+            <state relative-caret-position="3029">
+              <caret line="250" column="21" selection-start-line="250" selection-start-column="21" selection-end-line="250" selection-end-column="37" />
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/src/core/java/com/googlecode/ipv6/IPv6AddressPool.java">
+        <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyAccount.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="194">
-              <caret line="35" column="19" selection-start-line="35" selection-start-column="19" selection-end-line="35" selection-end-column="19" />
+            <state relative-caret-position="105">
+              <caret line="7" column="34" selection-start-line="7" selection-start-column="34" selection-end-line="7" selection-end-column="34" />
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/src/core/java/com/googlecode/ipv6/IPv6NetworkHelpers.java">
+        <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/merge/MergeStrings.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="194">
-              <caret line="32" column="13" selection-start-line="32" selection-start-column="13" selection-end-line="32" selection-end-column="13" />
+            <state relative-caret-position="170">
+              <caret line="220" column="41" lean-forward="true" selection-start-line="220" selection-start-column="41" selection-end-line="220" selection-end-column="41" />
+              <folding>
+                <element signature="imports" expanded="true" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="true">
+        <entry file="file://$PROJECT_DIR$/src/core/java/com/tokera/ate/io/merge/DataMerger.java">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="450">
+              <caret line="69" column="53" selection-start-line="69" selection-start-column="53" selection-end-line="69" selection-end-column="53" />
+              <folding>
+                <element signature="imports" expanded="true" />
+              </folding>
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/src/core/java/com/google/flatbuffers/Constants.java">
+        <entry file="jar:///usr/lib/jvm/java-8-openjdk-amd64/jre/lib/rt.jar!/java/lang/Class.class">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="135">
-              <caret line="23" column="13" selection-start-line="23" selection-start-column="13" selection-end-line="23" selection-end-column="13" />
+            <state relative-caret-position="164">
+              <caret line="620" lean-forward="true" selection-start-line="620" selection-end-line="620" />
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/src/core/java/com/google/flatbuffers/ByteBufferUtil.java">
+        <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyThing.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="194">
-              <caret line="29" column="13" selection-start-line="29" selection-start-column="13" selection-end-line="29" selection-end-column="13" />
+            <state relative-caret-position="105">
+              <caret line="13" column="13" selection-start-line="13" selection-start-column="13" selection-end-line="13" selection-end-column="13" />
             </state>
           </provider>
         </entry>
@@ -85,29 +94,11 @@
           </provider>
         </entry>
       </file>
-      <file pinned="false" current-in-tab="true">
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/src/test/resources/META-INF/services/javax.enterprise.inject.spi.Extension">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="60">
               <caret line="4" column="46" lean-forward="true" selection-start-line="4" selection-start-column="46" selection-end-line="4" selection-end-column="46" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/src/core/java/com/googlecode/ipv6/IPv6NetworkMask.java">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="194">
-              <caret line="34" column="19" selection-start-line="34" selection-start-column="19" selection-end-line="34" selection-end-column="19" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/src/core/java/com/googlecode/ipv6/IPv6AddressRange.java">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="194">
-              <caret line="32" column="13" selection-start-line="32" selection-start-column="13" selection-end-line="32" selection-end-column="13" />
             </state>
           </provider>
         </entry>
@@ -152,8 +143,6 @@
   <component name="IdeDocumentHistory">
     <option name="CHANGED_PATHS">
       <list>
-        <option value="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/repo/DataRepository.java" />
-        <option value="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/Beans.java" />
         <option value="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/YamlConfig.java" />
         <option value="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/YamlWriter.java" />
         <option value="$PROJECT_DIR$/src/core/java/com/esotericsoftware/yamlbeans2/parser/Parser.java" />
@@ -199,10 +188,12 @@
         <option value="$PROJECT_DIR$/src/core/java/com/tokera/ate/dto/msg/MessagePublicKeyDto.java" />
         <option value="$PROJECT_DIR$/src/core/java/com/tokera/ate/dto/msg/MessagePrivateKeyDto.java" />
         <option value="$PROJECT_DIR$/src/core/java/com/tokera/ate/dto/msg/MessageSyncDto.java" />
-        <option value="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/merge/DataMerger.java" />
         <option value="$PROJECT_DIR$/src/core/java/com/tokera/ate/scopes/ScopeContext.java" />
         <option value="$PROJECT_DIR$/src/core/resources/META-INF/services/javax.enterprise.inject.spi.Extension" />
         <option value="$PROJECT_DIR$/src/test/resources/META-INF/services/javax.enterprise.inject.spi.Extension" />
+        <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyBaseAccount.java" />
+        <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyAccount.java" />
+        <option value="$PROJECT_DIR$/src/core/java/com/tokera/ate/io/merge/DataMerger.java" />
       </list>
     </option>
   </component>
@@ -214,8 +205,10 @@
     </option>
   </component>
   <component name="ProjectFrameBounds" extendedState="6">
+    <option name="x" value="439" />
+    <option name="y" value="1107" />
     <option name="width" value="1920" />
-    <option name="height" value="1080" />
+    <option name="height" value="1053" />
   </component>
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="ProjectView">
@@ -271,6 +264,36 @@
               <item name="ate" type="462c0819:PsiDirectoryNode" />
               <item name="src" type="462c0819:PsiDirectoryNode" />
               <item name="core" type="462c0819:PsiDirectoryNode" />
+              <item name="java" type="462c0819:PsiDirectoryNode" />
+              <item name="com" type="462c0819:PsiDirectoryNode" />
+              <item name="ate" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
+              <item name="ate" type="462c0819:PsiDirectoryNode" />
+              <item name="src" type="462c0819:PsiDirectoryNode" />
+              <item name="core" type="462c0819:PsiDirectoryNode" />
+              <item name="java" type="462c0819:PsiDirectoryNode" />
+              <item name="com" type="462c0819:PsiDirectoryNode" />
+              <item name="ate" type="462c0819:PsiDirectoryNode" />
+              <item name="io" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
+              <item name="ate" type="462c0819:PsiDirectoryNode" />
+              <item name="src" type="462c0819:PsiDirectoryNode" />
+              <item name="core" type="462c0819:PsiDirectoryNode" />
+              <item name="java" type="462c0819:PsiDirectoryNode" />
+              <item name="com" type="462c0819:PsiDirectoryNode" />
+              <item name="ate" type="462c0819:PsiDirectoryNode" />
+              <item name="io" type="462c0819:PsiDirectoryNode" />
+              <item name="merge" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
+              <item name="ate" type="462c0819:PsiDirectoryNode" />
+              <item name="src" type="462c0819:PsiDirectoryNode" />
+              <item name="core" type="462c0819:PsiDirectoryNode" />
               <item name="resources" type="462c0819:PsiDirectoryNode" />
             </path>
             <path>
@@ -308,6 +331,32 @@
               <item name="ate" type="462c0819:PsiDirectoryNode" />
               <item name="src" type="462c0819:PsiDirectoryNode" />
               <item name="test" type="462c0819:PsiDirectoryNode" />
+              <item name="java" type="462c0819:PsiDirectoryNode" />
+              <item name="test" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
+              <item name="ate" type="462c0819:PsiDirectoryNode" />
+              <item name="src" type="462c0819:PsiDirectoryNode" />
+              <item name="test" type="462c0819:PsiDirectoryNode" />
+              <item name="java" type="462c0819:PsiDirectoryNode" />
+              <item name="test" type="462c0819:PsiDirectoryNode" />
+              <item name="dao" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
+              <item name="ate" type="462c0819:PsiDirectoryNode" />
+              <item name="src" type="462c0819:PsiDirectoryNode" />
+              <item name="test" type="462c0819:PsiDirectoryNode" />
+              <item name="java" type="462c0819:PsiDirectoryNode" />
+              <item name="test" type="462c0819:PsiDirectoryNode" />
+              <item name="merge" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
+              <item name="ate" type="462c0819:PsiDirectoryNode" />
+              <item name="src" type="462c0819:PsiDirectoryNode" />
+              <item name="test" type="462c0819:PsiDirectoryNode" />
               <item name="resources" type="462c0819:PsiDirectoryNode" />
             </path>
             <path>
@@ -335,11 +384,16 @@
     </panes>
   </component>
   <component name="PropertiesComponent">
-    <property name="com.android.tools.idea.instantapp.provision.ProvisionBeforeRunTaskProvider.myTimeStamp" value="1555969652709" />
+    <property name="com.android.tools.idea.instantapp.provision.ProvisionBeforeRunTaskProvider.myTimeStamp" value="1556037306765" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
     <property name="project.structure.last.edited" value="Project" />
     <property name="project.structure.proportion" value="0.15" />
     <property name="project.structure.side.proportion" value="0.47586206" />
+  </component>
+  <component name="RecentsManager">
+    <key name="CopyClassDialog.RECENTS_KEY">
+      <recent name="com.tokera.ate.test.dao" />
+    </key>
   </component>
   <component name="RunDashboard">
     <option name="ruleStates">
@@ -353,7 +407,7 @@
       </list>
     </option>
   </component>
-  <component name="RunManager" selected="JUnit.com.tokera.ate.test in ate">
+  <component name="RunManager" selected="JUnit.com.tokera.ate.test.merge in ate">
     <configuration name="All in ate" type="JUnit" factoryName="JUnit" temporary="true" nameIsGenerated="true">
       <module name="ate" />
       <option name="PACKAGE_NAME" value="" />
@@ -392,8 +446,23 @@
         <option name="Make" enabled="true" />
       </method>
     </configuration>
+    <configuration name="com.tokera.ate.test.merge in ate" type="JUnit" factoryName="JUnit" temporary="true" nameIsGenerated="true">
+      <module name="ate" />
+      <extension name="coverage">
+        <pattern>
+          <option name="PATTERN" value="com.tokera.ate.test.merge.*" />
+          <option name="ENABLED" value="true" />
+        </pattern>
+      </extension>
+      <option name="PACKAGE_NAME" value="com.tokera.ate.test.merge" />
+      <option name="TEST_OBJECT" value="package" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="JUnit.com.tokera.ate.test.merge in ate" />
         <item itemvalue="JUnit.com.tokera.ate.test in ate" />
         <item itemvalue="JUnit.MergeSets.testAddLeftFromNull2wayA" />
         <item itemvalue="JUnit.All in ate" />
@@ -414,9 +483,6 @@
     <servers />
   </component>
   <component name="TestHistory">
-    <history-entry file="com_tokera_ate_test_in_ate - 2019.04.22 at 22h 36m 58s.xml">
-      <configuration name="com.tokera.ate.test in ate" configurationId="JUnit" />
-    </history-entry>
     <history-entry file="com_tokera_ate_test_in_ate - 2019.04.22 at 22h 38m 10s.xml">
       <configuration name="com.tokera.ate.test in ate" configurationId="JUnit" />
     </history-entry>
@@ -444,12 +510,15 @@
     <history-entry file="com_tokera_ate_test_in_ate - 2019.04.22 at 23h 09m 03s.xml">
       <configuration name="com.tokera.ate.test in ate" configurationId="JUnit" />
     </history-entry>
+    <history-entry file="com_tokera_ate_test_merge_in_ate - 2019.04.23 at 18h 32m 49s.xml">
+      <configuration name="com.tokera.ate.test.merge in ate" configurationId="JUnit" />
+    </history-entry>
   </component>
   <component name="ToolWindowManager">
-    <frame x="0" y="0" width="1920" height="1080" extended-state="6" />
+    <frame x="439" y="1107" width="1920" height="1053" extended-state="6" />
     <editor active="true" />
     <layout>
-      <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.25320512" />
+      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.25320512" />
       <window_info id="Structure" order="1" side_tool="true" weight="0.25" />
       <window_info id="Image Layers" order="2" />
       <window_info id="Designer" order="3" />
@@ -458,7 +527,7 @@
       <window_info id="Favorites" order="6" side_tool="true" />
       <window_info anchor="bottom" id="Message" order="0" />
       <window_info anchor="bottom" id="Find" order="1" weight="0.32894737" />
-      <window_info active="true" anchor="bottom" id="Run" order="2" sideWeight="0.49893162" visible="true" weight="0.31948882" />
+      <window_info anchor="bottom" id="Run" order="2" sideWeight="0.49893162" visible="true" weight="0.32894737" />
       <window_info anchor="bottom" id="Debug" order="3" weight="0.3991228" />
       <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
@@ -491,30 +560,6 @@
     </breakpoint-manager>
   </component>
   <component name="editorHistoryManager">
-    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/encryptor/NtruTests.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-103">
-          <caret line="158" column="18" selection-start-line="158" selection-start-column="18" selection-end-line="158" selection-end-column="18" />
-          <folding>
-            <element signature="imports" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/merge/MergeBoolean.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="60">
-          <caret line="18" column="41" selection-start-line="18" selection-start-column="41" selection-end-line="18" selection-end-column="41" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/merge/MergeLists.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="60">
-          <caret line="18" column="42" selection-start-line="18" selection-start-column="42" selection-end-line="18" selection-end-column="42" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/merge/MergeMaps.java">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="421">
@@ -529,16 +574,6 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="479">
           <caret line="105" column="18" selection-start-line="105" selection-start-column="18" selection-end-line="105" selection-end-column="18" />
-          <folding>
-            <element signature="imports" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/merge/MergeStrings.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="421">
-          <caret line="347" column="18" selection-start-line="347" selection-start-column="18" selection-end-line="347" selection-end-column="18" />
           <folding>
             <element signature="imports" expanded="true" />
           </folding>
@@ -691,13 +726,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/pom.xml">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-209">
-          <caret line="250" column="21" selection-start-line="250" selection-start-column="21" selection-end-line="250" selection-end-column="37" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/src/core/java/com/tokera/ate/common/ImmutalizableHashSet.java">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="270">
@@ -712,13 +740,6 @@
           <folding>
             <element signature="imports" expanded="true" />
           </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="jar:///usr/lib/jvm/java-8-openjdk-amd64/jre/lib/rt.jar!/java/lang/Class.class">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="209">
-          <caret line="603" column="66" selection-start-line="603" selection-start-column="66" selection-end-line="603" selection-end-column="66" />
         </state>
       </provider>
     </entry>
@@ -826,16 +847,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/src/core/java/com/tokera/ate/io/merge/DataMerger.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="285">
-          <caret line="556" column="76" selection-start-line="556" selection-start-column="76" selection-end-line="556" selection-end-column="76" />
-          <folding>
-            <element signature="imports" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/src/core/java/com/tokera/ate/scopes/Scope.java">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="105">
@@ -934,6 +945,61 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="60">
           <caret line="4" column="46" lean-forward="true" selection-start-line="4" selection-start-column="46" selection-end-line="4" selection-end-column="46" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pom.xml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="3029">
+          <caret line="250" column="21" selection-start-line="250" selection-start-column="21" selection-end-line="250" selection-end-column="37" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyThing.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="105">
+          <caret line="13" column="13" selection-start-line="13" selection-start-column="13" selection-end-line="13" selection-end-column="13" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyBaseAccount.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="105">
+          <caret line="18" column="26" selection-start-line="18" selection-start-column="13" selection-end-line="18" selection-end-column="26" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyAccount.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="105">
+          <caret line="7" column="34" selection-start-line="7" selection-start-column="34" selection-end-line="7" selection-end-column="34" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/merge/MergeStrings.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="170">
+          <caret line="220" column="41" lean-forward="true" selection-start-line="220" selection-start-column="41" selection-end-line="220" selection-end-column="41" />
+          <folding>
+            <element signature="imports" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="jar:///usr/lib/jvm/java-8-openjdk-amd64/jre/lib/rt.jar!/java/lang/Class.class">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="164">
+          <caret line="620" lean-forward="true" selection-start-line="620" selection-end-line="620" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/core/java/com/tokera/ate/io/merge/DataMerger.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="450">
+          <caret line="69" column="53" selection-start-line="69" selection-start-column="53" selection-end-line="69" selection-end-column="53" />
+          <folding>
+            <element signature="imports" expanded="true" />
+          </folding>
         </state>
       </provider>
     </entry>

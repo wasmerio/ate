@@ -6,21 +6,22 @@ import com.tokera.ate.common.ImmutalizableArrayList;
 import com.tokera.ate.common.ImmutalizableTreeMap;
 import com.tokera.ate.units.Alias;
 import com.tokera.ate.units.DaoId;
+import com.tokera.ate.units.TextDocument;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.persistence.Column;
 import javax.persistence.Table;
 import java.util.UUID;
 
-@YamlTag("dao.myaccount")
-@Table(name = "myaccount")
+@YamlTag("dao.mybaseaccount")
+@Table(name = "mybaseaccount")
 @PermitParentFree
-public class MyAccount extends MyBaseAccount {
+public class MyBaseAccount {
     @Column
-    public final ImmutalizableArrayList<@DaoId UUID> things = new ImmutalizableArrayList<>();
+    public final UUID id = UUID.randomUUID();
+    @Nullable
     @Column
-    public boolean isPublic = false;
-    @Column
-    public final ImmutalizableTreeMap<@Alias String, @DaoId UUID> textFiles = new ImmutalizableTreeMap<>();
+    public @TextDocument String description = null;
 
-    public MyAccount() { }
+    public MyBaseAccount() { }
 }

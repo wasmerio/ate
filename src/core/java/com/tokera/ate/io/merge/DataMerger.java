@@ -52,11 +52,22 @@ public class DataMerger {
         return false;
     }
 
+    private static List<Field> getAllFields(List<Field> fields, Class<?> type) {
+        fields.addAll(Arrays.asList(type.getDeclaredFields()));
+
+        if (type.getSuperclass() != null) {
+            getAllFields(fields, type.getSuperclass());
+        }
+
+        return fields;
+    }
+
     private static List<Field> getFieldDescriptors(Class<?> clazz) {
         return fieldDescriptorsMap
                 .computeIfAbsent(clazz, (c) -> {
-                    Field[] fields = clazz.getDeclaredFields();
-                    List<Field> ret = Arrays.stream(fields)
+                    List<Field> fields = new ArrayList<>();
+                    getAllFields(fields, clazz);
+                    List<Field> ret = fields.stream()
                             .filter(p -> isDataField(p))
                             .collect(Collectors.toList());
                     ret.stream().forEach(f -> f.setAccessible(true));
