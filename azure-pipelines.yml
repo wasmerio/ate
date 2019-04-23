@@ -4,14 +4,6 @@ trigger:
     include:
     - master
     - releases/*
-  paths:
-    include:
-    - *
-    exclude:
-    - .idea/*
-    - README.md
-    - LICENSE.md
-    - .gitignore
 resources:
   containers:
   - container: buildj
