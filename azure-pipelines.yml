@@ -1,0 +1,43 @@
+trigger:
+  batch: true
+  branches:
+    include:
+    - master
+    - releases/*
+  paths:
+    include:
+    - *
+    exclude:
+    - .idea/*
+    - README.md
+    - LICENSE.md
+    - .gitignore
+resources:
+  containers:
+  - container: buildj
+    image: tokera/buildj1:latest
+pool:
+  vmImage: 'Ubuntu-16.04'
+container: buildj
+steps:
+- task: Maven@3
+  inputs:
+    mavenPomFile: 'pom.xml'
+    mavenVersionOption: path
+    mavenDirectory: '/maven'
+    publishJUnitResults: true
+    testResultsFiles: '**/TEST-*.xml'
+    goals: 'package'
+  displayName: 'Building and Testing ATE library'
+- script: zip -r ../libs.zip *
+  workingDirectory: target/lib
+- task: PublishBuildArtifacts@1
+  inputs:
+    artifactName: 'ate-jar'
+    pathtoPublish: 'target/ate-0.1.jar'
+  displayName: 'Publishing ATE jar'
+- task: PublishBuildArtifacts@1
+  inputs:
+    artifactName: 'ate-libs'
+    pathtoPublish: 'target/libs.zip'
+  displayName: 'Publishing ATE libs'
