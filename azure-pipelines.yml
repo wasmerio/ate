@@ -12,7 +12,7 @@ pool:
   vmImage: 'Ubuntu-16.04'
 container: buildj
 steps:
-- script: compile.sh
+- script: ./compile.sh
 - task: PublishBuildArtifacts@1
   inputs:
     artifactName: 'ate-jar'
