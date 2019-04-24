@@ -12,17 +12,7 @@ pool:
   vmImage: 'Ubuntu-16.04'
 container: buildj
 steps:
-- task: Maven@3
-  inputs:
-    mavenPomFile: 'pom.xml'
-    mavenVersionOption: path
-    mavenDirectory: '/maven'
-    publishJUnitResults: true
-    testResultsFiles: '**/TEST-*.xml'
-    goals: 'package'
-  displayName: 'Building and Testing ATE library'
-- script: zip -r ../libs.zip *
-  workingDirectory: target/lib
+- script: compile.sh
 - task: PublishBuildArtifacts@1
   inputs:
     artifactName: 'ate-jar'
@@ -33,3 +23,8 @@ steps:
     artifactName: 'ate-libs'
     pathtoPublish: 'target/libs.zip'
   displayName: 'Publishing ATE libs'
+- task: PublishBuildArtifacts@1
+  inputs:
+    artifactName: 'ate-repo'
+    pathtoPublish: 'repo.zip'
+  displayName: 'Publishing ATE maven repo'
