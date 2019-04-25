@@ -49,7 +49,7 @@
     <orderEntry type="library" name="Maven: org.jboss.aerogear:aerogear-crypto:0.1.3" level="project" />
     <orderEntry type="library" name="Maven: com.madgag:scprov-jdk15on:1.47.0.3" level="project" />
     <orderEntry type="library" name="Maven: com.madgag:sc-light-jdk15on:1.47.0.3" level="project" />
-    <orderEntry type="library" scope="PROVIDED" name="Maven: javax:javaee-web-api:7.0" level="project" />
+    <orderEntry type="library" name="Maven: javax:javaee-web-api:8.0" level="project" />
     <orderEntry type="library" name="Maven: dnsjava:dnsjava:2.1.8" level="project" />
     <orderEntry type="library" name="Maven: org.apache.zookeeper:zookeeper:3.4.10" level="project" />
     <orderEntry type="library" name="Maven: org.slf4j:slf4j-api:1.6.1" level="project" />
