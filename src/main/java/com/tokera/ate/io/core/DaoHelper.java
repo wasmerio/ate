@@ -2,6 +2,7 @@ package com.tokera.ate.io.core;
 
 import java.util.*;
 
+import com.tokera.ate.annotations.StartupScoped;
 import com.tokera.ate.dao.IParams;
 import com.tokera.ate.dao.IRights;
 import com.tokera.ate.dao.base.BaseDao;
@@ -14,13 +15,12 @@ import org.apache.commons.codec.binary.Base64;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.ApplicationScoped;
-import javax.faces.bean.ManagedBean;
 import javax.ws.rs.WebApplicationException;
 
 /**
  * Helper functions used for common operations on data objects
  */
-@ManagedBean(eager=true)
+@StartupScoped
 @ApplicationScoped
 public class DaoHelper {
     private AteDelegate d = AteDelegate.getUnsafe();

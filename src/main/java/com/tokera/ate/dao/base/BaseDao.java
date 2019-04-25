@@ -6,7 +6,6 @@ import com.tokera.ate.units.DaoId;
 import com.tokera.ate.units.TopicName;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-import javax.persistence.Column;
 import java.io.Serializable;
 import java.util.Set;
 import java.util.UUID;

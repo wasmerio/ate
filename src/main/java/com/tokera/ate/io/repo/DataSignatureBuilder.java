@@ -1,5 +1,6 @@
 package com.tokera.ate.io.repo;
 
+import com.tokera.ate.annotations.StartupScoped;
 import com.tokera.ate.dao.kafka.MessageSerializer;
 import com.tokera.ate.dto.EffectivePermissions;
 import com.tokera.ate.dto.msg.MessageDataDigestDto;
@@ -10,7 +11,6 @@ import com.tokera.ate.security.Encryptor;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import javax.enterprise.context.ApplicationScoped;
-import javax.faces.bean.ManagedBean;
 import javax.inject.Inject;
 import javax.ws.rs.WebApplicationException;
 
@@ -21,7 +21,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 /**
  * Builds a crypto signature of the data message payload so that it can be validated without actually reading the data
  */
-@ManagedBean(eager=true)
+@StartupScoped
 @ApplicationScoped
 public class DataSignatureBuilder
 {

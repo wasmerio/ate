@@ -1,5 +1,6 @@
 package com.tokera.ate.delegates;
 
+import com.tokera.ate.annotations.StartupScoped;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
@@ -12,7 +13,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.PostConstruct;
 import javax.enterprise.event.Observes;
-import javax.faces.bean.ManagedBean;
 import javax.inject.Inject;
 import javax.ws.rs.WebApplicationException;
 
@@ -33,7 +33,7 @@ import org.xbill.DNS.Type;
 /**
  * Uses properties of the Internet to derive authentication and authorization rules
  */
-@ManagedBean(eager=true)
+@StartupScoped
 @ApplicationScoped
 public class ImplicitSecurityDelegate {
 

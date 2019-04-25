@@ -1,10 +1,10 @@
 package com.tokera.ate.extensions;
 
-import javax.ejb.Startup;
+import com.tokera.ate.annotations.StartupScoped;
+
 import javax.enterprise.context.ApplicationScoped;
 import javax.enterprise.event.Observes;
 import javax.enterprise.inject.spi.*;
-import javax.faces.bean.ManagedBean;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
@@ -16,11 +16,7 @@ public class StartupBeanExtension implements Extension
     {
         if (event.getAnnotated().isAnnotationPresent(ApplicationScoped.class))
         {
-            if (event.getAnnotated().isAnnotationPresent(Startup.class)) {
-                startupBeans.add(event.getBean());
-            }
-            if (event.getAnnotated().isAnnotationPresent(ManagedBean.class) &&
-                event.getAnnotated().getAnnotation(ManagedBean.class).eager() == true) {
+            if (event.getAnnotated().isAnnotationPresent(StartupScoped.class)) {
                 startupBeans.add(event.getBean());
             }
         }

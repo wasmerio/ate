@@ -1,5 +1,6 @@
 package com.tokera.ate.delegates;
 
+import com.tokera.ate.annotations.StartupScoped;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.dao.IRights;
 import com.tokera.ate.dao.IRoles;
@@ -20,7 +21,6 @@ import com.tokera.ate.units.Secret;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.ApplicationScoped;
-import javax.faces.bean.ManagedBean;
 import javax.inject.Inject;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
@@ -35,7 +35,7 @@ import java.util.stream.Collectors;
 /**
  * Delegate used to check authorization rights in the currentRights context and scopes
  */
-@ManagedBean(eager=true)
+@StartupScoped
 @ApplicationScoped
 public class AuthorizationDelegate {
     private AteDelegate d = AteDelegate.getUnsafe();

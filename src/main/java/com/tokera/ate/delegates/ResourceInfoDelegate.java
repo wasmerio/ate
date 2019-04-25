@@ -5,7 +5,6 @@ import com.tokera.ate.dao.enumerations.RiskRole;
 import com.tokera.ate.dao.enumerations.UserRole;
 import com.tokera.ate.scopes.ResourceScoped;
 
-import javax.faces.bean.ManagedBean;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.container.ResourceInfo;
 import javax.ws.rs.core.Response;
@@ -17,7 +16,7 @@ import java.util.stream.Collectors;
  * Delegate used to cache the retrieve details about the currentRights executing REST method (e.g. any permission restrictions
  * that it may have).
  */
-@ManagedBean(eager=true)
+@StartupScoped
 @ResourceScoped
 public class ResourceInfoDelegate
 {

@@ -2,6 +2,7 @@ package com.tokera.ate.io.repo;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.tokera.ate.annotations.StartupScoped;
 import com.tokera.ate.common.Immutalizable;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.dao.IRights;
@@ -18,7 +19,6 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.annotation.PostConstruct;
 import javax.enterprise.context.ApplicationScoped;
-import javax.faces.bean.ManagedBean;
 import javax.inject.Inject;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
@@ -26,7 +26,7 @@ import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
-@ManagedBean(eager=true)
+@StartupScoped
 @ApplicationScoped
 public class DataSerializer {
 

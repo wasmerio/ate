@@ -2,6 +2,7 @@ package com.tokera.ate.security;
 
 import com.google.common.base.Charsets;
 import com.google.common.base.Stopwatch;
+import com.tokera.ate.annotations.StartupScoped;
 import com.tokera.ate.io.IAteIO;
 import com.tokera.ate.qualifiers.BackendStorageSystem;
 import com.tokera.ate.common.LoggerHook;
@@ -42,7 +43,6 @@ import javax.crypto.spec.SecretKeySpec;
 import javax.enterprise.context.ApplicationScoped;
 import javax.enterprise.inject.spi.CDI;
 import javax.enterprise.util.AnnotationLiteral;
-import javax.faces.bean.ManagedBean;
 import javax.inject.Inject;
 import javax.ws.rs.WebApplicationException;
 import javax.xml.bind.DatatypeConverter;
@@ -68,7 +68,7 @@ import org.spongycastle.crypto.signers.NTRUSigner;
 /**
  * System used for all kinds of encryption steps that the storage system and other components need
  */
-@ManagedBean(eager=true)
+@StartupScoped
 @ApplicationScoped
 public class Encryptor implements Runnable
 {

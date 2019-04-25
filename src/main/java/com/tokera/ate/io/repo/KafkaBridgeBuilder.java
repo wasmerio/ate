@@ -1,5 +1,6 @@
 package com.tokera.ate.io.repo;
 
+import com.tokera.ate.annotations.StartupScoped;
 import com.tokera.ate.common.ApplicationConfigLoader;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.configuration.AteConstants;
@@ -9,7 +10,6 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.annotation.PostConstruct;
 import javax.enterprise.context.ApplicationScoped;
-import javax.faces.bean.ManagedBean;
 import javax.inject.Inject;
 import javax.ws.rs.WebApplicationException;
 import java.util.*;
@@ -17,7 +17,7 @@ import java.util.*;
 /**
  * Bridge between the data tree in memory and the Kafka BUS that persists those messages
  */
-@ApplicationScoped
+@StartupScoped
 public class KafkaBridgeBuilder {
 
     private AteDelegate d = AteDelegate.getUnsafe();

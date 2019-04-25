@@ -2,6 +2,7 @@ package com.tokera.ate.io.repo;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.tokera.ate.annotations.StartupScoped;
 import com.tokera.ate.dao.base.BaseDao;
 
 import javax.annotation.PostConstruct;
@@ -29,7 +30,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import javax.faces.bean.ManagedBean;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 
@@ -40,7 +40,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 /**
  * Represents a repository of many topic chains that are indexed by Topic name
  */
-@ManagedBean(eager=true)
+@StartupScoped
 @RequestScoped
 public class DataRepository implements IAteIO {
 

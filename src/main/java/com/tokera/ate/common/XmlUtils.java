@@ -3,6 +3,7 @@ package com.tokera.ate.common;
 import java.io.IOException;
 import java.io.StringReader;
 
+import com.tokera.ate.annotations.StartupScoped;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
@@ -16,7 +17,6 @@ import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
 import java.io.StringWriter;
 import javax.enterprise.context.ApplicationScoped;
-import javax.faces.bean.ManagedBean;
 import javax.inject.Inject;
 import javax.xml.transform.OutputKeys;
 
@@ -31,7 +31,7 @@ import org.xml.sax.InputSource;
  * Helper class used on XML documents. Primarily this class is used to parse and pretty print them
  * @author jonhanlee
  */
-@ManagedBean(eager=true)
+@StartupScoped
 @ApplicationScoped
 public class XmlUtils {
 
