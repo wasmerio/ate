@@ -1,8 +1,8 @@
 package com.tokera.ate.providers;
 
-import com.esotericsoftware.yamlbeans2.YamlException;
-import com.esotericsoftware.yamlbeans2.YamlReader;
-import com.esotericsoftware.yamlbeans2.YamlWriter;
+import com.esotericsoftware.yamlbeans.YamlException;
+import com.esotericsoftware.yamlbeans.YamlReader;
+import com.esotericsoftware.yamlbeans.YamlWriter;
 import com.google.common.base.Charsets;
 import com.google.common.io.CharStreams;
 import com.tokera.ate.delegates.AteDelegate;

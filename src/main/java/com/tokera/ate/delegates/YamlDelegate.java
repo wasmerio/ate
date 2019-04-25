@@ -1,10 +1,10 @@
 package com.tokera.ate.delegates;
 
-import com.esotericsoftware.yamlbeans2.Version;
-import com.esotericsoftware.yamlbeans2.YamlConfig;
-import com.esotericsoftware.yamlbeans2.YamlException;
-import com.esotericsoftware.yamlbeans2.YamlReader;
-import com.esotericsoftware.yamlbeans2.YamlWriter;
+import com.esotericsoftware.yamlbeans.Version;
+import com.esotericsoftware.yamlbeans.YamlConfig;
+import com.esotericsoftware.yamlbeans.YamlException;
+import com.esotericsoftware.yamlbeans.YamlReader;
+import com.esotericsoftware.yamlbeans.YamlWriter;
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.annotations.YamlTags;
 import com.tokera.ate.extensions.YamlTagDiscoveryExtension;
@@ -101,7 +101,7 @@ public class YamlDelegate {
         cfg.setScalarSerializer(java.util.Date.class, new DateSerializer());
         cfg.setScalarSerializer(java.util.UUID.class, new UuidSerializer());
         cfg.setScalarSerializer(java.math.BigDecimal.class, new BigDecimalSerializer());
-        
+
         cfg.setAllowDuplicates(true);
         
         cfg.readConfig.setIgnoreUnknownProperties(true);

@@ -5,8 +5,8 @@
  */
 package com.tokera.ate.providers;
 
-import com.esotericsoftware.yamlbeans2.YamlException;
-import com.esotericsoftware.yamlbeans2.scalar.ScalarSerializer;
+import com.esotericsoftware.yamlbeans.YamlException;
+import com.esotericsoftware.yamlbeans.scalar.ScalarSerializer;
 import com.tokera.ate.common.StringTools;
 import com.tokera.ate.common.UUIDTools;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -18,13 +18,15 @@ public class UuidSerializer implements ScalarSerializer<UUID>
     public UuidSerializer() {
         
     }
-    
+
+    @SuppressWarnings("override.return.invalid")
     @Override
     public @Nullable String write(@Nullable UUID t) throws YamlException {
         if (t == null) return "null";
         return t.toString();
     }
 
+    @SuppressWarnings("override.return.invalid")
     @Override
     public @Nullable UUID read(@Nullable String _val) throws YamlException {
         String val = StringTools.makeOneLineOrNull(_val);

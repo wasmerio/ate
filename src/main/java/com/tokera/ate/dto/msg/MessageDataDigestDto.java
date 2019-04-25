@@ -8,6 +8,7 @@ package com.tokera.ate.dto.msg;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.flatbuffers.FlatBufferBuilder;
+import com.tokera.ate.common.ByteBufferTools;
 import com.tokera.ate.common.CopyOnWrite;
 import com.tokera.ate.dao.msg.*;
 import com.tokera.ate.annotations.YamlTag;
@@ -93,21 +94,21 @@ public class MessageDataDigestDto extends MessageBaseDto implements Serializable
         if (lfb.seedLength() > 0) {
             ByteBuffer bb = lfb.seedAsByteBuffer();
             if (bb != null) {
-                String v = lfb.toBase64(bb);
+                String v = ByteBufferTools.toBase64(bb);
                 if (v != null) seed = v;
             }
         }
         if (lfb.signatureLength() > 0) {
             ByteBuffer bb = lfb.signatureAsByteBuffer();
             if (bb != null) {
-                String v = lfb.toBase64(bb);
+                String v = ByteBufferTools.toBase64(bb);
                 if (v != null) signature = v;
             }
         }
         if (lfb.digestLength() > 0) {
             ByteBuffer bb = lfb.digestAsByteBuffer();
             if (bb != null) {
-                String v = lfb.toBase64(bb);
+                String v = ByteBufferTools.toBase64(bb);
                 if (v != null) digest = v;
             }
         }
@@ -123,7 +124,7 @@ public class MessageDataDigestDto extends MessageBaseDto implements Serializable
             if (lfb.signatureLength() > 0) {
                 ByteBuffer bb = lfb.signatureAsByteBuffer();
                 if (bb != null) {
-                    @Signature String v = lfb.toBase64(bb);
+                    @Signature String v = ByteBufferTools.toBase64(bb);
                     if (v != null) return v;
                 }
             }
@@ -179,7 +180,7 @@ public class MessageDataDigestDto extends MessageBaseDto implements Serializable
             if (lfb.seedLength() > 0) {
                 ByteBuffer bb = lfb.seedAsByteBuffer();
                 if (bb != null) {
-                    @Salt String v = lfb.toBase64(bb);
+                    @Salt String v = ByteBufferTools.toBase64(bb);
                     if (v != null) return v;
                 }
             }
@@ -216,7 +217,7 @@ public class MessageDataDigestDto extends MessageBaseDto implements Serializable
             if (lfb.digestLength() > 0) {
                 ByteBuffer bb = lfb.digestAsByteBuffer();
                 if (bb != null) {
-                    @Hash String v = lfb.toBase64(bb);
+                    @Hash String v = ByteBufferTools.toBase64(bb);
                     if (v != null) return v;
                 }
             }
