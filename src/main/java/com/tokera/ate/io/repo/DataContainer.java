@@ -14,7 +14,6 @@ import com.tokera.ate.io.merge.MergePair;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-import javax.ws.rs.WebApplicationException;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -139,7 +138,7 @@ public class DataContainer {
         AteDelegate d = AteDelegate.get();
 
         LinkedList<DataGraphNode> leaves = computeCurrentLeaves();
-        if (leaves == null || leaves.isEmpty()) throw new WebApplicationException("Unable to get the merged header(#1).");
+        if (leaves == null || leaves.isEmpty()) throw new RuntimeException("Unable to get the merged header(#1).");
 
         // If there is only one item then we are done
         if (leaves.size() == 1) {
@@ -155,7 +154,7 @@ public class DataContainer {
 
         // Return the result of the merge
         MessageDataHeaderDto ret = d.merger.merge(mergeSet);
-        if (ret == null) throw new WebApplicationException("Unable to get the merged header(#2).");
+        if (ret == null) throw new RuntimeException("Unable to get the merged header(#2).");
         return ret;
     }
 

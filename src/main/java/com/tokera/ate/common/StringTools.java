@@ -15,7 +15,6 @@ import java.util.List;
 import java.util.Scanner;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.InflaterInputStream;
-import javax.ws.rs.WebApplicationException;
 
 /**
  * Helper class that compresses strings, prefixes, makes them pretty and other cool functions
@@ -41,7 +40,7 @@ public class StringTools
             }
             return baos.toByteArray();
         } catch (IOException ex) {
-            throw new WebApplicationException("Exception occured while compressing text", ex, javax.ws.rs.core.Response.Status.INTERNAL_SERVER_ERROR);
+            throw new RuntimeException("Exception occured while compressing text", ex);
         }
     }
 
@@ -58,13 +57,13 @@ public class StringTools
         }
     }
     
-    public static @LogText String toString(List<WebApplicationException> errors)
+    public static @LogText String toString(List<RuntimeException> errors)
     {
         // If an exception occured then write them to the error buffer before throwing an aggregate
         if (errors.size() > 0)
         {
             StringBuilder sb = new StringBuilder();
-            for (WebApplicationException ex : errors) {
+            for (RuntimeException ex : errors) {
                 if (sb.length() > 0) sb.append("\n");
                 sb.append(ex.getMessage());
             }
@@ -78,7 +77,7 @@ public class StringTools
     {
         String[] comps = email.split("@");
         if (comps.length != 2) {
-            throw new WebApplicationException("Email address is not well formed.");
+            throw new RuntimeException("Email address is not well formed.");
         }
 
         String username = comps[0];
@@ -104,10 +103,10 @@ public class StringTools
     public static @DomainName String getPrivateDomain(@Nullable @EmailAddress String _email)
     {
         @EmailAddress String email = _email;
-        if (email == null) throw new WebApplicationException("Email address is not value.");
+        if (email == null) throw new RuntimeException("Email address is not value.");
         String[] comps = email.split("@");
         if (comps.length != 2) {
-            throw new WebApplicationException("Email address is not well formed.");
+            throw new RuntimeException("Email address is not well formed.");
         }
 
         String username = comps[0];
@@ -156,7 +155,7 @@ public class StringTools
     public static void sanitizePath(@Nullable @Filepath String path) {
         if (path == null) return;
         if (path.contains("..")) {
-            throw new WebApplicationException("This path [" + path + "] is a security risk.");
+            throw new RuntimeException("This path [" + path + "] is a security risk.");
         }
     }
 

@@ -2,7 +2,7 @@ package com.tokera.ate.io.repo;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-import com.tokera.ate.annotations.StartupScoped;
+import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.common.Immutalizable;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.dao.IRights;
@@ -20,13 +20,12 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import javax.annotation.PostConstruct;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
-import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
-@StartupScoped
+@Startup
 @ApplicationScoped
 public class DataSerializer {
 
@@ -70,7 +69,7 @@ public class DataSerializer {
                 }
                 sb.append("]\n");
             }
-            throw new WebApplicationException(sb.toString(), Response.Status.UNAUTHORIZED);
+            throw new RuntimeException(sb.toString());
         }
         return Base64.decodeBase64(encryptKey64);
     }
@@ -163,10 +162,10 @@ public class DataSerializer {
             // Get the public key
             byte[] publicKeyBytes = chain.getPublicKeyBytes(publicKeyHash);
             if (publicKeyBytes == null) {
-                throw new WebApplicationException("We encountered a public key that is not yet known to the distributed commit log. Ensure all public toPutKeys are merged before using them in data entities by either calling mergeLater(obj), mergeThreeWay(obj) or mergeThreeWay(publicKeyOrNull).");
+                throw new RuntimeException("We encountered a public key that is not yet known to the distributed commit log. Ensure all public toPutKeys are merged before using them in data entities by either calling mergeLater(obj), mergeThreeWay(obj) or mergeThreeWay(publicKeyOrNull).");
             }
             if (publicKeyBytes.length <= 64) {
-                throw new WebApplicationException("We encountered a public key that does not valid. Ensure all public toPutKeys are merged before using them in data entities by either calling mergeLater(obj), mergeThreeWay(obj) or mergeThreeWay(publicKeyOrNull).");
+                throw new RuntimeException("We encountered a public key that does not valid. Ensure all public toPutKeys are merged before using them in data entities by either calling mergeLater(obj), mergeThreeWay(obj) or mergeThreeWay(publicKeyOrNull).");
             }
 
             // If the key is not available in the kafka topic then we need to add it
@@ -354,7 +353,7 @@ public class DataSerializer {
         try {
             T orig = (T)this.decryptCacheObj.get(cacheKey, () -> {
                 BaseDao ret = readObjectFromDataMessageInternal(cacheKey, aesKey, msg);
-                if (ret == null) throw new WebApplicationException("Failed to deserialize the data object.");
+                if (ret == null) throw new RuntimeException("Failed to deserialize the data object.");
                 if (ret instanceof Immutalizable) ((Immutalizable)ret).immutalize();
                 return ret;
             });
@@ -379,7 +378,7 @@ public class DataSerializer {
         try {
             payloadBytes = this.decryptCacheData.get(cacheKey, () -> {
                 byte[] data = readDataFromDataMessageInternal(aesKey, msg);
-                if (data == null) throw new WebApplicationException("Failed to recode the bytes from the stream.");
+                if (data == null) throw new RuntimeException("Failed to recode the bytes from the stream.");
                 return data;
             });
         } catch (ExecutionException e) {
@@ -397,12 +396,12 @@ public class DataSerializer {
         MessageDataHeaderDto header = msg.getHeader();
         @DaoId UUID id = header.getIdOrThrow();
         if (id.equals(ret.getId()) == false) {
-            throw new WebApplicationException("Read access denied (id does not match) - ID=" + id, Response.Status.UNAUTHORIZED);
+            throw new RuntimeException("Read access denied (id does not match) - ID=" + id);
         }
 
         // Make sure the deserialized type matches the header
         if (header.getPayloadClazzOrThrow().equals(ret.getClass().getSimpleName()) == false) {
-            throw new WebApplicationException("Read access denied (payload types do not match) - ID=" + id, Response.Status.UNAUTHORIZED);
+            throw new RuntimeException("Read access denied (payload types do not match) - ID=" + id);
         }
     }
 

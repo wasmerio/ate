@@ -1,8 +1,7 @@
 package com.tokera.ate.security;
 
 import com.google.common.base.Charsets;
-import com.google.common.base.Stopwatch;
-import com.tokera.ate.annotations.StartupScoped;
+import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.io.IAteIO;
 import com.tokera.ate.qualifiers.BackendStorageSystem;
 import com.tokera.ate.common.LoggerHook;
@@ -29,7 +28,6 @@ import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.TimeUnit;
 import javax.annotation.PostConstruct;
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -44,7 +42,6 @@ import javax.enterprise.context.ApplicationScoped;
 import javax.enterprise.inject.spi.CDI;
 import javax.enterprise.util.AnnotationLiteral;
 import javax.inject.Inject;
-import javax.ws.rs.WebApplicationException;
 import javax.xml.bind.DatatypeConverter;
 
 import org.apache.commons.codec.binary.Base64;
@@ -68,7 +65,7 @@ import org.spongycastle.crypto.signers.NTRUSigner;
 /**
  * System used for all kinds of encryption steps that the storage system and other components need
  */
-@StartupScoped
+@Startup
 @ApplicationScoped
 public class Encryptor implements Runnable
 {
@@ -131,7 +128,7 @@ public class Encryptor implements Runnable
             g_sha256digest = MessageDigest.getInstance("SHA-256");
             g_md5digest = MessageDigest.getInstance("MD5");
         } catch (Exception ex) {
-            throw new WebApplicationException(ex);
+            throw new RuntimeException(ex);
         }
     }
 
@@ -163,7 +160,7 @@ public class Encryptor implements Runnable
             sha256digest = MessageDigest.getInstance("SHA-256");
             md5digest = MessageDigest.getInstance("MD5");
         } catch (Exception ex) {
-            throw new WebApplicationException(ex);
+            throw new RuntimeException(ex);
         }
 
         java.security.Security.addProvider(
@@ -290,7 +287,7 @@ public class Encryptor implements Runnable
         try {
             return Cipher.getInstance("AES");
         } catch (NoSuchAlgorithmException | NoSuchPaddingException ex) {
-            throw new WebApplicationException(ex);
+            throw new RuntimeException(ex);
         }
     }
     
@@ -299,7 +296,7 @@ public class Encryptor implements Runnable
         try {
             return Cipher.getInstance("AES/CBC/PKCS5PADDING");
         } catch (NoSuchAlgorithmException | NoSuchPaddingException ex) {
-            throw new WebApplicationException(ex);
+            throw new RuntimeException(ex);
         }
     }
     
@@ -308,7 +305,7 @@ public class Encryptor implements Runnable
         try {
             return Cipher.getInstance("AES/GCM/NoPadding", "SunJCE");
         } catch (NoSuchAlgorithmException | NoSuchPaddingException | NoSuchProviderException ex) {
-            throw new WebApplicationException(ex);
+            throw new RuntimeException(ex);
         }
     }
     
@@ -404,7 +401,7 @@ public class Encryptor implements Runnable
             @Secret byte[] encrypted = cipher.doFinal(value.getBytes());
             return Base64.encodeBase64URLSafeString(encrypted);
         } catch (InvalidAlgorithmParameterException | InvalidKeyException | NoSuchAlgorithmException | BadPaddingException | IllegalBlockSizeException ex) {
-            throw new WebApplicationException(ex);
+            throw new RuntimeException(ex);
         }
     }
     
@@ -427,7 +424,7 @@ public class Encryptor implements Runnable
 
             return new String(original);
         } catch (InvalidAlgorithmParameterException | InvalidKeyException | NoSuchAlgorithmException | BadPaddingException | IllegalBlockSizeException ex) {
-            throw new WebApplicationException(ex);
+            throw new RuntimeException(ex);
         }
     }
     
@@ -463,7 +460,7 @@ public class Encryptor implements Runnable
             return Base64.encodeBase64URLSafeString(ret);
             
         } catch (InvalidAlgorithmParameterException | InvalidKeyException | NoSuchAlgorithmException | BadPaddingException | IllegalBlockSizeException ex) {
-            throw new WebApplicationException(ex);
+            throw new RuntimeException(ex);
         }
     }
     
@@ -506,7 +503,7 @@ public class Encryptor implements Runnable
             return ret;
             
         } catch (InvalidKeyException | BadPaddingException | IllegalBlockSizeException | ShortBufferException ex) {
-            throw new WebApplicationException(ex);
+            throw new RuntimeException(ex);
         }
     }
     
@@ -571,7 +568,7 @@ public class Encryptor implements Runnable
                     keyGen.init(buildNtruSignParams64());
                     break;
                 default:
-                    throw new WebApplicationException("Unknown NTRU key size(" + keysize + ")");
+                    throw new RuntimeException("Unknown NTRU key size(" + keysize + ")");
             }
 
             AsymmetricCipherKeyPair pair = keyGen.generateKeyPair(new UnPredictablyRandom());
@@ -580,7 +577,7 @@ public class Encryptor implements Runnable
             }
             return extractKey(pair, alias);
         }
-        throw new WebApplicationException("Failed to generate signing key");
+        throw new RuntimeException("Failed to generate signing key");
     }
     
     public MessagePrivateKeyDto genSignKeyNtruFromSeed(int keysize, @Salt String seed)
@@ -602,12 +599,12 @@ public class Encryptor implements Runnable
                 gen.init(buildNtruSignParams64());
                 break;
             default:
-                throw new WebApplicationException("Unknown NTRU key size(" + keysize + ")");
+                throw new RuntimeException("Unknown NTRU key size(" + keysize + ")");
         }
         
         AsymmetricCipherKeyPair pair = gen.generateKeyPair(new PredictablyRandom(seed));
         if (testSign(pair) == false) {
-            throw new WebApplicationException("Failed to generate signing key from seed");
+            throw new RuntimeException("Failed to generate signing key from seed");
         }
         return extractKey(pair, alias);
     }
@@ -669,7 +666,7 @@ public class Encryptor implements Runnable
                     keyGen.init(buildNtruEncryptParams128());
                     break;
                 default:
-                    throw new WebApplicationException("Unknown NTRU key size(" + keysize + ")");
+                    throw new RuntimeException("Unknown NTRU key size(" + keysize + ")");
             }
 
             AsymmetricCipherKeyPair pair = keyGen.generateKeyPair(new UnPredictablyRandom());
@@ -678,7 +675,7 @@ public class Encryptor implements Runnable
             }
             return extractKey(pair);
         }
-        throw new WebApplicationException("Failed to generate encryption key");
+        throw new RuntimeException("Failed to generate encryption key");
     }
     
     public MessagePrivateKeyDto genEncryptKeyNtruFromSeed(int keysize, @Secret String seed)
@@ -697,12 +694,12 @@ public class Encryptor implements Runnable
                 gen.init(buildNtruEncryptParams128());
                 break;
             default:
-                throw new WebApplicationException("Unknown NTRU key size(" + keysize + ")");
+                throw new RuntimeException("Unknown NTRU key size(" + keysize + ")");
         }
         
         AsymmetricCipherKeyPair pair = gen.generateKeyPair(new PredictablyRandom(seed));
         if (testKey(pair) == false) {
-            throw new WebApplicationException("Failed to generate encryption key from seed");
+            throw new RuntimeException("Failed to generate encryption key from seed");
         }
         return extractKey(pair, alias);
     }
@@ -747,7 +744,7 @@ public class Encryptor implements Runnable
             return engine.processBlock(data, 0, data.length);
             
         } catch (InvalidCipherTextException ex) {
-            throw new WebApplicationException(ex);
+            throw new RuntimeException(ex);
         }
     }
     
@@ -787,7 +784,7 @@ public class Encryptor implements Runnable
             
             return signer.generateSignature();
         } catch (IOException ex) {
-            throw new WebApplicationException(ex);
+            throw new RuntimeException(ex);
         }
     }
     
@@ -832,7 +829,7 @@ public class Encryptor implements Runnable
             if (seed != null) digest.update(seed);
             return digest.digest(data);
         } catch (CloneNotSupportedException ex) {
-            throw new WebApplicationException(ex);
+            throw new RuntimeException(ex);
         }
     }
 
@@ -846,7 +843,7 @@ public class Encryptor implements Runnable
             if (seed != null) digest.update(seed);
             return digest.digest(data);
         } catch (CloneNotSupportedException ex) {
-            throw new WebApplicationException(ex);
+            throw new RuntimeException(ex);
         }
     }
     
@@ -856,7 +853,7 @@ public class Encryptor implements Runnable
             if (seed != null) digest.update(seed);
             return digest.digest(data);
         } catch (CloneNotSupportedException ex) {
-            throw new WebApplicationException(ex);
+            throw new RuntimeException(ex);
         }
     }
     
@@ -894,10 +891,10 @@ public class Encryptor implements Runnable
             try {
                 return ((NTRUSigningPrivateKeyParameters)key).getEncoded();
             } catch (IOException ex) {
-                throw new WebApplicationException(ex);
+                throw new RuntimeException(ex);
             }
         }
-        throw new WebApplicationException("Unable to extract the key as it is an unknown type");
+        throw new RuntimeException("Unable to extract the key as it is an unknown type");
     }
     
     public @Hash String extractKeyHash(CipherParameters key) {
@@ -914,10 +911,10 @@ public class Encryptor implements Runnable
             try {
                 return this.hashShaAndEncode(((NTRUSigningPrivateKeyParameters)key).getEncoded());
             } catch (IOException ex) {
-                throw new WebApplicationException(ex);
+                throw new RuntimeException(ex);
             }
         }
-        throw new WebApplicationException("Unable to extract the key as it is an unknown type");
+        throw new RuntimeException("Unable to extract the key as it is an unknown type");
     }
     
     public MessagePrivateKeyDto extractKey(AsymmetricCipherKeyPair pair) {
@@ -1032,7 +1029,7 @@ public class Encryptor implements Runnable
             // Return an encoded string of the data
             return Base64.encodeBase64URLSafeString(encrypted);
         } catch (InvalidKeyException | InvalidAlgorithmParameterException | ShortBufferException | IllegalBlockSizeException | BadPaddingException | UnsupportedEncodingException ex) {
-            throw new WebApplicationException("Problem encrypting encryption data:'" + data + "', using key:'" + encryptionKey + "' and nounce:'" + iv + "'", ex, javax.ws.rs.core.Response.Status.INTERNAL_SERVER_ERROR);
+            throw new RuntimeException("Problem encrypting encryption data:'" + data + "', using key:'" + encryptionKey + "' and nounce:'" + iv + "'", ex);
         }
     }
 
@@ -1064,7 +1061,7 @@ public class Encryptor implements Runnable
             // Convert the data back to string
             return new String(decrypted, "UTF-8");
         } catch (InvalidKeyException | InvalidAlgorithmParameterException | ShortBufferException | IllegalBlockSizeException | BadPaddingException | UnsupportedEncodingException ex) {
-            throw new WebApplicationException("Problem decrypting encryption data:'" + encryptedData + "', using key:'" + encryptionKey + "' and nounce:'" + iv + "'", ex, javax.ws.rs.core.Response.Status.INTERNAL_SERVER_ERROR);
+            throw new RuntimeException("Problem decrypting encryption data:'" + encryptedData + "', using key:'" + encryptionKey + "' and nounce:'" + iv + "'", ex);
         }
     }
     
@@ -1072,7 +1069,7 @@ public class Encryptor implements Runnable
     {
         @Hash String hash = key.publicKeyHash();
         if (hash == null) {
-            throw new WebApplicationException("Public key does not have a hash attached.");
+            throw new RuntimeException("Public key does not have a hash attached.");
         }
         return hash;
     }
@@ -1081,7 +1078,7 @@ public class Encryptor implements Runnable
     {
         @Hash String ret = key.getPublicKeyHash();
         if (ret == null) {
-            throw new WebApplicationException("Public key has no hash attached.");
+            throw new RuntimeException("Public key has no hash attached.");
         }
         return ret;
     }
@@ -1090,7 +1087,7 @@ public class Encryptor implements Runnable
     {
         @PEM String ret = key.getPublicKey();
         if (ret == null) {
-            throw new WebApplicationException("Public key has no public key bytes attached.");
+            throw new RuntimeException("Public key has no public key bytes attached.");
         }
         return ret;
     }
@@ -1099,7 +1096,7 @@ public class Encryptor implements Runnable
     {
         MessagePublicKey publicKey = key.publicKey();
         if (publicKey == null) {
-            throw new WebApplicationException("Pirvate key does not no public key attached.");
+            throw new RuntimeException("Pirvate key does not no public key attached.");
         }
         return this.getPublicKeyHash(publicKey);
     }
@@ -1108,7 +1105,7 @@ public class Encryptor implements Runnable
     {
         @Hash String hash = key.privateKeyHash();
         if (hash == null) {
-            throw new WebApplicationException("Private key does not have a hash attached.");
+            throw new RuntimeException("Private key does not have a hash attached.");
         }
         return hash;
     }
@@ -1117,7 +1114,7 @@ public class Encryptor implements Runnable
     {
         @Hash String ret = key.getPrivateKeyHash();
         if (ret == null) {
-            throw new WebApplicationException("Private key has no hash attached.");
+            throw new RuntimeException("Private key has no hash attached.");
         }
         return ret;
     }
@@ -1126,7 +1123,7 @@ public class Encryptor implements Runnable
     {
         MessagePublicKey publicKey = key.publicKey();
         if (publicKey == null) {
-            throw new WebApplicationException("Private key does not no public key attached.");
+            throw new RuntimeException("Private key does not no public key attached.");
         }
         return getAlias(publicKey);
     }
@@ -1150,7 +1147,7 @@ public class Encryptor implements Runnable
 
         if (ret == null) ret = key.getPublicKeyHash();
         if (ret == null) {
-            throw new WebApplicationException("Private key has no alias.");
+            throw new RuntimeException("Private key has no alias.");
         }
         return ret;
     }
@@ -1159,7 +1156,7 @@ public class Encryptor implements Runnable
     {
         MessagePublicKey publicKey = key.publicKey();
         if (publicKey == null) {
-            throw new WebApplicationException("Private key does not no public key attached.");
+            throw new RuntimeException("Private key does not no public key attached.");
         }
         return publicKey;
     }

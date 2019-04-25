@@ -9,7 +9,6 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import javax.enterprise.context.ApplicationScoped;
 import javax.persistence.Column;
 import javax.persistence.Id;
-import javax.ws.rs.WebApplicationException;
 import java.beans.PropertyDescriptor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -129,7 +128,7 @@ public class DataMerger {
                 Object val = field.get(source);
                 field.set(dest, cloneObject(val));
             } catch (IllegalAccessException e) {
-                throw new WebApplicationException("Failed to set field", e);
+                throw new RuntimeException("Failed to set field", e);
             }
         }
         return dest;
@@ -484,7 +483,7 @@ public class DataMerger {
                 Object value = mergeThreeWay(valueCommon, valueLeft, valueRight);
                 field.set(ret, value);
             } catch (IllegalAccessException e) {
-                throw new WebApplicationException("Failed to set field", e);
+                throw new RuntimeException("Failed to set field", e);
             }
         }
         return (T)ret;
@@ -565,7 +564,7 @@ public class DataMerger {
                 Object value = mergeApply(valueBase, valueWhat, valueRet);
                 field.set(ret, value);
             } catch (IllegalAccessException e) {
-                throw new WebApplicationException("Failed to set field", e);
+                throw new RuntimeException("Failed to set field", e);
             }
         }
         return (T)ret;
@@ -581,7 +580,7 @@ public class DataMerger {
                 continue;
             }
             ret = mergeThreeWay(base, ret, right);
-            if (ret == null) throw new WebApplicationException("Failed to mergeThreeWay data objects.");
+            if (ret == null) throw new RuntimeException("Failed to mergeThreeWay data objects.");
         }
         return ret;
     }

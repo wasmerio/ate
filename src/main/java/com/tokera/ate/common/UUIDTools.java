@@ -10,7 +10,6 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.io.UnsupportedEncodingException;
 import java.util.UUID;
-import javax.ws.rs.WebApplicationException;
 
 /**
  * Class that provides helper functions for converting strings to and from UUID primative types
@@ -28,7 +27,7 @@ public class UUIDTools {
             byte[] bytes = val.getBytes("UTF-8");
             return UUID.nameUUIDFromBytes(bytes);
         } catch (UnsupportedEncodingException ex) {
-            throw new WebApplicationException(ex);
+            throw new RuntimeException(ex);
         }
     }
 

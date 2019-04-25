@@ -2,7 +2,6 @@ package com.tokera.ate.dao.enumerations;
 
 import com.tokera.ate.annotations.YamlTag;
 
-import javax.ws.rs.WebApplicationException;
 
 /**
  * Allows a level of risk to be associated with particular method calls and the access risks provided by a token
@@ -31,6 +30,6 @@ public enum RiskRole {
                 return thisEnum;
             }
         }
-        throw new WebApplicationException("Unable to parse risk role [" + code + "]");
+        throw new RuntimeException("Unable to parse risk role [" + code + "]");
     }
 }

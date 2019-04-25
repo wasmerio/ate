@@ -3,8 +3,6 @@ package com.tokera.ate.test;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.junit.jupiter.api.Assertions;
 
-import javax.ws.rs.WebApplicationException;
-
 public class TestTools {
 
 
@@ -37,7 +35,7 @@ public class TestTools {
             } else if (obj1 instanceof boolean[]) {
                 Assertions.assertArrayEquals((boolean[]) obj1, (boolean[]) obj2);
             } else {
-                throw new WebApplicationException("Unsupported array comparison");
+                throw new RuntimeException("Unsupported array comparison");
             }
 
         } else {

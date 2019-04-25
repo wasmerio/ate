@@ -7,7 +7,6 @@ import com.tokera.ate.dto.msg.MessageBaseDto;
 import com.tokera.ate.enumerations.DataTopicType;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 
 /**
@@ -84,10 +83,10 @@ public class DataTopic {
         try {
             if (chain.validate(msg, LOG) == false) {
                 String what = msg.toString();
-                throw new WebApplicationException("The newly created object was not accepted into the chain of trust [" + what + "]", Response.Status.UNAUTHORIZED);
+                throw new RuntimeException("The newly created object was not accepted into the chain of trust [" + what + "]");
             }
         } catch (Throwable ex) {
-            throw new WebApplicationException("Failed during save operation: " + ex.getMessage(), ex);
+            throw new RuntimeException("Failed during save operation: " + ex.getMessage(), ex);
         }
 
         // Send the message off to kafka

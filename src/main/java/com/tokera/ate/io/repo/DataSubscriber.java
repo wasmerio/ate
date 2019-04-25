@@ -18,7 +18,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import javax.enterprise.inject.spi.CDI;
-import javax.ws.rs.WebApplicationException;
 
 /**
  * Class used to build subscriptions to particular partitions and feed basic raw IO commands to it
@@ -108,7 +107,7 @@ public class DataSubscriber {
                     }
                 });
         } catch (ExecutionException ex) {
-            throw new WebApplicationException(ex);
+            throw new RuntimeException(ex);
         }
         
         if (shouldWait == true) {

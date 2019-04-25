@@ -13,7 +13,6 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
-import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 import java.util.*;
 
@@ -175,26 +174,22 @@ public class HeadIO implements IAteIO
         try {
             BaseDao ret = back.getOrNull(id);
             if (ret == null) {
-                throw new WebApplicationException(type.getSimpleName() + " not found (id=" + id + ")",
-                        Response.Status.NOT_FOUND);
+                throw new RuntimeException(type.getSimpleName() + " not found (id=" + id + ")");
             }
             if (ret.getClass() != type) {
-                throw new WebApplicationException(type.getSimpleName() + " of the wrong type (id=" + id + ", actual=" + ret.getClass().getSimpleName() + ", expected=" + type.getSimpleName() + ")",
-                        Response.Status.NOT_FOUND);
+                throw new RuntimeException(type.getSimpleName() + " of the wrong type (id=" + id + ", actual=" + ret.getClass().getSimpleName() + ", expected=" + type.getSimpleName() + ")");
             }
             BaseDao.assertStillMutable(ret);
             return (T)ret;
         } catch (ClassCastException ex) {
-            throw new WebApplicationException(type.getSimpleName() + " of the wrong type (id=" + id + ")",
-                    ex, Response.Status.NOT_FOUND);
+            throw new RuntimeException(type.getSimpleName() + " of the wrong type (id=" + id + ")", ex);
         }
     }
 
     protected BaseDao get(@DaoId UUID id) {
         BaseDao ret = back.getOrNull(id);
         if (ret == null) {
-            throw new WebApplicationException("Object data (id=" + id + ") not found",
-                    Response.Status.NOT_FOUND);
+            throw new RuntimeException("Object data (id=" + id + ") not found");
         }
         return ret;
     }
@@ -207,8 +202,7 @@ public class HeadIO implements IAteIO
     {
         DataContainer ret = back.getRawOrNull(id);
         if (ret == null) {
-            throw new WebApplicationException("Object data (id=" + id + ") not found",
-                    Response.Status.NOT_FOUND);
+            throw new RuntimeException("Object data (id=" + id + ") not found");
         }
         return ret;
     }
@@ -237,8 +231,7 @@ public class HeadIO implements IAteIO
     public BaseDao getVersion(@DaoId UUID id, MessageMetaDto meta) {
         BaseDao ret = back.getVersionOrNull(id, meta);
         if (ret == null) {
-            throw new WebApplicationException("Object version data (id=" + id + ") not found",
-                    Response.Status.NOT_FOUND);
+            throw new RuntimeException("Object version data (id=" + id + ") not found");
         }
         return ret;
     }
@@ -246,8 +239,7 @@ public class HeadIO implements IAteIO
     public MessageDataDto getVersionMsg(@DaoId UUID id, MessageMetaDto meta) {
         MessageDataDto ret = back.getVersionMsgOrNull(id, meta);
         if (ret == null) {
-            throw new WebApplicationException("Object version message (id=" + id + ") not found",
-                    Response.Status.NOT_FOUND);
+            throw new RuntimeException("Object version message (id=" + id + ") not found");
         }
         return ret;
     }

@@ -1,6 +1,6 @@
 package com.tokera.ate.io.repo;
 
-import com.tokera.ate.annotations.StartupScoped;
+import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.dao.kafka.MessageSerializer;
 import com.tokera.ate.dto.EffectivePermissions;
 import com.tokera.ate.dto.msg.MessageDataDigestDto;
@@ -12,7 +12,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
-import javax.ws.rs.WebApplicationException;
 
 import com.tokera.ate.units.Hash;
 import org.apache.commons.codec.binary.Base64;
@@ -21,7 +20,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 /**
  * Builds a crypto signature of the data message payload so that it can be validated without actually reading the data
  */
-@StartupScoped
+@Startup
 @ApplicationScoped
 public class DataSignatureBuilder
 {
@@ -45,7 +44,7 @@ public class DataSignatureBuilder
             try {
                 stream.write(payloadBytes);
             } catch (IOException ex) {
-                throw new WebApplicationException(ex);
+                throw new RuntimeException(ex);
             }
         }
 
@@ -65,14 +64,14 @@ public class DataSignatureBuilder
         byte[] privateKeyBytes = privateKey.getPrivateKeyBytes();
         byte[] publiceKeyBytes = privateKey.getPublicKeyBytes();
         @Hash String keyHash = privateKey.getPublicKeyHash();
-        if (privateKeyBytes == null) throw new WebApplicationException("No private key bytes attached.");
-        if (publiceKeyBytes == null) throw new WebApplicationException("No public key bytes attached.");
-        if (keyHash == null) throw new WebApplicationException("No public hash attached.");
+        if (privateKeyBytes == null) throw new RuntimeException("No private key bytes attached.");
+        if (publiceKeyBytes == null) throw new RuntimeException("No public key bytes attached.");
+        if (keyHash == null) throw new RuntimeException("No public hash attached.");
 
         byte[] sigBytes = encryptor.signNtru(privateKeyBytes, digestBytes);
         String sig = Base64.encodeBase64URLSafeString(sigBytes);
         if (encryptor.verifyNtru(publiceKeyBytes, Base64.decodeBase64(digest), Base64.decodeBase64(sig)) == false) {
-            throw new WebApplicationException("Failed to verify the key.");
+            throw new RuntimeException("Failed to verify the key.");
         }
 
         // Create the signature and return success
@@ -100,7 +99,7 @@ public class DataSignatureBuilder
                     return generateVerifiedSignature(streamBytes, privateKey);
                 } catch (Exception ex) {
                     if (n < 15) continue;
-                    throw new WebApplicationException(ex);
+                    throw new RuntimeException(ex);
                 }
             }
         }

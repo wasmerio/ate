@@ -16,7 +16,6 @@ import java.util.stream.Collectors;
  * Delegate used to cache the retrieve details about the currentRights executing REST method (e.g. any permission restrictions
  * that it may have).
  */
-@StartupScoped
 @ResourceScoped
 public class ResourceInfoDelegate
 {

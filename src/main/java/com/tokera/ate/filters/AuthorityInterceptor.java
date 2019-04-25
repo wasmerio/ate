@@ -11,7 +11,6 @@ import javax.annotation.PostConstruct;
 import javax.enterprise.context.RequestScoped;
 import javax.enterprise.event.Observes;
 import javax.inject.Inject;
-import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.container.ContainerRequestContext;
 import javax.ws.rs.container.ContainerRequestFilter;
 import javax.ws.rs.container.ContainerResponseContext;
@@ -98,7 +97,7 @@ public class AuthorityInterceptor implements ContainerRequestFilter, ContainerRe
                             }
                         }
                     } catch (IllegalArgumentException e) {
-                        throw new WebApplicationException("Illegal argument while parsing query string [str=" + queryStr + "]", e);
+                        throw new RuntimeException("Illegal argument while parsing query string [str=" + queryStr + "]", e);
                     }
                 }
             }

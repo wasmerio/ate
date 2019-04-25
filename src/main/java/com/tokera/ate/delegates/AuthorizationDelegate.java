@@ -1,6 +1,6 @@
 package com.tokera.ate.delegates;
 
-import com.tokera.ate.annotations.StartupScoped;
+import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.dao.IRights;
 import com.tokera.ate.dao.IRoles;
@@ -35,7 +35,7 @@ import java.util.stream.Collectors;
 /**
  * Delegate used to check authorization rights in the currentRights context and scopes
  */
-@StartupScoped
+@Startup
 @ApplicationScoped
 public class AuthorizationDelegate {
     private AteDelegate d = AteDelegate.getUnsafe();

@@ -10,7 +10,6 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import javax.enterprise.context.ApplicationScoped;
 import javax.enterprise.inject.Produces;
 import javax.enterprise.inject.spi.CDI;
-import javax.ws.rs.WebApplicationException;
 
 /**
  * Factory used to configure the storage system using a builder and to get a reference the storage
@@ -67,7 +66,7 @@ public class StorageSystemFactory
     public IAteIO get()
     {
         if (tree == null) {
-            throw new WebApplicationException("You must first initialize this factory by adding a backend and layers.");
+            throw new RuntimeException("You must first initialize this factory by adding a backend and layers.");
         }
         return tree.get();
     }

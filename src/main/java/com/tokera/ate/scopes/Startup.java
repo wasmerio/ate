@@ -1,6 +1,5 @@
-package com.tokera.ate.annotations;
+package com.tokera.ate.scopes;
 
-import javax.enterprise.context.NormalScope;
 import java.lang.annotation.Documented;
 import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
@@ -12,7 +11,6 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
 @Target({ TYPE })
 @Retention(RUNTIME)
 @Documented
-@NormalScope
 @Inherited
-public @interface StartupScoped {
+public @interface Startup {
 }

@@ -11,7 +11,6 @@ import java.nio.channels.WritableByteChannel;
 import java.security.MessageDigest;
 import java.util.Map;
 import java.util.UUID;
-import javax.ws.rs.WebApplicationException;
 
 import com.tokera.ate.units.Hash;
 import org.apache.commons.codec.binary.Base64;
@@ -31,7 +30,7 @@ public class MessageSerializer implements Serializer<MessageBase> {
         try {
             g_sha256digest = MessageDigest.getInstance("SHA-256");
         } catch (Exception ex) {
-            throw new WebApplicationException(ex);
+            throw new RuntimeException(ex);
         }
     }
     
@@ -57,7 +56,7 @@ public class MessageSerializer implements Serializer<MessageBase> {
             WritableByteChannel channel = Channels.newChannel(stream);
             channel.write(header.getByteBuffer().duplicate());
         } catch (IOException ex) {
-            throw new WebApplicationException(ex);
+            throw new RuntimeException(ex);
         }
     }
     
@@ -75,7 +74,7 @@ public class MessageSerializer implements Serializer<MessageBase> {
         if (msg instanceof MessageSyncDto) {
             return getKey((MessageSyncDto)msg);
         }
-        throw new WebApplicationException("Unable to generate key for message [type=" + msg.getClass() + "]");
+        throw new RuntimeException("Unable to generate key for message [type=" + msg.getClass() + "]");
     }
     
     public static String getKey(MessageBase msg)
@@ -103,13 +102,13 @@ public class MessageSerializer implements Serializer<MessageBase> {
                 if (sync != null) return getKey(sync);
             }
         }
-        throw new WebApplicationException("Unable to generate key for message [type=" + msg.getClass() + "]");
+        throw new RuntimeException("Unable to generate key for message [type=" + msg.getClass() + "]");
     }
     
     public static String getKey(MessageData data)
     {
         MessageDataHeader header = data.header();
-        if (header == null) throw new WebApplicationException("MessageData does not have a header");
+        if (header == null) throw new RuntimeException("MessageData does not have a header");
         return new UUID(header.id().high(), header.id().low()).toString();
     }
 
@@ -123,7 +122,7 @@ public class MessageSerializer implements Serializer<MessageBase> {
     public static String getKey(MessagePublicKey key)
     {
         @Hash String ret = key.publicKeyHash();
-        if (ret == null) throw new WebApplicationException("MessagePublicKey does not have a hash.");
+        if (ret == null) throw new RuntimeException("MessagePublicKey does not have a hash.");
         return ret;
     }
     
@@ -163,7 +162,7 @@ public class MessageSerializer implements Serializer<MessageBase> {
     public static String getKey(MessagePublicKeyDto key)
     {
         @Hash String hash = key.getPublicKeyHash();
-        if (hash == null) throw new WebApplicationException("Public key has no hash");
+        if (hash == null) throw new RuntimeException("Public key has no hash");
         return hash;
     }
 

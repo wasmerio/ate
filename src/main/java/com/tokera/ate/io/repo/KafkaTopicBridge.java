@@ -15,9 +15,7 @@ import com.tokera.ate.enumerations.DataTopicType;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 
 import org.apache.commons.lang.time.StopWatch;
@@ -309,7 +307,7 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
             while (isLoaded == false) {
                 if (isEthereal) return;
                 if (waitTime.getTime() > 20000L) {
-                    throw new WebApplicationException("Busy loading data topic [" + m_topic.getTopicName() + "]", Response.Status.REQUEST_TIMEOUT);
+                    throw new RuntimeException("Busy loading data topic [" + m_topic.getTopicName() + "]");
                 }
                 try {
                     Thread.sleep(50);
@@ -392,12 +390,12 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
         // Load the properties for the zookeeper instance
         String kafkaPropsFile = System.getProperty(AteConstants.PROPERTY_KAFKA_SYSTEM);
         Properties props = ApplicationConfigLoader.getInstance().getPropertiesByName(kafkaPropsFile);
-        if (props == null) throw new WebApplicationException("Failed to create topic: kafka properties file is missing.'");
+        if (props == null) throw new RuntimeException("Failed to create topic: kafka properties file is missing.'");
 
         // Load configuration values that we will use when connecting to the admin interface
         String zookeeperHosts = props.getOrDefault("zookeeper.connect", "").toString();
         if (zookeeperHosts.length() <= 0) {
-            throw new WebApplicationException("Failed to create topic: invalid property 'zookeeper.connect'");
+            throw new RuntimeException("Failed to create topic: invalid property 'zookeeper.connect'");
         }
         
         props.put("zookeeper.connect", m_keeperServers);
@@ -463,7 +461,7 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
         // Wait for the topic to come online
         while (isLoaded == false) {
             if (waitTime.getTime() > 20000L) {
-                throw new WebApplicationException("Busy while creating data topic [" + m_topic.getTopicName() + "]", Response.Status.REQUEST_TIMEOUT);
+                throw new RuntimeException("Busy while creating data topic [" + m_topic.getTopicName() + "]");
             }
             try {
                 Thread.sleep(50);

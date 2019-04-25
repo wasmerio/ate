@@ -2,7 +2,7 @@ package com.tokera.ate.io.core;
 
 import java.util.*;
 
-import com.tokera.ate.annotations.StartupScoped;
+import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.dao.IParams;
 import com.tokera.ate.dao.IRights;
 import com.tokera.ate.dao.base.BaseDao;
@@ -15,12 +15,11 @@ import org.apache.commons.codec.binary.Base64;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.ApplicationScoped;
-import javax.ws.rs.WebApplicationException;
 
 /**
  * Helper functions used for common operations on data objects
  */
-@StartupScoped
+@Startup
 @ApplicationScoped
 public class DaoHelper {
     private AteDelegate d = AteDelegate.getUnsafe();
@@ -42,7 +41,7 @@ public class DaoHelper {
                     byte[] readPrivateBytes = readKey.getPrivateKeyBytes();
                     if (readPrivateBytes == null || readPublicBytes == null) {
                         if (n > maxFails) {
-                            throw new WebApplicationException("Failed to generate an encryption key for entity [clazz=" + roles.getClass().getName() + "] as the private key has no public key bytes.");
+                            throw new RuntimeException("Failed to generate an encryption key for entity [clazz=" + roles.getClass().getName() + "] as the private key has no public key bytes.");
                         }
                         failed = true;
                         continue;
@@ -51,7 +50,7 @@ public class DaoHelper {
                     byte[] plainData = d.encryptor.decryptNtruWithPrivate(readPrivateBytes, encData);
                     if (!Arrays.equals(key, plainData)) {
                         if (n > maxFails) {
-                            throw new WebApplicationException("Failed to generate an encryption key for entity [clazz=" + roles.getClass().getName() + "] validation of the key/pair failed on the encrypt/decrypt test.");
+                            throw new RuntimeException("Failed to generate an encryption key for entity [clazz=" + roles.getClass().getName() + "] validation of the key/pair failed on the encrypt/decrypt test.");
                         }
                         failed = true;
                         continue;
@@ -70,7 +69,7 @@ public class DaoHelper {
 
                                 msg += "\n" + " - read-key [alias=" + alias + ", hash=" + dumpKey.getPublicKeyHash() + ", size=" + bytes.length + "]";
                             }
-                        throw new WebApplicationException(msg, ex);
+                        throw new RuntimeException(msg, ex);
                     }
                     failed = true;
                     continue;
@@ -123,7 +122,7 @@ public class DaoHelper {
             if (ret != null) return ret;
         }
 
-        throw new WebApplicationException("Failed to generate an encryption key for entity [clazz=" + entity.getClass().getName() + ", id=" + entity.getId() + "].");
+        throw new RuntimeException("Failed to generate an encryption key for entity [clazz=" + entity.getClass().getName() + ", id=" + entity.getId() + "].");
     }
     
     public List<BaseDao> getObjAndParents(BaseDao entity) {

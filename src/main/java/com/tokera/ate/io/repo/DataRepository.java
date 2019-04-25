@@ -2,7 +2,6 @@ package com.tokera.ate.io.repo;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-import com.tokera.ate.annotations.StartupScoped;
 import com.tokera.ate.dao.base.BaseDao;
 
 import javax.annotation.PostConstruct;
@@ -30,7 +29,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 
 import com.tokera.ate.units.DaoId;
@@ -40,7 +38,6 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 /**
  * Represents a repository of many topic chains that are indexed by Topic name
  */
-@StartupScoped
 @RequestScoped
 public class DataRepository implements IAteIO {
 
@@ -114,7 +111,7 @@ public class DataRepository implements IAteIO {
         // Perform the validations and checks
         if (performValidation && chain.validateData(data, LOG, new HashMap<>()) == false) {
             String what = "clazz=" + data.getHeader().getPayloadClazzOrThrow() + ", id=" + data.getHeader().getIdOrThrow();
-            throw new WebApplicationException("The newly created object was not accepted into the chain of trust [" + what + "]", Response.Status.UNAUTHORIZED);
+            throw new RuntimeException("The newly created object was not accepted into the chain of trust [" + what + "]");
         }
 
         if (DataRepoConfig.g_EnableLogging == true ||
@@ -196,21 +193,21 @@ public class DataRepository implements IAteIO {
         @DaoId UUID entityParentId = entity.getParentId();
         if (d.daoParents.getAllowedParentsSimple().containsKey(entityType) == false) {
             if (d.daoParents.getAllowedParentFreeSimple().contains(entityType) == false) {
-                throw new WebApplicationException("This entity [" + entity.getClass().getSimpleName() + "] has no parent policy defined [see PermitParentType or PermitParentFree annotation].");
+                throw new RuntimeException("This entity [" + entity.getClass().getSimpleName() + "] has no parent policy defined [see PermitParentType or PermitParentFree annotation].");
             }
             if (entityParentId != null) {
-                throw new WebApplicationException("This entity [" + entity.getClass().getSimpleName() + "] is not allowed to be attached to any parents [see PermitParentType annotation].");
+                throw new RuntimeException("This entity [" + entity.getClass().getSimpleName() + "] is not allowed to be attached to any parents [see PermitParentType annotation].");
             }
         } else {
             if (entityParentId == null) {
-                throw new WebApplicationException("This entity [" + entity.getClass().getSimpleName() + "] is not attached to a parent [see PermitParentType annotation].");
+                throw new RuntimeException("This entity [" + entity.getClass().getSimpleName() + "] is not attached to a parent [see PermitParentType annotation].");
             }
 
             BaseDao parentInCache = this.d.memoryCacheIO.getOrNull(entityParentId);
             DataTopicChain chain = this.subscriber.getChain(topic);
             DataContainer container = chain.getData(entityParentId, LOG);
             if (container != null && d.daoParents.getAllowedParentsSimple().containsEntry(entityType, container.getPayloadClazz()) == false) {
-                throw new WebApplicationException("This entity is not allowed to be attached to this parent type [see PermitParentEntity annotation].");
+                throw new RuntimeException("This entity is not allowed to be attached to this parent type [see PermitParentEntity annotation].");
             }
 
             // Make sure the leaf of the chain of trust exists
@@ -218,7 +215,7 @@ public class DataRepository implements IAteIO {
             if (container != null) parentClazz = container.getPayloadClazz();
             else if (parentInCache != null) parentClazz = parentInCache.getClass().getSimpleName();
             else {
-                throw new WebApplicationException("You must save the parent object before this one otherwise the chain of trust will break.");
+                throw new RuntimeException("You must save the parent object before this one otherwise the chain of trust will break.");
             }
 
             // Now make sure the parent type is actually valid
@@ -231,7 +228,7 @@ public class DataRepository implements IAteIO {
                 if (d.daoParents.getAllowedParentFreeSimple().contains(entityType)) {
                     sb.append("  [allowed] - detached").append("\n");
                 }
-                throw new WebApplicationException(sb.toString());
+                throw new RuntimeException(sb.toString());
             }
         }
     }
@@ -246,8 +243,7 @@ public class DataRepository implements IAteIO {
             throw d.authorization.buildWriteException(entity.getId(), permissions, true);
         }
         if (this.immutable(entity.getId()) == true) {
-            throw new WebApplicationException("Unable to save [" + entity + "] as this object is immutable.",
-                    Response.Status.UNAUTHORIZED);
+            throw new RuntimeException("Unable to save [" + entity + "] as this object is immutable.");
         }
     }
 
@@ -301,7 +297,7 @@ public class DataRepository implements IAteIO {
 
         if (chain.validateData(data, LOG, requestTrust) == false) {
             String what = "clazz=" + data.getHeader().getPayloadClazzOrThrow() + ", id=" + data.getHeader().getIdOrThrow();
-            throw new WebApplicationException("The newly created object was not accepted into the chain of trust [" + what + "]", Response.Status.UNAUTHORIZED);
+            throw new RuntimeException("The newly created object was not accepted into the chain of trust [" + what + "]");
         }
 
         if (DataRepoConfig.g_EnableLogging == true || DataRepoConfig.g_EnableLoggingWrite == true) {
