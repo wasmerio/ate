@@ -1,7 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="1787db08-4ad1-4647-9852-a11b04b311d8" name="Default Changelist" comment="" />
+    <list default="true" id="1787db08-4ad1-4647-9852-a11b04b311d8" name="Default Changelist" comment="">
+      <change afterPath="$PROJECT_DIR$/ate-deps/pom.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
+    </list>
     <ignored path="$PROJECT_DIR$/target/" />
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -88,8 +92,17 @@
       <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/pom.xml">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="701">
-              <caret line="658" column="10" lean-forward="true" selection-start-line="658" selection-start-column="10" selection-end-line="658" selection-end-column="10" />
+            <state relative-caret-position="210">
+              <caret line="14" column="24" selection-start-line="14" selection-start-column="24" selection-end-line="14" selection-end-column="24" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/ate-deps/pom.xml">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="461">
+              <caret line="581" column="19" selection-start-line="581" selection-start-column="19" selection-end-line="581" selection-end-column="19" />
             </state>
           </provider>
         </entry>
@@ -111,20 +124,11 @@
         <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/DateSerializer.java">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="285">
-              <caret line="30" lean-forward="true" selection-start-line="30" selection-end-line="30" />
+              <caret line="30" selection-start-line="30" selection-end-line="30" />
               <folding>
                 <element signature="e#730#774#0" expanded="true" />
                 <element signature="e#946#990#0" expanded="true" />
               </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/ImplicitSecurityDelegate.java">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="180">
-              <caret line="40" column="4" selection-start-line="40" selection-start-column="4" selection-end-line="40" selection-end-column="60" />
             </state>
           </provider>
         </entry>
@@ -141,36 +145,36 @@
   </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>Stopwat</find>
-      <find>createStarted()</find>
-      <find>com.google.common.base.Objects</find>
-      <find>NOTHING</find>
-      <find>edu.emory.mathcs.backport.java.util.Arrays</find>
-      <find>getIfPresent</find>
-      <find>google</find>
-      <find>? valueBase =</find>
-      <find>com.google.code.gson</find>
-      <find>junit</find>
-      <find>com.google.guava</find>
-      <find>beanutils</find>
-      <find>getPropertyDescriptors</find>
-      <find>getProp</find>
-      <find>copyOnWrite</find>
-      <find>StaticLoggerBinder</find>
-      <find>currentRights</find>
-      <find>Startup</find>
-      <find>provided</find>
-      <find>kafka-cli</find>
-      <find>javaee</find>
-      <find>@StartupScoped</find>
-      <find>type</find>
-      <find>@Startup</find>
-      <find>WebApplicationException</find>
       <find>ImplicitSecurityDelegate</find>
       <find>@Expose</find>
       <find>jboss</find>
       <find>yamlbeans2</find>
       <find>gson</find>
+      <find>jdk.version</find>
+      <find>scala.version</find>
+      <find>log4j.version</find>
+      <find>fst.version</find>
+      <find>kryo.version</find>
+      <find>kryo.serializers.version</find>
+      <find>project.build.sourceEncoding</find>
+      <find>maven.compiler.source</find>
+      <find>maven.compiler.target</find>
+      <find>org.jboss.resteasy.version</find>
+      <find>org.jboss.weld.version</find>
+      <find>slf4j.version</find>
+      <find>hibernate.version</find>
+      <find>el.version</find>
+      <find>libs.zookeeper</find>
+      <find>libs.curator</find>
+      <find>surefire.version</find>
+      <find>libs.kafka</find>
+      <find>libs.checker</find>
+      <find>annotatedJdk</find>
+      <find>jandex.version</find>
+      <find>libs.validation.api</find>
+      <find>undertow.version</find>
+      <find>fbs.input.directory</find>
+      <find>fbs.output.directory</find>
     </findStrings>
   </component>
   <component name="Git.Settings">
@@ -179,9 +183,6 @@
   <component name="IdeDocumentHistory">
     <option name="CHANGED_PATHS">
       <list>
-        <option value="$PROJECT_DIR$/src/core/java/com/tokera/ate/dto/msg/MessagePrivateKeyDto.java" />
-        <option value="$PROJECT_DIR$/src/core/java/com/tokera/ate/dto/msg/MessageSyncDto.java" />
-        <option value="$PROJECT_DIR$/src/core/java/com/tokera/ate/scopes/ScopeContext.java" />
         <option value="$PROJECT_DIR$/src/core/resources/META-INF/services/javax.enterprise.inject.spi.Extension" />
         <option value="$PROJECT_DIR$/src/test/resources/META-INF/services/javax.enterprise.inject.spi.Extension" />
         <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyBaseAccount.java" />
@@ -221,7 +222,6 @@
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/dto/msg/MessageDataDigestDto.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/common/ByteBufferTools.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/YamlProvider.java" />
-        <option value="$PROJECT_DIR$/pom.xml" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/YamlDelegate.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/IntegerSerializer.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/BooleanSerializer.java" />
@@ -230,6 +230,10 @@
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/UuidSerializer.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/LongSerializer.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/DateSerializer.java" />
+        <option value="$PROJECT_DIR$/src/deps/pom.xml" />
+        <option value="$PROJECT_DIR$/deps/pom.xml" />
+        <option value="$PROJECT_DIR$/ate-deps/pom.xml" />
+        <option value="$PROJECT_DIR$/pom.xml" />
       </list>
     </option>
   </component>
@@ -263,83 +267,18 @@
             <path>
               <item name="ate" type="b2602c69:ProjectViewProjectNode" />
               <item name="ate" type="462c0819:PsiDirectoryNode" />
+              <item name="ate-deps" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
+              <item name="ate" type="462c0819:PsiDirectoryNode" />
               <item name="src" type="462c0819:PsiDirectoryNode" />
             </path>
             <path>
               <item name="ate" type="b2602c69:ProjectViewProjectNode" />
               <item name="ate" type="462c0819:PsiDirectoryNode" />
               <item name="src" type="462c0819:PsiDirectoryNode" />
-              <item name="main" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
-              <item name="ate" type="462c0819:PsiDirectoryNode" />
-              <item name="src" type="462c0819:PsiDirectoryNode" />
-              <item name="main" type="462c0819:PsiDirectoryNode" />
-              <item name="java" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
-              <item name="ate" type="462c0819:PsiDirectoryNode" />
-              <item name="src" type="462c0819:PsiDirectoryNode" />
-              <item name="main" type="462c0819:PsiDirectoryNode" />
-              <item name="java" type="462c0819:PsiDirectoryNode" />
-              <item name="ate" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
-              <item name="ate" type="462c0819:PsiDirectoryNode" />
-              <item name="src" type="462c0819:PsiDirectoryNode" />
-              <item name="main" type="462c0819:PsiDirectoryNode" />
-              <item name="resources" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
-              <item name="ate" type="462c0819:PsiDirectoryNode" />
-              <item name="src" type="462c0819:PsiDirectoryNode" />
               <item name="test" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
-              <item name="ate" type="462c0819:PsiDirectoryNode" />
-              <item name="src" type="462c0819:PsiDirectoryNode" />
-              <item name="test" type="462c0819:PsiDirectoryNode" />
-              <item name="java" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
-              <item name="ate" type="462c0819:PsiDirectoryNode" />
-              <item name="src" type="462c0819:PsiDirectoryNode" />
-              <item name="test" type="462c0819:PsiDirectoryNode" />
-              <item name="java" type="462c0819:PsiDirectoryNode" />
-              <item name="test" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
-              <item name="ate" type="462c0819:PsiDirectoryNode" />
-              <item name="src" type="462c0819:PsiDirectoryNode" />
-              <item name="test" type="462c0819:PsiDirectoryNode" />
-              <item name="java" type="462c0819:PsiDirectoryNode" />
-              <item name="test" type="462c0819:PsiDirectoryNode" />
-              <item name="chain" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
-              <item name="ate" type="462c0819:PsiDirectoryNode" />
-              <item name="src" type="462c0819:PsiDirectoryNode" />
-              <item name="test" type="462c0819:PsiDirectoryNode" />
-              <item name="java" type="462c0819:PsiDirectoryNode" />
-              <item name="test" type="462c0819:PsiDirectoryNode" />
-              <item name="encryptor" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
-              <item name="ate" type="462c0819:PsiDirectoryNode" />
-              <item name="src" type="462c0819:PsiDirectoryNode" />
-              <item name="test" type="462c0819:PsiDirectoryNode" />
-              <item name="java" type="462c0819:PsiDirectoryNode" />
-              <item name="test" type="462c0819:PsiDirectoryNode" />
-              <item name="msg" type="462c0819:PsiDirectoryNode" />
             </path>
           </expand>
           <select />
@@ -348,16 +287,24 @@
     </panes>
   </component>
   <component name="PropertiesComponent">
-    <property name="com.android.tools.idea.instantapp.provision.ProvisionBeforeRunTaskProvider.myTimeStamp" value="1556299181838" />
+    <property name="com.android.tools.idea.instantapp.provision.ProvisionBeforeRunTaskProvider.myTimeStamp" value="1556300850466" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
     <property name="project.structure.last.edited" value="Modules" />
     <property name="project.structure.proportion" value="0.15" />
     <property name="project.structure.side.proportion" value="0.47586206" />
   </component>
   <component name="RecentsManager">
+    <key name="MoveFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/ate-deps" />
+      <recent name="$PROJECT_DIR$/../ate-deps" />
+      <recent name="$PROJECT_DIR$" />
+    </key>
     <key name="CopyClassDialog.RECENTS_KEY">
       <recent name="com.tokera.ate.scopes" />
       <recent name="com.tokera.ate.test.dao" />
+    </key>
+    <key name="CopyFile.RECENT_KEYS">
+      <recent name="$PROJECT_DIR$/src/deps" />
     </key>
   </component>
   <component name="RunDashboard">
@@ -372,7 +319,7 @@
       </list>
     </option>
   </component>
-  <component name="RunManager" selected="JUnit.com.tokera.ate.test in ate">
+  <component name="RunManager" selected="JUnit.All in ate">
     <configuration name="All in ate" type="JUnit" factoryName="JUnit" temporary="true" nameIsGenerated="true">
       <module name="ate" />
       <option name="PACKAGE_NAME" value="" />
@@ -427,10 +374,10 @@
     </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="JUnit.All in ate" />
         <item itemvalue="JUnit.com.tokera.ate.test in ate" />
         <item itemvalue="JUnit.com.tokera.ate.test.merge in ate" />
         <item itemvalue="JUnit.MergeSets.testAddLeftFromNull2wayA" />
-        <item itemvalue="JUnit.All in ate" />
       </list>
     </recent_temporary>
   </component>
@@ -513,23 +460,6 @@
     </layout>
   </component>
   <component name="editorHistoryManager">
-    <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/io/core/DaoHelper.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="105">
-          <caret line="22" column="14" selection-start-line="22" selection-start-column="14" selection-end-line="22" selection-end-column="14" />
-          <folding>
-            <element signature="imports" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/io/core/RequestAccessLog.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="135">
-          <caret line="16" column="13" selection-start-line="16" selection-start-column="13" selection-end-line="16" selection-end-column="13" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/CurrentTokenDelegate.java">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="419">
@@ -918,7 +848,7 @@
     <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/DateSerializer.java">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="285">
-          <caret line="30" lean-forward="true" selection-start-line="30" selection-end-line="30" />
+          <caret line="30" selection-start-line="30" selection-end-line="30" />
           <folding>
             <element signature="e#730#774#0" expanded="true" />
             <element signature="e#946#990#0" expanded="true" />
@@ -933,10 +863,24 @@
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/../ate-deps/deps/pom.xml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="240">
+          <caret line="34" column="46" lean-forward="true" selection-start-line="34" selection-start-column="46" selection-end-line="34" selection-end-column="46" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/ate-deps/pom.xml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="461">
+          <caret line="581" column="19" selection-start-line="581" selection-start-column="19" selection-end-line="581" selection-end-column="19" />
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/pom.xml">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="701">
-          <caret line="658" column="10" lean-forward="true" selection-start-line="658" selection-start-column="10" selection-end-line="658" selection-end-column="10" />
+        <state relative-caret-position="210">
+          <caret line="14" column="24" selection-start-line="14" selection-start-column="24" selection-end-line="14" selection-end-column="24" />
         </state>
       </provider>
     </entry>
