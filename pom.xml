@@ -6,12 +6,12 @@
 
     <groupId>com.tokera</groupId>
     <artifactId>ate</artifactId>
-    <version>0.1</version>
+    <version>0.2</version>
     <name>ate</name>
     <parent>
         <groupId>com.tokera</groupId>
         <artifactId>ate-deps</artifactId>
-        <version>0.1</version>
+        <version>0.2</version>
         <relativePath>./ate-deps/pom.xml</relativePath>
     </parent>
 
