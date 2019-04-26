@@ -1,129 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
   <component name="ChangeListManager">
-    <list default="true" id="1787db08-4ad1-4647-9852-a11b04b311d8" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__com_esotericsoftware_yamlbeans_yamlbeans_1_13.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__com_fasterxml_jackson_jaxrs_jackson_jaxrs_base_2_9_5.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__com_fasterxml_jackson_jaxrs_jackson_jaxrs_json_provider_2_9_5.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__com_fasterxml_jackson_module_jackson_module_jaxb_annotations_2_9_5.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__com_github_fge_jackson_coreutils_1_0.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__com_github_fge_json_patch_1_3.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__com_github_spullara_mustache_java_compiler_0_9_5.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__com_google_code_gson_gson_2_6_2.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__com_google_flatbuffers_flatbuffers_java_1_10_0.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__com_googlecode_java_ipv6_java_ipv6_0_17.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__com_sun_mail_javax_mail_1_5_6.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__com_sun_xml_bind_jaxb_core_2_3_0.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__com_sun_xml_bind_jaxb_impl_2_3_0.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__commons_io_commons_io_2_5.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__io_undertow_undertow_core_2_0_13_Final.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__io_undertow_undertow_servlet_2_0_13_Final.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__io_undertow_undertow_websockets_jsr_2_0_13_Final.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__javax_activation_activation_1_1_1.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__javax_json_bind_javax_json_bind_api_1_0.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__log4j_log4j_1_2_17.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__net_jcip_jcip_annotations_1_0.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_apache_httpcomponents_httpclient_4_5_4.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_apache_httpcomponents_httpcore_4_4_7.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_apache_james_apache_mime4j_0_6.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_hibernate_hibernate_validator_5_2_4_Final.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_jboss_resteasy_resteasy_cdi_3_6_1_Final.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_jboss_resteasy_resteasy_client_3_6_1_Final.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_jboss_resteasy_resteasy_html_3_6_1_Final.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_jboss_resteasy_resteasy_jackson2_provider_3_6_1_Final.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_jboss_resteasy_resteasy_jaxb_provider_3_6_1_Final.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_jboss_resteasy_resteasy_jaxrs_3_6_1_Final.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_jboss_resteasy_resteasy_multipart_provider_3_6_1_Final.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_jboss_resteasy_resteasy_servlet_initializer_3_6_1_Final.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_jboss_resteasy_resteasy_undertow_3_6_1_Final.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_jboss_resteasy_resteasy_validator_provider_11_3_6_1_Final.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_jboss_spec_javax_annotation_jboss_annotations_api_1_2_spec_1_0_2_Final.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_jboss_spec_javax_servlet_jboss_servlet_api_4_0_spec_1_0_0_Final.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_jboss_spec_javax_websocket_jboss_websocket_api_1_1_spec_1_1_3_Final.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_jboss_spec_javax_ws_rs_jboss_jaxrs_api_2_1_spec_1_0_1_Final.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_jboss_spec_javax_xml_bind_jboss_jaxb_api_2_3_spec_1_0_0_Final.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_jboss_xnio_xnio_api_3_3_8_Final.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_jboss_xnio_xnio_nio_3_3_8_Final.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_reactivestreams_reactive_streams_1_0_2.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_reflections_reflections_0_9_11.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_slf4j_slf4j_log4j12_1_7_26.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_slf4j_slf4j_simple_1_7_26.xml" afterDir="false" />
-      <change afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/common/ByteBufferTools.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/libraries/Maven__com_fasterxml_jackson_core_jackson_annotations_2_9_0.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/libraries/Maven__com_fasterxml_jackson_core_jackson_annotations_2_9_5.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/libraries/Maven__log4j_log4j_1_2_16.xml" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/libraries/Maven__org_jboss_logging_jboss_logging_3_2_1_Final.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_jboss_logging_jboss_logging_3_4_0_Final.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/libraries/Maven__org_objenesis_objenesis_2_5_1.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_objenesis_objenesis_2_6.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/libraries/Maven__org_slf4j_slf4j_api_1_6_1.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/libraries/Maven__org_slf4j_slf4j_api_1_7_26.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ate.iml" beforeDir="false" afterPath="$PROJECT_DIR$/ate.iml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/Beans.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/DeferredConstruction.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/Version.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/YamlConfig.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/YamlException.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/YamlReader.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/YamlWriter.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/constants/Unicode.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/document/YamlAlias.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/document/YamlDocument.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/document/YamlDocumentReader.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/document/YamlElement.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/document/YamlEntry.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/document/YamlMapping.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/document/YamlScalar.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/document/YamlSequence.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/emitter/Emitter.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/emitter/EmitterConfig.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/emitter/EmitterException.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/emitter/EmitterWriter.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/emitter/ScalarAnalysis.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/parser/AliasEvent.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/parser/CollectionStartEvent.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/parser/DocumentEndEvent.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/parser/DocumentStartEvent.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/parser/Event.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/parser/EventType.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/parser/MappingStartEvent.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/parser/NodeEvent.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/parser/Parser.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/parser/ScalarEvent.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/parser/SequenceStartEvent.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/scalar/DateSerializer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/scalar/DateTimeParser.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/scalar/ScalarSerializer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/tokenizer/AliasToken.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/tokenizer/AnchorToken.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/tokenizer/DirectiveToken.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/tokenizer/ScalarToken.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/tokenizer/TagToken.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/tokenizer/Token.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/tokenizer/TokenType.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/esotericsoftware/yamlbeans2/tokenizer/Tokenizer.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/google/flatbuffers/ByteBufferUtil.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/google/flatbuffers/Constants.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/google/flatbuffers/FlatBufferBuilder.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/google/flatbuffers/Struct.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/google/flatbuffers/Table.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/googlecode/ipv6/BitSetHelpers.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/googlecode/ipv6/IPv6Address.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/googlecode/ipv6/IPv6AddressHelpers.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/googlecode/ipv6/IPv6AddressPool.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/googlecode/ipv6/IPv6AddressRange.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/googlecode/ipv6/IPv6Network.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/googlecode/ipv6/IPv6NetworkHelpers.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/googlecode/ipv6/IPv6NetworkMask.java" beforeDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/YamlDelegate.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/YamlDelegate.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dto/msg/MessageDataDigestDto.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/dto/msg/MessageDataDigestDto.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/BigDecimalSerializer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/BigDecimalSerializer.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/BooleanSerializer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/BooleanSerializer.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/DateSerializer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/DateSerializer.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/EnumSerializer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/EnumSerializer.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/IntegerSerializer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/IntegerSerializer.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/LongSerializer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/LongSerializer.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/UuidSerializer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/UuidSerializer.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/YamlProvider.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/YamlProvider.java" afterDir="false" />
-    </list>
+    <list default="true" id="1787db08-4ad1-4647-9852-a11b04b311d8" name="Default Changelist" comment="" />
     <ignored path="$PROJECT_DIR$/target/" />
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
     <option name="SHOW_DIALOG" value="false" />
@@ -199,6 +77,24 @@
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/configuration/AteConstants.java">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="225">
+              <caret line="15" column="31" selection-start-line="15" selection-start-column="31" selection-end-line="15" selection-end-column="31" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="true">
+        <entry file="file://$PROJECT_DIR$/pom.xml">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="701">
+              <caret line="658" column="10" lean-forward="true" selection-start-line="658" selection-start-column="10" selection-end-line="658" selection-end-column="10" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/LongSerializer.java">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="270">
@@ -211,7 +107,7 @@
           </provider>
         </entry>
       </file>
-      <file pinned="false" current-in-tab="true">
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/DateSerializer.java">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="285">
@@ -225,32 +121,10 @@
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/CurrentRightsDelegate.java">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="-1005">
-              <caret line="22" column="13" selection-start-line="22" selection-start-column="13" selection-end-line="22" selection-end-column="13" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/ImplicitSecurityDelegate.java">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="180">
               <caret line="40" column="4" selection-start-line="40" selection-start-column="4" selection-end-line="40" selection-end-column="60" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/AteDelegate.java">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="495">
-              <caret line="65" column="31" selection-start-line="65" selection-start-column="31" selection-end-line="65" selection-end-column="31" />
-              <folding>
-                <element signature="e#5381#5382#0" expanded="true" />
-                <element signature="e#5444#5445#0" expanded="true" />
-              </folding>
             </state>
           </provider>
         </entry>
@@ -417,15 +291,6 @@
               <item name="ate" type="462c0819:PsiDirectoryNode" />
               <item name="src" type="462c0819:PsiDirectoryNode" />
               <item name="main" type="462c0819:PsiDirectoryNode" />
-              <item name="java" type="462c0819:PsiDirectoryNode" />
-              <item name="ate" type="462c0819:PsiDirectoryNode" />
-              <item name="delegates" type="462c0819:PsiDirectoryNode" />
-            </path>
-            <path>
-              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
-              <item name="ate" type="462c0819:PsiDirectoryNode" />
-              <item name="src" type="462c0819:PsiDirectoryNode" />
-              <item name="main" type="462c0819:PsiDirectoryNode" />
               <item name="resources" type="462c0819:PsiDirectoryNode" />
             </path>
             <path>
@@ -483,7 +348,7 @@
     </panes>
   </component>
   <component name="PropertiesComponent">
-    <property name="com.android.tools.idea.instantapp.provision.ProvisionBeforeRunTaskProvider.myTimeStamp" value="1556206877966" />
+    <property name="com.android.tools.idea.instantapp.provision.ProvisionBeforeRunTaskProvider.myTimeStamp" value="1556299181838" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
     <property name="project.structure.last.edited" value="Modules" />
     <property name="project.structure.proportion" value="0.15" />
@@ -583,9 +448,6 @@
     <servers />
   </component>
   <component name="TestHistory">
-    <history-entry file="com_tokera_ate_test_in_ate - 2019.04.25 at 15h 03m 49s.xml">
-      <configuration name="com.tokera.ate.test in ate" configurationId="JUnit" />
-    </history-entry>
     <history-entry file="com_tokera_ate_test_in_ate - 2019.04.25 at 15h 04m 12s.xml">
       <configuration name="com.tokera.ate.test in ate" configurationId="JUnit" />
     </history-entry>
@@ -613,12 +475,15 @@
     <history-entry file="com_tokera_ate_test_in_ate - 2019.04.25 at 15h 25m 00s.xml">
       <configuration name="com.tokera.ate.test in ate" configurationId="JUnit" />
     </history-entry>
+    <history-entry file="com_tokera_ate_test_in_ate - 2019.04.25 at 17h 41m 05s.xml">
+      <configuration name="com.tokera.ate.test in ate" configurationId="JUnit" />
+    </history-entry>
   </component>
   <component name="ToolWindowManager">
     <frame x="1920" y="0" width="1920" height="1080" extended-state="6" />
     <editor active="true" />
     <layout>
-      <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.27564102" />
+      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.27564102" />
       <window_info id="Structure" order="1" side_tool="true" weight="0.25" />
       <window_info id="Image Layers" order="2" />
       <window_info id="Designer" order="3" />
@@ -627,7 +492,7 @@
       <window_info id="Favorites" order="6" side_tool="true" />
       <window_info anchor="bottom" id="Message" order="0" />
       <window_info anchor="bottom" id="Find" order="1" weight="0.32894737" />
-      <window_info anchor="bottom" id="Run" order="2" sideWeight="0.49893162" weight="0.3377193" />
+      <window_info anchor="bottom" id="Run" order="2" sideWeight="0.49893162" visible="true" weight="0.3375932" />
       <window_info anchor="bottom" id="Debug" order="3" weight="0.3991228" />
       <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
@@ -636,7 +501,7 @@
       <window_info anchor="bottom" id="JProfiler" order="8" />
       <window_info anchor="bottom" id="Terminal" order="9" />
       <window_info anchor="bottom" id="Event Log" order="10" sideWeight="0.50106835" side_tool="true" weight="0.32894737" />
-      <window_info active="true" anchor="bottom" id="Messages" order="11" sideWeight="0.49946582" visible="true" weight="0.32800853" />
+      <window_info anchor="bottom" id="Messages" order="11" sideWeight="0.49946582" weight="0.32800853" />
       <window_info anchor="right" id="Commander" internal_type="SLIDING" order="0" type="SLIDING" weight="0.4" />
       <window_info anchor="right" id="Ant Build" order="1" weight="0.25" />
       <window_info anchor="right" content_ui="combo" id="Hierarchy" order="2" weight="0.25" />
@@ -849,13 +714,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/configuration/AteConstants.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="225">
-          <caret line="15" column="31" selection-start-line="15" selection-start-column="31" selection-end-line="15" selection-end-column="31" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/io/HeadIO.java">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="1965">
@@ -966,13 +824,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/pom.xml">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="5955">
-          <caret line="406" column="24" selection-start-line="406" selection-start-column="24" selection-end-line="406" selection-end-column="40" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/AteDelegate.java">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="495">
@@ -1072,6 +923,20 @@
             <element signature="e#730#774#0" expanded="true" />
             <element signature="e#946#990#0" expanded="true" />
           </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/configuration/AteConstants.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="225">
+          <caret line="15" column="31" selection-start-line="15" selection-start-column="31" selection-end-line="15" selection-end-column="31" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pom.xml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="701">
+          <caret line="658" column="10" lean-forward="true" selection-start-line="658" selection-start-column="10" selection-end-line="658" selection-end-column="10" />
         </state>
       </provider>
     </entry>
