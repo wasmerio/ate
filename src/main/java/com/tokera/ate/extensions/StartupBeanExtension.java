@@ -1,5 +1,6 @@
 package com.tokera.ate.extensions;
 
+import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.scopes.Startup;
 import org.jboss.weld.environment.se.events.ContainerInitialized;
 
@@ -42,5 +43,7 @@ public class StartupBeanExtension implements Extension
         for (Object obj : startupProxies.values()) {
             obj.toString();
         }
+
+        AteDelegate.get().init();
     }
 }

@@ -147,7 +147,7 @@ public class AteDelegate {
         }
     }
 
-    public void rebuild() {
+    public void init() {
         Object replace;
         g_rebuilding.incrementAndGet();
         try {

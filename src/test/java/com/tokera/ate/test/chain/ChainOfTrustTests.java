@@ -75,9 +75,6 @@ public class ChainOfTrustTests
     @Test
     public void seeding()
     {
-        AteDelegate d = AteDelegate.get();
-        d.rebuild();
-
         DataTopicChain chain = createChain();
         MessagePublicKeyDto trustedKeyWrite = encryptor.getTrustOfPublicWrite();
         chain.addTrustKey(trustedKeyWrite, null);
@@ -95,9 +92,6 @@ public class ChainOfTrustTests
     @Test
     public void addMany() throws IOException, InvalidCipherTextException
     {
-        AteDelegate d = AteDelegate.get();
-        d.rebuild();
-
         byte[] bytes1 = new byte[2000];
         new Random().nextBytes(bytes1);
         

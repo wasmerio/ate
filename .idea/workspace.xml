@@ -2,9 +2,9 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="1787db08-4ad1-4647-9852-a11b04b311d8" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/ate-deps/pom.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/AteDelegate.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/AteDelegate.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/tokera/ate/extensions/StartupBeanExtension.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/extensions/StartupBeanExtension.java" afterDir="false" />
     </list>
     <ignored path="$PROJECT_DIR$/target/" />
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -16,26 +16,12 @@
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/IntegerSerializer.java">
+        <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/extensions/StartupBeanExtension.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="300">
-              <caret line="27" column="21" selection-start-line="27" selection-start-column="21" selection-end-line="27" selection-end-column="21" />
+            <state relative-caret-position="476">
+              <caret line="46" column="30" selection-start-line="46" selection-start-column="30" selection-end-line="46" selection-end-column="30" />
               <folding>
-                <element signature="e#562#606#0" expanded="true" />
-                <element signature="e#784#828#0" expanded="true" />
-              </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/BooleanSerializer.java">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="200">
-              <caret line="30" column="48" selection-start-line="30" selection-start-column="48" selection-end-line="30" selection-end-column="48" />
-              <folding>
-                <element signature="e#683#727#0" expanded="true" />
-                <element signature="e#931#975#0" expanded="true" />
+                <element signature="imports" expanded="true" />
               </folding>
             </state>
           </provider>
@@ -90,10 +76,23 @@
         </entry>
       </file>
       <file pinned="false" current-in-tab="true">
+        <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/AteDelegate.java">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="413">
+              <caret line="170" column="38" lean-forward="true" selection-start-line="170" selection-start-column="38" selection-end-line="170" selection-end-column="38" />
+              <folding>
+                <element signature="e#5381#5382#0" expanded="true" />
+                <element signature="e#5444#5445#0" expanded="true" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/pom.xml">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="210">
-              <caret line="14" column="24" selection-start-line="14" selection-start-column="24" selection-end-line="14" selection-end-column="24" />
+            <state relative-caret-position="255">
+              <caret line="17" column="14" lean-forward="true" selection-start-line="17" selection-start-column="14" selection-end-line="17" selection-end-column="14" />
             </state>
           </provider>
         </entry>
@@ -183,7 +182,6 @@
   <component name="IdeDocumentHistory">
     <option name="CHANGED_PATHS">
       <list>
-        <option value="$PROJECT_DIR$/src/core/resources/META-INF/services/javax.enterprise.inject.spi.Extension" />
         <option value="$PROJECT_DIR$/src/test/resources/META-INF/services/javax.enterprise.inject.spi.Extension" />
         <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyBaseAccount.java" />
         <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyAccount.java" />
@@ -215,7 +213,6 @@
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/HeadIO.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/security/Encryptor.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/ImplicitSecurityDelegate.java" />
-        <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/extensions/StartupBeanExtension.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/repo/KafkaBridgeBuilder.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/core/StorageSystemFactory.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/googlecode/ipv6/IPv6Address.java" />
@@ -234,6 +231,8 @@
         <option value="$PROJECT_DIR$/deps/pom.xml" />
         <option value="$PROJECT_DIR$/ate-deps/pom.xml" />
         <option value="$PROJECT_DIR$/pom.xml" />
+        <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/AteDelegate.java" />
+        <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/extensions/StartupBeanExtension.java" />
       </list>
     </option>
   </component>
@@ -278,7 +277,53 @@
               <item name="ate" type="b2602c69:ProjectViewProjectNode" />
               <item name="ate" type="462c0819:PsiDirectoryNode" />
               <item name="src" type="462c0819:PsiDirectoryNode" />
+              <item name="main" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
+              <item name="ate" type="462c0819:PsiDirectoryNode" />
+              <item name="src" type="462c0819:PsiDirectoryNode" />
+              <item name="main" type="462c0819:PsiDirectoryNode" />
+              <item name="java" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
+              <item name="ate" type="462c0819:PsiDirectoryNode" />
+              <item name="src" type="462c0819:PsiDirectoryNode" />
+              <item name="main" type="462c0819:PsiDirectoryNode" />
+              <item name="java" type="462c0819:PsiDirectoryNode" />
+              <item name="ate" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
+              <item name="ate" type="462c0819:PsiDirectoryNode" />
+              <item name="src" type="462c0819:PsiDirectoryNode" />
+              <item name="main" type="462c0819:PsiDirectoryNode" />
+              <item name="java" type="462c0819:PsiDirectoryNode" />
+              <item name="ate" type="462c0819:PsiDirectoryNode" />
+              <item name="delegates" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
+              <item name="ate" type="462c0819:PsiDirectoryNode" />
+              <item name="src" type="462c0819:PsiDirectoryNode" />
+              <item name="main" type="462c0819:PsiDirectoryNode" />
+              <item name="java" type="462c0819:PsiDirectoryNode" />
+              <item name="ate" type="462c0819:PsiDirectoryNode" />
+              <item name="extensions" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
+              <item name="ate" type="462c0819:PsiDirectoryNode" />
+              <item name="src" type="462c0819:PsiDirectoryNode" />
               <item name="test" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
+              <item name="ate" type="462c0819:PsiDirectoryNode" />
+              <item name="src" type="462c0819:PsiDirectoryNode" />
+              <item name="test" type="462c0819:PsiDirectoryNode" />
+              <item name="java" type="462c0819:PsiDirectoryNode" />
             </path>
           </expand>
           <select />
@@ -287,7 +332,7 @@
     </panes>
   </component>
   <component name="PropertiesComponent">
-    <property name="com.android.tools.idea.instantapp.provision.ProvisionBeforeRunTaskProvider.myTimeStamp" value="1556300850466" />
+    <property name="com.android.tools.idea.instantapp.provision.ProvisionBeforeRunTaskProvider.myTimeStamp" value="1556302325482" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
     <property name="project.structure.last.edited" value="Modules" />
     <property name="project.structure.proportion" value="0.15" />
@@ -395,12 +440,6 @@
     <servers />
   </component>
   <component name="TestHistory">
-    <history-entry file="com_tokera_ate_test_in_ate - 2019.04.25 at 15h 04m 12s.xml">
-      <configuration name="com.tokera.ate.test in ate" configurationId="JUnit" />
-    </history-entry>
-    <history-entry file="com_tokera_ate_test_in_ate - 2019.04.25 at 15h 06m 15s.xml">
-      <configuration name="com.tokera.ate.test in ate" configurationId="JUnit" />
-    </history-entry>
     <history-entry file="com_tokera_ate_test_in_ate - 2019.04.25 at 15h 12m 38s.xml">
       <configuration name="com.tokera.ate.test in ate" configurationId="JUnit" />
     </history-entry>
@@ -425,12 +464,18 @@
     <history-entry file="com_tokera_ate_test_in_ate - 2019.04.25 at 17h 41m 05s.xml">
       <configuration name="com.tokera.ate.test in ate" configurationId="JUnit" />
     </history-entry>
+    <history-entry file="All_in_ate - 2019.04.26 at 19h 47m 37s.xml">
+      <configuration name="All in ate" configurationId="JUnit" />
+    </history-entry>
+    <history-entry file="All_in_ate - 2019.04.26 at 20h 10m 45s.xml">
+      <configuration name="All in ate" configurationId="JUnit" />
+    </history-entry>
   </component>
   <component name="ToolWindowManager">
     <frame x="1920" y="0" width="1920" height="1080" extended-state="6" />
     <editor active="true" />
     <layout>
-      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.27564102" />
+      <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.27564102" />
       <window_info id="Structure" order="1" side_tool="true" weight="0.25" />
       <window_info id="Image Layers" order="2" />
       <window_info id="Designer" order="3" />
@@ -439,7 +484,7 @@
       <window_info id="Favorites" order="6" side_tool="true" />
       <window_info anchor="bottom" id="Message" order="0" />
       <window_info anchor="bottom" id="Find" order="1" weight="0.32894737" />
-      <window_info anchor="bottom" id="Run" order="2" sideWeight="0.49893162" visible="true" weight="0.3375932" />
+      <window_info active="true" anchor="bottom" id="Run" order="2" sideWeight="0.49893162" visible="true" weight="0.3375932" />
       <window_info anchor="bottom" id="Debug" order="3" weight="0.3991228" />
       <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
@@ -610,16 +655,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/extensions/StartupBeanExtension.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="540">
-          <caret line="44" column="5" selection-start-line="44" selection-start-column="5" selection-end-line="44" selection-end-column="5" />
-          <folding>
-            <element signature="imports" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/chain/ChainOfTrustTests.java">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="2160">
@@ -754,17 +789,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/AteDelegate.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="495">
-          <caret line="65" column="31" selection-start-line="65" selection-start-column="31" selection-end-line="65" selection-end-column="31" />
-          <folding>
-            <element signature="e#5381#5382#0" expanded="true" />
-            <element signature="e#5444#5445#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/CurrentRightsDelegate.java">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="-1005">
@@ -879,8 +903,29 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/pom.xml">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="210">
-          <caret line="14" column="24" selection-start-line="14" selection-start-column="24" selection-end-line="14" selection-end-column="24" />
+        <state relative-caret-position="255">
+          <caret line="17" column="14" lean-forward="true" selection-start-line="17" selection-start-column="14" selection-end-line="17" selection-end-column="14" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/extensions/StartupBeanExtension.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="476">
+          <caret line="46" column="30" selection-start-line="46" selection-start-column="30" selection-end-line="46" selection-end-column="30" />
+          <folding>
+            <element signature="imports" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/AteDelegate.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="413">
+          <caret line="170" column="38" lean-forward="true" selection-start-line="170" selection-start-column="38" selection-end-line="170" selection-end-column="38" />
+          <folding>
+            <element signature="e#5381#5382#0" expanded="true" />
+            <element signature="e#5444#5445#0" expanded="true" />
+          </folding>
         </state>
       </provider>
     </entry>
