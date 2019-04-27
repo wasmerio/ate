@@ -11,3 +11,12 @@ fi
 
 # Execute the build (using the maven cache)
 docker run -u $(id -u ${USER}):$(id -g ${USER}) -v $(pwd):/build -v $(pwd)/.m2:/maven -w /build tokera/buildj1:latest make inside
+
+JAR=$(basename target/*.jar)
+[ -z "$JAR" ] && echo "No JAR file exists" && exit 1
+VERSION=$(echo $JAR | cut -d "-" -f2 | sed 's|\.jar||g')
+[ -z "$VERSION" ] && echo "Version could not be determined" && exit 1
+
+# Install the result in the local maven cache
+mvn install:install-file -Dfile=ate-deps/pom.xml -DgroupId=com.tokera -DartifactId=ate-deps -Dversion=$VERSION -Dpackaging=pom -DpomFile=ate-deps/pom.xml
+mvn install:install-file -Dfile=target/$JAR -DgroupId=com.tokera -DartifactId=ate -Dversion=$VERSION -Dpackaging=jar -DpomFile=pom.xml

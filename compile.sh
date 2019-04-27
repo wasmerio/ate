@@ -1,5 +1,6 @@
 #!/bin/bash -e
 rm -f target/*.jar || true
+rm -r -f bin-lib || true
 [ -e repo.zip ] && rm -f repo.zip || true
 [ -e target/libs.zip ] && rm -f target/libs.zip || true
 
@@ -18,5 +19,6 @@ cd target/lib; zip -r ../libs.zip *
 cd ../..
 
 mkdir -p bin-lib
+mvn install:install-file -Dfile=ate-deps/pom.xml -DgroupId=com.tokera -DartifactId=ate-deps -Dversion=$VERSION -Dpackaging=pom -DlocalRepositoryPath=bin-lib -DpomFile=ate-deps/pom.xml
 mvn install:install-file -Dfile=target/$JAR -DgroupId=com.tokera -DartifactId=ate -Dversion=$VERSION -Dpackaging=jar -DlocalRepositoryPath=bin-lib -DpomFile=pom.xml
 zip -r repo.zip bin-lib

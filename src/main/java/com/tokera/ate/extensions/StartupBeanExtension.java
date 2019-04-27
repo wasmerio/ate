@@ -36,6 +36,8 @@ public class StartupBeanExtension implements Extension
             CreationalContext<?> context = manager.createCreationalContext(bean);
             startupProxies.put(clazz, manager.getReference(bean, clazz, context));
         }
+
+        AteDelegate.get().init();
     }
 
     public void start(@Observes final ContainerInitialized event) {
