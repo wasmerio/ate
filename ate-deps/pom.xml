@@ -6,7 +6,7 @@
 
     <groupId>com.tokera</groupId>
     <artifactId>ate-deps</artifactId>
-    <version>0.1.3</version>
+    <version>0.1.4</version>
 
     <name>ate-deps</name>
     <packaging>pom</packaging>
@@ -46,7 +46,6 @@
         <libs.checker>2.5.8</libs.checker>
         <jandex.version>1.0.5</jandex.version>
         <libs.validation.api>2.0.1.Final</libs.validation.api>
-        <org.jboss.resteasy.version>3.6.1.Final</org.jboss.resteasy.version>
         <undertow.version>2.0.13.Final</undertow.version>
 
         <!-- fbs paths -->
@@ -362,7 +361,7 @@
         <dependency>
             <groupId>javax</groupId>
             <artifactId>javaee-web-api</artifactId>
-            <version>7.0</version>
+            <version>8.0</version>
             <type>jar</type>
         </dependency>
         <dependency>
