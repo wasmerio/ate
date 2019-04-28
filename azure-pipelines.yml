@@ -7,7 +7,7 @@ trigger:
 resources:
   containers:
   - container: buildj
-    image: tokera/buildj1:latest
+    image: tokera/buildj:latest
 pool:
   vmImage: 'Ubuntu-16.04'
 container: buildj
