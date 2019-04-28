@@ -2,9 +2,9 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="1787db08-4ad1-4647-9852-a11b04b311d8" name="Default Changelist" comment="">
+      <change afterPath="$PROJECT_DIR$/.idea/libraries/Maven__javax_javaee_web_api_8_0.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ate-deps/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/ate-deps/pom.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/ate.iml" beforeDir="false" afterPath="$PROJECT_DIR$/ate.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
     </list>
     <ignored path="$PROJECT_DIR$/target/" />
@@ -140,8 +140,6 @@
   </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>jdk.version</find>
-      <find>scala.version</find>
       <find>log4j.version</find>
       <find>fst.version</find>
       <find>kryo.version</find>
@@ -165,11 +163,13 @@
       <find>PROPERTIES_FILE_LOG4J</find>
       <find>fbs.output.directory</find>
       <find>8.0</find>
-      <find>javax.ws.rs-api</find>
       <find>undertow.version</find>
       <find>el.version</find>
       <find>el</find>
       <find>7.0</find>
+      <find>javax.ws.rs-api</find>
+      <find>hibernate</find>
+      <find>resteasy-validator-provider-11</find>
     </findStrings>
   </component>
   <component name="Git.Settings">
@@ -337,7 +337,7 @@
     </panes>
   </component>
   <component name="PropertiesComponent">
-    <property name="com.android.tools.idea.instantapp.provision.ProvisionBeforeRunTaskProvider.myTimeStamp" value="1556444483306" />
+    <property name="com.android.tools.idea.instantapp.provision.ProvisionBeforeRunTaskProvider.myTimeStamp" value="1556445503593" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
     <property name="project.structure.last.edited" value="Modules" />
     <property name="project.structure.proportion" value="0.15" />

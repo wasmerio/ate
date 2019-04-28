@@ -6,7 +6,7 @@
 
     <groupId>com.tokera</groupId>
     <artifactId>ate-deps</artifactId>
-    <version>0.1.4</version>
+    <version>0.1.5</version>
 
     <name>ate-deps</name>
     <packaging>pom</packaging>
@@ -72,25 +72,21 @@
             <groupId>org.checkerframework</groupId>
             <artifactId>checker-qual</artifactId>
             <version>${libs.checker}</version>
-            <type>jar</type>
         </dependency>
         <dependency>
             <groupId>org.checkerframework</groupId>
             <artifactId>compiler</artifactId>
             <version>2.4.0</version>
-            <type>jar</type>
         </dependency>
         <dependency>
             <groupId>org.checkerframework</groupId>
             <artifactId>checker</artifactId>
             <version>${libs.checker}</version>
-            <type>jar</type>
         </dependency>
         <dependency>
             <groupId>org.checkerframework</groupId>
             <artifactId>jdk8</artifactId>
             <version>${libs.checker}</version>
-            <type>jar</type>
         </dependency>
 
         <!-- Crypto dependencies -->
@@ -111,13 +107,11 @@
             <groupId>javax.validation</groupId>
             <artifactId>validation-api</artifactId>
             <version>${libs.validation.api}</version>
-            <type>jar</type>
         </dependency>
         <dependency>
             <groupId>org.hibernate.validator</groupId>
             <artifactId>hibernate-validator</artifactId>
             <version>${hibernate.version}</version>
-            <type>jar</type>
             <exclusions>
                 <exclusion>
                     <groupId>org.jboss.logging</groupId>
@@ -156,13 +150,11 @@
             <groupId>org.glassfish</groupId>
             <artifactId>javax.el</artifactId>
             <version>${el.version}</version>
-            <type>jar</type>
         </dependency>
         <dependency>
             <groupId>org.jboss.aerogear</groupId>
             <artifactId>aerogear-crypto</artifactId>
             <version>0.1.3</version>
-            <type>jar</type>
             <exclusions>
                 <exclusion>
                     <groupId>org.jboss.logging</groupId>
@@ -176,13 +168,11 @@
             <groupId>commons-beanutils</groupId>
             <artifactId>commons-beanutils</artifactId>
             <version>1.9.3</version>
-            <type>jar</type>
         </dependency>
         <dependency>
             <groupId>org.jboss.weld.se</groupId>
             <artifactId>weld-se-core</artifactId>
             <version>${org.jboss.weld.version}</version>
-            <type>jar</type>
             <exclusions>
                 <exclusion>
                     <groupId>org.jboss.logging</groupId>
@@ -194,7 +184,6 @@
             <groupId>org.jboss.weld.servlet</groupId>
             <artifactId>weld-servlet-core</artifactId>
             <version>${org.jboss.weld.version}</version>
-            <type>jar</type>
             <exclusions>
                 <exclusion>
                     <groupId>org.jboss.logging</groupId>
@@ -215,7 +204,6 @@
             <groupId>org.apache.kafka</groupId>
             <artifactId>kafka_2.11</artifactId>
             <version>${libs.kafka}</version>
-            <type>jar</type>
             <exclusions>
                 <!-- Don't bring in kafka's logging framework -->
                 <exclusion>
@@ -234,7 +222,6 @@
             <version>${libs.kafka}</version>
             <classifier>test</classifier>
             <scope>test</scope>
-            <type>jar</type>
             <exclusions>
                 <exclusion>
                     <groupId>org.slf4j</groupId>
@@ -250,13 +237,11 @@
             <groupId>org.apache.kafka</groupId>
             <artifactId>kafka-clients</artifactId>
             <version>${libs.kafka}</version>
-            <type>jar</type>
         </dependency>
         <dependency>
             <groupId>org.apache.zookeeper</groupId>
             <artifactId>zookeeper</artifactId>
             <version>${libs.zookeeper}</version>
-            <type>jar</type>
             <exclusions>
                 <exclusion>
                     <artifactId>jms</artifactId>
@@ -282,43 +267,36 @@
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
             <version>19.0</version>
-            <type>jar</type>
         </dependency>
         <dependency>
             <groupId>com.google.code.findbugs</groupId>
             <artifactId>jsr305</artifactId>
             <version>3.0.2</version>
-            <type>jar</type>
         </dependency>
         <dependency>
             <groupId>com.google.code.gson</groupId>
             <artifactId>gson</artifactId>
             <version>2.6.2</version>
-            <type>jar</type>
         </dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-lang3</artifactId>
             <version>3.8</version>
-            <type>jar</type>
         </dependency>
         <dependency>
             <groupId>org.apache.commons</groupId>
             <artifactId>commons-csv</artifactId>
             <version>1.5</version>
-            <type>jar</type>
         </dependency>
         <dependency>
             <groupId>commons-codec</groupId>
             <artifactId>commons-codec</artifactId>
             <version>1.11</version>
-            <type>jar</type>
         </dependency>
         <dependency>
             <groupId>org.opensaml</groupId>
             <artifactId>opensaml</artifactId>
             <version>2.6.1</version>
-            <type>jar</type>
             <exclusions>
                 <exclusion>
                     <groupId>xalan</groupId>
@@ -343,14 +321,12 @@
             <artifactId>junit-jupiter-engine</artifactId>
             <version>5.4.0</version>
             <scope>test</scope>
-            <type>jar</type>
         </dependency>
         <dependency>
             <groupId>org.jboss.weld</groupId>
             <artifactId>weld-junit5</artifactId>
             <version>1.3.1.Final</version>
             <scope>test</scope>
-            <type>jar</type>
             <exclusions>
                 <exclusion>
                     <groupId>org.jboss.logging</groupId>
@@ -362,19 +338,16 @@
             <groupId>javax</groupId>
             <artifactId>javaee-web-api</artifactId>
             <version>8.0</version>
-            <type>jar</type>
         </dependency>
         <dependency>
             <groupId>backport-util-concurrent</groupId>
             <artifactId>backport-util-concurrent</artifactId>
             <version>3.1</version>
-            <type>jar</type>
         </dependency>
         <dependency>
             <groupId>de.ruedigermoeller</groupId>
             <artifactId>fst</artifactId>
             <version>${fst.version}</version>
-            <type>jar</type>
         </dependency>
 
         <!-- Networking and GIT related dependencies -->
@@ -387,7 +360,6 @@
             <groupId>dnsjava</groupId>
             <artifactId>dnsjava</artifactId>
             <version>2.1.8</version>
-            <type>jar</type>
         </dependency>
 
         <!-- Libraries used to read and transform text files and byte streams -->
@@ -395,13 +367,11 @@
             <groupId>org.reflections</groupId>
             <artifactId>reflections</artifactId>
             <version>0.9.11</version>
-            <type>jar</type>
         </dependency>
         <dependency>
             <groupId>com.github.spullara.mustache.java</groupId>
             <artifactId>compiler</artifactId>
             <version>0.9.5</version>
-            <type>jar</type>
         </dependency>
         <dependency>
             <groupId>com.google.flatbuffers</groupId>
@@ -419,7 +389,6 @@
             <groupId>io.undertow</groupId>
             <artifactId>undertow-core</artifactId>
             <version>${undertow.version}</version>
-            <type>jar</type>
             <exclusions>
                 <exclusion>
                     <groupId>org.jboss.logging</groupId>
@@ -431,25 +400,21 @@
             <groupId>io.undertow</groupId>
             <artifactId>undertow-servlet</artifactId>
             <version>${undertow.version}</version>
-            <type>jar</type>
         </dependency>
         <dependency>
             <groupId>io.undertow</groupId>
             <artifactId>undertow-websockets-jsr</artifactId>
             <version>${undertow.version}</version>
-            <type>jar</type>
         </dependency>
         <dependency>
             <groupId>org.jboss.resteasy</groupId>
             <artifactId>resteasy-jackson2-provider</artifactId>
             <version>${org.jboss.resteasy.version}</version>
-            <type>jar</type>
         </dependency>
         <dependency>
             <groupId>org.jboss.resteasy</groupId>
             <artifactId>resteasy-multipart-provider</artifactId>
             <version>${org.jboss.resteasy.version}</version>
-            <type>jar</type>
             <exclusions>
                 <exclusion>
                     <groupId>org.jboss.logging</groupId>
@@ -461,7 +426,6 @@
             <groupId>org.jboss.resteasy</groupId>
             <artifactId>resteasy-html</artifactId>
             <version>${org.jboss.resteasy.version}</version>
-            <type>jar</type>
             <exclusions>
                 <exclusion>
                     <groupId>org.jboss.logging</groupId>
@@ -473,7 +437,6 @@
             <groupId>org.jboss.resteasy</groupId>
             <artifactId>resteasy-jaxrs</artifactId>
             <version>${org.jboss.resteasy.version}</version>
-            <type>jar</type>
             <exclusions>
                 <exclusion>
                     <groupId>org.jboss.logging</groupId>
@@ -485,7 +448,6 @@
             <groupId>org.jboss.resteasy</groupId>
             <artifactId>resteasy-undertow</artifactId>
             <version>${org.jboss.resteasy.version}</version>
-            <type>jar</type>
             <exclusions>
                 <exclusion>
                     <groupId>org.jboss.logging</groupId>
@@ -497,7 +459,6 @@
             <groupId>org.jboss.resteasy</groupId>
             <artifactId>resteasy-servlet-initializer</artifactId>
             <version>${org.jboss.resteasy.version}</version>
-            <type>jar</type>
             <exclusions>
                 <exclusion>
                     <groupId>org.jboss.logging</groupId>
@@ -509,7 +470,6 @@
             <groupId>org.jboss.resteasy</groupId>
             <artifactId>resteasy-cdi</artifactId>
             <version>${org.jboss.resteasy.version}</version>
-            <type>jar</type>
             <exclusions>
                 <exclusion>
                     <groupId>org.jboss.logging</groupId>
@@ -521,15 +481,10 @@
             <groupId>org.jboss.resteasy</groupId>
             <artifactId>resteasy-validator-provider-11</artifactId>
             <version>${org.jboss.resteasy.version}</version>
-            <type>jar</type>
             <exclusions>
                 <exclusion>
                     <groupId>org.hibernate.validator</groupId>
                     <artifactId>hibernate-validator</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>org.jboss.logging</groupId>
-                    <artifactId>jboss-logging</artifactId>
                 </exclusion>
             </exclusions>
         </dependency>
@@ -537,7 +492,6 @@
             <groupId>org.jboss.resteasy</groupId>
             <artifactId>resteasy-client</artifactId>
             <version>${org.jboss.resteasy.version}</version>
-            <type>jar</type>
             <exclusions>
                 <exclusion>
                     <groupId>org.jboss.logging</groupId>
@@ -556,27 +510,23 @@
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-api</artifactId>
             <version>${slf4j.version}</version>
-            <type>jar</type>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>
             <version>${slf4j.version}</version>
             <scope>test</scope>
-            <type>jar</type>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-log4j12</artifactId>
             <version>${slf4j.version}</version>
             <scope>runtime</scope>
-            <type>jar</type>
         </dependency>
         <dependency>
             <groupId>log4j</groupId>
             <artifactId>log4j</artifactId>
             <version>${log4j.version}</version>
-            <type>jar</type>
         </dependency>
     </dependencies>
 </project>
