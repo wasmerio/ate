@@ -14,11 +14,10 @@ JAR=$(basename target/*.jar)
 VERSION=$(echo $JAR | cut -d "-" -f2 | sed 's|\.jar||g')
 [ -z "$VERSION" ] && echo "Version could not be determined" && exit 1
 
-echo "Hash: $(cat target/$JAR | md5sum)"
-cd target/lib; zip -r ../libs.zip *
-cd ../..
-
 mkdir -p bin-lib
 mvn install:install-file -Dfile=ate-deps/pom.xml -DgroupId=com.tokera -DartifactId=ate-deps -Dversion=$VERSION -Dpackaging=pom -DlocalRepositoryPath=bin-lib -DpomFile=ate-deps/pom.xml
 mvn install:install-file -Dfile=target/$JAR -DgroupId=com.tokera -DartifactId=ate -Dversion=$VERSION -Dpackaging=jar -DlocalRepositoryPath=bin-lib -DpomFile=pom.xml
-zip -r repo.zip bin-lib
+
+pushd bin-lib >/dev/null
+zip -r ../repo.zip *
+popd >/dev/null

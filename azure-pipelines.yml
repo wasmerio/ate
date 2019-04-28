@@ -16,13 +16,8 @@ steps:
 - task: PublishBuildArtifacts@1
   inputs:
     artifactName: 'ate-jar'
-    pathtoPublish: 'target/ate-0.1.jar'
+    pathtoPublish: 'target/*.jar'
   displayName: 'Publishing ATE jar'
-- task: PublishBuildArtifacts@1
-  inputs:
-    artifactName: 'ate-libs'
-    pathtoPublish: 'target/libs.zip'
-  displayName: 'Publishing ATE libs'
 - task: PublishBuildArtifacts@1
   inputs:
     artifactName: 'ate-repo'
