@@ -88,7 +88,7 @@
     <orderEntry type="library" scope="TEST" name="Maven: org.jboss.weld:weld-junit5:1.3.1.Final" level="project" />
     <orderEntry type="library" scope="TEST" name="Maven: org.jboss.weld:weld-junit-common:1.3.1.Final" level="project" />
     <orderEntry type="library" scope="TEST" name="Maven: org.hibernate.javax.persistence:hibernate-jpa-2.1-api:1.0.0.Final" level="project" />
-    <orderEntry type="library" name="Maven: javax:javaee-web-api:8.0" level="project" />
+    <orderEntry type="library" name="Maven: javax:javaee-web-api:7.0" level="project" />
     <orderEntry type="library" name="Maven: backport-util-concurrent:backport-util-concurrent:3.1" level="project" />
     <orderEntry type="library" name="Maven: de.ruedigermoeller:fst:2.57" level="project" />
     <orderEntry type="library" name="Maven: com.fasterxml.jackson.core:jackson-core:2.8.8" level="project" />
