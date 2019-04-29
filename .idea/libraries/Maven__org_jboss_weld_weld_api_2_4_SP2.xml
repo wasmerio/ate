@@ -1,0 +1,13 @@
+<component name="libraryTable">
+  <library name="Maven: org.jboss.weld:weld-api:2.4.SP2">
+    <CLASSES>
+      <root url="jar://$MAVEN_REPOSITORY$/org/jboss/weld/weld-api/2.4.SP2/weld-api-2.4.SP2.jar!/" />
+    </CLASSES>
+    <JAVADOC>
+      <root url="jar://$MAVEN_REPOSITORY$/org/jboss/weld/weld-api/2.4.SP2/weld-api-2.4.SP2-javadoc.jar!/" />
+    </JAVADOC>
+    <SOURCES>
+      <root url="jar://$MAVEN_REPOSITORY$/org/jboss/weld/weld-api/2.4.SP2/weld-api-2.4.SP2-sources.jar!/" />
+    </SOURCES>
+  </library>
+</component>

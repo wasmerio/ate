@@ -6,6 +6,7 @@ import com.tokera.ate.units.DaoId;
 import com.tokera.ate.units.TopicName;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import javax.enterprise.context.Dependent;
 import java.io.Serializable;
 import java.util.Set;
 import java.util.UUID;
@@ -15,16 +16,11 @@ import java.util.UUID;
  */
 public abstract class BaseDao implements Serializable, Immutalizable {
 
-    @Nullable
-    public transient @TopicName String topicName;
-    @Nullable
-    public transient Set<UUID> mergesVersions = null;
-    @Nullable
-    public transient UUID previousVersion = null;
-    @Nullable
-    public transient UUID version = null;
-    @JsonIgnore
-    protected transient boolean _immutable = false;
+    public transient @Nullable @TopicName String topicName;
+    public transient @Nullable Set<UUID> mergesVersions = null;
+    public transient @Nullable UUID previousVersion = null;
+    public transient @Nullable UUID version = null;
+    protected transient @JsonIgnore boolean _immutable = false;
 
     /**
      * @return Returns the unique primary key of this data entity within the

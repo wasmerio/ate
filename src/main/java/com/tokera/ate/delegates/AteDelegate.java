@@ -1,7 +1,9 @@
 package com.tokera.ate.delegates;
 
+import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.common.XmlUtils;
 import com.tokera.ate.events.*;
+import com.tokera.ate.filters.*;
 import com.tokera.ate.io.HeadIO;
 import com.tokera.ate.io.MemoryCacheIO;
 import com.tokera.ate.io.core.DaoHelper;
@@ -77,6 +79,15 @@ public class AteDelegate {
     public final KafkaBridgeBuilder kafkaBridgeBuilder;
     public final XmlUtils xml;
     public final RequestAccessLog requestAccessLog;
+    public final LoggingDelegate logging;
+    public final AccessLogInterceptor accessLogInterceptor;
+    public final AuthorityInterceptor authorityInterceptor;
+    public final CorsInterceptor corsInterceptor;
+    public final DefaultBootstrapInit defaultBootstrapInit;
+    public final FixResteasyBug fixResteasyBug;
+    public final TopicInterceptor topicInterceptor;
+    public final TransactionInterceptor transactionInterceptor;
+    public final LoggerHook genericLogger;
 
     private static final AtomicInteger g_rebuilding = new AtomicInteger();
 
@@ -93,10 +104,8 @@ public class AteDelegate {
     }
 
     private static final ReentrantLock g_instanceLock = new ReentrantLock();
-    @MonotonicNonNull
-    protected static AteDelegate g_instance;
-    @MonotonicNonNull
-    protected static @UnknownInitialization AteDelegate g_instanceInitializing;
+    protected static @MonotonicNonNull AteDelegate g_instance;
+    protected static @MonotonicNonNull @UnknownInitialization AteDelegate g_instanceInitializing;
 
     public static AteDelegate get() {
         return AteDelegate.get(AteDelegate.class);
@@ -208,5 +217,14 @@ public class AteDelegate {
         this.kafkaBridgeBuilder = getBean(KafkaBridgeBuilder.class);
         this.xml = getBean(XmlUtils.class);
         this.requestAccessLog = getBean(RequestAccessLog.class);
+        this.logging = getBean(LoggingDelegate.class);
+        this.accessLogInterceptor = getBean(AccessLogInterceptor.class);
+        this.authorityInterceptor = getBean(AuthorityInterceptor.class);
+        this.corsInterceptor = getBean(CorsInterceptor.class);
+        this.defaultBootstrapInit = getBean(DefaultBootstrapInit.class);
+        this.fixResteasyBug = getBean(FixResteasyBug.class);
+        this.topicInterceptor = getBean(TopicInterceptor.class);
+        this.transactionInterceptor = getBean(TransactionInterceptor.class);
+        this.genericLogger = getBean(LoggerHook.class);
     }
 }

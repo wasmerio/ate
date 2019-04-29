@@ -31,9 +31,8 @@ public abstract class BaseDaoParams extends BaseDao implements IParams, Immutali
     public boolean showParamsYml = false;
     @Column
     public boolean hideParamsYml = false;
-    @MonotonicNonNull
     @Column
-    public @Secret String paramsKey;
+    public @MonotonicNonNull @Secret String paramsKey;
 
     /**
      * @return the params

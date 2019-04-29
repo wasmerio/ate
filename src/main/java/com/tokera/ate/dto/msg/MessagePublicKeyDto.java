@@ -36,10 +36,8 @@ public class MessagePublicKeyDto extends MessageBaseDto implements Serializable,
 {
     private static final long serialVersionUID = -94567964466371784L;
 
-    @Nullable
-    protected transient MessagePublicKey fb;
-    @Nullable
-    protected transient Integer hashCache = null;
+    protected transient @Nullable MessagePublicKey fb;
+    protected transient @Nullable Integer hashCache = null;
 
     @JsonProperty
     @MonotonicNonNull

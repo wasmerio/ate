@@ -12,10 +12,10 @@ import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 
- /**
-  * Generates Kafka configuration files for various situations and creates the Kafka producers and consumers
-  */
- @ApplicationScoped
+/**
+ * Generates Kafka configuration files for various situations and creates the Kafka producers and consumers
+ */
+@ApplicationScoped
 public class KafkaConfigTools {
     
     public enum TopicRole {

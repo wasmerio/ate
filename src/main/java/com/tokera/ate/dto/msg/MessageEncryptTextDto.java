@@ -31,8 +31,7 @@ public class MessageEncryptTextDto extends MessageBaseDto implements Serializabl
 
     private static final long serialVersionUID = -5434346989770912304L;
 
-    @Nullable
-    private transient MessageEncryptText fb;
+    private transient @Nullable MessageEncryptText fb;
 
     @JsonProperty
     @MonotonicNonNull

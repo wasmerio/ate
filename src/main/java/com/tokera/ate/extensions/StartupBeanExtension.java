@@ -1,23 +1,55 @@
 package com.tokera.ate.extensions;
 
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.scopes.ResourceScoped;
 import com.tokera.ate.scopes.Startup;
+import com.tokera.ate.scopes.TokenScoped;
 import org.jboss.weld.environment.se.events.ContainerInitialized;
 
 import javax.enterprise.context.ApplicationScoped;
+import javax.enterprise.context.Dependent;
+import javax.enterprise.context.RequestScoped;
 import javax.enterprise.context.spi.CreationalContext;
 import javax.enterprise.event.Observes;
 import javax.enterprise.inject.spi.*;
+import java.lang.reflect.Field;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class StartupBeanExtension implements Extension
 {
     private final Map<Class<?>, Bean<?>> startupBeans = new ConcurrentHashMap<>();
     private final Map<Class<?>, Object> startupProxies = new ConcurrentHashMap<>();
+    private final Set<Class<?>> already = new HashSet<>();
+
+    void addBeans(@Observes BeforeBeanDiscovery discovery, BeanManager manager) {
+        for (Field field : AteDelegate.class.getFields()) {
+            Class<?> clazz = field.getType();
+            if (clazz.isAnnotationPresent(ApplicationScoped.class) ||
+                clazz.isAnnotationPresent(RequestScoped.class) ||
+                clazz.isAnnotationPresent(TokenScoped.class) ||
+                clazz.isAnnotationPresent(ResourceScoped.class) ||
+                clazz.isAnnotationPresent(Dependent.class))
+            {
+                discovery.addAnnotatedType(manager.createAnnotatedType(clazz));
+            }
+        }
+    }
+
+    <X> void processAnnotatedType(@Observes ProcessAnnotatedType<X> pat) {
+        Class<?> clazz = pat.getAnnotatedType().getJavaClass();
+        if (already.contains(clazz)) {
+            pat.veto();
+            return;
+        }
+        already.add(clazz);
+    }
 
     <X> void processBean(@Observes ProcessBean<X> event)
     {
+
         if (event.getAnnotated().isAnnotationPresent(Startup.class))
         {
             if (event.getAnnotated().isAnnotationPresent(ApplicationScoped.class) == false) {

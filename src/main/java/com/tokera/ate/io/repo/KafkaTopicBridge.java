@@ -45,18 +45,15 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
     private final DataTopicType m_type;
     private final String m_keeperServers;
     private final String m_bootstrapServers;
-    @MonotonicNonNull
-    private Thread thread;
+    private @MonotonicNonNull Thread thread;
     private volatile boolean isRunning = true;
     private volatile boolean isLoaded = false;
     private volatile boolean isEthereal = false;
     private volatile boolean isCreated = false;
     private volatile boolean hasLoadingMessages = false;
 
-    @Nullable
-    private KafkaConsumer<String, MessageBase> consumer;
-    @Nullable
-    private KafkaProducer<String, MessageBase> producer;
+    private @Nullable KafkaConsumer<String, MessageBase> consumer;
+    private @Nullable KafkaProducer<String, MessageBase> producer;
 
     private List<TopicPartition> partitions = new LinkedList<>();
 

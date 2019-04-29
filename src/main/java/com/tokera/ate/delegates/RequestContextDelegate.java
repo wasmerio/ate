@@ -25,9 +25,7 @@ import java.util.stream.Collectors;
 @RequestScoped
 public class RequestContextDelegate {
 
-    @Nullable
-    @Context
-    private ContainerRequestContext     requestContext;
+    private @Context @Nullable ContainerRequestContext     requestContext;
     private @MonotonicNonNull UriInfo   requestUriInfo;
     private Stack<@TopicName String>    topicNameStack = new Stack<>();
 

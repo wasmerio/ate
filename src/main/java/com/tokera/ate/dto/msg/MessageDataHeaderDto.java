@@ -39,8 +39,7 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
     private static final long serialVersionUID = -8052777200722290736L;
 
     // When running in copy-on-write mode
-    @Nullable
-    private transient MessageDataHeader fb;
+    private transient @Nullable MessageDataHeader fb;
 
     // Fields that are serialized
     @JsonProperty

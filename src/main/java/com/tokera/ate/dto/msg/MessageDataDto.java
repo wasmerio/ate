@@ -27,9 +27,8 @@ public class MessageDataDto extends MessageBaseDto implements Serializable, Copy
 
     private static final long serialVersionUID = -5267155098387197834L;
 
-    @Nullable
     @JsonIgnore
-    private transient MessageData fb;
+    private transient @Nullable MessageData fb;
 
     @JsonProperty
     @NotNull

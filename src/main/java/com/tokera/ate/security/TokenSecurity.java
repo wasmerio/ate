@@ -48,15 +48,12 @@ public class TokenSecurity
     
     private final ConcurrentMap<String, byte[]> encryptKeyCache = new ConcurrentHashMap<>();
 
-    @MonotonicNonNull
-    private TokenDto token;
+    private @MonotonicNonNull TokenDto token;
     
     // List of all the rights the token bearer has to read objects
-    @MonotonicNonNull
-    private Set<MessagePrivateKeyDto> readRightsCache;
+    private @MonotonicNonNull Set<MessagePrivateKeyDto> readRightsCache;
     // List of all the rights the token bearer has to write objects
-    @MonotonicNonNull
-    private Set<MessagePrivateKeyDto> writeRightsCache;
+    private @MonotonicNonNull Set<MessagePrivateKeyDto> writeRightsCache;
 
     @PostConstruct
     public void init() {

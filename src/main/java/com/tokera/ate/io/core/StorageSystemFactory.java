@@ -18,8 +18,7 @@ import javax.enterprise.inject.spi.CDI;
 @ApplicationScoped
 public class StorageSystemFactory
 {
-    @Nullable
-    private Builder tree = null;
+    private @Nullable Builder tree = null;
 
     public class Builder
     {

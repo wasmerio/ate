@@ -20,8 +20,7 @@ import java.util.*;
 @ApplicationScoped
 public class KafkaBridgeBuilder {
 
-    @Nullable
-    private RuntimeException exceptionOnUse = null;
+    private @Nullable RuntimeException exceptionOnUse = null;
     private AteDelegate d = AteDelegate.getUnsafe();
     @SuppressWarnings("initialization.fields.uninitialized")
     @Inject

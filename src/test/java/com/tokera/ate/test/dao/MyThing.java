@@ -4,10 +4,12 @@ import com.tokera.ate.annotations.PermitParentType;
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.units.DaoId;
 
+import javax.enterprise.context.Dependent;
 import javax.persistence.Column;
 import javax.persistence.Table;
 import java.util.UUID;
 
+@Dependent
 @YamlTag("dao.mything")
 @Table(name = "dao.mything")
 @PermitParentType(MyAccount.class)

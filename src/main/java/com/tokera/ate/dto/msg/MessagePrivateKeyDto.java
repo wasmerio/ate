@@ -36,8 +36,7 @@ public class MessagePrivateKeyDto extends MessagePublicKeyDto implements Seriali
 
     private static final long serialVersionUID = -75643860128199913L;
 
-    @Nullable
-    private transient MessagePrivateKey pfb;
+    private transient @Nullable MessagePrivateKey pfb;
 
     @JsonProperty
     @MonotonicNonNull

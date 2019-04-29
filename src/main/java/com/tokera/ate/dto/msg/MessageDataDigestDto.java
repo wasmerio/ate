@@ -35,8 +35,7 @@ public class MessageDataDigestDto extends MessageBaseDto implements Serializable
     private static final long serialVersionUID = 3992438221645570455L;
 
     // When running in copy-on-write mode
-    @Nullable
-    private transient MessageDataDigest fb;
+    private transient @Nullable MessageDataDigest fb;
     
     // Fields that are serialized
     @JsonProperty

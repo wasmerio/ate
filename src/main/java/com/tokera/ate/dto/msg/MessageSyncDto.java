@@ -26,8 +26,7 @@ public class MessageSyncDto extends MessageBaseDto implements Serializable, Copy
     private static final long serialVersionUID = -8152777200711190736L;
 
     // When running in copy-on-write mode
-    @Nullable
-    private transient MessageSync fb;
+    private transient @Nullable MessageSync fb;
 
     // Fields that are serialized
     @JsonProperty

@@ -27,9 +27,8 @@ public abstract class BaseDaoRoles extends BaseDaoParams implements IRoles, Immu
     public final ImmutalizableTreeMap<@Alias String, @Hash String> trustAllowRead = new ImmutalizableTreeMap<>();
     @Column
     public final ImmutalizableTreeMap<@Alias String, @Hash String> trustAllowWrite = new ImmutalizableTreeMap<>();
-    @Nullable
     @Column
-    public @Secret String encryptKey = null;
+    public @Nullable @Secret String encryptKey = null;
     @Column
     public boolean trustInheritWrite = true;
     @Column

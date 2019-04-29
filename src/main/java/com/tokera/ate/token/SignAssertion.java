@@ -28,8 +28,7 @@ import org.opensaml.xml.signature.Signer;
 
 public class SignAssertion {
 
-    @MonotonicNonNull
-    private static BasicX509Credential signingCredential;
+    private static @MonotonicNonNull BasicX509Credential signingCredential;
     public static final String STORE_PASSWORD = "7E264A281750DBEA5F15269D47AF1003877426D5EF7F99C4E739E0C9942C58470F15E678C32FB99B";
     public static final String STS_PASSWORD = "F4257978B79904B78903AB62C3B9F7EBFF42FDC8ED1F66995584DCD4D9E27E1082563FE92D7078A4";
     public static final String CERTIFICATE_ALIAS_NAME = "sts";

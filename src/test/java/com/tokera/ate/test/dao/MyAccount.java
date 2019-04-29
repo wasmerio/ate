@@ -7,10 +7,12 @@ import com.tokera.ate.common.ImmutalizableTreeMap;
 import com.tokera.ate.units.Alias;
 import com.tokera.ate.units.DaoId;
 
+import javax.enterprise.context.Dependent;
 import javax.persistence.Column;
 import javax.persistence.Table;
 import java.util.UUID;
 
+@Dependent
 @YamlTag("dao.myaccount")
 @Table(name = "myaccount")
 @PermitParentFree

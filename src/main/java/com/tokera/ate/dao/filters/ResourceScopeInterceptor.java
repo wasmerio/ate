@@ -22,13 +22,9 @@ import java.lang.reflect.Method;
 public class ResourceScopeInterceptor implements ContainerRequestFilter, ContainerResponseFilter {
 
     protected AteDelegate d = AteDelegate.get();
-    @Nullable
-    @Context
-    private ResourceInfo resourceInfo;
-    @MonotonicNonNull
-    private Method previous;
-    @MonotonicNonNull
-    private ScopeContext<Method> context;
+    private @Context @Nullable ResourceInfo resourceInfo;
+    private @MonotonicNonNull Method previous;
+    private @MonotonicNonNull ScopeContext<Method> context;
 
     @SuppressWarnings({"unchecked"})
     @Override

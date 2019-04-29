@@ -109,10 +109,8 @@ public class Encryptor implements Runnable
     private int c_AesPreGen256 = 200;
     
     // Public role that everyone has
-    @MonotonicNonNull
-    private MessagePrivateKeyDto trustOfPublicRead;
-    @MonotonicNonNull
-    private MessagePrivateKeyDto trustOfPublicWrite;
+    private @MonotonicNonNull MessagePrivateKeyDto trustOfPublicRead;
+    private @MonotonicNonNull MessagePrivateKeyDto trustOfPublicWrite;
 
     private final ConcurrentLinkedQueue<MessagePrivateKeyDto> genSign64Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<MessagePrivateKeyDto> genSign128Queue = new ConcurrentLinkedQueue<>();

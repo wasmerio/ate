@@ -37,12 +37,8 @@ public class AuthorityInterceptor implements ContainerRequestFilter, ContainerRe
     @SuppressWarnings("initialization.fields.uninitialized")
     @Inject
     private LoggerHook LOG;
-    @Nullable
-    @Context
-    private HttpServletRequest request;
-    @Nullable
-    @Context
-    private HttpServletResponse response;
+    private @Context @Nullable HttpServletRequest request;
+    private @Context @Nullable HttpServletResponse response;
     private int inferredTopic = 0;
     @SuppressWarnings("initialization.fields.uninitialized")
     @Inject

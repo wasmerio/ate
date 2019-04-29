@@ -42,8 +42,7 @@ import javax.ws.rs.WebApplicationException;
  */
 public class SAMLWriter {
 
-	@Nullable
-	private static XMLObjectBuilderFactory builderFactory;
+	private static @Nullable XMLObjectBuilderFactory builderFactory;
 
 	public static TokenDto createToken(
             String companyName, String reference, String id, String nameQualifier, Map<String, List<String>> claims, int expiresMins
@@ -291,18 +290,12 @@ public class SAMLWriter {
 
 	public static class SAMLInputContainer {
 
-		@Nullable
-		private String strIssuer;
-		@Nullable
-		private String strNameID;
-		@Nullable
-		private String strNameQualifier;
-		@Nullable
-		private String sessionId;
-		@Nullable
-		private String strReference;
-		@Nullable
-		private String strRecipient;
+		private @Nullable String strIssuer;
+		private @Nullable String strNameID;
+		private @Nullable String strNameQualifier;
+		private @Nullable String sessionId;
+		private @Nullable String strReference;
+		private @Nullable String strRecipient;
 		private int maxSessionTimeoutInMinutes = 15; // default is 15 minutes
 
 		private Map<String, List<String>> attributes = new HashMap<>();
