@@ -6,7 +6,7 @@
 
     <groupId>com.tokera</groupId>
     <artifactId>ate-deps</artifactId>
-    <version>0.1.20</version>
+    <version>0.1.24</version>
 
     <name>ate-deps</name>
     <packaging>pom</packaging>
@@ -106,8 +106,13 @@
         </dependency>
         <dependency>
             <groupId>org.jboss.weld.se</groupId>
-            <artifactId>weld-se</artifactId>
-            <version>2.4.8.Final</version>
+            <artifactId>weld-se-core</artifactId>
+            <version>3.0.5.Final</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jboss.weld.servlet</groupId>
+            <artifactId>weld-servlet-core</artifactId>
+            <version>3.0.5.Final</version>
         </dependency>
         <dependency>
             <groupId>commons-beanutils</groupId>
@@ -339,64 +344,59 @@
 
         <!-- Web Application server dependencies -->
         <dependency>
-            <groupId>org.jboss.xnio</groupId>
-            <artifactId>xnio-api</artifactId>
-            <version>3.7.1.Final</version>
-        </dependency>
-        <dependency>
             <groupId>io.undertow</groupId>
             <artifactId>undertow-core</artifactId>
-            <version>2.0.20.Final</version>
+            <version>2.0.13.Final</version>
         </dependency>
         <dependency>
             <groupId>io.undertow</groupId>
             <artifactId>undertow-servlet</artifactId>
-            <version>2.0.20.Final</version>
+            <version>2.0.13.Final</version>
         </dependency>
         <dependency>
             <groupId>io.undertow</groupId>
             <artifactId>undertow-websockets-jsr</artifactId>
-            <version>2.0.20.Final</version>
+            <version>2.0.13.Final</version>
         </dependency>
         <dependency>
             <groupId>org.jboss.resteasy</groupId>
             <artifactId>resteasy-jackson2-provider</artifactId>
-            <version>3.6.3.SP1</version>
+            <version>3.6.1.Final</version>
         </dependency>
         <dependency>
             <groupId>org.jboss.resteasy</groupId>
             <artifactId>resteasy-multipart-provider</artifactId>
-            <version>3.6.3.SP1</version>
+            <version>3.6.1.Final</version>
         </dependency>
         <dependency>
             <groupId>org.jboss.resteasy</groupId>
             <artifactId>resteasy-html</artifactId>
-            <version>3.6.3.SP1</version>
+            <version>3.6.1.Final</version>
         </dependency>
         <dependency>
             <groupId>org.jboss.resteasy</groupId>
             <artifactId>resteasy-jaxrs</artifactId>
-            <version>3.6.3.SP1</version>
+            <version>3.6.1.Final</version>
         </dependency>
         <dependency>
             <groupId>org.jboss.resteasy</groupId>
             <artifactId>resteasy-undertow</artifactId>
-            <version>3.6.3.SP1</version>
+            <version>3.6.1.Final</version>
         </dependency>
         <dependency>
             <groupId>org.jboss.resteasy</groupId>
             <artifactId>resteasy-servlet-initializer</artifactId>
-            <version>3.6.3.SP1</version>
+            <version>3.6.1.Final</version>
         </dependency>
         <dependency>
             <groupId>org.jboss.resteasy</groupId>
             <artifactId>resteasy-cdi</artifactId>
-            <version>3.6.3.SP1</version>
+            <version>3.6.1.Final</version>
         </dependency>
         <dependency>
             <groupId>org.jboss.resteasy</groupId>
             <artifactId>resteasy-validator-provider-11</artifactId>
-            <version>3.6.3.SP1</version>
+            <version>3.6.1.Final</version>
             <exclusions>
                 <exclusion>
                     <groupId>org.hibernate.validator</groupId>
@@ -407,7 +407,7 @@
         <dependency>
             <groupId>org.jboss.resteasy</groupId>
             <artifactId>resteasy-client</artifactId>
-            <version>3.6.3.SP1</version>
+            <version>3.6.1.Final</version>
         </dependency>
     </dependencies>
 </project>
