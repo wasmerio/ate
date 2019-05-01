@@ -45,17 +45,22 @@ public class DataRepository implements IAteIO {
     @SuppressWarnings("initialization.fields.uninitialized")
     @Inject
     private LoggerHook LOG;
-
-    private final DataSubscriber subscriber;
+    @SuppressWarnings("initialization.fields.uninitialized")
+    @Inject
+    private StorageSystemFactory factory;
+    @SuppressWarnings("initialization.fields.uninitialized")
+    private DataSubscriber subscriber;
 
     private final Map<String, TopicMergeContext> topicContexts = new HashMap<>();
 
     public DataRepository() {
-        this.subscriber = CDI.current().select(StorageSystemFactory.class).get().get().backend();
+
     }
 
     @PostConstruct
-    public void init() {
+    public void init()
+    {
+        this.subscriber = factory.get().backend();
         this.LOG.setLogClazz(DataRepository.class);
     }
 

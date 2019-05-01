@@ -33,7 +33,7 @@ public class StartupBeanExtension implements Extension
                 clazz.isAnnotationPresent(ResourceScoped.class) ||
                 clazz.isAnnotationPresent(Dependent.class))
             {
-                discovery.addAnnotatedType(manager.createAnnotatedType(clazz));
+                discovery.addAnnotatedType(manager.createAnnotatedType(clazz), clazz.getName());
             }
         }
     }
