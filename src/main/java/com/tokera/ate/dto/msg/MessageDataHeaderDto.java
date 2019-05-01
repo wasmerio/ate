@@ -127,7 +127,7 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
 
         id = UUIDTools.convertUUID(lfb.id());
         version = UUIDTools.convertUUID(lfb.version());
-        previousVersion = UUIDTools.convertUUID(lfb.previousVersion());
+        previousVersion = UUIDTools.convertUUIDOrNull(lfb.previousVersion());
         parentId = UUIDTools.convertUUIDOrNull(lfb.parentId());
 
         inheritRead = lfb.inheritRead();
