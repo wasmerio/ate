@@ -106,7 +106,6 @@ public class DataRepository implements IAteIO {
     private boolean mergeInternal(BaseDao entity, boolean performValidation, boolean performSync)
     {
         // Get the topic
-        TopicMergeContext tContext = this.getPutContext(d.requestContext.getCurrentTopicScope());
         DataTopic kt = this.subscriber.getTopic(d.requestContext.getCurrentTopicScope());
 
         // Generate the data that represents this entity
@@ -158,21 +157,28 @@ public class DataRepository implements IAteIO {
         return mergeInternal(entity, false, false);
     }
 
-    public void mergeInternal(MessageBaseDto data)
+    public void mergeInternal(MessageBaseDto data, boolean performSync)
     {
+        // Save the data to the bridge and synchronize it
         DataTopic kt = this.subscriber.getTopic(d.requestContext.getCurrentTopicScope());
-        kt.write(data, this.LOG);
+        IDataTopicBridge bridge = kt.getBridge();
+        bridge.send(data);
+
+        // Synchronize
+        if (performSync == true) {
+            bridge.sync();
+        }
     }
 
     @Override
     public boolean merge(MessagePublicKeyDto t) {
-        this.mergeInternal(t);
+        this.mergeInternal(t, true);
         return true;
     }
 
     @Override
     public boolean merge(MessageEncryptTextDto t) {
-        this.mergeInternal(t);
+        this.mergeInternal(t, true);
         return true;
     }
 
