@@ -48,8 +48,8 @@ public class DaoParentDiscoveryExtension implements Extension {
                 for (Class<?> parentType : ann.value()) {
                     allowedParents.put(resource, parentType);
                     allowedChildren.put(parentType, resource);
-                    allowedParentsSimple.put(resource.getSimpleName(), parentType.getSimpleName());
-                    allowedChildrenSimple.put(parentType.getSimpleName(), resource.getSimpleName());
+                    allowedParentsSimple.put(resource.getName(), parentType.getName());
+                    allowedChildrenSimple.put(parentType.getName(), resource.getName());
                 }
             }
         }
@@ -57,7 +57,7 @@ public class DaoParentDiscoveryExtension implements Extension {
 
     public void watchForPermitParentFree(Class<?> resource) {
         allowedParentFree.add(resource);
-        allowedParentFreeSimple.add(resource.getSimpleName());
+        allowedParentFreeSimple.add(resource.getName());
     }
 
     public Set<Class<?>> getAllowedParentFree() {

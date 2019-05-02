@@ -327,4 +327,21 @@ public class CurrentTokenDelegate {
         if (token == null) return false;
         return token.hasUserRole(role);
     }
+
+    /**
+     * Publishes a token that has been found or created in some way
+     * @param token ReferenceNumber to the token to be published
+     */
+    public void publishToken(TokenDto token)
+    {
+        // Fire an event that notifies about the discovery of a Token
+        // (this event should be used by any beans in the TokenScope)
+        TokenDiscoveryEvent discovery = new TokenDiscoveryEvent(token);
+        d.eventTokenDiscovery.fire(discovery);
+
+        // Trigger the token scope entered flag
+        d.eventTokenScopeChanged.fire(new TokenScopeChangedEvent(token));
+        d.eventNewAccessRights.fire(new NewAccessRightsEvent());
+        d.eventTokenChanged.fire(new TokenStateChangedEvent());
+    }
 }

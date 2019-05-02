@@ -43,7 +43,7 @@ public class KafkaBridgeBuilder {
             return;
         }
 
-        String bootstraps = d.implicitSecurity.enquireDomainString("tokkeep.tokera.com", true);
+        String bootstraps = d.implicitSecurity.enquireDomainString(d.bootstrapConfig.zookeeperAlias + "." + d.bootstrapConfig.domain, true);
         if (bootstraps != null) {
             props.put("zookeeper.connect", bootstraps);
         }
@@ -55,9 +55,9 @@ public class KafkaBridgeBuilder {
         }
         m_keeperServers =  zookeeperConnect;
 
-        String bootstrapServers = d.implicitSecurity.enquireDomainString("tokdata.tokera.com", true);
+        String bootstrapServers = d.implicitSecurity.enquireDomainString(d.bootstrapConfig.kafkaAlias + "." + d.bootstrapConfig.domain, true);
         if (bootstrapServers == null) {
-            exceptionOnUse = new RuntimeException("Unable to find Kafka bootstrap servers [dns: tokdata.tokera.com].");
+            exceptionOnUse = new RuntimeException("Unable to find Kafka bootstrap servers [dns: " + d.bootstrapConfig.kafkaAlias + "." + d.bootstrapConfig.domain + "].");
             return;
         }
         m_bootstrapServers = bootstrapServers;

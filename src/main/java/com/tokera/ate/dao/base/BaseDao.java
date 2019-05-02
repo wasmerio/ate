@@ -16,10 +16,10 @@ import java.util.UUID;
  */
 public abstract class BaseDao implements Serializable, Immutalizable {
 
-    public transient @Nullable @TopicName String topicName;
-    public transient @Nullable Set<UUID> mergesVersions = null;
-    public transient @Nullable UUID previousVersion = null;
-    public transient @Nullable UUID version = null;
+    public transient @JsonIgnore @Nullable @TopicName String topicName;
+    public transient @JsonIgnore @Nullable Set<UUID> mergesVersions = null;
+    public transient @JsonIgnore @Nullable UUID previousVersion = null;
+    public transient @JsonIgnore @Nullable UUID version = null;
     protected transient @JsonIgnore boolean _immutable = false;
 
     /**

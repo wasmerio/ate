@@ -1,15 +1,20 @@
 package com.tokera.ate.test.dao;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tokera.ate.annotations.PermitParentFree;
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.common.ImmutalizableArrayList;
 import com.tokera.ate.common.ImmutalizableTreeMap;
 import com.tokera.ate.units.Alias;
 import com.tokera.ate.units.DaoId;
+import com.tokera.ate.units.EmailAddress;
 
 import javax.enterprise.context.Dependent;
 import javax.persistence.Column;
 import javax.persistence.Table;
+import javax.validation.constraints.NotNull;
+import javax.validation.constraints.Pattern;
+import javax.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.UUID;
@@ -29,6 +34,18 @@ public class MyAccount extends MyBaseAccount {
     public BigInteger num1 = BigInteger.ZERO;
     @Column
     public BigDecimal num2 = BigDecimal.ZERO;
+    @Column
+    @NotNull
+    @Size(min=1, max=512)
+    @Pattern(regexp="[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?", message="Invalid email")//if the field contains email address consider using this annotation to enforce field validation
+    private @EmailAddress String email;
 
-    public MyAccount() { }
+    public MyAccount() {
+        this.email = "test@test.org";
+    }
+
+    public MyAccount(@EmailAddress String email)
+    {
+        this.email = email;
+    }
 }

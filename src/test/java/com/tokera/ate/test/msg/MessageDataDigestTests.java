@@ -73,7 +73,7 @@ public class MessageDataDigestTests
                 UUID.randomUUID(),
                 UUID.randomUUID(),
                 null,
-                MyAccount.class.getSimpleName()
+                MyAccount.class
         );
         
         ByteArrayOutputStream stream = new ByteArrayOutputStream();

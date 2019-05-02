@@ -46,10 +46,9 @@ public class MergeSets {
     public MergeSets() {
         UUID id = UUID.randomUUID();
         UUID baseVersion = UUID.randomUUID();
-        String clazz = MyAccount.class.getSimpleName();
-        common = new MessageDataHeaderDto(id, baseVersion, null, clazz);
-        left = new MessageDataHeaderDto(id, UUID.randomUUID(), baseVersion, clazz);
-        right = new MessageDataHeaderDto(id, UUID.randomUUID(), baseVersion, clazz);
+        common = new MessageDataHeaderDto(id, baseVersion, null, MyAccount.class);
+        left = new MessageDataHeaderDto(id, UUID.randomUUID(), baseVersion, MyAccount.class);
+        right = new MessageDataHeaderDto(id, UUID.randomUUID(), baseVersion, MyAccount.class);
     }
 
     @Test

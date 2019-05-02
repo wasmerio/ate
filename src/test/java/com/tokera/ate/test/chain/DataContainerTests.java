@@ -30,7 +30,7 @@ public class DataContainerTests {
     public void soloContainer() {
         DataContainer container = new DataContainer();
 
-        MessageDataHeaderDto header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), null, MyAccount.class.getSimpleName());
+        MessageDataHeaderDto header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), null, MyAccount.class);
         MessageDataDto data = new MessageDataDto(header, null, null) ;
         container.add(data, new MessageMetaDto(0,0,0));
 
@@ -50,15 +50,15 @@ public class DataContainerTests {
         UUID version2 = UUID.randomUUID();
         UUID version3 = UUID.randomUUID();
 
-        MessageDataHeaderDto header = new MessageDataHeaderDto(UUID.randomUUID(), version1, version0, MyAccount.class.getSimpleName());
+        MessageDataHeaderDto header = new MessageDataHeaderDto(UUID.randomUUID(), version1, version0, MyAccount.class);
         MessageDataDto data = new MessageDataDto(header, null, null) ;
         container.add(data, new MessageMetaDto(0,0,0));
 
-        header = new MessageDataHeaderDto(UUID.randomUUID(), version2, version1, MyAccount.class.getSimpleName());
+        header = new MessageDataHeaderDto(UUID.randomUUID(), version2, version1, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
         container.add(data, new MessageMetaDto(0,0,0));
 
-        header = new MessageDataHeaderDto(UUID.randomUUID(), version3, version2, MyAccount.class.getSimpleName());
+        header = new MessageDataHeaderDto(UUID.randomUUID(), version3, version2, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
         container.add(data, new MessageMetaDto(0,0,0));
 
@@ -76,19 +76,19 @@ public class DataContainerTests {
         UUID version3a = UUID.randomUUID();
         UUID version3b = UUID.randomUUID();
 
-        MessageDataHeaderDto header = new MessageDataHeaderDto(UUID.randomUUID(), version1, version0, MyAccount.class.getSimpleName());
+        MessageDataHeaderDto header = new MessageDataHeaderDto(UUID.randomUUID(), version1, version0, MyAccount.class);
         MessageDataDto data = new MessageDataDto(header, null, null) ;
         container.add(data, new MessageMetaDto(0,0,0));
 
-        header = new MessageDataHeaderDto(UUID.randomUUID(), version2, version1, MyAccount.class.getSimpleName());
+        header = new MessageDataHeaderDto(UUID.randomUUID(), version2, version1, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
         container.add(data, new MessageMetaDto(0,0,0));
 
-        header = new MessageDataHeaderDto(UUID.randomUUID(), version3a, version2,MyAccount.class.getSimpleName());
+        header = new MessageDataHeaderDto(UUID.randomUUID(), version3a, version2,MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
         container.add(data, new MessageMetaDto(0,0,0));
 
-        header = new MessageDataHeaderDto(UUID.randomUUID(), version3b,version2, MyAccount.class.getSimpleName());
+        header = new MessageDataHeaderDto(UUID.randomUUID(), version3b,version2, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
         container.add(data, new MessageMetaDto(0,0,0));
 
@@ -108,23 +108,23 @@ public class DataContainerTests {
         UUID version4 = UUID.randomUUID();
         UUID version4b = UUID.randomUUID();
 
-        MessageDataHeaderDto header = new MessageDataHeaderDto(UUID.randomUUID(), version1, version0, MyAccount.class.getSimpleName());
+        MessageDataHeaderDto header = new MessageDataHeaderDto(UUID.randomUUID(), version1, version0, MyAccount.class);
         MessageDataDto data = new MessageDataDto(header, null, null) ;
         container.add(data, new MessageMetaDto(0,0,0));
 
-        header = new MessageDataHeaderDto(UUID.randomUUID(), version2, version1, MyAccount.class.getSimpleName());
+        header = new MessageDataHeaderDto(UUID.randomUUID(), version2, version1, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
         container.add(data, new MessageMetaDto(0,0,0));
 
-        header = new MessageDataHeaderDto(UUID.randomUUID(), version3, version2, MyAccount.class.getSimpleName());
+        header = new MessageDataHeaderDto(UUID.randomUUID(), version3, version2, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
         container.add(data, new MessageMetaDto(0,0,0));
 
-        header = new MessageDataHeaderDto(UUID.randomUUID(), version4, version3, MyAccount.class.getSimpleName());
+        header = new MessageDataHeaderDto(UUID.randomUUID(), version4, version3, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
         container.add(data, new MessageMetaDto(0,0,0));
 
-        header = new MessageDataHeaderDto(UUID.randomUUID(), version4b, version2, MyAccount.class.getSimpleName());
+        header = new MessageDataHeaderDto(UUID.randomUUID(), version4b, version2, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
         container.add(data, new MessageMetaDto(0,0,0));
 
@@ -144,23 +144,23 @@ public class DataContainerTests {
         UUID version4 = UUID.randomUUID();
         UUID version4b = UUID.randomUUID();
 
-        MessageDataHeaderDto header = new MessageDataHeaderDto(UUID.randomUUID(), version1, version0, MyAccount.class.getSimpleName());
+        MessageDataHeaderDto header = new MessageDataHeaderDto(UUID.randomUUID(), version1, version0, MyAccount.class);
         MessageDataDto data = new MessageDataDto(header, null, null) ;
         container.add(data, new MessageMetaDto(0,0,0));
 
-        header = new MessageDataHeaderDto(UUID.randomUUID(), version2, version1, MyAccount.class.getSimpleName());
+        header = new MessageDataHeaderDto(UUID.randomUUID(), version2, version1, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
         container.add(data, new MessageMetaDto(0,0,0));
 
-        header = new MessageDataHeaderDto(UUID.randomUUID(), version3, version2, MyAccount.class.getSimpleName());
+        header = new MessageDataHeaderDto(UUID.randomUUID(), version3, version2, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
         container.add(data, new MessageMetaDto(0,0,0));
 
-        header = new MessageDataHeaderDto(UUID.randomUUID(), version4, version2, MyAccount.class.getSimpleName());
+        header = new MessageDataHeaderDto(UUID.randomUUID(), version4, version2, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
         container.add(data, new MessageMetaDto(0,0,0));
 
-        header = new MessageDataHeaderDto(UUID.randomUUID(), version4b, version2, MyAccount.class.getSimpleName());
+        header = new MessageDataHeaderDto(UUID.randomUUID(), version4b, version2, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
         container.add(data, new MessageMetaDto(0,0,0));
 

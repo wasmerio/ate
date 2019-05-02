@@ -1,10 +1,30 @@
 package com.tokera.ate.test;
 
+import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
+import com.tokera.ate.providers.YamlProvider;
+import org.apache.commons.io.IOUtils;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import org.jboss.resteasy.client.jaxrs.ResteasyClient;
+import org.jboss.resteasy.client.jaxrs.ResteasyClientBuilder;
+import org.jboss.resteasy.plugins.providers.jackson.ResteasyJackson2Provider;
 import org.junit.jupiter.api.Assertions;
+
+import javax.ws.rs.WebApplicationException;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 
 public class TestTools {
 
+    public static ResteasyClient buildClient() {
+        ResteasyClient client = new ResteasyClientBuilder()
+                .register(new YamlProvider())
+                .register(new ResteasyJackson2Provider())
+                .build();
+        return client;
+    }
 
     public static void assertEqualAndNotNull(@Nullable Object _obj1, @Nullable Object _obj2) {
         Object obj1 = _obj1;
@@ -40,6 +60,52 @@ public class TestTools {
 
         } else {
             Assertions.assertEquals(obj1, obj2);
+        }
+    }
+
+    private static List<MessagePrivateKeyDto> getKeys(String name) {
+        List<MessagePrivateKeyDto> ret = new ArrayList<>();
+
+        InputStream inputStream = ClassLoader.getSystemResourceAsStream("keys/" + name);
+        assert inputStream != null : "@AssumeAssertion(nullness): Must not be null";
+        Assertions.assertNotNull(inputStream);
+
+        try {
+            String keysFile = IOUtils.toString(inputStream, com.google.common.base.Charsets.UTF_8);
+
+            for (String _keyTxt : keysFile.split("\\.\\.\\.")) {
+                String keyTxt = _keyTxt + "...";
+
+                Object obj = AteDelegate.get().yaml.deserializeObj(keyTxt);
+                if (obj instanceof MessagePrivateKeyDto) {
+                    MessagePrivateKeyDto key = (MessagePrivateKeyDto) obj;
+                    ret.add(key);
+                }
+            }
+
+        } catch (IOException e) {
+            throw new WebApplicationException(e);
+        }
+
+        return ret;
+    }
+
+    public static void initSeedKeys() {
+        AteDelegate d = AteDelegate.get();
+        for (MessagePrivateKeyDto key : getKeys("sign.keys.64")) {
+            d.encryptor.addSeedKeySign64(key);
+        }
+        for (MessagePrivateKeyDto key : getKeys("sign.keys.128")) {
+            d.encryptor.addSeedKeySign128(key);
+        }
+        for (MessagePrivateKeyDto key : getKeys("sign.keys.256")) {
+            d.encryptor.addSeedKeySign256(key);
+        }
+        for (MessagePrivateKeyDto key : getKeys("encrypt.keys.128")) {
+            d.encryptor.addSeedKeyEncrypt128(key);
+        }
+        for (MessagePrivateKeyDto key : getKeys("encrypt.keys.256")) {
+            d.encryptor.addSeedKeyEncrypt256(key);
         }
     }
 }

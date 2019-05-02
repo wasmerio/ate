@@ -12,6 +12,7 @@ import com.tokera.ate.common.CopyOnWrite;
 import com.tokera.ate.common.ImmutalizableHashSet;
 import com.tokera.ate.common.UUIDTools;
 import com.tokera.ate.dao.ObjId;
+import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.msg.*;
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.units.ClassName;
@@ -86,10 +87,10 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
     public MessageDataHeaderDto(){
     }
 
-    public MessageDataHeaderDto(@DaoId UUID id, UUID version, @Nullable UUID previousVersion, @ClassName String payloadClazz) {
+    public MessageDataHeaderDto(@DaoId UUID id, UUID version, @Nullable UUID previousVersion, Class<? extends BaseDao> clazz) {
         this.id = id;
         this.version = version;
-        this.payloadClazz = payloadClazz;
+        this.payloadClazz = clazz.getName();
         this.previousVersion = previousVersion;
     }
 

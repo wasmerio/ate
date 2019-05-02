@@ -2,6 +2,7 @@ package com.tokera.ate.io.repo;
 
 import com.tokera.ate.common.ConcurrentQueue;
 import com.tokera.ate.common.MapTools;
+import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.kafka.MessageSerializer;
 import com.tokera.ate.dao.msg.*;
 import com.tokera.ate.dto.msg.*;
@@ -480,15 +481,16 @@ public class DataTopicChain {
         return true;
     }
     
-    public List<DataContainer> getAllData(@Nullable String _clazz, @Nullable LoggerHook LOG) {
-        String clazz = _clazz;
+    public <T extends BaseDao> List<DataContainer> getAllData(@Nullable Class<T> _clazz, @Nullable LoggerHook LOG) {
+        Class<T> clazz = _clazz;
+        String clazzName = clazz != null ? clazz.getName() : null;
 
         List<UUID> partialIds = new ArrayList<>();
         this.chainOfPartialTrust.forEach( (key, q) -> {
             MessageDataMetaDto msg = q.peek();
             if (msg == null) return;
             MessageDataDto data = msg.getData();
-            if (clazz == null || clazz.equals(data.getHeader().getPayloadClazzOrThrow()) == true) {
+            if (clazzName == null || clazzName.equals(data.getHeader().getPayloadClazzOrThrow()) == true) {
                 partialIds.add(data.getHeader().getIdOrThrow());
             }
         });
@@ -499,7 +501,7 @@ public class DataTopicChain {
         
         List<DataContainer> ret = new ArrayList<>();
         this.chainOfTrust.forEach( (key, a) -> {
-            if (clazz == null || clazz.equals(a.getPayloadClazz())) {
+            if (clazzName == null || clazzName.equals(a.getPayloadClazz())) {
                 ret.add(a);
             }
         });

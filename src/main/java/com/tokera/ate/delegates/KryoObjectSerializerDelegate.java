@@ -8,6 +8,7 @@ import com.esotericsoftware.kryo.serializers.CompatibleFieldSerializer;
 import com.esotericsoftware.kryo.serializers.DefaultSerializers;
 import com.esotericsoftware.kryo.serializers.EnumNameSerializer;
 import com.esotericsoftware.kryo.util.Pool;
+import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.io.repo.IObjectSerializer;
 import com.tokera.ate.scopes.Startup;
 import de.javakaffee.kryoserializers.*;
@@ -101,7 +102,7 @@ public class KryoObjectSerializerDelegate implements IObjectSerializer {
         return kryo;
     }
 
-    public byte[] serializeObj(@NonNull Object obj)
+    public byte[] serializeObj(@NonNull BaseDao obj)
     {
         synchronized (this) {
             Kryo kryo = kryoPool.obtain();
@@ -117,7 +118,7 @@ public class KryoObjectSerializerDelegate implements IObjectSerializer {
     }
 
     @SuppressWarnings("unchecked")
-    public <T> T deserializeObj(byte[] bytes, Class<T> clazz)
+    public <T extends BaseDao> T deserializeObj(byte[] bytes, Class<T> clazz)
     {
         synchronized (this) {
             Kryo kryo = kryoPool.obtain();

@@ -1,5 +1,7 @@
 package com.tokera.ate.test.chain;
 
+import com.tokera.ate.dao.base.BaseDao;
+import com.tokera.ate.extensions.SerializableObjectsExtension;
 import com.tokera.ate.io.repo.IObjectSerializer;
 import com.tokera.ate.test.dao.MyAccount;
 import com.tokera.ate.test.dao.MyThing;
@@ -49,7 +51,8 @@ public class SerializerTests {
         IObjectSerializer serializer = CDI.current().select(IObjectSerializer.class).get();
         byte[] data = serializer.serializeObj(left);
 
-        MyAccount right = serializer.deserializeObj(data, MyAccount.class);
+        Class<BaseDao> clazz = CDI.current().select(SerializableObjectsExtension.class).get().findClass(MyAccount.class.getName(), BaseDao.class);
+        MyAccount right = (MyAccount)serializer.deserializeObj(data, clazz);
 
         Assertions.assertEquals(left.isPublic, right.isPublic);
         Assertions.assertEquals(left.textFiles.size(), right.textFiles.size());

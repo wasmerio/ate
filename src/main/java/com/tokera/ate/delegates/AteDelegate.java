@@ -1,5 +1,6 @@
 package com.tokera.ate.delegates;
 
+import com.tokera.ate.BootstrapConfig;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.common.XmlUtils;
 import com.tokera.ate.events.*;
@@ -90,6 +91,7 @@ public class AteDelegate {
     public final TopicInterceptor topicInterceptor;
     public final TransactionInterceptor transactionInterceptor;
     public final LoggerHook genericLogger;
+    public final BootstrapConfig bootstrapConfig;
 
     private static final AtomicInteger g_rebuilding = new AtomicInteger();
 
@@ -229,5 +231,6 @@ public class AteDelegate {
         this.transactionInterceptor = getBean(TransactionInterceptor.class);
         this.genericLogger = getBean(LoggerHook.class);
         this.serializableObjectsExtension = getBean(SerializableObjectsExtension.class);
+        this.bootstrapConfig = getBean(BootstrapConfig.class);
     }
 }

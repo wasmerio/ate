@@ -104,7 +104,7 @@ public class ChainOfTrustTests
                 rootId,
                 UUID.randomUUID(),
                 null,
-                MyAccount.class.getSimpleName());
+                MyAccount.class);
         UUID version = header.getVersionOrThrow();
 
         @Hash String hash = trustedKeyWrite.getPublicKeyHash();
@@ -124,7 +124,7 @@ public class ChainOfTrustTests
 
         long index = 0L;
 
-        header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version, MyThing.class.getSimpleName());
+        header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version, MyThing.class);
         header.setParentId(rootId);
         header.setInheritWrite(true);
 
@@ -138,7 +138,7 @@ public class ChainOfTrustTests
         // Should be no more 2 seconds for high performance
         for (int n = 0; n < 200; n++)
         {
-            header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version, MyThing.class.getSimpleName());
+            header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version, MyThing.class);
             header.setParentId(rootId);
             header.setInheritWrite(true);
 

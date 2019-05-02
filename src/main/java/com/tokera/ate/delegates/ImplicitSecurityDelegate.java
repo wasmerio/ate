@@ -80,7 +80,7 @@ public class ImplicitSecurityDelegate {
     
     public @Nullable MessagePublicKeyDto enquireDomainKey(@DomainName String domain, boolean shouldThrow)
     {
-        return enquireDomainKey("tokauth", domain, shouldThrow);
+        return enquireDomainKey(d.bootstrapConfig.implicitSecurityAlias, domain, shouldThrow);
     }
     
     public @Nullable MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, boolean shouldThrow)
@@ -104,17 +104,17 @@ public class ImplicitSecurityDelegate {
         }
 
         for (String publicTopic : this.g_publicTopics) {
-            if (("tokauth." + publicTopic).equals(domain)) {
+            if ((d.bootstrapConfig.implicitSecurityAlias + "." + publicTopic).equals(domain)) {
                 return null;
             }
         }
 
         try
         {
-            @DomainName String tokauth = domain;
-            if (tokauth.endsWith(".") == false) tokauth += ".";
+            @DomainName String implicitAuth = domain;
+            if (implicitAuth.endsWith(".") == false) implicitAuth += ".";
             
-            Lookup lookup = new Lookup(tokauth, Type.ANY, DClass.IN);
+            Lookup lookup = new Lookup(implicitAuth, Type.ANY, DClass.IN);
             lookup.setResolver(m_resolver);
             lookup.setCache(g_dnsCache);
 

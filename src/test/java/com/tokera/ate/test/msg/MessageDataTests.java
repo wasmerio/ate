@@ -46,7 +46,7 @@ public class MessageDataTests
                 id,
                 version,
                 previousVersion,
-                MyAccount.class.getSimpleName()
+                MyAccount.class
         );
         header.getMerges().add(merge1);
         header.getMerges().add(merge2);
@@ -122,7 +122,7 @@ public class MessageDataTests
                 id,
                 UUID.randomUUID(),
                 null,
-                "Accoount"
+                MyAccount.class
         );
 
         MessageDataDto data = new MessageDataDto(header, digest, bytes2);

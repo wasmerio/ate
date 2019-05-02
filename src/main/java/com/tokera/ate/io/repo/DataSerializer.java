@@ -2,6 +2,8 @@ package com.tokera.ate.io.repo;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.jsoniter.spi.TypeLiteral;
+import com.tokera.ate.common.MapTools;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.common.Immutalizable;
 import com.tokera.ate.common.LoggerHook;
@@ -226,7 +228,7 @@ public class DataSerializer {
                 obj.getId(),
                 version,
                 obj.previousVersion,
-                obj.getClass().getSimpleName());
+                obj.getClass());
 
         updateHeaderWithRolesForDataObject(obj, header);
 
@@ -386,8 +388,12 @@ public class DataSerializer {
         }
         if (payloadBytes == null) return null;
 
+        // Find the type of object this is
+        String clazzName = msg.getHeader().getPayloadClazzOrThrow();
+        Class<BaseDao> clazz = d.serializableObjectsExtension.findClass(clazzName, BaseDao.class);
+
         // Decrypt the data entity back into its original form and return it
-        return d.os.deserializeObj(payloadBytes, BaseDao.class);
+        return d.os.deserializeObj(payloadBytes, clazz);
     }
 
     private void validateObjectAfterRead(BaseDao ret, MessageDataDto msg)
@@ -400,7 +406,7 @@ public class DataSerializer {
         }
 
         // Make sure the deserialized type matches the header
-        if (header.getPayloadClazzOrThrow().equals(ret.getClass().getSimpleName()) == false) {
+        if (header.getPayloadClazzOrThrow().equals(ret.getClass().getName()) == false) {
             throw new RuntimeException("Read access denied (payload types do not match) - ID=" + id);
         }
     }

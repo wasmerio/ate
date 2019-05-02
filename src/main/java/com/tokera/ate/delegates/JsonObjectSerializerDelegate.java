@@ -1,10 +1,12 @@
 package com.tokera.ate.delegates;
 
 import com.jsoniter.JsonIterator;
+import com.jsoniter.any.Any;
 import com.jsoniter.output.JsonStream;
 import com.jsoniter.spi.JsoniterSpi;
 import com.jsoniter.spi.TypeLiteral;
 import com.jsoniter.static_codegen.StaticCodegenConfig;
+import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.io.repo.IObjectSerializer;
 import com.tokera.ate.scopes.Startup;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -24,13 +26,14 @@ public class JsonObjectSerializerDelegate implements IObjectSerializer, StaticCo
     }
 
     @Override
-    public byte[] serializeObj(@NonNull Object obj) {
+    public byte[] serializeObj(@NonNull BaseDao obj) {
         return JsonStream.serialize(obj).getBytes();
     }
 
     @Override
-    public <T> T deserializeObj(byte[] bytes, Class<T> clazz) {
-        return JsonIterator.deserialize(bytes).as(clazz);
+    public <T extends BaseDao> T deserializeObj(byte[] bytes, Class<T> clazz) {
+        Any ret = JsonIterator.deserialize(bytes);
+        return ret.as(clazz);
     }
 
     @Override

@@ -32,7 +32,7 @@ public class MessageDataHeaderTests
         UUID merge1 = UUID.randomUUID();
         UUID merge2 = UUID.randomUUID();
         
-        MessageDataHeaderDto header = new MessageDataHeaderDto(id, version, previousVersion, "Acount");
+        MessageDataHeaderDto header = new MessageDataHeaderDto(id, version, previousVersion, MyAccount.class);
         header.setInheritRead(true);
         header.setInheritWrite(false);
         header.setEncryptKeyHash("HASHTEXT");
@@ -61,7 +61,7 @@ public class MessageDataHeaderTests
         UUID merge1 = UUID.randomUUID();
         UUID merge2 = UUID.randomUUID();
         
-        MessageDataHeaderDto header = new MessageDataHeaderDto(id, version, previousVersion, MyAccount.class.getSimpleName());
+        MessageDataHeaderDto header = new MessageDataHeaderDto(id, version, previousVersion, MyAccount.class);
         header.setInheritRead(true);
         header.setInheritWrite(false);
         header.setEncryptKeyHash("HASHTEXT");
@@ -110,7 +110,7 @@ public class MessageDataHeaderTests
         UUID merge1 = UUID.randomUUID();
         UUID merge2 = UUID.randomUUID();
         
-        MessageDataHeaderDto header = new MessageDataHeaderDto(id, version, previousVersion, MyAccount.class.getSimpleName());
+        MessageDataHeaderDto header = new MessageDataHeaderDto(id, version, previousVersion, MyAccount.class);
         header.setInheritRead(true);
         header.setInheritWrite(false);
         header.setEncryptKeyHash("HASHTEXT123");
@@ -148,7 +148,7 @@ public class MessageDataHeaderTests
                 UUID.randomUUID(),
                 version,
                 previousVersion,
-                MyAccount.class.getSimpleName()
+                MyAccount.class
         );
         header.getAllowWrite().add("AlxGQ-1JdtTPi7FWjG5PHPxQFssi4bjL-yis9zBBQvA");
         header.getMerges().add(merge1);

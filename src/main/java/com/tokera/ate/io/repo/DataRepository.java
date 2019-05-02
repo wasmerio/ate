@@ -574,10 +574,9 @@ public class DataRepository implements IAteIO {
     {
         String topic = d.requestContext.getCurrentTopicScope();
         DataTopicChain chain = this.subscriber.getChain(topic);
-        String clazz = type.getSimpleName();
 
         Set<T> ret = new HashSet<>();
-        for (DataContainer container : chain.getAllData(clazz, LOG)) {
+        for (DataContainer container : chain.getAllData(type, LOG)) {
             T entity = (@Nullable T)container.getMergedData();
             if (entity != null) {
                 ret.add(entity);
@@ -602,8 +601,7 @@ public class DataRepository implements IAteIO {
         DataTopicChain chain = this.subscriber.getChain(topic);
 
         if (type != null) {
-            String clazz = type.getSimpleName();
-            return chain.getAllData(clazz, LOG);
+            return chain.getAllData(type, LOG);
         } else {
             return chain.getAllData(null, LOG);
         }
