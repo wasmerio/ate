@@ -6,6 +6,7 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.kryo.serializers.CompatibleFieldSerializer;
 import com.esotericsoftware.kryo.serializers.DefaultSerializers;
+import com.esotericsoftware.kryo.serializers.EnumNameSerializer;
 import com.esotericsoftware.kryo.util.Pool;
 import de.javakaffee.kryoserializers.*;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -85,7 +86,7 @@ public class ObjectSerializerDelegate {
             config.setReadUnknownTagData(false);
 
             if (clazz.isEnum()) {
-                kryo.register(clazz);
+                kryo.register(clazz, new EnumNameSerializer((Class<Enum>)clazz));
             } else {
                 CompatibleFieldSerializer serializer = new CompatibleFieldSerializer(kryo, clazz, config);
                 kryo.register(clazz, serializer);
