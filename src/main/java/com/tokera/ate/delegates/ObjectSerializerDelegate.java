@@ -34,6 +34,7 @@ public class ObjectSerializerDelegate {
         }
     };
 
+    @SuppressWarnings("unchecked")
     public static Kryo createKryo() {
 
         Kryo kryo = new KryoReflectionFactorySupport() {
