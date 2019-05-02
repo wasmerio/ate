@@ -8,11 +8,14 @@ import com.esotericsoftware.kryo.serializers.CompatibleFieldSerializer;
 import com.esotericsoftware.kryo.serializers.DefaultSerializers;
 import com.esotericsoftware.kryo.serializers.EnumNameSerializer;
 import com.esotericsoftware.kryo.util.Pool;
+import com.tokera.ate.io.repo.IObjectSerializer;
+import com.tokera.ate.scopes.Startup;
 import de.javakaffee.kryoserializers.*;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.ApplicationScoped;
+import javax.enterprise.inject.Alternative;
 import java.lang.reflect.InvocationHandler;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -20,13 +23,15 @@ import java.net.URI;
 import java.util.*;
 import java.util.regex.Pattern;
 
+@Alternative
+@Startup
 @ApplicationScoped
-public class ObjectSerializerDelegate {
+public class KryoObjectSerializerDelegate implements IObjectSerializer {
 
     private final ThreadLocal<@Nullable Kryo> kryos = ThreadLocal.withInitial(() -> createKryo());
 
     private final Pool<Kryo> kryoPool = new Pool<Kryo>(true, true) {
-        protected Kryo create() { return ObjectSerializerDelegate.createKryo(); }
+        protected Kryo create() { return KryoObjectSerializerDelegate.createKryo(); }
     };
     private final Pool<Output> outputPool = new Pool<Output>(true, true) {
         protected Output create () {
@@ -111,7 +116,8 @@ public class ObjectSerializerDelegate {
         }
     }
 
-    public Object deserializeObj(byte[] bytes)
+    @SuppressWarnings("unchecked")
+    public <T> T deserializeObj(byte[] bytes, Class<T> clazz)
     {
         synchronized (this) {
             Kryo kryo = kryoPool.obtain();
@@ -120,7 +126,7 @@ public class ObjectSerializerDelegate {
             Object ret = kryo.readClassAndObject(input);
 
             kryoPool.free(kryo);
-            return ret;
+            return (T)ret;
         }
     }
 }

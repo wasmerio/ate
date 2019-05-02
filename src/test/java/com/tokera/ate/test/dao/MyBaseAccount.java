@@ -23,6 +23,10 @@ public class MyBaseAccount {
     public final UUID id = UUID.randomUUID();
     @Column
     public @Nullable @TextDocument String description = null;
+    @Column
+    public float f1 = 0.0f;
+    @Column
+    public double d1 = 0.0;
 
     public MyBaseAccount() { }
 }

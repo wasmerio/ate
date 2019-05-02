@@ -6,7 +6,7 @@
 
     <groupId>com.tokera</groupId>
     <artifactId>ate-deps</artifactId>
-    <version>0.1.28</version>
+    <version>0.1.32</version>
 
     <name>ate-deps</name>
     <packaging>pom</packaging>
@@ -137,7 +137,7 @@
             <version>6.0.16.Final</version>
         </dependency>
 
-        <!-- Crypto dependencies -->
+        <!-- Crypto and serializer dependencies -->
         <dependency>
             <groupId>com.esotericsoftware</groupId>
             <artifactId>kryo</artifactId>
@@ -154,6 +154,18 @@
             <artifactId>aerogear-crypto</artifactId>
             <version>0.1.6</version>
         </dependency>
+        <dependency>
+            <groupId>com.jsoniter</groupId>
+            <artifactId>jsoniter</artifactId>
+            <version>0.9.23</version>
+        </dependency>
+        <dependency>
+            <groupId>org.javassist</groupId>
+            <artifactId>javassist</artifactId>
+            <version>3.25.0-GA</version>
+        </dependency>
+
+
 
         <!-- Kafka (which sucks in Scala and ZooKeeper) -->
         <dependency>
@@ -307,6 +319,12 @@
             <artifactId>backport-util-concurrent</artifactId>
             <version>3.1</version>
         </dependency>
+        <dependency>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <version>1.6.0</version>
+        </dependency>
+
 
         <!-- Networking and GIT related dependencies -->
         <dependency>

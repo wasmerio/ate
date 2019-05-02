@@ -295,19 +295,19 @@ public class DataSerializer {
         return new MessageDataDto(header, digest, encPayload);
     }
 
-    public <T extends BaseDao> @Nullable T fromDataMessage(@Nullable MessageDataMetaDto msg, boolean shouldThrow)
+    public @Nullable BaseDao fromDataMessage(@Nullable MessageDataMetaDto msg, boolean shouldThrow)
     {
         if (msg == null) return null;
         return fromDataMessage(msg.getData(), shouldThrow);
     }
     
-    protected <T extends BaseDao> @Nullable T fromDataMessage(@Nullable MessageDataDto msg, boolean shouldThrow)
+    protected @Nullable BaseDao fromDataMessage(@Nullable MessageDataDto msg, boolean shouldThrow)
     {
         if (msg == null || msg.hasPayload() == false) {
             return null;
         }
 
-        T ret = readObjectFromDataMessage(msg, shouldThrow);
+        BaseDao ret = readObjectFromDataMessage(msg, shouldThrow);
         if (ret == null) return null;
 
         validateObjectAfterRead(ret, msg);
@@ -331,7 +331,7 @@ public class DataSerializer {
     }
 
     @SuppressWarnings({"unchecked"})
-    protected <T extends BaseDao> @Nullable T readObjectFromDataMessage(MessageDataDto msg, boolean shouldThrow)
+    protected @Nullable BaseDao readObjectFromDataMessage(MessageDataDto msg, boolean shouldThrow)
     {
         // We need to decrypt the data using an encryption key, search for it
         // using all the private toPutKeys we have in our token
@@ -351,7 +351,7 @@ public class DataSerializer {
         // Create a hash from the aesKey and encrypt payload bytes
         @Hash String cacheKey = d.encryptor.hashMd5AndEncode(aesKey, hashBytes);
         try {
-            T orig = (T)this.decryptCacheObj.get(cacheKey, () -> {
+            BaseDao orig = this.decryptCacheObj.get(cacheKey, () -> {
                 BaseDao ret = readObjectFromDataMessageInternal(cacheKey, aesKey, msg);
                 if (ret == null) throw new RuntimeException("Failed to deserialize the data object.");
                 if (ret instanceof Immutalizable) ((Immutalizable)ret).immutalize();
@@ -359,12 +359,12 @@ public class DataSerializer {
             });
             return lintDataObject(orig, msg);
         } catch (ExecutionException e) {
-            T orig = readObjectFromDataMessageInternal(cacheKey, aesKey, msg);
+            BaseDao orig = readObjectFromDataMessageInternal(cacheKey, aesKey, msg);
             return lintDataObject(orig, msg);
         }
     }
 
-    private <T extends BaseDao> byte @Nullable [] readDataFromDataMessageInternal(byte[] aesKey, MessageDataDto msg)
+    private byte @Nullable [] readDataFromDataMessageInternal(byte[] aesKey, MessageDataDto msg)
     {
         byte[] encPayloadBytes = msg.getPayloadBytes();
         if (encPayloadBytes == null) return null;
@@ -372,7 +372,7 @@ public class DataSerializer {
     }
 
     @SuppressWarnings({"unchecked"})
-    private <T extends BaseDao> @Nullable T readObjectFromDataMessageInternal(@Hash String cacheKey, byte[] aesKey, MessageDataDto msg)
+    private @Nullable BaseDao readObjectFromDataMessageInternal(@Hash String cacheKey, byte[] aesKey, MessageDataDto msg)
     {
         byte[] payloadBytes;
         try {
@@ -387,10 +387,10 @@ public class DataSerializer {
         if (payloadBytes == null) return null;
 
         // Decrypt the data entity back into its original form and return it
-        return (T)d.os.deserializeObj(payloadBytes);
+        return d.os.deserializeObj(payloadBytes, BaseDao.class);
     }
 
-    private <T extends BaseDao> void validateObjectAfterRead(T ret, MessageDataDto msg)
+    private void validateObjectAfterRead(BaseDao ret, MessageDataDto msg)
     {
         // The ID must match the header
         MessageDataHeaderDto header = msg.getHeader();

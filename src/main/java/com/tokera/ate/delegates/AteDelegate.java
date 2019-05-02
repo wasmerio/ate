@@ -3,6 +3,7 @@ package com.tokera.ate.delegates;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.common.XmlUtils;
 import com.tokera.ate.events.*;
+import com.tokera.ate.extensions.SerializableObjectsExtension;
 import com.tokera.ate.filters.*;
 import com.tokera.ate.io.HeadIO;
 import com.tokera.ate.io.MemoryCacheIO;
@@ -60,9 +61,10 @@ public class AteDelegate {
     public final KafkaConfigTools kafkaConfig;
     public final CurrentTokenDelegate currentToken;
     public final YamlDelegate yaml;
-    public final ObjectSerializerDelegate os;
+    public final IObjectSerializer os;
     public final DaoParentDiscoveryExtension daoParents;
     public final YamlTagDiscoveryExtension yamlDiscovery;
+    public final SerializableObjectsExtension serializableObjectsExtension;
     public final EncryptKeyCachePerRequest encryptKeyCachePerRequest;
     public final TokenSecurity tokenSecurity;
     public final ImplicitSecurityDelegate implicitSecurity;
@@ -199,7 +201,7 @@ public class AteDelegate {
         this.encryptKeyCachePerRequest = getBean(EncryptKeyCachePerRequest.class);
         this.currentToken = getBean(CurrentTokenDelegate.class);
         this.yaml = getBean(YamlDelegate.class);
-        this.os = getBean(ObjectSerializerDelegate.class);
+        this.os = getBean(IObjectSerializer.class);
         this.implicitSecurity = getBean(ImplicitSecurityDelegate.class);
         this.daoParents = getBean(DaoParentDiscoveryExtension.class);
         this.yamlDiscovery = getBean(YamlTagDiscoveryExtension.class);
@@ -226,5 +228,6 @@ public class AteDelegate {
         this.topicInterceptor = getBean(TopicInterceptor.class);
         this.transactionInterceptor = getBean(TransactionInterceptor.class);
         this.genericLogger = getBean(LoggerHook.class);
+        this.serializableObjectsExtension = getBean(SerializableObjectsExtension.class);
     }
 }

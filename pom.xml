@@ -10,7 +10,7 @@
     <parent>
         <groupId>com.tokera</groupId>
         <artifactId>ate-deps</artifactId>
-        <version>0.1.28</version>
+        <version>0.1.32</version>
         <relativePath>./ate-deps/pom.xml</relativePath>
     </parent>
 

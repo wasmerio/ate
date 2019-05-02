@@ -184,6 +184,7 @@ public class DataContainer {
         return ret;
     }
 
+    @SuppressWarnings("return.type.incompatible")
     public @Nullable BaseDao getMergedData() {
         AteDelegate d = AteDelegate.get();
         BaseDao ret;
