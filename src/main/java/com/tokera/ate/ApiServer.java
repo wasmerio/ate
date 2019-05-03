@@ -128,6 +128,8 @@ public class ApiServer {
         weld.addBeanClass(ProcessBodyReader.class);
         weld.addBeanClass(ProcessBodyWriter.class);
         weld.addBeanClass(ResteasyJackson2Provider.class);
+        weld.addBeanClass(ZooServer.class);
+        weld.addBeanClass(KafkaServer.class);
         weld.addExtension(new ResteasyCdiExtension());
         weld.addExtension(new YamlTagDiscoveryExtension());
         weld.addExtension(new DaoParentDiscoveryExtension());
