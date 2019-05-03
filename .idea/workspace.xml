@@ -2,10 +2,10 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="1787db08-4ad1-4647-9852-a11b04b311d8" name="Default Changelist" comment="">
+      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ate-deps/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/ate-deps/pom.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/JsonObjectSerializerDelegate.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/JsonObjectSerializerDelegate.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyAccount.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyAccount.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/tokera/ate/client/TestTools.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/client/TestTools.java" afterDir="false" />
     </list>
     <ignored path="$PROJECT_DIR$/target/" />
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -26,6 +26,15 @@
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/client/TestTools.java">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="120">
+              <caret line="28" column="45" selection-start-line="28" selection-start-column="45" selection-end-line="28" selection-end-column="45" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/BootstrapApp.java">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="75">
@@ -38,7 +47,7 @@
         <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/KafkaServer.java">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="360">
-              <caret line="52" column="34" lean-forward="true" selection-start-line="52" selection-start-column="34" selection-end-line="52" selection-end-column="34" />
+              <caret line="52" column="34" selection-start-line="52" selection-start-column="34" selection-end-line="52" selection-end-column="34" />
             </state>
           </provider>
         </entry>
@@ -47,7 +56,7 @@
         <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/ApiServer.java">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="197">
-              <caret line="211" column="57" lean-forward="true" selection-start-line="211" selection-start-column="57" selection-end-line="211" selection-end-column="57" />
+              <caret line="211" column="57" selection-start-line="211" selection-start-column="57" selection-end-line="211" selection-end-column="57" />
               <folding>
                 <element signature="imports" expanded="true" />
               </folding>
@@ -89,7 +98,7 @@
         <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/JsonObjectSerializerDelegate.java">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="480">
-              <caret line="32" column="40" lean-forward="true" selection-start-line="32" selection-start-column="40" selection-end-line="32" selection-end-column="40" />
+              <caret line="32" column="40" selection-start-line="32" selection-start-column="40" selection-end-line="32" selection-end-column="40" />
               <folding>
                 <element signature="imports" expanded="true" />
                 <element signature="e#695#789#0" expanded="true" />
@@ -110,8 +119,6 @@
   </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>parseUserId</find>
-      <find>getRequestQueryString</find>
       <find>token.sign</find>
       <find>createSigningCredential</find>
       <find>store_password</find>
@@ -140,6 +147,8 @@
       <find>!= null :</find>
       <find>rootOfTrust.</find>
       <find>initSeed</find>
+      <find>Resteas</find>
+      <find>ResourceStatsDelegate</find>
     </findStrings>
     <dirStrings>
       <dir>$PROJECT_DIR$/src/test/java/com/tokera/ate/test</dir>
@@ -188,7 +197,6 @@
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/extensions/DaoParentDiscoveryExtension.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/client/RawClientBuilder.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/client/RawClient.java" />
-        <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/client/TestTools.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/AuthorizationDelegate.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/filters/ExceptionInterceptor.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/dto/msg/MessagePublicKeyDto.java" />
@@ -200,6 +208,7 @@
         <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/rest/api/AccountREST.java" />
         <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyAccount.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/JsonObjectSerializerDelegate.java" />
+        <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/client/TestTools.java" />
         <option value="$PROJECT_DIR$/ate-deps/pom.xml" />
         <option value="$PROJECT_DIR$/pom.xml" />
       </list>
@@ -416,7 +425,7 @@
     </panes>
   </component>
   <component name="PropertiesComponent">
-    <property name="com.android.tools.idea.instantapp.provision.ProvisionBeforeRunTaskProvider.myTimeStamp" value="1556905925069" />
+    <property name="com.android.tools.idea.instantapp.provision.ProvisionBeforeRunTaskProvider.myTimeStamp" value="1556907742339" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
     <property name="project.structure.last.edited" value="Modules" />
     <property name="project.structure.proportion" value="0.15" />
@@ -645,16 +654,6 @@
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="-300">
           <caret line="11" column="13" selection-start-line="11" selection-start-column="13" selection-end-line="11" selection-end-column="13" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/client/TestTools.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="329">
-          <caret line="163" column="11" lean-forward="true" selection-start-line="163" selection-start-column="11" selection-end-line="163" selection-end-column="11" />
-          <folding>
-            <element signature="e#5552#5586#0" expanded="true" />
-          </folding>
         </state>
       </provider>
     </entry>
@@ -974,14 +973,14 @@
     <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/KafkaServer.java">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="360">
-          <caret line="52" column="34" lean-forward="true" selection-start-line="52" selection-start-column="34" selection-end-line="52" selection-end-column="34" />
+          <caret line="52" column="34" selection-start-line="52" selection-start-column="34" selection-end-line="52" selection-end-column="34" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/ApiServer.java">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="197">
-          <caret line="211" column="57" lean-forward="true" selection-start-line="211" selection-start-column="57" selection-end-line="211" selection-end-column="57" />
+          <caret line="211" column="57" selection-start-line="211" selection-start-column="57" selection-end-line="211" selection-end-column="57" />
           <folding>
             <element signature="imports" expanded="true" />
           </folding>
@@ -1025,11 +1024,18 @@
     <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/JsonObjectSerializerDelegate.java">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="480">
-          <caret line="32" column="40" lean-forward="true" selection-start-line="32" selection-start-column="40" selection-end-line="32" selection-end-column="40" />
+          <caret line="32" column="40" selection-start-line="32" selection-start-column="40" selection-end-line="32" selection-end-column="40" />
           <folding>
             <element signature="imports" expanded="true" />
             <element signature="e#695#789#0" expanded="true" />
           </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/client/TestTools.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="120">
+          <caret line="28" column="45" selection-start-line="28" selection-start-column="45" selection-end-line="28" selection-end-column="45" />
         </state>
       </provider>
     </entry>

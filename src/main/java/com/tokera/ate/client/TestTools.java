@@ -27,7 +27,6 @@ public class TestTools {
     public static ResteasyClient buildResteasyClient() {
         ResteasyClient client = new ResteasyClientBuilder()
                 .register(new YamlProvider())
-                .register(new ResteasyJackson2Provider())
                 .build();
         return client;
     }
