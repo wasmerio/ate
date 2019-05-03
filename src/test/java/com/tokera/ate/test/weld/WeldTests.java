@@ -15,7 +15,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import javax.enterprise.context.RequestScoped;
 import javax.enterprise.inject.spi.CDI;
 
-@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @ExtendWith(WeldJunit5Extension.class)
 public class WeldTests {
@@ -37,7 +36,6 @@ public class WeldTests {
     }
 
     @Test
-    @Order(10)
     public void kafka() {
         CDI.current().select(KafkaServer.class).get().touch();
     }

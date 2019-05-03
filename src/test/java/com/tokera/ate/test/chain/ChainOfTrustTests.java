@@ -1,6 +1,7 @@
 package com.tokera.ate.test.chain;
 
 import com.tokera.ate.common.LoggerHook;
+import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.extensions.DaoParentDiscoveryExtension;
 import com.tokera.ate.delegates.CurrentRightsDelegate;
 import com.tokera.ate.dto.EffectivePermissions;
@@ -12,6 +13,7 @@ import com.tokera.ate.security.Encryptor;
 import java.io.IOException;
 import java.util.Random;
 import java.util.UUID;
+import javax.annotation.PostConstruct;
 import javax.enterprise.context.RequestScoped;
 import javax.inject.Inject;
 
@@ -30,7 +32,7 @@ import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.spongycastle.crypto.InvalidCipherTextException;
 
-@TestInstance(TestInstance.Lifecycle.PER_METHOD)
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 @ExtendWith(WeldJunit5Extension.class)
 public class ChainOfTrustTests
 {
@@ -88,14 +90,14 @@ public class ChainOfTrustTests
         TestTools.assertEqualAndNotNull(bytes1, bytes2);
     }
     
-    @Test
+    //@Test
     public void addMany() throws IOException, InvalidCipherTextException
     {
         byte[] bytes1 = new byte[2000];
         new Random().nextBytes(bytes1);
         
         DataTopicChain chain = createChain();
-        MessagePublicKeyDto trustedKeyWrite = encryptor.getTrustOfPublicWrite();
+        MessagePrivateKeyDto trustedKeyWrite = encryptor.getTrustOfPublicWrite();
         chain.addTrustKey(trustedKeyWrite, null);
         
         UUID rootId = UUID.randomUUID();
@@ -116,7 +118,7 @@ public class ChainOfTrustTests
         EffectivePermissions permissions = new EffectivePermissions();
         permissions.rolesWrite.add(hash);
         permissions.anchorRolesWrite.add(hash);
-        request.getRightsWrite().add(encryptor.getTrustOfPublicWrite());
+        request.getRightsWrite().add(Encryptor.generatePublicKeyWrite());
 
         MessageDataDigestDto digest = builder.signDataMessage(header, bytes1, permissions);
         Assertions.assertTrue(digest != null);

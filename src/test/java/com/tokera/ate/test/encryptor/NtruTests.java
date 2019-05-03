@@ -18,6 +18,8 @@ package com.tokera.ate.test.encryptor;
 import com.tokera.ate.delegates.YamlDelegate;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.security.Encryptor;
+import com.tokera.ate.test.dao.MyAccount;
+import com.tokera.ate.test.dao.MyThing;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.jboss.weld.bootstrap.spi.BeanDiscoveryMode;
 import org.jboss.weld.environment.se.Weld;
@@ -30,6 +32,7 @@ import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.spongycastle.crypto.InvalidCipherTextException;
 
+import javax.enterprise.context.RequestScoped;
 import javax.inject.Inject;
 import java.io.IOException;
 
@@ -52,7 +55,10 @@ public class NtruTests {
     public WeldInitiator weld = WeldInitiator
             .from(new Weld()
                     .setBeanDiscoveryMode(BeanDiscoveryMode.ANNOTATED)
-                    .enableDiscovery())
+                    .enableDiscovery()
+                    .addBeanClass(MyAccount.class)
+                    .addBeanClass(MyThing.class))
+            .activate(RequestScoped.class)
             .build();
 
     public void testSign(int keySize, @Nullable String _seed)

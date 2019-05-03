@@ -1,11 +1,39 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project version="4">
+  <component name="BuildServerSettings">
+    <option name="LOGIN" value="" />
+    <option name="SERVER_URL" value="http://buildserver" />
+    <option name="REMEMBER_ME" value="true" />
+    <option name="USE_IDEA_PROXY_SETTINGS" value="true" />
+    <option name="INSPECTIONS_BUILD_TYPE_IDS" />
+    <option name="DUPLICATES_BUILD_TYPE_IDS" />
+    <option name="COVERAGE_SETTINGS" />
+    <option name="TEST_STATUS_ENABLED" value="true" />
+    <option name="TEST_STATUS_SHOW_SUCCESSFUL" value="false" />
+    <option name="POSTPONE_SUITABLE_CONFIGURATIONS_SEARCH" value="false" />
+    <option name="ARTIFACTS_BUILD_TYPE_IDS" />
+    <option name="PERFORM_COMMIT_IF_SUCCESSFUL" value="true" />
+    <option name="PERFORM_COMMIT_IF_NO_NEW_FAILED_TESTS" value="false" />
+    <option name="REQUEST_CONFIRMATON" value="false" />
+    <option name="PRE_TESTED_COMMIT" value="true" />
+    <option name="FILTER_BY_STATUS" value="false" />
+    <option name="FILTER_MARKED_AS_FIXED" value="false" />
+    <option name="SHOW_CLOSE_PROMPT" value="true" />
+    <option name="TOOL_WINDOW_SELECTED_CONTENT_INDEX" value="0" />
+    <option name="FILTER_BY_CURRENT_PROJECT" value="true" />
+  </component>
   <component name="ChangeListManager">
     <list default="true" id="1787db08-4ad1-4647-9852-a11b04b311d8" name="Default Changelist" comment="">
-      <change afterPath="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/weld/WeldTests.java" afterDir="false" />
+      <change afterPath="$PROJECT_DIR$/.idea/azureSettings.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/.idea/compiler.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/compiler.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/tokera/ate/KafkaServer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/KafkaServer.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/tokera/ate/ZooServer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/ZooServer.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/tokera/ate/security/EncryptKeyCachePerRequest.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/security/EncryptKeyCachePerRequest.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/tokera/ate/security/Encryptor.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/security/Encryptor.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/chain/ChainOfTrustTests.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/chain/ChainOfTrustTests.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/encryptor/NtruTests.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/encryptor/NtruTests.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/storage/FactoryTests.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/storage/FactoryTests.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/weld/WeldTests.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/weld/WeldTests.java" afterDir="false" />
     </list>
     <ignored path="$PROJECT_DIR$/target/" />
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -16,11 +44,11 @@
   </component>
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
-      <file pinned="false" current-in-tab="false">
+      <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/chain/ChainOfTrustTests.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="60">
-              <caret line="32" column="48" lean-forward="true" selection-start-line="32" selection-start-column="48" selection-end-line="33" selection-end-column="38" />
+            <state relative-caret-position="306">
+              <caret line="92" column="6" selection-start-line="92" selection-start-column="6" selection-end-line="92" selection-end-column="6" />
             </state>
           </provider>
         </entry>
@@ -28,99 +56,85 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/weld/WeldTests.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="431">
-              <caret line="41" selection-start-line="41" selection-end-line="41" />
+            <state relative-caret-position="396">
+              <caret line="37" column="9" selection-start-line="37" selection-start-column="9" selection-end-line="37" selection-end-column="9" />
               <folding>
                 <element signature="imports" expanded="true" />
-                <element signature="e#620#667#0" expanded="true" />
-                <element signature="e#840#841#0" expanded="true" />
-                <element signature="e#877#878#0" expanded="true" />
-                <element signature="e#1020#1021#0" expanded="true" />
+                <element signature="e#1332#1333#0" expanded="true" />
+                <element signature="e#1401#1402#0" expanded="true" />
               </folding>
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="jar://$MAVEN_REPOSITORY$/org/jboss/weld/weld-spi/3.0.SP4/weld-spi-3.0.SP4-sources.jar!/org/jboss/weld/bootstrap/api/helpers/RegistrySingletonProvider.java">
+        <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/io/repo/DataSignatureBuilder.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="375">
-              <caret line="31" lean-forward="true" selection-start-line="31" selection-end-line="31" />
+            <state relative-caret-position="192">
+              <caret line="88" selection-start-line="88" selection-end-line="88" />
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/configuration/AteConstants.java">
+        <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/security/EncryptKeyCachePerRequest.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="188">
-              <caret line="15" column="52" selection-start-line="15" selection-start-column="31" selection-end-line="15" selection-end-column="52" />
+            <state relative-caret-position="173">
+              <caret line="167" selection-start-line="167" selection-end-line="167" />
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="jar://$MAVEN_REPOSITORY$/org/jboss/weld/weld-core-impl/3.0.5.Final/weld-core-impl-3.0.5.Final-sources.jar!/org/jboss/weld/Container.java">
+        <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/AteDelegate.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="179">
-              <caret line="56" selection-start-line="56" selection-end-line="56" />
-              <folding>
-                <element signature="e#2126#2127#0" expanded="true" />
-              </folding>
+            <state relative-caret-position="183">
+              <caret line="162" column="16" selection-start-line="162" selection-start-column="16" selection-end-line="162" selection-end-column="16" />
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="jar://$MAVEN_REPOSITORY$/org/jboss/weld/weld-core-impl/3.0.5.Final/weld-core-impl-3.0.5.Final-sources.jar!/org/jboss/weld/SimpleCDI.java">
+        <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/security/Encryptor.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="170">
-              <caret line="76" selection-start-line="76" selection-end-line="76" />
-              <folding>
-                <element signature="e#2890#2891#0" expanded="true" />
-              </folding>
+            <state>
+              <caret lean-forward="true" />
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="jar://$MAVEN_REPOSITORY$/org/jboss/weld/servlet/weld-servlet-core/3.0.5.Final/weld-servlet-core-3.0.5.Final-sources.jar!/org/jboss/weld/environment/servlet/WeldProvider.java">
+        <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/CurrentRightsDelegate.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="360">
-              <caret line="60" selection-start-line="60" selection-end-line="60" />
-              <folding>
-                <element signature="e#2420#2421#0" expanded="true" />
-              </folding>
+            <state relative-caret-position="183">
+              <caret line="128" selection-start-line="128" selection-end-line="128" />
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/common/ApplicationConfigLoader.java">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="-298">
-              <caret line="56" column="32" selection-start-line="56" selection-start-column="32" selection-end-line="56" selection-end-column="32" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/KafkaServer.java">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="360">
-              <caret line="145" column="20" lean-forward="true" selection-start-line="145" selection-start-column="16" selection-end-line="145" selection-end-column="21" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/ApiServer.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="66">
-              <caret line="181" column="58" selection-start-line="181" selection-start-column="58" selection-end-line="181" selection-end-column="58" />
-              <folding>
-                <element signature="imports" expanded="true" />
-              </folding>
+            <state relative-caret-position="432">
+              <caret line="27" column="43" selection-start-line="27" selection-start-column="43" selection-end-line="27" selection-end-column="43" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/pom.xml">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="766">
+              <caret line="76" column="45" selection-start-line="76" selection-start-column="45" selection-end-line="76" selection-end-column="45" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/ResourceInfoDelegate.java">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="702">
+              <caret line="49" column="37" selection-start-line="49" selection-start-column="37" selection-end-line="49" selection-end-column="37" />
             </state>
           </provider>
         </entry>
@@ -137,9 +151,6 @@
   </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>buildWriteException</find>
-      <find>showStack</find>
-      <find>exceptionsIncludeStack</find>
       <find>pushTopicScope(</find>
       <find>addTrustKey</find>
       <find>addTrustDataHeader</find>
@@ -167,6 +178,9 @@
       <find>HttpClient</find>
       <find>var1</find>
       <find>PROPERTY_KAFKA_SYSTEM</find>
+      <find>@ExtendWith(WeldJunit5Extension.class)</find>
+      <find>trustOfPublicWrite</find>
+      <find>signKeyCache</find>
     </findStrings>
     <dirStrings>
       <dir>$PROJECT_DIR$/src/test/java/com/tokera/ate/test</dir>
@@ -178,11 +192,6 @@
   <component name="IdeDocumentHistory">
     <option name="CHANGED_PATHS">
       <list>
-        <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/io/repo/KafkaBridgeBuilder.java" />
-        <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/ImplicitSecurityDelegate.java" />
-        <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/rest/TestApi.java" />
-        <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/rest/TestREST.java" />
-        <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/TestTools.java" />
         <option value="$PROJECT_DIR$/src/test/resources/tokera.properties" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/rest/LoginREST.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/CurrentTokenDelegate.java" />
@@ -224,11 +233,16 @@
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/client/TestTools.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/ApiServer.java" />
         <option value="$PROJECT_DIR$/ate-deps/pom.xml" />
-        <option value="$PROJECT_DIR$/pom.xml" />
         <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/weld/BasicIntegrationTests.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/ZooServer.java" />
-        <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/weld/WeldTests.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/KafkaServer.java" />
+        <option value="$PROJECT_DIR$/pom.xml" />
+        <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/storage/FactoryTests.java" />
+        <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/encryptor/NtruTests.java" />
+        <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/security/Encryptor.java" />
+        <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/security/EncryptKeyCachePerRequest.java" />
+        <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/weld/WeldTests.java" />
+        <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/chain/ChainOfTrustTests.java" />
       </list>
     </option>
   </component>
@@ -239,10 +253,10 @@
       </MavenImportingSettings>
     </option>
   </component>
-  <component name="ProjectFrameBounds" extendedState="6">
-    <option name="x" value="1920" />
+  <component name="ProjectFrameBounds" extendedState="7">
+    <option name="y" value="27" />
     <option name="width" value="1920" />
-    <option name="height" value="1080" />
+    <option name="height" value="1053" />
   </component>
   <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="ProjectView">
@@ -251,6 +265,7 @@
     </navigator>
     <panes>
       <pane id="PackagesPane" />
+      <pane id="Scope" />
       <pane id="ProjectPane">
         <subPane>
           <expand>
@@ -325,6 +340,15 @@
               <item name="ate" type="462c0819:PsiDirectoryNode" />
               <item name="dao" type="462c0819:PsiDirectoryNode" />
               <item name="base" type="462c0819:PsiDirectoryNode" />
+            </path>
+            <path>
+              <item name="ate" type="b2602c69:ProjectViewProjectNode" />
+              <item name="ate" type="462c0819:PsiDirectoryNode" />
+              <item name="src" type="462c0819:PsiDirectoryNode" />
+              <item name="main" type="462c0819:PsiDirectoryNode" />
+              <item name="java" type="462c0819:PsiDirectoryNode" />
+              <item name="ate" type="462c0819:PsiDirectoryNode" />
+              <item name="delegates" type="462c0819:PsiDirectoryNode" />
             </path>
             <path>
               <item name="ate" type="b2602c69:ProjectViewProjectNode" />
@@ -483,11 +507,10 @@
           <select />
         </subPane>
       </pane>
-      <pane id="Scope" />
     </panes>
   </component>
   <component name="PropertiesComponent">
-    <property name="com.android.tools.idea.instantapp.provision.ProvisionBeforeRunTaskProvider.myTimeStamp" value="1556916236854" />
+    <property name="com.android.tools.idea.instantapp.provision.ProvisionBeforeRunTaskProvider.myTimeStamp" value="1556918905425" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
     <property name="project.structure.last.edited" value="Modules" />
     <property name="project.structure.proportion" value="0.15" />
@@ -527,7 +550,15 @@
       </list>
     </option>
   </component>
-  <component name="RunManager" selected="JUnit.WeldTests">
+  <component name="RunManager" selected="JUnit.com.tokera.ate.test in ate">
+    <configuration name="All in ate" type="JUnit" factoryName="JUnit" temporary="true" nameIsGenerated="true">
+      <module name="ate" />
+      <option name="PACKAGE_NAME" value="" />
+      <option name="TEST_OBJECT" value="package" />
+      <method v="2">
+        <option name="Make" enabled="true" />
+      </method>
+    </configuration>
     <configuration name="BasicIntegrationTests" type="JUnit" factoryName="JUnit" temporary="true" nameIsGenerated="true">
       <module name="ate" />
       <extension name="coverage">
@@ -543,22 +574,7 @@
         <option name="Make" enabled="true" />
       </method>
     </configuration>
-    <configuration name="FactoryTests" type="JUnit" factoryName="JUnit" temporary="true" nameIsGenerated="true">
-      <module name="ate" />
-      <extension name="coverage">
-        <pattern>
-          <option name="PATTERN" value="com.tokera.ate.test.storage.*" />
-          <option name="ENABLED" value="true" />
-        </pattern>
-      </extension>
-      <option name="PACKAGE_NAME" value="com.tokera.ate.test.storage" />
-      <option name="MAIN_CLASS_NAME" value="com.tokera.ate.test.storage.FactoryTests" />
-      <option name="TEST_OBJECT" value="class" />
-      <method v="2">
-        <option name="Make" enabled="true" />
-      </method>
-    </configuration>
-    <configuration name="SerializerTests" type="JUnit" factoryName="JUnit" temporary="true" nameIsGenerated="true">
+    <configuration name="ChainOfTrustTests" type="JUnit" factoryName="JUnit" temporary="true" nameIsGenerated="true">
       <module name="ate" />
       <extension name="coverage">
         <pattern>
@@ -567,7 +583,7 @@
         </pattern>
       </extension>
       <option name="PACKAGE_NAME" value="com.tokera.ate.test.chain" />
-      <option name="MAIN_CLASS_NAME" value="com.tokera.ate.test.chain.SerializerTests" />
+      <option name="MAIN_CLASS_NAME" value="com.tokera.ate.test.chain.ChainOfTrustTests" />
       <option name="TEST_OBJECT" value="class" />
       <method v="2">
         <option name="Make" enabled="true" />
@@ -592,7 +608,7 @@
       <module name="ate" />
       <extension name="coverage">
         <pattern>
-          <option name="PATTERN" value="com.tokera.ate.client.*" />
+          <option name="PATTERN" value="com.tokera.ate.test.*" />
           <option name="ENABLED" value="true" />
         </pattern>
       </extension>
@@ -604,11 +620,11 @@
     </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="JUnit.com.tokera.ate.test in ate" />
+        <item itemvalue="JUnit.ChainOfTrustTests" />
+        <item itemvalue="JUnit.All in ate" />
         <item itemvalue="JUnit.WeldTests" />
         <item itemvalue="JUnit.BasicIntegrationTests" />
-        <item itemvalue="JUnit.SerializerTests" />
-        <item itemvalue="JUnit.com.tokera.ate.test in ate" />
-        <item itemvalue="JUnit.FactoryTests" />
       </list>
     </recent_temporary>
   </component>
@@ -626,27 +642,6 @@
     <servers />
   </component>
   <component name="TestHistory">
-    <history-entry file="BasicIntegrationTests - 2019.05.03 at 22h 09m 59s.xml">
-      <configuration name="BasicIntegrationTests" configurationId="JUnit" />
-    </history-entry>
-    <history-entry file="BasicIntegrationTests - 2019.05.03 at 22h 12m 57s.xml">
-      <configuration name="BasicIntegrationTests" configurationId="JUnit" />
-    </history-entry>
-    <history-entry file="BasicIntegrationTests - 2019.05.03 at 22h 14m 04s.xml">
-      <configuration name="BasicIntegrationTests" configurationId="JUnit" />
-    </history-entry>
-    <history-entry file="BasicIntegrationTests - 2019.05.03 at 22h 30m 30s.xml">
-      <configuration name="BasicIntegrationTests" configurationId="JUnit" />
-    </history-entry>
-    <history-entry file="WeldTests - 2019.05.03 at 22h 36m 05s.xml">
-      <configuration name="WeldTests" configurationId="JUnit" />
-    </history-entry>
-    <history-entry file="WeldTests - 2019.05.03 at 22h 37m 35s.xml">
-      <configuration name="WeldTests" configurationId="JUnit" />
-    </history-entry>
-    <history-entry file="WeldTests - 2019.05.03 at 22h 38m 24s.xml">
-      <configuration name="WeldTests" configurationId="JUnit" />
-    </history-entry>
     <history-entry file="WeldTests - 2019.05.03 at 22h 38m 51s.xml">
       <configuration name="WeldTests" configurationId="JUnit" />
     </history-entry>
@@ -656,30 +651,58 @@
     <history-entry file="WeldTests - 2019.05.03 at 22h 42m 12s.xml">
       <configuration name="WeldTests" configurationId="JUnit" />
     </history-entry>
+    <history-entry file="ChainOfTrustTests - 2019.05.03 at 23h 13m 27s.xml">
+      <configuration name="ChainOfTrustTests" configurationId="JUnit" />
+    </history-entry>
+    <history-entry file="All_in_ate - 2019.05.03 at 23h 13m 54s.xml">
+      <configuration name="All in ate" configurationId="JUnit" />
+    </history-entry>
+    <history-entry file="All_in_ate - 2019.05.03 at 23h 20m 00s.xml">
+      <configuration name="All in ate" configurationId="JUnit" />
+    </history-entry>
+    <history-entry file="ChainOfTrustTests - 2019.05.03 at 23h 20m 51s.xml">
+      <configuration name="ChainOfTrustTests" configurationId="JUnit" />
+    </history-entry>
+    <history-entry file="com_tokera_ate_test_in_ate - 2019.05.03 at 23h 21m 18s.xml">
+      <configuration name="com.tokera.ate.test in ate" configurationId="JUnit" />
+    </history-entry>
+    <history-entry file="com_tokera_ate_test_in_ate - 2019.05.03 at 23h 25m 09s.xml">
+      <configuration name="com.tokera.ate.test in ate" configurationId="JUnit" />
+    </history-entry>
+    <history-entry file="com_tokera_ate_test_in_ate - 2019.05.03 at 23h 27m 03s.xml">
+      <configuration name="com.tokera.ate.test in ate" configurationId="JUnit" />
+    </history-entry>
   </component>
   <component name="ToolWindowManager">
-    <frame x="1920" y="0" width="1920" height="1080" extended-state="6" />
+    <frame x="0" y="27" width="1920" height="1053" extended-state="6" />
     <editor active="true" />
     <layout>
-      <window_info active="true" content_ui="combo" id="Project" order="0" visible="true" weight="0.28525642" />
+      <window_info id="Azure Explorer" />
+      <window_info content_ui="combo" id="Project" order="0" visible="true" weight="0.28846154" />
       <window_info id="Structure" order="1" side_tool="true" weight="0.25" />
       <window_info id="Image Layers" order="2" />
       <window_info id="Designer" order="3" />
       <window_info id="UI Designer" order="4" />
       <window_info id="Capture Tool" order="5" />
       <window_info id="Favorites" order="6" side_tool="true" />
+      <window_info anchor="bottom" id="Remote Spark Job in Cluster" />
+      <window_info anchor="bottom" id="Cosmos Serverless Spark Jobs" />
+      <window_info anchor="bottom" id="Docker" show_stripe_button="false" />
+      <window_info anchor="bottom" id="TeamCity" />
+      <window_info anchor="bottom" id="Debug Remote Spark Job in Cluster" />
+      <window_info anchor="bottom" id="Azure Activity Log" />
       <window_info anchor="bottom" id="Message" order="0" />
       <window_info anchor="bottom" id="Find" order="1" weight="0.32694355" />
-      <window_info anchor="bottom" id="Run" order="2" sideWeight="0.49893162" visible="true" weight="0.3375932" />
+      <window_info active="true" anchor="bottom" id="Run" order="2" sideWeight="0.49893162" visible="true" weight="0.3366228" />
       <window_info anchor="bottom" id="Debug" order="3" weight="0.3972311" />
       <window_info anchor="bottom" id="Cvs" order="4" weight="0.25" />
       <window_info anchor="bottom" id="Inspection" order="5" weight="0.4" />
       <window_info anchor="bottom" id="TODO" order="6" />
       <window_info anchor="bottom" id="Version Control" order="7" />
       <window_info anchor="bottom" id="JProfiler" order="8" />
-      <window_info anchor="bottom" id="Terminal" order="9" />
+      <window_info anchor="bottom" id="Terminal" order="9" weight="0.32894737" />
       <window_info anchor="bottom" id="Event Log" order="10" sideWeight="0.50106835" side_tool="true" weight="0.32894737" />
-      <window_info anchor="bottom" id="Messages" order="11" sideWeight="0.49946582" weight="0.32694355" />
+      <window_info anchor="bottom" id="Messages" order="11" sideWeight="0.49946582" weight="0.3267544" />
       <window_info anchor="right" id="Commander" internal_type="SLIDING" order="0" type="SLIDING" weight="0.4" />
       <window_info anchor="right" id="Ant Build" order="1" weight="0.25" />
       <window_info anchor="right" content_ui="combo" id="Hierarchy" order="2" weight="0.25" />
@@ -703,83 +726,9 @@
     </breakpoint-manager>
   </component>
   <component name="editorHistoryManager">
-    <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/io/HeadIO.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="164">
-          <caret line="212" selection-start-line="212" selection-end-line="212" />
-          <folding>
-            <element signature="e#3863#3864#0" expanded="true" />
-            <element signature="e#3909#3910#0" expanded="true" />
-            <element signature="e#5515#5516#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/SeedingDelegate.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="400">
-          <caret line="55" selection-start-line="55" selection-end-line="55" />
-          <folding>
-            <element signature="imports" expanded="true" />
-            <element signature="e#1098#1099#0" expanded="true" />
-            <element signature="e#1155#1156#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/dao/base/BaseDao.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="315">
-          <caret line="33" column="32" selection-start-line="33" selection-start-column="32" selection-end-line="33" selection-end-column="32" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/security/EffectivePermissionBuilder.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="314">
-          <caret line="60" column="7" lean-forward="true" selection-start-line="60" selection-start-column="7" selection-end-line="60" selection-end-column="7" />
-          <folding>
-            <element signature="e#1242#1243#0" expanded="true" />
-            <element signature="e#1280#1281#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="jar:///usr/lib/jvm/java-8-openjdk-amd64/jre/lib/rt.jar!/sun/reflect/NativeMethodAccessorImpl.class">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="360">
-          <caret line="33" column="33" selection-start-line="33" selection-start-column="33" selection-end-line="33" selection-end-column="33" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="jar://$MAVEN_REPOSITORY$/org/junit/platform/junit-platform-commons/1.4.2/junit-platform-commons-1.4.2.jar!/org/junit/platform/commons/util/ReflectionUtils.class">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="310">
-          <caret line="302" selection-start-line="302" selection-end-line="302" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="jar://$MAVEN_REPOSITORY$/org/junit/jupiter/junit-jupiter-engine/5.4.2/junit-jupiter-engine-5.4.2.jar!/org/junit/jupiter/engine/execution/ExecutableInvoker.class">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="450">
-          <caret line="55" selection-start-line="55" selection-end-line="55" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="jar://$MAVEN_REPOSITORY$/org/junit/jupiter/junit-jupiter-engine/5.4.2/junit-jupiter-engine-5.4.2.jar!/org/junit/jupiter/engine/descriptor/TestMethodTestDescriptor.class">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="154">
-          <caret line="158" selection-start-line="158" selection-end-line="158" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="jar://$MAVEN_REPOSITORY$/org/junit/platform/junit-platform-engine/1.4.2/junit-platform-engine-1.4.2.jar!/org/junit/platform/engine/support/hierarchical/ThrowableCollector.class">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="270">
-          <caret line="27" column="16" selection-start-line="27" selection-start-column="16" selection-end-line="27" selection-end-column="16" />
-        </state>
-      </provider>
-    </entry>
+    <entry file="jar://$MAVEN_REPOSITORY$/org/junit/jupiter/junit-jupiter-engine/5.4.2/junit-jupiter-engine-5.4.2.jar!/org/junit/jupiter/engine/execution/ExecutableInvoker.class" />
+    <entry file="jar://$MAVEN_REPOSITORY$/org/junit/jupiter/junit-jupiter-engine/5.4.2/junit-jupiter-engine-5.4.2.jar!/org/junit/jupiter/engine/descriptor/TestMethodTestDescriptor.class" />
+    <entry file="jar://$MAVEN_REPOSITORY$/org/junit/platform/junit-platform-engine/1.4.2/junit-platform-engine-1.4.2.jar!/org/junit/platform/engine/support/hierarchical/ThrowableCollector.class" />
     <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dto/NewAccountDto.java">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="270">
@@ -805,23 +754,9 @@
         </state>
       </provider>
     </entry>
-    <entry file="jar://$MAVEN_REPOSITORY$/com/jsoniter/jsoniter/0.9.23/jsoniter-0.9.23.jar!/com/jsoniter/JsonIterator.class">
-      <provider selected="true" editor-type-id="text-editor">
-        <state>
-          <caret lean-forward="true" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="jar://$MAVEN_REPOSITORY$/com/jsoniter/jsoniter/0.9.23/jsoniter-0.9.23.jar!/com/jsoniter/IterImplString.class">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="180">
-          <caret line="15" column="31" selection-start-line="15" selection-start-column="31" selection-end-line="15" selection-end-column="31" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="jar://$MAVEN_REPOSITORY$/com/jsoniter/jsoniter/0.9.23/jsoniter-0.9.23.jar!/com/jsoniter/output/JsonStream.class">
-      <provider selected="true" editor-type-id="text-editor" />
-    </entry>
+    <entry file="jar://$MAVEN_REPOSITORY$/com/jsoniter/jsoniter/0.9.23/jsoniter-0.9.23.jar!/com/jsoniter/JsonIterator.class" />
+    <entry file="jar://$MAVEN_REPOSITORY$/com/jsoniter/jsoniter/0.9.23/jsoniter-0.9.23.jar!/com/jsoniter/IterImplString.class" />
+    <entry file="jar://$MAVEN_REPOSITORY$/com/jsoniter/jsoniter/0.9.23/jsoniter-0.9.23.jar!/com/jsoniter/output/JsonStream.class" />
     <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/chain/SerializerTests.java">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="420">
@@ -1011,13 +946,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/pom.xml">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="180">
-          <caret line="12" column="23" selection-start-line="12" selection-start-column="23" selection-end-line="12" selection-end-column="23" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/ZooServer.java">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="240">
@@ -1038,92 +966,103 @@
         </state>
       </provider>
     </entry>
-    <entry file="jar://$MAVEN_REPOSITORY$/org/jboss/weld/weld-spi/3.0.SP4/weld-spi-3.0.SP4-sources.jar!/org/jboss/weld/bootstrap/api/helpers/RegistrySingletonProvider.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="375">
-          <caret line="31" lean-forward="true" selection-start-line="31" selection-end-line="31" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="jar://$MAVEN_REPOSITORY$/org/jboss/weld/weld-core-impl/3.0.5.Final/weld-core-impl-3.0.5.Final-sources.jar!/org/jboss/weld/Container.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="179">
-          <caret line="56" selection-start-line="56" selection-end-line="56" />
-          <folding>
-            <element signature="e#2126#2127#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="jar://$MAVEN_REPOSITORY$/org/jboss/weld/weld-core-impl/3.0.5.Final/weld-core-impl-3.0.5.Final-sources.jar!/org/jboss/weld/SimpleCDI.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="170">
-          <caret line="76" selection-start-line="76" selection-end-line="76" />
-          <folding>
-            <element signature="e#2890#2891#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="jar://$MAVEN_REPOSITORY$/org/jboss/weld/servlet/weld-servlet-core/3.0.5.Final/weld-servlet-core-3.0.5.Final-sources.jar!/org/jboss/weld/environment/servlet/WeldProvider.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="360">
-          <caret line="60" selection-start-line="60" selection-end-line="60" />
-          <folding>
-            <element signature="e#2420#2421#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/chain/ChainOfTrustTests.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="60">
-          <caret line="32" column="48" lean-forward="true" selection-start-line="32" selection-start-column="48" selection-end-line="33" selection-end-column="38" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/weld/WeldTests.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="431">
-          <caret line="41" selection-start-line="41" selection-end-line="41" />
-          <folding>
-            <element signature="imports" expanded="true" />
-            <element signature="e#620#667#0" expanded="true" />
-            <element signature="e#840#841#0" expanded="true" />
-            <element signature="e#877#878#0" expanded="true" />
-            <element signature="e#1020#1021#0" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
+    <entry file="jar://$MAVEN_REPOSITORY$/org/jboss/weld/weld-spi/3.0.SP4/weld-spi-3.0.SP4-sources.jar!/org/jboss/weld/bootstrap/api/helpers/RegistrySingletonProvider.java" />
+    <entry file="jar://$MAVEN_REPOSITORY$/org/jboss/weld/weld-core-impl/3.0.5.Final/weld-core-impl-3.0.5.Final-sources.jar!/org/jboss/weld/Container.java" />
+    <entry file="jar://$MAVEN_REPOSITORY$/org/jboss/weld/weld-core-impl/3.0.5.Final/weld-core-impl-3.0.5.Final-sources.jar!/org/jboss/weld/SimpleCDI.java" />
+    <entry file="jar://$MAVEN_REPOSITORY$/org/jboss/weld/servlet/weld-servlet-core/3.0.5.Final/weld-servlet-core-3.0.5.Final-sources.jar!/org/jboss/weld/environment/servlet/WeldProvider.java" />
     <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/configuration/AteConstants.java">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="188">
+        <state relative-caret-position="270">
           <caret line="15" column="52" selection-start-line="15" selection-start-column="31" selection-end-line="15" selection-end-column="52" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/common/ApplicationConfigLoader.java">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="-298">
+        <state relative-caret-position="756">
           <caret line="56" column="32" selection-start-line="56" selection-start-column="32" selection-end-line="56" selection-end-column="32" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/KafkaServer.java">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="360">
-          <caret line="145" column="20" lean-forward="true" selection-start-line="145" selection-start-column="16" selection-end-line="145" selection-end-column="21" />
+        <state relative-caret-position="2232">
+          <caret line="145" column="20" selection-start-line="145" selection-start-column="16" selection-end-line="145" selection-end-column="21" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/ApiServer.java">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="66">
-          <caret line="181" column="58" selection-start-line="181" selection-start-column="58" selection-end-line="181" selection-end-column="58" />
+        <state relative-caret-position="432">
+          <caret line="27" column="43" selection-start-line="27" selection-start-column="43" selection-end-line="27" selection-end-column="43" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/ResourceInfoDelegate.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="702">
+          <caret line="49" column="37" selection-start-line="49" selection-start-column="37" selection-end-line="49" selection-end-column="37" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pom.xml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="766">
+          <caret line="76" column="45" selection-start-line="76" selection-start-column="45" selection-end-line="76" selection-end-column="45" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/security/Encryptor.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state>
+          <caret lean-forward="true" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/io/repo/DataSignatureBuilder.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="192">
+          <caret line="88" selection-start-line="88" selection-end-line="88" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/security/EncryptKeyCachePerRequest.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="173">
+          <caret line="167" selection-start-line="167" selection-end-line="167" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/AteDelegate.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="183">
+          <caret line="162" column="16" selection-start-line="162" selection-start-column="16" selection-end-line="162" selection-end-column="16" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/weld/WeldTests.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="396">
+          <caret line="37" column="9" selection-start-line="37" selection-start-column="9" selection-end-line="37" selection-end-column="9" />
           <folding>
             <element signature="imports" expanded="true" />
+            <element signature="e#1332#1333#0" expanded="true" />
+            <element signature="e#1401#1402#0" expanded="true" />
           </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/CurrentRightsDelegate.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="183">
+          <caret line="128" selection-start-line="128" selection-end-line="128" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/chain/ChainOfTrustTests.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="306">
+          <caret line="92" column="6" selection-start-line="92" selection-start-column="6" selection-end-line="92" selection-end-column="6" />
         </state>
       </provider>
     </entry>

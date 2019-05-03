@@ -61,16 +61,16 @@
                         <Xmaxerrs>10000</Xmaxerrs>
                         <Xmaxwarns>10000</Xmaxwarns>
                     </compilerArguments>
-                    <annotationProcessors>
+                    <!--annotationProcessors>
                         <annotationProcessor>
                             org.checkerframework.checker.nullness.NullnessChecker
                         </annotationProcessor>
-                    </annotationProcessors>
+                    </annotationProcessors-->
                     <fork>true</fork>
                     <source>1.8</source>
                     <target>1.8</target>
                     <compilerArgs>
-                        <arg>-Xbootclasspath/p:${annotatedJdk}</arg>
+                        <!--arg>-Xbootclasspath/p:${annotatedJdk}</arg-->
                         <arg>-XDignore.symbol.file</arg>
                         <arg>-Werror</arg>
                         <arg>-Awarns</arg>

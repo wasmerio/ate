@@ -179,4 +179,8 @@ public class EncryptKeyCachePerRequest {
         this.addNakForSigningKey(publicKeyHash);
         return null;
     }
+
+    public void addSignKeyToCache(String publicKeyHash, MessagePrivateKeyDto key) {
+        this.signKeyCache.put(publicKeyHash, key);
+    }
 }
