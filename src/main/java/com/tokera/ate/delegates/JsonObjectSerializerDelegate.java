@@ -19,10 +19,19 @@ import java.util.UUID;
 @ApplicationScoped
 public class JsonObjectSerializerDelegate implements IObjectSerializer, StaticCodegenConfig {
 
+    @SuppressWarnings({"known.nonnull", "argument.type.incompatible", "return.type.incompatible"})
     @PostConstruct
     public void init() {
-        JsoniterSpi.registerTypeEncoder(UUID.class, (obj, stream) -> stream.writeVal(obj.toString()));
-        JsoniterSpi.registerTypeDecoder(UUID.class, iter -> UUID.fromString(iter.readString()));
+        JsoniterSpi.registerTypeEncoder(UUID.class, (obj, stream) -> {
+            String val = obj != null ? obj.toString() : null;
+            stream.writeVal(val);
+        });
+        JsoniterSpi.registerTypeDecoder(UUID.class, iter -> {
+            if (iter == null) return null;
+            String val = iter.readString();
+            if (val == null) return null;
+            return UUID.fromString(val);
+        });
     }
 
     @Override

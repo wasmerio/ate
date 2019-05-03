@@ -39,6 +39,8 @@ public class MyAccount extends MyBaseAccount {
     @Size(min=1, max=512)
     @Pattern(regexp="[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?", message="Invalid email")//if the field contains email address consider using this annotation to enforce field validation
     private @EmailAddress String email;
+    @Column
+    private @Nullable UUID idNullTest = null;
 
     public MyAccount() {
         this.email = "test@test.org";
