@@ -4,9 +4,8 @@
     <list default="true" id="1787db08-4ad1-4647-9852-a11b04b311d8" name="Default Changelist" comment="">
       <change beforePath="$PROJECT_DIR$/ate-deps/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/ate-deps/pom.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/tokera/ate/client/RawClient.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/client/RawClient.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/com/tokera/ate/client/RawClientBuilder.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/client/RawClientBuilder.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/tokera/ate/client/TestTools.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/client/TestTools.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/rest/BasicIntegrationTests.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/rest/BasicIntegrationTests.java" afterDir="false" />
     </list>
     <ignored path="$PROJECT_DIR$/target/" />
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -38,8 +37,7 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/client/RawClientBuilder.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="480">
-              <caret line="69" lean-forward="true" selection-start-line="69" selection-end-line="69" />
+            <state>
               <folding>
                 <element signature="imports" expanded="true" />
               </folding>
@@ -48,22 +46,13 @@
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/client/RawClient.java">
+        <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/rest/BasicIntegrationTests.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="251">
-              <caret line="171" column="5" lean-forward="true" selection-start-line="171" selection-start-column="5" selection-end-line="171" selection-end-column="5" />
+            <state relative-caret-position="773">
+              <caret line="66" lean-forward="true" selection-start-line="66" selection-end-line="66" />
               <folding>
                 <element signature="imports" expanded="true" />
               </folding>
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/KafkaServer.java">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="360">
-              <caret line="52" column="34" selection-start-line="52" selection-start-column="34" selection-end-line="52" selection-end-column="34" />
             </state>
           </provider>
         </entry>
@@ -104,8 +93,19 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/ate-deps/pom.xml">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="120">
+            <state relative-caret-position="-60">
               <caret line="8" column="19" selection-start-line="8" selection-start-column="19" selection-end-line="8" selection-end-column="19" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/client/RawClient.java">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="-90">
+              <folding>
+                <element signature="imports" expanded="true" />
+              </folding>
             </state>
           </provider>
         </entry>
@@ -216,15 +216,15 @@
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/dto/msg/MessagePublicKeyDto.java" />
         <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyBaseAccount.java" />
         <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/SeedingDelegate.java" />
-        <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/rest/BasicIntegrationTests.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/dao/base/BaseDao.java" />
         <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dto/NewAccountDto.java" />
         <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/rest/api/AccountREST.java" />
         <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyAccount.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/JsonObjectSerializerDelegate.java" />
-        <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/client/RawClientBuilder.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/client/RawClient.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/client/TestTools.java" />
+        <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/client/RawClientBuilder.java" />
+        <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/rest/BasicIntegrationTests.java" />
         <option value="$PROJECT_DIR$/ate-deps/pom.xml" />
         <option value="$PROJECT_DIR$/pom.xml" />
       </list>
@@ -441,7 +441,7 @@
     </panes>
   </component>
   <component name="PropertiesComponent">
-    <property name="com.android.tools.idea.instantapp.provision.ProvisionBeforeRunTaskProvider.myTimeStamp" value="1556909799926" />
+    <property name="com.android.tools.idea.instantapp.provision.ProvisionBeforeRunTaskProvider.myTimeStamp" value="1556910972279" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
     <property name="project.structure.last.edited" value="Modules" />
     <property name="project.structure.proportion" value="0.15" />
@@ -481,7 +481,7 @@
       </list>
     </option>
   </component>
-  <component name="RunManager" selected="JUnit.SerializerTests">
+  <component name="RunManager" selected="JUnit.BasicIntegrationTests">
     <configuration name="BasicIntegrationTests" type="JUnit" factoryName="JUnit" temporary="true" nameIsGenerated="true">
       <module name="ate" />
       <extension name="coverage">
@@ -558,9 +558,9 @@
     </configuration>
     <recent_temporary>
       <list>
+        <item itemvalue="JUnit.BasicIntegrationTests" />
         <item itemvalue="JUnit.SerializerTests" />
         <item itemvalue="JUnit.com.tokera.ate.test in ate" />
-        <item itemvalue="JUnit.BasicIntegrationTests" />
         <item itemvalue="JUnit.FactoryTests" />
         <item itemvalue="JUnit.NtruTests" />
       </list>
@@ -580,9 +580,6 @@
     <servers />
   </component>
   <component name="TestHistory">
-    <history-entry file="BasicIntegrationTests - 2019.05.03 at 17h 26m 53s.xml">
-      <configuration name="BasicIntegrationTests" configurationId="JUnit" />
-    </history-entry>
     <history-entry file="BasicIntegrationTests - 2019.05.03 at 17h 29m 03s.xml">
       <configuration name="BasicIntegrationTests" configurationId="JUnit" />
     </history-entry>
@@ -609,6 +606,9 @@
     </history-entry>
     <history-entry file="SerializerTests - 2019.05.03 at 19h 51m 52s.xml">
       <configuration name="SerializerTests" configurationId="JUnit" />
+    </history-entry>
+    <history-entry file="BasicIntegrationTests - 2019.05.03 at 21h 15m 57s.xml">
+      <configuration name="BasicIntegrationTests" configurationId="JUnit" />
     </history-entry>
   </component>
   <component name="ToolWindowManager">
@@ -906,16 +906,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/rest/BasicIntegrationTests.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="373">
-          <caret line="76" selection-start-line="76" selection-end-line="76" />
-          <folding>
-            <element signature="imports" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="jar://$MAVEN_REPOSITORY$/org/junit/platform/junit-platform-commons/1.4.2/junit-platform-commons-1.4.2.jar!/org/junit/platform/commons/util/ReflectionUtils.class">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="310">
@@ -1034,16 +1024,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/client/RawClientBuilder.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="480">
-          <caret line="69" lean-forward="true" selection-start-line="69" selection-end-line="69" />
-          <folding>
-            <element signature="imports" expanded="true" />
-          </folding>
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/client/TestTools.java">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="461">
@@ -1053,8 +1033,26 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/client/RawClient.java">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="251">
-          <caret line="171" column="5" lean-forward="true" selection-start-line="171" selection-start-column="5" selection-end-line="171" selection-end-column="5" />
+        <state relative-caret-position="-90">
+          <folding>
+            <element signature="imports" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/client/RawClientBuilder.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state>
+          <folding>
+            <element signature="imports" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/rest/BasicIntegrationTests.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="773">
+          <caret line="66" lean-forward="true" selection-start-line="66" selection-end-line="66" />
           <folding>
             <element signature="imports" expanded="true" />
           </folding>
@@ -1063,7 +1061,7 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/ate-deps/pom.xml">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="120">
+        <state relative-caret-position="-60">
           <caret line="8" column="19" selection-start-line="8" selection-start-column="19" selection-end-line="8" selection-end-column="19" />
         </state>
       </provider>

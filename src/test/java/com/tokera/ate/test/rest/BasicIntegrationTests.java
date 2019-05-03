@@ -60,8 +60,8 @@ public class BasicIntegrationTests {
         this.session = new RawClientBuilder()
                 .server("127.0.0.1")
                 .port(8080)
-                .prefixForRest("/rs/1-0/")
-                .withLoginPost("acc/adminToken/john", Entity.entity(key, MediaType.APPLICATION_JSON_TYPE))
+                .prefixForRest("/rs/1-0")
+                .withLoginPost("/acc/adminToken/john", Entity.entity(key, MediaType.APPLICATION_JSON_TYPE))
                 .build();
     }
 
@@ -71,7 +71,7 @@ public class BasicIntegrationTests {
         NewAccountDto newDetails = new NewAccountDto();
         newDetails.setEmail("test@mycompany.org");
 
-        MyAccount ret = session.restPut("acc/register", Entity.entity(newDetails, MediaType.APPLICATION_JSON_TYPE), MyAccount.class);
+        MyAccount ret = session.restPut("/acc/register", Entity.entity(newDetails, MediaType.APPLICATION_JSON_TYPE), MyAccount.class);
         this.session.appendToPrefixForFs(ret.id + "/");
         this.session.appendToPrefixForRest(ret.id + "/");
     }

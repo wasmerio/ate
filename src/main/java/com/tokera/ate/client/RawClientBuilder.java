@@ -20,8 +20,8 @@ import java.security.InvalidParameterException;
 public class RawClientBuilder {
 
     private String server = "127.0.0.1";
-    private String prefixForFs = "/fs/";
-    private String prefixForRest = "/api/";
+    private String prefixForFs = "/fs";
+    private String prefixForRest = "/api";
     private boolean secure = false;
     private @Nullable @Port Integer port = null;
     private @Nullable String session;
@@ -72,16 +72,16 @@ public class RawClientBuilder {
     }
 
     public RawClientBuilder withLoginPassword(@EmailAddress String username, @Secret String password, @Secret String code) {
-        String path = "login/byUsername/" + username + "/login?expiresMins=10&code=" + code;
+        String path = "/login/byUsername/" + username + "/login?expiresMins=10&code=" + code;
         return withLoginPost(path, Entity.text(password));
     }
 
     public RawClientBuilder withLoginKey(String username, MessagePrivateKeyDto key) {
-        return withLoginPost("login/byKey/rootLogin", Entity.json(key));
+        return withLoginPost("/login/byKey/rootLogin", Entity.json(key));
     }
 
     public RawClientBuilder withLoginToken(String urlBaseAndPrefix, String token) {
-        return withLoginPost("login/token", Entity.text(token));
+        return withLoginPost("/login/token", Entity.text(token));
     }
 
     public static String generateServerUrl(boolean secure, String server, @Nullable Integer port) {
