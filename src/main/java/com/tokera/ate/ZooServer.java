@@ -41,6 +41,7 @@ public class ZooServer implements Runnable {
     
     @PostConstruct
     public void init() {
+        // Create the thread but dont start it yet
         this.thread = new Thread(this);
         this.thread.setDaemon(true);
     }

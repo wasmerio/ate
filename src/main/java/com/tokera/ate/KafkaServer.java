@@ -33,10 +33,10 @@ public class KafkaServer {
     private kafka.server.KafkaServer kafkaServer;
     private boolean shouldRun = true;
 
-    @PostConstruct
     public void init() {
         // Load the properties
-        Properties props = ApplicationConfigLoader.getInstance().getPropertiesByName(System.getProperty(AteConstants.PROPERTY_KAFKA_SYSTEM));
+        String propsFilename = System.getProperty(AteConstants.PROPERTY_KAFKA_SYSTEM);
+        Properties props = ApplicationConfigLoader.getInstance().getPropertiesByName(propsFilename);
         if (props == null) {
             throw new WebApplicationException("Properties file for Kafka System does not exist.");
         }
@@ -145,6 +145,8 @@ public class KafkaServer {
     
     public void start()
     {
+        init();
+
         // Enter a processing loop
         Stopwatch loadTime = Stopwatch.createStarted();
         while (true)
