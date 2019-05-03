@@ -2,8 +2,7 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="1787db08-4ad1-4647-9852-a11b04b311d8" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/tokera/ate/ApiServer.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/ApiServer.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/ate-deps/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/ate-deps/pom.xml" afterDir="false" />
     </list>
     <ignored path="$PROJECT_DIR$/target/" />
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -14,11 +13,11 @@
   </component>
   <component name="FileEditorManager">
     <leaf SIDE_TABS_SIZE_LIMIT_KEY="300">
-      <file pinned="false" current-in-tab="false">
+      <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/pom.xml">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="285">
-              <caret line="19" column="60" selection-start-line="19" selection-start-column="60" selection-end-line="19" selection-end-column="60" />
+            <state relative-caret-position="180">
+              <caret line="12" column="23" selection-start-line="12" selection-start-column="23" selection-end-line="12" selection-end-column="23" />
             </state>
           </provider>
         </entry>
@@ -27,7 +26,7 @@
         <entry file="file://$PROJECT_DIR$/.m2/org/jboss/weld/servlet/weld-servlet-parent/3.0.5.Final/weld-servlet-parent-3.0.5.Final.pom">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="-1623">
-              <caret line="39" column="48" lean-forward="true" selection-start-line="39" selection-start-column="48" selection-end-line="39" selection-end-column="48" />
+              <caret line="39" column="48" selection-start-line="39" selection-start-column="48" selection-end-line="39" selection-end-column="48" />
             </state>
           </provider>
         </entry>
@@ -36,7 +35,7 @@
         <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/ZooServer.java">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="188">
-              <caret line="28" column="44" lean-forward="true" selection-start-line="28" selection-start-column="44" selection-end-line="28" selection-end-column="44" />
+              <caret line="28" column="44" selection-start-line="28" selection-start-column="44" selection-end-line="28" selection-end-column="44" />
               <folding>
                 <element signature="imports" expanded="true" />
               </folding>
@@ -44,10 +43,10 @@
           </provider>
         </entry>
       </file>
-      <file pinned="false" current-in-tab="true">
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/ApiServer.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="212">
+            <state relative-caret-position="302">
               <caret line="131" column="45" selection-start-line="131" selection-start-column="45" selection-end-line="131" selection-end-column="45" />
               <folding>
                 <element signature="imports" expanded="true" />
@@ -81,6 +80,15 @@
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/ate-deps/pom.xml">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="120">
+              <caret line="8" column="19" selection-start-line="8" selection-start-column="19" selection-end-line="8" selection-end-column="19" />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/src/test/java/com/tokera/ate/test/rest/api/TestREST.java">
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="180">
@@ -109,18 +117,6 @@
           <provider selected="true" editor-type-id="text-editor">
             <state relative-caret-position="135">
               <caret line="30" column="16" selection-start-line="30" selection-start-column="16" selection-end-line="30" selection-end-column="47" />
-            </state>
-          </provider>
-        </entry>
-      </file>
-      <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/client/RawClientBuilder.java">
-          <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="258">
-              <caret line="91" column="31" selection-start-line="91" selection-start-column="22" selection-end-line="91" selection-end-column="31" />
-              <folding>
-                <element signature="imports" expanded="true" />
-              </folding>
             </state>
           </provider>
         </entry>
@@ -221,14 +217,14 @@
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/filters/VersionInterceptor.java" />
         <option value="$PROJECT_DIR$/src/main/resources/version.properties" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/common/ApplicationConfigLoader.java" />
-        <option value="$PROJECT_DIR$/ate-deps/pom.xml" />
-        <option value="$PROJECT_DIR$/pom.xml" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/providers/UuidSerializer.java" />
         <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/rest/BasicIntegrationTests.java" />
         <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/rest/api/TestREST.java" />
         <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/rest/api/AccountREST.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/client/TestTools.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/ApiServer.java" />
+        <option value="$PROJECT_DIR$/ate-deps/pom.xml" />
+        <option value="$PROJECT_DIR$/pom.xml" />
       </list>
     </option>
   </component>
@@ -478,7 +474,7 @@
     </panes>
   </component>
   <component name="PropertiesComponent">
-    <property name="com.android.tools.idea.instantapp.provision.ProvisionBeforeRunTaskProvider.myTimeStamp" value="1556915411035" />
+    <property name="com.android.tools.idea.instantapp.provision.ProvisionBeforeRunTaskProvider.myTimeStamp" value="1556915530015" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
     <property name="project.structure.last.edited" value="Modules" />
     <property name="project.structure.proportion" value="0.15" />
@@ -617,9 +613,6 @@
     <servers />
   </component>
   <component name="TestHistory">
-    <history-entry file="com_tokera_ate_test_in_ate - 2019.05.03 at 18h 22m 27s.xml">
-      <configuration name="com.tokera.ate.test in ate" configurationId="JUnit" />
-    </history-entry>
     <history-entry file="BasicIntegrationTests - 2019.05.03 at 19h 47m 27s.xml">
       <configuration name="BasicIntegrationTests" configurationId="JUnit" />
     </history-entry>
@@ -645,6 +638,9 @@
       <configuration name="BasicIntegrationTests" configurationId="JUnit" />
     </history-entry>
     <history-entry file="BasicIntegrationTests - 2019.05.03 at 22h 14m 04s.xml">
+      <configuration name="BasicIntegrationTests" configurationId="JUnit" />
+    </history-entry>
+    <history-entry file="BasicIntegrationTests - 2019.05.03 at 22h 30m 30s.xml">
       <configuration name="BasicIntegrationTests" configurationId="JUnit" />
     </history-entry>
   </component>
@@ -1015,13 +1011,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/ate-deps/pom.xml">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="120">
-          <caret line="8" column="19" selection-start-line="8" selection-start-column="19" selection-end-line="8" selection-end-column="19" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/client/RawClientBuilder.java">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="258">
@@ -1079,24 +1068,17 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/pom.xml">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="285">
-          <caret line="19" column="60" selection-start-line="19" selection-start-column="60" selection-end-line="19" selection-end-column="60" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/.m2/org/jboss/weld/servlet/weld-servlet-parent/3.0.5.Final/weld-servlet-parent-3.0.5.Final.pom">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="-1623">
-          <caret line="39" column="48" lean-forward="true" selection-start-line="39" selection-start-column="48" selection-end-line="39" selection-end-column="48" />
+          <caret line="39" column="48" selection-start-line="39" selection-start-column="48" selection-end-line="39" selection-end-column="48" />
         </state>
       </provider>
     </entry>
     <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/ZooServer.java">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="188">
-          <caret line="28" column="44" lean-forward="true" selection-start-line="28" selection-start-column="44" selection-end-line="28" selection-end-column="44" />
+          <caret line="28" column="44" selection-start-line="28" selection-start-column="44" selection-end-line="28" selection-end-column="44" />
           <folding>
             <element signature="imports" expanded="true" />
           </folding>
@@ -1105,11 +1087,25 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/ApiServer.java">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="212">
+        <state relative-caret-position="302">
           <caret line="131" column="45" selection-start-line="131" selection-start-column="45" selection-end-line="131" selection-end-column="45" />
           <folding>
             <element signature="imports" expanded="true" />
           </folding>
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/ate-deps/pom.xml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="120">
+          <caret line="8" column="19" selection-start-line="8" selection-start-column="19" selection-end-line="8" selection-end-column="19" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/pom.xml">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="180">
+          <caret line="12" column="23" selection-start-line="12" selection-start-column="23" selection-end-line="12" selection-end-column="23" />
         </state>
       </provider>
     </entry>
