@@ -41,7 +41,8 @@ public class ApplicationConfigLoader {
         Properties props = g_Singleton.getPropertiesByName("version.properties");
         if (props == null) return 0L;
         
-        if ("<<TOKAPI-VERSION>>".equals(props.getProperty("version")) == true) {
+        if ("<<RANDOM-VERSION>>".equals(props.getProperty("version")) == true ||
+            "<<TOKAPI-VERSION>>".equals(props.getProperty("version")) == true) {
             SecureRandom srandom = new SecureRandom();
             g_Singleton.currentVersion = srandom.nextLong();
         } else {
