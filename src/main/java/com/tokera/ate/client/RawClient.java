@@ -164,6 +164,13 @@ public class RawClient {
         return TestTools.restGet(this.session, this.urlBase + prefixForRest + path).readEntity(clazz);
     }
 
+    public <T> @Nullable T restGetOrNull(String path, Class<T> clazz) {
+        Response resp = TestTools.restGetOrNull(this.session, this.urlBase + prefixForRest + path);
+        if (resp == null) return null;
+        if (resp.getLength() <= 0) return null;
+        return resp.readEntity(clazz);
+    }
+
     public static RawClient createViaRestPost(String server, Integer port, String prefixForRest, String path, Entity<?> entity) {
         String url = RawClientBuilder.generateServerUrl(true, server, port) + prefixForRest + path;
 

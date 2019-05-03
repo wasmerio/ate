@@ -213,12 +213,37 @@ public class TestTools {
         return resp;
     }
 
-    public static <T> T restGetAndOutput(@Nullable String token, String path, Class<T> clazz) {
+    public static @Nullable Response restGetOrNull(@Nullable String token, String url) {
+        Response resp;
+        ResteasyClient client = TestTools.buildResteasyClient();
+        try {
+            Invocation.Builder target = client.target(url)
+                    .request()
+                    .accept(MediaType.WILDCARD_TYPE);
+            if (token != null) {
+                target = target.header("Authorization", token);
+            }
+            resp = target.get();
+        } catch (ClientErrorException e) {
+            resp = e.getResponse();
+            resp.close();
+            return null;
+        }
+
+        if (resp.getStatus() < 200 || resp.getStatus() >= 300) {
+            return null;
+        }
+        return resp;
+    }
+
+    public static <T> T restGetAndOutput(@Nullable String token, String url, Class<T> clazz) {
         AteDelegate d = AteDelegate.get();
 
-        Response response = restGet(token, path);
+        Response response = restGet(token, url);
         T ret = response.readEntity(clazz);
         assert ret != null : "@AssumeAssertion(nullness): Must not be null";
+        Assertions.assertNotNull(ret, clazz.toString() + " must not be null.");
+
         System.out.println(d.yaml.serializeObj(ret));
         return ret;
     }

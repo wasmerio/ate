@@ -6,7 +6,7 @@
 
     <groupId>com.tokera</groupId>
     <artifactId>ate-deps</artifactId>
-    <version>0.1.36</version>
+    <version>0.1.37</version>
 
     <name>ate-deps</name>
     <packaging>pom</packaging>

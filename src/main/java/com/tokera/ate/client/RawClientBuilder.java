@@ -77,7 +77,7 @@ public class RawClientBuilder {
     }
 
     public RawClientBuilder withLoginKey(String username, MessagePrivateKeyDto key) {
-        return withLoginPost("login/byKey/rooLogin", Entity.json(key));
+        return withLoginPost("login/byKey/rootLogin", Entity.json(key));
     }
 
     public RawClientBuilder withLoginToken(String urlBaseAndPrefix, String token) {

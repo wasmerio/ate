@@ -2,9 +2,10 @@
 <project version="4">
   <component name="ChangeListManager">
     <list default="true" id="1787db08-4ad1-4647-9852-a11b04b311d8" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/ate-deps/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/ate-deps/pom.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/pom.xml" beforeDir="false" afterPath="$PROJECT_DIR$/pom.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/tokera/ate/client/RawClient.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/client/RawClient.java" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/src/main/java/com/tokera/ate/client/RawClientBuilder.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/client/RawClientBuilder.java" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/src/main/java/com/tokera/ate/client/TestTools.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/tokera/ate/client/TestTools.java" afterDir="false" />
     </list>
     <ignored path="$PROJECT_DIR$/target/" />
@@ -19,7 +20,7 @@
       <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/pom.xml">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="180">
+            <state relative-caret-position="150">
               <caret line="12" column="23" selection-start-line="12" selection-start-column="23" selection-end-line="12" selection-end-column="23" />
             </state>
           </provider>
@@ -28,17 +29,32 @@
       <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/client/TestTools.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="120">
-              <caret line="28" column="45" selection-start-line="28" selection-start-column="45" selection-end-line="28" selection-end-column="45" />
+            <state relative-caret-position="461">
+              <caret line="234" column="9" selection-start-line="234" selection-start-column="9" selection-end-line="234" selection-end-column="9" />
             </state>
           </provider>
         </entry>
       </file>
       <file pinned="false" current-in-tab="false">
-        <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/BootstrapApp.java">
+        <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/client/RawClientBuilder.java">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="75">
-              <caret line="17" column="25" selection-start-line="17" selection-start-column="13" selection-end-line="17" selection-end-column="25" />
+            <state relative-caret-position="480">
+              <caret line="69" lean-forward="true" selection-start-line="69" selection-end-line="69" />
+              <folding>
+                <element signature="imports" expanded="true" />
+              </folding>
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/client/RawClient.java">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="251">
+              <caret line="171" column="5" lean-forward="true" selection-start-line="171" selection-start-column="5" selection-end-line="171" selection-end-column="5" />
+              <folding>
+                <element signature="imports" expanded="true" />
+              </folding>
             </state>
           </provider>
         </entry>
@@ -119,11 +135,6 @@
   </component>
   <component name="FindInProjectRecents">
     <findStrings>
-      <find>token.sign</find>
-      <find>createSigningCredential</find>
-      <find>store_password</find>
-      <find>new ResteasyJackson2Provider</find>
-      <find>/rs/1-0</find>
       <find>rs/1-0</find>
       <find>&quot;rs&quot;</find>
       <find>getSimpleName()</find>
@@ -135,7 +146,6 @@
       <find>buildWriteException</find>
       <find>showStack</find>
       <find>exceptionsIncludeStack</find>
-      <find>var1</find>
       <find>pushTopicScope(</find>
       <find>addTrustKey</find>
       <find>addTrustDataHeader</find>
@@ -149,6 +159,12 @@
       <find>initSeed</find>
       <find>Resteas</find>
       <find>ResourceStatsDelegate</find>
+      <find>ResourceStatsDelegate(</find>
+      <find>assertEquals(</find>
+      <find>performGetAndOutput</find>
+      <find>restGetAndOutput</find>
+      <find>restGetAnd</find>
+      <find>var1</find>
     </findStrings>
     <dirStrings>
       <dir>$PROJECT_DIR$/src/test/java/com/tokera/ate/test</dir>
@@ -195,8 +211,6 @@
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/dao/base/BaseDaoRights.java" />
         <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyThing.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/extensions/DaoParentDiscoveryExtension.java" />
-        <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/client/RawClientBuilder.java" />
-        <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/client/RawClient.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/AuthorizationDelegate.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/filters/ExceptionInterceptor.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/dto/msg/MessagePublicKeyDto.java" />
@@ -208,6 +222,8 @@
         <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/rest/api/AccountREST.java" />
         <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/dao/MyAccount.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/JsonObjectSerializerDelegate.java" />
+        <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/client/RawClientBuilder.java" />
+        <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/client/RawClient.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/client/TestTools.java" />
         <option value="$PROJECT_DIR$/ate-deps/pom.xml" />
         <option value="$PROJECT_DIR$/pom.xml" />
@@ -425,7 +441,7 @@
     </panes>
   </component>
   <component name="PropertiesComponent">
-    <property name="com.android.tools.idea.instantapp.provision.ProvisionBeforeRunTaskProvider.myTimeStamp" value="1556907742339" />
+    <property name="com.android.tools.idea.instantapp.provision.ProvisionBeforeRunTaskProvider.myTimeStamp" value="1556909799926" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
     <property name="project.structure.last.edited" value="Modules" />
     <property name="project.structure.proportion" value="0.15" />
@@ -629,20 +645,6 @@
     </layout>
   </component>
   <component name="editorHistoryManager">
-    <entry file="jar://$MAVEN_REPOSITORY$/org/jboss/resteasy/resteasy-client/3.6.1.Final/resteasy-client-3.6.1.Final-sources.jar!/org/jboss/resteasy/client/jaxrs/ClientHttpEngine.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="120">
-          <caret line="12" column="17" selection-start-line="12" selection-start-column="17" selection-end-line="12" selection-end-column="17" />
-        </state>
-      </provider>
-    </entry>
-    <entry file="jar://$MAVEN_REPOSITORY$/org/jboss/resteasy/resteasy-client/3.6.1.Final/resteasy-client-3.6.1.Final-sources.jar!/org/jboss/resteasy/client/jaxrs/engines/ApacheHttpClient4Engine.java">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="60">
-          <caret line="51" column="13" selection-start-line="51" selection-start-column="13" selection-end-line="51" selection-end-column="13" />
-        </state>
-      </provider>
-    </entry>
     <entry file="jar://$MAVEN_REPOSITORY$/javax/javaee-web-api/8.0.1/javaee-web-api-8.0.1.jar!/javax/ws/rs/core/Response.class">
       <provider selected="true" editor-type-id="text-editor">
         <state relative-caret-position="45">
@@ -1032,10 +1034,30 @@
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/client/RawClientBuilder.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="480">
+          <caret line="69" lean-forward="true" selection-start-line="69" selection-end-line="69" />
+          <folding>
+            <element signature="imports" expanded="true" />
+          </folding>
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/client/TestTools.java">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="120">
-          <caret line="28" column="45" selection-start-line="28" selection-start-column="45" selection-end-line="28" selection-end-column="45" />
+        <state relative-caret-position="461">
+          <caret line="234" column="9" selection-start-line="234" selection-start-column="9" selection-end-line="234" selection-end-column="9" />
+        </state>
+      </provider>
+    </entry>
+    <entry file="file://$PROJECT_DIR$/src/main/java/com/tokera/ate/client/RawClient.java">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="251">
+          <caret line="171" column="5" lean-forward="true" selection-start-line="171" selection-start-column="5" selection-end-line="171" selection-end-column="5" />
+          <folding>
+            <element signature="imports" expanded="true" />
+          </folding>
         </state>
       </provider>
     </entry>
@@ -1048,7 +1070,7 @@
     </entry>
     <entry file="file://$PROJECT_DIR$/pom.xml">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="180">
+        <state relative-caret-position="150">
           <caret line="12" column="23" selection-start-line="12" selection-start-column="23" selection-end-line="12" selection-end-column="23" />
         </state>
       </provider>
