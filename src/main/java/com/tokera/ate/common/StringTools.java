@@ -77,7 +77,7 @@ public class StringTools
     {
         String[] comps = email.split("@");
         if (comps.length != 2) {
-            throw new RuntimeException("Email address is not well formed.");
+            throw new RuntimeException("Email address is not well formed [" + email + "].");
         }
 
         String username = comps[0];

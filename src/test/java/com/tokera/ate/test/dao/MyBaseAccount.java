@@ -5,6 +5,8 @@ import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.common.ImmutalizableArrayList;
 import com.tokera.ate.common.ImmutalizableTreeMap;
 import com.tokera.ate.dao.base.BaseDao;
+import com.tokera.ate.dao.base.BaseDaoRights;
+import com.tokera.ate.dao.base.BaseDaoRoles;
 import com.tokera.ate.units.Alias;
 import com.tokera.ate.units.DaoId;
 import com.tokera.ate.units.TextDocument;
@@ -17,11 +19,10 @@ import java.util.UUID;
 
 @Dependent
 @YamlTag("dao.mybaseaccount")
-@Table(name = "mybaseaccount")
 @PermitParentFree
-public class MyBaseAccount extends BaseDao {
+public class MyBaseAccount extends BaseDaoRoles {
     @Column
-    public final UUID id = UUID.randomUUID();
+    public UUID id = UUID.randomUUID();
     @Column
     public @Nullable @TextDocument String description = null;
     @Column

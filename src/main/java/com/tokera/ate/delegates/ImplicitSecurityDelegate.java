@@ -80,7 +80,7 @@ public class ImplicitSecurityDelegate {
     
     public @Nullable MessagePublicKeyDto enquireDomainKey(@DomainName String domain, boolean shouldThrow)
     {
-        return enquireDomainKey(d.bootstrapConfig.implicitSecurityAlias, domain, shouldThrow);
+        return enquireDomainKey(d.bootstrapConfig.getImplicitSecurityAlias(), domain, shouldThrow);
     }
     
     public @Nullable MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, boolean shouldThrow)
@@ -104,7 +104,7 @@ public class ImplicitSecurityDelegate {
         }
 
         for (String publicTopic : this.g_publicTopics) {
-            if ((d.bootstrapConfig.implicitSecurityAlias + "." + publicTopic).equals(domain)) {
+            if ((d.bootstrapConfig.getImplicitSecurityAlias() + "." + publicTopic).equals(domain)) {
                 return null;
             }
         }

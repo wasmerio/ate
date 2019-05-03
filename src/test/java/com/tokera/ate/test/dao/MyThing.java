@@ -13,7 +13,6 @@ import java.util.UUID;
 
 @Dependent
 @YamlTag("dao.mything")
-@Table(name = "dao.mything")
 @PermitParentType(MyAccount.class)
 public class MyThing extends BaseDao {
     @Column

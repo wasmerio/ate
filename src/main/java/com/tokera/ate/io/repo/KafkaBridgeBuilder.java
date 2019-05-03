@@ -43,7 +43,7 @@ public class KafkaBridgeBuilder {
             return;
         }
 
-        String bootstraps = d.implicitSecurity.enquireDomainString(d.bootstrapConfig.zookeeperAlias + "." + d.bootstrapConfig.domain, true);
+        String bootstraps = d.implicitSecurity.enquireDomainString(d.bootstrapConfig.getZookeeperAlias() + "." + d.bootstrapConfig.getDomain(), true);
         if (bootstraps != null) {
             props.put("zookeeper.connect", bootstraps);
         }
@@ -55,9 +55,9 @@ public class KafkaBridgeBuilder {
         }
         m_keeperServers =  zookeeperConnect;
 
-        String bootstrapServers = d.implicitSecurity.enquireDomainString(d.bootstrapConfig.kafkaAlias + "." + d.bootstrapConfig.domain, true);
+        String bootstrapServers = d.implicitSecurity.enquireDomainString(d.bootstrapConfig.getKafkaAlias() + "." + d.bootstrapConfig.getDomain(), true);
         if (bootstrapServers == null) {
-            exceptionOnUse = new RuntimeException("Unable to find Kafka bootstrap servers [dns: " + d.bootstrapConfig.kafkaAlias + "." + d.bootstrapConfig.domain + "].");
+            exceptionOnUse = new RuntimeException("Unable to find Kafka bootstrap servers [dns: " + d.bootstrapConfig.getKafkaAlias() + "." + d.bootstrapConfig.getDomain() + "].");
             return;
         }
         m_bootstrapServers = bootstrapServers;

@@ -31,42 +31,34 @@ public class SignAssertion {
 
     private static @MonotonicNonNull BasicX509Credential signingCredential;
 
-    private static BasicX509Credential intializeCredentials() {
-        BasicX509Credential cred;
-        if (signingCredential == null) {
-            CDI.current().select(DefaultBootstrapInit.class).get().touch();
-            cred = getSigningCredential();
-            signingCredential = cred;
-        } else {
-            cred = signingCredential;
-        }
-        return cred;
-    }
-
-    public static BasicX509Credential getSigningCredentialCached() {
-        BasicX509Credential ret = signingCredential;
+    public static BasicX509Credential getSigningCredential() {
+        BasicX509Credential ret = SignAssertion.signingCredential;
         if (ret != null) {
             return ret;
         }
-        return intializeCredentials();
+        CDI.current().select(DefaultBootstrapInit.class).get().touch();
+        ret =  createSigningCredential();
+        SignAssertion.signingCredential = ret;
+        return ret;
     }
 
-    public static BasicX509Credential getSigningCredential() {
+    public static BasicX509Credential createSigningCredential() {
         try {
             AteDelegate d = AteDelegate.get();
-            try (InputStream fis = SignAssertion.class.getResourceAsStream(d.bootstrapConfig.stsVaultFilename)) {
-                char[] store_password = d.bootstrapConfig.stsVaultPassword.toCharArray();
+            String where = d.bootstrapConfig.getStsVaultFilename();
+            try (InputStream fis = SignAssertion.class.getResourceAsStream(where)) {
+                char[] store_password = d.bootstrapConfig.getStsVaultPassword().toCharArray();
 
                 // Get Default Instance of KeyStore
                 KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
                 if (fis == null) {
-                    throw new WebApplicationException("Failed to open signing certificate [" + d.bootstrapConfig.stsVaultFilename + "]", javax.ws.rs.core.Response.Status.INTERNAL_SERVER_ERROR);
+                    throw new WebApplicationException("Failed to open signing certificate [" + d.bootstrapConfig.getStsVaultFilename() + "]", javax.ws.rs.core.Response.Status.INTERNAL_SERVER_ERROR);
                 }
                 ks.load(fis, store_password);
 
                 // Get Private Key Entry From Certificate
-                KeyStore.PrivateKeyEntry pkEntry = (KeyStore.PrivateKeyEntry) ks.getEntry(d.bootstrapConfig.stsCertificateAliasName,
-                        new KeyStore.PasswordProtection(d.bootstrapConfig.stsSigningKeyPassword.toCharArray()));
+                KeyStore.PrivateKeyEntry pkEntry = (KeyStore.PrivateKeyEntry) ks.getEntry(d.bootstrapConfig.getStsCertificateAliasName(),
+                        new KeyStore.PasswordProtection(d.bootstrapConfig.getStsSigningKeyPassword().toCharArray()));
                 PrivateKey pk = pkEntry.getPrivateKey();
 
                 X509Certificate certificate = (X509Certificate) pkEntry.getCertificate();
@@ -82,7 +74,7 @@ public class SignAssertion {
 
     public void signAssertion(Assertion assertion) throws MarshallingException, SignatureException, SecurityException {
         // Create the class that will perform the signing
-        BasicX509Credential creds = SignAssertion.intializeCredentials();
+        BasicX509Credential creds = SignAssertion.getSigningCredential();
 
         // Get the signature object and set it up
         Signature signature = (Signature) Configuration.getBuilderFactory()

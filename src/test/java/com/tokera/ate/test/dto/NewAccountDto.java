@@ -3,6 +3,7 @@ package com.tokera.ate.test.dto;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.units.EmailAddress;
+import com.tokera.ate.units.Secret;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.Dependent;
@@ -21,6 +22,9 @@ public class NewAccountDto {
     @JsonProperty
     @Nullable
     private String description;
+    @JsonProperty
+    @Nullable
+    private @Secret String password;
 
     public @Nullable String getEmail() {
         return email;

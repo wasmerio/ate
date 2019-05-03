@@ -122,7 +122,7 @@ public class DaoHelper {
             if (ret != null) return ret;
         }
 
-        throw new RuntimeException("Failed to generate an encryption key for entity [clazz=" + entity.getClass().getName() + ", id=" + entity.getId() + "].");
+        throw new RuntimeException("Failed to generate an encryption key for entity [clazz=" + entity.getClass().getSimpleName() + ", id=" + entity.getId() + "].");
     }
     
     public List<BaseDao> getObjAndParents(BaseDao entity) {

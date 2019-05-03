@@ -59,7 +59,7 @@ public class TokenSecurity
     public void init() {
         
         // Load the certificate
-        signingCredential = SignAssertion.getSigningCredentialCached();
+        signingCredential = SignAssertion.getSigningCredential();
         validator = new SignatureValidator(signingCredential);
     }
     

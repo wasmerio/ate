@@ -57,9 +57,9 @@ public class ZooServer implements Runnable {
         Integer argsPort1 = 2181 + argsPortStride;
         
         Integer myId = 0;
-        String bootstraps = d.implicitSecurity.enquireDomainString(d.bootstrapConfig.zookeeperAlias + "." + d.bootstrapConfig.domain, true);
+        String bootstraps = d.implicitSecurity.enquireDomainString(d.bootstrapConfig.getZookeeperAlias() + "." + d.bootstrapConfig.getDomain(), true);
         if (bootstraps != null) {
-            SLOG.info(d.bootstrapConfig.zookeeperAlias + "."  + d.bootstrapConfig.domain + "->" + bootstraps);
+            SLOG.info(d.bootstrapConfig.getZookeeperAlias() + "."  + d.bootstrapConfig.getDomain() + "->" + bootstraps);
             int n = 0;
             for (String svr : bootstraps.split("\\,")) {
                 n++;
@@ -166,7 +166,7 @@ public class ZooServer implements Runnable {
                 Properties props = ApplicationConfigLoader.getInstance().getPropertiesByName(System.getProperty(AteConstants.PROPERTY_ZOOKEEPER_SYSTEM));
                 if (props == null) throw new WebApplicationException("Zookeeper configuration file missing");
                 
-                String bootstraps = d.implicitSecurity.enquireDomainString(d.bootstrapConfig.zookeeperAlias + "." + d.bootstrapConfig.domain, true);
+                String bootstraps = d.implicitSecurity.enquireDomainString(d.bootstrapConfig.getZookeeperAlias() + "." + d.bootstrapConfig.getDomain(), true);
                 if (bootstraps != null) {
                     String[] servers = bootstraps.split("\\,");
                     for (int n = 0; n < servers.length; n++) {

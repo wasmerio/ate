@@ -14,7 +14,6 @@ import io.undertow.Undertow;
 import io.undertow.UndertowOptions;
 import io.undertow.servlet.Servlets;
 import io.undertow.servlet.api.DeploymentInfo;
-import io.undertow.websockets.jsr.WebSocketDeploymentInfo;
 import org.hibernate.validator.HibernateValidator;
 import org.jboss.resteasy.cdi.CdiInjectorFactory;
 import org.jboss.resteasy.cdi.ResteasyCdiExtension;
@@ -32,6 +31,7 @@ import org.jboss.weld.environment.se.WeldContainer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.enterprise.inject.spi.CDI;
 import javax.validation.*;
 import javax.ws.rs.ApplicationPath;
 import javax.ws.rs.WebApplicationException;
@@ -43,8 +43,6 @@ import java.util.List;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-
-import static io.undertow.servlet.Servlets.deployment;
 
 public class ApiServer {
 
@@ -112,8 +110,7 @@ public class ApiServer {
         return providers;
     }
 
-    public static ApiServer startApiServer(BootstrapConfig apiConfig)
-    {
+    public static BootstrapConfig startWeld() {
         ValidatorFactory validatorFactory = Validation.byProvider( HibernateValidator.class )
                 .configure()
                 .buildValidatorFactory();
@@ -131,21 +128,26 @@ public class ApiServer {
         weld.addBeanClass(ProcessBodyReader.class);
         weld.addBeanClass(ProcessBodyWriter.class);
         weld.addBeanClass(ResteasyJackson2Provider.class);
-        weld.addExtension(apiConfig);
         weld.addExtension(new ResteasyCdiExtension());
         weld.addExtension(new YamlTagDiscoveryExtension());
         weld.addExtension(new DaoParentDiscoveryExtension());
         weld.addExtension(new StartupBeanExtension());
         weld.addExtension(new ResourceScopedExtension());
         weld.addExtension(new TokenScopeExtension());
+        weld.addExtension(new SerializableObjectsExtension());
         weld.addPackages(   true,
-                            ResteasyJackson2Provider.class,
-                            YamlReader.class,
-                            HtmlRenderableWriter.class,
-                            StringTextStar.class,
-                            AteDelegate.class);
+                ResteasyJackson2Provider.class,
+                YamlReader.class,
+                HtmlRenderableWriter.class,
+                StringTextStar.class,
+                AteDelegate.class);
         WeldContainer cdi = weld.initialize();
 
+        return cdi.select(BootstrapConfig.class).get();
+    }
+
+    public static ApiServer startApiServer(BootstrapConfig apiConfig)
+    {
         // Rebuild the mega delegate
         AteDelegate d = AteDelegate.get();
 
@@ -157,7 +159,7 @@ public class ApiServer {
                         .addAccessLoggerLayer();
         
         // Load the properties file
-        Properties props = ApplicationConfigLoader.getInstance().getPropertiesByName(apiConfig.propertiesFile);
+        Properties props = ApplicationConfigLoader.getInstance().getPropertiesByName(apiConfig.getPropertiesFile());
         if (props == null) throw new WebApplicationException("Failed to load the properties file for the Tokera system.");
         
         // Start the API server
@@ -169,28 +171,28 @@ public class ApiServer {
                 preventZooKeeper == false)
         {
             boolean shouldForce = "true".equals(props.getOrDefault("zookeeper.force", "false").toString());
-            cdi.select(ZooServer.class).get().start(shouldForce);
+            CDI.current().select(ZooServer.class).get().start(shouldForce);
         }
         if ("true".equals(props.getOrDefault("kafka.server", "false").toString()) &&
                 preventKafka == false)
         {
-            cdi.select(KafkaBridgeBuilder.class).get().touch();
-            cdi.select(KafkaServer.class).get().start();
+            CDI.current().select(KafkaBridgeBuilder.class).get().touch();
+            CDI.current().select(KafkaServer.class).get().start();
         }
         
         try {
             // Get the application path
             String appPath="default";
-            for (ApplicationPath path : apiConfig.applicationClass.getAnnotationsByType(ApplicationPath.class)) {
+            for (ApplicationPath path : apiConfig.getApplicationClass().getAnnotationsByType(ApplicationPath.class)) {
                 appPath = path.value();
             }
             
             // Load the Resteasy deployment
             ResteasyDeployment re = new ResteasyDeployment();
-            re.setApplicationClass(apiConfig.applicationClass.getName());
+            re.setApplicationClass(apiConfig.getApplicationClass().getName());
 
             // Add the dependency injection
-            ResteasyCdiExtension cdiExtension = cdi.select(ResteasyCdiExtension.class).get();
+            ResteasyCdiExtension cdiExtension = CDI.current().select(ResteasyCdiExtension.class).get();
             List<Class> resources = cdiExtension.getResources().stream().collect(Collectors.toList());
             List<Class> providers = getRestProviders(cdiExtension);
 
@@ -207,8 +209,8 @@ public class ApiServer {
 
             // REST API Deployment
             DeploymentInfo di = apiServer.getServer().undertowDeployment(re, appPath)
-                    .setContextPath(apiConfig.restApiPath)
-                    .setDeploymentName(apiConfig.deploymentName)
+                    .setContextPath(apiConfig.getRestApiPath())
+                    .setDeploymentName(apiConfig.getDeploymentName())
                     .setClassLoader(clazzLoader)
                     //.addListener(Servlets.listener(org.jboss.weld.environment.servlet.Listener.class))
                     //.addListener(Servlets.listener(org.jboss.weld.servlet.WeldListener.class));
@@ -233,13 +235,13 @@ public class ApiServer {
             throw ex;
         }
 
-        if (apiConfig.pingCheckOnStart) {
+        if (apiConfig.isPingCheckOnStart()) {
             // Loop attempting to invoke the service until it comes online, this will
             // ensure everything is precached for a faster fast call
             Stopwatch timer = Stopwatch.createStarted();
             for (int n = 0; ; n++) {
                 try {
-                    URL url = new URL("http://localhost:" + apiServer.port + apiConfig.restApiPath + "/1-0/" + apiConfig.pingCheckUrl);
+                    URL url = new URL("http://localhost:" + apiServer.port + apiConfig.getRestApiPath() + "/1-0/" + apiConfig.getPingCheckUrl());
                     HttpURLConnection con = (HttpURLConnection) url.openConnection();
                     con.setRequestMethod("GET");
                     con.setConnectTimeout(500);
@@ -270,7 +272,7 @@ public class ApiServer {
     public void start() {
         
         // Load the properties file
-        Properties props = ApplicationConfigLoader.getInstance().getPropertiesByName(config.propertiesFile);
+        Properties props = ApplicationConfigLoader.getInstance().getPropertiesByName(config.getPropertiesFile());
         if (props == null) throw new WebApplicationException("Properties for for the Tokera system could not be found.");
         port = Integer.parseInt(props.getOrDefault("port", "8080").toString());
 
@@ -302,7 +304,7 @@ public class ApiServer {
         int c_AesPreGen128 = 0;
         int c_AesPreGen256 = 0;
 
-        String propsName = System.getProperty(apiConfig.propertiesFile);
+        String propsName = System.getProperty(apiConfig.getPropertiesFile());
         if (propsName != null) {
             Properties props = ApplicationConfigLoader.getInstance().getPropertiesByName(propsName);
             if (props != null) {

@@ -200,7 +200,7 @@ public class DataRepository implements IAteIO {
         String topic = d.requestContext.getCurrentTopicScope();
 
         // Make sure its a valid parent we are attached to
-        String entityType = entity.getClass().getSimpleName();
+        String entityType = entity.getClass().getName();
         @DaoId UUID entityParentId = entity.getParentId();
         if (d.daoParents.getAllowedParentsSimple().containsKey(entityType) == false) {
             if (d.daoParents.getAllowedParentFreeSimple().contains(entityType) == false) {
@@ -224,7 +224,7 @@ public class DataRepository implements IAteIO {
             // Make sure the leaf of the chain of trust exists
             String parentClazz;
             if (container != null) parentClazz = container.getPayloadClazz();
-            else if (parentInCache != null) parentClazz = parentInCache.getClass().getSimpleName();
+            else if (parentInCache != null) parentClazz = parentInCache.getClass().getName();
             else {
                 throw new RuntimeException("You must save the parent object before this one otherwise the chain of trust will break.");
             }

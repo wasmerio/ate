@@ -31,7 +31,7 @@ public abstract class BaseDao implements Serializable, Immutalizable {
     /**
      * @return Returns the parent object that this object is attached to
      */
-    public abstract @Nullable @DaoId UUID getParentId();
+    public abstract @JsonIgnore @Nullable @DaoId UUID getParentId();
     
     @Override
     public int hashCode() {

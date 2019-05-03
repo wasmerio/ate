@@ -5,9 +5,8 @@ import com.tokera.ate.annotations.PermitParentFree;
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.common.ImmutalizableArrayList;
 import com.tokera.ate.common.ImmutalizableTreeMap;
-import com.tokera.ate.units.Alias;
-import com.tokera.ate.units.DaoId;
-import com.tokera.ate.units.EmailAddress;
+import com.tokera.ate.units.*;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.Dependent;
 import javax.persistence.Column;
@@ -21,7 +20,6 @@ import java.util.UUID;
 
 @Dependent
 @YamlTag("dao.myaccount")
-@Table(name = "myaccount")
 @PermitParentFree
 public class MyAccount extends MyBaseAccount {
     @Column
@@ -35,6 +33,8 @@ public class MyAccount extends MyBaseAccount {
     @Column
     public BigDecimal num2 = BigDecimal.ZERO;
     @Column
+    public @Nullable @Hash String passwordHash;
+    @Column
     @NotNull
     @Size(min=1, max=512)
     @Pattern(regexp="[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?", message="Invalid email")//if the field contains email address consider using this annotation to enforce field validation
@@ -44,8 +44,9 @@ public class MyAccount extends MyBaseAccount {
         this.email = "test@test.org";
     }
 
-    public MyAccount(@EmailAddress String email)
+    public MyAccount(@EmailAddress String email, @Hash String passwordHash)
     {
         this.email = email;
+        this.passwordHash = passwordHash;
     }
 }

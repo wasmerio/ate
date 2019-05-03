@@ -2,7 +2,7 @@ package com.tokera.ate.test.msg;
 
 import com.tokera.ate.dao.msg.MessageBase;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
-import com.tokera.ate.test.TestTools;
+import com.tokera.ate.client.TestTools;
 import org.apache.commons.codec.binary.Base64;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;

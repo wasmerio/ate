@@ -49,9 +49,9 @@ public class KafkaServer {
 
         Integer numBrokers = 0;
         Integer myId = 0;
-        String dataservers = d.implicitSecurity.enquireDomainString(d.bootstrapConfig.kafkaAlias + "." + d.bootstrapConfig.domain, true);
+        String dataservers = d.implicitSecurity.enquireDomainString(d.bootstrapConfig.getKafkaAlias() + "." + d.bootstrapConfig.getDomain(), true);
         if (dataservers != null) {
-            SLOG.info(d.bootstrapConfig.kafkaAlias + "." + d.bootstrapConfig.domain + "->" + dataservers);
+            SLOG.info(d.bootstrapConfig.getKafkaAlias() + "." + d.bootstrapConfig.getDomain() + "->" + dataservers);
             int n = 0;
             for (String svr : dataservers.split("\\,")) {
                 numBrokers++;
@@ -80,9 +80,9 @@ public class KafkaServer {
         }
         shouldRun = detectShouldRun;
 
-        String bootstraps = d.implicitSecurity.enquireDomainString(d.bootstrapConfig.zookeeperAlias + "." + d.bootstrapConfig.domain, true);
+        String bootstraps = d.implicitSecurity.enquireDomainString(d.bootstrapConfig.getZookeeperAlias() + "." + d.bootstrapConfig.getDomain(), true);
         if (bootstraps != null) {
-            SLOG.info(d.bootstrapConfig.zookeeperAlias + "." + d.bootstrapConfig.domain + "->" + bootstraps);
+            SLOG.info(d.bootstrapConfig.getZookeeperAlias() + "." + d.bootstrapConfig.getDomain() + "->" + bootstraps);
             props.put("zookeeper.connect", bootstraps);
         }
 

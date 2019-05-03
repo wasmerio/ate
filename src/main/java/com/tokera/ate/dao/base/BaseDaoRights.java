@@ -8,7 +8,9 @@ package com.tokera.ate.dao.base;
 import com.tokera.ate.common.Immutalizable;
 import com.tokera.ate.common.ImmutalizableHashSet;
 import com.tokera.ate.dao.IRights;
+import com.tokera.ate.dao.IRoles;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
+import com.tokera.ate.units.Alias;
 
 import java.util.Set;
 import javax.persistence.Column;
@@ -40,5 +42,22 @@ public abstract class BaseDaoRights extends BaseDao implements IRights, Immutali
         super.immutalize();
         this.rightsRead.immutalize();
         this.rightsWrite.immutalize();
+    }
+
+    @Override
+    public @Alias String getRightsAlias() {
+        return getClass().getSimpleName().toLowerCase() + ":" + this.getId();
+    }
+
+    // Override this method to hook into notifications when an access right is added to this data object
+    @Override
+    public void onAddRight(IRoles to) {
+
+    }
+
+    // Override this method to hook into notifications when an access right is remove this data object
+    @Override
+    public void onRemoveRight(IRoles from) {
+
     }
 }

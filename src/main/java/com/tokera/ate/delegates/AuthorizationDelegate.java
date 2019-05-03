@@ -140,12 +140,6 @@ public class AuthorizationDelegate {
             sb.append(" > roles: [no access rights]\n");
         }
 
-        if (showStack == true) {
-            StringWriter sw = new StringWriter();
-            new Throwable().printStackTrace(new PrintWriter(sw));
-            sb.append(" > stack: ").append(sw.toString());
-        }
-
         // Throw an exception which we will write to the stack
         try {
             return new WebApplicationException(sb.toString(), Response.Status.UNAUTHORIZED);
@@ -216,12 +210,6 @@ public class AuthorizationDelegate {
             }
         } else {
             sb.append("[missing!!]");
-        }
-
-        if (showStack == true) {
-            StringWriter sw = new StringWriter();
-            new Throwable().printStackTrace(new PrintWriter(sw));
-            sb.append(" > stack: ").append(sw.toString());
         }
 
         // Throw an exception which we will write to the stack

@@ -1,7 +1,6 @@
 package com.tokera.ate.test.chain;
 
 import com.tokera.ate.common.LoggerHook;
-import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.extensions.DaoParentDiscoveryExtension;
 import com.tokera.ate.delegates.CurrentRightsDelegate;
 import com.tokera.ate.dto.EffectivePermissions;
@@ -16,7 +15,7 @@ import java.util.UUID;
 import javax.enterprise.context.RequestScoped;
 import javax.inject.Inject;
 
-import com.tokera.ate.test.TestTools;
+import com.tokera.ate.client.TestTools;
 import com.tokera.ate.test.dao.MyAccount;
 import com.tokera.ate.test.dao.MyThing;
 import com.tokera.ate.units.Hash;

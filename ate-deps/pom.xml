@@ -6,7 +6,7 @@
 
     <groupId>com.tokera</groupId>
     <artifactId>ate-deps</artifactId>
-    <version>0.1.32</version>
+    <version>0.1.34</version>
 
     <name>ate-deps</name>
     <packaging>pom</packaging>
@@ -289,6 +289,11 @@
                     <artifactId>xml-resolver</artifactId>
                 </exclusion>
             </exclusions>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <version>5.4.2</version>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
