@@ -59,6 +59,7 @@ public class UuidSerializer implements ScalarSerializer<UUID>, MessageBodyReader
         return UUID.class.isAssignableFrom(aClass);
     }
 
+    @SuppressWarnings("return.type.incompatible")
     @Override
     public UUID readFrom(Class<UUID> aClass, Type type, Annotation[] annotations, MediaType mediaType, MultivaluedMap<String, String> multivaluedMap, InputStream inputStream) throws IOException, WebApplicationException {
         String txt = IOUtils.toString(inputStream, com.google.common.base.Charsets.UTF_8);
@@ -73,6 +74,7 @@ public class UuidSerializer implements ScalarSerializer<UUID>, MessageBodyReader
     @Override
     public void writeTo(UUID uuid, Class<?> aClass, Type type, Annotation[] annotations, MediaType mediaType, MultivaluedMap<String, Object> multivaluedMap, OutputStream outputStream) throws IOException, WebApplicationException {
         String txt = this.write(uuid);
+        if (txt == null) txt = "null";
         OutputStreamWriter streamWriter = new OutputStreamWriter(outputStream);
         streamWriter.write(txt);
     }

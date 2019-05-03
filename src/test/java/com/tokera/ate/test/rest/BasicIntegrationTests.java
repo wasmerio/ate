@@ -9,13 +9,13 @@ import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.test.dao.MyAccount;
 import com.tokera.ate.test.dto.NewAccountDto;
-import com.tokera.ate.units.PEM;
 import org.junit.jupiter.api.*;
 
 import javax.validation.constraints.NotNull;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.MediaType;
+import java.util.UUID;
 
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -49,11 +49,17 @@ public class BasicIntegrationTests {
 
     @Test
     @Order(1)
+    public void testUuidSerializer() {
+        TestTools.restGet(null, "http://127.0.0.1:8080/rs/1-0/test/uuid").readEntity(UUID.class);
+    }
+
+    @Test
+    @Order(10)
     public void getAdminKey() {
         AteDelegate d = AteDelegate.get();
         MessagePrivateKeyDto key = d.encryptor.genSignKeyNtru(128);
 
-        @PEM String keyPem = key.getPublicKey();
+        String keyPem = key.getPublicKey();
         if (keyPem == null) throw new WebApplicationException("Failed to generate private key for domain");
         d.implicitSecurity.getEnquireOverride().put("tokauth.mycompany.org", keyPem);
 
@@ -66,7 +72,7 @@ public class BasicIntegrationTests {
     }
 
     @Test
-    @Order(2)
+    @Order(11)
     public void createAccount() {
         NewAccountDto newDetails = new NewAccountDto();
         newDetails.setEmail("test@mycompany.org");
