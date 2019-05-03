@@ -1,4 +1,4 @@
-package com.tokera.ate.dao.filters;
+package com.tokera.ate.filters;
 
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.scopes.ResourceScoped;
@@ -50,5 +50,10 @@ public class ResourceScopeInterceptor implements ContainerRequestFilter, Contain
 
     public @Nullable ResourceInfo getResourceInfoOrNull() {
         return this.resourceInfo;
+    }
+
+    public boolean isActive() {
+        if (context == null) return false;
+        return context.isActive();
     }
 }

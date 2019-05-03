@@ -11,7 +11,7 @@ import com.tokera.ate.io.MemoryCacheIO;
 import com.tokera.ate.io.core.DaoHelper;
 import com.tokera.ate.io.core.RequestAccessLog;
 import com.tokera.ate.io.core.StorageSystemFactory;
-import com.tokera.ate.dao.filters.ResourceScopeInterceptor;
+import com.tokera.ate.filters.ResourceScopeInterceptor;
 import com.tokera.ate.io.merge.DataMerger;
 import com.tokera.ate.security.Encryptor;
 import com.tokera.ate.extensions.DaoParentDiscoveryExtension;
