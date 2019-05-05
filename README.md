@@ -54,18 +54,6 @@ https://www.confluent.io/blog/okay-store-data-apache-kafka/
     |  |                 HTTP REST Service                 |  |
     *--|-^--^--^--^--^--^--^--^--^--^--^--^--^--^--^--^--^-|--*
 
-## Component Design
-
-### com.tokera.ate.dao.io
-
-Holds classes and factories used to perform CRUD (create,read,update and delete)
-operations on data held under a particular account.
-
-### com.tokera.ate.qualifiers
-
-Qualifiers used by the dependency injection engine to configure and setup the
-systems that manage the data.
-
 ## Contribution
 
 If you would like to help setup a community to continue to develop this project
