@@ -3,9 +3,9 @@ ATE
 
 ## Navigation
 
-[Executive Summary](README.md)
-[User Guide for ATE](doc/guide.md)
-[Technical Design of ATE](doc/design.md)
+- [Executive Summary](README.md)
+- [User Guide for ATE](doc/guide.md)
+- [Technical Design of ATE](doc/design.md)
 
 ## Summary
 
