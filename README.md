@@ -60,9 +60,9 @@ operations on data held under a particular account.
 Qualifiers used by the dependency injection engine to configure and setup the
 systems that manage the data.
 
-## Guides and Examples
+## Getting Started, Reference Documentation and Examples
 
-[doc/getting-started.md](doc/getting-started.md)
+[doc/guide.md](doc/guide.md)
 
 ## Contribution
 
