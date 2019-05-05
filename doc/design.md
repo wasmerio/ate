@@ -15,11 +15,12 @@ Technical Design for ATE
 4. [Absolute Portability](#absolute-portability)
 5. [Chain of Trust](#chain-of-trust)
 6. [Implicit Authority](#implicit-authority)
-7. [Fine-grained Security)(#fine-grained-security)
+7. [Fine Grained Security)(#fine-grained-security)
 9. [Quantum Resistent](#quantum-resistent)
 10. [Eventually Consistent Caching](#eventually-consistent-caching)
 11. [Native REST Integrated](#native-rest-integrated)
 12. [Component Design](#component-design)
+    1. [com.tokera.ate.annotations](#com-tokera-ate-annotations)
 
 ## Immutable Data
 
