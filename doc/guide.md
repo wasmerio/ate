@@ -1,13 +1,19 @@
 ATE library reference guide
 ===========================
 
-# Contents
+## Navigation
+
+[Executive Summary](../README.md)
+[User Guide for ATE](guide.md)
+[Technical Design of ATE](design.md)
+
+## Table of Contents
 
 1. [Maven](#maven) 
 2. [Bootstrap Application](#bootstrap-application)
 3. [Data Objects](#data-objects)
 
-# Maven
+## Maven
 
 An example maven POM.xml file is described below that will bring in everything thats needs to run the
 ATE database along with Undertow, Weld, Kafka, ZooKeeper and their depedencies.
@@ -160,7 +166,7 @@ This maven parent will bring in the following dependencies that are needed for A
 - Kafka
 - ZooKeeper 
 
-# Bootstrap Application
+## Bootstrap Application
 
 The ATE library comes with a bunch of integration and boostraping classes that allow you to get up
 and running in the quickest time possible. You can also use these classes to build your own
@@ -209,7 +215,7 @@ anything used by this library for security reasons.
 If you would like to read more about the design of ATE and how important the chain of trust is for
 Authentication, Authorization and Integrity then read this guide below:
 
-[ATE technical design](design.md)
+[Technical Design of ATE](design.md)
 
 The most important things to remember are the following:
 
@@ -233,7 +239,7 @@ For example to make your API respond to https://api.{domain}/api/1/ then set the
 - Add the following annotation - ApplicationPath("1")
 - Call the following method - BoostrapConfig.setRestApiPath("api")
 
-# Data Objects
+## Data Objects
 
 Data objects are what you create to model out your information domain into strongly typed objects. The 
 trade off between portability, backwards compatibility and serialization performance all data objects

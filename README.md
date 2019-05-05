@@ -1,5 +1,11 @@
-'ATE
+ATE
 ===
+
+## Navigation
+
+[Executive Summary](README.md)
+[User Guide for ATE](doc/guide.md)
+[Technical Design of ATE](doc/design.md)
 
 ## Summary
 
@@ -59,10 +65,6 @@ operations on data held under a particular account.
 
 Qualifiers used by the dependency injection engine to configure and setup the
 systems that manage the data.
-
-## Getting Started, Reference Documentation and Examples
-
-[doc/guide.md](doc/guide.md)
 
 ## Contribution
 
