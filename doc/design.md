@@ -20,7 +20,7 @@ Technical Design for ATE
 10. [Eventually Consistent Caching](#eventually-consistent-caching)
 11. [Native REST Integrated](#native-rest-integrated)
 12. [Component Design](#component-design)
-    1. [com.tokera.ate.annotations](#com-tokera-ate-annotations)
+    1. [com.tokera.ate.annotations](#com.tokera.ate.annotations)
 
 ## Immutable Data
 
