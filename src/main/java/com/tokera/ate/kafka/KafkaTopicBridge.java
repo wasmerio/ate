@@ -1,8 +1,10 @@
-package com.tokera.ate.io.repo;
+package com.tokera.ate.kafka;
 
 import com.tokera.ate.configuration.AteConstants;
 import com.tokera.ate.dao.kafka.MessageSerializer;
-import com.tokera.ate.kafka.KafkaConfigTools;
+import com.tokera.ate.io.repo.DataRepoConfig;
+import com.tokera.ate.io.repo.DataTopicChain;
+import com.tokera.ate.io.repo.IDataTopicBridge;
 import com.tokera.ate.common.ApplicationConfigLoader;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.common.MapTools;
@@ -16,7 +18,6 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
-import javax.ws.rs.core.Response;
 
 import org.apache.commons.lang.time.StopWatch;
 import org.apache.kafka.clients.consumer.ConsumerRecord;

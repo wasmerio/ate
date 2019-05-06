@@ -11,7 +11,7 @@ ATE library reference guide
 
 1. [Maven](#maven) 
 2. [Bootstrap Application](#bootstrap-application)
-3. [Data Objects](#data-objects)
+3. [Data Access Objects](#data-access-objects)
 
 ## Maven
 
@@ -239,10 +239,10 @@ For example to make your API respond to https://api.{domain}/api/1/ then set the
 - Add the following annotation - ApplicationPath("1")
 - Call the following method - BoostrapConfig.setRestApiPath("api")
 
-## Data Objects
+## Data Access Objects
 
-Data objects are what you create to model out your information domain into strongly typed objects. The 
-trade off between portability, backwards compatibility and serialization performance all data objects
+Data access objects are what you create to model out your information domain into strongly typed objects.
+The trade off between portability, backwards compatibility and serialization performance all data objects
 are stored within the ATE database as small encrypted JSON documents.
 
 Below is an example data object

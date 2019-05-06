@@ -1,5 +1,7 @@
-package com.tokera.ate.io.repo;
+package com.tokera.ate.kafka;
 
+import com.tokera.ate.io.repo.DataTopicChain;
+import com.tokera.ate.io.repo.IDataTopicBridge;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.common.ApplicationConfigLoader;
 import com.tokera.ate.common.LoggerHook;

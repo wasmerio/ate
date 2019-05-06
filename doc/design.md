@@ -50,7 +50,21 @@ Technical Design for ATE
 Declares the custom annotations used by ATE, one design goal with the annotations of ATE was to
 minimize the number of new annotations when external but existing ones already exist thus the majority
 of annotations defined are for its unique features, in particular, its advanced authentication and
-authorization engine.
+authorization engine. Some notable annotations are the following:
+
+- HideLog, VerboseLog, ShowLogs are used to control the level of logging performed on different methods
+  which is especially important for sensitive data such as passwords.
+- PermitParentFree marks DAO (Data Access Objects) that are allowed to be the root of a chain-of-trust
+- PermitParentType lists all the parent DAOs that a particular child DAO can be attached to in the chain-of-trust
+- PermitReadEntity marks a particular path parameter as a need authority claim in order for the method
+  to be invoked otherwise an access violation will occur. The role must be a read role.
+- PermitWriteEntity is similar to a PermitReadEntity but is for write roles.
+- PermitRiskRole will restrict methods to a particular risk level, this is useful for classifying
+  methods based on security risk and ensuring the High risk methods use a stronger authentication method
+  such as multi-factor authentication.
+- PermitUserRole allows for different methods to be restricted between humans and autoation.
+- YamlTag allows DTO (Data Transfer Objects) to override the fully qualified naming of YAML objects
+  with a shortened version instead.
 
 ### com.tokera.ate.client
 
@@ -169,9 +183,20 @@ performed on API calls as they are processed - notable filters include:
 
 ### com.tokera.ate.io
 
+Contains the core classes and backend enginer for the ATE database. This includes the chain-of-trust
+validation, DAO transaction merging logic and the StorageSystemFactory that configures the backend for
+a particular use-case.
+
+See the [User Guide](guide.md) for details on how to set this up.
+
 ### com.tokera.ate.kafka
 
+Holds the database backend that uses the Kafka distributed commit log as its main storage backend.
+
 ### com.tokera.ate.providers
+
+Contains a bunch of YamlSerializers for common data types plus Resteasy serializers that allow for
+data streaming and native YAML media types.
 
 ### com.tokera.ate.qualifiers
 
@@ -180,18 +205,51 @@ data.
 
 ### com.tokera.ate.scopes
 
+Contains the custom scopes used by ATE that simplify the complexity - these scopes are:
+
+- ResourceScoped which is unique for each Resteasy method thats invoked
+- TokenScoped which is unique for each Token thats passed to the Resteasy call
+
 ### com.tokera.ate.security
+
+All the special security classes reside here such including some helper classes for creating and
+manipulating tokens but critically the NTRU encryption helpers that allow for strong authentication
+and authorization of data records with built in resistance to quantum attacks. Further this includes
+a special seeding modification that allows for NTRU key pairs to be generated in a deterministic but
+difficult to crack way.
 
 ### com.tokera.ate.token
 
+Contains the OpenSAML writing and validation logic.
+
 ### com.tokera.ate.units
+
+Bunch of generic unit qualifiers that make it generic types more strongly typed and improve the
+richness of the limited java type system. 
 
 ### com.tokera.ate.ApiServer
 
+Main class to invoke when bootstrapping your application. Alternatively you can configure the dependency
+injection sub-system and your application server without this helper class. Regardless this class
+shows you how to connect and configure everything.
+
 ### com.tokera.ate.BootstrapApp
+
+Base application class that you can extend to minimize bootstrapping code on the
+javax.ws.rs.core.Application class
 
 ### com.tokera.ate.BootstrapConfig
 
+Main configuration class to modify when tuning the ATE database engine to your particular use case.
+
 ### com.tokera.ate.KafkaServer
 
+ApplicationScoped bean that will configure and start the Kafka sub-system within this same JVM with
+minimal operational overhead. Preventing this server from starting and instead hosting your own
+Kafka instances is also possible.
+
 ### com.tokera.ate.ZooServer
+
+ApplicationScoped bean that will configure and start the ZooKeeper sub-system within this same JVM
+with minimum operational overhead. Preventing this server from starting and instead hosting your own
+ZooKeeper instance is also possible.

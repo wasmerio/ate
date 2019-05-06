@@ -6,7 +6,7 @@ import com.tokera.ate.common.ApplicationConfigLoader;
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.extensions.*;
-import com.tokera.ate.io.repo.KafkaBridgeBuilder;
+import com.tokera.ate.kafka.KafkaBridgeBuilder;
 import com.tokera.ate.providers.ProcessBodyReader;
 import com.tokera.ate.providers.ProcessBodyWriter;
 import com.tokera.ate.providers.YamlProvider;

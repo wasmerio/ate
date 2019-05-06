@@ -13,6 +13,7 @@ import com.tokera.ate.io.core.RequestAccessLog;
 import com.tokera.ate.io.core.StorageSystemFactory;
 import com.tokera.ate.filters.ResourceScopeInterceptor;
 import com.tokera.ate.io.merge.DataMerger;
+import com.tokera.ate.kafka.KafkaBridgeBuilder;
 import com.tokera.ate.security.Encryptor;
 import com.tokera.ate.extensions.DaoParentDiscoveryExtension;
 import com.tokera.ate.extensions.YamlTagDiscoveryExtension;
