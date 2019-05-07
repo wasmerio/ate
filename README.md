@@ -1,16 +1,16 @@
 ATE
 ===
 
-## Why the name?
-
-The origin of the word "mutate" is the latin word '-ate':  
-https://www.dictionary.com/browse/mutate
-
 ## Navigation
 
 - [Executive Summary](README.md)
 - [User Guide for ATE](doc/guide.md)
 - [Technical Design of ATE](doc/design.md)
+
+## Why the name?
+
+The origin of the word "mutate" is the latin word '-ate':  
+https://www.dictionary.com/browse/mutate
 
 ## Summary
 
@@ -29,14 +29,6 @@ This library is a way of working with data in modern distributed computing.
 * ...strong authentication and authorized is by design built into the data model.
 * ...encryption is highly resistant to quantum attacks and uses fine-grained tenant keys.
 * ...all this is integrated into a shared-nothing highly portable executable.
-
-## References
-
-Its okay to store data in Kafka...  
-https://www.confluent.io/blog/okay-store-data-apache-kafka/
-
-Quantum resistant crypto...  
-https://en.wikipedia.org/wiki/NTRU
 
 ## High Level Design
 
@@ -70,6 +62,14 @@ https://en.wikipedia.org/wiki/NTRU
     |  |                                                   |  |
     |  |          >realtime client side cache<             |  |
     |  +---------------------------------------------------+  |
+
+## References
+
+Its okay to store data in Kafka...  
+https://www.confluent.io/blog/okay-store-data-apache-kafka/
+
+Quantum resistant crypto...  
+https://en.wikipedia.org/wiki/NTRU
 
 ## Contribution
 
