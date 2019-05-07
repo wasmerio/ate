@@ -6,6 +6,7 @@ ATE
 - [Executive Summary](README.md)
 - [User Guide for ATE](doc/guide.md)
 - [Technical Design of ATE](doc/design.md)
+- [Component Design of ATE](doc/components.md)
 
 ## Why the name?
 
