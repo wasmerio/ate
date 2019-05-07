@@ -10,12 +10,12 @@ ATE Components and Packages
 
 ### com.tokera.ate.annotations
 
-Declares the custom annotations used by ATE, one design goal with the annotations of ATE was to
-minimize the number of new annotations when external but existing ones already exist thus the majority
-of annotations defined are for its unique features, in particular, its advanced authentication and
-authorization engine. Some notable annotations are the following:
+Declares the custom annotations used by ATE, one design goal with the annotations was to minimize the
+creation of new custom annotations when perfectly useable annotations already exist elsewhere thus the
+majority of annotations defined in this library are for its unique features - in particular - its
+advanced authentication and authorization engine - more details are as follows:
 
-- HideLog, VerboseLog, ShowLogs are used to control the level of logging performed on different methods
+- **HideLog**, **VerboseLog**, ShowLogs are used to control the level of logging performed on different methods
   which is especially important for sensitive data such as passwords.
 - PermitParentFree marks DAO (Data Access Objects) that are allowed to be the root of a chain-of-trust
 - PermitParentType lists all the parent DAOs that a particular child DAO can be attached to in the chain-of-trust
