@@ -1,6 +1,11 @@
 ATE
 ===
 
+## Why the name?
+
+The origin of the word "mutate" is the latin word -ate:
+https://www.dictionary.com/browse/mutate
+
 ## Navigation
 
 - [Executive Summary](README.md)
@@ -14,19 +19,24 @@ view with strong encryption and authentication.
 
 What does that mean?
 
-This library is a way of working with data in modern computing.
+This library is a way of working with data in modern distributed computing.
 * ...data is persisted to a distributed commit log (Kafka).
-* ...partitions are divided into topics that represent each account.
-* ...streaming of data to the application occurs on demand during login.
-* ...while online data is kept up-to-date using caching invalidation.
-* ...each account is a crypto-graph with unique asymmetric keys.
-* ...strong authentication and authorized is design built-in to the data model.
-* ...encryption is highly resistant to quantum attacks and highly segregated.
+* ...partitions are divided into topics that shard data into physical domains.
+* ...streaming of data to the application occurs on demand during method invocation.
+* ...while online data is kept up-to-date using caching invalidation and publish/subscribe.
+* ...each topic is a crypto-graph with unique asymmetric keys at differentiating nodes.
+* ...the root of the chain-of-trust that validates the crypto-graph is DNS(Sec).
+* ...strong authentication and authorized is by design built into the data model.
+* ...encryption is highly resistant to quantum attacks and uses fine-grained tenant keys.
+* ...all this is integrated into a shared-nothing highly portable executable.
 
 ## References
 
-Its okay to store data in Kafka  
+Its okay to store data in Kafka...
 https://www.confluent.io/blog/okay-store-data-apache-kafka/
+
+Quantum resistant crypto...
+https://en.wikipedia.org/wiki/NTRU
 
 ## High Level Design
 
