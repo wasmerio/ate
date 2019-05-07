@@ -3,7 +3,7 @@ ATE
 
 ## Why the name?
 
-The origin of the word "mutate" is the latin word -ate:
+The origin of the word "mutate" is the latin word '-ate':
 https://www.dictionary.com/browse/mutate
 
 ## Navigation
@@ -61,14 +61,14 @@ https://en.wikipedia.org/wiki/NTRU
     |  |                                  |   *-----------*   |
     |  +----------------------------------+----------------+  |
     |  |                 HTTP REST Service                 |  |
-    *--|-^--^--^--^--^--^--^--^--^--^--^--^--^--^--^--^--^-|--*
-       .                         |         +---------+     .
+    *--|-^--^--^--^--^--^--^--^--^--^--^--^--^--+--^--^--^-|--*
+       .                         |         +----|----+     .
        .                       [dto]       | headers |     .
-       .                         |         +---------+     .
-    .--|---------------------------------------------------|--.
-    |  |          >realtime client side cache<             |  |
-    |  |                                                   |  |
+       .                         |         +----|----+     .
+    .--|----------------------------------------+----------|--.
     |  |                [HTTP REST Client]                 |  |
+    |  |                                                   |  |
+    |  |          >realtime client side cache<             |  |
     |  +---------------------------------------------------+  |
 
 ## Contribution
