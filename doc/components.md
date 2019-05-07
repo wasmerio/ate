@@ -219,7 +219,7 @@ ApplicationScoped bean that will configure and start the Kafka sub-system within
 minimal operational overhead. Preventing this server from starting and instead hosting your own
 Kafka instances is also possible.
 
-### com.tokera.ate.**ZooServer**
+### _com.tokera.ate._**ZooServer**
 
 ApplicationScoped bean that will configure and start the ZooKeeper sub-system within this same JVM
 with minimum operational overhead. Preventing this server from starting and instead hosting your own
