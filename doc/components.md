@@ -15,18 +15,25 @@ creation of new custom annotations when perfectly useable annotations already ex
 majority of annotations defined in this library are for its unique features - in particular - its
 advanced authentication and authorization engine - more details are as follows:
 
-- **HideLog**, **VerboseLog**, ShowLogs are used to control the level of logging performed on different methods
-  which is especially important for sensitive data such as passwords.
-- PermitParentFree marks DAO (Data Access Objects) that are allowed to be the root of a chain-of-trust
-- PermitParentType lists all the parent DAOs that a particular child DAO can be attached to in the chain-of-trust
-- PermitReadEntity marks a particular path parameter as a need authority claim in order for the method
-  to be invoked otherwise an access violation will occur. The role must be a read role.
-- PermitWriteEntity is similar to a PermitReadEntity but is for write roles.
-- PermitRiskRole will restrict methods to a particular risk level, this is useful for classifying
-  methods based on security risk and ensuring the High risk methods use a stronger authentication method
-  such as multi-factor authentication.
-- PermitUserRole allows for different methods to be restricted between humans and autoation.
-- YamlTag allows DTO (Data Transfer Objects) to override the fully qualified naming of YAML objects
+- **HideLog**, **VerboseLog**, **ShowLogs** are used to control the level of logging performed on
+  different methods which is especially important for sensitive data such as passwords.
+- **PermitParentFree** marks DAO (Data Access Objects) that are allowed to be the root of a
+   chain-of-trust (as in they do not need to be attached to a parent)
+- **PermitParentType** lists all the parent DAOs types that a particular child DAO can be attached to
+  in the chain-of-trust
+- **PermitReadEntity** marks a particular path parameter that will be validated for authority before the
+  method is allowed to be invoked (otherwise an access violation will occur). In this case the supplied
+  token must include an authorization claim that matches the path parameter value or it must exist
+  programmically in the CurrentRightsDelegte. The specific needed claim must be read right as the ability
+  to read and write are two explicitly seperate permissions.
+- **PermitWriteEntity** is similar to a **PermitReadEntity** but is for write claims.
+- **PermitRiskRole** will restrict methods to a particular risk level, this is useful for classifying
+  methods based on the level of security risk they pose and then using this permission to ensure these
+  high risk methods can only be invoked by tokens that were generated via a stronger authentication
+  method such as multi-factor authentication.
+- **PermitUserRole** allows for different methods to be restricted between humans and automation thus
+  ensuring that certain operation tasks are restricted. In practice the use of this annotation is rare.
+- **YamlTag** allows DTO (Data Transfer Objects) to override the fully qualified naming of YAML objects
   with a shortened version instead.
 
 ### com.tokera.ate.client
