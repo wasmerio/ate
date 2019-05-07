@@ -8,7 +8,7 @@ ATE Components and Packages
 - [Technical Design of ATE](design.md)
 - [Component Design of ATE](components.md)
 
-## _com.tokera.ate.annotations_
+## _com.tokera.ate.annotations_.*
 
 Declares the custom annotations used by ATE. A key design goal with the annotations was to minimize the
 creation of new custom annotations when perfectly useable annotations already exist elsewhere thus the
@@ -36,12 +36,12 @@ advanced authentication and authorization engine - more details are as follows:
 - **YamlTag** allows DTO (Data Transfer Objects) to override the fully qualified naming of YAML objects
   with a shortened version instead.
 
-## _com.tokera.ate.client_
+## _com.tokera.ate.client_.*
 
 REST client class and helpers to reduce the amount of boilerplate coding required to call ATE enabled
 resteasy APIs, which is especially useful for unit tests.
 
-## _com.tokera.ate.common_
+## _com.tokera.ate.common_.*
 
 Contains all the odd classes that dont easily fit into a generic categorization.  
 Some notable classes here are:
@@ -50,38 +50,38 @@ Some notable classes here are:
 - LoggerHook that makes it easier to add context aware loggers using dependency injection.
 - String, Xml, Uuid and Uri helper classes.
 
-## _com.tokera.ate.configuration_
+## _com.tokera.ate.configuration_.*
 
 Currently this package just holds a bunch of constants one shouldnt really need to touch.
 
-## _com.tokera.ate.constaints_
+## _com.tokera.ate.constaints_.*
 
 Custom validations for data fields and types defined for ATE - in particular - the private and public
 key types have validators maintained here.
 
-## _com.tokera.ate.dao_
+## _com.tokera.ate.dao_.*
 
 Holds all the base classes, interfaces and message flatbuffer serializers that underpin the data objects
 stored and retrieved from the ATE database.
 
-## _com.tokera.ate.delegates_
+## _com.tokera.ate.delegates_.*
 
 Core functionality is split into separate delegate functional classes that perform specific roles and
 responsibilities within ATE. Grouping and separating the functional logic makes the code cleaner,
 improves the readability and reduces bugs by better managing the overall complexity and hence quality.
 
-## _com.tokera.ate.dto_
+## _com.tokera.ate.dto_.*
 
 Classes under this package are "Data Transfer Objects" which are used for transfering explicit strongly
 typed data over the wire between APIs and their clients, these DTOs are also used as messaging formats
 on the Kafka BUS. Some important objects reside here such as the data message encapsulation classes
 that have built in COW (copy-on-write) sementics and the token classes that hold the SAML XML documents.
 
-## _com.tokera.ate.enumerations_
+## _com.tokera.ate.enumerations_.*
 
 As implied by the name of this package it holds all the custom defined enumerations used by this library.
 
-## _com.tokera.ate.events_
+## _com.tokera.ate.events_.*
 
 ATE uses the events architecture of the dependency injection frameworks (in this case Weld) in order
 to notify impacted beans of certain critical events.  
@@ -91,11 +91,11 @@ These include (but are not limited to):
 - Events triggered when the access rights of the current context change.
 - Events triggered when a newly loaded Topic needs to be seeded with the root of the chain-of-trust.
 
-## _com.tokera.ate.exceptions_
+## _com.tokera.ate.exceptions_.*
 
 Some minor helper classes here are used to bundle up validation violations.
 
-## _com.tokera.ate.extensions_
+## _com.tokera.ate.extensions_.*
 
 ATE defined extensions here effectively plugin and hook up key parts of the ATE engine so that it needs
 minimum boilerplate code and can self-discover and configure itself - notable extensions include:
@@ -119,7 +119,7 @@ minimum boilerplate code and can self-discover and configure itself - notable ex
 - **YamlTagDiscoveryExtension** allows serializable data transfer objects (DTOs) that are marked with the
   **YamlTag** annotation to use a shorthand tag rather than the fully qualified class name.
 
-## _com.tokera.ate.filters_
+## _com.tokera.ate.filters_.*
 
 Filters are relevant only for the resteasy pipeline and effectively hook into the flow of actions
 performed on API calls as they are processed - notable filters include:
@@ -154,7 +154,7 @@ performed on API calls as they are processed - notable filters include:
   when version upgrades are detected on subsequent API calls after an upgrade has taken place. Otherwise
   API releases would appear to not have had any effect on existing connections that are still caching.
 
-## _com.tokera.ate.io_
+## _com.tokera.ate.io_.*
 
 Contains the core classes and backend engine for the ATE database. This includes the chain-of-trust
 validation, DAO transaction merging logic and the **StorageSystemFactory** that configures the backend for
@@ -162,20 +162,20 @@ a particular use-case.
 
 See the [user guide](guide.md) for details on how to set this up.
 
-## _com.tokera.ate.kafka_
+## _com.tokera.ate.kafka_.*
 
 Holds the database backend that uses the Kafka distributed commit log as its main storage backend.
 
-## _com.tokera.ate.providers_
+## _com.tokera.ate.providers_.*
 
 Contains a bunch of YamlSerializers for common primative data types plus resteasy serializers that
 allow for data streaming and native YAML media types.
 
-## _com.tokera.ate.qualifiers_
+## _com.tokera.ate.qualifiers_.*
 
 Custom qualifiers used by the dependency injection engine.
 
-## _com.tokera.ate.scopes_
+## _com.tokera.ate.scopes_.*
 
 Contains the custom scopes used by ATE that simplify the complexity that would otherwise be required if
 such scopes were not possible - these scopes are:
@@ -183,7 +183,7 @@ such scopes were not possible - these scopes are:
 - **ResourceScoped** which is unique for each resteasy method thats invoked
 - **TokenScoped** which is unique for each unqiue token thats passed to the resteasy API call
 
-## _com.tokera.ate.security_
+## _com.tokera.ate.security_.*
 
 All the special security classes reside here including some helper classes for creating and
 manipulating tokens but critically the NTRU encryption helpers that allow for strong authentication
@@ -191,11 +191,11 @@ and authorization of data records with built in resistance to quantum attacks - 
 a special seeding modification to NTRU that allows for key pairs to be generated in a deterministic but
 difficult to crack way.
 
-## _com.tokera.ate.token_
+## _com.tokera.ate.token_.*
 
 Contains the OpenSAML parsing, writing and validation logic.
 
-## _com.tokera.ate.units_
+## _com.tokera.ate.units_.*
 
 Bunch of generic unit qualifiers that make generic types more strongly typed and improve the richness
 of the limited java type system. 
