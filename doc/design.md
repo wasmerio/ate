@@ -1,5 +1,5 @@
-Technical Design for ATE
-========================
+ATE Technical Design
+====================
 
 ## Navigation
 

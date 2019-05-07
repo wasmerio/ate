@@ -1,5 +1,5 @@
-Component Design for ATE
-========================
+ATE Components and Packages
+===========================
 
 ## Navigation
 
