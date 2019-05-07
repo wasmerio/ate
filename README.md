@@ -3,7 +3,7 @@ ATE
 
 ## Why the name?
 
-The origin of the word "mutate" is the latin word '-ate':
+The origin of the word "mutate" is the latin word '-ate':  
 https://www.dictionary.com/browse/mutate
 
 ## Navigation
