@@ -135,10 +135,10 @@ ATE has the following (external) dependencies:
 
                                                        
                                  DNS
-                                  |
-                         Interconnected Network         ^=----shared stuff
+                                  |                 ^--shared stuff
+                         Interconnected Network         
           +-----------------------+-----------------------+    
-          |                       |                       |      
+          |                       |                       |
       +---+---+               +---+---+               +---+---+
       |  CPU  |               |  CPU  |               |  CPU  |
       +-------+               +-------+               +-------+
@@ -151,7 +151,7 @@ ATE has the following (external) dependencies:
 Given the very few external dependencies this architecture is considered by the
 author to be of the "Shared Nothing" type. Specifically (when operating in the
 [stateless mode](#stateless-mode) it has no external state machine or database
- that it relies on.
+that it relies on.
 
 Reference: https://en.wikipedia.org/wiki/Shared-nothing_architecture
 
