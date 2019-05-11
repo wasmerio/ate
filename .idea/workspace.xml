@@ -61,8 +61,8 @@
         <entry file="file://$PROJECT_DIR$/doc/design.md">
           <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
             <state split_layout="SPLIT">
-              <first_editor relative-caret-position="165">
-                <caret line="155" lean-forward="true" selection-start-line="155" selection-end-line="155" />
+              <first_editor relative-caret-position="345">
+                <caret line="149" lean-forward="true" selection-start-line="149" selection-end-line="149" />
               </first_editor>
               <second_editor />
             </state>
@@ -290,7 +290,7 @@
     </panes>
   </component>
   <component name="PropertiesComponent">
-    <property name="com.android.tools.idea.instantapp.provision.ProvisionBeforeRunTaskProvider.myTimeStamp" value="1557552624903" />
+    <property name="com.android.tools.idea.instantapp.provision.ProvisionBeforeRunTaskProvider.myTimeStamp" value="1557552723395" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
     <property name="project.structure.last.edited" value="Modules" />
     <property name="project.structure.proportion" value="0.15" />
@@ -913,8 +913,8 @@
     <entry file="file://$PROJECT_DIR$/doc/design.md">
       <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
         <state split_layout="SPLIT">
-          <first_editor relative-caret-position="165">
-            <caret line="155" lean-forward="true" selection-start-line="155" selection-end-line="155" />
+          <first_editor relative-caret-position="345">
+            <caret line="149" lean-forward="true" selection-start-line="149" selection-end-line="149" />
           </first_editor>
           <second_editor />
         </state>

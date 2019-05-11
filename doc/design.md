@@ -145,7 +145,6 @@ ATE has the following (external) dependencies:
       |  MEM  |               |  MEM  |               |  MEM  |
       +-------+               +-------+               +-------+
       |   |   |               |   |   |               |   |   |
-     _I_ _I_ _I_             _I_ _I_ _I_             _I_ _I_ _I_
      === === ===             === === ===             === === ===
        (Disks)                 (Disks)                 (Disks)
 
