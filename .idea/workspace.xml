@@ -24,7 +24,7 @@
   </component>
   <component name="ChangeListManager">
     <list default="true" id="1787db08-4ad1-4647-9852-a11b04b311d8" name="Default Changelist" comment="">
-      <change beforePath="$PROJECT_DIR$/doc/design.md" beforeDir="false" afterPath="$PROJECT_DIR$/doc/design.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/doc/guide.md" beforeDir="false" afterPath="$PROJECT_DIR$/doc/guide.md" afterDir="false" />
     </list>
     <ignored path="$PROJECT_DIR$/target/" />
     <option name="EXCLUDED_CONVERTED_TO_IGNORED" value="true" />
@@ -57,12 +57,12 @@
           </provider>
         </entry>
       </file>
-      <file pinned="false" current-in-tab="true">
+      <file pinned="false" current-in-tab="false">
         <entry file="file://$PROJECT_DIR$/doc/design.md">
           <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
             <state split_layout="SPLIT">
-              <first_editor relative-caret-position="285">
-                <caret line="148" lean-forward="true" selection-start-line="148" selection-end-line="148" />
+              <first_editor relative-caret-position="420">
+                <caret line="157" lean-forward="true" selection-start-line="157" selection-end-line="157" />
               </first_editor>
               <second_editor />
             </state>
@@ -81,11 +81,23 @@
           </provider>
         </entry>
       </file>
-      <file pinned="false" current-in-tab="false">
+      <file pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/doc/guide.md">
           <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
             <state split_layout="SPLIT">
-              <first_editor />
+              <first_editor relative-caret-position="287">
+                <caret line="287" column="3" selection-start-line="287" selection-start-column="3" selection-end-line="287" selection-end-column="3" />
+                <folding>
+                  <element signature="e#148#149#0" expanded="true" />
+                  <element signature="e#171#172#0" expanded="true" />
+                  <element signature="e#354#355#0" expanded="true" />
+                  <element signature="e#393#394#0" expanded="true" />
+                  <element signature="e#440#441#0" expanded="true" />
+                  <element signature="e#465#466#0" expanded="true" />
+                  <element signature="e#528#529#0" expanded="true" />
+                  <element signature="e#555#556#0" expanded="true" />
+                </folding>
+              </first_editor>
               <second_editor />
             </state>
           </provider>
@@ -192,7 +204,6 @@
   <component name="IdeDocumentHistory">
     <option name="CHANGED_PATHS">
       <list>
-        <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/rest/LoginREST.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/delegates/CurrentTokenDelegate.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/common/StringTools.java" />
         <option value="$PROJECT_DIR$/src/main/java/com/tokera/ate/BootstrapConfig.java" />
@@ -243,6 +254,7 @@
         <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/weld/WeldTests.java" />
         <option value="$PROJECT_DIR$/src/test/java/com/tokera/ate/test/chain/ChainOfTrustTests.java" />
         <option value="$PROJECT_DIR$/doc/design.md" />
+        <option value="$PROJECT_DIR$/doc/guide.md" />
       </list>
     </option>
   </component>
@@ -290,7 +302,7 @@
     </panes>
   </component>
   <component name="PropertiesComponent">
-    <property name="com.android.tools.idea.instantapp.provision.ProvisionBeforeRunTaskProvider.myTimeStamp" value="1557555897904" />
+    <property name="com.android.tools.idea.instantapp.provision.ProvisionBeforeRunTaskProvider.myTimeStamp" value="1557556817220" />
     <property name="last_opened_file_path" value="$PROJECT_DIR$" />
     <property name="project.structure.last.edited" value="Modules" />
     <property name="project.structure.proportion" value="0.15" />
@@ -902,19 +914,31 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/doc/guide.md">
+    <entry file="file://$PROJECT_DIR$/doc/design.md">
       <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
         <state split_layout="SPLIT">
-          <first_editor />
+          <first_editor relative-caret-position="420">
+            <caret line="157" lean-forward="true" selection-start-line="157" selection-end-line="157" />
+          </first_editor>
           <second_editor />
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/doc/design.md">
+    <entry file="file://$PROJECT_DIR$/doc/guide.md">
       <provider selected="true" editor-type-id="split-provider[text-editor;markdown-preview-editor]">
         <state split_layout="SPLIT">
-          <first_editor relative-caret-position="285">
-            <caret line="148" lean-forward="true" selection-start-line="148" selection-end-line="148" />
+          <first_editor relative-caret-position="287">
+            <caret line="287" column="3" selection-start-line="287" selection-start-column="3" selection-end-line="287" selection-end-column="3" />
+            <folding>
+              <element signature="e#148#149#0" expanded="true" />
+              <element signature="e#171#172#0" expanded="true" />
+              <element signature="e#354#355#0" expanded="true" />
+              <element signature="e#393#394#0" expanded="true" />
+              <element signature="e#440#441#0" expanded="true" />
+              <element signature="e#465#466#0" expanded="true" />
+              <element signature="e#528#529#0" expanded="true" />
+              <element signature="e#555#556#0" expanded="true" />
+            </folding>
           </first_editor>
           <second_editor />
         </state>

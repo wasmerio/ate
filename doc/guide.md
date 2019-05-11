@@ -19,140 +19,142 @@ ATE library reference guide
 An example maven POM.xml file is described below that will bring in everything thats needs to run the
 ATE database along with Undertow, Weld, Kafka, ZooKeeper and their depedencies.
 
-    <?xml version="1.0" encoding="UTF-8"?>
-    <project xmlns="http://maven.apache.org/POM/4.0.0"
-             xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-             xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-        <modelVersion>4.0.0</modelVersion>
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<modelVersion>4.0.0</modelVersion>
+    <groupId>com.tokera</groupId>
+    <artifactId>hello-world</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <parent>
         <groupId>com.tokera</groupId>
-        <artifactId>hello-world</artifactId>
-        <version>1.0-SNAPSHOT</version>
-        <parent>
-            <groupId>com.tokera</groupId>
-            <artifactId>ate-deps</artifactId>
-            <version>0.1.42</version>
-        </parent>
-        <licenses>
-            <license>
-                <name>Apache License, Version 2.0</name>
-                <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
-                <distribution>repo</distribution>
-            </license>
-        </licenses>
-        <properties>
-            <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-            <maven.compiler.source>1.8</maven.compiler.source>
-            <maven.compiler.target>1.8</maven.compiler.target>
-            <log4j.version>1.2.17</log4j.version>
-            <slf4j.version>1.7.26</slf4j.version>
-            <weld.junit.version>1.3.1.Final</weld.junit.version>
-            <surefire.version>3.0.0-M3</surefire.version>
-            <tokera.ate.version>0.1.42</tokera.ate.version>
-        </properties>
-        <dependency>
-            <groupId>org.jboss.weld</groupId>
-            <artifactId>weld-junit5</artifactId>
-            <version>${weld.junit.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-api</artifactId>
-            <version>${slf4j.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-simple</artifactId>
-            <version>${slf4j.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-log4j12</artifactId>
-            <version>${slf4j.version}</version>
-            <scope>runtime</scope>
-        </dependency>
-        <dependency>
-            <groupId>log4j</groupId>
-            <artifactId>log4j</artifactId>
-            <version>${log4j.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>com.tokera</groupId>
-            <artifactId>ate</artifactId>
-            <version>${tokera.ate.version}</version>
-            <type>jar</type>
-        </dependency>
-        <build>
-            <plugins>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-surefire-plugin</artifactId>
-                    <version>${surefire.version}</version>
-                    <configuration>
-                        <classpathDependencyExcludes>
-                            <classpathDependencyExcludes>ch.qos.logback:logback-classic</classpathDependencyExcludes>
-                            <classpathDependencyExcludes>org.slf4j:slf4j-log4j12</classpathDependencyExcludes>
-                        </classpathDependencyExcludes>
-                    </configuration>
-                </plugin>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-compiler-plugin</artifactId>
-                    <version>3.8.0</version>
-                    <configuration>
-                        <compilerArguments>
-                            <Xmaxerrs>10000</Xmaxerrs>
-                            <Xmaxwarns>10000</Xmaxwarns>
-                        </compilerArguments>
-                        <fork>true</fork>
-                        <source>1.8</source>
-                        <target>1.8</target>
-                        <compilerArgs>
-                            <arg>-XDignore.symbol.file</arg>
-                            <arg>-Werror</arg>
-                            <arg>-Awarns</arg>
-                            <arg>-Alint=all</arg>
-                        </compilerArgs>
-                    </configuration>
-                </plugin>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-dependency-plugin</artifactId>
-                    <version>3.1.1</version>
-                    <executions>
-                        <execution>
-                            <id>copy-dependencies</id>
-                            <phase>prepare-package</phase>
-                            <goals>
-                                <goal>copy-dependencies</goal>
-                            </goals>
-                            <configuration>
-                                <outputDirectory>${project.build.directory}/lib</outputDirectory>
-                                <overWriteReleases>false</overWriteReleases>
-                                <overWriteSnapshots>false</overWriteSnapshots>
-                                <overWriteIfNewer>true</overWriteIfNewer>
-                            </configuration>
-                        </execution>
-                    </executions>
-                </plugin>
-                <plugin>
-                    <groupId>org.apache.maven.plugins</groupId>
-                    <artifactId>maven-jar-plugin</artifactId>
-                    <version>3.1.1</version>
-                    <configuration>
-                        <archive>
-                            <index>true</index>
-                            <manifest>
-                                <addClasspath>true</addClasspath>
-                                <mainClass>com.tokera.examples.HelloWorldApp</mainClass>
-                                <classpathPrefix>lib</classpathPrefix>
-                            </manifest>
-                        </archive>
-                    </configuration>
-                </plugin>
-             </plugins>
-        </build>
-    </project>
+        <artifactId>ate-deps</artifactId>
+        <version>0.1.42</version>
+    </parent>
+    <licenses>
+        <license>
+            <name>Apache License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+    <properties>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <maven.compiler.target>1.8</maven.compiler.target>
+        <log4j.version>1.2.17</log4j.version>
+        <slf4j.version>1.7.26</slf4j.version>
+        <weld.junit.version>1.3.1.Final</weld.junit.version>
+        <surefire.version>3.0.0-M3</surefire.version>
+        <tokera.ate.version>0.1.42</tokera.ate.version>
+    </properties>
+    <dependency>
+        <groupId>org.jboss.weld</groupId>
+        <artifactId>weld-junit5</artifactId>
+        <version>${weld.junit.version}</version>
+    </dependency>
+    <dependency>
+        <groupId>org.slf4j</groupId>
+        <artifactId>slf4j-api</artifactId>
+        <version>${slf4j.version}</version>
+    </dependency>
+    <dependency>
+        <groupId>org.slf4j</groupId>
+        <artifactId>slf4j-simple</artifactId>
+        <version>${slf4j.version}</version>
+        <scope>test</scope>
+    </dependency>
+    <dependency>
+        <groupId>org.slf4j</groupId>
+        <artifactId>slf4j-log4j12</artifactId>
+        <version>${slf4j.version}</version>
+        <scope>runtime</scope>
+    </dependency>
+    <dependency>
+        <groupId>log4j</groupId>
+        <artifactId>log4j</artifactId>
+        <version>${log4j.version}</version>
+    </dependency>
+    <dependency>
+        <groupId>com.tokera</groupId>
+        <artifactId>ate</artifactId>
+        <version>${tokera.ate.version}</version>
+        <type>jar</type>
+    </dependency>
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>${surefire.version}</version>
+                <configuration>
+                    <classpathDependencyExcludes>
+                        <classpathDependencyExcludes>ch.qos.logback:logback-classic</classpathDependencyExcludes>
+                        <classpathDependencyExcludes>org.slf4j:slf4j-log4j12</classpathDependencyExcludes>
+                    </classpathDependencyExcludes>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.8.0</version>
+                <configuration>
+                    <compilerArguments>
+                        <Xmaxerrs>10000</Xmaxerrs>
+                        <Xmaxwarns>10000</Xmaxwarns>
+                    </compilerArguments>
+                    <fork>true</fork>
+                    <source>1.8</source>
+                    <target>1.8</target>
+                    <compilerArgs>
+                        <arg>-XDignore.symbol.file</arg>
+                        <arg>-Werror</arg>
+                        <arg>-Awarns</arg>
+                        <arg>-Alint=all</arg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>3.1.1</version>
+                <executions>
+                    <execution>
+                        <id>copy-dependencies</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/lib</outputDirectory>
+                            <overWriteReleases>false</overWriteReleases>
+                            <overWriteSnapshots>false</overWriteSnapshots>
+                            <overWriteIfNewer>true</overWriteIfNewer>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-jar-plugin</artifactId>
+                <version>3.1.1</version>
+                <configuration>
+                    <archive>
+                        <index>true</index>
+                        <manifest>
+                            <addClasspath>true</addClasspath>
+                            <mainClass>com.tokera.examples.HelloWorldApp</mainClass>
+                            <classpathPrefix>lib</classpathPrefix>
+                        </manifest>
+                    </archive>
+                </configuration>
+            </plugin>
+         </plugins>
+    </build>
+</project>
+```
 
 The parent POM file is a quicker and easier way to maintain and stay up to date with all the dependencies
 required to get a fully operational application up and running. If you want to use a different
@@ -175,39 +177,45 @@ integration with other application framework however this is out of scope for th
 
 This guide will assume that you are using the bootstrap application and its helper libraries.
 
-    @ApplicationPath("1-0")
-    public class HelloWorldApp extends BootstrapApp {
-    
-        public HelloWorldApp() { }
-    
-        public static void main(String[] args) {
-            start();
-        }
-    
-        public static void start() {
-            BootstrapConfig config = ApiServer.startWeld();
-            config.setApplicationClass(MainApp.class);
-            config.setDeploymentName("Example API");
-            config.setRestApiPath("/rs");
-            config.setPropertiesFile("example.configuration");
-            config.setDomain("examples.tokera.com");
-            config.setPingCheckOnStart(true);
-            ApiServer apiServer = ApiServer.startApiServer(config);
-        }
+```java
+@ApplicationPath("1-0")
+public class HelloWorldApp extends BootstrapApp {
+
+    public HelloWorldApp() { }
+
+    public static void main(String[] args) {
+        start();
     }
+
+    public static void start() {
+        BootstrapConfig config = ApiServer.startWeld();
+        config.setApplicationClass(MainApp.class);
+        config.setDeploymentName("Example API");
+        config.setRestApiPath("/rs");
+        config.setPropertiesFile("example.configuration");
+        config.setDomain("examples.tokera.com");
+        config.setPingCheckOnStart(true);
+        ApiServer apiServer = ApiServer.startApiServer(config);
+    }
+}
+```
 
 The bootstrap application will start up Resteasy using Weld's dependency injection engine and also
 it will optionally start Kafka and ZooKeeper if the running machine machines the DNS A records. If
 you wish to prevent the Kafka and ZooKeeper services from running (for instance in unit tests) then
 you can use the following commands:
 
-    ApiServer.setPreventZooKeeper(true);
-    ApiServer.setPreventKafka(true);
+```java
+ApiServer.setPreventZooKeeper(true);
+ApiServer.setPreventKafka(true);
+```
 
 It is important that you setup the bootstrap configuration class with the right settings for your
 particular use case. There is one particularily important settings below
 
-    config.setDomain("examples.tokera.com");
+```java
+config.setDomain("examples.tokera.com");
+```
 
 This domain name determines which DNS records to use when seeding the chain-of-trust that allows
 records to be accepted into the database. It is highly recommended that you host DNSSec records for
@@ -248,34 +256,36 @@ are stored within the ATE database as small encrypted JSON documents.
 
 Below is an example data object
 
-    @Dependent
-    @YamlTag("dao.mything")
-    @PermitParentType(MyAccount.class)
-    public class MyThing extends BaseDao {
-        @Column
-        public @DaoId UUID id = UUID.randomUUID();
-        @Column
-        public @DaoId UUID accountId;
-    
-        @SuppressWarnings("initialization.fields.uninitialized")
-        @Deprecated
-        public MyThing() {
-        }
-    
-        public MyThing(MyAccount acc) {
-            this.accountId = acc.id;
-        }
-    
-        @Override
-        public @DaoId UUID getId() {
-            return id;
-        }
-    
-        @Override
-        public @Nullable @DaoId UUID getParentId() {
-            return null;
-        }
+```java
+@Dependent
+@YamlTag("dao.mything")
+@PermitParentType(MyAccount.class)
+public class MyThing extends BaseDao {
+    @Column
+    public @DaoId UUID id = UUID.randomUUID();
+    @Column
+    public @DaoId UUID accountId;
+
+    @SuppressWarnings("initialization.fields.uninitialized")
+    @Deprecated
+    public MyThing() {
     }
+
+    public MyThing(MyAccount acc) {
+        this.accountId = acc.id;
+    }
+
+    @Override
+    public @DaoId UUID getId() {
+        return id;
+    }
+
+    @Override
+    public @Nullable @DaoId UUID getParentId() {
+        return null;
+    }
+}
+```
 
 The following annotations and overrides are mandatory for a data object to be recognised by the ATE:
 
