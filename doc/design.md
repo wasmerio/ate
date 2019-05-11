@@ -228,6 +228,42 @@ This mode of operation has the following benefits and disadvantages:
 
 ## Absolute Portability
 
+Better Portability reduces the cost of deploying, operating and testing applications
+thus ensuring ATE gave the best portability properties was an important factor in
+its development.
+
+A measure of portability is the effort it takes to move the software and/or
+application from one environment to another environment. Ideally this should be
+possibly at zero cost. ATE gets close to this idea state.
+
+ATE applies the following design constraints:
+
+* Configuration files distributed with the applications must be the same regardless
+  of which node in the cluster it is deployed to.
+* DNS of the environment is used to externalize configuration from the
+  application configuration files.
+* Test environments should simulate the DNS entries by intercepting the queries
+  which ensures the environment specific settings the configuration files
+  shipping with the application are kept to an absolute minimal.
+* The temptation to define environment awareness in the application should
+  be avoided thus eliminating the need for environment conditional logic
+  in the code and custom deployment pipelines for each environment.
+
+Which means the only thing required to be changed between environments is the
+following:
+
+* DNS entries in the environment that the application is running where the
+  domain names are dependent on the application configuration for its use case
+  regardless of the environment it is deployed to.  
+  DNS entries required for this solution are as follows:
+  1. DNS Entries that determine where ZooKeeper runs in the environment.
+  2. DNS Entries that determine where Kafka runs in the environment.
+  3. DNS Entries that hold the root public keys for the chain-of-trust seeding.
+* Configuration file settings for the application are the same regardless of
+  which environment they are configured to except for the environment specific
+  authentication credentials that segregate security domains. These particular
+  settings should be kept to an absolute minimum where possible.
+
 ## Chain Of Trust
 
 ## Implicit Authority
