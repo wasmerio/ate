@@ -85,21 +85,21 @@ Under this ideal model:
 * Operates using **peer-to-peer** connectivity with majority based quorum.  
 
 
-                           +-------------+
+                           .-------------.
                           _|  Processor  |
                       ___/ |   |     |   |
                 __(TCP)    | Memory Disk |
-        +------/------+    +---/---------+
+        .------/------.    '---/---------'
         |  Processor  |       /
         |   |     |   |      /
-        | Memory Disk |   (TCP)                +-------------+
-        +-------\-----+    /                   |  Processor  |
+        | Memory Disk |   (TCP)                .-------------.
+        '-------\-----'    /                   |  Processor  |
                (TCP)      /                  __|   |     |   |
-                +-\------/----+         ____/  | Memory Disk |
-                |  Processor  |    __(TCP)     +-------------+
+                .-\------/----.         ____/  | Memory Disk |
+                |  Processor  |    __(TCP)     '-------------'
                 |   |     |   |___/
                 | Memory Disk |
-                +-------------+
+                '-------------'
 
 The ATE framework comes close to meeting these ideal properties as (when built in
 the fully stateless configuration) it displays these properties:
@@ -139,7 +139,7 @@ ATE has the following (external) dependencies:
                          Interconnected Network         
           +-----------------------+-----------------------+    
           |                       |                       |
-      +---+---+               +---+---+               +---+---+
+      .---+---.               .---+---.               .---+---.
       |  CPU  |               |  CPU  |               |  CPU  |
       +-------+               +-------+               +-------+
       |  MEM  |               |  MEM  |               |  MEM  |
