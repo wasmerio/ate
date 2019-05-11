@@ -13,6 +13,8 @@ ATE Technical Design
 1. [Immutable Data](#immutable-data)
 2. [Distributed Computing Architecture](#distributed-computing-architecture)
 3. [Shared Nothing](#shared-nothing)
+   1. [Stateful Mode](#stateful-mode)
+   2. [Stateless Mode](#stateless-mode)
 4. [Absolute Portability](#absolute-portability)
 5. [Chain of Trust](#chain-of-trust)
 6. [Implicit Authority](#implicit-authority)
@@ -182,6 +184,12 @@ This mode of operation has the following benefits and disadvantages:
   difficult to code into the application.
 * (-1) As the storage engine runs in the application making it stateful extra care
   must be taken when bringing nodes online and taking them offline.
+  
+Note: Stateful mode is actually a blend of both stateful and stateless nodes. The
+DNS records used for bootstrapping the startup will determine which nodes need
+to operate the Kafka cluster and which are just plain dumb compute nodesm, thus it
+is still possible to scale out an API built onto of Stateful ATE without worrying
+about also scaling the stateful elements (i.e. the disks)
 
 ### Stateless Mode
 
@@ -194,6 +202,10 @@ This mode of operation has the following benefits and disadvantages:
 
 * (+1) Splitting up the scaling components makes it easier to understand the
   performance bottlenecks and scaling limits of the various components.
+* (+1) When running in this mode it becomes easier to add additional security
+  on top of the Kafka cluster to increase the layered defence. E.g. Firewall
+  rules, ZooKeeper and Kafka authentication, etc...
+* (-1) More complex setup from a deployment perspective.
 * (-1) Less performance is certain deployments as the data held within the
   distributed commit log may need to travel more distance before it arrives
   at the in-memory materialized view. This disadvantage will deminish as the
