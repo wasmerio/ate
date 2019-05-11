@@ -133,7 +133,7 @@ dependencies as possible..
 ATE has the following (external) dependencies:
 
 1. A network connection between all nodes that supports IP packets.
-2. DNS services available to be queries via the DNS protocol. 
+2. DNS services available to be queried via the DNS protocol. 
 
                                                        
                                    DNS  
@@ -149,54 +149,61 @@ ATE has the following (external) dependencies:
        === === ===             === === ===             === === ===  
          (Disks)                 (Disks)                 (Disks)  
 
-Given the very few external dependencies this architecture is considered by the
-author to be of the "Shared Nothing" type. Specifically (when operating in the
-[stateful mode](#stateful-mode) it has no external state machine or database
-that it relies on.
+Given the very few mandatory external dependencies required by this architecture ir
+is considered by the author to be of the "Shared Nothing" type. Specifically, when
+operating in the [stateful mode](#stateful-mode) it has no external state machine
+or database that it relies on.
 
 Reference: https://en.wikipedia.org/wiki/Shared-nothing_architecture
 
 There are two modes of operation for the ATE framework, one that honours the
-"Shared Nothing" architecture (stateful mode) and one that doesn't. You may
-use the following guide when choosing which mode to use:
+"Shared Nothing" architecture ([stateful mode](#stateful-mode)) and one that doesn't
+([stateless mode](#stateless-mode). You may use the following guide when choosing
+which mode to most appropriate for your use-case:
 
 1. If your use-case is constrained to one geo-graphic location (i.e. a country)
-   and is not anticipated to need extreme scales that require special configuration
-   of the Kafka cluster (e.g. rack awareness, mirror-maker, etc..) then run in the
-   "Stateful Mode"
-2. Otherwise run in "Stateless Mode"
+   and is not anticipated to need extreme scale and hence require special setups
+   of the Kafka cluster (e.g. rack awareness, mirror-maker, etc..) then run ATE in
+   its "Stateful Mode".
+2. Otherwise run in "Stateless Mode".
 
 ### Stateful Mode
 
-When operating in this mode the in-process Kafka and ZooKeeper servers are running
+When operating in this mode Kafka and ZooKeeper servers are running in-process 
 and hence the application is storing the distributed log partitions and indexing
-data on the local disk. In this mode the application is a true "Shared Nothing" as
-the database is built into the application is distributed over the nodes.
+data on the local disk where the Java application is running. In this mode the
+application is a true "Shared Nothing" as the database is built into the
+application itself.
 
 This mode of operation has the following benefits and disadvantages:
 
-* (+1) Its considerable easier to setup with often a single JAR executable to manage.
+* (+1) Its considerable easier to setup, often only requireing a single JAR
+  executable to deploy and scale horizontally.
 * (+1) Scaling the total system is easier with less components to worry about often
   increasing the capacity is no more than spinning up more nodes. When moving to
-  extreme scale with replication all over the world this advantage may not hold. 
+  extreme scale with replication all over the world this advantage may not hold
+  as the limitations of [CAP theorem](https://en.wikipedia.org/wiki/CAP_theorem) become more apparent requiring custom setups
+  of Kafka to fine-tune the trade-offs. 
 * (-1) Additional custom configuration of the Kafka and ZooKeeper cluster (e.g. rack
-  awareness, mirror maker, cluster authentication) are either not possible or
-  difficult to code into the application.
-* (-1) As the storage engine runs in the application making it stateful extra care
+  awareness, mirror maker, cluster authentication) are either not possible to run in
+  this mode of operation or are not yet built into the bootstrapping process to the 
+  limits of available time and cost.
+* (-1) As the storage engine runs in the application making it stateful, extra care
   must be taken when bringing nodes online and taking them offline.
   
 Note: Stateful mode is actually a blend of both stateful and stateless nodes. The
 DNS records used for bootstrapping the startup will determine which nodes need
-to operate the Kafka cluster and which are just plain dumb compute nodesm, thus it
-is still possible to scale out an API built onto of Stateful ATE without worrying
-about also scaling the stateful elements (i.e. the disks)
+to operate the Kafka cluster and which are just plain dumb compute nodes - thus -
+it is still possible to scale out an API built onto of Stateful ATE without
+worrying about also scaling the stateful elements (i.e. the disks)
 
 ### Stateless Mode
 
 In stateless mode the Kafka and ZooKeeper clusters are running externally from the
 application which means while it is still a [distributed application](#distributed-computing-architecture)
-it is no longer "shared nothing". In effect the nodes of this database all share an
-externally hosted distributed commit log.
+it is no longer "Shared Nothing" as in effect the nodes are simply compute nodes
+while the actual data is instead persistant on an externally hosted distributed
+commit log (bespoke Kafka cluster).
 
 This mode of operation has the following benefits and disadvantages:
 
@@ -205,11 +212,11 @@ This mode of operation has the following benefits and disadvantages:
 * (+1) When running in this mode it becomes easier to add additional security
   on top of the Kafka cluster to increase the layered defence. E.g. Firewall
   rules, ZooKeeper and Kafka authentication, etc...
-* (-1) More complex setup from a deployment perspective.
-* (-1) Less performance is certain deployments as the data held within the
-  distributed commit log may need to travel more distance before it arrives
-  at the in-memory materialized view. This disadvantage will deminish as the
-  total system is scaled to extreme scale with replication all over the world.
+* (-1) This is a more complex setup from a deployment perspective.
+* (-1) Less performance in certain small scale deployments as the data held within
+  the distributed commit log may need to travel more distance before it arrives
+  at the in-memory materialized view. This disadvantage will diminish as the
+  total system is scaled to medium sized deployments.
 
 ## Absolute Portability
 
