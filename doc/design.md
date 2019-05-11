@@ -137,8 +137,7 @@ ATE has the following (external) dependencies:
                                  DNS
                                   |                 ^--shared stuff
                          Interconnected Network         
-          .-----------------------+-----------------------.    
-          |                       |                       |
+          .-----------------------|-----------------------.
       .---+---.               .---+---.               .---+---.
       |  CPU  |               |  CPU  |               |  CPU  |
       +-------+               +-------+               +-------+
