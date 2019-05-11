@@ -25,7 +25,8 @@ ATE Technical Design
 
 ## Immutable Data
 
-Data stored within ATE is by design "immutable" following the "log-based architecture":
+Data stored within ATE is by design "immutable" following the concept of a "log-based
+architecture"
 
                                                                   Next
                                                                  Record
@@ -41,50 +42,55 @@ Data stored within ATE is by design "immutable" following the "log-based archite
            DAO 
 
 Once a record is written to the distributed commit log it remains there forever.
-In order to provide a service that allows for random access of the data (which
-is necessary for APIs for instance) then the log must be streamed into a
-materialized view, the case of ATE the materialized view is stored in memory.
+In order to provide a service that allows for random access of that data (which
+of course is necessary for most useful applications) then the log must be streamed
+and transformed into a materialized view - the case of ATE the materialized view is
+stored in memory as a DAG ([Directed acyclic graph](https://en.wikipedia.org/wiki/Directed_acyclic_graph)).
 
-Four key requirements are needed for the immutable data (and hence the immutable
-log) for the use-cases that ATE is designed to that supports:
+For the use-cases that ATE is designed for it, the "immutable data" implementation
+it usess must meet four key requirements:
 
-1. All events must be retained forever due to the cryptographic chain-of-trust.
+1. All events must be retained forever due to need to validate the integrity of the
+   cryptographic chain-of-trust materialized view that they feed.
 2. The logs must be produced and consumed in the exact same order as seen by all
    consumers - this is essential for the eventual consistency of the data merging
-   and transactions. Further, the crypto validation mandates that all data
-   elements must be processed in topological order for integrity reasons thus
-   row ordering is critical characteristic of the distributed log. 
+   and transactions. Further, the crypto validation techniques mandate that all data
+   events must be processed in topological order for integrity reasons thus
+   row ordering is a critical characteristic of the distributed log implementation. 
 3. The distributed commit log must support sharding of data at arbitrary boundaries
-   in order to meet data locality and data sovereignty requirement. Due to
-   requirement (2.) stated above these arbitrary boundaries must be clean cuts in
-   in the security domain thus splitting integrity into many separate chains rather
-   than a monolithic chain. Sharding is also required to achieve high levels of
+   in order to meet data locality and data sovereignty requirement(s). Due to
+   the second key requirement stated above these arbitrary boundaries must be clean
+   cut breaks in the security domain hence splitting integrity into many separate
+   chains rather than a monolithic chain. Sharding is also required to achieve high levels of
    parallelism that makes the system linearly scable and to reduce the memory
    footprint of the in-memory materialized views.
-4. The distributed commit log must support both multi-producers and multi-consumers
-   active at the same time to meet the need for extreme scalability.
+4. The distributed commit log must support multi-producers concurrent with
+   multi-consumers to meet the later end of the scalability curve.
    
-These (and other reasons) are why this implementation uses Kafka as its storage
-backend for the distributed commit log. Ultimately the characteristics of a Kafka
-cluster setup with specific configuration is what makes "immutable data" possible. 
+These ([and other reasons](https://medium.freecodecamp.org/what-makes-apache-kafka-so-fast-a8d4f94ab145))
+are why this implementation uses Kafka as its storage backend for the distributed
+commit log. Ultimately the characteristics of a Kafka cluster setup with specific
+configuration that makes it persistent  creates one of the best implementations
+of "immutable data" out there.
 
 Reference: https://www.confluent.io/blog/okay-store-data-apache-kafka/  
-Reference: https://www.confluent.io/blog/publishing-apache-kafka-new-york-times/
+Reference: https://www.confluent.io/blog/publishing-apache-kafka-new-york-times/  
+Reference: https://en.wikipedia.org/wiki/Directed_acyclic_graph
 
 ## Distributed Computing Architecture
 
 The core architecture of this framework is that its operating state (run-time)
 achieves the characteristics of a [**distributed program**](https://link.springer.com/chapter/10.1007/978-1-84882-745-5_11).
 
-Under this ideal model:
+This ideal model would look something like this:
 
 * Each node has its own **local memory** that operates fully independently.  
 * Nodes communicate with each other by **message passing**.  
-* The system has built-in **node failure tolerate**.  
+* The system has built-in **node failure tolerance**.  
 * That the system as a whole is **linearly scalable**.  
 * Every node has a context **limited view** of the overall system.  
-* **Network topology is unknown** at design or deploy time.  
-* Operates using **peer-to-peer** connectivity with majority based quorum.  
+* **Network topology is unknown** at design and deploy time.  
+* Operates using **peer-to-peer** based network topology.  
 
 
                            .-------------.
@@ -103,20 +109,21 @@ Under this ideal model:
                 | Memory Disk |
                 '-------------'
 
-The ATE framework comes close to meeting these ideal properties as (when built in
-the fully stateless configuration) it displays these properties:
+The ATE framework comes close to meeting these ideal characteristics as (when
+running in [stateful mode](#stateful-mode)) it operates with these properties:
 
-1. It can be compiled down to one JAR binary with embedded shared configuration files.
+1. It can be compiled down to a single JAR binary with embedded shared configuration
+   files.
 2. It uses the distributed DNS infrastructure of the Internet to bootstrap itself
-   during startup and to validate the chains-of-trust.
-3. It needs a high throughput network connectivity however this network can be
-   both un-guaranteed (packets can be lost) and of moderate latency (global).
-   (a.k.a. The Internet).
-4. Data is distributed across the local disks wherever the binary is running
-   which is replicated multiple times for redundancy and availability reasons.
+   during startup and to validate the various roots for each chain-of-trust.
+3. It excels on high throughput network connectivity even when those networks
+   display moderate packet loss and latency (a.k.a. The Internet).
+4. Data is distributed across the local disks wherever the ATE binary is running
+   Kafka nodes, while data integrity during partition events is maintained through
+   data replication.
 
-_Given this the ATE framework can be classified as a truly "Distributed
-Computing Architecture"_
+_Given the properties above it is appropriate to classify the ATE framework as
+a "Distributed Computing Architecture"_ suitable for large scale deployments.
 
 Reference: https://en.wikipedia.org/wiki/Distributed_computing  
 Reference: https://en.wikipedia.org/wiki/Single_point_of_failure
@@ -124,11 +131,11 @@ Reference: https://en.wikipedia.org/wiki/Single_point_of_failure
 ## Shared Nothing
 
 In a "Shared Nothing" architecture the idea is that all external dependencies
-outside of the nodes are kept to an absolute minimum, ideally there should be no
-external dependency at all. Obviously this is a pure view on which reality makes
-impossible however ATE comes quite close to achieving this by using architectural
+outside of the nodes are kept to an absolute minimum. Ideally there should be no
+external dependencies at all but obviously this is a purist view which in reality is
+impossible however ATE does come quite close to achieving this by using architectural
 patterns and design constraints to remove and eliminate as many external
-dependencies as possible..
+dependencies as possible.
 
 ATE has the following (external) dependencies:
 
@@ -149,7 +156,7 @@ ATE has the following (external) dependencies:
        === === ===             === === ===             === === ===  
          (Disks)                 (Disks)                 (Disks)  
 
-Given the very few mandatory external dependencies required by this architecture ir
+Given the very few mandatory external dependencies required by this architecture it
 is considered by the author to be of the "Shared Nothing" type. Specifically, when
 operating in the [stateful mode](#stateful-mode) it has no external state machine
 or database that it relies on.
@@ -162,9 +169,9 @@ There are two modes of operation for the ATE framework, one that honours the
 which mode to most appropriate for your use-case:
 
 1. If your use-case is constrained to one geo-graphic location (i.e. a country)
-   and is not anticipated to need extreme scale and hence require special setups
-   of the Kafka cluster (e.g. rack awareness, mirror-maker, etc..) then run ATE in
-   its "Stateful Mode".
+   and is not anticipated to need extreme scale and hence require the associated
+   necessary extra setup of the Kafka cluster (e.g. rack awareness, mirror-maker,
+   etc..) then run ATE in its "Stateful Mode".
 2. Otherwise run in "Stateless Mode".
 
 ### Stateful Mode
@@ -172,24 +179,25 @@ which mode to most appropriate for your use-case:
 When operating in this mode Kafka and ZooKeeper servers are running in-process 
 and hence the application is storing the distributed log partitions and indexing
 data on the local disk where the Java application is running. In this mode the
-application is a true "Shared Nothing" as the database is built into the
+application is a true "Shared Nothing" as the persistent storage is built into the
 application itself.
 
 This mode of operation has the following benefits and disadvantages:
 
-* (+1) Its considerable easier to setup, often only requireing a single JAR
+* (+1) Its considerable easier to setup, often only requiring a single JAR
   executable to deploy and scale horizontally.
 * (+1) Scaling the total system is easier with less components to worry about often
   increasing the capacity is no more than spinning up more nodes. When moving to
   extreme scale with replication all over the world this advantage may not hold
-  as the limitations of [CAP theorem](https://en.wikipedia.org/wiki/CAP_theorem) become more apparent requiring custom setups
-  of Kafka to fine-tune the trade-offs. 
-* (-1) Additional custom configuration of the Kafka and ZooKeeper cluster (e.g. rack
-  awareness, mirror maker, cluster authentication) are either not possible to run in
-  this mode of operation or are not yet built into the bootstrapping process to the 
-  limits of available time and cost.
-* (-1) As the storage engine runs in the application making it stateful, extra care
-  must be taken when bringing nodes online and taking them offline.
+  as the limitations of [CAP theorem](https://en.wikipedia.org/wiki/CAP_theorem)
+  become more apparent requiring custom setups of Kafka to fine-tune the
+  trade-offs. 
+* (-1) Any additional custom configuration of the Kafka and ZooKeeper cluster (e.g.
+  rack awareness, mirror maker, cluster authentication) are either not possible to
+  run in this mode of operation or are not yet built into the bootstrapping
+  process.
+* (-1) As the storage engine runs in the application this making it stateful,
+  extra care must be taken when bringing nodes online and taking them offline.
   
 Note: Stateful mode is actually a blend of both stateful and stateless nodes. The
 DNS records used for bootstrapping the startup will determine which nodes need
@@ -202,7 +210,7 @@ worrying about also scaling the stateful elements (i.e. the disks)
 In stateless mode the Kafka and ZooKeeper clusters are running externally from the
 application which means while it is still a [distributed application](#distributed-computing-architecture)
 it is no longer "Shared Nothing" as in effect the nodes are simply compute nodes
-while the actual data is instead persistant on an externally hosted distributed
+while the actual data is instead persistent on an externally hosted distributed
 commit log (bespoke Kafka cluster).
 
 This mode of operation has the following benefits and disadvantages:
