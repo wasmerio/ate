@@ -134,18 +134,18 @@ ATE has the following (external) dependencies:
 2. DNS services available to be queries via the DNS protocol. 
 
                                                        
-                                 DNS
-                                  |                 ^--shared stuff
-                         Interconnected Network         
-          .-----------------------|-----------------------.
-      .---+---.               .---+---.               .---+---.
-      |  CPU  |               |  CPU  |               |  CPU  |
-      +-------+               +-------+               +-------+
-      |  MEM  |               |  MEM  |               |  MEM  |
-      +-------+               +-------+               +-------+
-      |   |   |               |   |   |               |   |   |
-     === === ===             === === ===             === === ===
-       (Disks)                 (Disks)                 (Disks)
+                                 DNS  
+                                  |                 ^--shared stuff  
+                         Interconnected Network           
+          .-----------------------|-----------------------.  
+      .---+---.               .---+---.               .---+---.  
+      |  CPU  |               |  CPU  |               |  CPU  |  
+      +-------+               +-------+               +-------+  
+      |  MEM  |               |  MEM  |               |  MEM  |  
+      +-------+               +-------+               +-------+  
+      |   |   |               |   |   |               |   |   |  
+     === === ===             === === ===             === === ===  
+       (Disks)                 (Disks)                 (Disks)  
 
 Given the very few external dependencies this architecture is considered by the
 author to be of the "Shared Nothing" type. Specifically (when operating in the
