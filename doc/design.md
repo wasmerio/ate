@@ -232,6 +232,19 @@ Better Portability reduces the cost of deploying, operating and testing applicat
 thus ensuring ATE gave the best portability properties was an important factor in
 its development.
 
+
+         ^                 |
+        S|                 |       [goal] X
+        I|                 |
+        M|                 |
+        L+-----------------+------------------
+        I|                 |
+        C|                 |
+        I|                 |
+        T|                 |
+        Y+-----------------+----------------->
+                 P O R T A B I L I T Y
+
 A measure of portability is the effort it takes to move the software and/or
 application from one environment to another environment. Ideally this should be
 possibly at zero cost. ATE gets close to this idea state.
