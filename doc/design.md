@@ -252,8 +252,8 @@ possibly at zero cost, ATE gets closer than most to this ideal state.
 
 ATE applies the following design constraints:
 
-* Targets intermediate output such as [Bytecode](https://nl.wikipedia.org/wiki/Bytecode))
-  in the case of ATE Java is used to generate the Bytecode.
+* Target intermediate output such as [Bytecode](https://nl.wikipedia.org/wiki/Bytecode)
+  in the case of the ATE framework - Java is used to generate the Bytecode.
 * Configuration is code and thus portability optimizations applied to code are also
   applicable to the configuration files themselves.
 * Configuration files distributed with the applications must be the same regardless
@@ -292,6 +292,26 @@ Reference: https://en.wikipedia.org/wiki/Convention_over_configuration
 Reference: https://en.wikipedia.org/wiki/Shift_left_testing  
 
 ## Chain Of Trust
+
+Ultimately the need for authentication, authorization, encryption and integrity
+checks can be (somewhat overly) generalized as the following two keys goals:
+
+1. Preventing people from reading information that they should not know.
+2. Preventing people from writing information in areas they are not allowed.
+
+Where systems fail are weaknesses in the design somewhere between where the
+information resides and a human attempting to break the two goals stated above.
+
+     
+     H  -------------------------------------------------------------------------------
+     U  | Trust Authority | Authentication | Authorization | Encryption | Information |
+     M  ---^--------------^---------------------^-------------------^----------^-------
+     A     |              |                     |                   |          |
+     N   attack!        attack!               attack!             attack!    pot of
+                                                                             gold
+     
+     
+     
 
 ## Implicit Authority
 
