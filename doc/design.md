@@ -285,10 +285,10 @@ following:
   authentication credentials that segregate security domains. These particular
   settings should be kept to an absolute minimum where possible.
   
-Reference: https://en.wikipedia.org/wiki/Software_portabilityhttps://en.wikipedia.org/wiki/Software_portability
-Reference: https://nl.wikipedia.org/wiki/Bytecode
-Reference: https://en.wikipedia.org/wiki/Convention_over_configuration
-Reference: https://en.wikipedia.org/wiki/Shift_left_testing
+Reference: https://en.wikipedia.org/wiki/Software_portabilityhttps://en.wikipedia.org/wiki/Software_portability  
+Reference: https://nl.wikipedia.org/wiki/Bytecode  
+Reference: https://en.wikipedia.org/wiki/Convention_over_configuration  
+Reference: https://en.wikipedia.org/wiki/Shift_left_testing  
 
 ## Chain Of Trust
 
