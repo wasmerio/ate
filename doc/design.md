@@ -75,7 +75,8 @@ of "immutable data" out there.
 
 Reference: https://www.confluent.io/blog/okay-store-data-apache-kafka/  
 Reference: https://www.confluent.io/blog/publishing-apache-kafka-new-york-times/  
-Reference: https://en.wikipedia.org/wiki/Directed_acyclic_graph
+Reference: https://en.wikipedia.org/wiki/Directed_acyclic_graph  
+Reference: https://medium.freecodecamp.org/what-makes-apache-kafka-so-fast-a8d4f94ab145  
 
 ## Distributed Computing Architecture
 
