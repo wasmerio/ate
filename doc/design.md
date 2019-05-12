@@ -229,7 +229,7 @@ This mode of operation has the following benefits and disadvantages:
 ## Absolute Portability
 
 Better Portability reduces the cost of deploying, operating and testing applications
-thus ensuring ATE gave the best portability properties was an important factor in
+thus ensuring ATE has the best portability properties was an important factor in
 its development.
 
 
@@ -247,17 +247,25 @@ its development.
 
 A measure of portability is the effort it takes to move the software and/or
 application from one environment to another environment. Ideally this should be
-possibly at zero cost. ATE gets close to this idea state.
+possibly at zero cost, ATE gets closer than most to this ideal state.
 
 ATE applies the following design constraints:
 
+* Targets intermediate output such as [Bytecode](https://nl.wikipedia.org/wiki/Bytecode))
+  in the case of ATE Java is used to generate the Bytecode.
+* Configuration is code and thus portability optimizations applied to code are also
+  applicable to the configuration files themselves.
 * Configuration files distributed with the applications must be the same regardless
-  of which node in the cluster it is deployed to.
+  of which node in the cluster they are deployed to - hand crafted configuration
+  files are an anti-pattern.
 * DNS of the environment is used to externalize configuration from the
-  application configuration files.
+  application configuration files so that applications become "environment aware"
+  ultimately this is a realization of the [convention over configuration](https://en.wikipedia.org/wiki/Convention_over_configuration)
+  pattern.
 * Test environments should simulate the DNS entries by intercepting the queries
-  which ensures the environment specific settings the configuration files
-  shipping with the application are kept to an absolute minimal.
+  and impersonating the results, this ensures the environment specific settings
+  the configuration files are shipped with become immutable-per-release meaning
+  they are shifted to the [left of testing](https://en.wikipedia.org/wiki/Shift_left_testing).
 * The temptation to define environment awareness in the application should
   be avoided thus eliminating the need for environment conditional logic
   in the code and custom deployment pipelines for each environment.
@@ -276,6 +284,11 @@ following:
   which environment they are configured to except for the environment specific
   authentication credentials that segregate security domains. These particular
   settings should be kept to an absolute minimum where possible.
+  
+Reference: https://en.wikipedia.org/wiki/Software_portabilityhttps://en.wikipedia.org/wiki/Software_portability
+Reference: https://nl.wikipedia.org/wiki/Bytecode
+Reference: https://en.wikipedia.org/wiki/Convention_over_configuration
+Reference: https://en.wikipedia.org/wiki/Shift_left_testing
 
 ## Chain Of Trust
 
