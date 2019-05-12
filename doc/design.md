@@ -304,17 +304,17 @@ in weaknesses in the design somewhere between where the information resides and
 legitimate humans that the system is designed for.
 
      
-                            Chain Of Trust                                             I
-                            ==============->                                           N     
-     H                                                                                 F
-     U   .----------|-----------------|----------------|---------------|------------.  O
-     M   | Identity | Trust Authority | Authentication | Authorization | Encryption |  R
-     A   '--^-------|----------------^|----------------|----^----------|--------^---'  M
-     N      |                        |                      |                   |      A
-          attack!                    |                    attack!             attack!  T
-                                   attack!                                             I
-                                                                                       O
-                                                                                       N
+                            Chain Of Trust                                              I I I
+                            ==============->                                            N N N 
+     H                                                                                  F F F
+     U   .----------|-----------------|----------------|---------------|------------.   O O O
+     M   | Identity | Trust Authority | Authentication | Authorization | Encryption |   R R R
+     A   '--^-------|----------------^|----------------|----^----------|--------^---'   M M M
+     N      |                        |                      |                   |       A A A
+          attack!                    |                    attack!             attack!   T T T
+                                   attack!                                              I I I
+                                                                                        O O O
+                                                                                        N N N
 
 ## Implicit Authority
 
