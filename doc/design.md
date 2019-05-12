@@ -303,17 +303,17 @@ Where systems fail are weaknesses in the design somewhere between where the
 information resides and a human attempting to break the two goals stated above.
 
      
-                                                                          I
-                                                                          N     
-     H                                                                    F
-     U  ----------------------------------------------------------------- O
-     M  | Trust Authority | Authentication | Authorization | Encryption | R
-     A  ---^--------------^---------------------^-------------------^---- M
-     N     |              |                     |                   |     A
-         attack!        attack!               attack!             attack! T
-                                                                          I
-                                                                          O
-                                                                          N
+                            Chain Of Trust                                             I
+                            ==============->                                           N     
+     H                                                                                 F
+     U   .----------|-----------------|----------------|---------------|------------.  O
+     M   | Identity | Trust Authority | Authentication | Authorization | Encryption |  R
+     A   '--^-------|----------------^|----------------|----^----------|--------^---'  M
+     N      |                        |                      |                   |      A
+          attack!                  attack!                attack!             attack!  T
+                                                                                       I
+                                                                                       O
+                                                                                       N
 
 ## Implicit Authority
 
