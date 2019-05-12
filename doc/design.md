@@ -299,8 +299,9 @@ checks can be (somewhat overly) generalized as the following two keys goals:
 1. Preventing people from reading information that they should not know.
 2. Preventing people from writing information in areas they are not allowed.
 
-Where systems fail are weaknesses in the design somewhere between where the
-information resides and a human attempting to break the two goals stated above.
+Where systems often fail in this challenge is attacks are able to take advantage
+in weaknesses in the design somewhere between where the information resides and
+legitimate humans that the system is designed for.
 
      
                             Chain Of Trust                                             I
@@ -310,8 +311,8 @@ information resides and a human attempting to break the two goals stated above.
      M   | Identity | Trust Authority | Authentication | Authorization | Encryption |  R
      A   '--^-------|----------------^|----------------|----^----------|--------^---'  M
      N      |                        |                      |                   |      A
-          attack!                  attack!                attack!             attack!  T
-                                                                                       I
+          attack!                    |                    attack!             attack!  T
+                                   attack!                                             I
                                                                                        O
                                                                                        N
 
