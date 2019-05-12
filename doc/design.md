@@ -303,15 +303,17 @@ Where systems fail are weaknesses in the design somewhere between where the
 information resides and a human attempting to break the two goals stated above.
 
      
-     H  -------------------------------------------------------------------------------
-     U  | Trust Authority | Authentication | Authorization | Encryption | Information |
-     M  ---^--------------^---------------------^-------------------^----------^-------
-     A     |              |                     |                   |          |
-     N   attack!        attack!               attack!             attack!    pot of
-                                                                             gold
-     
-     
-     
+                                                                          I
+                                                                          N     
+     H                                                                    F
+     U  ----------------------------------------------------------------- O
+     M  | Trust Authority | Authentication | Authorization | Encryption | R
+     A  ---^--------------^---------------------^-------------------^---- M
+     N     |              |                     |                   |     A
+         attack!        attack!               attack!             attack! T
+                                                                          I
+                                                                          O
+                                                                          N
 
 ## Implicit Authority
 
