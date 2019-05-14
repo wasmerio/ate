@@ -315,8 +315,103 @@ legitimate humans that the system is designed for.
                                    attack!                                              I I I
                                                                                         O O O
                                                                                         N N N
+                                                                                        
+Core weaknesses must be addressed in order to truly strengthen a chain-of-trust
+against such attacks - below describes various weakness and how an attacker can
+take advantage of them.
+
+### Weakness: Chain-of-trust does not reach the human
+
+     H
+     U              |----------|------ -  -
+     M      (gap)   | Identity | ... .
+     A            ^ |----------|------ -  -
+     N            |                      
+                attack!
+                                   
+Misuse Case: Attacker discovers the username/password that a human uses for identity
+and  thus pretends to be the legitimate human during login hence they are able to
+read and write information that they were not meant to.
+
+**How does ATE help?**
+
+_You must implement strong form of authentication on top of ATE and use this to
+generate tokens with the appropriate asymetric crypto keys. ATE does not store
+any usernames or passwords (it isnt even designed to store them) thus closing
+this attack vector is the responsibility of the application design above ATE_
+
+### Weakness: Chain-of-trust does not reach the information
+
+                                            
+     - - -----|------------.                I
+     .  . ... | Encryption |      (gap)     N
+     - - -----|--------^---'                F
+                                     ^      O
+                                     |
+                                   attack!
+
+Misuse Case: Attacker gains access to the backups of a traditional database, they
+export the database away, restore the backup and have read access to everything
+that was ever written. 
+
+**How does ATE help?**
+
+_All records within the distributed commit log are encypted with unique encryption
+keys that are directly connected to the tail end of the chain-of-trust thus
+stealing the database does not allow access to read the data. An attacker must
+also break the chain-of-trust in order to get the decryption keys. In fact it
+is a perfectly reasonable design to store the distributed commit log in the public
+domain without significant confidentiality risks._
+
+### Weakness: Chain-of-trust has one or more coarse grained sections
+
+         .----------|----------|          |----------|----------.
+         +----------|----------|          |----------|----------|
+         +----------|----------|----------|----------|----------+
+         +----------|----------|     ^    |----------|----------|
+         '----------|----------|     |    |----------|----------'
+                                   attack!
+
+**How does ATE help?**
+
+_Ate is built on the principle of zero-trust all the way down to the actual encrypted
+records written to the distributed log. This means there is no need for a connection
+string or NPA password as a means authorizating system-to-system trust relationships
+as the data model itself is protected.
+If an attack is able to break into a section of the system they will only be able to
+gain read/write access via man-in-the-middle attacks thus preventing many broad and
+wide data leakage risks (e.g. leaked NPA passwords or connection strings)._
+
 
 ## Implicit Authority
+
+An interesting case-study is the chain-of-trust that helps establish secure HTTP
+connections between web sites and end user devices. E.g. This Github page itself.
+
+If you follow the chain you will find an interesting source of the trust chain.
+
+    DNS -> ACME (LetsEncrypt) -> Certificate (RSA) -> Secure Connection (TLS)
+    
+Whats interesting is that the ultimate proof of ownership for domains and large
+entities is the DNS records themselves. Essentially these are used to generate
+certificates, route connections to the correct place and as a register of ownership.
+
+ATE fully embrasses DNS as the ultimate source and root of all chain-of-trust for
+companies and large entities. It thus contains classes, seeding and generic
+authority logic that uses DNS(Sec) to hold and distributed asymmetric encryption
+keys (NTRU) that start a chain-of-trust fully independently of the system
+designer and operator. This allows for multiple chains-of-trust to be managed,
+verified all the way to a refutable legitimate central body and then extend this
+relationship all the way down to the encrypted records without any breaks in the
+chain.
+
+See this example below for the [Tokera company](https://mxtoolbox.com/SuperTool.aspx?action=a%3atokauth.tokera.com&run=toolpage)
+that publishes its root public key that allows the owner of the private key to
+write records to this particular domain.
+
+Reference: https://mxtoolbox.com/SuperTool.aspx?action=a%3atokauth.tokera.com&run=toolpage  
+Reference: https://letsencrypt.org/how-it-works/  
+Reference: https://en.wikipedia.org/wiki/NTRU  
 
 ## Fine Grained Security
 
