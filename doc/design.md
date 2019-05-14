@@ -11,17 +11,17 @@ ATE Technical Design
 ## Table of Contents
 
 1. [Immutable Data](#immutable-data)
-2. [Distributed Computing Architecture](#distributed-computing-architecture)
-3. [Shared Nothing](#shared-nothing)
+2. [Eventually Consistent Caching](#eventually-consistent-caching)
+3. [Distributed Computing Architecture](#distributed-computing-architecture)
+4. [Shared Nothing](#shared-nothing)
    1. [Stateful Mode](#stateful-mode)
    2. [Stateless Mode](#stateless-mode)
-4. [Absolute Portability](#absolute-portability)
-5. [Chain of Trust](#chain-of-trust)
-6. [Implicit Authority](#implicit-authority)
-7. [Fine Grained Security](#fine-grained-security)
+5. [Absolute Portability](#absolute-portability)
+6. [Chain of Trust](#chain-of-trust)
+7. [Implicit Authority](#implicit-authority)
+8. [Fine Grained Security](#fine-grained-security)
 9. [Quantum Resistent](#quantum-resistent)
-10. [Eventually Consistent Caching](#eventually-consistent-caching)
-11. [Native REST Integrated](#native-rest-integrated)
+10. [Native REST Integrated](#native-rest-integrated)
 
 ## Immutable Data
 
@@ -76,7 +76,76 @@ of "immutable data" out there.
 Reference: https://www.confluent.io/blog/okay-store-data-apache-kafka/  
 Reference: https://www.confluent.io/blog/publishing-apache-kafka-new-york-times/  
 Reference: https://en.wikipedia.org/wiki/Directed_acyclic_graph  
-Reference: https://medium.freecodecamp.org/what-makes-apache-kafka-so-fast-a8d4f94ab145  
+Reference: https://medium.freecodecamp.org/what-makes-apache-kafka-so-fast-a8d4f94ab145
+
+## Eventually Consistent Caching
+
+ATE is effectively a traditional database split into two parts.
+
+The traditional commit log attached to databases like SQL Server and Oracle has
+been split off into a highly scalable distributed commit log (Kafka). While the
+tree data structures and tables of the traditional database have moved far away from
+the logs and instead embedded as materialized views within the applications that
+actually need the data. i.e. as close to the business logic as possible.
+
+
+       .-------------------------------.
+       | Traditional Database (MS-SQL) |              .-------------------.
+       +-------------------------------+              | Materialized View |
+       | .-------------------.         |              +-------------------+
+       | | Relational Engine |<--.     |              |   Buffer Cache    |
+       | '-------------------'   |     |              '----------^--------'
+       |                     .---|--.  |                         |
+       |  Transaction Log    |      |  |                         | (async)    
+       |  (-----------() <-->|      |  |  [split]>    /\/\/\/\/\/|/\/\/\/\/\
+       |    ____             |      |  |                         |
+       |  .=    =.           |      |  |             Distributed | Commit Log
+       |  |'----'|<--------->|      |  |                (--------|------()
+       |  |      |           |      |  |                (--------|------()
+       |   ------            '------'  |                (--------|------()
+       |  Data File           Buffer   |                (--------+------()
+       '-------------------------------'                (---------------()
+
+This presents both a challenges, opportunities and solutions.
+
+Challenges:
+
+* How to keep the Materialized Views in sync across multiple applications.
+* How to maintain transaction consistency across applications.
+* Do we go for ACID or BASE.
+* The materialized view will use lots of memory if not carefull designed.
+
+Opportunities:
+
+* The synchronized mechanism itself to keep everything in sync can be used as a
+  cache invalidation mechanism.
+* Keeper data very close to the application itself means transaction consistency
+  is only a problem when the user themselves are active in multiple applications
+  thus significantly reducing the possible edge cases.
+* The distributed commit log is an guaranteed ordered stream of events that is
+  visible the same across all materialized views (even if one is delayed more
+  than another)
+* Given we have split the transaction logs (distributed commit logs) from the
+  materialized view itself we can have the data itself in-process as close to the
+  business logic itself (API) and thus enjoy the benefits of database queries that
+  are as fast as memory.
+
+Solutions:
+
+* The materialized view is both a cache and an active snapshot of tree (DAG) in
+  memory thus it uses cache updating and invalidation messages as a means to
+  synchronize (Kafka subscribe).
+* For the very few cases when multiple applications update the same data records
+  (partition key) then we can use Java itself to resolve a 3-way merge conflict
+  that is consistency.
+* By selecting an appropriate partition key it is possible to create many small
+  materialized views that are largely completely independent and thus creating
+  strong data locality and a much smaller memory footprint of the in-memory
+  materialized views.
+
+Reference: https://engineering.linkedin.com/distributed-systems/log-what-every-software-engineer-should-know-about-real-time-datas-unifying          
+Reference: https://www.confluent.io/blog/okay-store-data-apache-kafka/    
+Reference: https://en.wikipedia.org/wiki/Directed_acyclic_graph      
 
 ## Distributed Computing Architecture
 
@@ -478,75 +547,6 @@ to make current known quantum computer attacks on ATE unfeasible.
 Reference: https://en.wikipedia.org/wiki/Post-quantum_cryptography
 Reference: https://nvlpubs.nist.gov/nistpubs/ir/2016/NIST.IR.8105.pdf
 Reference: https://en.wikipedia.org/wiki/NTRU
-
-## Eventually Consistent Caching
-
-ATE is effectively a traditional database split into two parts.
-
-The traditional commit log attached to databases like SQL Server and Oracle has
-been split off into a highly scalable distributed commit log (Kafka). While the
-tree data structures and tables of the traditional database have moved far away from
-the logs and instead embedded as materialized views within the applications that
-actually need the data. i.e. as close to the business logic as possible.
-
-
-       .-------------------------------.
-       | Traditional Database (MS-SQL) |              .-------------------.
-       +-------------------------------+              | Materialized View |
-       | .-------------------.         |              +-------------------+
-       | | Relational Engine |<--.     |              |   Buffer Cache    |
-       | '-------------------'   |     |              '----------^--------'
-       |                     .---|--.  |                         |
-       |  Transaction Log    |      |  |                         | (async)    
-       |  (-----------() <-->|      |  |  [split]>    /\/\/\/\/\/|/\/\/\/\/\
-       |    ____             |      |  |                         |
-       |  .=    =.           |      |  |             Distributed | Commit Log
-       |  |'----'|<--------->|      |  |                (--------|------()
-       |  |      |           |      |  |                (--------|------()
-       |   ------            '------'  |                (--------|------()
-       |  Data File           Buffer   |                (--------+------()
-       '-------------------------------'                (---------------()
-
-This presents both a challenges, opportunities and solutions.
-
-Challenges:
-
-* How to keep the Materialized Views in sync across multiple applications.
-* How to maintain transaction consistency across applications.
-* Do we go for ACID or BASE.
-* The materialized view will use lots of memory if not carefull designed.
-
-Opportunities:
-
-* The synchronized mechanism itself to keep everything in sync can be used as a
-  cache invalidation mechanism.
-* Keeper data very close to the application itself means transaction consistency
-  is only a problem when the user themselves are active in multiple applications
-  thus significantly reducing the possible edge cases.
-* The distributed commit log is an guaranteed ordered stream of events that is
-  visible the same across all materialized views (even if one is delayed more
-  than another)
-* Given we have split the transaction logs (distributed commit logs) from the
-  materialized view itself we can have the data itself in-process as close to the
-  business logic itself (API) and thus enjoy the benefits of database queries that
-  are as fast as memory.
-
-Solutions:
-
-* The materialized view is both a cache and an active snapshot of tree (DAG) in
-  memory thus it uses cache updating and invalidation messages as a means to
-  synchronize (Kafka subscribe).
-* For the very few cases when multiple applications update the same data records
-  (partition key) then we can use Java itself to resolve a 3-way merge conflict
-  that is consistency.
-* By selecting an appropriate partition key it is possible to create many small
-  materialized views that are largely completely independent and thus creating
-  strong data locality and a much smaller memory footprint of the in-memory
-  materialized views.
-
-Reference: https://engineering.linkedin.com/distributed-systems/log-what-every-software-engineer-should-know-about-real-time-datas-unifying          
-Reference: https://www.confluent.io/blog/okay-store-data-apache-kafka/    
-Reference: https://en.wikipedia.org/wiki/Directed_acyclic_graph    
 
 ## Undertow and Weld
 
