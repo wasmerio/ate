@@ -407,18 +407,166 @@ chain.
 
 See this example below for the [Tokera company](https://mxtoolbox.com/SuperTool.aspx?action=a%3atokauth.tokera.com&run=toolpage)
 that publishes its root public key that allows the owner of the private key to
-write records to this particular domain.
+write records to ATE trees that are associated with this company.
 
 Reference: https://mxtoolbox.com/SuperTool.aspx?action=a%3atokauth.tokera.com&run=toolpage  
 Reference: https://letsencrypt.org/how-it-works/  
 Reference: https://en.wikipedia.org/wiki/NTRU  
 
-## Fine Grained Security
+## Fine-Grained Security
+
+As stated in the early sections on [chain of trust](#chain-of-trust) and
+[implicit authority](#implicit-authority) ATE will maintain and validate a
+cryptographically validated chain of trust in memory.
+
+    |  >Crypto-Graph Materiaized View< (in memory) |   .
+    |  .----------------------------------.        |   .
+    |  |             dns                  |        |   .
+    |  |              |                   |        |   .
+    |  |      dao----dao                  |        |   |
+    |  |              \                   |        |   .
+    |  |               dao                |        |   .
+    |  |                                  |        |   |
+    |  +----------------------------------+        |   .
+
+The data model and design of ATE allows for any particular node within the
+chain-of-trust (including the first one) to fork the authority into a new security
+domain. This not only allows for each chain-of-trust to operate completely
+independently from a security perspective but also allows for these independent
+trees to have sub-trees that are themselves completely independently isolated
+from security perspective.
+
+This model creates an interesting side-effect in that roles and access rights
+within a chain-of-trust (for instance a company) that is fully validated with
+implicit authority (DNS records) to then be carved up into different areas that
+are then protected with unique roles with specific access rights.
+
+Having this level of fine grained security can be used to either augment an
+existing security architecture with another layer of defence against attack and/or
+it can be used to drastically simplify the APIs themselves. For instance - if an
+API were to be created using ATE and the supplied token on calls to that API are
+then fed into the active scope it becomes much harder to accidentally create some
+business logic that leaks information that the user should not have access to as
+the ATE framework will throw an exception if it does not have the specific
+authority in the token to decrypt the records. This thus reduces the need for
+extra validation in the API business logic itself.
 
 ## Quantum Resistance
 
+ATE uses asymmetric cryptography that is resistant to attacks from a scaled up
+quantum computer. While not a real threat today as the distributed commit log
+is aimed to live for very long periods of time it is prudent to select and use
+algorithms that are resistant to attacks in the future that look back at data from
+the past. This is especially important as it is estimated at the time of writing
+that capable quatum based attacks on cryptographic will be possible in the next
+5 years.
+
+The following asymmetric cryptography has been shown mathematically to be highly
+vulnerable to such attacks:
+
+* ring-LWE algorithms
+* RSA-1024, RSA-2048, RSA-4096
+* ECC-256, ECC-521
+* Diffie-Hellman
+* Elliptic curve Diffie-Hellman
+
+ATE is built on NTRU which has been studied for many years without anymore finding
+a feasible attack (when used with the correct initialization parameters). When AES 
+is used within ATE key lengths equal or greater than 256bits which are large enough
+to make current known quantum computer attacks on ATE unfeasible.
+
+Reference: https://en.wikipedia.org/wiki/Post-quantum_cryptography
+Reference: https://nvlpubs.nist.gov/nistpubs/ir/2016/NIST.IR.8105.pdf
+Reference: https://en.wikipedia.org/wiki/NTRU
+
 ## Eventually Consistent Caching
+
+ATE is effectively a traditional database split into two parts.
+
+The traditional commit log attached to databases like SQL Server and Oracle has
+been split off into a highly scalable distributed commit log (Kafka). While the
+tree data structures and tables of the traditional database have moved far away from
+the logs and instead embedded as materialized views within the applications that
+actually need the data. i.e. as close to the business logic as possible.
+
+
+       .-------------------------------.
+       | Traditional Database (MS-SQL) |              .-------------------.
+       +-------------------------------+              | Materialized View |
+       | .-------------------.         |              +-------------------+
+       | | Relational Engine |<--.     |              |   Buffer Cache    |
+       | '-------------------'   |     |              '----------^--------'
+       |                     .---|--.  |                         |
+       |  Transaction Log    |      |  |                         | (async)    
+       |  (-----------() <-->|      |  |  [split]>    /\/\/\/\/\/|/\/\/\/\/\
+       |    ____             |      |  |                         |
+       |  .=    =.           |      |  |             Distributed | Commit Log
+       |  |'----'|<--------->|      |  |                (--------|------()
+       |  |      |           |      |  |                (--------|------()
+       |   ------            '------'  |                (--------|------()
+       |  Data File           Buffer   |                (--------+------()
+       '-------------------------------'                (---------------()
+
+This presents both a challenges, opportunities and solutions.
+
+Challenges:
+
+* How to keep the Materialized Views in sync across multiple applications.
+* How to maintain transaction consistency across applications.
+* Do we go for ACID or BASE.
+* The materialized view will use lots of memory if not carefull designed.
+
+Opportunities:
+
+* The synchronized mechanism itself to keep everything in sync can be used as a
+  cache invalidation mechanism.
+* Keeper data very close to the application itself means transaction consistency
+  is only a problem when the user themselves are active in multiple applications
+  thus significantly reducing the possible edge cases.
+* The distributed commit log is an guaranteed ordered stream of events that is
+  visible the same across all materialized views (even if one is delayed more
+  than another)
+* Given we have split the transaction logs (distributed commit logs) from the
+  materialized view itself we can have the data itself in-process as close to the
+  business logic itself (API) and thus enjoy the benefits of database queries that
+  are as fast as memory.
+
+Solutions:
+
+* The materialized view is both a cache and an active snapshot of tree (DAG) in
+  memory thus it uses cache updating and invalidation messages as a means to
+  synchronize (Kafka subscribe).
+* For the very few cases when multiple applications update the same data records
+  (partition key) then we can use Java itself to resolve a 3-way merge conflict
+  that is consistency.
+* By selecting an appropriate partition key it is possible to create many small
+  materialized views that are largely completely independent and thus creating
+  strong data locality and a much smaller memory footprint of the in-memory
+  materialized views.
+
+Reference: https://engineering.linkedin.com/distributed-systems/log-what-every-software-engineer-should-know-about-real-time-datas-unifying          
+Reference: https://www.confluent.io/blog/okay-store-data-apache-kafka/    
+Reference: https://en.wikipedia.org/wiki/Directed_acyclic_graph    
 
 ## Undertow and Weld
 
+ATE has native integration with Undertow and Weld however if you wish to use
+other application servers and/or dependency injection frameworks then you are
+able to do so.
+
+1. Weld is the reference implementation of JavaEE  
+2. ATE is designed to use Weld SE  
+3. Undertow is a fully embeddable lightweight version of the Wildfly Application Server
+4. ATE uses Undertow for its resteasy implementation
+
+Reference: https://weld.cdi-spec.org/  
+Reference: http://undertow.io/  
+Reference: https://github.com/wildfly/wildfly  
+
 ## Native REST Integrated
+
+Various filters, annotations and integration points are provided to popular
+REST frameworks (i.e. Resteasy) that allow the authentication and authorization
+systems to be easily used on API calls.
+
+See the [component guide](components.md) for more details.
