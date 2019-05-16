@@ -4,7 +4,8 @@ import com.tokera.ate.common.MapTools;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessageEncryptTextDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
-import com.tokera.ate.io.repo.DataTopicChain;
+import com.tokera.ate.io.api.IPartitionKey;
+import com.tokera.ate.io.repo.DataPartitionChain;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -49,8 +50,8 @@ public class EncryptKeyCachePerRequest {
         }
         
         // Get the topic this is related to
-        @TopicName String topic = d.requestContext.getCurrentTopicScope();
-        DataTopicChain chain = this.d.storageFactory.get().backend().getChain(topic);
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        DataPartitionChain chain = this.d.storageFactory.get().backend().getChain(partitionKey);
         
         // Loop through all the private toPutKeys that we own and try and find
         // an AES key that was encrypted for it
@@ -84,34 +85,16 @@ public class EncryptKeyCachePerRequest {
     public @Secret byte @Nullable [] getEncryptKey(@Hash String encryptKeyHash, MessagePrivateKeyDto key)
     {
         // Get the topic this is related to
-        @TopicName String topic = d.requestContext.getCurrentTopicScope();
-        DataTopicChain chain = this.d.storageFactory.get().backend().getChain(topic);
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        DataPartitionChain chain = this.d.storageFactory.get().backend().getChain(partitionKey);
 
         // Return the key
         return getEncryptKeyInternal(chain, encryptKeyHash, key);
     }
 
-    private @Secret byte @Nullable [] getEncryptKeyInternal(DataTopicChain chain, @Hash String encryptKeyHash, MessagePrivateKeyDto key)
+    private @Secret byte @Nullable [] getEncryptKeyInternal(DataPartitionChain chain, @Hash String encryptKeyHash, MessagePrivateKeyDto key)
     {
-        @Hash byte[] aesKey = null;
-
-        // Loop through all the private toPutKeys that we own and try and find
-        // an AES key that was encrypted for it
-        try {
-            MessageEncryptTextDto text = chain.getEncryptedText(d.encryptor.getPublicKeyHash(key), encryptKeyHash);
-            if (text == null) return null;
-            byte[] enc = text.getEncryptedTextBytes();
-
-            byte[] keyBytes = key.getPrivateKeyBytes();
-            if (keyBytes == null) return null;
-            aesKey = d.encryptor.decryptNtruWithPrivate(keyBytes, enc);
-
-            // Success!
-            this.getEncryptKeyCache().put(encryptKeyHash, aesKey);
-            return aesKey;
-        } catch (IOException | InvalidCipherTextException ex) {
-            return null;
-        }
+        return d.headIO.secureKeyResolver().get(chain.partitionKey(), encryptKeyHash, key);
     }
 
     /**
@@ -121,11 +104,8 @@ public class EncryptKeyCachePerRequest {
      */
     public boolean hasEncryptKey(@Hash String encryptKeyHash, @Hash String keyPublicKeyHash)
     {
-        // Get the topic this is related to
-        @TopicName String topic = d.requestContext.getCurrentTopicScope();
-        DataTopicChain chain = this.d.storageFactory.get().backend().getChain(topic);
-
-        return chain.getEncryptedText(keyPublicKeyHash, encryptKeyHash) != null;
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        return d.headIO.secureKeyResolver().exists(partitionKey, encryptKeyHash, keyPublicKeyHash);
     }
 
     /**

@@ -80,7 +80,7 @@ Reference: https://medium.freecodecamp.org/what-makes-apache-kafka-so-fast-a8d4f
 
 ## Eventually Consistent Caching
 
-ATE is effectively a traditional database split into two parts.
+ATE is really just a traditional database split into two parts rather than one.
 
 The traditional commit log attached to databases like SQL Server and Oracle has
 been split off into a highly scalable distributed commit log (Kafka). While the
@@ -106,38 +106,37 @@ actually need the data. i.e. as close to the business logic as possible.
        |  Data File           Buffer   |                (--------+------()
        '-------------------------------'                (---------------()
 
-This presents both a challenges, opportunities and solutions.
+This presents challenges, opportunities and solutions.
 
 Challenges:
 
 * How to keep the Materialized Views in sync across multiple applications.
 * How to maintain transaction consistency across applications.
-* Do we go for ACID or BASE.
-* The materialized view will use lots of memory if not carefull designed.
+* The materialized view will use lots of memory if not careful designed.
 
 Opportunities:
 
-* The synchronized mechanism itself to keep everything in sync can be used as a
-  cache invalidation mechanism.
-* Keeper data very close to the application itself means transaction consistency
-  is only a problem when the user themselves are active in multiple applications
-  thus significantly reducing the possible edge cases.
-* The distributed commit log is an guaranteed ordered stream of events that is
-  visible the same across all materialized views (even if one is delayed more
-  than another)
+* If the materialized views can be kept in sync then they can also serve as a highly
+  efficient client-side cache.
+* Keeping data very close to the application itself means transaction consistency
+  is only a problem when the same consumers are active across multiple applications
+  which can be easily managed thus significantly reducing the possible edge cases
+  for consistency problems.
+* The distributed commit log ensures that all the materialized views (no matter
+  how far away they are) will always eventually become consistent (BASE). 
 * Given we have split the transaction logs (distributed commit logs) from the
   materialized view itself we can have the data itself in-process as close to the
   business logic itself (API) and thus enjoy the benefits of database queries that
-  are as fast as memory.
+  are as fast as memory lookups.
 
 Solutions:
 
 * The materialized view is both a cache and an active snapshot of tree (DAG) in
   memory thus it uses cache updating and invalidation messages as a means to
-  synchronize (Kafka subscribe).
-* For the very few cases when multiple applications update the same data records
-  (partition key) then we can use Java itself to resolve a 3-way merge conflict
-  that is consistency.
+  synchronize itself (Kafka publish/subscribe pattern).
+* For the very few cases where multiple applications update the same data records
+  (partition key) then we can use code and logic to perform a 3-way merge on the
+  events that stream into the materialized view thus ensuring correct consistency.
 * By selecting an appropriate partition key it is possible to create many small
   materialized views that are largely completely independent and thus creating
   strong data locality and a much smaller memory footprint of the in-memory

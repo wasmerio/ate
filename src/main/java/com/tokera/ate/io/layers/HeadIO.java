@@ -1,8 +1,9 @@
-package com.tokera.ate.io;
+package com.tokera.ate.io.layers;
 
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dto.msg.*;
+import com.tokera.ate.io.api.*;
 import com.tokera.ate.qualifiers.BackendStorageSystem;
 import com.tokera.ate.qualifiers.FrontendStorageSystem;
 import com.tokera.ate.units.*;
@@ -13,7 +14,6 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
-import javax.ws.rs.core.Response;
 import java.util.*;
 
 /**
@@ -28,6 +28,22 @@ public class HeadIO implements IAteIO
     @Inject
     @BackendStorageSystem
     protected IAteIO back;
+    @SuppressWarnings("initialization.fields.uninitialized")
+    @Inject
+    @BackendStorageSystem
+    protected IPartitionResolver backPartitionResolver;
+    @SuppressWarnings("initialization.fields.uninitialized")
+    @Inject
+    @BackendStorageSystem
+    protected IPartitionKeyMapper backPartitionKeyMapper;
+    @SuppressWarnings("initialization.fields.uninitialized")
+    @Inject
+    @BackendStorageSystem
+    protected ISecureKeyRepository backSecureKeyResolver;
+    @SuppressWarnings("initialization.fields.uninitialized")
+    @Inject
+    @BackendStorageSystem
+    protected ITokenParser backTokenParser;
     @SuppressWarnings("initialization.fields.uninitialized")
     @Inject
     private LoggerHook LOG;
@@ -130,6 +146,18 @@ public class HeadIO implements IAteIO
     public DataSubscriber backend() {
         return back.backend();
     }
+
+    public IPartitionResolver partitionResolver() {
+        return this.backPartitionResolver;
+    }
+
+    public IPartitionKeyMapper partitionKeyMapper() { return this.backPartitionKeyMapper; }
+
+    public ISecureKeyRepository secureKeyResolver() {
+        return this.backSecureKeyResolver;
+    }
+    
+    public ITokenParser tokenParser() { return this.backTokenParser; }
 
     @Override
     public @Nullable MessagePublicKeyDto publicKeyOrNull(@Hash String hash) {

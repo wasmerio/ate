@@ -1,31 +1,29 @@
 package com.tokera.ate.events;
 
-import com.tokera.ate.common.StringTools;
+import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.TokenDto;
-import com.tokera.ate.units.DomainName;
-import com.tokera.ate.units.EmailAddress;
+import com.tokera.ate.io.api.IPartitionKey;
 
 /**
  * Event thats triggered whenever the Token scope is entered
  */
 public class TokenScopeChangedEvent {
 
-    private @DomainName String domain;
+    private IPartitionKey partitionKey;
 
     public TokenScopeChangedEvent(TokenDto token) {
-        @EmailAddress String email = token.getUsername();
-        this.domain = StringTools.getDomain(email);
+        this.partitionKey = AteDelegate.get().headIO.tokenParser().extractPartitionKey(token);
     }
 
-    public TokenScopeChangedEvent(@DomainName String domain) {
-        this.domain = domain;
+    public TokenScopeChangedEvent(IPartitionKey partitionKey) {
+        this.partitionKey = partitionKey;
     }
 
-    public @DomainName String getDomain() {
-        return domain;
+    public IPartitionKey getPartitionKey() {
+        return this.partitionKey;
     }
 
-    public void setDomain(@DomainName String domain) {
-        this.domain = domain;
+    public void setPartitionKey(IPartitionKey val) {
+        this.partitionKey = val;
     }
 }

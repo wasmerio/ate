@@ -8,6 +8,7 @@ import com.tokera.ate.dao.msg.*;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.delegates.YamlDelegate;
+import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.security.Encryptor;
 import com.google.common.collect.Multimap;
 import java.io.ByteArrayOutputStream;
@@ -26,9 +27,9 @@ import org.spongycastle.crypto.InvalidCipherTextException;
  * Represents a cryptographic verified graph of strongly typed data objects that form a chain-of-trust. These chains
  * are effectively the heart of the database.
  */
-public class DataTopicChain {
+public class DataPartitionChain {
     
-    private final String topic;
+    private final IPartitionKey key;
     private final ConcurrentMap<UUID, MessageDataHeaderDto> rootOfTrust;
     private final ConcurrentMap<UUID, ConcurrentQueue<MessageDataMetaDto>> chainOfPartialTrust;
     private final ConcurrentMap<UUID, DataContainer> chainOfTrust;
@@ -38,8 +39,8 @@ public class DataTopicChain {
     private final Set<String> allowedParentFree;
     private final Encryptor encryptor;
     
-    public DataTopicChain(String topic, Multimap<String, String> allowedParents, Set<String> allowedParentFree) {
-        this.topic = topic;
+    public DataPartitionChain(IPartitionKey key, Multimap<String, String> allowedParents, Set<String> allowedParentFree) {
+        this.key = key;
         this.rootOfTrust = new ConcurrentHashMap<>();
         this.chainOfTrust = new ConcurrentHashMap<>();
         this.chainOfPartialTrust = new ConcurrentHashMap<>();
@@ -50,6 +51,12 @@ public class DataTopicChain {
         this.allowedParents = allowedParents;
         this.allowedParentFree = allowedParentFree;
     }
+
+    public IPartitionKey partitionKey() { return this.key; }
+
+    public String getPartitionKeyStringValue() {
+        return this.key.partitionTopic() + ":" + this.key.partitionIndex();
+    }
     
     public void addTrustDataHeader(MessageDataHeaderDto trustedHeader, @Nullable LoggerHook LOG) {
 
@@ -59,8 +66,8 @@ public class DataTopicChain {
                 null);
         
         if (DataRepoConfig.g_EnableLogging == true) {
-            String info = "trust: [->" + this.topic + "]\n" + YamlDelegate.getInstance().serializeObj(trustedHeader);
-            if (LOG != null) LOG.info(info); else new LoggerHook(DataTopicChain.class).info(info);
+            String info = "trust: [->" + this.getPartitionKeyStringValue() + "]\n" + YamlDelegate.getInstance().serializeObj(trustedHeader);
+            if (LOG != null) LOG.info(info); else new LoggerHook(DataPartitionChain.class).info(info);
         }
 
         MessageMetaDto meta = new MessageMetaDto(
@@ -73,8 +80,8 @@ public class DataTopicChain {
     
     public void addTrustKey(MessagePublicKeyDto trustedKey, @Nullable LoggerHook LOG) {
         if (DataRepoConfig.g_EnableLogging == true) {
-            String info = "trust: [->" + this.topic + "]\n" + YamlDelegate.getInstance().serializeObj(trustedKey);
-            if (LOG != null) LOG.info(info); else new LoggerHook(DataTopicChain.class).info(info);
+            String info = "trust: [->" + this.getPartitionKeyStringValue() + "]\n" + YamlDelegate.getInstance().serializeObj(trustedKey);
+            if (LOG != null) LOG.info(info); else new LoggerHook(DataPartitionChain.class).info(info);
         }
 
         @Hash String trustedKeyHash = trustedKey.getPublicKeyHash();
@@ -94,10 +101,6 @@ public class DataTopicChain {
     
     public void addTrustEncryptText(MessageEncryptTextDto data, @Nullable LoggerHook LOG) {
         this.encryptText.put(MessageSerializer.getKey(data), data);
-    }
-    
-    public String getTopicName() {
-        return this.topic;
     }
     
     public boolean rcv(MessageBase raw, MessageMetaDto meta, @Nullable LoggerHook LOG) throws IOException, InvalidCipherTextException {
@@ -124,7 +127,7 @@ public class DataTopicChain {
     public boolean rcv(MessageBaseDto msg, MessageMetaDto meta, @Nullable LoggerHook LOG) throws IOException, InvalidCipherTextException {
         
         if (DataRepoConfig.g_EnableLogging == true) {
-            new LoggerHook(DataTopicChain.class).info("rcv:\n" + YamlDelegate.getInstance().serializeObj(msg));
+            new LoggerHook(DataPartitionChain.class).info("rcv:\n" + YamlDelegate.getInstance().serializeObj(msg));
         }
         
         if (msg instanceof MessageDataDto) {
@@ -148,9 +151,9 @@ public class DataTopicChain {
     public void drop(@Nullable LoggerHook LOG, @Nullable MessageBaseDto msg, @Nullable MessageMetaDto meta, String why, @Nullable MessageDataHeader parentHeader) {
         String index;
         if (meta != null) {
-            index = "topic=" + this.topic + ", offset=" + meta.getOffset();
+            index = "topic=" + this.getPartitionKeyStringValue() + ", offset=" + meta.getOffset();
         } else {
-            index = "topic=" + this.topic;
+            index = "topic=" + this.getPartitionKeyStringValue();
         }
 
         String err;
@@ -167,7 +170,7 @@ public class DataTopicChain {
         if (LOG != null) {
             LOG.error(err);
         } else {
-            new LoggerHook(DataTopicChain.class).warn(err);
+            new LoggerHook(DataPartitionChain.class).warn(err);
         }
     }
     
@@ -176,12 +179,12 @@ public class DataTopicChain {
         
         MessageDataHeaderDto header = data.getHeader();
         UUID id = header.getIdOrThrow();
-        err = "Dropping data on [" + this.topic + "] - " + why + " [clazz=" + header.getPayloadClazzOrThrow() + ", id=" + id + "]";
+        err = "Dropping data on [" + this.getPartitionKeyStringValue() + "] - " + why + " [clazz=" + header.getPayloadClazzOrThrow() + ", id=" + id + "]";
 
         if (LOG != null) {
             LOG.error(err);
         } else {
-            new LoggerHook(DataTopicChain.class).warn(err);
+            new LoggerHook(DataPartitionChain.class).warn(err);
         }
     }
 

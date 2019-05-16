@@ -149,7 +149,7 @@ public class MessageEncryptTextDto extends MessageBaseDto implements Serializabl
         copyOnWrite();
         this.textHash = textHash;
     }
-    
+
     public @Secret String getEncryptedText() {
         MessageEncryptText lfb = fb;
         if (lfb != null) {

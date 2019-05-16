@@ -4,6 +4,7 @@ import com.tokera.ate.dao.IRights;
 import com.tokera.ate.dao.IRoles;
 import com.tokera.ate.events.NewAccessRightsEvent;
 import com.tokera.ate.events.RightsDiscoverEvent;
+import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.units.*;
 import com.tokera.ate.dto.TokenDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
@@ -53,8 +54,8 @@ public class CurrentRightsDelegate implements IRights {
         rightsWriteCache = null;
     }
     
-    public void impersonate(@TopicName String topic, IRights rights) {
-        d.requestContext.pushTopicScope(topic);
+    public void impersonate(IPartitionKey key, IRights rights) {
+        d.requestContext.pushPartitionKey(key);
         try {
             d.authorization.getOrCreateImplicitRightToRead(rights);
             d.authorization.getOrCreateImplicitRightToWrite(rights);
@@ -62,7 +63,7 @@ public class CurrentRightsDelegate implements IRights {
             this.impersonateRead = rights.getRightsRead();
             this.impersonateWrite = rights.getRightsWrite();
         } finally {
-            d.requestContext.popTopicScope();
+            d.requestContext.popPartitionKey();
         }
         
         clearRightsCache();

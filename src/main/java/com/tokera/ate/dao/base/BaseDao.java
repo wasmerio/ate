@@ -2,6 +2,7 @@ package com.tokera.ate.dao.base;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.tokera.ate.common.Immutalizable;
+import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.units.DaoId;
 import com.tokera.ate.units.TopicName;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -16,7 +17,6 @@ import java.util.UUID;
  */
 public abstract class BaseDao implements Serializable, Immutalizable {
 
-    public transient @JsonIgnore @Nullable @TopicName String topicName;
     public transient @JsonIgnore @Nullable Set<UUID> mergesVersions = null;
     public transient @JsonIgnore @Nullable UUID previousVersion = null;
     public transient @JsonIgnore @Nullable UUID version = null;
