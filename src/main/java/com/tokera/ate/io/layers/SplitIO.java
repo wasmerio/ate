@@ -1,7 +1,8 @@
-package com.tokera.ate.io;
+package com.tokera.ate.io.layers;
 
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dto.msg.*;
+import com.tokera.ate.io.api.IAteIO;
 import com.tokera.ate.units.DaoId;
 import com.tokera.ate.units.Hash;
 import com.tokera.ate.io.repo.DataContainer;
@@ -13,12 +14,12 @@ import java.util.stream.Collectors;
 /**
  * IO system that chains two IO subsystems together where the upper data takes preference over the lower
  */
-final public class LayeredIO implements IAteIO {
+final public class SplitIO implements IAteIO {
 
     private final IAteIO upper;
     private final IAteIO lower;
 
-    public LayeredIO(IAteIO upper, IAteIO lower) {
+    public SplitIO(IAteIO upper, IAteIO lower) {
         this.upper = upper;
         this.lower = lower;
     }

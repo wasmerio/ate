@@ -1,30 +1,30 @@
 package com.tokera.ate.events;
 
-import com.tokera.ate.io.repo.DataTopic;
-import com.tokera.ate.io.repo.DataTopicChain;
+import com.tokera.ate.io.repo.DataPartition;
+import com.tokera.ate.io.repo.DataPartitionChain;
 
 public class TopicSeedingEvent {
-    private DataTopic topic;
-    private DataTopicChain chain;
+    private DataPartition topic;
+    private DataPartitionChain chain;
 
-    public TopicSeedingEvent(DataTopic topic, DataTopicChain chain) {
+    public TopicSeedingEvent(DataPartition topic, DataPartitionChain chain) {
         this.topic = topic;
         this.chain = chain;
     }
 
-    public DataTopic getTopic() {
+    public DataPartition getTopic() {
         return topic;
     }
 
-    public void setTopic(DataTopic topic) {
+    public void setTopic(DataPartition topic) {
         this.topic = topic;
     }
 
-    public DataTopicChain getChain() {
+    public DataPartitionChain getChain() {
         return chain;
     }
 
-    public void setChain(DataTopicChain chain) {
+    public void setChain(DataPartitionChain chain) {
         this.chain = chain;
     }
 }

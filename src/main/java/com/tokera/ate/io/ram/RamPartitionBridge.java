@@ -1,8 +1,11 @@
-package com.tokera.ate.io.repo;
+package com.tokera.ate.io.ram;
 
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dto.msg.*;
-import com.tokera.ate.enumerations.DataTopicType;
+import com.tokera.ate.enumerations.DataPartitionType;
+import com.tokera.ate.io.api.IPartitionKey;
+import com.tokera.ate.io.repo.DataPartitionChain;
+import com.tokera.ate.io.repo.IDataPartitionBridge;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.spongycastle.crypto.InvalidCipherTextException;
 
@@ -12,22 +15,22 @@ import java.util.*;
 /**
  * Represents a bridge of a particular topic with an in memory RAM copy of the data
  */
-public class RamTopicBridge implements IDataTopicBridge {
+public class RamPartitionBridge implements IDataPartitionBridge {
 
-    private DataTopicChain chain;
-    private DataTopicType type;
+    private DataPartitionChain chain;
+    private DataPartitionType type;
     private final Random rand = new Random();
     private RamTopicPartition partition;
 
-    public RamTopicBridge(DataTopicChain chain, DataTopicType type, RamTopicPartition p) {
+    public RamPartitionBridge(DataPartitionChain chain, DataPartitionType type, RamTopicPartition p) {
         this.chain = chain;
         this.type = type;
         this.partition = p;
 
-        RamTopicBridge.seed(chain.getTopicName(), chain, p);
+        RamPartitionBridge.seed(chain, p);
     }
 
-    private static void seed(String topicName, DataTopicChain chain, RamTopicPartition p) {
+    private static void seed(DataPartitionChain chain, RamTopicPartition p) {
         for (Map.Entry<Long, MessageBaseDto> pair : p.messages.entrySet()) {
             long offset = pair.getKey();
             MessageBaseDto msg = pair.getValue();

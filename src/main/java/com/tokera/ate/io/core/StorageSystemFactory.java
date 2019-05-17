@@ -1,7 +1,10 @@
 package com.tokera.ate.io.core;
 
-import com.tokera.ate.io.IAteIO;
-import com.tokera.ate.io.*;
+import com.tokera.ate.io.api.*;
+import com.tokera.ate.io.layers.AccessLogIO;
+import com.tokera.ate.io.layers.BackendIO;
+import com.tokera.ate.io.layers.SplitIO;
+import com.tokera.ate.io.layers.MemoryCacheIO;
 import com.tokera.ate.qualifiers.BackendStorageSystem;
 import com.tokera.ate.io.repo.DataRepository;
 import com.tokera.ate.io.repo.DataSubscriber;
@@ -23,6 +26,10 @@ public class StorageSystemFactory
     public class Builder
     {
         private IAteIO first;
+        private IPartitionResolver partitionResolver = new DefaultPartitionResolver();
+        private IPartitionKeyMapper partitionKeyMapper = new DefaultPartitionKeyMapper();
+        private ISecureKeyRepository secureKeyRepository = new DefaultSecureKeyRepository();
+        private ITokenParser tokenParser = new DefaultTokenParser();
 
         protected Builder(IAteIO next) {
             first = next;
@@ -42,7 +49,7 @@ public class StorageSystemFactory
          * same data objects during the same currentRights
          */
         public Builder addCacheLayer() {
-            first = new LayeredIO(
+            first = new SplitIO(
                     CDI.current().select(MemoryCacheIO.class).get(),
                     first
                 );
@@ -50,10 +57,39 @@ public class StorageSystemFactory
         }
 
         /**
-         * @return Reference to an IO interface used to interact with the storage system
+         * Overrides the default partition resolver with a custom one
+         * @param resolver Reference to a custom partition resolver to use instead of the default one
          */
-        protected IAteIO get() {
-            return first;
+        public Builder withPartitionResolver(IPartitionResolver resolver) {
+            this.partitionResolver = resolver;
+            return this;
+        }
+
+        /**
+         * Overrides the default partition key mapper with a custom one
+         * @param mapper Reference to custom partition key mapper implementation instead of the default one
+         */
+        public Builder withPartitionKeyMapper(IPartitionKeyMapper mapper) {
+            this.partitionKeyMapper = mapper;
+            return this;
+        }
+
+        /**
+         * Overrides the default secure key repository with a custom one
+         * @param repository Reference to the secure key resolver to use instead of the default one
+         */
+        public Builder withSecureKeyRepository(ISecureKeyRepository repository) {
+            this.secureKeyRepository = repository;
+            return this;
+        }
+
+        /**
+         * Overrides the default token parser with a custom one
+         * @param tokenParser Reference to an implementation of a token parser to use instead of the default one
+         */
+        public Builder withTokenParser(ITokenParser tokenParser) {
+            this.tokenParser = tokenParser;
+            return this;
         }
     }
 
@@ -62,12 +98,56 @@ public class StorageSystemFactory
      */
     @Produces
     @BackendStorageSystem
-    public IAteIO get()
-    {
+    public IAteIO get() {
         if (tree == null) {
             throw new RuntimeException("You must first initialize this factory by adding a backend and layers.");
         }
-        return tree.get();
+        return tree.first;
+    }
+
+    /**
+     * @return Gets a reference to the interface used to determine the topic and partition for a data object
+     */
+    @Produces
+    @BackendStorageSystem
+    public IPartitionResolver partitionResolver() {
+        if (tree == null) {
+            throw new RuntimeException("You must first initialize this factory by adding a backend and layers.");
+        }
+        return tree.partitionResolver;
+    }
+
+    @Produces
+    @BackendStorageSystem
+    public IPartitionKeyMapper partitionKeyMapper() {
+        if (tree == null) {
+            throw new RuntimeException("You must first initialize this factory by adding a backend and layers.");
+        }
+        return tree.partitionKeyMapper;
+    }
+
+    /**
+     * @return Gets a reference to the interface used to find the secure encryption keys for a data objects
+     */
+    @Produces
+    @BackendStorageSystem
+    public ISecureKeyRepository secureKeyRepository() {
+        if (tree == null) {
+            throw new RuntimeException("You must first initialize this factory by adding a backend and layers.");
+        }
+        return tree.secureKeyRepository;
+    }
+
+    /**
+     * @return Gets a reference to the interface used for parsing tokens into useful things
+     */
+    @Produces
+    @BackendStorageSystem
+    public ITokenParser tokenParser() {
+        if (tree == null) {
+            throw new RuntimeException("You must first initialize this factory by adding a backend and layers.");
+        }
+        return tree.tokenParser;
     }
 
     /**

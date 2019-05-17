@@ -10,8 +10,11 @@ import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalNotification;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.delegates.AteDelegate;
-import com.tokera.ate.enumerations.DataTopicType;
+import com.tokera.ate.enumerations.DataPartitionType;
 import com.tokera.ate.events.TopicSeedingEvent;
+import com.tokera.ate.io.api.IPartitionKey;
+import com.tokera.ate.io.ram.RamPartitionBridge;
+import com.tokera.ate.io.ram.RamTopicPartition;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,7 +29,7 @@ public class DataSubscriber {
 
     private AteDelegate d = AteDelegate.getUnsafe();
     private final LoggerHook LOG;
-    private final Cache<String, @NonNull DataTopic> topicCache;
+    private final Cache<String, @NonNull DataPartition> topicCache;
     private final ConcurrentHashMap<String, RamTopicPartition> ramPartitions;
     private final Mode mode;
 
@@ -41,53 +44,53 @@ public class DataSubscriber {
         this.topicCache = CacheBuilder.newBuilder()
                 .maximumSize(500)
                 .expireAfterAccess(1, TimeUnit.MINUTES)
-                .removalListener((RemovalNotification<String, DataTopic> notification) -> {
-                    DataTopic t = notification.getValue();
+                .removalListener((RemovalNotification<String, DataPartition> notification) -> {
+                    DataPartition t = notification.getValue();
                     if (t != null) t.stop();
                 })
                 .build();
         this.ramPartitions = new ConcurrentHashMap<>();
     }
     
-    private void seedTopic(DataTopic kt)
+    private void seedTopic(DataPartition kt)
     {   
-        DataTopicChain chain = kt.getChain();
+        DataPartitionChain chain = kt.getChain();
         d.eventTopicSeeding.fire(new TopicSeedingEvent(kt, chain));
     }
     
-    public DataTopic getTopic(String topicName) {
-        return getTopic(topicName, true, DataTopicType.Dao);
+    public DataPartition getPartition(IPartitionKey partition) {
+        return getPartition(partition, true, DataPartitionType.Dao);
     }
     
-    public DataTopicChain getChain(String topicName) {
-        DataTopic topic = getTopic(topicName);
+    public DataPartitionChain getChain(IPartitionKey partition) {
+        DataPartition topic = getPartition(partition);
         return topic.getChain();
     }
 
-    private IDataTopicBridge createBridge(DataTopicChain chain, DataTopicType type) {
+    private IDataPartitionBridge createBridge(IPartitionKey key, DataPartitionChain chain, DataPartitionType type) {
         if (this.mode == Mode.Ram) {
-            RamTopicPartition p = this.ramPartitions.computeIfAbsent(chain.getTopicName(), RamTopicPartition::new);
-            return new RamTopicBridge(chain, type, p);
+            RamTopicPartition p = this.ramPartitions.computeIfAbsent(chain.getPartitionKeyStringValue(), RamTopicPartition::new);
+            return new RamPartitionBridge(chain, type, p);
         } else {
-            return d.kafkaBridgeBuilder.build(chain, type);
+            return d.kafkaBridgeBuilder.build(key, chain, type);
         }
     }
 
-    private DataTopic createTopic(String topicName, DataTopicType type) {
-        DataTopicChain chain = new DataTopicChain(
-                topicName,
+    private DataPartition createPartition(IPartitionKey key, DataPartitionType type) {
+        DataPartitionChain chain = new DataPartitionChain(
+                key,
                 d.daoParents.getAllowedParentsSimple(),
                 d.daoParents.getAllowedParentFreeSimple());
-        IDataTopicBridge bridge = createBridge(chain, type);
+        IDataPartitionBridge bridge = createBridge(key, chain, type);
 
-        DataTopic newTopic = new DataTopic(chain, bridge, type, d.daoParents);
+        DataPartition newTopic = new DataPartition(key, chain, bridge, type, d.daoParents);
         newTopic.start();
         seedTopic(newTopic);
         return newTopic;
     }
     
-    public DataTopic getTopic(String topicName, boolean shouldWait, DataTopicType type) {
-        DataTopic ret = this.topicCache.getIfPresent(topicName);
+    public DataPartition getPartition(IPartitionKey partition, boolean shouldWait, DataPartitionType type) {
+        DataPartition ret = this.topicCache.getIfPresent(partition.partitionTopic());
         if (ret != null) {
             if (shouldWait == true) {
                 ret.waitTillLoaded();
@@ -97,13 +100,13 @@ public class DataSubscriber {
 
         try
         {
-            ret = this.topicCache.get(topicName, () ->
+            ret = this.topicCache.get(partition.partitionTopic(), () ->
                 {
                     synchronized(this)
                     {
-                        LOG.info("loading-topic: " + topicName);
+                        LOG.info("loading-topic: " + partition.partitionTopic());
                         d.encryptor.touch(); // required as the kafka topic needs an instance reference
-                        return createTopic(topicName, type);
+                        return createPartition(partition, type);
                     }
                 });
         } catch (ExecutionException ex) {
@@ -117,8 +120,8 @@ public class DataSubscriber {
         return ret;
     }
     
-    public DataTopicChain getChain(String topicName, boolean shouldWait) {
-        DataTopic topic = getTopic(topicName, shouldWait, DataTopicType.Dao);
+    public DataPartitionChain getChain(IPartitionKey key, boolean shouldWait) {
+        DataPartition topic = getPartition(key, shouldWait, DataPartitionType.Dao);
         return topic.getChain();
     }
     

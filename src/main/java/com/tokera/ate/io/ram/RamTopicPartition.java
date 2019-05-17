@@ -1,4 +1,4 @@
-package com.tokera.ate.io.repo;
+package com.tokera.ate.io.ram;
 
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.dto.msg.MessageBaseDto;

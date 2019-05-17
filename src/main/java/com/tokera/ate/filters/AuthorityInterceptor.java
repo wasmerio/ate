@@ -146,7 +146,7 @@ public class AuthorityInterceptor implements ContainerRequestFilter, ContainerRe
 
     private void undoInferredTopic() {
         if (inferredTopic > 0) {
-            d.requestContext.popTopicScope();
+            d.requestContext.popPartitionKey();
             inferredTopic--;
         }
     }
@@ -158,7 +158,7 @@ public class AuthorityInterceptor implements ContainerRequestFilter, ContainerRe
 
         // If we dont have a topic set from the headers then we can
         // just use the one thats passed in the token
-        d.requestContext.pushTopicScope(discovery.getDomain());
+        d.requestContext.pushPartitionKey(discovery.getPartitionKey());
         inferredTopic++;
     }
 

@@ -4,23 +4,24 @@ import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.extensions.DaoParentDiscoveryExtension;
 import com.tokera.ate.delegates.YamlDelegate;
 import com.tokera.ate.dto.msg.MessageBaseDto;
-import com.tokera.ate.enumerations.DataTopicType;
+import com.tokera.ate.enumerations.DataPartitionType;
+import com.tokera.ate.io.api.IPartitionKey;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-import javax.ws.rs.core.Response;
-
 /**
- * Represents a Topic of data held within the data repositories that make up the storage backend.
+ * Represents a partition of data held within the data repositories that make up the storage backend.
  */
-public class DataTopic {
-    
-    private final DataTopicChain chain;
-    private final IDataTopicBridge bridge;
-    private final DataTopicType type;
+public class DataPartition {
+
+    private final IPartitionKey key;
+    private final DataPartitionChain chain;
+    private final IDataPartitionBridge bridge;
+    private final DataPartitionType type;
     private final DaoParentDiscoveryExtension parentDiscovery;
     
-    public DataTopic(DataTopicChain chain, IDataTopicBridge bridge, DataTopicType type, DaoParentDiscoveryExtension parentDiscovery)
+    public DataPartition(IPartitionKey key, DataPartitionChain chain, IDataPartitionBridge bridge, DataPartitionType type, DaoParentDiscoveryExtension parentDiscovery)
     {
+        this.key = key;
         this.parentDiscovery = parentDiscovery;
         this.chain = chain;
         this.bridge = bridge;
@@ -39,11 +40,13 @@ public class DataTopic {
         bridge.waitTillLoaded();
     }
 
-    public DataTopicChain getChain() {
+    public IPartitionKey partitionKey() { return this.key; }
+
+    public DataPartitionChain getChain() {
         return chain;
     }
 
-    public IDataTopicBridge getBridge() {
+    public IDataPartitionBridge getBridge() {
         return bridge;
     }
     
@@ -61,12 +64,12 @@ public class DataTopic {
                 logMsg += fullStackTrace + "\n";
             }
 
-            logMsg += "write: [->" + chain.getTopicName() + "]\n" + YamlDelegate.getInstance().serializeObj(msg);
+            logMsg += "write: [->" + this.chain.getPartitionKeyStringValue() + "]\n" + YamlDelegate.getInstance().serializeObj(msg);
 
             if (LOG != null) {
                 LOG.info(logMsg);
             } else {
-                new LoggerHook(DataTopic.class).info(logMsg);
+                new LoggerHook(DataPartition.class).info(logMsg);
             }
         }
     }

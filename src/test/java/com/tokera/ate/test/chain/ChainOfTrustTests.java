@@ -1,19 +1,20 @@
 package com.tokera.ate.test.chain;
 
 import com.tokera.ate.common.LoggerHook;
+import com.tokera.ate.common.UUIDTools;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.extensions.DaoParentDiscoveryExtension;
 import com.tokera.ate.delegates.CurrentRightsDelegate;
 import com.tokera.ate.dto.EffectivePermissions;
 import com.tokera.ate.dto.msg.*;
+import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.repo.DataContainer;
 import com.tokera.ate.io.repo.DataSignatureBuilder;
-import com.tokera.ate.io.repo.DataTopicChain;
+import com.tokera.ate.io.repo.DataPartitionChain;
 import com.tokera.ate.security.Encryptor;
 import java.io.IOException;
 import java.util.Random;
 import java.util.UUID;
-import javax.annotation.PostConstruct;
 import javax.enterprise.context.RequestScoped;
 import javax.inject.Inject;
 
@@ -27,6 +28,7 @@ import org.jboss.weld.junit5.WeldInitiator;
 import org.jboss.weld.junit5.WeldJunit5Extension;
 import org.jboss.weld.junit5.WeldSetup;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -52,10 +54,13 @@ public class ChainOfTrustTests
     @Inject
     private DaoParentDiscoveryExtension daoParents;
 
-    private DataTopicChain createChain()
+    private DataPartitionChain createChain()
     {
-        DataTopicChain ret = new DataTopicChain(
-                "tokera.com",
+        UUID id = UUIDTools.generateUUID("tokera.com");
+        IPartitionKey key = AteDelegate.get().headIO.partitionKeyMapper().resolve(id);
+
+        DataPartitionChain ret = new DataPartitionChain(
+                key,
                 daoParents.getAllowedParentsSimple(),
                 daoParents.getAllowedParentFreeSimple());
         encryptor.touch();
@@ -72,11 +77,22 @@ public class ChainOfTrustTests
                     .addBeanClass(MyThing.class))
             .activate(RequestScoped.class)
             .build();
+
+    @BeforeAll
+    public void init() {
+        AteDelegate d = AteDelegate.get();
+        d.init();
+        d.encryptor.touch();
+
+        d.storageFactory.buildRamBackend()
+                .addCacheLayer()
+                .addAccessLoggerLayer();
+    }
     
     @Test
     public void seeding()
     {
-        DataTopicChain chain = createChain();
+        DataPartitionChain chain = createChain();
         MessagePublicKeyDto trustedKeyWrite = encryptor.getTrustOfPublicWrite();
         chain.addTrustKey(trustedKeyWrite, null);
 
@@ -96,7 +112,7 @@ public class ChainOfTrustTests
         byte[] bytes1 = new byte[2000];
         new Random().nextBytes(bytes1);
         
-        DataTopicChain chain = createChain();
+        DataPartitionChain chain = createChain();
         MessagePrivateKeyDto trustedKeyWrite = encryptor.getTrustOfPublicWrite();
         chain.addTrustKey(trustedKeyWrite, null);
         

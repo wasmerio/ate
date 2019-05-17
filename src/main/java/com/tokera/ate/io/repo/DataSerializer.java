@@ -2,8 +2,6 @@ package com.tokera.ate.io.repo;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-import com.jsoniter.spi.TypeLiteral;
-import com.tokera.ate.common.MapTools;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.common.Immutalizable;
 import com.tokera.ate.common.LoggerHook;
@@ -22,7 +20,6 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import javax.annotation.PostConstruct;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
-import javax.ws.rs.core.Response;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -76,8 +73,8 @@ public class DataSerializer {
         return Base64.decodeBase64(encryptKey64);
     }
 
-    private void writeRightPublicKeysForDataObject(BaseDao obj, DataTopic kt) {
-        DataTopicChain chain = kt.getChain();
+    private void writeRightPublicKeysForDataObject(BaseDao obj, DataPartition kt) {
+        DataPartitionChain chain = kt.getChain();
 
         // If the entity has rights then make sure they are held within the chain
         // and if they are not then generate messages that will insert them
@@ -102,8 +99,8 @@ public class DataSerializer {
         }
     }
 
-    private void writeRolePublicKeysForDataObject(BaseDao obj, DataTopic kt) {
-        DataTopicChain chain = kt.getChain();
+    private void writeRolePublicKeysForDataObject(BaseDao obj, DataPartition kt) {
+        DataPartitionChain chain = kt.getChain();
 
         // If we are crossing from our requestContext topic then we need to scan for
         // other public toPutKeys and import them into this topic
@@ -126,8 +123,8 @@ public class DataSerializer {
         }
     }
 
-    private void writePermissionPublicKeysForDataObject(EffectivePermissions permissions, DataTopic kt) {
-        DataTopicChain chain = kt.getChain();
+    private void writePermissionPublicKeysForDataObject(EffectivePermissions permissions, DataPartition kt) {
+        DataPartitionChain chain = kt.getChain();
 
         // Write all the public toPutKeys that the chain is unaway of
         for (String publicKeyHash : permissions.rolesWrite)
@@ -156,38 +153,17 @@ public class DataSerializer {
         }
     }
 
-    private void writePermissionEncryptKeysForDataObject(EffectivePermissions permissions, DataTopic kt, byte[] encryptKey, String encryptKeyHash) {
-        DataTopicChain chain = kt.getChain();
-
+    private void writePermissionEncryptKeysForDataObject(EffectivePermissions permissions, DataPartition kt, byte[] encryptKey, String encryptKeyHash) {
         for (String publicKeyHash : permissions.rolesRead)
         {
-            // Get the public key
-            byte[] publicKeyBytes = chain.getPublicKeyBytes(publicKeyHash);
-            if (publicKeyBytes == null) {
-                throw new RuntimeException("We encountered a public key that is not yet known to the distributed commit log. Ensure all public toPutKeys are merged before using them in data entities by either calling mergeLater(obj), mergeThreeWay(obj) or mergeThreeWay(publicKeyOrNull).");
-            }
-            if (publicKeyBytes.length <= 64) {
-                throw new RuntimeException("We encountered a public key that does not valid. Ensure all public toPutKeys are merged before using them in data entities by either calling mergeLater(obj), mergeThreeWay(obj) or mergeThreeWay(publicKeyOrNull).");
-            }
-
             // If the key is not available in the kafka topic then we need to add it
-            MessageEncryptTextDto encryptText = chain.getEncryptedText(publicKeyHash, encryptKeyHash);
-            if (encryptText == null)
-            {
-                // Encrypt the key
-                byte[] encKey = d.encryptor.encryptNtruWithPublic(publicKeyBytes, encryptKey);
-
-                // Create a message and add it
-                encryptText = new MessageEncryptTextDto(
-                        publicKeyHash,
-                        encryptKeyHash,
-                        encKey);
-                kt.write(encryptText, this.LOG);
+            if (d.headIO.secureKeyResolver().exists(kt.partitionKey(), encryptKeyHash, publicKeyHash) == false) {
+                d.headIO.secureKeyResolver().put(kt.partitionKey(), encryptKey, publicKeyHash);
             }
         }
     }
 
-    private void writePublicKeysForDataObject(BaseDao obj, DataTopic kt) {
+    private void writePublicKeysForDataObject(BaseDao obj, DataPartition kt) {
         writeRightPublicKeysForDataObject(obj, kt);
         writeRolePublicKeysForDataObject(obj, kt);
     }
@@ -245,7 +221,7 @@ public class DataSerializer {
         return header;
     }
     
-    public MessageBaseDto toDataMessage(BaseDao obj, DataTopic kt, boolean isDeleted, boolean allowSavingOfChildren)
+    public MessageBaseDto toDataMessage(BaseDao obj, DataPartition kt, boolean isDeleted, boolean allowSavingOfChildren)
     {
         // Build a header for a new version of the data object
         BaseDao.newVersion(obj);
@@ -313,8 +289,6 @@ public class DataSerializer {
         if (ret == null) return null;
 
         validateObjectAfterRead(ret, msg);
-
-        ret.topicName = d.requestContext.getCurrentTopicScope();
         return ret;
     }
 

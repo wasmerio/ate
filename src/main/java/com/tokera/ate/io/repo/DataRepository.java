@@ -6,30 +6,23 @@ import com.tokera.ate.dao.base.BaseDao;
 
 import javax.annotation.PostConstruct;
 import javax.enterprise.context.RequestScoped;
-import javax.enterprise.inject.spi.CDI;
 import javax.inject.Inject;
 
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.delegates.AteDelegate;
-import com.tokera.ate.io.IAteIO;
+import com.tokera.ate.io.api.IAteIO;
+import com.tokera.ate.io.api.IPartitionKey;
+import com.tokera.ate.io.api.PartitionKeyComparator;
 import com.tokera.ate.security.EffectivePermissionBuilder;
 import com.tokera.ate.io.core.StorageSystemFactory;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.delegates.YamlDelegate;
 import com.tokera.ate.dto.EffectivePermissions;
-import com.tokera.ate.enumerations.DataTopicType;
+import com.tokera.ate.enumerations.DataPartitionType;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
-import javax.ws.rs.core.Response;
 
 import com.tokera.ate.units.DaoId;
 import com.tokera.ate.units.Hash;
@@ -51,7 +44,7 @@ public class DataRepository implements IAteIO {
     @SuppressWarnings("initialization.fields.uninitialized")
     private DataSubscriber subscriber;
 
-    private final Map<String, TopicMergeContext> topicContexts = new HashMap<>();
+    private final Map<IPartitionKey, PartitionMergeContext> partitionMergeContexts = new TreeMap<>(new PartitionKeyComparator());
 
     public DataRepository() {
 
@@ -69,7 +62,7 @@ public class DataRepository implements IAteIO {
             .expireAfterWrite(10, TimeUnit.MINUTES)
             .build();
 
-    private class TopicMergeContext {
+    private class PartitionMergeContext {
         public HashSet<UUID> toPutKeys = new HashSet<>();
         public List<BaseDao> toPut = new ArrayList<>();
         public HashSet<UUID> toDeleteKeys = new HashSet<>();
@@ -78,24 +71,24 @@ public class DataRepository implements IAteIO {
     
     @Override
     public void warm() {
-        String topic = d.requestContext.getCurrentTopicScope();
-        this.subscriber.getTopic(topic, false, DataTopicType.Dao);
+        IPartitionKey key = d.requestContext.getPartitionKeyScope();
+        this.subscriber.getPartition(key, false, DataPartitionType.Dao);
     }
     
     @Override
     public @Nullable MessagePublicKeyDto publicKeyOrNull(@Hash String hash) {
-        DataTopicChain chain = this.subscriber.getChain(d.requestContext.getCurrentTopicScope());
+        DataPartitionChain chain = this.subscriber.getChain(d.requestContext.getPartitionKeyScope());
         MessagePublicKeyDto key = chain.getPublicKey(hash);
 
         if (key == null) {
-            for (String topic : d.requestContext.getOtherTopicScopes()) {
-                d.requestContext.pushTopicScope(topic);
+            for (IPartitionKey topic : d.requestContext.getOtherPartitionKeys()) {
+                d.requestContext.pushPartitionKey(topic);
                 try {
                     chain = this.subscriber.getChain(topic);
                     key = chain.getPublicKey(hash);
                     if (key != null) break;
                 } finally {
-                    d.requestContext.popTopicScope();
+                    d.requestContext.popPartitionKey();
                 }
             }
         }
@@ -106,10 +99,10 @@ public class DataRepository implements IAteIO {
     private boolean mergeInternal(BaseDao entity, boolean performValidation, boolean performSync)
     {
         // Get the topic
-        DataTopic kt = this.subscriber.getTopic(d.requestContext.getCurrentTopicScope());
+        DataPartition kt = this.subscriber.getPartition(d.requestContext.getPartitionKeyScope());
 
         // Generate the data that represents this entity
-        DataTopicChain chain = kt.getChain();
+        DataPartitionChain chain = kt.getChain();
         MessageDataDto data = (MessageDataDto)d.dataSerializer.toDataMessage(entity, kt, false, false);
 
         // Perform the validations and checks
@@ -120,12 +113,12 @@ public class DataRepository implements IAteIO {
 
         if (DataRepoConfig.g_EnableLogging == true ||
                 DataRepoConfig.g_EnableLoggingWrite == true) {
-            this.LOG.info("write: [->" + d.requestContext.getCurrentTopicScope() + "]\n" + YamlDelegate.getInstance().serializeObj(data));
-            this.LOG.info("payload: [->" + d.requestContext.getCurrentTopicScope() + "]\n" + YamlDelegate.getInstance().serializeObj(entity));
+            this.LOG.info("write: [->" + d.requestContext.getPartitionKeyScope() + "]\n" + YamlDelegate.getInstance().serializeObj(data));
+            this.LOG.info("payload: [->" + d.requestContext.getPartitionKeyScope() + "]\n" + YamlDelegate.getInstance().serializeObj(entity));
         }
 
         // Save the data to the bridge and synchronize it
-        IDataTopicBridge bridge = kt.getBridge();
+        IDataPartitionBridge bridge = kt.getBridge();
         bridge.send(data);
 
         // Synchronize
@@ -160,8 +153,8 @@ public class DataRepository implements IAteIO {
     public void mergeInternal(MessageBaseDto data, boolean performSync)
     {
         // Save the data to the bridge and synchronize it
-        DataTopic kt = this.subscriber.getTopic(d.requestContext.getCurrentTopicScope());
-        IDataTopicBridge bridge = kt.getBridge();
+        DataPartition kt = this.subscriber.getPartition(d.requestContext.getPartitionKeyScope());
+        IDataPartitionBridge bridge = kt.getBridge();
         bridge.send(data);
 
         // Synchronize
@@ -182,22 +175,22 @@ public class DataRepository implements IAteIO {
         return true;
     }
 
-    private TopicMergeContext getPutContext(String topic)
+    private PartitionMergeContext getPartitionMergeContext(IPartitionKey key)
     {
-        TopicMergeContext context;
-        if (this.topicContexts.containsKey(topic) == false) {
-            context = new TopicMergeContext();
-            this.topicContexts.put(topic, context);
+        PartitionMergeContext context;
+        if (this.partitionMergeContexts.containsKey(key) == false) {
+            context = new PartitionMergeContext();
+            this.partitionMergeContexts.put(key, context);
             return context;
         }
 
-        context = this.topicContexts.get(topic);
+        context = this.partitionMergeContexts.get(key);
         assert context != null : "@AssumeAssertion(nullness): The section before ensures that the requestContext can never be null";
         return context;
     }
 
     private void validateEntityIsChained(BaseDao entity) {
-        String topic = d.requestContext.getCurrentTopicScope();
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
 
         // Make sure its a valid parent we are attached to
         String entityType = entity.getClass().getName();
@@ -215,7 +208,7 @@ public class DataRepository implements IAteIO {
             }
 
             BaseDao parentInCache = this.d.memoryCacheIO.getOrNull(entityParentId);
-            DataTopicChain chain = this.subscriber.getChain(topic);
+            DataPartitionChain chain = this.subscriber.getChain(partitionKey);
             DataContainer container = chain.getData(entityParentId, LOG);
             if (container != null && d.daoParents.getAllowedParentsSimple().containsEntry(entityType, container.getPayloadClazz()) == false) {
                 throw new RuntimeException("This entity is not allowed to be attached to this parent type [see PermitParentEntity annotation].");
@@ -269,9 +262,9 @@ public class DataRepository implements IAteIO {
     }
 
     private void mergeLaterInternal(BaseDao entity, boolean validate) {
-        String topic = d.requestContext.getCurrentTopicScope();
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
 
-        TopicMergeContext tContext = this.getPutContext(topic);
+        PartitionMergeContext tContext = this.getPartitionMergeContext(partitionKey);
 
         if (tContext.toPut.contains(entity.getId()) == true) {
             return;
@@ -300,8 +293,8 @@ public class DataRepository implements IAteIO {
         }
     }
 
-    private void mergeDeferredInternal(DataTopic kt, BaseDao entity, List<MessageDataDto> datas, Map<UUID, @Nullable MessageDataDto> requestTrust) {
-        DataTopicChain chain = kt.getChain();
+    private void mergeDeferredInternal(DataPartition kt, BaseDao entity, List<MessageDataDto> datas, Map<UUID, @Nullable MessageDataDto> requestTrust) {
+        DataPartitionChain chain = kt.getChain();
 
         MessageDataDto data = (MessageDataDto)d.dataSerializer.toDataMessage(entity, kt, false, false);
         datas.add(data);
@@ -312,8 +305,8 @@ public class DataRepository implements IAteIO {
         }
 
         if (DataRepoConfig.g_EnableLogging == true || DataRepoConfig.g_EnableLoggingWrite == true) {
-            this.LOG.info("write: [->" + d.requestContext.getCurrentTopicScope() + "]\n" + YamlDelegate.getInstance().serializeObj(data));
-            this.LOG.info("payload: [->" + d.requestContext.getCurrentTopicScope() + "]\n" + YamlDelegate.getInstance().serializeObj(entity));
+            this.LOG.info("write: [->" + d.requestContext.getPartitionKeyScope() + "]\n" + YamlDelegate.getInstance().serializeObj(data));
+            this.LOG.info("payload: [->" + d.requestContext.getPartitionKeyScope() + "]\n" + YamlDelegate.getInstance().serializeObj(entity));
         }
 
         // Add it to the currentRights trust which makes sure that previous
@@ -325,16 +318,16 @@ public class DataRepository implements IAteIO {
     public void mergeDeferred()
     {
         if (DataRepoConfig.g_EnableLogging == true) {
-            this.LOG.info("merge_deferred: [topic_cnt=" + this.topicContexts.size() + "]\n");
+            this.LOG.info("merge_deferred: [topic_cnt=" + this.partitionMergeContexts.size() + "]\n");
         }
 
-        for (String topic : this.topicContexts.keySet()) {
-            d.requestContext.pushTopicScope(topic);
+        for (IPartitionKey partitionKey : this.partitionMergeContexts.keySet()) {
+            d.requestContext.pushPartitionKey(partitionKey);
             try {
-                TopicMergeContext tContext = this.getPutContext(topic);
+                PartitionMergeContext tContext = this.getPartitionMergeContext(partitionKey);
 
                 // Get the topic
-                DataTopic kt = this.subscriber.getTopic(topic);
+                DataPartition kt = this.subscriber.getPartition(partitionKey);
 
                 // Loop through all the entities and validate them all
                 Map<UUID, @Nullable MessageDataDto> requestTrust = new HashMap<>();
@@ -345,7 +338,7 @@ public class DataRepository implements IAteIO {
 
                 // Write them all out to Kafka
                 boolean shouldWait = false;
-                IDataTopicBridge bridge = kt.getBridge();
+                IDataPartitionBridge bridge = kt.getBridge();
                 for (MessageDataDto data : datas) {
                     bridge.send(data);
                     shouldWait = true;
@@ -366,19 +359,19 @@ public class DataRepository implements IAteIO {
                     }
                 }
             } finally {
-                d.requestContext.popTopicScope();
+                d.requestContext.popPartitionKey();
             }
         }
 
-        this.topicContexts.clear();
+        this.partitionMergeContexts.clear();
     }
     
     @Override
     public boolean remove(BaseDao entity) {
         
         // Now create and write the data messages themselves
-        String topic = d.requestContext.getCurrentTopicScope();
-        DataTopic kt = this.subscriber.getTopic(topic);
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        DataPartition kt = this.subscriber.getPartition(partitionKey);
 
         if (entity.hasSaved() == false) {
             return true;
@@ -401,9 +394,9 @@ public class DataRepository implements IAteIO {
     public boolean remove(UUID id, Class<?> type) {
 
         // Loiad the existing record
-        String topic = d.requestContext.getCurrentTopicScope();
-        DataTopic kt = this.subscriber.getTopic(topic);
-        DataTopicChain chain = kt.getChain();
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        DataPartition kt = this.subscriber.getPartition(partitionKey);
+        DataPartitionChain chain = kt.getChain();
         DataContainer lastContainer = chain.getData(id, LOG);
         if (lastContainer == null) return false;
         if (lastContainer.hasPayload() == false) {
@@ -433,8 +426,8 @@ public class DataRepository implements IAteIO {
 
     @Override
     public void removeLater(BaseDao entity) {
-        String topic = d.requestContext.getCurrentTopicScope();
-        TopicMergeContext tContext = this.getPutContext(topic);
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        PartitionMergeContext tContext = this.getPartitionMergeContext(partitionKey);
 
         // We only actually need to validate and queue if the object has ever been saved
         if (entity.hasSaved() == true)
@@ -470,14 +463,14 @@ public class DataRepository implements IAteIO {
         @DaoId UUID id = _id;
         if (id == null) return false;
         
-        DataTopicChain kt = this.subscriber.getChain(d.requestContext.getCurrentTopicScope());
+        DataPartitionChain kt = this.subscriber.getChain(d.requestContext.getPartitionKeyScope());
         if (kt.exists(id, LOG)) return true;
         return false;
     }
     
     @Override
     public boolean ethereal() {
-        DataTopic topic = this.subscriber.getTopic(d.requestContext.getCurrentTopicScope());
+        DataPartition topic = this.subscriber.getPartition(d.requestContext.getPartitionKeyScope());
         return topic.ethereal();
     }
     
@@ -486,7 +479,7 @@ public class DataRepository implements IAteIO {
         @DaoId UUID id = _id;
         if (id == null) return false;
         
-        DataTopicChain chain = this.subscriber.getChain(d.requestContext.getCurrentTopicScope());
+        DataPartitionChain chain = this.subscriber.getChain(d.requestContext.getPartitionKeyScope());
         if (chain.everExisted(id, LOG)) return true;
         
         return false;
@@ -494,14 +487,14 @@ public class DataRepository implements IAteIO {
     
     @Override
     public boolean immutable(UUID id) {
-        DataTopicChain chain = this.subscriber.getChain(d.requestContext.getCurrentTopicScope());
+        DataPartitionChain chain = this.subscriber.getChain(d.requestContext.getPartitionKeyScope());
         if (chain.immutable(id, LOG)) return true;
         return false;
     }
 
     @Override
     public @Nullable MessageDataHeaderDto getRootOfTrust(UUID id) {
-        DataTopicChain chain = this.subscriber.getChain(d.requestContext.getCurrentTopicScope());
+        DataPartitionChain chain = this.subscriber.getChain(d.requestContext.getPartitionKeyScope());
         return chain.getRootOfTrust(id);
     }
 
@@ -511,7 +504,7 @@ public class DataRepository implements IAteIO {
         if (id == null) return null;
 
         // Attempt to find the data
-        DataTopicChain chain = this.subscriber.getChain(d.requestContext.getCurrentTopicScope());
+        DataPartitionChain chain = this.subscriber.getChain(d.requestContext.getPartitionKeyScope());
         DataContainer container = chain.getData(id, LOG);
         if (container == null) return null;
 
@@ -521,20 +514,20 @@ public class DataRepository implements IAteIO {
     @Override
     public @Nullable DataContainer getRawOrNull(@Nullable UUID id) {
         if (id == null) return null;
-        DataTopicChain chain = this.subscriber.getChain(d.requestContext.getCurrentTopicScope());
+        DataPartitionChain chain = this.subscriber.getChain(d.requestContext.getPartitionKeyScope());
         return chain.getData(id, LOG);
     }
     
     @Override
     public <T extends BaseDao> Iterable<MessageMetaDto> getHistory(UUID id, Class<T> clazz) {
-        String topic = d.requestContext.getCurrentTopicScope();
-        DataTopicChain chain = this.subscriber.getChain(topic);
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        DataPartitionChain chain = this.subscriber.getChain(partitionKey);
         return chain.getHistory(id, LOG);
     }
     
     @Override
     public @Nullable BaseDao getVersionOrNull(UUID id, MessageMetaDto meta) {
-        DataTopic kt = this.subscriber.getTopic(d.requestContext.getCurrentTopicScope());
+        DataPartition kt = this.subscriber.getPartition(d.requestContext.getPartitionKeyScope());
         
         MessageDataDto data = kt.getBridge().getVersion(id, meta);
         if (data != null) {
@@ -547,15 +540,15 @@ public class DataRepository implements IAteIO {
     
     @Override
     public @Nullable MessageDataDto getVersionMsgOrNull(UUID id, MessageMetaDto meta) {
-        DataTopic kt = this.subscriber.getTopic(d.requestContext.getCurrentTopicScope());
+        DataPartition kt = this.subscriber.getPartition(d.requestContext.getPartitionKeyScope());
         return kt.getBridge().getVersion(id, meta);
     }
 
     @Override
     public Set<BaseDao> getAll()
     {
-        String topic = d.requestContext.getCurrentTopicScope();
-        DataTopicChain chain = this.subscriber.getChain(topic);
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        DataPartitionChain chain = this.subscriber.getChain(partitionKey);
 
         Set<BaseDao> ret = new HashSet<>();
         for (DataContainer container : chain.getAllData(LOG)) {
@@ -572,8 +565,8 @@ public class DataRepository implements IAteIO {
     @Override
     public <T extends BaseDao> Set<T> getAll(Class<T> type)
     {
-        String topic = d.requestContext.getCurrentTopicScope();
-        DataTopicChain chain = this.subscriber.getChain(topic);
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        DataPartitionChain chain = this.subscriber.getChain(partitionKey);
 
         Set<T> ret = new HashSet<>();
         for (DataContainer container : chain.getAllData(type, LOG)) {
@@ -589,16 +582,16 @@ public class DataRepository implements IAteIO {
     @Override
     public <T extends BaseDao> List<DataContainer> getAllRaw()
     {
-        String topic = d.requestContext.getCurrentTopicScope();
-        DataTopicChain chain = this.subscriber.getChain(topic);
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        DataPartitionChain chain = this.subscriber.getChain(partitionKey);
         return chain.getAllData(null, LOG);
     }
 
     @Override
     public <T extends BaseDao> List<DataContainer> getAllRaw(@Nullable Class<T> type)
     {
-        String topic = d.requestContext.getCurrentTopicScope();
-        DataTopicChain chain = this.subscriber.getChain(topic);
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        DataPartitionChain chain = this.subscriber.getChain(partitionKey);
 
         if (type != null) {
             return chain.getAllData(type, LOG);
@@ -623,7 +616,7 @@ public class DataRepository implements IAteIO {
 
     @Override
     public void clearDeferred() {
-        this.topicContexts.clear();
+        this.partitionMergeContexts.clear();
     }
 
     @Override
@@ -639,7 +632,7 @@ public class DataRepository implements IAteIO {
     @Override
     public boolean sync(MessageSyncDto sync)
     {
-        DataTopic kt = this.subscriber.getTopic(d.requestContext.getCurrentTopicScope());
+        DataPartition kt = this.subscriber.getPartition(d.requestContext.getPartitionKeyScope());
         return kt.getBridge().finishSync(sync);
     }
 

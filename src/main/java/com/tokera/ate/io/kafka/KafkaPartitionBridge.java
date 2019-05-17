@@ -1,10 +1,11 @@
-package com.tokera.ate.kafka;
+package com.tokera.ate.io.kafka;
 
 import com.tokera.ate.configuration.AteConstants;
 import com.tokera.ate.dao.kafka.MessageSerializer;
+import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.repo.DataRepoConfig;
-import com.tokera.ate.io.repo.DataTopicChain;
-import com.tokera.ate.io.repo.IDataTopicBridge;
+import com.tokera.ate.io.repo.DataPartitionChain;
+import com.tokera.ate.io.repo.IDataPartitionBridge;
 import com.tokera.ate.common.ApplicationConfigLoader;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.common.MapTools;
@@ -13,7 +14,7 @@ import com.tokera.ate.dto.msg.MessageBaseDto;
 import com.tokera.ate.dto.msg.MessageDataDto;
 import com.tokera.ate.dto.msg.MessageMetaDto;
 import com.tokera.ate.dto.msg.MessageSyncDto;
-import com.tokera.ate.enumerations.DataTopicType;
+import com.tokera.ate.enumerations.DataPartitionType;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -39,11 +40,12 @@ import org.apache.kafka.common.errors.TopicExistsException;
 /**
  * Represents the bridge of a particular Kafka topic
  */
-public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
+public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
 
-    private final DataTopicChain m_topic;
+    private final IPartitionKey m_key;
+    private final DataPartitionChain m_chain;
     private final KafkaConfigTools m_config;
-    private final DataTopicType m_type;
+    private final DataPartitionType m_type;
     private final String m_keeperServers;
     private final String m_bootstrapServers;
     private @MonotonicNonNull Thread thread;
@@ -61,9 +63,10 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
     private final Random rand = new Random();
     private Map<MessageSyncDto, Object> syncs = new ConcurrentHashMap<MessageSyncDto, Object>();
     
-    public KafkaTopicBridge(DataTopicChain topic, KafkaConfigTools config, DataTopicType topicType, String keeperServers, String bootstrapServers)
+    public KafkaPartitionBridge(IPartitionKey key, DataPartitionChain chain, KafkaConfigTools config, DataPartitionType topicType, String keeperServers, String bootstrapServers)
     {
-        this.m_topic = topic;
+        this.m_key = key;
+        this.m_chain = chain;
         this.m_config = config;
         this.m_type = topicType;
         
@@ -92,7 +95,7 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
     @Override
     public void run() {
         Long errorWaitTime = 500L;
-        LoggerHook LOG = new LoggerHook(KafkaTopicBridge.class);
+        LoggerHook LOG = new LoggerHook(KafkaPartitionBridge.class);
         
         // Enter the main processing loop
         StopWatch timer = new StopWatch();
@@ -164,7 +167,7 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
     
     private int poll()
     {
-        LoggerHook LOG = new LoggerHook(KafkaTopicBridge.class);
+        LoggerHook LOG = new LoggerHook(KafkaPartitionBridge.class);
         
         int foundRecords = 0;
         int emptyCount = 0;
@@ -196,7 +199,9 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
             }
 
             consumerRecords.forEach(record -> {
-                if (record.topic().equals(m_topic.getTopicName()) == true) {
+                if (record.topic().equals(m_key.partitionTopic()) == true &&
+                    record.partition() == m_key.partitionIndex())
+                {
                     if (DataRepoConfig.g_EnableLogging == true) {
                         LOG.info("KafkaSubscriber::record(topic=" + record.topic() + ", id=" + record.key() + ")");
                     }
@@ -212,7 +217,7 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
                     }
 
                     try {
-                        m_topic.rcv(record.value(), meta, LOG);
+                        m_chain.rcv(record.value(), meta, LOG);
                     } catch (IOException | InvalidCipherTextException ex) {
                         LOG.warn(ex);
                     }
@@ -305,7 +310,7 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
             while (isLoaded == false) {
                 if (isEthereal) return;
                 if (waitTime.getTime() > 20000L) {
-                    throw new RuntimeException("Busy loading data topic [" + m_topic.getTopicName() + "]");
+                    throw new RuntimeException("Busy loading data topic [" + m_chain.getPartitionKeyStringValue() + "]");
                 }
                 try {
                     Thread.sleep(50);
@@ -329,7 +334,7 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
         // If the consumer is not yet assigned to partitions then assign it
         if (c.assignment().size() <= 0)
         {
-            LoggerHook LOG = new LoggerHook(KafkaTopicBridge.class);
+            LoggerHook LOG = new LoggerHook(KafkaPartitionBridge.class);
             
             // Configure the consumers
             if (this.partitions.isEmpty())
@@ -340,7 +345,7 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
                 List<PartitionInfo> parts = null;
                 if (parts == null) {
                     while (true) {
-                        parts = KafkaTopicBridge.partitionsForOrNull(c, this.m_topic.getTopicName());
+                        parts = KafkaPartitionBridge.partitionsForOrNull(c, this.m_key.partitionTopic());
                         if (parts != null &&
                             parts.size() > 0)
                         {
@@ -360,6 +365,7 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
                 
                 if (parts == null) return false;
                 this.partitions = parts.stream()
+                        .filter(i -> i.partition() == m_key.partitionIndex())
                         .map(i -> new TopicPartition(i.topic(), i.partition()))
                         .collect(Collectors.toList());
             }
@@ -448,7 +454,7 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
             // Create the topic
             try {
 
-                AdminUtils.createTopic(utils, this.m_topic.getTopicName(), numOfPartitions, numOfReplicas, topicProps, kafka.admin.RackAwareMode.Disabled$.MODULE$);
+                AdminUtils.createTopic(utils, this.m_key.partitionTopic(), this.m_key.maxPartitionsPerTopic(), numOfReplicas, topicProps, kafka.admin.RackAwareMode.Disabled$.MODULE$);
                 this.isCreated = true;
             } catch (TopicExistsException ex) {
                 this.isCreated = true;
@@ -459,7 +465,7 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
         // Wait for the topic to come online
         while (isLoaded == false) {
             if (waitTime.getTime() > 20000L) {
-                throw new RuntimeException("Busy while creating data topic [" + m_topic.getTopicName() + "]");
+                throw new RuntimeException("Busy while creating data topic [" + m_key.partitionTopic() + "]");
             }
             try {
                 Thread.sleep(50);
@@ -472,7 +478,7 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
     public void send(MessageBaseDto msg)
     {
         // Send the message do Kafka
-        ProducerRecord<String, MessageBase> record = new ProducerRecord<>(this.m_topic.getTopicName(), MessageSerializer.getKey(msg), msg.createBaseFlatBuffer());
+        ProducerRecord<String, MessageBase> record = new ProducerRecord<>(this.m_key.partitionTopic(), MessageSerializer.getKey(msg), msg.createBaseFlatBuffer());
         waitTillLoaded();
         
         // If we are Ethereal then we should attempt to create the topic and
@@ -488,7 +494,7 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
     }
    
     public @Nullable MessageDataDto getVersion(UUID id, MessageMetaDto meta) {
-        TopicPartition tp = new TopicPartition(this.m_topic.getTopicName(), (int)meta.getPartition());
+        TopicPartition tp = new TopicPartition(this.m_key.partitionTopic(), (int)this.m_key.partitionIndex());
         
         List<TopicPartition> tps = new LinkedList<>();
         tps.add(tp);

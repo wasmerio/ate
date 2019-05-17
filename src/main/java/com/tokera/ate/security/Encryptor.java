@@ -2,7 +2,7 @@ package com.tokera.ate.security;
 
 import com.google.common.base.Charsets;
 import com.tokera.ate.scopes.Startup;
-import com.tokera.ate.io.IAteIO;
+import com.tokera.ate.io.api.IAteIO;
 import com.tokera.ate.qualifiers.BackendStorageSystem;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.units.*;

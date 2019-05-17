@@ -5,6 +5,7 @@
  */
 package com.tokera.ate.delegates;
 
+import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.units.TopicName;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -25,9 +26,9 @@ import java.util.stream.Collectors;
 @RequestScoped
 public class RequestContextDelegate {
 
-    private @Context @Nullable ContainerRequestContext     requestContext;
-    private @MonotonicNonNull UriInfo   requestUriInfo;
-    private Stack<@TopicName String>    topicNameStack = new Stack<>();
+    private @Context @Nullable ContainerRequestContext requestContext;
+    private @MonotonicNonNull UriInfo requestUriInfo;
+    private Stack<@TopicName IPartitionKey> partitionKeyStack = new Stack<>();
 
     /**
      * Requests the currentRights container currentRights requestContext that was earlier stored by an filter/interceptor
@@ -38,7 +39,7 @@ public class RequestContextDelegate {
     }
 
     /**
-     * Requests the currentRights container currentRights requestContext that was earlier stored by an filter/interceptor
+     * Requests the currentRights container current requestContext that was earlier stored by an filter/interceptor
      * @return Reference to a ContainerRequestContext throws an exception if one was not stored earlier
      * @throws WebApplicationException Thrown if the ContainerRequestContext was not stored earlier by the
      * filter/interceptor
@@ -52,7 +53,7 @@ public class RequestContextDelegate {
     }
 
     /**
-     * Should be called by in the currentRights pipeline at an appropriate point (filter/interceptor) to set the
+     * Should be called by in the current pipeline at an appropriate point (filter/interceptor) to set the
      * ContainerRequestContext so that it may be used by other components of this engine.
      * @param requestContext Reference to the currentRights requestContext or null if its being cleared
      */
@@ -64,17 +65,17 @@ public class RequestContextDelegate {
      * @return Returns true if we are currently in the scope of a particular database topic. If not then the caller
      * can enter a Topic scope using the pushTopicScope method.
      */
-    public boolean isWithinTopicScope() {
-        return this.topicNameStack.empty() == false;
+    public boolean isWithinPartitionKeyScope() {
+        return this.partitionKeyStack.empty() == false;
     }
 
     /**
-     * @return Returns the TopicName for the currentRights topic scope else it throws an exception
+     * @return Returns the partition key for the currentRights topic scope else it throws an exception
      * @throws WebApplicationException Thrown if the caller is not currently in a Topic scope
      */
-    public @TopicName String getCurrentTopicScope() {
+    public IPartitionKey getPartitionKeyScope() {
         try {
-            return this.topicNameStack.peek();
+            return this.partitionKeyStack.peek();
         } catch (EmptyStackException ex) {
             throw new WebApplicationException("Request requires a 'Topic' header for this type of currentRights",
                     Response.Status.BAD_REQUEST);
@@ -82,34 +83,33 @@ public class RequestContextDelegate {
     }
 
     /**
-     * Enters a topic scope and pushes the previous state onto a stack
-     * @param topicName Name of the topic to enter
+     * Enters a partition key scope and pushes the previous key onto a stack
      */
-    public void pushTopicScope(@TopicName String topicName) {
-        this.topicNameStack.push(topicName);
+    public void pushPartitionKey(@TopicName IPartitionKey key) {
+        this.partitionKeyStack.push(key);
     }
 
     /**
-     * Restores an earlier pushed topic state from the stack
-     * @return Returns the new topic scope that was popped from the stack
+     * Restores an earlier pushed partition key from the stack
+     * @return Returns the new partition key that was popped from the stack
      */
-    public void popTopicScope() {
-        this.topicNameStack.pop();
+    public IPartitionKey popPartitionKey() {
+        return this.partitionKeyStack.pop();
     }
 
     /**
-     * @return Returns a list of other topics in the stack that are not the currentRights stack
+     * @return Returns a list of other partition keys in the stack that are not the current partition key itself
      */
-    public Iterable<String> getOtherTopicScopes() {
-        String curTopic = this.topicNameStack.peek();
-        return this.topicNameStack
+    public Iterable<IPartitionKey> getOtherPartitionKeys() {
+        IPartitionKey curTopic = this.partitionKeyStack.peek();
+        return this.partitionKeyStack
                 .stream()
                 .filter(t -> t.equals(curTopic) == false)
                 .collect(Collectors.toList());
     }
 
     /**
-     * Gets a reference to the currentRights URI details for the currentRights that was made
+     * Gets a reference to the current URI details for the currentRights that was made
      * @return
      */
     public UriInfo getUriInfo() {
@@ -121,7 +121,7 @@ public class RequestContextDelegate {
     }
 
     /**
-     * Gets a reference to the currentRights URI details for the currentRights that was made or null if none exists
+     * Gets a reference to the current URI details for the currentRights that was made or null if none exists
      * @return
      */
     public @Nullable UriInfo getUriInfoOrNull() {

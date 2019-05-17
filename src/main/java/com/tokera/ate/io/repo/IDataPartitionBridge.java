@@ -11,7 +11,7 @@ import java.util.UUID;
 /**
  * Represents an interface that will stream data messages to and from a persistent storage (e.g. Kafka BUS or Local Data File)
  */
-public interface IDataTopicBridge {
+public interface IDataPartitionBridge {
 
     void send(MessageBaseDto msg);
 

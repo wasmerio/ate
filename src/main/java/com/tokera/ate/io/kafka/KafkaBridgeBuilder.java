@@ -1,13 +1,14 @@
-package com.tokera.ate.kafka;
+package com.tokera.ate.io.kafka;
 
-import com.tokera.ate.io.repo.DataTopicChain;
-import com.tokera.ate.io.repo.IDataTopicBridge;
+import com.tokera.ate.io.api.IPartitionKey;
+import com.tokera.ate.io.repo.DataPartitionChain;
+import com.tokera.ate.io.repo.IDataPartitionBridge;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.common.ApplicationConfigLoader;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.configuration.AteConstants;
 import com.tokera.ate.delegates.AteDelegate;
-import com.tokera.ate.enumerations.DataTopicType;
+import com.tokera.ate.enumerations.DataPartitionType;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.annotation.PostConstruct;
@@ -65,9 +66,9 @@ public class KafkaBridgeBuilder {
         m_bootstrapServers = bootstrapServers;
     }
 
-    public IDataTopicBridge build(DataTopicChain chain, DataTopicType type) {
+    public IDataPartitionBridge build(IPartitionKey key, DataPartitionChain chain, DataPartitionType type) {
         touch();
-        return new KafkaTopicBridge(chain, d.kafkaConfig, type, m_keeperServers, m_bootstrapServers);
+        return new KafkaPartitionBridge(key, chain, d.kafkaConfig, type, m_keeperServers, m_bootstrapServers);
     }
 
     public void touch()

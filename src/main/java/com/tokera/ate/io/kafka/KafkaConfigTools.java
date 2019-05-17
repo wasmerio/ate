@@ -1,4 +1,4 @@
- package com.tokera.ate.kafka;
+ package com.tokera.ate.io.kafka;
 
 import com.tokera.ate.common.ApplicationConfigLoader;
 import com.tokera.ate.configuration.AteConstants;

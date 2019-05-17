@@ -1,6 +1,6 @@
 package com.tokera.ate.security;
 
-import com.tokera.ate.io.IAteIO;
+import com.tokera.ate.io.api.IAteIO;
 import com.tokera.ate.dao.IRoles;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dto.msg.MessageDataHeaderDto;
