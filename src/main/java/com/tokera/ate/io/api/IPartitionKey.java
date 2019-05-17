@@ -14,10 +14,4 @@ public interface IPartitionKey {
      * @return Index of the partition within this topic
      */
     int partitionIndex();
-
-    /**
-     * Returns the maximum number of partitions per topic (which is a design time constraint)
-     * @return Maximum number of partitions per topic
-     */
-    int maxPartitionsPerTopic();
 }

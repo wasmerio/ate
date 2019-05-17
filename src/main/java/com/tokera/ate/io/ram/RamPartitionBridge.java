@@ -13,7 +13,7 @@ import java.io.IOException;
 import java.util.*;
 
 /**
- * Represents a bridge of a particular topic with an in memory RAM copy of the data
+ * Represents a bridge of a particular partition with an in memory RAM copy of the data
  */
 public class RamPartitionBridge implements IDataPartitionBridge {
 

@@ -2,6 +2,8 @@ package com.tokera.ate.client;
 
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
+import com.tokera.ate.providers.PartitionKeySerializer;
+import com.tokera.ate.providers.PuuidSerializer;
 import com.tokera.ate.providers.UuidSerializer;
 import com.tokera.ate.providers.YamlProvider;
 import org.apache.commons.io.IOUtils;
@@ -29,6 +31,8 @@ public class TestTools {
         ResteasyClient client = new ResteasyClientBuilder()
                 .register(new YamlProvider())
                 .register(new UuidSerializer())
+                .register(new PartitionKeySerializer())
+                .register(new PuuidSerializer())
                 .build();
         return client;
     }

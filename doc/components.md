@@ -89,7 +89,7 @@ These include (but are not limited to):
 
 - Events triggered when the current token changes.
 - Events triggered when the access rights of the current context change.
-- Events triggered when a newly loaded Topic needs to be seeded with the root of the chain-of-trust.
+- Events triggered when a newly loaded partition needs to be seeded with the root of the chain-of-trust.
 
 ## _com.tokera.ate.exceptions_.*
 
@@ -144,8 +144,8 @@ performed on API calls as they are processed - notable filters include:
 - **ResourceScopeInterceptor** will start the **ResourceScope** for any API methods that are invoked.
 - **ResourceStatsInterceptor** performs atomic counts on methods so that heavily loaded methods can take
   proactive or reactive measures but ultimately it was built to show how a **ResourceScope** could be used.
-- **TopicInterceptor** allows the caller to specifc a Kafka Topic that the API should execute its logic
-  under by passing in a 'Topic' header. If no header is supplied then the ATE library will use the domain
+- **PartitionInterceptor** allows the caller to specifc a Kafka partition that the API should execute its logic
+  under by passing in a 'PartitionKey' header. If no header is supplied then the ATE library will use the domain
   name of the USERNAME claim written in the supplied token as the partition name.
 - **TransactionInterceptor** will commit any records marked for saving (d.headIO.mergeLater) into the
   chain-of-trust before returning to the caller (but only if the return code is a success as otherwise

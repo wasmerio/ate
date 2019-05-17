@@ -151,9 +151,9 @@ public class DataPartitionChain {
     public void drop(@Nullable LoggerHook LOG, @Nullable MessageBaseDto msg, @Nullable MessageMetaDto meta, String why, @Nullable MessageDataHeader parentHeader) {
         String index;
         if (meta != null) {
-            index = "topic=" + this.getPartitionKeyStringValue() + ", offset=" + meta.getOffset();
+            index = "partition=" + this.getPartitionKeyStringValue() + ", offset=" + meta.getOffset();
         } else {
-            index = "topic=" + this.getPartitionKeyStringValue();
+            index = "partition=" + this.getPartitionKeyStringValue();
         }
 
         String err;

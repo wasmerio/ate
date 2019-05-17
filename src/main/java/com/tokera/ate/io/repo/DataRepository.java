@@ -29,7 +29,7 @@ import com.tokera.ate.units.Hash;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
- * Represents a repository of many topic chains that are indexed by Topic name
+ * Represents a repository of many partition chains that are indexed by partition name
  */
 @RequestScoped
 public class DataRepository implements IAteIO {
@@ -81,10 +81,10 @@ public class DataRepository implements IAteIO {
         MessagePublicKeyDto key = chain.getPublicKey(hash);
 
         if (key == null) {
-            for (IPartitionKey topic : d.requestContext.getOtherPartitionKeys()) {
-                d.requestContext.pushPartitionKey(topic);
+            for (IPartitionKey partitionKey : d.requestContext.getOtherPartitionKeys()) {
+                d.requestContext.pushPartitionKey(partitionKey);
                 try {
-                    chain = this.subscriber.getChain(topic);
+                    chain = this.subscriber.getChain(partitionKey);
                     key = chain.getPublicKey(hash);
                     if (key != null) break;
                 } finally {
@@ -98,7 +98,7 @@ public class DataRepository implements IAteIO {
     
     private boolean mergeInternal(BaseDao entity, boolean performValidation, boolean performSync)
     {
-        // Get the topic
+        // Get the partition
         DataPartition kt = this.subscriber.getPartition(d.requestContext.getPartitionKeyScope());
 
         // Generate the data that represents this entity
@@ -326,7 +326,7 @@ public class DataRepository implements IAteIO {
             try {
                 PartitionMergeContext tContext = this.getPartitionMergeContext(partitionKey);
 
-                // Get the topic
+                // Get the partition
                 DataPartition kt = this.subscriber.getPartition(partitionKey);
 
                 // Loop through all the entities and validate them all
@@ -470,8 +470,8 @@ public class DataRepository implements IAteIO {
     
     @Override
     public boolean ethereal() {
-        DataPartition topic = this.subscriber.getPartition(d.requestContext.getPartitionKeyScope());
-        return topic.ethereal();
+        DataPartition partition = this.subscriber.getPartition(d.requestContext.getPartitionKeyScope());
+        return partition.ethereal();
     }
     
     @Override

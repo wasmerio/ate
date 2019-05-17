@@ -62,9 +62,9 @@ public class DataSubscriber {
         return getPartition(partition, true, DataPartitionType.Dao);
     }
     
-    public DataPartitionChain getChain(IPartitionKey partition) {
-        DataPartition topic = getPartition(partition);
-        return topic.getChain();
+    public DataPartitionChain getChain(IPartitionKey partitionKey) {
+        DataPartition partition = getPartition(partitionKey);
+        return partition.getChain();
     }
 
     private IDataPartitionBridge createBridge(IPartitionKey key, DataPartitionChain chain, DataPartitionType type) {
@@ -104,8 +104,8 @@ public class DataSubscriber {
                 {
                     synchronized(this)
                     {
-                        LOG.info("loading-topic: " + partition.partitionTopic());
-                        d.encryptor.touch(); // required as the kafka topic needs an instance reference
+                        LOG.info("loading-partition: " + partition.partitionTopic() + ":" + partition.partitionIndex());
+                        d.encryptor.touch(); // required as the kafka partition needs an instance reference
                         return createPartition(partition, type);
                     }
                 });
@@ -121,8 +121,8 @@ public class DataSubscriber {
     }
     
     public DataPartitionChain getChain(IPartitionKey key, boolean shouldWait) {
-        DataPartition topic = getPartition(key, shouldWait, DataPartitionType.Dao);
-        return topic.getChain();
+        DataPartition partition = getPartition(key, shouldWait, DataPartitionType.Dao);
+        return partition.getChain();
     }
     
     public void touch() {

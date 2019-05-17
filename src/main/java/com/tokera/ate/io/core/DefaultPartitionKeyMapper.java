@@ -12,12 +12,12 @@ import java.util.UUID;
  * key of the root of the tree to determine the partition that data will be mapped to.
  */
 public class DefaultPartitionKeyMapper implements IPartitionKeyMapper {
+    private final static int maxTopics = 10000;
+    private final static int maxPartitions = 200000;
+    private final int maxPartitionsPerTopic = maxPartitions / maxTopics;
 
     public class Murmur2BasedPartitioningStrategy implements IPartitionKey {
         private final int hash;
-        private final static int maxTopics = 10000;
-        private final static int maxPartitions = 200000;
-        private final int maxPartitionsPerTopic = maxPartitions / maxTopics;
 
         public Murmur2BasedPartitioningStrategy(UUID id) {
             ByteBuffer bb = ByteBuffer.wrap(new byte[16]);
@@ -35,15 +35,15 @@ public class DefaultPartitionKeyMapper implements IPartitionKeyMapper {
         public int partitionIndex() {
             return (hash / maxTopics) % maxPartitionsPerTopic;
         }
-
-        @Override
-        public int maxPartitionsPerTopic() {
-            return maxPartitionsPerTopic;
-        }
     }
 
     @Override
     public IPartitionKey resolve(UUID id) {
         return new Murmur2BasedPartitioningStrategy(id);
+    }
+
+    @Override
+    public int maxPartitionsPerTopic() {
+        return maxPartitionsPerTopic;
     }
 }

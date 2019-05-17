@@ -49,7 +49,7 @@ public class EncryptKeyCachePerRequest {
             return null;
         }
         
-        // Get the topic this is related to
+        // Get the partition this is related to
         IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
         DataPartitionChain chain = this.d.storageFactory.get().backend().getChain(partitionKey);
         
@@ -84,7 +84,7 @@ public class EncryptKeyCachePerRequest {
      */
     public @Secret byte @Nullable [] getEncryptKey(@Hash String encryptKeyHash, MessagePrivateKeyDto key)
     {
-        // Get the topic this is related to
+        // Get the partition this is related to
         IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
         DataPartitionChain chain = this.d.storageFactory.get().backend().getChain(partitionKey);
 

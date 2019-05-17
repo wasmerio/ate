@@ -31,7 +31,7 @@ public class SeedingDelegate {
         rootkey = d.encryptor.genSignKeyNtru(128);
     }
 
-    public void onTopicSeeding(@Observes PartitionSeedingEvent event) {
+    public void onPartitionSeeding(@Observes PartitionSeedingEvent event) {
         DataPartitionChain chain = event.getChain();
 
         // Add the root key into the chain of trust

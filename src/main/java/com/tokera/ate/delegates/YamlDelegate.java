@@ -7,7 +7,9 @@ import com.esotericsoftware.yamlbeans.YamlReader;
 import com.esotericsoftware.yamlbeans.YamlWriter;
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.annotations.YamlTags;
+import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.extensions.YamlTagDiscoveryExtension;
+import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.providers.*;
 
 import java.io.ByteArrayInputStream;
@@ -100,6 +102,8 @@ public class YamlDelegate {
         cfg.setScalarSerializer(Integer.class, new IntegerSerializer());
         cfg.setScalarSerializer(java.util.Date.class, new DateSerializer());
         cfg.setScalarSerializer(java.util.UUID.class, new UuidSerializer());
+        cfg.setScalarSerializer(IPartitionKey.class, new PartitionKeySerializer());
+        cfg.setScalarSerializer(PUUID.class, new PuuidSerializer());
         cfg.setScalarSerializer(java.math.BigDecimal.class, new BigDecimalSerializer());
 
         cfg.setAllowDuplicates(true);

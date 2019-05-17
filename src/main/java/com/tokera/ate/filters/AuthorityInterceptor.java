@@ -39,7 +39,7 @@ public class AuthorityInterceptor implements ContainerRequestFilter, ContainerRe
     private LoggerHook LOG;
     private @Context @Nullable HttpServletRequest request;
     private @Context @Nullable HttpServletResponse response;
-    private int inferredTopic = 0;
+    private int inferredPartition = 0;
     @SuppressWarnings("initialization.fields.uninitialized")
     @Inject
     private DefaultBootstrapInit interceptorInit;
@@ -144,28 +144,28 @@ public class AuthorityInterceptor implements ContainerRequestFilter, ContainerRe
         d.currentToken.validate();
     }
 
-    private void undoInferredTopic() {
-        if (inferredTopic > 0) {
+    private void undoInferredPartition() {
+        if (inferredPartition > 0) {
             d.requestContext.popPartitionKey();
-            inferredTopic--;
+            inferredPartition--;
         }
     }
 
     public void foundToken(@Observes TokenScopeChangedEvent discovery)
     {
-        // If we are already in an inferred topic then leave it
-        undoInferredTopic();
+        // If we are already in an inferred partition then leave it
+        undoInferredPartition();
 
-        // If we dont have a topic set from the headers then we can
+        // If we dont have a partition set from the headers then we can
         // just use the one thats passed in the token
         d.requestContext.pushPartitionKey(discovery.getPartitionKey());
-        inferredTopic++;
+        inferredPartition++;
     }
 
     @Override
     public void filter(ContainerRequestContext requestContext, ContainerResponseContext responseContext)
     {
-        undoInferredTopic();
+        undoInferredPartition();
 
         // If the token exists then set the response
         TokenDto token = d.currentToken.getTokenOrNull();

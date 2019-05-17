@@ -102,8 +102,8 @@ public class DataSerializer {
     private void writeRolePublicKeysForDataObject(BaseDao obj, DataPartition kt) {
         DataPartitionChain chain = kt.getChain();
 
-        // If we are crossing from our requestContext topic then we need to scan for
-        // other public toPutKeys and import them into this topic
+        // If we are crossing from our request partition then we need to scan for
+        // other public toPutKeys and import them into this partition
         if (obj instanceof IRoles) {
             IRoles roles = (IRoles)obj;
 
@@ -156,7 +156,7 @@ public class DataSerializer {
     private void writePermissionEncryptKeysForDataObject(EffectivePermissions permissions, DataPartition kt, byte[] encryptKey, String encryptKeyHash) {
         for (String publicKeyHash : permissions.rolesRead)
         {
-            // If the key is not available in the kafka topic then we need to add it
+            // If the key is not available in the kafka parttion then we need to add it
             if (d.headIO.secureKeyResolver().exists(kt.partitionKey(), encryptKeyHash, publicKeyHash) == false) {
                 d.headIO.secureKeyResolver().put(kt.partitionKey(), encryptKey, publicKeyHash);
             }
@@ -231,7 +231,7 @@ public class DataSerializer {
         String encryptKeyHash = d.encryptor.hashShaAndEncode(encryptKey);
         header.setEncryptKeyHash(encryptKeyHash);
 
-        // Get the topic and declare a list of message that we will write to Kafka
+        // Get the partition and declare a list of message that we will write to Kafka
         writePublicKeysForDataObject(obj, kt);
 
         // Get the effective permissions for a object
