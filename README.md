@@ -25,7 +25,7 @@ This library is a way of working with data in modern distributed computing.
 * ...partitions are divided into topics that shard data into physical domains.
 * ...streaming of data to the application occurs on demand during method invocation.
 * ...while online data is kept up-to-date using caching invalidation and publish/subscribe.
-* ...each topic is a crypto-graph with unique asymmetric keys at differentiating nodes.
+* ...each partition is a crypto-graph with unique asymmetric keys at differentiating nodes.
 * ...the root of the chain-of-trust that validates the crypto-graph is DNS(Sec).
 * ...strong authentication and authorized is by design built into the data model.
 * ...encryption is highly resistant to quantum attacks and uses fine-grained tenant keys.

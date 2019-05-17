@@ -234,7 +234,7 @@ The most important things to remember are the following:
 - Define a tokkeep.{domain} A record that lists the IP addresses of servers that will run the Zookeeper  
   state management service - this dependency is required to ensure the Kafka service runs correctly.  
   In future it would be great to remove the need for this depnedency.
-- Define a tokauth.{topic} TXT record and add master public keys for any seeding records that you want  
+- Define a tokauth.{partition} TXT record and add master public keys for any seeding records that you want  
   your users to be able to write to their particular chain.
 
 Note: All the prefixes defined above can be overridden with calls to the BootstrapConfig class.

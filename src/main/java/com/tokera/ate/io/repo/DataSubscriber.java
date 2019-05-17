@@ -11,7 +11,7 @@ import com.google.common.cache.RemovalNotification;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.enumerations.DataPartitionType;
-import com.tokera.ate.events.TopicSeedingEvent;
+import com.tokera.ate.events.PartitionSeedingEvent;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.ram.RamPartitionBridge;
 import com.tokera.ate.io.ram.RamTopicPartition;
@@ -55,7 +55,7 @@ public class DataSubscriber {
     private void seedTopic(DataPartition kt)
     {   
         DataPartitionChain chain = kt.getChain();
-        d.eventTopicSeeding.fire(new TopicSeedingEvent(kt, chain));
+        d.eventTopicSeeding.fire(new PartitionSeedingEvent(kt, chain));
     }
     
     public DataPartition getPartition(IPartitionKey partition) {

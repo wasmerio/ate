@@ -12,7 +12,7 @@ import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.io.api.IAteIO;
 import com.tokera.ate.io.api.IPartitionKey;
-import com.tokera.ate.io.api.PartitionKeyComparator;
+import com.tokera.ate.io.core.PartitionKeyComparator;
 import com.tokera.ate.security.EffectivePermissionBuilder;
 import com.tokera.ate.io.core.StorageSystemFactory;
 import com.tokera.ate.dto.msg.*;

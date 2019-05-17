@@ -146,7 +146,7 @@ performed on API calls as they are processed - notable filters include:
   proactive or reactive measures but ultimately it was built to show how a **ResourceScope** could be used.
 - **TopicInterceptor** allows the caller to specifc a Kafka Topic that the API should execute its logic
   under by passing in a 'Topic' header. If no header is supplied then the ATE library will use the domain
-  name of the USERNAME claim written in the supplied token as the topic name.
+  name of the USERNAME claim written in the supplied token as the partition name.
 - **TransactionInterceptor** will commit any records marked for saving (d.headIO.mergeLater) into the
   chain-of-trust before returning to the caller (but only if the return code is a success as otherwise
   no data changes will be committed)

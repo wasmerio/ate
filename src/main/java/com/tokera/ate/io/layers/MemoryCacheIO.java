@@ -6,7 +6,7 @@ import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.io.api.IAteIO;
 import com.tokera.ate.io.api.IPartitionKey;
-import com.tokera.ate.io.api.PartitionKeyComparator;
+import com.tokera.ate.io.core.PartitionKeyComparator;
 import com.tokera.ate.io.repo.DataContainer;
 import com.tokera.ate.units.DaoId;
 import com.tokera.ate.units.Hash;

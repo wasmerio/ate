@@ -1,4 +1,6 @@
-package com.tokera.ate.io.api;
+package com.tokera.ate.io.core;
+
+import com.tokera.ate.io.api.IPartitionKey;
 
 import java.util.Comparator;
 
