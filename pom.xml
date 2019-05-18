@@ -7,6 +7,17 @@
     <version>0.1.44-SNAPSHOT</version>
     <name>ate</name>
     <description>Distributed immutable data store with strong encryption and authentication</description>
+    <developers>
+        <developer>
+            <name>John Sharratt</name>
+            <email>johnathan.sharratt@gmail.com</email>
+            <organization>Tokera Pty Ltd</organization>
+        </developer>
+        <developer>
+            <name>Jon Han Lee</name>
+            <organization>Tokera Pty Ltd</organization>
+        </developer>
+    </developers>
 
     <inceptionYear>2018</inceptionYear>
     <licenses>
