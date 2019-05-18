@@ -318,12 +318,6 @@
             <artifactId>backport-util-concurrent</artifactId>
             <version>3.1</version>
         </dependency>
-        <dependency>
-            <groupId>org.codehaus.mojo</groupId>
-            <artifactId>exec-maven-plugin</artifactId>
-            <version>1.6.0</version>
-        </dependency>
-
 
         <!-- Networking and GIT related dependencies -->
         <dependency>
