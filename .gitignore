@@ -30,3 +30,4 @@ repo.zip
 .m2/
 bin-lib/
 release.properties
+pom.xml.releaseBackup
