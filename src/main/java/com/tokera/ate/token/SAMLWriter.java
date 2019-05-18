@@ -105,7 +105,6 @@ public class SAMLWriter {
 	 * @param name
 	 * @param value
 	 * @param builderFactory
-	 * @return
 	 * @throws ConfigurationException
 	 */
 	public static Attribute buildStringAttribute(
@@ -130,7 +129,6 @@ public class SAMLWriter {
 	 * @param name
 	 * @param values
 	 * @param builderFactory
-	 * @return
 	 * @throws ConfigurationException
 	 */
 	public static Attribute buildStringAttribute(
@@ -154,8 +152,6 @@ public class SAMLWriter {
 	/**
 	 * Helper method which includes some basic SAML fields which are part of
 	 * almost every SAML Assertion.
-	 * @param input
-	 * @return
 	 */
 	public static Assertion buildDefaultAssertion(SAMLInputContainer input) {
 		try {

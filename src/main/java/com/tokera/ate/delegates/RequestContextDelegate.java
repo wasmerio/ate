@@ -110,7 +110,6 @@ public class RequestContextDelegate {
 
     /**
      * Gets a reference to the current URI details for the currentRights that was made
-     * @return
      */
     public UriInfo getUriInfo() {
         if (this.requestUriInfo == null) {
@@ -122,7 +121,6 @@ public class RequestContextDelegate {
 
     /**
      * Gets a reference to the current URI details for the currentRights that was made or null if none exists
-     * @return
      */
     public @Nullable UriInfo getUriInfoOrNull() {
         if (this.requestUriInfo == null) {
