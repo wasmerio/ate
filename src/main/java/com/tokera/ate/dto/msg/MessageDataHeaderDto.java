@@ -45,7 +45,7 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
     // Fields that are serialized
     @JsonProperty
     @MonotonicNonNull
-    private @DaoId UUID id;                                 // ID of the entity within this topic
+    private @DaoId UUID id;                                 // ID of the entity within this partition
     @JsonProperty
     @Nullable
     private @DaoId UUID version;                            // New version of this entity

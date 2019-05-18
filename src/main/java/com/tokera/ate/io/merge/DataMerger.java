@@ -4,6 +4,9 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.HashMultiset;
 import com.tokera.ate.common.CopyOnWrite;
 import com.tokera.ate.common.MapTools;
+import com.tokera.ate.dao.PUUID;
+import com.tokera.ate.io.api.IPartitionKey;
+import com.tokera.ate.providers.PartitionKeySerializer;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.ApplicationScoped;
@@ -31,9 +34,17 @@ public class DataMerger {
 
     private boolean isInternal(Class<?> clazz) {
         if (clazz.isPrimitive() ||
-                clazz.isSynthetic() ||
-                clazz.isEnum())
+            clazz.isSynthetic() ||
+            clazz.isEnum()) {
             return true;
+        }
+
+        if (clazz == PUUID.class) {
+            return true;
+        }
+        if (clazz == PartitionKeySerializer.PartitionKeyValue.class) {
+            return true;
+        }
 
         String name = clazz.getName();
         return name.startsWith("java.") ||

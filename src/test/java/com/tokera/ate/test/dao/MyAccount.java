@@ -5,6 +5,7 @@ import com.tokera.ate.annotations.PermitParentFree;
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.common.ImmutalizableArrayList;
 import com.tokera.ate.common.ImmutalizableTreeMap;
+import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.units.*;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -41,6 +42,8 @@ public class MyAccount extends MyBaseAccount {
     private @EmailAddress String email;
     @Column
     private @Nullable UUID idNullTest = null;
+    @Column
+    private PUUID pid = new PUUID("data1234", 1, UUID.randomUUID());
 
     public MyAccount() {
         this.email = "test@test.org";

@@ -50,7 +50,7 @@ public class AteDelegate {
     public final Event<TokenDiscoveryEvent> eventTokenDiscovery;
     public final Event<RightsDiscoverEvent> eventRightsDiscover;
     public final Event<RegisterPublicTopicEvent> eventRegisterPublicTopic;
-    public final Event<TopicSeedingEvent> eventTopicSeeding;
+    public final Event<PartitionSeedingEvent> eventTopicSeeding;
 
     public final RequestContextDelegate requestContext;
     public final ResourceStatsDelegate resourceStats;
@@ -192,7 +192,7 @@ public class AteDelegate {
         this.eventTokenDiscovery = getEventBean(TokenDiscoveryEvent.class);
         this.eventRightsDiscover = getEventBean(RightsDiscoverEvent.class);
         this.eventRegisterPublicTopic = getEventBean(RegisterPublicTopicEvent.class);
-        this.eventTopicSeeding = getEventBean(TopicSeedingEvent.class);
+        this.eventTopicSeeding = getEventBean(PartitionSeedingEvent.class);
         this.requestContext = getBean(RequestContextDelegate.class);
         this.resourceStats = getBean(ResourceStatsDelegate.class);
         this.resourceInfo = getBean(ResourceInfoDelegate.class);

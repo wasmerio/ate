@@ -4,7 +4,7 @@ import com.tokera.ate.common.UUIDTools;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessageDataHeaderDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
-import com.tokera.ate.events.TopicSeedingEvent;
+import com.tokera.ate.events.PartitionSeedingEvent;
 import com.tokera.ate.io.repo.DataPartitionChain;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.units.Hash;
@@ -31,7 +31,7 @@ public class SeedingDelegate {
         rootkey = d.encryptor.genSignKeyNtru(128);
     }
 
-    public void onTopicSeeding(@Observes TopicSeedingEvent event) {
+    public void onPartitionSeeding(@Observes PartitionSeedingEvent event) {
         DataPartitionChain chain = event.getChain();
 
         // Add the root key into the chain of trust
@@ -40,7 +40,7 @@ public class SeedingDelegate {
 
         // Add a dummy record for the root account
         MessageDataHeaderDto header = new MessageDataHeaderDto(
-                UUIDTools.generateUUID("tokera.com"),
+                UUIDTools.generateUUID("mycompany.org"),
                 UUID.randomUUID(),
                 null,
                 MyAccount.class);

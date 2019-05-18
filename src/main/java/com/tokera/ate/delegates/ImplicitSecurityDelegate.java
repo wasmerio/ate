@@ -45,7 +45,7 @@ public class ImplicitSecurityDelegate {
     private static final Cache g_dnsCache = new Cache();
 
     private ConcurrentHashMap<String, String> enquireOverride = new ConcurrentHashMap<>();
-    private static Set<String> g_publicTopics = new HashSet<>();
+    private static Set<String> g_publicPartitions = new HashSet<>();
 
     @SuppressWarnings("initialization.fields.uninitialized")
     private SimpleResolver m_resolver;
@@ -69,13 +69,13 @@ public class ImplicitSecurityDelegate {
         }
     }
 
-    public void onRegisterPublicTopic(@Observes RegisterPublicTopicEvent topic)
+    public void onRegisterPublicPartition(@Observes RegisterPublicTopicEvent partition)
     {
-        g_publicTopics.add(topic.getName());
+        g_publicPartitions.add(partition.getName());
     }
 
-    public boolean checkTopicIsPublic(String accDomain) {
-        return g_publicTopics.contains(accDomain);
+    public boolean checkPartitionIsPublic(String accDomain) {
+        return g_publicPartitions.contains(accDomain);
     }
     
     public @Nullable MessagePublicKeyDto enquireDomainKey(@DomainName String domain, boolean shouldThrow)
@@ -103,7 +103,7 @@ public class ImplicitSecurityDelegate {
             return override;
         }
 
-        for (String publicTopic : this.g_publicTopics) {
+        for (String publicTopic : this.g_publicPartitions) {
             if ((d.bootstrapConfig.getImplicitSecurityAlias() + "." + publicTopic).equals(domain)) {
                 return null;
             }

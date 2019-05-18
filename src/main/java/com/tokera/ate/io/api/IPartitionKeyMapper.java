@@ -16,4 +16,10 @@ public interface IPartitionKeyMapper {
      * @return The topic and partition that this data object is related to
      */
     IPartitionKey resolve(UUID id);
+
+    /**
+     * Returns the maximum number of partitions per topic (which is a design time constraint)
+     * @return Maximum number of partitions per topic
+     */
+    int maxPartitionsPerTopic();
 }

@@ -11,7 +11,7 @@ import com.google.common.cache.RemovalNotification;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.enumerations.DataPartitionType;
-import com.tokera.ate.events.TopicSeedingEvent;
+import com.tokera.ate.events.PartitionSeedingEvent;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.ram.RamPartitionBridge;
 import com.tokera.ate.io.ram.RamTopicPartition;
@@ -55,16 +55,16 @@ public class DataSubscriber {
     private void seedTopic(DataPartition kt)
     {   
         DataPartitionChain chain = kt.getChain();
-        d.eventTopicSeeding.fire(new TopicSeedingEvent(kt, chain));
+        d.eventTopicSeeding.fire(new PartitionSeedingEvent(kt, chain));
     }
     
     public DataPartition getPartition(IPartitionKey partition) {
         return getPartition(partition, true, DataPartitionType.Dao);
     }
     
-    public DataPartitionChain getChain(IPartitionKey partition) {
-        DataPartition topic = getPartition(partition);
-        return topic.getChain();
+    public DataPartitionChain getChain(IPartitionKey partitionKey) {
+        DataPartition partition = getPartition(partitionKey);
+        return partition.getChain();
     }
 
     private IDataPartitionBridge createBridge(IPartitionKey key, DataPartitionChain chain, DataPartitionType type) {
@@ -104,8 +104,8 @@ public class DataSubscriber {
                 {
                     synchronized(this)
                     {
-                        LOG.info("loading-topic: " + partition.partitionTopic());
-                        d.encryptor.touch(); // required as the kafka topic needs an instance reference
+                        LOG.info("loading-partition: " + partition.partitionTopic() + ":" + partition.partitionIndex());
+                        d.encryptor.touch(); // required as the kafka partition needs an instance reference
                         return createPartition(partition, type);
                     }
                 });
@@ -121,8 +121,8 @@ public class DataSubscriber {
     }
     
     public DataPartitionChain getChain(IPartitionKey key, boolean shouldWait) {
-        DataPartition topic = getPartition(key, shouldWait, DataPartitionType.Dao);
-        return topic.getChain();
+        DataPartition partition = getPartition(key, shouldWait, DataPartitionType.Dao);
+        return partition.getChain();
     }
     
     public void touch() {

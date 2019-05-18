@@ -65,7 +65,7 @@ public class PartitionKeyInterceptor implements ContainerRequestFilter {
         if (partitionKey != null) {
             d.requestContext.pushPartitionKey(partitionKey);
             
-            // We warm up the topic locally as it is likely that there will be
+            // We warm up the partition locally as it is likely that there will be
             // IO very soon to this repository
             d.headIO.warm();
         }

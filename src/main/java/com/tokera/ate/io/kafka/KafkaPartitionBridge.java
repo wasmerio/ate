@@ -2,6 +2,7 @@ package com.tokera.ate.io.kafka;
 
 import com.tokera.ate.configuration.AteConstants;
 import com.tokera.ate.dao.kafka.MessageSerializer;
+import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.repo.DataRepoConfig;
 import com.tokera.ate.io.repo.DataPartitionChain;
@@ -117,7 +118,7 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
                 int numRecords = poll();
                 
                 // Check if records have been loaded or enough time has passed
-                // that we judge it is an empty topic
+                // that we judge it is an empty partition
                 if (isLoaded == false) {
                     if (hasLoadingMessages) {
                         if (numRecords <= 0) isLoaded = true;
@@ -203,7 +204,7 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
                     record.partition() == m_key.partitionIndex())
                 {
                     if (DataRepoConfig.g_EnableLogging == true) {
-                        LOG.info("KafkaSubscriber::record(topic=" + record.topic() + ", id=" + record.key() + ")");
+                        LOG.info("KafkaSubscriber::record(topic=" + record.topic() + ", partition=" + record.partition() + ", id=" + record.key() + ")");
                     }
                     
                     MessageMetaDto meta = new MessageMetaDto(
@@ -310,7 +311,7 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
             while (isLoaded == false) {
                 if (isEthereal) return;
                 if (waitTime.getTime() > 20000L) {
-                    throw new RuntimeException("Busy loading data topic [" + m_chain.getPartitionKeyStringValue() + "]");
+                    throw new RuntimeException("Busy loading data partition [" + m_chain.getPartitionKeyStringValue() + "]");
                 }
                 try {
                     Thread.sleep(50);
@@ -453,8 +454,8 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
         if (topicProps != null) {
             // Create the topic
             try {
-
-                AdminUtils.createTopic(utils, this.m_key.partitionTopic(), this.m_key.maxPartitionsPerTopic(), numOfReplicas, topicProps, kafka.admin.RackAwareMode.Disabled$.MODULE$);
+                int maxPartitionsPerTopic = AteDelegate.get().headIO.partitionKeyMapper().maxPartitionsPerTopic();
+                AdminUtils.createTopic(utils, this.m_key.partitionTopic(), maxPartitionsPerTopic, numOfReplicas, topicProps, kafka.admin.RackAwareMode.Disabled$.MODULE$);
                 this.isCreated = true;
             } catch (TopicExistsException ex) {
                 this.isCreated = true;

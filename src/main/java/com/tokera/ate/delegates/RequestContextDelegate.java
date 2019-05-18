@@ -62,22 +62,22 @@ public class RequestContextDelegate {
     }
 
     /**
-     * @return Returns true if we are currently in the scope of a particular database topic. If not then the caller
-     * can enter a Topic scope using the pushTopicScope method.
+     * @return Returns true if we are currently in the scope of a particular database partition. If not then the caller
+     * can enter a partition scope using the pushTopicScope method.
      */
     public boolean isWithinPartitionKeyScope() {
         return this.partitionKeyStack.empty() == false;
     }
 
     /**
-     * @return Returns the partition key for the currentRights topic scope else it throws an exception
-     * @throws WebApplicationException Thrown if the caller is not currently in a Topic scope
+     * @return Returns the partition key for the current partition scope else it throws an exception
+     * @throws WebApplicationException Thrown if the caller is not currently in a partition scope
      */
     public IPartitionKey getPartitionKeyScope() {
         try {
             return this.partitionKeyStack.peek();
         } catch (EmptyStackException ex) {
-            throw new WebApplicationException("Request requires a 'Topic' header for this type of currentRights",
+            throw new WebApplicationException("Request requires a 'PartitionKey' header for this type of currentRights",
                     Response.Status.BAD_REQUEST);
         }
     }
