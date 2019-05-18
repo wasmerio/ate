@@ -4,7 +4,7 @@
 
     <groupId>com.tokera</groupId>
     <artifactId>ate</artifactId>
-    <version>0.1.42</version>
+    <version>0.1.43-SNAPSHOT</version>
     <name>ate</name>
     <parent>
         <groupId>com.tokera</groupId>
@@ -26,7 +26,7 @@
         <connection>scm:git:git://github.com/john-sharratt/ate.git</connection>
         <developerConnection>scm:git:git@github.com:john-sharratt/ate.git</developerConnection>
         <url>https://github.com/john-sharratt/ate</url>
-        <tag>ate-0.1.42</tag>
+        <tag>HEAD</tag>
     </scm>
 
     <properties>
