@@ -464,7 +464,7 @@ Whats interesting is that the ultimate proof of ownership for domains and large
 entities is the DNS records themselves. Essentially these are used to generate
 certificates, route connections to the correct place and as a register of ownership.
 
-ATE fully embrasses DNS as the ultimate source and root of all chain-of-trust for
+ATE fully embraces DNS as the ultimate source and root of all chain-of-trust for
 companies and large entities. It thus contains classes, seeding and generic
 authority logic that uses DNS(Sec) to hold and distributed asymmetric encryption
 keys (NTRU) that start a chain-of-trust fully independently of the system
@@ -483,7 +483,7 @@ Reference: https://en.wikipedia.org/wiki/NTRU
 
 ## Fine-Grained Security
 
-As stated in the early sections on [chain of trust](#chain-of-trust) and
+As stated in the earlier sections on [chain of trust](#chain-of-trust) and
 [implicit authority](#implicit-authority) ATE will maintain and validate a
 cryptographically validated chain of trust in memory.
 
