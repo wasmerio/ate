@@ -29,3 +29,4 @@ repo.zip
 .idea/
 .m2/
 bin-lib/
+release.properties
