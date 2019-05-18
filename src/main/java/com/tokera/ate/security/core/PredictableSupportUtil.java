@@ -5,12 +5,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
+import org.bouncycastle.pqc.math.ntru.polynomial.DenseTernaryPolynomial;
+import org.bouncycastle.pqc.math.ntru.polynomial.ProductFormPolynomial;
+import org.bouncycastle.pqc.math.ntru.polynomial.SparseTernaryPolynomial;
+import org.bouncycastle.pqc.math.ntru.polynomial.TernaryPolynomial;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.framework.qual.DefaultQualifier;
-import org.spongycastle.math.ntru.polynomial.DenseTernaryPolynomial;
-import org.spongycastle.math.ntru.polynomial.ProductFormPolynomial;
-import org.spongycastle.math.ntru.polynomial.SparseTernaryPolynomial;
-import org.spongycastle.math.ntru.polynomial.TernaryPolynomial;
 
 @DefaultQualifier(Nullable.class)
 @SuppressWarnings({"argument.type.incompatible", "return.type.incompatible", "dereference.of.nullable", "iterating.over.nullable", "method.invocation.invalid", "override.return.invalid", "unnecessary.equals", "known.nonnull", "flowexpr.parse.error.postcondition", "unboxing.of.nullable", "accessing.nullable", "type.invalid.annotations.on.use", "switching.nullable", "initialization.fields.uninitialized"})

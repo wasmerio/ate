@@ -1,17 +1,17 @@
 package com.tokera.ate.security.core;
 
+import org.bouncycastle.pqc.crypto.ntru.NTRUEncryptionKeyGenerationParameters;
+import org.bouncycastle.pqc.crypto.ntru.NTRUEncryptionPrivateKeyParameters;
+import org.bouncycastle.pqc.crypto.ntru.NTRUEncryptionPublicKeyParameters;
+import org.bouncycastle.pqc.crypto.ntru.NTRUParameters;
+import org.bouncycastle.pqc.math.ntru.polynomial.DenseTernaryPolynomial;
+import org.bouncycastle.pqc.math.ntru.polynomial.IntegerPolynomial;
+import org.bouncycastle.pqc.math.ntru.polynomial.Polynomial;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.checkerframework.framework.qual.DefaultQualifier;
-import org.spongycastle.crypto.AsymmetricCipherKeyPair;
-import org.spongycastle.crypto.KeyGenerationParameters;
-import org.spongycastle.crypto.params.NTRUEncryptionKeyGenerationParameters;
-import org.spongycastle.crypto.params.NTRUEncryptionPrivateKeyParameters;
-import org.spongycastle.crypto.params.NTRUEncryptionPublicKeyParameters;
-import org.spongycastle.crypto.params.NTRUParameters;
-import org.spongycastle.math.ntru.polynomial.DenseTernaryPolynomial;
-import org.spongycastle.math.ntru.polynomial.IntegerPolynomial;
-import org.spongycastle.math.ntru.polynomial.Polynomial;
+import org.bouncycastle.crypto.AsymmetricCipherKeyPair;
+import org.bouncycastle.crypto.KeyGenerationParameters;
 
 /**
  * Special version of the NTRU encryption key generator that allows custom random number generators to be used instead

@@ -21,7 +21,7 @@ import com.tokera.ate.units.DaoId;
 import com.tokera.ate.units.Hash;
 import org.bouncycastle.util.Arrays;
 import org.checkerframework.checker.nullness.qual.Nullable;
-import org.spongycastle.crypto.InvalidCipherTextException;
+import org.bouncycastle.crypto.InvalidCipherTextException;
 
 /**
  * Represents a cryptographic verified graph of strongly typed data objects that form a chain-of-trust. These chains

@@ -17,9 +17,7 @@ import javax.enterprise.context.RequestScoped;
 
 import com.tokera.ate.units.Hash;
 import com.tokera.ate.units.Secret;
-import com.tokera.ate.units.TopicName;
 import org.checkerframework.checker.nullness.qual.Nullable;
-import org.spongycastle.crypto.InvalidCipherTextException;
 
 /**
  * Session cache used to find and cache the decryption keys for various hashes for the duration of a currentRights scope

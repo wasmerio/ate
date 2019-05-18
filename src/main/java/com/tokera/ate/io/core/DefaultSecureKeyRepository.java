@@ -3,7 +3,6 @@ package com.tokera.ate.io.core;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessageEncryptTextDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
-import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.api.ISecureKeyRepository;
 import com.tokera.ate.io.repo.DataPartition;
@@ -11,7 +10,7 @@ import com.tokera.ate.io.repo.DataPartitionChain;
 import com.tokera.ate.units.Hash;
 import com.tokera.ate.units.Secret;
 import org.checkerframework.checker.nullness.qual.Nullable;
-import org.spongycastle.crypto.InvalidCipherTextException;
+import org.bouncycastle.crypto.InvalidCipherTextException;
 
 import java.io.IOException;
 

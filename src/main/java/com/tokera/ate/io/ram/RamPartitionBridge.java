@@ -7,7 +7,7 @@ import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.repo.DataPartitionChain;
 import com.tokera.ate.io.repo.IDataPartitionBridge;
 import org.checkerframework.checker.nullness.qual.Nullable;
-import org.spongycastle.crypto.InvalidCipherTextException;
+import org.bouncycastle.crypto.InvalidCipherTextException;
 
 import java.io.IOException;
 import java.util.*;

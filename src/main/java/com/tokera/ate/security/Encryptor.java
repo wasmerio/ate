@@ -46,21 +46,14 @@ import javax.xml.bind.DatatypeConverter;
 
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.lang.time.StopWatch;
+import org.bouncycastle.pqc.crypto.ntru.*;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
-import org.spongycastle.crypto.AsymmetricCipherKeyPair;
-import org.spongycastle.crypto.CipherParameters;
-import org.spongycastle.crypto.InvalidCipherTextException;
-import org.spongycastle.crypto.digests.SHA256Digest;
-import org.spongycastle.crypto.digests.SHA512Digest;
-import org.spongycastle.crypto.engines.NTRUEngine;
-import org.spongycastle.crypto.params.NTRUEncryptionKeyGenerationParameters;
-import org.spongycastle.crypto.params.NTRUEncryptionPrivateKeyParameters;
-import org.spongycastle.crypto.params.NTRUEncryptionPublicKeyParameters;
-import org.spongycastle.crypto.params.NTRUSigningKeyGenerationParameters;
-import org.spongycastle.crypto.params.NTRUSigningPrivateKeyParameters;
-import org.spongycastle.crypto.params.NTRUSigningPublicKeyParameters;
-import org.spongycastle.crypto.signers.NTRUSigner;
+import org.bouncycastle.crypto.AsymmetricCipherKeyPair;
+import org.bouncycastle.crypto.CipherParameters;
+import org.bouncycastle.crypto.InvalidCipherTextException;
+import org.bouncycastle.crypto.digests.SHA256Digest;
+import org.bouncycastle.crypto.digests.SHA512Digest;
 
 /**
  * System used for all kinds of encryption steps that the storage system and other components need
@@ -770,7 +763,8 @@ public class Encryptor implements Runnable
 
         return engine.processBlock(data, 0, data.length);
     }
-    
+
+    @SuppressWarnings("deprecation")
     public @Signature byte[] signNtru(@Secret byte[] privateKey, @Hash byte[] digest)
     {
         try {
@@ -793,7 +787,8 @@ public class Encryptor implements Runnable
             throw new RuntimeException(ex);
         }
     }
-    
+
+    @SuppressWarnings("deprecation")
     public boolean verifyNtru(@PEM byte[] publicKey, @Hash byte[] digest, @Signature byte[] sig)
     {
         NTRUSigningKeyGenerationParameters ntruSignParams;
