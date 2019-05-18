@@ -521,15 +521,16 @@ extra validation in the API business logic itself.
 
 ## Quantum Resistance
 
-ATE uses asymmetric cryptography that is resistant to attacks from a scaled up
-quantum computer. While not a real threat today as the distributed commit log
-is aimed to live for very long periods of time it is prudent to select and use
-algorithms that are resistant to attacks in the future that look back at data from
-the past. This is especially important as it is estimated at the time of writing
-that capable quatum based attacks on cryptographic will be possible in the next
-5 years.
+ATE uses asymmetric cryptography that is resistant to attacks from the scaled up
+quantum computer(s) future. While not a real threat today we must already build
+defence against future attacks as the distributed commit log is aimed to live for
+very long periods of time it thus attacks in the future will be able to attack data
+recorded in the past. Hence it is prudent to select and use algorithms that are
+resistant to quantum attacks. This is especially important as it is estimated at
+the time of writing that capable quantum based attacks on cryptographic will be
+possible in the next 5 years.
 
-The following asymmetric cryptography has been shown mathematically to be highly
+The following asymmetric cryptography have been shown mathematically to be highly
 vulnerable to such attacks:
 
 * ring-LWE algorithms
@@ -538,14 +539,17 @@ vulnerable to such attacks:
 * Diffie-Hellman
 * Elliptic curve Diffie-Hellman
 
-ATE is built on NTRU which has been studied for many years without anymore finding
-a feasible attack (when used with the correct initialization parameters). When AES 
-is used within ATE key lengths equal or greater than 256bits which are large enough
-to make current known quantum computer attacks on ATE unfeasible.
+ATE is built on [NTRU](https://en.wikipedia.org/wiki/NTRU) which has been studied
+for many years in the public domain without known feasible attacks being found
+(when used with the correct initialization parameters). Further ATE also uses AES
+encryption thus key lengths equal or greater than 256bits are used which known to
+be large enough that AES is currently considered safe. These together mean that it
+is currently unfeasible to attack ATE with the known quantum computers of the
+future.
 
-Reference: https://en.wikipedia.org/wiki/Post-quantum_cryptography
-Reference: https://nvlpubs.nist.gov/nistpubs/ir/2016/NIST.IR.8105.pdf
-Reference: https://en.wikipedia.org/wiki/NTRU
+Reference: https://en.wikipedia.org/wiki/Post-quantum_cryptography  
+Reference: https://nvlpubs.nist.gov/nistpubs/ir/2016/NIST.IR.8105.pdf  
+Reference: https://en.wikipedia.org/wiki/NTRU  
 
 ## Undertow and Weld
 
