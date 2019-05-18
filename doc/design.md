@@ -44,11 +44,11 @@ architecture"
 Once a record is written to the distributed commit log it remains there forever.
 In order to provide a service that allows for random access of that data (which
 of course is necessary for most useful applications) then the log must be streamed
-and transformed into a materialized view - the case of ATE the materialized view is
+and transformed into a materialized view - in the case of ATE the materialized view is
 stored in memory as a DAG ([Directed acyclic graph](https://en.wikipedia.org/wiki/Directed_acyclic_graph)).
 
 For the use-cases that ATE is designed for it, the "immutable data" implementation
-it usess must meet four key requirements:
+it uses must meet four key requirements:
 
 1. All events must be retained forever due to need to validate the integrity of the
    cryptographic chain-of-trust materialized view that they feed.
@@ -502,7 +502,7 @@ chain-of-trust (including the first one) to fork the authority into a new securi
 domain. This not only allows for each chain-of-trust to operate completely
 independently from a security perspective but also allows for these independent
 trees to have sub-trees that are themselves completely independently isolated
-from security perspective.
+from a security boundary perspective.
 
 This model creates an interesting side-effect in that roles and access rights
 within a chain-of-trust (for instance a company) that is fully validated with
