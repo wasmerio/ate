@@ -27,3 +27,5 @@ target
 repo.zip
 
 .idea/
+.m2/
+bin-lib/
