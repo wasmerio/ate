@@ -201,10 +201,11 @@ ATE adds a forth option to the list...
    
 If one were to follow this caching architecture then one can ensure:
 
-* All API calls that are made by the caller are always invalidated immediately.
-* All API calls made by other callers will 'eventually' become invalidated
-  where the delay is the time it takes for Kafka to ship the event to your
-  clients.  
+* All API calls that are made by the caller are immediately invalidating cached
+  data that would now return a different answer.
+* All API calls made by other callers will 'eventually' invalide cached data
+  that would now return a different answer, where the delay is the time it
+  takes for Kafka to ship the event to your clients.  
    
 ## Distributed Computing Architecture
 
