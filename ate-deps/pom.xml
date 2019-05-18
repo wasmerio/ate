@@ -5,6 +5,7 @@
     <groupId>com.tokera</groupId>
     <artifactId>ate-deps</artifactId>
     <version>1.1-SNAPSHOT</version>
+    <packaging>pom</packaging>
 
     <name>ate-deps</name>
     <description>Parent POM for the ATE immutable data store library, this parent holds all the dependencies.</description>
