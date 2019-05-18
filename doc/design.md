@@ -12,6 +12,7 @@ ATE Technical Design
 
 1. [Immutable Data](#immutable-data)
 2. [Eventually Consistent Caching](#eventually-consistent-caching)
+3. [Caching API Responses](#caching-api-responses)
 3. [Distributed Computing Architecture](#distributed-computing-architecture)
 4. [Shared Nothing](#shared-nothing)
    1. [Stateful Mode](#stateful-mode)
@@ -144,8 +145,67 @@ Solutions:
 
 Reference: https://engineering.linkedin.com/distributed-systems/log-what-every-software-engineer-should-know-about-real-time-datas-unifying          
 Reference: https://www.confluent.io/blog/okay-store-data-apache-kafka/    
-Reference: https://en.wikipedia.org/wiki/Directed_acyclic_graph      
+Reference: https://en.wikipedia.org/wiki/Directed_acyclic_graph  
 
+## Caching API Responses
+
+Various attempts have been made to cache API responses but they generally all
+suffer from one fundamental limitation that tends to limit such efforts to no more
+than caching of static API content.
+
+The primary problem with caching of API responses is when to invalidate the
+response. API calls are complex things that implement business logic that may
+touch or use hundreds of data entities to come to a single aggregated value. An
+example of this problem is the classic "Available Funds in my Bank Account"
+use-case.
+
+Lets write the hypothetical business logic down (although quite simplified):
+
+1. Read all the transaction records that put money into the account
+2. Read all the transaction records that take money out of the account
+3. Make sure money going out is a negative and money coming in is a positive
+   number.
+4. Sum them all together as a single vector.
+5. Return the number to the caller.
+
+If one attempts to cache the response of this use case then the problem
+becomes how long do you cache it for?
+
+Some options are:
+
+* Cache it for as long as the session remains open and accept complaints
+  that the balance isn't updating.
+* Cache it for a very short amount of time (essentially making caching
+  totally ineffective)
+* Cache it for a very long amount of time and add a "refresh" button which
+  makes for a bad customer experience from a UI perspective.
+  
+ATE adds a forth option to the list...
+
+1. As your business logic makes data queries to the materialize view in
+   memory ATE will record what data records you access for the scope of the
+   API request.
+2. ATE will return the list of data entities (fine grained or course grained
+   depending on how much you touch) as HTTP headers (i.e. 'Track').
+3. Further ATE will also return any data entities you modify in your
+   business logic as HTTP headers (i.e. 'Invalidate'). This allows for
+   immediate synchronous signals for data you have invalidated because of
+   calls between different APIs.
+4. Lastly as ATE subscribes to a distributed commit log that is highly
+   supportive of peer-to-peer based connectivity it becomes possible for
+   'clients' to subscribe to asynchronous signals for data that other users
+   have invalidated.
+5. Thus a client application (for instance a single-page web application)
+   can wrap API calls with a caching layer that will invalidate previously
+   made API results when 'invalidate' records match 'track' records.
+   
+If one were to follow this caching architecture then one can ensure:
+
+* All API calls that are made by the caller are always invalidated immediately.
+* All API calls made by other callers will 'eventually' become invalidated
+  where the delay is the time it takes for Kafka to ship the event to your
+  clients.  
+   
 ## Distributed Computing Architecture
 
 The core architecture of this framework is that its operating state (run-time)
@@ -524,7 +584,7 @@ extra validation in the API business logic itself.
 ATE uses asymmetric cryptography that is resistant to attacks from the scaled up
 quantum computer(s) of the future. While not a real threat today we must already
 build defence against future attacks as the distributed commit log is aimed to live
-for very long periods of time it thus attacks in the future will be able to attack
+for very long periods of time, thus attacks in the future will be able to attack
 data recorded in the past. Hence it is prudent to select and use algorithms that
 are resistant to quantum attacks. This is especially important as it is estimated
 at the time of writing that capable quantum based attacks on cryptographic will be
