@@ -522,12 +522,12 @@ extra validation in the API business logic itself.
 ## Quantum Resistance
 
 ATE uses asymmetric cryptography that is resistant to attacks from the scaled up
-quantum computer(s) future. While not a real threat today we must already build
-defence against future attacks as the distributed commit log is aimed to live for
-very long periods of time it thus attacks in the future will be able to attack data
-recorded in the past. Hence it is prudent to select and use algorithms that are
-resistant to quantum attacks. This is especially important as it is estimated at
-the time of writing that capable quantum based attacks on cryptographic will be
+quantum computer(s) of the future. While not a real threat today we must already
+build defence against future attacks as the distributed commit log is aimed to live
+for very long periods of time it thus attacks in the future will be able to attack
+data recorded in the past. Hence it is prudent to select and use algorithms that
+are resistant to quantum attacks. This is especially important as it is estimated
+at the time of writing that capable quantum based attacks on cryptographic will be
 possible in the next 5 years.
 
 The following asymmetric cryptography have been shown mathematically to be highly
