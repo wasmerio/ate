@@ -454,7 +454,7 @@ wide data leakage risks (e.g. leaked NPA passwords or connection strings)._
 ## Implicit Authority
 
 An interesting case-study is the chain-of-trust that helps establish secure HTTP
-connections between web sites and end user devices. E.g. https://https://www.pcgamer.com/.
+connections between web sites and end user devices. E.g. https://www.pcgamer.com/.
 
 If you follow the chain you will find an interesting source of the trust chain.
 
