@@ -2,6 +2,8 @@ package com.tokera.ate.dao.base;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.tokera.ate.common.Immutalizable;
+import com.tokera.ate.dao.PUUID;
+import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.units.DaoId;
 import com.tokera.ate.units.TopicName;
@@ -27,6 +29,17 @@ public abstract class BaseDao implements Serializable, Immutalizable {
      * scope of the partition
      */
     public abstract @DaoId UUID getId();
+
+    /**
+     * @return Returns an identifier that can be used to reference this data
+     * object even if its in a different partition
+     */
+    @JsonIgnore
+    public PUUID addressableId() {
+        IPartitionKey key = AteDelegate.get().headIO.partitionResolver().resolve(this);
+        UUID id = this.getId();
+        return new PUUID(key, id);
+    }
     
     /**
      * @return Returns the parent object that this object is attached to

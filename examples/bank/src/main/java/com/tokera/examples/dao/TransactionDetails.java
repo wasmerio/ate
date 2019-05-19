@@ -15,21 +15,21 @@ public class TransactionDetails extends BaseDaoRights {
     public UUID id;
     public UUID monthlyActivity;
     public BigDecimal amount;
-    public PUUID otherAccount;
     public Date when;
     @Nullable
-    public String description;
+    public String details;
+    public PUUID mirroredTransaction;
 
     @SuppressWarnings("initialization.fields.uninitialized")
     @Deprecated
     public TransactionDetails() {
     }
 
-    public TransactionDetails(MonthlyActivity monthly, BigDecimal amount, PUUID otherAccount) {
+    public TransactionDetails(MonthlyActivity monthly, BigDecimal amount, PUUID mirroredTransaction) {
         this.id = UUID.randomUUID();
         this.monthlyActivity = monthly.id;
         this.amount = amount;
-        this.otherAccount = otherAccount;
+        this.mirroredTransaction = mirroredTransaction;
         this.when = new Date();
     }
 
