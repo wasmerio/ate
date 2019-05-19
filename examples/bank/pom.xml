@@ -8,5 +8,29 @@
     <artifactId>ate-example-bank</artifactId>
     <version>1.0-SNAPSHOT</version>
 
+    <developers>
+        <developer>
+            <name>John Sharratt</name>
+            <email>johnathan.sharratt@gmail.com</email>
+            <organization>Tokera Pty Ltd</organization>
+        </developer>
+    </developers>
 
+    <inceptionYear>2019</inceptionYear>
+    <licenses>
+        <license>
+            <name>The GNU Lesser General Public License, Version 3.0</name>
+            <url>http://www.gnu.org/licenses/lgpl-3.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.tokera</groupId>
+            <artifactId>ate</artifactId>
+            <version>0.1.46</version>
+            <type>jar</type>
+        </dependency>
+    </dependencies>
 </project>
