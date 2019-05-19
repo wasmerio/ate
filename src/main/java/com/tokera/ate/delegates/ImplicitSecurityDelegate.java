@@ -6,10 +6,7 @@ import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import javax.annotation.PostConstruct;
 import javax.enterprise.context.ApplicationScoped;
@@ -21,6 +18,7 @@ import com.tokera.ate.events.RegisterPublicTopicEvent;
 import com.tokera.ate.units.Alias;
 import com.tokera.ate.units.DomainName;
 import com.tokera.ate.units.PlainText;
+import edu.emory.mathcs.backport.java.util.Arrays;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.xbill.DNS.*;
 
@@ -96,6 +94,10 @@ public class ImplicitSecurityDelegate {
             if (comps.length >= 1) domain = comps[0];
         }
         if (domain.endsWith(".") == false) domain += ".";
+
+        if ("localhost.".equalsIgnoreCase(domain)) {
+            return Collections.singletonList("127.0.0.1");
+        }
 
         try {
 

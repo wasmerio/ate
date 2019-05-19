@@ -58,10 +58,14 @@ public class ZooServer implements Runnable {
         // Get all my local IP addresses
         Set<String> myAddresses = NetworkTools.getMyNetworkAddresses();
 
+        List<String> dataservers = d.implicitSecurity.enquireDomainAddresses(bootstrapZooKeeper, true);
+        if (dataservers == null) {
+            throw new RuntimeException("Failed to find the ZooKeeper bootstrap list at " + bootstrapZooKeeper);
+        }
+
         // Loop through all the data servers and process them
         String myAdvertisingIp = null;
         Integer myId = 0;
-        List<String> dataservers = d.implicitSecurity.enquireDomainAddresses(bootstrapZooKeeper, true);
         int n = 0;
         for (String serverIp : dataservers) {
             n++;

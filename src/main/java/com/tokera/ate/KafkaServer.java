@@ -39,9 +39,13 @@ public class KafkaServer {
         String bootstrap = BootstrapConfig.propertyOrThrow(d.bootstrapConfig.propertiesForAte(), filename);
         Integer bootstrapPort = NetworkTools.extractPortFromBootstrapOrThrow(bootstrap);
 
+        List<String> bootstrapServers = d.implicitSecurity.enquireDomainAddresses(bootstrap, true);
+        if (bootstrapServers == null) {
+            throw new RuntimeException("Failed to find the " + filename + " list at " + bootstrap);
+        }
+
         // Build a list of all the servers we will connect to
         StringBuilder sb = new StringBuilder();
-        List<String> bootstrapServers = d.implicitSecurity.enquireDomainAddresses(bootstrap, true);
         if (bootstrapServers != null) {
 
             for (String bootstrapServer : bootstrapServers) {
