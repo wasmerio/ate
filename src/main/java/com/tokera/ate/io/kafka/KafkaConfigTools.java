@@ -8,6 +8,7 @@ import java.util.Properties;
 import java.util.UUID;
 import javax.enterprise.context.ApplicationScoped;
 
+import com.tokera.ate.delegates.AteDelegate;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
@@ -33,14 +34,16 @@ public class KafkaConfigTools {
     }
     
     public Properties generateConfig(TopicRole role, TopicType type, String bootstraps) {
+        AteDelegate d = AteDelegate.get();
+
         String topicRole;
         switch (role) {
             case Producer:
-                topicRole = AteConstants.PROPERTY_PRODUCER_SYSTEM;
+                topicRole = d.bootstrapConfig.getPropertiesFileProducer();
                 break;
             default:
             case Consumer:
-                topicRole = AteConstants.PROPERTY_CONSUMER_SYSTEM;
+                topicRole = d.bootstrapConfig.getPropertiesFileConsumer();
                 break;
         }
         
@@ -54,15 +57,15 @@ public class KafkaConfigTools {
         
         String topicType;
         switch (type) {
-            case Io:
-                topicType = AteConstants.PROPERTY_TOPIC_IO_SYSTEM;
-                break;
-            case Publish:
-                topicType = AteConstants.PROPERTY_TOPIC_PUBLISH_SYSTEM;
-                break;
             default:
             case Dao:
-                topicType = AteConstants.PROPERTY_TOPIC_DAO_SYSTEM;
+                topicType = d.bootstrapConfig.getPropertiesFileTopicDao();
+                break;
+            case Io:
+                topicType = d.bootstrapConfig.getPropertiesFileTopicIo();
+                break;
+            case Publish:
+                topicType = d.bootstrapConfig.getPropertiesFileTopicPublish();
                 break;
         }
 

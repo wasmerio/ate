@@ -4,6 +4,7 @@ import com.esotericsoftware.yamlbeans.YamlReader;
 import com.google.common.base.Stopwatch;
 import com.tokera.ate.common.ApplicationConfigLoader;
 import com.tokera.ate.common.MapTools;
+import com.tokera.ate.configuration.AteConstants;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.extensions.*;
 import com.tokera.ate.io.kafka.KafkaBridgeBuilder;
@@ -14,6 +15,7 @@ import io.undertow.Undertow;
 import io.undertow.UndertowOptions;
 import io.undertow.servlet.Servlets;
 import io.undertow.servlet.api.DeploymentInfo;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import org.hibernate.validator.HibernateValidator;
 import org.jboss.resteasy.cdi.CdiInjectorFactory;
 import org.jboss.resteasy.cdi.ResteasyCdiExtension;
@@ -110,7 +112,7 @@ public class ApiServer {
         return providers;
     }
 
-    public static BootstrapConfig startWeld() {
+    public static BootstrapConfig startWeld(String @Nullable [] _args) {
         ValidatorFactory validatorFactory = Validation.byProvider( HibernateValidator.class )
                 .configure()
                 .buildValidatorFactory();
@@ -145,7 +147,12 @@ public class ApiServer {
                 AteDelegate.class);
         WeldContainer cdi = weld.initialize();
 
-        return cdi.select(BootstrapConfig.class).get();
+        BootstrapConfig bootstrapConfig = cdi.select(BootstrapConfig.class).get();
+        String[] args = _args;
+        if (args != null && args.length >= 1) {
+            bootstrapConfig.setArguments(Arrays.asList(args));
+        }
+        return bootstrapConfig;
     }
 
     public static ApiServer startApiServer(BootstrapConfig apiConfig)
@@ -161,12 +168,12 @@ public class ApiServer {
                         .addAccessLoggerLayer();
         
         // Load the properties file
-        Properties props = ApplicationConfigLoader.getInstance().getPropertiesByName(apiConfig.getPropertiesFile());
-        if (props == null) throw new WebApplicationException("Failed to load the properties file for the Tokera system.");
+        Properties props = ApplicationConfigLoader.getInstance().getPropertiesByName(apiConfig.getPropertiesFileAte());
+        if (props == null) throw new WebApplicationException("Failed to load the properties file for the ATE system (" + apiConfig.getPropertiesFileAte() + ").");
         
         // Start the API server
         ApiServer apiServer = new ApiServer(apiConfig);
-        apiServer.start();
+        apiServer.start(apiConfig);
 
         // Start zookeeper and kafka
         if ("true".equals(props.getOrDefault("zookeeper.server", "false").toString()) &&
@@ -271,15 +278,15 @@ public class ApiServer {
         return server;
     }
 
-    public void start() {
+    public void start(BootstrapConfig apiConfig) {
         
         // Load the properties file
-        Properties props = ApplicationConfigLoader.getInstance().getPropertiesByName(config.getPropertiesFile());
-        if (props == null) throw new WebApplicationException("Properties for for the Tokera system could not be found.");
+        Properties props = ApplicationConfigLoader.getInstance().getPropertiesByName(apiConfig.getPropertiesFileAte());
+        if (props == null) throw new WebApplicationException("Properties for for the ATE system could not be found (" + apiConfig.getPropertiesFileAte() + ").");
         port = Integer.parseInt(props.getOrDefault("port", "8080").toString());
 
         Undertow.Builder serverBuilder = Undertow.builder()
-                .setServerOption(UndertowOptions.ENABLE_HTTP2, "true".equals(MapTools.getOrNull(props, "http2")))
+                .setServerOption(UndertowOptions.ENABLE_HTTP2, "true".equals(props.getOrDefault("http2", "true")))
                 .addHttpListener(port, props.getOrDefault("listen", "0.0.0.0").toString())
                 .setIoThreads(Integer.parseInt(props.getOrDefault("io.threads", "32").toString()))
                 .setWorkerThreads(Integer.parseInt(props.getOrDefault("worker.threads", "1024").toString()))
@@ -306,18 +313,15 @@ public class ApiServer {
         int c_AesPreGen128 = 0;
         int c_AesPreGen256 = 0;
 
-        String propsName = System.getProperty(apiConfig.getPropertiesFile());
-        if (propsName != null) {
-            Properties props = ApplicationConfigLoader.getInstance().getPropertiesByName(propsName);
-            if (props != null) {
-                c_KeyPreGenThreads = Integer.parseInt(props.getOrDefault("keygen.threads", "6").toString());
-                c_KeyPreGenDelay = Integer.parseInt(props.getOrDefault("keygen.delay", "60").toString());
-                c_KeyPreGen64= Integer.parseInt(props.getOrDefault("keygen.prealloc.64", "80").toString());
-                c_KeyPreGen128 = Integer.parseInt(props.getOrDefault("keygen.prealloc.128", "60").toString());
-                c_KeyPreGen256 = Integer.parseInt(props.getOrDefault("keygen.prealloc.256", "20").toString());
-                c_AesPreGen128 = Integer.parseInt(props.getOrDefault("aesgen.prealloc.128", "800").toString());
-                c_AesPreGen256 = Integer.parseInt(props.getOrDefault("aesgen.prealloc.256", "200").toString());
-            }
+        Properties props = ApplicationConfigLoader.getInstance().getPropertiesByName(apiConfig.getPropertiesFileAte());
+        if (props != null) {
+            c_KeyPreGenThreads = Integer.parseInt(props.getOrDefault("keygen.threads", "6").toString());
+            c_KeyPreGenDelay = Integer.parseInt(props.getOrDefault("keygen.delay", "60").toString());
+            c_KeyPreGen64= Integer.parseInt(props.getOrDefault("keygen.prealloc.64", "80").toString());
+            c_KeyPreGen128 = Integer.parseInt(props.getOrDefault("keygen.prealloc.128", "60").toString());
+            c_KeyPreGen256 = Integer.parseInt(props.getOrDefault("keygen.prealloc.256", "20").toString());
+            c_AesPreGen128 = Integer.parseInt(props.getOrDefault("aesgen.prealloc.128", "800").toString());
+            c_AesPreGen256 = Integer.parseInt(props.getOrDefault("aesgen.prealloc.256", "200").toString());
         }
 
         AteDelegate d = AteDelegate.get();

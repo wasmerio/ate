@@ -1,5 +1,6 @@
 package com.tokera.ate.io.kafka;
 
+import com.tokera.ate.KafkaServer;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.repo.DataPartitionChain;
 import com.tokera.ate.io.repo.IDataPartitionBridge;
@@ -39,31 +40,12 @@ public class KafkaBridgeBuilder {
     @PostConstruct
     public void init()
     {
-        // Load the properties
-        @Nullable Properties props = ApplicationConfigLoader.getInstance().getPropertiesByName(System.getProperty(AteConstants.PROPERTY_KAFKA_SYSTEM));
-        if (props == null) {
-            exceptionOnUse = new RuntimeException("Must have a kafka configuration file to use the KafkaRepository.");
-            return;
+        try {
+            m_keeperServers = KafkaServer.getZooKeeperBootstrap();
+            m_bootstrapServers = KafkaServer.getKafkaBootstrap();
+        } catch (RuntimeException ex) {
+            exceptionOnUse = ex;
         }
-
-        String bootstraps = d.implicitSecurity.enquireDomainString(d.bootstrapConfig.getZookeeperAlias() + "." + d.bootstrapConfig.getDomain(), true);
-        if (bootstraps != null) {
-            props.put("zookeeper.connect", bootstraps);
-        }
-
-        String zookeeperConnect = props.getProperty("zookeeper.connect");
-        if (zookeeperConnect == null) {
-            exceptionOnUse = new RuntimeException("Kafka configuration file must have a zookeeper.connect propery.");
-            return;
-        }
-        m_keeperServers =  zookeeperConnect;
-
-        String bootstrapServers = d.implicitSecurity.enquireDomainString(d.bootstrapConfig.getKafkaAlias() + "." + d.bootstrapConfig.getDomain(), true);
-        if (bootstrapServers == null) {
-            exceptionOnUse = new RuntimeException("Unable to find Kafka bootstrap servers [dns: " + d.bootstrapConfig.getKafkaAlias() + "." + d.bootstrapConfig.getDomain() + "].");
-            return;
-        }
-        m_bootstrapServers = bootstrapServers;
     }
 
     public IDataPartitionBridge build(IPartitionKey key, DataPartitionChain chain, DataPartitionType type) {

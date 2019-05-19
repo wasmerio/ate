@@ -4,6 +4,7 @@ import com.google.common.base.Stopwatch;
 import com.tokera.ate.common.ApplicationConfigLoader;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.common.MapTools;
+import com.tokera.ate.common.NetworkTools;
 import com.tokera.ate.configuration.AteConstants;
 import com.tokera.ate.delegates.AteDelegate;
 import org.apache.zookeeper.server.ServerConfig;
@@ -19,10 +20,7 @@ import javax.ws.rs.WebApplicationException;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 @ApplicationScoped
@@ -49,44 +47,34 @@ public class ZooServer implements Runnable {
     public void start(boolean shouldRun)
     {
         List<String> zkServers = new ArrayList<>();
-        
-        String argsIp = System.getProperty(AteConstants.PROPERTY_ARGS_IP, null);
-        if (argsIp == null) argsIp = "127.0.0.1";
-        String argsPort0 = System.getProperty(AteConstants.PROPERTY_ARGS_PORT, null);
-        if (argsPort0 == null) argsPort0 = "9092";
-        Integer argsPortStride = Integer.parseInt(argsPort0) - 9092;
-        Integer argsPort1 = 2181 + argsPortStride;
-        
-        Integer myId = 0;
-        String bootstraps = d.implicitSecurity.enquireDomainString(d.bootstrapConfig.getZookeeperAlias() + "." + d.bootstrapConfig.getDomain(), true);
-        if (bootstraps != null) {
-            SLOG.info(d.bootstrapConfig.getZookeeperAlias() + "."  + d.bootstrapConfig.getDomain() + "->" + bootstraps);
-            int n = 0;
-            for (String svr : bootstraps.split("\\,")) {
-                n++;
-                String[] comps = svr.split("\\:");
-                if (comps.length < 1) continue;
-                
-                String serverIp = comps[0];
-                String serverPort = "2181";
-                if (comps.length >= 2) serverPort = comps[1];
-                
-                Integer portStride = Integer.parseInt(serverPort) - 2181;
-                Integer portInternal1 = 2888 + portStride;
-                Integer portInternal2 = 3888 + portStride;
-                
-                zkServers.add(serverIp + ":" + portInternal1 + ":" + portInternal2);
 
-                SLOG.info("ZookeeperBootstrap(" + n + ")->" + serverIp + ":" + serverPort);
-                
-                if (serverIp.equalsIgnoreCase(argsIp) &&
-                        (serverPort.equalsIgnoreCase(argsPort1.toString()) || serverPort.equalsIgnoreCase("2181")))
-                {
-                    shouldRun = true;
-                    myId = n;
-                }
+        // Load the list of ZooKeeper servers (bootstrap)
+        String bootstrapZooKeeper = BootstrapConfig.propertyOrThrow(d.bootstrapConfig.propertiesForAte(), "zookeeper.bootstrap");
+        Integer bootstrapZooKeeperPort = NetworkTools.extractPortFromBootstrapOrThrow(bootstrapZooKeeper);
+
+        // Load the properties
+        Properties props = d.bootstrapConfig.propertiesForZooKeeper();
+
+        // Get all my local IP addresses
+        Set<String> myAddresses = NetworkTools.getMyNetworkAddresses();
+
+        // Loop through all the data servers and process them
+        String myAdvertisingIp = null;
+        Integer myId = 0;
+        List<String> dataservers = d.implicitSecurity.enquireDomainAddresses(bootstrapZooKeeper, true);
+        int n = 0;
+        for (String serverIp : dataservers) {
+            n++;
+
+            zkServers.add(serverIp + ":2888:3888");
+
+            SLOG.info("ZookeeperBootstrap(" + n + ")->" + serverIp + ":" + bootstrapZooKeeperPort);
+            if (myAddresses.contains(serverIp)) {
+                myAdvertisingIp = serverIp;
+                myId = n;
             }
         }
+        shouldRun = myAdvertisingIp != null;
         
         if (shouldRun == false) {
             SLOG.info("ZooKeeper should not run on this server");
@@ -94,16 +82,12 @@ public class ZooServer implements Runnable {
         } else {
             SLOG.info("ZooKeeper required on this node");
         }
-        
-        Properties props = ApplicationConfigLoader.getInstance().getPropertiesByName(System.getProperty(AteConstants.PROPERTY_ZOOKEEPER_SYSTEM));
-        if (props == null) {
-            throw new WebApplicationException("Zookeeper configuration file is missing");
-        }
+
         String dataDir = props.getOrDefault("dataDir", "/opt/zookeeper").toString();
         
         if ("1".equals(MapTools.getOrNull(props,"tokera.autogen.servers"))) {
-            for (int n = 0; n < zkServers.size(); n++) {
-                Integer index = n + 1;
+            for (int x = 0; n < zkServers.size(); x++) {
+                Integer index = x + 1;
                 props.put("server." + index, zkServers.get(n));
             }
         }
@@ -163,25 +147,35 @@ public class ZooServer implements Runnable {
                 ZooKeeperServerMain server = new ZooKeeperServerMain();
         
                 QuorumPeerConfig quorumConfiguration = new QuorumPeerConfig();
-                
-                Properties props = ApplicationConfigLoader.getInstance().getPropertiesByName(System.getProperty(AteConstants.PROPERTY_ZOOKEEPER_SYSTEM));
-                if (props == null) throw new WebApplicationException("Zookeeper configuration file missing");
-                
-                String bootstraps = d.implicitSecurity.enquireDomainString(d.bootstrapConfig.getZookeeperAlias() + "." + d.bootstrapConfig.getDomain(), true);
-                if (bootstraps != null) {
-                    String[] servers = bootstraps.split("\\,");
-                    for (int n = 0; n < servers.length; n++) {
-                        String svr = servers[n];
-                        
-                        String[] comps = svr.split("\\:");
-                        if (comps.length >= 2) {
-                            int port = Integer.parseInt(comps[1]);
-                            port += 1000;
-                            svr = svr + ":" + port;
-                        }
 
-                        props.put("server." + n, svr);
-                    }
+                // Load the properties
+                String propsFilename = d.bootstrapConfig.getPropertiesFileKafka();
+                Properties props = ApplicationConfigLoader.getInstance().getPropertiesByName(propsFilename);
+                if (props == null) {
+                    throw new WebApplicationException("Properties file (" + propsFilename + ") for ATE does not exist.");
+                }
+
+                // Load the list of ZooKeeper servers (bootstrap)
+                String bootstrapZooKeeper = props.getProperty("zookeeper.bootstrap", null);
+                if (bootstrapZooKeeper == null) {
+                    throw new RuntimeException("Unable to initialize the ZooKeeper server as no bootstrap address was set (add 'zookeeper.bootstrap' to " + propsFilename + ").");
+                }
+                Integer bootstrapZooKeeperPort = NetworkTools.extractPortFromBootstrap(bootstrapZooKeeper);
+                if (bootstrapZooKeeperPort == null) {
+                    throw new RuntimeException("Unable to initialize the ZooKeeper server as no bootstrap port was set (update 'zookeeper.bootstrap' to " + propsFilename + " to include a port number).");
+                }
+
+                // Load the properties
+                propsFilename = d.bootstrapConfig.getPropertiesFileZooKeeper();
+                props = ApplicationConfigLoader.getInstance().getPropertiesByName(propsFilename);
+                if (props == null) {
+                    throw new WebApplicationException("Properties file (" + propsFilename + ") for ZooKeeper server does not exist.");
+                }
+
+                List<String> dataservers = d.implicitSecurity.enquireDomainAddresses(bootstrapZooKeeper, true);
+                for (int n = 0; n < dataservers.size(); n++) {
+                    String svr = dataservers.get(n);
+                    props.put("server." + n, svr + ":" + bootstrapZooKeeperPort);
                 }
 
                 try {

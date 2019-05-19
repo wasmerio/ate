@@ -30,8 +30,8 @@ public class BasicIntegrationTests {
 		ApiServer.setPreventKafka(true);
 		//AuditInterceptor.setPreventObscuring(true);
 
-        BootstrapConfig config = ApiServer.startWeld();
-        config.setDomain("mycompany.org");
+        BootstrapConfig config = ApiServer.startWeld(null);
+        config.setPingCheckOnStart(false);
 
         ApiServer.startApiServer(config);
 

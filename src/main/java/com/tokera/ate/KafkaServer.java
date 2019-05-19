@@ -3,7 +3,7 @@ package com.tokera.ate;
 import com.google.common.base.Stopwatch;
 import com.tokera.ate.common.ApplicationConfigLoader;
 import com.tokera.ate.common.MapTools;
-import com.tokera.ate.configuration.AteConstants;
+import com.tokera.ate.common.NetworkTools;
 import com.tokera.ate.delegates.AteDelegate;
 import kafka.metrics.KafkaMetricsReporter;
 import kafka.metrics.KafkaMetricsReporter$;
@@ -15,10 +15,9 @@ import org.slf4j.LoggerFactory;
 import scala.Option;
 import scala.collection.Seq;
 
-import javax.annotation.PostConstruct;
 import javax.enterprise.context.ApplicationScoped;
 import javax.ws.rs.WebApplicationException;
-import java.util.Properties;
+import java.util.*;
 import java.util.concurrent.TimeUnit;
 
 @ApplicationScoped
@@ -33,65 +32,78 @@ public class KafkaServer {
     private kafka.server.KafkaServer kafkaServer;
     private boolean shouldRun = true;
 
-    public void init() {
-        // Load the properties
-        String propsFilename = System.getProperty(AteConstants.PROPERTY_KAFKA_SYSTEM);
-        Properties props = ApplicationConfigLoader.getInstance().getPropertiesByName(propsFilename);
-        if (props == null) {
-            throw new WebApplicationException("Properties file for Kafka System does not exist.");
-        }
+    private static String getGenericBootstrap(String filename) {
+        AteDelegate d = AteDelegate.get();
 
-        String argsIp = System.getProperty(AteConstants.PROPERTY_ARGS_IP, null);
-        String argsPort = System.getProperty(AteConstants.PROPERTY_ARGS_PORT, null);
-        if (argsPort == null) argsPort = "9092";
+        // Load the list of servers (bootstrap)
+        String bootstrap = BootstrapConfig.propertyOrThrow(d.bootstrapConfig.propertiesForAte(), filename);
+        Integer bootstrapPort = NetworkTools.extractPortFromBootstrapOrThrow(bootstrap);
 
-        boolean detectShouldRun = false;
+        // Build a list of all the servers we will connect to
+        StringBuilder sb = new StringBuilder();
+        List<String> bootstrapServers = d.implicitSecurity.enquireDomainAddresses(bootstrap, true);
+        if (bootstrapServers != null) {
 
-        Integer numBrokers = 0;
-        Integer myId = 0;
-        String dataservers = d.implicitSecurity.enquireDomainString(d.bootstrapConfig.getKafkaAlias() + "." + d.bootstrapConfig.getDomain(), true);
-        if (dataservers != null) {
-            SLOG.info(d.bootstrapConfig.getKafkaAlias() + "." + d.bootstrapConfig.getDomain() + "->" + dataservers);
-            int n = 0;
-            for (String svr : dataservers.split("\\,")) {
-                numBrokers++;
-                n++;
-                String[] comps = svr.split("\\:");
-                if (comps.length < 1) continue;
-
-                String serverIp = comps[0];
-                String serverPort = "9092";
-                if (comps.length >= 2) serverPort = comps[1];
-
-                SLOG.info("KafkaBootstrap(" + n + ")->" + serverIp + ":" + serverPort);
-
-                if (serverIp.equalsIgnoreCase(argsIp)) {
-                    if (serverPort.equalsIgnoreCase("9092")) {
-                        System.setProperty(AteConstants.PROPERTY_ARGS_PORT, argsPort);
-                        argsPort = "9092";
-                    }
-
-                    if (serverPort.equalsIgnoreCase(argsPort)) {
-                        detectShouldRun = true;
-                        myId = n;
-                    }
-                }
+            for (String bootstrapServer : bootstrapServers) {
+                if (sb.length() > 0) sb.append(",");
+                sb.append(bootstrapServer).append(":").append(bootstrapPort);
             }
         }
-        shouldRun = detectShouldRun;
+        return sb.toString();
 
-        String bootstraps = d.implicitSecurity.enquireDomainString(d.bootstrapConfig.getZookeeperAlias() + "." + d.bootstrapConfig.getDomain(), true);
-        if (bootstraps != null) {
-            SLOG.info(d.bootstrapConfig.getZookeeperAlias() + "." + d.bootstrapConfig.getDomain() + "->" + bootstraps);
-            props.put("zookeeper.connect", bootstraps);
+    }
+
+    public static String getZooKeeperBootstrap() {
+        return getGenericBootstrap("zookeeper.bootstrap");
+    }
+
+    public static String getKafkaBootstrap() {
+        return getGenericBootstrap("kafka.bootstrap");
+    }
+
+    public void init() {
+
+        // Load the list of Kafka servers (bootstrap)
+        String bootstrapKafka = BootstrapConfig.propertyOrThrow(d.bootstrapConfig.propertiesForAte(), "kafka.bootstrap");
+        Integer bootstrapKafkaPort = NetworkTools.extractPortFromBootstrapOrThrow(bootstrapKafka);
+
+        // Load the list of ZooKeeper servers (bootstrap)
+        String bootstrapZooKeeper = BootstrapConfig.propertyOrThrow(d.bootstrapConfig.propertiesForAte(), "zookeeper.bootstrap");
+        Integer bootstrapZooKeeperPort = NetworkTools.extractPortFromBootstrapOrThrow(bootstrapZooKeeper);
+
+        // Load the properties
+        Properties props = d.bootstrapConfig.propertiesForKafka();
+
+        // Get all my local IP addresses
+        Set<String> myAddresses = NetworkTools.getMyNetworkAddresses();
+
+        // Loop through all the data servers and process them
+        String myAdvertisingIp = null;
+        Integer numBrokers = 0;
+        Integer myId = 0;
+        List<String> dataservers = d.implicitSecurity.enquireDomainAddresses(bootstrapKafka, true);
+        int n = 0;
+        for (String serverIp : dataservers) {
+            numBrokers++;
+            n++;
+
+            SLOG.info("KafkaBootstrap(" + n + ")->" + serverIp + ":" + bootstrapKafkaPort);
+            if (myAddresses.contains(serverIp)) {
+                myAdvertisingIp = serverIp;
+                myId = n;
+            }
         }
+        shouldRun = myAdvertisingIp != null;
+
+        // Add the bootstrap
+        props.put("zookeeper.connect", KafkaServer.getZooKeeperBootstrap());
 
         // Fix the advertised ports and IPs if we are on a real public IP
-        if (argsIp != null) {
-            props.put("advertised.host.name", argsIp);
-            props.put("advertised.listeners", "PLAINTEXT://" + argsIp + ":" + argsPort);
+        if (myAdvertisingIp != null) {
+            props.put("advertised.host.name", myAdvertisingIp);
+            props.put("advertised.listeners", "PLAINTEXT://" + myAdvertisingIp + ":" + bootstrapZooKeeperPort);
         }
-        props.put("advertised.port", argsPort);
+        props.put("advertised.port", bootstrapZooKeeperPort);
 
         // Cap the number of replicas so they do not exceed the number of brokers
         Integer numOfReplicas = 2;

@@ -5,19 +5,33 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.tokera</groupId>
-    <artifactId>hello-world</artifactId>
+    <artifactId>ate-example-helloworld</artifactId>
     <version>1.0-SNAPSHOT</version>
+    <description>Example for how to create an ATE database in minimal lines of code.</description>
 
     <parent>
         <groupId>com.tokera</groupId>
         <artifactId>ate-deps</artifactId>
-        <version>0.1.42</version>
+        <version>1.2</version>
     </parent>
 
+    <developers>
+        <developer>
+            <name>John Sharratt</name>
+            <email>johnathan.sharratt@gmail.com</email>
+            <organization>Tokera Pty Ltd</organization>
+        </developer>
+        <developer>
+            <name>Jon Han Lee</name>
+            <organization>Tokera Pty Ltd</organization>
+        </developer>
+    </developers>
+
+    <inceptionYear>2018</inceptionYear>
     <licenses>
         <license>
-            <name>Apache License, Version 2.0</name>
-            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <name>The GNU Lesser General Public License, Version 3.0</name>
+            <url>http://www.gnu.org/licenses/lgpl-3.0.txt</url>
             <distribution>repo</distribution>
         </license>
     </licenses>
@@ -31,42 +45,44 @@
         <slf4j.version>1.7.26</slf4j.version>
         <weld.junit.version>1.3.1.Final</weld.junit.version>
         <surefire.version>3.0.0-M3</surefire.version>
-        <tokera.ate.version>0.1.42</tokera.ate.version>
+        <tokera.ate.version>0.1.45</tokera.ate.version>
     </properties>
 
-    <dependency>
-        <groupId>org.jboss.weld</groupId>
-        <artifactId>weld-junit5</artifactId>
-        <version>${weld.junit.version}</version>
-    </dependency>
-    <dependency>
-        <groupId>org.slf4j</groupId>
-        <artifactId>slf4j-api</artifactId>
-        <version>${slf4j.version}</version>
-    </dependency>
-    <dependency>
-        <groupId>org.slf4j</groupId>
-        <artifactId>slf4j-simple</artifactId>
-        <version>${slf4j.version}</version>
-        <scope>test</scope>
-    </dependency>
-    <dependency>
-        <groupId>org.slf4j</groupId>
-        <artifactId>slf4j-log4j12</artifactId>
-        <version>${slf4j.version}</version>
-        <scope>runtime</scope>
-    </dependency>
-    <dependency>
-        <groupId>log4j</groupId>
-        <artifactId>log4j</artifactId>
-        <version>${log4j.version}</version>
-    </dependency>
-    <dependency>
-        <groupId>com.tokera</groupId>
-        <artifactId>ate</artifactId>
-        <version>${tokera.ate.version}</version>
-        <type>jar</type>
-    </dependency>
+    <dependencies>
+        <dependency>
+            <groupId>org.jboss.weld</groupId>
+            <artifactId>weld-junit5</artifactId>
+            <version>${weld.junit.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+            <version>${slf4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-simple</artifactId>
+            <version>${slf4j.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-log4j12</artifactId>
+            <version>${slf4j.version}</version>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>log4j</groupId>
+            <artifactId>log4j</artifactId>
+            <version>${log4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.tokera</groupId>
+            <artifactId>ate</artifactId>
+            <version>${tokera.ate.version}</version>
+            <type>jar</type>
+        </dependency>
+    </dependencies>
 
     <build>
         <plugins>

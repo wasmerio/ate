@@ -1,6 +1,6 @@
 package com.tokera.ate.io.kafka;
 
-import com.tokera.ate.configuration.AteConstants;
+import com.tokera.ate.KafkaServer;
 import com.tokera.ate.dao.kafka.MessageSerializer;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.io.api.IPartitionKey;
@@ -43,6 +43,7 @@ import org.apache.kafka.common.errors.TopicExistsException;
  */
 public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
 
+    protected AteDelegate d = AteDelegate.get();
     private final IPartitionKey m_key;
     private final DataPartitionChain m_chain;
     private final KafkaConfigTools m_config;
@@ -391,19 +392,13 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
         waitTime.start();
 
         waitTillLoaded();
-        
-        // Load the properties for the zookeeper instance
-        String kafkaPropsFile = System.getProperty(AteConstants.PROPERTY_KAFKA_SYSTEM);
-        Properties props = ApplicationConfigLoader.getInstance().getPropertiesByName(kafkaPropsFile);
-        if (props == null) throw new RuntimeException("Failed to create topic: kafka properties file is missing.'");
 
-        // Load configuration values that we will use when connecting to the admin interface
-        String zookeeperHosts = props.getOrDefault("zookeeper.connect", "").toString();
-        if (zookeeperHosts.length() <= 0) {
-            throw new RuntimeException("Failed to create topic: invalid property 'zookeeper.connect'");
-        }
-        
-        props.put("zookeeper.connect", m_keeperServers);
+        // Load the properties for the zookeeper instance
+        Properties props = d.bootstrapConfig.propertiesForKafka();
+
+        // Add the bootstrap to the configuration file
+        String zookeeperHosts = KafkaServer.getZooKeeperBootstrap();
+        props.put("zookeeper.connect", zookeeperHosts);
         
         int connectionTimeOutInMs = 10000;
         Object connectionTimeOutInMsObj = MapTools.getOrNull(props, "zookeeper.connection.timeout.ms");
@@ -441,13 +436,13 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
         switch (this.m_type) {
             default:
             case Dao:
-                topicPropsName = AteConstants.PROPERTY_TOPIC_DAO_SYSTEM;
+                topicPropsName = d.bootstrapConfig.getPropertiesFileTopicDao();
                 break;
             case Io:
-                topicPropsName = AteConstants.PROPERTY_TOPIC_IO_SYSTEM;
+                topicPropsName = d.bootstrapConfig.getPropertiesFileTopicIo();
                 break;
             case Publish:
-                topicPropsName = AteConstants.PROPERTY_TOPIC_PUBLISH_SYSTEM;
+                topicPropsName = d.bootstrapConfig.getPropertiesFileTopicPublish();
                 break;
         }
         Properties topicProps = ApplicationConfigLoader.getInstance().getPropertiesByName(System.getProperty(topicPropsName));

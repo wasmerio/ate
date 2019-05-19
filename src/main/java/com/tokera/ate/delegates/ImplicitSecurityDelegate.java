@@ -6,6 +6,7 @@ import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -21,14 +22,7 @@ import com.tokera.ate.units.Alias;
 import com.tokera.ate.units.DomainName;
 import com.tokera.ate.units.PlainText;
 import org.checkerframework.checker.nullness.qual.Nullable;
-import org.xbill.DNS.Cache;
-import org.xbill.DNS.DClass;
-import org.xbill.DNS.Lookup;
-import org.xbill.DNS.Record;
-import org.xbill.DNS.SimpleResolver;
-import org.xbill.DNS.TXTRecord;
-import org.xbill.DNS.TextParseException;
-import org.xbill.DNS.Type;
+import org.xbill.DNS.*;
 
 /**
  * Uses properties of the Internet to derive authentication and authorization rules
@@ -80,7 +74,7 @@ public class ImplicitSecurityDelegate {
     
     public @Nullable MessagePublicKeyDto enquireDomainKey(@DomainName String domain, boolean shouldThrow)
     {
-        return enquireDomainKey(d.bootstrapConfig.getImplicitSecurityAlias(), domain, shouldThrow);
+        return enquireDomainKey(d.bootstrapConfig.getImplicitAuthorityAlias(), domain, shouldThrow);
     }
     
     public @Nullable MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, boolean shouldThrow)
@@ -95,6 +89,51 @@ public class ImplicitSecurityDelegate {
         
         return d.encryptor.createPublicKey(keyString, alias);
     }
+
+    public List<String> enquireDomainAddresses(@DomainName String domain, boolean shouldThrow) {
+        if (domain.contains(":")) {
+            String[] comps = domain.split(":");
+            if (comps.length >= 1) domain = comps[0];
+        }
+        if (domain.endsWith(".") == false) domain += ".";
+
+        try {
+
+            Lookup lookup = new Lookup(domain, Type.ANY, DClass.IN);
+            lookup.setResolver(m_resolver);
+            lookup.setCache(g_dnsCache);
+
+            final Record[] records = lookup.run();
+            if (lookup.getResult() != Lookup.SUCCESSFUL) {
+                if (shouldThrow && lookup.getResult() == Lookup.UNRECOVERABLE) {
+                    throw new WebApplicationException("Failed to lookup DNS record on [" + domain + "] - " + lookup.getErrorString());
+                }
+                this.LOG.debug("dns(" + domain + ")::" + lookup.getErrorString());
+                return null;
+            }
+
+            List<String> ret = new ArrayList<>();
+            for (Record record : records) {
+                //this.LOG.info("dns(" + domain + ")::record(" + record.toString() + ")");
+
+                if (record instanceof ARecord) {
+                    ARecord a = (ARecord) record;
+                    ret.add(a.getAddress().toString());
+                }
+                if (record instanceof AAAARecord) {
+                    AAAARecord aaaa = (AAAARecord) record;
+                    ret.add(aaaa.getAddress().toString());
+                }
+            }
+            return ret;
+        } catch (TextParseException ex) {
+            if (shouldThrow) {
+                throw new WebApplicationException(ex);
+            }
+            this.LOG.info("dns(" + domain + ")::" + ex.getMessage());
+            return null;
+        }
+    }
     
     public @Nullable @PlainText String enquireDomainString(@DomainName String domain, boolean shouldThrow)
     {
@@ -104,7 +143,7 @@ public class ImplicitSecurityDelegate {
         }
 
         for (String publicTopic : this.g_publicPartitions) {
-            if ((d.bootstrapConfig.getImplicitSecurityAlias() + "." + publicTopic).equals(domain)) {
+            if ((d.bootstrapConfig.getImplicitAuthorityAlias() + "." + publicTopic).equals(domain)) {
                 return null;
             }
         }
