@@ -2,6 +2,7 @@ package com.tokera.examples.dao;
 
 import com.tokera.ate.annotations.PermitParentType;
 import com.tokera.ate.common.ImmutalizableArrayList;
+import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDaoRights;
 import com.tokera.ate.units.DaoId;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -21,6 +22,7 @@ public class Account extends BaseDaoRights {
     public final ImmutalizableArrayList<UUID> monthlyActivities = new ImmutalizableArrayList<UUID>();
     public final ImmutalizableArrayList<UUID> individuals = new ImmutalizableArrayList<UUID>();
     public final ImmutalizableArrayList<UUID> accountRoles = new ImmutalizableArrayList<UUID>();
+    public final ImmutalizableArrayList<PUUID> ownerships = new ImmutalizableArrayList<PUUID>();
 
     @SuppressWarnings("initialization.fields.uninitialized")
     @Deprecated

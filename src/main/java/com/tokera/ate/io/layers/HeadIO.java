@@ -1,7 +1,9 @@
 package com.tokera.ate.io.layers;
 
 import com.tokera.ate.common.LoggerHook;
+import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
+import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.io.api.*;
 import com.tokera.ate.qualifiers.BackendStorageSystem;
@@ -24,6 +26,7 @@ import java.util.*;
 @ApplicationScoped
 public class HeadIO implements IAteIO
 {
+    protected AteDelegate d = AteDelegate.get();
     @SuppressWarnings("initialization.fields.uninitialized")
     @Inject
     @BackendStorageSystem
@@ -197,8 +200,17 @@ public class HeadIO implements IAteIO
         return back.getOrNull(id);
     }
 
+    public <T extends BaseDao> T get(PUUID id, Class<T> type) {
+        d.requestContext.pushPartitionKey(id);
+        try {
+            return this.get(id.id(), type);
+        } finally {
+            d.requestContext.popPartitionKey();
+        }
+    }
+
     @SuppressWarnings({"unchecked"})
-    protected <T extends BaseDao> T get(@DaoId UUID id, Class<T> type) {
+    public <T extends BaseDao> T get(@DaoId UUID id, Class<T> type) {
         try {
             BaseDao ret = back.getOrNull(id);
             if (ret == null) {

@@ -10,4 +10,14 @@ public class Transaction {
     public BigDecimal amount;
     @Nullable
     public String description;
+
+    @SuppressWarnings("initialization.fields.uninitialized")
+    @Deprecated
+    public Transaction() {
+    }
+
+    public Transaction(TransactionDetails details) {
+        this.id = details.id;
+        this.amount = details.amount;
+    }
 }

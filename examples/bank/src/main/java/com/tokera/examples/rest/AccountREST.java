@@ -1,51 +1,64 @@
 package com.tokera.examples.rest;
 
-import com.tokera.ate.dao.PUUID;
+import com.tokera.ate.annotations.PermitReadEntity;
 import com.tokera.ate.delegates.AteDelegate;
-import com.tokera.examples.dao.Account;
-import com.tokera.examples.dao.Company;
-import com.tokera.examples.dao.Individual;
+import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
+import com.tokera.examples.common.AccountHelper;
+import com.tokera.examples.dao.*;
+import com.tokera.examples.dto.BeginTransactionRequest;
+import com.tokera.examples.dto.ShareToken;
+import com.tokera.examples.dto.TransactionToken;
 
-import javax.annotation.security.PermitAll;
 import javax.enterprise.context.ApplicationScoped;
-import javax.ws.rs.Consumes;
-import javax.ws.rs.POST;
-import javax.ws.rs.Path;
-import javax.ws.rs.Produces;
+import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
+import java.util.UUID;
 
 @ApplicationScoped
-@Path("/account")
+@Path("/account/{accountId}")
+@PermitReadEntity(name="accountId", clazz= Account.class)
 public class AccountREST {
     protected AteDelegate d = AteDelegate.get();
 
-    @POST
-    @Path("company")
-    @Produces({"text/yaml", MediaType.APPLICATION_JSON})
-    @Consumes(MediaType.TEXT_PLAIN)
-    @PermitAll
-    public PUUID registerCompany(String domain) {
-        Account acc = new Account("Company account for " + domain);
-        Company company = new Company(domain, acc);
-        d.headIO.mergeLater(company);
-        acc.company = company.getId();
-        d.headIO.mergeLater(acc);
+    @SuppressWarnings("initialization.fields.uninitialized")
+    @PathParam("accountId")
+    protected UUID accountId;
 
-        return company.addressableId();
+    @POST
+    @Path("beginTransaction")
+    @Produces({"text/yaml", MediaType.APPLICATION_JSON})
+    @Consumes({"text/yaml", MediaType.APPLICATION_JSON})
+    public TransactionToken beginTransaction(BeginTransactionRequest request) {
+        Account acc = d.headIO.get(accountId, Account.class);
+        MonthlyActivity activity = AccountHelper.getCurrentMonthlyActivity(acc);
+        Asset asset = d.headIO.get(request.asset, Asset.class);
+
+        MessagePrivateKeyDto writeRight = d.encryptor.genSignKeyNtru(256);
+        MessagePrivateKeyDto readRight = d.encryptor.genEncryptKeyNtru(256);
+        ShareToken token = new ShareToken(asset, writeRight, readRight);
+
+        return token;
     }
 
     @POST
-    @Path("individual")
-    @Produces({"text/yaml", MediaType.APPLICATION_JSON})
-    @Consumes(MediaType.TEXT_PLAIN)
-    @PermitAll
-    public PUUID registerIndividual(String email) {
-        Account acc = new Account("Individual account for " + email);
-        Individual individual = new Individual(email, acc);
-        d.headIO.mergeLater(individual);
-        acc.individual = individual.getId();
-        d.headIO.mergeLater(acc);
+    @Path("completeTransaction")
+    @Produces(MediaType.TEXT_PLAIN)
+    @Consumes({"text/yaml", MediaType.APPLICATION_JSON})
+    public TransactionDetails completeTransaction(TransactionToken transactionToken) {
+        TransactionDetails otherDetails = d.headIO.get(transactionId, TransactionDetails.class);
 
-        return individual.addressableId();
+        Account acc = d.headIO.get(accountId, Account.class);
+        MonthlyActivity activity = AccountHelper.getCurrentMonthlyActivity(acc);
+
+        TransactionDetails details = new TransactionDetails(activity, otherDetails.amount.negate(), otherDetails.addressableId(), otherDetails.asset);
+        details.details = otherDetails.details;
+
+        Transaction trans = new Transaction(details);
+        trans.description = otherDetails.description;
+
+        activity.transactions.add(trans);
+        d.headIO.mergeLater(details);
+        d.headIO.mergeLater(activity);
+        return details;
     }
 }
