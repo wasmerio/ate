@@ -7,9 +7,9 @@ import com.tokera.ate.BootstrapConfig;
 import javax.ws.rs.ApplicationPath;
 
 @ApplicationPath("1-0")
-public class MyBankApp extends BootstrapApp {
+public class ShareBankApp extends BootstrapApp {
 
-    public MyBankApp() { }
+    public ShareBankApp() { }
 
     public static void main(String[] args) {
         start(args);

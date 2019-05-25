@@ -1,7 +1,10 @@
 package com.tokera.ate.io.core;
 
+import java.lang.reflect.Field;
 import java.util.*;
 
+import com.tokera.ate.annotations.ImplicitAuthority;
+import com.tokera.ate.io.merge.DataMerger;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.dao.IParams;
 import com.tokera.ate.dao.IRights;
@@ -191,5 +194,38 @@ public class DaoHelper {
             return (IRoles)ret;
         }
         return null;
+    }
+
+    private boolean hasImplicitAuthorityInternal(BaseDao entity, String authority) {
+        List<Field> fields = DataMerger.getFieldDescriptors(entity.getClass());
+        for (Field field : fields) {
+            if (field.getAnnotation(ImplicitAuthority.class) == null) {
+                continue;
+            }
+
+            Object val;
+            try {
+                val = field.get(entity);
+                if (val == null) continue;
+            } catch (IllegalAccessException e) {
+                continue;
+            }
+
+            String valStr = val.toString();
+            if (authority.equalsIgnoreCase(valStr)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public boolean hasImplicitAuthority(BaseDao entity, String authority) {
+        @Nullable BaseDao obj = entity;
+        for (;obj != null; obj = this.getParent(obj)) {
+            if (hasImplicitAuthorityInternal(obj, authority)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

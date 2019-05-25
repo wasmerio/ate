@@ -39,7 +39,9 @@ public abstract class BaseDaoRolesRights extends BaseDaoRoles implements IRights
     }
 
     @Override
-    public abstract @Alias String getRightsAlias();
+    public @Alias String getRightsAlias() {
+        return this.getId().toString();
+    }
 
     @Override
     public void onAddRight(IRoles to) {

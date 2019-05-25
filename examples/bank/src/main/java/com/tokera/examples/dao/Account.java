@@ -20,8 +20,6 @@ public class Account extends BaseDaoRights {
     @Nullable
     public UUID individual;
     public final ImmutalizableArrayList<UUID> monthlyActivities = new ImmutalizableArrayList<UUID>();
-    public final ImmutalizableArrayList<UUID> individuals = new ImmutalizableArrayList<UUID>();
-    public final ImmutalizableArrayList<UUID> accountRoles = new ImmutalizableArrayList<UUID>();
     public final ImmutalizableArrayList<PUUID> ownerships = new ImmutalizableArrayList<PUUID>();
 
     @SuppressWarnings("initialization.fields.uninitialized")

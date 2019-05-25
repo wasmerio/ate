@@ -21,29 +21,29 @@ public class RegisterREST {
 
     @POST
     @Path("company")
-    @Produces(MediaType.TEXT_PLAIN)
+    @Produces({"text/yaml", MediaType.APPLICATION_JSON})
     @Consumes(MediaType.TEXT_PLAIN)
     @PermitAll
-    public PUUID registerCompany(String domain) {
+    public Company registerCompany(String domain) {
         Account acc = new Account("Company account for " + domain);
         Company company = new Company(domain, acc);
         acc.company = company.getId();
         d.headIO.mergeLater(company);
         d.headIO.mergeLater(acc);
-        return company.addressableId();
+        return company;
     }
 
     @POST
     @Path("individual")
-    @Produces(MediaType.TEXT_PLAIN)
+    @Produces({"text/yaml", MediaType.APPLICATION_JSON})
     @Consumes(MediaType.TEXT_PLAIN)
     @PermitAll
-    public PUUID registerIndividual(String email) {
+    public Individual registerIndividual(String email) {
         Account acc = new Account("Individual account for " + email);
         Individual individual = new Individual(email, acc);
         acc.individual = individual.getId();
         d.headIO.mergeLater(individual);
         d.headIO.mergeLater(acc);
-        return individual.addressableId();
+        return individual;
     }
 }

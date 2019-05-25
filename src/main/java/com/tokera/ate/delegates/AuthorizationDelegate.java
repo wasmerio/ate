@@ -315,6 +315,18 @@ public class AuthorizationDelegate {
         entity.onAddRight(to);
     }
 
+    public void authorizeEntityPublicRead(IRoles to) {
+        authorizeEntityPublicRead(to, true);
+    }
+
+    public void authorizeEntityPublicRead(IRoles to, boolean performMerge) {
+        to.getTrustAllowRead().put("public", d.encryptor.getTrustOfPublicRead().getPublicKeyHash());
+
+        if (performMerge) {
+            d.headIO.mergeLater((BaseDao) to);
+        }
+    }
+
     public void authorizeWrite(@Alias String alias, @Hash String keyHash, IRoles to) {
         if (to.getTrustAllowWrite().values().contains(keyHash) == false) {
             to.getTrustAllowWrite().put(alias, keyHash);
@@ -381,6 +393,18 @@ public class AuthorizationDelegate {
             d.eventTokenScopeChanged.fire(new TokenScopeChangedEvent(token));
             d.eventNewAccessRights.fire(new NewAccessRightsEvent());
             d.eventTokenChanged.fire(new TokenStateChangedEvent());
+        }
+    }
+
+    public void authorizeEntityPublicWrite(IRoles to) {
+        authorizeEntityPublicWrite(to, true);
+    }
+
+    public void authorizeEntityPublicWrite(IRoles to, boolean performMerge) {
+        to.getTrustAllowWrite().put("public", d.encryptor.getTrustOfPublicWrite().getPublicKeyHash());
+
+        if (performMerge) {
+            d.headIO.mergeLater((BaseDao) to);
         }
     }
 

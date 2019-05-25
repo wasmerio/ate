@@ -72,7 +72,7 @@ public class DataMerger {
         return fields;
     }
 
-    private static List<Field> getFieldDescriptors(Class<?> clazz) {
+    public static List<Field> getFieldDescriptors(Class<?> clazz) {
         return fieldDescriptorsMap
                 .computeIfAbsent(clazz, (c) -> {
                     List<Field> fields = new ArrayList<>();

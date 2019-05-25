@@ -16,7 +16,6 @@ public class MonthlyActivity extends BaseDao {
     public Date start;
     public Date end;
     public final ImmutalizableArrayList<Transaction> transactions = new ImmutalizableArrayList<Transaction>();
-    public final ImmutalizableArrayList<UUID> assets = new ImmutalizableArrayList<UUID>();
 
     @SuppressWarnings("initialization.fields.uninitialized")
     @Deprecated

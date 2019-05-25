@@ -6,6 +6,7 @@ import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.io.api.*;
+import com.tokera.ate.io.core.PartitionKeyComparator;
 import com.tokera.ate.qualifiers.BackendStorageSystem;
 import com.tokera.ate.qualifiers.FrontendStorageSystem;
 import com.tokera.ate.units.*;
@@ -303,5 +304,13 @@ public class HeadIO implements IAteIO
     @Override
     public <T extends BaseDao> List<T> getMany(Collection<@DaoId UUID> ids, Class<T> type) {
         return back.getMany(ids, type);
+    }
+
+    public <T extends BaseDao> List<T> getManyAcrossPartitions(Collection<PUUID> ids, Class<T> type) {
+        ArrayList<T> ret = new ArrayList<>();
+        for (PUUID id : ids) {
+            ret.add(this.get(id, type));
+        }
+        return ret;
     }
 }

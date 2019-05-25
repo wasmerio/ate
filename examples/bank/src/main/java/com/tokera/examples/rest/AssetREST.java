@@ -12,6 +12,7 @@ import edu.emory.mathcs.backport.java.util.Collections;
 import javax.enterprise.context.ApplicationScoped;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
 
 @ApplicationScoped
 @Path("/asset")
@@ -24,25 +25,30 @@ public class AssetREST {
     @Consumes({"text/yaml", MediaType.APPLICATION_JSON})
     public TransactionToken create(CreateAssetRequest request) {
         Asset asset = new Asset(request.type, request.value);
+        d.authorization.authorizeEntityPublicRead(asset);
 
-        Share share = new Share(asset, request.value);
-        share.trustInheritRead = true;
-        share.trustInheritWrite = false;
-        d.authorization.authorizeEntity(share, share);
+        AssetShare assetShare = new AssetShare(asset, request.value);
+        assetShare.trustInheritRead = true;
+        assetShare.trustInheritWrite = false;
+        d.authorization.authorizeEntity(assetShare, assetShare);
+        asset.shares.add(assetShare.id);
 
         d.headIO.mergeLater(asset);
-        d.headIO.mergeLater(share);
-        return new TransactionToken(Collections.singletonList(new ShareToken(share)));
+        d.headIO.mergeLater(assetShare);
+        return new TransactionToken(Collections.singletonList(new ShareToken(assetShare)));
     }
 
     @POST
     @Produces(MediaType.TEXT_PLAIN)
     @Consumes({"text/yaml", MediaType.APPLICATION_JSON})
     public boolean redeem(RedeemAssetRequest request) {
-        Share share = d.headIO.get(request.shareToken.share, Share.class);
-        d.daoHelper.hasImplicitAuthority(share, request.validateType);
-        share.rightsWrite.clear();
-        d.headIO.merge(share);
+        AssetShare assetShare = d.headIO.get(request.shareToken.share, AssetShare.class);
+        if (d.daoHelper.hasImplicitAuthority(assetShare, request.validateType) == false) {
+            throw new WebApplicationException("Asset is not of the correct type.", Response.Status.NOT_ACCEPTABLE);
+        }
+        assetShare.trustInheritWrite = false;
+        assetShare.rightsWrite.clear();
+        d.headIO.merge(assetShare);
         return true;
     }
 }
