@@ -15,16 +15,16 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
 @ApplicationScoped
-@Path("/asset")
+@Path("/money")
 @PermitReadEntity(name="accountId", clazz= Account.class)
-public class AssetREST {
+public class MoneyREST {
     protected AteDelegate d = AteDelegate.get();
 
     @POST
     @Path("/print")
     @Produces({"text/yaml", MediaType.APPLICATION_JSON})
     @Consumes({"text/yaml", MediaType.APPLICATION_JSON})
-    public TransactionToken print(CreateAssetRequest request) {
+    public TransactionToken printMoney(CreateAssetRequest request) {
         Asset asset = new Asset(request.type, request.value);
         d.authorization.authorizeEntityPublicRead(asset);
 
@@ -43,7 +43,7 @@ public class AssetREST {
     @Path("/burn")
     @Produces(MediaType.TEXT_PLAIN)
     @Consumes({"text/yaml", MediaType.APPLICATION_JSON})
-    public boolean burn(RedeemAssetRequest request) {
+    public boolean burnMoney(RedeemAssetRequest request) {
         AssetShare assetShare = d.headIO.get(request.shareToken.share, AssetShare.class);
         if (d.daoHelper.hasImplicitAuthority(assetShare, request.validateType) == false) {
             throw new WebApplicationException("Asset is not of the correct type.", Response.Status.NOT_ACCEPTABLE);

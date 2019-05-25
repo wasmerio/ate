@@ -12,12 +12,8 @@ public class ShareBankApp extends BootstrapApp {
     public ShareBankApp() { }
 
     public static void main(String[] args) {
-        start(args);
-    }
-
-    public static void start(String[] args) {
         BootstrapConfig config = ApiServer.startWeld(args);
-        config.setDeploymentName("MyBank");
+        config.setDeploymentName("ShareBank");
 
         ApiServer.startApiServer(config);
     }
