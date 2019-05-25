@@ -40,13 +40,13 @@ public class BootstrapApp extends Application implements Extension {
     
     public void watchForResources(@Observes @WithAnnotations(Path.class) ProcessAnnotatedType processAnnotatedType) {
         Class<?> resource = processAnnotatedType.getAnnotatedType().getJavaClass();
-        LOG.info("MainApp: Found Resource - " + resource.getName());
+        LOG.info("BootstrapApp: Found Resource - " + resource.getName());
         restEndpointClasses.add(resource);
     }
 
     public void watchForProviders(@Observes @WithAnnotations(Provider.class) ProcessAnnotatedType processAnnotatedType) {
         Class<?> provider = processAnnotatedType.getAnnotatedType().getJavaClass();
-        LOG.info("MainApp: Found Provider - " + provider.getName());
+        LOG.info("BootstrapApp: Found Provider - " + provider.getName());
         providerClasses.add(provider);
     }
 }
