@@ -1,6 +1,5 @@
 package com.tokera.examples.rest;
 
-import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.examples.dao.Account;
 import com.tokera.examples.dao.Company;
@@ -20,7 +19,7 @@ public class RegisterREST {
     protected AteDelegate d = AteDelegate.get();
 
     @POST
-    @Path("company")
+    @Path("/company")
     @Produces({"text/yaml", MediaType.APPLICATION_JSON})
     @Consumes(MediaType.TEXT_PLAIN)
     @PermitAll
@@ -34,7 +33,7 @@ public class RegisterREST {
     }
 
     @POST
-    @Path("individual")
+    @Path("/individual")
     @Produces({"text/yaml", MediaType.APPLICATION_JSON})
     @Consumes(MediaType.TEXT_PLAIN)
     @PermitAll

@@ -11,6 +11,7 @@ import org.jboss.resteasy.plugins.providers.jackson.ResteasyJackson2Provider;
 
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.client.Entity;
+import javax.ws.rs.client.Invocation;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
@@ -20,9 +21,10 @@ public class RawClient {
     private String urlBase;
     private String prefixForRest;
     private String prefixForFs;
-    private String session;
+    @Nullable
+    private String session = null;
 
-    public RawClient(String urlBase, String session, String prefixForRest, String prefixForFs) {
+    public RawClient(String urlBase, @Nullable String session, String prefixForRest, String prefixForFs) {
         this.urlBase = urlBase;
         this.client = RawClient.createResteasyClient();
         this.session = session;
@@ -64,32 +66,38 @@ public class RawClient {
 
     public FsFolderDto fsList(String path) {
         String uri = path;
-        Response response = target(prefixForFs, uri)
+        Invocation.Builder builder = target(prefixForFs, uri)
                 .request()
-                .accept(MediaType.APPLICATION_JSON_TYPE)
-                .header("Authorization", this.session)
-                .get();
+                .accept(MediaType.APPLICATION_JSON_TYPE);
+        if (this.session != null) {
+            builder = builder.header("Authorization", this.session);
+        }
+        Response response = builder.get();
         TestTools.validateResponse(response, uri);
         return response.readEntity(FsFolderDto.class);
     }
 
     public String fsGet(String path) {
         String uri = path;
-        Response response = target(prefixForFs, uri)
+        Invocation.Builder builder = target(prefixForFs, uri)
                 .request()
-                .accept(MediaType.WILDCARD)
-                .header("Authorization", this.session)
-                .get();
+                .accept(MediaType.WILDCARD);
+        if (this.session != null) {
+            builder = builder.header("Authorization", this.session);
+        }
+        Response response = builder.get();
         TestTools.validateResponse(response, uri);
         return response.readEntity(String.class);
     }
 
     public @Nullable String fsGetOrNull(String path) {
-        Response response = target(prefixForFs, path)
+        Invocation.Builder builder = target(prefixForFs, path)
                 .request()
-                .accept(MediaType.WILDCARD)
-                .header("Authorization", this.session)
-                .get();
+                .accept(MediaType.WILDCARD);
+        if (this.session != null) {
+            builder = builder.header("Authorization", this.session);
+        }
+        Response response = builder.get();
         if (response.getStatus() < 200 || response.getStatus() >= 300) {
             return null;
         }
@@ -101,11 +109,13 @@ public class RawClient {
     }
 
     public String fsPost(String path, Entity<?> data, MediaType mediaType) {
-        Response response = target(prefixForFs, path)
+        Invocation.Builder builder = target(prefixForFs, path)
                 .request(mediaType)
-                .accept(MediaType.WILDCARD)
-                .header("Authorization", this.session)
-                .post(data);
+                .accept(MediaType.WILDCARD);
+        if (this.session != null) {
+            builder = builder.header("Authorization", this.session);
+        }
+        Response response = builder.post(data);
         TestTools.validateResponse(response, path);
         return response.readEntity(String.class);
     }
@@ -115,11 +125,13 @@ public class RawClient {
     }
 
     public String fsPost(String path, Entity<?> data, String mediaType) {
-        Response response = target(prefixForFs, path)
+        Invocation.Builder builder = target(prefixForFs, path)
                 .request(mediaType)
-                .accept(MediaType.WILDCARD)
-                .header("Authorization", this.session)
-                .post(data);
+                .accept(MediaType.WILDCARD);
+        if (this.session != null) {
+            builder = builder.header("Authorization", this.session);
+        }
+        Response response = builder.post(data);
         TestTools.validateResponse(response, path);
         return response.readEntity(String.class);
     }
@@ -129,11 +141,13 @@ public class RawClient {
     }
 
     public String fsPut(String path, Entity<?> data, MediaType mediaType) {
-        Response response = target(prefixForFs, path)
+        Invocation.Builder builder = target(prefixForFs, path)
                 .request(mediaType)
-                .accept(MediaType.WILDCARD)
-                .header("Authorization", this.session)
-                .put(data);
+                .accept(MediaType.WILDCARD);
+        if (this.session != null) {
+            builder = builder.header("Authorization", this.session);
+        }
+        Response response = builder.put(data);
         TestTools.validateResponse(response, path);
         return response.readEntity(String.class);
     }
@@ -143,11 +157,13 @@ public class RawClient {
     }
 
     public String fsPut(String path, Entity<?> data, String mediaType) {
-        Response response = target(prefixForFs, path)
+        Invocation.Builder builder = target(prefixForFs, path)
                 .request(mediaType)
-                .accept(MediaType.WILDCARD)
-                .header("Authorization", this.session)
-                .put(data);
+                .accept(MediaType.WILDCARD);
+        if (this.session != null) {
+            builder = builder.header("Authorization", this.session);
+        }
+        Response response = builder.put(data);
         TestTools.validateResponse(response, path);
         return response.readEntity(String.class);
     }

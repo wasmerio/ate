@@ -104,7 +104,7 @@ public class RawClientBuilder {
     public RawClient build() {
         String urlBase = generateServerUrl(this.secure, this.server, this.port);
 
-        String session;
+        String session = null;
         if (this.session != null) {
             session = this.session;
         } else if (this.loginViaRestPostPath != null) {
@@ -125,8 +125,6 @@ public class RawClientBuilder {
             d.genericLogger.info("token:\n" + token);
 
             session = auth;
-        } else {
-            throw new InvalidParameterException("You must specify a login method (withSession, withLoginPassword, withLoginKey or withLoginPost).");
         }
 
         return new RawClient(urlBase, session, this.prefixForRest, this.prefixForFs);
