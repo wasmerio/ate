@@ -8,9 +8,10 @@ import com.tokera.ate.dao.msg.*;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.delegates.YamlDelegate;
+import com.tokera.ate.extensions.DaoParentDiscoveryExtension;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.security.Encryptor;
-import com.google.common.collect.Multimap;
+
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.*;
@@ -35,11 +36,10 @@ public class DataPartitionChain {
     private final ConcurrentMap<UUID, DataContainer> chainOfTrust;
     private final ConcurrentMap<String, MessagePublicKeyDto> publicKeys;
     private final ConcurrentMap<String, MessageEncryptTextDto> encryptText;
-    private final Multimap<String, String> allowedParents;
-    private final Set<String> allowedParentFree;
+    private final DaoParentDiscoveryExtension daoParentDiscoveryExtension;
     private final Encryptor encryptor;
     
-    public DataPartitionChain(IPartitionKey key, Multimap<String, String> allowedParents, Set<String> allowedParentFree) {
+    public DataPartitionChain(IPartitionKey key, DaoParentDiscoveryExtension daoParentDiscoveryExtension) {
         this.key = key;
         this.rootOfTrust = new ConcurrentHashMap<>();
         this.chainOfTrust = new ConcurrentHashMap<>();
@@ -47,9 +47,7 @@ public class DataPartitionChain {
         this.publicKeys = new ConcurrentHashMap<>();
         this.encryptText = new ConcurrentHashMap<>();
         this.encryptor = Encryptor.getInstance();
-        
-        this.allowedParents = allowedParents;
-        this.allowedParentFree = allowedParentFree;
+        this.daoParentDiscoveryExtension = daoParentDiscoveryExtension;
     }
 
     public IPartitionKey partitionKey() { return this.key; }
@@ -205,7 +203,7 @@ public class DataPartitionChain {
         MessageDataDto data = msg.getData();
 
         // Validate the data
-        if (validateData(data, LOG) == false) {
+        if (validateTrustStructureAndWritability(data, LOG) == false) {
             return false;
         }
         
@@ -217,18 +215,18 @@ public class DataPartitionChain {
     public boolean validate(MessageBaseDto msg, @Nullable LoggerHook LOG)
     {
         if (msg instanceof MessageDataDto) {
-            return validateData((MessageDataDto)msg, LOG);
+            return validateTrustStructureAndWritability((MessageDataDto)msg, LOG);
         } else {
             return true;
         }
     }
     
-    public boolean validateData(MessageDataDto data, @Nullable LoggerHook LOG)
+    public boolean validateTrustStructureAndWritability(MessageDataDto data, @Nullable LoggerHook LOG)
     {
-        return validateData(data, LOG, new HashMap<>());
+        return validateTrustStructureAndWritability(data, LOG, new HashMap<>());
     }
     
-    public boolean validateData(MessageDataDto data, @Nullable LoggerHook LOG, Map<UUID, @Nullable MessageDataDto> requestTrust)
+    public boolean validateTrustStructureAndWritability(MessageDataDto data, @Nullable LoggerHook LOG, Map<UUID, @Nullable MessageDataDto> requestTrust)
     {
         MessageDataHeaderDto header = data.getHeader();
         MessageDataDigestDto digest = data.getDigest();
@@ -241,8 +239,8 @@ public class DataPartitionChain {
         @DaoId UUID parentId = header.getParentId();
         MessageDataDto parent = null;
         String entityType = header.getPayloadClazzOrThrow();
-        if (allowedParents.containsKey(entityType) == false) {
-            if (allowedParentFree.contains(entityType) == false) {
+        if (this.daoParentDiscoveryExtension.getAllowedParentsSimple().containsKey(entityType) == false) {
+            if (this.daoParentDiscoveryExtension.getAllowedParentFreeSimple().contains(entityType) == false) {
                 drop(LOG, data, "parent policy not defined for this entity type", null);
                 return false;
             }
@@ -267,7 +265,7 @@ public class DataPartitionChain {
             if (parent == null) {
                 drop(LOG, data, "parent is missing in chain of trust", null);
                 return false;
-            } else if (allowedParents.containsEntry(entityType, parent.getHeader().getPayloadClazzOrThrow()) == false) {
+            } else if (this.daoParentDiscoveryExtension.getAllowedParentsSimple().containsEntry(entityType, parent.getHeader().getPayloadClazzOrThrow()) == false) {
                 drop(LOG, data, "parent type not allowed [see PermitParentType]", null);
                 return false;
             }

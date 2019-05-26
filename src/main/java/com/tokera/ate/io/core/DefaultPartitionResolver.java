@@ -31,7 +31,7 @@ public class DefaultPartitionResolver implements IPartitionResolver {
             .expireAfterAccess(1, TimeUnit.MINUTES)
             .build();
 
-    public IPartitionKey resolveInternal(BaseDao obj) {
+    private IPartitionKey resolveInternal(BaseDao obj) {
         for (;;)
         {
             // If the object implements the partition key interface then it can define its own partition key

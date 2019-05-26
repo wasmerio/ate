@@ -78,6 +78,9 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
     @JsonProperty
     @NotNull
     private ImmutalizableHashSet<@Hash String> allowWrite = new ImmutalizableHashSet<>();   // List of all the public key hashes roles that are allowed attach to this parent as a right to
+    @JsonProperty
+    @NotNull
+    private ImmutalizableHashSet<@Hash String> implicitAuthority = new ImmutalizableHashSet<>();   // List of all implicit authority addresses used to validate this object in the tree
 
     @JsonIgnore
     private transient boolean _immutable = false;
@@ -108,6 +111,7 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
         this.inheritWrite = previousHeader.getInheritWrite();
         this.allowRead = new ImmutalizableHashSet<>(previousHeader.allowRead);
         this.allowWrite = new ImmutalizableHashSet<>(previousHeader.allowWrite);
+        this.implicitAuthority = new ImmutalizableHashSet<>(previousHeader.implicitAuthority);
     }
 
     public MessageDataHeaderDto(MessageDataHeader val)
@@ -147,6 +151,7 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
         merges = new ImmutalizableHashSet<>();
         allowRead = new ImmutalizableHashSet<>();
         allowWrite = new ImmutalizableHashSet<>();
+        implicitAuthority = new ImmutalizableHashSet<>();
         for (int n = 0; n < lfb.mergesLength(); n++) {
             UUID parentVersion = UUIDTools.convertUUID(lfb.merges(n));
             merges.add(parentVersion);
@@ -160,6 +165,11 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
             String hash = lfb.allowWrite(n);
             if (hash == null) continue;
             allowWrite.add(hash);
+        }
+        for (int n = 0; n < lfb.implicitAuthorityLength(); n++) {
+            String authority = lfb.implicitAuthority(n);
+            if (authority == null) continue;
+            implicitAuthority.add(authority);
         }
 
         fb = null;
@@ -349,6 +359,26 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
         copyOnWrite();
         this.allowWrite = new ImmutalizableHashSet<>(allowWrite);
     }
+    public Set<String> getImplicitAuthority() {
+        MessageDataHeader lfb = fb;
+        if (lfb != null)
+        {
+            HashSet<String> ret = new HashSet<>();
+            for (int n = 0; n < lfb.implicitAuthorityLength(); n++) {
+                String v = lfb.implicitAuthority(n);
+                if (v == null) continue;
+                ret.add(v);
+            }
+            return ret;
+        }
+        return implicitAuthority;
+    }
+
+    public void setImplicitAuthority(Set<String> implicitAuthority) {
+        assert this._immutable == false;
+        copyOnWrite();
+        this.implicitAuthority = new ImmutalizableHashSet<>(implicitAuthority);
+    }
 
     public boolean getInheritRead() {
         MessageDataHeader lfb = fb;
@@ -409,6 +439,14 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
             }
         }
 
+        Set<String> theImplicitAuthority = this.getImplicitAuthority();
+        ArrayList<Integer> implicitAuthority = new ArrayList<>();
+        if (theImplicitAuthority.size() > 0) {
+            for (String s : theImplicitAuthority) {
+                implicitAuthority.add(fbb.createString(s));
+            }
+        }
+
         // Add all the other other fields for the header
         String strPayloadClazz = this.getPayloadClazzOrThrow();
         int offsetPayloadClazz = fbb.createString(strPayloadClazz);
@@ -429,9 +467,20 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
             offsetMergeVersions = fbb.endVector();
         }
 
-        int offsetAllowRead = MessageDataHeader.createAllowReadVector(fbb, reads.stream().mapToInt(i -> i).toArray());
+        int offsetAllowRead = -1;
+        if (reads.size() > 0) {
+            offsetAllowRead = MessageDataHeader.createAllowReadVector(fbb, reads.stream().mapToInt(i -> i).toArray());
+        }
 
-        int offsetAllowWrite = MessageDataHeader.createAllowWriteVector(fbb, writes.stream().mapToInt(i -> i).toArray());
+        int offsetAllowWrite = -1;
+        if (writes.size() > 0) {
+            offsetAllowWrite = MessageDataHeader.createAllowWriteVector(fbb, writes.stream().mapToInt(i -> i).toArray());
+        }
+
+        int offsetImplicitAuthority = -1;
+        if (implicitAuthority.size() > 0) {
+            offsetImplicitAuthority = MessageDataHeader.createImplicitAuthorityVector(fbb, implicitAuthority.stream().mapToInt(i -> i).toArray());
+        }
 
         MessageDataHeader.startMessageDataHeader(fbb);
         MessageDataHeader.addId(fbb, ObjId.createObjId(fbb, this.getIdOrThrow().getLeastSignificantBits(), this.getIdOrThrow().getMostSignificantBits()));
@@ -453,6 +502,7 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
         if (offsetMergeVersions >= 0) MessageDataHeader.addMerges(fbb, offsetMergeVersions);
         if (offsetAllowRead >= 0) MessageDataHeader.addAllowRead(fbb, offsetAllowRead);
         if (offsetAllowWrite >= 0) MessageDataHeader.addAllowWrite(fbb, offsetAllowWrite);
+        if (offsetImplicitAuthority >= 0) MessageDataHeader.addImplicitAuthority(fbb, offsetImplicitAuthority);
         return MessageDataHeader.endMessageDataHeader(fbb);
     }
 
@@ -468,5 +518,6 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
         this.merges.immutalize();
         this.allowRead.immutalize();
         this.allowWrite.immutalize();
+        this.implicitAuthority.immutalize();
     }
 }

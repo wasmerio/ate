@@ -37,8 +37,10 @@ public final class MessageDataHeader extends Table {
   public int allowReadLength() { int o = __offset(22); return o != 0 ? __vector_len(o) : 0; }
   public @org.checkerframework.checker.nullness.qual.Nullable String allowWrite(int j) { int o = __offset(24); return o != 0 ? __string(__vector(o) + j * 4) : null; }
   public int allowWriteLength() { int o = __offset(24); return o != 0 ? __vector_len(o) : 0; }
+  public @org.checkerframework.checker.nullness.qual.Nullable String implicitAuthority(int j) { int o = __offset(26); return o != 0 ? __string(__vector(o) + j * 4) : null; }
+  public int implicitAuthorityLength() { int o = __offset(26); return o != 0 ? __vector_len(o) : 0; }
 
-  public static void startMessageDataHeader(FlatBufferBuilder builder) { builder.startObject(11); }
+  public static void startMessageDataHeader(FlatBufferBuilder builder) { builder.startObject(12); }
   public static void addId(FlatBufferBuilder builder, int idOffset) { builder.addStruct(0, idOffset, 0); }
   public static void addVersion(FlatBufferBuilder builder, int versionOffset) { builder.addStruct(1, versionOffset, 0); }
   public static void addParentId(FlatBufferBuilder builder, int parentIdOffset) { builder.addStruct(2, parentIdOffset, 0); }
@@ -55,6 +57,9 @@ public final class MessageDataHeader extends Table {
   public static void addAllowWrite(FlatBufferBuilder builder, int allowWriteOffset) { builder.addOffset(10, allowWriteOffset, 0); }
   public static int createAllowWriteVector(FlatBufferBuilder builder, int[] data) { builder.startVector(4, data.length, 4); for (int i = data.length - 1; i >= 0; i--) builder.addOffset(data[i]); return builder.endVector(); }
   public static void startAllowWriteVector(FlatBufferBuilder builder, int numElems) { builder.startVector(4, numElems, 4); }
+  public static void addImplicitAuthority(FlatBufferBuilder builder, int implicitAuthorityOffset) { builder.addOffset(11, implicitAuthorityOffset, 0); }
+  public static int createImplicitAuthorityVector(FlatBufferBuilder builder, int[] data) { builder.startVector(4, data.length, 4); for (int i = data.length - 1; i >= 0; i--) builder.addOffset(data[i]); return builder.endVector(); }
+  public static void startImplicitAuthorityVector(FlatBufferBuilder builder, int numElems) { builder.startVector(4, numElems, 4); }
   public static int endMessageDataHeader(FlatBufferBuilder builder) {
     int o = builder.endObject();
     return o;

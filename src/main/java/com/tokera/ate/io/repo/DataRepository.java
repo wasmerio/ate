@@ -14,7 +14,6 @@ import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.io.api.IAteIO;
 import com.tokera.ate.io.api.IPartitionKey;
-import com.tokera.ate.io.core.PartitionKeyComparator;
 import com.tokera.ate.security.EffectivePermissionBuilder;
 import com.tokera.ate.io.core.StorageSystemFactory;
 import com.tokera.ate.dto.msg.*;
@@ -100,7 +99,7 @@ public class DataRepository implements IAteIO {
         MessageDataDto data = (MessageDataDto)d.dataSerializer.toDataMessage(entity, kt, false, false);
 
         // Perform the validations and checks
-        if (performValidation && chain.validateData(data, LOG, new HashMap<>()) == false) {
+        if (performValidation && chain.validateTrustStructureAndWritability(data, LOG, new HashMap<>()) == false) {
             String what = "clazz=" + data.getHeader().getPayloadClazzOrThrow() + ", id=" + data.getHeader().getIdOrThrow();
             throw new RuntimeException("The newly created object was not accepted into the chain of trust [" + what + "]");
         }
@@ -169,7 +168,7 @@ public class DataRepository implements IAteIO {
         return mergeInternal(entity, false, false);
     }
 
-    private void validateEntityIsChained(BaseDao entity) {
+    private void validateTrustStructure(BaseDao entity) {
 
         // Make sure its a valid parent we are attached to
         Class<?> type = entity.getClass();
@@ -224,14 +223,13 @@ public class DataRepository implements IAteIO {
         }
     }
 
-    private void validateEntityWritable(BaseDao entity) {
-        @DaoId UUID entityParentId = entity.getParentId();
+    private void validateTrustWritability(BaseDao entity) {
         if (d.authorization.canWrite(entity) == false)
         {
             this.clearDeferred();
 
             IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(entity);
-            EffectivePermissions permissions = d.authorization.perms(entity.addressableId(), entityParentId, true);
+            EffectivePermissions permissions = d.authorization.perms(entity);
             throw d.authorization.buildWriteException(partitionKey, entity.getId(), permissions, true);
         }
         if (this.immutable(entity.addressableId()) == true) {
@@ -260,7 +258,7 @@ public class DataRepository implements IAteIO {
 
         // Validate the object is attached to a parent
         if (validate == true) {
-            validateEntityIsChained(entity);
+            validateTrustStructure(entity);
         }
         
         // Precache all the encryption toPutKeys ready for the mergeThreeWay deferred phase
@@ -268,7 +266,7 @@ public class DataRepository implements IAteIO {
         
         // Validate that we can write to this entity
         if (validate == true) {
-            validateEntityWritable(entity);
+            validateTrustWritability(entity);
         }
         
         if (tContext.toPutKeys.contains(entity.getId()) == false) {
@@ -287,7 +285,7 @@ public class DataRepository implements IAteIO {
         MessageDataDto data = (MessageDataDto)d.dataSerializer.toDataMessage(entity, kt, false, false);
         datas.add(data);
 
-        if (chain.validateData(data, LOG, requestTrust) == false) {
+        if (chain.validateTrustStructureAndWritability(data, LOG, requestTrust) == false) {
             String what = "clazz=" + data.getHeader().getPayloadClazzOrThrow() + ", id=" + data.getHeader().getIdOrThrow();
             throw new RuntimeException("The newly created object was not accepted into the chain of trust [" + what + "]");
         }
@@ -393,7 +391,7 @@ public class DataRepository implements IAteIO {
         MessageDataHeaderDto header = new MessageDataHeaderDto(lastHeader);
 
         // Sign the data message
-        EffectivePermissions permissions = new EffectivePermissionBuilder(d.headIO, id, lastHeader.getParentId())
+        EffectivePermissions permissions = new EffectivePermissionBuilder(id, lastHeader.getParentId())
                 .setUsePostMerged(false)
                 .build();
 
@@ -420,10 +418,10 @@ public class DataRepository implements IAteIO {
         if (entity.hasSaved() == true)
         {
             // Validate the object is attached to a parent
-            validateEntityIsChained(entity);
+            validateTrustStructure(entity);
 
             // Validate that we can write to this entity
-            validateEntityWritable(entity);
+            validateTrustWritability(entity);
 
             if (tContext.toDeleteKeys.contains(entity.getId()) == false) {
                 tContext.toDeleteKeys.add(entity.getId());

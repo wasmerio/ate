@@ -61,8 +61,7 @@ public class ChainOfTrustTests
 
         DataPartitionChain ret = new DataPartitionChain(
                 key,
-                daoParents.getAllowedParentsSimple(),
-                daoParents.getAllowedParentFreeSimple());
+                daoParents);
         encryptor.touch();
         return ret;
     }

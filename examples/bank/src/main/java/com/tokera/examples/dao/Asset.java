@@ -1,6 +1,6 @@
 package com.tokera.examples.dao;
 
-import com.tokera.ate.annotations.ImplicitAuthority;
+import com.tokera.ate.annotations.ImplicitAuthorityField;
 import com.tokera.ate.annotations.PermitParentFree;
 import com.tokera.ate.common.ImmutalizableArrayList;
 import com.tokera.ate.dao.base.BaseDaoRoles;
@@ -15,7 +15,7 @@ import java.util.UUID;
 @PermitParentFree
 public class Asset extends BaseDaoRoles {
     public UUID id;
-    @ImplicitAuthority
+    @ImplicitAuthorityField
     public String type;
     public BigDecimal value;
     public ImmutalizableArrayList<UUID> shares = new ImmutalizableArrayList<UUID>();

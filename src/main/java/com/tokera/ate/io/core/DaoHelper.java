@@ -3,7 +3,7 @@ package com.tokera.ate.io.core;
 import java.lang.reflect.Field;
 import java.util.*;
 
-import com.tokera.ate.annotations.ImplicitAuthority;
+import com.tokera.ate.annotations.ImplicitAuthorityField;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.merge.DataMerger;
@@ -14,7 +14,6 @@ import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.IRoles;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
-import com.tokera.ate.units.DaoId;
 import com.tokera.ate.units.Secret;
 import org.apache.commons.codec.binary.Base64;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -201,7 +200,7 @@ public class DaoHelper {
     private boolean hasImplicitAuthorityInternal(BaseDao entity, String authority) {
         List<Field> fields = DataMerger.getFieldDescriptors(entity.getClass());
         for (Field field : fields) {
-            if (field.getAnnotation(ImplicitAuthority.class) == null) {
+            if (field.getAnnotation(ImplicitAuthorityField.class) == null) {
                 continue;
             }
 

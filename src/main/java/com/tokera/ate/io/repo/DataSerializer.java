@@ -193,6 +193,13 @@ public class DataSerializer {
         header.setAllowWrite(allowWrite);
     }
 
+    private void updateHeaderWithImplicitAuthority(BaseDao obj, MessageDataHeaderDto header)
+    {
+        Set<String> implicitAuthority = new HashSet<>();
+
+        header.setImplicitAuthority(implicitAuthority);
+    }
+
     private MessageDataHeaderDto buildHeaderForDataObject(BaseDao obj)
     {
         UUID version = obj.version;
@@ -237,7 +244,7 @@ public class DataSerializer {
         writePublicKeysForDataObject(obj, kt);
 
         // Get the effective permissions for a object
-        EffectivePermissions permissions = new EffectivePermissionBuilder(d.headIO, partitionKey, obj.getId(), obj.getParentId())
+        EffectivePermissions permissions = new EffectivePermissionBuilder(partitionKey, obj.getId(), obj.getParentId())
                 .setUsePostMerged(true)
                 .buildWith(obj);
         

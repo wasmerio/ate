@@ -79,8 +79,7 @@ public class DataSubscriber {
     private DataPartition createPartition(IPartitionKey key, DataPartitionType type) {
         DataPartitionChain chain = new DataPartitionChain(
                 key,
-                d.daoParents.getAllowedParentsSimple(),
-                d.daoParents.getAllowedParentFreeSimple());
+                d.daoParents);
         IDataPartitionBridge bridge = createBridge(key, chain, type);
 
         DataPartition newTopic = new DataPartition(key, chain, bridge, type, d.daoParents);

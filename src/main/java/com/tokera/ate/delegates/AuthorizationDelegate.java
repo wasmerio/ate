@@ -232,17 +232,20 @@ public class AuthorizationDelegate {
     }
 
     public EffectivePermissions perms(BaseDao obj) {
-        return perms(obj.addressableId(), obj.getParentId(), true);
+        IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(obj);
+        return new EffectivePermissionBuilder(partitionKey, obj.getId(), obj.getParentId())
+                .setUsePostMerged(true)
+                .buildWith(obj);
     }
 
     public EffectivePermissions perms(PUUID id, @Nullable @DaoId UUID parentId, boolean usePostMerged) {
-        return new EffectivePermissionBuilder(d.headIO, id, id.id(), parentId)
+        return new EffectivePermissionBuilder(id, id.id(), parentId)
                 .setUsePostMerged(usePostMerged)
                 .build();
     }
 
     public EffectivePermissions perms(IPartitionKey partitionKey, @DaoId UUID id, @Nullable @DaoId UUID parentId, boolean usePostMerged) {
-        return new EffectivePermissionBuilder(d.headIO, partitionKey, id, parentId)
+        return new EffectivePermissionBuilder(partitionKey, id, parentId)
                 .setUsePostMerged(usePostMerged)
                 .build();
     }

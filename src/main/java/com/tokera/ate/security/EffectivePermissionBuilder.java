@@ -1,6 +1,9 @@
 package com.tokera.ate.security;
 
+import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.PUUID;
+import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import com.tokera.ate.io.api.IAteIO;
 import com.tokera.ate.dao.IRoles;
 import com.tokera.ate.dao.base.BaseDao;
@@ -11,6 +14,7 @@ import com.tokera.ate.dto.EffectivePermissions;
 import com.tokera.ate.io.repo.DataContainer;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.UUID;
 
@@ -19,21 +23,19 @@ import java.util.UUID;
  */
 public class EffectivePermissionBuilder {
 
-    private final IAteIO ate;
+    private final AteDelegate d = AteDelegate.get();
     private IPartitionKey partitionKey;
     private @DaoId UUID origId;
     private @Nullable @DaoId UUID origParentId;
     private boolean usePostMerged = true;
 
-    public EffectivePermissionBuilder(IAteIO ate, PUUID id, @Nullable @DaoId UUID parentId) {
-        this.ate = ate;
+    public EffectivePermissionBuilder(PUUID id, @Nullable @DaoId UUID parentId) {
         this.partitionKey = id;
         this.origId = id.id();
         this.origParentId = parentId;
     }
 
-    public EffectivePermissionBuilder(IAteIO ate, IPartitionKey partitionKey, @DaoId UUID id, @Nullable @DaoId UUID parentId) {
-        this.ate = ate;
+    public EffectivePermissionBuilder(IPartitionKey partitionKey, @DaoId UUID id, @Nullable @DaoId UUID parentId) {
         this.partitionKey = partitionKey;
         this.origId = id;
         this.origParentId = parentId;
@@ -60,6 +62,8 @@ public class EffectivePermissionBuilder {
         EffectivePermissions ret = new EffectivePermissions();
         addRootTrust(ret);
         addChainTrust(ret);
+        addImplicitTrust(ret, obj);
+        addClaimableTrust(ret, obj);
         if (usePostMerged) {
             addPostMergedPerms(ret, obj);
         }
@@ -71,7 +75,7 @@ public class EffectivePermissionBuilder {
      * writing data into the chain which has been accepted into the chain
      */
     private void addRootTrust(EffectivePermissions ret) {
-        MessageDataHeaderDto rootOfTrust = ate.getRootOfTrust(PUUID.from(this.partitionKey, this.origId));
+        MessageDataHeaderDto rootOfTrust = d.headIO.getRootOfTrust(PUUID.from(this.partitionKey, this.origId));
         if (rootOfTrust != null) {
             ret.encryptKeyHash = rootOfTrust.getEncryptKeyHash();
             ret.rolesRead.addAll(rootOfTrust.getAllowRead());
@@ -92,7 +96,7 @@ public class EffectivePermissionBuilder {
         @DaoId UUID id = origId;
         @DaoId UUID parentId = origParentId;
         do {
-            DataContainer container = ate.getRawOrNull(PUUID.from(this.partitionKey, id));
+            DataContainer container = d.headIO.getRawOrNull(PUUID.from(this.partitionKey, id));
             if (container != null) {
                 MessageDataHeaderDto header = container.getMergedHeader();
 
@@ -120,6 +124,84 @@ public class EffectivePermissionBuilder {
         } while (id != null);
     }
 
+    private void addImplicitTrust(EffectivePermissions ret, @Nullable BaseDao retObj)
+    {
+        BaseDao obj;
+        if (retObj != null && retObj.getId().compareTo(origId) == 0) {
+            obj = retObj;
+        } else {
+            obj = d.headIO.getOrNull(PUUID.from(this.partitionKey, origId));
+        }
+
+        if (obj != null) {
+            Class<?> type = obj.getClass();
+            Field field = MapTools.getOrNull(d.daoParents.getAllowedDynamicImplicitAuthority(), type);
+            if (field != null) {
+                try {
+                    Object domainObj = field.get(obj);
+                    if (domainObj == null || domainObj.toString().isEmpty()) {
+                        throw new RuntimeException("The implicit authority field can not be null or empty [field: " + field.getName() + "].");
+                    }
+                    MessagePublicKeyDto implicitKey = d.implicitSecurity.enquireDomainKey(domainObj.toString(), true);
+                    String implicitKeyHash = d.encryptor.getPublicKeyHash(implicitKey);
+                    if (ret.rolesWrite.contains(implicitKeyHash) == false) {
+                        ret.rolesWrite.add(implicitKeyHash);
+                    }
+                } catch (IllegalAccessException e) {
+                    d.genericLogger.warn(e);
+                }
+            }
+
+            String staticImplicitAuthority = MapTools.getOrNull(d.daoParents.getAllowedImplicitAuthority(), type);
+            if (staticImplicitAuthority != null) {
+                MessagePublicKeyDto implicitKey = d.implicitSecurity.enquireDomainKey(staticImplicitAuthority, true);
+                String implicitKeyHash = d.encryptor.getPublicKeyHash(implicitKey);
+                if (ret.rolesWrite.contains(implicitKeyHash) == false) {
+                    ret.rolesWrite.add(implicitKeyHash);
+                }
+            }
+        }
+
+        DataContainer container = d.headIO.getRawOrNull(PUUID.from(this.partitionKey, this.origId));
+        if (container != null) {
+            MessageDataHeaderDto header = container.getMergedHeader();
+
+            for (String implicitAuthority : header.getImplicitAuthority()) {
+                MessagePublicKeyDto implicitKey = d.implicitSecurity.enquireDomainKey(implicitAuthority, true);
+                String implicitKeyHash = d.encryptor.getPublicKeyHash(implicitKey);
+                if (ret.rolesWrite.contains(implicitKeyHash) == false) {
+                    ret.rolesWrite.add(implicitKeyHash);
+                }
+            }
+        }
+    }
+
+    private void addClaimableTrust(EffectivePermissions ret, @Nullable BaseDao retObj) {
+        BaseDao obj;
+        if (retObj != null && retObj.getId().compareTo(origId) == 0) {
+            obj = retObj;
+        } else {
+            obj = d.headIO.getOrNull(PUUID.from(this.partitionKey, origId));
+        }
+
+        if (obj != null) {
+            Class<?> type = obj.getClass();
+
+            if (d.daoParents.getAllowedParentClaimable().contains(type))
+            {
+                DataContainer container = d.headIO.getRawOrNull(PUUID.from(this.partitionKey, this.origId));
+                if (container == null)
+                {
+                    MessagePublicKeyDto publicKey = d.encryptor.getTrustOfPublicWrite();
+                    String implicitKeyHash = d.encryptor.getPublicKeyHash(publicKey);
+                    if (ret.rolesWrite.contains(implicitKeyHash) == false) {
+                        ret.rolesWrite.add(implicitKeyHash);
+                    }
+                }
+            }
+        }
+    }
+
     /**
      * If the user asks for it then we can also add permissions that will be added once the mergeThreeWay
      * into the chain of trust takes place (useful for pre-mergeThreeWay checks)
@@ -137,7 +219,7 @@ public class EffectivePermissionBuilder {
             if (retObj != null && retObj.getId().compareTo(id) == 0) {
                 obj = retObj;
             } else {
-                obj = ate.getOrNull(PUUID.from(this.partitionKey, id));
+                obj = d.headIO.getOrNull(PUUID.from(this.partitionKey, id));
             }
 
             if (obj != null) {
@@ -155,7 +237,7 @@ public class EffectivePermissionBuilder {
                     if (roles.getTrustInheritRead() == false) {
                         inheritRead = false;
                     }
-                    if (roles.getTrustInheritWrite() == false && ate.exists(PUUID.from(this.partitionKey, id)) == true) {
+                    if (roles.getTrustInheritWrite() == false && d.headIO.exists(PUUID.from(this.partitionKey, id)) == true) {
                         inheritWrite = false;
                     }
                 }
@@ -163,7 +245,7 @@ public class EffectivePermissionBuilder {
             }
             else
             {
-                DataContainer container = ate.getRawOrNull(PUUID.from(this.partitionKey, id));
+                DataContainer container = d.headIO.getRawOrNull(PUUID.from(this.partitionKey, id));
                 if (container != null) {
                     MessageDataHeaderDto header = container.getMergedHeader();
 

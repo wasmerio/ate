@@ -34,7 +34,8 @@ struct MessageDataHeader FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     VT_INHERITWRITE = 18,
     VT_PAYLOADCLAZZ = 20,
     VT_ALLOWREAD = 22,
-    VT_ALLOWWRITE = 24
+    VT_ALLOWWRITE = 24,
+    VT_IMPLICITAUTHORITY = 26
   };
   const com::tokera::ate::dao::ObjId *id() const {
     return GetStruct<const com::tokera::ate::dao::ObjId *>(VT_ID);
@@ -69,6 +70,9 @@ struct MessageDataHeader FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>> *allowWrite() const {
     return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>> *>(VT_ALLOWWRITE);
   }
+  const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>> *implicitAuthority() const {
+    return GetPointer<const flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>> *>(VT_IMPLICITAUTHORITY);
+  }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<com::tokera::ate::dao::ObjId>(verifier, VT_ID) &&
@@ -89,6 +93,9 @@ struct MessageDataHeader FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
            VerifyOffset(verifier, VT_ALLOWWRITE) &&
            verifier.VerifyVector(allowWrite()) &&
            verifier.VerifyVectorOfStrings(allowWrite()) &&
+           VerifyOffset(verifier, VT_IMPLICITAUTHORITY) &&
+           verifier.VerifyVector(implicitAuthority()) &&
+           verifier.VerifyVectorOfStrings(implicitAuthority()) &&
            verifier.EndTable();
   }
 };
@@ -129,6 +136,9 @@ struct MessageDataHeaderBuilder {
   void add_allowWrite(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>> allowWrite) {
     fbb_.AddOffset(MessageDataHeader::VT_ALLOWWRITE, allowWrite);
   }
+  void add_implicitAuthority(flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>> implicitAuthority) {
+    fbb_.AddOffset(MessageDataHeader::VT_IMPLICITAUTHORITY, implicitAuthority);
+  }
   explicit MessageDataHeaderBuilder(flatbuffers::FlatBufferBuilder &_fbb)
         : fbb_(_fbb) {
     start_ = fbb_.StartTable();
@@ -153,8 +163,10 @@ inline flatbuffers::Offset<MessageDataHeader> CreateMessageDataHeader(
     bool inheritWrite = true,
     flatbuffers::Offset<flatbuffers::String> payloadClazz = 0,
     flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>> allowRead = 0,
-    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>> allowWrite = 0) {
+    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>> allowWrite = 0,
+    flatbuffers::Offset<flatbuffers::Vector<flatbuffers::Offset<flatbuffers::String>>> implicitAuthority = 0) {
   MessageDataHeaderBuilder builder_(_fbb);
+  builder_.add_implicitAuthority(implicitAuthority);
   builder_.add_allowWrite(allowWrite);
   builder_.add_allowRead(allowRead);
   builder_.add_payloadClazz(payloadClazz);
@@ -181,7 +193,8 @@ inline flatbuffers::Offset<MessageDataHeader> CreateMessageDataHeaderDirect(
     bool inheritWrite = true,
     const char *payloadClazz = nullptr,
     const std::vector<flatbuffers::Offset<flatbuffers::String>> *allowRead = nullptr,
-    const std::vector<flatbuffers::Offset<flatbuffers::String>> *allowWrite = nullptr) {
+    const std::vector<flatbuffers::Offset<flatbuffers::String>> *allowWrite = nullptr,
+    const std::vector<flatbuffers::Offset<flatbuffers::String>> *implicitAuthority = nullptr) {
   return com::tokera::ate::dao::msg::CreateMessageDataHeader(
       _fbb,
       id,
@@ -194,7 +207,8 @@ inline flatbuffers::Offset<MessageDataHeader> CreateMessageDataHeaderDirect(
       inheritWrite,
       payloadClazz ? _fbb.CreateString(payloadClazz) : 0,
       allowRead ? _fbb.CreateVector<flatbuffers::Offset<flatbuffers::String>>(*allowRead) : 0,
-      allowWrite ? _fbb.CreateVector<flatbuffers::Offset<flatbuffers::String>>(*allowWrite) : 0);
+      allowWrite ? _fbb.CreateVector<flatbuffers::Offset<flatbuffers::String>>(*allowWrite) : 0,
+      implicitAuthority ? _fbb.CreateVector<flatbuffers::Offset<flatbuffers::String>>(*implicitAuthority) : 0);
 }
 
 struct MessageDataDigest FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
