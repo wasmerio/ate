@@ -7,9 +7,11 @@ import com.tokera.ate.units.Alias;
 import com.tokera.ate.units.DaoId;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import javax.enterprise.context.Dependent;
 import java.math.BigDecimal;
 import java.util.UUID;
 
+@Dependent
 @PermitParentType({Asset.class, AssetShare.class})
 public class AssetShare extends BaseDaoRolesRights {
     public UUID id;

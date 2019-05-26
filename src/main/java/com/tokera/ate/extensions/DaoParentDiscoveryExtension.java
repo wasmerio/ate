@@ -2,6 +2,7 @@ package com.tokera.ate.extensions;
 
 import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
+import com.tokera.ate.annotations.ClaimableAuthority;
 import com.tokera.ate.annotations.PermitParentFree;
 import com.tokera.ate.annotations.PermitParentType;
 import com.tokera.ate.dao.IRoles;
@@ -23,10 +24,12 @@ import javax.enterprise.inject.spi.WithAnnotations;
  */
 public class DaoParentDiscoveryExtension implements Extension {
 
+    private final HashSet<Class<?>> allowedParentClaimable = new HashSet<>();
     private final HashSet<Class<?>> allowedParentFree = new HashSet<>();
     private final Multimap<Class<?>, Class<?>> allowedParents = HashMultimap.create();
     private final Multimap<Class<?>, Class<?>> allowedChildren = HashMultimap.create();
     private final HashSet<String> allowedParentFreeSimple = new HashSet<>();
+    private final HashSet<String> allowedParentClaimableSimple = new HashSet<>();
     private final Multimap<String, String> allowedParentsSimple = HashMultimap.create();
     private final Multimap<String, String> allowedChildrenSimple = HashMultimap.create();
 
@@ -64,9 +67,18 @@ public class DaoParentDiscoveryExtension implements Extension {
     public void watchForPermitParentFree(Class<?> resource) {
         allowedParentFree.add(resource);
         allowedParentFreeSimple.add(resource.getName());
+
+        if (resource.getAnnotation(ClaimableAuthority.class) != null) {
+            allowedParentClaimable.add(resource);
+            allowedParentClaimableSimple.add(resource.getName());
+        }
     }
 
     public Set<Class<?>> getAllowedParentFree() {
+        return this.allowedParentFree;
+    }
+
+    public Set<Class<?>> getAllowedParentClaimable() {
         return this.allowedParentFree;
     }
     
@@ -79,6 +91,10 @@ public class DaoParentDiscoveryExtension implements Extension {
     }
 
     public Set<String> getAllowedParentFreeSimple() {
+        return this.allowedParentFreeSimple;
+    }
+
+    public Set<String> getAllowedParentClaimableSimple() {
         return this.allowedParentFreeSimple;
     }
 

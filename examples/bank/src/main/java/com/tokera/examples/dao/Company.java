@@ -3,14 +3,16 @@ package com.tokera.examples.dao;
 import com.tokera.ate.annotations.ImplicitAuthority;
 import com.tokera.ate.annotations.PermitParentFree;
 import com.tokera.ate.common.UUIDTools;
-import com.tokera.ate.dao.base.BaseDaoRights;
+import com.tokera.ate.dao.base.BaseDaoRolesRights;
 import com.tokera.ate.units.DaoId;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import javax.enterprise.context.Dependent;
 import java.util.UUID;
 
+@Dependent
 @PermitParentFree
-public class Company extends BaseDaoRights {
+public class Company extends BaseDaoRolesRights {
     @ImplicitAuthority
     public String domain;
     public UUID companyAccount;

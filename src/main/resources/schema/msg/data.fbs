@@ -15,6 +15,7 @@ table MessageDataHeader
   payloadClazz      :string;
   allowRead         :[string];
   allowWrite        :[string];
+  implicitAuthority :[string];
 }
 
 table MessageDataDigest

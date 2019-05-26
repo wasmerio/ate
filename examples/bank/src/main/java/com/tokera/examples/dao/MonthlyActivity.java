@@ -6,9 +6,11 @@ import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.units.DaoId;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import javax.enterprise.context.Dependent;
 import java.util.Date;
 import java.util.UUID;
 
+@Dependent
 @PermitParentType(Account.class)
 public class MonthlyActivity extends BaseDao {
     public UUID id;
