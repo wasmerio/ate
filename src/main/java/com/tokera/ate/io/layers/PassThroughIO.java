@@ -1,9 +1,11 @@
 package com.tokera.ate.io.layers;
 
+import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.io.api.IAteIO;
+import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.units.DaoId;
 import com.tokera.ate.units.Hash;
 import com.tokera.ate.io.repo.DataContainer;
@@ -17,7 +19,6 @@ import java.util.*;
  */
 public class PassThroughIO implements IAteIO
 {
-    private AteDelegate d = AteDelegate.getUnsafe();
     protected final IAteIO next;
 
     public PassThroughIO(IAteIO next) {
@@ -29,6 +30,16 @@ public class PassThroughIO implements IAteIO
         boolean ret = next.merge(t);
         if (ret == false) return false;
         return true;
+    }
+
+    @Override
+    public boolean merge(IPartitionKey partitionKey, MessagePublicKeyDto publicKey) {
+        return this.next.merge(partitionKey, publicKey);
+    }
+
+    @Override
+    public boolean merge(IPartitionKey partitionKey, MessageEncryptTextDto encryptText) {
+        return this.next.merge(partitionKey, encryptText);
     }
 
     @Override
@@ -53,16 +64,6 @@ public class PassThroughIO implements IAteIO
     }
 
     @Override
-    public boolean merge(MessagePublicKeyDto t) {
-        return next.merge(t);
-    }
-
-    @Override
-    public boolean merge(MessageEncryptTextDto t) {
-        return next.merge(t);
-    }
-
-    @Override
     public void mergeLater(BaseDao t) {
         next.mergeLater(t);
     }
@@ -83,7 +84,7 @@ public class PassThroughIO implements IAteIO
     }
     
     @Override
-    public void clearCache(@DaoId UUID id) {
+    public void clearCache(PUUID id) {
         next.clearCache(id);
     }
 
@@ -98,7 +99,7 @@ public class PassThroughIO implements IAteIO
     }
     
     @Override
-    public boolean remove(@DaoId UUID id, Class<?> type) {
+    public boolean remove(PUUID id, Class<?> type) {
         return next.remove(id, type);
     }
 
@@ -113,20 +114,18 @@ public class PassThroughIO implements IAteIO
     }
 
     @Override
-    public @Nullable MessageDataHeaderDto getRootOfTrust(UUID id) {
+    public @Nullable MessageDataHeaderDto getRootOfTrust(PUUID id) {
         return next.getRootOfTrust(id);
     }
-    
-    @Override
-    public void warm() {
-        next.warm();
-    }
 
     @Override
-    public void sync() { next.sync(); }
+    public void warm(IPartitionKey partitionKey) { next.warm(partitionKey); }
 
     @Override
-    public boolean sync(MessageSyncDto sync) { return next.sync(sync); }
+    public void sync(IPartitionKey partitionKey) { next.sync(partitionKey); }
+
+    @Override
+    public boolean sync(IPartitionKey partitionKey, MessageSyncDto sync) { return next.sync(partitionKey, sync); }
 
     @Override
     public DataSubscriber backend() {
@@ -134,79 +133,79 @@ public class PassThroughIO implements IAteIO
     }
 
     @Override
-    public @Nullable MessagePublicKeyDto publicKeyOrNull(@Hash String hash) {
-        return next.publicKeyOrNull(hash);
+    public @Nullable MessagePublicKeyDto publicKeyOrNull(IPartitionKey partitionKey, @Hash String hash) {
+        return next.publicKeyOrNull(partitionKey, hash);
     }
     
     @Override
-    public boolean exists(@Nullable @DaoId UUID _id) {
-        @DaoId UUID id = _id;
+    public boolean exists(@Nullable PUUID _id) {
+        @DaoId PUUID id = _id;
         if (id == null) return false;
         return next.exists(id);
     }
     
     @Override
-    public boolean ethereal() {
-        return next.ethereal();
+    public boolean ethereal(IPartitionKey partitionKey) {
+        return next.ethereal(partitionKey);
     }
     
     @Override
-    public boolean everExisted(@Nullable @DaoId UUID _id) {
-        @DaoId UUID id = _id;
+    public boolean everExisted(@Nullable PUUID _id) {
+        @DaoId PUUID id = _id;
         if (id == null) return false;
         return next.everExisted(id);
     }
     
     @Override
-    public boolean immutable(@DaoId UUID id) {
+    public boolean immutable(PUUID id) {
         return next.immutable(id);
     }
 
     @Override
-    public @Nullable BaseDao getOrNull(@DaoId UUID id) {
+    public @Nullable BaseDao getOrNull(PUUID id) {
         return next.getOrNull(id);
     }
 
     @Override
-    public @Nullable DataContainer getRawOrNull(@DaoId UUID id) { return next.getRawOrNull(id); }
+    public @Nullable DataContainer getRawOrNull(PUUID id) { return next.getRawOrNull(id); }
     
     @Override
-    public @Nullable BaseDao getVersionOrNull(@DaoId UUID id, MessageMetaDto meta) {
+    public @Nullable BaseDao getVersionOrNull(PUUID id, MessageMetaDto meta) {
         return next.getVersionOrNull(id, meta);
     }
     
     @Override
-    public @Nullable MessageDataDto getVersionMsgOrNull(@DaoId UUID id, MessageMetaDto meta) {
+    public @Nullable MessageDataDto getVersionMsgOrNull(PUUID id, MessageMetaDto meta) {
         return next.getVersionMsgOrNull(id, meta);
     }
     
     @Override
-    public <T extends BaseDao> Iterable<MessageMetaDto> getHistory(@DaoId UUID id, Class<T> clazz) {
+    public <T extends BaseDao> Iterable<MessageMetaDto> getHistory(PUUID id, Class<T> clazz) {
         return next.getHistory(id, clazz);
     }
 
     @Override
-    public Set<BaseDao> getAll() {
-        return next.getAll();
+    public Set<BaseDao> getAll(IPartitionKey partitionKey) {
+        return next.getAll(partitionKey);
     }
 
     @Override
-    public <T extends BaseDao> Set<T> getAll(Class<T> type) {
-        return next.getAll(type);
+    public <T extends BaseDao> Set<T> getAll(IPartitionKey partitionKey, Class<T> type) {
+        return next.getAll(partitionKey, type);
     }
 
     @Override
-    public <T extends BaseDao> List<DataContainer> getAllRaw() {
-        return next.getAllRaw();
+    public <T extends BaseDao> List<DataContainer> getAllRaw(IPartitionKey partitionKey) {
+        return next.getAllRaw(partitionKey);
     }
 
     @Override
-    public <T extends BaseDao> List<DataContainer> getAllRaw(Class<T> type) {
-        return next.getAllRaw(type);
+    public <T extends BaseDao> List<DataContainer> getAllRaw(IPartitionKey partitionKey, Class<T> type) {
+        return next.getAllRaw(partitionKey, type);
     }
     
     @Override
-    public <T extends BaseDao> List<T> getMany(Collection<@DaoId UUID> ids, Class<T> type) {
-        return next.getMany(ids, type);
+    public <T extends BaseDao> List<T> getMany(IPartitionKey partitionKey, Iterable<@DaoId UUID> ids, Class<T> type) {
+        return next.getMany(partitionKey, ids, type);
     }
 }

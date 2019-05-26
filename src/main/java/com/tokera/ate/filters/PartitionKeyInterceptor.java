@@ -67,7 +67,7 @@ public class PartitionKeyInterceptor implements ContainerRequestFilter {
             
             // We warm up the partition locally as it is likely that there will be
             // IO very soon to this repository
-            d.headIO.warm();
+            d.headIO.warm(partitionKey);
         }
     }
 }

@@ -2,6 +2,7 @@ package com.tokera.ate.io.repo;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.common.Immutalizable;
 import com.tokera.ate.common.LoggerHook;
@@ -109,14 +110,14 @@ public class DataSerializer {
 
             for (String publicKeyHash : roles.getTrustAllowRead().values()) {
                 if (chain.hasPublicKey(publicKeyHash)) continue;
-                MessagePublicKeyDto publicKey = d.headIO.publicKeyOrNull(publicKeyHash);
+                MessagePublicKeyDto publicKey = d.headIO.publicKeyOrNull(kt.partitionKey(), publicKeyHash);
                 if (publicKey == null) continue;
                 kt.write(publicKey, this.LOG);
             }
 
             for (String publicKeyHash : roles.getTrustAllowWrite().values()) {
                 if (chain.hasPublicKey(publicKeyHash)) continue;
-                MessagePublicKeyDto publicKey = d.headIO.publicKeyOrNull(publicKeyHash);
+                MessagePublicKeyDto publicKey = d.headIO.publicKeyOrNull(kt.partitionKey(), publicKeyHash);
                 if (publicKey == null) continue;
                 kt.write(publicKey, this.LOG);
             }
@@ -224,6 +225,7 @@ public class DataSerializer {
     public MessageBaseDto toDataMessage(BaseDao obj, DataPartition kt, boolean isDeleted, boolean allowSavingOfChildren)
     {
         // Build a header for a new version of the data object
+        IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(obj);
         BaseDao.newVersion(obj);
         MessageDataHeaderDto header = buildHeaderForDataObject(obj);
 
@@ -235,7 +237,7 @@ public class DataSerializer {
         writePublicKeysForDataObject(obj, kt);
 
         // Get the effective permissions for a object
-        EffectivePermissions permissions = new EffectivePermissionBuilder(d.headIO, obj.getId(), obj.getParentId())
+        EffectivePermissions permissions = new EffectivePermissionBuilder(d.headIO, partitionKey, obj.getId(), obj.getParentId())
                 .setUsePostMerged(true)
                 .buildWith(obj);
         
@@ -266,26 +268,26 @@ public class DataSerializer {
         
         // Make sure we are actually writing something to Kafka
         if (digest == null) {
-            throw d.authorization.buildWriteException(obj.getId(), permissions, false);
+            throw d.authorization.buildWriteException(partitionKey, obj.getId(), permissions, false);
         }
 
         // Create the message skeleton
         return new MessageDataDto(header, digest, encPayload);
     }
 
-    public @Nullable BaseDao fromDataMessage(@Nullable MessageDataMetaDto msg, boolean shouldThrow)
+    public @Nullable BaseDao fromDataMessage(IPartitionKey partitionKey, @Nullable MessageDataMetaDto msg, boolean shouldThrow)
     {
         if (msg == null) return null;
-        return fromDataMessage(msg.getData(), shouldThrow);
+        return fromDataMessage(partitionKey, msg.getData(), shouldThrow);
     }
     
-    protected @Nullable BaseDao fromDataMessage(@Nullable MessageDataDto msg, boolean shouldThrow)
+    protected @Nullable BaseDao fromDataMessage(IPartitionKey partitionKey, @Nullable MessageDataDto msg, boolean shouldThrow)
     {
         if (msg == null || msg.hasPayload() == false) {
             return null;
         }
 
-        BaseDao ret = readObjectFromDataMessage(msg, shouldThrow);
+        BaseDao ret = readObjectFromDataMessage(partitionKey, msg, shouldThrow);
         if (ret == null) return null;
 
         validateObjectAfterRead(ret, msg);
@@ -307,11 +309,11 @@ public class DataSerializer {
     }
 
     @SuppressWarnings({"unchecked"})
-    protected @Nullable BaseDao readObjectFromDataMessage(MessageDataDto msg, boolean shouldThrow)
+    protected @Nullable BaseDao readObjectFromDataMessage(IPartitionKey partitionKey, MessageDataDto msg, boolean shouldThrow)
     {
         // We need to decrypt the data using an encryption key, search for it
         // using all the private toPutKeys we have in our token
-        byte[] aesKey = getAesKeyForHeader(msg.getHeader(), shouldThrow);
+        byte[] aesKey = getAesKeyForHeader(partitionKey, msg.getHeader(), shouldThrow);
         if (aesKey == null) return null;
 
         // Compute what bytes to use for the hash function
@@ -385,25 +387,25 @@ public class DataSerializer {
         }
     }
 
-    private byte @Nullable [] getAesKeyForHeader(MessageDataHeaderDto header, boolean shouldThrow)
+    private byte @Nullable [] getAesKeyForHeader(IPartitionKey partitionKey, MessageDataHeaderDto header, boolean shouldThrow)
     {
         byte[] aesKey = null;
         @Hash String encryptKeyHash = header.getEncryptKeyHash();
-        if (encryptKeyHash != null) aesKey = d.encryptKeyCachePerRequest.getEncryptKey(encryptKeyHash);
+        if (encryptKeyHash != null) aesKey = d.encryptKeyCachePerRequest.getEncryptKey(partitionKey, encryptKeyHash);
         if (aesKey == null) {
 
             if (encryptKeyHash != null) {
                 Set<MessagePrivateKeyDto> rights = this.d.currentRights.getRightsRead();
                 for (MessagePrivateKeyDto privateKey : rights) {
-                    aesKey = d.encryptKeyCachePerRequest.getEncryptKey(encryptKeyHash, privateKey);
+                    aesKey = d.encryptKeyCachePerRequest.getEncryptKey(partitionKey, encryptKeyHash, privateKey);
                     if (aesKey != null) break;
                 }
             }
 
             if (aesKey == null) {
                 if (shouldThrow == true) {
-                    EffectivePermissions permissions = d.authorization.perms(header.getIdOrThrow(), header.getParentId(), false);
-                    throw d.authorization.buildReadException(header.getIdOrThrow(), permissions, true);
+                    EffectivePermissions permissions = d.authorization.perms(partitionKey, header.getIdOrThrow(), header.getParentId(), false);
+                    throw d.authorization.buildReadException(partitionKey, header.getIdOrThrow(), permissions, true);
                 }
                 return null;
             }

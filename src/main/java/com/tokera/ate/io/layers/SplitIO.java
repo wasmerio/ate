@@ -1,8 +1,11 @@
 package com.tokera.ate.io.layers;
 
+import com.google.common.collect.Iterables;
+import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.io.api.IAteIO;
+import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.units.DaoId;
 import com.tokera.ate.units.Hash;
 import com.tokera.ate.io.repo.DataContainer;
@@ -10,6 +13,7 @@ import com.tokera.ate.io.repo.DataSubscriber;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  * IO system that chains two IO subsystems together where the upper data takes preference over the lower
@@ -28,6 +32,20 @@ final public class SplitIO implements IAteIO {
     final public boolean merge(BaseDao entity) {
         boolean ret = lower.merge(entity);
         upper.merge(entity);
+        return ret;
+    }
+
+    @Override
+    final public boolean merge(IPartitionKey partitionKey, MessagePublicKeyDto publicKey) {
+        boolean ret = lower.merge(partitionKey, publicKey);
+        upper.merge(partitionKey, publicKey);
+        return ret;
+    }
+
+    @Override
+    final public boolean merge(IPartitionKey partitionKey, MessageEncryptTextDto encryptText) {
+        boolean ret = lower.merge(partitionKey, encryptText);
+        upper.merge(partitionKey, encryptText);
         return ret;
     }
 
@@ -53,20 +71,6 @@ final public class SplitIO implements IAteIO {
     }
 
     @Override
-    final public boolean merge(MessagePublicKeyDto publicKey) {
-        boolean ret = lower.merge(publicKey);
-        upper.merge(publicKey);
-        return ret;
-    }
-
-    @Override
-    final public boolean merge(MessageEncryptTextDto encryptText) {
-        boolean ret = lower.merge(encryptText);
-        upper.merge(encryptText);
-        return ret;
-    }
-
-    @Override
     final public void mergeLater(BaseDao entity) {
         lower.mergeLater(entity);
         upper.mergeLaterWithoutValidation(entity);
@@ -86,7 +90,7 @@ final public class SplitIO implements IAteIO {
     }
 
     @Override
-    final public boolean remove(@DaoId UUID id, Class<?> type) {
+    final public boolean remove(PUUID id, Class<?> type) {
         boolean ret = lower.remove(id, type);
         upper.remove(id, type);
         return ret;
@@ -111,34 +115,34 @@ final public class SplitIO implements IAteIO {
     }
 
     @Override
-    final public boolean exists(@Nullable @DaoId UUID id) {
+    final public boolean exists(@Nullable PUUID id) {
         return upper.exists(id) || lower.exists(id);
     }
 
     @Override
-    final public boolean ethereal() {
-        return upper.ethereal() || lower.ethereal();
+    final public boolean ethereal(IPartitionKey partitionKey) {
+        return upper.ethereal(partitionKey) || lower.ethereal(partitionKey);
     }
 
     @Override
-    final public boolean everExisted(@Nullable @DaoId UUID id) {
+    final public boolean everExisted(@Nullable PUUID id) {
         return upper.everExisted(id) || lower.everExisted(id);
     }
 
     @Override
-    final public boolean immutable(@DaoId UUID id) {
+    final public boolean immutable(PUUID id) {
         return upper.immutable(id) || lower.immutable(id);
     }
 
     @Override
-    public @Nullable MessageDataHeaderDto getRootOfTrust(UUID id) {
+    public @Nullable MessageDataHeaderDto getRootOfTrust(PUUID id) {
         MessageDataHeaderDto ret = upper.getRootOfTrust(id);
         if (ret != null) return ret;
         return lower.getRootOfTrust(id);
     }
 
     @Override
-    final public @Nullable BaseDao getOrNull(@DaoId UUID id) {
+    final public @Nullable BaseDao getOrNull(PUUID id) {
         BaseDao ret = this.upper.getOrNull(id);
         if (ret != null) return ret;
 
@@ -151,16 +155,17 @@ final public class SplitIO implements IAteIO {
     }
 
     @Override
-    final public <T extends BaseDao> List<T> getMany(Collection<@DaoId UUID> ids, Class<T> type) {
-        List<T> first = upper.getMany(ids, type);
-        if (first.size() == ids.size()) {
+    final public <T extends BaseDao> List<T> getMany(IPartitionKey partitionKey, Iterable<@DaoId UUID> ids, Class<T> type) {
+        List<T> first = upper.getMany(partitionKey, ids, type);
+        if (first.size() == Iterables.size(ids)) {
             return first;
         }
 
         Map<@DaoId UUID, T> found = first.stream().collect(Collectors.toMap(a -> a.getId(), b -> b));
-        List<@DaoId UUID> left = ids.stream().filter(a -> found.containsKey(a) == false).collect(Collectors.toList());
+        List<@DaoId UUID> left = new ArrayList<>();
+        Iterables.filter(ids, a -> found.containsKey(a) == false).forEach(left::add);
 
-        List<T> more = lower.getMany(left, type);
+        List<T> more = lower.getMany(partitionKey, left, type);
         for (T entity : more) {
             upper.mergeLaterWithoutValidation(entity);
             found.put(entity.getId(), entity);
@@ -176,36 +181,36 @@ final public class SplitIO implements IAteIO {
     }
 
     @Override
-    final public @Nullable DataContainer getRawOrNull(@DaoId UUID id) {
+    final public @Nullable DataContainer getRawOrNull(PUUID id) {
         DataContainer ret = this.upper.getRawOrNull(id);
         if (ret != null) return ret;
         return lower.getRawOrNull(id);
     }
 
     @Override
-    final public <T extends BaseDao> Iterable<MessageMetaDto> getHistory(@DaoId UUID id, Class<T> clazz) {
+    final public <T extends BaseDao> Iterable<MessageMetaDto> getHistory(PUUID id, Class<T> clazz) {
         return lower.getHistory(id, clazz);
     }
 
     @Override
-    final public @Nullable BaseDao getVersionOrNull(@DaoId UUID id, MessageMetaDto meta) {
+    final public @Nullable BaseDao getVersionOrNull(PUUID id, MessageMetaDto meta) {
         BaseDao ret = upper.getVersionOrNull(id, meta);
         if (ret != null) return ret;
         return lower.getVersionOrNull(id, meta);
     }
 
     @Override
-    final public @Nullable MessageDataDto getVersionMsgOrNull(@DaoId UUID id, MessageMetaDto meta) {
+    final public @Nullable MessageDataDto getVersionMsgOrNull(PUUID id, MessageMetaDto meta) {
         MessageDataDto ret = upper.getVersionMsgOrNull(id, meta);
         if (ret != null) return ret;
         return lower.getVersionMsgOrNull(id, meta);
     }
 
     @Override
-    final public Set<BaseDao> getAll() {
-        Set<BaseDao> ret = lower.getAll();
+    final public Set<BaseDao> getAll(IPartitionKey partitionKey) {
+        Set<BaseDao> ret = lower.getAll(partitionKey);
 
-        for (BaseDao entity : upper.getAll()) {
+        for (BaseDao entity : upper.getAll(partitionKey)) {
             ret.add(entity);
         }
 
@@ -213,10 +218,10 @@ final public class SplitIO implements IAteIO {
     }
 
     @Override
-    final public <T extends BaseDao> Set<T> getAll(Class<T> type) {
-        Set<T> ret = lower.getAll(type);
+    final public <T extends BaseDao> Set<T> getAll(IPartitionKey partitionKey, Class<T> type) {
+        Set<T> ret = lower.getAll(partitionKey, type);
 
-        for (T entity : upper.getAll(type)) {
+        for (T entity : upper.getAll(partitionKey, type)) {
             ret.add(entity);
         }
 
@@ -224,20 +229,20 @@ final public class SplitIO implements IAteIO {
     }
 
     @Override
-    final public <T extends BaseDao> List<DataContainer> getAllRaw() {
-        return lower.getAllRaw();
+    final public <T extends BaseDao> List<DataContainer> getAllRaw(IPartitionKey partitionKey) {
+        return lower.getAllRaw(partitionKey);
     }
 
     @Override
-    final public <T extends BaseDao> List<DataContainer> getAllRaw(Class<T> type) {
-        return lower.getAllRaw(type);
+    final public <T extends BaseDao> List<DataContainer> getAllRaw(IPartitionKey partitionKey, Class<T> type) {
+        return lower.getAllRaw(partitionKey, type);
     }
 
     @Override
-    final public @Nullable MessagePublicKeyDto publicKeyOrNull(@Hash String hash) {
-        MessagePublicKeyDto ret = upper.publicKeyOrNull(hash);
+    final public @Nullable MessagePublicKeyDto publicKeyOrNull(IPartitionKey partitionKey, @Hash String hash) {
+        MessagePublicKeyDto ret = upper.publicKeyOrNull(partitionKey, hash);
         if (ret != null) return ret;
-        return lower.publicKeyOrNull(hash);
+        return lower.publicKeyOrNull(partitionKey, hash);
     }
 
     @Override
@@ -253,27 +258,27 @@ final public class SplitIO implements IAteIO {
     }
 
     @Override
-    final public void clearCache(@DaoId UUID id) {
+    final public void clearCache(PUUID id) {
         lower.clearCache(id);
         upper.clearCache(id);
     }
 
     @Override
-    final public void warm() {
-        upper.warm();
-        lower.warm();
+    final public void warm(IPartitionKey partitionKey) {
+        upper.warm(partitionKey);
+        lower.warm(partitionKey);
     }
 
     @Override
-    final public void sync() {
-        upper.sync();
-        lower.sync();
+    final public void sync(IPartitionKey partitionKey) {
+        upper.sync(partitionKey);
+        lower.sync(partitionKey);
     }
 
     @Override
-    final public boolean sync(MessageSyncDto sync) {
-        upper.sync(sync);
-        return lower.sync(sync);
+    final public boolean sync(IPartitionKey partitionKey, MessageSyncDto sync) {
+        upper.sync(partitionKey, sync);
+        return lower.sync(partitionKey, sync);
     }
 
     @Override

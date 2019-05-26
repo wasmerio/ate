@@ -17,6 +17,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
+import java.lang.reflect.Array;
 import java.util.*;
 
 /**
@@ -61,6 +62,16 @@ public class HeadIO implements IAteIO
     }
 
     @Override
+    public boolean merge(IPartitionKey partitionKey, MessagePublicKeyDto publicKey) {
+        return this.back.merge(partitionKey, publicKey);
+    }
+
+    @Override
+    public boolean merge(IPartitionKey partitionKey, MessageEncryptTextDto encryptText) {
+        return this.back.merge(partitionKey, encryptText);
+    }
+
+    @Override
     public boolean mergeAsync(BaseDao t) {
         return back.mergeAsync(t);
     }
@@ -73,16 +84,6 @@ public class HeadIO implements IAteIO
     @Override
     public boolean mergeAsyncWithoutValidation(BaseDao t) {
         return back.mergeAsyncWithoutValidation(t);
-    }
-
-    @Override
-    public boolean merge(MessagePublicKeyDto t) {
-        return back.merge(t);
-    }
-
-    @Override
-    public boolean merge(MessageEncryptTextDto t) {
-        return back.merge(t);
     }
 
     @Override
@@ -105,8 +106,13 @@ public class HeadIO implements IAteIO
         back.clearDeferred();
     }
 
-    @Override
     public void clearCache(@DaoId UUID id) {
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        back.clearCache(PUUID.from(partitionKey, id));
+    }
+
+    @Override
+    public void clearCache(PUUID id) {
         back.clearCache(id);
     }
 
@@ -120,8 +126,13 @@ public class HeadIO implements IAteIO
         back.removeLater(t);
     }
 
-    @Override
     public boolean remove(@DaoId UUID id, Class<?> type) {
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        return back.remove(PUUID.from(partitionKey, id), type);
+    }
+
+    @Override
+    public boolean remove(PUUID id, Class<?> type) {
         return back.remove(id, type);
     }
 
@@ -135,16 +146,32 @@ public class HeadIO implements IAteIO
         back.decache(entity);
     }
 
-    @Override
-    public void warm() {
-        back.warm();
+    public void warm()
+    {
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        back.warm(partitionKey);
     }
 
     @Override
-    public void sync() { back.sync(); }
+    public void warm(IPartitionKey partitionKey) { back.warm(partitionKey); }
+
+    public void sync()
+    {
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        back.sync(partitionKey);
+    }
 
     @Override
-    public boolean sync(MessageSyncDto sync) { return back.sync(sync); }
+    public void sync(IPartitionKey partitionKey) { back.sync(partitionKey); }
+
+    public boolean sync(MessageSyncDto sync)
+    {
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        return back.sync(partitionKey, sync);
+    }
+
+    @Override
+    public boolean sync(IPartitionKey partitionKey, MessageSyncDto sync) { return back.sync(partitionKey, sync); }
 
     @Override
     public DataSubscriber backend() {
@@ -163,55 +190,91 @@ public class HeadIO implements IAteIO
     
     public ITokenParser tokenParser() { return this.backTokenParser; }
 
-    @Override
     public @Nullable MessagePublicKeyDto publicKeyOrNull(@Hash String hash) {
-        return back.publicKeyOrNull( hash);
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        return back.publicKeyOrNull(partitionKey, hash);
+    }
+
+    @Override
+    public @Nullable MessagePublicKeyDto publicKeyOrNull(IPartitionKey partitionKey, @Hash String hash) {
+        return back.publicKeyOrNull(partitionKey, hash);
+    }
+
+    @EnsuresNonNullIf(expression="#1", result=true)
+    public boolean exists(@Nullable @DaoId UUID _id) {
+        @DaoId UUID id = _id;
+        if (id == null) return false;
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        return back.exists(PUUID.from(partitionKey, id));
     }
 
     @Override
     @EnsuresNonNullIf(expression="#1", result=true)
-    public boolean exists(@Nullable @DaoId UUID id) {
+    public boolean exists(@Nullable PUUID id) {
         if (id == null) return false;
         return back.exists(id);
     }
 
-    @Override
     public boolean ethereal() {
-        return back.ethereal();
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        return back.ethereal(partitionKey);
     }
 
     @Override
-    public boolean everExisted(@Nullable @DaoId UUID id){
+    public boolean ethereal(IPartitionKey partitionKey) {
+        return back.ethereal(partitionKey);
+    }
+
+    public boolean everExisted(@Nullable @DaoId UUID _id) {
+        @DaoId UUID id = _id;
+        if (id == null) return false;
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        return back.everExisted(PUUID.from(partitionKey, id));
+    }
+
+    @Override
+    public boolean everExisted(@Nullable PUUID id){
         if (id == null) return false;
         return back.everExisted(id);
     }
 
-    @Override
     public boolean immutable(@DaoId UUID id) {
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        return back.immutable(PUUID.from(partitionKey, id));
+    }
+
+    @Override
+    public boolean immutable(PUUID id) {
         return back.immutable(id);
     }
 
+    public @Nullable MessageDataHeaderDto getRootOfTrust(@DaoId UUID id) {
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        return back.getRootOfTrust(PUUID.from(partitionKey, id));
+    }
+
     @Override
-    public @Nullable MessageDataHeaderDto getRootOfTrust(UUID id) {
+    public @Nullable MessageDataHeaderDto getRootOfTrust(PUUID id) {
         return back.getRootOfTrust(id);
     }
 
-    @Override
     public @Nullable BaseDao getOrNull(@DaoId UUID id) {
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        return back.getOrNull(PUUID.from(partitionKey, id));
+    }
+
+    @Override
+    public @Nullable BaseDao getOrNull(PUUID id) {
         return back.getOrNull(id);
     }
 
-    public <T extends BaseDao> T get(PUUID id, Class<T> type) {
-        d.requestContext.pushPartitionKey(id);
-        try {
-            return this.get(id.id(), type);
-        } finally {
-            d.requestContext.popPartitionKey();
-        }
+    public <T extends BaseDao> T get(@DaoId UUID id, Class<T> type) {
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        return this.get(PUUID.from(partitionKey, id), type);
     }
 
     @SuppressWarnings({"unchecked"})
-    public <T extends BaseDao> T get(@DaoId UUID id, Class<T> type) {
+    public <T extends BaseDao> T get(PUUID id, Class<T> type) {
         try {
             BaseDao ret = back.getOrNull(id);
             if (ret == null) {
@@ -228,6 +291,11 @@ public class HeadIO implements IAteIO
     }
 
     protected BaseDao get(@DaoId UUID id) {
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        return this.get(PUUID.from(partitionKey, id));
+    }
+
+    protected BaseDao get(PUUID id) {
         BaseDao ret = back.getOrNull(id);
         if (ret == null) {
             throw new RuntimeException("Object data (id=" + id + ") not found");
@@ -235,11 +303,13 @@ public class HeadIO implements IAteIO
         return ret;
     }
 
-    public BaseDao getExceptional(@DaoId UUID id) {
-        return this.get(id);
+    public DataContainer getRaw(@DaoId UUID id)
+    {
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        return this.getRaw(PUUID.from(partitionKey, id));
     }
 
-    public DataContainer getRaw(@DaoId UUID id)
+    public DataContainer getRaw(PUUID id)
     {
         DataContainer ret = back.getRawOrNull(id);
         if (ret == null) {
@@ -248,28 +318,54 @@ public class HeadIO implements IAteIO
         return ret;
     }
 
-    @Override
     public @Nullable DataContainer getRawOrNull(@DaoId UUID id)
+    {
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        return back.getRawOrNull(PUUID.from(partitionKey, id));
+    }
+
+    @Override
+    public @Nullable DataContainer getRawOrNull(PUUID id)
     {
         return back.getRawOrNull(id);
     }
 
-    @Override
     public <T extends BaseDao> Iterable<MessageMetaDto> getHistory(@DaoId UUID id, Class<T> clazz) {
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        return back.getHistory(PUUID.from(partitionKey, id), clazz);
+    }
+
+    @Override
+    public <T extends BaseDao> Iterable<MessageMetaDto> getHistory(PUUID id, Class<T> clazz) {
         return back.getHistory(id, clazz);
     }
 
-    @Override
     public @Nullable BaseDao getVersionOrNull(@DaoId UUID id, MessageMetaDto meta) {
-        return back.getVersionOrNull(id, meta);
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        return back.getVersionOrNull(PUUID.from(partitionKey, id), meta);
     }
 
     @Override
+    public @Nullable BaseDao getVersionOrNull(PUUID id, MessageMetaDto meta) {
+        return back.getVersionOrNull(id, meta);
+    }
+
     public @Nullable MessageDataDto getVersionMsgOrNull(@DaoId UUID id, MessageMetaDto meta) {
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        return back.getVersionMsgOrNull(PUUID.from(partitionKey, id), meta);
+    }
+
+    @Override
+    public @Nullable MessageDataDto getVersionMsgOrNull(PUUID id, MessageMetaDto meta) {
         return back.getVersionMsgOrNull(id, meta);
     }
 
     public BaseDao getVersion(@DaoId UUID id, MessageMetaDto meta) {
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        return this.getVersion(PUUID.from(partitionKey, id), meta);
+    }
+
+    public BaseDao getVersion(PUUID id, MessageMetaDto meta) {
         BaseDao ret = back.getVersionOrNull(id, meta);
         if (ret == null) {
             throw new RuntimeException("Object version data (id=" + id + ") not found");
@@ -278,6 +374,11 @@ public class HeadIO implements IAteIO
     }
 
     public MessageDataDto getVersionMsg(@DaoId UUID id, MessageMetaDto meta) {
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        return this.getVersionMsg(PUUID.from(partitionKey, id), meta);
+    }
+
+    public MessageDataDto getVersionMsg(PUUID id, MessageMetaDto meta) {
         MessageDataDto ret = back.getVersionMsgOrNull(id, meta);
         if (ret == null) {
             throw new RuntimeException("Object version message (id=" + id + ") not found");
@@ -285,28 +386,55 @@ public class HeadIO implements IAteIO
         return ret;
     }
 
-    @Override
     public Set<BaseDao> getAll() {
-        return back.getAll();
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        return back.getAll(partitionKey);
     }
 
     @Override
+    public Set<BaseDao> getAll(IPartitionKey partitionKey) {
+        return back.getAll(partitionKey);
+    }
+
     public <T extends BaseDao> Set<T> getAll(Class<T> type) {
-        return back.getAll(type);
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        return back.getAll(partitionKey, type);
     }
 
     @Override
-    public <T extends BaseDao> List<DataContainer> getAllRaw() { return back.getAllRaw(); }
-
-    @Override
-    public <T extends BaseDao> List<DataContainer> getAllRaw(Class<T> type) { return back.getAllRaw(type); }
-
-    @Override
-    public <T extends BaseDao> List<T> getMany(Collection<@DaoId UUID> ids, Class<T> type) {
-        return back.getMany(ids, type);
+    public <T extends BaseDao> Set<T> getAll(IPartitionKey partitionKey, Class<T> type) {
+        return back.getAll(partitionKey, type);
     }
 
-    public <T extends BaseDao> List<T> getManyAcrossPartitions(Collection<PUUID> ids, Class<T> type) {
+    public <T extends BaseDao> List<DataContainer> getAllRaw()
+    {
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        return back.getAllRaw(partitionKey);
+    }
+
+    @Override
+    public <T extends BaseDao> List<DataContainer> getAllRaw(IPartitionKey partitionKey) { return back.getAllRaw(partitionKey); }
+
+    public <T extends BaseDao> List<DataContainer> getAllRaw(Class<T> type)
+    {
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        return back.getAllRaw(partitionKey, type);
+    }
+
+    @Override
+    public <T extends BaseDao> List<DataContainer> getAllRaw(IPartitionKey partitionKey, Class<T> type) { return back.getAllRaw(partitionKey, type); }
+
+    public <T extends BaseDao> List<T> getMany(Iterable<@DaoId UUID> ids, Class<T> type) {
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        return back.getMany(partitionKey, ids, type);
+    }
+
+    @Override
+    public <T extends BaseDao> List<T> getMany(IPartitionKey partitionKey, Iterable<@DaoId UUID> ids, Class<T> type) {
+        return back.getMany(partitionKey, ids, type);
+    }
+
+    public <T extends BaseDao> List<T> getManyAcrossPartitions(Iterable<PUUID> ids, Class<T> type) {
         ArrayList<T> ret = new ArrayList<>();
         for (PUUID id : ids) {
             ret.add(this.get(id, type));

@@ -4,6 +4,8 @@ import java.lang.reflect.Field;
 import java.util.*;
 
 import com.tokera.ate.annotations.ImplicitAuthority;
+import com.tokera.ate.dao.PUUID;
+import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.merge.DataMerger;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.dao.IParams;
@@ -163,16 +165,16 @@ public class DaoHelper {
     public @Nullable BaseDao getParent(@Nullable BaseDao entity)
     {
         if (entity == null) return null;
+        IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(entity);
 
-        @DaoId UUID parentId = entity.getParentId();
+        PUUID parentId = PUUID.from(partitionKey, entity.getParentId());
         if (parentId == null) return null;
+        if (parentId.id().equals(entity.getId())) return null;
         if (d.headIO.exists(parentId) == false) return null;
-
-        if (parentId.equals(entity.getId())) return null;
         return d.headIO.getOrNull(parentId);
     }
 
-    public @Nullable IParams getDaoParams(@DaoId UUID id) {
+    public @Nullable IParams getDaoParams(PUUID id) {
         BaseDao ret = d.headIO.getOrNull(id);
         if (ret instanceof IParams) {
             return (IParams)ret;
@@ -180,7 +182,7 @@ public class DaoHelper {
         return null;
     }
 
-    public @Nullable IRights getDaoRights(@DaoId UUID id) {
+    public @Nullable IRights getDaoRights(PUUID id) {
         BaseDao ret = d.headIO.getOrNull(id);
         if (ret instanceof IRights) {
             return (IRights)ret;
@@ -188,7 +190,7 @@ public class DaoHelper {
         return null;
     }
 
-    public @Nullable IRoles getDaoRoles(@DaoId UUID id) {
+    public @Nullable IRoles getDaoRoles(PUUID id) {
         BaseDao ret = d.headIO.getOrNull(id);
         if (ret instanceof IRoles) {
             return (IRoles)ret;

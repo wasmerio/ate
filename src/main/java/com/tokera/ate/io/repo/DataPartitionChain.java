@@ -94,7 +94,7 @@ public class DataPartitionChain {
     public void addTrustData(MessageDataDto data, MessageMetaDto meta, @Nullable LoggerHook LOG) {
         UUID id = data.getHeader().getIdOrThrow();
         this.chainOfTrust.compute(id, (i, c) -> {
-            if (c == null) c = new DataContainer();
+            if (c == null) c = new DataContainer(this.key);
             return c.add(data, meta);
         });
     }

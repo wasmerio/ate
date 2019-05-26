@@ -7,7 +7,7 @@ import com.tokera.ate.events.*;
 import com.tokera.ate.extensions.SerializableObjectsExtension;
 import com.tokera.ate.filters.*;
 import com.tokera.ate.io.layers.HeadIO;
-import com.tokera.ate.io.layers.MemoryCacheIO;
+import com.tokera.ate.io.layers.MemoryRequestCacheIO;
 import com.tokera.ate.io.core.DaoHelper;
 import com.tokera.ate.io.core.RequestAccessLog;
 import com.tokera.ate.io.core.StorageSystemFactory;
@@ -71,7 +71,7 @@ public class AteDelegate {
     public final TokenSecurity tokenSecurity;
     public final ImplicitSecurityDelegate implicitSecurity;
     public final CurrentRightsDelegate currentRights;
-    public final MemoryCacheIO memoryCacheIO;
+    public final MemoryRequestCacheIO memoryRequestCacheIO;
     public final AuthorizationDelegate authorization;
     public final HeadIO headIO;
     public final TransactionCoordinator transaction;
@@ -79,6 +79,7 @@ public class AteDelegate {
     public final DataSerializer dataSerializer;
     public final DataSignatureBuilder dataSignatureBuilder;
     public final DataRepoConfig dataRepoConfig;
+    public final DataStagingManager dataStagingManager;
     public final DataRepository dataRepository;
     public final KafkaBridgeBuilder kafkaBridgeBuilder;
     public final XmlUtils xml;
@@ -210,7 +211,7 @@ public class AteDelegate {
         this.yamlDiscovery = getBean(YamlTagDiscoveryExtension.class);
         this.tokenSecurity = getBean(TokenSecurity.class);
         this.currentRights = getBean(CurrentRightsDelegate.class);
-        this.memoryCacheIO = getBean(MemoryCacheIO.class);
+        this.memoryRequestCacheIO = getBean(MemoryRequestCacheIO.class);
         this.authorization = getBean(AuthorizationDelegate.class);
         this.headIO = getBean(HeadIO.class, new AnnotationLiteral<FrontendStorageSystem>() {});
         this.transaction = getBean(TransactionCoordinator.class);
@@ -218,6 +219,7 @@ public class AteDelegate {
         this.dataSerializer = getBean(DataSerializer.class);
         this.dataSignatureBuilder = getBean(DataSignatureBuilder.class);
         this.dataRepoConfig = getBean(DataRepoConfig.class);
+        this.dataStagingManager = getBean(DataStagingManager.class);
         this.dataRepository = getBean(DataRepository.class);
         this.kafkaBridgeBuilder = getBean(KafkaBridgeBuilder.class);
         this.xml = getBean(XmlUtils.class);

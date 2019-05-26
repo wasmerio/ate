@@ -1,5 +1,6 @@
 package com.tokera.ate.test.chain;
 
+import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dto.msg.MessageDataDto;
 import com.tokera.ate.dto.msg.MessageDataHeaderDto;
 import com.tokera.ate.dto.msg.MessageMetaDto;
@@ -18,7 +19,7 @@ public class DataContainerTests {
     @Test
     public void emptyContainer() {
 
-        DataContainer container = new DataContainer();
+        DataContainer container = new DataContainer(new PUUID("test", 0, 0, 0));
         assert container.getLastHeaderOrNull() == null;
         assert container.hasPayload() == false;
         assert container.getLastOrNull() == null;
@@ -28,7 +29,7 @@ public class DataContainerTests {
 
     @Test
     public void soloContainer() {
-        DataContainer container = new DataContainer();
+        DataContainer container = new DataContainer(new PUUID("test", 0, 0, 0));
 
         MessageDataHeaderDto header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), null, MyAccount.class);
         MessageDataDto data = new MessageDataDto(header, null, null) ;
@@ -44,7 +45,7 @@ public class DataContainerTests {
 
     @Test
     public void linearContainer() {
-        DataContainer container = new DataContainer();
+        DataContainer container = new DataContainer(new PUUID("test", 0, 0, 0));
         UUID version0 = UUID.randomUUID();
         UUID version1 = UUID.randomUUID();
         UUID version2 = UUID.randomUUID();
@@ -69,7 +70,7 @@ public class DataContainerTests {
 
     @Test
     public void triMergeContainer() {
-        DataContainer container = new DataContainer();
+        DataContainer container = new DataContainer(new PUUID("test", 0, 0, 0));
         UUID version0 = UUID.randomUUID();
         UUID version1 = UUID.randomUUID();
         UUID version2 = UUID.randomUUID();
@@ -100,7 +101,7 @@ public class DataContainerTests {
 
     @Test
     public void quad1MergeContainer() {
-        DataContainer container = new DataContainer();
+        DataContainer container = new DataContainer(new PUUID("test", 0, 0, 0));
         UUID version0 = UUID.randomUUID();
         UUID version1 = UUID.randomUUID();
         UUID version2 = UUID.randomUUID();
@@ -136,7 +137,7 @@ public class DataContainerTests {
 
     @Test
     public void quad2MergeContainer() {
-        DataContainer container = new DataContainer();
+        DataContainer container = new DataContainer(new PUUID("test", 0, 0, 0));
         UUID version0 = UUID.randomUUID();
         UUID version1 = UUID.randomUUID();
         UUID version2 = UUID.randomUUID();

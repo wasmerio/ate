@@ -1,9 +1,11 @@
 package com.tokera.ate.security;
 
+import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.io.api.IAteIO;
 import com.tokera.ate.dao.IRoles;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dto.msg.MessageDataHeaderDto;
+import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.units.DaoId;
 import com.tokera.ate.dto.EffectivePermissions;
 import com.tokera.ate.io.repo.DataContainer;
@@ -18,12 +20,21 @@ import java.util.UUID;
 public class EffectivePermissionBuilder {
 
     private final IAteIO ate;
+    private IPartitionKey partitionKey;
     private @DaoId UUID origId;
     private @Nullable @DaoId UUID origParentId;
     private boolean usePostMerged = true;
 
-    public EffectivePermissionBuilder(IAteIO ate, @DaoId UUID id, @Nullable @DaoId UUID parentId) {
+    public EffectivePermissionBuilder(IAteIO ate, PUUID id, @Nullable @DaoId UUID parentId) {
         this.ate = ate;
+        this.partitionKey = id;
+        this.origId = id.id();
+        this.origParentId = parentId;
+    }
+
+    public EffectivePermissionBuilder(IAteIO ate, IPartitionKey partitionKey, @DaoId UUID id, @Nullable @DaoId UUID parentId) {
+        this.ate = ate;
+        this.partitionKey = partitionKey;
         this.origId = id;
         this.origParentId = parentId;
     }
@@ -60,7 +71,7 @@ public class EffectivePermissionBuilder {
      * writing data into the chain which has been accepted into the chain
      */
     private void addRootTrust(EffectivePermissions ret) {
-        MessageDataHeaderDto rootOfTrust = ate.getRootOfTrust(origId);
+        MessageDataHeaderDto rootOfTrust = ate.getRootOfTrust(PUUID.from(this.partitionKey, this.origId));
         if (rootOfTrust != null) {
             ret.encryptKeyHash = rootOfTrust.getEncryptKeyHash();
             ret.rolesRead.addAll(rootOfTrust.getAllowRead());
@@ -81,7 +92,7 @@ public class EffectivePermissionBuilder {
         @DaoId UUID id = origId;
         @DaoId UUID parentId = origParentId;
         do {
-            DataContainer container = ate.getRawOrNull(id);
+            DataContainer container = ate.getRawOrNull(PUUID.from(this.partitionKey, id));
             if (container != null) {
                 MessageDataHeaderDto header = container.getMergedHeader();
 
@@ -126,7 +137,7 @@ public class EffectivePermissionBuilder {
             if (retObj != null && retObj.getId().compareTo(id) == 0) {
                 obj = retObj;
             } else {
-                obj = ate.getOrNull(id);
+                obj = ate.getOrNull(PUUID.from(this.partitionKey, id));
             }
 
             if (obj != null) {
@@ -144,7 +155,7 @@ public class EffectivePermissionBuilder {
                     if (roles.getTrustInheritRead() == false) {
                         inheritRead = false;
                     }
-                    if (roles.getTrustInheritWrite() == false && ate.exists(id) == true) {
+                    if (roles.getTrustInheritWrite() == false && ate.exists(PUUID.from(this.partitionKey, id)) == true) {
                         inheritWrite = false;
                     }
                 }
@@ -152,7 +163,7 @@ public class EffectivePermissionBuilder {
             }
             else
             {
-                DataContainer container = ate.getRawOrNull(id);
+                DataContainer container = ate.getRawOrNull(PUUID.from(this.partitionKey, id));
                 if (container != null) {
                     MessageDataHeaderDto header = container.getMergedHeader();
 

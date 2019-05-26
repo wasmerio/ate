@@ -3,6 +3,8 @@ package com.tokera.ate.io.api;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
+
+import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.io.repo.DataContainer;
@@ -10,6 +12,7 @@ import com.tokera.ate.units.DaoId;
 import com.tokera.ate.units.Hash;
 import com.tokera.ate.io.repo.DataSubscriber;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import org.opensaml.xml.signature.P;
 
 import java.util.Set;
 
@@ -18,9 +21,9 @@ import java.util.Set;
  */
 public interface IAteIO {
 
-    boolean merge(MessagePublicKeyDto publicKey);
+    boolean merge(IPartitionKey partitionKey, MessagePublicKeyDto publicKey);
 
-    boolean merge(MessageEncryptTextDto encryptText);
+    boolean merge(IPartitionKey partitionKey, MessageEncryptTextDto encryptText);
 
     boolean merge(BaseDao entity);
 
@@ -36,7 +39,7 @@ public interface IAteIO {
 
     boolean remove(BaseDao entity);
     
-    boolean remove(@DaoId UUID id, Class<?> type);
+    boolean remove(PUUID id, Class<?> type);
     
     void removeLater(BaseDao entity);
 
@@ -44,49 +47,49 @@ public interface IAteIO {
 
     void decache(BaseDao entity);
 
-    boolean exists(@Nullable @DaoId UUID id);
+    boolean exists(@Nullable PUUID id);
     
-    boolean ethereal();
+    boolean ethereal(IPartitionKey partitionKey);
     
-    boolean everExisted(@Nullable @DaoId UUID id);
+    boolean everExisted(@Nullable PUUID id);
     
-    boolean immutable(@DaoId UUID id);
+    boolean immutable(PUUID id);
 
-    @Nullable MessageDataHeaderDto getRootOfTrust(UUID id);
+    @Nullable MessageDataHeaderDto getRootOfTrust(PUUID id);
 
-    @Nullable BaseDao getOrNull(@DaoId UUID id);
+    @Nullable BaseDao getOrNull(PUUID id);
 
-    @Nullable DataContainer getRawOrNull(@DaoId UUID id);
+    @Nullable DataContainer getRawOrNull(PUUID id);
     
-    <T extends BaseDao> Iterable<MessageMetaDto> getHistory(@DaoId UUID id, Class<T> clazz);
+    <T extends BaseDao> Iterable<MessageMetaDto> getHistory(PUUID id, Class<T> clazz);
     
-    @Nullable BaseDao getVersionOrNull(@DaoId UUID id, MessageMetaDto meta);
+    @Nullable BaseDao getVersionOrNull(PUUID id, MessageMetaDto meta);
     
-    @Nullable MessageDataDto getVersionMsgOrNull(@DaoId UUID id, MessageMetaDto meta);
+    @Nullable MessageDataDto getVersionMsgOrNull(PUUID id, MessageMetaDto meta);
 
-    Set<BaseDao> getAll();
+    Set<BaseDao> getAll(IPartitionKey partitionKey);
     
-    <T extends BaseDao> Set<T> getAll(Class<T> type);
+    <T extends BaseDao> Set<T> getAll(IPartitionKey partitionKey, Class<T> type);
 
-    <T extends BaseDao> List<DataContainer> getAllRaw();
+    <T extends BaseDao> List<DataContainer> getAllRaw(IPartitionKey partitionKey);
 
-    <T extends BaseDao> List<DataContainer> getAllRaw(Class<T> type);
+    <T extends BaseDao> List<DataContainer> getAllRaw(IPartitionKey partitionKey, Class<T> type);
     
-    <T extends BaseDao> List<T> getMany(Collection<@DaoId UUID> ids, Class<T> type);
+    <T extends BaseDao> List<T> getMany(IPartitionKey partitionKey, Iterable<@DaoId UUID> ids, Class<T> type);
 
-    @Nullable MessagePublicKeyDto publicKeyOrNull(@Hash String hash);
+    @Nullable MessagePublicKeyDto publicKeyOrNull(IPartitionKey partitionKey, @Hash String hash);
     
     void mergeDeferred();
     
     void clearDeferred();
     
-    void clearCache(@DaoId UUID id);
-    
-    void warm();
+    void clearCache(PUUID id);
 
-    void sync();
+    void warm(IPartitionKey partitionKey);
 
-    boolean sync(MessageSyncDto sync);
+    void sync(IPartitionKey partitionKey);
+
+    boolean sync(IPartitionKey partitionKey, MessageSyncDto sync);
 
     DataSubscriber backend();
 }

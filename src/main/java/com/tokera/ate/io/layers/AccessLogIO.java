@@ -5,8 +5,10 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
+import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.io.api.IAteIO;
+import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.core.RequestAccessLog;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.units.DaoId;
@@ -36,15 +38,11 @@ final public class AccessLogIO implements IAteIO {
         logger.recordRead(clazz);
     }
 
-    final protected <T extends BaseDao> void onWrote(Class<T> clazz) {
-        logger.recordWrote(clazz);
-    }
-
-    final protected void onRead(@DaoId UUID id, Class<?> clazz) {
+    final protected void onRead(UUID id, Class<?> clazz) {
         logger.recordRead(id, clazz);
     }
 
-    final protected void onWrote(@DaoId UUID id, Class<?> clazz) {
+    final protected void onWrote(UUID id, Class<?> clazz) {
         logger.recordWrote(id, clazz);
     }
 
@@ -54,6 +52,16 @@ final public class AccessLogIO implements IAteIO {
         if (ret == false) return false;
         this.onWrote(t.getId(), t.getClass());
         return true;
+    }
+
+    @Override
+    public boolean merge(IPartitionKey partitionKey, MessagePublicKeyDto publicKey) {
+        return this.next.merge(partitionKey, publicKey);
+    }
+
+    @Override
+    public boolean merge(IPartitionKey partitionKey, MessageEncryptTextDto encryptText) {
+        return this.next.merge(partitionKey, encryptText);
     }
 
     @Override
@@ -81,16 +89,6 @@ final public class AccessLogIO implements IAteIO {
     }
 
     @Override
-    public boolean merge(MessagePublicKeyDto t) {
-        return next.merge(t);
-    }
-
-    @Override
-    public boolean merge(MessageEncryptTextDto t) {
-        return next.merge(t);
-    }
-
-    @Override
     public void mergeLater(BaseDao t) {
         next.mergeLater(t);
         this.onWrote(t.getId(), t.getClass());
@@ -113,7 +111,7 @@ final public class AccessLogIO implements IAteIO {
     }
 
     @Override
-    public void clearCache(@DaoId UUID id) {
+    public void clearCache(PUUID id) {
         next.clearCache(id);
     }
 
@@ -130,8 +128,8 @@ final public class AccessLogIO implements IAteIO {
     }
 
     @Override
-    public boolean remove(@DaoId UUID id, Class<?> type) {
-        this.onWrote(id, type);
+    public boolean remove(PUUID id, Class<?> type) {
+        this.onWrote(id.id(), type);
         return next.remove(id, type);
     }
 
@@ -146,20 +144,18 @@ final public class AccessLogIO implements IAteIO {
     }
 
     @Override
-    public @Nullable MessageDataHeaderDto getRootOfTrust(UUID id) {
+    public @Nullable MessageDataHeaderDto getRootOfTrust(PUUID id) {
         return next.getRootOfTrust(id);
     }
 
     @Override
-    public void warm() {
-        next.warm();
-    }
+    public void warm(IPartitionKey partitionKey) { next.warm(partitionKey); }
 
     @Override
-    public void sync() { next.sync(); }
+    public void sync(IPartitionKey partitionKey) { next.sync(partitionKey); }
 
     @Override
-    public boolean sync(MessageSyncDto sync) { return next.sync(sync); }
+    public boolean sync(IPartitionKey partitionKey, MessageSyncDto sync) { return next.sync(partitionKey, sync); }
 
     @Override
     public DataSubscriber backend() {
@@ -167,87 +163,87 @@ final public class AccessLogIO implements IAteIO {
     }
 
     @Override
-    public @Nullable MessagePublicKeyDto publicKeyOrNull(@Hash String hash) {
-        return next.publicKeyOrNull(hash);
+    public @Nullable MessagePublicKeyDto publicKeyOrNull(IPartitionKey partitionKey, @Hash String hash) {
+        return next.publicKeyOrNull(partitionKey, hash);
     }
 
     @Override
-    public boolean exists(@Nullable @DaoId UUID _id) {
-        @DaoId UUID id = _id;
+    public boolean exists(@Nullable PUUID _id) {
+        @DaoId PUUID id = _id;
         if (id == null) return false;
         return next.exists(id);
     }
 
     @Override
-    public boolean ethereal() {
-        return next.ethereal();
+    public boolean ethereal(IPartitionKey partitionKey) {
+        return next.ethereal(partitionKey);
     }
 
     @Override
-    public boolean everExisted(@Nullable @DaoId UUID _id) {
-        @DaoId UUID id = _id;
+    public boolean everExisted(@Nullable PUUID _id) {
+        @DaoId PUUID id = _id;
         if (id == null) return false;
         return next.everExisted(id);
     }
 
     @Override
-    public boolean immutable(@DaoId UUID id) {
+    public boolean immutable(PUUID id) {
         return next.immutable(id);
     }
 
     @Override
-    public @Nullable BaseDao getOrNull(@DaoId UUID id) {
+    public @Nullable BaseDao getOrNull(PUUID id) {
         BaseDao ret = next.getOrNull(id);
         if (ret != null) {
-            this.onRead(id, ret.getClass());
+            this.onRead(id.id(), ret.getClass());
         }
         return ret;
     }
 
     @Override
-    public @Nullable DataContainer getRawOrNull(@DaoId UUID id) { return next.getRawOrNull(id); }
+    public @Nullable DataContainer getRawOrNull(PUUID id) { return next.getRawOrNull(id); }
 
     @Override
-    public @Nullable BaseDao getVersionOrNull(@DaoId UUID id, MessageMetaDto meta) {
+    public @Nullable BaseDao getVersionOrNull(PUUID id, MessageMetaDto meta) {
         return next.getVersionOrNull(id, meta);
     }
 
     @Override
-    public @Nullable MessageDataDto getVersionMsgOrNull(@DaoId UUID id, MessageMetaDto meta) {
+    public @Nullable MessageDataDto getVersionMsgOrNull(PUUID id, MessageMetaDto meta) {
         return next.getVersionMsgOrNull(id, meta);
     }
 
     @Override
-    public <T extends BaseDao> Iterable<MessageMetaDto> getHistory(@DaoId UUID id, Class<T> clazz) {
-        this.onRead(id, clazz);
+    public <T extends BaseDao> Iterable<MessageMetaDto> getHistory(PUUID id, Class<T> clazz) {
+        this.onRead(id.id(), clazz);
         return next.getHistory(id, clazz);
     }
 
     @Override
-    public Set<BaseDao> getAll() {
-        return next.getAll();
+    public Set<BaseDao> getAll(IPartitionKey partitionKey) {
+        return next.getAll(partitionKey);
     }
 
     @Override
-    public <T extends BaseDao> Set<T> getAll(Class<T> type) {
-        Set<T> ret = next.getAll(type);
+    public <T extends BaseDao> Set<T> getAll(IPartitionKey partitionKey, Class<T> type) {
+        Set<T> ret = next.getAll(partitionKey, type);
         this.onRead(type);
         return ret;
     }
 
     @Override
-    public <T extends BaseDao> List<DataContainer> getAllRaw() {
-        return next.getAllRaw();
+    public <T extends BaseDao> List<DataContainer> getAllRaw(IPartitionKey partitionKey) {
+        return next.getAllRaw(partitionKey);
     }
 
     @Override
-    public <T extends BaseDao> List<DataContainer> getAllRaw(Class<T> type) {
-        return next.getAllRaw(type);
+    public <T extends BaseDao> List<DataContainer> getAllRaw(IPartitionKey partitionKey, Class<T> type) {
+        return next.getAllRaw(partitionKey, type);
     }
 
     @Override
-    public <T extends BaseDao> List<T> getMany(Collection<@DaoId UUID> ids, Class<T> type) {
-        List<T> ret = next.getMany(ids, type);
+    public <T extends BaseDao> List<T> getMany(IPartitionKey partitionKey, Iterable<@DaoId  UUID> ids, Class<T> type) {
+        List<T> ret = next.getMany(partitionKey, ids, type);
         for (T entity : ret) {
             this.onRead(entity.getId(), type);
         }

@@ -3,6 +3,7 @@ package com.tokera.ate.delegates;
 import com.tokera.ate.annotations.PermitReadEntity;
 import com.tokera.ate.annotations.PermitWriteEntity;
 import com.tokera.ate.common.UUIDTools;
+import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.enumerations.RiskRole;
 import com.tokera.ate.dao.enumerations.UserRole;
 import com.tokera.ate.dto.EffectivePermissions;
@@ -10,6 +11,7 @@ import com.tokera.ate.events.NewAccessRightsEvent;
 import com.tokera.ate.events.TokenDiscoveryEvent;
 import com.tokera.ate.events.TokenScopeChangedEvent;
 import com.tokera.ate.events.TokenStateChangedEvent;
+import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.scopes.TokenScoped;
 import com.tokera.ate.units.DaoId;
 import com.tokera.ate.dto.TokenDto;
@@ -236,14 +238,15 @@ public class CurrentTokenDelegate {
             if (token == null) {
                 missingToken();
             } else {
+                IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
                 for (String name : paramRead.name()) {
                     @DaoId UUID entityId = this.getAndValidateRequestParamValue(name, paramRead.prefix());
-                    boolean perm = d.authorization.canRead(entityId, null);
+                    boolean perm = d.authorization.canRead(partitionKey, entityId, null);
                     if (perm == false) {
                         RuntimeException ex;
                         try {
-                            EffectivePermissions permissions = d.authorization.perms(entityId, null, false);
-                            ex = d.authorization.buildReadException(entityId, permissions, true);
+                            EffectivePermissions permissions = d.authorization.perms(partitionKey, entityId, null, false);
+                            ex = d.authorization.buildReadException(partitionKey, entityId, permissions, true);
                         } catch (Throwable dump) {
                             ex = new WebApplicationException("Read access denied (Missing permitted entity). Path Param (" + name + "=" + entityId + ")",
                                     Response.Status.UNAUTHORIZED);
@@ -260,14 +263,15 @@ public class CurrentTokenDelegate {
             if (token == null) {
                 missingToken();
             } else {
+                IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
                 for (String name : paramWrite.name()) {
                     @DaoId UUID entityId = this.getAndValidateRequestParamValue(name, paramWrite.prefix());
-                    boolean perm = d.authorization.canWrite(entityId, null);
+                    boolean perm = d.authorization.canWrite(partitionKey, entityId, null);
                     if (perm == false) {
                         RuntimeException ex;
                         try {
-                            EffectivePermissions permissions = d.authorization.perms(entityId, null, false);
-                            ex = d.authorization.buildWriteException(entityId, permissions, true);
+                            EffectivePermissions permissions = d.authorization.perms(partitionKey, entityId, null, false);
+                            ex = d.authorization.buildWriteException(partitionKey, entityId, permissions, true);
                         } catch (Throwable dump) {
                             ex = new WebApplicationException("Write access denied (Missing permitted entity). Path Param (" + name + "=" + entityId + ")",
                                     Response.Status.UNAUTHORIZED);
@@ -294,7 +298,8 @@ public class CurrentTokenDelegate {
             entityId = UUIDTools.convertUUID(paramVal);
         }
 
-        if (d.headIO.exists(entityId) == false) {
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        if (d.headIO.exists(PUUID.from(partitionKey, entityId)) == false) {
             throw new WebApplicationException("Entity does not exist (" + name + "=" + paramVal + ")", Response.Status.NOT_FOUND);
 
         }

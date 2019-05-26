@@ -37,7 +37,7 @@ public class EncryptKeyCachePerRequest {
      * @return Byte array that represents the private key or null if the private
      * key does not exist
      */
-    public @Secret byte @Nullable [] getEncryptKey(@Hash String encryptKeyHash)
+    public @Secret byte @Nullable [] getEncryptKey(IPartitionKey partitionKey, @Hash String encryptKeyHash)
     {
         /// Check the cache and nak
         Map<String, byte[]> cache = getEncryptKeyCache();
@@ -48,7 +48,6 @@ public class EncryptKeyCachePerRequest {
         }
         
         // Get the partition this is related to
-        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
         DataPartitionChain chain = this.d.storageFactory.get().backend().getChain(partitionKey);
         
         // Loop through all the private toPutKeys that we own and try and find
@@ -80,10 +79,9 @@ public class EncryptKeyCachePerRequest {
      * @return Byte array that represents the private key or null if the private
      * key does not exist
      */
-    public @Secret byte @Nullable [] getEncryptKey(@Hash String encryptKeyHash, MessagePrivateKeyDto key)
+    public @Secret byte @Nullable [] getEncryptKey(IPartitionKey partitionKey, @Hash String encryptKeyHash, MessagePrivateKeyDto key)
     {
         // Get the partition this is related to
-        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
         DataPartitionChain chain = this.d.storageFactory.get().backend().getChain(partitionKey);
 
         // Return the key
@@ -100,9 +98,8 @@ public class EncryptKeyCachePerRequest {
      * @param keyPublicKeyHash Public key that was used toe encrypt the plain text
      * @return Returns true if the encrypted test exists or not in the chain of trust
      */
-    public boolean hasEncryptKey(@Hash String encryptKeyHash, @Hash String keyPublicKeyHash)
+    public boolean hasEncryptKey(IPartitionKey partitionKey, @Hash String encryptKeyHash, @Hash String keyPublicKeyHash)
     {
-        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
         return d.headIO.secureKeyResolver().exists(partitionKey, encryptKeyHash, keyPublicKeyHash);
     }
 

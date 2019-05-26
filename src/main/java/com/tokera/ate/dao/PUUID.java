@@ -37,6 +37,10 @@ public final class PUUID implements IPartitionKey, Serializable, Comparable<PUUI
         this.id = id;
     }
 
+    public static PUUID from(IPartitionKey partitionKey, UUID id) {
+        return new PUUID(partitionKey, id);
+    }
+
     @Override
     public String partitionTopic() {
         return this.partitionTopic;

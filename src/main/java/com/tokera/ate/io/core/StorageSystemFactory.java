@@ -4,7 +4,7 @@ import com.tokera.ate.io.api.*;
 import com.tokera.ate.io.layers.AccessLogIO;
 import com.tokera.ate.io.layers.BackendIO;
 import com.tokera.ate.io.layers.SplitIO;
-import com.tokera.ate.io.layers.MemoryCacheIO;
+import com.tokera.ate.io.layers.MemoryRequestCacheIO;
 import com.tokera.ate.qualifiers.BackendStorageSystem;
 import com.tokera.ate.io.repo.DataRepository;
 import com.tokera.ate.io.repo.DataSubscriber;
@@ -50,7 +50,7 @@ public class StorageSystemFactory
          */
         public Builder addCacheLayer() {
             first = new SplitIO(
-                    CDI.current().select(MemoryCacheIO.class).get(),
+                    CDI.current().select(MemoryRequestCacheIO.class).get(),
                     first
                 );
             return this;

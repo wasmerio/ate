@@ -1,5 +1,6 @@
 package com.tokera.ate.io.layers;
 
+import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.kafka.MessageSerializer;
 import com.tokera.ate.delegates.AteDelegate;
@@ -22,7 +23,7 @@ import java.util.stream.Collectors;
  * IO system that stores the data objects in memory for the duration of the currentRights scope
  */
 @RequestScoped
-public class MemoryCacheIO implements IAteIO
+public class MemoryRequestCacheIO implements IAteIO
 {
     private AteDelegate d = AteDelegate.getUnsafe();
 
@@ -34,12 +35,10 @@ public class MemoryCacheIO implements IAteIO
 
     protected Map<IPartitionKey, PartitionCache> cache = new TreeMap<>(new PartitionKeyComparator());
 
-    public MemoryCacheIO() {
+    public MemoryRequestCacheIO() {
     }
 
-    protected PartitionCache getTopicCache() {
-        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
-
+    protected PartitionCache getTopicCache(IPartitionKey partitionKey) {
         if (this.cache.containsKey(partitionKey) == true) {
             return this.cache.get(partitionKey);
         }
@@ -51,8 +50,23 @@ public class MemoryCacheIO implements IAteIO
 
     @Override
     public boolean merge(BaseDao entity) {
-        PartitionCache c = this.getTopicCache();
+        IPartitionKey key = d.headIO.partitionResolver().resolve(entity);
+        PartitionCache c = this.getTopicCache(key);
         c.entries.put(entity.getId(), entity);
+        return true;
+    }
+
+    @Override
+    public boolean merge(IPartitionKey partitionKey, MessagePublicKeyDto t) {
+        PartitionCache c = this.getTopicCache(partitionKey);
+        c.publicKeys.put(MessageSerializer.getKey(t), t);
+        return true;
+    }
+
+    @Override
+    public boolean merge(IPartitionKey partitionKey, MessageEncryptTextDto t) {
+        PartitionCache c = this.getTopicCache(partitionKey);
+        c.encryptTexts.put(MessageSerializer.getKey(t), t);
         return true;
     }
 
@@ -72,24 +86,11 @@ public class MemoryCacheIO implements IAteIO
     }
 
     public <T extends BaseDao> boolean mergeMany(Iterable<T> entities) {
-        PartitionCache c = this.getTopicCache();
         for (BaseDao entity : entities) {
+            IPartitionKey key = d.headIO.partitionResolver().resolve(entity);
+            PartitionCache c = this.getTopicCache(key);
             c.entries.put(entity.getId(), entity);
         }
-        return true;
-    }
-
-    @Override
-    public boolean merge(MessagePublicKeyDto t) {
-        PartitionCache c = this.getTopicCache();
-        c.publicKeys.put(MessageSerializer.getKey(t), t);
-        return true;
-    }
-
-    @Override
-    public boolean merge(MessageEncryptTextDto t) {
-        PartitionCache c = this.getTopicCache();
-        c.encryptTexts.put(MessageSerializer.getKey(t), t);
         return true;
     }
 
@@ -105,18 +106,21 @@ public class MemoryCacheIO implements IAteIO
 
     @Override
     public boolean remove(BaseDao entity) {
-        return remove(entity.getId(), entity.getClass());
+        return remove(entity.addressableId(), entity.getClass());
     }
 
     @Override
-    public boolean remove(@DaoId UUID id, Class<?> type) {
-        PartitionCache c = this.getTopicCache();
+    public boolean remove(PUUID id, Class<?> type) {
+        PartitionCache c = this.getTopicCache(id);
         return c.entries.remove(id) != null;
     }
 
     @Override
-    public void removeLater(BaseDao entity) {
-        remove(entity);
+    public void removeLater(BaseDao entity)
+    {
+        IPartitionKey key = d.headIO.partitionResolver().resolve(entity);
+        PartitionCache c = this.getTopicCache(key);
+        c.entries.remove(entity.getId());
     }
 
     @Override
@@ -130,39 +134,48 @@ public class MemoryCacheIO implements IAteIO
     }
 
     @Override
-    public boolean exists(@Nullable @DaoId UUID _id) {
-        @DaoId UUID id = _id;
+    public boolean exists(@Nullable PUUID _id) {
+        @DaoId PUUID id = _id;
         if (id == null) return false;
-
-        PartitionCache c = this.getTopicCache();
+        PartitionCache c = this.getTopicCache(id);
         return c.entries.containsKey(id);
     }
 
     @Override
-    public boolean ethereal() {
+    public boolean ethereal(IPartitionKey partitionKey) {
         return false;
     }
 
     @Override
-    public boolean everExisted(@Nullable @DaoId UUID _id) {
-        @DaoId UUID id = _id;
+    public boolean everExisted(@Nullable PUUID _id) {
+        @DaoId PUUID id = _id;
         if (id == null) return false;
         return exists(id);
     }
 
     @Override
-    public boolean immutable(@DaoId UUID id) {
+    public boolean immutable(@DaoId PUUID id) {
         return false;
     }
 
     @Override
-    public @Nullable MessageDataHeaderDto getRootOfTrust(UUID id) {
+    public @Nullable MessageDataHeaderDto getRootOfTrust(PUUID id) {
+        return null;
+    }
+
+    public @Nullable BaseDao getOrNull(@DaoId UUID id) {
+        for (PartitionCache c : this.cache.values()) {
+            if (c.entries.containsKey(id) == false) continue;
+            BaseDao ret = c.entries.get(id);
+            BaseDao.assertStillMutable(ret);
+            return ret;
+        }
         return null;
     }
 
     @Override
-    public @Nullable BaseDao getOrNull(@DaoId UUID id) {
-        PartitionCache c = this.getTopicCache();
+    public @Nullable BaseDao getOrNull(PUUID id) {
+        PartitionCache c = this.getTopicCache(id);
         if (c.entries.containsKey(id) == false) return null;
         BaseDao ret = c.entries.get(id);
         BaseDao.assertStillMutable(ret);
@@ -170,28 +183,28 @@ public class MemoryCacheIO implements IAteIO
     }
 
     @Override
-    public @Nullable DataContainer getRawOrNull(@DaoId UUID id) {
+    public @Nullable DataContainer getRawOrNull(PUUID id) {
         return null;
     }
 
     @Override
-    public <T extends BaseDao> Iterable<MessageMetaDto> getHistory(@DaoId UUID id, Class<T> clazz) {
+    public <T extends BaseDao> Iterable<MessageMetaDto> getHistory(PUUID id, Class<T> clazz) {
         throw new NotImplementedException();
     }
 
     @Override
-    public @Nullable BaseDao getVersionOrNull(@DaoId UUID id, MessageMetaDto meta) {
+    public @Nullable BaseDao getVersionOrNull(PUUID id, MessageMetaDto meta) {
         return null;
     }
 
     @Override
-    public @Nullable MessageDataDto getVersionMsgOrNull(@DaoId UUID id, MessageMetaDto meta) {
+    public @Nullable MessageDataDto getVersionMsgOrNull(PUUID id, MessageMetaDto meta) {
         return null;
     }
 
     @Override
-    public Set<BaseDao> getAll() {
-        PartitionCache c = this.getTopicCache();
+    public Set<BaseDao> getAll(IPartitionKey partitionKey) {
+        PartitionCache c = this.getTopicCache(partitionKey);
         return c.entries.values()
                 .stream()
                 .collect(Collectors.toSet());
@@ -199,8 +212,8 @@ public class MemoryCacheIO implements IAteIO
 
     @SuppressWarnings({"unchecked"})
     @Override
-    public <T extends BaseDao> Set<T> getAll(Class<T> type) {
-        PartitionCache c = this.getTopicCache();
+    public <T extends BaseDao> Set<T> getAll(IPartitionKey partitionKey, Class<T> type) {
+        PartitionCache c = this.getTopicCache(partitionKey);
         return c.entries.values()
                 .stream()
                 .filter(e -> e.getClass() == type)
@@ -209,21 +222,21 @@ public class MemoryCacheIO implements IAteIO
     }
 
     @Override
-    public <T extends BaseDao> List<DataContainer> getAllRaw() {
+    public <T extends BaseDao> List<DataContainer> getAllRaw(IPartitionKey partitionKey) {
         throw new NotImplementedException();
     }
 
     @Override
-    public <T extends BaseDao> List<DataContainer> getAllRaw(Class<T> type) {
+    public <T extends BaseDao> List<DataContainer> getAllRaw(IPartitionKey partitionKey, Class<T> type) {
         throw new NotImplementedException();
     }
 
     @SuppressWarnings({"unchecked"})
     @Override
-    public <T extends BaseDao> List<T> getMany(Collection<@DaoId UUID> ids, Class<T> type) {
+    public <T extends BaseDao> List<T> getMany(IPartitionKey partitionKey, Iterable<@DaoId UUID> ids, Class<T> type) {
         List<T> ret = new LinkedList<>();
         for (UUID id : ids) {
-            @Nullable BaseDao entity = this.getOrNull(id);
+            @Nullable BaseDao entity = this.getOrNull(PUUID.from(partitionKey, id));
             if (entity == null) continue;
             if (entity.getClass() == type) {
                 ret.add((T)entity);
@@ -233,8 +246,8 @@ public class MemoryCacheIO implements IAteIO
     }
 
     @Override
-    public @Nullable MessagePublicKeyDto publicKeyOrNull(@Hash String hash) {
-        PartitionCache c = this.getTopicCache();
+    public @Nullable MessagePublicKeyDto publicKeyOrNull(IPartitionKey partitionKey, @Hash String hash) {
+        PartitionCache c = this.getTopicCache(partitionKey);
         if (c.publicKeys.containsKey(hash) == false) return null;
         return c.publicKeys.get(hash);
     }
@@ -248,20 +261,20 @@ public class MemoryCacheIO implements IAteIO
     }
 
     @Override
-    public void clearCache(@DaoId UUID id) {
+    public void clearCache(PUUID id) {
         cache.remove(id);
     }
 
     @Override
-    public void warm() {
+    public void warm(IPartitionKey partitionKey) {
     }
 
     @Override
-    public void sync() {
+    public void sync(IPartitionKey partitionKey) {
     }
 
     @Override
-    public boolean sync(MessageSyncDto sync) {
+    public boolean sync(IPartitionKey partitionKey, MessageSyncDto sync) {
         return true;
     }
 

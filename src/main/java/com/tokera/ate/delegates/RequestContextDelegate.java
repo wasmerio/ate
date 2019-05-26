@@ -83,6 +83,19 @@ public class RequestContextDelegate {
     }
 
     /**
+     * @return Returns the partition key for the current partition scope else it throws an exception or null if it
+     * doesn't exist in the current context
+     */
+    public @Nullable IPartitionKey getPartitionKeyScopeOrNull() {
+        try {
+            if (this.partitionKeyStack.empty()) return null;
+            return this.partitionKeyStack.peek();
+        } catch (EmptyStackException ex) {
+            return null;
+        }
+    }
+
+    /**
      * Enters a partition key scope and pushes the previous key onto a stack
      */
     public void pushPartitionKey(@TopicName IPartitionKey key) {

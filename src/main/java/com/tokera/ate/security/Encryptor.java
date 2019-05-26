@@ -1,6 +1,7 @@
 package com.tokera.ate.security;
 
 import com.google.common.base.Charsets;
+import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.io.api.IAteIO;
 import com.tokera.ate.qualifiers.BackendStorageSystem;
@@ -1136,13 +1137,13 @@ public class Encryptor implements Runnable
         return alias;
     }
 
-    public @Alias String getAlias(MessagePublicKeyDto key)
+    public @Alias String getAlias(IPartitionKey partitionKey, MessagePublicKeyDto key)
     {
         @Hash String hash = key.getPublicKeyHash();
         @Alias String ret = key.getAlias();
         if (ret == null && hash != null) {
             IAteIO io = CDI.current().select(IAteIO.class, new AnnotationLiteral<BackendStorageSystem>(){}).get();
-            MessagePublicKeyDto aliasKey = io.publicKeyOrNull(hash);
+            MessagePublicKeyDto aliasKey = io.publicKeyOrNull(partitionKey, hash);
             if (aliasKey != null) ret = aliasKey.getAlias();
         }
 

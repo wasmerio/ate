@@ -1,5 +1,6 @@
 package com.tokera.ate.io.api;
 
+import com.tokera.ate.dao.IRights;
 import com.tokera.ate.dao.base.BaseDao;
 
 import java.util.UUID;
@@ -18,4 +19,11 @@ public interface IPartitionResolver {
      * @return The topic and partition that this data object is related to
      */
     IPartitionKey resolve(BaseDao obj);
+
+    /**
+     * Maps a rights interface to a particular partition
+     * @param obj Reference to the rights interface to be mapped
+     * @return The topic and partition that this data object is related to
+     */
+    IPartitionKey resolve(IRights obj);
 }

@@ -10,6 +10,7 @@ import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.EffectivePermissions;
 import com.tokera.ate.dto.msg.*;
+import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.merge.MergePair;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -20,12 +21,14 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 public class DataContainer {
+    public final IPartitionKey partitionKey;
     public final Map<UUID, @NonNull DataGraphNode> lookup = new HashMap<>();
     public final LinkedList<DataGraphNode> timeline = new LinkedList<>();
     public final LinkedList<DataGraphNode> leaves = new LinkedList<>();
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
-    public DataContainer() {
+    public DataContainer(IPartitionKey partitionKey) {
+        this.partitionKey = partitionKey;
     }
 
     private DataContainer add(MessageDataMetaDto msg) {
@@ -158,10 +161,11 @@ public class DataContainer {
         return ret;
     }
 
-    private static @Nullable BaseDao reconcoleMergedData(@Nullable BaseDao _ret, LinkedList<DataGraphNode> leaves) {
+    private static @Nullable BaseDao reconcileMergedData(@Nullable BaseDao _ret, LinkedList<DataGraphNode> leaves) {
         AteDelegate d = AteDelegate.get();
         BaseDao ret = _ret;
         if (ret == null) return null;
+        IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(ret);
 
         // Reconcile the parent version pointers
         if (leaves.size() == 1) {
@@ -174,7 +178,7 @@ public class DataContainer {
             // If a mergeThreeWay was performed and we have writability then we should save it down to reduce future merges and
             // so that log compaction doesnt lose data (Kafka compacting)
             if (leaves.size() > 1) {
-                EffectivePermissions perms = d.authorization.perms(ret.getId(), ret.getParentId(), false);
+                EffectivePermissions perms = d.authorization.perms(partitionKey, ret.getId(), ret.getParentId(), false);
                 if (perms.canWrite(d.currentRights)) {
                     d.headIO.mergeAsyncWithoutValidation(ret);
                 }
@@ -194,18 +198,18 @@ public class DataContainer {
 
         // If there is only one item then we are done
         if (leaves.size() == 1) {
-            return d.dataSerializer.fromDataMessage(leaves.get(0).msg, true);
+            return d.dataSerializer.fromDataMessage(this.partitionKey, leaves.get(0).msg, true);
         }
 
         // Build a merge set of the headers for this
         Map<DataGraphNode, BaseDao> deserializeCache = new HashMap<>();
         List<MergePair<BaseDao>> mergeSet = leaves
                 .stream().map(n -> new MergePair<>(
-                        n.parentNode != null ? deserializeCache.computeIfAbsent(n.parentNode, v -> d.dataSerializer.fromDataMessage(v.msg, true)) : null,
-                        deserializeCache.computeIfAbsent(n, v -> d.dataSerializer.fromDataMessage(n.msg, true))))
+                        n.parentNode != null ? deserializeCache.computeIfAbsent(n.parentNode, v -> d.dataSerializer.fromDataMessage(this.partitionKey, v.msg, true)) : null,
+                        deserializeCache.computeIfAbsent(n, v -> d.dataSerializer.fromDataMessage(this.partitionKey, n.msg, true))))
                 .collect(Collectors.toList());
         // Merge the actual merge of the data object
         ret = d.merger.merge(mergeSet);
-        return reconcoleMergedData(ret, leaves);
+        return reconcileMergedData(ret, leaves);
     }
 }
