@@ -13,6 +13,8 @@ import com.tokera.ate.dto.EffectivePermissions;
 import com.tokera.ate.io.repo.DataContainer;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import javax.ws.rs.WebApplicationException;
+import javax.ws.rs.core.Response;
 import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.HashMap;
@@ -152,6 +154,9 @@ public class EffectivePermissionBuilder {
                         throw new RuntimeException("The implicit authority field can not be null or empty [field: " + field.getName() + "].");
                     }
                     MessagePublicKeyDto implicitKey = d.implicitSecurity.enquireDomainKey(domainObj.toString(), true);
+                    if (implicitKey == null) {
+                        throw new WebApplicationException("No implicit authority found at domain name (missing TXT record)[" + d.bootstrapConfig.getImplicitAuthorityAlias() + "." + domainObj + "].", Response.Status.UNAUTHORIZED);
+                    }
                     ret.addWriteRole(implicitKey);
                 } catch (IllegalAccessException e) {
                     d.genericLogger.warn(e);

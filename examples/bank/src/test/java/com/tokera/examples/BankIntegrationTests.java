@@ -39,17 +39,32 @@ public class BankIntegrationTests {
         TestTools.initSeedTestKeys();
     }
 
+    private RawClient createClient() {
+        return new RawClientBuilder()
+                .server("127.0.0.1")
+                .port(8080)
+                .prefixForRest("/rs/1-0")
+                .build();
+    }
+
     @Test
     @Order(1)
     @DisplayName("...creating an individual account")
     public void createIndividual() {
-        String email = "joe.blog@gmail.com";
-        String ret = new RawClientBuilder()
-                .server("127.0.0.1")
-                .port(8080)
-                .prefixForRest("/rs/1-0")
-                .build()
-                .restPost("/register/individual", Entity.entity(email, MediaType.TEXT_PLAIN), String.class);
+        String ret = createClient().restPost(
+                "/register/individual",
+                Entity.entity("joe.blog@gmail.com", MediaType.TEXT_PLAIN), String.class);
+        AteDelegate d = AteDelegate.get();
+        d.genericLogger.info(ret);
+    }
+
+    @Test
+    @Order(2)
+    @DisplayName("...creating an company account")
+    public void createCompany() {
+        String ret = createClient().restPost(
+                "/register/company",
+                Entity.entity("example.tokera.com", MediaType.TEXT_PLAIN), String.class);
         AteDelegate d = AteDelegate.get();
         d.genericLogger.info(ret);
     }
