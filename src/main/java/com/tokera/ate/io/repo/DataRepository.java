@@ -6,6 +6,7 @@ import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
 
 import javax.annotation.PostConstruct;
+import javax.enterprise.context.Dependent;
 import javax.enterprise.context.RequestScoped;
 import javax.inject.Inject;
 
@@ -169,27 +170,34 @@ public class DataRepository implements IAteIO {
     }
 
     private void validateEntityIsChained(BaseDao entity) {
-        IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(entity);
 
         // Make sure its a valid parent we are attached to
-        String entityType = entity.getClass().getName();
+        Class<?> type = entity.getClass();
+        String entityType = type.getName();
         @DaoId UUID entityParentId = entity.getParentId();
         if (d.daoParents.getAllowedParentsSimple().containsKey(entityType) == false) {
             if (d.daoParents.getAllowedParentFreeSimple().contains(entityType) == false) {
-                throw new RuntimeException("This entity [" + entity.getClass().getSimpleName() + "] has no parent policy defined [see PermitParentType or PermitParentFree annotation].");
+                if (type.getAnnotation(Dependent.class) == null) {
+                    throw new RuntimeException("This entity [" + type.getSimpleName() + "] has not been marked with the Dependent annotation.");
+                }
+                throw new RuntimeException("This entity [" + type.getSimpleName() + "] has no parent policy defined [see PermitParentType or PermitParentFree annotation].");
             }
             if (entityParentId != null) {
-                throw new RuntimeException("This entity [" + entity.getClass().getSimpleName() + "] is not allowed to be attached to any parents [see PermitParentType annotation].");
+                throw new RuntimeException("This entity [" + type.getSimpleName() + "] is not allowed to be attached to any parents [see PermitParentType annotation].");
             }
         } else {
             if (entityParentId == null) {
-                throw new RuntimeException("This entity [" + entity.getClass().getSimpleName() + "] is not attached to a parent [see PermitParentType annotation].");
+                throw new RuntimeException("This entity [" + type.getSimpleName() + "] is not attached to a parent [see PermitParentType annotation].");
             }
 
             BaseDao parentInCache = this.d.memoryRequestCacheIO.getOrNull(entity.addressableId());
+            IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(entity);
             DataPartitionChain chain = this.subscriber.getChain(partitionKey);
             DataContainer container = chain.getData(entityParentId, LOG);
             if (container != null && d.daoParents.getAllowedParentsSimple().containsEntry(entityType, container.getPayloadClazz()) == false) {
+                if (type.getAnnotation(Dependent.class) == null) {
+                    throw new RuntimeException("This entity [" + type.getSimpleName() + "] has not been marked with the Dependent annotation.");
+                }
                 throw new RuntimeException("This entity is not allowed to be attached to this parent type [see PermitParentEntity annotation].");
             }
 

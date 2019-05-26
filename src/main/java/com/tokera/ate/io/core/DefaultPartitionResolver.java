@@ -12,7 +12,9 @@ import com.tokera.ate.io.repo.DataStagingManager;
 import com.tokera.ate.units.DaoId;
 import org.apache.kafka.common.utils.Utils;
 
+import javax.enterprise.context.Dependent;
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -45,8 +47,12 @@ public class DefaultPartitionResolver implements IPartitionResolver {
             @DaoId UUID parentId = obj.getParentId();
             if (parentId == null)
             {
-                if (d.daoParents.getAllowedParentFree().contains(obj.getClass()) == false) {
-                    throw new RuntimeException("This entity [" + obj.getClass().getSimpleName() + "] is not attached to a parent [see PermitParentType annotation].");
+                Class<?> type = obj.getClass();
+                if (d.daoParents.getAllowedParentFree().contains(type) == false) {
+                    if (type.getAnnotation(Dependent.class) == null) {
+                        throw new RuntimeException("This entity [" + type.getSimpleName() + "] has not been marked with the Dependent annotation.");
+                    }
+                    throw new RuntimeException("This entity [" + type.getSimpleName() + "] is not attached to a parent [see PermitParentType annotation].");
                 }
 
                 // We have arrived at the top of the chain-of-trust and thus the ID of this root object
