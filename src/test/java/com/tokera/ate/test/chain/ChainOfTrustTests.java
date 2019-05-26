@@ -59,9 +59,7 @@ public class ChainOfTrustTests
         UUID id = UUIDTools.generateUUID("tokera.com");
         IPartitionKey key = AteDelegate.get().headIO.partitionKeyMapper().resolve(id);
 
-        DataPartitionChain ret = new DataPartitionChain(
-                key,
-                daoParents);
+        DataPartitionChain ret = new DataPartitionChain(key);
         encryptor.touch();
         return ret;
     }

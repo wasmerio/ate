@@ -23,7 +23,11 @@ public class DefaultPartitionKeyMapper implements IPartitionKeyMapper {
             ByteBuffer bb = ByteBuffer.wrap(new byte[16]);
             bb.putLong(id.getMostSignificantBits());
             bb.putLong(id.getLeastSignificantBits());
-            this.hash = Utils.murmur2(bb.array());
+
+            int hash = Utils.murmur2(bb.array());
+            if (hash < 0) hash = -hash;
+            if (hash < 0) hash = 0;
+            this.hash = hash;
         }
 
         @Override

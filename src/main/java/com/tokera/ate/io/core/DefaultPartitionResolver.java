@@ -24,7 +24,7 @@ import java.util.concurrent.TimeUnit;
  * key of the root of the tree to determine the partition that data will be mapped to.
  */
 public class DefaultPartitionResolver implements IPartitionResolver {
-    private AteDelegate d = AteDelegate.getUnsafe();
+    private AteDelegate d = AteDelegate.get();
 
     private Cache<UUID, IPartitionKey> cache = CacheBuilder.newBuilder()
             .maximumSize(10000)
@@ -71,12 +71,11 @@ public class DefaultPartitionResolver implements IPartitionResolver {
             if (next == null)
             {
                 // Try all the partition keys that are currently active or that have not yet been saved
-                for (IPartitionKey activePartitionKey : d.dataStagingManager.getActivePartitionKeys()) {
+                for (IPartitionKey activePartitionKey : d.dataStagingManager.keys()) {
                     if (d.headIO.exists(PUUID.from(activePartitionKey, parentId))) {
                         return activePartitionKey;
                     }
-                    DataStagingManager.PartitionContext context = d.dataStagingManager.getPartitionMergeContext(activePartitionKey);
-                    if (context.toPutKeys.contains(parentId)) {
+                    if (d.dataStagingManager.find(activePartitionKey, parentId) != null) {
                         return activePartitionKey;
                     }
                 }

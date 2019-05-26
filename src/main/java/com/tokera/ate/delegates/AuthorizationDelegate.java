@@ -38,7 +38,7 @@ import java.util.stream.Collectors;
 @Startup
 @ApplicationScoped
 public class AuthorizationDelegate {
-    private AteDelegate d = AteDelegate.getUnsafe();
+    private AteDelegate d = AteDelegate.get();
 
     @SuppressWarnings("initialization.fields.uninitialized")
     @Inject
@@ -49,7 +49,8 @@ public class AuthorizationDelegate {
     public boolean canRead(@Nullable BaseDao obj)
     {
         if (obj == null) return false;
-        return canRead(obj.addressableId(), obj.getParentId());
+        EffectivePermissions perms = d.authorization.perms(obj);
+        return perms.canRead(d.currentRights);
     }
 
     public boolean canRead(@Nullable PUUID _id, @Nullable @DaoId UUID parentId)
@@ -72,7 +73,8 @@ public class AuthorizationDelegate {
     public boolean canWrite(@Nullable BaseDao obj)
     {
         if (obj == null) return false;
-        return canWrite(obj.addressableId(), obj.getParentId());
+        EffectivePermissions perms = d.authorization.perms(obj);
+        return perms.canWrite(d.currentRights);
     }
 
     public boolean canWrite(@Nullable PUUID _id, @Nullable @DaoId UUID parentId)
@@ -235,7 +237,8 @@ public class AuthorizationDelegate {
         IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(obj);
         return new EffectivePermissionBuilder(partitionKey, obj.getId(), obj.getParentId())
                 .setUsePostMerged(true)
-                .buildWith(obj);
+                .withSuppliedObject(obj)
+                .build();
     }
 
     public EffectivePermissions perms(PUUID id, @Nullable @DaoId UUID parentId, boolean usePostMerged) {

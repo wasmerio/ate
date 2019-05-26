@@ -5,6 +5,7 @@ import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.kafka.MessageSerializer;
 import com.tokera.ate.dao.msg.*;
+import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.delegates.YamlDelegate;
@@ -29,6 +30,7 @@ import org.bouncycastle.crypto.InvalidCipherTextException;
  * are effectively the heart of the database.
  */
 public class DataPartitionChain {
+    private final AteDelegate d = AteDelegate.get();
     
     private final IPartitionKey key;
     private final ConcurrentMap<UUID, MessageDataHeaderDto> rootOfTrust;
@@ -36,10 +38,9 @@ public class DataPartitionChain {
     private final ConcurrentMap<UUID, DataContainer> chainOfTrust;
     private final ConcurrentMap<String, MessagePublicKeyDto> publicKeys;
     private final ConcurrentMap<String, MessageEncryptTextDto> encryptText;
-    private final DaoParentDiscoveryExtension daoParentDiscoveryExtension;
     private final Encryptor encryptor;
     
-    public DataPartitionChain(IPartitionKey key, DaoParentDiscoveryExtension daoParentDiscoveryExtension) {
+    public DataPartitionChain(IPartitionKey key) {
         this.key = key;
         this.rootOfTrust = new ConcurrentHashMap<>();
         this.chainOfTrust = new ConcurrentHashMap<>();
@@ -47,7 +48,6 @@ public class DataPartitionChain {
         this.publicKeys = new ConcurrentHashMap<>();
         this.encryptText = new ConcurrentHashMap<>();
         this.encryptor = Encryptor.getInstance();
-        this.daoParentDiscoveryExtension = daoParentDiscoveryExtension;
     }
 
     public IPartitionKey partitionKey() { return this.key; }
@@ -239,8 +239,8 @@ public class DataPartitionChain {
         @DaoId UUID parentId = header.getParentId();
         MessageDataDto parent = null;
         String entityType = header.getPayloadClazzOrThrow();
-        if (this.daoParentDiscoveryExtension.getAllowedParentsSimple().containsKey(entityType) == false) {
-            if (this.daoParentDiscoveryExtension.getAllowedParentFreeSimple().contains(entityType) == false) {
+        if (d.daoParents.getAllowedParentsSimple().containsKey(entityType) == false) {
+            if (d.daoParents.getAllowedParentFreeSimple().contains(entityType) == false) {
                 drop(LOG, data, "parent policy not defined for this entity type", null);
                 return false;
             }
@@ -265,7 +265,7 @@ public class DataPartitionChain {
             if (parent == null) {
                 drop(LOG, data, "parent is missing in chain of trust", null);
                 return false;
-            } else if (this.daoParentDiscoveryExtension.getAllowedParentsSimple().containsEntry(entityType, parent.getHeader().getPayloadClazzOrThrow()) == false) {
+            } else if (d.daoParents.getAllowedParentsSimple().containsEntry(entityType, parent.getHeader().getPayloadClazzOrThrow()) == false) {
                 drop(LOG, data, "parent type not allowed [see PermitParentType]", null);
                 return false;
             }
@@ -298,25 +298,55 @@ public class DataPartitionChain {
         // Get the end of the chain of trust that we will traverse up in order
         // to validate the chain of trust. All writes must have a leaf to follow
         // in order to be saved
+        byte[] digestPublicKeyBytes = null;
         MessageDataDto leaf = existing;
         if (leaf == null) leaf = parent;
-        if (leaf == null) {
-            drop(LOG, data, "record has no leaf to attach to", null);
-            return false;
+        if (leaf == null)
+        {
+            String implicitAuthority = d.daoParents.getAllowedImplicitAuthoritySimple().getOrDefault(entityType, null);
+            if (implicitAuthority == null) {
+                if (d.daoParents.getAllowedDynamicImplicitAuthoritySimple().containsKey(entityType)) {
+                    implicitAuthority = header.getImplicitAuthority().stream().findFirst().orElse(null);
+                }
+            }
+
+            // If the object is a claimable type then its allowed to attach to nothing
+            if (d.daoParents.getAllowedParentFreeSimple().contains(entityType) == true &&
+                    d.daoParents.getAllowedParentClaimableSimple().contains(entityType) == true) {
+                MessagePublicKeyDto trustPublicKey = d.encryptor.getTrustOfPublicWrite();
+                digestPublicKeyBytes = trustPublicKey.getPublicKeyBytes();
+                LOG.info("chain-of-trust claimed: " + entityType + ":" + id);
+            }
+            // If the object is a claimable type then its allowed to attach to nothing
+            else if (d.daoParents.getAllowedParentFreeSimple().contains(entityType) == true &&
+                    implicitAuthority != null)
+            {
+                MessagePublicKeyDto trustPublicKey = d.implicitSecurity.enquireDomainKey(implicitAuthority, false);
+                if (trustPublicKey == null) {
+                    drop(LOG, data, "record implicit authority missing [" + implicitAuthority + "]", null);
+                    return false;
+                }
+                digestPublicKeyBytes = trustPublicKey.getPublicKeyBytes();
+                LOG.info("chain-of-trust rooted: " + entityType + ":" + id + " on " + trustPublicKey.getPublicKeyHash());
+            }
+            // Otherwise we fail
+            else {
+                drop(LOG, data, "record has no leaf to attach to", null);
+                return false;
+            }
         }
-        
+
         // First check if the digest is allowed to be attached to the parent
         // by doing a role check all the way up the chain until it finds a
         // trusted key hash that matches - later we will check the signature
         // that proves the writer had a copy of this key at the time of writing
         List<String> availableWriteRoles = new ArrayList<>();
         boolean roleFound = false;
-        byte[] digestPublicKeyBytes = null;   
         for (;leaf != null;)
-        {            
+        {
             MessageDataHeaderDto leafHeader = leaf.getHeader();
             Set<String> requiredRoles = leafHeader.getAllowWrite();
-            
+
             for (String trustKeyHash : requiredRoles) {
                 availableWriteRoles.add(trustKeyHash);
                 if (trustKeyHash.equals(digest.getPublicKeyHash()) == true) {
@@ -359,7 +389,7 @@ public class DataPartitionChain {
                 }
             }
         }
-        
+
         if (digestPublicKeyBytes == null || digestPublicKeyBytes.length <= 4) {
             if (roleFound == true) {
                 drop(LOG, data, "entity has write roles but public key is missing", null);
@@ -368,7 +398,7 @@ public class DataPartitionChain {
 
                 String parentTxt = "null";
                 if (parent != null) { parentTxt = "clazz=" + parent.getHeader().getPayloadClazzOrThrow() + ", id=" + parentId; }
-                
+
                 StringBuilder sb = new StringBuilder();
                 sb.append("entity has no right to attach to its parent");
                 sb.append("\n [entity: ").append(entityTxt).append("]");

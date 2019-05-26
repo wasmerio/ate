@@ -5,6 +5,7 @@ import com.tokera.ate.annotations.ImplicitAuthorityField;
 import com.tokera.ate.annotations.PermitParentFree;
 import com.tokera.ate.common.UUIDTools;
 import com.tokera.ate.dao.base.BaseDaoRolesRights;
+import com.tokera.ate.units.Alias;
 import com.tokera.ate.units.DaoId;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -34,5 +35,10 @@ public class Company extends BaseDaoRolesRights {
 
     public @Nullable @DaoId UUID getParentId() {
         return null;
+    }
+
+    @Alias
+    public String getRightsAlias(){
+        return domain;
     }
 }

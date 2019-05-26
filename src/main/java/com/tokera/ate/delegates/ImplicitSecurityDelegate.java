@@ -29,7 +29,7 @@ import org.xbill.DNS.*;
 @ApplicationScoped
 public class ImplicitSecurityDelegate {
 
-    private AteDelegate d = AteDelegate.getUnsafe();
+    private AteDelegate d = AteDelegate.get();
     @SuppressWarnings("initialization.fields.uninitialized")
     @Inject
     private LoggerHook LOG;

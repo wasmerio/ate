@@ -4,7 +4,6 @@ import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
-import com.tokera.ate.io.api.IAteIO;
 import com.tokera.ate.dao.IRoles;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dto.msg.MessageDataHeaderDto;
@@ -16,6 +15,8 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.lang.reflect.Field;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -28,6 +29,7 @@ public class EffectivePermissionBuilder {
     private @DaoId UUID origId;
     private @Nullable @DaoId UUID origParentId;
     private boolean usePostMerged = true;
+    private final @Nullable Map<UUID, BaseDao> suppliedObjects = new HashMap<>();
 
     public EffectivePermissionBuilder(PUUID id, @Nullable @DaoId UUID parentId) {
         this.partitionKey = id;
@@ -47,27 +49,39 @@ public class EffectivePermissionBuilder {
     }
 
     /**
-     * @return Builds a series of lists that represent the permissions a particular data object has in the known tree.
+     * Supplies a data object that is not yet known to the storage systems
+     * @param obj Data object that will be used in the building of the permissions
      */
-    public EffectivePermissions build()
-    {
-        return buildWith(null);
+    public EffectivePermissionBuilder withSuppliedObject(BaseDao obj) {
+        this.suppliedObjects.put(obj.getId(), obj);
+        return this;
     }
 
     /**
      * @return Builds a series of lists that represent the permissions a particular data object has in the known tree.
      */
-    public EffectivePermissions buildWith(@Nullable BaseDao obj)
+    public EffectivePermissions build()
     {
         EffectivePermissions ret = new EffectivePermissions();
         addRootTrust(ret);
         addChainTrust(ret);
-        addImplicitTrust(ret, obj);
-        addClaimableTrust(ret, obj);
+        addImplicitTrust(ret);
+        addClaimableTrust(ret);
         if (usePostMerged) {
-            addPostMergedPerms(ret, obj);
+            addPostMergedPerms(ret);
         }
+        ret.updateEncryptKeyFromObjIfNull(origId, this);
         return ret;
+    }
+
+    /**
+     * @return Finds an object based off its ID which either lives in the list of things to be saved or in the actual data store
+     */
+    public @Nullable BaseDao findDataObj(UUID id) {
+        BaseDao obj = MapTools.getOrNull(this.suppliedObjects, id);
+        if (obj == null) obj = d.dataStagingManager.find(this.partitionKey, id);
+        if (obj == null) obj = d.headIO.getOrNull(PUUID.from(this.partitionKey, id));
+        return obj;
     }
 
     /**
@@ -124,14 +138,9 @@ public class EffectivePermissionBuilder {
         } while (id != null);
     }
 
-    private void addImplicitTrust(EffectivePermissions ret, @Nullable BaseDao retObj)
+    private void addImplicitTrust(EffectivePermissions ret)
     {
-        BaseDao obj;
-        if (retObj != null && retObj.getId().compareTo(origId) == 0) {
-            obj = retObj;
-        } else {
-            obj = d.headIO.getOrNull(PUUID.from(this.partitionKey, origId));
-        }
+        BaseDao obj = findDataObj(origId);
 
         if (obj != null) {
             Class<?> type = obj.getClass();
@@ -143,10 +152,7 @@ public class EffectivePermissionBuilder {
                         throw new RuntimeException("The implicit authority field can not be null or empty [field: " + field.getName() + "].");
                     }
                     MessagePublicKeyDto implicitKey = d.implicitSecurity.enquireDomainKey(domainObj.toString(), true);
-                    String implicitKeyHash = d.encryptor.getPublicKeyHash(implicitKey);
-                    if (ret.rolesWrite.contains(implicitKeyHash) == false) {
-                        ret.rolesWrite.add(implicitKeyHash);
-                    }
+                    ret.addWriteRole(implicitKey);
                 } catch (IllegalAccessException e) {
                     d.genericLogger.warn(e);
                 }
@@ -155,10 +161,7 @@ public class EffectivePermissionBuilder {
             String staticImplicitAuthority = MapTools.getOrNull(d.daoParents.getAllowedImplicitAuthority(), type);
             if (staticImplicitAuthority != null) {
                 MessagePublicKeyDto implicitKey = d.implicitSecurity.enquireDomainKey(staticImplicitAuthority, true);
-                String implicitKeyHash = d.encryptor.getPublicKeyHash(implicitKey);
-                if (ret.rolesWrite.contains(implicitKeyHash) == false) {
-                    ret.rolesWrite.add(implicitKeyHash);
-                }
+                ret.addWriteRole(implicitKey);
             }
         }
 
@@ -168,35 +171,26 @@ public class EffectivePermissionBuilder {
 
             for (String implicitAuthority : header.getImplicitAuthority()) {
                 MessagePublicKeyDto implicitKey = d.implicitSecurity.enquireDomainKey(implicitAuthority, true);
-                String implicitKeyHash = d.encryptor.getPublicKeyHash(implicitKey);
-                if (ret.rolesWrite.contains(implicitKeyHash) == false) {
-                    ret.rolesWrite.add(implicitKeyHash);
-                }
+                ret.addWriteRole(implicitKey);
             }
         }
     }
 
-    private void addClaimableTrust(EffectivePermissions ret, @Nullable BaseDao retObj) {
-        BaseDao obj;
-        if (retObj != null && retObj.getId().compareTo(origId) == 0) {
-            obj = retObj;
-        } else {
-            obj = d.headIO.getOrNull(PUUID.from(this.partitionKey, origId));
-        }
+    private void addClaimableTrust(EffectivePermissions ret) {
+        BaseDao obj = findDataObj(origId);
 
         if (obj != null) {
             Class<?> type = obj.getClass();
 
+            // If the data object is marked as claimable we only add the public write role if the
+            // data object does not yet have a root record stored on the chain-of-trust (first come, first serve).
             if (d.daoParents.getAllowedParentClaimable().contains(type))
             {
                 DataContainer container = d.headIO.getRawOrNull(PUUID.from(this.partitionKey, this.origId));
                 if (container == null)
                 {
                     MessagePublicKeyDto publicKey = d.encryptor.getTrustOfPublicWrite();
-                    String implicitKeyHash = d.encryptor.getPublicKeyHash(publicKey);
-                    if (ret.rolesWrite.contains(implicitKeyHash) == false) {
-                        ret.rolesWrite.add(implicitKeyHash);
-                    }
+                    ret.addWriteRole(publicKey);
                 }
             }
         }
@@ -206,7 +200,7 @@ public class EffectivePermissionBuilder {
      * If the user asks for it then we can also add permissions that will be added once the mergeThreeWay
      * into the chain of trust takes place (useful for pre-mergeThreeWay checks)
      */
-    private void addPostMergedPerms(EffectivePermissions ret, @Nullable BaseDao retObj) {
+    private void addPostMergedPerms(EffectivePermissions ret) {
         boolean isParents = false;
         boolean inheritRead = true;
         boolean inheritWrite = true;
@@ -215,16 +209,8 @@ public class EffectivePermissionBuilder {
         @DaoId UUID parentId = origParentId;
         do
         {
-            BaseDao obj;
-            if (retObj != null && retObj.getId().compareTo(id) == 0) {
-                obj = retObj;
-            } else {
-                obj = d.headIO.getOrNull(PUUID.from(this.partitionKey, id));
-            }
-
+            BaseDao obj = this.findDataObj(id);
             if (obj != null) {
-                ret.updateEncryptKeyFromObjIfNull(obj);
-
                 if (obj instanceof IRoles) {
                     IRoles roles = (IRoles) obj;
 

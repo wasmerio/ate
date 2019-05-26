@@ -23,7 +23,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 @RequestScoped
 public class CurrentRightsDelegate implements IRights {
 
-    private AteDelegate d = AteDelegate.getUnsafe();
+    private AteDelegate d = AteDelegate.get();
     private RightsDiscoverEvent currentRights = new RightsDiscoverEvent();
     private @Nullable Set<MessagePrivateKeyDto> rightsReadCache = null;
     private @Nullable Set<MessagePrivateKeyDto> rightsWriteCache = null;
@@ -67,6 +67,11 @@ public class CurrentRightsDelegate implements IRights {
         }
         
         clearRightsCache();
+    }
+
+    public void impersonate(IRights rights) {
+        IPartitionKey key = d.headIO.partitionResolver().resolve(rights);
+        impersonate(key, rights);
     }
 
     @Override

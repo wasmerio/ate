@@ -31,7 +31,7 @@ import java.util.UUID;
 @RequestScoped
 public class CurrentTokenDelegate {
 
-    private AteDelegate                         d = AteDelegate.getUnsafe();
+    private AteDelegate                         d = AteDelegate.get();
     private boolean                             performedValidation = false;
     private boolean                             withinTokenScope = false;
     private @Nullable ScopeContext<String>      tokenScopeContext = null;

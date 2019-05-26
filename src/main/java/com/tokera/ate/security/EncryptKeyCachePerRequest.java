@@ -25,7 +25,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 @RequestScoped
 public class EncryptKeyCachePerRequest {
 
-    private AteDelegate d = AteDelegate.getUnsafe();
+    private AteDelegate d = AteDelegate.get();
     
     private final Map<String, byte[]> localEncryptKeyCache = new HashMap<>();
     private final Set<String> nakCache = new HashSet<>();

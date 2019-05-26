@@ -25,7 +25,7 @@ import java.util.*;
 public class KafkaBridgeBuilder {
 
     private @Nullable RuntimeException exceptionOnUse = null;
-    private AteDelegate d = AteDelegate.getUnsafe();
+    private AteDelegate d = AteDelegate.get();
     @SuppressWarnings("initialization.fields.uninitialized")
     @Inject
     private LoggerHook LOG;

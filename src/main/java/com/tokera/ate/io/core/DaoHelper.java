@@ -7,6 +7,8 @@ import com.tokera.ate.annotations.ImplicitAuthorityField;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.merge.DataMerger;
+import com.tokera.ate.io.repo.DataStagingManager;
+import com.tokera.ate.io.repo.DataSubscriber;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.dao.IParams;
 import com.tokera.ate.dao.IRights;
@@ -19,6 +21,7 @@ import org.apache.commons.codec.binary.Base64;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.ApplicationScoped;
+import javax.inject.Inject;
 
 /**
  * Helper functions used for common operations on data objects
@@ -26,7 +29,10 @@ import javax.enterprise.context.ApplicationScoped;
 @Startup
 @ApplicationScoped
 public class DaoHelper {
-    private AteDelegate d = AteDelegate.getUnsafe();
+    private AteDelegate d = AteDelegate.get();
+    @SuppressWarnings("initialization.fields.uninitialized")
+    @Inject
+    private DataStagingManager staging;
 
     public @Secret String generateEncryptKey(IRoles roles)
     {
@@ -164,13 +170,16 @@ public class DaoHelper {
     public @Nullable BaseDao getParent(@Nullable BaseDao entity)
     {
         if (entity == null) return null;
-        IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(entity);
 
-        PUUID parentId = PUUID.from(partitionKey, entity.getParentId());
+        UUID parentId = entity.getParentId();
         if (parentId == null) return null;
-        if (parentId.id().equals(entity.getId())) return null;
-        if (d.headIO.exists(parentId) == false) return null;
-        return d.headIO.getOrNull(parentId);
+        if (parentId.equals(entity.getId())) return null;
+
+        IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(entity);
+        BaseDao ret = this.staging.find(partitionKey, parentId);
+        if (ret != null) return ret;
+
+        return d.headIO.getOrNull(PUUID.from(partitionKey, parentId));
     }
 
     public @Nullable IParams getDaoParams(PUUID id) {

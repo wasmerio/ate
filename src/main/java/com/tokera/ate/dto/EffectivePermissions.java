@@ -11,6 +11,9 @@ import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.IRights;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
+import com.tokera.ate.dto.msg.MessagePublicKeyDto;
+import com.tokera.ate.security.EffectivePermissionBuilder;
+import com.tokera.ate.units.DaoId;
 import com.tokera.ate.units.Hash;
 import com.tokera.ate.units.Secret;
 import org.apache.commons.codec.binary.Base64;
@@ -20,6 +23,7 @@ import javax.validation.constraints.NotNull;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 /**
  * Contains all the read and write roles and permissions for a particular requestContext, The main use of this class is to
@@ -72,14 +76,44 @@ public class EffectivePermissions
         return false;
     }
 
-    public void updateEncryptKeyFromObjIfNull(BaseDao obj) {
-        if (this.encryptKeyHash == null) {
+    public void updateEncryptKeyFromObjIfNull(@DaoId UUID id, EffectivePermissionBuilder builder) {
+        if (this.encryptKeyHash == null)
+        {
+            BaseDao obj = builder.findDataObj(id);
+            if (obj == null) return;
+
             AteDelegate d = AteDelegate.get();
-            String encryptKey64 = d.daoHelper.getEncryptKey(obj, false, false);
+            String encryptKey64 = d.daoHelper.getEncryptKeySingle(obj, false, false);
             if (encryptKey64 != null) {
                 byte[] encryptKey = Base64.decodeBase64(encryptKey64);
                 this.encryptKeyHash = d.encryptor.hashShaAndEncode(encryptKey);
+                return;
             }
+
+            @DaoId UUID parentId = obj.getParentId();
+            if (parentId == null) return;
+
+            updateEncryptKeyFromObjIfNull(parentId, builder);
+        }
+    }
+
+    public void addWriteRole(MessagePublicKeyDto key) {
+        @Hash String hash = key.getPublicKeyHash();
+        if (rolesWrite.contains(hash) == false) {
+            rolesWrite.add(hash);
+        }
+        if (anchorRolesWrite.contains(hash) == false) {
+            anchorRolesWrite.add(hash);
+        }
+    }
+
+    public void addReadRole(MessagePublicKeyDto key) {
+        @Hash String hash = key.getPublicKeyHash();
+        if (rolesRead.contains(hash) == false) {
+            rolesRead.add(hash);
+        }
+        if (anchorRolesRead.contains(hash) == false) {
+            anchorRolesRead.add(hash);
         }
     }
 }

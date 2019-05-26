@@ -13,7 +13,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
  */
 @TokenScoped
 public class TransactionCoordinator  {
-    private AteDelegate d = AteDelegate.getUnsafe();
+    private AteDelegate d = AteDelegate.get();
 
     private ConcurrentLinkedQueue<MessageSyncDto> syncs = new ConcurrentLinkedQueue<>();
 

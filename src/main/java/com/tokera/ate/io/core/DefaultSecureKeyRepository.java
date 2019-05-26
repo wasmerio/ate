@@ -19,7 +19,7 @@ import java.io.IOException;
  * log itself (obviously they are also encrypted themselves for security reasons).
  */
 public class DefaultSecureKeyRepository implements ISecureKeyRepository {
-    private AteDelegate d = AteDelegate.getUnsafe();
+    private AteDelegate d = AteDelegate.get();
 
     @Override
     public @Secret byte @Nullable [] get(IPartitionKey partitionKey, @Hash String secretKeyHash, MessagePrivateKeyDto accessKey) {

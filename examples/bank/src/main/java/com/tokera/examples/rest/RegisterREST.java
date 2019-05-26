@@ -27,7 +27,13 @@ public class RegisterREST {
         Account acc = new Account("Company account for " + domain);
         Company company = new Company(domain, acc);
         acc.company = company.getId();
+
+        // Create access rights and grant them to ourselves
+        d.authorization.authorizeEntity(company, company);
+        d.currentRights.impersonate(company);
         d.headIO.mergeLater(company);
+
+        // Now save the account using this access rights
         d.headIO.mergeLater(acc);
         return company;
     }
@@ -41,7 +47,13 @@ public class RegisterREST {
         Account acc = new Account("Individual account for " + email);
         Individual individual = new Individual(email, acc);
         acc.individual = individual.getId();
+
+        // Create access rights and grant them to ourselves
+        d.authorization.authorizeEntity(individual, individual);
+        d.currentRights.impersonate(individual);
         d.headIO.mergeLater(individual);
+
+        // Now save the account using this access rights
         d.headIO.mergeLater(acc);
         return individual;
     }

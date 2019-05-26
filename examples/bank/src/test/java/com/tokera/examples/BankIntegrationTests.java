@@ -42,7 +42,7 @@ public class BankIntegrationTests {
     @Test
     @Order(1)
     @DisplayName("...creating an individual account")
-    public void createIndividual1() {
+    public void createIndividual() {
         String email = "joe.blog@gmail.com";
         String ret = new RawClientBuilder()
                 .server("127.0.0.1")
@@ -50,5 +50,7 @@ public class BankIntegrationTests {
                 .prefixForRest("/rs/1-0")
                 .build()
                 .restPost("/register/individual", Entity.entity(email, MediaType.TEXT_PLAIN), String.class);
+        AteDelegate d = AteDelegate.get();
+        d.genericLogger.info(ret);
     }
 }

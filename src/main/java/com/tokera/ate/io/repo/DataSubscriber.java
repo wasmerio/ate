@@ -27,7 +27,7 @@ import javax.enterprise.inject.spi.CDI;
  */
 public class DataSubscriber {
 
-    private AteDelegate d = AteDelegate.getUnsafe();
+    private AteDelegate d = AteDelegate.get();
     private final LoggerHook LOG;
     private final Cache<String, @NonNull DataPartition> topicCache;
     private final ConcurrentHashMap<String, RamTopicPartition> ramPartitions;
@@ -77,9 +77,7 @@ public class DataSubscriber {
     }
 
     private DataPartition createPartition(IPartitionKey key, DataPartitionType type) {
-        DataPartitionChain chain = new DataPartitionChain(
-                key,
-                d.daoParents);
+        DataPartitionChain chain = new DataPartitionChain(key);
         IDataPartitionBridge bridge = createBridge(key, chain, type);
 
         DataPartition newTopic = new DataPartition(key, chain, bridge, type, d.daoParents);

@@ -21,6 +21,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import javax.annotation.PostConstruct;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
+import java.lang.reflect.Field;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -29,7 +30,7 @@ import java.util.concurrent.TimeUnit;
 @ApplicationScoped
 public class DataSerializer {
 
-    private AteDelegate d = AteDelegate.getUnsafe();
+    private AteDelegate d = AteDelegate.get();
     @SuppressWarnings("initialization.fields.uninitialized")
     @Inject
     private LoggerHook LOG;
@@ -246,7 +247,7 @@ public class DataSerializer {
         // Get the effective permissions for a object
         EffectivePermissions permissions = new EffectivePermissionBuilder(partitionKey, obj.getId(), obj.getParentId())
                 .setUsePostMerged(true)
-                .buildWith(obj);
+                .build();
         
         // Embed the decryption key using all the private toPutKeys that we might have
         writePermissionEncryptKeysForDataObject(permissions, kt, encryptKey, encryptKeyHash);
@@ -306,12 +307,24 @@ public class DataSerializer {
         T orig = _orig;
         if (orig == null) return null;
 
+        MessageDataHeaderDto header = msg.getHeader();
+
         Object cloned = d.merger.cloneObject(orig);
         if (cloned == null) return null;
         T ret = (T)cloned;
-        ret.version = msg.getHeader().getVersionOrThrow();
-        ret.previousVersion = msg.getHeader().getPreviousVersion();
-        ret.mergesVersions = msg.getHeader().getMerges();
+        ret.version = header.getVersionOrThrow();
+        ret.previousVersion = header.getPreviousVersion();
+        ret.mergesVersions = header.getMerges();
+
+        Field implicitAuthorityField = d.daoParents.getAllowedDynamicImplicitAuthoritySimple().getOrDefault(header.getPayloadClazzOrThrow(), null);
+        if (implicitAuthorityField != null) {
+            try {
+                implicitAuthorityField.set(ret, header.getImplicitAuthority().stream().findFirst().orElse(null));
+            } catch (IllegalAccessException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
         return ret;
     }
 

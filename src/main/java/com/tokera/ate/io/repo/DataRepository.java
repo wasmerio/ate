@@ -2,6 +2,7 @@ package com.tokera.ate.io.repo;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
 
@@ -35,7 +36,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 @RequestScoped
 public class DataRepository implements IAteIO {
 
-    private AteDelegate d = AteDelegate.getUnsafe();
+    private AteDelegate d = AteDelegate.get();
     @SuppressWarnings("initialization.fields.uninitialized")
     @Inject
     private LoggerHook LOG;
@@ -63,13 +64,6 @@ public class DataRepository implements IAteIO {
             .maximumSize(10000)
             .expireAfterWrite(10, TimeUnit.MINUTES)
             .build();
-
-    private class PartitionMergeContext {
-        public HashSet<UUID> toPutKeys = new HashSet<>();
-        public List<BaseDao> toPut = new ArrayList<>();
-        public HashSet<UUID> toDeleteKeys = new HashSet<>();
-        public List<BaseDao> toDelete = new ArrayList<>();
-    }
     
     @Override
     public void warm(IPartitionKey partitionKey) {
@@ -189,11 +183,10 @@ public class DataRepository implements IAteIO {
                 throw new RuntimeException("This entity [" + type.getSimpleName() + "] is not attached to a parent [see PermitParentType annotation].");
             }
 
-            BaseDao parentInCache = this.d.memoryRequestCacheIO.getOrNull(entity.addressableId());
             IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(entity);
             DataPartitionChain chain = this.subscriber.getChain(partitionKey);
-            DataContainer container = chain.getData(entityParentId, LOG);
-            if (container != null && d.daoParents.getAllowedParentsSimple().containsEntry(entityType, container.getPayloadClazz()) == false) {
+            DataContainer parentContainer = chain.getData(entityParentId, LOG);
+            if (parentContainer != null && d.daoParents.getAllowedParentsSimple().containsEntry(entityType, parentContainer.getPayloadClazz()) == false) {
                 if (type.getAnnotation(Dependent.class) == null) {
                     throw new RuntimeException("This entity [" + type.getSimpleName() + "] has not been marked with the Dependent annotation.");
                 }
@@ -202,10 +195,14 @@ public class DataRepository implements IAteIO {
 
             // Make sure the leaf of the chain of trust exists
             String parentClazz;
-            if (container != null) parentClazz = container.getPayloadClazz();
-            else if (parentInCache != null) parentClazz = parentInCache.getClass().getName();
-            else {
-                throw new RuntimeException("You must save the parent object before this one otherwise the chain of trust will break.");
+            if (parentContainer != null) {
+                parentClazz = parentContainer.getPayloadClazz();
+            } else {
+                BaseDao parentEntity = staging.find(partitionKey, entityParentId);
+                if (parentEntity == null) {
+                    throw new RuntimeException("You have yet saved the parent object [" + entity.getParentId() + "] which you must do before this one [" + entity.getId() + "] otherwise the chain of trust will break.");
+                }
+                parentClazz = parentEntity.getClass().getName();
             }
 
             // Now make sure the parent type is actually valid
@@ -226,8 +223,6 @@ public class DataRepository implements IAteIO {
     private void validateTrustWritability(BaseDao entity) {
         if (d.authorization.canWrite(entity) == false)
         {
-            this.clearDeferred();
-
             IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(entity);
             EffectivePermissions permissions = d.authorization.perms(entity);
             throw d.authorization.buildWriteException(partitionKey, entity.getId(), permissions, true);
@@ -249,10 +244,7 @@ public class DataRepository implements IAteIO {
 
     private void mergeLaterInternal(BaseDao entity, boolean validate) {
         IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(entity);
-
-        DataStagingManager.PartitionContext tContext = staging.getPartitionMergeContext(partitionKey);
-
-        if (tContext.toPut.contains(entity.getId()) == true) {
+        if (this.staging.find(partitionKey, entity.getId()) != null) {
             return;
         }
 
@@ -268,15 +260,8 @@ public class DataRepository implements IAteIO {
         if (validate == true) {
             validateTrustWritability(entity);
         }
-        
-        if (tContext.toPutKeys.contains(entity.getId()) == false) {
-            tContext.toPutKeys.add(entity.getId());
-            tContext.toPut.add(entity);
-        }
-        if (tContext.toDeleteKeys.contains(entity.getId()) == true) {
-            tContext.toDelete.remove(entity);
-            tContext.toDeleteKeys.remove(entity.getId());
-        }
+
+        this.staging.put(partitionKey, entity);
     }
 
     private void mergeDeferredInternal(DataPartition kt, BaseDao entity, List<MessageDataDto> datas, Map<UUID, @Nullable MessageDataDto> requestTrust) {
@@ -304,21 +289,19 @@ public class DataRepository implements IAteIO {
     public void mergeDeferred()
     {
         if (DataRepoConfig.g_EnableLogging == true) {
-            this.LOG.info("merge_deferred: [topic_cnt=" + staging.getActivePartitionKeys().size() + "]\n");
+            this.LOG.info("merge_deferred: [cnt=" + this.staging.size() + "]\n");
         }
 
-        for (IPartitionKey partitionKey : staging.getActivePartitionKeys()) {
+        for (IPartitionKey partitionKey : this.staging.keys()) {
             d.requestContext.pushPartitionKey(partitionKey);
             try {
-                DataStagingManager.PartitionContext tContext = staging.getPartitionMergeContext(partitionKey);
-
                 // Get the partition
                 DataPartition kt = this.subscriber.getPartition(partitionKey);
 
                 // Loop through all the entities and validate them all
                 Map<UUID, @Nullable MessageDataDto> requestTrust = new HashMap<>();
                 List<MessageDataDto> datas = new ArrayList<>();
-                for (BaseDao entity : tContext.toPut.stream().collect(Collectors.toList())) {
+                for (BaseDao entity : this.staging.puts(partitionKey)) {
                     mergeDeferredInternal(kt, entity, datas, requestTrust);
                 }
 
@@ -331,7 +314,7 @@ public class DataRepository implements IAteIO {
                 }
 
                 // Remove delete any entities that need to be removed
-                for (BaseDao entity : tContext.toDelete) {
+                for (BaseDao entity : this.staging.deletes(partitionKey)) {
                     remove(entity);
                     shouldWait = true;
                 }
@@ -412,7 +395,6 @@ public class DataRepository implements IAteIO {
     @Override
     public void removeLater(BaseDao entity) {
         IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(entity);
-        DataStagingManager.PartitionContext tContext = staging.getPartitionMergeContext(partitionKey);
 
         // We only actually need to validate and queue if the object has ever been saved
         if (entity.hasSaved() == true)
@@ -423,15 +405,11 @@ public class DataRepository implements IAteIO {
             // Validate that we can write to this entity
             validateTrustWritability(entity);
 
-            if (tContext.toDeleteKeys.contains(entity.getId()) == false) {
-                tContext.toDeleteKeys.add(entity.getId());
-                tContext.toDelete.add(entity);
-            }
+            this.staging.delete(partitionKey, entity);
         }
-
-        if (tContext.toPutKeys.contains(entity.getId()) == true) {
-            tContext.toPut.remove(entity);
-            tContext.toPutKeys.remove(entity.getId());
+        else
+        {
+            this.staging.undo(partitionKey, entity);
         }
     }
 
@@ -601,7 +579,7 @@ public class DataRepository implements IAteIO {
 
     @Override
     public void clearDeferred() {
-        staging.clear();
+        this.staging.clear();
     }
 
     @Override

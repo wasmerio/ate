@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
 @ResourceScoped
 public class ResourceInfoDelegate
 {
-    private AteDelegate d = AteDelegate.getUnsafe();
+    private AteDelegate d = AteDelegate.get();
 
     private final Method resourceMethod;
     private final Class<?> resourceClazz;

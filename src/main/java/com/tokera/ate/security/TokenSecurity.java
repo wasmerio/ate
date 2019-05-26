@@ -36,7 +36,7 @@ import org.opensaml.xml.validation.ValidationException;
 @TokenScoped
 public class TokenSecurity
 {
-    private AteDelegate d = AteDelegate.getUnsafe();
+    private AteDelegate d = AteDelegate.get();
     @SuppressWarnings("initialization.fields.uninitialized")
     @Inject
     protected LoggerHook LOG;

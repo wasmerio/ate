@@ -4,6 +4,8 @@ import com.tokera.ate.annotations.ClaimableAuthority;
 import com.tokera.ate.annotations.PermitParentFree;
 import com.tokera.ate.common.UUIDTools;
 import com.tokera.ate.dao.base.BaseDaoRolesRights;
+import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.units.*;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -37,5 +39,10 @@ public class Individual extends BaseDaoRolesRights {
 
     public @Nullable @DaoId UUID getParentId() {
         return null;
+    }
+
+    @Alias
+    public String getRightsAlias(){
+        return email;
     }
 }

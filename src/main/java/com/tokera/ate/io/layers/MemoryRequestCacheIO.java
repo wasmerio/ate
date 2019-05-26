@@ -25,7 +25,7 @@ import java.util.stream.Collectors;
 @RequestScoped
 public class MemoryRequestCacheIO implements IAteIO
 {
-    private AteDelegate d = AteDelegate.getUnsafe();
+    private AteDelegate d = AteDelegate.get();
 
     private class PartitionCache {
         public final Map<UUID, BaseDao> entries = new HashMap<>();
