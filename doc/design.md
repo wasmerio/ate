@@ -609,21 +609,32 @@ least the second cipher will protect the customer data until a fix can be rolled
 out to take advantage of the weakness. Given ATE is highly dependent on cryptography
 for its authentication and authorization models this is deemed an acceptable cost.
 
-ATE uses two signature algorithms for anything that's written:
+Note: When using cascading encryption separate encryption keys are generated using
+secure random number generators.
+
+ATE uses two asymmetric signature algorithms for anything that's written:
 
 - **qTESLA** - _lattice-based (ring learning with errors)_
 - **XMSS(mt)** - _hash-based (extended merkle signature scheme)_
 
-ATE uses two encryption algorithms for its
+ATE uses two asymmetric encryption algorithms for its
 
 - **NTRU** - _lattice-based (shortest vector problem)_
 - **NewHope** - _lattice-based (ring learning with errors)_
+
+ATE uses one levels of symmetric encryption with the keys hidden behind the
+earlier asymmetric encryption (this is done for performance reasons through the
+reuse of the faster symmetric encryption when within the same security boundary):
+
+- **AES256** - _equivalent to AES128 on classical computer_
+- **AES512** - _equivalent to AES256 on classical computer_
 
 All of these algorithms are candidates for NIST post quantum cryptography:  
 https://en.wikipedia.org/wiki/Post-Quantum_Cryptography_Standardization#cite_note-20
 
 XMSS-MT and NewHope provide forward secrecy
 
+Reference: https://en.wikipedia.org/wiki/Grover%27s_algorithm
 Reference: https://en.wikipedia.org/wiki/Multiple_encryption  
 Reference: https://blog.cryptographyengineering.com/2012/02/02/multiple-encryption/  
 Reference: https://en.wikipedia.org/wiki/Post-Quantum_Cryptography_Standardization#cite_note-20  
