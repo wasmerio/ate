@@ -609,8 +609,10 @@ least the second cipher will protect the customer data until a fix can be rolled
 out to take advantage of the weakness. Given ATE is highly dependent on cryptography
 for its authentication and authorization models this is deemed an acceptable cost.
 
+`
 Note: When using cascading encryption separate encryption keys are generated using
 secure random number generators.
+`
 
 ATE uses two asymmetric signature algorithms for anything that's written:
 
@@ -622,12 +624,21 @@ ATE uses two asymmetric encryption algorithms for its
 - **NTRU** - _lattice-based (shortest vector problem)_
 - **NewHope** - _lattice-based (ring learning with errors)_
 
-ATE uses one levels of symmetric encryption with the keys hidden behind the
-earlier asymmetric encryption (this is done for performance reasons through the
-reuse of the faster symmetric encryption when within the same security boundary):
+ATE uses symmetric encryption to encrypt the actual data itself with the keys hidden
+behind the earlier asymmetric encryption (this is done for performance reasons
+through the reuse of the faster symmetric encryption when within the same security
+boundary):
 
 - **AES256** - _equivalent to AES128 on classical computer_
 - **AES512** - _equivalent to AES256 on classical computer_
+
+`
+Note: For the observant reader this means if AES is broken in the future then
+everything is broken no matter what asymmetric signature or encryption algorithms
+as this would allow for reading of all the data without the need to break asymmetric
+cryptographic - however - AES is currently deemed post quantum resistant when doubling
+the key size - no viable alternatives exist at the time of writing.
+`
 
 All of these algorithms are candidates for NIST post quantum cryptography:  
 https://en.wikipedia.org/wiki/Post-Quantum_Cryptography_Standardization#cite_note-20
