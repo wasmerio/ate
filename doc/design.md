@@ -614,12 +614,14 @@ Note: When using cascading encryption separate encryption keys are generated usi
 secure random number generators.
 `
 
-ATE uses two asymmetric signature algorithms for anything that's written:
+ATE uses two asymmetric signature algorithms to prevent breach of integrity (a.k.a.
+unauthorized writes):
 
 - **qTESLA** - _lattice-based (ring learning with errors)_
 - **XMSS(mt)** - _hash-based (extended merkle signature scheme)_
 
-ATE uses two asymmetric encryption algorithms for its
+ATE uses two asymmetric encryption algorithms to prevent breach of confidentially
+(a.k.a. unauthorized reads):
 
 - **NTRU** - _lattice-based (shortest vector problem)_
 - **NewHope** - _lattice-based (ring learning with errors)_
