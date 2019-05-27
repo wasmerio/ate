@@ -1085,15 +1085,6 @@ public class Encryptor implements Runnable
         return ret;
     }
     
-    public @PEM String getPublicKeyBytesAsBase64(MessagePublicKeyDto key)
-    {
-        @PEM String ret = key.getPublicKey();
-        if (ret == null) {
-            throw new RuntimeException("Public key has no public key bytes attached.");
-        }
-        return ret;
-    }
-    
     public @Hash String getPublicKeyHash(MessagePrivateKey key)
     {
         MessagePublicKey publicKey = key.publicKey();
@@ -1101,24 +1092,6 @@ public class Encryptor implements Runnable
             throw new RuntimeException("Pirvate key does not no public key attached.");
         }
         return this.getPublicKeyHash(publicKey);
-    }
-    
-    public @Hash String getPrivateKeyHash(MessagePrivateKey key)
-    {
-        @Hash String hash = key.privateKeyHash();
-        if (hash == null) {
-            throw new RuntimeException("Private key does not have a hash attached.");
-        }
-        return hash;
-    }
-    
-    public @Hash String getPrivateKeyHash(MessagePrivateKeyDto key)
-    {
-        @Hash String ret = key.getPrivateKeyHash();
-        if (ret == null) {
-            throw new RuntimeException("Private key has no hash attached.");
-        }
-        return ret;
     }
     
     public @Alias String getAlias(MessagePrivateKey key)
@@ -1168,9 +1141,9 @@ public class Encryptor implements Runnable
         return new MessagePublicKeyDto(key);
     }
     
-    public MessagePublicKeyDto createPublicKey(@PlainText String publicKeyBase64, @Alias String alias)
+    public MessagePublicKeyDto createPublicKey(@PlainText String publicKey1Base64, @PlainText String publicKey2Base64, @Alias String alias)
     {
-        MessagePublicKeyDto ret = new MessagePublicKeyDto(publicKeyBase64);
+        MessagePublicKeyDto ret = new MessagePublicKeyDto(publicKey1Base64, publicKey2Base64);
         ret.setAlias(alias);
         return ret;
     }
@@ -1189,9 +1162,9 @@ public class Encryptor implements Runnable
         return ret;
     }
     
-    public MessagePrivateKeyDto createPrivateKey(@PEM byte[] publicKeyBytes, @Secret byte[] privateKeyBytes, @Nullable @Alias String _alias)
+    public MessagePrivateKeyDto createPrivateKey(@PEM byte[] publicKeyBytes1, @PEM byte[] publicKeyBytes2, @Secret byte[] privateKeyBytes1, @Secret byte[] privateKeyBytes2, @Nullable @Alias String _alias)
     {
-        MessagePrivateKeyDto ret = new MessagePrivateKeyDto(publicKeyBytes, privateKeyBytes);
+        MessagePrivateKeyDto ret = new MessagePrivateKeyDto(publicKeyBytes1, publicKeyBytes2, privateKeyBytes1, privateKeyBytes2);
 
         @Alias String alias = _alias;
         if (alias != null) {
@@ -1200,8 +1173,8 @@ public class Encryptor implements Runnable
         return ret;
     }
     
-    public MessagePrivateKeyDto createPrivateKey(@PEM String publicKeyBase64, @Secret String privateKeyBase64, @Alias String alias)
+    public MessagePrivateKeyDto createPrivateKey(@PEM String publicKey1Base64, @PEM String publicKey2Base64, @Secret String privateKey1Base64, @Secret String privateKey2Base64, @Alias String alias)
     {
-        return createPrivateKey(Base64.decodeBase64(publicKeyBase64), Base64.decodeBase64(privateKeyBase64), alias);
+        return createPrivateKey(Base64.decodeBase64(publicKeyBase64), Base64.decodeBase64(publicKey2Base64), Base64.decodeBase64(privateKeyBase64), alias);
     }
 }
