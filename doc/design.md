@@ -636,8 +636,8 @@ boundary):
 Note: For the observant reader this means if AES is broken in the future then
 everything is broken no matter what asymmetric signature or encryption algorithms
 as this would allow for reading of all the data without the need to break asymmetric
-cryptographic - however - AES is currently deemed post quantum resistant when doubling
-the key size - no viable alternatives exist at the time of writing.
+cryptographic. AES is currently deemed post quantum resistant when doubling
+the key size besides this no viable alternatives exist at the time of design.
 `
 
 All of these algorithms are candidates for NIST post quantum cryptography:  
@@ -645,7 +645,7 @@ https://en.wikipedia.org/wiki/Post-Quantum_Cryptography_Standardization#cite_not
 
 XMSS-MT and NewHope provide forward secrecy
 
-Reference: https://en.wikipedia.org/wiki/Grover%27s_algorithm
+Reference: https://en.wikipedia.org/wiki/Grover%27s_algorithm  
 Reference: https://en.wikipedia.org/wiki/Multiple_encryption  
 Reference: https://blog.cryptographyengineering.com/2012/02/02/multiple-encryption/  
 Reference: https://en.wikipedia.org/wiki/Post-Quantum_Cryptography_Standardization#cite_note-20  
