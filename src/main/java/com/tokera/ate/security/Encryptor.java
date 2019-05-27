@@ -47,12 +47,13 @@ import javax.xml.bind.DatatypeConverter;
 
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.lang.time.StopWatch;
+import org.bouncycastle.crypto.*;
+import org.bouncycastle.pqc.crypto.ExchangePair;
+import org.bouncycastle.pqc.crypto.newhope.*;
 import org.bouncycastle.pqc.crypto.ntru.*;
+import org.bouncycastle.pqc.crypto.qtesla.*;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
-import org.bouncycastle.crypto.AsymmetricCipherKeyPair;
-import org.bouncycastle.crypto.CipherParameters;
-import org.bouncycastle.crypto.InvalidCipherTextException;
 import org.bouncycastle.crypto.digests.SHA256Digest;
 import org.bouncycastle.crypto.digests.SHA512Digest;
 
@@ -114,6 +115,17 @@ public class Encryptor implements Runnable
     private final ConcurrentLinkedQueue<@Secret String> genAes128Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<@Secret String> genAes256Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<@Secret String> genSaltQueue = new ConcurrentLinkedQueue<>();
+
+    public class KeyPairBytes
+    {
+        public final byte[] privateKey;
+        public final byte[] publicKey;
+
+        public KeyPairBytes(byte[] privateKey, byte[] publicKey) {
+            this.privateKey = privateKey;
+            this.publicKey = publicKey;
+        }
+    }
     
     static {
         try {
@@ -506,12 +518,14 @@ public class Encryptor implements Runnable
             throw new RuntimeException(ex);
         }
     }
-    
+
+    @Deprecated
     public MessagePrivateKeyDto genSignKeyNtru(int keysize)
     {
         return genSignKeyNtru(keysize, null);
     }
-    
+
+    @Deprecated
     public MessagePrivateKeyDto genSignKeyNtru(int keysize, @Nullable @Alias String _alias)
     {
         @Alias String alias = _alias;
@@ -547,12 +561,14 @@ public class Encryptor implements Runnable
         MessagePrivateKeyDto key = new MessagePrivateKeyDto(publicKey, privateKey);
         this.genSign128Queue.add(key);
     }
-    
+
+    @Deprecated
     public MessagePrivateKeyDto genSignKeyNtruNow(int keysize)
     {
         return genSignKeyNtruNow(keysize, null); 
     }
-    
+
+    @Deprecated
     public MessagePrivateKeyDto genSignKeyNtruNow(int keysize, @Nullable @Alias String alias)
     {
         for (int n = 0; n < 8; n++) {
@@ -572,19 +588,21 @@ public class Encryptor implements Runnable
             }
 
             AsymmetricCipherKeyPair pair = keyGen.generateKeyPair(new UnPredictablyRandom());
-            if (testSign(pair) == false) {
+            if (testSignNtru(pair) == false) {
                 continue;
             }
             return extractKey(pair, alias);
         }
         throw new RuntimeException("Failed to generate signing key");
     }
-    
+
+    @Deprecated
     public MessagePrivateKeyDto genSignKeyNtruFromSeed(int keysize, @Salt String seed)
     {
         return genSignKeyNtruFromSeed(keysize, seed, null);
     }
-    
+
+    @Deprecated
     public MessagePrivateKeyDto genSignKeyNtruFromSeed(int keysize, @Salt String seed, @Nullable @Alias String alias)
     {
         SigningKeyPairGenerator gen = new SigningKeyPairGenerator();
@@ -603,13 +621,14 @@ public class Encryptor implements Runnable
         }
         
         AsymmetricCipherKeyPair pair = gen.generateKeyPair(new PredictablyRandom(seed));
-        if (testSign(pair) == false) {
+        if (testSignNtru(pair) == false) {
             throw new RuntimeException("Failed to generate signing key from seed");
         }
         return extractKey(pair, alias);
     }
-    
-    private boolean testSign(AsymmetricCipherKeyPair pair) {
+
+    @Deprecated
+    private boolean testSignNtru(AsymmetricCipherKeyPair pair) {
         
         NTRUSigningPrivateKeyParameters privateKey = (NTRUSigningPrivateKeyParameters) pair.getPrivate();
         NTRUSigningPublicKeyParameters publicKey = (NTRUSigningPublicKeyParameters) pair.getPublic();
@@ -725,6 +744,67 @@ public class Encryptor implements Runnable
         }
         return false;
     }
+
+    public KeyPairBytes genEncryptKeyNewHopeNow(int keysize)
+    {
+        SecureRandom keyRandom = new SecureRandom();
+        KeyGenerationParameters params = new KeyGenerationParameters(keyRandom, keysize);
+
+        NHKeyPairGenerator gen = new NHKeyPairGenerator();
+        gen.init(params);
+
+        AsymmetricCipherKeyPair pair = gen.generateKeyPair();
+        NHPublicKeyParameters paramsPublic = (NHPublicKeyParameters)pair.getPublic();
+        NHPrivateKeyParameters paramsPrivate = (NHPrivateKeyParameters)pair.getPrivate();
+
+        short[] secData = paramsPrivate.getSecData();
+        byte[] privateKey = new byte[secData.length * 2];
+        ByteBuffer privateBB = ByteBuffer.wrap(privateKey);
+        for (int index = 0; index < secData.length; index++) {
+            privateBB.putShort(secData[index]);
+        }
+
+        return new KeyPairBytes(privateKey, paramsPublic.getPubData());
+    }
+
+    public @Secret byte[] encryptNewHopeWithPublic(@Secret byte[] publicKey, @PlainText byte[] data)
+    {
+        NHPublicKeyParameters params = new NHPublicKeyParameters(publicKey);
+        ExchangePair exchangeSecret = new NHExchangePairGenerator(new SecureRandom()).generateExchange(params);
+        byte[] encKey = exchangeSecret.getSharedValue();
+
+        NHPublicKeyParameters keyExchangePublic = (NHPublicKeyParameters) (exchangeSecret.getPublicKey());
+        byte[] pubData = keyExchangePublic.getPubData();
+        byte[] encData = encryptAes(encKey, data);
+
+        ByteBuffer bb = ByteBuffer.allocate(4 + pubData.length + encData.length);
+        bb.putInt(pubData.length);
+        bb.put(pubData);
+        bb.put(encData);
+        return bb.array();
+    }
+
+    public @PlainText byte[] decryptNewHopeWithPrivate(@Secret byte[] privateKey, @Secret byte[] data)
+    {
+        short[] secData = new short[privateKey.length/2];
+        ByteBuffer privateBB = ByteBuffer.wrap(privateKey);
+        for (int index = 0; index < secData.length; index++) {
+            secData[index] = privateBB.getShort();
+        }
+
+        ByteBuffer bb = ByteBuffer.wrap(data);
+        int pubDataLength = bb.getInt();
+        byte[] pubData = new byte[pubDataLength];
+        byte[] encData = new byte[data.length - (4 + pubDataLength)];
+        bb.get(pubData);
+        bb.get(encData);
+
+        NHAgreement nhAgreement = new NHAgreement();
+        nhAgreement.init(new NHPrivateKeyParameters(secData));
+        byte[] encKey = nhAgreement.calculateAgreement(new NHPublicKeyParameters(pubData));
+
+        return this.decryptAes(encKey, encData);
+    }
     
     public @Secret byte[] encryptNtruWithPublic(@Secret byte[] key, @PlainText byte[] data)
     {
@@ -740,7 +820,7 @@ public class Encryptor implements Runnable
             
             NTRUEngine engine = new NTRUEngine();
             engine.init(true, priv);
-            
+
             return engine.processBlock(data, 0, data.length);
             
         } catch (InvalidCipherTextException ex) {
@@ -765,6 +845,62 @@ public class Encryptor implements Runnable
         return engine.processBlock(data, 0, data.length);
     }
 
+    public KeyPairBytes genSignKeyQTeslaNow(int keysize)
+    {
+        SecureRandom keyRandom = new SecureRandom();
+
+        QTESLAKeyGenerationParameters params;
+        switch (keysize) {
+            case 512:
+                params = new QTESLAKeyGenerationParameters(QTESLASecurityCategory.PROVABLY_SECURE_III, keyRandom);
+                break;
+            case 256:
+                params = new QTESLAKeyGenerationParameters(QTESLASecurityCategory.HEURISTIC_III_SPEED, keyRandom);
+                break;
+            case 128:
+            case 64:
+                params = new QTESLAKeyGenerationParameters(QTESLASecurityCategory.HEURISTIC_I, keyRandom);
+                break;
+            default:
+                throw new RuntimeException("Unknown GMSS key size(" + keysize + ")");
+        }
+        QTESLAKeyPairGenerator gen = new QTESLAKeyPairGenerator();
+        gen.init(params);
+
+        AsymmetricCipherKeyPair pair = gen.generateKeyPair();
+        QTESLAPublicKeyParameters paramsPublic = (QTESLAPublicKeyParameters)pair.getPublic();
+        QTESLAPrivateKeyParameters paramsPrivate = (QTESLAPrivateKeyParameters)pair.getPrivate();
+
+        return new KeyPairBytes(paramsPrivate.getSecret(), paramsPublic.getPublicData());
+    }
+
+    public @Signature byte[] signQTesla(@Secret byte[] privateKey, @Hash byte[] digest)
+    {
+        int securityCategory = QTESLASecurityCategory.HEURISTIC_I;
+        if (privateKey.length > 2000) securityCategory = QTESLASecurityCategory.HEURISTIC_III_SPEED;
+        if (privateKey.length > 8000) securityCategory = QTESLASecurityCategory.PROVABLY_SECURE_III;
+
+        QTESLAPrivateKeyParameters params = new QTESLAPrivateKeyParameters(securityCategory, privateKey);
+
+        QTESLASigner signer = new QTESLASigner();
+        signer.init(true, params);
+        return signer.generateSignature(digest);
+    }
+
+    public boolean verifyQTesla(@PEM byte[] publicKey, @Hash byte[] digest, @Signature byte[] sig)
+    {
+        int securityCategory = QTESLASecurityCategory.HEURISTIC_I;
+        if (publicKey.length > 2500) securityCategory = QTESLASecurityCategory.HEURISTIC_III_SPEED;
+        if (publicKey.length > 20000) securityCategory = QTESLASecurityCategory.PROVABLY_SECURE_III;
+
+        QTESLAPublicKeyParameters params = new QTESLAPublicKeyParameters(securityCategory, publicKey);
+
+        QTESLASigner signer = new QTESLASigner();
+        signer.init(false, params);
+        return signer.verifySignature(digest, sig);
+    }
+
+    @Deprecated
     @SuppressWarnings("deprecation")
     public @Signature byte[] signNtru(@Secret byte[] privateKey, @Hash byte[] digest)
     {
@@ -789,6 +925,7 @@ public class Encryptor implements Runnable
         }
     }
 
+    @Deprecated
     @SuppressWarnings("deprecation")
     public boolean verifyNtru(@PEM byte[] publicKey, @Hash byte[] digest, @Signature byte[] sig)
     {
@@ -919,12 +1056,12 @@ public class Encryptor implements Runnable
         throw new RuntimeException("Unable to extract the key as it is an unknown type");
     }
     
-    public MessagePrivateKeyDto extractKey(AsymmetricCipherKeyPair pair) {
-        return extractKey(pair, null);
+    public MessagePrivateKeyDto extractKey(AsymmetricCipherKeyPair pair1, AsymmetricCipherKeyPair pair2) {
+        return extractKey(pair1, pair2, null);
     }
     
-    public MessagePrivateKeyDto extractKey(AsymmetricCipherKeyPair pair, @Nullable @Alias String alias) {
-        return createPrivateKey(extractKey(pair.getPublic()), extractKey(pair.getPrivate()), alias);
+    public MessagePrivateKeyDto extractKey(AsymmetricCipherKeyPair pair1, AsymmetricCipherKeyPair pair2, @Nullable @Alias String alias) {
+        return createPrivateKey(extractKey(pair1.getPublic()), extractKey(pair2.getPublic()), extractKey(pair1.getPrivate()), extractKey(pair2.getPrivate()), alias);
     }
     
     public MessagePrivateKeyDto getTrustOfPublicRead() {
@@ -1175,6 +1312,6 @@ public class Encryptor implements Runnable
     
     public MessagePrivateKeyDto createPrivateKey(@PEM String publicKey1Base64, @PEM String publicKey2Base64, @Secret String privateKey1Base64, @Secret String privateKey2Base64, @Alias String alias)
     {
-        return createPrivateKey(Base64.decodeBase64(publicKeyBase64), Base64.decodeBase64(publicKey2Base64), Base64.decodeBase64(privateKeyBase64), alias);
+        return createPrivateKey(Base64.decodeBase64(publicKey1Base64), Base64.decodeBase64(publicKey2Base64), Base64.decodeBase64(privateKey1Base64), Base64.decodeBase64(privateKey2Base64), alias);
     }
 }

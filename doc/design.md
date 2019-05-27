@@ -587,9 +587,10 @@ quantum computer(s) of the future. While not a real threat today we must already
 build defence against future attacks as the distributed commit log is aimed to live
 for very long periods of time, thus attacks in the future will be able to attack
 data recorded in the past. Hence it is prudent to select and use algorithms that
-are resistant to quantum attacks. This is especially important as it is estimated
-at the time of writing that capable quantum based attacks on cryptographic will be
-possible in the next 5 years.
+are resistant to quantum attacks and ideally the algorithms selected must also
+exhibit forward secrecy where possible. This is especially important as it is
+estimated at the time of writing that capable quantum based attacks on
+cryptographic will be possible in the next 5 years.
 
 The following asymmetric cryptography have been shown mathematically to be highly
 vulnerable to such attacks:
@@ -600,16 +601,34 @@ vulnerable to such attacks:
 * Diffie-Hellman
 * Elliptic curve Diffie-Hellman
 
-ATE is built on [NTRU](https://en.wikipedia.org/wiki/NTRU) which has been studied
-for many years in the public domain without known feasible attacks being found
-(when used with the correct initialization parameters). Further ATE also uses AES
-encryption thus key lengths equal or greater than 256bits are used which known to
-be large enough that AES is currently considered safe. These together mean that it
-is currently unfeasible to attack ATE with the known quantum computers of the
-future.
+ATE adopts the principle of superencryption (cascading encryption with the rule
+of two) using distinctly different algorithms which ideally reside in different
+cryptographic groups. The idea behind this extra computation, complexity and key
+size is that if a weakness is found in one of the ciphers in the future then at
+least the second cipher will protect the customer data until a fix can be rolled
+out to take advantage of the weakness. Given ATE is highly dependent on cryptography
+for its authentication and authorization models this is deemed an acceptable cost.
 
-Reference: https://en.wikipedia.org/wiki/Post-quantum_cryptography  
-Reference: https://nvlpubs.nist.gov/nistpubs/ir/2016/NIST.IR.8105.pdf  
+ATE uses two signature algorithms for anything that's written:
+
+- **qTESLA** - _lattice-based (ring learning with errors)_
+- **XMSS(mt)** - _hash-based (extended merkle signature scheme)_
+
+ATE uses two encryption algorithms for its
+
+- **NTRU** - _lattice-based (shortest vector problem)_
+- **NewHope** - _lattice-based (ring learning with errors)_
+
+All of these algorithms are candidates for NIST post quantum cryptography:  
+https://en.wikipedia.org/wiki/Post-Quantum_Cryptography_Standardization#cite_note-20
+
+XMSS-MT and NewHope provide forward secrecy
+
+Reference: https://en.wikipedia.org/wiki/Multiple_encryption  
+Reference: https://blog.cryptographyengineering.com/2012/02/02/multiple-encryption/  
+Reference: https://en.wikipedia.org/wiki/Post-Quantum_Cryptography_Standardization#cite_note-20  
+Reference: https://en.wikipedia.org/wiki/Post-quantum_cryptography    
+Reference: https://nvlpubs.nist.gov/nistpubs/ir/2016/NIST.IR.8105.pdf    
 Reference: https://en.wikipedia.org/wiki/NTRU  
 
 ## Undertow and Weld
