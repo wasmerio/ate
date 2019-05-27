@@ -50,10 +50,15 @@ public class MessagePublicKeyDto extends MessageBaseDto implements Serializable,
     @Pattern(regexp = "^(?:[A-Za-z0-9+\\/\\-_])*(?:[A-Za-z0-9+\\/\\-_]{2}==|[A-Za-z0-9+\\/\\-_]{3}=)?$")
     protected @Hash String publicKeyHash;
     @JsonIgnore
-    protected transient @PEM byte @MonotonicNonNull [] publicKeyBytes;
+    protected transient @PEM byte @MonotonicNonNull [] publicKeyBytes1;
+    @JsonIgnore
+    protected transient @PEM byte @MonotonicNonNull [] publicKeyBytes2;
     @JsonProperty
     @MonotonicNonNull
-    protected @PEM String publicKey;
+    protected @PEM String publicKey1;
+    @JsonProperty
+    @MonotonicNonNull
+    protected @PEM String publicKey2;
 
     @Deprecated
     public MessagePublicKeyDto() {
@@ -84,22 +89,35 @@ public class MessagePublicKeyDto extends MessageBaseDto implements Serializable,
 
         this.hashCache = null;
 
-        if (lfb.publicKeyLength() > 0) {
-            ByteBuffer bb = lfb.publicKeyAsByteBuffer();
+        if (lfb.publicKey1Length() > 0) {
+            ByteBuffer bb = lfb.publicKey1AsByteBuffer();
             if (bb == null) throw new WebApplicationException("Attached flat buffer does not have any key bytes.");
 
             @Secret byte [] keyBytes = new byte[bb.remaining()];
             bb.get(keyBytes);
-            this.publicKeyBytes = keyBytes;
-            this.publicKey = Base64.encodeBase64URLSafeString(keyBytes);
+            this.publicKeyBytes1 = keyBytes;
+            this.publicKey1 = Base64.encodeBase64URLSafeString(keyBytes);
+        } else {
+            throw new WebApplicationException("Attached flat buffer does not have any key bytes.");
+        }
+
+        if (lfb.publicKey2Length() > 0) {
+            ByteBuffer bb = lfb.publicKey2AsByteBuffer();
+            if (bb == null) throw new WebApplicationException("Attached flat buffer does not have any key bytes.");
+
+            @Secret byte [] keyBytes = new byte[bb.remaining()];
+            bb.get(keyBytes);
+            this.publicKeyBytes2 = keyBytes;
+            this.publicKey2 = Base64.encodeBase64URLSafeString(keyBytes);
         } else {
             throw new WebApplicationException("Attached flat buffer does not have any key bytes.");
         }
 
         @Hash String hash = lfb.publicKeyHash();
         if (hash == null) {
-            byte[] publicKeyBytes = this.publicKeyBytes;
-            hash = Base64.encodeBase64URLSafeString(Encryptor.hashShaStatic(null, publicKeyBytes));
+            byte[] publicKeyBytes1 = this.getPublicKeyBytes1();
+            byte[] publicKeyBytes2 = this.getPublicKeyBytes2();
+            hash = Base64.encodeBase64URLSafeString(Encryptor.hashShaStatic(publicKeyBytes1, publicKeyBytes2));
         }
         this.publicKeyHash = hash;
 
@@ -117,10 +135,16 @@ public class MessagePublicKeyDto extends MessageBaseDto implements Serializable,
             this.alias = alias;
         }
 
-        @PEM String publicKey = key.getPublicKey();
-        if (publicKey != null) {
-            this.publicKeyBytes = Base64.decodeBase64(publicKey);
-            this.publicKey = publicKey;
+        @PEM String publicKey1 = key.getPublicKey1();
+        if (publicKey1 != null) {
+            this.publicKeyBytes1 = Base64.decodeBase64(publicKey1);
+            this.publicKey1 = publicKey1;
+        }
+
+        @PEM String publicKey2 = key.getPublicKey2();
+        if (publicKey2 != null) {
+            this.publicKeyBytes2 = Base64.decodeBase64(publicKey2);
+            this.publicKey2 = publicKey2;
         }
 
         @Hash String hash = key.getPublicKeyHash();
@@ -129,28 +153,36 @@ public class MessagePublicKeyDto extends MessageBaseDto implements Serializable,
         }
     }
     
-    public MessagePublicKeyDto(@PEM String publicKey, @Hash String publicKeyHash) {
-        this.publicKeyBytes = Base64.decodeBase64(publicKey);
-        this.publicKey = publicKey;
+    public MessagePublicKeyDto(@PEM String publicKey1, @PEM String publicKey2, @Hash String publicKeyHash) {
+        this.publicKeyBytes1 = Base64.decodeBase64(publicKey1);
+        this.publicKey1 = publicKey1;
+        this.publicKeyBytes2 = Base64.decodeBase64(publicKey2);
+        this.publicKey2 = publicKey2;
         this.publicKeyHash = publicKeyHash;
     }
     
-    public MessagePublicKeyDto(@PEM String publicKey) {
-        this.publicKeyBytes = Base64.decodeBase64(publicKey);
-        this.publicKey = publicKey;
-        this.publicKeyHash = Base64.encodeBase64URLSafeString(Encryptor.hashShaStatic(null, this.publicKeyBytes));
+    public MessagePublicKeyDto(@PEM String publicKey1, @PEM String publicKey2) {
+        this.publicKeyBytes1 = Base64.decodeBase64(publicKey1);
+        this.publicKey1 = publicKey1;
+        this.publicKeyBytes2 = Base64.decodeBase64(publicKey2);
+        this.publicKey2 = publicKey2;
+        this.publicKeyHash = Base64.encodeBase64URLSafeString(Encryptor.hashShaStatic(this.publicKeyBytes1, this.publicKeyBytes2));
     }
     
-    public MessagePublicKeyDto(@PEM byte[] publicKey, @Hash String publicKeyHash) {
-        this.publicKeyBytes = publicKey;
+    public MessagePublicKeyDto(@PEM byte[] publicKey1, @PEM byte[] publicKey2, @Hash String publicKeyHash) {
+        this.publicKeyBytes1 = publicKey1;
+        this.publicKeyBytes2 = publicKey2;
         this.publicKeyHash = publicKeyHash;
-        this.publicKey = Base64.encodeBase64URLSafeString(publicKey);
+        this.publicKey1 = Base64.encodeBase64URLSafeString(publicKey1);
+        this.publicKey2 = Base64.encodeBase64URLSafeString(publicKey2);
     }
 
-    public MessagePublicKeyDto(@PEM byte[] publicKeyBytes) {
-        this.publicKeyBytes = publicKeyBytes;
-        this.publicKey = Base64.encodeBase64URLSafeString(publicKeyBytes);
-        this.publicKeyHash = Base64.encodeBase64URLSafeString(Encryptor.hashShaStatic(null, publicKeyBytes));
+    public MessagePublicKeyDto(@PEM byte[] publicKeyBytes1, @PEM byte[] publicKeyBytes2) {
+        this.publicKeyBytes1 = publicKeyBytes1;
+        this.publicKey1 = Base64.encodeBase64URLSafeString(publicKeyBytes1);
+        this.publicKeyBytes2 = publicKeyBytes2;
+        this.publicKey2 = Base64.encodeBase64URLSafeString(publicKeyBytes2);
+        this.publicKeyHash = Base64.encodeBase64URLSafeString(Encryptor.hashShaStatic(publicKeyBytes1, publicKeyBytes2));
     }
     
     public @Nullable @Alias String getAlias() {
@@ -179,9 +211,11 @@ public class MessagePublicKeyDto extends MessageBaseDto implements Serializable,
         }
         @Hash String ret = this.publicKeyHash;
         if (ret == null) {
-            byte[] publicKeyBytes = this.getPublicKeyBytes();
-            if (publicKeyBytes == null) return null;
-            return Base64.encodeBase64URLSafeString(Encryptor.hashShaStatic(null, publicKeyBytes));
+            byte[] publicKeyBytes1 = this.getPublicKeyBytes1();
+            byte[] publicKeyBytes2 = this.getPublicKeyBytes2();
+            if (publicKeyBytes1 == null) return null;
+            if (publicKeyBytes2 == null) return null;
+            return Base64.encodeBase64URLSafeString(Encryptor.hashShaStatic(publicKeyBytes1, publicKeyBytes2));
         }
         return ret;
     }
@@ -192,10 +226,10 @@ public class MessagePublicKeyDto extends MessageBaseDto implements Serializable,
         this.publicKeyHash = hash;
     }
 
-    private @Nullable @PEM String getPublicKeyInternal() {
+    private @Nullable @PEM String getPublicKeyInternal1() {
         MessagePublicKey lfb = fb;
         if (lfb != null) {
-            ByteBuffer bb = lfb.publicKeyAsByteBuffer();
+            ByteBuffer bb = lfb.publicKey1AsByteBuffer();
             if (bb != null) {
                 byte[] bytes = new byte[bb.remaining()];
                 bb.get(bytes);
@@ -203,45 +237,100 @@ public class MessagePublicKeyDto extends MessageBaseDto implements Serializable,
             }
         }
 
-        return this.publicKey;
+        return this.publicKey1;
     }
 
-    public @Nullable @PEM String getPublicKey() {
-        @PEM String ret = getPublicKeyInternal();
+    private @Nullable @PEM String getPublicKeyInternal2() {
+        MessagePublicKey lfb = fb;
+        if (lfb != null) {
+            ByteBuffer bb = lfb.publicKey2AsByteBuffer();
+            if (bb != null) {
+                byte[] bytes = new byte[bb.remaining()];
+                bb.get(bytes);
+                return Base64.encodeBase64URLSafeString(bytes);
+            }
+        }
+
+        return this.publicKey2;
+    }
+
+    public @Nullable @PEM String getPublicKey1() {
+        @PEM String ret = getPublicKeyInternal1();
         if (ret == null) {
-            byte[] bytes = this.getPublicKeyBytesInternal();
+            byte[] bytes = this.getPublicKeyBytesInternal1();
             if (bytes == null) return null;
             return Base64.encodeBase64URLSafeString(bytes);
         }
         return ret;
     }
 
-    public void setPublicKey(@PEM String publicKey) {
+    public @Nullable @PEM String getPublicKey2() {
+        @PEM String ret = getPublicKeyInternal2();
+        if (ret == null) {
+            byte[] bytes = this.getPublicKeyBytesInternal2();
+            if (bytes == null) return null;
+            return Base64.encodeBase64URLSafeString(bytes);
+        }
+        return ret;
+    }
+
+    public void setPublicKey1(@PEM String publicKey) {
         copyOnWrite();
         this.hashCache = null;
-        this.publicKeyBytes = Base64.decodeBase64(publicKey);
-        this.publicKey = publicKey;
+        this.publicKeyBytes1 = Base64.decodeBase64(publicKey);
+        this.publicKey1 = publicKey;
+    }
+
+    public void setPublicKey2(@PEM String publicKey) {
+        copyOnWrite();
+        this.hashCache = null;
+        this.publicKeyBytes2 = Base64.decodeBase64(publicKey);
+        this.publicKey2 = publicKey;
     }
 
     @JsonIgnore
-    private @PEM byte @Nullable [] getPublicKeyBytesInternal() {
+    private @PEM byte @Nullable [] getPublicKeyBytesInternal1() {
         MessagePublicKey lfb = fb;
         if (lfb != null) {
-            ByteBuffer bb = lfb.publicKeyAsByteBuffer();
+            ByteBuffer bb = lfb.publicKey1AsByteBuffer();
             if (bb != null) {
                 byte[] bytes = new byte[bb.remaining()];
                 bb.get(bytes);
                 return bytes;
             }
         }
-        return this.publicKeyBytes;
+        return this.publicKeyBytes1;
     }
 
     @JsonIgnore
-    public @PEM byte @Nullable [] getPublicKeyBytes() {
-        @PEM byte [] ret = getPublicKeyBytesInternal();
+    private @PEM byte @Nullable [] getPublicKeyBytesInternal2() {
+        MessagePublicKey lfb = fb;
+        if (lfb != null) {
+            ByteBuffer bb = lfb.publicKey2AsByteBuffer();
+            if (bb != null) {
+                byte[] bytes = new byte[bb.remaining()];
+                bb.get(bytes);
+                return bytes;
+            }
+        }
+        return this.publicKeyBytes2;
+    }
+
+    @JsonIgnore
+    public @PEM byte @Nullable [] getPublicKeyBytes1() {
+        @PEM byte [] ret = getPublicKeyBytesInternal1();
         if (ret == null) {
-            @PEM String publicKey64 = this.getPublicKeyInternal();
+            @PEM String publicKey64 = this.getPublicKeyInternal1();
+            if (publicKey64 != null) ret = Base64.decodeBase64(publicKey64);
+        }
+        return ret;
+    }
+
+    @JsonIgnore
+    public @PEM byte @Nullable [] getPublicKeyBytes2() {
+        @PEM byte [] ret = getPublicKeyBytesInternal2();
+        if (ret == null) {
+            @PEM String publicKey64 = this.getPublicKeyInternal2();
             if (publicKey64 != null) ret = Base64.decodeBase64(publicKey64);
         }
         return ret;
@@ -250,10 +339,16 @@ public class MessagePublicKeyDto extends MessageBaseDto implements Serializable,
     @Override
     public int flatBuffer(FlatBufferBuilder fbb)
     {
-        byte[] bytesPublicKey = this.getPublicKeyBytes();
-        int offsetPublicKey = -1;
-        if (bytesPublicKey != null) {
-            offsetPublicKey = MessagePublicKey.createPublicKeyVector(fbb, bytesPublicKey);
+        byte[] bytesPublicKey1 = this.getPublicKeyBytes1();
+        int offsetPublicKey1 = -1;
+        if (bytesPublicKey1 != null) {
+            offsetPublicKey1 = MessagePublicKey.createPublicKey1Vector(fbb, bytesPublicKey1);
+        }
+
+        byte[] bytesPublicKey2 = this.getPublicKeyBytes2();
+        int offsetPublicKey2 = -1;
+        if (bytesPublicKey2 != null) {
+            offsetPublicKey2 = MessagePublicKey.createPublicKey2Vector(fbb, bytesPublicKey2);
         }
 
         String strPublicKeyHash = this.getPublicKeyHash();
@@ -269,8 +364,11 @@ public class MessagePublicKeyDto extends MessageBaseDto implements Serializable,
         }
 
         MessagePublicKey.startMessagePublicKey(fbb);
-        if (offsetPublicKey >= 0) {
-            MessagePublicKey.addPublicKey(fbb, offsetPublicKey);
+        if (offsetPublicKey1 >= 0) {
+            MessagePublicKey.addPublicKey1(fbb, offsetPublicKey1);
+        }
+        if (offsetPublicKey2 >= 0) {
+            MessagePublicKey.addPublicKey2(fbb, offsetPublicKey2);
         }
         if (offsetPublicKeyHash >= 0) {
             MessagePublicKey.addPublicKeyHash(fbb, offsetPublicKeyHash);

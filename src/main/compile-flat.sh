@@ -3,6 +3,7 @@ FF=/prog/tokera/tokapi/flatbuffers
 pushd java 1>/dev/null
 $FF/flatc --java ../resources/schema/msg/base.fbs
 $FF/flatc --java ../resources/schema/msg/data.fbs
+$FF/flatc --java ../resources/schema/msg/key.fbs
 pushd com/tokera/ate/dao/msg 1>/dev/null
 sed -i "s/@SuppressWarnings(\"unused\")/@SuppressWarnings({\"unused\", \"return.type.incompatible\"})/g" *.java
 sed -i "s/  public String /  public @org.checkerframework.checker.nullness.qual.Nullable String /g" *.java

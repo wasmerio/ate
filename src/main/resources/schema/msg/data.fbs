@@ -21,7 +21,8 @@ table MessageDataHeader
 table MessageDataDigest
 {
   seed              :[byte];
-  signature         :[byte];
+  signature1        :[byte];
+  signature2        :[byte];
   digest            :[byte];
   publicKeyHash     :string;
 }

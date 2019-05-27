@@ -44,11 +44,17 @@ public class MessagePrivateKeyDto extends MessagePublicKeyDto implements Seriali
     @Pattern(regexp = "^(?:[A-Za-z0-9+\\/\\-_])*(?:[A-Za-z0-9+\\/\\-_]{2}==|[A-Za-z0-9+\\/\\-_]{3}=)?$")
     private @Hash String privateKeyHash;
     @JsonIgnore
-    private transient @Secret byte @MonotonicNonNull [] privateKeyBytes;
+    private transient @Secret byte @MonotonicNonNull [] privateKeyBytes1;
+    @JsonIgnore
+    private transient @Secret byte @MonotonicNonNull [] privateKeyBytes2;
     @JsonProperty
     @MonotonicNonNull
     @Size(min = 2)
-    private @Secret String privateKey;
+    private @Secret String privateKey1;
+    @JsonProperty
+    @MonotonicNonNull
+    @Size(min = 2)
+    private @Secret String privateKey2;
 
     @Deprecated
     public MessagePrivateKeyDto() {
@@ -57,23 +63,36 @@ public class MessagePrivateKeyDto extends MessagePublicKeyDto implements Seriali
     public MessagePrivateKeyDto(MessagePrivateKeyDto val) {
         super(val);
 
-        byte[] publicKeyBytes = val.getPublicKeyBytes();
-        if (publicKeyBytes != null) this.publicKeyBytes = publicKeyBytes;
+        byte[] publicKeyBytes1 = val.getPublicKeyBytes1();
+        if (publicKeyBytes1 != null) this.publicKeyBytes1 = publicKeyBytes1;
+
+        byte[] publicKeyBytes2 = val.getPublicKeyBytes2();
+        if (publicKeyBytes2 != null) this.publicKeyBytes2 = publicKeyBytes2;
 
         @Hash String publicKeyHash = val.getPublicKeyHash();
         if (publicKeyHash != null) this.publicKeyHash = publicKeyHash;
 
-        @PEM String publicKey = val.getPublicKey();
-        if (publicKey != null) this.publicKey = publicKey;
+        @PEM String publicKey1 = val.getPublicKey1();
+        if (publicKey1 != null) this.publicKey1 = publicKey1;
 
-        byte[] privateKeyBytes = val.getPrivateKeyBytes();
-        if (privateKeyBytes != null) this.privateKeyBytes = privateKeyBytes;
+        @PEM String publicKey2 = val.getPublicKey2();
+        if (publicKey2 != null) this.publicKey2 = publicKey2;
+
+        byte[] privateKeyBytes1 = val.getPrivateKeyBytes1();
+        if (privateKeyBytes1 != null) this.privateKeyBytes1 = privateKeyBytes1;
+
+        byte[] privateKeyBytes2 = val.getPrivateKeyBytes2();
+        if (privateKeyBytes2 != null) this.privateKeyBytes2 = privateKeyBytes2;
 
         @Hash String privateKeyHash = val.getPrivateKeyHash();
         if (privateKeyHash != null) this.privateKeyHash = privateKeyHash;
 
-        @PEM String privateKey = val.getPrivateKey();
-        if (privateKey != null) this.privateKey = privateKey;
+        @PEM String privateKey1 = val.getPrivateKey1();
+        if (privateKey1 != null) this.privateKey1 = privateKey1;
+
+        @PEM String privateKey2 = val.getPrivateKey2();
+        if (privateKey2 != null) this.privateKey2 = privateKey2;
+
 
         @Alias String alias = val.getAlias();
         if (alias != null) this.alias = alias;

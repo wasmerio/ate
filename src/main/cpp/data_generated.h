@@ -214,15 +214,19 @@ inline flatbuffers::Offset<MessageDataHeader> CreateMessageDataHeaderDirect(
 struct MessageDataDigest FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum {
     VT_SEED = 4,
-    VT_SIGNATURE = 6,
-    VT_DIGEST = 8,
-    VT_PUBLICKEYHASH = 10
+    VT_SIGNATURE1 = 6,
+    VT_SIGNATURE2 = 8,
+    VT_DIGEST = 10,
+    VT_PUBLICKEYHASH = 12
   };
   const flatbuffers::Vector<int8_t> *seed() const {
     return GetPointer<const flatbuffers::Vector<int8_t> *>(VT_SEED);
   }
-  const flatbuffers::Vector<int8_t> *signature() const {
-    return GetPointer<const flatbuffers::Vector<int8_t> *>(VT_SIGNATURE);
+  const flatbuffers::Vector<int8_t> *signature1() const {
+    return GetPointer<const flatbuffers::Vector<int8_t> *>(VT_SIGNATURE1);
+  }
+  const flatbuffers::Vector<int8_t> *signature2() const {
+    return GetPointer<const flatbuffers::Vector<int8_t> *>(VT_SIGNATURE2);
   }
   const flatbuffers::Vector<int8_t> *digest() const {
     return GetPointer<const flatbuffers::Vector<int8_t> *>(VT_DIGEST);
@@ -234,8 +238,10 @@ struct MessageDataDigest FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     return VerifyTableStart(verifier) &&
            VerifyOffset(verifier, VT_SEED) &&
            verifier.VerifyVector(seed()) &&
-           VerifyOffset(verifier, VT_SIGNATURE) &&
-           verifier.VerifyVector(signature()) &&
+           VerifyOffset(verifier, VT_SIGNATURE1) &&
+           verifier.VerifyVector(signature1()) &&
+           VerifyOffset(verifier, VT_SIGNATURE2) &&
+           verifier.VerifyVector(signature2()) &&
            VerifyOffset(verifier, VT_DIGEST) &&
            verifier.VerifyVector(digest()) &&
            VerifyOffset(verifier, VT_PUBLICKEYHASH) &&
@@ -250,8 +256,11 @@ struct MessageDataDigestBuilder {
   void add_seed(flatbuffers::Offset<flatbuffers::Vector<int8_t>> seed) {
     fbb_.AddOffset(MessageDataDigest::VT_SEED, seed);
   }
-  void add_signature(flatbuffers::Offset<flatbuffers::Vector<int8_t>> signature) {
-    fbb_.AddOffset(MessageDataDigest::VT_SIGNATURE, signature);
+  void add_signature1(flatbuffers::Offset<flatbuffers::Vector<int8_t>> signature1) {
+    fbb_.AddOffset(MessageDataDigest::VT_SIGNATURE1, signature1);
+  }
+  void add_signature2(flatbuffers::Offset<flatbuffers::Vector<int8_t>> signature2) {
+    fbb_.AddOffset(MessageDataDigest::VT_SIGNATURE2, signature2);
   }
   void add_digest(flatbuffers::Offset<flatbuffers::Vector<int8_t>> digest) {
     fbb_.AddOffset(MessageDataDigest::VT_DIGEST, digest);
@@ -274,13 +283,15 @@ struct MessageDataDigestBuilder {
 inline flatbuffers::Offset<MessageDataDigest> CreateMessageDataDigest(
     flatbuffers::FlatBufferBuilder &_fbb,
     flatbuffers::Offset<flatbuffers::Vector<int8_t>> seed = 0,
-    flatbuffers::Offset<flatbuffers::Vector<int8_t>> signature = 0,
+    flatbuffers::Offset<flatbuffers::Vector<int8_t>> signature1 = 0,
+    flatbuffers::Offset<flatbuffers::Vector<int8_t>> signature2 = 0,
     flatbuffers::Offset<flatbuffers::Vector<int8_t>> digest = 0,
     flatbuffers::Offset<flatbuffers::String> publicKeyHash = 0) {
   MessageDataDigestBuilder builder_(_fbb);
   builder_.add_publicKeyHash(publicKeyHash);
   builder_.add_digest(digest);
-  builder_.add_signature(signature);
+  builder_.add_signature2(signature2);
+  builder_.add_signature1(signature1);
   builder_.add_seed(seed);
   return builder_.Finish();
 }
@@ -288,13 +299,15 @@ inline flatbuffers::Offset<MessageDataDigest> CreateMessageDataDigest(
 inline flatbuffers::Offset<MessageDataDigest> CreateMessageDataDigestDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
     const std::vector<int8_t> *seed = nullptr,
-    const std::vector<int8_t> *signature = nullptr,
+    const std::vector<int8_t> *signature1 = nullptr,
+    const std::vector<int8_t> *signature2 = nullptr,
     const std::vector<int8_t> *digest = nullptr,
     const char *publicKeyHash = nullptr) {
   return com::tokera::ate::dao::msg::CreateMessageDataDigest(
       _fbb,
       seed ? _fbb.CreateVector<int8_t>(*seed) : 0,
-      signature ? _fbb.CreateVector<int8_t>(*signature) : 0,
+      signature1 ? _fbb.CreateVector<int8_t>(*signature1) : 0,
+      signature2 ? _fbb.CreateVector<int8_t>(*signature2) : 0,
       digest ? _fbb.CreateVector<int8_t>(*digest) : 0,
       publicKeyHash ? _fbb.CreateString(publicKeyHash) : 0);
 }

@@ -3,13 +3,15 @@ namespace com.tokera.ate.dao.msg;
 table MessagePublicKey
 {
   publicKeyHash     :string;
-  publicKey         :[byte];
+  publicKey1        :[byte];
+  publicKey2        :[byte];
   alias             :string;
 }
 
 table MessagePrivateKey
 {
   privateKeyHash    :string;
-  privateKey        :[byte];
+  privateKey1       :[byte];
+  privateKey2       :[byte];
   publicKey         :MessagePublicKey;
 }

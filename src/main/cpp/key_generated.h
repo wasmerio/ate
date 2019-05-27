@@ -19,14 +19,18 @@ struct MessagePrivateKey;
 struct MessagePublicKey FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum {
     VT_PUBLICKEYHASH = 4,
-    VT_PUBLICKEY = 6,
-    VT_ALIAS = 8
+    VT_PUBLICKEY1 = 6,
+    VT_PUBLICKEY2 = 8,
+    VT_ALIAS = 10
   };
   const flatbuffers::String *publicKeyHash() const {
     return GetPointer<const flatbuffers::String *>(VT_PUBLICKEYHASH);
   }
-  const flatbuffers::Vector<int8_t> *publicKey() const {
-    return GetPointer<const flatbuffers::Vector<int8_t> *>(VT_PUBLICKEY);
+  const flatbuffers::Vector<int8_t> *publicKey1() const {
+    return GetPointer<const flatbuffers::Vector<int8_t> *>(VT_PUBLICKEY1);
+  }
+  const flatbuffers::Vector<int8_t> *publicKey2() const {
+    return GetPointer<const flatbuffers::Vector<int8_t> *>(VT_PUBLICKEY2);
   }
   const flatbuffers::String *alias() const {
     return GetPointer<const flatbuffers::String *>(VT_ALIAS);
@@ -35,8 +39,10 @@ struct MessagePublicKey FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     return VerifyTableStart(verifier) &&
            VerifyOffset(verifier, VT_PUBLICKEYHASH) &&
            verifier.VerifyString(publicKeyHash()) &&
-           VerifyOffset(verifier, VT_PUBLICKEY) &&
-           verifier.VerifyVector(publicKey()) &&
+           VerifyOffset(verifier, VT_PUBLICKEY1) &&
+           verifier.VerifyVector(publicKey1()) &&
+           VerifyOffset(verifier, VT_PUBLICKEY2) &&
+           verifier.VerifyVector(publicKey2()) &&
            VerifyOffset(verifier, VT_ALIAS) &&
            verifier.VerifyString(alias()) &&
            verifier.EndTable();
@@ -49,8 +55,11 @@ struct MessagePublicKeyBuilder {
   void add_publicKeyHash(flatbuffers::Offset<flatbuffers::String> publicKeyHash) {
     fbb_.AddOffset(MessagePublicKey::VT_PUBLICKEYHASH, publicKeyHash);
   }
-  void add_publicKey(flatbuffers::Offset<flatbuffers::Vector<int8_t>> publicKey) {
-    fbb_.AddOffset(MessagePublicKey::VT_PUBLICKEY, publicKey);
+  void add_publicKey1(flatbuffers::Offset<flatbuffers::Vector<int8_t>> publicKey1) {
+    fbb_.AddOffset(MessagePublicKey::VT_PUBLICKEY1, publicKey1);
+  }
+  void add_publicKey2(flatbuffers::Offset<flatbuffers::Vector<int8_t>> publicKey2) {
+    fbb_.AddOffset(MessagePublicKey::VT_PUBLICKEY2, publicKey2);
   }
   void add_alias(flatbuffers::Offset<flatbuffers::String> alias) {
     fbb_.AddOffset(MessagePublicKey::VT_ALIAS, alias);
@@ -70,11 +79,13 @@ struct MessagePublicKeyBuilder {
 inline flatbuffers::Offset<MessagePublicKey> CreateMessagePublicKey(
     flatbuffers::FlatBufferBuilder &_fbb,
     flatbuffers::Offset<flatbuffers::String> publicKeyHash = 0,
-    flatbuffers::Offset<flatbuffers::Vector<int8_t>> publicKey = 0,
+    flatbuffers::Offset<flatbuffers::Vector<int8_t>> publicKey1 = 0,
+    flatbuffers::Offset<flatbuffers::Vector<int8_t>> publicKey2 = 0,
     flatbuffers::Offset<flatbuffers::String> alias = 0) {
   MessagePublicKeyBuilder builder_(_fbb);
   builder_.add_alias(alias);
-  builder_.add_publicKey(publicKey);
+  builder_.add_publicKey2(publicKey2);
+  builder_.add_publicKey1(publicKey1);
   builder_.add_publicKeyHash(publicKeyHash);
   return builder_.Finish();
 }
@@ -82,26 +93,32 @@ inline flatbuffers::Offset<MessagePublicKey> CreateMessagePublicKey(
 inline flatbuffers::Offset<MessagePublicKey> CreateMessagePublicKeyDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
     const char *publicKeyHash = nullptr,
-    const std::vector<int8_t> *publicKey = nullptr,
+    const std::vector<int8_t> *publicKey1 = nullptr,
+    const std::vector<int8_t> *publicKey2 = nullptr,
     const char *alias = nullptr) {
   return com::tokera::ate::dao::msg::CreateMessagePublicKey(
       _fbb,
       publicKeyHash ? _fbb.CreateString(publicKeyHash) : 0,
-      publicKey ? _fbb.CreateVector<int8_t>(*publicKey) : 0,
+      publicKey1 ? _fbb.CreateVector<int8_t>(*publicKey1) : 0,
+      publicKey2 ? _fbb.CreateVector<int8_t>(*publicKey2) : 0,
       alias ? _fbb.CreateString(alias) : 0);
 }
 
 struct MessagePrivateKey FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum {
     VT_PRIVATEKEYHASH = 4,
-    VT_PRIVATEKEY = 6,
-    VT_PUBLICKEY = 8
+    VT_PRIVATEKEY1 = 6,
+    VT_PRIVATEKEY2 = 8,
+    VT_PUBLICKEY = 10
   };
   const flatbuffers::String *privateKeyHash() const {
     return GetPointer<const flatbuffers::String *>(VT_PRIVATEKEYHASH);
   }
-  const flatbuffers::Vector<int8_t> *privateKey() const {
-    return GetPointer<const flatbuffers::Vector<int8_t> *>(VT_PRIVATEKEY);
+  const flatbuffers::Vector<int8_t> *privateKey1() const {
+    return GetPointer<const flatbuffers::Vector<int8_t> *>(VT_PRIVATEKEY1);
+  }
+  const flatbuffers::Vector<int8_t> *privateKey2() const {
+    return GetPointer<const flatbuffers::Vector<int8_t> *>(VT_PRIVATEKEY2);
   }
   const MessagePublicKey *publicKey() const {
     return GetPointer<const MessagePublicKey *>(VT_PUBLICKEY);
@@ -110,8 +127,10 @@ struct MessagePrivateKey FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     return VerifyTableStart(verifier) &&
            VerifyOffset(verifier, VT_PRIVATEKEYHASH) &&
            verifier.VerifyString(privateKeyHash()) &&
-           VerifyOffset(verifier, VT_PRIVATEKEY) &&
-           verifier.VerifyVector(privateKey()) &&
+           VerifyOffset(verifier, VT_PRIVATEKEY1) &&
+           verifier.VerifyVector(privateKey1()) &&
+           VerifyOffset(verifier, VT_PRIVATEKEY2) &&
+           verifier.VerifyVector(privateKey2()) &&
            VerifyOffset(verifier, VT_PUBLICKEY) &&
            verifier.VerifyTable(publicKey()) &&
            verifier.EndTable();
@@ -124,8 +143,11 @@ struct MessagePrivateKeyBuilder {
   void add_privateKeyHash(flatbuffers::Offset<flatbuffers::String> privateKeyHash) {
     fbb_.AddOffset(MessagePrivateKey::VT_PRIVATEKEYHASH, privateKeyHash);
   }
-  void add_privateKey(flatbuffers::Offset<flatbuffers::Vector<int8_t>> privateKey) {
-    fbb_.AddOffset(MessagePrivateKey::VT_PRIVATEKEY, privateKey);
+  void add_privateKey1(flatbuffers::Offset<flatbuffers::Vector<int8_t>> privateKey1) {
+    fbb_.AddOffset(MessagePrivateKey::VT_PRIVATEKEY1, privateKey1);
+  }
+  void add_privateKey2(flatbuffers::Offset<flatbuffers::Vector<int8_t>> privateKey2) {
+    fbb_.AddOffset(MessagePrivateKey::VT_PRIVATEKEY2, privateKey2);
   }
   void add_publicKey(flatbuffers::Offset<MessagePublicKey> publicKey) {
     fbb_.AddOffset(MessagePrivateKey::VT_PUBLICKEY, publicKey);
@@ -145,11 +167,13 @@ struct MessagePrivateKeyBuilder {
 inline flatbuffers::Offset<MessagePrivateKey> CreateMessagePrivateKey(
     flatbuffers::FlatBufferBuilder &_fbb,
     flatbuffers::Offset<flatbuffers::String> privateKeyHash = 0,
-    flatbuffers::Offset<flatbuffers::Vector<int8_t>> privateKey = 0,
+    flatbuffers::Offset<flatbuffers::Vector<int8_t>> privateKey1 = 0,
+    flatbuffers::Offset<flatbuffers::Vector<int8_t>> privateKey2 = 0,
     flatbuffers::Offset<MessagePublicKey> publicKey = 0) {
   MessagePrivateKeyBuilder builder_(_fbb);
   builder_.add_publicKey(publicKey);
-  builder_.add_privateKey(privateKey);
+  builder_.add_privateKey2(privateKey2);
+  builder_.add_privateKey1(privateKey1);
   builder_.add_privateKeyHash(privateKeyHash);
   return builder_.Finish();
 }
@@ -157,12 +181,14 @@ inline flatbuffers::Offset<MessagePrivateKey> CreateMessagePrivateKey(
 inline flatbuffers::Offset<MessagePrivateKey> CreateMessagePrivateKeyDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
     const char *privateKeyHash = nullptr,
-    const std::vector<int8_t> *privateKey = nullptr,
+    const std::vector<int8_t> *privateKey1 = nullptr,
+    const std::vector<int8_t> *privateKey2 = nullptr,
     flatbuffers::Offset<MessagePublicKey> publicKey = 0) {
   return com::tokera::ate::dao::msg::CreateMessagePrivateKey(
       _fbb,
       privateKeyHash ? _fbb.CreateString(privateKeyHash) : 0,
-      privateKey ? _fbb.CreateVector<int8_t>(*privateKey) : 0,
+      privateKey1 ? _fbb.CreateVector<int8_t>(*privateKey1) : 0,
+      privateKey2 ? _fbb.CreateVector<int8_t>(*privateKey2) : 0,
       publicKey);
 }
 
