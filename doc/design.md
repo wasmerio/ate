@@ -605,9 +605,10 @@ ATE adopts the principle of superencryption (cascading encryption with the rule
 of two) using distinctly different algorithms which ideally reside in different
 cryptographic groups. The idea behind this extra computation, complexity and key
 size is that if a weakness is found in one of the ciphers in the future then at
-least the second cipher will protect the customer data until a fix can be rolled
-out eliminate the weakness. Given ATE is highly dependent on cryptography for its
-authentication and authorization models this is deemed an acceptable cost.
+least the second cipher will protect the customer data for a reasonable amount
+of time until a fix can be rolled out to systemic eliminate the weakness. Given
+ATE is highly dependent on cryptography for its authentication and authorization
+models this is deemed an acceptable cost.
 
 `
 Note: When using cascading encryption separate encryption keys are generated using
