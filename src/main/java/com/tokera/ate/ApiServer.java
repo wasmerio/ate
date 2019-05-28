@@ -312,6 +312,7 @@ public class ApiServer {
         int c_KeyPreGen256 = 0;
         int c_AesPreGen128 = 0;
         int c_AesPreGen256 = 0;
+        int c_AesPreGen512 = 0;
 
         Properties props = ApplicationConfigLoader.getInstance().getPropertiesByName(apiConfig.getPropertiesFileAte());
         if (props != null) {
@@ -322,6 +323,7 @@ public class ApiServer {
             c_KeyPreGen256 = Integer.parseInt(props.getOrDefault("keygen.prealloc.256", "20").toString());
             c_AesPreGen128 = Integer.parseInt(props.getOrDefault("aesgen.prealloc.128", "800").toString());
             c_AesPreGen256 = Integer.parseInt(props.getOrDefault("aesgen.prealloc.256", "200").toString());
+            c_AesPreGen512 = Integer.parseInt(props.getOrDefault("aesgen.prealloc.512", "100").toString());
         }
 
         AteDelegate d = AteDelegate.get();
@@ -332,5 +334,6 @@ public class ApiServer {
         d.encryptor.setKeyPreGen256(c_KeyPreGen256);
         d.encryptor.setAesPreGen128(c_AesPreGen128);
         d.encryptor.setAesPreGen256(c_AesPreGen256);
+        d.encryptor.setAesPreGen512(c_AesPreGen512);
     }
 }

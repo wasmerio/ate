@@ -6,15 +6,13 @@ import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.io.api.IAteIO;
 import com.tokera.ate.qualifiers.BackendStorageSystem;
 import com.tokera.ate.common.LoggerHook;
+import com.tokera.ate.security.core.*;
 import com.tokera.ate.units.*;
 import com.tokera.ate.dao.msg.MessagePrivateKey;
 import com.tokera.ate.dao.msg.MessagePublicKey;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
-import com.tokera.ate.security.core.EncryptionKeyPairGenerator;
-import com.tokera.ate.security.core.PredictablyRandom;
-import com.tokera.ate.security.core.SigningKeyPairGenerator;
-import com.tokera.ate.security.core.UnPredictablyRandom;
+
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
@@ -102,6 +100,7 @@ public class Encryptor implements Runnable
     private int c_KeyPreGen256 = 20;
     private int c_AesPreGen128 = 800;
     private int c_AesPreGen256 = 200;
+    private int c_AesPreGen512 = 100;
     
     // Public role that everyone has
     private @MonotonicNonNull MessagePrivateKeyDto trustOfPublicRead;
@@ -114,6 +113,7 @@ public class Encryptor implements Runnable
     private final ConcurrentLinkedQueue<MessagePrivateKeyDto> genEncrypt256Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<@Secret String> genAes128Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<@Secret String> genAes256Queue = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<@Secret String> genAes512Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<@Secret String> genSaltQueue = new ConcurrentLinkedQueue<>();
 
     public class KeyPairBytes
@@ -171,9 +171,6 @@ public class Encryptor implements Runnable
                 new org.bouncycastle.jce.provider.BouncyCastleProvider()
         );
 
-        trustOfPublicRead = Encryptor.generatePublicKeyRead();
-        trustOfPublicWrite = Encryptor.generatePublicKeyWrite();
-        
         for (int n = 0; n < c_KeyPreGenThreads; n++) {
             Thread thread = new Thread(this);
             thread.setPriority(Thread.MIN_PRIORITY);
@@ -181,22 +178,6 @@ public class Encryptor implements Runnable
             thread.start();
             threads.add(thread);
         }
-    }
-
-    public static MessagePrivateKeyDto generatePublicKeyRead() {
-        MessagePrivateKeyDto key;
-        //key = genEncryptKeyNtruFromSeed(128, "public", "public");
-        key = new MessagePrivateKeyDto("hCtNNY27gTrDwo2k1w_nm-28B_0u0Z8_lJYSqdmlRzpxb1Ke194tDZWyNEUR8uchT89qg_R1erx9CAyHFMYgAS2Gs5xfRy_37N2JmtR43HmEVDwcoytHjahdZGNYDIEzrSPhJuAb62unOwNjtS0LF9vkXR5akiyaxz7S21sKCitYwonYjGnODaf4axN6H6n_jhhHIHsGORK_o-Giq7FKZNJhoVfyEaNZPsHkG763cKKSKzkvHHVt7EONjW1OjFT6O5E0gNtiGDKQRquJBtWQUlsosDTaXCQWedj6HzBKsXQZjT_XL5QDSsUHIfTN4oiPqiNHREtjUuWMPa1GsOwhPSDRYpcsscBcD67gKRPeuk4_LfqwPk77ibEdbbP4g1FJhn8eaIGpXWTMFWG5Y_z8PfzS98K46Rj_dkHctVen3lHP_MiitAiUp4FtMdBl_FCHhpKFtoU0mriEUyjm1vLxxmgMuDVxb2Szo3Lm3Rgjq2ZSQBj9Sea-GuqBwc_7uBkqZY-vb72FqQ54jy0-CP73Ij4uJ_uH2g93pJDzSfxPtmsZOp7Rs5pYT03gWr018llG4D4Xtsm-2xP_IONLasoJHTrkkg9XPvmxZSQ8_AUSLZfoGRjWxKrYS1qZqCoZ9zYf_x1UtQEpDFjs__Zo9JONKMieTTskykXv-SwSIiyA6EUbvBTN4-VFVZNmc8zCkBDRRH2jZZUCMbYGkuMXEO_aIM2YwYpRROUj48p7zo8uYlnB82YHvhb6czGWew-RSfNeMeE1vX2Z9qoVQRPgj-5dKbnG2Xbkifmjj4h4Aw", "hCtNNY27gTrDwo2k1w_nm-28B_0u0Z8_lJYSqdmlRzpxb1Ke194tDZWyNEUR8uchT89qg_R1erx9CAyHFMYgAS2Gs5xfRy_37N2JmtR43HmEVDwcoytHjahdZGNYDIEzrSPhJuAb62unOwNjtS0LF9vkXR5akiyaxz7S21sKCitYwonYjGnODaf4axN6H6n_jhhHIHsGORK_o-Giq7FKZNJhoVfyEaNZPsHkG763cKKSKzkvHHVt7EONjW1OjFT6O5E0gNtiGDKQRquJBtWQUlsosDTaXCQWedj6HzBKsXQZjT_XL5QDSsUHIfTN4oiPqiNHREtjUuWMPa1GsOwhPSDRYpcsscBcD67gKRPeuk4_LfqwPk77ibEdbbP4g1FJhn8eaIGpXWTMFWG5Y_z8PfzS98K46Rj_dkHctVen3lHP_MiitAiUp4FtMdBl_FCHhpKFtoU0mriEUyjm1vLxxmgMuDVxb2Szo3Lm3Rgjq2ZSQBj9Sea-GuqBwc_7uBkqZY-vb72FqQ54jy0-CP73Ij4uJ_uH2g93pJDzSfxPtmsZOp7Rs5pYT03gWr018llG4D4Xtsm-2xP_IONLasoJHTrkkg9XPvmxZSQ8_AUSLZfoGRjWxKrYS1qZqCoZ9zYf_x1UtQEpDFjs__Zo9JONKMieTTskykXv-SwSIiyA6EUbvBTN4-VFVZNmc8zCkBDRRH2jZZUCMbYGkuMXEO_aIM2YwYpRROUj48p7zo8uYlnB82YHvhb6czGWew-RSfNeMeE1vX2Z9qoVQRPgj-5dKbnG2Xbkifmjj4h4A35nyKJ3ikeM8yUi_FlKfk_c3f8Tacpp7F8UZUunoUF2VDvYohoTyU6FrHBK-PqRIKU-4HBkrR2LF6Y2zyABrr3C5axkSVArak7ofFERtX0shq9aj4OmCg");
-        key.setAlias("public");
-        return key;
-    }
-
-    public static MessagePrivateKeyDto generatePublicKeyWrite() {
-        MessagePrivateKeyDto key;
-        //key = genSignKeyNtruFromSeed(64, "public", "public");
-        key = new MessagePrivateKeyDto("rz39v_ev9aFHHJrhE0bn7RONg_RqfGNDXpARYuja8yHO2vf4npuodKpgMApzJW73V0-giMMXyweuYTP3fDtrrdQ_p-3hhAK91wqharZDf18PiU1HOzjFCAWSyQF6eDMzpAwoSUk1_sfL2nUTqF5s_oMlPkHcClBABvm0S3fKvJQC-HLPDpFFaCnsfStu-8ytyx_gjPnBSuGnL1qz5w", "AM232z_XLRsxcxJsNsjcDHJtj-Su62y7jTTn_QE4eFAA6ctcftImbHfTm04nfAmf5EhYcadcPzuwIdRZagyBOADleiEpAXtf4YqQnDX42scZvELRLoEjpofzo2Q5ncLKAOLkz9iZc3oS6PQpS8AZbEcrVq8qhSh_8MjpwYdDpG6vPf2_96_1oUccmuETRuftE42D9Gp8Y0NekBFi6NrzIc7a9_iem6h0qmAwCnMlbvdXT6CIwxfLB65hM_d8O2ut1D-n7eGEAr3XCqFqtkN_Xw-JTUc7OMUIBZLJAXp4MzOkDChJSTX-x8vadROoXmz-gyU-QdwKUEAG-bRLd8q8lAL4cs8OkUVoKex9K277zK3LH-CM-cFK4acvWrPnrz39v_ev9aFHHJrhE0bn7RONg_RqfGNDXpARYuja8yHO2vf4npuodKpgMApzJW73V0-giMMXyweuYTP3fDtrrdQ_p-3hhAK91wqharZDf18PiU1HOzjFCAWSyQF6eDMzpAwoSUk1_sfL2nUTqF5s_oMlPkHcClBABvm0S3fKvJQC-HLPDpFFaCnsfStu-8ytyx_gjPnBSuGnL1qz5w");
-        key.setAlias("public");
-        return key;
     }
 
     public void setKeyPreGenThreads(int val) {
@@ -227,26 +208,10 @@ public class Encryptor implements Runnable
         this.c_AesPreGen256 = val;
     }
 
-    public void addSeedKeySign64(MessagePrivateKeyDto key) {
-        genSign64Queue.add(key);
+    public void setAesPreGen512(int val) {
+        this.c_AesPreGen512 = val;
     }
 
-    public void addSeedKeySign128(MessagePrivateKeyDto key) {
-        genSign128Queue.add(key);
-    }
-
-    public void addSeedKeySign256(MessagePrivateKeyDto key) {
-        genSign256Queue.add(key);
-    }
-
-    public void addSeedKeyEncrypt128(MessagePrivateKeyDto key) {
-        genEncrypt128Queue.add(key);
-    }
-
-    public void addSeedKeyEncrypt256(MessagePrivateKeyDto key) {
-        genEncrypt256Queue.add(key);
-    }
-    
     @Override
     public void run() {
         Long errorWaitTime = 500L;
@@ -330,33 +295,34 @@ public class Encryptor implements Runnable
         int cntEncrypt256 = genEncrypt256Queue.size();
         int cntAes128 = genAes128Queue.size();
         int cntAes256 = genAes256Queue.size();
+        int cntAes512 = genAes512Queue.size();
         int cntSalt = genSaltQueue.size();
         
         for (;;)
         {
             boolean didGen = false;
             if (cntSign64 < c_KeyPreGen64 && cntSign64 < cap) {
-                genSign64Queue.add(this.genSignKeyNtruNow(64));
+                genSign64Queue.add(this.genSignKeyNow(64));
                 cntSign64++;
                 didGen = true;
             }
             if (cntSign128 < c_KeyPreGen128 && cntSign128 < cap) {
-                genSign128Queue.add(this.genSignKeyNtruNow(128));
+                genSign128Queue.add(this.genSignKeyNow(128));
                 cntSign128++;
                 didGen = true;
             }
             if (cntSign256 < c_KeyPreGen256 && cntSign256 < cap) {
-                genSign256Queue.add(this.genSignKeyNtruNow(256));
+                genSign256Queue.add(this.genSignKeyNow(256));
                 cntSign256++;
                 didGen = true;
             }
             if (cntEncrypt128 < c_KeyPreGen128 && cntEncrypt128 < cap) {
-                genEncrypt128Queue.add(this.genEncryptKeyNtruNow(128));
+                genEncrypt128Queue.add(this.genEncryptKeyNow(128));
                 cntEncrypt128++;
                 didGen = true;
             }
             if (cntEncrypt256 < c_KeyPreGen256 && cntEncrypt256 < cap) {
-                genEncrypt256Queue.add(this.genEncryptKeyNtruNow(256));
+                genEncrypt256Queue.add(this.genEncryptKeyNow(256));
                 cntEncrypt256++;
                 didGen = true;
             }
@@ -373,6 +339,11 @@ public class Encryptor implements Runnable
             if (cntAes256 < c_AesPreGen256 && cntAes256 < cap) {
                 genAes256Queue.add(this.generateSecret64Now(256));
                 cntAes256++;
+                didGen = true;
+            }
+            if (cntAes512 < c_AesPreGen512 && cntAes512 < cap) {
+                genAes512Queue.add(this.generateSecret64Now(512));
+                cntAes512++;
                 didGen = true;
             }
             
@@ -520,13 +491,13 @@ public class Encryptor implements Runnable
     }
 
     @Deprecated
-    public KeyPairBytes genSignKeyNtru(int keysize)
+    public MessagePrivateKeyDto genSignKey(int keysize)
     {
-        return genSignKeyNtru(keysize, null);
+        return genSignKey(keysize, null);
     }
 
     @Deprecated
-    public KeyPairBytes genSignKeyNtru(int keysize, @Nullable @Alias String _alias)
+    public MessagePrivateKeyDto genSignKey(int keysize, @Nullable @Alias String _alias)
     {
         @Alias String alias = _alias;
         if (keysize == 64) {
@@ -552,14 +523,28 @@ public class Encryptor implements Runnable
             }
         }
 
-        KeyPairBytes key = genSignKeyNtruNow(keysize, alias);
-        return key;
+        return genSignKeyNow(keysize, alias);
     }
-    
-    public void seedMockSignal128(@PEM String publicKey, @Secret String privateKey)
-    {
-        MessagePrivateKeyDto key = new MessagePrivateKeyDto(publicKey, privateKey);
-        this.genSign128Queue.add(key);
+
+    public MessagePrivateKeyDto genSignKeyNow(int keysize) {
+        return genSignKeyNow(keysize, null);
+    }
+
+    public MessagePrivateKeyDto genSignKeyNow(int keysize, @Nullable @Alias String alias) {
+        KeyPairBytes pair1 = genSignKeyQTeslaNow(keysize);
+        KeyPairBytes pair2 = genSignKeyXmssNow(keysize);
+        return extractKey(pair1, pair2, alias);
+    }
+
+    public MessagePrivateKeyDto genSignKeyFromSeed(int keysize, String seed) {
+        return genSignKeyFromSeed(keysize, null);
+    }
+
+    public MessagePrivateKeyDto genSignKeyFromSeed(int keysize, String seed, @Nullable @Alias String alias) {
+        PredictablyRandom random = new PredictablyRandom(seed);
+        KeyPairBytes pair1 = genSignKeyQTeslaFromSeed(keysize, random);
+        KeyPairBytes pair2 = genSignKeyXmssFromSeed(keysize, random);
+        return extractKey(pair1, pair2, alias);
     }
 
     @Deprecated
@@ -592,20 +577,19 @@ public class Encryptor implements Runnable
                 continue;
             }
 
-            KeyPairBytes
-            return extractKey(pair, alias);
+            return extractKey(pair);
         }
         throw new RuntimeException("Failed to generate signing key");
     }
 
     @Deprecated
-    public MessagePrivateKeyDto genSignKeyNtruFromSeed(int keysize, @Salt String seed)
+    public KeyPairBytes genSignKeyNtruFromSeed(int keysize, @Salt String seed)
     {
         return genSignKeyNtruFromSeed(keysize, seed, null);
     }
 
     @Deprecated
-    public MessagePrivateKeyDto genSignKeyNtruFromSeed(int keysize, @Salt String seed, @Nullable @Alias String alias)
+    public KeyPairBytes genSignKeyNtruFromSeed(int keysize, @Salt String seed, @Nullable @Alias String alias)
     {
         SigningKeyPairGenerator gen = new SigningKeyPairGenerator();
         switch (keysize) {
@@ -626,7 +610,7 @@ public class Encryptor implements Runnable
         if (testSignNtru(pair) == false) {
             throw new RuntimeException("Failed to generate signing key from seed");
         }
-        return extractKey(pair, alias);
+        return extractKey(pair);
     }
 
     @Deprecated
@@ -647,7 +631,7 @@ public class Encryptor implements Runnable
         }
     }
     
-    public MessagePrivateKeyDto genEncryptKeyNtru(int keysize)
+    public MessagePrivateKeyDto genEncryptKey(int keysize)
     {
         if (keysize == 128) {
             MessagePrivateKeyDto ret = this.genEncrypt128Queue.poll();
@@ -661,12 +645,12 @@ public class Encryptor implements Runnable
             if (ret != null) return ret;
         }
         
-        return genEncryptKeyNtruNow(keysize);
+        return genEncryptKeyNow(keysize);
     }
-    
-    public MessagePrivateKeyDto genEncryptKeyNtru(int keysize, @Nullable @Alias String _alias)
+
+    public MessagePrivateKeyDto genEncryptKey(int keysize, @Nullable @Alias String _alias)
     {
-        MessagePrivateKeyDto key = genEncryptKeyNtru(keysize);
+        MessagePrivateKeyDto key = genEncryptKey(keysize);
 
         @Alias String alias = _alias;
         if (alias == null) return key;
@@ -674,8 +658,29 @@ public class Encryptor implements Runnable
 
         return key;
     }
+
+    public MessagePrivateKeyDto genEncryptKeyNow(int keysize) {
+        return genEncryptKeyNow(keysize, null);
+    }
+
+    public MessagePrivateKeyDto genEncryptKeyNow(int keysize, @Nullable @Alias String alias) {
+        KeyPairBytes pair1 = genEncryptKeyNtruNow(keysize);
+        KeyPairBytes pair2 = genEncryptKeyNewHopeNow(keysize);
+        return extractKey(pair1, pair2, alias);
+    }
+
+    public MessagePrivateKeyDto genEncryptKeyFromSeed(int keysize, String seed) {
+        return genEncryptKeyFromSeed(keysize, null);
+    }
+
+    public MessagePrivateKeyDto genEncryptKeyFromSeed(int keysize, String seed, @Nullable @Alias String alias) {
+        PredictablyRandom random = new PredictablyRandom(seed);
+        KeyPairBytes pair1 = genEncryptKeyNtruFromSeed(keysize, random);
+        KeyPairBytes pair2 = genEncryptKeyNewHopeFromSeed(keysize, random);
+        return extractKey(pair1, pair2, alias);
+    }
     
-    public MessagePrivateKeyDto genEncryptKeyNtruNow(int keysize)
+    public KeyPairBytes genEncryptKeyNtruNow(int keysize)
     {
         for (int n = 0; n < 8; n++) {
             EncryptionKeyPairGenerator keyGen = new EncryptionKeyPairGenerator();
@@ -698,13 +703,14 @@ public class Encryptor implements Runnable
         }
         throw new RuntimeException("Failed to generate encryption key");
     }
-    
-    public MessagePrivateKeyDto genEncryptKeyNtruFromSeed(int keysize, @Secret String seed)
+
+    public KeyPairBytes genEncryptKeyNtruFromSeed(int keysize, @Secret String seed)
     {
-        return genEncryptKeyNtruFromSeed(keysize, seed, null);
+        PredictablyRandom random = new PredictablyRandom(seed);
+        return genEncryptKeyNtruFromSeed(keysize, random);
     }
     
-    public MessagePrivateKeyDto genEncryptKeyNtruFromSeed(int keysize, @Secret String seed, @Nullable @Alias String alias)
+    public KeyPairBytes genEncryptKeyNtruFromSeed(int keysize, PredictablyRandom random)
     {
         EncryptionKeyPairGenerator gen = new EncryptionKeyPairGenerator();
         switch (keysize) {
@@ -717,12 +723,12 @@ public class Encryptor implements Runnable
             default:
                 throw new RuntimeException("Unknown NTRU key size(" + keysize + ")");
         }
-        
-        AsymmetricCipherKeyPair pair = gen.generateKeyPair(new PredictablyRandom(seed));
+
+        AsymmetricCipherKeyPair pair = gen.generateKeyPair(random);
         if (testKey(pair) == false) {
             throw new RuntimeException("Failed to generate encryption key from seed");
         }
-        return extractKey(gen.generateKeyPair());
+        return extractKey(pair);
     }
     
     private boolean testKey(AsymmetricCipherKeyPair pair) {
@@ -745,6 +751,19 @@ public class Encryptor implements Runnable
             }
         }
         return false;
+    }
+
+    public KeyPairBytes genEncryptKeyNewHopeFromSeed(int keysize, String seed)
+    {
+        PredictablyRandom random = new PredictablyRandom(seed);
+        return genEncryptKeyNewHopeFromSeed(keysize, random);
+    }
+
+    public KeyPairBytes genEncryptKeyNewHopeFromSeed(int keysize, PredictablyRandom random)
+    {
+        NHKeyPairGeneratorPredictable gen = new NHKeyPairGeneratorPredictable();
+        gen.init(random);
+        return extractKey(gen.generateKeyPair());
     }
 
     public KeyPairBytes genEncryptKeyNewHopeNow(int keysize)
@@ -1097,18 +1116,22 @@ public class Encryptor implements Runnable
     public MessagePrivateKeyDto getTrustOfPublicRead() {
         MessagePrivateKeyDto ret = this.trustOfPublicRead;
         if (ret == null) {
-            ret = genEncryptKeyNtruFromSeed(128, "public", "public");
+            ret = genEncryptKeyFromSeed(128, "public", "public");
+            //key = new MessagePrivateKeyDto("hCtNNY27gTrDwo2k1w_nm-28B_0u0Z8_lJYSqdmlRzpxb1Ke194tDZWyNEUR8uchT89qg_R1erx9CAyHFMYgAS2Gs5xfRy_37N2JmtR43HmEVDwcoytHjahdZGNYDIEzrSPhJuAb62unOwNjtS0LF9vkXR5akiyaxz7S21sKCitYwonYjGnODaf4axN6H6n_jhhHIHsGORK_o-Giq7FKZNJhoVfyEaNZPsHkG763cKKSKzkvHHVt7EONjW1OjFT6O5E0gNtiGDKQRquJBtWQUlsosDTaXCQWedj6HzBKsXQZjT_XL5QDSsUHIfTN4oiPqiNHREtjUuWMPa1GsOwhPSDRYpcsscBcD67gKRPeuk4_LfqwPk77ibEdbbP4g1FJhn8eaIGpXWTMFWG5Y_z8PfzS98K46Rj_dkHctVen3lHP_MiitAiUp4FtMdBl_FCHhpKFtoU0mriEUyjm1vLxxmgMuDVxb2Szo3Lm3Rgjq2ZSQBj9Sea-GuqBwc_7uBkqZY-vb72FqQ54jy0-CP73Ij4uJ_uH2g93pJDzSfxPtmsZOp7Rs5pYT03gWr018llG4D4Xtsm-2xP_IONLasoJHTrkkg9XPvmxZSQ8_AUSLZfoGRjWxKrYS1qZqCoZ9zYf_x1UtQEpDFjs__Zo9JONKMieTTskykXv-SwSIiyA6EUbvBTN4-VFVZNmc8zCkBDRRH2jZZUCMbYGkuMXEO_aIM2YwYpRROUj48p7zo8uYlnB82YHvhb6czGWew-RSfNeMeE1vX2Z9qoVQRPgj-5dKbnG2Xbkifmjj4h4Aw", "hCtNNY27gTrDwo2k1w_nm-28B_0u0Z8_lJYSqdmlRzpxb1Ke194tDZWyNEUR8uchT89qg_R1erx9CAyHFMYgAS2Gs5xfRy_37N2JmtR43HmEVDwcoytHjahdZGNYDIEzrSPhJuAb62unOwNjtS0LF9vkXR5akiyaxz7S21sKCitYwonYjGnODaf4axN6H6n_jhhHIHsGORK_o-Giq7FKZNJhoVfyEaNZPsHkG763cKKSKzkvHHVt7EONjW1OjFT6O5E0gNtiGDKQRquJBtWQUlsosDTaXCQWedj6HzBKsXQZjT_XL5QDSsUHIfTN4oiPqiNHREtjUuWMPa1GsOwhPSDRYpcsscBcD67gKRPeuk4_LfqwPk77ibEdbbP4g1FJhn8eaIGpXWTMFWG5Y_z8PfzS98K46Rj_dkHctVen3lHP_MiitAiUp4FtMdBl_FCHhpKFtoU0mriEUyjm1vLxxmgMuDVxb2Szo3Lm3Rgjq2ZSQBj9Sea-GuqBwc_7uBkqZY-vb72FqQ54jy0-CP73Ij4uJ_uH2g93pJDzSfxPtmsZOp7Rs5pYT03gWr018llG4D4Xtsm-2xP_IONLasoJHTrkkg9XPvmxZSQ8_AUSLZfoGRjWxKrYS1qZqCoZ9zYf_x1UtQEpDFjs__Zo9JONKMieTTskykXv-SwSIiyA6EUbvBTN4-VFVZNmc8zCkBDRRH2jZZUCMbYGkuMXEO_aIM2YwYpRROUj48p7zo8uYlnB82YHvhb6czGWew-RSfNeMeE1vX2Z9qoVQRPgj-5dKbnG2Xbkifmjj4h4A35nyKJ3ikeM8yUi_FlKfk_c3f8Tacpp7F8UZUunoUF2VDvYohoTyU6FrHBK-PqRIKU-4HBkrR2LF6Y2zyABrr3C5axkSVArak7ofFERtX0shq9aj4OmCg");
+            ret.setAlias("public");
+            this.trustOfPublicRead = ret;
         }
-        this.trustOfPublicRead = ret;
         return ret;
     }
     
     public MessagePrivateKeyDto getTrustOfPublicWrite() {
         MessagePrivateKeyDto ret = this.trustOfPublicWrite;
         if (ret == null) {
-            ret = genSignKeyNtruFromSeed(64, "public", "public");
+            ret = genSignKeyFromSeed(64, "public", "public");
+            //key = new MessagePrivateKeyDto("rz39v_ev9aFHHJrhE0bn7RONg_RqfGNDXpARYuja8yHO2vf4npuodKpgMApzJW73V0-giMMXyweuYTP3fDtrrdQ_p-3hhAK91wqharZDf18PiU1HOzjFCAWSyQF6eDMzpAwoSUk1_sfL2nUTqF5s_oMlPkHcClBABvm0S3fKvJQC-HLPDpFFaCnsfStu-8ytyx_gjPnBSuGnL1qz5w", "AM232z_XLRsxcxJsNsjcDHJtj-Su62y7jTTn_QE4eFAA6ctcftImbHfTm04nfAmf5EhYcadcPzuwIdRZagyBOADleiEpAXtf4YqQnDX42scZvELRLoEjpofzo2Q5ncLKAOLkz9iZc3oS6PQpS8AZbEcrVq8qhSh_8MjpwYdDpG6vPf2_96_1oUccmuETRuftE42D9Gp8Y0NekBFi6NrzIc7a9_iem6h0qmAwCnMlbvdXT6CIwxfLB65hM_d8O2ut1D-n7eGEAr3XCqFqtkN_Xw-JTUc7OMUIBZLJAXp4MzOkDChJSTX-x8vadROoXmz-gyU-QdwKUEAG-bRLd8q8lAL4cs8OkUVoKex9K277zK3LH-CM-cFK4acvWrPnrz39v_ev9aFHHJrhE0bn7RONg_RqfGNDXpARYuja8yHO2vf4npuodKpgMApzJW73V0-giMMXyweuYTP3fDtrrdQ_p-3hhAK91wqharZDf18PiU1HOzjFCAWSyQF6eDMzpAwoSUk1_sfL2nUTqF5s_oMlPkHcClBABvm0S3fKvJQC-HLPDpFFaCnsfStu-8ytyx_gjPnBSuGnL1qz5w");
+            ret.setAlias("public");
+            this.trustOfPublicWrite = ret;
         }
-        this.trustOfPublicWrite = ret;
         return ret;
     }
     
@@ -1152,6 +1175,10 @@ public class Encryptor implements Runnable
             if (ret != null) return ret;
         } else if (numBits == 256) {
             String ret = this.genAes256Queue.poll();
+            this.moreKeys();
+            if (ret != null) return ret;
+        } else if (numBits == 512) {
+            String ret = this.genAes512Queue.poll();
             this.moreKeys();
             if (ret != null) return ret;
         }

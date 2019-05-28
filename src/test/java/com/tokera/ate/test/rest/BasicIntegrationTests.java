@@ -57,7 +57,7 @@ public class BasicIntegrationTests {
     @Order(10)
     public void getAdminKey() {
         AteDelegate d = AteDelegate.get();
-        MessagePrivateKeyDto key = d.encryptor.genSignKeyNtru(128);
+        MessagePrivateKeyDto key = d.encryptor.genSignKey(128);
 
         String keyPem = key.getPublicKey();
         if (keyPem == null) throw new WebApplicationException("Failed to generate private key for domain");

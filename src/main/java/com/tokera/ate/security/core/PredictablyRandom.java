@@ -37,12 +37,12 @@ public class PredictablyRandom implements IRandom {
         return this.getRandom(this.random.nextLong());
     }
 
-    private Random getRandom(Long pressed) {
-        return PredictablyRandom.getRandom(pressed, this.seed, this.digest);
+    private Random getRandom(Long index) {
+        return PredictablyRandom.getRandom(index, this.seed, this.digest);
     }
     
-    private static Random getRandom(Long preseed, String seed, MessageDigest digest) {
-        String entropy = preseed + seed;
+    private static Random getRandom(Long index, String seed, MessageDigest digest) {
+        String entropy = index + ":" + seed;
         byte[] digestBytes = digest.digest(entropy.getBytes());
         byte[] seedBytes = Arrays.copyOfRange(digestBytes, 0, 8);
         

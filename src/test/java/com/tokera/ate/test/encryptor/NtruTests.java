@@ -68,7 +68,7 @@ public class NtruTests {
         if (seed != null) {
             key = encryptor.genSignKeyNtruFromSeed(keySize, seed);
         } else {
-            key = encryptor.genSignKeyNtru(keySize);
+            key = encryptor.genSignKey(keySize);
         }
         byte[] keyPrivate = key.getPrivateKeyBytes();
         byte[] keyPublic = key.getPublicKeyBytes();
@@ -88,9 +88,9 @@ public class NtruTests {
         MessagePrivateKeyDto key;
         String seed = _seed;
         if (seed != null) {
-            key = encryptor.genEncryptKeyNtru(keySize, seed);
+            key = encryptor.genEncryptKey(keySize, seed);
         } else {
-            key = encryptor.genEncryptKeyNtru(keySize);
+            key = encryptor.genEncryptKey(keySize);
         }
         byte[] keyPrivate = key.getPrivateKeyBytes();
         byte[] keyPublic = key.getPublicKeyBytes();
@@ -186,7 +186,7 @@ public class NtruTests {
     //@Test
     public void generateSignKeys() {
         for (int n = 0; n < 4; n++) {
-            MessagePrivateKeyDto key = encryptor.genSignKeyNtru(64);
+            MessagePrivateKeyDto key = encryptor.genSignKey(64);
             //System.out.println(yamlDelegate.serializeObj(key));
         }
     }
@@ -194,7 +194,7 @@ public class NtruTests {
     //@Test
     public void generateEncryptKeys() {
         for (int n = 0; n < 32; n++) {
-            MessagePrivateKeyDto key = encryptor.genEncryptKeyNtru(128);
+            MessagePrivateKeyDto key = encryptor.genEncryptKey(128);
             //System.out.println(yamlDelegate.serializeObj(key));
         }
     }
