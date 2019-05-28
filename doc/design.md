@@ -632,8 +632,8 @@ behind the earlier asymmetric encryption (this is done for performance reasons
 through the reuse of the faster symmetric encryption when within the same security
 boundary):
 
-- **AES256** - _equivalent to AES128 on classical computer_
-- **AES512** - _equivalent to AES256 on classical computer_
+- **AES256** - _equivalent to AES128 on quantum computer_
+- **AES512** - _equivalent to AES256 on quantum computer_
 
 `
 Note: For the observant reader this means if AES is broken in the future then
