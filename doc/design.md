@@ -606,7 +606,7 @@ of two) using distinctly different algorithms which ideally reside in different
 cryptographic groups. The idea behind this extra computation, complexity and key
 size is that if a weakness is found in one of the ciphers in the future then at
 least the second cipher will protect the customer data for a reasonable amount
-of time until a fix can be rolled out to systemic eliminate the weakness. Given
+of time until a fix can be rolled out to eliminate the systemic weakness. Given
 ATE is highly dependent on cryptography for its authentication and authorization
 models this is deemed an acceptable cost.
 
