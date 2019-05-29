@@ -50,6 +50,8 @@ import org.bouncycastle.pqc.crypto.ExchangePair;
 import org.bouncycastle.pqc.crypto.newhope.*;
 import org.bouncycastle.pqc.crypto.ntru.*;
 import org.bouncycastle.pqc.crypto.qtesla.*;
+import org.bouncycastle.pqc.crypto.xmss.XMSSMTKeyGenerationParameters;
+import org.bouncycastle.pqc.crypto.xmss.XMSSMTParameters;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.bouncycastle.crypto.digests.SHA256Digest;
@@ -892,6 +894,60 @@ public class Encryptor implements Runnable
     }
 
     public boolean verifyQTesla(@PEM byte[] publicKey, @Hash byte[] digest, @Signature byte[] sig)
+    {
+        int securityCategory = QTESLASecurityCategory.HEURISTIC_I;
+        if (publicKey.length > 2500) securityCategory = QTESLASecurityCategory.HEURISTIC_III_SPEED;
+        if (publicKey.length > 20000) securityCategory = QTESLASecurityCategory.PROVABLY_SECURE_III;
+
+        QTESLAPublicKeyParameters params = new QTESLAPublicKeyParameters(securityCategory, publicKey);
+
+        QTESLASigner signer = new QTESLASigner();
+        signer.init(false, params);
+        return signer.verifySignature(digest, sig);
+    }
+
+    public KeyPairBytes genSignKeyXmssMtNow(int keysize)
+    {
+        SecureRandom keyRandom = new SecureRandom();
+
+
+        XMSSMTParameters params = new XMSSMTParameters();
+
+        XMSSMTKeyGenerationParameters params = new XMSSMTKeyGenerationParameters();
+        QTESLAKeyGenerationParameters params;
+        switch (keysize) {
+            case 512:
+                params = new QTESLAKeyGenerationParameters(QTESLASecurityCategory.PROVABLY_SECURE_III, keyRandom);
+                break;
+            case 256:
+                params = new QTESLAKeyGenerationParameters(QTESLASecurityCategory.HEURISTIC_III_SPEED, keyRandom);
+                break;
+            case 128:
+            case 64:
+                params = new QTESLAKeyGenerationParameters(QTESLASecurityCategory.HEURISTIC_I, keyRandom);
+                break;
+            default:
+                throw new RuntimeException("Unknown GMSS key size(" + keysize + ")");
+        }
+        QTESLAKeyPairGenerator gen = new QTESLAKeyPairGenerator();
+        gen.init(params);
+        return extractKey(gen.generateKeyPair());
+    }
+
+    public @Signature byte[] signXmssMt(@Secret byte[] privateKey, @Hash byte[] digest)
+    {
+        int securityCategory = QTESLASecurityCategory.HEURISTIC_I;
+        if (privateKey.length > 2000) securityCategory = QTESLASecurityCategory.HEURISTIC_III_SPEED;
+        if (privateKey.length > 8000) securityCategory = QTESLASecurityCategory.PROVABLY_SECURE_III;
+
+        QTESLAPrivateKeyParameters params = new QTESLAPrivateKeyParameters(securityCategory, privateKey);
+
+        QTESLASigner signer = new QTESLASigner();
+        signer.init(true, params);
+        return signer.generateSignature(digest);
+    }
+
+    public boolean verifyXmssMt(@PEM byte[] publicKey, @Hash byte[] digest, @Signature byte[] sig)
     {
         int securityCategory = QTESLASecurityCategory.HEURISTIC_I;
         if (publicKey.length > 2500) securityCategory = QTESLASecurityCategory.HEURISTIC_III_SPEED;
