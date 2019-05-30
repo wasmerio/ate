@@ -1,4 +1,4 @@
-package com.tokera.ate.security.core;
+package com.tokera.ate.security.core.ntru_predictable;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -14,7 +14,7 @@ import org.checkerframework.framework.qual.DefaultQualifier;
 
 @DefaultQualifier(Nullable.class)
 @SuppressWarnings({"argument.type.incompatible", "return.type.incompatible", "dereference.of.nullable", "iterating.over.nullable", "method.invocation.invalid", "override.return.invalid", "unnecessary.equals", "known.nonnull", "flowexpr.parse.error.postcondition", "unboxing.of.nullable", "accessing.nullable", "type.invalid.annotations.on.use", "switching.nullable", "initialization.fields.uninitialized"})
-public class PredictableSupportUtil {
+public class SupportUtil {
 
     public static TernaryPolynomial generateRandomTernary(int N, int numOnes, int numNegOnes, boolean sparse, Random random) {
         if (sparse) {

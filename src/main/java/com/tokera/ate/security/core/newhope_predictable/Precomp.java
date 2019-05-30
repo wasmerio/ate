@@ -1,6 +1,6 @@
-package com.tokera.ate.security.core;
+package com.tokera.ate.security.core.newhope_predictable;
 
-class NHPrecompPredictable
+class Precomp
 {
     static final short[] OMEGAS_MONTGOMERY = { 4075, 6974, 7373, 7965, 3262, 5079, 522, 2169, 6364, 1018, 1041, 8775,
             2344, 11011, 5574, 1973, 4536, 1050, 6844, 3860, 3818, 6118, 2683, 1190, 4789, 7822, 7540, 6752, 5456, 4449,

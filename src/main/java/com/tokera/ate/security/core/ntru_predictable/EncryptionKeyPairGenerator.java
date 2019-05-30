@@ -1,5 +1,6 @@
-package com.tokera.ate.security.core;
+package com.tokera.ate.security.core.ntru_predictable;
 
+import com.tokera.ate.security.core.IRandom;
 import org.bouncycastle.pqc.crypto.ntru.NTRUEncryptionKeyGenerationParameters;
 import org.bouncycastle.pqc.crypto.ntru.NTRUEncryptionPrivateKeyParameters;
 import org.bouncycastle.pqc.crypto.ntru.NTRUEncryptionPublicKeyParameters;
@@ -46,12 +47,12 @@ public class EncryptionKeyPairGenerator {
             IntegerPolynomial f;
 
             if (fastFp) {
-                t = params.polyType == NTRUParameters.TERNARY_POLYNOMIAL_TYPE_SIMPLE ? PredictableSupportUtil.generateRandomTernary(N, df, df, sparse, random.getRandom()) : PredictableSupportUtil.generateRandomProduct(N, df1, df2, df3, df3, random.getRandom());
+                t = params.polyType == NTRUParameters.TERNARY_POLYNOMIAL_TYPE_SIMPLE ? SupportUtil.generateRandomTernary(N, df, df, sparse, random.getRandom()) : SupportUtil.generateRandomProduct(N, df1, df2, df3, df3, random.getRandom());
                 f = t.toIntegerPolynomial();
                 f.mult(3);
                 f.coeffs[0] += 1;
             } else {
-                t = params.polyType == NTRUParameters.TERNARY_POLYNOMIAL_TYPE_SIMPLE ? PredictableSupportUtil.generateRandomTernary(N, df, df - 1, sparse, random.getRandom()) : PredictableSupportUtil.generateRandomProduct(N, df1, df2, df3, df3 - 1, random.getRandom());
+                t = params.polyType == NTRUParameters.TERNARY_POLYNOMIAL_TYPE_SIMPLE ? SupportUtil.generateRandomTernary(N, df, df - 1, sparse, random.getRandom()) : SupportUtil.generateRandomProduct(N, df1, df2, df3, df3 - 1, random.getRandom());
                 f = t.toIntegerPolynomial();
                 fp = f.invertF3();
                 if (fp == null) {
@@ -73,7 +74,7 @@ public class EncryptionKeyPairGenerator {
 
         DenseTernaryPolynomial g;
         while (true) {
-            g = PredictableSupportUtil.generateRandomDense(N, dg, dg - 1, random.getRandom());
+            g = SupportUtil.generateRandomDense(N, dg, dg - 1, random.getRandom());
             if (g.invertFq(q) != null) {
                 break;
             }

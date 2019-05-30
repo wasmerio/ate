@@ -1,10 +1,11 @@
-package com.tokera.ate.security.core;
+package com.tokera.ate.security.core.ntru_predictable;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 
+import com.tokera.ate.security.core.IRandom;
 import org.bouncycastle.pqc.crypto.ntru.NTRUParameters;
 import org.bouncycastle.pqc.crypto.ntru.NTRUSigningKeyGenerationParameters;
 import org.bouncycastle.pqc.crypto.ntru.NTRUSigningPrivateKeyParameters;
@@ -114,7 +115,7 @@ public class SigningKeyPairGenerator {
 
         do {
             do {
-                f = params.polyType == NTRUParameters.TERNARY_POLYNOMIAL_TYPE_SIMPLE ? PredictableSupportUtil.generateRandomDense(N, d + 1, d, random.getRandom()) : PredictableSupportUtil.generateRandomProduct(N, d1, d2, d3 + 1, d3, random.getRandom());
+                f = params.polyType == NTRUParameters.TERNARY_POLYNOMIAL_TYPE_SIMPLE ? SupportUtil.generateRandomDense(N, d + 1, d, random.getRandom()) : SupportUtil.generateRandomProduct(N, d1, d2, d3 + 1, d3, random.getRandom());
                 fInt = f.toIntegerPolynomial();
             } while (primeCheck && fInt.resultant(_2n1).res.equals(ZERO));
             fq = fInt.invertFq(q);
@@ -124,7 +125,7 @@ public class SigningKeyPairGenerator {
         do {
             do {
                 do {
-                    g = params.polyType == NTRUParameters.TERNARY_POLYNOMIAL_TYPE_SIMPLE ? PredictableSupportUtil.generateRandomDense(N, d + 1, d, random.getRandom()) : PredictableSupportUtil.generateRandomProduct(N, d1, d2, d3 + 1, d3, random.getRandom());
+                    g = params.polyType == NTRUParameters.TERNARY_POLYNOMIAL_TYPE_SIMPLE ? SupportUtil.generateRandomDense(N, d + 1, d, random.getRandom()) : SupportUtil.generateRandomProduct(N, d1, d2, d3 + 1, d3, random.getRandom());
                     gInt = g.toIntegerPolynomial();
                 } while (primeCheck && gInt.resultant(_2n1).res.equals(ZERO));
             } while (gInt.invertFq(q) == null);

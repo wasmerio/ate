@@ -1,6 +1,6 @@
-package com.tokera.ate.security.core;
+package com.tokera.ate.security.core.newhope_predictable;
 
-public class NHNTTPredictable {
+public class NTT {
     private static final short[] BitReverseTable = { 0, 512, 256, 768, 128, 640, 384, 896, 64, 576, 320, 832, 192, 704,
             448, 960, 32, 544, 288, 800, 160, 672, 416, 928, 96, 608, 352, 864, 224, 736, 480, 992, 16, 528, 272, 784, 144,
             656, 400, 912, 80, 592, 336, 848, 208, 720, 464, 976, 48, 560, 304, 816, 176, 688, 432, 944, 112, 624, 368, 880,
@@ -50,7 +50,7 @@ public class NHNTTPredictable {
 
     static void bitReverse(short[] poly)
     {
-        for (int i = 0; i < NHParamsPredictable.N; ++i)
+        for (int i = 0; i < Params.N; ++i)
         {
             int r = BitReverseTable[i];
             if (i < r)
@@ -75,11 +75,11 @@ public class NHNTTPredictable {
             for (int start = 0; start < distance; ++start)
             {
                 int jTwiddle = 0;
-                for (int j = start; j < NHParamsPredictable.N - 1; j += 2 * distance)
+                for (int j = start; j < Params.N - 1; j += 2 * distance)
                 {
                     int u = a[j] & 0xFFFF, v = a[j + distance] & 0xFFFF, w = omega[jTwiddle++];
                     a[j] = (short)(u + v); // Omit reduction (be lazy)
-                    a[j + distance] = NHReducePredictable.montgomery(w * (u + (3 * NHParamsPredictable.Q) - v));
+                    a[j + distance] = Reduce.montgomery(w * (u + (3 * Params.Q) - v));
                 }
             }
 
@@ -88,11 +88,11 @@ public class NHNTTPredictable {
             for (int start = 0; start < distance; ++start)
             {
                 int jTwiddle = 0;
-                for (int j = start; j < NHParamsPredictable.N - 1; j += 2 * distance)
+                for (int j = start; j < Params.N - 1; j += 2 * distance)
                 {
                     int u = a[j] & 0xFFFF, v = a[j + distance] & 0xFFFF, w = omega[jTwiddle++];
-                    a[j] = NHReducePredictable.barrett((short)(u + v));
-                    a[j + distance] = NHReducePredictable.montgomery(w * (u + (3 * NHParamsPredictable.Q) - v));
+                    a[j] = Reduce.barrett((short)(u + v));
+                    a[j + distance] = Reduce.montgomery(w * (u + (3 * Params.Q) - v));
                 }
             }
         }
@@ -100,10 +100,10 @@ public class NHNTTPredictable {
 
     static void mulCoefficients(short[] poly, short[] factors)
     {
-        for (int i = 0; i < NHParamsPredictable.N; ++i)
+        for (int i = 0; i < Params.N; ++i)
         {
             int xi = poly[i] & 0xFFFF, yi = factors[i] & 0xFFFF;
-            poly[i] = NHReducePredictable.montgomery(xi * yi);
+            poly[i] = Reduce.montgomery(xi * yi);
         }
     }
 }

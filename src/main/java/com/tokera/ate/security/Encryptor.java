@@ -7,6 +7,12 @@ import com.tokera.ate.io.api.IAteIO;
 import com.tokera.ate.qualifiers.BackendStorageSystem;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.security.core.*;
+import com.tokera.ate.security.core.newhope_predictable.NHKeyPairGeneratorPredictable;
+import com.tokera.ate.security.core.ntru_predictable.EncryptionKeyPairGenerator;
+import com.tokera.ate.security.core.ntru_predictable.SigningKeyPairGenerator;
+import com.tokera.ate.security.core.qtesla_predictable.QTESLAKeyPairGeneratorPredictable;
+import com.tokera.ate.security.core.xmss_predictable.XMSSMTKeyPairGeneratorPredictable;
+import com.tokera.ate.security.core.xmss_predictable.XmssKeySerializer;
 import com.tokera.ate.units.*;
 import com.tokera.ate.dao.msg.MessagePrivateKey;
 import com.tokera.ate.dao.msg.MessagePublicKey;
@@ -45,13 +51,13 @@ import javax.xml.bind.DatatypeConverter;
 
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.lang.time.StopWatch;
+import org.apache.kafka.common.utils.Utils;
 import org.bouncycastle.crypto.*;
 import org.bouncycastle.pqc.crypto.ExchangePair;
 import org.bouncycastle.pqc.crypto.newhope.*;
 import org.bouncycastle.pqc.crypto.ntru.*;
 import org.bouncycastle.pqc.crypto.qtesla.*;
-import org.bouncycastle.pqc.crypto.xmss.XMSSMTKeyGenerationParameters;
-import org.bouncycastle.pqc.crypto.xmss.XMSSMTParameters;
+import org.bouncycastle.pqc.crypto.xmss.*;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.bouncycastle.crypto.digests.SHA256Digest;
@@ -534,7 +540,7 @@ public class Encryptor implements Runnable
 
     public MessagePrivateKeyDto genSignKeyNow(int keysize, @Nullable @Alias String alias) {
         KeyPairBytes pair1 = genSignKeyQTeslaNow(keysize);
-        KeyPairBytes pair2 = genSignKeyXmssNow(keysize);
+        KeyPairBytes pair2 = genSignKeyXmssMtNow(keysize);
         return extractKey(pair1, pair2, alias);
     }
 
@@ -545,7 +551,7 @@ public class Encryptor implements Runnable
     public MessagePrivateKeyDto genSignKeyFromSeed(int keysize, String seed, @Nullable @Alias String alias) {
         PredictablyRandom random = new PredictablyRandom(seed);
         KeyPairBytes pair1 = genSignKeyQTeslaFromSeed(keysize, random);
-        KeyPairBytes pair2 = genSignKeyXmssFromSeed(keysize, random);
+        KeyPairBytes pair2 = genSignKeyXmssMtFromSeed(keysize, random);
         return extractKey(pair1, pair2, alias);
     }
 
@@ -856,6 +862,34 @@ public class Encryptor implements Runnable
         return engine.processBlock(data, 0, data.length);
     }
 
+    public KeyPairBytes genSignKeyQTeslaFromSeed(int keysize, String seed) {
+        PredictablyRandom keyRandom = new PredictablyRandom(seed);
+        return genSignKeyQTeslaFromSeed(keysize, keyRandom);
+    }
+
+    public KeyPairBytes genSignKeyQTeslaFromSeed(int keysize, PredictablyRandom keyRandom)
+    {
+        SecureRandom unusedRandom = new SecureRandom();
+        QTESLAKeyGenerationParameters params;
+        switch (keysize) {
+            case 512:
+                params = new QTESLAKeyGenerationParameters(QTESLASecurityCategory.PROVABLY_SECURE_III, unusedRandom);
+                break;
+            case 256:
+                params = new QTESLAKeyGenerationParameters(QTESLASecurityCategory.HEURISTIC_III_SPEED, unusedRandom);
+                break;
+            case 128:
+            case 64:
+                params = new QTESLAKeyGenerationParameters(QTESLASecurityCategory.HEURISTIC_I, unusedRandom);
+                break;
+            default:
+                throw new RuntimeException("Unknown GMSS key size(" + keysize + ")");
+        }
+        QTESLAKeyPairGeneratorPredictable gen = new QTESLAKeyPairGeneratorPredictable();
+        gen.init(params, keyRandom);
+        return extractKey(gen.generateKeyPair());
+    }
+
     public KeyPairBytes genSignKeyQTeslaNow(int keysize)
     {
         SecureRandom keyRandom = new SecureRandom();
@@ -906,57 +940,52 @@ public class Encryptor implements Runnable
         return signer.verifySignature(digest, sig);
     }
 
+    public KeyPairBytes genSignKeyXmssMtFromSeed(int keysize, String seed) {
+        PredictablyRandom keyRandom = new PredictablyRandom(seed);
+        return genSignKeyXmssMtFromSeed(keysize, keyRandom);
+    }
+
+    public KeyPairBytes genSignKeyXmssMtFromSeed(int keysize, PredictablyRandom keyRandom) {
+        XMSSMTParameters params = new XMSSMTParameters(20, 10, new SHA512Digest());
+
+        XMSSMTKeyPairGeneratorPredictable gen = new XMSSMTKeyPairGeneratorPredictable();
+        gen.init(params, keyRandom);
+        return extractKey(gen.generateKeyPair());
+    }
+
     public KeyPairBytes genSignKeyXmssMtNow(int keysize)
     {
         SecureRandom keyRandom = new SecureRandom();
+        XMSSMTParameters params = new XMSSMTParameters(20, 10, new SHA512Digest());
 
-
-        XMSSMTParameters params = new XMSSMTParameters();
-
-        XMSSMTKeyGenerationParameters params = new XMSSMTKeyGenerationParameters();
-        QTESLAKeyGenerationParameters params;
-        switch (keysize) {
-            case 512:
-                params = new QTESLAKeyGenerationParameters(QTESLASecurityCategory.PROVABLY_SECURE_III, keyRandom);
-                break;
-            case 256:
-                params = new QTESLAKeyGenerationParameters(QTESLASecurityCategory.HEURISTIC_III_SPEED, keyRandom);
-                break;
-            case 128:
-            case 64:
-                params = new QTESLAKeyGenerationParameters(QTESLASecurityCategory.HEURISTIC_I, keyRandom);
-                break;
-            default:
-                throw new RuntimeException("Unknown GMSS key size(" + keysize + ")");
-        }
-        QTESLAKeyPairGenerator gen = new QTESLAKeyPairGenerator();
-        gen.init(params);
+        XMSSMTKeyPairGenerator gen = new XMSSMTKeyPairGenerator();
+        gen.init(new XMSSMTKeyGenerationParameters(params, keyRandom));
         return extractKey(gen.generateKeyPair());
     }
 
     public @Signature byte[] signXmssMt(@Secret byte[] privateKey, @Hash byte[] digest)
     {
-        int securityCategory = QTESLASecurityCategory.HEURISTIC_I;
-        if (privateKey.length > 2000) securityCategory = QTESLASecurityCategory.HEURISTIC_III_SPEED;
-        if (privateKey.length > 8000) securityCategory = QTESLASecurityCategory.PROVABLY_SECURE_III;
+        XMSSMTParameters params = new XMSSMTParameters(20, 10, new SHA512Digest());
 
-        QTESLAPrivateKeyParameters params = new QTESLAPrivateKeyParameters(securityCategory, privateKey);
+        int hash = Utils.murmur2(digest);
+        int totalHeight = params.getHeight();
+        int maxIndexes = (int)(1L << totalHeight);
 
-        QTESLASigner signer = new QTESLASigner();
-        signer.init(true, params);
+        XMSSMTPrivateKeyParameters paramsPrivate = XmssKeySerializer.deserializerPrivateKey(privateKey);
+
+        XMSSMTSigner signer = new XMSSMTSigner();
+        signer.init(true, paramsPrivate);
         return signer.generateSignature(digest);
     }
 
     public boolean verifyXmssMt(@PEM byte[] publicKey, @Hash byte[] digest, @Signature byte[] sig)
     {
-        int securityCategory = QTESLASecurityCategory.HEURISTIC_I;
-        if (publicKey.length > 2500) securityCategory = QTESLASecurityCategory.HEURISTIC_III_SPEED;
-        if (publicKey.length > 20000) securityCategory = QTESLASecurityCategory.PROVABLY_SECURE_III;
+        XMSSMTParameters params = new XMSSMTParameters(20, 10, new SHA512Digest());
 
-        QTESLAPublicKeyParameters params = new QTESLAPublicKeyParameters(securityCategory, publicKey);
+        XMSSMTPublicKeyParameters paramPublic = XmssKeySerializer.deserializerPublicKey(publicKey);
 
-        QTESLASigner signer = new QTESLASigner();
-        signer.init(false, params);
+        XMSSMTSigner signer = new XMSSMTSigner();
+        signer.init(false, paramPublic);
         return signer.verifySignature(digest, sig);
     }
 
@@ -1111,6 +1140,12 @@ public class Encryptor implements Runnable
         if (key instanceof QTESLAPrivateKeyParameters) {
             return ((QTESLAPrivateKeyParameters) key).getSecret();
         }
+        if (key instanceof XMSSMTPublicKeyParameters) {
+            return XmssKeySerializer.serializer((XMSSMTPublicKeyParameters) key);
+        }
+        if (key instanceof XMSSMTPrivateKeyParameters) {
+            return XmssKeySerializer.serializer((XMSSMTPrivateKeyParameters) key);
+        }
         throw new RuntimeException("Unable to extract the key as it is an unknown type");
     }
     
@@ -1146,11 +1181,17 @@ public class Encryptor implements Runnable
         if (key instanceof QTESLAPublicKeyParameters) {
             return this.hashShaAndEncode(((QTESLAPublicKeyParameters) key).getPublicData());
         }
+        if (key instanceof XMSSMTPublicKeyParameters) {
+            return this.hashShaAndEncode(XmssKeySerializer.serializer((XMSSMTPublicKeyParameters) key));
+        }
+        if (key instanceof XMSSMTPrivateKeyParameters) {
+            return this.hashShaAndEncode(XmssKeySerializer.serializer((XMSSMTPrivateKeyParameters) key));
+        }
         throw new RuntimeException("Unable to extract the key as it is an unknown type");
     }
 
     public KeyPairBytes extractKey (AsymmetricCipherKeyPair pair) {
-        return new KeyPairBytes(extractKey(pair.getPrivate()), extractKey(pair.getPublic());
+        return new KeyPairBytes(extractKey(pair.getPrivate()), extractKey(pair.getPublic()));
     }
 
     public MessagePrivateKeyDto extractKey(KeyPairBytes pair1, KeyPairBytes pair2) {

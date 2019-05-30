@@ -1,10 +1,10 @@
-package com.tokera.ate.security.core;
+package com.tokera.ate.security.core.newhope_predictable;
 
 import org.bouncycastle.crypto.engines.ChaChaEngine;
 import org.bouncycastle.crypto.params.KeyParameter;
 import org.bouncycastle.crypto.params.ParametersWithIV;
 
-public class NHChaCha20Predictable {
+public class ChaCha20 {
     static void process(byte[] key, byte[] nonce, byte[] buf, int off, int len)
     {
         ChaChaEngine e = new ChaChaEngine(20);

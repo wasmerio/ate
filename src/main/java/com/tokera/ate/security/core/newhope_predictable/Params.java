@@ -1,6 +1,6 @@
-package com.tokera.ate.security.core;
+package com.tokera.ate.security.core.newhope_predictable;
 
-class NHParamsPredictable
+class Params
 {
     static final int N = 1024;
     static final int K = 16; /* used in sampler */

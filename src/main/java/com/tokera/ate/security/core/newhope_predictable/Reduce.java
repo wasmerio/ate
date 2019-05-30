@@ -1,6 +1,6 @@
-package com.tokera.ate.security.core;
+package com.tokera.ate.security.core.newhope_predictable;
 
-class NHReducePredictable
+class Reduce
 {
     static final int QInv = 12287; // -inverse_mod(p,2^18)
     static final int RLog = 18;
@@ -10,7 +10,7 @@ class NHReducePredictable
     {
         int u = a * QInv;
         u &= RMask;
-        u *= NHParamsPredictable.Q;
+        u *= Params.Q;
         u += a;
         return (short)(u >>> RLog);
     }
@@ -19,7 +19,7 @@ class NHReducePredictable
     {
         int t = a & 0xFFFF;
         int u = (t * 5) >>> 16;
-        u *= NHParamsPredictable.Q;
+        u *= Params.Q;
         return (short)(t - u);
     }
 }

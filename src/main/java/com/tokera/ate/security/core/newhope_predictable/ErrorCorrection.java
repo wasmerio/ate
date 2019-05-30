@@ -1,8 +1,8 @@
-package com.tokera.ate.security.core;
+package com.tokera.ate.security.core.newhope_predictable;
 
 import java.util.Arrays;
 
-class NHErrorCorrectionPredictable
+class ErrorCorrection
 {
     static int abs(int v)
     {
@@ -17,7 +17,7 @@ class NHErrorCorrectionPredictable
         // Next 6 lines compute t = x/Params.Q;
         b = x * 2730;
         t = b >> 25;
-        b = x - t * NHParamsPredictable.Q;
+        b = x - t * Params.Q;
         b = 12288 - b;
         b >>= 31;
         t -= b;
@@ -30,7 +30,7 @@ class NHErrorCorrectionPredictable
         r = t & 1;
         v[off1] = (t >> 1) + r;
 
-        return abs(x-((v[off0]) * 2 * NHParamsPredictable.Q));
+        return abs(x-((v[off0]) * 2 * Params.Q));
     }
 
     static int g(int x)
@@ -48,7 +48,7 @@ class NHErrorCorrectionPredictable
         c = t & 1;
         t = (t >> 1) + c; // t = round(x/(8 * Params.Q))
 
-        t *= 8 * NHParamsPredictable.Q;
+        t *= 8 * Params.Q;
 
         return abs(t - x);
     }
@@ -60,7 +60,7 @@ class NHErrorCorrectionPredictable
         iv[0] = nonce;
 
         byte[] rand = new byte[32];
-        NHChaCha20Predictable.process(seed, iv, rand, 0, rand.length);
+        ChaCha20.process(seed, iv, rand, 0, rand.length);
 
 //      int32_t v0[4], v1[4], v_tmp[4], k;
         int[] vs = new int[8], vTmp = new int[4];
@@ -75,7 +75,7 @@ class NHErrorCorrectionPredictable
             k += f(vs, 2, 6, 8 * v[512 + i] + 4 * rBit);
             k += f(vs, 3, 7, 8 * v[768 + i] + 4 * rBit);
 
-            k = (2 * NHParamsPredictable.Q - 1 - k) >> 31;
+            k = (2 * Params.Q - 1 - k) >> 31;
 
             vTmp[0] = ((~k) & vs[0]) ^ (k & vs[4]);
             vTmp[1] = ((~k) & vs[1]) ^ (k & vs[5]);
@@ -98,7 +98,7 @@ class NHErrorCorrectionPredictable
         t += g(xi2);
         t += g(xi3);
 
-        t -= 8 * NHParamsPredictable.Q;
+        t -= 8 * Params.Q;
 
         return (short)(t >>> 31);
     }
@@ -110,10 +110,10 @@ class NHErrorCorrectionPredictable
         int[] tmp = new int[4];
         for(int i = 0; i < 256; ++i)
         {
-            tmp[0] = 16 * NHParamsPredictable.Q + 8 * (int)v[  0 + i] - NHParamsPredictable.Q * (2 * c[  0 + i] + c[768 + i]);
-            tmp[1] = 16 * NHParamsPredictable.Q + 8 * (int)v[256 + i] - NHParamsPredictable.Q * (2 * c[256 + i] + c[768 + i]);
-            tmp[2] = 16 * NHParamsPredictable.Q + 8 * (int)v[512 + i] - NHParamsPredictable.Q * (2 * c[512 + i] + c[768 + i]);
-            tmp[3] = 16 * NHParamsPredictable.Q + 8 * (int)v[768 + i] - NHParamsPredictable.Q * (                 c[768 + i]);
+            tmp[0] = 16 * Params.Q + 8 * (int)v[  0 + i] - Params.Q * (2 * c[  0 + i] + c[768 + i]);
+            tmp[1] = 16 * Params.Q + 8 * (int)v[256 + i] - Params.Q * (2 * c[256 + i] + c[768 + i]);
+            tmp[2] = 16 * Params.Q + 8 * (int)v[512 + i] - Params.Q * (2 * c[512 + i] + c[768 + i]);
+            tmp[3] = 16 * Params.Q + 8 * (int)v[768 + i] - Params.Q * (                 c[768 + i]);
 
             key[i >>> 3] |= LDDecode(tmp[0], tmp[1], tmp[2], tmp[3]) << (i & 7);
         }

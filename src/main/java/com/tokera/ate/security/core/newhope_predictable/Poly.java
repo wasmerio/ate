@@ -1,21 +1,21 @@
-package com.tokera.ate.security.core;
+package com.tokera.ate.security.core.newhope_predictable;
 
 import org.bouncycastle.crypto.digests.SHAKEDigest;
 import org.bouncycastle.util.Pack;
 
-class NHPolyPredictable
+class Poly
 {
     static void add(short[] x, short[] y, short[] z)
     {
-        for (int i = 0; i < NHParamsPredictable.N; ++i)
+        for (int i = 0; i < Params.N; ++i)
         {
-            z[i] = NHReducePredictable.barrett((short)(x[i] + y[i]));
+            z[i] = Reduce.barrett((short)(x[i] + y[i]));
         }
     }
 
     static void fromBytes(short[] r, byte[] a)
     {
-        for (int i = 0; i < NHParamsPredictable.N / 4; ++i)
+        for (int i = 0; i < Params.N / 4; ++i)
         {
             int j = 7 * i;
             int a0 = a[j + 0] & 0xFF, a1 = a[j + 1] & 0xFF, a2 = a[j + 2] & 0xFF, a3 = a[j + 3] & 0xFF,
@@ -31,9 +31,9 @@ class NHPolyPredictable
 
     static void fromNTT(short[] r)
     {
-        NHNTTPredictable.bitReverse(r);
-        NHNTTPredictable.core(r, NHPrecompPredictable.OMEGAS_INV_MONTGOMERY);
-        NHNTTPredictable.mulCoefficients(r, NHPrecompPredictable.PSIS_INV_MONTGOMERY);
+        NTT.bitReverse(r);
+        NTT.core(r, Precomp.OMEGAS_INV_MONTGOMERY);
+        NTT.mulCoefficients(r, Precomp.PSIS_INV_MONTGOMERY);
     }
 
     static void getNoise(short[] r, byte[] seed, byte nonce)
@@ -41,10 +41,10 @@ class NHPolyPredictable
         byte[] iv = new byte[8];
         iv[0] = nonce;
 
-        byte[] buf = new byte[4 * NHParamsPredictable.N];
-        NHChaCha20Predictable.process(seed, iv, buf, 0, buf.length);
+        byte[] buf = new byte[4 * Params.N];
+        ChaCha20.process(seed, iv, buf, 0, buf.length);
 
-        for (int i = 0; i < NHParamsPredictable.N; ++i)
+        for (int i = 0; i < Params.N; ++i)
         {
             int t = Pack.bigEndianToInt(buf, i * 4);
             //r[i] = (short)(bitCount(t) + Params.Q - Params.K);
@@ -56,23 +56,23 @@ class NHPolyPredictable
             }
             int a = ((d >>> 24) + (d >>> 0)) & 0xFF;
             int b = ((d >>> 16) + (d >>> 8)) & 0xFF;
-            r[i] = (short)(a + NHParamsPredictable.Q - b);
+            r[i] = (short)(a + Params.Q - b);
         }
     }
 
     static void pointWise(short[] x, short[] y, short[] z)
     {
-        for (int i = 0; i < NHParamsPredictable.N; ++i)
+        for (int i = 0; i < Params.N; ++i)
         {
             int xi = x[i] & 0xFFFF, yi = y[i] & 0xFFFF;
-            short t = NHReducePredictable.montgomery(3186 * yi);         // t is now in Montgomery domain
-            z[i] = NHReducePredictable.montgomery(xi * (t & 0xFFFF));    // z[i] is back in normal domain
+            short t = Reduce.montgomery(3186 * yi);         // t is now in Montgomery domain
+            z[i] = Reduce.montgomery(xi * (t & 0xFFFF));    // z[i] is back in normal domain
         }
     }
 
     static void toBytes(byte[] r, short[] p)
     {
-        for (int i = 0; i < NHParamsPredictable.N / 4; ++i)
+        for (int i = 0; i < Params.N / 4; ++i)
         {
             int j = 4 * i;
 
@@ -95,8 +95,8 @@ class NHPolyPredictable
 
     static void toNTT(short[] r)
     {
-        NHNTTPredictable.mulCoefficients(r, NHPrecompPredictable.PSIS_BITREV_MONTGOMERY);
-        NHNTTPredictable.core(r, NHPrecompPredictable.OMEGAS_MONTGOMERY);
+        NTT.mulCoefficients(r, Precomp.PSIS_BITREV_MONTGOMERY);
+        NTT.core(r, Precomp.OMEGAS_MONTGOMERY);
     }
 
     static void uniform(short[] a, byte[] seed)
@@ -113,10 +113,10 @@ class NHPolyPredictable
             for (int i = 0; i < output.length; i += 2)
             {
                 int val = (output[i] & 0xFF) | ((output[i + 1] & 0xFF) << 8);
-                if (val < 5 * NHParamsPredictable.Q)
+                if (val < 5 * Params.Q)
                 {
                     a[pos++] = (short)val;
-                    if (pos == NHParamsPredictable.N)
+                    if (pos == Params.N)
                     {
                         return;
                     }
@@ -135,8 +135,8 @@ class NHPolyPredictable
 
     private static short normalize(short x)
     {
-        int t = NHReducePredictable.barrett(x);
-        int m = t - NHParamsPredictable.Q;
+        int t = Reduce.barrett(x);
+        int m = t - Params.Q;
         int c = m >> 31;
         t = m ^ ((t ^ m) & c);
         return (short)t;
