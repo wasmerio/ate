@@ -38,7 +38,7 @@ import javax.ws.rs.WebApplicationException;
 @YamlTag("msg.public.key")
 public class MessagePublicKeyDto extends MessageBaseDto implements Serializable, CopyOnWrite
 {
-    private static final long serialVersionUID = -94567964466371784L;
+    private static final long serialVersionUID = 790094466708109400L;
 
     protected transient @Nullable MessagePublicKey fb;
     protected transient @Nullable Integer hashCache = null;

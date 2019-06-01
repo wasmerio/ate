@@ -31,11 +31,10 @@ import java.util.Objects;
 /**
  * Represents part of an asymmetric encryption key pair
  */
-@PublicKeyConstraint
 @YamlTag("msg.part.key")
 public class MessageKeyPartDto extends MessageBaseDto implements Serializable, CopyOnWrite
 {
-    private static final long serialVersionUID = -4600967116845148275L;
+    private static final long serialVersionUID = -4895592870824999743L;
 
     protected transient @Nullable MessageKeyPart fb;
     protected transient @Nullable Integer hashCache = null;

@@ -35,9 +35,9 @@ import java.nio.ByteBuffer;
  */
 @PrivateKeyConstraint
 @YamlTag("msg.private.key")
-public class MessagePrivateKeyDto extends MessagePublicKeyDto implements Serializable, ConstraintValidator, CopyOnWrite {
-
-    private static final long serialVersionUID = -75643860128199913L;
+public class MessagePrivateKeyDto extends MessagePublicKeyDto implements Serializable, ConstraintValidator, CopyOnWrite
+{
+    private static final long serialVersionUID = 5567939210238733755L;
 
     private transient @Nullable MessagePrivateKey pfb;
 

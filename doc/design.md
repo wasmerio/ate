@@ -619,7 +619,7 @@ ATE uses two asymmetric signature algorithms to prevent breach of integrity (a.k
 unauthorized writes):
 
 - **qTESLA** - _lattice-based (ring learning with errors)_
-- **XMSS(mt)** - _hash-based (extended merkle signature scheme)_
+- **Rainbow** - _multivariable polynomial_
 
 ATE uses two asymmetric encryption algorithms to prevent breach of confidentially
 (a.k.a. unauthorized reads):
