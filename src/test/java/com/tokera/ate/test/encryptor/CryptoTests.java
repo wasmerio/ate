@@ -94,9 +94,19 @@ public class CryptoTests {
         testSign(64, null);
     }
 
-    //@Test
+    @Test
     public void testSign128() {
         testSign(128, null);
+    }
+
+    @Test
+    public void testSign256() {
+        testSign(256, null);
+    }
+
+    @Test
+    public void testSign512() {
+        testSign(512, null);
     }
 
     @Test
@@ -107,6 +117,11 @@ public class CryptoTests {
     @Test
     public void testEncrypt256() throws IOException, InvalidCipherTextException {
         testEncrypt(256, null);
+    }
+
+    @Test
+    public void testEncrypt512() throws IOException, InvalidCipherTextException {
+        testEncrypt(512, null);
     }
 
     @Test

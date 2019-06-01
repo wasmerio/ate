@@ -871,6 +871,7 @@ public class Encryptor implements Runnable
         for (int n = 0; n < 8; n++) {
             EncryptionKeyPairGenerator keyGen = new EncryptionKeyPairGenerator();
             switch (keysize) {
+                case 512:
                 case 256:
                     keyGen.init(buildNtruEncryptParams256());
                     break;
