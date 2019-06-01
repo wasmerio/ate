@@ -20,7 +20,7 @@ public class BDSStateMap
 
     }
 
-    BDSStateMap(XMSSMTParameters params, long globalIndex, byte[] publicSeed, byte[] secretKeySeed)
+    BDSStateMap(XMSSMTParametersPredictable params, long globalIndex, byte[] publicSeed, byte[] secretKeySeed)
     {
         for (long index = 0; index < globalIndex; index++)
         {
@@ -28,7 +28,7 @@ public class BDSStateMap
         }
     }
 
-    BDSStateMap(BDSStateMap stateMap, XMSSMTParameters params, long globalIndex, byte[] publicSeed, byte[] secretKeySeed)
+    BDSStateMap(BDSStateMap stateMap, XMSSMTParametersPredictable params, long globalIndex, byte[] publicSeed, byte[] secretKeySeed)
     {
         for (Iterator it = stateMap.bdsState.keySet().iterator(); it.hasNext();)
         {
@@ -40,7 +40,7 @@ public class BDSStateMap
         updateState(params, globalIndex, publicSeed, secretKeySeed);
     }
 
-    private void updateState(XMSSMTParameters params, long globalIndex, byte[] publicSeed, byte[] secretKeySeed)
+    private void updateState(XMSSMTParametersPredictable params, long globalIndex, byte[] publicSeed, byte[] secretKeySeed)
     {
         XMSSParameters xmssParams = params.getXMSSParameters();
         int xmssHeight = xmssParams.getHeight();

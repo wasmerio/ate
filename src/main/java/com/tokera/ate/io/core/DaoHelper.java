@@ -38,7 +38,7 @@ public class DaoHelper {
     {
         int maxFails = 8;
         for (int n = 0;; n++) {
-            String key64 = d.encryptor.generateSecret64(128);
+            String key64 = d.encryptor.generateSecret64();
             byte[] key = Base64.decodeBase64(key64);
 
             // Test the key on all the public keys known for it at this time
@@ -47,17 +47,8 @@ public class DaoHelper {
             Set<MessagePrivateKeyDto> keys = d.currentRights.getRightsRead();
             for (MessagePrivateKeyDto readKey : keys) {
                 try {
-                    byte[] readPublicBytes = readKey.getPublicKeyBytes();
-                    byte[] readPrivateBytes = readKey.getPrivateKeyBytes();
-                    if (readPrivateBytes == null || readPublicBytes == null) {
-                        if (n > maxFails) {
-                            throw new RuntimeException("Failed to generate an encryption key for entity [clazz=" + roles.getClass().getName() + "] as the private key has no public key bytes.");
-                        }
-                        failed = true;
-                        continue;
-                    }
-                    byte[] encData = d.encryptor.encryptNtruWithPublic(readPublicBytes, key);
-                    byte[] plainData = d.encryptor.decryptNtruWithPrivate(readPrivateBytes, encData);
+                    byte[] encData = d.encryptor.encrypt(readKey, key);
+                    byte[] plainData = d.encryptor.decrypt(readKey, encData);
                     if (!Arrays.equals(key, plainData)) {
                         if (n > maxFails) {
                             throw new RuntimeException("Failed to generate an encryption key for entity [clazz=" + roles.getClass().getName() + "] validation of the key/pair failed on the encrypt/decrypt test.");
@@ -74,10 +65,8 @@ public class DaoHelper {
                             for (MessagePrivateKeyDto dumpKey : keys) {
                                 String alias = dumpKey.getAlias();
                                 if (alias == null) alias = "null";
-                                byte[] bytes = dumpKey.getPublicKeyBytes();
-                                if (bytes == null) bytes = new byte[0];
 
-                                msg += "\n" + " - read-key [alias=" + alias + ", hash=" + dumpKey.getPublicKeyHash() + ", size=" + bytes.length + "]";
+                                msg += "\n" + " - read-key [alias=" + alias + ", hash=" + dumpKey.getPublicKeyHash() + "]";
                             }
                         throw new RuntimeException(msg, ex);
                     }

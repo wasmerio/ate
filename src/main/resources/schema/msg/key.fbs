@@ -1,17 +1,34 @@
 namespace com.tokera.ate.dao.msg;
 
+enum MessageKeyType : int
+{
+  unknown = 0,
+  ntru = 1,
+  ntru_sign = 2,
+  qtesla = 3,
+  newhope = 4,
+  xmss = 5,
+  xmssmt = 6
+}
+
+
+table MessageKeyPart
+{
+  type              :MessageKeyType;
+  size              :int;
+  key              :[byte];
+}
+
 table MessagePublicKey
 {
-  publicKeyHash     :string;
-  publicKey1        :[byte];
-  publicKey2        :[byte];
+  hash              :string;
+  parts             :[MessageKeyPart];
   alias             :string;
 }
 
 table MessagePrivateKey
 {
-  privateKeyHash    :string;
-  privateKey1       :[byte];
-  privateKey2       :[byte];
+  hash              :string;
+  parts             :[MessageKeyPart];
   publicKey         :MessagePublicKey;
 }

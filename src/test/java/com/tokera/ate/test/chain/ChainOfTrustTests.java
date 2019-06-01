@@ -97,10 +97,9 @@ public class ChainOfTrustTests
         assert hash != null : "@AssumeAssertion(nullness): Must not be null";
         Assertions.assertNotNull(hash);
         
-        byte[] bytes1 = chain.getPublicKeyBytes(hash);
-        byte[] bytes2 = trustedKeyWrite.getPublicKeyBytes();
+        MessagePublicKeyDto other = chain.getPublicKey(hash);
 
-        TestTools.assertEqualAndNotNull(bytes1, bytes2);
+        TestTools.assertEqualAndNotNull(trustedKeyWrite, other);
     }
     
     //@Test
@@ -131,7 +130,7 @@ public class ChainOfTrustTests
         EffectivePermissions permissions = new EffectivePermissions();
         permissions.rolesWrite.add(hash);
         permissions.anchorRolesWrite.add(hash);
-        request.getRightsWrite().add(Encryptor.generatePublicKeyWrite());
+        request.getRightsWrite().add(encryptor.getTrustOfPublicWrite());
 
         MessageDataDigestDto digest = builder.signDataMessage(header, bytes1, permissions);
         Assertions.assertTrue(digest != null);

@@ -15,7 +15,9 @@
  */
 package com.tokera.ate.test.encryptor;
 
+import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.delegates.YamlDelegate;
+import com.tokera.ate.dto.msg.MessageKeyPartDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.security.Encryptor;
 import com.tokera.ate.test.dao.MyAccount;
@@ -66,20 +68,16 @@ public class NtruTests {
         MessagePrivateKeyDto key;
         String seed = _seed;
         if (seed != null) {
-            key = encryptor.genSignKeyNtruFromSeed(keySize, seed);
+            key = encryptor.genSignKeyFromSeed(keySize, seed);
         } else {
             key = encryptor.genSignKey(keySize);
         }
-        byte[] keyPrivate = key.getPrivateKeyBytes();
-        byte[] keyPublic = key.getPublicKeyBytes();
-        assert keyPrivate != null : "@AssumeAssertion(nullness): Must not be null";
-        assert keyPublic != null : "@AssumeAssertion(nullness): Must not be null";
 
         String plain = "test";
         byte[] digest = encryptor.hashSha(null, plain.getBytes());
 
-        byte[] sig = encryptor.signNtru(keyPrivate, digest);
-        boolean isValid = encryptor.verifyNtru(keyPublic, digest, sig);
+        byte[] sig = encryptor.sign(key, digest);
+        boolean isValid = encryptor.verify(key, digest, sig);
         Assertions.assertTrue(isValid);
     }
 
@@ -92,15 +90,11 @@ public class NtruTests {
         } else {
             key = encryptor.genEncryptKey(keySize);
         }
-        byte[] keyPrivate = key.getPrivateKeyBytes();
-        byte[] keyPublic = key.getPublicKeyBytes();
-        assert keyPrivate != null : "@AssumeAssertion(nullness): Must not be null";
-        assert keyPublic != null : "@AssumeAssertion(nullness): Must not be null";
 
         String plain = "test";
 
-        byte[] enc = encryptor.encryptNtruWithPublic(keyPublic, plain.getBytes());
-        byte[] plainBytes = encryptor.decryptNtruWithPrivate(keyPrivate, enc);
+        byte[] enc = encryptor.encrypt(key, plain.getBytes());
+        byte[] plainBytes = encryptor.decrypt(key, enc);
 
         String test = new String(plainBytes);
         Assertions.assertEquals(plain, test);
@@ -144,43 +138,6 @@ public class NtruTests {
     @Test
     public void testEncrypt256Public() throws IOException, InvalidCipherTextException {
         testEncrypt(256, "public");
-    }
-
-    @Test
-    public void testFixedEncryptKey() throws IOException, InvalidCipherTextException {
-        MessagePrivateKeyDto key = new MessagePrivateKeyDto("hCtNNY27gTrDwo2k1w_nm-28B_0u0Z8_lJYSqdmlRzpxb1Ke194tDZWyNEUR8uchT89qg_R1erx9CAyHFMYgAS2Gs5xfRy_37N2JmtR43HmEVDwcoytHjahdZGNYDIEzrSPhJuAb62unOwNjtS0LF9vkXR5akiyaxz7S21sKCitYwonYjGnODaf4axN6H6n_jhhHIHsGORK_o-Giq7FKZNJhoVfyEaNZPsHkG763cKKSKzkvHHVt7EONjW1OjFT6O5E0gNtiGDKQRquJBtWQUlsosDTaXCQWedj6HzBKsXQZjT_XL5QDSsUHIfTN4oiPqiNHREtjUuWMPa1GsOwhPSDRYpcsscBcD67gKRPeuk4_LfqwPk77ibEdbbP4g1FJhn8eaIGpXWTMFWG5Y_z8PfzS98K46Rj_dkHctVen3lHP_MiitAiUp4FtMdBl_FCHhpKFtoU0mriEUyjm1vLxxmgMuDVxb2Szo3Lm3Rgjq2ZSQBj9Sea-GuqBwc_7uBkqZY-vb72FqQ54jy0-CP73Ij4uJ_uH2g93pJDzSfxPtmsZOp7Rs5pYT03gWr018llG4D4Xtsm-2xP_IONLasoJHTrkkg9XPvmxZSQ8_AUSLZfoGRjWxKrYS1qZqCoZ9zYf_x1UtQEpDFjs__Zo9JONKMieTTskykXv-SwSIiyA6EUbvBTN4-VFVZNmc8zCkBDRRH2jZZUCMbYGkuMXEO_aIM2YwYpRROUj48p7zo8uYlnB82YHvhb6czGWew-RSfNeMeE1vX2Z9qoVQRPgj-5dKbnG2Xbkifmjj4h4Aw", "hCtNNY27gTrDwo2k1w_nm-28B_0u0Z8_lJYSqdmlRzpxb1Ke194tDZWyNEUR8uchT89qg_R1erx9CAyHFMYgAS2Gs5xfRy_37N2JmtR43HmEVDwcoytHjahdZGNYDIEzrSPhJuAb62unOwNjtS0LF9vkXR5akiyaxz7S21sKCitYwonYjGnODaf4axN6H6n_jhhHIHsGORK_o-Giq7FKZNJhoVfyEaNZPsHkG763cKKSKzkvHHVt7EONjW1OjFT6O5E0gNtiGDKQRquJBtWQUlsosDTaXCQWedj6HzBKsXQZjT_XL5QDSsUHIfTN4oiPqiNHREtjUuWMPa1GsOwhPSDRYpcsscBcD67gKRPeuk4_LfqwPk77ibEdbbP4g1FJhn8eaIGpXWTMFWG5Y_z8PfzS98K46Rj_dkHctVen3lHP_MiitAiUp4FtMdBl_FCHhpKFtoU0mriEUyjm1vLxxmgMuDVxb2Szo3Lm3Rgjq2ZSQBj9Sea-GuqBwc_7uBkqZY-vb72FqQ54jy0-CP73Ij4uJ_uH2g93pJDzSfxPtmsZOp7Rs5pYT03gWr018llG4D4Xtsm-2xP_IONLasoJHTrkkg9XPvmxZSQ8_AUSLZfoGRjWxKrYS1qZqCoZ9zYf_x1UtQEpDFjs__Zo9JONKMieTTskykXv-SwSIiyA6EUbvBTN4-VFVZNmc8zCkBDRRH2jZZUCMbYGkuMXEO_aIM2YwYpRROUj48p7zo8uYlnB82YHvhb6czGWew-RSfNeMeE1vX2Z9qoVQRPgj-5dKbnG2Xbkifmjj4h4A35nyKJ3ikeM8yUi_FlKfk_c3f8Tacpp7F8UZUunoUF2VDvYohoTyU6FrHBK-PqRIKU-4HBkrR2LF6Y2zyABrr3C5axkSVArak7ofFERtX0shq9aj4OmCg");
-        key.setAlias("public");
-
-        byte[] keyPrivate = key.getPrivateKeyBytes();
-        byte[] keyPublic = key.getPublicKeyBytes();
-        assert keyPrivate != null : "@AssumeAssertion(nullness): Must not be null";
-        assert keyPublic != null : "@AssumeAssertion(nullness): Must not be null";
-
-        String plain = "test";
-
-        byte[] enc = encryptor.encryptNtruWithPublic(keyPublic, plain.getBytes());
-        byte[] plainBytes = encryptor.decryptNtruWithPrivate(keyPrivate, enc);
-
-        String test = new String(plainBytes);
-        Assertions.assertEquals(plain, test);
-    }
-
-    @Test
-    public void testFixedSignKey() {
-        MessagePrivateKeyDto key = new MessagePrivateKeyDto("rz39v_ev9aFHHJrhE0bn7RONg_RqfGNDXpARYuja8yHO2vf4npuodKpgMApzJW73V0-giMMXyweuYTP3fDtrrdQ_p-3hhAK91wqharZDf18PiU1HOzjFCAWSyQF6eDMzpAwoSUk1_sfL2nUTqF5s_oMlPkHcClBABvm0S3fKvJQC-HLPDpFFaCnsfStu-8ytyx_gjPnBSuGnL1qz5w", "AM232z_XLRsxcxJsNsjcDHJtj-Su62y7jTTn_QE4eFAA6ctcftImbHfTm04nfAmf5EhYcadcPzuwIdRZagyBOADleiEpAXtf4YqQnDX42scZvELRLoEjpofzo2Q5ncLKAOLkz9iZc3oS6PQpS8AZbEcrVq8qhSh_8MjpwYdDpG6vPf2_96_1oUccmuETRuftE42D9Gp8Y0NekBFi6NrzIc7a9_iem6h0qmAwCnMlbvdXT6CIwxfLB65hM_d8O2ut1D-n7eGEAr3XCqFqtkN_Xw-JTUc7OMUIBZLJAXp4MzOkDChJSTX-x8vadROoXmz-gyU-QdwKUEAG-bRLd8q8lAL4cs8OkUVoKex9K277zK3LH-CM-cFK4acvWrPnrz39v_ev9aFHHJrhE0bn7RONg_RqfGNDXpARYuja8yHO2vf4npuodKpgMApzJW73V0-giMMXyweuYTP3fDtrrdQ_p-3hhAK91wqharZDf18PiU1HOzjFCAWSyQF6eDMzpAwoSUk1_sfL2nUTqF5s_oMlPkHcClBABvm0S3fKvJQC-HLPDpFFaCnsfStu-8ytyx_gjPnBSuGnL1qz5w");
-        key.setAlias("public");
-
-        byte[] keyPrivate = key.getPrivateKeyBytes();
-        byte[] keyPublic = key.getPublicKeyBytes();
-        assert keyPrivate != null : "@AssumeAssertion(nullness): Must not be null";
-        assert keyPublic != null : "@AssumeAssertion(nullness): Must not be null";
-
-        String plain = "test";
-        byte[] digest = encryptor.hashSha(null, plain.getBytes());
-
-        byte[] sig = encryptor.signNtru(keyPrivate, digest);
-        boolean isValid = encryptor.verifyNtru(keyPublic, digest, sig);
-        Assertions.assertTrue(isValid);
     }
 
     //@Test

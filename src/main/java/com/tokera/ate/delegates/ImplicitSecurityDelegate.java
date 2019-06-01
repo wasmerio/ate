@@ -84,8 +84,8 @@ public class ImplicitSecurityDelegate {
     {
         @Nullable @PlainText String keyString = enquireDomainString(prefix + "." + domain, shouldThrow);
         if (keyString == null) return null;
-        
-        return d.encryptor.createPublicKey(keyString, alias);
+
+        return d.encryptor.deserializePublicKey64(keyString, alias);
     }
 
     public List<String> enquireDomainAddresses(@DomainName String domain, boolean shouldThrow) {

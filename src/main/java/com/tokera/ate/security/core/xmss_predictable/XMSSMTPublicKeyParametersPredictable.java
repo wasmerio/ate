@@ -12,7 +12,7 @@ public final class XMSSMTPublicKeyParametersPredictable
         extends XMSSMTKeyParameters
         implements XMSSStoreableObjectInterface, Encodable
 {
-    private final XMSSMTParameters params;
+    private final XMSSMTParametersPredictable params;
     private final int oid;
     private final byte[] root;
     private final byte[] publicSeed;
@@ -105,13 +105,13 @@ public final class XMSSMTPublicKeyParametersPredictable
     {
 
         /* mandatory */
-        private final XMSSMTParameters params;
+        private final XMSSMTParametersPredictable params;
         /* optional */
         private byte[] root = null;
         private byte[] publicSeed = null;
         private byte[] publicKey = null;
 
-        public Builder(XMSSMTParameters params)
+        public Builder(XMSSMTParametersPredictable params)
         {
             super();
             this.params = params;
@@ -179,7 +179,7 @@ public final class XMSSMTPublicKeyParametersPredictable
         return XMSSUtil.cloneArray(publicSeed);
     }
 
-    public XMSSMTParameters getParameters()
+    public XMSSMTParametersPredictable getParameters()
     {
         return params;
     }

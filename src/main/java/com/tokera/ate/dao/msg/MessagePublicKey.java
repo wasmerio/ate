@@ -14,43 +14,33 @@ public final class MessagePublicKey extends Table {
   public void __init(int _i, ByteBuffer _bb) { bb_pos = _i; bb = _bb; }
   public MessagePublicKey __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
 
-  public @org.checkerframework.checker.nullness.qual.Nullable String publicKeyHash() { int o = __offset(4); return o != 0 ? __string(o + bb_pos) : null; }
-  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer publicKeyHashAsByteBuffer() { return __vector_as_bytebuffer(4, 1); }
-  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer publicKeyHashInByteBuffer(ByteBuffer _bb) { return __vector_in_bytebuffer(_bb, 4, 1); }
-  public byte publicKey1(int j) { int o = __offset(6); return o != 0 ? bb.get(__vector(o) + j * 1) : 0; }
-  public int publicKey1Length() { int o = __offset(6); return o != 0 ? __vector_len(o) : 0; }
-  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer publicKey1AsByteBuffer() { return __vector_as_bytebuffer(6, 1); }
-  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer publicKey1InByteBuffer(ByteBuffer _bb) { return __vector_in_bytebuffer(_bb, 6, 1); }
-  public byte publicKey2(int j) { int o = __offset(8); return o != 0 ? bb.get(__vector(o) + j * 1) : 0; }
-  public int publicKey2Length() { int o = __offset(8); return o != 0 ? __vector_len(o) : 0; }
-  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer publicKey2AsByteBuffer() { return __vector_as_bytebuffer(8, 1); }
-  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer publicKey2InByteBuffer(ByteBuffer _bb) { return __vector_in_bytebuffer(_bb, 8, 1); }
-  public @org.checkerframework.checker.nullness.qual.Nullable String alias() { int o = __offset(10); return o != 0 ? __string(o + bb_pos) : null; }
-  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer aliasAsByteBuffer() { return __vector_as_bytebuffer(10, 1); }
-  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer aliasInByteBuffer(ByteBuffer _bb) { return __vector_in_bytebuffer(_bb, 10, 1); }
+  public @org.checkerframework.checker.nullness.qual.Nullable String hash() { int o = __offset(4); return o != 0 ? __string(o + bb_pos) : null; }
+  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer hashAsByteBuffer() { return __vector_as_bytebuffer(4, 1); }
+  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer hashInByteBuffer(ByteBuffer _bb) { return __vector_in_bytebuffer(_bb, 4, 1); }
+  public MessageKeyPart parts(int j) { return parts(new MessageKeyPart(), j); }
+  public MessageKeyPart parts(MessageKeyPart obj, int j) { int o = __offset(6); return o != 0 ? obj.__assign(__indirect(__vector(o) + j * 4), bb) : null; }
+  public int partsLength() { int o = __offset(6); return o != 0 ? __vector_len(o) : 0; }
+  public @org.checkerframework.checker.nullness.qual.Nullable String alias() { int o = __offset(8); return o != 0 ? __string(o + bb_pos) : null; }
+  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer aliasAsByteBuffer() { return __vector_as_bytebuffer(8, 1); }
+  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer aliasInByteBuffer(ByteBuffer _bb) { return __vector_in_bytebuffer(_bb, 8, 1); }
 
   public static int createMessagePublicKey(FlatBufferBuilder builder,
-      int publicKeyHashOffset,
-      int publicKey1Offset,
-      int publicKey2Offset,
+      int hashOffset,
+      int partsOffset,
       int aliasOffset) {
-    builder.startObject(4);
+    builder.startObject(3);
     MessagePublicKey.addAlias(builder, aliasOffset);
-    MessagePublicKey.addPublicKey2(builder, publicKey2Offset);
-    MessagePublicKey.addPublicKey1(builder, publicKey1Offset);
-    MessagePublicKey.addPublicKeyHash(builder, publicKeyHashOffset);
+    MessagePublicKey.addParts(builder, partsOffset);
+    MessagePublicKey.addHash(builder, hashOffset);
     return MessagePublicKey.endMessagePublicKey(builder);
   }
 
-  public static void startMessagePublicKey(FlatBufferBuilder builder) { builder.startObject(4); }
-  public static void addPublicKeyHash(FlatBufferBuilder builder, int publicKeyHashOffset) { builder.addOffset(0, publicKeyHashOffset, 0); }
-  public static void addPublicKey1(FlatBufferBuilder builder, int publicKey1Offset) { builder.addOffset(1, publicKey1Offset, 0); }
-  public static int createPublicKey1Vector(FlatBufferBuilder builder, byte[] data) { builder.startVector(1, data.length, 1); for (int i = data.length - 1; i >= 0; i--) builder.addByte(data[i]); return builder.endVector(); }
-  public static void startPublicKey1Vector(FlatBufferBuilder builder, int numElems) { builder.startVector(1, numElems, 1); }
-  public static void addPublicKey2(FlatBufferBuilder builder, int publicKey2Offset) { builder.addOffset(2, publicKey2Offset, 0); }
-  public static int createPublicKey2Vector(FlatBufferBuilder builder, byte[] data) { builder.startVector(1, data.length, 1); for (int i = data.length - 1; i >= 0; i--) builder.addByte(data[i]); return builder.endVector(); }
-  public static void startPublicKey2Vector(FlatBufferBuilder builder, int numElems) { builder.startVector(1, numElems, 1); }
-  public static void addAlias(FlatBufferBuilder builder, int aliasOffset) { builder.addOffset(3, aliasOffset, 0); }
+  public static void startMessagePublicKey(FlatBufferBuilder builder) { builder.startObject(3); }
+  public static void addHash(FlatBufferBuilder builder, int hashOffset) { builder.addOffset(0, hashOffset, 0); }
+  public static void addParts(FlatBufferBuilder builder, int partsOffset) { builder.addOffset(1, partsOffset, 0); }
+  public static int createPartsVector(FlatBufferBuilder builder, int[] data) { builder.startVector(4, data.length, 4); for (int i = data.length - 1; i >= 0; i--) builder.addOffset(data[i]); return builder.endVector(); }
+  public static void startPartsVector(FlatBufferBuilder builder, int numElems) { builder.startVector(4, numElems, 4); }
+  public static void addAlias(FlatBufferBuilder builder, int aliasOffset) { builder.addOffset(2, aliasOffset, 0); }
   public static int endMessagePublicKey(FlatBufferBuilder builder) {
     int o = builder.endObject();
     return o;

@@ -298,7 +298,7 @@ public class DataPartitionChain {
         // Get the end of the chain of trust that we will traverse up in order
         // to validate the chain of trust. All writes must have a leaf to follow
         // in order to be saved
-        byte[] digestPublicKeyBytes = null;
+        MessagePublicKeyDto digestPublicKey = null;
         MessageDataDto leaf = existing;
         if (leaf == null) leaf = parent;
         if (leaf == null)
@@ -314,7 +314,7 @@ public class DataPartitionChain {
             if (d.daoParents.getAllowedParentFreeSimple().contains(entityType) == true &&
                     d.daoParents.getAllowedParentClaimableSimple().contains(entityType) == true) {
                 MessagePublicKeyDto trustPublicKey = d.encryptor.getTrustOfPublicWrite();
-                digestPublicKeyBytes = trustPublicKey.getPublicKeyBytes();
+                digestPublicKey = trustPublicKey;
                 LOG.info("chain-of-trust claimed: " + entityType + ":" + id);
             }
             // If the object is a claimable type then its allowed to attach to nothing
@@ -326,7 +326,7 @@ public class DataPartitionChain {
                     drop(LOG, data, "record implicit authority missing [" + implicitAuthority + "]", null);
                     return false;
                 }
-                digestPublicKeyBytes = trustPublicKey.getPublicKeyBytes();
+                digestPublicKey = trustPublicKey;
                 LOG.info("chain-of-trust rooted: " + entityType + ":" + id + " on " + trustPublicKey.getPublicKeyHash());
             }
             // Otherwise we fail
@@ -353,8 +353,8 @@ public class DataPartitionChain {
                     roleFound = true;
 
                     MessagePublicKeyDto trustPublicKey = this.getPublicKey(trustKeyHash);
-                    if (trustPublicKey != null) digestPublicKeyBytes = trustPublicKey.getPublicKeyBytes();
-                    if (digestPublicKeyBytes != null) break;
+                    if (trustPublicKey != null) digestPublicKey = trustPublicKey;
+                    if (digestPublicKey != null) break;
                 }
             }
             if (leafHeader.getInheritWrite() == false) break;
@@ -374,7 +374,7 @@ public class DataPartitionChain {
                 leaf = null;
             }
         }
-        if (digestPublicKeyBytes == null) {
+        if (digestPublicKey == null) {
             MessageDataHeaderDto root = this.getRootOfTrust(id);
             if (root != null) {
                 for (String trustKeyHash : root.getAllowWrite()) {
@@ -383,14 +383,14 @@ public class DataPartitionChain {
                         roleFound = true;
 
                         MessagePublicKeyDto trustPublicKey = this.getPublicKey(trustKeyHash);
-                        if (trustPublicKey != null) digestPublicKeyBytes = trustPublicKey.getPublicKeyBytes();
-                        if (digestPublicKeyBytes != null) break;
+                        if (trustPublicKey != null) digestPublicKey = trustPublicKey;
+                        if (digestPublicKey != null) break;
                     }
                 }
             }
         }
 
-        if (digestPublicKeyBytes == null || digestPublicKeyBytes.length <= 4) {
+        if (digestPublicKey == null) {
             if (roleFound == true) {
                 drop(LOG, data, "entity has write roles but public key is missing", null);
             } else {
@@ -473,7 +473,7 @@ public class DataPartitionChain {
         }        
     
         //SLOG.info("ntru-decrypt:\n" + "  - public-key: " + digest.getPublicKey() + "\n  - data: " + digest.getSignature() + "\n");
-        if (encryptor.verifyNtru(digestPublicKeyBytes, digestBytes, sigBytes) == false)
+        if (encryptor.verify(digestPublicKey, digestBytes, sigBytes) == false)
         {
             drop(LOG, data, "signature verification failed", null);
             return false;
@@ -597,13 +597,6 @@ public class DataPartitionChain {
     
     private boolean processPublicKey(MessagePublicKeyDto msg, @Nullable LoggerHook LOG)
     {
-        // Validate the public key is of sufficient size
-        byte[] publicKeyBytes = msg.getPublicKeyBytes();
-        if (publicKeyBytes == null) return false;
-        if (publicKeyBytes.length <= 64) {
-            return false;
-        }
-        
         // Now add it to the cache
         publicKeys.put(MessageSerializer.getKey(msg), msg);
         return true;
@@ -612,12 +605,6 @@ public class DataPartitionChain {
     @SuppressWarnings({"return.type.incompatible", "argument.type.incompatible"})       // We want to return a null if the data does not exist and it must be atomic
     public @Nullable MessagePublicKeyDto getPublicKey(String publicKeyHash) {
         return publicKeys.getOrDefault(publicKeyHash, null);
-    }
-    
-    public byte @Nullable [] getPublicKeyBytes(String publicKeyHash) {
-        MessagePublicKeyDto ret = this.getPublicKey(publicKeyHash);
-        if (ret != null) return ret.getPublicKeyBytes();
-        return null;
     }
     
     public boolean hasPublicKey(@Nullable String _publicKeyHash) {

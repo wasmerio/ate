@@ -61,16 +61,12 @@ public class DataSignatureBuilder
         String digest = Base64.encodeBase64URLSafeString(digestBytes);
 
         // Compute the signature of the digest and verify that it works properly
-        byte[] privateKeyBytes = privateKey.getPrivateKeyBytes();
-        byte[] publiceKeyBytes = privateKey.getPublicKeyBytes();
         @Hash String keyHash = privateKey.getPublicKeyHash();
-        if (privateKeyBytes == null) throw new RuntimeException("No private key bytes attached.");
-        if (publiceKeyBytes == null) throw new RuntimeException("No public key bytes attached.");
         if (keyHash == null) throw new RuntimeException("No public hash attached.");
 
-        byte[] sigBytes = encryptor.signNtru(privateKeyBytes, digestBytes);
+        byte[] sigBytes = encryptor.sign(privateKey, digestBytes);
         String sig = Base64.encodeBase64URLSafeString(sigBytes);
-        if (encryptor.verifyNtru(publiceKeyBytes, Base64.decodeBase64(digest), Base64.decodeBase64(sig)) == false) {
+        if (encryptor.verify(privateKey, Base64.decodeBase64(digest), Base64.decodeBase64(sig)) == false) {
             throw new RuntimeException("Failed to verify the key.");
         }
 

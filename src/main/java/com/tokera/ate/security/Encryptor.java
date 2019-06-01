@@ -1,6 +1,13 @@
 package com.tokera.ate.security;
 
 import com.google.common.base.Charsets;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Lists;
+import com.google.flatbuffers.FlatBufferBuilder;
+import com.tokera.ate.common.ImmutalizableArrayList;
+import com.tokera.ate.dao.enumerations.KeyType;
+import com.tokera.ate.dao.msg.MessageBase;
+import com.tokera.ate.dto.msg.MessageKeyPartDto;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.io.api.IAteIO;
@@ -11,7 +18,9 @@ import com.tokera.ate.security.core.newhope_predictable.NHKeyPairGeneratorPredic
 import com.tokera.ate.security.core.ntru_predictable.EncryptionKeyPairGenerator;
 import com.tokera.ate.security.core.ntru_predictable.SigningKeyPairGenerator;
 import com.tokera.ate.security.core.qtesla_predictable.QTESLAKeyPairGeneratorPredictable;
+import com.tokera.ate.security.core.xmss_predictable.XMSSMTKeyGenerationParametersPredictable;
 import com.tokera.ate.security.core.xmss_predictable.XMSSMTKeyPairGeneratorPredictable;
+import com.tokera.ate.security.core.xmss_predictable.XMSSMTParametersPredictable;
 import com.tokera.ate.security.core.xmss_predictable.XmssKeySerializer;
 import com.tokera.ate.units.*;
 import com.tokera.ate.dao.msg.MessagePrivateKey;
@@ -19,6 +28,8 @@ import com.tokera.ate.dao.msg.MessagePublicKey;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
@@ -32,6 +43,8 @@ import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import javax.annotation.PostConstruct;
 import javax.crypto.BadPaddingException;
@@ -124,6 +137,12 @@ public class Encryptor implements Runnable
     private final ConcurrentLinkedQueue<@Secret String> genAes512Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<@Secret String> genSaltQueue = new ConcurrentLinkedQueue<>();
 
+    private Iterable<KeyType> defaultSigningTypes = Lists.newArrayList(KeyType.qtesla, KeyType.xmssmt);
+    private Iterable<KeyType> defaultEncryptTypes = Lists.newArrayList(KeyType.ntru, KeyType.newhope);
+    private int defaultAesStrength = 256;
+    private int defaultSigningStrength = 256;
+    private int defaultEncryptionStrength = 256;
+
     public class KeyPairBytes
     {
         public final byte[] privateKey;
@@ -142,6 +161,26 @@ public class Encryptor implements Runnable
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         }
+    }
+
+    public void setDefaultSigningTypes(Iterable<KeyType> keyTypes) {
+        this.defaultSigningTypes = keyTypes;
+    }
+
+    public void setDefaultEncryptTypes(Iterable<KeyType> keyTypes) {
+        this.defaultEncryptTypes = keyTypes;
+    }
+
+    public void setDefaultAesStrength(int keySize) {
+        this.defaultAesStrength = keySize;
+    }
+
+    public void setDefaultSigningStrength(int keySize) {
+        this.defaultSigningStrength = keySize;
+    }
+
+    public void setDefaultEncryptionStrength(int keySize) {
+        this.defaultEncryptionStrength = keySize;
     }
 
     private NTRUSigningKeyGenerationParameters buildNtruSignParams64() {
@@ -310,27 +349,27 @@ public class Encryptor implements Runnable
         {
             boolean didGen = false;
             if (cntSign64 < c_KeyPreGen64 && cntSign64 < cap) {
-                genSign64Queue.add(this.genSignKeyNow(64));
+                genSign64Queue.add(this.genSignKeyNow(64, defaultSigningTypes));
                 cntSign64++;
                 didGen = true;
             }
             if (cntSign128 < c_KeyPreGen128 && cntSign128 < cap) {
-                genSign128Queue.add(this.genSignKeyNow(128));
+                genSign128Queue.add(this.genSignKeyNow(128, defaultSigningTypes));
                 cntSign128++;
                 didGen = true;
             }
             if (cntSign256 < c_KeyPreGen256 && cntSign256 < cap) {
-                genSign256Queue.add(this.genSignKeyNow(256));
+                genSign256Queue.add(this.genSignKeyNow(256, defaultSigningTypes));
                 cntSign256++;
                 didGen = true;
             }
             if (cntEncrypt128 < c_KeyPreGen128 && cntEncrypt128 < cap) {
-                genEncrypt128Queue.add(this.genEncryptKeyNow(128));
+                genEncrypt128Queue.add(this.genEncryptKeyNow(128, defaultEncryptTypes));
                 cntEncrypt128++;
                 didGen = true;
             }
             if (cntEncrypt256 < c_KeyPreGen256 && cntEncrypt256 < cap) {
-                genEncrypt256Queue.add(this.genEncryptKeyNow(256));
+                genEncrypt256Queue.add(this.genEncryptKeyNow(256, defaultEncryptTypes));
                 cntEncrypt256++;
                 didGen = true;
             }
@@ -498,13 +537,16 @@ public class Encryptor implements Runnable
         }
     }
 
-    @Deprecated
+    public MessagePrivateKeyDto genSignKey()
+    {
+        return genSignKey(defaultSigningStrength);
+    }
+
     public MessagePrivateKeyDto genSignKey(int keysize)
     {
         return genSignKey(keysize, null);
     }
 
-    @Deprecated
     public MessagePrivateKeyDto genSignKey(int keysize, @Nullable @Alias String _alias)
     {
         @Alias String alias = _alias;
@@ -531,28 +573,86 @@ public class Encryptor implements Runnable
             }
         }
 
-        return genSignKeyNow(keysize, alias);
+        return genSignKeyNow(keysize, defaultSigningTypes, alias);
     }
 
-    public MessagePrivateKeyDto genSignKeyNow(int keysize) {
-        return genSignKeyNow(keysize, null);
+    public MessagePrivateKeyDto genSignKeyNow(int keySize) {
+        return genSignKeyNow(keySize, defaultSigningTypes,null);
     }
 
-    public MessagePrivateKeyDto genSignKeyNow(int keysize, @Nullable @Alias String alias) {
-        KeyPairBytes pair1 = genSignKeyQTeslaNow(keysize);
-        KeyPairBytes pair2 = genSignKeyXmssMtNow(keysize);
-        return extractKey(pair1, pair2, alias);
+    public MessagePrivateKeyDto genSignKeyNow(int keySize, @Nullable @Alias String alias) {
+        return genSignKeyNow(keySize, defaultSigningTypes,null);
     }
 
-    public MessagePrivateKeyDto genSignKeyFromSeed(int keysize, String seed) {
-        return genSignKeyFromSeed(keysize, null);
+    public MessagePrivateKeyDto genSignKeyNow(int keySize, Iterable<KeyType> keyTypes) {
+        return genSignKeyNow(keySize, keyTypes,null);
     }
 
-    public MessagePrivateKeyDto genSignKeyFromSeed(int keysize, String seed, @Nullable @Alias String alias) {
+    public MessagePrivateKeyDto genSignKeyNow(int keySize, Iterable<KeyType> keyTypes, @Nullable @Alias String alias) {
+        List<MessageKeyPartDto> publicParts = new LinkedList<>();
+        List<MessageKeyPartDto> privateParts = new LinkedList<>();
+
+        for (KeyType keyType : keyTypes) {
+            KeyPairBytes pair;
+            switch (keyType) {
+                case qtesla:
+                    pair = genSignKeyQTeslaNow(keySize);
+                    break;
+                case xmssmt:
+                    pair = genSignKeyXmssMtNow(keySize);
+                    break;
+                case ntru_sign:
+                    throw new RuntimeException("NTRU for signing is not considered secure anymore.");
+                default:
+                    throw new RuntimeException("The key type [" + keyType + "] is not supported as an asymmetric encryption key.");
+            }
+            publicParts.add(new MessageKeyPartDto(keyType, keySize, pair.publicKey));
+            privateParts.add(new MessageKeyPartDto(keyType, keySize, pair.privateKey));
+        }
+
+        MessagePrivateKeyDto ret = new MessagePrivateKeyDto(publicParts, privateParts);
+        if (alias != null) ret.setAlias(alias);
+        return ret;
+    }
+
+    public MessagePrivateKeyDto genSignKeyFromSeed(int keySize, String seed) {
+        return genSignKeyFromSeed(keySize, defaultSigningTypes, null);
+    }
+
+    public MessagePrivateKeyDto genSignKeyFromSeed(int keySize, String seed, @Nullable @Alias String alias) {
+        return genSignKeyFromSeed(keySize, defaultSigningTypes, null);
+    }
+
+    public MessagePrivateKeyDto genSignKeyFromSeed(int keySize, Iterable<KeyType> keyTypes, String seed) {
+        return genSignKeyFromSeed(keySize, keyTypes, null);
+    }
+
+    public MessagePrivateKeyDto genSignKeyFromSeed(int keySize, Iterable<KeyType> keyTypes, String seed, @Nullable @Alias String alias) {
         PredictablyRandom random = new PredictablyRandom(seed);
-        KeyPairBytes pair1 = genSignKeyQTeslaFromSeed(keysize, random);
-        KeyPairBytes pair2 = genSignKeyXmssMtFromSeed(keysize, random);
-        return extractKey(pair1, pair2, alias);
+        List<MessageKeyPartDto> publicParts = new LinkedList<>();
+        List<MessageKeyPartDto> privateParts = new LinkedList<>();
+
+        for (KeyType keyType : keyTypes) {
+            KeyPairBytes pair;
+            switch (keyType) {
+                case qtesla:
+                    pair = genSignKeyQTeslaFromSeed(keySize, random);
+                    break;
+                case xmssmt:
+                    pair = genSignKeyXmssMtFromSeed(keySize, random);
+                    break;
+                case ntru_sign:
+                    throw new RuntimeException("NTRU for signing is not considered secure anymore.");
+                default:
+                    throw new RuntimeException("The key type [" + keyType + "] is not supported as an asymmetric encryption key.");
+            }
+            publicParts.add(new MessageKeyPartDto(keyType, keySize, pair.publicKey));
+            privateParts.add(new MessageKeyPartDto(keyType, keySize, pair.privateKey));
+        }
+
+        MessagePrivateKeyDto ret = new MessagePrivateKeyDto(publicParts, privateParts);
+        if (alias != null) ret.setAlias(alias);
+        return ret;
     }
 
     @Deprecated
@@ -638,6 +738,10 @@ public class Encryptor implements Runnable
             return false;
         }
     }
+
+    public MessagePrivateKeyDto genEncryptKey() {
+        return this.genEncryptKey(defaultEncryptionStrength);
+    }
     
     public MessagePrivateKeyDto genEncryptKey(int keysize)
     {
@@ -653,7 +757,7 @@ public class Encryptor implements Runnable
             if (ret != null) return ret;
         }
         
-        return genEncryptKeyNow(keysize);
+        return genEncryptKeyNow(keysize, this.defaultEncryptTypes);
     }
 
     public MessagePrivateKeyDto genEncryptKey(int keysize, @Nullable @Alias String _alias)
@@ -667,25 +771,88 @@ public class Encryptor implements Runnable
         return key;
     }
 
-    public MessagePrivateKeyDto genEncryptKeyNow(int keysize) {
-        return genEncryptKeyNow(keysize, null);
+    public MessagePrivateKeyDto genEncryptKeyNow(int keySize) {
+        return genEncryptKeyNow(keySize, defaultEncryptTypes, null);
     }
 
-    public MessagePrivateKeyDto genEncryptKeyNow(int keysize, @Nullable @Alias String alias) {
-        KeyPairBytes pair1 = genEncryptKeyNtruNow(keysize);
-        KeyPairBytes pair2 = genEncryptKeyNewHopeNow(keysize);
-        return extractKey(pair1, pair2, alias);
+    public MessagePrivateKeyDto genEncryptKeyNow(int keySize, @Nullable @Alias String alias) {
+        return genEncryptKeyNow(keySize, defaultEncryptTypes, alias);
     }
 
-    public MessagePrivateKeyDto genEncryptKeyFromSeed(int keysize, String seed) {
-        return genEncryptKeyFromSeed(keysize, null);
+    public MessagePrivateKeyDto genEncryptKeyNow(int keySize, Iterable<KeyType> keyTypes) {
+        return genEncryptKeyNow(keySize, keyTypes, null);
     }
 
-    public MessagePrivateKeyDto genEncryptKeyFromSeed(int keysize, String seed, @Nullable @Alias String alias) {
+    public MessagePrivateKeyDto genEncryptKeyNow(int keySize, Iterable<KeyType> keyTypes, @Nullable @Alias String alias) {
+        if (Iterables.size(keyTypes) <= 0) {
+            throw new RuntimeException("Generated encryption key must have at least one key type.");
+        }
+
+        List<MessageKeyPartDto> publicParts = new LinkedList<>();
+        List<MessageKeyPartDto> privateParts = new LinkedList<>();
+
+        for (KeyType keyType : keyTypes) {
+            KeyPairBytes pair;
+            switch (keyType) {
+                case ntru:
+                    pair = genEncryptKeyNtruNow(keySize);
+                    break;
+                case newhope:
+                    pair = genEncryptKeyNewHopeNow(keySize);
+                    break;
+                default:
+                    throw new RuntimeException("The key type [" + keyType + "] is not supported as an asymmetric encryption key.");
+            }
+            publicParts.add(new MessageKeyPartDto(keyType, keySize, pair.publicKey));
+            privateParts.add(new MessageKeyPartDto(keyType, keySize, pair.privateKey));
+        }
+
+        MessagePrivateKeyDto ret = new MessagePrivateKeyDto(publicParts, privateParts);
+        if (alias != null) ret.setAlias(alias);
+        return ret;
+    }
+
+    public MessagePrivateKeyDto genEncryptKeyFromSeed(int keySize, String seed) {
+        return genEncryptKeyFromSeed(keySize, defaultEncryptTypes, null);
+    }
+
+    public MessagePrivateKeyDto genEncryptKeyFromSeed(int keySize, String seed, @Nullable @Alias String alias) {
+        return genEncryptKeyFromSeed(keySize, defaultEncryptTypes, alias);
+    }
+
+    public MessagePrivateKeyDto genEncryptKeyFromSeed(int keySize, Iterable<KeyType> keyTypes, String seed) {
+        return genEncryptKeyFromSeed(keySize, keyTypes, seed, null);
+    }
+
+    public MessagePrivateKeyDto genEncryptKeyFromSeed(int keySize, Iterable<KeyType> keyTypes, String seed, @Nullable @Alias String alias) {
         PredictablyRandom random = new PredictablyRandom(seed);
-        KeyPairBytes pair1 = genEncryptKeyNtruFromSeed(keysize, random);
-        KeyPairBytes pair2 = genEncryptKeyNewHopeFromSeed(keysize, random);
-        return extractKey(pair1, pair2, alias);
+
+        if (Iterables.size(keyTypes) <= 0) {
+            throw new RuntimeException("Generated encryption key must have at least one key type.");
+        }
+
+        List<MessageKeyPartDto> publicParts = new LinkedList<>();
+        List<MessageKeyPartDto> privateParts = new LinkedList<>();
+
+        for (KeyType keyType : keyTypes) {
+            KeyPairBytes pair;
+            switch (keyType) {
+                case ntru:
+                    pair = genEncryptKeyNtruFromSeed(keySize, random);
+                    break;
+                case newhope:
+                    pair = genEncryptKeyNewHopeFromSeed(keySize, random);
+                    break;
+                default:
+                    throw new RuntimeException("The key type [" + keyType + "] is not supported as an asymmetric encryption key.");
+            }
+            publicParts.add(new MessageKeyPartDto(keyType, keySize, pair.publicKey));
+            privateParts.add(new MessageKeyPartDto(keyType, keySize, pair.privateKey));
+        }
+
+        MessagePrivateKeyDto ret = new MessagePrivateKeyDto(publicParts, privateParts);
+        if (alias != null) ret.setAlias(alias);
+        return ret;
     }
     
     public KeyPairBytes genEncryptKeyNtruNow(int keysize)
@@ -704,7 +871,7 @@ public class Encryptor implements Runnable
             }
 
             AsymmetricCipherKeyPair pair = keyGen.generateKeyPair(new UnPredictablyRandom());
-            if (testKey(pair) == false) {
+            if (testNtruKey(pair) == false) {
                 continue;
             }
             return extractKey(pair);
@@ -733,13 +900,13 @@ public class Encryptor implements Runnable
         }
 
         AsymmetricCipherKeyPair pair = gen.generateKeyPair(random);
-        if (testKey(pair) == false) {
+        if (testNtruKey(pair) == false) {
             throw new RuntimeException("Failed to generate encryption key from seed");
         }
         return extractKey(pair);
     }
     
-    private boolean testKey(AsymmetricCipherKeyPair pair) {
+    private boolean testNtruKey(AsymmetricCipherKeyPair pair) {
         
         NTRUEncryptionPrivateKeyParameters privateKey = (NTRUEncryptionPrivateKeyParameters) pair.getPrivate();
         NTRUEncryptionPublicKeyParameters publicKey = (NTRUEncryptionPublicKeyParameters) pair.getPublic();
@@ -862,6 +1029,60 @@ public class Encryptor implements Runnable
         return engine.processBlock(data, 0, data.length);
     }
 
+    @SuppressWarnings("deprecation")
+    public @Secret byte[] encrypt(MessagePublicKeyDto publicKey, @PlainText byte[] data)
+    {
+        @Secret byte[] ret = data;
+
+        ImmutalizableArrayList<MessageKeyPartDto> parts = publicKey.getPublicParts();
+        if (parts == null || parts.size() <= 0) {
+            throw new RuntimeException("Failed to encrypt the data has the public key is empty.");
+        }
+
+        for (MessageKeyPartDto part : parts) {
+
+            switch (part.getType()) {
+                case ntru:
+                    ret = encryptNtruWithPublic(part.getKeyBytes(), ret);
+                    break;
+                case newhope:
+                    ret = encryptNewHopeWithPublic(part.getKeyBytes(), ret);
+                    break;
+                default:
+                    throw new RuntimeException("Unknown encryption crypto algorithm: " + part.getType());
+            }
+        }
+
+        return ret;
+    }
+
+    @SuppressWarnings("deprecation")
+    public @PlainText byte[] decrypt(MessagePrivateKeyDto privateKey, @Secret byte[] data) throws IOException, InvalidCipherTextException
+    {
+        @PlainText byte[] ret = data;
+
+        ImmutalizableArrayList<MessageKeyPartDto> parts = privateKey.getPrivateParts();
+        if (parts == null || parts.size() <= 0) {
+            throw new RuntimeException("Failed to decrypt the data has the public key is empty.");
+        }
+
+        for (MessageKeyPartDto part : parts) {
+
+            switch (part.getType()) {
+                case ntru:
+                    ret = decryptNtruWithPrivate(part.getKeyBytes(), ret);
+                    break;
+                case newhope:
+                    ret = decryptNewHopeWithPrivate(part.getKeyBytes(), ret);
+                    break;
+                default:
+                    throw new RuntimeException("Unknown encryption crypto algorithm: " + part.getType());
+            }
+        }
+
+        return ret;
+    }
+
     public KeyPairBytes genSignKeyQTeslaFromSeed(int keysize, String seed) {
         PredictablyRandom keyRandom = new PredictablyRandom(seed);
         return genSignKeyQTeslaFromSeed(keysize, keyRandom);
@@ -946,10 +1167,10 @@ public class Encryptor implements Runnable
     }
 
     public KeyPairBytes genSignKeyXmssMtFromSeed(int keysize, PredictablyRandom keyRandom) {
-        XMSSMTParameters params = new XMSSMTParameters(20, 10, new SHA512Digest());
+        XMSSMTParametersPredictable params = new XMSSMTParametersPredictable(20, 10, new SHA512Digest());
 
         XMSSMTKeyPairGeneratorPredictable gen = new XMSSMTKeyPairGeneratorPredictable();
-        gen.init(params, keyRandom);
+        gen.init(new XMSSMTKeyGenerationParametersPredictable(params, new SecureRandom()), keyRandom);
         return extractKey(gen.generateKeyPair());
     }
 
@@ -971,7 +1192,7 @@ public class Encryptor implements Runnable
         int totalHeight = params.getHeight();
         int maxIndexes = (int)(1L << totalHeight);
 
-        XMSSMTPrivateKeyParameters paramsPrivate = XmssKeySerializer.deserializerPrivateKey(privateKey);
+        XMSSMTPrivateKeyParameters paramsPrivate = XmssKeySerializer.deserializePrivate(privateKey);
 
         XMSSMTSigner signer = new XMSSMTSigner();
         signer.init(true, paramsPrivate);
@@ -982,7 +1203,7 @@ public class Encryptor implements Runnable
     {
         XMSSMTParameters params = new XMSSMTParameters(20, 10, new SHA512Digest());
 
-        XMSSMTPublicKeyParameters paramPublic = XmssKeySerializer.deserializerPublicKey(publicKey);
+        XMSSMTPublicKeyParameters paramPublic = XmssKeySerializer.deserializePublic(publicKey);
 
         XMSSMTSigner signer = new XMSSMTSigner();
         signer.init(false, paramPublic);
@@ -1033,6 +1254,86 @@ public class Encryptor implements Runnable
         signer.update(digest, 0, digest.length);
 
         return signer.verifySignature(sig);
+    }
+
+    @SuppressWarnings("deprecation")
+    public @Signature byte[] sign(MessagePrivateKeyDto privateKey, @Hash byte[] digest)
+    {
+        List<@Signature byte[]> ret = new ArrayList<>();
+        for (MessageKeyPartDto part : privateKey.getPrivateParts()) {
+
+            switch (part.getType()) {
+                case qtesla:
+                    ret.add(signQTesla(part.getKeyBytes(), digest));
+                    break;
+                case xmssmt:
+                    ret.add(signXmssMt(part.getKeyBytes(), digest));
+                    break;
+                case ntru_sign:
+                    ret.add(signNtru(part.getKeyBytes(), digest));
+                    break;
+                default:
+                    throw new RuntimeException("Unknown signing crypto algorithm: " + part.getType());
+            }
+        }
+
+        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+        DataOutputStream dos = new DataOutputStream(baos);
+        try {
+            for (@Signature byte[] sig : ret) {
+                dos.writeInt(sig.length);
+                dos.write(sig);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        return baos.toByteArray();
+    }
+
+    @SuppressWarnings("deprecation")
+    public boolean verify(MessagePublicKeyDto publicKey, @Hash byte[] digest, @Signature byte[] sigs)
+    {
+        ByteBuffer bb = ByteBuffer.wrap(sigs);
+
+        ImmutalizableArrayList<MessageKeyPartDto> parts = publicKey.getPublicParts();
+        if (parts == null || parts.size() <= 0) return false;
+
+        for (MessageKeyPartDto part : parts) {
+
+            int len = bb.getInt();
+            if (len <= 0 || len > bb.remaining()) {
+                return false;
+            }
+            byte[] partSig = new byte[len];
+            bb.get(partSig);
+
+            switch (part.getType()) {
+                case qtesla:
+                    if (verifyQTesla(part.getKeyBytes(), digest, partSig) == false) {
+                        return false;
+                    }
+                    break;
+                case xmssmt:
+                    if (verifyXmssMt(part.getKeyBytes(), digest, partSig) == false) {
+                        return false;
+                    }
+                    break;
+                case ntru_sign:
+                    if (verifyNtru(part.getKeyBytes(), digest, partSig) == false) {
+                        return false;
+                    }
+                    break;
+                default:
+                    throw new RuntimeException("Unknown signing crypto algorithm: " + part.getType());
+            }
+        }
+
+        if (bb.remaining() > 0) {
+            return false;
+        }
+
+        return true;
     }
     
     public @Hash byte[] hashSha(@PlainText String data) {
@@ -1141,10 +1442,10 @@ public class Encryptor implements Runnable
             return ((QTESLAPrivateKeyParameters) key).getSecret();
         }
         if (key instanceof XMSSMTPublicKeyParameters) {
-            return XmssKeySerializer.serializer((XMSSMTPublicKeyParameters) key);
+            return XmssKeySerializer.serialize((XMSSMTPublicKeyParameters) key);
         }
         if (key instanceof XMSSMTPrivateKeyParameters) {
-            return XmssKeySerializer.serializer((XMSSMTPrivateKeyParameters) key);
+            return XmssKeySerializer.serialize((XMSSMTPrivateKeyParameters) key);
         }
         throw new RuntimeException("Unable to extract the key as it is an unknown type");
     }
@@ -1182,10 +1483,10 @@ public class Encryptor implements Runnable
             return this.hashShaAndEncode(((QTESLAPublicKeyParameters) key).getPublicData());
         }
         if (key instanceof XMSSMTPublicKeyParameters) {
-            return this.hashShaAndEncode(XmssKeySerializer.serializer((XMSSMTPublicKeyParameters) key));
+            return this.hashShaAndEncode(XmssKeySerializer.serialize((XMSSMTPublicKeyParameters) key));
         }
         if (key instanceof XMSSMTPrivateKeyParameters) {
-            return this.hashShaAndEncode(XmssKeySerializer.serializer((XMSSMTPrivateKeyParameters) key));
+            return this.hashShaAndEncode(XmssKeySerializer.serialize((XMSSMTPrivateKeyParameters) key));
         }
         throw new RuntimeException("Unable to extract the key as it is an unknown type");
     }
@@ -1193,27 +1494,11 @@ public class Encryptor implements Runnable
     public KeyPairBytes extractKey (AsymmetricCipherKeyPair pair) {
         return new KeyPairBytes(extractKey(pair.getPrivate()), extractKey(pair.getPublic()));
     }
-
-    public MessagePrivateKeyDto extractKey(KeyPairBytes pair1, KeyPairBytes pair2) {
-        return extractKey(pair1, pair2, null);
-    }
-
-    public MessagePrivateKeyDto extractKey(KeyPairBytes pair1, KeyPairBytes pair2, @Nullable @Alias String alias) {
-        return createPrivateKey(pair1.publicKey, pair2.publicKey, pair1.privateKey, pair2.privateKey, alias);
-    }
-    
-    public MessagePrivateKeyDto extractKey(AsymmetricCipherKeyPair pair1, AsymmetricCipherKeyPair pair2) {
-        return extractKey(pair1, pair2, null);
-    }
-    
-    public MessagePrivateKeyDto extractKey(AsymmetricCipherKeyPair pair1, AsymmetricCipherKeyPair pair2, @Nullable @Alias String alias) {
-        return createPrivateKey(extractKey(pair1.getPublic()), extractKey(pair2.getPublic()), extractKey(pair1.getPrivate()), extractKey(pair2.getPrivate()), alias);
-    }
     
     public MessagePrivateKeyDto getTrustOfPublicRead() {
         MessagePrivateKeyDto ret = this.trustOfPublicRead;
         if (ret == null) {
-            ret = genEncryptKeyFromSeed(128, "public", "public");
+            ret = genEncryptKeyFromSeed(128, defaultEncryptTypes, "public","public");
             //key = new MessagePrivateKeyDto("hCtNNY27gTrDwo2k1w_nm-28B_0u0Z8_lJYSqdmlRzpxb1Ke194tDZWyNEUR8uchT89qg_R1erx9CAyHFMYgAS2Gs5xfRy_37N2JmtR43HmEVDwcoytHjahdZGNYDIEzrSPhJuAb62unOwNjtS0LF9vkXR5akiyaxz7S21sKCitYwonYjGnODaf4axN6H6n_jhhHIHsGORK_o-Giq7FKZNJhoVfyEaNZPsHkG763cKKSKzkvHHVt7EONjW1OjFT6O5E0gNtiGDKQRquJBtWQUlsosDTaXCQWedj6HzBKsXQZjT_XL5QDSsUHIfTN4oiPqiNHREtjUuWMPa1GsOwhPSDRYpcsscBcD67gKRPeuk4_LfqwPk77ibEdbbP4g1FJhn8eaIGpXWTMFWG5Y_z8PfzS98K46Rj_dkHctVen3lHP_MiitAiUp4FtMdBl_FCHhpKFtoU0mriEUyjm1vLxxmgMuDVxb2Szo3Lm3Rgjq2ZSQBj9Sea-GuqBwc_7uBkqZY-vb72FqQ54jy0-CP73Ij4uJ_uH2g93pJDzSfxPtmsZOp7Rs5pYT03gWr018llG4D4Xtsm-2xP_IONLasoJHTrkkg9XPvmxZSQ8_AUSLZfoGRjWxKrYS1qZqCoZ9zYf_x1UtQEpDFjs__Zo9JONKMieTTskykXv-SwSIiyA6EUbvBTN4-VFVZNmc8zCkBDRRH2jZZUCMbYGkuMXEO_aIM2YwYpRROUj48p7zo8uYlnB82YHvhb6czGWew-RSfNeMeE1vX2Z9qoVQRPgj-5dKbnG2Xbkifmjj4h4Aw", "hCtNNY27gTrDwo2k1w_nm-28B_0u0Z8_lJYSqdmlRzpxb1Ke194tDZWyNEUR8uchT89qg_R1erx9CAyHFMYgAS2Gs5xfRy_37N2JmtR43HmEVDwcoytHjahdZGNYDIEzrSPhJuAb62unOwNjtS0LF9vkXR5akiyaxz7S21sKCitYwonYjGnODaf4axN6H6n_jhhHIHsGORK_o-Giq7FKZNJhoVfyEaNZPsHkG763cKKSKzkvHHVt7EONjW1OjFT6O5E0gNtiGDKQRquJBtWQUlsosDTaXCQWedj6HzBKsXQZjT_XL5QDSsUHIfTN4oiPqiNHREtjUuWMPa1GsOwhPSDRYpcsscBcD67gKRPeuk4_LfqwPk77ibEdbbP4g1FJhn8eaIGpXWTMFWG5Y_z8PfzS98K46Rj_dkHctVen3lHP_MiitAiUp4FtMdBl_FCHhpKFtoU0mriEUyjm1vLxxmgMuDVxb2Szo3Lm3Rgjq2ZSQBj9Sea-GuqBwc_7uBkqZY-vb72FqQ54jy0-CP73Ij4uJ_uH2g93pJDzSfxPtmsZOp7Rs5pYT03gWr018llG4D4Xtsm-2xP_IONLasoJHTrkkg9XPvmxZSQ8_AUSLZfoGRjWxKrYS1qZqCoZ9zYf_x1UtQEpDFjs__Zo9JONKMieTTskykXv-SwSIiyA6EUbvBTN4-VFVZNmc8zCkBDRRH2jZZUCMbYGkuMXEO_aIM2YwYpRROUj48p7zo8uYlnB82YHvhb6czGWew-RSfNeMeE1vX2Z9qoVQRPgj-5dKbnG2Xbkifmjj4h4A35nyKJ3ikeM8yUi_FlKfk_c3f8Tacpp7F8UZUunoUF2VDvYohoTyU6FrHBK-PqRIKU-4HBkrR2LF6Y2zyABrr3C5axkSVArak7ofFERtX0shq9aj4OmCg");
             ret.setAlias("public");
             this.trustOfPublicRead = ret;
@@ -1224,7 +1509,7 @@ public class Encryptor implements Runnable
     public MessagePrivateKeyDto getTrustOfPublicWrite() {
         MessagePrivateKeyDto ret = this.trustOfPublicWrite;
         if (ret == null) {
-            ret = genSignKeyFromSeed(64, "public", "public");
+            ret = genSignKeyFromSeed(64, defaultSigningTypes, "public","public");
             //key = new MessagePrivateKeyDto("rz39v_ev9aFHHJrhE0bn7RONg_RqfGNDXpARYuja8yHO2vf4npuodKpgMApzJW73V0-giMMXyweuYTP3fDtrrdQ_p-3hhAK91wqharZDf18PiU1HOzjFCAWSyQF6eDMzpAwoSUk1_sfL2nUTqF5s_oMlPkHcClBABvm0S3fKvJQC-HLPDpFFaCnsfStu-8ytyx_gjPnBSuGnL1qz5w", "AM232z_XLRsxcxJsNsjcDHJtj-Su62y7jTTn_QE4eFAA6ctcftImbHfTm04nfAmf5EhYcadcPzuwIdRZagyBOADleiEpAXtf4YqQnDX42scZvELRLoEjpofzo2Q5ncLKAOLkz9iZc3oS6PQpS8AZbEcrVq8qhSh_8MjpwYdDpG6vPf2_96_1oUccmuETRuftE42D9Gp8Y0NekBFi6NrzIc7a9_iem6h0qmAwCnMlbvdXT6CIwxfLB65hM_d8O2ut1D-n7eGEAr3XCqFqtkN_Xw-JTUc7OMUIBZLJAXp4MzOkDChJSTX-x8vadROoXmz-gyU-QdwKUEAG-bRLd8q8lAL4cs8OkUVoKex9K277zK3LH-CM-cFK4acvWrPnrz39v_ev9aFHHJrhE0bn7RONg_RqfGNDXpARYuja8yHO2vf4npuodKpgMApzJW73V0-giMMXyweuYTP3fDtrrdQ_p-3hhAK91wqharZDf18PiU1HOzjFCAWSyQF6eDMzpAwoSUk1_sfL2nUTqF5s_oMlPkHcClBABvm0S3fKvJQC-HLPDpFFaCnsfStu-8ytyx_gjPnBSuGnL1qz5w");
             ret.setAlias("public");
             this.trustOfPublicWrite = ret;
@@ -1260,6 +1545,13 @@ public class Encryptor implements Runnable
         for (byte b : bytes)
            sb.append(String.format("%02X", b));
         return sb.toString();
+    }
+
+    /**
+     * Creates a new password salt and returns it to the caller
+     */
+    public @Secret String generateSecret64() {
+        return generateSecret64(defaultAesStrength);
     }
 
     /**
@@ -1360,7 +1652,7 @@ public class Encryptor implements Runnable
     
     public @Hash String getPublicKeyHash(MessagePublicKey key)
     {
-        @Hash String hash = key.publicKeyHash();
+        @Hash String hash = key.hash();
         if (hash == null) {
             throw new RuntimeException("Public key does not have a hash attached.");
         }
@@ -1432,13 +1724,6 @@ public class Encryptor implements Runnable
         return new MessagePublicKeyDto(key);
     }
     
-    public MessagePublicKeyDto createPublicKey(@PlainText String publicKey1Base64, @PlainText String publicKey2Base64, @Alias String alias)
-    {
-        MessagePublicKeyDto ret = new MessagePublicKeyDto(publicKey1Base64, publicKey2Base64);
-        ret.setAlias(alias);
-        return ret;
-    }
-    
     public MessagePublicKeyDto createPublicKey(MessagePublicKeyDto key, @Alias String alias)
     {
         MessagePublicKeyDto ret = new MessagePublicKeyDto(key);
@@ -1452,20 +1737,74 @@ public class Encryptor implements Runnable
         ret.setAlias(alias);
         return ret;
     }
-    
-    public MessagePrivateKeyDto createPrivateKey(@PEM byte[] publicKeyBytes1, @PEM byte[] publicKeyBytes2, @Secret byte[] privateKeyBytes1, @Secret byte[] privateKeyBytes2, @Nullable @Alias String _alias)
-    {
-        MessagePrivateKeyDto ret = new MessagePrivateKeyDto(publicKeyBytes1, publicKeyBytes2, privateKeyBytes1, privateKeyBytes2);
 
-        @Alias String alias = _alias;
+    public String serializePublicKey64(MessagePublicKeyDto key) {
+        byte[] data = serializePublicKey(key);
+        return Base64.encodeBase64URLSafeString(data);
+    }
+
+    public String serializePrivateKey64(MessagePrivateKeyDto key) {
+        byte[] data = serializePrivateKey(key);
+        return Base64.encodeBase64URLSafeString(data);
+    }
+
+    public MessagePublicKeyDto deserializePublicKey64(String data64) {
+        return deserializePublicKey64(data64, null);
+    }
+
+    public MessagePublicKeyDto deserializePrivateKey64(String data64) {
+        return deserializePrivateKey64(data64, null);
+    }
+
+    public MessagePublicKeyDto deserializePublicKey64(String data64, @Nullable @Alias String alias) {
+        byte[] data = Base64.decodeBase64(data64);
+        return deserializePublicKey(data, alias);
+    }
+
+    public MessagePublicKeyDto deserializePrivateKey64(String data64, @Nullable @Alias String alias) {
+        byte[] data = Base64.decodeBase64(data64);
+        return deserializePrivateKey(data, alias);
+    }
+
+    public byte[] serializePublicKey(MessagePublicKeyDto key) {
+        ByteBuffer bb = key.createFlatBuffer().getByteBuffer().duplicate();
+        byte[] ret = new byte[bb.remaining()];
+        bb.get(ret);
+        return ret;
+    }
+
+    public byte[] serializePrivateKey(MessagePrivateKeyDto key) {
+        ByteBuffer bb = key.createPrivateKeyFlatBuffer().getByteBuffer().duplicate();
+        byte[] ret = new byte[bb.remaining()];
+        bb.get(ret);
+        return ret;
+    }
+
+    public MessagePublicKeyDto deserializePublicKey(byte[] data) {
+        return deserializePublicKey(data, null);
+    }
+
+    public MessagePublicKeyDto deserializePublicKey(byte[] data, @Nullable @Alias String alias)
+    {
+        ByteBuffer bb = ByteBuffer.wrap(data);
+        MessagePublicKeyDto ret = new MessagePublicKeyDto(MessagePublicKey.getRootAsMessagePublicKey(bb));
         if (alias != null) {
             ret.setAlias(alias);
         }
         return ret;
     }
-    
-    public MessagePrivateKeyDto createPrivateKey(@PEM String publicKey1Base64, @PEM String publicKey2Base64, @Secret String privateKey1Base64, @Secret String privateKey2Base64, @Alias String alias)
+
+    public MessagePrivateKeyDto deserializePrivateKey(byte[] data) {
+        return deserializePrivateKey(data, null);
+    }
+
+    public MessagePrivateKeyDto deserializePrivateKey(byte[] data, @Nullable @Alias String alias)
     {
-        return createPrivateKey(Base64.decodeBase64(publicKey1Base64), Base64.decodeBase64(publicKey2Base64), Base64.decodeBase64(privateKey1Base64), Base64.decodeBase64(privateKey2Base64), alias);
+        ByteBuffer bb = ByteBuffer.wrap(data);
+        MessagePrivateKeyDto ret = new MessagePrivateKeyDto(MessagePrivateKey.getRootAsMessagePrivateKey(bb));
+        if (alias != null) {
+            ret.setAlias(alias);
+        }
+        return ret;
     }
 }

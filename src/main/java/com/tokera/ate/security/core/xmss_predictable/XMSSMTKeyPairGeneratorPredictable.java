@@ -8,7 +8,7 @@ import org.bouncycastle.crypto.AsymmetricCipherKeyPair;
  */
 public final class XMSSMTKeyPairGeneratorPredictable
 {
-    private XMSSMTParameters params;
+    private XMSSMTParametersPredictable params;
     private XMSSParameters xmssParams;
 
     private IRandom prng;
@@ -22,7 +22,7 @@ public final class XMSSMTKeyPairGeneratorPredictable
     }
 
     public void init(
-            XMSSMTKeyGenerationParameters parameters, IRandom random)
+            XMSSMTKeyGenerationParametersPredictable parameters, IRandom random)
     {
         prng = random;
         this.params = parameters.getParameters();

@@ -139,11 +139,11 @@ public class DataSerializer {
                 if (privateKey == null) continue;
 
                 // Add the key
-                byte[] keyBytes = privateKey.getPublicKeyBytes();
+                Iterable<MessageKeyPartDto> keyParts = privateKey.getPublicParts();
                 @Hash String keyHash = privateKey.getPublicKeyHash();
-                if (keyBytes == null) continue;
+                if (keyParts == null) continue;
                 if (keyHash == null) continue;
-                MessagePublicKeyDto publicKey = new MessagePublicKeyDto(keyBytes, keyHash);
+                MessagePublicKeyDto publicKey = new MessagePublicKeyDto(keyParts, keyHash);
 
                 String alias = privateKey.getAlias();
                 if (alias != null) {

@@ -43,10 +43,7 @@ public class MessageDataDigestDto extends MessageBaseDto implements Serializable
     private @Salt String seed;                // Seed added to the digest calculation
     @JsonProperty
     @MonotonicNonNull
-    private @Signature String signature1;           // digitally signed digest of the payload _after_ it was encrypted
-    @JsonProperty
-    @MonotonicNonNull
-    private @Signature String signature2;           // digitally signed digest of the payload _after_ it was encrypted
+    private @Signature String signature;           // digitally signed digest of the payload _after_ it was encrypted
     @JsonProperty
     @MonotonicNonNull
     @Size(min=43, max=43)
@@ -68,14 +65,12 @@ public class MessageDataDigestDto extends MessageBaseDto implements Serializable
 
     public MessageDataDigestDto(
             @Salt String seed,
-            @Signature String signature1,
-            @Signature String signature2,
+            @Signature String signature,
             @Hash String digest,
             @Hash String publicKeyHash)
     {
         this.seed = seed;
-        this.signature1 = signature1;
-        this.signature2 = signature2;
+        this.signature = signature;
         this.digest = digest;
         this.publicKeyHash = publicKeyHash;
     }
@@ -102,18 +97,11 @@ public class MessageDataDigestDto extends MessageBaseDto implements Serializable
                 if (v != null) seed = v;
             }
         }
-        if (lfb.signature1Length() > 0) {
-            ByteBuffer bb = lfb.signature1AsByteBuffer();
+        if (lfb.signatureLength() > 0) {
+            ByteBuffer bb = lfb.signatureAsByteBuffer();
             if (bb != null) {
                 String v = ByteBufferTools.toBase64(bb);
-                if (v != null) signature1 = v;
-            }
-        }
-        if (lfb.signature2Length() > 0) {
-            ByteBuffer bb = lfb.signature2AsByteBuffer();
-            if (bb != null) {
-                String v = ByteBufferTools.toBase64(bb);
-                if (v != null) signature2 = v;
+                if (v != null) signature = v;
             }
         }
         if (lfb.digestLength() > 0) {
@@ -129,43 +117,27 @@ public class MessageDataDigestDto extends MessageBaseDto implements Serializable
         fb = null;
     }
     
-    public @Signature String getSignature1() {
+    public @Signature String getSignature() {
         MessageDataDigest lfb = fb;
         if (lfb != null) {
-            if (lfb.signature1Length() > 0) {
-                ByteBuffer bb = lfb.signature1AsByteBuffer();
+            if (lfb.signatureLength() > 0) {
+                ByteBuffer bb = lfb.signatureAsByteBuffer();
                 if (bb != null) {
                     @Signature String v = ByteBufferTools.toBase64(bb);
                     if (v != null) return v;
                 }
             }
         }
-        @Signature String ret = this.signature1;
-        if (ret == null) throw new WebApplicationException("MessageDataDigest has no signature bytes attached.");
-        return ret;
-    }
-
-    public @Signature String getSignature2() {
-        MessageDataDigest lfb = fb;
-        if (lfb != null) {
-            if (lfb.signature2Length() > 0) {
-                ByteBuffer bb = lfb.signature2AsByteBuffer();
-                if (bb != null) {
-                    @Signature String v = ByteBufferTools.toBase64(bb);
-                    if (v != null) return v;
-                }
-            }
-        }
-        @Signature String ret = this.signature2;
+        @Signature String ret = this.signature;
         if (ret == null) throw new WebApplicationException("MessageDataDigest has no signature bytes attached.");
         return ret;
     }
     
-    public @Signature byte[] getSignatureBytes1() {
+    public @Signature byte[] getSignatureBytes() {
         MessageDataDigest lfb = fb;
         if (lfb != null) {
-            if (lfb.signature1Length() > 0) {
-                ByteBuffer bb = lfb.signature1AsByteBuffer();
+            if (lfb.signatureLength() > 0) {
+                ByteBuffer bb = lfb.signatureAsByteBuffer();
                 if (bb != null) {
                     byte[] arr = new byte[bb.remaining()];
                     bb.get(arr);
@@ -173,30 +145,7 @@ public class MessageDataDigestDto extends MessageBaseDto implements Serializable
                 }
             }
         }
-        @Signature String ret = this.signature1;
-        if (ret == null) throw new WebApplicationException("MessageDataDigest has no signature bytes attached.");
-        return Base64.decodeBase64(ret);
-    }
-
-    public void setSignature1(@Signature String signature) {
-        assert this._immutable == false;
-        copyOnWrite();
-        this.signature1 = signature;
-    }
-
-    public @Signature byte[] getSignatureBytes2() {
-        MessageDataDigest lfb = fb;
-        if (lfb != null) {
-            if (lfb.signature2Length() > 0) {
-                ByteBuffer bb = lfb.signature2AsByteBuffer();
-                if (bb != null) {
-                    byte[] arr = new byte[bb.remaining()];
-                    bb.get(arr);
-                    return arr;
-                }
-            }
-        }
-        @Signature String ret = this.signature2;
+        @Signature String ret = this.signature;
         if (ret == null) throw new WebApplicationException("MessageDataDigest has no signature bytes attached.");
         return Base64.decodeBase64(ret);
     }
@@ -204,7 +153,7 @@ public class MessageDataDigestDto extends MessageBaseDto implements Serializable
     public void setSignature(@Signature String signature) {
         assert this._immutable == false;
         copyOnWrite();
-        this.signature2 = signature;
+        this.signature = signature;
     }
 
     public @Hash String getPublicKeyHash() {
@@ -305,8 +254,7 @@ public class MessageDataDigestDto extends MessageBaseDto implements Serializable
     public int flatBuffer(FlatBufferBuilder fbb)
     {
         int offsetSeed = -1;
-        int offsetSignature1 = -1;
-        int offsetSignature2 = -1;
+        int offsetSignature = -1;
         int offsetDigest = -1;
         int offsetPublicKeyHash = -1;
         
@@ -315,14 +263,9 @@ public class MessageDataDigestDto extends MessageBaseDto implements Serializable
             offsetSeed = MessageDataDigest.createSeedVector(fbb, Base64.decodeBase64(seedStr));
         }
         
-        String sigStr1 = this.getSignature1();
+        String sigStr1 = this.getSignature();
         if (sigStr1.length() > 0) {
-            offsetSignature1 = MessageDataDigest.createSignature1Vector(fbb, Base64.decodeBase64(sigStr1));
-        }
-
-        String sigStr2 = this.getSignature2();
-        if (sigStr2.length() > 0) {
-            offsetSignature2 = MessageDataDigest.createSignature2Vector(fbb, Base64.decodeBase64(sigStr2));
+            offsetSignature = MessageDataDigest.createSignatureVector(fbb, Base64.decodeBase64(sigStr1));
         }
         
         String digestStr = this.getDigest();
@@ -337,8 +280,7 @@ public class MessageDataDigestDto extends MessageBaseDto implements Serializable
         
         MessageDataDigest.startMessageDataDigest(fbb);
         if (offsetSeed >= 0) MessageDataDigest.addSeed(fbb, offsetSeed);
-        if (offsetSignature1 >= 0) MessageDataDigest.addSignature1(fbb, offsetSignature1);
-        if (offsetSignature2 >= 0) MessageDataDigest.addSignature2(fbb, offsetSignature2);
+        if (offsetSignature >= 0) MessageDataDigest.addSignature(fbb, offsetSignature);
         if (offsetDigest >= 0) MessageDataDigest.addDigest(fbb, offsetDigest);
         if (offsetPublicKeyHash >= 0) MessageDataDigest.addPublicKeyHash(fbb, offsetPublicKeyHash);
         return MessageDataDigest.endMessageDataDigest(fbb);

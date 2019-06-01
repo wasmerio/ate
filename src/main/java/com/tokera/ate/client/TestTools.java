@@ -106,25 +106,6 @@ public class TestTools {
         return ret;
     }
 
-    public static void initSeedTestKeys() {
-        AteDelegate d = AteDelegate.get();
-        for (MessagePrivateKeyDto key : getTestKeys("sign.keys.64")) {
-            d.encryptor.addSeedKeySign64(key);
-        }
-        for (MessagePrivateKeyDto key : getTestKeys("sign.keys.128")) {
-            d.encryptor.addSeedKeySign128(key);
-        }
-        for (MessagePrivateKeyDto key : getTestKeys("sign.keys.256")) {
-            d.encryptor.addSeedKeySign256(key);
-        }
-        for (MessagePrivateKeyDto key : getTestKeys("encrypt.keys.128")) {
-            d.encryptor.addSeedKeyEncrypt128(key);
-        }
-        for (MessagePrivateKeyDto key : getTestKeys("encrypt.keys.256")) {
-            d.encryptor.addSeedKeyEncrypt256(key);
-        }
-    }
-
     public static Response restPut(@Nullable String token, String url, Entity<?> entity) {
         Response resp;
         ResteasyClient client = TestTools.buildResteasyClient();

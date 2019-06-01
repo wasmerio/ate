@@ -121,7 +121,7 @@ public class MessageSerializer implements Serializer<MessageBase> {
     
     public static String getKey(MessagePublicKey key)
     {
-        @Hash String ret = key.publicKeyHash();
+        @Hash String ret = key.hash();
         if (ret == null) throw new RuntimeException("MessagePublicKey does not have a hash.");
         return ret;
     }

@@ -43,8 +43,6 @@ public class BasicIntegrationTests {
         d.storageFactory.buildRamBackend()
                 .addCacheLayer()
                 .addAccessLoggerLayer();
-
-		TestTools.initSeedTestKeys();
 	}
 
     @Test
@@ -57,9 +55,9 @@ public class BasicIntegrationTests {
     @Order(10)
     public void getAdminKey() {
         AteDelegate d = AteDelegate.get();
-        MessagePrivateKeyDto key = d.encryptor.genSignKey(128);
+        MessagePrivateKeyDto key = d.encryptor.genSignKey();
 
-        String keyPem = key.getPublicKey();
+        String keyPem = d.encryptor.serializePublicKey64(key);
         if (keyPem == null) throw new WebApplicationException("Failed to generate private key for domain");
         d.implicitSecurity.getEnquireOverride().put("tokauth.mycompany.org", keyPem);
 

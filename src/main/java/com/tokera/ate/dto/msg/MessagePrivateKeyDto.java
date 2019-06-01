@@ -8,8 +8,11 @@ package com.tokera.ate.dto.msg;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.base.Objects;
+import com.google.common.collect.Iterables;
 import com.tokera.ate.common.CopyOnWrite;
+import com.tokera.ate.common.ImmutalizableArrayList;
 import com.tokera.ate.constraints.PrivateKeyConstraint;
+import com.tokera.ate.dao.enumerations.KeyType;
 import com.tokera.ate.dao.msg.*;
 import com.google.flatbuffers.FlatBufferBuilder;
 import com.tokera.ate.annotations.YamlTag;
@@ -43,59 +46,29 @@ public class MessagePrivateKeyDto extends MessagePublicKeyDto implements Seriali
     @Size(min=43, max=43)
     @Pattern(regexp = "^(?:[A-Za-z0-9+\\/\\-_])*(?:[A-Za-z0-9+\\/\\-_]{2}==|[A-Za-z0-9+\\/\\-_]{3}=)?$")
     private @Hash String privateKeyHash;
-    @JsonIgnore
-    private transient @Secret byte @MonotonicNonNull [] privateKeyBytes1;
-    @JsonIgnore
-    private transient @Secret byte @MonotonicNonNull [] privateKeyBytes2;
     @JsonProperty
-    @MonotonicNonNull
-    @Size(min = 2)
-    private @Secret String privateKey1;
-    @JsonProperty
-    @MonotonicNonNull
-    @Size(min = 2)
-    private @Secret String privateKey2;
+    private ImmutalizableArrayList<MessageKeyPartDto> privateParts = new ImmutalizableArrayList<>();
 
     @Deprecated
     public MessagePrivateKeyDto() {
     }
-    
-    public MessagePrivateKeyDto(MessagePrivateKeyDto val) {
-        super(val);
 
-        byte[] publicKeyBytes1 = val.getPublicKeyBytes1();
-        if (publicKeyBytes1 != null) this.publicKeyBytes1 = publicKeyBytes1;
+    public MessagePrivateKeyDto(MessagePrivateKeyDto key) {
+        super(key);
 
-        byte[] publicKeyBytes2 = val.getPublicKeyBytes2();
-        if (publicKeyBytes2 != null) this.publicKeyBytes2 = publicKeyBytes2;
+        this.alias = key.getAlias();
+        this.publicKeyHash = key.getPublicKeyHash();
+        this.privateKeyHash = key.getPrivateKeyHash();
 
-        @Hash String publicKeyHash = val.getPublicKeyHash();
-        if (publicKeyHash != null) this.publicKeyHash = publicKeyHash;
+        this.publicParts.clear();
+        for (MessageKeyPartDto part : key.getPublicParts()) {
+            this.publicParts.add(new MessageKeyPartDto(part));
+        }
 
-        @PEM String publicKey1 = val.getPublicKey1();
-        if (publicKey1 != null) this.publicKey1 = publicKey1;
-
-        @PEM String publicKey2 = val.getPublicKey2();
-        if (publicKey2 != null) this.publicKey2 = publicKey2;
-
-        byte[] privateKeyBytes1 = val.getPrivateKeyBytes1();
-        if (privateKeyBytes1 != null) this.privateKeyBytes1 = privateKeyBytes1;
-
-        byte[] privateKeyBytes2 = val.getPrivateKeyBytes2();
-        if (privateKeyBytes2 != null) this.privateKeyBytes2 = privateKeyBytes2;
-
-        @Hash String privateKeyHash = val.getPrivateKeyHash();
-        if (privateKeyHash != null) this.privateKeyHash = privateKeyHash;
-
-        @PEM String privateKey1 = val.getPrivateKey1();
-        if (privateKey1 != null) this.privateKey1 = privateKey1;
-
-        @PEM String privateKey2 = val.getPrivateKey2();
-        if (privateKey2 != null) this.privateKey2 = privateKey2;
-
-
-        @Alias String alias = val.getAlias();
-        if (alias != null) this.alias = alias;
+        this.privateParts.clear();
+        for (MessageKeyPartDto part : key.getPublicParts()) {
+            this.privateParts.add(new MessageKeyPartDto(part));
+        }
     }
     
     public MessagePrivateKeyDto(MessagePrivateKey val) {
@@ -103,85 +76,44 @@ public class MessagePrivateKeyDto extends MessagePublicKeyDto implements Seriali
 
         pfb = val;
     }
-    
-    public MessagePrivateKeyDto(@PEM String publicKey1, @PEM String publicKey2, @Secret String privateKey1, @Secret String privateKey2) {
-        super(publicKey1, publicKey2);
-        this.privateKeyBytes1 = Base64.decodeBase64(privateKey1);
-        this.privateKeyBytes2 = Base64.decodeBase64(privateKey2);
-        this.privateKeyHash = Base64.encodeBase64URLSafeString(Encryptor.hashShaStatic(this.privateKeyBytes1, this.privateKeyBytes2));
-        this.privateKey1 = privateKey1;
-        this.privateKey2 = privateKey2;
-    }
-    
-    public MessagePrivateKeyDto(@PEM String publicKey1, @PEM String publicKey2, @Hash String publicKeyHash, @Secret String privateKey1, @Secret String privateKey2, @Hash String privateKeyHash) {
-        super(publicKey1, publicKey2, publicKeyHash);
-        this.privateKeyBytes1 = Base64.decodeBase64(privateKey1);
-        this.privateKeyBytes2 = Base64.decodeBase64(privateKey2);
-        this.privateKeyHash = privateKeyHash;
-        this.privateKey1 = privateKey1;
-        this.privateKey2 = privateKey2;
-    }
-    
-    public MessagePrivateKeyDto(@PEM byte[] publicKey1, @PEM byte[] publicKey2, @Hash String publicKeyHash, @Secret byte[] privateKey1, @Secret byte[] privateKey2, @Hash String privateKeyHash) {
-        super(publicKey1, publicKey2, publicKeyHash);
-        this.privateKeyBytes1 = privateKey1;
-        this.privateKeyBytes2 = privateKey2;
-        this.privateKeyHash = privateKeyHash;
-        this.privateKey1 = Base64.encodeBase64URLSafeString(privateKey1);
-        this.privateKey2 = Base64.encodeBase64URLSafeString(privateKey2);
+
+    public MessagePrivateKeyDto(Iterable<MessageKeyPartDto> publicParts, Iterable<MessageKeyPartDto> privateParts) {
+        super(publicParts);
+
+        this.privateParts.clear();
+        for (MessageKeyPartDto part : privateParts) {
+            this.privateParts.add(new MessageKeyPartDto(part));
+        }
+        this.privateKeyHash = MessageKeyPartDto.computeHash(privateParts);
     }
 
-    public MessagePrivateKeyDto(@PEM byte[] publicKeyBytes1, @PEM byte[] publicKeyBytes2, @Secret byte[] privateKeyBytes1, @Secret byte[] privateKeyBytes2) {
-        super(publicKeyBytes1, publicKeyBytes2);
-        this.privateKeyBytes1 = privateKeyBytes1;
-        this.privateKeyBytes2 = privateKeyBytes2;
-        this.privateKey1 = org.apache.commons.codec.binary.Base64.encodeBase64URLSafeString(privateKeyBytes1);
-        this.privateKey2 = org.apache.commons.codec.binary.Base64.encodeBase64URLSafeString(privateKeyBytes2);
-        this.privateKeyHash = org.apache.commons.codec.binary.Base64.encodeBase64URLSafeString(Encryptor.hashShaStatic(privateKeyBytes1, privateKeyBytes2));
+    public MessagePrivateKeyDto(Iterable<MessageKeyPartDto> publicParts, Iterable<MessageKeyPartDto> privateParts, @Hash String publicKeyHash, @Hash String privateKeyHash) {
+        super(publicParts, publicKeyHash);
+
+        this.privateParts.clear();
+        for (MessageKeyPartDto part : privateParts) {
+            this.privateParts.add(new MessageKeyPartDto(part));
+        }
+        this.privateKeyHash = publicKeyHash;
     }
 
     @Override
     public void copyOnWrite() {
         super.copyOnWrite();
+        this.hashCache = null;
 
         MessagePrivateKey lfb = pfb;
         if (lfb == null) return;
 
-        this.hashCache = null;
-
-        if (lfb.privateKey1Length() > 0) {
-            ByteBuffer bb = lfb.privateKey1AsByteBuffer();
-            if (bb == null) throw new WebApplicationException("Attached flat buffer does not have any key bytes.");
-
-            @Secret byte [] keyBytes = new byte[bb.remaining()];
-            bb.get(keyBytes);
-            this.privateKeyBytes1 = keyBytes;
-            this.privateKey1 = Base64.encodeBase64URLSafeString(keyBytes);
-            
-        } else {
-            throw new WebApplicationException("Attached flat buffer does not have any key bytes.");
+        this.privateParts.clear();
+        if (lfb.partsLength() > 0) {
+            for (int n = 0; n < lfb.partsLength(); n++) {
+                MessageKeyPart part = lfb.parts(n);
+                this.privateParts.add(new MessageKeyPartDto(part));
+            }
         }
 
-        if (lfb.privateKey2Length() > 0) {
-            ByteBuffer bb = lfb.privateKey2AsByteBuffer();
-            if (bb == null) throw new WebApplicationException("Attached flat buffer does not have any key bytes.");
-
-            @Secret byte [] keyBytes = new byte[bb.remaining()];
-            bb.get(keyBytes);
-            this.privateKeyBytes2 = keyBytes;
-            this.privateKey2 = Base64.encodeBase64URLSafeString(keyBytes);
-
-        } else {
-            throw new WebApplicationException("Attached flat buffer does not have any key bytes.");
-        }
-
-        @Hash String hash = lfb.privateKeyHash();
-        if (hash == null) {
-            byte[] privateKeyBytes1 = this.privateKeyBytes1;
-            byte[] privateKeyBytes2 = this.privateKeyBytes2;
-            hash = Base64.encodeBase64URLSafeString(Encryptor.hashShaStatic(privateKeyBytes1, privateKeyBytes2));
-        }
-        this.privateKeyHash = hash;
+        this.privateKeyHash = lfb.hash();
 
         pfb = null;
     }
@@ -189,17 +121,13 @@ public class MessagePrivateKeyDto extends MessagePublicKeyDto implements Seriali
     public @Nullable @Hash String getPrivateKeyHash() {
         MessagePrivateKey lfb = pfb;
         if (lfb != null) {
-            @Hash String v = lfb.privateKeyHash();
+            @Hash String v = lfb.hash();
             if (v != null) return v;
         }
 
         @Hash String ret = this.privateKeyHash;
         if (ret == null) {
-            byte[] privateKeyBytes1 = this.getPrivateKeyBytes1();
-            byte[] privateKeyBytes2 = this.getPrivateKeyBytes2();
-            if (privateKeyBytes1 == null) return null;
-            if (privateKeyBytes2 == null) return null;
-            return Base64.encodeBase64URLSafeString(Encryptor.hashShaStatic(privateKeyBytes1, privateKeyBytes2));
+            ret = MessageKeyPartDto.computeHash(this.getPrivateParts());
         }
         return ret;
     }
@@ -210,126 +138,43 @@ public class MessagePrivateKeyDto extends MessagePublicKeyDto implements Seriali
         this.privateKeyHash = hash;
     }
 
-    private @Nullable @Secret String getPrivateKeyInternal1() {
+    public ImmutalizableArrayList<MessageKeyPartDto> getPrivateParts() {
         MessagePrivateKey lfb = pfb;
         if (lfb != null) {
-            ByteBuffer bb = lfb.privateKey1AsByteBuffer();
-            if (bb != null) {
-                byte[] bytes = new byte[bb.remaining()];
-                bb.get(bytes);
-                return Base64.encodeBase64URLSafeString(bytes);
+            ImmutalizableArrayList<MessageKeyPartDto> ret = new ImmutalizableArrayList<>();
+            ret.clear();
+            if (lfb.partsLength() > 0) {
+                for (int n = 0; n < lfb.partsLength(); n++) {
+                    MessageKeyPart part = lfb.parts(n);
+                    ret.add(new MessageKeyPartDto(part));
+                }
             }
+            return ret;
         }
-        return this.privateKey1;
+
+        return this.privateParts;
     }
 
-    private @Nullable @Secret String getPrivateKeyInternal2() {
-        MessagePrivateKey lfb = pfb;
-        if (lfb != null) {
-            ByteBuffer bb = lfb.privateKey2AsByteBuffer();
-            if (bb != null) {
-                byte[] bytes = new byte[bb.remaining()];
-                bb.get(bytes);
-                return Base64.encodeBase64URLSafeString(bytes);
-            }
-        }
-        return this.privateKey2;
-    }
-
-    public @Nullable @Secret String getPrivateKey1() {
-        @Secret String ret = getPrivateKeyInternal1();
-        if (ret == null) {
-            byte[] bytes = this.getPrivateKeyBytesInternal1();
-            if (bytes == null) return null;
-            return Base64.encodeBase64URLSafeString(bytes);
-        }
-        return ret;
-    }
-
-    public void setPrivateKey1(@Secret String privateKey) {
+    public void setPrivateParts(ImmutalizableArrayList<MessageKeyPartDto> privateParts) {
         copyOnWrite();
         this.hashCache = null;
-        this.privateKeyBytes1 = Base64.decodeBase64(privateKey);
-        this.privateKey1 = privateKey;
-    }
-
-    public @Nullable @Secret String getPrivateKey2() {
-        @Secret String ret = getPrivateKeyInternal2();
-        if (ret == null) {
-            byte[] bytes = this.getPrivateKeyBytesInternal2();
-            if (bytes == null) return null;
-            return Base64.encodeBase64URLSafeString(bytes);
-        }
-        return ret;
-    }
-
-    public void setPrivateKey2(@Secret String privateKey) {
-        copyOnWrite();
-        this.hashCache = null;
-        this.privateKeyBytes2 = Base64.decodeBase64(privateKey);
-        this.privateKey2 = privateKey;
-    }
-
-    @JsonIgnore
-    private @Secret byte @Nullable [] getPrivateKeyBytesInternal1() {
-        MessagePrivateKey lfb = pfb;
-        if (lfb != null) {
-            ByteBuffer bb = lfb.privateKey1AsByteBuffer();
-            if (bb != null) {
-                byte[] bytes = new byte[bb.remaining()];
-                bb.get(bytes);
-                return bytes;
-            }
-        }
-        return this.privateKeyBytes1;
-    }
-
-    @JsonIgnore
-    private @Secret byte @Nullable [] getPrivateKeyBytesInternal2() {
-        MessagePrivateKey lfb = pfb;
-        if (lfb != null) {
-            ByteBuffer bb = lfb.privateKey2AsByteBuffer();
-            if (bb != null) {
-                byte[] bytes = new byte[bb.remaining()];
-                bb.get(bytes);
-                return bytes;
-            }
-        }
-        return this.privateKeyBytes2;
-    }
-
-    @JsonIgnore
-    public @Secret byte @Nullable [] getPrivateKeyBytes1() {
-        @Secret byte [] ret = getPrivateKeyBytesInternal1();
-        if (ret == null) {
-            @Secret String privateKey64 = this.getPrivateKeyInternal1();
-            if (privateKey64 != null) ret = Base64.decodeBase64(privateKey64);
-        }
-        return ret;
-    }
-
-    @JsonIgnore
-    public @Secret byte @Nullable [] getPrivateKeyBytes2() {
-        @Secret byte [] ret = getPrivateKeyBytesInternal2();
-        if (ret == null) {
-            @Secret String privateKey64 = this.getPrivateKeyInternal2();
-            if (privateKey64 != null) ret = Base64.decodeBase64(privateKey64);
-        }
-        return ret;
+        this.privateParts = privateParts;
     }
     
     public int privateKeyFlatBuffer(FlatBufferBuilder fbb)
     {
-        byte[] bytesPrivateKey1 = this.getPrivateKeyBytes1();
-        int offsetPrivateKey1 = -1;
-        if (bytesPrivateKey1 != null) {
-            offsetPrivateKey1 = MessagePrivateKey.createPrivateKey1Vector(fbb, bytesPrivateKey1);
-        }
+        Iterable<MessageKeyPartDto> privateParts = this.getPrivateParts();
+        int offsetPrivateParts = -1;
+        if (privateParts != null) {
+            int size =  Iterables.size(privateParts);
+            int[] partOffsets = new int[size];
 
-        byte[] bytesPrivateKey2 = this.getPrivateKeyBytes2();
-        int offsetPrivateKey2 = -1;
-        if (bytesPrivateKey2 != null) {
-            offsetPrivateKey2 = MessagePrivateKey.createPrivateKey2Vector(fbb, bytesPrivateKey2);
+            int n = 0;
+            for (MessageKeyPartDto part : privateParts) {
+                partOffsets[n++] = part.flatBuffer(fbb);
+            }
+
+            offsetPrivateParts = MessagePrivateKey.createPartsVector(fbb, partOffsets);
         }
 
         String strPrivateKeyHash = this.getPrivateKeyHash();
@@ -341,14 +186,11 @@ public class MessagePrivateKeyDto extends MessagePublicKeyDto implements Seriali
         int offsetPublicKey = this.flatBuffer(fbb);
         
         MessagePrivateKey.startMessagePrivateKey(fbb);
-        if (offsetPrivateKey1 >= 0) {
-            MessagePrivateKey.addPrivateKey1(fbb, offsetPrivateKey1);
-        }
-        if (offsetPrivateKey2 >= 0) {
-            MessagePrivateKey.addPrivateKey2(fbb, offsetPrivateKey2);
+        if (offsetPrivateParts >= 0) {
+            MessagePrivateKey.addParts(fbb, offsetPrivateParts);
         }
         if (offsetPrivateKeyHash >= 0) {
-            MessagePrivateKey.addPrivateKeyHash(fbb, offsetPrivateKeyHash);
+            MessagePrivateKey.addHash(fbb, offsetPrivateKeyHash);
         }
         if (offsetPublicKey >= 0) {
             MessagePrivateKey.addPublicKey(fbb, offsetPublicKey);
@@ -371,9 +213,9 @@ public class MessagePrivateKeyDto extends MessagePublicKeyDto implements Seriali
 
         MessagePrivateKeyDto that = (MessagePrivateKeyDto) o;
 
-        if (Objects.equal(this.alias, that.alias) == false) return false;
-        if (Objects.equal(this.publicKeyHash, that.publicKeyHash) == false) return false;
-        if (Objects.equal(this.privateKeyHash, that.privateKeyHash) == false) return false;
+        if (java.util.Objects.equals(this.getAlias(), that.getAlias()) == false) return false;
+        if (java.util.Objects.equals(this.getPublicKeyHash(), that.getPublicKeyHash()) == false) return false;
+        if (java.util.Objects.equals(this.getPrivateKeyHash(), that.getPrivateKeyHash()) == false) return false;
 
         return true;
     }
@@ -384,10 +226,10 @@ public class MessagePrivateKeyDto extends MessagePublicKeyDto implements Seriali
         Integer ret = this.hashCache;
         if (ret != null) return ret.intValue();
 
-        ret = 0;
-        if (this.alias != null) ret += this.alias.hashCode();
-        if (this.publicKeyHash != null) ret += this.publicKeyHash.hashCode();
-        if (this.privateKeyHash != null) ret += this.privateKeyHash.hashCode();
+        ret = (int)0;
+        ret += this.getAlias().hashCode();
+        ret += this.getPublicKeyHash().hashCode();
+        ret += this.getPrivateKeyHash().hashCode();
 
         this.hashCache = ret;
         return ret;
@@ -396,5 +238,16 @@ public class MessagePrivateKeyDto extends MessagePublicKeyDto implements Seriali
     @Override
     public boolean isValid(Object o, ConstraintValidatorContext constraintValidatorContext) {
         return false;
+    }
+
+    public void addKeyPart(KeyType keyType, int keySize, Encryptor.KeyPairBytes pair)
+    {
+        copyOnWrite();
+        this.hashCache = null;
+
+        MessageKeyPartDto partPublic = new MessageKeyPartDto(keyType, keySize, pair.publicKey);
+        MessageKeyPartDto partPrivate = new MessageKeyPartDto(keyType, keySize, pair.privateKey);
+        this.publicParts.add(partPublic);
+        this.privateParts.add(partPrivate);
     }
 }

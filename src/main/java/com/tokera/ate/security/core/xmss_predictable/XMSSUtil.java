@@ -375,6 +375,7 @@ public class XMSSUtil
         return ((globalIndex + 1) % (long)Math.pow((1 << xmssHeight), layer) == 0) ? true : false;
     }
 
+    @SuppressWarnings({"unchecked"})
     private static class CheckingStream
             extends ObjectInputStream
     {

@@ -5,7 +5,7 @@ import org.bouncycastle.crypto.Digest;
 /**
  * XMSS^MT Parameters.
  */
-public final class XMSSMTParameters
+public final class XMSSMTParametersPredictable
 {
 
     private final XMSSOid oid;
@@ -20,7 +20,7 @@ public final class XMSSMTParameters
      * @param layers Amount of layers.
      * @param digest Digest to use.
      */
-    public XMSSMTParameters(int height, int layers, Digest digest)
+    public XMSSMTParametersPredictable(int height, int layers, Digest digest)
     {
         super();
         this.height = height;

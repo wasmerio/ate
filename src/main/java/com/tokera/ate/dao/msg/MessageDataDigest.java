@@ -18,51 +18,42 @@ public final class MessageDataDigest extends Table {
   public int seedLength() { int o = __offset(4); return o != 0 ? __vector_len(o) : 0; }
   public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer seedAsByteBuffer() { return __vector_as_bytebuffer(4, 1); }
   public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer seedInByteBuffer(ByteBuffer _bb) { return __vector_in_bytebuffer(_bb, 4, 1); }
-  public byte signature1(int j) { int o = __offset(6); return o != 0 ? bb.get(__vector(o) + j * 1) : 0; }
-  public int signature1Length() { int o = __offset(6); return o != 0 ? __vector_len(o) : 0; }
-  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer signature1AsByteBuffer() { return __vector_as_bytebuffer(6, 1); }
-  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer signature1InByteBuffer(ByteBuffer _bb) { return __vector_in_bytebuffer(_bb, 6, 1); }
-  public byte signature2(int j) { int o = __offset(8); return o != 0 ? bb.get(__vector(o) + j * 1) : 0; }
-  public int signature2Length() { int o = __offset(8); return o != 0 ? __vector_len(o) : 0; }
-  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer signature2AsByteBuffer() { return __vector_as_bytebuffer(8, 1); }
-  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer signature2InByteBuffer(ByteBuffer _bb) { return __vector_in_bytebuffer(_bb, 8, 1); }
-  public byte digest(int j) { int o = __offset(10); return o != 0 ? bb.get(__vector(o) + j * 1) : 0; }
-  public int digestLength() { int o = __offset(10); return o != 0 ? __vector_len(o) : 0; }
-  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer digestAsByteBuffer() { return __vector_as_bytebuffer(10, 1); }
-  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer digestInByteBuffer(ByteBuffer _bb) { return __vector_in_bytebuffer(_bb, 10, 1); }
-  public @org.checkerframework.checker.nullness.qual.Nullable String publicKeyHash() { int o = __offset(12); return o != 0 ? __string(o + bb_pos) : null; }
-  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer publicKeyHashAsByteBuffer() { return __vector_as_bytebuffer(12, 1); }
-  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer publicKeyHashInByteBuffer(ByteBuffer _bb) { return __vector_in_bytebuffer(_bb, 12, 1); }
+  public byte signature(int j) { int o = __offset(6); return o != 0 ? bb.get(__vector(o) + j * 1) : 0; }
+  public int signatureLength() { int o = __offset(6); return o != 0 ? __vector_len(o) : 0; }
+  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer signatureAsByteBuffer() { return __vector_as_bytebuffer(6, 1); }
+  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer signatureInByteBuffer(ByteBuffer _bb) { return __vector_in_bytebuffer(_bb, 6, 1); }
+  public byte digest(int j) { int o = __offset(8); return o != 0 ? bb.get(__vector(o) + j * 1) : 0; }
+  public int digestLength() { int o = __offset(8); return o != 0 ? __vector_len(o) : 0; }
+  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer digestAsByteBuffer() { return __vector_as_bytebuffer(8, 1); }
+  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer digestInByteBuffer(ByteBuffer _bb) { return __vector_in_bytebuffer(_bb, 8, 1); }
+  public @org.checkerframework.checker.nullness.qual.Nullable String publicKeyHash() { int o = __offset(10); return o != 0 ? __string(o + bb_pos) : null; }
+  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer publicKeyHashAsByteBuffer() { return __vector_as_bytebuffer(10, 1); }
+  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer publicKeyHashInByteBuffer(ByteBuffer _bb) { return __vector_in_bytebuffer(_bb, 10, 1); }
 
   public static int createMessageDataDigest(FlatBufferBuilder builder,
       int seedOffset,
-      int signature1Offset,
-      int signature2Offset,
+      int signatureOffset,
       int digestOffset,
       int publicKeyHashOffset) {
-    builder.startObject(5);
+    builder.startObject(4);
     MessageDataDigest.addPublicKeyHash(builder, publicKeyHashOffset);
     MessageDataDigest.addDigest(builder, digestOffset);
-    MessageDataDigest.addSignature2(builder, signature2Offset);
-    MessageDataDigest.addSignature1(builder, signature1Offset);
+    MessageDataDigest.addSignature(builder, signatureOffset);
     MessageDataDigest.addSeed(builder, seedOffset);
     return MessageDataDigest.endMessageDataDigest(builder);
   }
 
-  public static void startMessageDataDigest(FlatBufferBuilder builder) { builder.startObject(5); }
+  public static void startMessageDataDigest(FlatBufferBuilder builder) { builder.startObject(4); }
   public static void addSeed(FlatBufferBuilder builder, int seedOffset) { builder.addOffset(0, seedOffset, 0); }
   public static int createSeedVector(FlatBufferBuilder builder, byte[] data) { builder.startVector(1, data.length, 1); for (int i = data.length - 1; i >= 0; i--) builder.addByte(data[i]); return builder.endVector(); }
   public static void startSeedVector(FlatBufferBuilder builder, int numElems) { builder.startVector(1, numElems, 1); }
-  public static void addSignature1(FlatBufferBuilder builder, int signature1Offset) { builder.addOffset(1, signature1Offset, 0); }
-  public static int createSignature1Vector(FlatBufferBuilder builder, byte[] data) { builder.startVector(1, data.length, 1); for (int i = data.length - 1; i >= 0; i--) builder.addByte(data[i]); return builder.endVector(); }
-  public static void startSignature1Vector(FlatBufferBuilder builder, int numElems) { builder.startVector(1, numElems, 1); }
-  public static void addSignature2(FlatBufferBuilder builder, int signature2Offset) { builder.addOffset(2, signature2Offset, 0); }
-  public static int createSignature2Vector(FlatBufferBuilder builder, byte[] data) { builder.startVector(1, data.length, 1); for (int i = data.length - 1; i >= 0; i--) builder.addByte(data[i]); return builder.endVector(); }
-  public static void startSignature2Vector(FlatBufferBuilder builder, int numElems) { builder.startVector(1, numElems, 1); }
-  public static void addDigest(FlatBufferBuilder builder, int digestOffset) { builder.addOffset(3, digestOffset, 0); }
+  public static void addSignature(FlatBufferBuilder builder, int signatureOffset) { builder.addOffset(1, signatureOffset, 0); }
+  public static int createSignatureVector(FlatBufferBuilder builder, byte[] data) { builder.startVector(1, data.length, 1); for (int i = data.length - 1; i >= 0; i--) builder.addByte(data[i]); return builder.endVector(); }
+  public static void startSignatureVector(FlatBufferBuilder builder, int numElems) { builder.startVector(1, numElems, 1); }
+  public static void addDigest(FlatBufferBuilder builder, int digestOffset) { builder.addOffset(2, digestOffset, 0); }
   public static int createDigestVector(FlatBufferBuilder builder, byte[] data) { builder.startVector(1, data.length, 1); for (int i = data.length - 1; i >= 0; i--) builder.addByte(data[i]); return builder.endVector(); }
   public static void startDigestVector(FlatBufferBuilder builder, int numElems) { builder.startVector(1, numElems, 1); }
-  public static void addPublicKeyHash(FlatBufferBuilder builder, int publicKeyHashOffset) { builder.addOffset(4, publicKeyHashOffset, 0); }
+  public static void addPublicKeyHash(FlatBufferBuilder builder, int publicKeyHashOffset) { builder.addOffset(3, publicKeyHashOffset, 0); }
   public static int endMessageDataDigest(FlatBufferBuilder builder) {
     int o = builder.endObject();
     return o;

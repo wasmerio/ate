@@ -7,24 +7,24 @@ import org.bouncycastle.crypto.KeyGenerationParameters;
 /**
  * XMSS^MT key-pair generation parameters.
  */
-public final class XMSSMTKeyGenerationParameters
+public final class XMSSMTKeyGenerationParametersPredictable
         extends KeyGenerationParameters
 {
-    private final XMSSMTParameters xmssmtParameters;
+    private final XMSSMTParametersPredictable xmssmtParameters;
 
     /**
      * XMSSMT constructor...
      *
      * @param prng   Secure random to use.
      */
-    public XMSSMTKeyGenerationParameters(XMSSMTParameters xmssmtParameters, SecureRandom prng)
+    public XMSSMTKeyGenerationParametersPredictable(XMSSMTParametersPredictable xmssmtParameters, SecureRandom prng)
     {
         super(prng,-1);
 
         this.xmssmtParameters = xmssmtParameters;
     }
 
-    public XMSSMTParameters getParameters()
+    public XMSSMTParametersPredictable getParameters()
     {
         return xmssmtParameters;
     }

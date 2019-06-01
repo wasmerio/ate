@@ -12,7 +12,7 @@ public final class XMSSMTPrivateKeyParametersPredictable
         implements XMSSStoreableObjectInterface
 {
 
-    private final XMSSMTParameters params;
+    private final XMSSMTParametersPredictable params;
     private final long index;
     private final byte[] secretKeySeed;
     private final byte[] secretKeyPRF;
@@ -164,7 +164,7 @@ public final class XMSSMTPrivateKeyParametersPredictable
     {
 
         /* mandatory */
-        private final XMSSMTParameters params;
+        private final XMSSMTParametersPredictable params;
         /* optional */
         private long index = 0L;
         private byte[] secretKeySeed = null;
@@ -175,7 +175,7 @@ public final class XMSSMTPrivateKeyParametersPredictable
         private byte[] privateKey = null;
         private XMSSParameters xmss = null;
 
-        public Builder(XMSSMTParameters params)
+        public Builder(XMSSMTParametersPredictable params)
         {
             super();
             this.params = params;
@@ -303,7 +303,7 @@ public final class XMSSMTPrivateKeyParametersPredictable
         return bdsState;
     }
 
-    public XMSSMTParameters getParameters()
+    public XMSSMTParametersPredictable getParameters()
     {
         return params;
     }

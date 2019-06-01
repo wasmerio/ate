@@ -3,6 +3,7 @@ package com.tokera.ate.io.core;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessageEncryptTextDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
+import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.api.ISecureKeyRepository;
 import com.tokera.ate.io.repo.DataPartition;
@@ -32,9 +33,7 @@ public class DefaultSecureKeyRepository implements ISecureKeyRepository {
             if (text == null) return null;
             byte[] enc = text.getEncryptedTextBytes();
 
-            byte[] keyBytes = accessKey.getPrivateKeyBytes();
-            if (keyBytes == null) return null;
-            return d.encryptor.decryptNtruWithPrivate(keyBytes, enc);
+            return d.encryptor.decrypt(accessKey, enc);
         } catch (IOException | InvalidCipherTextException ex) {
             return null;
         }
@@ -46,16 +45,13 @@ public class DefaultSecureKeyRepository implements ISecureKeyRepository {
         DataPartitionChain chain = kt.getChain();
 
         // Get the public key
-        byte[] publicKeyBytes = chain.getPublicKeyBytes(publicKeyHash);
-        if (publicKeyBytes == null) {
+        MessagePublicKeyDto publicKey = chain.getPublicKey(publicKeyHash);
+        if (publicKey == null) {
             throw new RuntimeException("We encountered a public key that is not yet known to the distributed commit log. Ensure all public toPutKeys are merged before using them in data entities by either calling mergeLater(obj), mergeThreeWay(obj) or mergeThreeWay(publicKeyOrNull).");
-        }
-        if (publicKeyBytes.length <= 64) {
-            throw new RuntimeException("We encountered a public key that does not valid. Ensure all public toPutKeys are merged before using them in data entities by either calling mergeLater(obj), mergeThreeWay(obj) or mergeThreeWay(publicKeyOrNull).");
         }
 
         // Encrypt the key
-        byte[] encKey = d.encryptor.encryptNtruWithPublic(publicKeyBytes, secretKey);
+        byte[] encKey = d.encryptor.encrypt(publicKey, secretKey);
         String encryptKeyHash = d.encryptor.hashShaAndEncode(encKey);
 
         // Create a message and add it
