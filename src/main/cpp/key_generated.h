@@ -69,18 +69,18 @@ struct MessageKeyPart FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     VT_KEY = 8
   };
   MessageKeyType type() const {
-    return static_cast<MessageKeyType>(GetField<int32_t>(VT_TYPE, 0));
+    return static_cast<MessageKeyType>(GetField<int16_t>(VT_TYPE, 0));
   }
-  int32_t size() const {
-    return GetField<int32_t>(VT_SIZE, 0);
+  int16_t size() const {
+    return GetField<int16_t>(VT_SIZE, 0);
   }
   const flatbuffers::Vector<int8_t> *key() const {
     return GetPointer<const flatbuffers::Vector<int8_t> *>(VT_KEY);
   }
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
-           VerifyField<int32_t>(verifier, VT_TYPE) &&
-           VerifyField<int32_t>(verifier, VT_SIZE) &&
+           VerifyField<int16_t>(verifier, VT_TYPE) &&
+           VerifyField<int16_t>(verifier, VT_SIZE) &&
            VerifyOffset(verifier, VT_KEY) &&
            verifier.VerifyVector(key()) &&
            verifier.EndTable();
@@ -91,10 +91,10 @@ struct MessageKeyPartBuilder {
   flatbuffers::FlatBufferBuilder &fbb_;
   flatbuffers::uoffset_t start_;
   void add_type(MessageKeyType type) {
-    fbb_.AddElement<int32_t>(MessageKeyPart::VT_TYPE, static_cast<int32_t>(type), 0);
+    fbb_.AddElement<int16_t>(MessageKeyPart::VT_TYPE, static_cast<int16_t>(type), 0);
   }
-  void add_size(int32_t size) {
-    fbb_.AddElement<int32_t>(MessageKeyPart::VT_SIZE, size, 0);
+  void add_size(int16_t size) {
+    fbb_.AddElement<int16_t>(MessageKeyPart::VT_SIZE, size, 0);
   }
   void add_key(flatbuffers::Offset<flatbuffers::Vector<int8_t>> key) {
     fbb_.AddOffset(MessageKeyPart::VT_KEY, key);
@@ -114,7 +114,7 @@ struct MessageKeyPartBuilder {
 inline flatbuffers::Offset<MessageKeyPart> CreateMessageKeyPart(
     flatbuffers::FlatBufferBuilder &_fbb,
     MessageKeyType type = MessageKeyType_unknown,
-    int32_t size = 0,
+    int16_t size = 0,
     flatbuffers::Offset<flatbuffers::Vector<int8_t>> key = 0) {
   MessageKeyPartBuilder builder_(_fbb);
   builder_.add_key(key);
@@ -126,7 +126,7 @@ inline flatbuffers::Offset<MessageKeyPart> CreateMessageKeyPart(
 inline flatbuffers::Offset<MessageKeyPart> CreateMessageKeyPartDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
     MessageKeyType type = MessageKeyType_unknown,
-    int32_t size = 0,
+    int16_t size = 0,
     const std::vector<int8_t> *key = nullptr) {
   return com::tokera::ate::dao::msg::CreateMessageKeyPart(
       _fbb,

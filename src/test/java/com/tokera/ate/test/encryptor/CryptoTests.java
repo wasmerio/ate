@@ -29,6 +29,7 @@ import org.jboss.weld.junit5.WeldInitiator;
 import org.jboss.weld.junit5.WeldJunit5Extension;
 import org.jboss.weld.junit5.WeldSetup;
 import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,26 +43,14 @@ import java.io.IOException;
  *
  * @author John
  */
-@ExtendWith(WeldJunit5Extension.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-public class NtruTests {
+public class CryptoTests {
 
-    @SuppressWarnings("initialization.fields.uninitialized")
-    @Inject
-    private Encryptor encryptor;
-    @SuppressWarnings("initialization.fields.uninitialized")
-    @Inject
-    private YamlDelegate yamlDelegate;
+    private final static Encryptor encryptor = new Encryptor();@BeforeAll
 
-    @WeldSetup
-    public WeldInitiator weld = WeldInitiator
-            .from(new Weld()
-                    .setBeanDiscoveryMode(BeanDiscoveryMode.ANNOTATED)
-                    .enableDiscovery()
-                    .addBeanClass(MyAccount.class)
-                    .addBeanClass(MyThing.class))
-            .activate(RequestScoped.class)
-            .build();
+    public static void init() {
+        encryptor.init();
+    }
 
     public void testSign(int keySize, @Nullable String _seed)
     {

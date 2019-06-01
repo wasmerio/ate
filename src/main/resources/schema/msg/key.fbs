@@ -1,6 +1,6 @@
 namespace com.tokera.ate.dao.msg;
 
-enum MessageKeyType : int
+enum MessageKeyType : short
 {
   unknown = 0,
   ntru = 1,
@@ -15,7 +15,7 @@ enum MessageKeyType : int
 table MessageKeyPart
 {
   type              :MessageKeyType;
-  size              :int;
+  size              :short;
   key              :[byte];
 }
 

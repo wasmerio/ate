@@ -18,6 +18,8 @@ import com.tokera.ate.security.core.newhope_predictable.NHKeyPairGeneratorPredic
 import com.tokera.ate.security.core.ntru_predictable.EncryptionKeyPairGenerator;
 import com.tokera.ate.security.core.ntru_predictable.SigningKeyPairGenerator;
 import com.tokera.ate.security.core.qtesla_predictable.QTESLAKeyPairGeneratorPredictable;
+import com.tokera.ate.security.core.rainbow_predictable.RainbowKeyPairGeneratorPredictable;
+import com.tokera.ate.security.core.rainbow_predictable.RainbowKeySerializer;
 import com.tokera.ate.security.core.xmss_predictable.XMSSMTKeyGenerationParametersPredictable;
 import com.tokera.ate.security.core.xmss_predictable.XMSSMTKeyPairGeneratorPredictable;
 import com.tokera.ate.security.core.xmss_predictable.XMSSMTParametersPredictable;
@@ -70,6 +72,7 @@ import org.bouncycastle.pqc.crypto.ExchangePair;
 import org.bouncycastle.pqc.crypto.newhope.*;
 import org.bouncycastle.pqc.crypto.ntru.*;
 import org.bouncycastle.pqc.crypto.qtesla.*;
+import org.bouncycastle.pqc.crypto.rainbow.*;
 import org.bouncycastle.pqc.crypto.xmss.*;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -137,7 +140,9 @@ public class Encryptor implements Runnable
     private final ConcurrentLinkedQueue<@Secret String> genAes512Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<@Secret String> genSaltQueue = new ConcurrentLinkedQueue<>();
 
-    private Iterable<KeyType> defaultSigningTypes = Lists.newArrayList(KeyType.qtesla, KeyType.xmssmt);
+    //private Iterable<KeyType> defaultSigningTypes = Lists.newArrayList(KeyType.qtesla, KeyType.xmssmt);
+    //private Iterable<KeyType> defaultEncryptTypes = Lists.newArrayList(KeyType.ntru, KeyType.newhope);
+    private Iterable<KeyType> defaultSigningTypes = Lists.newArrayList(KeyType.qtesla, KeyType.rainbow);
     private Iterable<KeyType> defaultEncryptTypes = Lists.newArrayList(KeyType.ntru, KeyType.newhope);
     private int defaultAesStrength = 256;
     private int defaultSigningStrength = 256;
@@ -601,6 +606,9 @@ public class Encryptor implements Runnable
                 case xmssmt:
                     pair = genSignKeyXmssMtNow(keySize);
                     break;
+                case rainbow:
+                    pair = genSignKeyRainbowNow(keySize);
+                    break;
                 case ntru_sign:
                     throw new RuntimeException("NTRU for signing is not considered secure anymore.");
                 default:
@@ -624,7 +632,7 @@ public class Encryptor implements Runnable
     }
 
     public MessagePrivateKeyDto genSignKeyFromSeed(int keySize, Iterable<KeyType> keyTypes, String seed) {
-        return genSignKeyFromSeed(keySize, keyTypes, null);
+        return genSignKeyFromSeed(keySize, keyTypes, seed, null);
     }
 
     public MessagePrivateKeyDto genSignKeyFromSeed(int keySize, Iterable<KeyType> keyTypes, String seed, @Nullable @Alias String alias) {
@@ -640,6 +648,9 @@ public class Encryptor implements Runnable
                     break;
                 case xmssmt:
                     pair = genSignKeyXmssMtFromSeed(keySize, random);
+                    break;
+                case rainbow:
+                    pair = genSignKeyRainbowFromSeed(keySize, random);
                     break;
                 case ntru_sign:
                     throw new RuntimeException("NTRU for signing is not considered secure anymore.");
@@ -1066,8 +1077,7 @@ public class Encryptor implements Runnable
             throw new RuntimeException("Failed to decrypt the data has the public key is empty.");
         }
 
-        for (MessageKeyPartDto part : parts) {
-
+        for (MessageKeyPartDto part : Lists.reverse(parts)) {
             switch (part.getType()) {
                 case ntru:
                     ret = decryptNtruWithPrivate(part.getKeyBytes(), ret);
@@ -1161,6 +1171,72 @@ public class Encryptor implements Runnable
         return signer.verifySignature(digest, sig);
     }
 
+    public KeyPairBytes genSignKeyRainbowFromSeed(int keysize, PredictablyRandom keyRandom)
+    {
+        SecureRandom dummyRandom = new SecureRandom();
+
+        RainbowKeyGenerationParameters params;
+        switch (keysize) {
+            case 512:
+                params = new RainbowKeyGenerationParameters(dummyRandom, new RainbowParameters());
+                break;
+            case 256:
+                params = new RainbowKeyGenerationParameters(dummyRandom, new RainbowParameters());
+                break;
+            case 128:
+            case 64:
+                params = new RainbowKeyGenerationParameters(dummyRandom, new RainbowParameters());
+                break;
+            default:
+                throw new RuntimeException("Unknown RAINBOW key size(" + keysize + ")");
+        }
+        RainbowKeyPairGeneratorPredictable gen = new RainbowKeyPairGeneratorPredictable(keyRandom);
+        gen.init(params);
+        return extractKey(gen.generateKeyPair());
+    }
+
+    public KeyPairBytes genSignKeyRainbowNow(int keysize)
+    {
+        SecureRandom keyRandom = new SecureRandom();
+
+        RainbowKeyGenerationParameters params;
+        switch (keysize) {
+            case 512:
+                params = new RainbowKeyGenerationParameters(keyRandom, new RainbowParameters());
+                break;
+            case 256:
+                params = new RainbowKeyGenerationParameters(keyRandom, new RainbowParameters());
+                break;
+            case 128:
+            case 64:
+                params = new RainbowKeyGenerationParameters(keyRandom, new RainbowParameters());
+                break;
+            default:
+                throw new RuntimeException("Unknown RAINBOW key size(" + keysize + ")");
+        }
+        RainbowKeyPairGenerator gen = new RainbowKeyPairGenerator();
+        gen.init(params);
+        return extractKey(gen.generateKeyPair());
+    }
+
+    public @Signature byte[] signRainbow(@Secret byte[] privateKey, @Hash byte[] digest)
+    {
+        RainbowPrivateKeyParameters params = RainbowKeySerializer.deserializePrivate(privateKey);
+
+        RainbowSigner signer = new RainbowSigner();
+        signer.init(true, params);
+        return signer.generateSignature(digest);
+    }
+
+    public boolean verifyRainbow(@PEM byte[] publicKey, @Hash byte[] digest, @Signature byte[] sig)
+    {
+        RainbowPublicKeyParameters params = RainbowKeySerializer.deserializePublic(publicKey);
+
+        RainbowSigner signer = new RainbowSigner();
+        signer.init(false, params);
+        return signer.verifySignature(digest, sig);
+    }
+
     public KeyPairBytes genSignKeyXmssMtFromSeed(int keysize, String seed) {
         PredictablyRandom keyRandom = new PredictablyRandom(seed);
         return genSignKeyXmssMtFromSeed(keysize, keyRandom);
@@ -1186,13 +1262,8 @@ public class Encryptor implements Runnable
 
     public @Signature byte[] signXmssMt(@Secret byte[] privateKey, @Hash byte[] digest)
     {
-        XMSSMTParameters params = new XMSSMTParameters(20, 10, new SHA512Digest());
-
         int hash = Utils.murmur2(digest);
-        int totalHeight = params.getHeight();
-        int maxIndexes = (int)(1L << totalHeight);
-
-        XMSSMTPrivateKeyParameters paramsPrivate = XmssKeySerializer.deserializePrivate(privateKey);
+        XMSSMTPrivateKeyParameters paramsPrivate = XmssKeySerializer.deserializePrivate(privateKey, hash);
 
         XMSSMTSigner signer = new XMSSMTSigner();
         signer.init(true, paramsPrivate);
@@ -1201,8 +1272,6 @@ public class Encryptor implements Runnable
 
     public boolean verifyXmssMt(@PEM byte[] publicKey, @Hash byte[] digest, @Signature byte[] sig)
     {
-        XMSSMTParameters params = new XMSSMTParameters(20, 10, new SHA512Digest());
-
         XMSSMTPublicKeyParameters paramPublic = XmssKeySerializer.deserializePublic(publicKey);
 
         XMSSMTSigner signer = new XMSSMTSigner();
@@ -1269,6 +1338,9 @@ public class Encryptor implements Runnable
                 case xmssmt:
                     ret.add(signXmssMt(part.getKeyBytes(), digest));
                     break;
+                case rainbow:
+                    ret.add(signRainbow(part.getKeyBytes(), digest));
+                    break;
                 case ntru_sign:
                     ret.add(signNtru(part.getKeyBytes(), digest));
                     break;
@@ -1316,6 +1388,11 @@ public class Encryptor implements Runnable
                     break;
                 case xmssmt:
                     if (verifyXmssMt(part.getKeyBytes(), digest, partSig) == false) {
+                        return false;
+                    }
+                    break;
+                case rainbow:
+                    if (verifyRainbow(part.getKeyBytes(), digest, partSig) == false) {
                         return false;
                     }
                     break;
@@ -1447,6 +1524,12 @@ public class Encryptor implements Runnable
         if (key instanceof XMSSMTPrivateKeyParameters) {
             return XmssKeySerializer.serialize((XMSSMTPrivateKeyParameters) key);
         }
+        if (key instanceof RainbowPublicKeyParameters) {
+            return RainbowKeySerializer.serialize((RainbowPublicKeyParameters)key);
+        }
+        if (key instanceof RainbowPrivateKeyParameters) {
+            return RainbowKeySerializer.serialize((RainbowPrivateKeyParameters)key);
+        }
         throw new RuntimeException("Unable to extract the key as it is an unknown type");
     }
     
@@ -1487,6 +1570,12 @@ public class Encryptor implements Runnable
         }
         if (key instanceof XMSSMTPrivateKeyParameters) {
             return this.hashShaAndEncode(XmssKeySerializer.serialize((XMSSMTPrivateKeyParameters) key));
+        }
+        if (key instanceof RainbowPublicKeyParameters) {
+            return this.hashShaAndEncode(RainbowKeySerializer.serialize((RainbowPublicKeyParameters)key));
+        }
+        if (key instanceof RainbowPrivateKeyParameters) {
+            return this.hashShaAndEncode(RainbowKeySerializer.serialize((RainbowPrivateKeyParameters)key));
         }
         throw new RuntimeException("Unable to extract the key as it is an unknown type");
     }

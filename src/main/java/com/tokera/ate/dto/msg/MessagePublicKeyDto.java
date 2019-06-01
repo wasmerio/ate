@@ -254,7 +254,12 @@ public class MessagePublicKeyDto extends MessageBaseDto implements Serializable,
         if (ret != null) return ret.intValue();
 
         ret = (int)0;
-        ret += this.getAlias().hashCode();
+
+        String alias = this.getAlias();
+        if (alias != null) {
+            ret += alias.hashCode();
+        }
+
         ret += this.getPublicKeyHash().hashCode();
 
         this.hashCache = ret;

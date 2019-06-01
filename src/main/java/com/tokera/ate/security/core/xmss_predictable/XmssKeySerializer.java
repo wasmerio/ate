@@ -1,5 +1,6 @@
 package com.tokera.ate.security.core.xmss_predictable;
 
+import org.apache.kafka.common.utils.Utils;
 import org.bouncycastle.crypto.digests.SHA512Digest;
 import org.bouncycastle.pqc.crypto.xmss.XMSSMTParameters;
 import org.bouncycastle.pqc.crypto.xmss.XMSSMTPrivateKeyParameters;
@@ -78,24 +79,27 @@ public class XmssKeySerializer {
         }
     }
 
-    public static XMSSMTPrivateKeyParameters deserializePrivate(byte[] data) {
+    public static XMSSMTPrivateKeyParameters deserializePrivate(byte[] data, int murmur2forIndex) {
         ByteBuffer bb = ByteBuffer.wrap(data);
         int height = bb.getInt();
         int layers = bb.getInt();
         XMSSMTParameters params = new XMSSMTParameters(height, layers, new SHA512Digest());
 
-        long index = bb.getLong();
+        int totalHeight = params.getHeight();
+        int maxIndexes = (int)(1L << totalHeight);
+        long index = (long)(murmur2forIndex % maxIndexes);
+
         byte[] secretKeySeed = readBytes(bb);
         byte[] secretKeyPRF = readBytes(bb);
         byte[] publicSeed = readBytes(bb);
         byte[] root = readBytes(bb);
 
         return new XMSSMTPrivateKeyParameters.Builder(params)
-                .withIndex(index)
-                .withSecretKeySeed(secretKeySeed)
-                .withSecretKeyPRF(secretKeyPRF)
                 .withPublicSeed(publicSeed)
                 .withRoot(root)
+                .withSecretKeySeed(secretKeySeed)
+                .withSecretKeyPRF(secretKeyPRF)
+                .withIndex(index)
                 .build();
     }
 }

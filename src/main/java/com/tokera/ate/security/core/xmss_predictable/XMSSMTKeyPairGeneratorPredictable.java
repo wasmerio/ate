@@ -2,6 +2,9 @@ package com.tokera.ate.security.core.xmss_predictable;
 
 import com.tokera.ate.security.core.IRandom;
 import org.bouncycastle.crypto.AsymmetricCipherKeyPair;
+import org.bouncycastle.pqc.crypto.xmss.XMSSMTParameters;
+import org.bouncycastle.pqc.crypto.xmss.XMSSMTPrivateKeyParameters;
+import org.bouncycastle.pqc.crypto.xmss.XMSSMTPublicKeyParameters;
 
 /**
  * Key pair generator for XMSS^MT keys.
@@ -36,6 +39,8 @@ public final class XMSSMTKeyPairGeneratorPredictable
     {
         XMSSMTPrivateKeyParametersPredictable privateKey;
         XMSSMTPublicKeyParametersPredictable publicKey;
+        XMSSMTPrivateKeyParameters thePrivateKey;
+        XMSSMTPublicKeyParameters thePublicKey;
 
         /* generate XMSSMT private key */
         privateKey = generatePrivateKey(new XMSSMTPrivateKeyParametersPredictable.Builder(params).build().getBDSState());
@@ -53,14 +58,16 @@ public final class XMSSMTKeyPairGeneratorPredictable
         XMSSNode root = bdsRoot.getRoot();
         privateKey.getBDSState().put(rootLayerIndex, bdsRoot);
 
+        XMSSMTParameters theParams = new XMSSMTParameters(params.getHeight(), params.getLayers(), params.getDigest());
+
         /* set XMSS^MT root / create public key */
-        privateKey = new XMSSMTPrivateKeyParametersPredictable.Builder(params).withSecretKeySeed(privateKey.getSecretKeySeed())
+        thePrivateKey = new XMSSMTPrivateKeyParameters.Builder(theParams).withSecretKeySeed(privateKey.getSecretKeySeed())
                 .withSecretKeyPRF(privateKey.getSecretKeyPRF()).withPublicSeed(privateKey.getPublicSeed())
-                .withRoot(root.getValue()).withBDSState(privateKey.getBDSState()).build();
-        publicKey = new XMSSMTPublicKeyParametersPredictable.Builder(params).withRoot(root.getValue())
+                .withRoot(root.getValue()).build();
+        thePublicKey = new XMSSMTPublicKeyParameters.Builder(theParams).withRoot(root.getValue())
                 .withPublicSeed(privateKey.getPublicSeed()).build();
 
-        return new AsymmetricCipherKeyPair(publicKey, privateKey);
+        return new AsymmetricCipherKeyPair(thePublicKey, thePrivateKey);
     }
 
     private XMSSMTPrivateKeyParametersPredictable generatePrivateKey(BDSStateMap bdsState)

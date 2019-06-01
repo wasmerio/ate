@@ -200,8 +200,8 @@ public class MessageKeyPartDto extends MessageBaseDto implements Serializable, C
         }
 
         MessageKeyPart.startMessageKeyPart(fbb);
-        MessageKeyPart.addType(fbb, this.type.getCode());
-        MessageKeyPart.addSize(fbb, this.size);
+        MessageKeyPart.addType(fbb, (short)this.getType().getCode());
+        MessageKeyPart.addSize(fbb, (short)this.getSize());
         if (offsetKey >= 0) {
             MessageKeyPart.addKey(fbb, offsetKey);
         }

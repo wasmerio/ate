@@ -14,16 +14,16 @@ public final class MessageKeyPart extends Table {
   public void __init(int _i, ByteBuffer _bb) { bb_pos = _i; bb = _bb; }
   public MessageKeyPart __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
 
-  public int type() { int o = __offset(4); return o != 0 ? bb.getInt(o + bb_pos) : 0; }
-  public int size() { int o = __offset(6); return o != 0 ? bb.getInt(o + bb_pos) : 0; }
+  public short type() { int o = __offset(4); return o != 0 ? bb.getShort(o + bb_pos) : 0; }
+  public short size() { int o = __offset(6); return o != 0 ? bb.getShort(o + bb_pos) : 0; }
   public byte key(int j) { int o = __offset(8); return o != 0 ? bb.get(__vector(o) + j * 1) : 0; }
   public int keyLength() { int o = __offset(8); return o != 0 ? __vector_len(o) : 0; }
   public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer keyAsByteBuffer() { return __vector_as_bytebuffer(8, 1); }
   public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer keyInByteBuffer(ByteBuffer _bb) { return __vector_in_bytebuffer(_bb, 8, 1); }
 
   public static int createMessageKeyPart(FlatBufferBuilder builder,
-      int type,
-      int size,
+      short type,
+      short size,
       int keyOffset) {
     builder.startObject(3);
     MessageKeyPart.addKey(builder, keyOffset);
@@ -33,8 +33,8 @@ public final class MessageKeyPart extends Table {
   }
 
   public static void startMessageKeyPart(FlatBufferBuilder builder) { builder.startObject(3); }
-  public static void addType(FlatBufferBuilder builder, int type) { builder.addInt(0, type, 0); }
-  public static void addSize(FlatBufferBuilder builder, int size) { builder.addInt(1, size, 0); }
+  public static void addType(FlatBufferBuilder builder, short type) { builder.addShort(0, type, 0); }
+  public static void addSize(FlatBufferBuilder builder, short size) { builder.addShort(1, size, 0); }
   public static void addKey(FlatBufferBuilder builder, int keyOffset) { builder.addOffset(2, keyOffset, 0); }
   public static int createKeyVector(FlatBufferBuilder builder, byte[] data) { builder.startVector(1, data.length, 1); for (int i = data.length - 1; i >= 0; i--) builder.addByte(data[i]); return builder.endVector(); }
   public static void startKeyVector(FlatBufferBuilder builder, int numElems) { builder.startVector(1, numElems, 1); }

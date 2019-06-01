@@ -11,7 +11,8 @@ public enum KeyType {
     qtesla(3),
     newhope(4),
     xmss(5),
-    xmssmt(6);
+    xmssmt(6),
+    rainbow(7);
 
     private static final Map<Integer,KeyType> lookup
             = new HashMap<Integer,KeyType>();

@@ -227,7 +227,12 @@ public class MessagePrivateKeyDto extends MessagePublicKeyDto implements Seriali
         if (ret != null) return ret.intValue();
 
         ret = (int)0;
-        ret += this.getAlias().hashCode();
+
+        String alias = this.getAlias();
+        if (alias != null) {
+            ret += alias.hashCode();
+        }
+
         ret += this.getPublicKeyHash().hashCode();
         ret += this.getPrivateKeyHash().hashCode();
 
