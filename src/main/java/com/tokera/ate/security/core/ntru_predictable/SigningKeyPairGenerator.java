@@ -5,7 +5,7 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.tokera.ate.security.core.IRandom;
+import com.tokera.ate.security.core.IRandomFactory;
 import org.bouncycastle.pqc.crypto.ntru.NTRUParameters;
 import org.bouncycastle.pqc.crypto.ntru.NTRUSigningKeyGenerationParameters;
 import org.bouncycastle.pqc.crypto.ntru.NTRUSigningPrivateKeyParameters;
@@ -35,7 +35,7 @@ public class SigningKeyPairGenerator {
         this.params = (NTRUSigningKeyGenerationParameters) param;
     }
 
-    public @NonNull AsymmetricCipherKeyPair generateKeyPair(IRandom random) {
+    public @NonNull AsymmetricCipherKeyPair generateKeyPair(IRandomFactory random) {
         List<NTRUSigningPrivateKeyParameters.Basis> b = new ArrayList<>();
         NTRUSigningPublicKeyParameters p = null;
         for (int k = params.B; k >= 0; k--) {
@@ -92,7 +92,7 @@ public class SigningKeyPairGenerator {
         }
     }
 
-    private FGBasis generateBasis(IRandom random) {
+    private FGBasis generateBasis(IRandomFactory random) {
         int N = params.N;
         int q = params.q;
         int d = params.d;
@@ -115,7 +115,7 @@ public class SigningKeyPairGenerator {
 
         do {
             do {
-                f = params.polyType == NTRUParameters.TERNARY_POLYNOMIAL_TYPE_SIMPLE ? SupportUtil.generateRandomDense(N, d + 1, d, random.getRandom()) : SupportUtil.generateRandomProduct(N, d1, d2, d3 + 1, d3, random.getRandom());
+                f = params.polyType == NTRUParameters.TERNARY_POLYNOMIAL_TYPE_SIMPLE ? SupportUtil.generateRandomDense(N, d + 1, d, random.getRandom().get()) : SupportUtil.generateRandomProduct(N, d1, d2, d3 + 1, d3, random.getRandom().get());
                 fInt = f.toIntegerPolynomial();
             } while (primeCheck && fInt.resultant(_2n1).res.equals(ZERO));
             fq = fInt.invertFq(q);
@@ -125,7 +125,7 @@ public class SigningKeyPairGenerator {
         do {
             do {
                 do {
-                    g = params.polyType == NTRUParameters.TERNARY_POLYNOMIAL_TYPE_SIMPLE ? SupportUtil.generateRandomDense(N, d + 1, d, random.getRandom()) : SupportUtil.generateRandomProduct(N, d1, d2, d3 + 1, d3, random.getRandom());
+                    g = params.polyType == NTRUParameters.TERNARY_POLYNOMIAL_TYPE_SIMPLE ? SupportUtil.generateRandomDense(N, d + 1, d, random.getRandom().get()) : SupportUtil.generateRandomProduct(N, d1, d2, d3 + 1, d3, random.getRandom().get());
                     gInt = g.toIntegerPolynomial();
                 } while (primeCheck && gInt.resultant(_2n1).res.equals(ZERO));
             } while (gInt.invertFq(q) == null);
@@ -196,7 +196,7 @@ public class SigningKeyPairGenerator {
         return new FGBasis(f, fPrime, h, FInt, GInt, params);
     }
 
-    public NTRUSigningPrivateKeyParameters.Basis generateBoundedBasis(IRandom random) {
+    public NTRUSigningPrivateKeyParameters.Basis generateBoundedBasis(IRandomFactory random) {
         while (true) {
             FGBasis basis = generateBasis(random);
             if (basis.isOk()) {

@@ -1,9 +1,7 @@
 package com.tokera.ate.security.core.rainbow_predictable;
 
 
-import java.security.SecureRandom;
-
-import com.tokera.ate.security.core.IRandom;
+import com.tokera.ate.security.core.IRandomFactory;
 import org.bouncycastle.crypto.AsymmetricCipherKeyPair;
 import org.bouncycastle.crypto.AsymmetricCipherKeyPairGenerator;
 import org.bouncycastle.crypto.CryptoServicesRegistrar;
@@ -25,7 +23,7 @@ public class RainbowKeyPairGeneratorPredictable
         implements AsymmetricCipherKeyPairGenerator
 {
     private boolean initialized = false;
-    private IRandom sr;
+    private IRandomFactory sr;
     private RainbowKeyGenerationParameters rainbowParams;
 
     /* linear affine map L1: */
@@ -54,7 +52,7 @@ public class RainbowKeyPairGeneratorPredictable
      * The standard constructor tries to generate the Rainbow algorithm identifier
      * with the corresponding OID.
      */
-    public RainbowKeyPairGeneratorPredictable(IRandom random)
+    public RainbowKeyPairGeneratorPredictable(IRandomFactory random)
     {
         this.sr = random;
     }
@@ -101,7 +99,7 @@ public class RainbowKeyPairGeneratorPredictable
         this.initialized = true;
     }
 
-    private void initializeDefault(IRandom random)
+    private void initializeDefault(IRandomFactory random)
     {
         RainbowKeyGenerationParameters rbKGParams = new RainbowKeyGenerationParameters(CryptoServicesRegistrar.getSecureRandom(), new RainbowParameters());
         initialize(rbKGParams);

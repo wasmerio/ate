@@ -52,38 +52,147 @@ public class CryptoTests {
         encryptor.init();
     }
 
+    private void testSeededSigningKeyInternal(int keysize)
+    {
+        MessagePrivateKeyDto key1 = encryptor.genSignKeyFromSeed(keysize, "samekey");
+        Assertions.assertEquals(key1.getPrivateParts().size(), key1.getPublicParts().size());
+
+        MessagePrivateKeyDto key2 = encryptor.genSignKeyFromSeed(keysize, "samekey");
+
+        Assertions.assertEquals(key1, key2);
+        Assertions.assertEquals(key1.getPrivateParts().size(), key2.getPrivateParts().size());
+        Assertions.assertEquals(key1.getPublicParts().size(), key2.getPublicParts().size());
+        for (int n = 0; n < key1.getPrivateParts().size(); n++) {
+            MessageKeyPartDto part1 = key1.getPrivateParts().get(n);
+            MessageKeyPartDto part2 = key1.getPrivateParts().get(n);
+            Assertions.assertEquals(part1.getType(), part2.getType());
+            Assertions.assertEquals(part1.getSize(), part2.getSize());
+            Assertions.assertEquals(part1.getKey(), part2.getKey());
+
+            part1 = key1.getPublicParts().get(n);
+            part2 = key1.getPublicParts().get(n);
+            Assertions.assertEquals(part1.getType(), part2.getType());
+            Assertions.assertEquals(part1.getSize(), part2.getSize());
+            Assertions.assertEquals(part1.getKey(), part2.getKey());
+        }
+    }
+
+    private void testSeededEncryptionKeyInternal(int keysize)
+    {
+        MessagePrivateKeyDto key1 = encryptor.genEncryptKeyFromSeed(keysize, "samekey");
+        MessagePrivateKeyDto key2 = encryptor.genEncryptKeyFromSeed(keysize, "samekey");
+
+        Assertions.assertEquals(key1, key2);
+        Assertions.assertEquals(key1.getPrivateParts().size(), key2.getPrivateParts().size());
+        Assertions.assertEquals(key1.getPublicParts().size(), key2.getPublicParts().size());
+        for (int n = 0; n < key1.getPrivateParts().size(); n++) {
+            MessageKeyPartDto part1 = key1.getPrivateParts().get(n);
+            MessageKeyPartDto part2 = key1.getPrivateParts().get(n);
+            Assertions.assertEquals(part1.getType(), part2.getType());
+            Assertions.assertEquals(part1.getSize(), part2.getSize());
+            Assertions.assertEquals(part1.getKey(), part2.getKey());
+
+            part1 = key1.getPublicParts().get(n);
+            part2 = key1.getPublicParts().get(n);
+            Assertions.assertEquals(part1.getType(), part2.getType());
+            Assertions.assertEquals(part1.getSize(), part2.getSize());
+            Assertions.assertEquals(part1.getKey(), part2.getKey());
+        }
+    }
+
+    @Test
+    public void testSeededSigningKey64()
+    {
+        testSeededSigningKeyInternal(64);
+    }
+
+    @Test
+    public void testSeededSigningKey128()
+    {
+        testSeededSigningKeyInternal(128);
+    }
+
+    @Test
+    public void testSeededSigningKey256()
+    {
+        testSeededSigningKeyInternal(256);
+    }
+
+    @Test
+    public void testSeededSigningKey512()
+    {
+        testSeededSigningKeyInternal(512);
+    }
+
+    @Test
+    public void testSeededEncryptionKey128()
+    {
+        testSeededEncryptionKeyInternal(128);
+    }
+
+    @Test
+    public void testSeededEncryptionKey256()
+    {
+        testSeededEncryptionKeyInternal(256);
+    }
+
+    @Test
+    public void testSeededEncryptionKey512()
+    {
+        testSeededEncryptionKeyInternal(512);
+    }
+
     public void testSign(int keySize, @Nullable String _seed)
     {
-        MessagePrivateKeyDto key;
+        MessagePrivateKeyDto key1;
+        MessagePrivateKeyDto key2;
+
         String seed = _seed;
         if (seed != null) {
-            key = encryptor.genSignKeyFromSeed(keySize, seed);
+            key1 = encryptor.genSignKeyFromSeed(keySize, seed);
         } else {
-            key = encryptor.genSignKey(keySize);
+            key1 = encryptor.genSignKey(keySize);
         }
 
         String plain = "test";
         byte[] digest = encryptor.hashSha(null, plain.getBytes());
 
-        byte[] sig = encryptor.sign(key, digest);
-        boolean isValid = encryptor.verify(key, digest, sig);
+        byte[] sig = encryptor.sign(key1, digest);
+
+        if (seed != null) {
+            key2 = encryptor.genSignKeyFromSeed(keySize, seed);
+        } else {
+            key2 = key1;
+        }
+
+        boolean isValid = encryptor.verify(key2, digest, sig);
+
         Assertions.assertTrue(isValid);
     }
 
     public void testEncrypt(int keySize, @Nullable String _seed) throws IOException, InvalidCipherTextException
     {
-        MessagePrivateKeyDto key;
+        MessagePrivateKeyDto key1;
+        MessagePrivateKeyDto key2;
+
         String seed = _seed;
         if (seed != null) {
-            key = encryptor.genEncryptKey(keySize, seed);
+            key1 = encryptor.genEncryptKeyFromSeed(keySize, seed);
         } else {
-            key = encryptor.genEncryptKey(keySize);
+            key1 = encryptor.genEncryptKey(keySize);
         }
 
         String plain = "test";
 
-        byte[] enc = encryptor.encrypt(key, plain.getBytes());
-        byte[] plainBytes = encryptor.decrypt(key, enc);
+        byte[] enc = encryptor.encrypt(key1, plain.getBytes());
+
+        if (seed != null) {
+            key2 = encryptor.genEncryptKeyFromSeed(keySize, seed);
+        } else {
+            key2 = key1;
+        }
+
+        byte[] plainBytes = encryptor.decrypt(key2, enc);
 
         String test = new String(plainBytes);
         Assertions.assertEquals(plain, test);
@@ -129,9 +238,19 @@ public class CryptoTests {
         testSign(64, "public");
     }
 
-    //@Test
+    @Test
     public void testSign128Public() {
         testSign(128, "public");
+    }
+
+    @Test
+    public void testSign256Public() {
+        testSign(256, "public");
+    }
+
+    @Test
+    public void testSign512Public() {
+        testSign(512, "public");
     }
 
     @Test
@@ -142,6 +261,11 @@ public class CryptoTests {
     @Test
     public void testEncrypt256Public() throws IOException, InvalidCipherTextException {
         testEncrypt(256, "public");
+    }
+
+    @Test
+    public void testEncrypt512Public() throws IOException, InvalidCipherTextException {
+        testEncrypt(512, "public");
     }
 
     //@Test

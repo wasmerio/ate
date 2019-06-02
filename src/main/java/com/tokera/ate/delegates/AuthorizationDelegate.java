@@ -291,7 +291,7 @@ public class AuthorizationDelegate {
                 .findFirst()
                 .orElse(null);
         if (right == null) {
-            right = new MessagePrivateKeyDto(d.encryptor.genEncryptKey(128, alias));
+            right = new MessagePrivateKeyDto(d.encryptor.genEncryptKeyWithAlias(128, alias));
 
             entity.getRightsRead().add(right);
 
@@ -381,7 +381,7 @@ public class AuthorizationDelegate {
                 .findFirst()
                 .orElse(null);
         if (right == null) {
-            right = new MessagePrivateKeyDto(d.encryptor.genSignKey(defaultKeySize, alias));
+            right = new MessagePrivateKeyDto(d.encryptor.genSignKeyWithAlias(defaultKeySize, alias));
 
             entity.getRightsWrite().add(right);
 

@@ -1,17 +1,17 @@
 package com.tokera.ate.security.core.newhope_predictable;
 
-import com.tokera.ate.security.core.IRandom;
+import com.tokera.ate.security.core.IRandomFactory;
 import org.bouncycastle.crypto.AsymmetricCipherKeyPair;
 import org.bouncycastle.pqc.crypto.newhope.NHPrivateKeyParameters;
 import org.bouncycastle.pqc.crypto.newhope.NHPublicKeyParameters;
 
 public class NHKeyPairGeneratorPredictable {
-    private IRandom random;
+    private IRandomFactory random;
 
     public NHKeyPairGeneratorPredictable() {
     }
 
-    public void init(IRandom random) {
+    public void init(IRandomFactory random) {
         this.random = random;
     }
 

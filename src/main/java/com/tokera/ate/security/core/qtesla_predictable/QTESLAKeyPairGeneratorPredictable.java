@@ -1,6 +1,6 @@
 package com.tokera.ate.security.core.qtesla_predictable;
 
-import com.tokera.ate.security.core.IRandom;
+import com.tokera.ate.security.core.IRandomFactory;
 import org.bouncycastle.crypto.AsymmetricCipherKeyPair;
 import org.bouncycastle.crypto.KeyGenerationParameters;
 import org.bouncycastle.pqc.crypto.qtesla.QTESLAKeyGenerationParameters;
@@ -16,14 +16,14 @@ public final class QTESLAKeyPairGeneratorPredictable
      * qTESLA Security Category
      */
     private int securityCategory;
-    private IRandom secureRandom;
+    private IRandomFactory secureRandom;
 
     /**
      * Initialize the generator with a security category and a source of randomness.
      *
      * @param param a {@link QTESLAKeyGenerationParameters} object.
      */
-    public void init(KeyGenerationParameters param, IRandom random)
+    public void init(KeyGenerationParameters param, IRandomFactory random)
     {
         QTESLAKeyGenerationParameters parameters = (QTESLAKeyGenerationParameters)param;
 

@@ -3,10 +3,8 @@ package com.tokera.ate.security;
 import com.google.common.base.Charsets;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import com.google.flatbuffers.FlatBufferBuilder;
 import com.tokera.ate.common.ImmutalizableArrayList;
 import com.tokera.ate.dao.enumerations.KeyType;
-import com.tokera.ate.dao.msg.MessageBase;
 import com.tokera.ate.dto.msg.MessageKeyPartDto;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.scopes.Startup;
@@ -144,7 +142,7 @@ public class Encryptor implements Runnable
     //private Iterable<KeyType> defaultEncryptTypes = Lists.newArrayList(KeyType.ntru, KeyType.newhope);
     private Iterable<KeyType> defaultSigningTypes = Lists.newArrayList(KeyType.qtesla, KeyType.rainbow);
     private Iterable<KeyType> defaultEncryptTypes = Lists.newArrayList(KeyType.ntru, KeyType.newhope);
-    private int defaultAesStrength = 256;
+    private int defaultAesStrength = 512;
     private int defaultSigningStrength = 256;
     private int defaultEncryptionStrength = 256;
 
@@ -549,10 +547,10 @@ public class Encryptor implements Runnable
 
     public MessagePrivateKeyDto genSignKey(int keysize)
     {
-        return genSignKey(keysize, null);
+        return genSignKeyWithAlias(keysize, null);
     }
 
-    public MessagePrivateKeyDto genSignKey(int keysize, @Nullable @Alias String _alias)
+    public MessagePrivateKeyDto genSignKeyWithAlias(int keysize, @Nullable @Alias String _alias)
     {
         @Alias String alias = _alias;
         if (keysize == 64) {
@@ -578,22 +576,22 @@ public class Encryptor implements Runnable
             }
         }
 
-        return genSignKeyNow(keysize, defaultSigningTypes, alias);
+        return genSignKeyNowWithAlias(keysize, defaultSigningTypes, alias);
     }
 
     public MessagePrivateKeyDto genSignKeyNow(int keySize) {
-        return genSignKeyNow(keySize, defaultSigningTypes,null);
+        return genSignKeyNowWithAlias(keySize, defaultSigningTypes,null);
     }
 
-    public MessagePrivateKeyDto genSignKeyNow(int keySize, @Nullable @Alias String alias) {
-        return genSignKeyNow(keySize, defaultSigningTypes,null);
+    public MessagePrivateKeyDto genSignKeyNowWithAlias(int keySize, @Nullable @Alias String alias) {
+        return genSignKeyNowWithAlias(keySize, defaultSigningTypes,alias);
     }
 
     public MessagePrivateKeyDto genSignKeyNow(int keySize, Iterable<KeyType> keyTypes) {
-        return genSignKeyNow(keySize, keyTypes,null);
+        return genSignKeyNowWithAlias(keySize, keyTypes,null);
     }
 
-    public MessagePrivateKeyDto genSignKeyNow(int keySize, Iterable<KeyType> keyTypes, @Nullable @Alias String alias) {
+    public MessagePrivateKeyDto genSignKeyNowWithAlias(int keySize, Iterable<KeyType> keyTypes, @Nullable @Alias String alias) {
         List<MessageKeyPartDto> publicParts = new LinkedList<>();
         List<MessageKeyPartDto> privateParts = new LinkedList<>();
 
@@ -624,19 +622,19 @@ public class Encryptor implements Runnable
     }
 
     public MessagePrivateKeyDto genSignKeyFromSeed(int keySize, String seed) {
-        return genSignKeyFromSeed(keySize, defaultSigningTypes, null);
+        return genSignKeyFromSeedWithAlias(keySize, defaultSigningTypes, seed, null);
     }
 
-    public MessagePrivateKeyDto genSignKeyFromSeed(int keySize, String seed, @Nullable @Alias String alias) {
-        return genSignKeyFromSeed(keySize, defaultSigningTypes, null);
+    public MessagePrivateKeyDto genSignKeyFromSeedWithAlias(int keySize, String seed, @Nullable @Alias String alias) {
+        return genSignKeyFromSeedWithAlias(keySize, defaultSigningTypes, seed, alias);
     }
 
     public MessagePrivateKeyDto genSignKeyFromSeed(int keySize, Iterable<KeyType> keyTypes, String seed) {
-        return genSignKeyFromSeed(keySize, keyTypes, seed, null);
+        return genSignKeyFromSeedWithAlias(keySize, keyTypes, seed, null);
     }
 
-    public MessagePrivateKeyDto genSignKeyFromSeed(int keySize, Iterable<KeyType> keyTypes, String seed, @Nullable @Alias String alias) {
-        PredictablyRandom random = new PredictablyRandom(seed);
+    public MessagePrivateKeyDto genSignKeyFromSeedWithAlias(int keySize, Iterable<KeyType> keyTypes, String seed, @Nullable @Alias String alias) {
+        PredictablyRandomFactory random = new PredictablyRandomFactory(seed);
         List<MessageKeyPartDto> publicParts = new LinkedList<>();
         List<MessageKeyPartDto> privateParts = new LinkedList<>();
 
@@ -669,12 +667,6 @@ public class Encryptor implements Runnable
     @Deprecated
     public KeyPairBytes genSignKeyNtruNow(int keysize)
     {
-        return genSignKeyNtruNow(keysize, null); 
-    }
-
-    @Deprecated
-    public KeyPairBytes genSignKeyNtruNow(int keysize, @Nullable @Alias String alias)
-    {
         for (int n = 0; n < 8; n++) {
             SigningKeyPairGenerator keyGen = new SigningKeyPairGenerator();
             switch (keysize) {
@@ -691,7 +683,7 @@ public class Encryptor implements Runnable
                     throw new RuntimeException("Unknown NTRU key size(" + keysize + ")");
             }
 
-            AsymmetricCipherKeyPair pair = keyGen.generateKeyPair(new UnPredictablyRandom());
+            AsymmetricCipherKeyPair pair = keyGen.generateKeyPair(new SecureRandomFactory());
             if (testSignNtru(pair) == false) {
                 continue;
             }
@@ -703,12 +695,6 @@ public class Encryptor implements Runnable
 
     @Deprecated
     public KeyPairBytes genSignKeyNtruFromSeed(int keysize, @Salt String seed)
-    {
-        return genSignKeyNtruFromSeed(keysize, seed, null);
-    }
-
-    @Deprecated
-    public KeyPairBytes genSignKeyNtruFromSeed(int keysize, @Salt String seed, @Nullable @Alias String alias)
     {
         SigningKeyPairGenerator gen = new SigningKeyPairGenerator();
         switch (keysize) {
@@ -724,8 +710,8 @@ public class Encryptor implements Runnable
             default:
                 throw new RuntimeException("Unknown NTRU key size(" + keysize + ")");
         }
-        
-        AsymmetricCipherKeyPair pair = gen.generateKeyPair(new PredictablyRandom(seed));
+
+        AsymmetricCipherKeyPair pair = gen.generateKeyPair(new PredictablyRandomFactory(seed));
         if (testSignNtru(pair) == false) {
             throw new RuntimeException("Failed to generate signing key from seed");
         }
@@ -771,7 +757,7 @@ public class Encryptor implements Runnable
         return genEncryptKeyNow(keysize, this.defaultEncryptTypes);
     }
 
-    public MessagePrivateKeyDto genEncryptKey(int keysize, @Nullable @Alias String _alias)
+    public MessagePrivateKeyDto genEncryptKeyWithAlias(int keysize, @Nullable @Alias String _alias)
     {
         MessagePrivateKeyDto key = genEncryptKey(keysize);
 
@@ -783,18 +769,18 @@ public class Encryptor implements Runnable
     }
 
     public MessagePrivateKeyDto genEncryptKeyNow(int keySize) {
-        return genEncryptKeyNow(keySize, defaultEncryptTypes, null);
+        return genEncryptKeyNowWithAlias(keySize, defaultEncryptTypes, null);
     }
 
-    public MessagePrivateKeyDto genEncryptKeyNow(int keySize, @Nullable @Alias String alias) {
-        return genEncryptKeyNow(keySize, defaultEncryptTypes, alias);
+    public MessagePrivateKeyDto genEncryptKeyNowWithAlias(int keySize, @Nullable @Alias String alias) {
+        return genEncryptKeyNowWithAlias(keySize, defaultEncryptTypes, alias);
     }
 
     public MessagePrivateKeyDto genEncryptKeyNow(int keySize, Iterable<KeyType> keyTypes) {
-        return genEncryptKeyNow(keySize, keyTypes, null);
+        return genEncryptKeyNowWithAlias(keySize, keyTypes, null);
     }
 
-    public MessagePrivateKeyDto genEncryptKeyNow(int keySize, Iterable<KeyType> keyTypes, @Nullable @Alias String alias) {
+    public MessagePrivateKeyDto genEncryptKeyNowWithAlias(int keySize, Iterable<KeyType> keyTypes, @Nullable @Alias String alias) {
         if (Iterables.size(keyTypes) <= 0) {
             throw new RuntimeException("Generated encryption key must have at least one key type.");
         }
@@ -824,19 +810,19 @@ public class Encryptor implements Runnable
     }
 
     public MessagePrivateKeyDto genEncryptKeyFromSeed(int keySize, String seed) {
-        return genEncryptKeyFromSeed(keySize, defaultEncryptTypes, null);
+        return genEncryptKeyFromSeedWithAlias(keySize, defaultEncryptTypes, seed, null);
     }
 
-    public MessagePrivateKeyDto genEncryptKeyFromSeed(int keySize, String seed, @Nullable @Alias String alias) {
-        return genEncryptKeyFromSeed(keySize, defaultEncryptTypes, alias);
+    public MessagePrivateKeyDto genEncryptKeyFromSeedWithAlias(int keySize, String seed, @Nullable @Alias String alias) {
+        return genEncryptKeyFromSeedWithAlias(keySize, defaultEncryptTypes, seed, alias);
     }
 
     public MessagePrivateKeyDto genEncryptKeyFromSeed(int keySize, Iterable<KeyType> keyTypes, String seed) {
-        return genEncryptKeyFromSeed(keySize, keyTypes, seed, null);
+        return genEncryptKeyFromSeedWithAlias(keySize, keyTypes, seed, null);
     }
 
-    public MessagePrivateKeyDto genEncryptKeyFromSeed(int keySize, Iterable<KeyType> keyTypes, String seed, @Nullable @Alias String alias) {
-        PredictablyRandom random = new PredictablyRandom(seed);
+    public MessagePrivateKeyDto genEncryptKeyFromSeedWithAlias(int keySize, Iterable<KeyType> keyTypes, String seed, @Nullable @Alias String alias) {
+        PredictablyRandomFactory random = new PredictablyRandomFactory(seed);
 
         if (Iterables.size(keyTypes) <= 0) {
             throw new RuntimeException("Generated encryption key must have at least one key type.");
@@ -882,7 +868,7 @@ public class Encryptor implements Runnable
                     throw new RuntimeException("Unknown NTRU key size(" + keysize + ")");
             }
 
-            AsymmetricCipherKeyPair pair = keyGen.generateKeyPair(new UnPredictablyRandom());
+            AsymmetricCipherKeyPair pair = keyGen.generateKeyPair(new SecureRandomFactory());
             if (testNtruKey(pair) == false) {
                 continue;
             }
@@ -893,14 +879,15 @@ public class Encryptor implements Runnable
 
     public KeyPairBytes genEncryptKeyNtruFromSeed(int keysize, @Secret String seed)
     {
-        PredictablyRandom random = new PredictablyRandom(seed);
+        PredictablyRandomFactory random = new PredictablyRandomFactory(seed);
         return genEncryptKeyNtruFromSeed(keysize, random);
     }
     
-    public KeyPairBytes genEncryptKeyNtruFromSeed(int keysize, PredictablyRandom random)
+    public KeyPairBytes genEncryptKeyNtruFromSeed(int keysize, PredictablyRandomFactory random)
     {
         EncryptionKeyPairGenerator gen = new EncryptionKeyPairGenerator();
         switch (keysize) {
+            case 512:
             case 256:
                 gen.init(buildNtruEncryptParams256());
                 break;
@@ -942,11 +929,11 @@ public class Encryptor implements Runnable
 
     public KeyPairBytes genEncryptKeyNewHopeFromSeed(int keysize, String seed)
     {
-        PredictablyRandom random = new PredictablyRandom(seed);
+        PredictablyRandomFactory random = new PredictablyRandomFactory(seed);
         return genEncryptKeyNewHopeFromSeed(keysize, random);
     }
 
-    public KeyPairBytes genEncryptKeyNewHopeFromSeed(int keysize, PredictablyRandom random)
+    public KeyPairBytes genEncryptKeyNewHopeFromSeed(int keysize, PredictablyRandomFactory random)
     {
         NHKeyPairGeneratorPredictable gen = new NHKeyPairGeneratorPredictable();
         gen.init(random);
@@ -1095,11 +1082,11 @@ public class Encryptor implements Runnable
     }
 
     public KeyPairBytes genSignKeyQTeslaFromSeed(int keysize, String seed) {
-        PredictablyRandom keyRandom = new PredictablyRandom(seed);
+        PredictablyRandomFactory keyRandom = new PredictablyRandomFactory(seed);
         return genSignKeyQTeslaFromSeed(keysize, keyRandom);
     }
 
-    public KeyPairBytes genSignKeyQTeslaFromSeed(int keysize, PredictablyRandom keyRandom)
+    public KeyPairBytes genSignKeyQTeslaFromSeed(int keysize, PredictablyRandomFactory keyRandom)
     {
         SecureRandom unusedRandom = new SecureRandom();
         QTESLAKeyGenerationParameters params;
@@ -1172,7 +1159,7 @@ public class Encryptor implements Runnable
         return signer.verifySignature(digest, sig);
     }
 
-    public KeyPairBytes genSignKeyRainbowFromSeed(int keysize, PredictablyRandom keyRandom)
+    public KeyPairBytes genSignKeyRainbowFromSeed(int keysize, PredictablyRandomFactory keyRandom)
     {
         SecureRandom dummyRandom = new SecureRandom();
 
@@ -1239,11 +1226,11 @@ public class Encryptor implements Runnable
     }
 
     public KeyPairBytes genSignKeyXmssMtFromSeed(int keysize, String seed) {
-        PredictablyRandom keyRandom = new PredictablyRandom(seed);
+        PredictablyRandomFactory keyRandom = new PredictablyRandomFactory(seed);
         return genSignKeyXmssMtFromSeed(keysize, keyRandom);
     }
 
-    public KeyPairBytes genSignKeyXmssMtFromSeed(int keysize, PredictablyRandom keyRandom) {
+    public KeyPairBytes genSignKeyXmssMtFromSeed(int keysize, PredictablyRandomFactory keyRandom) {
         XMSSMTParametersPredictable params = new XMSSMTParametersPredictable(20, 10, new SHA512Digest());
 
         XMSSMTKeyPairGeneratorPredictable gen = new XMSSMTKeyPairGeneratorPredictable();
@@ -1588,7 +1575,7 @@ public class Encryptor implements Runnable
     public MessagePrivateKeyDto getTrustOfPublicRead() {
         MessagePrivateKeyDto ret = this.trustOfPublicRead;
         if (ret == null) {
-            ret = genEncryptKeyFromSeed(128, defaultEncryptTypes, "public","public");
+            ret = genEncryptKeyFromSeed(128, defaultEncryptTypes, "public");
             //key = new MessagePrivateKeyDto("hCtNNY27gTrDwo2k1w_nm-28B_0u0Z8_lJYSqdmlRzpxb1Ke194tDZWyNEUR8uchT89qg_R1erx9CAyHFMYgAS2Gs5xfRy_37N2JmtR43HmEVDwcoytHjahdZGNYDIEzrSPhJuAb62unOwNjtS0LF9vkXR5akiyaxz7S21sKCitYwonYjGnODaf4axN6H6n_jhhHIHsGORK_o-Giq7FKZNJhoVfyEaNZPsHkG763cKKSKzkvHHVt7EONjW1OjFT6O5E0gNtiGDKQRquJBtWQUlsosDTaXCQWedj6HzBKsXQZjT_XL5QDSsUHIfTN4oiPqiNHREtjUuWMPa1GsOwhPSDRYpcsscBcD67gKRPeuk4_LfqwPk77ibEdbbP4g1FJhn8eaIGpXWTMFWG5Y_z8PfzS98K46Rj_dkHctVen3lHP_MiitAiUp4FtMdBl_FCHhpKFtoU0mriEUyjm1vLxxmgMuDVxb2Szo3Lm3Rgjq2ZSQBj9Sea-GuqBwc_7uBkqZY-vb72FqQ54jy0-CP73Ij4uJ_uH2g93pJDzSfxPtmsZOp7Rs5pYT03gWr018llG4D4Xtsm-2xP_IONLasoJHTrkkg9XPvmxZSQ8_AUSLZfoGRjWxKrYS1qZqCoZ9zYf_x1UtQEpDFjs__Zo9JONKMieTTskykXv-SwSIiyA6EUbvBTN4-VFVZNmc8zCkBDRRH2jZZUCMbYGkuMXEO_aIM2YwYpRROUj48p7zo8uYlnB82YHvhb6czGWew-RSfNeMeE1vX2Z9qoVQRPgj-5dKbnG2Xbkifmjj4h4Aw", "hCtNNY27gTrDwo2k1w_nm-28B_0u0Z8_lJYSqdmlRzpxb1Ke194tDZWyNEUR8uchT89qg_R1erx9CAyHFMYgAS2Gs5xfRy_37N2JmtR43HmEVDwcoytHjahdZGNYDIEzrSPhJuAb62unOwNjtS0LF9vkXR5akiyaxz7S21sKCitYwonYjGnODaf4axN6H6n_jhhHIHsGORK_o-Giq7FKZNJhoVfyEaNZPsHkG763cKKSKzkvHHVt7EONjW1OjFT6O5E0gNtiGDKQRquJBtWQUlsosDTaXCQWedj6HzBKsXQZjT_XL5QDSsUHIfTN4oiPqiNHREtjUuWMPa1GsOwhPSDRYpcsscBcD67gKRPeuk4_LfqwPk77ibEdbbP4g1FJhn8eaIGpXWTMFWG5Y_z8PfzS98K46Rj_dkHctVen3lHP_MiitAiUp4FtMdBl_FCHhpKFtoU0mriEUyjm1vLxxmgMuDVxb2Szo3Lm3Rgjq2ZSQBj9Sea-GuqBwc_7uBkqZY-vb72FqQ54jy0-CP73Ij4uJ_uH2g93pJDzSfxPtmsZOp7Rs5pYT03gWr018llG4D4Xtsm-2xP_IONLasoJHTrkkg9XPvmxZSQ8_AUSLZfoGRjWxKrYS1qZqCoZ9zYf_x1UtQEpDFjs__Zo9JONKMieTTskykXv-SwSIiyA6EUbvBTN4-VFVZNmc8zCkBDRRH2jZZUCMbYGkuMXEO_aIM2YwYpRROUj48p7zo8uYlnB82YHvhb6czGWew-RSfNeMeE1vX2Z9qoVQRPgj-5dKbnG2Xbkifmjj4h4A35nyKJ3ikeM8yUi_FlKfk_c3f8Tacpp7F8UZUunoUF2VDvYohoTyU6FrHBK-PqRIKU-4HBkrR2LF6Y2zyABrr3C5axkSVArak7ofFERtX0shq9aj4OmCg");
             ret.setAlias("public");
             this.trustOfPublicRead = ret;
@@ -1599,7 +1586,7 @@ public class Encryptor implements Runnable
     public MessagePrivateKeyDto getTrustOfPublicWrite() {
         MessagePrivateKeyDto ret = this.trustOfPublicWrite;
         if (ret == null) {
-            ret = genSignKeyFromSeed(64, defaultSigningTypes, "public","public");
+            ret = genSignKeyFromSeed(64, defaultSigningTypes, "public");
             //key = new MessagePrivateKeyDto("rz39v_ev9aFHHJrhE0bn7RONg_RqfGNDXpARYuja8yHO2vf4npuodKpgMApzJW73V0-giMMXyweuYTP3fDtrrdQ_p-3hhAK91wqharZDf18PiU1HOzjFCAWSyQF6eDMzpAwoSUk1_sfL2nUTqF5s_oMlPkHcClBABvm0S3fKvJQC-HLPDpFFaCnsfStu-8ytyx_gjPnBSuGnL1qz5w", "AM232z_XLRsxcxJsNsjcDHJtj-Su62y7jTTn_QE4eFAA6ctcftImbHfTm04nfAmf5EhYcadcPzuwIdRZagyBOADleiEpAXtf4YqQnDX42scZvELRLoEjpofzo2Q5ncLKAOLkz9iZc3oS6PQpS8AZbEcrVq8qhSh_8MjpwYdDpG6vPf2_96_1oUccmuETRuftE42D9Gp8Y0NekBFi6NrzIc7a9_iem6h0qmAwCnMlbvdXT6CIwxfLB65hM_d8O2ut1D-n7eGEAr3XCqFqtkN_Xw-JTUc7OMUIBZLJAXp4MzOkDChJSTX-x8vadROoXmz-gyU-QdwKUEAG-bRLd8q8lAL4cs8OkUVoKex9K277zK3LH-CM-cFK4acvWrPnrz39v_ev9aFHHJrhE0bn7RONg_RqfGNDXpARYuja8yHO2vf4npuodKpgMApzJW73V0-giMMXyweuYTP3fDtrrdQ_p-3hhAK91wqharZDf18PiU1HOzjFCAWSyQF6eDMzpAwoSUk1_sfL2nUTqF5s_oMlPkHcClBABvm0S3fKvJQC-HLPDpFFaCnsfStu-8ytyx_gjPnBSuGnL1qz5w");
             ret.setAlias("public");
             this.trustOfPublicWrite = ret;
@@ -1814,14 +1801,14 @@ public class Encryptor implements Runnable
         return new MessagePublicKeyDto(key);
     }
     
-    public MessagePublicKeyDto createPublicKey(MessagePublicKeyDto key, @Alias String alias)
+    public MessagePublicKeyDto createPublicKeyWithAlias(MessagePublicKeyDto key, @Alias String alias)
     {
         MessagePublicKeyDto ret = new MessagePublicKeyDto(key);
         ret.setAlias(alias);
         return ret;
     }
     
-    public MessagePrivateKeyDto createPrivateKey(MessagePrivateKeyDto key, @Alias String alias)
+    public MessagePrivateKeyDto createPrivateKeyWithAlias(MessagePrivateKeyDto key, @Alias String alias)
     {
         MessagePrivateKeyDto ret = new MessagePrivateKeyDto(key);
         ret.setAlias(alias);
@@ -1839,21 +1826,21 @@ public class Encryptor implements Runnable
     }
 
     public MessagePublicKeyDto deserializePublicKey64(String data64) {
-        return deserializePublicKey64(data64, null);
+        return deserializePublicKey64WithAlias(data64, null);
     }
 
     public MessagePublicKeyDto deserializePrivateKey64(String data64) {
-        return deserializePrivateKey64(data64, null);
+        return deserializePrivateKey64WithAlias(data64, null);
     }
 
-    public MessagePublicKeyDto deserializePublicKey64(String data64, @Nullable @Alias String alias) {
+    public MessagePublicKeyDto deserializePublicKey64WithAlias(String data64, @Nullable @Alias String alias) {
         byte[] data = Base64.decodeBase64(data64);
-        return deserializePublicKey(data, alias);
+        return deserializePublicKeyWithAlias(data, alias);
     }
 
-    public MessagePublicKeyDto deserializePrivateKey64(String data64, @Nullable @Alias String alias) {
+    public MessagePublicKeyDto deserializePrivateKey64WithAlias(String data64, @Nullable @Alias String alias) {
         byte[] data = Base64.decodeBase64(data64);
-        return deserializePrivateKey(data, alias);
+        return deserializePrivateKeyWithAlias(data, alias);
     }
 
     public byte[] serializePublicKey(MessagePublicKeyDto key) {
@@ -1871,10 +1858,10 @@ public class Encryptor implements Runnable
     }
 
     public MessagePublicKeyDto deserializePublicKey(byte[] data) {
-        return deserializePublicKey(data, null);
+        return deserializePublicKeyWithAlias(data, null);
     }
 
-    public MessagePublicKeyDto deserializePublicKey(byte[] data, @Nullable @Alias String alias)
+    public MessagePublicKeyDto deserializePublicKeyWithAlias(byte[] data, @Nullable @Alias String alias)
     {
         ByteBuffer bb = ByteBuffer.wrap(data);
         MessagePublicKeyDto ret = new MessagePublicKeyDto(MessagePublicKey.getRootAsMessagePublicKey(bb));
@@ -1885,10 +1872,10 @@ public class Encryptor implements Runnable
     }
 
     public MessagePrivateKeyDto deserializePrivateKey(byte[] data) {
-        return deserializePrivateKey(data, null);
+        return deserializePrivateKeyWithAlias(data, null);
     }
 
-    public MessagePrivateKeyDto deserializePrivateKey(byte[] data, @Nullable @Alias String alias)
+    public MessagePrivateKeyDto deserializePrivateKeyWithAlias(byte[] data, @Nullable @Alias String alias)
     {
         ByteBuffer bb = ByteBuffer.wrap(data);
         MessagePrivateKeyDto ret = new MessagePrivateKeyDto(MessagePrivateKey.getRootAsMessagePrivateKey(bb));

@@ -1,6 +1,6 @@
 package com.tokera.ate.security.core.xmss_predictable;
 
-import com.tokera.ate.security.core.IRandom;
+import com.tokera.ate.security.core.IRandomFactory;
 import org.bouncycastle.crypto.AsymmetricCipherKeyPair;
 import org.bouncycastle.pqc.crypto.xmss.XMSSMTParameters;
 import org.bouncycastle.pqc.crypto.xmss.XMSSMTPrivateKeyParameters;
@@ -14,7 +14,7 @@ public final class XMSSMTKeyPairGeneratorPredictable
     private XMSSMTParametersPredictable params;
     private XMSSParameters xmssParams;
 
-    private IRandom prng;
+    private IRandomFactory prng;
 
 
     /**
@@ -25,7 +25,7 @@ public final class XMSSMTKeyPairGeneratorPredictable
     }
 
     public void init(
-            XMSSMTKeyGenerationParametersPredictable parameters, IRandom random)
+            XMSSMTKeyGenerationParametersPredictable parameters, IRandomFactory random)
     {
         prng = random;
         this.params = parameters.getParameters();

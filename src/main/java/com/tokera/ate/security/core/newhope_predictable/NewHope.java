@@ -1,6 +1,6 @@
 package com.tokera.ate.security.core.newhope_predictable;
 
-import com.tokera.ate.security.core.IRandom;
+import com.tokera.ate.security.core.IRandomFactory;
 import org.bouncycastle.crypto.digests.SHA3Digest;
 
 
@@ -16,7 +16,7 @@ class NewHope
     public static final int SENDA_BYTES = Params.POLY_BYTES + Params.SEED_BYTES;
     public static final int SENDB_BYTES = Params.POLY_BYTES + Params.REC_BYTES;
 
-    public static void keygen(IRandom rand, byte[] send, short[] sk)
+    public static void keygen(IRandomFactory rand, byte[] send, short[] sk)
     {
         byte[] seed = new byte[Params.SEED_BYTES];
         rand.getRandom().nextBytes(seed);
@@ -45,7 +45,7 @@ class NewHope
         encodeA(send, pk, seed);
     }
 
-    public static void sharedB(IRandom rand, byte[] sharedKey, byte[] send, byte[] received)
+    public static void sharedB(IRandomFactory rand, byte[] sharedKey, byte[] send, byte[] received)
     {
         short[] pkA = new short[Params.N];
         byte[] seed = new byte[Params.SEED_BYTES];

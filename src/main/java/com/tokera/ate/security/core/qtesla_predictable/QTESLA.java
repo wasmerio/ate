@@ -1,7 +1,7 @@
 package com.tokera.ate.security.core.qtesla_predictable;
 
 
-import com.tokera.ate.security.core.IRandom;
+import com.tokera.ate.security.core.IRandomFactory;
 
 public class QTESLA
 {
@@ -496,7 +496,7 @@ public class QTESLA
      ************************************************************************************************************************************************************/
     private static int generateKeyPair(
 
-            byte[] publicKey, byte[] privateKey, IRandom secureRandom,
+            byte[] publicKey, byte[] privateKey, IRandomFactory secureRandom,
             int n, int h, int q, long qInverse, int qLogarithm, int generatorA, int inverseNumberTheoreticTransform, double xi,
             int[] zeta,
             int errorBound, int secretBound)
@@ -644,7 +644,7 @@ public class QTESLA
      * @return 0                                    Successful Execution
      *
      ****************************************************************************************************************************************************************/
-    public static int generateKeyPairI(byte[] publicKey, byte[] privateKey, IRandom secureRandom)
+    public static int generateKeyPairI(byte[] publicKey, byte[] privateKey, IRandomFactory secureRandom)
     {
 
         return generateKeyPair(
@@ -669,7 +669,7 @@ public class QTESLA
      *
      * @return 0                                    Successful Execution
      ****************************************************************************************************************************************************************/
-    public static int generateKeyPairIIISize(byte[] publicKey, byte[] privateKey, IRandom secureRandom)
+    public static int generateKeyPairIIISize(byte[] publicKey, byte[] privateKey, IRandomFactory secureRandom)
     {
 
         return generateKeyPair(
@@ -696,7 +696,7 @@ public class QTESLA
      * @return 0                                    Successful Execution
      *
      ****************************************************************************************************************************************************************/
-    public static int generateKeyPairIIISpeed(byte[] publicKey, byte[] privateKey, IRandom secureRandom)
+    public static int generateKeyPairIIISpeed(byte[] publicKey, byte[] privateKey, IRandomFactory secureRandom)
     {
 
         return generateKeyPair(
@@ -736,7 +736,7 @@ public class QTESLA
      *******************************************************************************************************************************************************/
     private static int generateKeyPair(
 
-            byte[] publicKey, byte[] privateKey, IRandom secureRandom,
+            byte[] publicKey, byte[] privateKey, IRandomFactory secureRandom,
             int n, int k, int h, int q, long qInverse, int qLogarithm, int generatorA, int inverseNumberTheoreticTransform, double xi,
             long[] zeta,
             int errorBound, int secretBound
@@ -891,7 +891,7 @@ public class QTESLA
      *
      * @return 0                                    Successful Execution
      ****************************************************************************************************************************************************************/
-    public static int generateKeyPairIP(byte[] publicKey, byte[] privateKey, IRandom secureRandom)
+    public static int generateKeyPairIP(byte[] publicKey, byte[] privateKey, IRandomFactory secureRandom)
     {
 
         return generateKeyPair(
@@ -916,7 +916,7 @@ public class QTESLA
      *
      * @return 0                                    Successful Execution
      ****************************************************************************************************************************************************************/
-    public static int generateKeyPairIIIP(byte[] publicKey, byte[] privateKey, IRandom secureRandom)
+    public static int generateKeyPairIIIP(byte[] publicKey, byte[] privateKey, IRandomFactory secureRandom)
     {
 
         return generateKeyPair(
@@ -964,7 +964,7 @@ public class QTESLA
 
             byte[] signature,
             final byte[] message, int messageOffset, int messageLength,
-            final byte[] privateKey, IRandom secureRandom,
+            final byte[] privateKey, IRandomFactory secureRandom,
             int n, int h, int q, long qInverse, int qLogarithm, int b, int bBit, int d, int u, int rejection,
             int generatorA, int inverseNumberTheoreticTransform,
             int barrettMultiplication, int barrettDivision,
@@ -1126,7 +1126,7 @@ public class QTESLA
 
             byte[] signature,
             final byte[] message, int messageOffset, int messageLength,
-            final byte[] privateKey, IRandom secureRandom
+            final byte[] privateKey, IRandomFactory secureRandom
 
     )
     {
@@ -1163,7 +1163,7 @@ public class QTESLA
 
             byte[] signature,
             final byte[] message, int messageOffset, int messageLength,
-            final byte[] privateKey, IRandom secureRandom
+            final byte[] privateKey, IRandomFactory secureRandom
 
     )
     {
@@ -1200,7 +1200,7 @@ public class QTESLA
 
             byte[] signature,
             final byte[] message, int messageOffset, int messageLength,
-            final byte[] privateKey, IRandom secureRandom
+            final byte[] privateKey, IRandomFactory secureRandom
 
     )
     {
@@ -1253,7 +1253,7 @@ public class QTESLA
 
             byte[] signature,
             final byte[] message, int messageOffset, int messageLength,
-            final byte[] privateKey, IRandom secureRandom,
+            final byte[] privateKey, IRandomFactory secureRandom,
             int n, int k, int h, int q, long qInverse, int qLogarithm, int b, int bBit, int d, int u, int rejection,
             int generatorA, int inverseNumberTheoreticTransform, int privateKeySize,
             int barrettMultiplication, int barrettDivision
@@ -1414,7 +1414,7 @@ public class QTESLA
 
             byte[] signature,
             final byte[] message, int messageOffset, int messageLength,
-            final byte[] privateKey, IRandom secureRandom
+            final byte[] privateKey, IRandomFactory secureRandom
 
     )
     {
@@ -1450,7 +1450,7 @@ public class QTESLA
 
             byte[] signature,
             final byte[] message, int messageOffset, int messageLength,
-            final byte[] privateKey, IRandom secureRandom
+            final byte[] privateKey, IRandomFactory secureRandom
 
     )
     {
