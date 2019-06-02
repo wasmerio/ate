@@ -74,27 +74,59 @@ public class ImplicitSecurityDelegate {
         return g_publicPartitions.contains(accDomain);
     }
 
-    public @Nullable @Hash MessagePublicKeyDto enquireDomainKey(@DomainName String domain, boolean shouldThrow)
+    public @Nullable MessagePublicKeyDto enquireDomainKey(@DomainName String domain, boolean shouldThrow)
     {
         return enquireDomainKey(d.bootstrapConfig.getImplicitAuthorityAlias(), domain, shouldThrow);
     }
 
-    public @Nullable @Hash MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, boolean shouldThrow)
+    public @Nullable MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, boolean shouldThrow)
     {
         return enquireDomainKey(prefix, domain, shouldThrow, domain);
     }
 
-    public @Nullable @Hash MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, boolean shouldThrow, @Alias String alias)
+    public @Nullable MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, boolean shouldThrow, @Alias String alias)
     {
+        MessagePublicKeyDto ret = null;
         String domainStr = enquireDomainString(prefix + "." + domain, shouldThrow);
+        if (domainStr == null) {
+            if (shouldThrow) {
+                throw new RuntimeException("No implicit authority found at domain name [" + prefix + "." + domain + "] (missing TXT record).");
+            }
+            return null;
+        }
+
         String[] comps = domainStr.split(":");
         if (comps.length >= 2) {
             String partitionKeyTxt = new String(Base64.decodeBase64(comps[0]));
             IPartitionKey partitionKey = new PartitionKeySerializer().read(partitionKeyTxt);
-            return d.headIO.publicKeyOrNull(partitionKey, comps[1]);
+            ret = d.headIO.publicKeyOrNull(partitionKey, comps[1]);
         } else {
-            return d.headIO.publicKeyOrNull(domainStr);
+            ret = d.headIO.publicKeyOrNull(domainStr);
         }
+
+        if (ret == null) {
+            try {
+                ret = d.encryptor.deserializePublicKey64(domainStr);
+                if (ret.getPublicParts().size() <= 0 ||
+                    ret.getAlias() == null ||
+                    ret.getPublicKeyHash() == null)
+                {
+                    ret = null;
+                }
+            } catch (Throwable ex) {
+                ret = null;
+            }
+        }
+
+        if (shouldThrow && ret == null) {
+            throw new RuntimeException("No implicit authority found at domain name [" + prefix + "." + domain + "] (missing public key record for [" + domainStr + "]).");
+        }
+
+        if (ret != null && alias != null) {
+            ret.setAlias(alias);
+        }
+
+        return ret;
     }
 
     public String generateDnsTxtRecord(MessagePublicKeyDto key) {

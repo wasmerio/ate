@@ -1,9 +1,12 @@
 package com.tokera.examples.rest;
 
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.dto.TokenDto;
+import com.tokera.ate.security.TokenSecurity;
 import com.tokera.examples.dao.Account;
 import com.tokera.examples.dao.Company;
 import com.tokera.examples.dao.Individual;
+import com.tokera.examples.dto.RootLoginRequest;
 
 import javax.annotation.security.PermitAll;
 import javax.enterprise.context.ApplicationScoped;
@@ -56,5 +59,18 @@ public class RegisterREST {
         // Now save the account using this access rights
         d.headIO.mergeLater(acc);
         return individual;
+    }
+
+    @POST
+    @Path("/root-login")
+    @Produces({"text/yaml", MediaType.APPLICATION_JSON})
+    @Consumes({"text/yaml", MediaType.APPLICATION_JSON})
+    @PermitAll
+    public TokenDto rootLogin(RootLoginRequest request) {
+        Map<>
+        TokenSecurity.generateToken(null, null, request.getUsername(), null, claims, 0);
+
+        request.getReadRights();
+        TokenDto token = d.tokenSecurity.
     }
 }

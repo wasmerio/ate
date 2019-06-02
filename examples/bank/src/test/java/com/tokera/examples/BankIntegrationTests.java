@@ -5,6 +5,7 @@ import com.tokera.ate.client.RawClient;
 import com.tokera.ate.client.RawClientBuilder;
 import com.tokera.ate.client.TestTools;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import org.junit.jupiter.api.*;
 
 import javax.validation.constraints.NotNull;
@@ -18,6 +19,9 @@ public class BankIntegrationTests {
 
     @SuppressWarnings("initialization.fields.uninitialized")
     private @NotNull RawClient session;
+
+    private MessagePrivateKeyDto companyKey;
+    private String companyDomain = "example.tokera.com";
 
     @BeforeAll
     public static void init() {
@@ -58,11 +62,20 @@ public class BankIntegrationTests {
 
     @Test
     @Order(2)
+    @DisplayName("...generating company key")
+    public void generateCompanyKey() {
+        AteDelegate d = AteDelegate.get();
+        this.companyKey = d.encryptor.genSignKeyFromSeedWithAlias(512, "not_so_secret_secret", companyDomain);
+        d.genericLogger.info("Put this DNS entry at auth." + companyDomain + ": " + this.companyKey.getPublicKeyHash());
+    }
+
+    @Test
+    @Order(3)
     @DisplayName("...creating an company account")
     public void createCompany() {
         String ret = createClient().restPost(
                 "/register/company",
-                Entity.entity("example.tokera.com", MediaType.TEXT_PLAIN), String.class);
+                Entity.entity(companyDomain, MediaType.TEXT_PLAIN), String.class);
         AteDelegate d = AteDelegate.get();
         d.genericLogger.info(ret);
     }

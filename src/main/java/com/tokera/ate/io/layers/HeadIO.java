@@ -191,11 +191,13 @@ public class HeadIO implements IAteIO
     public ITokenParser tokenParser() { return this.backTokenParser; }
 
     public @Nullable MessagePublicKeyDto publicKeyOrNull(@Hash String hash) {
-        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
-        @Nullable MessagePublicKeyDto ret = back.publicKeyOrNull(partitionKey, hash);
-        if (ret != null) return ret;
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScopeOrNull();
+        if (partitionKey != null) {
+            @Nullable MessagePublicKeyDto ret = back.publicKeyOrNull(partitionKey, hash);
+            if (ret != null) return ret;
+        }
         for (IPartitionKey otherKey : d.requestContext.getOtherPartitionKeys()) {
-            ret = back.publicKeyOrNull(otherKey, hash);
+            @Nullable MessagePublicKeyDto ret = back.publicKeyOrNull(otherKey, hash);
             if (ret != null) return ret;
         }
         return null;
