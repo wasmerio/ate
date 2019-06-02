@@ -77,7 +77,7 @@ public class CurrentRightsDelegate implements IRights {
     @Override
     public @DaoId UUID getId() {
         TokenDto token = d.currentToken.getTokenOrNull();
-        if (token == null) throw new WebApplicationException("There is no currentRights user in the requestContext.");
+        if (token == null) throw new WebApplicationException("There is no current user in the request.");
         return token.getUserId();
     }
 

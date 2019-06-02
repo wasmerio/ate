@@ -307,6 +307,10 @@ public class DataPartitionChain {
             if (implicitAuthority == null) {
                 if (d.daoParents.getAllowedDynamicImplicitAuthoritySimple().containsKey(entityType)) {
                     implicitAuthority = header.getImplicitAuthority().stream().findFirst().orElse(null);
+                    if (implicitAuthority == null) {
+                        drop(LOG, data, "record missing implicit authority", null);
+                        return false;
+                    }
                 }
             }
 

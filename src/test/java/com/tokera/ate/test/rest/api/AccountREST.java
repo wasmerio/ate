@@ -10,6 +10,7 @@ import com.tokera.ate.dao.enumerations.UserRole;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.TokenDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
+import com.tokera.ate.security.TokenBuilder;
 import com.tokera.ate.security.TokenSecurity;
 import com.tokera.ate.test.dao.MyAccount;
 import com.tokera.ate.test.dao.SeedingDelegate;
@@ -43,28 +44,20 @@ public class AccountREST {
     @Produces(MediaType.APPLICATION_XML)
     @Consumes({"text/yaml", MediaType.APPLICATION_JSON})
     @PermitAll
-    public String createAdminToken(@PathParam("username") String username, @Valid MessagePrivateKeyDto key) {
+    public String createAdminToken(@PathParam("username") String username, @Valid MessagePrivateKeyDto key)
+    {
         // Set the alias in the key to be the username
         username = username + "@mycompany.org";
         key = CDI.current().select(SeedingDelegate.class).get().getRootKey();
 
-        // Create the claims
-        Map<String, List<@Claim String>> claims = new HashMap<>();
-        TokenSecurity.addClaim(claims, TokenDto.SECURITY_CLAIM_USERNAME, username);
-        TokenSecurity.addClaim(claims, TokenDto.SECURITY_CLAIM_USER_ID, UUIDTools.generateUUID(username).toString());
-        TokenSecurity.addClaim(claims, TokenDto.SECURITY_CLAIM_RISK_ROLE, RiskRole.HIGH.name());
-        TokenSecurity.addClaim(claims, TokenDto.SECURITY_CLAIM_RISK_ROLE, RiskRole.MEDIUM.name());
-        TokenSecurity.addClaim(claims, TokenDto.SECURITY_CLAIM_RISK_ROLE, RiskRole.LOW.name());
-        TokenSecurity.addClaim(claims, TokenDto.SECURITY_CLAIM_RISK_ROLE, RiskRole.NONE.name());
-        TokenSecurity.addClaim(claims, TokenDto.SECURITY_CLAIM_USER_ROLE, UserRole.HUMAN.name());
-        TokenSecurity.addClaim(claims, TokenDto.SECURITY_CLAIM_WRITE_KEY, d.yaml.serializeObj(key));
-
-        // Generate the token and return it
-        @DomainName String domain = StringTools.getDomain(username);
-        TokenDto token = TokenSecurity.generateToken("mycompany.org", domain, username, domain, claims, 100);
-        d.currentToken.publishToken(token);
-
-        return token.getXmlToken();
+        return new TokenBuilder()
+                .withUsername(username)
+                .withRiskRole(RiskRole.HIGH)
+                .withUserRole(UserRole.HUMAN)
+                .addWriteKey(key)
+                .shouldPublish(true)
+                .build()
+                .getXmlToken();
     }
 
     @PUT

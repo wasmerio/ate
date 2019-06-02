@@ -2,6 +2,7 @@ package com.tokera.ate.io.repo;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.tokera.ate.common.MapTools;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.common.Immutalizable;
@@ -198,6 +199,18 @@ public class DataSerializer {
     {
         Set<String> implicitAuthority = new HashSet<>();
 
+        Field implicitField = MapTools.getOrNull(d.daoParents.getAllowedDynamicImplicitAuthority(), obj.getClass());
+        if (implicitField != null) {
+            try {
+                Object implicitDomainObj = implicitField.get(obj);
+                if (implicitDomainObj != null) {
+                    implicitAuthority.add(implicitDomainObj.toString());
+                }
+            } catch (IllegalAccessException e) {
+                d.genericLogger.warn(e);
+            }
+        }
+
         header.setImplicitAuthority(implicitAuthority);
     }
 
@@ -216,6 +229,7 @@ public class DataSerializer {
                 obj.getClass());
 
         updateHeaderWithRolesForDataObject(obj, header);
+        updateHeaderWithImplicitAuthority(obj, header);
 
         @DaoId UUID parentId = obj.getParentId();
         if (parentId != null) {

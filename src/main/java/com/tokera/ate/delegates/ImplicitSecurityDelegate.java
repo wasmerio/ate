@@ -86,7 +86,6 @@ public class ImplicitSecurityDelegate {
 
     public @Nullable MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, boolean shouldThrow, @Alias String alias)
     {
-        MessagePublicKeyDto ret = null;
         String domainStr = enquireDomainString(prefix + "." + domain, shouldThrow);
         if (domainStr == null) {
             if (shouldThrow) {
@@ -95,27 +94,13 @@ public class ImplicitSecurityDelegate {
             return null;
         }
 
-        String[] comps = domainStr.split(":");
-        if (comps.length >= 2) {
-            String partitionKeyTxt = new String(Base64.decodeBase64(comps[0]));
-            IPartitionKey partitionKey = new PartitionKeySerializer().read(partitionKeyTxt);
-            ret = d.headIO.publicKeyOrNull(partitionKey, comps[1]);
-        } else {
-            ret = d.headIO.publicKeyOrNull(domainStr);
-        }
-
+        MessagePublicKeyDto ret = d.headIO.publicKeyOrNull(domainStr);
         if (ret == null) {
-            try {
-                ret = d.encryptor.deserializePublicKey64(domainStr);
-                if (ret.getPublicParts().size() <= 0 ||
-                    ret.getAlias() == null ||
-                    ret.getPublicKeyHash() == null)
-                {
-                    ret = null;
-                }
-            } catch (Throwable ex) {
-                ret = null;
-            }
+            ret = d.currentRights.getRightsWrite()
+                    .stream()
+                    .filter(k -> domainStr.equals(k.getPublicKeyHash()))
+                    .findFirst()
+                    .orElse(null);
         }
 
         if (shouldThrow && ret == null) {

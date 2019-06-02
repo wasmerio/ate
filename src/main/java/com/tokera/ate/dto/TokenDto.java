@@ -214,6 +214,19 @@ public class TokenDto {
     }
 
     /**
+     * @return User ID contains within this Token or throws an exception
+     */
+    public @Nullable @DaoId UUID getUserIdOrNull() {
+        for (ClaimDto claim : getClaims()) {
+            if (claim.getKey().equalsIgnoreCase(TokenDto.SECURITY_CLAIM_USER_ID)) {
+                @DaoId UUID ret = UUIDTools.parseUUIDorNull(claim.getValue());
+                if (ret != null) return ret;
+            }
+        }
+        return null;
+    }
+
+    /**
      * @return Email address of the user within this Token or throws an exception
      */
     public @EmailAddress String getUsername() {

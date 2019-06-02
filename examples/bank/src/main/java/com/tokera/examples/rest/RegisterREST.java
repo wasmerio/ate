@@ -2,6 +2,7 @@ package com.tokera.examples.rest;
 
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.TokenDto;
+import com.tokera.ate.security.TokenBuilder;
 import com.tokera.ate.security.TokenSecurity;
 import com.tokera.examples.dao.Account;
 import com.tokera.examples.dao.Company;
@@ -63,14 +64,16 @@ public class RegisterREST {
 
     @POST
     @Path("/root-login")
-    @Produces({"text/yaml", MediaType.APPLICATION_JSON})
+    @Produces(MediaType.APPLICATION_XML)
     @Consumes({"text/yaml", MediaType.APPLICATION_JSON})
     @PermitAll
-    public TokenDto rootLogin(RootLoginRequest request) {
-        Map<>
-        TokenSecurity.generateToken(null, null, request.getUsername(), null, claims, 0);
-
-        request.getReadRights();
-        TokenDto token = d.tokenSecurity.
+    public String rootLogin(RootLoginRequest request) {
+        return new TokenBuilder()
+                .withUsername(request.getUsername())
+                .addReadKeys(request.getReadRights())
+                .addWriteKeys(request.getWriteRights())
+                .shouldPublish(true)
+                .build()
+                .getXmlToken();
     }
 }

@@ -329,7 +329,7 @@ public class AuthorizationDelegate {
         }
 
         TokenDto token = d.currentToken.getTokenOrNull();
-        if (token != null && entity.getId().equals(token.getUserId())) {
+        if (token != null && entity.getId().equals(token.getUserIdOrNull())) {
             d.eventTokenScopeChanged.fire(new TokenScopeChangedEvent(token));
             d.eventNewAccessRights.fire(new NewAccessRightsEvent());
             d.eventTokenChanged.fire(new TokenStateChangedEvent());
@@ -415,7 +415,7 @@ public class AuthorizationDelegate {
         }
 
         TokenDto token = d.currentToken.getTokenOrNull();
-        if (token != null && entity.getId().equals(token.getUserId())) {
+        if (token != null && entity.getId().equals(token.getUserIdOrNull())) {
             d.eventTokenScopeChanged.fire(new TokenScopeChangedEvent(token));
             d.eventNewAccessRights.fire(new NewAccessRightsEvent());
             d.eventTokenChanged.fire(new TokenStateChangedEvent());

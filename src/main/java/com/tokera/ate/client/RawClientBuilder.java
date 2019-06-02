@@ -25,6 +25,7 @@ public class RawClientBuilder {
     private boolean secure = false;
     private @Nullable @Port Integer port = null;
     private @Nullable String session;
+    private @Nullable String token;
     private @Nullable String loginViaRestPostPath;
     private @Nullable Entity<?> loginViaRestPostEntity;
 
@@ -104,10 +105,7 @@ public class RawClientBuilder {
     public RawClient build() {
         String urlBase = generateServerUrl(this.secure, this.server, this.port);
 
-        String session = null;
-        if (this.session != null) {
-            session = this.session;
-        } else if (this.loginViaRestPostPath != null) {
+        if (this.loginViaRestPostPath != null) {
             Entity<?> loginViaRestPostEntity = this.loginViaRestPostEntity;
             if (loginViaRestPostEntity == null) {
                 throw new InvalidParameterException("You must specify a login entity data to be posted to the URL.");
@@ -124,10 +122,11 @@ public class RawClientBuilder {
             String token = response.readEntity(String.class);
             d.genericLogger.info("token:\n" + token);
 
-            session = auth;
+            this.session = auth;
+            this.token = token;
         }
 
-        return new RawClient(urlBase, session, this.prefixForRest, this.prefixForFs);
+        return new RawClient(urlBase, this.session, this.prefixForRest, this.prefixForFs);
     }
 
     private static ResteasyWebTarget target(String urlBaseAndPrefix, String postfix) {
@@ -137,5 +136,13 @@ public class RawClientBuilder {
                 .build();
 
         return client.target(urlBaseAndPrefix + postfix);
+    }
+
+    public String getToken() {
+        return this.token;
+    }
+
+    public String getSession() {
+        return this.session;
     }
 }

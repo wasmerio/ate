@@ -9,7 +9,6 @@ import org.jboss.resteasy.client.jaxrs.ResteasyClientBuilder;
 import org.jboss.resteasy.client.jaxrs.ResteasyWebTarget;
 import org.jboss.resteasy.plugins.providers.jackson.ResteasyJackson2Provider;
 
-import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.client.Invocation;
 import javax.ws.rs.core.MediaType;
@@ -50,6 +49,10 @@ public class RawClient {
     public RawClient appendToPrefixForFs(String prefix) {
         this.prefixForFs += prefix;
         return this;
+    }
+
+    public String getSession() {
+        return this.session;
     }
 
     public static ResteasyClient createResteasyClient() {

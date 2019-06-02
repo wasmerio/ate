@@ -1,11 +1,13 @@
 package com.tokera.ate.security;
 
+import com.tokera.ate.common.StringTools;
 import com.tokera.ate.common.UUIDTools;
 import com.tokera.ate.dao.enumerations.RiskRole;
 import com.tokera.ate.dao.enumerations.UserRole;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.TokenDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
+import com.tokera.ate.units.DomainName;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.List;
@@ -26,6 +28,7 @@ public class TokenBuilder {
     private int expiresMins = 0;
     private boolean riskRoleSet = false;
     private boolean userRoleSet = false;
+    private boolean shouldPublish = false;
 
     public TokenBuilder() {
     }
@@ -100,9 +103,28 @@ public class TokenBuilder {
         return this;
     }
 
+    public TokenBuilder addReadKeys(Iterable<MessagePrivateKeyDto> keys) {
+        for (MessagePrivateKeyDto key : keys) {
+            addReadKey(key);
+        }
+        return this;
+    }
+
     public TokenBuilder addWriteKey(MessagePrivateKeyDto key) {
         AteDelegate d = AteDelegate.get();
         TokenSecurity.addClaim(this.claims, TokenDto.SECURITY_CLAIM_WRITE_KEY, d.yaml.serializeObj(key));
+        return this;
+    }
+
+    public TokenBuilder addWriteKeys(Iterable<MessagePrivateKeyDto> keys) {
+        for (MessagePrivateKeyDto key : keys) {
+            addWriteKey(key);
+        }
+        return this;
+    }
+
+    public TokenBuilder shouldPublish(boolean shouldPublish) {
+        this.shouldPublish = shouldPublish;
         return this;
     }
 
@@ -114,7 +136,7 @@ public class TokenBuilder {
             }
             if (this.claims.containsKey(TokenDto.SECURITY_CLAIM_USER_ID) == false) {
                 UUID id = UUIDTools.generateUUID(this.username);
-                TokenSecurity.addClaim(this.claims, TokenDto.SECURITY_CLAIM_USERNAME, id.toString());
+                TokenSecurity.addClaim(this.claims, TokenDto.SECURITY_CLAIM_USER_ID, id.toString());
             }
         }
 
@@ -133,12 +155,22 @@ public class TokenBuilder {
 
         reconcileClaims();
 
-        return TokenSecurity.generateToken(
+        String domain = StringTools.getDomainOrNull(username);
+        if (this.reference == null) this.reference = domain;
+        if (this.nameQualifier == null) this.nameQualifier = domain;
+
+        TokenDto ret = TokenSecurity.generateToken(
                 this.company,
                 this.reference,
                 this.username,
                 this.nameQualifier,
                 this.claims,
                 this.expiresMins);
+
+        if (shouldPublish) {
+            AteDelegate.get().currentToken.publishToken(ret);
+        }
+
+        return ret;
     }
 }

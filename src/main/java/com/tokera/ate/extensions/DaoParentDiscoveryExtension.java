@@ -119,7 +119,7 @@ public class DaoParentDiscoveryExtension implements Extension {
     }
 
     public Set<Class<?>> getAllowedParentClaimable() {
-        return this.allowedParentFree;
+        return this.allowedParentClaimable;
     }
     
     public Multimap<Class<?>, Class<?>> getAllowedParents() {
@@ -143,7 +143,7 @@ public class DaoParentDiscoveryExtension implements Extension {
     }
 
     public Set<String> getAllowedParentClaimableSimple() {
-        return this.allowedParentFreeSimple;
+        return this.allowedParentClaimableSimple;
     }
 
     public Multimap<String, String> getAllowedParentsSimple() {

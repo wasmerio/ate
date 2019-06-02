@@ -6,6 +6,7 @@ import com.tokera.ate.client.RawClientBuilder;
 import com.tokera.ate.client.TestTools;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
+import com.tokera.examples.dto.RootLoginRequest;
 import org.junit.jupiter.api.*;
 
 import javax.validation.constraints.NotNull;
@@ -22,6 +23,7 @@ public class BankIntegrationTests {
 
     private MessagePrivateKeyDto companyKey;
     private String companyDomain = "example.tokera.com";
+    private RawClient rootSession;
 
     @BeforeAll
     public static void init() {
@@ -65,15 +67,34 @@ public class BankIntegrationTests {
     @DisplayName("...generating company key")
     public void generateCompanyKey() {
         AteDelegate d = AteDelegate.get();
-        this.companyKey = d.encryptor.genSignKeyFromSeedWithAlias(512, "not_so_secret_secret", companyDomain);
+        this.companyKey = d.encryptor.genSignKeyFromSeedWithAlias(256, "not_so_secret_secret", companyDomain);
         d.genericLogger.info("Put this DNS entry at auth." + companyDomain + ": " + this.companyKey.getPublicKeyHash());
     }
 
     @Test
     @Order(3)
+    @DisplayName("...root login with key")
+    public void rootLogin() {
+        RootLoginRequest request = new RootLoginRequest();
+        request.getWriteRights().add(this.companyKey);
+        request.setUsername("root@example.tokera.com");
+
+        this.rootSession = new RawClientBuilder()
+                .server("127.0.0.1")
+                .port(8080)
+                .prefixForRest("/rs/1-0")
+                .withLoginPost("/register/root-login", Entity.entity(request, "text/yaml"))
+                .build();
+
+        AteDelegate d = AteDelegate.get();
+        d.genericLogger.info("root-login: " + rootSession.getSession());
+    }
+
+    @Test
+    @Order(4)
     @DisplayName("...creating an company account")
     public void createCompany() {
-        String ret = createClient().restPost(
+        String ret = this.rootSession.restPost(
                 "/register/company",
                 Entity.entity(companyDomain, MediaType.TEXT_PLAIN), String.class);
         AteDelegate d = AteDelegate.get();
