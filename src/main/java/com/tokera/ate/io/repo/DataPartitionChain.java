@@ -321,13 +321,14 @@ public class DataPartitionChain {
             else if (d.daoParents.getAllowedParentFreeSimple().contains(entityType) == true &&
                     implicitAuthority != null)
             {
-                MessagePublicKeyDto trustPublicKey = d.implicitSecurity.enquireDomainKey(implicitAuthority, false);
-                if (trustPublicKey == null) {
-                    drop(LOG, data, "record implicit authority missing [" + implicitAuthority + "]", null);
+                MessagePublicKeyDto trustImplicit = d.implicitSecurity.enquireDomainKey(implicitAuthority, false);
+                if (trustImplicit == null) {
+                    drop(LOG, data, "dns or log record for implicit authority missing [" + implicitAuthority + "]", null);
                     return false;
                 }
-                digestPublicKey = trustPublicKey;
-                LOG.info("chain-of-trust rooted: " + entityType + ":" + id + " on " + trustPublicKey.getPublicKeyHash());
+
+                digestPublicKey = trustImplicit;
+                LOG.info("chain-of-trust rooted: " + entityType + ":" + id + " on " + trustImplicit.getPublicKeyHash());
             }
             // Otherwise we fail
             else {

@@ -35,8 +35,6 @@ public class BankIntegrationTests {
         d.storageFactory.buildRamBackend()
                 .addCacheLayer()
                 .addAccessLoggerLayer();
-
-        TestTools.initSeedTestKeys();
     }
 
     private RawClient createClient() {

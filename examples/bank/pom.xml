@@ -29,7 +29,7 @@
         <dependency>
             <groupId>com.tokera</groupId>
             <artifactId>ate</artifactId>
-            <version>0.1.48</version>
+            <version>0.1.49</version>
         </dependency>
     </dependencies>
 </project>

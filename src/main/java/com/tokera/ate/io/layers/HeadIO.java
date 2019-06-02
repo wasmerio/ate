@@ -192,7 +192,13 @@ public class HeadIO implements IAteIO
 
     public @Nullable MessagePublicKeyDto publicKeyOrNull(@Hash String hash) {
         IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
-        return back.publicKeyOrNull(partitionKey, hash);
+        @Nullable MessagePublicKeyDto ret = back.publicKeyOrNull(partitionKey, hash);
+        if (ret != null) return ret;
+        for (IPartitionKey otherKey : d.requestContext.getOtherPartitionKeys()) {
+            ret = back.publicKeyOrNull(otherKey, hash);
+            if (ret != null) return ret;
+        }
+        return null;
     }
 
     @Override

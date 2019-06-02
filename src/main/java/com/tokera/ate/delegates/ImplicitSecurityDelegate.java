@@ -1,5 +1,7 @@
 package com.tokera.ate.delegates;
 
+import com.tokera.ate.io.api.IPartitionKey;
+import com.tokera.ate.providers.PartitionKeySerializer;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.common.MapTools;
@@ -17,8 +19,10 @@ import javax.ws.rs.WebApplicationException;
 import com.tokera.ate.events.RegisterPublicTopicEvent;
 import com.tokera.ate.units.Alias;
 import com.tokera.ate.units.DomainName;
+import com.tokera.ate.units.Hash;
 import com.tokera.ate.units.PlainText;
 import edu.emory.mathcs.backport.java.util.Arrays;
+import org.apache.commons.codec.binary.Base64;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.xbill.DNS.*;
 
@@ -69,23 +73,43 @@ public class ImplicitSecurityDelegate {
     public boolean checkPartitionIsPublic(String accDomain) {
         return g_publicPartitions.contains(accDomain);
     }
-    
-    public @Nullable MessagePublicKeyDto enquireDomainKey(@DomainName String domain, boolean shouldThrow)
+
+    public @Nullable @Hash MessagePublicKeyDto enquireDomainKey(@DomainName String domain, boolean shouldThrow)
     {
         return enquireDomainKey(d.bootstrapConfig.getImplicitAuthorityAlias(), domain, shouldThrow);
     }
-    
-    public @Nullable MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, boolean shouldThrow)
+
+    public @Nullable @Hash MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, boolean shouldThrow)
     {
         return enquireDomainKey(prefix, domain, shouldThrow, domain);
     }
-    
-    public @Nullable MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, boolean shouldThrow, @Alias String alias)
-    {
-        @Nullable @PlainText String keyString = enquireDomainString(prefix + "." + domain, shouldThrow);
-        if (keyString == null) return null;
 
-        return d.encryptor.deserializePublicKey64WithAlias(keyString, alias);
+    public @Nullable @Hash MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, boolean shouldThrow, @Alias String alias)
+    {
+        String domainStr = enquireDomainString(prefix + "." + domain, shouldThrow);
+        String[] comps = domainStr.split(":");
+        if (comps.length >= 2) {
+            String partitionKeyTxt = new String(Base64.decodeBase64(comps[0]));
+            IPartitionKey partitionKey = new PartitionKeySerializer().read(partitionKeyTxt);
+            return d.headIO.publicKeyOrNull(partitionKey, comps[1]);
+        } else {
+            return d.headIO.publicKeyOrNull(domainStr);
+        }
+    }
+
+    public String generateDnsTxtRecord(MessagePublicKeyDto key) {
+        return generateDnsTxtRecord(key, d.requestContext.getPartitionKeyScopeOrNull());
+    }
+
+    public String generateDnsTxtRecord(MessagePublicKeyDto key, @Nullable IPartitionKey partitionKey) {
+        if (partitionKey == null) {
+            return key.getPublicKeyHash();
+        }
+        if (d.headIO.publicKeyOrNull(partitionKey, key.getPublicKeyHash()) == null) {
+            d.headIO.merge(partitionKey, key);
+        }
+        String partitionKeyTxt = new PartitionKeySerializer().write(partitionKey);
+        return Base64.encodeBase64URLSafeString(partitionKeyTxt.getBytes()) + ":" + key.getPublicKeyHash();
     }
 
     public List<String> enquireDomainAddresses(@DomainName String domain, boolean shouldThrow) {
