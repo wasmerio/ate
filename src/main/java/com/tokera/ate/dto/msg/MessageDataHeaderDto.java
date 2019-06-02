@@ -21,6 +21,7 @@ import com.tokera.ate.units.Hash;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import javax.enterprise.context.Dependent;
 import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
@@ -34,6 +35,7 @@ import java.util.UUID;
 /**
  * Represents key properties of a data message before its placed on the distributed commit log
  */
+@Dependent
 @YamlTag("msg.data.header")
 public class MessageDataHeaderDto extends MessageBaseDto implements Serializable, CopyOnWrite {
 
@@ -257,7 +259,7 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
         return this.merges;
     }
 
-    public void setMerges(Set<UUID> mergeVersions) {
+    public void setMerges(ImmutalizableHashSet<UUID> mergeVersions) {
         assert this._immutable == false;
         copyOnWrite();
         this.merges = new ImmutalizableHashSet<>(mergeVersions);

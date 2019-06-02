@@ -14,6 +14,7 @@ import com.tokera.ate.annotations.YamlTag;
 import org.apache.commons.codec.binary.Base64;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import javax.enterprise.context.Dependent;
 import javax.validation.constraints.NotNull;
 import javax.ws.rs.WebApplicationException;
 import java.io.Serializable;
@@ -22,6 +23,7 @@ import java.nio.ByteBuffer;
 /**
  * Represents a data message on the distributed commit log
  */
+@Dependent
 @YamlTag("msg.data")
 public class MessageDataDto extends MessageBaseDto implements Serializable, CopyOnWrite {
 

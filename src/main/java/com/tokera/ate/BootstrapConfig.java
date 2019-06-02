@@ -1,7 +1,9 @@
 package com.tokera.ate;
 
+import com.google.common.collect.Lists;
 import com.tokera.ate.common.ApplicationConfigLoader;
 import com.tokera.ate.configuration.AteConstants;
+import com.tokera.ate.dao.enumerations.KeyType;
 import com.tokera.ate.scopes.Startup;
 import javax.enterprise.context.ApplicationScoped;
 import javax.ws.rs.WebApplicationException;
@@ -34,6 +36,12 @@ public class BootstrapConfig {
     private String propertiesFileTopicDao = "topic.dao.properties";
     private String propertiesFileTopicIo = "topic.io.properties";
     private String propertiesFileTopicPublic = "topic.publish.properties";
+
+    private Iterable<KeyType> defaultSigningTypes = Lists.newArrayList(KeyType.qtesla, KeyType.rainbow);
+    private Iterable<KeyType> defaultEncryptTypes = Lists.newArrayList(KeyType.ntru, KeyType.newhope);
+    private int defaultAesStrength = 256;
+    private int defaultSigningStrength = 256;
+    private int defaultEncryptionStrength = 256;
 
     // Only weld should initialize this configuration using the ApiServer.startWeld method
     @Deprecated()
@@ -226,5 +234,45 @@ public class BootstrapConfig {
 
     public void setImplicitAuthorityAlias(String implicitAuthorityAlias) {
         this.implicitAuthorityAlias = implicitAuthorityAlias;
+    }
+
+    public Iterable<KeyType> getDefaultSigningTypes() {
+        return defaultSigningTypes;
+    }
+
+    public void setDefaultSigningTypes(Iterable<KeyType> defaultSigningTypes) {
+        this.defaultSigningTypes = defaultSigningTypes;
+    }
+
+    public Iterable<KeyType> getDefaultEncryptTypes() {
+        return defaultEncryptTypes;
+    }
+
+    public void setDefaultEncryptTypes(Iterable<KeyType> defaultEncryptTypes) {
+        this.defaultEncryptTypes = defaultEncryptTypes;
+    }
+
+    public int getDefaultAesStrength() {
+        return defaultAesStrength;
+    }
+
+    public void setDefaultAesStrength(int defaultAesStrength) {
+        this.defaultAesStrength = defaultAesStrength;
+    }
+
+    public int getDefaultSigningStrength() {
+        return defaultSigningStrength;
+    }
+
+    public void setDefaultSigningStrength(int defaultSigningStrength) {
+        this.defaultSigningStrength = defaultSigningStrength;
+    }
+
+    public int getDefaultEncryptionStrength() {
+        return defaultEncryptionStrength;
+    }
+
+    public void setDefaultEncryptionStrength(int defaultEncryptionStrength) {
+        this.defaultEncryptionStrength = defaultEncryptionStrength;
     }
 }

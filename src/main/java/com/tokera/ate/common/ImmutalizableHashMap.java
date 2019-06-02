@@ -1,13 +1,17 @@
 package com.tokera.ate.common;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.tokera.ate.annotations.YamlTag;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import javax.enterprise.context.Dependent;
 import java.io.Serializable;
 import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+@Dependent
+@YamlTag("ihashmap")
 public class ImmutalizableHashMap<K, V> extends HashMap<K, V> implements Map<K, V>, RandomAccess, Cloneable, Serializable, Immutalizable {
     private static final long serialVersionUID = 462498820763181264L;
 

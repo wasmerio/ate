@@ -51,20 +51,20 @@ public class MessagePrivateKeyTests
         Assertions.assertTrue(privatePart2.getKeyBytes() != null);
 
         TestTools.assertEqualAndNotNull(data.getAlias(), data2.getAlias());
-        TestTools.assertEqualAndNotNull(publicPart.getKey(), publicPart2.getKey());
+        TestTools.assertEqualAndNotNull(publicPart.getKey64(), publicPart2.getKey64());
         TestTools.assertEqualAndNotNull(publicPart.getKeyBytes(), publicPart2.getKeyBytes());
         TestTools.assertEqualAndNotNull(data.getPublicKeyHash(), data2.getPublicKeyHash());
-        TestTools.assertEqualAndNotNull(privatePart.getKey(), privatePart2.getKey());
+        TestTools.assertEqualAndNotNull(privatePart.getKey64(), privatePart2.getKey64());
         TestTools.assertEqualAndNotNull(privatePart.getKeyBytes(), privatePart2.getKeyBytes());
         TestTools.assertEqualAndNotNull(data.getPrivateKeyHash(), data2.getPrivateKeyHash());
 
         data2.setAlias("THEALIAS");
 
         TestTools.assertEqualAndNotNull(data.getAlias(), data2.getAlias());
-        TestTools.assertEqualAndNotNull(publicPart.getKey(), publicPart2.getKey());
+        TestTools.assertEqualAndNotNull(publicPart.getKey64(), publicPart2.getKey64());
         TestTools.assertEqualAndNotNull(publicPart.getKeyBytes(), publicPart2.getKeyBytes());
         TestTools.assertEqualAndNotNull(data.getPublicKeyHash(), data2.getPublicKeyHash());
-        TestTools.assertEqualAndNotNull(privatePart.getKey(), privatePart2.getKey());
+        TestTools.assertEqualAndNotNull(privatePart.getKey64(), privatePart2.getKey64());
         TestTools.assertEqualAndNotNull(privatePart.getKeyBytes(), privatePart2.getKeyBytes());
         TestTools.assertEqualAndNotNull(data.getPrivateKeyHash(), data2.getPrivateKeyHash());
     }
@@ -109,10 +109,10 @@ public class MessagePrivateKeyTests
         Assertions.assertTrue(privatePart2.getKeyBytes() != null);
 
         TestTools.assertEqualAndNotNull(data.getAlias(), data2.getAlias());
-        TestTools.assertEqualAndNotNull(publicPart.getKey(), publicPart2.getKey());
+        TestTools.assertEqualAndNotNull(publicPart.getKey64(), publicPart2.getKey64());
         TestTools.assertEqualAndNotNull(publicPart.getKeyBytes(), publicPart2.getKeyBytes());
         TestTools.assertEqualAndNotNull(data.getPublicKeyHash(), data2.getPublicKeyHash());
-        TestTools.assertEqualAndNotNull(privatePart.getKey(), privatePart2.getKey());
+        TestTools.assertEqualAndNotNull(privatePart.getKey64(), privatePart2.getKey64());
         TestTools.assertEqualAndNotNull(privatePart.getKeyBytes(), privatePart2.getKeyBytes());
         TestTools.assertEqualAndNotNull(data.getPrivateKeyHash(), data2.getPrivateKeyHash());
 

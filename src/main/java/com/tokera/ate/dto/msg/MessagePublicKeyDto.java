@@ -27,6 +27,7 @@ import org.apache.commons.codec.binary.Base64;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import javax.enterprise.context.Dependent;
 import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
 import javax.ws.rs.WebApplicationException;
@@ -34,6 +35,7 @@ import javax.ws.rs.WebApplicationException;
 /**
  * Represents a public NTRU asymetric encryption key that can be placed on the distributed commit log
  */
+@Dependent
 @PublicKeyConstraint
 @YamlTag("msg.public.key")
 public class MessagePublicKeyDto extends MessageBaseDto implements Serializable, CopyOnWrite

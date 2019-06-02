@@ -7,11 +7,20 @@ import com.esotericsoftware.yamlbeans.YamlReader;
 import com.esotericsoftware.yamlbeans.YamlWriter;
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.annotations.YamlTags;
+import com.tokera.ate.common.ImmutalizableArrayList;
+import com.tokera.ate.common.ImmutalizableHashMap;
+import com.tokera.ate.common.ImmutalizableHashSet;
+import com.tokera.ate.common.ImmutalizableTreeMap;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.extensions.YamlTagDiscoveryExtension;
 import com.tokera.ate.io.api.IPartitionKey;
+import com.tokera.ate.io.merge.DataMerger;
 import com.tokera.ate.providers.*;
+import org.apache.commons.beanutils.BeanUtils;
 
+import java.beans.IntrospectionException;
+import java.beans.Introspector;
+import java.beans.PropertyDescriptor;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStreamReader;
@@ -19,9 +28,10 @@ import java.io.OutputStreamWriter;
 import java.io.Reader;
 import java.io.StringWriter;
 import java.io.Writer;
-import java.util.Arrays;
-import java.util.List;
-import java.util.ArrayList;
+import java.lang.reflect.Field;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.util.*;
 import javax.annotation.PostConstruct;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
@@ -76,6 +86,34 @@ public class YamlDelegate {
             if (clazz.isEnum()) {
                 cfg.setScalarSerializer(clazz, new EnumSerializer(clazz));
             }
+
+            try {
+                for (PropertyDescriptor prop : Introspector.getBeanInfo(clazz).getPropertyDescriptors()) {
+                    if (prop.getReadMethod() == null) continue;
+                    if (prop.getWriteMethod() == null) continue;
+                    Type propType = prop.getReadMethod().getGenericReturnType();
+
+                    try {
+                        Class<?> propClazz = prop.getPropertyType();
+
+                        if (Collection.class.isAssignableFrom(propClazz) || Map.class.isAssignableFrom(propClazz)) {
+                            ParameterizedType aType = (ParameterizedType)propType;
+                            if (aType == null) continue;
+                            Type[] fieldArgTypes = aType.getActualTypeArguments();
+                            if (fieldArgTypes.length == 1) {
+                                if (fieldArgTypes[0] instanceof Class) {
+                                    Class<?> elementType = (Class) fieldArgTypes[0];
+                                    cfg.setPropertyElementType(clazz, prop.getName(), elementType);
+                                }
+                            }
+                        }
+                    } catch (Throwable e) {
+                        AteDelegate.get().genericLogger.warn(e);
+                    }
+                }
+            } catch (IntrospectionException e) {
+                throw new RuntimeException(e);
+            }
         }
         
         cfg.setClassTag("dictionary", java.util.Dictionary.class);
@@ -91,15 +129,19 @@ public class YamlDelegate {
         cfg.setClassTag("treeset", java.util.TreeSet.class);
         cfg.setClassTag("vector", java.util.Vector.class);
         cfg.setClassTag("weakhashmap", java.util.WeakHashMap.class);
-        
-        cfg.setClassTag("bigdecimal", java.math.BigDecimal.class);
-        cfg.setClassTag("uuid", java.util.UUID.class);
+
+        //cfg.setClassTag("bool", Boolean.class);
+        //cfg.setClassTag("long", Long.class);
+        //cfg.setClassTag("int", Integer.class);
         cfg.setClassTag("timestamp", java.util.Date.class);
-        cfg.setClassTag("bool", Boolean.class);
+        cfg.setClassTag("uuid", java.util.UUID.class);
+        cfg.setClassTag("key", IPartitionKey.class);
+        cfg.setClassTag("puuid", PUUID.class);
+        cfg.setClassTag("bigdecimal", java.math.BigDecimal.class);
         
-        cfg.setScalarSerializer(Boolean.class, new BooleanSerializer());
-        cfg.setScalarSerializer(Long.class, new LongSerializer());
-        cfg.setScalarSerializer(Integer.class, new IntegerSerializer());
+        //cfg.setScalarSerializer(Boolean.class, new BooleanSerializer());
+        //cfg.setScalarSerializer(Long.class, new LongSerializer());
+        //cfg.setScalarSerializer(Integer.class, new IntegerSerializer());
         cfg.setScalarSerializer(java.util.Date.class, new DateSerializer());
         cfg.setScalarSerializer(java.util.UUID.class, new UuidSerializer());
         cfg.setScalarSerializer(IPartitionKey.class, new PartitionKeySerializer());

@@ -18,6 +18,7 @@ import org.apache.commons.codec.binary.Base64;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import javax.enterprise.context.Dependent;
 import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
 import javax.ws.rs.WebApplicationException;
@@ -26,6 +27,7 @@ import javax.ws.rs.WebApplicationException;
  * Represents an AES encrypted piece of text thats distributed on the commit log and associated with a particular
  * set of publickey and text based hashes used before the encryption took place
  */
+@Dependent
 @YamlTag("msg.encrypt.text")
 public class MessageEncryptTextDto extends MessageBaseDto implements Serializable, CopyOnWrite {
 

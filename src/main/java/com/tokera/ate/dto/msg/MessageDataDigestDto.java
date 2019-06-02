@@ -20,6 +20,7 @@ import org.apache.commons.codec.binary.Base64;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import javax.enterprise.context.Dependent;
 import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
 import javax.ws.rs.WebApplicationException;
@@ -29,6 +30,7 @@ import java.nio.ByteBuffer;
 /**
  * Represents the digest of a data payload signed by an authorized user
  */
+@Dependent
 @YamlTag("msg.data.digest")
 public class MessageDataDigestDto extends MessageBaseDto implements Serializable, CopyOnWrite {
 

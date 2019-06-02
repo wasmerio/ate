@@ -15,28 +15,18 @@
  */
 package com.tokera.ate.test.encryptor;
 
-import com.tokera.ate.delegates.AteDelegate;
-import com.tokera.ate.delegates.YamlDelegate;
+import com.google.common.collect.Lists;
 import com.tokera.ate.dto.msg.MessageKeyPartDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.security.Encryptor;
-import com.tokera.ate.test.dao.MyAccount;
-import com.tokera.ate.test.dao.MyThing;
+import org.apache.commons.codec.binary.Base64;
 import org.checkerframework.checker.nullness.qual.Nullable;
-import org.jboss.weld.bootstrap.spi.BeanDiscoveryMode;
-import org.jboss.weld.environment.se.Weld;
-import org.jboss.weld.junit5.WeldInitiator;
-import org.jboss.weld.junit5.WeldJunit5Extension;
-import org.jboss.weld.junit5.WeldSetup;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.bouncycastle.crypto.InvalidCipherTextException;
 
-import javax.enterprise.context.RequestScoped;
-import javax.inject.Inject;
 import java.io.IOException;
 
 /**
@@ -67,13 +57,13 @@ public class CryptoTests {
             MessageKeyPartDto part2 = key1.getPrivateParts().get(n);
             Assertions.assertEquals(part1.getType(), part2.getType());
             Assertions.assertEquals(part1.getSize(), part2.getSize());
-            Assertions.assertEquals(part1.getKey(), part2.getKey());
+            Assertions.assertEquals(part1.getKey64(), part2.getKey64());
 
             part1 = key1.getPublicParts().get(n);
             part2 = key1.getPublicParts().get(n);
             Assertions.assertEquals(part1.getType(), part2.getType());
             Assertions.assertEquals(part1.getSize(), part2.getSize());
-            Assertions.assertEquals(part1.getKey(), part2.getKey());
+            Assertions.assertEquals(part1.getKey64(), part2.getKey64());
         }
     }
 
@@ -90,13 +80,13 @@ public class CryptoTests {
             MessageKeyPartDto part2 = key1.getPrivateParts().get(n);
             Assertions.assertEquals(part1.getType(), part2.getType());
             Assertions.assertEquals(part1.getSize(), part2.getSize());
-            Assertions.assertEquals(part1.getKey(), part2.getKey());
+            Assertions.assertEquals(part1.getKey64(), part2.getKey64());
 
             part1 = key1.getPublicParts().get(n);
             part2 = key1.getPublicParts().get(n);
             Assertions.assertEquals(part1.getType(), part2.getType());
             Assertions.assertEquals(part1.getSize(), part2.getSize());
-            Assertions.assertEquals(part1.getKey(), part2.getKey());
+            Assertions.assertEquals(part1.getKey64(), part2.getKey64());
         }
     }
 
@@ -182,20 +172,24 @@ public class CryptoTests {
             key1 = encryptor.genEncryptKey(keySize);
         }
 
-        String plain = "test";
+        Iterable<Integer> bitTests = Lists.newArrayList(32, 64, 128, 256, 512);
+        for (int bits : bitTests) {
+            String plain = encryptor.generateSecret64(bits);
+            byte[] plainBytes = Base64.decodeBase64(plain);
 
-        byte[] enc = encryptor.encrypt(key1, plain.getBytes());
+            byte[] enc = encryptor.encrypt(key1, plainBytes);
 
-        if (seed != null) {
-            key2 = encryptor.genEncryptKeyFromSeed(keySize, seed);
-        } else {
-            key2 = key1;
+            if (seed != null) {
+                key2 = encryptor.genEncryptKeyFromSeed(keySize, seed);
+            } else {
+                key2 = key1;
+            }
+
+            byte[] plainBytes2 = encryptor.decrypt(key2, enc);
+            String plain2 = Base64.encodeBase64URLSafeString(plainBytes2);
+
+            Assertions.assertEquals(plain, plain2);
         }
-
-        byte[] plainBytes = encryptor.decrypt(key2, enc);
-
-        String test = new String(plainBytes);
-        Assertions.assertEquals(plain, test);
     }
 
     @Test

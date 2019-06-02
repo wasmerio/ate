@@ -34,6 +34,7 @@ public class YamlTagDiscoveryExtension implements Extension {
         watchForYamlTag(MessagePrivateKeyDto.class);
         watchForYamlTag(MessagePublicKeyDto.class);
         watchForYamlTag(MessageSyncDto.class);
+        watchForYamlTag(MessageKeyPartDto.class);
         watchForYamlTag(ClaimDto.class);
         watchForYamlTag(TokenDto.class);
     }

@@ -28,7 +28,7 @@ public class SeedingDelegate {
 
     @PostConstruct
     public void init() {
-        rootkey = d.encryptor.genSignKey(128);
+        rootkey = d.encryptor.genSignKey();
     }
 
     public void onPartitionSeeding(@Observes PartitionSeedingEvent event) {

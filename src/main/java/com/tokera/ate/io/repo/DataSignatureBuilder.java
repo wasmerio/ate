@@ -55,7 +55,7 @@ public class DataSignatureBuilder
     private MessageDataDigestDto generateVerifiedSignature(byte[] streamBytes, MessagePrivateKeyDto privateKey) {
 
         // Compute the message digest using the newly generated seed
-        String seed = encryptor.generateSecret64(128);
+        String seed = encryptor.generateSecret64(512);
         byte[] seedBytes = Base64.decodeBase64(seed);
         byte[] digestBytes = encryptor.hashSha(seedBytes, streamBytes);
         String digest = Base64.encodeBase64URLSafeString(digestBytes);

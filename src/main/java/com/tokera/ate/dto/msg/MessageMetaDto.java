@@ -9,12 +9,14 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tokera.ate.annotations.YamlTag;
 
+import javax.enterprise.context.Dependent;
 import javax.validation.constraints.NotNull;
 import java.io.Serializable;
 
 /**
  * Represents metadata about a data message that was placed on the distributed commit log
  */
+@Dependent
 @YamlTag("msg.meta")
 public class MessageMetaDto implements Serializable {
 

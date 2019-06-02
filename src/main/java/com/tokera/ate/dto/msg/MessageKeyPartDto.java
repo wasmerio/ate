@@ -10,18 +10,16 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.flatbuffers.FlatBufferBuilder;
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.common.CopyOnWrite;
-import com.tokera.ate.constraints.PublicKeyConstraint;
 import com.tokera.ate.dao.enumerations.KeyType;
 import com.tokera.ate.dao.msg.*;
 import com.tokera.ate.security.Encryptor;
-import com.tokera.ate.units.Alias;
-import com.tokera.ate.units.Hash;
 import com.tokera.ate.units.PEM;
 import com.tokera.ate.units.Secret;
 import org.apache.commons.codec.binary.Base64;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import javax.enterprise.context.Dependent;
 import javax.ws.rs.WebApplicationException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
@@ -31,6 +29,7 @@ import java.util.Objects;
 /**
  * Represents part of an asymmetric encryption key pair
  */
+@Dependent
 @YamlTag("msg.part.key")
 public class MessageKeyPartDto extends MessageBaseDto implements Serializable, CopyOnWrite
 {
@@ -63,7 +62,7 @@ public class MessageKeyPartDto extends MessageBaseDto implements Serializable, C
 
         this.size = key.size;
 
-        @PEM String key64 = key.getKey();
+        @PEM String key64 = key.getKey64();
         if (key64 != null) {
             this.keyBytes = Base64.decodeBase64(key64);
             this.key64 = key64;
@@ -149,7 +148,7 @@ public class MessageKeyPartDto extends MessageBaseDto implements Serializable, C
         return this.key64;
     }
 
-    public @Nullable @PEM String getKey() {
+    public @Nullable @PEM String getKey64() {
         @PEM String ret = getKeyInternal();
         if (ret == null) {
             byte[] bytes = this.getKeyBytesInternal();
@@ -159,7 +158,7 @@ public class MessageKeyPartDto extends MessageBaseDto implements Serializable, C
         return ret;
     }
 
-    public void setKey(@PEM String key64) {
+    public void setKey64(@PEM String key64) {
         copyOnWrite();
         this.keyBytes = Base64.decodeBase64(key64);
         this.key64 = key64;

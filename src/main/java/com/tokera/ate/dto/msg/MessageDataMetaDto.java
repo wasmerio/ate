@@ -8,6 +8,7 @@ package com.tokera.ate.dto.msg;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tokera.ate.annotations.YamlTag;
 
+import javax.enterprise.context.Dependent;
 import javax.validation.constraints.NotNull;
 import java.io.Serializable;
 import java.util.UUID;
@@ -15,6 +16,7 @@ import java.util.UUID;
 /**
  * Represents a bundle of the data and its on commit log metadata
  */
+@Dependent
 @YamlTag("msg.data.meta")
 public class MessageDataMetaDto implements Serializable {
 

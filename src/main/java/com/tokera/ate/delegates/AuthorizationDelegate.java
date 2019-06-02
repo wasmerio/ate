@@ -44,8 +44,6 @@ public class AuthorizationDelegate {
     @Inject
     private LoggerHook LOG;
 
-    private int defaultKeySize = 128;
-
     public boolean canRead(@Nullable BaseDao obj)
     {
         if (obj == null) return false;
@@ -381,7 +379,7 @@ public class AuthorizationDelegate {
                 .findFirst()
                 .orElse(null);
         if (right == null) {
-            right = new MessagePrivateKeyDto(d.encryptor.genSignKeyWithAlias(defaultKeySize, alias));
+            right = new MessagePrivateKeyDto(d.encryptor.genSignKeyWithAlias(alias));
 
             entity.getRightsWrite().add(right);
 
@@ -521,13 +519,5 @@ public class AuthorizationDelegate {
             rights.getRightsWrite().remove(r);
             d.headIO.mergeLater((BaseDao)rights);
         }
-    }
-
-    public int getDefaultKeySize() {
-        return defaultKeySize;
-    }
-
-    public void setDefaultKeySize(int defaultKeySize) {
-        this.defaultKeySize = defaultKeySize;
     }
 }

@@ -41,11 +41,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.stream.Collectors;
 import javax.annotation.PostConstruct;
 import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
@@ -142,9 +140,10 @@ public class Encryptor implements Runnable
     //private Iterable<KeyType> defaultEncryptTypes = Lists.newArrayList(KeyType.ntru, KeyType.newhope);
     private Iterable<KeyType> defaultSigningTypes = Lists.newArrayList(KeyType.qtesla, KeyType.rainbow);
     private Iterable<KeyType> defaultEncryptTypes = Lists.newArrayList(KeyType.ntru, KeyType.newhope);
-    private int defaultAesStrength = 512;
+    private int defaultAesStrength = 256;
     private int defaultSigningStrength = 256;
     private int defaultEncryptionStrength = 256;
+    private Set<Integer> validEncryptSizes = new HashSet<>(Lists.newArrayList(32, 64, 128, 256, 512));
 
     public class KeyPairBytes
     {
@@ -184,6 +183,20 @@ public class Encryptor implements Runnable
 
     public void setDefaultEncryptionStrength(int keySize) {
         this.defaultEncryptionStrength = keySize;
+    }
+
+    /**
+     * @return Set of valid encryption sizes measured in bits for asymmetric encryption
+     */
+    public Set<Integer> getValidEncryptSizes() {
+        return validEncryptSizes;
+    }
+
+    /**
+     * @param validEncryptSizes Set of valid encryption sizes measured in bits for asymmetric encryption
+     */
+    public void setValidEncryptSizes(Set<Integer> validEncryptSizes) {
+        this.validEncryptSizes = validEncryptSizes;
     }
 
     private NTRUSigningKeyGenerationParameters buildNtruSignParams64() {
@@ -550,6 +563,11 @@ public class Encryptor implements Runnable
         return genSignKeyWithAlias(keysize, null);
     }
 
+    public MessagePrivateKeyDto genSignKeyWithAlias(@Nullable @Alias String _alias)
+    {
+        return genSignKeyWithAlias(defaultSigningStrength, null);
+    }
+
     public MessagePrivateKeyDto genSignKeyWithAlias(int keysize, @Nullable @Alias String _alias)
     {
         @Alias String alias = _alias;
@@ -911,7 +929,7 @@ public class Encryptor implements Runnable
         NTRUEncryptionPublicKeyParameters publicKey = (NTRUEncryptionPublicKeyParameters) pair.getPublic();
 
         for (int n = 0; n < 10; n++) {
-            byte[] test = Base64.decodeBase64(this.generateSecret64(128));
+            byte[] test = Base64.decodeBase64(this.generateSecret64());
 
             try {
                 byte[] encBytes = this.encryptNtruWithPublic(publicKey.getEncoded(), test);
@@ -1031,9 +1049,22 @@ public class Encryptor implements Runnable
     @SuppressWarnings("deprecation")
     public @Secret byte[] encrypt(MessagePublicKeyDto publicKey, @PlainText byte[] data)
     {
+        if (validEncryptSizes.contains(data.length*8) == false) {
+            StringBuilder sb = new StringBuilder();
+            for (Integer size : validEncryptSizes.stream().sorted().collect(Collectors.toList())) {
+                if (sb.length() <= 0) {
+                    sb.append(size);
+                } else {
+                    sb.append(", ");
+                    sb.append(size);
+                }
+            }
+            throw new RuntimeException("Data to be encrypted is not a valid size (" + sb.toString() + " bits) - consider wrapping an AES symmetric key instead of directly encrypting the data.");
+        }
+
         @Secret byte[] ret = data;
 
-        ImmutalizableArrayList<MessageKeyPartDto> parts = publicKey.getPublicParts();
+        List<MessageKeyPartDto> parts = publicKey.getPublicParts();
         if (parts == null || parts.size() <= 0) {
             throw new RuntimeException("Failed to encrypt the data has the public key is empty.");
         }
@@ -1060,7 +1091,7 @@ public class Encryptor implements Runnable
     {
         @PlainText byte[] ret = data;
 
-        ImmutalizableArrayList<MessageKeyPartDto> parts = privateKey.getPrivateParts();
+        List<MessageKeyPartDto> parts = privateKey.getPrivateParts();
         if (parts == null || parts.size() <= 0) {
             throw new RuntimeException("Failed to decrypt the data has the public key is empty.");
         }
@@ -1356,7 +1387,7 @@ public class Encryptor implements Runnable
     {
         ByteBuffer bb = ByteBuffer.wrap(sigs);
 
-        ImmutalizableArrayList<MessageKeyPartDto> parts = publicKey.getPublicParts();
+        List<MessageKeyPartDto> parts = publicKey.getPublicParts();
         if (parts == null || parts.size() <= 0) return false;
 
         for (MessageKeyPartDto part : parts) {
@@ -1578,6 +1609,8 @@ public class Encryptor implements Runnable
             ret = genEncryptKeyFromSeed(128, defaultEncryptTypes, "public");
             //key = new MessagePrivateKeyDto("hCtNNY27gTrDwo2k1w_nm-28B_0u0Z8_lJYSqdmlRzpxb1Ke194tDZWyNEUR8uchT89qg_R1erx9CAyHFMYgAS2Gs5xfRy_37N2JmtR43HmEVDwcoytHjahdZGNYDIEzrSPhJuAb62unOwNjtS0LF9vkXR5akiyaxz7S21sKCitYwonYjGnODaf4axN6H6n_jhhHIHsGORK_o-Giq7FKZNJhoVfyEaNZPsHkG763cKKSKzkvHHVt7EONjW1OjFT6O5E0gNtiGDKQRquJBtWQUlsosDTaXCQWedj6HzBKsXQZjT_XL5QDSsUHIfTN4oiPqiNHREtjUuWMPa1GsOwhPSDRYpcsscBcD67gKRPeuk4_LfqwPk77ibEdbbP4g1FJhn8eaIGpXWTMFWG5Y_z8PfzS98K46Rj_dkHctVen3lHP_MiitAiUp4FtMdBl_FCHhpKFtoU0mriEUyjm1vLxxmgMuDVxb2Szo3Lm3Rgjq2ZSQBj9Sea-GuqBwc_7uBkqZY-vb72FqQ54jy0-CP73Ij4uJ_uH2g93pJDzSfxPtmsZOp7Rs5pYT03gWr018llG4D4Xtsm-2xP_IONLasoJHTrkkg9XPvmxZSQ8_AUSLZfoGRjWxKrYS1qZqCoZ9zYf_x1UtQEpDFjs__Zo9JONKMieTTskykXv-SwSIiyA6EUbvBTN4-VFVZNmc8zCkBDRRH2jZZUCMbYGkuMXEO_aIM2YwYpRROUj48p7zo8uYlnB82YHvhb6czGWew-RSfNeMeE1vX2Z9qoVQRPgj-5dKbnG2Xbkifmjj4h4Aw", "hCtNNY27gTrDwo2k1w_nm-28B_0u0Z8_lJYSqdmlRzpxb1Ke194tDZWyNEUR8uchT89qg_R1erx9CAyHFMYgAS2Gs5xfRy_37N2JmtR43HmEVDwcoytHjahdZGNYDIEzrSPhJuAb62unOwNjtS0LF9vkXR5akiyaxz7S21sKCitYwonYjGnODaf4axN6H6n_jhhHIHsGORK_o-Giq7FKZNJhoVfyEaNZPsHkG763cKKSKzkvHHVt7EONjW1OjFT6O5E0gNtiGDKQRquJBtWQUlsosDTaXCQWedj6HzBKsXQZjT_XL5QDSsUHIfTN4oiPqiNHREtjUuWMPa1GsOwhPSDRYpcsscBcD67gKRPeuk4_LfqwPk77ibEdbbP4g1FJhn8eaIGpXWTMFWG5Y_z8PfzS98K46Rj_dkHctVen3lHP_MiitAiUp4FtMdBl_FCHhpKFtoU0mriEUyjm1vLxxmgMuDVxb2Szo3Lm3Rgjq2ZSQBj9Sea-GuqBwc_7uBkqZY-vb72FqQ54jy0-CP73Ij4uJ_uH2g93pJDzSfxPtmsZOp7Rs5pYT03gWr018llG4D4Xtsm-2xP_IONLasoJHTrkkg9XPvmxZSQ8_AUSLZfoGRjWxKrYS1qZqCoZ9zYf_x1UtQEpDFjs__Zo9JONKMieTTskykXv-SwSIiyA6EUbvBTN4-VFVZNmc8zCkBDRRH2jZZUCMbYGkuMXEO_aIM2YwYpRROUj48p7zo8uYlnB82YHvhb6czGWew-RSfNeMeE1vX2Z9qoVQRPgj-5dKbnG2Xbkifmjj4h4A35nyKJ3ikeM8yUi_FlKfk_c3f8Tacpp7F8UZUunoUF2VDvYohoTyU6FrHBK-PqRIKU-4HBkrR2LF6Y2zyABrr3C5axkSVArak7ofFERtX0shq9aj4OmCg");
             ret.setAlias("public");
+            ret.getPrivateParts().immutalize();
+            ret.getPublicParts().immutalize();
             this.trustOfPublicRead = ret;
         }
         return ret;

@@ -1,13 +1,17 @@
 package com.tokera.ate.common;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.tokera.ate.annotations.YamlTag;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import javax.enterprise.context.Dependent;
 import java.io.Serializable;
 import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 
+@Dependent
+@YamlTag("itreemap")
 public class ImmutalizableTreeMap<K, V> extends TreeMap<K, V> implements NavigableMap<K, V>, RandomAccess, Cloneable, Serializable, Immutalizable {
     private static final long serialVersionUID = 419286545866124004L;
 

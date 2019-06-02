@@ -22,6 +22,7 @@ import org.apache.commons.codec.binary.Base64;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import javax.enterprise.context.Dependent;
 import javax.validation.ConstraintValidator;
 import javax.validation.ConstraintValidatorContext;
 import javax.validation.constraints.Pattern;
@@ -29,10 +30,12 @@ import javax.validation.constraints.Size;
 import javax.ws.rs.WebApplicationException;
 import java.io.Serializable;
 import java.nio.ByteBuffer;
+import java.util.List;
 
 /**
  * Represents a private NTRU asymetric encryption key that can be placed on the distributed commit log
  */
+@Dependent
 @PrivateKeyConstraint
 @YamlTag("msg.private.key")
 public class MessagePrivateKeyDto extends MessagePublicKeyDto implements Serializable, ConstraintValidator, CopyOnWrite
@@ -66,7 +69,7 @@ public class MessagePrivateKeyDto extends MessagePublicKeyDto implements Seriali
         }
 
         this.privateParts.clear();
-        for (MessageKeyPartDto part : key.getPublicParts()) {
+        for (MessageKeyPartDto part : key.getPrivateParts()) {
             this.privateParts.add(new MessageKeyPartDto(part));
         }
     }

@@ -44,11 +44,11 @@ public class MessagePublicKeyTests
         assert publicPart2 != null : "@AssumeAssertion(nullness): Must not be null";
 
         TestTools.assertEqualAndNotNull(data.getAlias(), data2.getAlias());
-        TestTools.assertEqualAndNotNull(publicPart.getKey(), publicPart2.getKey());
+        TestTools.assertEqualAndNotNull(publicPart.getKey64(), publicPart2.getKey64());
         TestTools.assertEqualAndNotNull(publicPart.getKeyBytes(), publicPart2.getKeyBytes());
         data2.setAlias("THEALIAS");
         TestTools.assertEqualAndNotNull(data.getPublicKeyHash(), data2.getPublicKeyHash());
-        TestTools.assertEqualAndNotNull(publicPart.getKey(), publicPart2.getKey());
+        TestTools.assertEqualAndNotNull(publicPart.getKey64(), publicPart2.getKey64());
         TestTools.assertEqualAndNotNull(publicPart.getKeyBytes(), publicPart2.getKeyBytes());
         
         MessageBase base = data.createBaseFlatBuffer();
@@ -57,11 +57,11 @@ public class MessagePublicKeyTests
         assert publicPart2 != null : "@AssumeAssertion(nullness): Must not be null";
 
         TestTools.assertEqualAndNotNull(data.getAlias(), data2.getAlias());
-        TestTools.assertEqualAndNotNull(publicPart.getKey(), publicPart2.getKey());
+        TestTools.assertEqualAndNotNull(publicPart.getKey64(), publicPart2.getKey64());
         TestTools.assertEqualAndNotNull(publicPart.getKeyBytes(), publicPart2.getKeyBytes());
         data2.setAlias("THEALIAS");
         TestTools.assertEqualAndNotNull(data.getPublicKeyHash(), data2.getPublicKeyHash());
-        TestTools.assertEqualAndNotNull(publicPart.getKey(), publicPart2.getKey());
+        TestTools.assertEqualAndNotNull(publicPart.getKey64(), publicPart2.getKey64());
         TestTools.assertEqualAndNotNull(publicPart.getKeyBytes(), publicPart2.getKeyBytes());
     }
     
@@ -105,11 +105,11 @@ public class MessagePublicKeyTests
         TestTools.assertEqualAndNotNull(data.getAlias(), data2.getAlias());
         TestTools.assertEqualAndNotNull(publicPartA.getType(), publicPartA2.getType());
         TestTools.assertEqualAndNotNull(publicPartA.getSize(), publicPartA2.getSize());
-        TestTools.assertEqualAndNotNull(publicPartA.getKey(), publicPartA2.getKey());
+        TestTools.assertEqualAndNotNull(publicPartA.getKey64(), publicPartA2.getKey64());
         TestTools.assertEqualAndNotNull(publicPartA.getKeyBytes(), publicPartA2.getKeyBytes());
         TestTools.assertEqualAndNotNull(publicPartB.getType(), publicPartB2.getType());
         TestTools.assertEqualAndNotNull(publicPartB.getSize(), publicPartB2.getSize());
-        TestTools.assertEqualAndNotNull(publicPartB.getKey(), publicPartB2.getKey());
+        TestTools.assertEqualAndNotNull(publicPartB.getKey64(), publicPartB2.getKey64());
         TestTools.assertEqualAndNotNull(publicPartB.getKeyBytes(), publicPartB2.getKeyBytes());
         
         byte[] streamBytes1 = stream.toByteArray();
@@ -129,11 +129,11 @@ public class MessagePublicKeyTests
         TestTools.assertEqualAndNotNull(data.getAlias(), data3.getAlias());
         TestTools.assertEqualAndNotNull(publicPartA.getType(), publicPartA3.getType());
         TestTools.assertEqualAndNotNull(publicPartA.getSize(), publicPartA3.getSize());
-        TestTools.assertEqualAndNotNull(publicPartA.getKey(), publicPartA3.getKey());
+        TestTools.assertEqualAndNotNull(publicPartA.getKey64(), publicPartA3.getKey64());
         TestTools.assertEqualAndNotNull(publicPartA.getKeyBytes(), publicPartA3.getKeyBytes());
         TestTools.assertEqualAndNotNull(publicPartB.getType(), publicPartB3.getType());
         TestTools.assertEqualAndNotNull(publicPartB.getSize(), publicPartB3.getSize());
-        TestTools.assertEqualAndNotNull(publicPartB.getKey(), publicPartB3.getKey());
+        TestTools.assertEqualAndNotNull(publicPartB.getKey64(), publicPartB3.getKey64());
         TestTools.assertEqualAndNotNull(publicPartB.getKeyBytes(), publicPartB3.getKeyBytes());
 
         TestTools.assertEqualAndNotNull(streamBytes1, streamBytes2);

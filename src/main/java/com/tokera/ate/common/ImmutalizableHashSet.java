@@ -1,11 +1,15 @@
 package com.tokera.ate.common;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.tokera.ate.annotations.YamlTag;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import javax.enterprise.context.Dependent;
 import java.io.Serializable;
 import java.util.*;
 
+@Dependent
+@YamlTag("ihashset")
 public class ImmutalizableHashSet<E> extends HashSet<E> implements Set<E>, Cloneable, Serializable, Immutalizable {
     static final long serialVersionUID = -4024744406713321674L;
 

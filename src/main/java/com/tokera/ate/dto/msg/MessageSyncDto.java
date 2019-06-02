@@ -12,6 +12,7 @@ import com.tokera.ate.common.CopyOnWrite;
 import com.tokera.ate.dao.msg.*;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import javax.enterprise.context.Dependent;
 import javax.validation.constraints.NotNull;
 import javax.ws.rs.WebApplicationException;
 import java.io.Serializable;
@@ -20,6 +21,7 @@ import java.util.*;
 /**
  * Represents a synchronization point for a bunch of data that was pushed onto the BUS
  */
+@Dependent
 @YamlTag("msg.sync")
 public class MessageSyncDto extends MessageBaseDto implements Serializable, CopyOnWrite {
 
