@@ -36,8 +36,9 @@ import java.io.IOException;
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class CryptoTests {
 
-    private final static Encryptor encryptor = new Encryptor();@BeforeAll
+    private final static Encryptor encryptor = new Encryptor();
 
+    @BeforeAll
     public static void init() {
         encryptor.init();
     }

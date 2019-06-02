@@ -48,6 +48,9 @@ public class DataPartitionChain {
         this.publicKeys = new ConcurrentHashMap<>();
         this.encryptText = new ConcurrentHashMap<>();
         this.encryptor = Encryptor.getInstance();
+
+        this.addTrustKey(d.encryptor.getTrustOfPublicRead(), null);
+        this.addTrustKey(d.encryptor.getTrustOfPublicWrite(), null);
     }
 
     public IPartitionKey partitionKey() { return this.key; }

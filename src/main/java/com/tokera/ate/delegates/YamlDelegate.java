@@ -54,6 +54,11 @@ public class YamlDelegate {
     private YamlConfig m_config;
     @SuppressWarnings("initialization.fields.uninitialized")
     private YamlConfig m_config_no_marker;
+
+    public void init(YamlTagDiscoveryExtension discovery) {
+        this.discovery = discovery;
+        init();
+    }
     
     @PostConstruct
     public void init() {
@@ -144,8 +149,8 @@ public class YamlDelegate {
         //cfg.setScalarSerializer(Integer.class, new IntegerSerializer());
         cfg.setScalarSerializer(java.util.Date.class, new DateSerializer());
         cfg.setScalarSerializer(java.util.UUID.class, new UuidSerializer());
-        cfg.setScalarSerializer(IPartitionKey.class, new PartitionKeySerializer());
         cfg.setScalarSerializer(PUUID.class, new PuuidSerializer());
+        cfg.setScalarSerializer(IPartitionKey.class, new PartitionKeySerializer());
         cfg.setScalarSerializer(java.math.BigDecimal.class, new BigDecimalSerializer());
 
         cfg.setAllowDuplicates(true);
@@ -195,7 +200,7 @@ public class YamlDelegate {
             return body;
             //return StringTools.unescapeLines(body);
         } catch (YamlException ex) {
-            throw new WebApplicationException(ex);
+            throw new RuntimeException(ex);
         }
     }
     
@@ -205,7 +210,7 @@ public class YamlDelegate {
             YamlReader reader = getYamlReader(yaml);
             return reader.read();
         } catch (YamlException ex) {
-            throw new WebApplicationException(ex);
+            throw new RuntimeException(ex);
         }
     }
     

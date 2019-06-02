@@ -16,6 +16,11 @@ public class DefaultTokenParser implements ITokenParser {
 
     @Override
     public @Nullable IPartitionKey extractPartitionKey(TokenDto token) {
+        IPartitionKey key = token.getPartitionKeyOrNull();
+        if (key != null) {
+            return key;
+        }
+
         @EmailAddress String email = token.getUsername();
         @DomainName String domain = StringTools.getDomain(email);
         UUID id = UUIDTools.generateUUID(domain);

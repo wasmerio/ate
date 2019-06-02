@@ -25,7 +25,6 @@ public class RawClientBuilder {
     private boolean secure = false;
     private @Nullable @Port Integer port = null;
     private @Nullable String session;
-    private @Nullable String token;
     private @Nullable String loginViaRestPostPath;
     private @Nullable Entity<?> loginViaRestPostEntity;
 
@@ -119,11 +118,7 @@ public class RawClientBuilder {
             String auth = response.getHeaderString("Authorization");
             d.genericLogger.info("auth:\n" + auth);
 
-            String token = response.readEntity(String.class);
-            d.genericLogger.info("token:\n" + token);
-
             this.session = auth;
-            this.token = token;
         }
 
         return new RawClient(urlBase, this.session, this.prefixForRest, this.prefixForFs);
@@ -136,10 +131,6 @@ public class RawClientBuilder {
                 .build();
 
         return client.target(urlBaseAndPrefix + postfix);
-    }
-
-    public String getToken() {
-        return this.token;
     }
 
     public String getSession() {

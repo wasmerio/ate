@@ -563,9 +563,9 @@ public class Encryptor implements Runnable
         return genSignKeyWithAlias(keysize, null);
     }
 
-    public MessagePrivateKeyDto genSignKeyWithAlias(@Nullable @Alias String _alias)
+    public MessagePrivateKeyDto genSignKeyWithAlias(@Nullable @Alias String alias)
     {
-        return genSignKeyWithAlias(defaultSigningStrength, null);
+        return genSignKeyWithAlias(defaultSigningStrength, alias);
     }
 
     public MessagePrivateKeyDto genSignKeyWithAlias(int keysize, @Nullable @Alias String _alias)

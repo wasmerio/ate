@@ -1,13 +1,14 @@
 package com.tokera.examples.rest;
 
+import com.tokera.ate.dao.enumerations.RiskRole;
+import com.tokera.ate.dao.enumerations.UserRole;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.TokenDto;
 import com.tokera.ate.security.TokenBuilder;
-import com.tokera.ate.security.TokenSecurity;
 import com.tokera.examples.dao.Account;
 import com.tokera.examples.dao.Company;
 import com.tokera.examples.dao.Individual;
-import com.tokera.examples.dto.RootLoginRequest;
+import com.tokera.examples.dto.RegistrationResponse;
 
 import javax.annotation.security.PermitAll;
 import javax.enterprise.context.ApplicationScoped;
@@ -24,10 +25,10 @@ public class RegisterREST {
 
     @POST
     @Path("/company")
-    @Produces({"text/yaml", MediaType.APPLICATION_JSON})
+    @Produces(MediaType.APPLICATION_JSON)
     @Consumes(MediaType.TEXT_PLAIN)
     @PermitAll
-    public Company registerCompany(String domain) {
+    public RegistrationResponse registerCompany(String domain) {
         Account acc = new Account("Company account for " + domain);
         Company company = new Company(domain, acc);
         acc.company = company.getId();
@@ -39,15 +40,25 @@ public class RegisterREST {
 
         // Now save the account using this access rights
         d.headIO.mergeLater(acc);
-        return company;
+
+        TokenDto token = new TokenBuilder()
+                .withUsername("root@" + company.domain)
+                .withCompanyName(company.domain)
+                .withUserRole(UserRole.HUMAN)
+                .withRiskRole(RiskRole.HIGH)
+                .withPartitionkeyFromDao(company)
+                .addReadKey(d.authorization.getOrCreateImplicitRightToRead(company))
+                .addWriteKey(d.authorization.getOrCreateImplicitRightToWrite(company))
+                .build();
+        return new RegistrationResponse(company.getId(), company.companyAccount, token);
     }
 
     @POST
     @Path("/individual")
-    @Produces({"text/yaml", MediaType.APPLICATION_JSON})
+    @Produces(MediaType.APPLICATION_JSON)
     @Consumes(MediaType.TEXT_PLAIN)
     @PermitAll
-    public Individual registerIndividual(String email) {
+    public RegistrationResponse registerIndividual(String email) {
         Account acc = new Account("Individual account for " + email);
         Individual individual = new Individual(email, acc);
         acc.individual = individual.getId();
@@ -59,21 +70,15 @@ public class RegisterREST {
 
         // Now save the account using this access rights
         d.headIO.mergeLater(acc);
-        return individual;
-    }
 
-    @POST
-    @Path("/root-login")
-    @Produces(MediaType.APPLICATION_XML)
-    @Consumes({"text/yaml", MediaType.APPLICATION_JSON})
-    @PermitAll
-    public String rootLogin(RootLoginRequest request) {
-        return new TokenBuilder()
-                .withUsername(request.getUsername())
-                .addReadKeys(request.getReadRights())
-                .addWriteKeys(request.getWriteRights())
-                .shouldPublish(true)
-                .build()
-                .getXmlToken();
+        TokenDto token = new TokenBuilder()
+                .withUsername(individual.email)
+                .withUserRole(UserRole.HUMAN)
+                .withRiskRole(RiskRole.HIGH)
+                .withPartitionkeyFromDao(individual)
+                .addReadKey(d.authorization.getOrCreateImplicitRightToRead(individual))
+                .addWriteKey(d.authorization.getOrCreateImplicitRightToWrite(individual))
+                .build();
+        return new RegistrationResponse(individual.getId(), individual.personalAccount, token);
     }
 }

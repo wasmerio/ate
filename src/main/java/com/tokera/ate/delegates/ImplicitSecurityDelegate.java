@@ -104,7 +104,7 @@ public class ImplicitSecurityDelegate {
         }
 
         if (shouldThrow && ret == null) {
-            throw new RuntimeException("No implicit authority found at domain name [" + prefix + "." + domain + "] (missing public key record for [" + domainStr + "]).");
+            throw new RuntimeException("Unknown implicit authority found at domain name [" + prefix + "." + domain + "] (public key is missing with hash [" + domainStr + "]).");
         }
 
         if (ret != null && alias != null) {

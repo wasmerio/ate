@@ -47,7 +47,7 @@ public class DefaultSecureKeyRepository implements ISecureKeyRepository {
         // Get the public key
         MessagePublicKeyDto publicKey = chain.getPublicKey(publicKeyHash);
         if (publicKey == null) {
-            throw new RuntimeException("We encountered a public key that is not yet known to the distributed commit log. Ensure all public toPutKeys are merged before using them in data entities by either calling mergeLater(obj), mergeThreeWay(obj) or mergeThreeWay(publicKeyOrNull).");
+            throw new RuntimeException("We encountered a public key [" + publicKeyHash + "] that is not yet known to the distributed commit log. Ensure all public keys are merged before using them in data entities by either calling mergeLater(obj), mergeThreeWay(obj) or mergeThreeWay(publicKeyOrNull).");
         }
 
         // Encrypt the key

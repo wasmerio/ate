@@ -111,7 +111,7 @@ public class MemoryRequestCacheIO implements IAteIO
 
     @Override
     public boolean remove(PUUID id, Class<?> type) {
-        PartitionCache c = this.getTopicCache(id);
+        PartitionCache c = this.getTopicCache(id.partition());
         return c.entries.remove(id) != null;
     }
 
@@ -137,7 +137,7 @@ public class MemoryRequestCacheIO implements IAteIO
     public boolean exists(@Nullable PUUID _id) {
         @DaoId PUUID id = _id;
         if (id == null) return false;
-        PartitionCache c = this.getTopicCache(id);
+        PartitionCache c = this.getTopicCache(id.partition());
         return c.entries.containsKey(id);
     }
 
@@ -175,9 +175,9 @@ public class MemoryRequestCacheIO implements IAteIO
 
     @Override
     public @Nullable BaseDao getOrNull(PUUID id) {
-        PartitionCache c = this.getTopicCache(id);
-        if (c.entries.containsKey(id) == false) return null;
-        BaseDao ret = c.entries.get(id);
+        PartitionCache c = this.getTopicCache(id.partition());
+        if (c.entries.containsKey(id.id()) == false) return null;
+        BaseDao ret = c.entries.get(id.id());
         BaseDao.assertStillMutable(ret);
         return ret;
     }

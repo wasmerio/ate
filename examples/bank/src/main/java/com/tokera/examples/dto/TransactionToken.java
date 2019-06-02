@@ -1,13 +1,23 @@
 package com.tokera.examples.dto;
 
-import com.tokera.ate.common.ImmutalizableArrayList;
-
-import java.util.List;
+import java.util.ArrayList;
+import java.util.Collection;
 
 public class TransactionToken {
-    public final ImmutalizableArrayList<ShareToken> shares = new ImmutalizableArrayList<ShareToken>();
+    private ArrayList<ShareToken> shares = new ArrayList<ShareToken>();
 
-    public TransactionToken(List<ShareToken> shares) {
+    public TransactionToken() {
+    }
+
+    public TransactionToken(Collection<ShareToken> shares) {
         this.shares.addAll(shares);
+    }
+
+    public ArrayList<ShareToken> getShares() {
+        return shares;
+    }
+
+    public void setShares(ArrayList<ShareToken> shares) {
+        this.shares = shares;
     }
 }

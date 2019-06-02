@@ -4,6 +4,7 @@ import com.tokera.ate.annotations.ImplicitAuthorityField;
 import com.tokera.ate.annotations.PermitParentFree;
 import com.tokera.ate.common.ImmutalizableArrayList;
 import com.tokera.ate.dao.base.BaseDaoRoles;
+import com.tokera.ate.dao.base.BaseDaoRolesRights;
 import com.tokera.ate.units.DaoId;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -13,7 +14,7 @@ import java.util.UUID;
 
 @Dependent
 @PermitParentFree
-public class Asset extends BaseDaoRoles {
+public class Asset extends BaseDaoRolesRights {
     public UUID id;
     @ImplicitAuthorityField
     public String type;

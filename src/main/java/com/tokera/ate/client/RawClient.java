@@ -199,9 +199,6 @@ public class RawClient {
         String auth = response.getHeaderString("Authorization");
         d.genericLogger.info("auth:\n" + auth);
 
-        String token = response.readEntity(String.class);
-        d.genericLogger.info("token:\n" + token);
-
         return new RawClientBuilder()
                 .withSession(auth)
                 .server(server)

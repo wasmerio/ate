@@ -55,7 +55,7 @@ public class AuthorizationDelegate {
     {
         PUUID id = _id;
         if (id == null) return false;
-        return canRead(id, id.id(), parentId);
+        return canRead(id.partition(), id.id(), parentId);
     }
 
     public boolean canRead(IPartitionKey partitionKey, @DaoId UUID id, @Nullable @DaoId UUID parentId)
@@ -79,7 +79,7 @@ public class AuthorizationDelegate {
     {
         PUUID id = _id;
         if (id == null) return false;
-        return canWrite(id, id.id(), parentId);
+        return canWrite(id.partition(), id.id(), parentId);
     }
 
     public void ensureCanWrite(BaseDao obj)
@@ -104,6 +104,11 @@ public class AuthorizationDelegate {
         DataContainer container = d.headIO.getRawOrNull(PUUID.from(partitionKey, entityId));
         if (container != null) {
             sb.append(container.getPayloadClazz()).append(":");
+        } else {
+            BaseDao obj = d.dataStagingManager.find(PUUID.from(partitionKey, entityId));
+            if (obj != null) {
+                sb.append(obj.getClass().getSimpleName()).append(":");
+            }
         }
         sb.append(entityId).append("]\n");
 
@@ -240,7 +245,7 @@ public class AuthorizationDelegate {
     }
 
     public EffectivePermissions perms(PUUID id, @Nullable @DaoId UUID parentId, boolean usePostMerged) {
-        return new EffectivePermissionBuilder(id, id.id(), parentId)
+        return new EffectivePermissionBuilder(id.partition(), id.id(), parentId)
                 .setUsePostMerged(usePostMerged)
                 .build();
     }

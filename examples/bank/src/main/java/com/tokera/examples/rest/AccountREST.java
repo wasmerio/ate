@@ -4,9 +4,7 @@ import com.tokera.ate.annotations.PermitReadEntity;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.examples.common.AccountHelper;
 import com.tokera.examples.dao.*;
-import com.tokera.examples.dto.BeginTransactionRequest;
-import com.tokera.examples.dto.ShareToken;
-import com.tokera.examples.dto.TransactionToken;
+import com.tokera.examples.dto.*;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.ws.rs.*;
@@ -105,8 +103,8 @@ public class AccountREST {
         Account acc = d.headIO.get(accountId, Account.class);
         MonthlyActivity activity = AccountHelper.getCurrentMonthlyActivity(acc);
 
-        for (ShareToken shareToken : transactionToken.shares) {
-            AssetShare share = d.headIO.get(shareToken.share, AssetShare.class);
+        for (ShareToken shareToken : transactionToken.getShares()) {
+            AssetShare share = d.headIO.get(shareToken.getShare(), AssetShare.class);
 
             share.trustInheritWrite = false;
             share.getTrustAllowRead().clear();

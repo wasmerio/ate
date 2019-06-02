@@ -1,24 +1,25 @@
 package com.tokera.examples.rest;
 
-import com.tokera.ate.annotations.PermitReadEntity;
+import com.google.common.collect.Lists;
+import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.examples.dao.*;
-import com.tokera.examples.dto.CreateAssetRequest;
-import com.tokera.examples.dto.RedeemAssetRequest;
-import com.tokera.examples.dto.ShareToken;
-import com.tokera.examples.dto.TransactionToken;
-import edu.emory.mathcs.backport.java.util.Collections;
+import com.tokera.examples.dto.*;
 
 import javax.enterprise.context.ApplicationScoped;
+import javax.inject.Inject;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
 @ApplicationScoped
 @Path("/money")
-@PermitReadEntity(name="accountId", clazz= Account.class)
 public class MoneyREST {
     protected AteDelegate d = AteDelegate.get();
+
+    @SuppressWarnings("initialization.fields.uninitialized")
+    @Inject
+    private LoggerHook LOG;
 
     @POST
     @Path("/print")
@@ -27,16 +28,21 @@ public class MoneyREST {
     public TransactionToken printMoney(CreateAssetRequest request) {
         Asset asset = new Asset(request.type, request.value);
         d.authorization.authorizeEntityPublicRead(asset);
+        d.authorization.authorizeEntity(asset, asset);
+        d.currentRights.impersonate(asset);
+        d.headIO.mergeLater(asset);
 
         AssetShare assetShare = new AssetShare(asset, request.value);
-        assetShare.trustInheritRead = true;
-        assetShare.trustInheritWrite = false;
         d.authorization.authorizeEntity(assetShare, assetShare);
         asset.shares.add(assetShare.id);
 
         d.headIO.mergeLater(asset);
         d.headIO.mergeLater(assetShare);
-        return new TransactionToken(Collections.singletonList(new ShareToken(assetShare)));
+
+        //LOG.info(d.yaml.serializeObj(asset));
+        //LOG.info(d.yaml.serializeObj(assetShare));
+
+        return new TransactionToken(Lists.newArrayList(new ShareToken(assetShare)));
     }
 
     @POST
@@ -44,7 +50,7 @@ public class MoneyREST {
     @Produces(MediaType.TEXT_PLAIN)
     @Consumes({"text/yaml", MediaType.APPLICATION_JSON})
     public boolean burnMoney(RedeemAssetRequest request) {
-        AssetShare assetShare = d.headIO.get(request.shareToken.share, AssetShare.class);
+        AssetShare assetShare = d.headIO.get(request.shareToken.getShare(), AssetShare.class);
         if (d.daoHelper.hasImplicitAuthority(assetShare, request.validateType) == false) {
             throw new WebApplicationException("Asset is not of the correct type.", Response.Status.NOT_ACCEPTABLE);
         }

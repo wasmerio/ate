@@ -2,11 +2,15 @@ package com.tokera.ate.security;
 
 import com.tokera.ate.common.StringTools;
 import com.tokera.ate.common.UUIDTools;
+import com.tokera.ate.dao.IRights;
+import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.enumerations.RiskRole;
 import com.tokera.ate.dao.enumerations.UserRole;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.TokenDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
+import com.tokera.ate.io.api.IPartitionKey;
+import com.tokera.ate.providers.PartitionKeySerializer;
 import com.tokera.ate.units.DomainName;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -26,6 +30,7 @@ public class TokenBuilder {
     private String nameQualifier;
     private final Map<String, List<String>> claims = new TreeMap<>();
     private int expiresMins = 0;
+    private boolean partitionKeySet = false;
     private boolean riskRoleSet = false;
     private boolean userRoleSet = false;
     private boolean shouldPublish = false;
@@ -89,6 +94,29 @@ public class TokenBuilder {
         userRoleSet = true;
 
         TokenSecurity.addClaim(this.claims, TokenDto.SECURITY_CLAIM_USER_ROLE, role.name());
+        return this;
+    }
+
+    public TokenBuilder withPartitionKeyFromRights(IRights rights) {
+        IPartitionKey key = AteDelegate.get().headIO.partitionResolver().resolve(rights);
+        return withPartitionkey(key);
+    }
+
+    public TokenBuilder withPartitionkeyFromDao(BaseDao obj) {
+        IPartitionKey key = AteDelegate.get().headIO.partitionResolver().resolve(obj);
+        return withPartitionkey(key);
+    }
+
+    public TokenBuilder withPartitionkey(IPartitionKey key) {
+        if (partitionKeySet == true) {
+            throw new RuntimeException("The partition key was already set earlier in the builder.");
+        }
+        partitionKeySet = true;
+
+        PartitionKeySerializer serializer = new PartitionKeySerializer();
+        String keyTxt = serializer.write(key);
+
+        TokenSecurity.addClaim(this.claims, TokenDto.SECURITY_CLAIM_PARTITION_KEY, keyTxt);
         return this;
     }
 

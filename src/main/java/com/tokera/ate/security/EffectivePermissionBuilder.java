@@ -34,7 +34,7 @@ public class EffectivePermissionBuilder {
     private final @Nullable Map<UUID, BaseDao> suppliedObjects = new HashMap<>();
 
     public EffectivePermissionBuilder(PUUID id, @Nullable @DaoId UUID parentId) {
-        this.partitionKey = id;
+        this.partitionKey = id.partition();
         this.origId = id.id();
         this.origParentId = parentId;
     }
@@ -142,10 +142,21 @@ public class EffectivePermissionBuilder {
 
     private void addImplicitTrust(EffectivePermissions ret)
     {
-        BaseDao obj = findDataObj(origId);
+        // Find the object
+        DataContainer container = d.headIO.getRawOrNull(PUUID.from(this.partitionKey, this.origId));
+        BaseDao obj = usePostMerged == true ? findDataObj(this.origId) : null;
 
-        if (obj != null) {
+        // Follow the inheritance tree
+        if (container != null) {
+            MessageDataHeaderDto header = container.getMergedHeader();
+            for (String implicitAuthority : header.getImplicitAuthority()) {
+                MessagePublicKeyDto implicitKey = d.implicitSecurity.enquireDomainKey(implicitAuthority, true);
+                ret.addWriteRole(implicitKey);
+            }
+        } else if (obj != null) {
             Class<?> type = obj.getClass();
+
+            // If it contains dynamic implicit authority
             Field field = MapTools.getOrNull(d.daoParents.getAllowedDynamicImplicitAuthority(), type);
             if (field != null) {
                 try {
@@ -163,37 +174,29 @@ public class EffectivePermissionBuilder {
                 }
             }
 
+            // If it contains static implicit authority
             String staticImplicitAuthority = MapTools.getOrNull(d.daoParents.getAllowedImplicitAuthority(), type);
             if (staticImplicitAuthority != null) {
                 MessagePublicKeyDto implicitKey = d.implicitSecurity.enquireDomainKey(staticImplicitAuthority, true);
                 ret.addWriteRole(implicitKey);
             }
         }
-
-        DataContainer container = d.headIO.getRawOrNull(PUUID.from(this.partitionKey, this.origId));
-        if (container != null) {
-            MessageDataHeaderDto header = container.getMergedHeader();
-
-            for (String implicitAuthority : header.getImplicitAuthority()) {
-                MessagePublicKeyDto implicitKey = d.implicitSecurity.enquireDomainKey(implicitAuthority, true);
-                ret.addWriteRole(implicitKey);
-            }
-        }
     }
 
     private void addClaimableTrust(EffectivePermissions ret) {
-        BaseDao obj = findDataObj(origId);
-
-        if (obj != null) {
-            Class<?> type = obj.getClass();
-
-            // If the data object is marked as claimable we only add the public write role if the
-            // data object does not yet have a root record stored on the chain-of-trust (first come, first serve).
-            if (d.daoParents.getAllowedParentClaimable().contains(type))
-            {
-                DataContainer container = d.headIO.getRawOrNull(PUUID.from(this.partitionKey, this.origId));
-                if (container == null)
-                {
+        // If the data object is marked as claimable we only add the public write role if the
+        // data object does not yet have a root record stored on the chain-of-trust (first come, first serve).
+        DataContainer container = d.headIO.getRawOrNull(PUUID.from(this.partitionKey, this.origId));
+        if (container != null)
+        {
+            if (d.daoParents.getAllowedParentClaimableSimple().contains(container.getPayloadClazz())) {
+                MessagePublicKeyDto publicKey = d.encryptor.getTrustOfPublicWrite();
+                ret.addWriteRole(publicKey);
+            }
+        } else if (usePostMerged == true) {
+            BaseDao obj = this.findDataObj(this.origId);
+            if (obj != null) {
+                if (d.daoParents.getAllowedParentClaimable().contains(obj.getClass())) {
                     MessagePublicKeyDto publicKey = d.encryptor.getTrustOfPublicWrite();
                     ret.addWriteRole(publicKey);
                 }

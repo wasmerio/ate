@@ -363,7 +363,7 @@ public class DataRepository implements IAteIO {
     public boolean remove(PUUID id, Class<?> type) {
 
         // Loiad the existing record
-        DataPartition kt = this.subscriber.getPartition(id);
+        DataPartition kt = this.subscriber.getPartition(id.partition());
         DataPartitionChain chain = kt.getChain();
         DataContainer lastContainer = chain.getData(id.id(), LOG);
         if (lastContainer == null) return false;
@@ -426,7 +426,7 @@ public class DataRepository implements IAteIO {
         PUUID id = _id;
         if (id == null) return false;
         
-        DataPartitionChain kt = this.subscriber.getChain(id);
+        DataPartitionChain kt = this.subscriber.getChain(id.partition());
         if (kt.exists(id.id(), LOG)) return true;
         return false;
     }
@@ -442,7 +442,7 @@ public class DataRepository implements IAteIO {
         PUUID id = _id;
         if (id == null) return false;
         
-        DataPartitionChain chain = this.subscriber.getChain(id);
+        DataPartitionChain chain = this.subscriber.getChain(id.partition());
         if (chain.everExisted(id.id(), LOG)) return true;
         
         return false;
@@ -450,14 +450,14 @@ public class DataRepository implements IAteIO {
     
     @Override
     public boolean immutable(PUUID id) {
-        DataPartitionChain chain = this.subscriber.getChain(id);
+        DataPartitionChain chain = this.subscriber.getChain(id.partition());
         if (chain.immutable(id.id(), LOG)) return true;
         return false;
     }
 
     @Override
     public @Nullable MessageDataHeaderDto getRootOfTrust(PUUID id) {
-        DataPartitionChain chain = this.subscriber.getChain(id);
+        DataPartitionChain chain = this.subscriber.getChain(id.partition());
         return chain.getRootOfTrust(id.id());
     }
 
@@ -467,7 +467,7 @@ public class DataRepository implements IAteIO {
         if (id == null) return null;
 
         // Attempt to find the data
-        DataPartitionChain chain = this.subscriber.getChain(id);
+        DataPartitionChain chain = this.subscriber.getChain(id.partition());
         DataContainer container = chain.getData(id.id(), LOG);
         if (container == null) return null;
 
@@ -477,23 +477,23 @@ public class DataRepository implements IAteIO {
     @Override
     public @Nullable DataContainer getRawOrNull(@Nullable PUUID id) {
         if (id == null) return null;
-        DataPartitionChain chain = this.subscriber.getChain(id);
+        DataPartitionChain chain = this.subscriber.getChain(id.partition());
         return chain.getData(id.id(), LOG);
     }
     
     @Override
     public <T extends BaseDao> Iterable<MessageMetaDto> getHistory(PUUID id, Class<T> clazz) {
-        DataPartitionChain chain = this.subscriber.getChain(id);
+        DataPartitionChain chain = this.subscriber.getChain(id.partition());
         return chain.getHistory(id.id(), LOG);
     }
     
     @Override
     public @Nullable BaseDao getVersionOrNull(PUUID id, MessageMetaDto meta) {
-        DataPartition kt = this.subscriber.getPartition(id);
+        DataPartition kt = this.subscriber.getPartition(id.partition());
         
         MessageDataDto data = kt.getBridge().getVersion(id.id(), meta);
         if (data != null) {
-            return d.dataSerializer.fromDataMessage(id, data, false);
+            return d.dataSerializer.fromDataMessage(id.partition(), data, false);
         } else {
             this.LOG.warn("missing data [id=" + id + "]");
             return null;
@@ -502,7 +502,7 @@ public class DataRepository implements IAteIO {
     
     @Override
     public @Nullable MessageDataDto getVersionMsgOrNull(PUUID id, MessageMetaDto meta) {
-        DataPartition kt = this.subscriber.getPartition(id);
+        DataPartition kt = this.subscriber.getPartition(id.partition());
         return kt.getBridge().getVersion(id.id(), meta);
     }
 

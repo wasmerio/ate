@@ -11,10 +11,20 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.yamlbeans.YamlException;
 import com.esotericsoftware.yamlbeans.scalar.ScalarSerializer;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationContext;
+import com.fasterxml.jackson.databind.SerializerProvider;
+import com.fasterxml.jackson.databind.deser.std.StdScalarDeserializer;
+import com.fasterxml.jackson.databind.ser.std.StdScalarSerializer;
 import com.tokera.ate.common.StringTools;
 import com.tokera.ate.common.UUIDTools;
+import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.io.api.IPartitionKey;
+import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.io.output.ByteArrayOutputStream;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.ws.rs.Consumes;
@@ -25,12 +35,10 @@ import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.ext.MessageBodyReader;
 import javax.ws.rs.ext.MessageBodyWriter;
 import javax.ws.rs.ext.Provider;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
+import java.io.*;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
+import java.nio.ByteBuffer;
 import java.util.UUID;
 
 @Provider
@@ -58,6 +66,21 @@ public class PartitionKeySerializer extends Serializer<IPartitionKey> implements
         public int partitionIndex() {
             return m_partitionIndex;
         }
+
+        @Override
+        public String toString() {
+            return PartitionKeySerializer.toString(this);
+        }
+
+        @Override
+        public int hashCode() {
+            return PartitionKeySerializer.hashCode(this);
+        }
+
+        @Override
+        public boolean equals(Object val) {
+            return PartitionKeySerializer.equals(this, val);
+        }
     }
 
     @Override
@@ -75,22 +98,13 @@ public class PartitionKeySerializer extends Serializer<IPartitionKey> implements
     @Override
     public @Nullable String write(@Nullable IPartitionKey t) {
         if (t == null) return "null";
-        return t.partitionTopic() + "-" + t.partitionIndex();
+        return PartitionKeySerializer.toString(t);
     }
 
     @SuppressWarnings("override.return.invalid")
     @Override
-    public @Nullable IPartitionKey read(@Nullable String _val) {
-        String val = StringTools.makeOneLineOrNull(_val);
-        val = StringTools.specialParse(val);
-        if (val == null || val.length() <= 0) return null;
-
-        String[] comps = val.split("-");
-        if (comps.length != 2) return null;
-
-        return new PartitionKeyValue(
-                comps[0],
-                Integer.parseInt(comps[1]));
+    public @Nullable IPartitionKey read(@Nullable String val) {
+        return parse(val);
     }
 
     @Override
@@ -116,5 +130,74 @@ public class PartitionKeySerializer extends Serializer<IPartitionKey> implements
         if (txt == null) txt = "null";
         OutputStreamWriter streamWriter = new OutputStreamWriter(outputStream);
         streamWriter.write(txt);
+    }
+
+    public static String toString(IPartitionKey key) {
+        try {
+            ByteArrayOutputStream stream = new ByteArrayOutputStream();
+            DataOutputStream dos = new DataOutputStream(stream);
+            String topic = key.partitionTopic();
+            if (topic != null) {
+                dos.writeShort(topic.length());
+                dos.write(topic.getBytes());
+            } else {
+                dos.writeShort(0);
+            }
+            dos.writeInt(key.partitionIndex());
+            return Base64.encodeBase64URLSafeString(stream.toByteArray());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static int hashCode(IPartitionKey key) {
+        String val = toString(key);
+        return val.hashCode();
+    }
+
+    public static boolean equals(@Nullable IPartitionKey left, @Nullable Object rightObj) {
+        if (left == null && rightObj == null) return true;
+        if (left == null) return false;
+        if (rightObj == null) return false;
+        if (rightObj instanceof IPartitionKey) {
+            IPartitionKey right = (IPartitionKey)rightObj;
+            String leftVal = toString(left);
+            String rightVal = toString(right);
+            return leftVal.equals(rightVal);
+        } else {
+            return false;
+        }
+    }
+
+    public static int compareTo(@Nullable IPartitionKey left, @Nullable IPartitionKey right) {
+        if (left == null && right == null) return -1;
+        if (left == null) return -1;
+        if (right == null) return 1;
+        String leftVal = toString(left);
+        String rightVal = toString(right);
+        return leftVal.compareTo(rightVal);
+    }
+
+    public @Nullable IPartitionKey parse(@Nullable String _val) {
+        String val = StringTools.makeOneLineOrNull(_val);
+        val = StringTools.specialParse(val);
+        if (val == null || val.length() <= 0) return null;
+
+        byte[] data = Base64.decodeBase64(val);
+        ByteBuffer bb = ByteBuffer.wrap(data);
+
+        String topic = null;
+        int topicLen = bb.getShort();
+        if (topicLen > 0) {
+            byte[] topicBytes = new byte[topicLen];
+            bb.get(topicBytes);
+            topic = new String(topicBytes);
+        }
+
+        int index = bb.getInt();
+
+        return new PartitionKeyValue(
+                topic,
+                index);
     }
 }

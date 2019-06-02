@@ -5,6 +5,9 @@ import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.common.UUIDTools;
 import com.tokera.ate.dao.enumerations.RiskRole;
 import com.tokera.ate.dao.enumerations.UserRole;
+import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.io.api.IPartitionKey;
+import com.tokera.ate.providers.PartitionKeySerializer;
 import com.tokera.ate.units.*;
 import org.apache.commons.codec.binary.Base64;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -62,6 +65,7 @@ public class TokenDto {
     public static final String SECURITY_CLAIM_USER_ROLE = "claim://token/user-role";
     public static final String SECURITY_CLAIM_READ_KEY = "claim://token/read-key";
     public static final String SECURITY_CLAIM_WRITE_KEY = "claim://token/write-key";
+    public static final String SECURITY_CLAIM_PARTITION_KEY = "claim://token/partition-key";
 
     @SuppressWarnings("initialization.fields.uninitialized")
     @Deprecated
@@ -236,6 +240,19 @@ public class TokenDto {
             }
         }
         throw new WebApplicationException("Unable to find username in token.");
+    }
+
+    /**
+     * @return Partition key that is associated with this token (if any)
+     */
+    public @Nullable IPartitionKey getPartitionKeyOrNull() {
+        for (ClaimDto claim : getClaims()) {
+            if (claim.getKey().equalsIgnoreCase(TokenDto.SECURITY_CLAIM_PARTITION_KEY)) {
+                PartitionKeySerializer serializer = new PartitionKeySerializer();
+                return serializer.read(claim.getValue());
+            }
+        }
+        return null;
     }
 
     /**

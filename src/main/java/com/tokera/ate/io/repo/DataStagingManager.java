@@ -106,7 +106,7 @@ public class DataStagingManager {
     }
 
     public @Nullable BaseDao find(PUUID id) {
-        return this.find(id, id.id());
+        return this.find(id.partition(), id.id());
     }
 
     public @Nullable BaseDao find(IPartitionKey partitionKey, UUID id) {
