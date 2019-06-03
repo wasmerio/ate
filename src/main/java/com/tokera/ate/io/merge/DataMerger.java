@@ -1,5 +1,6 @@
 package com.tokera.ate.io.merge;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.HashMultiset;
 import com.tokera.ate.common.CopyOnWrite;
@@ -50,7 +51,11 @@ public class DataMerger {
 
     private static boolean isDataField(Field field) {
         if (Modifier.isTransient(field.getModifiers()) == true) return false;
+        if (field.getAnnotation(JsonIgnore.class) != null) return false;
+        if (field.getAnnotation(com.jsoniter.annotation.JsonIgnore.class) != null) return false;
+
         if (field.getAnnotation(JsonProperty.class) != null) return true;
+        if (field.getAnnotation(com.jsoniter.annotation.JsonProperty.class) != null) return true;
 
         int modifiers = field.getModifiers();
         return Modifier.isPublic(modifiers);

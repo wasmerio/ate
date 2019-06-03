@@ -1,5 +1,6 @@
 package com.tokera.ate.delegates;
 
+import com.google.common.collect.Sets;
 import com.tokera.ate.dao.IRights;
 import com.tokera.ate.dao.IRoles;
 import com.tokera.ate.events.NewAccessRightsEvent;
@@ -67,6 +68,14 @@ public class CurrentRightsDelegate implements IRights {
         }
         
         clearRightsCache();
+    }
+
+    public void impersonateRead(MessagePrivateKeyDto key) {
+        this.impersonateRead = Sets.newHashSet(key);
+    }
+
+    public void impersonateWrite(MessagePrivateKeyDto key) {
+        this.impersonateWrite = Sets.newHashSet(key);
     }
 
     public void impersonate(IRights rights) {

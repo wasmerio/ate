@@ -28,8 +28,8 @@ public class MoneyREST {
     public TransactionToken printMoney(CreateAssetRequest request) {
         Asset asset = new Asset(request.type, request.value);
         d.authorization.authorizeEntityPublicRead(asset);
-        d.authorization.authorizeEntity(asset, asset);
-        d.currentRights.impersonate(asset);
+        d.authorization.authorizeEntityWrite(request.ownershipKey, asset);
+        d.currentRights.impersonateWrite(request.ownershipKey);
         d.headIO.mergeLater(asset);
 
         AssetShare assetShare = new AssetShare(asset, request.value);

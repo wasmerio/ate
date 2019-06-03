@@ -208,6 +208,8 @@ public class DataContainer {
                         n.parentNode != null ? deserializeCache.computeIfAbsent(n.parentNode, v -> d.dataSerializer.fromDataMessage(this.partitionKey, v.msg, true)) : null,
                         deserializeCache.computeIfAbsent(n, v -> d.dataSerializer.fromDataMessage(this.partitionKey, n.msg, true))))
                 .collect(Collectors.toList());
+        MergePair<BaseDao> last = mergeSet.get(mergeSet.size()-1);
+
         // Merge the actual merge of the data object
         ret = d.merger.merge(mergeSet);
         return reconcileMergedData(ret, leaves);

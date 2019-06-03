@@ -26,12 +26,10 @@ public abstract class BaseDaoRights extends BaseDao implements IRights, Immutali
     private final ImmutalizableHashSet<MessagePrivateKeyDto> rightsRead = new ImmutalizableHashSet<>();
     @JsonProperty
     private final ImmutalizableHashSet<MessagePrivateKeyDto> rightsWrite = new ImmutalizableHashSet<>();
-    
     @Override
     public Set<MessagePrivateKeyDto> getRightsRead() {
         return rightsRead;
     }
-
     @Override
     public Set<MessagePrivateKeyDto> getRightsWrite() {
         return rightsWrite;

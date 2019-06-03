@@ -2,8 +2,7 @@ package com.tokera.examples.dao;
 
 import com.tokera.ate.annotations.PermitParentType;
 import com.tokera.ate.common.ImmutalizableArrayList;
-import com.tokera.ate.dao.base.BaseDaoRolesRights;
-import com.tokera.ate.units.Alias;
+import com.tokera.ate.dao.base.BaseDaoRoles;
 import com.tokera.ate.units.DaoId;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -13,7 +12,7 @@ import java.util.UUID;
 
 @Dependent
 @PermitParentType({Asset.class, AssetShare.class})
-public class AssetShare extends BaseDaoRolesRights {
+public class AssetShare extends BaseDaoRoles {
     public UUID id;
     public UUID parent;
     public UUID asset;
@@ -23,11 +22,6 @@ public class AssetShare extends BaseDaoRolesRights {
     @SuppressWarnings("initialization.fields.uninitialized")
     @Deprecated
     public AssetShare() {
-    }
-
-    @Override
-    public @Alias String getRightsAlias() {
-        return "ownership:" + parent + ":" + shareAmount;
     }
 
     public AssetShare(Asset asset, BigDecimal shareAmount) {
