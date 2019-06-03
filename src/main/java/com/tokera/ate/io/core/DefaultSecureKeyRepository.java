@@ -23,13 +23,13 @@ public class DefaultSecureKeyRepository implements ISecureKeyRepository {
     private AteDelegate d = AteDelegate.get();
 
     @Override
-    public @Secret byte @Nullable [] get(IPartitionKey partitionKey, @Hash String secretKeyHash, MessagePrivateKeyDto accessKey) {
+    public @Secret byte @Nullable [] get(IPartitionKey partitionKey, @Hash String plainSecretHash, MessagePrivateKeyDto accessKey) {
         DataPartitionChain chain = d.headIO.backend().getChain(partitionKey);
 
         // Loop through all the private toPutKeys that we own and try and find
         // an AES key that was encrypted for it
         try {
-            MessageEncryptTextDto text = chain.getEncryptedText(d.encryptor.getPublicKeyHash(accessKey), secretKeyHash);
+            MessageEncryptTextDto text = chain.getEncryptedText(d.encryptor.getPublicKeyHash(accessKey), plainSecretHash);
             if (text == null) return null;
             byte[] enc = text.getEncryptedTextBytes();
 
@@ -51,20 +51,20 @@ public class DefaultSecureKeyRepository implements ISecureKeyRepository {
         }
 
         // Encrypt the key
+        String plainSecretHash = d.encryptor.hashShaAndEncode(secretKey);
         byte[] encKey = d.encryptor.encrypt(publicKey, secretKey);
-        String encryptKeyHash = d.encryptor.hashShaAndEncode(encKey);
 
         // Create a message and add it
         MessageEncryptTextDto encryptText = new MessageEncryptTextDto(
                 publicKeyHash,
-                encryptKeyHash,
+                plainSecretHash,
                 encKey);
         kt.write(encryptText, d.genericLogger);
     }
 
     @Override
-    public boolean exists(IPartitionKey partitionKey, @Hash String secretKeyHash, @Hash String publicKeyHash) {
+    public boolean exists(IPartitionKey partitionKey, @Hash String plainSecretHash, @Hash String publicKeyHash) {
         DataPartitionChain chain = this.d.storageFactory.get().backend().getChain(partitionKey);
-        return chain.getEncryptedText(publicKeyHash, secretKeyHash) != null;
+        return chain.getEncryptedText(publicKeyHash, plainSecretHash) != null;
     }
 }
