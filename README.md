@@ -64,13 +64,10 @@ This library is a way of working with data in modern distributed computing.
     |  |        >realtime client side cache<--(invalidate)_|__|___/
     |  +---------------------------------------------------+  |
 
-## References
+## Persistent Kafka
 
 Its okay to store data in Kafka...  
 https://www.confluent.io/blog/okay-store-data-apache-kafka/
-
-Quantum resistant crypto...  
-https://en.wikipedia.org/wiki/NTRU
 
 ## Maven Central
 
