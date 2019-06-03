@@ -312,26 +312,7 @@ public class AuthorizationDelegate {
 
     public void authorizeEntityRead(IRights entity, IRoles to, boolean performMerge) {
         MessagePrivateKeyDto right = getOrCreateImplicitRightToRead(entity);
-
-        IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(entity);
-        String alias = d.encryptor.getAlias(partitionKey, right);
-        if (to.getTrustAllowRead().containsKey(alias)) {
-            String rightHash = to.getTrustAllowRead().get(alias);
-            if (d.encryptor.getPublicKeyHash(right).equals(rightHash)) {
-                return;
-            }
-        }
-
-        to.getTrustAllowRead().put(alias, d.encryptor.getPublicKeyHash(right));
-
-        // The encryption toPutKeys need to be rebuilt as otherwise the permissions
-        // will not really take effect if one has access to the history of the
-        // distributed commit log
-        d.daoHelper.generateEncryptKey(to);
-
-        if (performMerge) {
-            d.headIO.mergeLater((BaseDao) to);
-        }
+        authorizeEntityRead(right, to, performMerge);
 
         TokenDto token = d.currentToken.getTokenOrNull();
         if (token != null && entity.getId().equals(token.getUserIdOrNull())) {
@@ -341,6 +322,42 @@ public class AuthorizationDelegate {
         }
 
         entity.onAddRight(to);
+    }
+
+    public void authorizeEntityRead(MessagePrivateKeyDto right, IRoles to) {
+        authorizeEntityWrite(right, to, true);
+    }
+
+    public void authorizeEntityRead(MessagePrivateKeyDto right, IRoles to, boolean performMerge) {
+        String hash = d.encryptor.getPublicKeyHash(right);
+
+        // If its not in the chain-of-trust then add it
+        BaseDao toObj = (BaseDao)to;
+        IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(toObj);
+        if (performMerge) {
+            if (d.headIO.publicKeyOrNull(partitionKey, hash) == null) {
+                d.headIO.merge(partitionKey, right);
+            }
+        }
+
+        // Add it to the roles list (if its not already there)
+        String alias = d.encryptor.getAlias(partitionKey, right);
+        if (to.getTrustAllowRead().containsKey(alias)) {
+            String rightHash = to.getTrustAllowRead().get(alias);
+            if (hash.equals(rightHash)) {
+                return;
+            }
+        }
+        to.getTrustAllowRead().put(alias, hash);
+
+        // The encryption toPutKeys need to be rebuilt as otherwise the permissions
+        // will not really take effect if one has access to the history of the
+        // distributed commit log
+        d.daoHelper.generateEncryptKey(to);
+
+        if (performMerge) {
+            d.headIO.mergeLater(toObj);
+        }
     }
 
     public void authorizeEntityPublicRead(IRoles to) {
@@ -401,29 +418,47 @@ public class AuthorizationDelegate {
     }
 
     public void authorizeEntityWrite(IRights entity, IRoles to, boolean performMerge) {
-
         MessagePrivateKeyDto right = getOrCreateImplicitRightToWrite(entity);
-
-        IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(entity);
-        String alias = d.encryptor.getAlias(partitionKey, right);
-        if (to.getTrustAllowWrite().containsKey(alias)) {
-            String rightHash = to.getTrustAllowWrite().get(alias);
-            if (d.encryptor.getPublicKeyHash(right).equals(rightHash)) {
-                return;
-            }
-        }
-
-        to.getTrustAllowWrite().put(d.encryptor.getAlias(partitionKey, right), d.encryptor.getPublicKeyHash(right));
-
-        if (performMerge) {
-            d.headIO.mergeLater((BaseDao) to);
-        }
+        authorizeEntityWrite(right, to, performMerge);
 
         TokenDto token = d.currentToken.getTokenOrNull();
         if (token != null && entity.getId().equals(token.getUserIdOrNull())) {
             d.eventTokenScopeChanged.fire(new TokenScopeChangedEvent(token));
             d.eventNewAccessRights.fire(new NewAccessRightsEvent());
             d.eventTokenChanged.fire(new TokenStateChangedEvent());
+        }
+
+        entity.onAddRight(to);
+    }
+
+    public void authorizeEntityWrite(MessagePrivateKeyDto right, IRoles to) {
+        authorizeEntityWrite(right, to);
+    }
+
+    public void authorizeEntityWrite(MessagePrivateKeyDto right, IRoles to, boolean performMerge) {
+        String hash = d.encryptor.getPublicKeyHash(right);
+
+        // If its not in the chain-of-trust then add it
+        BaseDao toObj = (BaseDao)to;
+        IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(toObj);
+        if (performMerge == true) {
+            if (d.headIO.publicKeyOrNull(partitionKey, hash) == null) {
+                d.headIO.merge(partitionKey, right);
+            }
+        }
+
+        // Add it to the roles (if it doesnt exist)
+        String alias = d.encryptor.getAlias(partitionKey, right);
+        if (to.getTrustAllowWrite().containsKey(alias)) {
+            String rightHash = to.getTrustAllowWrite().get(alias);
+            if (hash.equals(rightHash)) {
+                return;
+            }
+        }
+        to.getTrustAllowWrite().put(d.encryptor.getAlias(partitionKey, right), d.encryptor.getPublicKeyHash(right));
+
+        if (performMerge) {
+            d.headIO.mergeLater(toObj);
         }
     }
 

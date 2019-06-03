@@ -92,6 +92,15 @@ public class BankIntegrationTests {
 
     @Test
     @Order(2)
+    @DisplayName("...reading transactions for individual")
+    public void readIndividualTransactions() {
+        MonthlyActivity response = this.individualSession.restGet("/account/" + this.individualAccountId + "/transactions", MonthlyActivity.class);
+        AteDelegate d = AteDelegate.get();
+        d.genericLogger.info(d.yaml.serializeObj(response));
+    }
+
+    @Test
+    @Order(3)
     @DisplayName("...generating company key")
     public void generateCompanyKey() {
         AteDelegate d = AteDelegate.get();
@@ -100,7 +109,7 @@ public class BankIntegrationTests {
     }
 
     @Test
-    @Order(3)
+    @Order(4)
     @DisplayName("...generating coining key")
     public void generateCoiningKey() {
         AteDelegate d = AteDelegate.get();
@@ -109,7 +118,7 @@ public class BankIntegrationTests {
     }
 
     @Test
-    @Order(4)
+    @Order(5)
     @DisplayName("...root login with key")
     public void rootLogin() {
         RootLoginRequest request = new RootLoginRequest();
@@ -128,7 +137,7 @@ public class BankIntegrationTests {
     }
 
     @Test
-    @Order(5)
+    @Order(6)
     @DisplayName("...creating an company account")
     public void createCompany() {
         RegistrationResponse response = this.rootSession.restPost(
@@ -149,7 +158,7 @@ public class BankIntegrationTests {
     }
 
     @Test
-    @Order(6)
+    @Order(7)
     @DisplayName("...coining login with key")
     public void coiningLogin() {
         RootLoginRequest request = new RootLoginRequest();
@@ -168,7 +177,7 @@ public class BankIntegrationTests {
     }
 
     @Test
-    @Order(7)
+    @Order(8)
     @DisplayName("...printing money for individual")
     public void printMoney() {
         CreateAssetRequest request = new CreateAssetRequest(coiningDomain, BigDecimal.valueOf(1000));
