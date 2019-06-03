@@ -72,6 +72,18 @@ https://www.confluent.io/blog/okay-store-data-apache-kafka/
 Quantum resistant crypto...  
 https://en.wikipedia.org/wiki/NTRU
 
+## Maven Central
+
+```xml
+<dependencies>
+    <dependency>
+        <groupId>com.tokera</groupId>
+        <artifactId>ate</artifactId>
+        <version>0.1.50</version>
+    </dependency>
+</dependencies>
+```
+
 ## Contribution
 
 If you would like to help setup a community to continue to develop this project

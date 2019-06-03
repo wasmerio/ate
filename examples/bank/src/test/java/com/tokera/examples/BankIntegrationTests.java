@@ -74,17 +74,6 @@ public class BankIntegrationTests {
     }
 
     @Test
-    @Order(0)
-    public void myTest() throws NoSuchProviderException, NoSuchAlgorithmException {
-        SecureRandom random = SecureRandom.getInstance("SHA1PRNG", "SUN");
-        random.setSeed(1000L);
-        int i1 = random.nextInt();
-        int i2 = random.nextInt();
-        int i3 = random.nextInt();
-        int i4 = i1;
-    }
-
-    @Test
     @Order(1)
     @DisplayName("...creating an individual account")
     public void createIndividual() {
