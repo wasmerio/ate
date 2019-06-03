@@ -154,7 +154,7 @@ public class AccountREST {
     @GET
     @Path("transactions")
     @Produces({"text/yaml", MediaType.APPLICATION_JSON})
-    public MonthlyActivity completeTransaction() {
+    public MonthlyActivity getTransactions() {
         Account acc = d.headIO.get(accountId, Account.class);
         return AccountHelper.getCurrentMonthlyActivity(acc);
     }

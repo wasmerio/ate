@@ -4,6 +4,7 @@ import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.delegates.YamlDelegate;
 import com.tokera.ate.extensions.YamlTagDiscoveryExtension;
 import com.tokera.ate.io.api.IPartitionKey;
+import com.tokera.ate.providers.PartitionKeySerializer;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
@@ -36,6 +37,21 @@ public class PuuidSerializerTests {
         @Override
         public int partitionIndex() {
             return partitionIndex;
+        }
+
+        @Override
+        public String toString() {
+            return PartitionKeySerializer.toString(this);
+        }
+
+        @Override
+        public int hashCode() {
+            return PartitionKeySerializer.hashCode(this);
+        }
+
+        @Override
+        public boolean equals(Object val) {
+            return PartitionKeySerializer.equals(this, val);
         }
     }
 

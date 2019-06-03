@@ -2,6 +2,7 @@ package com.tokera.ate.io.core;
 
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.api.IPartitionKeyMapper;
+import com.tokera.ate.providers.PartitionKeySerializer;
 import org.apache.kafka.common.utils.Utils;
 
 import java.nio.ByteBuffer;
@@ -38,6 +39,21 @@ public class DefaultPartitionKeyMapper implements IPartitionKeyMapper {
         @Override
         public int partitionIndex() {
             return (hash / maxTopics) % maxPartitionsPerTopic;
+        }
+
+        @Override
+        public String toString() {
+            return PartitionKeySerializer.toString(this);
+        }
+
+        @Override
+        public int hashCode() {
+            return PartitionKeySerializer.hashCode(this);
+        }
+
+        @Override
+        public boolean equals(Object val) {
+            return PartitionKeySerializer.equals(this, val);
         }
     }
 
