@@ -33,6 +33,7 @@ public class MoneyREST {
         d.headIO.mergeLater(asset);
 
         AssetShare assetShare = new AssetShare(asset, request.value);
+        d.authorization.authorizeEntityWrite(request.ownershipKey, assetShare);
         asset.shares.add(assetShare.id);
 
         d.headIO.mergeLater(asset);
