@@ -324,11 +324,11 @@ public class AuthorizationDelegate {
         entity.onAddRight(to);
     }
 
-    public void authorizeEntityRead(MessagePrivateKeyDto right, IRoles to) {
+    public void authorizeEntityRead(MessagePublicKeyDto right, IRoles to) {
         authorizeEntityWrite(right, to, true);
     }
 
-    public void authorizeEntityRead(MessagePrivateKeyDto right, IRoles to, boolean performMerge) {
+    public void authorizeEntityRead(MessagePublicKeyDto right, IRoles to, boolean performMerge) {
         String hash = d.encryptor.getPublicKeyHash(right);
 
         // If its not in the chain-of-trust then add it
@@ -431,11 +431,11 @@ public class AuthorizationDelegate {
         entity.onAddRight(to);
     }
 
-    public void authorizeEntityWrite(MessagePrivateKeyDto right, IRoles to) {
+    public void MessagePublicKeyDto(MessagePrivateKeyDto right, IRoles to) {
         authorizeEntityWrite(right, to);
     }
 
-    public void authorizeEntityWrite(MessagePrivateKeyDto right, IRoles to, boolean performMerge) {
+    public void MessagePublicKeyDto(MessagePrivateKeyDto right, IRoles to, boolean performMerge) {
         String hash = d.encryptor.getPublicKeyHash(right);
 
         // If its not in the chain-of-trust then add it

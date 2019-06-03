@@ -28,12 +28,11 @@ public class MoneyREST {
     public TransactionToken printMoney(CreateAssetRequest request) {
         Asset asset = new Asset(request.type, request.value);
         d.authorization.authorizeEntityPublicRead(asset);
-        d.authorization.authorizeEntityWrite(request.ownershipKey, asset);
-        d.currentRights.impersonateWrite(request.ownershipKey);
+        d.authorization.authorizeEntityWrite(d.implicitSecurity.enquireDomainKey(request.type, true), asset);
         d.headIO.mergeLater(asset);
 
         AssetShare assetShare = new AssetShare(asset, request.value);
-        d.authorization.authorizeEntity(assetShare, assetShare);
+        d.authorization.impersonateWrite(request.ownershipKey, assetShare);
         asset.shares.add(assetShare.id);
 
         d.headIO.mergeLater(asset);
