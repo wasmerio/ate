@@ -5,17 +5,11 @@ import com.google.common.collect.HashMultiset;
 import com.tokera.ate.common.CopyOnWrite;
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.PUUID;
-import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.providers.PartitionKeySerializer;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.ApplicationScoped;
-import javax.persistence.Column;
-import javax.persistence.Id;
-import java.beans.PropertyDescriptor;
 import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -56,10 +50,10 @@ public class DataMerger {
 
     private static boolean isDataField(Field field) {
         if (Modifier.isTransient(field.getModifiers()) == true) return false;
-        if (field.getAnnotation(Column.class) != null) return true;
-        if (field.getAnnotation(Id.class) != null) return true;
         if (field.getAnnotation(JsonProperty.class) != null) return true;
-        return false;
+
+        int modifiers = field.getModifiers();
+        return Modifier.isPublic(modifiers);
     }
 
     private static List<Field> getAllFields(List<Field> fields, Class<?> type) {

@@ -5,6 +5,7 @@
  */
 package com.tokera.ate.dao.base;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tokera.ate.common.Immutalizable;
 import com.tokera.ate.common.ImmutalizableTreeMap;
 import com.tokera.ate.dao.IParams;
@@ -15,7 +16,6 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.Map;
-import javax.persistence.Column;
 
 /**
  * Represents the common fields and methods of all data objects that are stored in the ATE data-store
@@ -23,15 +23,15 @@ import javax.persistence.Column;
  */
 public abstract class BaseDaoParams extends BaseDao implements IParams, Immutalizable {
 
-    @Column
+    @JsonProperty
     public final ImmutalizableTreeMap<@Alias String, @PlainText String> params = new ImmutalizableTreeMap<>();
-    @Column
+    @JsonProperty
     public final ImmutalizableTreeMap<@Alias String, @Secret String> paramsEnc = new ImmutalizableTreeMap<>();
-    @Column
+    @JsonProperty
     public boolean showParamsYml = false;
-    @Column
+    @JsonProperty
     public boolean hideParamsYml = false;
-    @Column
+    @JsonProperty
     public @MonotonicNonNull @Secret String paramsKey;
 
     /**

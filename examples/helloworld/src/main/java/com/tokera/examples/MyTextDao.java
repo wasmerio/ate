@@ -6,15 +6,14 @@ import com.tokera.ate.units.DaoId;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.Dependent;
-import javax.persistence.Column;
 import java.util.UUID;
 
 @Dependent
 @PermitParentFree
 public class MyTextDao extends BaseDaoRoles {
-    @Column
+    @JsonProperty
     public UUID id;
-    @Column
+    @JsonProperty
     public String text;
 
     public MyTextDao() {

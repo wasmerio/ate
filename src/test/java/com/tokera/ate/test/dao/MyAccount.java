@@ -10,8 +10,6 @@ import com.tokera.ate.units.*;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.Dependent;
-import javax.persistence.Column;
-import javax.persistence.Table;
 import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
@@ -23,26 +21,26 @@ import java.util.UUID;
 @YamlTag("dao.myaccount")
 @PermitParentFree
 public class MyAccount extends MyBaseAccount {
-    @Column
+    @JsonProperty
     public final ImmutalizableArrayList<@DaoId UUID> things = new ImmutalizableArrayList<>();
-    @Column
+    @JsonProperty
     public boolean isPublic = false;
-    @Column
+    @JsonProperty
     public final ImmutalizableTreeMap<@Alias String, @DaoId UUID> textFiles = new ImmutalizableTreeMap<>();
-    @Column
+    @JsonProperty
     public BigInteger num1 = BigInteger.ZERO;
-    @Column
+    @JsonProperty
     public BigDecimal num2 = BigDecimal.ZERO;
-    @Column
+    @JsonProperty
     public @Nullable @Hash String passwordHash;
-    @Column
+    @JsonProperty
     @NotNull
     @Size(min=1, max=512)
     @Pattern(regexp="[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?", message="Invalid email")//if the field contains email address consider using this annotation to enforce field validation
     private @EmailAddress String email;
-    @Column
+    @JsonProperty
     private @Nullable UUID idNullTest = null;
-    @Column
+    @JsonProperty
     private PUUID pid = new PUUID("data1234", 1, UUID.randomUUID());
 
     public MyAccount() {

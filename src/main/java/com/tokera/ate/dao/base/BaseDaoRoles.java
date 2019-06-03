@@ -5,6 +5,7 @@
  */
 package com.tokera.ate.dao.base;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tokera.ate.common.Immutalizable;
 import com.tokera.ate.common.ImmutalizableTreeMap;
 import com.tokera.ate.dao.IRoles;
@@ -15,23 +16,21 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.Map;
-import javax.persistence.Column;
-
 /**
  * Represents what who is allowed to access this data entity and its children
  * through the maintenance of roles
  */
 public abstract class BaseDaoRoles extends BaseDaoParams implements IRoles, Immutalizable {
 
-    @Column
+    @JsonProperty
     public final ImmutalizableTreeMap<@Alias String, @Hash String> trustAllowRead = new ImmutalizableTreeMap<>();
-    @Column
+    @JsonProperty
     public final ImmutalizableTreeMap<@Alias String, @Hash String> trustAllowWrite = new ImmutalizableTreeMap<>();
-    @Column
+    @JsonProperty
     public @Nullable @Secret String encryptKey = null;
-    @Column
+    @JsonProperty
     public boolean trustInheritWrite = true;
-    @Column
+    @JsonProperty
     public boolean trustInheritRead = true;
 
     /**

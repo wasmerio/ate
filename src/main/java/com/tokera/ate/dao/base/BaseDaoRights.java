@@ -5,6 +5,7 @@
  */
 package com.tokera.ate.dao.base;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tokera.ate.common.Immutalizable;
 import com.tokera.ate.common.ImmutalizableHashSet;
 import com.tokera.ate.dao.IRights;
@@ -13,7 +14,6 @@ import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.units.Alias;
 
 import java.util.Set;
-import javax.persistence.Column;
 
 /**
  * Represents the common fields and methods of all data objects that are stored in the ATE data-store
@@ -22,9 +22,9 @@ import javax.persistence.Column;
  */
 public abstract class BaseDaoRights extends BaseDao implements IRights, Immutalizable
 {
-    @Column
+    @JsonProperty
     private final ImmutalizableHashSet<MessagePrivateKeyDto> rightsRead = new ImmutalizableHashSet<>();
-    @Column
+    @JsonProperty
     private final ImmutalizableHashSet<MessagePrivateKeyDto> rightsWrite = new ImmutalizableHashSet<>();
     
     @Override
