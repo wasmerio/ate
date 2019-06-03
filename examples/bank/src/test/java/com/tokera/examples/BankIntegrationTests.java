@@ -183,14 +183,21 @@ public class BankIntegrationTests {
     @Order(8)
     @DisplayName("...printing money for individual")
     public void printMoney() {
-        CreateAssetRequest request = new CreateAssetRequest(coiningDomain, BigDecimal.valueOf(1000));
+
+        // Create a new ownership key and request
+        AteDelegate d = AteDelegate.get();
+        MessagePrivateKeyDto ownership = d.encryptor.genSignKey();
+        CreateAssetRequest request = new CreateAssetRequest(coiningDomain, BigDecimal.valueOf(1000), ownership);
+
+        // Print the money
         TransactionToken transactionToken = this.coiningSession
                 .restPost("/money/print", Entity.entity(request, MediaType.APPLICATION_JSON), TransactionToken.class);
 
+        // Give it to the individual
         MonthlyActivity monthly = this.individualSession
                 .restPost("/account/" + individualAccountId + "/completeTransaction", Entity.entity(transactionToken, MediaType.APPLICATION_JSON), MonthlyActivity.class);
 
-        AteDelegate d = AteDelegate.get();
+
         d.genericLogger.info(d.yaml.serializeObj(monthly));
     }
 }

@@ -2,6 +2,7 @@ package com.tokera.examples.rest;
 
 import com.tokera.ate.annotations.PermitReadEntity;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.examples.common.AccountHelper;
 import com.tokera.examples.dao.*;
 import com.tokera.examples.dto.*;
@@ -34,6 +35,9 @@ public class AccountREST {
         LinkedList<AssetShare> ownedShares = new LinkedList<AssetShare>();
         ownedShares.addAll(d.headIO.getManyAcrossPartitions(acc.ownerships, AssetShare.class));
 
+        // Create a new ownership key
+        MessagePrivateKeyDto ownership = d.encryptor.genSignKey();
+
         // Now we need to found up a
         List<ShareToken> shareTokens = new ArrayList<ShareToken>();
         BigDecimal remaining = request.amount;
@@ -51,7 +55,7 @@ public class AccountREST {
 
             // If the share is small enough then create a share token so the received can take ownership of it
             if (share.shareAmount.compareTo(remaining) <= 0) {
-                shareTokens.add(new ShareToken(share));
+                shareTokens.add(new ShareToken(share, ownership));
                 remaining = remaining.subtract(share.shareAmount);
 
                 // Check if we are done as we have transferred enough of these shares
@@ -77,9 +81,17 @@ public class AccountREST {
                 AssetShare right = new AssetShare(share, split);
                 share.shares.add(left.id);
                 share.shares.add(right.id);
-                share.rightsWrite.clear();
+                share.trustAllowWrite.clear();
                 share.trustInheritWrite = false;
                 d.headIO.mergeLater(share);
+
+                left.trustInheritWrite = false;
+                right.trustInheritWrite = false;
+
+                d.authorization.authorizeEntityWrite(ownership, left);
+                d.authorization.authorizeEntityWrite(ownership, right);
+                d.headIO.mergeLater(left);
+                d.headIO.mergeLater(right);
 
                 ownedShares.addFirst(left);
                 ownedShares.addFirst(right);

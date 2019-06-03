@@ -3,6 +3,7 @@ package com.tokera.examples.rest;
 import com.google.common.collect.Lists;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.examples.dao.*;
 import com.tokera.examples.dto.*;
 
@@ -28,11 +29,10 @@ public class MoneyREST {
     public TransactionToken printMoney(CreateAssetRequest request) {
         Asset asset = new Asset(request.type, request.value);
         d.authorization.authorizeEntityPublicRead(asset);
-        d.authorization.authorizeEntityWrite(d.implicitSecurity.enquireDomainKey(request.type, true), asset);
+        //d.authorization.authorizeEntityWrite(d.implicitSecurity.enquireDomainKey(request.type, true), asset);
         d.headIO.mergeLater(asset);
 
         AssetShare assetShare = new AssetShare(asset, request.value);
-        d.authorization.impersonateWrite(request.ownershipKey, assetShare);
         asset.shares.add(assetShare.id);
 
         d.headIO.mergeLater(asset);
@@ -41,7 +41,7 @@ public class MoneyREST {
         //LOG.info(d.yaml.serializeObj(asset));
         //LOG.info(d.yaml.serializeObj(assetShare));
 
-        return new TransactionToken(Lists.newArrayList(new ShareToken(assetShare)));
+        return new TransactionToken(Lists.newArrayList(new ShareToken(assetShare, request.ownershipKey)));
     }
 
     @POST
@@ -54,7 +54,7 @@ public class MoneyREST {
             throw new WebApplicationException("Asset is not of the correct type.", Response.Status.NOT_ACCEPTABLE);
         }
         assetShare.trustInheritWrite = false;
-        assetShare.rightsWrite.clear();
+        assetShare.trustAllowWrite.clear();
         d.headIO.merge(assetShare);
         return true;
     }
