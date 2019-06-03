@@ -322,7 +322,7 @@ public class DataPartitionChain {
                     d.daoParents.getAllowedParentClaimableSimple().contains(entityType) == true) {
                 MessagePublicKeyDto trustPublicKey = d.encryptor.getTrustOfPublicWrite();
                 digestPublicKey = trustPublicKey;
-                LOG.info("chain-of-trust claimed: " + entityType + ":" + id);
+                LOG.info("[" + this.getPartitionKeyStringValue() + "] chain-of-trust claimed: " + entityType + ":" + id);
             }
             // If the object is a claimable type then its allowed to attach to nothing
             else if (d.daoParents.getAllowedParentFreeSimple().contains(entityType) == true &&
@@ -335,7 +335,7 @@ public class DataPartitionChain {
                 }
 
                 digestPublicKey = trustImplicit;
-                LOG.info("chain-of-trust rooted: " + entityType + ":" + id + " on " + trustImplicit.getPublicKeyHash());
+                LOG.info("[" + this.getPartitionKeyStringValue() + "] chain-of-trust rooted: " + entityType + ":" + id + " on " + trustImplicit.getPublicKeyHash());
             }
             // Otherwise we fail
             else {

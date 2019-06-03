@@ -4,6 +4,7 @@ import com.google.common.collect.Lists;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
+import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import com.tokera.examples.dao.*;
 import com.tokera.examples.dto.*;
 
@@ -27,9 +28,11 @@ public class MoneyREST {
     @Produces({"text/yaml", MediaType.APPLICATION_JSON})
     @Consumes({"text/yaml", MediaType.APPLICATION_JSON})
     public TransactionToken printMoney(CreateAssetRequest request) {
+        MessagePublicKeyDto coiningKey = d.implicitSecurity.enquireDomainKey(request.type, true);
+
         Asset asset = new Asset(request.type, request.value);
         d.authorization.authorizeEntityPublicRead(asset);
-        //d.authorization.authorizeEntityWrite(d.implicitSecurity.enquireDomainKey(request.type, true), asset);
+        d.authorization.authorizeEntityWrite(coiningKey, asset);
         d.headIO.mergeLater(asset);
 
         AssetShare assetShare = new AssetShare(asset, request.value);
@@ -41,6 +44,9 @@ public class MoneyREST {
 
         //LOG.info(d.yaml.serializeObj(asset));
         //LOG.info(d.yaml.serializeObj(assetShare));
+
+        d.headIO.merge(asset.addressableId().partition(), coiningKey);
+        d.headIO.merge(asset.addressableId().partition(), request.ownershipKey);
 
         return new TransactionToken(Lists.newArrayList(new ShareToken(assetShare, request.ownershipKey)));
     }
