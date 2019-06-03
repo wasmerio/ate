@@ -20,6 +20,9 @@ import javax.validation.constraints.NotNull;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.MediaType;
 import java.math.BigDecimal;
+import java.security.NoSuchAlgorithmException;
+import java.security.NoSuchProviderException;
+import java.security.SecureRandom;
 import java.util.UUID;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -68,6 +71,17 @@ public class BankIntegrationTests {
                 .port(8080)
                 .prefixForRest("/rs/1-0")
                 .build();
+    }
+
+    @Test
+    @Order(0)
+    public void myTest() throws NoSuchProviderException, NoSuchAlgorithmException {
+        SecureRandom random = SecureRandom.getInstance("SHA1PRNG", "SUN");
+        random.setSeed(1000L);
+        int i1 = random.nextInt();
+        int i2 = random.nextInt();
+        int i3 = random.nextInt();
+        int i4 = i1;
     }
 
     @Test

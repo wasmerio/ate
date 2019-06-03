@@ -115,7 +115,7 @@ public class SigningKeyPairGenerator {
 
         do {
             do {
-                f = params.polyType == NTRUParameters.TERNARY_POLYNOMIAL_TYPE_SIMPLE ? SupportUtil.generateRandomDense(N, d + 1, d, random.getRandom().get()) : SupportUtil.generateRandomProduct(N, d1, d2, d3 + 1, d3, random.getRandom().get());
+                f = params.polyType == NTRUParameters.TERNARY_POLYNOMIAL_TYPE_SIMPLE ? SupportUtil.generateRandomDense(N, d + 1, d, random.getRandom()) : SupportUtil.generateRandomProduct(N, d1, d2, d3 + 1, d3, random.getRandom());
                 fInt = f.toIntegerPolynomial();
             } while (primeCheck && fInt.resultant(_2n1).res.equals(ZERO));
             fq = fInt.invertFq(q);
@@ -125,7 +125,7 @@ public class SigningKeyPairGenerator {
         do {
             do {
                 do {
-                    g = params.polyType == NTRUParameters.TERNARY_POLYNOMIAL_TYPE_SIMPLE ? SupportUtil.generateRandomDense(N, d + 1, d, random.getRandom().get()) : SupportUtil.generateRandomProduct(N, d1, d2, d3 + 1, d3, random.getRandom().get());
+                    g = params.polyType == NTRUParameters.TERNARY_POLYNOMIAL_TYPE_SIMPLE ? SupportUtil.generateRandomDense(N, d + 1, d, random.getRandom()) : SupportUtil.generateRandomProduct(N, d1, d2, d3 + 1, d3, random.getRandom());
                     gInt = g.toIntegerPolynomial();
                 } while (primeCheck && gInt.resultant(_2n1).res.equals(ZERO));
             } while (gInt.invertFq(q) == null);

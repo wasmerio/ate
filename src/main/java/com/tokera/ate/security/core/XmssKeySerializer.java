@@ -1,6 +1,5 @@
-package com.tokera.ate.security.core.xmss_predictable;
+package com.tokera.ate.security.core;
 
-import org.apache.kafka.common.utils.Utils;
 import org.bouncycastle.crypto.digests.SHA512Digest;
 import org.bouncycastle.pqc.crypto.xmss.XMSSMTParameters;
 import org.bouncycastle.pqc.crypto.xmss.XMSSMTPrivateKeyParameters;

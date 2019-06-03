@@ -3,7 +3,6 @@ package com.tokera.ate.security;
 import com.google.common.base.Charsets;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import com.tokera.ate.common.ImmutalizableArrayList;
 import com.tokera.ate.dao.enumerations.KeyType;
 import com.tokera.ate.dto.msg.MessageKeyPartDto;
 import com.tokera.ate.io.api.IPartitionKey;
@@ -12,16 +11,9 @@ import com.tokera.ate.io.api.IAteIO;
 import com.tokera.ate.qualifiers.BackendStorageSystem;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.security.core.*;
-import com.tokera.ate.security.core.newhope_predictable.NHKeyPairGeneratorPredictable;
+import com.tokera.ate.security.core.XmssKeySerializer;
 import com.tokera.ate.security.core.ntru_predictable.EncryptionKeyPairGenerator;
 import com.tokera.ate.security.core.ntru_predictable.SigningKeyPairGenerator;
-import com.tokera.ate.security.core.qtesla_predictable.QTESLAKeyPairGeneratorPredictable;
-import com.tokera.ate.security.core.rainbow_predictable.RainbowKeyPairGeneratorPredictable;
-import com.tokera.ate.security.core.rainbow_predictable.RainbowKeySerializer;
-import com.tokera.ate.security.core.xmss_predictable.XMSSMTKeyGenerationParametersPredictable;
-import com.tokera.ate.security.core.xmss_predictable.XMSSMTKeyPairGeneratorPredictable;
-import com.tokera.ate.security.core.xmss_predictable.XMSSMTParametersPredictable;
-import com.tokera.ate.security.core.xmss_predictable.XmssKeySerializer;
 import com.tokera.ate.units.*;
 import com.tokera.ate.dao.msg.MessagePrivateKey;
 import com.tokera.ate.dao.msg.MessagePublicKey;
@@ -652,7 +644,7 @@ public class Encryptor implements Runnable
     }
 
     public MessagePrivateKeyDto genSignKeyFromSeedWithAlias(int keySize, Iterable<KeyType> keyTypes, String seed, @Nullable @Alias String alias) {
-        PredictablyRandomFactory random = new PredictablyRandomFactory(seed);
+        IRandomFactory randomFactory = new PredictablyRandomFactory(seed);
         List<MessageKeyPartDto> publicParts = new LinkedList<>();
         List<MessageKeyPartDto> privateParts = new LinkedList<>();
 
@@ -660,13 +652,13 @@ public class Encryptor implements Runnable
             KeyPairBytes pair;
             switch (keyType) {
                 case qtesla:
-                    pair = genSignKeyQTeslaFromSeed(keySize, random);
+                    pair = genSignKeyQTeslaNow(keySize, randomFactory);
                     break;
                 case xmssmt:
-                    pair = genSignKeyXmssMtFromSeed(keySize, random);
+                    pair = genSignKeyXmssMtNow(keySize, randomFactory);
                     break;
                 case rainbow:
-                    pair = genSignKeyRainbowFromSeed(keySize, random);
+                    pair = genSignKeyRainbowNow(keySize, randomFactory);
                     break;
                 case ntru_sign:
                     throw new RuntimeException("NTRU for signing is not considered secure anymore.");
@@ -683,7 +675,19 @@ public class Encryptor implements Runnable
     }
 
     @Deprecated
+    public KeyPairBytes genSignKeyNtruFromSeed(int keysize, @Salt String seed)
+    {
+        return genSignKeyNtruNow(keysize, new PredictablyRandomFactory(seed));
+    }
+
+    @Deprecated
     public KeyPairBytes genSignKeyNtruNow(int keysize)
+    {
+        return genSignKeyNtruNow(keysize, new SecureRandomFactory());
+    }
+
+    @Deprecated
+    public KeyPairBytes genSignKeyNtruNow(int keysize, IRandomFactory randomFactory)
     {
         for (int n = 0; n < 8; n++) {
             SigningKeyPairGenerator keyGen = new SigningKeyPairGenerator();
@@ -701,7 +705,7 @@ public class Encryptor implements Runnable
                     throw new RuntimeException("Unknown NTRU key size(" + keysize + ")");
             }
 
-            AsymmetricCipherKeyPair pair = keyGen.generateKeyPair(new SecureRandomFactory());
+            AsymmetricCipherKeyPair pair = keyGen.generateKeyPair(randomFactory);
             if (testSignNtru(pair) == false) {
                 continue;
             }
@@ -709,31 +713,6 @@ public class Encryptor implements Runnable
             return extractKey(pair);
         }
         throw new RuntimeException("Failed to generate signing key");
-    }
-
-    @Deprecated
-    public KeyPairBytes genSignKeyNtruFromSeed(int keysize, @Salt String seed)
-    {
-        SigningKeyPairGenerator gen = new SigningKeyPairGenerator();
-        switch (keysize) {
-            case 256:
-                gen.init(buildNtruSignParams256());
-                break;
-            case 128:
-                gen.init(buildNtruSignParams128());
-                break;
-            case 64:
-                gen.init(buildNtruSignParams64());
-                break;
-            default:
-                throw new RuntimeException("Unknown NTRU key size(" + keysize + ")");
-        }
-
-        AsymmetricCipherKeyPair pair = gen.generateKeyPair(new PredictablyRandomFactory(seed));
-        if (testSignNtru(pair) == false) {
-            throw new RuntimeException("Failed to generate signing key from seed");
-        }
-        return extractKey(pair);
     }
 
     @Deprecated
@@ -840,7 +819,7 @@ public class Encryptor implements Runnable
     }
 
     public MessagePrivateKeyDto genEncryptKeyFromSeedWithAlias(int keySize, Iterable<KeyType> keyTypes, String seed, @Nullable @Alias String alias) {
-        PredictablyRandomFactory random = new PredictablyRandomFactory(seed);
+        IRandomFactory randomFactory = new PredictablyRandomFactory(seed);
 
         if (Iterables.size(keyTypes) <= 0) {
             throw new RuntimeException("Generated encryption key must have at least one key type.");
@@ -853,10 +832,10 @@ public class Encryptor implements Runnable
             KeyPairBytes pair;
             switch (keyType) {
                 case ntru:
-                    pair = genEncryptKeyNtruFromSeed(keySize, random);
+                    pair = genEncryptKeyNtruNow(keySize, randomFactory);
                     break;
                 case newhope:
-                    pair = genEncryptKeyNewHopeFromSeed(keySize, random);
+                    pair = genEncryptKeyNewHopeNow(keySize, randomFactory);
                     break;
                 default:
                     throw new RuntimeException("The key type [" + keyType + "] is not supported as an asymmetric encryption key.");
@@ -869,8 +848,18 @@ public class Encryptor implements Runnable
         if (alias != null) ret.setAlias(alias);
         return ret;
     }
-    
+
+    public KeyPairBytes genEncryptKeyNtruFromSeed(int keysize, @Secret String seed)
+    {
+        return genEncryptKeyNtruNow(keysize, new PredictablyRandomFactory(seed));
+    }
+
     public KeyPairBytes genEncryptKeyNtruNow(int keysize)
+    {
+        return genEncryptKeyNtruNow(keysize, new SecureRandomFactory());
+    }
+    
+    public KeyPairBytes genEncryptKeyNtruNow(int keysize, IRandomFactory randomFactory)
     {
         for (int n = 0; n < 8; n++) {
             EncryptionKeyPairGenerator keyGen = new EncryptionKeyPairGenerator();
@@ -886,41 +875,13 @@ public class Encryptor implements Runnable
                     throw new RuntimeException("Unknown NTRU key size(" + keysize + ")");
             }
 
-            AsymmetricCipherKeyPair pair = keyGen.generateKeyPair(new SecureRandomFactory());
+            AsymmetricCipherKeyPair pair = keyGen.generateKeyPair(randomFactory);
             if (testNtruKey(pair) == false) {
                 continue;
             }
             return extractKey(pair);
         }
         throw new RuntimeException("Failed to generate encryption key");
-    }
-
-    public KeyPairBytes genEncryptKeyNtruFromSeed(int keysize, @Secret String seed)
-    {
-        PredictablyRandomFactory random = new PredictablyRandomFactory(seed);
-        return genEncryptKeyNtruFromSeed(keysize, random);
-    }
-    
-    public KeyPairBytes genEncryptKeyNtruFromSeed(int keysize, PredictablyRandomFactory random)
-    {
-        EncryptionKeyPairGenerator gen = new EncryptionKeyPairGenerator();
-        switch (keysize) {
-            case 512:
-            case 256:
-                gen.init(buildNtruEncryptParams256());
-                break;
-            case 128:
-                gen.init(buildNtruEncryptParams128());
-                break;
-            default:
-                throw new RuntimeException("Unknown NTRU key size(" + keysize + ")");
-        }
-
-        AsymmetricCipherKeyPair pair = gen.generateKeyPair(random);
-        if (testNtruKey(pair) == false) {
-            throw new RuntimeException("Failed to generate encryption key from seed");
-        }
-        return extractKey(pair);
     }
     
     private boolean testNtruKey(AsymmetricCipherKeyPair pair) {
@@ -947,25 +908,21 @@ public class Encryptor implements Runnable
 
     public KeyPairBytes genEncryptKeyNewHopeFromSeed(int keysize, String seed)
     {
-        PredictablyRandomFactory random = new PredictablyRandomFactory(seed);
-        return genEncryptKeyNewHopeFromSeed(keysize, random);
+        return genEncryptKeyNewHopeNow(keysize, new PredictablyRandomFactory(seed));
     }
 
-    public KeyPairBytes genEncryptKeyNewHopeFromSeed(int keysize, PredictablyRandomFactory random)
+    public KeyPairBytes genEncryptKeyNewHopeNow(int keysize, IRandomFactory randomFactory)
     {
-        NHKeyPairGeneratorPredictable gen = new NHKeyPairGeneratorPredictable();
-        gen.init(random);
+        KeyGenerationParameters params = new KeyGenerationParameters(randomFactory.getRandom(), keysize);
+
+        NHKeyPairGenerator gen = new NHKeyPairGenerator();
+        gen.init(params);
         return extractKey(gen.generateKeyPair());
     }
 
     public KeyPairBytes genEncryptKeyNewHopeNow(int keysize)
     {
-        SecureRandom keyRandom = new SecureRandom();
-        KeyGenerationParameters params = new KeyGenerationParameters(keyRandom, keysize);
-
-        NHKeyPairGenerator gen = new NHKeyPairGenerator();
-        gen.init(params);
-        return extractKey(gen.generateKeyPair());
+        return genEncryptKeyNewHopeNow(keysize, new SecureRandomFactory());
     }
 
     public @Secret byte[] encryptNewHopeWithPublic(@Secret byte[] publicKey, @PlainText byte[] data)
@@ -1113,13 +1070,16 @@ public class Encryptor implements Runnable
     }
 
     public KeyPairBytes genSignKeyQTeslaFromSeed(int keysize, String seed) {
-        PredictablyRandomFactory keyRandom = new PredictablyRandomFactory(seed);
-        return genSignKeyQTeslaFromSeed(keysize, keyRandom);
+        return genSignKeyQTeslaNow(keysize, new PredictablyRandomFactory(seed));
     }
 
-    public KeyPairBytes genSignKeyQTeslaFromSeed(int keysize, PredictablyRandomFactory keyRandom)
+    public KeyPairBytes genSignKeyQTeslaNow(int keysize) {
+        return genSignKeyQTeslaNow(keysize, new SecureRandomFactory());
+    }
+
+    public KeyPairBytes genSignKeyQTeslaNow(int keysize, IRandomFactory randomFactory)
     {
-        SecureRandom unusedRandom = new SecureRandom();
+        SecureRandom unusedRandom = randomFactory.getRandom();
         QTESLAKeyGenerationParameters params;
         switch (keysize) {
             case 512:
@@ -1131,30 +1091,6 @@ public class Encryptor implements Runnable
             case 128:
             case 64:
                 params = new QTESLAKeyGenerationParameters(QTESLASecurityCategory.HEURISTIC_I, unusedRandom);
-                break;
-            default:
-                throw new RuntimeException("Unknown GMSS key size(" + keysize + ")");
-        }
-        QTESLAKeyPairGeneratorPredictable gen = new QTESLAKeyPairGeneratorPredictable();
-        gen.init(params, keyRandom);
-        return extractKey(gen.generateKeyPair());
-    }
-
-    public KeyPairBytes genSignKeyQTeslaNow(int keysize)
-    {
-        SecureRandom keyRandom = new SecureRandom();
-
-        QTESLAKeyGenerationParameters params;
-        switch (keysize) {
-            case 512:
-                params = new QTESLAKeyGenerationParameters(QTESLASecurityCategory.PROVABLY_SECURE_III, keyRandom);
-                break;
-            case 256:
-                params = new QTESLAKeyGenerationParameters(QTESLASecurityCategory.HEURISTIC_III_SPEED, keyRandom);
-                break;
-            case 128:
-            case 64:
-                params = new QTESLAKeyGenerationParameters(QTESLASecurityCategory.HEURISTIC_I, keyRandom);
                 break;
             default:
                 throw new RuntimeException("Unknown GMSS key size(" + keysize + ")");
@@ -1190,33 +1126,13 @@ public class Encryptor implements Runnable
         return signer.verifySignature(digest, sig);
     }
 
-    public KeyPairBytes genSignKeyRainbowFromSeed(int keysize, PredictablyRandomFactory keyRandom)
-    {
-        SecureRandom dummyRandom = new SecureRandom();
-
-        RainbowKeyGenerationParameters params;
-        switch (keysize) {
-            case 512:
-                params = new RainbowKeyGenerationParameters(dummyRandom, new RainbowParameters());
-                break;
-            case 256:
-                params = new RainbowKeyGenerationParameters(dummyRandom, new RainbowParameters());
-                break;
-            case 128:
-            case 64:
-                params = new RainbowKeyGenerationParameters(dummyRandom, new RainbowParameters());
-                break;
-            default:
-                throw new RuntimeException("Unknown RAINBOW key size(" + keysize + ")");
-        }
-        RainbowKeyPairGeneratorPredictable gen = new RainbowKeyPairGeneratorPredictable(keyRandom);
-        gen.init(params);
-        return extractKey(gen.generateKeyPair());
+    public KeyPairBytes genSignKeyRainbowFromSeed(int keysize, String seed) {
+        return genSignKeyRainbowNow(keysize, new PredictablyRandomFactory(seed));
     }
 
-    public KeyPairBytes genSignKeyRainbowNow(int keysize)
+    public KeyPairBytes genSignKeyRainbowNow(int keysize, IRandomFactory randomFactory)
     {
-        SecureRandom keyRandom = new SecureRandom();
+        SecureRandom keyRandom = randomFactory.getRandom();
 
         RainbowKeyGenerationParameters params;
         switch (keysize) {
@@ -1238,6 +1154,11 @@ public class Encryptor implements Runnable
         return extractKey(gen.generateKeyPair());
     }
 
+    public KeyPairBytes genSignKeyRainbowNow(int keysize)
+    {
+        return genSignKeyRainbowNow(keysize, new SecureRandomFactory());
+    }
+
     public @Signature byte[] signRainbow(@Secret byte[] privateKey, @Hash byte[] digest)
     {
         RainbowPrivateKeyParameters params = RainbowKeySerializer.deserializePrivate(privateKey);
@@ -1257,21 +1178,17 @@ public class Encryptor implements Runnable
     }
 
     public KeyPairBytes genSignKeyXmssMtFromSeed(int keysize, String seed) {
-        PredictablyRandomFactory keyRandom = new PredictablyRandomFactory(seed);
-        return genSignKeyXmssMtFromSeed(keysize, keyRandom);
-    }
-
-    public KeyPairBytes genSignKeyXmssMtFromSeed(int keysize, PredictablyRandomFactory keyRandom) {
-        XMSSMTParametersPredictable params = new XMSSMTParametersPredictable(20, 10, new SHA512Digest());
-
-        XMSSMTKeyPairGeneratorPredictable gen = new XMSSMTKeyPairGeneratorPredictable();
-        gen.init(new XMSSMTKeyGenerationParametersPredictable(params, new SecureRandom()), keyRandom);
-        return extractKey(gen.generateKeyPair());
+        return genSignKeyXmssMtNow(keysize, new PredictablyRandomFactory(seed));
     }
 
     public KeyPairBytes genSignKeyXmssMtNow(int keysize)
     {
-        SecureRandom keyRandom = new SecureRandom();
+        return genSignKeyXmssMtNow(keysize, new SecureRandomFactory());
+    }
+
+    public KeyPairBytes genSignKeyXmssMtNow(int keysize, IRandomFactory randomFactory)
+    {
+        SecureRandom keyRandom = randomFactory.getRandom();
         XMSSMTParameters params = new XMSSMTParameters(20, 10, new SHA512Digest());
 
         XMSSMTKeyPairGenerator gen = new XMSSMTKeyPairGenerator();

@@ -1,4 +1,4 @@
-package com.tokera.ate.security.core.rainbow_predictable;
+package com.tokera.ate.security.core;
 
 import org.bouncycastle.crypto.digests.SHA512Digest;
 import org.bouncycastle.pqc.crypto.rainbow.Layer;
@@ -39,7 +39,7 @@ public class RainbowKeySerializer {
                     readShortTripleArray(bb),
                     readShortDoubleArray(bb),
                     readShortArray(bb)
-                );
+            );
             ret[n] = layer;
         }
 
@@ -155,7 +155,7 @@ public class RainbowKeySerializer {
                 readShortDoubleArray(bb),
                 readShortDoubleArray(bb),
                 readShortArray(bb)
-            );
+        );
     }
 
     public static RainbowPrivateKeyParameters deserializePrivate(byte[] data) {
@@ -167,6 +167,6 @@ public class RainbowKeySerializer {
                 readShortArray(bb),
                 readIntArray(bb),
                 readLayerArray(bb)
-            );
+        );
     }
 }
