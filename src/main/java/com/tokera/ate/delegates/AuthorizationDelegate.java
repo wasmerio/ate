@@ -432,7 +432,7 @@ public class AuthorizationDelegate {
     }
 
     public void authorizeEntityWrite(MessagePublicKeyDto right, IRoles to) {
-        authorizeEntityWrite(right, to);
+        authorizeEntityWrite(right, to, true);
     }
 
     public void authorizeEntityWrite(MessagePublicKeyDto right, IRoles to, boolean performMerge) {
