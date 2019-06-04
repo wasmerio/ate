@@ -166,13 +166,6 @@ public class ApiServer {
         d.storageFactory.buildKafkaBackend()
                         .addCacheLayer()
                         .addAccessLoggerLayer();
-
-        // Configure the encryption system
-        d.encryptor.setDefaultAesStrength(apiConfig.getDefaultAesStrength());
-        d.encryptor.setDefaultEncryptTypes(apiConfig.getDefaultEncryptTypes());
-        d.encryptor.setDefaultEncryptionStrength(apiConfig.getDefaultEncryptionStrength());
-        d.encryptor.setDefaultSigningTypes(apiConfig.getDefaultSigningTypes());
-        d.encryptor.setDefaultSigningStrength(apiConfig.getDefaultSigningStrength());
         
         // Load the properties file
         Properties props = ApplicationConfigLoader.getInstance().getPropertiesByName(apiConfig.getPropertiesFileAte());

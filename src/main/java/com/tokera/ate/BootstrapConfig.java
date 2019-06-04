@@ -37,11 +37,7 @@ public class BootstrapConfig {
     private String propertiesFileTopicIo = "topic.io.properties";
     private String propertiesFileTopicPublic = "topic.publish.properties";
 
-    private Iterable<KeyType> defaultSigningTypes = Lists.newArrayList(KeyType.qtesla, KeyType.rainbow);
-    private Iterable<KeyType> defaultEncryptTypes = Lists.newArrayList(KeyType.ntru, KeyType.newhope);
-    private int defaultAesStrength = 256;
-    private int defaultSigningStrength = 256;
-    private int defaultEncryptionStrength = 256;
+    private SecurityLevel securityLevel = SecurityLevel.VeryHighlySecure;
 
     // Only weld should initialize this configuration using the ApiServer.startWeld method
     @Deprecated()
@@ -237,42 +233,30 @@ public class BootstrapConfig {
     }
 
     public Iterable<KeyType> getDefaultSigningTypes() {
-        return defaultSigningTypes;
-    }
-
-    public void setDefaultSigningTypes(Iterable<KeyType> defaultSigningTypes) {
-        this.defaultSigningTypes = defaultSigningTypes;
+        return securityLevel.signingTypes;
     }
 
     public Iterable<KeyType> getDefaultEncryptTypes() {
-        return defaultEncryptTypes;
-    }
-
-    public void setDefaultEncryptTypes(Iterable<KeyType> defaultEncryptTypes) {
-        this.defaultEncryptTypes = defaultEncryptTypes;
+        return securityLevel.encryptTypes;
     }
 
     public int getDefaultAesStrength() {
-        return defaultAesStrength;
-    }
-
-    public void setDefaultAesStrength(int defaultAesStrength) {
-        this.defaultAesStrength = defaultAesStrength;
+        return securityLevel.aesStrength;
     }
 
     public int getDefaultSigningStrength() {
-        return defaultSigningStrength;
-    }
-
-    public void setDefaultSigningStrength(int defaultSigningStrength) {
-        this.defaultSigningStrength = defaultSigningStrength;
+        return securityLevel.signingStrength;
     }
 
     public int getDefaultEncryptionStrength() {
-        return defaultEncryptionStrength;
+        return securityLevel.encryptionStrength;
     }
 
-    public void setDefaultEncryptionStrength(int defaultEncryptionStrength) {
-        this.defaultEncryptionStrength = defaultEncryptionStrength;
+    public SecurityLevel getSecurityLevel() {
+        return securityLevel;
+    }
+
+    public void setSecurityLevel(SecurityLevel securityLevel) {
+        this.securityLevel = securityLevel;
     }
 }

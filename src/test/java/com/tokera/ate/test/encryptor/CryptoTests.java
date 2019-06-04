@@ -16,6 +16,7 @@
 package com.tokera.ate.test.encryptor;
 
 import com.google.common.collect.Lists;
+import com.tokera.ate.BootstrapConfig;
 import com.tokera.ate.dto.msg.MessageKeyPartDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.security.Encryptor;
@@ -38,9 +39,11 @@ public class CryptoTests {
 
     private final static Encryptor encryptor = new Encryptor();
 
+    @SuppressWarnings("deprecation")
     @BeforeAll
     public static void init() {
         encryptor.init();
+        encryptor.setBootstrapConfig(new BootstrapConfig());
     }
 
     private void testSeededSigningKeyInternal(int keysize)

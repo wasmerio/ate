@@ -3,6 +3,7 @@ package com.tokera.ate.security;
 import com.google.common.base.Charsets;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import com.tokera.ate.BootstrapConfig;
 import com.tokera.ate.dao.enumerations.KeyType;
 import com.tokera.ate.dto.msg.MessageKeyPartDto;
 import com.tokera.ate.io.api.IPartitionKey;
@@ -13,7 +14,6 @@ import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.security.core.*;
 import com.tokera.ate.security.core.XmssKeySerializer;
 import com.tokera.ate.security.core.ntru_predictable.EncryptionKeyPairGenerator;
-import com.tokera.ate.security.core.ntru_predictable.SigningKeyPairGenerator;
 import com.tokera.ate.units.*;
 import com.tokera.ate.dao.msg.MessagePrivateKey;
 import com.tokera.ate.dao.msg.MessagePublicKey;
@@ -77,6 +77,9 @@ public class Encryptor implements Runnable
     @SuppressWarnings("initialization.fields.uninitialized")
     @Inject
     private LoggerHook LOG;
+    @SuppressWarnings("initialization.fields.uninitialized")
+    @Inject
+    private BootstrapConfig config;
 
     @SuppressWarnings("initialization.fields.uninitialized")
     private static Encryptor g_Instance;
@@ -96,14 +99,6 @@ public class Encryptor implements Runnable
     
     private final SecureRandom srandom = new SecureRandom();
     private final ArrayList<Thread> threads = new ArrayList<>();
-    
-    private final int ntruSignParams128thresholdPrivate = (1556 + 442) / 2;
-    private final int ntruSignParams128thresholdPublic = (604 + 157) / 2;
-    private final int ntruSignParams256thresholdPrivate = (2636 + 1556)/2;
-    private final int ntruSignParams256thresholdPublic = (1022 + 604)/2;
-    
-    private final int ntruEncryptParams256thresholdPrivate = (1170 + 691) / 2;
-    private final int ntruEncryptParams256thresholdPublic = (1022 + 604)/2;
 
     private int c_KeyPreGenThreads = 6;
     private int c_KeyPreGenDelay = 60;
@@ -128,14 +123,7 @@ public class Encryptor implements Runnable
     private final ConcurrentLinkedQueue<@Secret String> genAes512Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<@Secret String> genSaltQueue = new ConcurrentLinkedQueue<>();
 
-    //private Iterable<KeyType> defaultSigningTypes = Lists.newArrayList(KeyType.qtesla, KeyType.xmssmt);
-    //private Iterable<KeyType> defaultEncryptTypes = Lists.newArrayList(KeyType.ntru, KeyType.newhope);
-    private Iterable<KeyType> defaultSigningTypes = Lists.newArrayList(KeyType.qtesla, KeyType.rainbow);
-    private Iterable<KeyType> defaultEncryptTypes = Lists.newArrayList(KeyType.ntru, KeyType.newhope);
-    private int defaultAesStrength = 256;
-    private int defaultSigningStrength = 256;
-    private int defaultEncryptionStrength = 256;
-    private Set<Integer> validEncryptSizes = new HashSet<>(Lists.newArrayList(32, 64, 128, 256, 512));
+    private Set<Integer> validEncryptSizes = new HashSet<>(Lists.newArrayList(32, 64, 128, 192, 256, 512));
 
     public class KeyPairBytes
     {
@@ -157,26 +145,6 @@ public class Encryptor implements Runnable
         }
     }
 
-    public void setDefaultSigningTypes(Iterable<KeyType> keyTypes) {
-        this.defaultSigningTypes = keyTypes;
-    }
-
-    public void setDefaultEncryptTypes(Iterable<KeyType> keyTypes) {
-        this.defaultEncryptTypes = keyTypes;
-    }
-
-    public void setDefaultAesStrength(int keySize) {
-        this.defaultAesStrength = keySize;
-    }
-
-    public void setDefaultSigningStrength(int keySize) {
-        this.defaultSigningStrength = keySize;
-    }
-
-    public void setDefaultEncryptionStrength(int keySize) {
-        this.defaultEncryptionStrength = keySize;
-    }
-
     /**
      * @return Set of valid encryption sizes measured in bits for asymmetric encryption
      */
@@ -191,26 +159,6 @@ public class Encryptor implements Runnable
         this.validEncryptSizes = validEncryptSizes;
     }
 
-    private NTRUSigningKeyGenerationParameters buildNtruSignParams64() {
-        return new NTRUSigningKeyGenerationParameters(157, 256, 29, 1, NTRUSigningKeyGenerationParameters.BASIS_TYPE_TRANSPOSE, 0.38, 200, 80, false, false, NTRUSigningKeyGenerationParameters.KEY_GEN_ALG_RESULTANT, new SHA256Digest());
-    }
-
-    private NTRUSigningKeyGenerationParameters buildNtruSignParams128() {
-        return new NTRUSigningKeyGenerationParameters(439, 2048, 146, 1, NTRUSigningKeyGenerationParameters.BASIS_TYPE_TRANSPOSE, 0.165, 490, 280, false, true, NTRUSigningKeyGenerationParameters.KEY_GEN_ALG_RESULTANT, new SHA256Digest());
-    }
-
-    private NTRUSigningKeyGenerationParameters buildNtruSignParams256() {
-        return new NTRUSigningKeyGenerationParameters(743, 2048, 248, 1, NTRUSigningKeyGenerationParameters.BASIS_TYPE_TRANSPOSE, 0.127, 560, 360, true, false, NTRUSigningKeyGenerationParameters.KEY_GEN_ALG_RESULTANT, new SHA512Digest());
-    }
-
-    private NTRUEncryptionKeyGenerationParameters buildNtruEncryptParams128() {
-        return new NTRUEncryptionKeyGenerationParameters(439, 2048, 146, 130, 128, 9, 32, 9, true, new byte[]{0, 7, 101}, true, false, new SHA256Digest());
-    }
-
-    private NTRUEncryptionKeyGenerationParameters buildNtruEncryptParams256() {
-        return new NTRUEncryptionKeyGenerationParameters(743, 2048, 248, 220, 256, 10, 27, 14, true, new byte[]{0, 7, 105}, false, false, new SHA512Digest());
-    }
-    
     @PostConstruct
     public void init() {
         g_Instance = this;
@@ -233,6 +181,10 @@ public class Encryptor implements Runnable
             thread.start();
             threads.add(thread);
         }
+    }
+
+    public void setBootstrapConfig(BootstrapConfig config) {
+        this.config = config;
     }
 
     public void setKeyPreGenThreads(int val) {
@@ -357,27 +309,27 @@ public class Encryptor implements Runnable
         {
             boolean didGen = false;
             if (cntSign64 < c_KeyPreGen64 && cntSign64 < cap) {
-                genSign64Queue.add(this.genSignKeyNow(64, defaultSigningTypes));
+                genSign64Queue.add(this.genSignKeyNow(64, config.getDefaultSigningTypes()));
                 cntSign64++;
                 didGen = true;
             }
             if (cntSign128 < c_KeyPreGen128 && cntSign128 < cap) {
-                genSign128Queue.add(this.genSignKeyNow(128, defaultSigningTypes));
+                genSign128Queue.add(this.genSignKeyNow(128, config.getDefaultSigningTypes()));
                 cntSign128++;
                 didGen = true;
             }
             if (cntSign256 < c_KeyPreGen256 && cntSign256 < cap) {
-                genSign256Queue.add(this.genSignKeyNow(256, defaultSigningTypes));
+                genSign256Queue.add(this.genSignKeyNow(256, config.getDefaultSigningTypes()));
                 cntSign256++;
                 didGen = true;
             }
             if (cntEncrypt128 < c_KeyPreGen128 && cntEncrypt128 < cap) {
-                genEncrypt128Queue.add(this.genEncryptKeyNow(128, defaultEncryptTypes));
+                genEncrypt128Queue.add(this.genEncryptKeyNow(128, config.getDefaultEncryptTypes()));
                 cntEncrypt128++;
                 didGen = true;
             }
             if (cntEncrypt256 < c_KeyPreGen256 && cntEncrypt256 < cap) {
-                genEncrypt256Queue.add(this.genEncryptKeyNow(256, defaultEncryptTypes));
+                genEncrypt256Queue.add(this.genEncryptKeyNow(256, config.getDefaultEncryptTypes()));
                 cntEncrypt256++;
                 didGen = true;
             }
@@ -547,7 +499,7 @@ public class Encryptor implements Runnable
 
     public MessagePrivateKeyDto genSignKey()
     {
-        return genSignKey(defaultSigningStrength);
+        return genSignKey(config.getDefaultSigningStrength());
     }
 
     public MessagePrivateKeyDto genSignKey(int keysize)
@@ -557,7 +509,7 @@ public class Encryptor implements Runnable
 
     public MessagePrivateKeyDto genSignKeyWithAlias(@Nullable @Alias String alias)
     {
-        return genSignKeyWithAlias(defaultSigningStrength, alias);
+        return genSignKeyWithAlias(config.getDefaultSigningStrength(), alias);
     }
 
     public MessagePrivateKeyDto genSignKeyWithAlias(int keysize, @Nullable @Alias String _alias)
@@ -586,15 +538,15 @@ public class Encryptor implements Runnable
             }
         }
 
-        return genSignKeyNowWithAlias(keysize, defaultSigningTypes, alias);
+        return genSignKeyNowWithAlias(keysize, config.getDefaultSigningTypes(), alias);
     }
 
     public MessagePrivateKeyDto genSignKeyNow(int keySize) {
-        return genSignKeyNowWithAlias(keySize, defaultSigningTypes,null);
+        return genSignKeyNowWithAlias(keySize, config.getDefaultSigningTypes(),null);
     }
 
     public MessagePrivateKeyDto genSignKeyNowWithAlias(int keySize, @Nullable @Alias String alias) {
-        return genSignKeyNowWithAlias(keySize, defaultSigningTypes,alias);
+        return genSignKeyNowWithAlias(keySize, config.getDefaultSigningTypes(),alias);
     }
 
     public MessagePrivateKeyDto genSignKeyNow(int keySize, Iterable<KeyType> keyTypes) {
@@ -617,8 +569,6 @@ public class Encryptor implements Runnable
                 case rainbow:
                     pair = genSignKeyRainbowNow(keySize);
                     break;
-                case ntru_sign:
-                    throw new RuntimeException("NTRU for signing is not considered secure anymore.");
                 default:
                     throw new RuntimeException("The key type [" + keyType + "] is not supported as an asymmetric encryption key.");
             }
@@ -632,11 +582,11 @@ public class Encryptor implements Runnable
     }
 
     public MessagePrivateKeyDto genSignKeyFromSeed(int keySize, String seed) {
-        return genSignKeyFromSeedWithAlias(keySize, defaultSigningTypes, seed, null);
+        return genSignKeyFromSeedWithAlias(keySize, config.getDefaultSigningTypes(), seed, null);
     }
 
     public MessagePrivateKeyDto genSignKeyFromSeedWithAlias(int keySize, String seed, @Nullable @Alias String alias) {
-        return genSignKeyFromSeedWithAlias(keySize, defaultSigningTypes, seed, alias);
+        return genSignKeyFromSeedWithAlias(keySize, config.getDefaultSigningTypes(), seed, alias);
     }
 
     public MessagePrivateKeyDto genSignKeyFromSeed(int keySize, Iterable<KeyType> keyTypes, String seed) {
@@ -660,8 +610,6 @@ public class Encryptor implements Runnable
                 case rainbow:
                     pair = genSignKeyRainbowNow(keySize, randomFactory);
                     break;
-                case ntru_sign:
-                    throw new RuntimeException("NTRU for signing is not considered secure anymore.");
                 default:
                     throw new RuntimeException("The key type [" + keyType + "] is not supported as an asymmetric encryption key.");
             }
@@ -674,67 +622,8 @@ public class Encryptor implements Runnable
         return ret;
     }
 
-    @Deprecated
-    public KeyPairBytes genSignKeyNtruFromSeed(int keysize, @Salt String seed)
-    {
-        return genSignKeyNtruNow(keysize, new PredictablyRandomFactory(seed));
-    }
-
-    @Deprecated
-    public KeyPairBytes genSignKeyNtruNow(int keysize)
-    {
-        return genSignKeyNtruNow(keysize, new SecureRandomFactory());
-    }
-
-    @Deprecated
-    public KeyPairBytes genSignKeyNtruNow(int keysize, IRandomFactory randomFactory)
-    {
-        for (int n = 0; n < 8; n++) {
-            SigningKeyPairGenerator keyGen = new SigningKeyPairGenerator();
-            switch (keysize) {
-                case 256:
-                    keyGen.init(buildNtruSignParams256());
-                    break;
-                case 128:
-                    keyGen.init(buildNtruSignParams128());
-                    break;
-                case 64:
-                    keyGen.init(buildNtruSignParams64());
-                    break;
-                default:
-                    throw new RuntimeException("Unknown NTRU key size(" + keysize + ")");
-            }
-
-            AsymmetricCipherKeyPair pair = keyGen.generateKeyPair(randomFactory);
-            if (testSignNtru(pair) == false) {
-                continue;
-            }
-
-            return extractKey(pair);
-        }
-        throw new RuntimeException("Failed to generate signing key");
-    }
-
-    @Deprecated
-    private boolean testSignNtru(AsymmetricCipherKeyPair pair) {
-        
-        NTRUSigningPrivateKeyParameters privateKey = (NTRUSigningPrivateKeyParameters) pair.getPrivate();
-        NTRUSigningPublicKeyParameters publicKey = (NTRUSigningPublicKeyParameters) pair.getPublic();
-        String test = "thecatranupthewall";
-                
-        try {
-            byte[] sig = this.signNtru(privateKey.getEncoded(), test.getBytes());
-            if (this.verifyNtru(publicKey.getEncoded(), test.getBytes(), sig) == false) {
-                return false;
-            }
-            return true;
-        } catch (Throwable ex) {
-            return false;
-        }
-    }
-
     public MessagePrivateKeyDto genEncryptKey() {
-        return this.genEncryptKey(defaultEncryptionStrength);
+        return this.genEncryptKey(config.getDefaultEncryptionStrength());
     }
     
     public MessagePrivateKeyDto genEncryptKey(int keysize)
@@ -751,7 +640,7 @@ public class Encryptor implements Runnable
             if (ret != null) return ret;
         }
         
-        return genEncryptKeyNow(keysize, this.defaultEncryptTypes);
+        return genEncryptKeyNow(keysize, config.getDefaultEncryptTypes());
     }
 
     public MessagePrivateKeyDto genEncryptKeyWithAlias(int keysize, @Nullable @Alias String _alias)
@@ -766,11 +655,11 @@ public class Encryptor implements Runnable
     }
 
     public MessagePrivateKeyDto genEncryptKeyNow(int keySize) {
-        return genEncryptKeyNowWithAlias(keySize, defaultEncryptTypes, null);
+        return genEncryptKeyNowWithAlias(keySize, config.getDefaultEncryptTypes(), null);
     }
 
     public MessagePrivateKeyDto genEncryptKeyNowWithAlias(int keySize, @Nullable @Alias String alias) {
-        return genEncryptKeyNowWithAlias(keySize, defaultEncryptTypes, alias);
+        return genEncryptKeyNowWithAlias(keySize, config.getDefaultEncryptTypes(), alias);
     }
 
     public MessagePrivateKeyDto genEncryptKeyNow(int keySize, Iterable<KeyType> keyTypes) {
@@ -807,11 +696,11 @@ public class Encryptor implements Runnable
     }
 
     public MessagePrivateKeyDto genEncryptKeyFromSeed(int keySize, String seed) {
-        return genEncryptKeyFromSeedWithAlias(keySize, defaultEncryptTypes, seed, null);
+        return genEncryptKeyFromSeedWithAlias(keySize, config.getDefaultEncryptTypes(), seed, null);
     }
 
     public MessagePrivateKeyDto genEncryptKeyFromSeedWithAlias(int keySize, String seed, @Nullable @Alias String alias) {
-        return genEncryptKeyFromSeedWithAlias(keySize, defaultEncryptTypes, seed, alias);
+        return genEncryptKeyFromSeedWithAlias(keySize, config.getDefaultEncryptTypes(), seed, alias);
     }
 
     public MessagePrivateKeyDto genEncryptKeyFromSeed(int keySize, Iterable<KeyType> keyTypes, String seed) {
@@ -858,33 +747,64 @@ public class Encryptor implements Runnable
     {
         return genEncryptKeyNtruNow(keysize, new SecureRandomFactory());
     }
+
+    private NTRUEncryptionKeyGenerationParameters getNtruEncryptParamtersForKeySize(int keySize) {
+        switch (keySize) {
+            case 512:
+            case 256:
+                return NTRUEncryptionKeyGenerationParameters.APR2011_743;
+            case 192:
+                return NTRUEncryptionKeyGenerationParameters.APR2011_743_FAST;
+            case 128:
+                return NTRUEncryptionKeyGenerationParameters.APR2011_439;
+            default:
+                throw new RuntimeException("Unknown NTRU key size(" + keySize + ")");
+        }
+    }
     
-    public KeyPairBytes genEncryptKeyNtruNow(int keysize, IRandomFactory randomFactory)
+    public KeyPairBytes genEncryptKeyNtruNow(int keySize, IRandomFactory randomFactory)
     {
         for (int n = 0; n < 8; n++) {
             EncryptionKeyPairGenerator keyGen = new EncryptionKeyPairGenerator();
-            switch (keysize) {
-                case 512:
-                case 256:
-                    keyGen.init(buildNtruEncryptParams256());
-                    break;
-                case 128:
-                    keyGen.init(buildNtruEncryptParams128());
-                    break;
-                default:
-                    throw new RuntimeException("Unknown NTRU key size(" + keysize + ")");
-            }
+            keyGen.init(getNtruEncryptParamtersForKeySize(keySize));
 
             AsymmetricCipherKeyPair pair = keyGen.generateKeyPair(randomFactory);
-            if (testNtruKey(pair) == false) {
+            if (testNtruKey(pair, keySize) == false) {
                 continue;
             }
             return extractKey(pair);
         }
         throw new RuntimeException("Failed to generate encryption key");
     }
+
+    public @Secret byte[] encryptNtruWithPublic(@Secret byte[] key, @PlainText byte[] data, int keySize)
+    {
+        try {
+            NTRUEncryptionKeyGenerationParameters ntruEncryptParams = getNtruEncryptParamtersForKeySize(keySize);
+            NTRUEncryptionPublicKeyParameters priv = new NTRUEncryptionPublicKeyParameters(key, ntruEncryptParams.getEncryptionParameters());
+
+            NTRUEngine engine = new NTRUEngine();
+            engine.init(true, priv);
+
+            return engine.processBlock(data, 0, data.length);
+
+        } catch (InvalidCipherTextException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    public @PlainText byte[] decryptNtruWithPrivate(@Secret byte[] key, @Secret byte[] data, int keySize) throws IOException, InvalidCipherTextException
+    {
+        NTRUEncryptionKeyGenerationParameters ntruEncryptParams = getNtruEncryptParamtersForKeySize(keySize);
+        NTRUEncryptionPrivateKeyParameters priv = new NTRUEncryptionPrivateKeyParameters(key, ntruEncryptParams.getEncryptionParameters());
+
+        NTRUEngine engine = new NTRUEngine();
+        engine.init(false, priv);
+
+        return engine.processBlock(data, 0, data.length);
+    }
     
-    private boolean testNtruKey(AsymmetricCipherKeyPair pair) {
+    private boolean testNtruKey(AsymmetricCipherKeyPair pair, int keySize) {
         
         NTRUEncryptionPrivateKeyParameters privateKey = (NTRUEncryptionPrivateKeyParameters) pair.getPrivate();
         NTRUEncryptionPublicKeyParameters publicKey = (NTRUEncryptionPublicKeyParameters) pair.getPublic();
@@ -893,8 +813,8 @@ public class Encryptor implements Runnable
             byte[] test = Base64.decodeBase64(this.generateSecret64());
 
             try {
-                byte[] encBytes = this.encryptNtruWithPublic(publicKey.getEncoded(), test);
-                byte[] plainBytes = this.decryptNtruWithPrivate(privateKey.getEncoded(), encBytes);
+                byte[] encBytes = this.encryptNtruWithPublic(publicKey.getEncoded(), test, keySize);
+                byte[] plainBytes = this.decryptNtruWithPrivate(privateKey.getEncoded(), encBytes, keySize);
                 if (!Arrays.equals(test, plainBytes)) {
                     continue;
                 }
@@ -925,7 +845,7 @@ public class Encryptor implements Runnable
         return genEncryptKeyNewHopeNow(keysize, new SecureRandomFactory());
     }
 
-    public @Secret byte[] encryptNewHopeWithPublic(@Secret byte[] publicKey, @PlainText byte[] data)
+    public @Secret byte[] encryptNewHopeWithPublic(@Secret byte[] publicKey, @PlainText byte[] data, int keySize)
     {
         NHPublicKeyParameters params = new NHPublicKeyParameters(publicKey);
         ExchangePair exchangeSecret = new NHExchangePairGenerator(new SecureRandom()).generateExchange(params);
@@ -942,7 +862,7 @@ public class Encryptor implements Runnable
         return bb.array();
     }
 
-    public @PlainText byte[] decryptNewHopeWithPrivate(@Secret byte[] privateKey, @Secret byte[] data)
+    public @PlainText byte[] decryptNewHopeWithPrivate(@Secret byte[] privateKey, @Secret byte[] data, int keySize)
     {
         short[] secData = new short[privateKey.length/2];
         ByteBuffer privateBB = ByteBuffer.wrap(privateKey);
@@ -962,45 +882,6 @@ public class Encryptor implements Runnable
         byte[] encKey = nhAgreement.calculateAgreement(new NHPublicKeyParameters(pubData));
 
         return this.decryptAes(encKey, encData);
-    }
-    
-    public @Secret byte[] encryptNtruWithPublic(@Secret byte[] key, @PlainText byte[] data)
-    {
-        try {
-            NTRUEncryptionKeyGenerationParameters ntruEncryptParams;
-            if (key.length >= ntruEncryptParams256thresholdPublic) {
-                ntruEncryptParams = buildNtruEncryptParams256();
-            } else {
-                ntruEncryptParams = buildNtruEncryptParams128();
-            }
-            
-            NTRUEncryptionPublicKeyParameters priv = new NTRUEncryptionPublicKeyParameters(key, ntruEncryptParams.getEncryptionParameters());
-            
-            NTRUEngine engine = new NTRUEngine();
-            engine.init(true, priv);
-
-            return engine.processBlock(data, 0, data.length);
-            
-        } catch (InvalidCipherTextException ex) {
-            throw new RuntimeException(ex);
-        }
-    }
-    
-    public @PlainText byte[] decryptNtruWithPrivate(@Secret byte[] key, @Secret byte[] data) throws IOException, InvalidCipherTextException
-    {
-        NTRUEncryptionKeyGenerationParameters ntruEncryptParams;
-        if (key.length >= ntruEncryptParams256thresholdPrivate) {
-            ntruEncryptParams = buildNtruEncryptParams256();
-        } else {
-            ntruEncryptParams = buildNtruEncryptParams128();
-        }
-        
-        NTRUEncryptionPrivateKeyParameters priv = new NTRUEncryptionPrivateKeyParameters(key, ntruEncryptParams.getEncryptionParameters());
-
-        NTRUEngine engine = new NTRUEngine();
-        engine.init(false, priv);
-
-        return engine.processBlock(data, 0, data.length);
     }
 
     @SuppressWarnings("deprecation")
@@ -1030,10 +911,10 @@ public class Encryptor implements Runnable
 
             switch (part.getType()) {
                 case ntru:
-                    ret = encryptNtruWithPublic(part.getKeyBytes(), ret);
+                    ret = encryptNtruWithPublic(part.getKeyBytes(), ret, part.getSize());
                     break;
                 case newhope:
-                    ret = encryptNewHopeWithPublic(part.getKeyBytes(), ret);
+                    ret = encryptNewHopeWithPublic(part.getKeyBytes(), ret, part.getSize());
                     break;
                 default:
                     throw new RuntimeException("Unknown encryption crypto algorithm: " + part.getType());
@@ -1056,10 +937,10 @@ public class Encryptor implements Runnable
         for (MessageKeyPartDto part : Lists.reverse(parts)) {
             switch (part.getType()) {
                 case ntru:
-                    ret = decryptNtruWithPrivate(part.getKeyBytes(), ret);
+                    ret = decryptNtruWithPrivate(part.getKeyBytes(), ret, part.getSize());
                     break;
                 case newhope:
-                    ret = decryptNewHopeWithPrivate(part.getKeyBytes(), ret);
+                    ret = decryptNewHopeWithPrivate(part.getKeyBytes(), ret, part.getSize());
                     break;
                 default:
                     throw new RuntimeException("Unknown encryption crypto algorithm: " + part.getType());
@@ -1077,92 +958,82 @@ public class Encryptor implements Runnable
         return genSignKeyQTeslaNow(keysize, new SecureRandomFactory());
     }
 
-    public KeyPairBytes genSignKeyQTeslaNow(int keysize, IRandomFactory randomFactory)
-    {
-        SecureRandom unusedRandom = randomFactory.getRandom();
-        QTESLAKeyGenerationParameters params;
-        switch (keysize) {
+    private int getQTeslaSecurityCategory(int keySize) {
+        switch (keySize) {
             case 512:
-                params = new QTESLAKeyGenerationParameters(QTESLASecurityCategory.PROVABLY_SECURE_III, unusedRandom);
-                break;
+                return QTESLASecurityCategory.PROVABLY_SECURE_III;
             case 256:
-                params = new QTESLAKeyGenerationParameters(QTESLASecurityCategory.HEURISTIC_III_SPEED, unusedRandom);
-                break;
+            case 192:
+                return QTESLASecurityCategory.HEURISTIC_III_SIZE;
             case 128:
             case 64:
-                params = new QTESLAKeyGenerationParameters(QTESLASecurityCategory.HEURISTIC_I, unusedRandom);
-                break;
+                return QTESLASecurityCategory.HEURISTIC_I;
             default:
-                throw new RuntimeException("Unknown GMSS key size(" + keysize + ")");
+                throw new RuntimeException("Unknown GMSS key size(" + keySize + ")");
         }
+    }
+
+    public KeyPairBytes genSignKeyQTeslaNow(int keysize, IRandomFactory randomFactory)
+    {
+        QTESLAKeyGenerationParameters params = new QTESLAKeyGenerationParameters(getQTeslaSecurityCategory(keysize), randomFactory.getRandom());
         QTESLAKeyPairGenerator gen = new QTESLAKeyPairGenerator();
         gen.init(params);
         return extractKey(gen.generateKeyPair());
     }
 
-    public @Signature byte[] signQTesla(@Secret byte[] privateKey, @Hash byte[] digest)
+    public @Signature byte[] signQTesla(@Secret byte[] privateKey, @Hash byte[] digest, int keySize)
     {
-        int securityCategory = QTESLASecurityCategory.HEURISTIC_I;
-        if (privateKey.length > 2000) securityCategory = QTESLASecurityCategory.HEURISTIC_III_SPEED;
-        if (privateKey.length > 8000) securityCategory = QTESLASecurityCategory.PROVABLY_SECURE_III;
-
-        QTESLAPrivateKeyParameters params = new QTESLAPrivateKeyParameters(securityCategory, privateKey);
-
+        QTESLAPrivateKeyParameters params = new QTESLAPrivateKeyParameters(getQTeslaSecurityCategory(keySize), privateKey);
         QTESLASigner signer = new QTESLASigner();
         signer.init(true, params);
         return signer.generateSignature(digest);
     }
 
-    public boolean verifyQTesla(@PEM byte[] publicKey, @Hash byte[] digest, @Signature byte[] sig)
+    public boolean verifyQTesla(@PEM byte[] publicKey, @Hash byte[] digest, @Signature byte[] sig, int keySize)
     {
-        int securityCategory = QTESLASecurityCategory.HEURISTIC_I;
-        if (publicKey.length > 2500) securityCategory = QTESLASecurityCategory.HEURISTIC_III_SPEED;
-        if (publicKey.length > 20000) securityCategory = QTESLASecurityCategory.PROVABLY_SECURE_III;
-
-        QTESLAPublicKeyParameters params = new QTESLAPublicKeyParameters(securityCategory, publicKey);
-
+        QTESLAPublicKeyParameters params = new QTESLAPublicKeyParameters(getQTeslaSecurityCategory(keySize), publicKey);
         QTESLASigner signer = new QTESLASigner();
         signer.init(false, params);
         return signer.verifySignature(digest, sig);
     }
 
-    public KeyPairBytes genSignKeyRainbowFromSeed(int keysize, String seed) {
-        return genSignKeyRainbowNow(keysize, new PredictablyRandomFactory(seed));
+    public KeyPairBytes genSignKeyRainbowFromSeed(int keySize, String seed) {
+        return genSignKeyRainbowNow(keySize, new PredictablyRandomFactory(seed));
     }
 
-    public KeyPairBytes genSignKeyRainbowNow(int keysize, IRandomFactory randomFactory)
-    {
-        SecureRandom keyRandom = randomFactory.getRandom();
-
-        RainbowKeyGenerationParameters params;
-        switch (keysize) {
+    private RainbowParameters getRainbowParams(int keySize) {
+        switch (keySize) {
             case 512:
-                params = new RainbowKeyGenerationParameters(keyRandom, new RainbowParameters());
-                break;
+                return new RainbowParameters();
             case 256:
-                params = new RainbowKeyGenerationParameters(keyRandom, new RainbowParameters());
-                break;
+                return new RainbowParameters();
+            case 192:
+                return new RainbowParameters();
             case 128:
             case 64:
-                params = new RainbowKeyGenerationParameters(keyRandom, new RainbowParameters());
-                break;
+                return new RainbowParameters();
             default:
-                throw new RuntimeException("Unknown RAINBOW key size(" + keysize + ")");
+                throw new RuntimeException("Unknown RAINBOW key size(" + keySize + ")");
         }
+    }
+
+    public KeyPairBytes genSignKeyRainbowNow(int keySize, IRandomFactory randomFactory)
+    {
+        SecureRandom keyRandom = randomFactory.getRandom();
+        RainbowKeyGenerationParameters params = new RainbowKeyGenerationParameters(keyRandom, getRainbowParams(keySize));
         RainbowKeyPairGenerator gen = new RainbowKeyPairGenerator();
         gen.init(params);
         return extractKey(gen.generateKeyPair());
     }
 
-    public KeyPairBytes genSignKeyRainbowNow(int keysize)
+    public KeyPairBytes genSignKeyRainbowNow(int keySize)
     {
-        return genSignKeyRainbowNow(keysize, new SecureRandomFactory());
+        return genSignKeyRainbowNow(keySize, new SecureRandomFactory());
     }
 
     public @Signature byte[] signRainbow(@Secret byte[] privateKey, @Hash byte[] digest)
     {
         RainbowPrivateKeyParameters params = RainbowKeySerializer.deserializePrivate(privateKey);
-
         RainbowSigner signer = new RainbowSigner();
         signer.init(true, params);
         return signer.generateSignature(digest);
@@ -1171,7 +1042,6 @@ public class Encryptor implements Runnable
     public boolean verifyRainbow(@PEM byte[] publicKey, @Hash byte[] digest, @Signature byte[] sig)
     {
         RainbowPublicKeyParameters params = RainbowKeySerializer.deserializePublic(publicKey);
-
         RainbowSigner signer = new RainbowSigner();
         signer.init(false, params);
         return signer.verifySignature(digest, sig);
@@ -1215,53 +1085,6 @@ public class Encryptor implements Runnable
         return signer.verifySignature(digest, sig);
     }
 
-    @Deprecated
-    @SuppressWarnings("deprecation")
-    public @Signature byte[] signNtru(@Secret byte[] privateKey, @Hash byte[] digest)
-    {
-        try {
-            NTRUSigningKeyGenerationParameters ntruSignParams;
-            if (privateKey.length >= ntruSignParams256thresholdPrivate) {
-                ntruSignParams = buildNtruSignParams256();
-            } else if (privateKey.length >= ntruSignParams128thresholdPrivate) {
-                ntruSignParams = buildNtruSignParams128();
-            } else {
-                ntruSignParams = buildNtruSignParams64();
-            }
-            
-            NTRUSigningPrivateKeyParameters priv = new NTRUSigningPrivateKeyParameters(privateKey, ntruSignParams);
-            NTRUSigner signer = new NTRUSigner(ntruSignParams.getSigningParameters());
-            signer.init(true, priv);            
-            signer.update(digest, 0, digest.length);
-            
-            return signer.generateSignature();
-        } catch (IOException ex) {
-            throw new RuntimeException(ex);
-        }
-    }
-
-    @Deprecated
-    @SuppressWarnings("deprecation")
-    public boolean verifyNtru(@PEM byte[] publicKey, @Hash byte[] digest, @Signature byte[] sig)
-    {
-        NTRUSigningKeyGenerationParameters ntruSignParams;
-        if (publicKey.length >= ntruSignParams256thresholdPublic) {
-            ntruSignParams = buildNtruSignParams256();
-        } else if (publicKey.length >= ntruSignParams128thresholdPublic) {
-            ntruSignParams = buildNtruSignParams128();
-        } else {
-            ntruSignParams = buildNtruSignParams64();
-        }
-            
-        NTRUSigningPublicKeyParameters pub = new NTRUSigningPublicKeyParameters(publicKey, ntruSignParams.getSigningParameters());
-        NTRUSigner signer = new NTRUSigner(ntruSignParams.getSigningParameters());
-        signer.init(false, pub);
-        signer.update(digest, 0, digest.length);
-
-        return signer.verifySignature(sig);
-    }
-
-    @SuppressWarnings("deprecation")
     public @Signature byte[] sign(MessagePrivateKeyDto privateKey, @Hash byte[] digest)
     {
         List<@Signature byte[]> ret = new ArrayList<>();
@@ -1269,16 +1092,13 @@ public class Encryptor implements Runnable
 
             switch (part.getType()) {
                 case qtesla:
-                    ret.add(signQTesla(part.getKeyBytes(), digest));
+                    ret.add(signQTesla(part.getKeyBytes(), digest, part.getSize()));
                     break;
                 case xmssmt:
                     ret.add(signXmssMt(part.getKeyBytes(), digest));
                     break;
                 case rainbow:
                     ret.add(signRainbow(part.getKeyBytes(), digest));
-                    break;
-                case ntru_sign:
-                    ret.add(signNtru(part.getKeyBytes(), digest));
                     break;
                 default:
                     throw new RuntimeException("Unknown signing crypto algorithm: " + part.getType());
@@ -1318,7 +1138,7 @@ public class Encryptor implements Runnable
 
             switch (part.getType()) {
                 case qtesla:
-                    if (verifyQTesla(part.getKeyBytes(), digest, partSig) == false) {
+                    if (verifyQTesla(part.getKeyBytes(), digest, partSig, part.getSize()) == false) {
                         return false;
                     }
                     break;
@@ -1329,11 +1149,6 @@ public class Encryptor implements Runnable
                     break;
                 case rainbow:
                     if (verifyRainbow(part.getKeyBytes(), digest, partSig) == false) {
-                        return false;
-                    }
-                    break;
-                case ntru_sign:
-                    if (verifyNtru(part.getKeyBytes(), digest, partSig) == false) {
                         return false;
                     }
                     break;
@@ -1523,7 +1338,7 @@ public class Encryptor implements Runnable
     public MessagePrivateKeyDto getTrustOfPublicRead() {
         MessagePrivateKeyDto ret = this.trustOfPublicRead;
         if (ret == null) {
-            ret = genEncryptKeyFromSeed(128, defaultEncryptTypes, "public");
+            ret = genEncryptKeyFromSeed(128, config.getDefaultEncryptTypes(), "public");
             //key = new MessagePrivateKeyDto("hCtNNY27gTrDwo2k1w_nm-28B_0u0Z8_lJYSqdmlRzpxb1Ke194tDZWyNEUR8uchT89qg_R1erx9CAyHFMYgAS2Gs5xfRy_37N2JmtR43HmEVDwcoytHjahdZGNYDIEzrSPhJuAb62unOwNjtS0LF9vkXR5akiyaxz7S21sKCitYwonYjGnODaf4axN6H6n_jhhHIHsGORK_o-Giq7FKZNJhoVfyEaNZPsHkG763cKKSKzkvHHVt7EONjW1OjFT6O5E0gNtiGDKQRquJBtWQUlsosDTaXCQWedj6HzBKsXQZjT_XL5QDSsUHIfTN4oiPqiNHREtjUuWMPa1GsOwhPSDRYpcsscBcD67gKRPeuk4_LfqwPk77ibEdbbP4g1FJhn8eaIGpXWTMFWG5Y_z8PfzS98K46Rj_dkHctVen3lHP_MiitAiUp4FtMdBl_FCHhpKFtoU0mriEUyjm1vLxxmgMuDVxb2Szo3Lm3Rgjq2ZSQBj9Sea-GuqBwc_7uBkqZY-vb72FqQ54jy0-CP73Ij4uJ_uH2g93pJDzSfxPtmsZOp7Rs5pYT03gWr018llG4D4Xtsm-2xP_IONLasoJHTrkkg9XPvmxZSQ8_AUSLZfoGRjWxKrYS1qZqCoZ9zYf_x1UtQEpDFjs__Zo9JONKMieTTskykXv-SwSIiyA6EUbvBTN4-VFVZNmc8zCkBDRRH2jZZUCMbYGkuMXEO_aIM2YwYpRROUj48p7zo8uYlnB82YHvhb6czGWew-RSfNeMeE1vX2Z9qoVQRPgj-5dKbnG2Xbkifmjj4h4Aw", "hCtNNY27gTrDwo2k1w_nm-28B_0u0Z8_lJYSqdmlRzpxb1Ke194tDZWyNEUR8uchT89qg_R1erx9CAyHFMYgAS2Gs5xfRy_37N2JmtR43HmEVDwcoytHjahdZGNYDIEzrSPhJuAb62unOwNjtS0LF9vkXR5akiyaxz7S21sKCitYwonYjGnODaf4axN6H6n_jhhHIHsGORK_o-Giq7FKZNJhoVfyEaNZPsHkG763cKKSKzkvHHVt7EONjW1OjFT6O5E0gNtiGDKQRquJBtWQUlsosDTaXCQWedj6HzBKsXQZjT_XL5QDSsUHIfTN4oiPqiNHREtjUuWMPa1GsOwhPSDRYpcsscBcD67gKRPeuk4_LfqwPk77ibEdbbP4g1FJhn8eaIGpXWTMFWG5Y_z8PfzS98K46Rj_dkHctVen3lHP_MiitAiUp4FtMdBl_FCHhpKFtoU0mriEUyjm1vLxxmgMuDVxb2Szo3Lm3Rgjq2ZSQBj9Sea-GuqBwc_7uBkqZY-vb72FqQ54jy0-CP73Ij4uJ_uH2g93pJDzSfxPtmsZOp7Rs5pYT03gWr018llG4D4Xtsm-2xP_IONLasoJHTrkkg9XPvmxZSQ8_AUSLZfoGRjWxKrYS1qZqCoZ9zYf_x1UtQEpDFjs__Zo9JONKMieTTskykXv-SwSIiyA6EUbvBTN4-VFVZNmc8zCkBDRRH2jZZUCMbYGkuMXEO_aIM2YwYpRROUj48p7zo8uYlnB82YHvhb6czGWew-RSfNeMeE1vX2Z9qoVQRPgj-5dKbnG2Xbkifmjj4h4A35nyKJ3ikeM8yUi_FlKfk_c3f8Tacpp7F8UZUunoUF2VDvYohoTyU6FrHBK-PqRIKU-4HBkrR2LF6Y2zyABrr3C5axkSVArak7ofFERtX0shq9aj4OmCg");
             ret.setAlias("public");
             ret.getPrivateParts().immutalize();
@@ -1536,7 +1351,7 @@ public class Encryptor implements Runnable
     public MessagePrivateKeyDto getTrustOfPublicWrite() {
         MessagePrivateKeyDto ret = this.trustOfPublicWrite;
         if (ret == null) {
-            ret = genSignKeyFromSeed(64, defaultSigningTypes, "public");
+            ret = genSignKeyFromSeed(64, config.getDefaultSigningTypes(), "public");
             //key = new MessagePrivateKeyDto("rz39v_ev9aFHHJrhE0bn7RONg_RqfGNDXpARYuja8yHO2vf4npuodKpgMApzJW73V0-giMMXyweuYTP3fDtrrdQ_p-3hhAK91wqharZDf18PiU1HOzjFCAWSyQF6eDMzpAwoSUk1_sfL2nUTqF5s_oMlPkHcClBABvm0S3fKvJQC-HLPDpFFaCnsfStu-8ytyx_gjPnBSuGnL1qz5w", "AM232z_XLRsxcxJsNsjcDHJtj-Su62y7jTTn_QE4eFAA6ctcftImbHfTm04nfAmf5EhYcadcPzuwIdRZagyBOADleiEpAXtf4YqQnDX42scZvELRLoEjpofzo2Q5ncLKAOLkz9iZc3oS6PQpS8AZbEcrVq8qhSh_8MjpwYdDpG6vPf2_96_1oUccmuETRuftE42D9Gp8Y0NekBFi6NrzIc7a9_iem6h0qmAwCnMlbvdXT6CIwxfLB65hM_d8O2ut1D-n7eGEAr3XCqFqtkN_Xw-JTUc7OMUIBZLJAXp4MzOkDChJSTX-x8vadROoXmz-gyU-QdwKUEAG-bRLd8q8lAL4cs8OkUVoKex9K277zK3LH-CM-cFK4acvWrPnrz39v_ev9aFHHJrhE0bn7RONg_RqfGNDXpARYuja8yHO2vf4npuodKpgMApzJW73V0-giMMXyweuYTP3fDtrrdQ_p-3hhAK91wqharZDf18PiU1HOzjFCAWSyQF6eDMzpAwoSUk1_sfL2nUTqF5s_oMlPkHcClBABvm0S3fKvJQC-HLPDpFFaCnsfStu-8ytyx_gjPnBSuGnL1qz5w");
             ret.setAlias("public");
             this.trustOfPublicWrite = ret;
@@ -1578,7 +1393,7 @@ public class Encryptor implements Runnable
      * Creates a new password salt and returns it to the caller
      */
     public @Secret String generateSecret64() {
-        return generateSecret64(defaultAesStrength);
+        return generateSecret64(config.getDefaultAesStrength());
     }
 
     /**

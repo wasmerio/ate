@@ -16,6 +16,7 @@
 package com.tokera.ate.test.encryptor;
 
 import com.google.common.base.Objects;
+import com.tokera.ate.BootstrapConfig;
 import com.tokera.ate.security.Encryptor;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -47,9 +48,11 @@ public class AesTests {
                              "encryptKey: XjE-mqynk_rvL59bVblxng\n" +
                              "...\n";
 
+    @SuppressWarnings("deprecation")
     @BeforeAll
     public static void init() {
         encryptor.init();
+        encryptor.setBootstrapConfig(new BootstrapConfig());
     }
 
     private void performTest()
