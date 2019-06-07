@@ -16,8 +16,7 @@ ATE library reference guide
 
 ## Maven
 
-An example maven POM.xml file is described below that will bring in everything thats needs to run the
-ATE database along with Undertow, Weld, Kafka, ZooKeeper and their depedencies.
+An example maven POM.xml file is described below that will bring in the ATE library and its dependencies.
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -50,39 +49,13 @@ ATE database along with Undertow, Weld, Kafka, ZooKeeper and their depedencies.
         <surefire.version>3.0.0-M3</surefire.version>
         <tokera.ate.version>0.1.42</tokera.ate.version>
     </properties>
-    <dependency>
-        <groupId>org.jboss.weld</groupId>
-        <artifactId>weld-junit5</artifactId>
-        <version>${weld.junit.version}</version>
-    </dependency>
-    <dependency>
-        <groupId>org.slf4j</groupId>
-        <artifactId>slf4j-api</artifactId>
-        <version>${slf4j.version}</version>
-    </dependency>
-    <dependency>
-        <groupId>org.slf4j</groupId>
-        <artifactId>slf4j-simple</artifactId>
-        <version>${slf4j.version}</version>
-        <scope>test</scope>
-    </dependency>
-    <dependency>
-        <groupId>org.slf4j</groupId>
-        <artifactId>slf4j-log4j12</artifactId>
-        <version>${slf4j.version}</version>
-        <scope>runtime</scope>
-    </dependency>
-    <dependency>
-        <groupId>log4j</groupId>
-        <artifactId>log4j</artifactId>
-        <version>${log4j.version}</version>
-    </dependency>
-    <dependency>
-        <groupId>com.tokera</groupId>
-        <artifactId>ate</artifactId>
-        <version>${tokera.ate.version}</version>
-        <type>jar</type>
-    </dependency>
+    <dependencies>
+        <dependency>
+            <groupId>com.tokera</groupId>
+            <artifactId>ate</artifactId>
+            <version>0.1.50</version>
+        </dependency>
+    </dependencies>
     <build>
         <plugins>
             <plugin>
@@ -156,11 +129,6 @@ ATE database along with Undertow, Weld, Kafka, ZooKeeper and their depedencies.
 </project>
 ```
 
-The parent POM file is a quicker and easier way to maintain and stay up to date with all the dependencies
-required to get a fully operational application up and running. If you want to use a different
-application server and/or manage your dependencies independently of the ATE library maintainers then
-you can skip this step and add the extra dependencies seperately.
-
 This maven parent will bring in the following dependencies that are needed for ATE to run out-of-the-box
 
 - Weld
@@ -171,7 +139,7 @@ This maven parent will bring in the following dependencies that are needed for A
 
 ## Bootstrap Application
 
-The ATE library comes with a bunch of integration and boostraping classes that allow you to get up
+The ATE library comes with a bunch of integration and bootstrapping classes that allow you to get up
 and running in the quickest time possible. You can also use these classes to build your own
 integration with other application framework however this is out of scope for this guide.
 
@@ -221,6 +189,21 @@ This domain name determines which DNS records to use when seeding the chain-of-t
 records to be accepted into the database. It is highly recommended that you host DNSSec records for
 anything used by this library for security reasons.
 
+Another key setting you can set on this class is which security level to run the library at
+
+```java
+config.setSecurityLevel(SecurityLevel.VeryHighlySecure)
+```
+
+Security level options available are:
+
+| SecurityLevel | Default | Speed | AES Strength | Encryption Crypto | Signatures Crypto | Description 
+| ------------- | ------- | ----- | ------------ | ----------------- | ----------------- | ------------
+| Ridiculous    |         | Slow  | 256(bit)     | ntru + newhope    | qtesla + rainbow  | Maximum security but at great cost to performance. 
+| VeryHigh      | X       | Good  | 256(bit)     | ntru              | qtesla            | Great security at acceptable performance costs.
+| High          |         | Good  | 192(bit)     | ntru              | qtesla            | Slighly less security at similar performance costs to 256(bit).
+| Moderate      |         | Fast  | 128(bit)     | ntru              | qtesla            | Higher performance but weak crypto, especially against quantum computers.
+
 If you would like to read more about the design of ATE and how important the chain of trust is for
 Authentication, Authorization and Integrity then read this guide below:
 
@@ -258,29 +241,27 @@ Below is an example data object
 
 ```java
 @Dependent
-@YamlTag("dao.mything")
-@PermitParentType(MyAccount.class)
-public class MyThing extends BaseDao {
-    @Column
-    public @DaoId UUID id = UUID.randomUUID();
-    @Column
-    public @DaoId UUID accountId;
+@PermitParentFree
+public class Coin extends BaseDaoRoles {
+    public UUID id;
+    @ImplicitAuthorityField
+    public String type;
+    public BigDecimal value;
+    public ImmutalizableArrayList<UUID> shares = new ImmutalizableArrayList<UUID>();
 
-    @SuppressWarnings("initialization.fields.uninitialized")
-    @Deprecated
-    public MyThing() {
+    public Coin() {
     }
 
-    public MyThing(MyAccount acc) {
-        this.accountId = acc.id;
+    public Coin(String type, BigDecimal value) {
+        this.id = UUID.randomUUID();
+        this.type = type;
+        this.value = value;
     }
 
-    @Override
     public @DaoId UUID getId() {
         return id;
     }
 
-    @Override
     public @Nullable @DaoId UUID getParentId() {
         return null;
     }
