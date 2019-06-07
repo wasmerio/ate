@@ -13,7 +13,7 @@ import java.util.UUID;
 
 @Dependent
 @PermitParentFree
-public class Asset extends BaseDaoRoles {
+public class Coin extends BaseDaoRoles {
     public UUID id;
     @ImplicitAuthorityField
     public String type;
@@ -22,10 +22,10 @@ public class Asset extends BaseDaoRoles {
 
     @SuppressWarnings("initialization.fields.uninitialized")
     @Deprecated
-    public Asset() {
+    public Coin() {
     }
 
-    public Asset(String type, BigDecimal value) {
+    public Coin(String type, BigDecimal value) {
         this.id = UUID.randomUUID();
         this.type = type;
         this.value = value;

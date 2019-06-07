@@ -197,7 +197,6 @@ public class BankIntegrationTests {
         MonthlyActivity monthly = this.individualSession
                 .restPost("/account/" + individualAccountId + "/completeTransaction", Entity.entity(transactionToken, MediaType.APPLICATION_JSON), MonthlyActivity.class);
 
-
         d.genericLogger.info(d.yaml.serializeObj(monthly));
     }
 }

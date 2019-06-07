@@ -76,15 +76,30 @@ public class ImplicitSecurityDelegate {
 
     public @Nullable MessagePublicKeyDto enquireDomainKey(@DomainName String domain, boolean shouldThrow)
     {
-        return enquireDomainKey(d.bootstrapConfig.getImplicitAuthorityAlias(), domain, shouldThrow);
+        return enquireDomainKey(domain, shouldThrow, null);
+    }
+
+    public @Nullable MessagePublicKeyDto enquireDomainKey(@DomainName String domain, boolean shouldThrow, @Nullable IPartitionKey partitionKey)
+    {
+        return enquireDomainKey(d.bootstrapConfig.getImplicitAuthorityAlias(), domain, shouldThrow, partitionKey);
     }
 
     public @Nullable MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, boolean shouldThrow)
     {
-        return enquireDomainKey(prefix, domain, shouldThrow, domain);
+        return enquireDomainKey(prefix, domain, shouldThrow, domain, null);
+    }
+
+    public @Nullable MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, boolean shouldThrow, @Nullable IPartitionKey partitionKey)
+    {
+        return enquireDomainKey(prefix, domain, shouldThrow, domain, partitionKey);
     }
 
     public @Nullable MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, boolean shouldThrow, @Alias String alias)
+    {
+        return enquireDomainKey(prefix, domain, shouldThrow, alias, null);
+    }
+
+    public @Nullable MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, boolean shouldThrow, @Alias String alias, @Nullable IPartitionKey partitionKey)
     {
         String domainStr = enquireDomainString(prefix + "." + domain, shouldThrow);
         if (domainStr == null) {
@@ -94,7 +109,12 @@ public class ImplicitSecurityDelegate {
             return null;
         }
 
-        MessagePublicKeyDto ret = d.headIO.publicKeyOrNull(domainStr);
+        MessagePublicKeyDto ret;
+        if (partitionKey != null) {
+            ret = d.headIO.publicKeyOrNull(partitionKey, domainStr);
+        } else {
+            ret = d.headIO.publicKeyOrNull(domainStr);
+        }
         if (ret == null) {
             ret = d.currentRights.getRightsWrite()
                     .stream()
@@ -103,12 +123,15 @@ public class ImplicitSecurityDelegate {
                     .orElse(null);
         }
 
-        if (shouldThrow && ret == null) {
-            throw new RuntimeException("Unknown implicit authority found at domain name [" + prefix + "." + domain + "] (public key is missing with hash [" + domainStr + "]).");
-        }
-
-        if (ret != null && alias != null) {
-            ret.setAlias(alias);
+        if (ret == null) {
+            if (shouldThrow) {
+                throw new RuntimeException("Unknown implicit authority found at domain name [" + prefix + "." + domain + "] (public key is missing with hash [" + domainStr + "]).");
+            }
+        } else {
+            ret = new MessagePublicKeyDto(ret);
+            if (alias != null) {
+                ret.setAlias(alias);
+            }
         }
 
         return ret;

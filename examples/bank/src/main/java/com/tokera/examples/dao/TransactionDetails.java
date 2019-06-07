@@ -25,7 +25,7 @@ public class TransactionDetails extends BaseDao {
     public TransactionDetails() {
     }
 
-    public TransactionDetails(MonthlyActivity monthly, AssetShare ownership) {
+    public TransactionDetails(MonthlyActivity monthly, CoinShare ownership) {
         this.id = UUID.randomUUID();
         this.monthlyActivity = monthly.id;
         this.when = new Date();

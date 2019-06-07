@@ -32,8 +32,8 @@ public class AccountREST {
         Account acc = d.headIO.get(accountId, Account.class);
 
         // Find all the shares of the asset that we actually have ownership rights to
-        LinkedList<AssetShare> ownedShares = new LinkedList<AssetShare>();
-        ownedShares.addAll(d.headIO.getManyAcrossPartitions(acc.ownerships, AssetShare.class));
+        LinkedList<CoinShare> ownedShares = new LinkedList<CoinShare>();
+        ownedShares.addAll(d.headIO.getManyAcrossPartitions(acc.ownerships, CoinShare.class));
 
         // Create a new ownership key
         MessagePrivateKeyDto ownership = d.encryptor.genSignKey();
@@ -42,7 +42,7 @@ public class AccountREST {
         List<ShareToken> shareTokens = new ArrayList<ShareToken>();
         BigDecimal remaining = request.amount;
         for (;;) {
-            AssetShare share = ownedShares.removeFirst();
+            CoinShare share = ownedShares.removeFirst();
             if (share == null) break;
 
             // Make sure we actually own it and its of the right type of asset
@@ -77,8 +77,8 @@ public class AccountREST {
                 }
 
                 // We create to child shares and make the original one immutable
-                AssetShare left = new AssetShare(share, split);
-                AssetShare right = new AssetShare(share, split);
+                CoinShare left = new CoinShare(share, split);
+                CoinShare right = new CoinShare(share, split);
                 share.shares.add(left.id);
                 share.shares.add(right.id);
                 share.trustAllowWrite.clear();
@@ -116,7 +116,7 @@ public class AccountREST {
         MonthlyActivity activity = AccountHelper.getCurrentMonthlyActivity(acc);
 
         for (ShareToken shareToken : transactionToken.getShares()) {
-            AssetShare share = d.headIO.get(shareToken.getShare(), AssetShare.class);
+            CoinShare share = d.headIO.get(shareToken.getShare(), CoinShare.class);
 
             share.trustInheritWrite = false;
             share.getTrustAllowRead().clear();
@@ -143,7 +143,7 @@ public class AccountREST {
         MonthlyActivity activity = AccountHelper.getCurrentMonthlyActivity(acc);
 
         // For any assets we don't own anymore then we add a transaction to the new owner
-        for (AssetShare share : d.headIO.getManyAcrossPartitions(acc.ownerships, AssetShare.class)) {
+        for (CoinShare share : d.headIO.getManyAcrossPartitions(acc.ownerships, CoinShare.class)) {
             if (d.authorization.canWrite(share) == false)
             {
                 // When we don't own it anymore (as someone else took the rights to it) then we remove it from

@@ -11,8 +11,8 @@ import java.math.BigDecimal;
 import java.util.UUID;
 
 @Dependent
-@PermitParentType({Asset.class, AssetShare.class})
-public class AssetShare extends BaseDaoRoles {
+@PermitParentType({Coin.class, CoinShare.class})
+public class CoinShare extends BaseDaoRoles {
     public UUID id;
     public UUID parent;
     public UUID asset;
@@ -21,20 +21,20 @@ public class AssetShare extends BaseDaoRoles {
 
     @SuppressWarnings("initialization.fields.uninitialized")
     @Deprecated
-    public AssetShare() {
+    public CoinShare() {
     }
 
-    public AssetShare(Asset asset, BigDecimal shareAmount) {
+    public CoinShare(Coin coin, BigDecimal shareAmount) {
         this.id = UUID.randomUUID();
-        this.parent = asset.id;
-        this.asset = asset.id;
+        this.parent = coin.id;
+        this.asset = coin.id;
         this.shareAmount = shareAmount;
     }
 
-    public AssetShare(AssetShare assetShare, BigDecimal shareAmount) {
+    public CoinShare(CoinShare coinShare, BigDecimal shareAmount) {
         this.id = UUID.randomUUID();
-        this.parent = assetShare.id;
-        this.asset = assetShare.asset;
+        this.parent = coinShare.id;
+        this.asset = coinShare.asset;
         this.shareAmount = shareAmount;
     }
 

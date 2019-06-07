@@ -336,7 +336,7 @@ public class AuthorizationDelegate {
         IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(toObj);
         if (performMerge) {
             if (d.headIO.publicKeyOrNull(partitionKey, hash) == null) {
-                d.headIO.merge(partitionKey, right);
+                d.headIO.merge(partitionKey, new MessagePublicKeyDto(right));
             }
         }
 
@@ -443,7 +443,7 @@ public class AuthorizationDelegate {
         IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(toObj);
         if (performMerge == true) {
             if (d.headIO.publicKeyOrNull(partitionKey, hash) == null) {
-                d.headIO.merge(partitionKey, right);
+                d.headIO.merge(partitionKey, new MessagePublicKeyDto(right));
             }
         }
 

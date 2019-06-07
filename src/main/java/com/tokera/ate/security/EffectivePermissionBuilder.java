@@ -150,11 +150,12 @@ public class EffectivePermissionBuilder {
         if (container != null) {
             MessageDataHeaderDto header = container.getMergedHeader();
             for (String implicitAuthority : header.getImplicitAuthority()) {
-                MessagePublicKeyDto implicitKey = d.implicitSecurity.enquireDomainKey(implicitAuthority, true);
+                MessagePublicKeyDto implicitKey = d.implicitSecurity.enquireDomainKey(implicitAuthority, true, container.partitionKey);
                 ret.addWriteRole(implicitKey);
             }
         } else if (obj != null) {
             Class<?> type = obj.getClass();
+            IPartitionKey key = d.headIO.partitionResolver().resolve(obj);
 
             // If it contains dynamic implicit authority
             Field field = MapTools.getOrNull(d.daoParents.getAllowedDynamicImplicitAuthority(), type);
@@ -164,7 +165,7 @@ public class EffectivePermissionBuilder {
                     if (domainObj == null || domainObj.toString().isEmpty()) {
                         throw new RuntimeException("The implicit authority field can not be null or empty [field: " + field.getName() + "].");
                     }
-                    MessagePublicKeyDto implicitKey = d.implicitSecurity.enquireDomainKey(domainObj.toString(), true);
+                    MessagePublicKeyDto implicitKey = d.implicitSecurity.enquireDomainKey(domainObj.toString(), true, key);
                     if (implicitKey == null) {
                         throw new WebApplicationException("No implicit authority found at domain name (missing TXT record)[" + d.bootstrapConfig.getImplicitAuthorityAlias() + "." + domainObj + "].", Response.Status.UNAUTHORIZED);
                     }
@@ -177,7 +178,7 @@ public class EffectivePermissionBuilder {
             // If it contains static implicit authority
             String staticImplicitAuthority = MapTools.getOrNull(d.daoParents.getAllowedImplicitAuthority(), type);
             if (staticImplicitAuthority != null) {
-                MessagePublicKeyDto implicitKey = d.implicitSecurity.enquireDomainKey(staticImplicitAuthority, true);
+                MessagePublicKeyDto implicitKey = d.implicitSecurity.enquireDomainKey(staticImplicitAuthority, true, key);
                 ret.addWriteRole(implicitKey);
             }
         }

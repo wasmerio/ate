@@ -3,7 +3,6 @@ package com.tokera.examples.rest;
 import com.google.common.collect.Lists;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.delegates.AteDelegate;
-import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import com.tokera.examples.dao.*;
 import com.tokera.examples.dto.*;
@@ -30,25 +29,22 @@ public class MoneyREST {
     public TransactionToken printMoney(CreateAssetRequest request) {
         MessagePublicKeyDto coiningKey = d.implicitSecurity.enquireDomainKey(request.type, true);
 
-        Asset asset = new Asset(request.type, request.value);
-        d.authorization.authorizeEntityPublicRead(asset);
-        d.authorization.authorizeEntityWrite(coiningKey, asset);
-        d.headIO.mergeLater(asset);
+        Coin coin = new Coin(request.type, request.value);
+        d.authorization.authorizeEntityPublicRead(coin);
+        d.authorization.authorizeEntityWrite(coiningKey, coin);
+        d.headIO.mergeLater(coin);
 
-        AssetShare assetShare = new AssetShare(asset, request.value);
-        d.authorization.authorizeEntityWrite(request.ownershipKey, assetShare);
-        asset.shares.add(assetShare.id);
+        CoinShare coinShare = new CoinShare(coin, request.value);
+        d.authorization.authorizeEntityWrite(request.ownershipKey, coinShare);
+        coin.shares.add(coinShare.id);
 
-        d.headIO.mergeLater(asset);
-        d.headIO.mergeLater(assetShare);
+        d.headIO.mergeLater(coin);
+        d.headIO.mergeLater(coinShare);
 
         //LOG.info(d.yaml.serializeObj(asset));
         //LOG.info(d.yaml.serializeObj(assetShare));
 
-        d.headIO.merge(asset.addressableId().partition(), coiningKey);
-        d.headIO.merge(asset.addressableId().partition(), request.ownershipKey);
-
-        return new TransactionToken(Lists.newArrayList(new ShareToken(assetShare, request.ownershipKey)));
+        return new TransactionToken(Lists.newArrayList(new ShareToken(coinShare, request.ownershipKey)));
     }
 
     @POST
@@ -56,13 +52,13 @@ public class MoneyREST {
     @Produces(MediaType.TEXT_PLAIN)
     @Consumes({"text/yaml", MediaType.APPLICATION_JSON})
     public boolean burnMoney(RedeemAssetRequest request) {
-        AssetShare assetShare = d.headIO.get(request.shareToken.getShare(), AssetShare.class);
-        if (d.daoHelper.hasImplicitAuthority(assetShare, request.validateType) == false) {
+        CoinShare coinShare = d.headIO.get(request.shareToken.getShare(), CoinShare.class);
+        if (d.daoHelper.hasImplicitAuthority(coinShare, request.validateType) == false) {
             throw new WebApplicationException("Asset is not of the correct type.", Response.Status.NOT_ACCEPTABLE);
         }
-        assetShare.trustInheritWrite = false;
-        assetShare.trustAllowWrite.clear();
-        d.headIO.merge(assetShare);
+        coinShare.trustInheritWrite = false;
+        coinShare.trustAllowWrite.clear();
+        d.headIO.merge(coinShare);
         return true;
     }
 }
