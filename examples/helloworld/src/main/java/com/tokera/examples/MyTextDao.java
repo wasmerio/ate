@@ -1,5 +1,6 @@
 package com.tokera.examples;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tokera.ate.annotations.PermitParentFree;
 import com.tokera.ate.dao.base.BaseDaoRoles;
 import com.tokera.ate.units.DaoId;
