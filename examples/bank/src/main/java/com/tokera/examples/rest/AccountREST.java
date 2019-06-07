@@ -117,6 +117,7 @@ public class AccountREST {
 
         for (ShareToken shareToken : transactionToken.getShares()) {
             CoinShare share = d.headIO.get(shareToken.getShare(), CoinShare.class);
+            d.currentRights.impersonateWrite(shareToken.getOwnership());
 
             share.trustInheritWrite = false;
             share.getTrustAllowRead().clear();
