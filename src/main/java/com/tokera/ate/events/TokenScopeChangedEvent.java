@@ -12,7 +12,7 @@ public class TokenScopeChangedEvent {
     private IPartitionKey partitionKey;
 
     public TokenScopeChangedEvent(TokenDto token) {
-        this.partitionKey = AteDelegate.get().headIO.tokenParser().extractPartitionKey(token);
+        this.partitionKey = AteDelegate.get().io.tokenParser().extractPartitionKey(token);
     }
 
     public TokenScopeChangedEvent(IPartitionKey partitionKey) {

@@ -2,11 +2,10 @@ package com.tokera.ate.security;
 
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.delegates.AteDelegate;
-import com.tokera.ate.dto.msg.MessageEncryptTextDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.repo.DataPartitionChain;
-import java.io.IOException;
+
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -90,7 +89,7 @@ public class EncryptKeyCachePerRequest {
 
     private @Secret byte @Nullable [] getEncryptKeyInternal(DataPartitionChain chain, @Hash String encryptKeyHash, MessagePrivateKeyDto key)
     {
-        return d.headIO.secureKeyResolver().get(chain.partitionKey(), encryptKeyHash, key);
+        return d.io.secureKeyResolver().get(chain.partitionKey(), encryptKeyHash, key);
     }
 
     /**
@@ -100,7 +99,7 @@ public class EncryptKeyCachePerRequest {
      */
     public boolean hasEncryptKey(IPartitionKey partitionKey, @Hash String encryptKeyHash, @Hash String keyPublicKeyHash)
     {
-        return d.headIO.secureKeyResolver().exists(partitionKey, encryptKeyHash, keyPublicKeyHash);
+        return d.io.secureKeyResolver().exists(partitionKey, encryptKeyHash, keyPublicKeyHash);
     }
 
     /**

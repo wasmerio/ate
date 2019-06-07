@@ -449,7 +449,7 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
         if (topicProps != null) {
             // Create the topic
             try {
-                int maxPartitionsPerTopic = AteDelegate.get().headIO.partitionKeyMapper().maxPartitionsPerTopic();
+                int maxPartitionsPerTopic = AteDelegate.get().io.partitionKeyMapper().maxPartitionsPerTopic();
                 AdminUtils.createTopic(utils, this.m_key.partitionTopic(), maxPartitionsPerTopic, numOfReplicas, topicProps, kafka.admin.RackAwareMode.Disabled$.MODULE$);
                 this.isCreated = true;
             } catch (TopicExistsException ex) {

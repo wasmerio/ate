@@ -6,11 +6,8 @@ import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.units.DaoId;
-import com.tokera.ate.units.Secret;
-import com.tokera.ate.units.TopicName;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-import javax.enterprise.context.Dependent;
 import java.io.Serializable;
 import java.util.Set;
 import java.util.UUID;
@@ -37,7 +34,7 @@ public abstract class BaseDao implements Serializable, Immutalizable {
      */
     @JsonIgnore
     public PUUID addressableId() {
-        IPartitionKey key = AteDelegate.get().headIO.partitionResolver().resolve(this);
+        IPartitionKey key = AteDelegate.get().io.partitionResolver().resolve(this);
         UUID id = this.getId();
         return new PUUID(key, id);
     }

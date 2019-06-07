@@ -19,9 +19,7 @@ import javax.ws.rs.WebApplicationException;
 import com.tokera.ate.events.RegisterPublicTopicEvent;
 import com.tokera.ate.units.Alias;
 import com.tokera.ate.units.DomainName;
-import com.tokera.ate.units.Hash;
 import com.tokera.ate.units.PlainText;
-import edu.emory.mathcs.backport.java.util.Arrays;
 import org.apache.commons.codec.binary.Base64;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.xbill.DNS.*;
@@ -111,9 +109,9 @@ public class ImplicitSecurityDelegate {
 
         MessagePublicKeyDto ret;
         if (partitionKey != null) {
-            ret = d.headIO.publicKeyOrNull(partitionKey, domainStr);
+            ret = d.io.publicKeyOrNull(partitionKey, domainStr);
         } else {
-            ret = d.headIO.publicKeyOrNull(domainStr);
+            ret = d.io.publicKeyOrNull(domainStr);
         }
         if (ret == null) {
             ret = d.currentRights.getRightsWrite()
@@ -145,8 +143,8 @@ public class ImplicitSecurityDelegate {
         if (partitionKey == null) {
             return key.getPublicKeyHash();
         }
-        if (d.headIO.publicKeyOrNull(partitionKey, key.getPublicKeyHash()) == null) {
-            d.headIO.merge(partitionKey, key);
+        if (d.io.publicKeyOrNull(partitionKey, key.getPublicKeyHash()) == null) {
+            d.io.merge(partitionKey, key);
         }
         String partitionKeyTxt = new PartitionKeySerializer().write(partitionKey);
         return Base64.encodeBase64URLSafeString(partitionKeyTxt.getBytes()) + ":" + key.getPublicKeyHash();

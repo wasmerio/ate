@@ -85,7 +85,7 @@ public class AuthorizationDelegate {
     public void ensureCanWrite(BaseDao obj)
     {
         if (canWrite(obj) == false) {
-            IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(obj);
+            IPartitionKey partitionKey = d.io.partitionResolver().resolve(obj);
             EffectivePermissions permissions = d.authorization.perms(obj);
             throw buildWriteException(partitionKey, obj.getId(), permissions, true);
         }
@@ -101,7 +101,7 @@ public class AuthorizationDelegate {
     {
         StringBuilder sb = new StringBuilder();
         sb.append("Access denied while attempting to write object [");
-        DataContainer container = d.headIO.getRawOrNull(PUUID.from(partitionKey, entityId));
+        DataContainer container = d.io.getRawOrNull(PUUID.from(partitionKey, entityId));
         if (container != null) {
             sb.append(container.getPayloadClazz()).append(":");
         } else {
@@ -121,7 +121,7 @@ public class AuthorizationDelegate {
                 sb.append(" >        ");
             }
 
-            MessagePublicKeyDto key = d.headIO.publicKeyOrNull(partitionKey, publicKeyHash);
+            MessagePublicKeyDto key = d.io.publicKeyOrNull(partitionKey, publicKeyHash);
             if (key != null && key.getAlias() != null) {
                 sb.append(key.getAlias()).append(" - ").append(publicKeyHash).append("]");
             } else {
@@ -168,7 +168,7 @@ public class AuthorizationDelegate {
     {
         StringBuilder sb = new StringBuilder();
         sb.append("Access denied while attempting to read object [");
-        DataContainer container = d.headIO.getRawOrNull(PUUID.from(partitionKey, objId));
+        DataContainer container = d.io.getRawOrNull(PUUID.from(partitionKey, objId));
         if (container != null) {
             sb.append(container.getPayloadClazz()).append(":");
         }
@@ -177,7 +177,7 @@ public class AuthorizationDelegate {
         @Secret String encKeyHash = permissions.encryptKeyHash;
         sb.append(" > encKey: ");
         if (encKeyHash != null) {
-            MessagePublicKeyDto key = d.headIO.publicKeyOrNull(partitionKey, encKeyHash);
+            MessagePublicKeyDto key = d.io.publicKeyOrNull(partitionKey, encKeyHash);
             sb.append(key != null ? d.encryptor.getPublicKeyHash(key) : encKeyHash);
             sb.append("\n");
 
@@ -190,7 +190,7 @@ public class AuthorizationDelegate {
                     sb.append(" >        ");
                 }
 
-                MessagePublicKeyDto roleKey = d.headIO.publicKeyOrNull(partitionKey, publicKeyHash);
+                MessagePublicKeyDto roleKey = d.io.publicKeyOrNull(partitionKey, publicKeyHash);
                 @Hash String roleKeyAlias = roleKey != null ? d.encryptor.getAlias(partitionKey, roleKey) : publicKeyHash;
                 sb.append(roleKeyAlias).append(" - ").append(publicKeyHash).append("]");
                 if (this.d.encryptKeyCachePerRequest.hasEncryptKey(partitionKey, encKeyHash, publicKeyHash)) {
@@ -237,7 +237,7 @@ public class AuthorizationDelegate {
     }
 
     public EffectivePermissions perms(BaseDao obj) {
-        IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(obj);
+        IPartitionKey partitionKey = d.io.partitionResolver().resolve(obj);
         return new EffectivePermissionBuilder(partitionKey, obj.getId(), obj.getParentId())
                 .setUsePostMerged(true)
                 .withSuppliedObject(obj)
@@ -268,13 +268,13 @@ public class AuthorizationDelegate {
     public void authorizeRead(@Alias String alias, @Hash String keyHash, IRoles to) {
         if (to.getTrustAllowRead().values().contains(keyHash) == false) {
             to.getTrustAllowRead().put(alias, keyHash);
-            d.headIO.mergeLater((BaseDao)to);
+            d.io.mergeLater((BaseDao)to);
         }
     }
 
     public @Nullable MessagePrivateKeyDto getImplicitRightToRead(IRights entity)
     {
-        IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(entity);
+        IPartitionKey partitionKey = d.io.partitionResolver().resolve(entity);
         @Alias String alias = entity.getRightsAlias();
         MessagePrivateKeyDto right = entity.getRightsRead().stream()
                 .filter(p -> alias.equals(d.encryptor.getAlias(partitionKey, p)))
@@ -286,7 +286,7 @@ public class AuthorizationDelegate {
 
     public MessagePrivateKeyDto getOrCreateImplicitRightToRead(IRights entity)
     {
-        IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(entity);
+        IPartitionKey partitionKey = d.io.partitionResolver().resolve(entity);
         @Alias String alias = entity.getRightsAlias();
         MessagePrivateKeyDto right = entity.getRightsRead().stream()
                 .filter(p -> alias.equals(d.encryptor.getAlias(partitionKey, p)))
@@ -298,9 +298,9 @@ public class AuthorizationDelegate {
 
             entity.getRightsRead().add(right);
 
-            d.headIO.merge(partitionKey, d.encryptor.getPublicKey(right));
+            d.io.merge(partitionKey, d.encryptor.getPublicKey(right));
             if (entity instanceof BaseDao) {
-                d.headIO.mergeLater((BaseDao)entity);
+                d.io.mergeLater((BaseDao)entity);
             }
         }
         return right;
@@ -333,10 +333,10 @@ public class AuthorizationDelegate {
 
         // If its not in the chain-of-trust then add it
         BaseDao toObj = (BaseDao)to;
-        IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(toObj);
+        IPartitionKey partitionKey = d.io.partitionResolver().resolve(toObj);
         if (performMerge) {
-            if (d.headIO.publicKeyOrNull(partitionKey, hash) == null) {
-                d.headIO.merge(partitionKey, new MessagePublicKeyDto(right));
+            if (d.io.publicKeyOrNull(partitionKey, hash) == null) {
+                d.io.merge(partitionKey, new MessagePublicKeyDto(right));
             }
         }
 
@@ -356,7 +356,7 @@ public class AuthorizationDelegate {
         d.daoHelper.generateEncryptKey(to);
 
         if (performMerge) {
-            d.headIO.mergeLater(toObj);
+            d.io.mergeLater(toObj);
         }
     }
 
@@ -368,20 +368,20 @@ public class AuthorizationDelegate {
         to.getTrustAllowRead().put("public", d.encryptor.getTrustOfPublicRead().getPublicKeyHash());
 
         if (performMerge) {
-            d.headIO.mergeLater((BaseDao) to);
+            d.io.mergeLater((BaseDao) to);
         }
     }
 
     public void authorizeWrite(@Alias String alias, @Hash String keyHash, IRoles to) {
         if (to.getTrustAllowWrite().values().contains(keyHash) == false) {
             to.getTrustAllowWrite().put(alias, keyHash);
-            d.headIO.mergeLater((BaseDao)to);
+            d.io.mergeLater((BaseDao)to);
         }
     }
 
     public @Nullable MessagePrivateKeyDto getImplicitRightToWrite(IRights entity)
     {
-        IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(entity);
+        IPartitionKey partitionKey = d.io.partitionResolver().resolve(entity);
         @Alias String alias = entity.getRightsAlias();
         MessagePrivateKeyDto right = entity.getRightsWrite().stream()
                 .filter(p -> alias.equals(d.encryptor.getAlias(partitionKey, p)))
@@ -393,7 +393,7 @@ public class AuthorizationDelegate {
 
     public MessagePrivateKeyDto getOrCreateImplicitRightToWrite(IRights entity)
     {
-        IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(entity);
+        IPartitionKey partitionKey = d.io.partitionResolver().resolve(entity);
         @Alias String alias = entity.getRightsAlias();
         MessagePrivateKeyDto right = entity.getRightsWrite().stream()
                 .filter(p -> alias.equals(d.encryptor.getAlias(partitionKey, p)))
@@ -405,9 +405,9 @@ public class AuthorizationDelegate {
 
             entity.getRightsWrite().add(right);
 
-            d.headIO.merge(partitionKey, d.encryptor.getPublicKey(right));
+            d.io.merge(partitionKey, d.encryptor.getPublicKey(right));
             if (entity instanceof BaseDao) {
-                d.headIO.mergeLater((BaseDao)entity);
+                d.io.mergeLater((BaseDao)entity);
             }
         }
         return right;
@@ -440,10 +440,10 @@ public class AuthorizationDelegate {
 
         // If its not in the chain-of-trust then add it
         BaseDao toObj = (BaseDao)to;
-        IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(toObj);
+        IPartitionKey partitionKey = d.io.partitionResolver().resolve(toObj);
         if (performMerge == true) {
-            if (d.headIO.publicKeyOrNull(partitionKey, hash) == null) {
-                d.headIO.merge(partitionKey, new MessagePublicKeyDto(right));
+            if (d.io.publicKeyOrNull(partitionKey, hash) == null) {
+                d.io.merge(partitionKey, new MessagePublicKeyDto(right));
             }
         }
 
@@ -458,7 +458,7 @@ public class AuthorizationDelegate {
         to.getTrustAllowWrite().put(d.encryptor.getAlias(partitionKey, right), d.encryptor.getPublicKeyHash(right));
 
         if (performMerge) {
-            d.headIO.mergeLater(toObj);
+            d.io.mergeLater(toObj);
         }
     }
 
@@ -470,7 +470,7 @@ public class AuthorizationDelegate {
         to.getTrustAllowWrite().put("public", d.encryptor.getTrustOfPublicWrite().getPublicKeyHash());
 
         if (performMerge) {
-            d.headIO.mergeLater((BaseDao) to);
+            d.io.mergeLater((BaseDao) to);
         }
     }
 
@@ -490,7 +490,7 @@ public class AuthorizationDelegate {
                     .orElse(null);
             if (publicKeyHash != null) {
                 from.getTrustAllowRead().remove(publicKeyHash.getKey());
-                d.headIO.mergeLater((BaseDao) from);
+                d.io.mergeLater((BaseDao) from);
             }
         }
 
@@ -508,7 +508,7 @@ public class AuthorizationDelegate {
                     .orElse(null);
             if (publicKeyHash != null) {
                 from.getTrustAllowWrite().remove(publicKeyHash.getKey());
-                d.headIO.mergeLater((BaseDao) from);
+                d.io.mergeLater((BaseDao) from);
             }
         }
     }
@@ -520,12 +520,12 @@ public class AuthorizationDelegate {
 
     public void unauthorizeAliasRead(IRoles roles, @Alias String alias) {
         roles.getTrustAllowRead().remove(alias);
-        d.headIO.mergeLater((BaseDao) roles);
+        d.io.mergeLater((BaseDao) roles);
     }
 
     public void unauthorizeAliasWrite(IRoles roles, @Alias String alias) {
         roles.getTrustAllowWrite().remove(alias);
-        d.headIO.mergeLater((BaseDao) roles);
+        d.io.mergeLater((BaseDao) roles);
     }
 
     public void unauthorizeAlias(IRights rights, @Alias String alias) {
@@ -535,7 +535,7 @@ public class AuthorizationDelegate {
 
     public void unauthorizeAliasRead(IRights rights, @Alias String alias) {
 
-        IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(rights);
+        IPartitionKey partitionKey = d.io.partitionResolver().resolve(rights);
         List<MessagePrivateKeyDto> rs = rights.getRightsRead()
                 .stream()
                 .filter(p -> alias.equals(d.encryptor.getPublicKeyHash(p)) == true ||
@@ -543,13 +543,13 @@ public class AuthorizationDelegate {
                 .collect(Collectors.toList());
         for (MessagePrivateKeyDto r : rs) {
             rights.getRightsRead().remove(r);
-            d.headIO.mergeLater((BaseDao)rights);
+            d.io.mergeLater((BaseDao)rights);
         }
     }
 
     public void unauthorizeAliasWrite(IRights rights, @Alias String alias) {
 
-        IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(rights);
+        IPartitionKey partitionKey = d.io.partitionResolver().resolve(rights);
         List<MessagePrivateKeyDto> rs = rights.getRightsWrite()
                 .stream()
                 .filter(p -> alias.equals(d.encryptor.getPublicKeyHash(p)) == true ||
@@ -557,7 +557,7 @@ public class AuthorizationDelegate {
                 .collect(Collectors.toList());
         for (MessagePrivateKeyDto r : rs) {
             rights.getRightsWrite().remove(r);
-            d.headIO.mergeLater((BaseDao)rights);
+            d.io.mergeLater((BaseDao)rights);
         }
     }
 }

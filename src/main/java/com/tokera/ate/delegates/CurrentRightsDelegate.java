@@ -79,7 +79,7 @@ public class CurrentRightsDelegate implements IRights {
     }
 
     public void impersonate(IRights rights) {
-        IPartitionKey key = d.headIO.partitionResolver().resolve(rights);
+        IPartitionKey key = d.io.partitionResolver().resolve(rights);
         impersonate(key, rights);
     }
 

@@ -27,7 +27,7 @@ public class TransactionInterceptor implements ContainerResponseFilter {
         // Send all the data to the Kafka
         // (but only if we are not encountering an error of some kind)
         if (responseContext.getStatus() >= 200 && responseContext.getStatus() < 400) {
-            d.headIO.mergeDeferred();
+            d.io.mergeDeferred();
         }
     }
 }

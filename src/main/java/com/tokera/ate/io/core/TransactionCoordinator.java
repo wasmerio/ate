@@ -27,7 +27,7 @@ public class TransactionCoordinator  {
         while (true) {
             MessageSyncDto sync = syncs.poll();
             if (sync == null) return;
-            d.headIO.sync(sync);
+            d.io.sync(sync);
         }
     }
 

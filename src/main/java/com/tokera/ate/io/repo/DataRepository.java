@@ -2,7 +2,6 @@ package com.tokera.ate.io.repo;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
 
@@ -24,7 +23,6 @@ import com.tokera.ate.enumerations.DataPartitionType;
 
 import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import com.tokera.ate.units.DaoId;
 import com.tokera.ate.units.Hash;
@@ -85,7 +83,7 @@ public class DataRepository implements IAteIO {
     private boolean mergeInternal(BaseDao entity, boolean performValidation, boolean performSync)
     {
         // Get the partition
-        IPartitionKey key = d.headIO.partitionResolver().resolve(entity);
+        IPartitionKey key = d.io.partitionResolver().resolve(entity);
         DataPartition kt = this.subscriber.getPartition(key);
 
         // Generate the data that represents this entity
@@ -183,7 +181,7 @@ public class DataRepository implements IAteIO {
                 throw new RuntimeException("This entity [" + type.getSimpleName() + "] is not attached to a parent [see PermitParentType annotation].");
             }
 
-            IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(entity);
+            IPartitionKey partitionKey = d.io.partitionResolver().resolve(entity);
             DataPartitionChain chain = this.subscriber.getChain(partitionKey);
             DataContainer parentContainer = chain.getData(entityParentId, LOG);
             if (parentContainer != null && d.daoParents.getAllowedParentsSimple().containsEntry(entityType, parentContainer.getPayloadClazz()) == false) {
@@ -223,7 +221,7 @@ public class DataRepository implements IAteIO {
     private void validateTrustWritability(BaseDao entity) {
         if (d.authorization.canWrite(entity) == false)
         {
-            IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(entity);
+            IPartitionKey partitionKey = d.io.partitionResolver().resolve(entity);
             EffectivePermissions permissions = d.authorization.perms(entity);
             throw d.authorization.buildWriteException(partitionKey, entity.getId(), permissions, true);
         }
@@ -243,7 +241,7 @@ public class DataRepository implements IAteIO {
     }
 
     private void mergeLaterInternal(BaseDao entity, boolean validate) {
-        IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(entity);
+        IPartitionKey partitionKey = d.io.partitionResolver().resolve(entity);
         if (this.staging.find(partitionKey, entity.getId()) != null) {
             return;
         }
@@ -339,7 +337,7 @@ public class DataRepository implements IAteIO {
     public boolean remove(BaseDao entity) {
         
         // Now create and write the data messages themselves
-        IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(entity);
+        IPartitionKey partitionKey = d.io.partitionResolver().resolve(entity);
         DataPartition kt = this.subscriber.getPartition(partitionKey);
 
         if (entity.hasSaved() == false) {
@@ -394,7 +392,7 @@ public class DataRepository implements IAteIO {
 
     @Override
     public void removeLater(BaseDao entity) {
-        IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(entity);
+        IPartitionKey partitionKey = d.io.partitionResolver().resolve(entity);
 
         // We only actually need to validate and queue if the object has ever been saved
         if (entity.hasSaved() == true)

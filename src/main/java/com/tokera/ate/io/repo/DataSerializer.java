@@ -112,14 +112,14 @@ public class DataSerializer {
 
             for (String publicKeyHash : roles.getTrustAllowRead().values()) {
                 if (chain.hasPublicKey(publicKeyHash)) continue;
-                MessagePublicKeyDto publicKey = d.headIO.publicKeyOrNull(kt.partitionKey(), publicKeyHash);
+                MessagePublicKeyDto publicKey = d.io.publicKeyOrNull(kt.partitionKey(), publicKeyHash);
                 if (publicKey == null) continue;
                 kt.write(publicKey, this.LOG);
             }
 
             for (String publicKeyHash : roles.getTrustAllowWrite().values()) {
                 if (chain.hasPublicKey(publicKeyHash)) continue;
-                MessagePublicKeyDto publicKey = d.headIO.publicKeyOrNull(kt.partitionKey(), publicKeyHash);
+                MessagePublicKeyDto publicKey = d.io.publicKeyOrNull(kt.partitionKey(), publicKeyHash);
                 if (publicKey == null) continue;
                 kt.write(publicKey, this.LOG);
             }
@@ -160,8 +160,8 @@ public class DataSerializer {
         for (String publicKeyHash : permissions.rolesRead)
         {
             // If the key is not available in the kafka parttion then we need to add it
-            if (d.headIO.secureKeyResolver().exists(kt.partitionKey(), encryptKeyHash, publicKeyHash) == false) {
-                d.headIO.secureKeyResolver().put(kt.partitionKey(), encryptKey, publicKeyHash);
+            if (d.io.secureKeyResolver().exists(kt.partitionKey(), encryptKeyHash, publicKeyHash) == false) {
+                d.io.secureKeyResolver().put(kt.partitionKey(), encryptKey, publicKeyHash);
             }
         }
     }
@@ -247,7 +247,7 @@ public class DataSerializer {
     public MessageBaseDto toDataMessage(BaseDao obj, DataPartition kt, boolean isDeleted, boolean allowSavingOfChildren)
     {
         // Build a header for a new version of the data object
-        IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(obj);
+        IPartitionKey partitionKey = d.io.partitionResolver().resolve(obj);
         BaseDao.newVersion(obj);
         MessageDataHeaderDto header = buildHeaderForDataObject(obj);
 

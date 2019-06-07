@@ -165,7 +165,7 @@ public class DataContainer {
         AteDelegate d = AteDelegate.get();
         BaseDao ret = _ret;
         if (ret == null) return null;
-        IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(ret);
+        IPartitionKey partitionKey = d.io.partitionResolver().resolve(ret);
 
         // Reconcile the parent version pointers
         if (leaves.size() == 1) {
@@ -180,7 +180,7 @@ public class DataContainer {
             if (leaves.size() > 1) {
                 EffectivePermissions perms = d.authorization.perms(partitionKey, ret.getId(), ret.getParentId(), false);
                 if (perms.canWrite(d.currentRights)) {
-                    d.headIO.mergeAsyncWithoutValidation(ret);
+                    d.io.mergeAsyncWithoutValidation(ret);
                 }
             }
         }

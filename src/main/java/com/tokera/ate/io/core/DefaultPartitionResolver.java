@@ -8,15 +8,10 @@ import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.api.IPartitionResolver;
-import com.tokera.ate.io.repo.DataStagingManager;
 import com.tokera.ate.units.DaoId;
-import org.apache.kafka.common.utils.Utils;
 
 import javax.enterprise.context.Dependent;
-import java.nio.ByteBuffer;
-import java.util.Collection;
 import java.util.UUID;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -57,7 +52,7 @@ public class DefaultPartitionResolver implements IPartitionResolver {
 
                 // We have arrived at the top of the chain-of-trust and thus the ID of this root object
                 // can be used to determine which partition to place the data object
-                return d.headIO.partitionKeyMapper().resolve(obj.getId());
+                return d.io.partitionKeyMapper().resolve(obj.getId());
             }
 
             // Maybe its already in the cache
@@ -72,7 +67,7 @@ public class DefaultPartitionResolver implements IPartitionResolver {
             {
                 // Try all the partition keys that are currently active or that have not yet been saved
                 for (IPartitionKey activePartitionKey : d.dataStagingManager.keys()) {
-                    if (d.headIO.exists(PUUID.from(activePartitionKey, parentId))) {
+                    if (d.io.exists(PUUID.from(activePartitionKey, parentId))) {
                         return activePartitionKey;
                     }
                     if (d.dataStagingManager.find(activePartitionKey, parentId) != null) {
@@ -84,14 +79,14 @@ public class DefaultPartitionResolver implements IPartitionResolver {
                 // scope
                 partitionKey = d.requestContext.getPartitionKeyScopeOrNull();
                 if (partitionKey != null) {
-                    if (d.headIO.exists(PUUID.from(partitionKey, parentId))) {
+                    if (d.io.exists(PUUID.from(partitionKey, parentId))) {
                         return partitionKey;
                     }
                 }
 
                 // Lets try some other partition scopes (perhaps its in one of those)
                 for (IPartitionKey otherPartitionKey : d.requestContext.getOtherPartitionKeys()) {
-                    if (d.headIO.exists(PUUID.from(otherPartitionKey, parentId))) {
+                    if (d.io.exists(PUUID.from(otherPartitionKey, parentId))) {
                         return otherPartitionKey;
                     }
                 }
@@ -118,7 +113,7 @@ public class DefaultPartitionResolver implements IPartitionResolver {
     @Override
     public IPartitionKey resolve(IRights obj) {
         if (obj instanceof BaseDao) {
-            return d.headIO.partitionResolver().resolve((BaseDao)obj);
+            return d.io.partitionResolver().resolve((BaseDao)obj);
         }
         throw new RuntimeException("Unable to determine the partition key for this access rights object as it is not of the type BaseDao.");
     }

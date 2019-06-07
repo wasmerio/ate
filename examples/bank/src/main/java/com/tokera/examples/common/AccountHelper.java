@@ -16,7 +16,7 @@ public class AccountHelper {
 
         // Fast path - check the last monthly activity
         if (acc.monthlyActivities.size() > 0) {
-            MonthlyActivity last = d.headIO.get(acc.monthlyActivities.get(acc.monthlyActivities.size()-1), MonthlyActivity.class);
+            MonthlyActivity last = d.io.get(acc.monthlyActivities.get(acc.monthlyActivities.size()-1), MonthlyActivity.class);
             if (now.compareTo(last.start) >= 0 &&
                 now.compareTo(last.end) <= 0)
             {
@@ -25,7 +25,7 @@ public class AccountHelper {
         }
 
         // Slow path - make sure there's no duplicates
-        List<MonthlyActivity> monthlyActivities = d.headIO.getMany(acc.monthlyActivities, MonthlyActivity.class);
+        List<MonthlyActivity> monthlyActivities = d.io.getMany(acc.monthlyActivities, MonthlyActivity.class);
         for (MonthlyActivity monthlyActivity : monthlyActivities) {
             if (now.compareTo(monthlyActivity.start) >= 0 &&
                 now.compareTo(monthlyActivity.end) <= 0)
@@ -45,8 +45,8 @@ public class AccountHelper {
         MonthlyActivity ret = new MonthlyActivity(acc, start, end);
         acc.monthlyActivities.add(ret.id);
 
-        d.headIO.mergeLater(ret);
-        d.headIO.mergeLater(acc);
+        d.io.mergeLater(ret);
+        d.io.mergeLater(acc);
         return ret;
     }
 }

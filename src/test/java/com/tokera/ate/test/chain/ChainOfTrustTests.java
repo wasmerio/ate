@@ -57,7 +57,7 @@ public class ChainOfTrustTests
     private DataPartitionChain createChain()
     {
         UUID id = UUIDTools.generateUUID("tokera.com");
-        IPartitionKey key = AteDelegate.get().headIO.partitionKeyMapper().resolve(id);
+        IPartitionKey key = AteDelegate.get().io.partitionKeyMapper().resolve(id);
 
         DataPartitionChain ret = new DataPartitionChain(key);
         encryptor.touch();

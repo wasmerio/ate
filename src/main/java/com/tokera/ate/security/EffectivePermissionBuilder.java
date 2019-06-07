@@ -82,7 +82,7 @@ public class EffectivePermissionBuilder {
     public @Nullable BaseDao findDataObj(UUID id) {
         BaseDao obj = MapTools.getOrNull(this.suppliedObjects, id);
         if (obj == null) obj = d.dataStagingManager.find(this.partitionKey, id);
-        if (obj == null) obj = d.headIO.getOrNull(PUUID.from(this.partitionKey, id));
+        if (obj == null) obj = d.io.getOrNull(PUUID.from(this.partitionKey, id));
         return obj;
     }
 
@@ -91,7 +91,7 @@ public class EffectivePermissionBuilder {
      * writing data into the chain which has been accepted into the chain
      */
     private void addRootTrust(EffectivePermissions ret) {
-        MessageDataHeaderDto rootOfTrust = d.headIO.getRootOfTrust(PUUID.from(this.partitionKey, this.origId));
+        MessageDataHeaderDto rootOfTrust = d.io.getRootOfTrust(PUUID.from(this.partitionKey, this.origId));
         if (rootOfTrust != null) {
             ret.encryptKeyHash = rootOfTrust.getEncryptKeyHash();
             ret.rolesRead.addAll(rootOfTrust.getAllowRead());
@@ -112,7 +112,7 @@ public class EffectivePermissionBuilder {
         @DaoId UUID id = origId;
         @DaoId UUID parentId = origParentId;
         do {
-            DataContainer container = d.headIO.getRawOrNull(PUUID.from(this.partitionKey, id));
+            DataContainer container = d.io.getRawOrNull(PUUID.from(this.partitionKey, id));
             if (container != null) {
                 MessageDataHeaderDto header = container.getMergedHeader();
 
@@ -143,7 +143,7 @@ public class EffectivePermissionBuilder {
     private void addImplicitTrust(EffectivePermissions ret)
     {
         // Find the object
-        DataContainer container = d.headIO.getRawOrNull(PUUID.from(this.partitionKey, this.origId));
+        DataContainer container = d.io.getRawOrNull(PUUID.from(this.partitionKey, this.origId));
         BaseDao obj = usePostMerged == true ? findDataObj(this.origId) : null;
 
         // Follow the inheritance tree
@@ -155,7 +155,7 @@ public class EffectivePermissionBuilder {
             }
         } else if (obj != null) {
             Class<?> type = obj.getClass();
-            IPartitionKey key = d.headIO.partitionResolver().resolve(obj);
+            IPartitionKey key = d.io.partitionResolver().resolve(obj);
 
             // If it contains dynamic implicit authority
             Field field = MapTools.getOrNull(d.daoParents.getAllowedDynamicImplicitAuthority(), type);
@@ -187,7 +187,7 @@ public class EffectivePermissionBuilder {
     private void addClaimableTrust(EffectivePermissions ret) {
         // If the data object is marked as claimable we only add the public write role if the
         // data object does not yet have a root record stored on the chain-of-trust (first come, first serve).
-        DataContainer container = d.headIO.getRawOrNull(PUUID.from(this.partitionKey, this.origId));
+        DataContainer container = d.io.getRawOrNull(PUUID.from(this.partitionKey, this.origId));
         if (container != null)
         {
             if (d.daoParents.getAllowedParentClaimableSimple().contains(container.getPayloadClazz())) {
@@ -232,7 +232,7 @@ public class EffectivePermissionBuilder {
                     if (roles.getTrustInheritRead() == false) {
                         inheritRead = false;
                     }
-                    if (roles.getTrustInheritWrite() == false && d.headIO.exists(PUUID.from(this.partitionKey, id)) == true) {
+                    if (roles.getTrustInheritWrite() == false && d.io.exists(PUUID.from(this.partitionKey, id)) == true) {
                         inheritWrite = false;
                     }
                 }
@@ -240,7 +240,7 @@ public class EffectivePermissionBuilder {
             }
             else
             {
-                DataContainer container = d.headIO.getRawOrNull(PUUID.from(this.partitionKey, id));
+                DataContainer container = d.io.getRawOrNull(PUUID.from(this.partitionKey, id));
                 if (container != null) {
                     MessageDataHeaderDto header = container.getMergedHeader();
 

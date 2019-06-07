@@ -58,7 +58,7 @@ public class PartitionKeyInterceptor implements ContainerRequestFilter {
 
         // Convert it to a partition key
         UUID id = UUIDTools.parseUUIDorNull(idTxt);
-        IPartitionKey partitionKey = d.headIO.partitionKeyMapper().resolve(id);
+        IPartitionKey partitionKey = d.io.partitionKeyMapper().resolve(id);
         if (id == null) id = UUIDTools.generateUUID(idTxt);
 
         // Enter the partition key scope based on this header
@@ -67,7 +67,7 @@ public class PartitionKeyInterceptor implements ContainerRequestFilter {
             
             // We warm up the partition locally as it is likely that there will be
             // IO very soon to this repository
-            d.headIO.warm(partitionKey);
+            d.io.warm(partitionKey);
         }
     }
 }

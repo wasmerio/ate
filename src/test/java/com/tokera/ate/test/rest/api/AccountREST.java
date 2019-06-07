@@ -4,19 +4,14 @@ import com.tokera.ate.annotations.PermitRiskRole;
 import com.tokera.ate.annotations.PermitUserRole;
 import com.tokera.ate.common.StringTools;
 import com.tokera.ate.common.UUIDTools;
-import com.tokera.ate.configuration.AteConstants;
 import com.tokera.ate.dao.enumerations.RiskRole;
 import com.tokera.ate.dao.enumerations.UserRole;
 import com.tokera.ate.delegates.AteDelegate;
-import com.tokera.ate.dto.TokenDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.security.TokenBuilder;
-import com.tokera.ate.security.TokenSecurity;
 import com.tokera.ate.test.dao.MyAccount;
 import com.tokera.ate.test.dao.SeedingDelegate;
 import com.tokera.ate.test.dto.NewAccountDto;
-import com.tokera.ate.units.Claim;
-import com.tokera.ate.units.DomainName;
 import com.tokera.ate.units.EmailAddress;
 import org.junit.jupiter.api.Assertions;
 
@@ -28,10 +23,6 @@ import javax.validation.Valid;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
 
 @ApplicationScoped
 @Path("/acc")
@@ -75,7 +66,7 @@ public class AccountREST {
         MyAccount acc = new MyAccount(email, "pass123");
         acc.id = UUIDTools.generateUUID(StringTools.getDomain(email));
         acc.description = theDetails.getDescription();
-        d.headIO.mergeLater(acc);
+        d.io.mergeLater(acc);
         return acc;
     }
 }

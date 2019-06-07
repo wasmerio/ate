@@ -36,10 +36,10 @@ public class RegisterREST {
         // Create access rights and grant them to ourselves
         d.authorization.authorizeEntity(company, company);
         d.currentRights.impersonate(company);
-        d.headIO.mergeLater(company);
+        d.io.mergeLater(company);
 
         // Now save the account using this access rights
-        d.headIO.mergeLater(acc);
+        d.io.mergeLater(acc);
 
         TokenDto token = new TokenBuilder()
                 .withUsername("root@" + company.domain)
@@ -66,10 +66,10 @@ public class RegisterREST {
         // Create access rights and grant them to ourselves
         d.authorization.authorizeEntity(individual, individual);
         d.currentRights.impersonate(individual);
-        d.headIO.mergeLater(individual);
+        d.io.mergeLater(individual);
 
         // Now save the account using this access rights
-        d.headIO.mergeLater(acc);
+        d.io.mergeLater(acc);
 
         TokenDto token = new TokenBuilder()
                 .withUsername(individual.email)

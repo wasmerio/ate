@@ -11,7 +11,6 @@ import com.tokera.ate.dto.TokenDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.providers.PartitionKeySerializer;
-import com.tokera.ate.units.DomainName;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.List;
@@ -98,12 +97,12 @@ public class TokenBuilder {
     }
 
     public TokenBuilder withPartitionKeyFromRights(IRights rights) {
-        IPartitionKey key = AteDelegate.get().headIO.partitionResolver().resolve(rights);
+        IPartitionKey key = AteDelegate.get().io.partitionResolver().resolve(rights);
         return withPartitionkey(key);
     }
 
     public TokenBuilder withPartitionkeyFromDao(BaseDao obj) {
-        IPartitionKey key = AteDelegate.get().headIO.partitionResolver().resolve(obj);
+        IPartitionKey key = AteDelegate.get().io.partitionResolver().resolve(obj);
         return withPartitionkey(key);
     }
 

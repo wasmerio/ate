@@ -29,11 +29,11 @@ public class AccountREST {
     @Produces({"text/yaml", MediaType.APPLICATION_JSON})
     @Consumes({"text/yaml", MediaType.APPLICATION_JSON})
     public TransactionToken beginTransaction(BeginTransactionRequest request) {
-        Account acc = d.headIO.get(accountId, Account.class);
+        Account acc = d.io.get(accountId, Account.class);
 
         // Find all the shares of the asset that we actually have ownership rights to
         LinkedList<CoinShare> ownedShares = new LinkedList<CoinShare>();
-        ownedShares.addAll(d.headIO.getManyAcrossPartitions(acc.ownerships, CoinShare.class));
+        ownedShares.addAll(d.io.getManyAcrossPartitions(acc.ownerships, CoinShare.class));
 
         // Create a new ownership key
         MessagePrivateKeyDto ownership = d.encryptor.genSignKey();
@@ -42,8 +42,8 @@ public class AccountREST {
         List<ShareToken> shareTokens = new ArrayList<ShareToken>();
         BigDecimal remaining = request.amount;
         for (;;) {
+            if (ownedShares.isEmpty()) break;
             CoinShare share = ownedShares.removeFirst();
-            if (share == null) break;
 
             // Make sure we actually own it and its of the right type of asset
             if (d.authorization.canWrite(share) == false) {
@@ -83,15 +83,15 @@ public class AccountREST {
                 share.shares.add(right.id);
                 share.trustAllowWrite.clear();
                 share.trustInheritWrite = false;
-                d.headIO.mergeLater(share);
+                d.io.mergeLater(share);
 
                 left.trustInheritWrite = false;
                 right.trustInheritWrite = false;
 
                 d.authorization.authorizeEntityWrite(ownership, left);
                 d.authorization.authorizeEntityWrite(ownership, right);
-                d.headIO.mergeLater(left);
-                d.headIO.mergeLater(right);
+                d.io.mergeLater(left);
+                d.io.mergeLater(right);
 
                 ownedShares.addFirst(left);
                 ownedShares.addFirst(right);
@@ -99,7 +99,7 @@ public class AccountREST {
         }
 
         // If there's still some remaining then we don't own enough of this asset to meet the desired amount
-        if (remaining.compareTo(BigDecimal.ZERO) != 0) {
+        if (remaining.compareTo(BigDecimal.ZERO) < 0) {
             throw new WebApplicationException("Insufficient funds.", Response.Status.NOT_ACCEPTABLE);
         }
 
@@ -112,25 +112,25 @@ public class AccountREST {
     @Produces({"text/yaml", MediaType.APPLICATION_JSON})
     @Consumes({"text/yaml", MediaType.APPLICATION_JSON})
     public MonthlyActivity completeTransaction(TransactionToken transactionToken) {
-        Account acc = d.headIO.get(accountId, Account.class);
+        Account acc = d.io.get(accountId, Account.class);
         MonthlyActivity activity = AccountHelper.getCurrentMonthlyActivity(acc);
 
         for (ShareToken shareToken : transactionToken.getShares()) {
-            CoinShare share = d.headIO.get(shareToken.getShare(), CoinShare.class);
+            CoinShare share = d.io.get(shareToken.getShare(), CoinShare.class);
             d.currentRights.impersonateWrite(shareToken.getOwnership());
 
             share.trustInheritWrite = false;
             share.getTrustAllowRead().clear();
             d.authorization.authorizeEntity(acc, share);
-            d.headIO.mergeLater(share);
+            d.io.mergeLater(share);
 
             acc.ownerships.add(share.addressableId());
-            d.headIO.mergeLater(acc);
+            d.io.mergeLater(acc);
 
             TransactionDetails details = new TransactionDetails(activity, share);
             activity.transactions.add(new Transaction(details));
-            d.headIO.mergeLater(details);
-            d.headIO.mergeLater(activity);
+            d.io.mergeLater(details);
+            d.io.mergeLater(activity);
         }
 
         return activity;
@@ -140,24 +140,28 @@ public class AccountREST {
     @GET
     @Produces({"text/yaml", MediaType.APPLICATION_JSON})
     public MonthlyActivity reconcileTransactions() {
-        Account acc = d.headIO.get(accountId, Account.class);
+        Account acc = d.io.get(accountId, Account.class);
         MonthlyActivity activity = AccountHelper.getCurrentMonthlyActivity(acc);
 
         // For any assets we don't own anymore then we add a transaction to the new owner
-        for (CoinShare share : d.headIO.getManyAcrossPartitions(acc.ownerships, CoinShare.class)) {
+        for (CoinShare share : d.io.getManyAcrossPartitions(acc.ownerships, CoinShare.class)) {
             if (d.authorization.canWrite(share) == false)
             {
                 // When we don't own it anymore (as someone else took the rights to it) then we remove it from
                 // our ownership list
                 acc.ownerships.remove(share.addressableId());
-                d.headIO.mergeLater(acc);
+                d.io.mergeLater(acc);
 
                 // Add a transaction details to show that we no longer own it
                 TransactionDetails details = new TransactionDetails(activity, share);
                 details.amount = details.amount.negate();
                 activity.transactions.add(new Transaction(details));
-                d.headIO.mergeLater(details);
-                d.headIO.mergeLater(activity);
+                d.io.mergeLater(details);
+                d.io.mergeLater(activity);
+
+                // Add the coin share to the account
+                acc.ownerships.add(share.addressableId());
+                d.io.mergeLater(acc);
             }
         }
 
@@ -168,7 +172,7 @@ public class AccountREST {
     @Path("transactions")
     @Produces({"text/yaml", MediaType.APPLICATION_JSON})
     public MonthlyActivity getTransactions() {
-        Account acc = d.headIO.get(accountId, Account.class);
+        Account acc = d.io.get(accountId, Account.class);
         return AccountHelper.getCurrentMonthlyActivity(acc);
     }
 }

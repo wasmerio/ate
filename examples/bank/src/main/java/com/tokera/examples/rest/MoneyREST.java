@@ -32,14 +32,14 @@ public class MoneyREST {
         Coin coin = new Coin(request.type, request.value);
         d.authorization.authorizeEntityPublicRead(coin);
         d.authorization.authorizeEntityWrite(coiningKey, coin);
-        d.headIO.mergeLater(coin);
+        d.io.mergeLater(coin);
 
         CoinShare coinShare = new CoinShare(coin, request.value);
         d.authorization.authorizeEntityWrite(request.ownershipKey, coinShare);
         coin.shares.add(coinShare.id);
 
-        d.headIO.mergeLater(coin);
-        d.headIO.mergeLater(coinShare);
+        d.io.mergeLater(coin);
+        d.io.mergeLater(coinShare);
 
         //LOG.info(d.yaml.serializeObj(asset));
         //LOG.info(d.yaml.serializeObj(assetShare));
@@ -52,13 +52,13 @@ public class MoneyREST {
     @Produces(MediaType.TEXT_PLAIN)
     @Consumes({"text/yaml", MediaType.APPLICATION_JSON})
     public boolean burnMoney(RedeemAssetRequest request) {
-        CoinShare coinShare = d.headIO.get(request.shareToken.getShare(), CoinShare.class);
+        CoinShare coinShare = d.io.get(request.shareToken.getShare(), CoinShare.class);
         if (d.daoHelper.hasImplicitAuthority(coinShare, request.validateType) == false) {
             throw new WebApplicationException("Asset is not of the correct type.", Response.Status.NOT_ACCEPTABLE);
         }
         coinShare.trustInheritWrite = false;
         coinShare.trustAllowWrite.clear();
-        d.headIO.merge(coinShare);
+        d.io.merge(coinShare);
         return true;
     }
 }

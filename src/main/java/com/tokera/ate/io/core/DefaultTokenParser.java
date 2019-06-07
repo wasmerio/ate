@@ -24,6 +24,6 @@ public class DefaultTokenParser implements ITokenParser {
         @EmailAddress String email = token.getUsername();
         @DomainName String domain = StringTools.getDomain(email);
         UUID id = UUIDTools.generateUUID(domain);
-        return AteDelegate.get().headIO.partitionKeyMapper().resolve(id);
+        return AteDelegate.get().io.partitionKeyMapper().resolve(id);
     }
 }

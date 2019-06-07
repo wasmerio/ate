@@ -68,7 +68,7 @@ public abstract class BaseAteDelegate {
     public final CurrentRightsDelegate currentRights;
     public final MemoryRequestCacheIO memoryRequestCacheIO;
     public final AuthorizationDelegate authorization;
-    public final HeadIO headIO;
+    public final HeadIO io;
     public final TransactionCoordinator transaction;
     public final DataMerger merger;
     public final DataSerializer dataSerializer;
@@ -149,7 +149,7 @@ public abstract class BaseAteDelegate {
         this.currentRights = getBean(CurrentRightsDelegate.class);
         this.memoryRequestCacheIO = getBean(MemoryRequestCacheIO.class);
         this.authorization = getBean(AuthorizationDelegate.class);
-        this.headIO = getBean(HeadIO.class, new AnnotationLiteral<FrontendStorageSystem>() {});
+        this.io = getBean(HeadIO.class, new AnnotationLiteral<FrontendStorageSystem>() {});
         this.transaction = getBean(TransactionCoordinator.class);
         this.merger = getBean(DataMerger.class);
         this.dataSerializer = getBean(DataSerializer.class);

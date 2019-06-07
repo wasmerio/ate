@@ -10,10 +10,8 @@ import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.examples.dao.Company;
 import com.tokera.examples.dao.Individual;
 import com.tokera.examples.dao.MonthlyActivity;
-import com.tokera.examples.dto.CreateAssetRequest;
-import com.tokera.examples.dto.RegistrationResponse;
-import com.tokera.examples.dto.RootLoginRequest;
-import com.tokera.examples.dto.TransactionToken;
+import com.tokera.examples.dto.*;
+import org.apache.commons.lang.NotImplementedException;
 import org.junit.jupiter.api.*;
 
 import javax.validation.constraints.NotNull;
@@ -95,7 +93,7 @@ public class BankIntegrationTests {
 
     @Test
     @Order(2)
-    @DisplayName("...reading transactions for individual")
+    @DisplayName("...reading empty transactions for individual")
     public void readIndividualTransactions() {
         MonthlyActivity response = this.individualSession.restGet("/account/" + this.individualAccountId + "/transactions", MonthlyActivity.class);
         AteDelegate d = AteDelegate.get();
@@ -162,6 +160,15 @@ public class BankIntegrationTests {
 
     @Test
     @Order(7)
+    @DisplayName("...reading empty transactions for company")
+    public void readCompanyTransactions() {
+        MonthlyActivity response = this.companySession.restGet("/account/" + this.individualAccountId + "/transactions", MonthlyActivity.class);
+        AteDelegate d = AteDelegate.get();
+        d.genericLogger.info(d.yaml.serializeObj(response));
+    }
+
+    @Test
+    @Order(8)
     @DisplayName("...coining login with key")
     public void coiningLogin() {
         RootLoginRequest request = new RootLoginRequest();
@@ -180,7 +187,7 @@ public class BankIntegrationTests {
     }
 
     @Test
-    @Order(8)
+    @Order(9)
     @DisplayName("...printing money for individual")
     public void printMoney() {
 
@@ -198,5 +205,31 @@ public class BankIntegrationTests {
                 .restPost("/account/" + individualAccountId + "/completeTransaction", Entity.entity(transactionToken, MediaType.APPLICATION_JSON), MonthlyActivity.class);
 
         d.genericLogger.info(d.yaml.serializeObj(monthly));
+    }
+
+    @Test
+    @Order(10)
+    @DisplayName("...sending money from individual to company")
+    public void transferMoney() {
+        // Create a new ownership key and request
+        AteDelegate d = AteDelegate.get();
+
+        // Create the ability to transfer money from the account
+        BeginTransactionRequest request = new BeginTransactionRequest(BigDecimal.valueOf(500), coiningDomain);
+        TransactionToken transactionToken = this.individualSession
+                .restPost("/account/" + individualAccountId + "/beginTransaction", Entity.entity(request, MediaType.APPLICATION_JSON), TransactionToken.class);
+
+        // Give it to the individual
+        MonthlyActivity monthly = this.companySession
+                .restPost("/account/" + companyAccountId + "/completeTransaction", Entity.entity(transactionToken, MediaType.APPLICATION_JSON), MonthlyActivity.class);
+
+        d.genericLogger.info(d.yaml.serializeObj(monthly));
+    }
+
+    @Test
+    @Order(11)
+    @DisplayName("...burning money away")
+    public void burnMoney() {
+        throw new NotImplementedException();
     }
 }

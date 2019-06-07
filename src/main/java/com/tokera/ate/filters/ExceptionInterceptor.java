@@ -2,7 +2,6 @@ package com.tokera.ate.filters;
 
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.delegates.AteDelegate;
-import com.tokera.ate.delegates.AuthorizationDelegate;
 
 import javax.annotation.Priority;
 import javax.enterprise.context.ApplicationScoped;
@@ -35,7 +34,7 @@ public class ExceptionInterceptor implements ExceptionMapper<Throwable> {
     public Response toResponse(Throwable ex) {
         
         try {
-            d.headIO.clearDeferred();
+            d.io.clearDeferred();
         } catch (Throwable ex1) {
             this.LOG.warn(ex1);
         }

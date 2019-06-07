@@ -8,7 +8,6 @@ import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.merge.DataMerger;
 import com.tokera.ate.io.repo.DataStagingManager;
-import com.tokera.ate.io.repo.DataSubscriber;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.dao.IParams;
 import com.tokera.ate.dao.IRights;
@@ -96,7 +95,7 @@ public class DaoHelper {
 
                 encryptKey = roles.getEncryptKey();
                 if (encryptKey != null && shouldSave) {
-                    d.headIO.mergeLater(entity);
+                    d.io.mergeLater(entity);
                 }
             }
             return encryptKey;
@@ -164,15 +163,15 @@ public class DaoHelper {
         if (parentId == null) return null;
         if (parentId.equals(entity.getId())) return null;
 
-        IPartitionKey partitionKey = d.headIO.partitionResolver().resolve(entity);
+        IPartitionKey partitionKey = d.io.partitionResolver().resolve(entity);
         BaseDao ret = this.staging.find(partitionKey, parentId);
         if (ret != null) return ret;
 
-        return d.headIO.getOrNull(PUUID.from(partitionKey, parentId));
+        return d.io.getOrNull(PUUID.from(partitionKey, parentId));
     }
 
     public @Nullable IParams getDaoParams(PUUID id) {
-        BaseDao ret = d.headIO.getOrNull(id);
+        BaseDao ret = d.io.getOrNull(id);
         if (ret instanceof IParams) {
             return (IParams)ret;
         }
@@ -180,7 +179,7 @@ public class DaoHelper {
     }
 
     public @Nullable IRights getDaoRights(PUUID id) {
-        BaseDao ret = d.headIO.getOrNull(id);
+        BaseDao ret = d.io.getOrNull(id);
         if (ret instanceof IRights) {
             return (IRights)ret;
         }
@@ -188,7 +187,7 @@ public class DaoHelper {
     }
 
     public @Nullable IRoles getDaoRoles(PUUID id) {
-        BaseDao ret = d.headIO.getOrNull(id);
+        BaseDao ret = d.io.getOrNull(id);
         if (ret instanceof IRoles) {
             return (IRoles)ret;
         }

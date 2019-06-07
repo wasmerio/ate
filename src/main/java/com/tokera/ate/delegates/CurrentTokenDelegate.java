@@ -299,7 +299,7 @@ public class CurrentTokenDelegate {
         }
 
         IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
-        if (d.headIO.exists(PUUID.from(partitionKey, entityId)) == false) {
+        if (d.io.exists(PUUID.from(partitionKey, entityId)) == false) {
             throw new WebApplicationException("Entity does not exist (" + name + "=" + paramVal + ")", Response.Status.NOT_FOUND);
 
         }

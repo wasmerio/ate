@@ -24,7 +24,7 @@ public class DefaultSecureKeyRepository implements ISecureKeyRepository {
 
     @Override
     public @Secret byte @Nullable [] get(IPartitionKey partitionKey, @Hash String plainSecretHash, MessagePrivateKeyDto accessKey) {
-        DataPartitionChain chain = d.headIO.backend().getChain(partitionKey);
+        DataPartitionChain chain = d.io.backend().getChain(partitionKey);
 
         // Loop through all the private toPutKeys that we own and try and find
         // an AES key that was encrypted for it
@@ -41,7 +41,7 @@ public class DefaultSecureKeyRepository implements ISecureKeyRepository {
 
     @Override
     public void put(IPartitionKey partitionKey, @Secret byte[] secretKey, @Hash String publicKeyHash) {
-        DataPartition kt = d.headIO.backend().getPartition(partitionKey);
+        DataPartition kt = d.io.backend().getPartition(partitionKey);
         DataPartitionChain chain = kt.getChain();
 
         // Get the public key
