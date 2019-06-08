@@ -47,7 +47,7 @@ public class PuuidSerializer extends Serializer<PUUID> implements ScalarSerializ
 
     @Override
     public void write(Kryo kryo, Output output, @Nullable PUUID pid) {
-        String val = PUUID.toString(pid);
+        String val = PUUID.serialize(pid);
         output.writeString(val);
     }
 
@@ -59,7 +59,7 @@ public class PuuidSerializer extends Serializer<PUUID> implements ScalarSerializ
     @SuppressWarnings("override.return.invalid")
     @Override
     public @Nullable String write(@Nullable PUUID t) {
-        return PUUID.toString(t);
+        return PUUID.serialize(t);
     }
 
     @SuppressWarnings("override.return.invalid")
@@ -88,6 +88,6 @@ public class PuuidSerializer extends Serializer<PUUID> implements ScalarSerializ
     @Override
     public void writeTo(@Nullable PUUID pid, Class<?> aClass, Type type, Annotation[] annotations, MediaType mediaType, MultivaluedMap<String, Object> multivaluedMap, OutputStream outputStream) throws IOException, WebApplicationException {
         OutputStreamWriter streamWriter = new OutputStreamWriter(outputStream);
-        streamWriter.write(PUUID.toString(pid));
+        streamWriter.write(PUUID.serialize(pid));
     }
 }

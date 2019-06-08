@@ -133,6 +133,10 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
 
     @Override
     public String toString() {
+        return print();
+    }
+
+    public String serializer() {
         try {
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
             DataOutputStream dos = new DataOutputStream(stream);
@@ -167,10 +171,24 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
         return pid.toString();
     }
 
+    public static String serialize(@Nullable PUUID pid) {
+        if (pid == null) return "null";
+        return pid.serializer();
+    }
+
     public static @Nullable PUUID parse(@Nullable String _val) {
         String val = StringTools.makeOneLineOrNull(_val);
         val = StringTools.specialParse(val);
         if (val == null || val.length() <= 0) return null;
+
+        if (val.contains(":")) {
+            String[] comps = val.split(":");
+            if (comps.length == 3) {
+                return new PUUID(comps[0], Integer.parseInt(comps[1]), UUID.fromString(comps[2]));
+            } else {
+                throw new RuntimeException("Failed to parse string [" + val + "] into PUUID.");
+            }
+        }
 
         byte[] data = Base64.decodeBase64(val);
         ByteBuffer bb = ByteBuffer.wrap(data);

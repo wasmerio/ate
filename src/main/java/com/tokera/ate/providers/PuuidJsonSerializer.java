@@ -17,6 +17,6 @@ public class PuuidJsonSerializer extends StdScalarSerializer<PUUID> {
 
     @Override
     public void serialize(PUUID value, JsonGenerator gen, SerializerProvider provider) throws IOException {
-        gen.writeString(PUUID.toString(value));
+        gen.writeString(PUUID.serialize(value));
     }
 }

@@ -88,6 +88,7 @@ public class BankIntegrationTests {
                 .prefixForRest("/rs/1-0")
                 .withLoginPost("/login/token", Entity.entity(response.getToken(), MediaType.APPLICATION_XML))
                 .build();
+        d.genericLogger.info("individual-acc-id: " + individualAccountId);
         d.genericLogger.info("individual-login: " + individualSession.getSession());
     }
 
@@ -155,6 +156,7 @@ public class BankIntegrationTests {
                 .prefixForRest("/rs/1-0")
                 .withLoginPost("/login/token", Entity.entity(response.getToken(), MediaType.APPLICATION_XML))
                 .build();
+        d.genericLogger.info("company-acc-id: " + companyAccountId);
         d.genericLogger.info("company-login: " + companySession.getSession());
     }
 
