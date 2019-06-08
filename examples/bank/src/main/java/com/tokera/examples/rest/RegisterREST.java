@@ -30,6 +30,7 @@ public class RegisterREST {
     @PermitAll
     public RegistrationResponse registerCompany(String domain) {
         Account acc = new Account("Company account for " + domain);
+
         Company company = new Company(domain, acc);
         acc.company = company.getId();
 

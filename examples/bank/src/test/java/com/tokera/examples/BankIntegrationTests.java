@@ -162,7 +162,7 @@ public class BankIntegrationTests {
     @Order(7)
     @DisplayName("...reading empty transactions for company")
     public void readCompanyTransactions() {
-        MonthlyActivity response = this.companySession.restGet("/account/" + this.individualAccountId + "/transactions", MonthlyActivity.class);
+        MonthlyActivity response = this.companySession.restGet("/account/" + this.companyAccountId + "/transactions", MonthlyActivity.class);
         AteDelegate d = AteDelegate.get();
         d.genericLogger.info(d.yaml.serializeObj(response));
     }

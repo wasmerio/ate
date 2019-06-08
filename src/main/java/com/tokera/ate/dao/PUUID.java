@@ -158,6 +158,10 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
         }
     }
 
+    public String print() {
+        return this.partitionTopic() + ":" + this.partitionIndex() + ":" + this.id();
+    }
+
     public static String toString(@Nullable PUUID pid) {
         if (pid == null) return "null";
         return pid.toString();

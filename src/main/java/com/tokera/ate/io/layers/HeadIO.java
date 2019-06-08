@@ -286,15 +286,15 @@ public class HeadIO implements IAteIO
         try {
             BaseDao ret = back.getOrNull(id);
             if (ret == null) {
-                throw new RuntimeException(type.getSimpleName() + " not found (id=" + id + ")");
+                throw new RuntimeException(type.getSimpleName() + " not found (id=" + id.print() + ")");
             }
             if (ret.getClass() != type) {
-                throw new RuntimeException(type.getSimpleName() + " of the wrong type (id=" + id + ", actual=" + ret.getClass().getSimpleName() + ", expected=" + type.getSimpleName() + ")");
+                throw new RuntimeException(type.getSimpleName() + " of the wrong type (id=" + id.print() + ", actual=" + ret.getClass().getSimpleName() + ", expected=" + type.getSimpleName() + ")");
             }
             BaseDao.assertStillMutable(ret);
             return (T)ret;
         } catch (ClassCastException ex) {
-            throw new RuntimeException(type.getSimpleName() + " of the wrong type (id=" + id + ")", ex);
+            throw new RuntimeException(type.getSimpleName() + " of the wrong type (id=" + id.print() + ")", ex);
         }
     }
 
@@ -306,7 +306,7 @@ public class HeadIO implements IAteIO
     protected BaseDao get(PUUID id) {
         BaseDao ret = back.getOrNull(id);
         if (ret == null) {
-            throw new RuntimeException("Object data (id=" + id + ") not found");
+            throw new RuntimeException("Object data (id=" + id.print() + ") not found");
         }
         return ret;
     }
@@ -321,7 +321,7 @@ public class HeadIO implements IAteIO
     {
         DataContainer ret = back.getRawOrNull(id);
         if (ret == null) {
-            throw new RuntimeException("Object data (id=" + id + ") not found");
+            throw new RuntimeException("Object data (id=" + id.print() + ") not found");
         }
         return ret;
     }
@@ -376,7 +376,7 @@ public class HeadIO implements IAteIO
     public BaseDao getVersion(PUUID id, MessageMetaDto meta) {
         BaseDao ret = back.getVersionOrNull(id, meta);
         if (ret == null) {
-            throw new RuntimeException("Object version data (id=" + id + ") not found");
+            throw new RuntimeException("Object version data (id=" + id.print() + ") not found");
         }
         return ret;
     }
@@ -389,7 +389,7 @@ public class HeadIO implements IAteIO
     public MessageDataDto getVersionMsg(PUUID id, MessageMetaDto meta) {
         MessageDataDto ret = back.getVersionMsgOrNull(id, meta);
         if (ret == null) {
-            throw new RuntimeException("Object version message (id=" + id + ") not found");
+            throw new RuntimeException("Object version message (id=" + id.print() + ") not found");
         }
         return ret;
     }
