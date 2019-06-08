@@ -106,6 +106,10 @@ public class AccountREST {
             throw new WebApplicationException("Insufficient funds.", Response.Status.NOT_ACCEPTABLE);
         }
 
+        // Force a merge
+        d.io.mergeDeferred();
+        d.io.sync();
+
         // Return a transaction token that holds rights to all the shares that the received will be able to take over
         return new TransactionToken(shareTokens);
     }
@@ -117,6 +121,7 @@ public class AccountREST {
     public MonthlyActivity completeTransaction(TransactionToken transactionToken) {
         Account acc = d.io.get(accountId, Account.class);
         d.currentRights.impersonate(acc);
+        MessagePrivateKeyDto ownership = d.authorization.getOrCreateImplicitRightToWrite(acc);
 
         MonthlyActivity activity = AccountHelper.getCurrentMonthlyActivity(acc);
 
@@ -125,8 +130,8 @@ public class AccountREST {
             d.currentRights.impersonateWrite(shareToken.getOwnership());
 
             share.trustInheritWrite = false;
-            share.getTrustAllowRead().clear();
-            d.authorization.authorizeEntity(acc, share);
+            share.getTrustAllowWrite().clear();
+            d.authorization.authorizeEntityWrite(ownership, share);
             d.io.mergeLater(share);
 
             acc.ownerships.add(share.addressableId());
@@ -135,9 +140,8 @@ public class AccountREST {
             TransactionDetails details = new TransactionDetails(activity, share);
             activity.transactions.add(new Transaction(details));
             d.io.mergeLater(details);
-            d.io.mergeLater(activity);
         }
-
+        d.io.mergeLater(activity);
         return activity;
     }
 

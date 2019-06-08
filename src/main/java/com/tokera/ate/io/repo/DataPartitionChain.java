@@ -424,6 +424,9 @@ public class DataPartitionChain {
                     }
                     sb.append("]");
                 }
+                if (availableWriteRoles.size() <= 0) {
+                    sb.append("\n [needs: impossible as no write roles.]");
+                }
 
                 sb.append("\n [digest: hash=").append(digest.getPublicKeyHash());
                 MessagePublicKeyDto digestKey = this.getPublicKey(digest.getPublicKeyHash());
