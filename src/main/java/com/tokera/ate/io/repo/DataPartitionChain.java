@@ -425,7 +425,13 @@ public class DataPartitionChain {
                     sb.append("]");
                 }
                 if (availableWriteRoles.size() <= 0) {
-                    sb.append("\n [needs: impossible as no write roles.]");
+                    if (existing != null) {
+                        sb.append("\n [needs: impossible as record is missed write roles.]");
+                    } else if (parent != null) {
+                        sb.append("\n [needs: impossible as no record or parents exists.]");
+                    } else {
+                        sb.append("\n [needs: impossible as no record exists and its orphaned.]");
+                    }
                 }
 
                 sb.append("\n [digest: hash=").append(digest.getPublicKeyHash());
