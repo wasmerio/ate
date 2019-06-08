@@ -36,14 +36,14 @@ public class MessageEncryptTextTests
         MessageEncryptTextDto data2 = new MessageEncryptTextDto(data.createFlatBuffer());
         Assertions.assertArrayEquals(data.getEncryptedTextBytes(), data2.getEncryptedTextBytes());
         data2.setEncryptedTextBytes(bytes3);
-        Assertions.assertTrue(Objects.equal(data.getTextHash(), data2.getTextHash()), "Text hash is not equal");
+        Assertions.assertTrue(Objects.equal(data.getLookupKey(), data2.getLookupKey()), "Text hash is not equal");
         Assertions.assertTrue(Objects.equal(data.getPublicKeyHash(), data2.getPublicKeyHash()), "Public key hash is not equal");
         
         MessageBase base = data.createBaseFlatBuffer();
         data2 = new MessageEncryptTextDto(base);
         Assertions.assertArrayEquals(data.getEncryptedTextBytes(), data2.getEncryptedTextBytes());
         data2.setEncryptedTextBytes(bytes3);
-        Assertions.assertTrue(Objects.equal(data.getTextHash(), data2.getTextHash()), "Text hash is not equal");
+        Assertions.assertTrue(Objects.equal(data.getLookupKey(), data2.getLookupKey()), "Text hash is not equal");
         Assertions.assertTrue(Objects.equal(data.getPublicKeyHash(), data2.getPublicKeyHash()), "Public key hash is not equal");
     }
     
@@ -74,7 +74,7 @@ public class MessageEncryptTextTests
         channel2.write(data2.createFlatBuffer().getByteBuffer().duplicate());
         
         Assertions.assertArrayEquals(data.getEncryptedTextBytes(), data2.getEncryptedTextBytes());
-        Assertions.assertTrue(Objects.equal(data.getTextHash(), data2.getTextHash()), "Text hash is not equal");
+        Assertions.assertTrue(Objects.equal(data.getLookupKey(), data2.getLookupKey()), "Text hash is not equal");
         Assertions.assertTrue(Objects.equal(data.getPublicKeyHash(), data2.getPublicKeyHash()), "Public key hash is not equal");
         
         byte[] streamBytes1 = stream.toByteArray();

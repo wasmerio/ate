@@ -745,7 +745,7 @@ public class Encryptor implements Runnable
 
     public KeyPairBytes genEncryptKeyNtruNow(int keysize)
     {
-        return genEncryptKeyNtruNow(keysize, new SecureRandomFactory());
+        return genEncryptKeyNtruNow(keysize, new SecureRandomFactory(srandom));
     }
 
     private NTRUEncryptionKeyGenerationParameters getNtruEncryptParamtersForKeySize(int keySize) {
@@ -842,13 +842,13 @@ public class Encryptor implements Runnable
 
     public KeyPairBytes genEncryptKeyNewHopeNow(int keysize)
     {
-        return genEncryptKeyNewHopeNow(keysize, new SecureRandomFactory());
+        return genEncryptKeyNewHopeNow(keysize, new SecureRandomFactory(srandom));
     }
 
     public @Secret byte[] encryptNewHopeWithPublic(@Secret byte[] publicKey, @PlainText byte[] data, int keySize)
     {
         NHPublicKeyParameters params = new NHPublicKeyParameters(publicKey);
-        ExchangePair exchangeSecret = new NHExchangePairGenerator(new SecureRandom()).generateExchange(params);
+        ExchangePair exchangeSecret = new NHExchangePairGenerator(srandom).generateExchange(params);
         byte[] encKey = exchangeSecret.getSharedValue();
 
         NHPublicKeyParameters keyExchangePublic = (NHPublicKeyParameters) (exchangeSecret.getPublicKey());
@@ -955,7 +955,7 @@ public class Encryptor implements Runnable
     }
 
     public KeyPairBytes genSignKeyQTeslaNow(int keysize) {
-        return genSignKeyQTeslaNow(keysize, new SecureRandomFactory());
+        return genSignKeyQTeslaNow(keysize, new SecureRandomFactory(srandom));
     }
 
     private int getQTeslaSecurityCategory(int keySize) {
@@ -1028,7 +1028,7 @@ public class Encryptor implements Runnable
 
     public KeyPairBytes genSignKeyRainbowNow(int keySize)
     {
-        return genSignKeyRainbowNow(keySize, new SecureRandomFactory());
+        return genSignKeyRainbowNow(keySize, new SecureRandomFactory(srandom));
     }
 
     public @Signature byte[] signRainbow(@Secret byte[] privateKey, @Hash byte[] digest)
@@ -1053,7 +1053,7 @@ public class Encryptor implements Runnable
 
     public KeyPairBytes genSignKeyXmssMtNow(int keysize)
     {
-        return genSignKeyXmssMtNow(keysize, new SecureRandomFactory());
+        return genSignKeyXmssMtNow(keysize, new SecureRandomFactory(srandom));
     }
 
     public KeyPairBytes genSignKeyXmssMtNow(int keysize, IRandomFactory randomFactory)
@@ -1217,6 +1217,27 @@ public class Encryptor implements Runnable
     public @Hash String hashShaAndEncode(@PlainText String data) {
         return hashShaAndEncode(data.getBytes(Charsets.US_ASCII));
     }
+
+    public @Hash String hashShaAndEncode(@Salt String seed, Iterable<@PlainText String> datas) {
+        return hashShaAndEncode(Iterables.concat(Lists.newArrayList(seed), datas));
+    }
+
+    public @Hash String hashShaAndEncode(@Salt String seed, Iterable<@PlainText String> datas1, Iterable<@PlainText String> datas2) {
+        return hashShaAndEncode(Iterables.concat(Lists.newArrayList(seed), Iterables.concat(datas1, datas2)));
+    }
+
+    public @Hash String hashShaAndEncode(Iterable<@PlainText String> datas) {
+        try {
+            MessageDigest digest = (MessageDigest)this.sha256digest.clone();
+            for (String data : datas) {
+                digest.update(data.getBytes(Charsets.US_ASCII));
+            }
+            byte[] ret = digest.digest();
+            return Base64.encodeBase64URLSafeString(ret);
+        } catch (CloneNotSupportedException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
     
     public @Hash String hashShaAndEncode(@Salt byte @Nullable [] seed, @PlainText byte[] data) {
         return Base64.encodeBase64URLSafeString(hashSha(seed, data));
@@ -1368,7 +1389,6 @@ public class Encryptor implements Runnable
         this.moreKeys();
         if (ret != null) return ret;
         
-        SecureRandom srandom = new SecureRandom();
         return new BigInteger(320, srandom).toString(16).toUpperCase();
     }
 
@@ -1376,8 +1396,6 @@ public class Encryptor implements Runnable
      * Creates a new password salt and returns it to the caller
      */
     public @Secret String generateSecret16(int numBits) {
-        SecureRandom srandom = new SecureRandom();
-        
         byte[] bytes = new byte[numBits/8];
         for (int n = 0; n < bytes.length; n++) {
             bytes[n] = (byte)srandom.nextInt();
@@ -1421,7 +1439,6 @@ public class Encryptor implements Runnable
      * Creates a new password salt and returns it to the caller
      */
     public @Secret String generateSecret64Now(int numBits) {
-        SecureRandom srandom = new SecureRandom();
         byte[] bytes = new byte[numBits/8];
         for (int n = 0; n < bytes.length; n++) {
             bytes[n] = (byte)srandom.nextInt();

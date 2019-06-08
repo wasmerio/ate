@@ -33,16 +33,6 @@ public interface IRoles
     Map<@Alias String, @Hash String> getTrustAllowWrite();
     
     /**
-     * @return The encryption key used to encrypt this data entity only for those that have read access
-     */
-    @Nullable @Secret String getEncryptKey();
-
-    /**
-     * @param encryptKey Sets the encryption key so that only owners with read access will be able to see the actual data
-     */
-    void setEncryptKey(@Secret String encryptKey);
-    
-    /**
      * @return True if the chain of trust should inherit write permissions from its parent
      */
     boolean getTrustInheritWrite();

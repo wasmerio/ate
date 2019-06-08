@@ -42,9 +42,7 @@ public class MessageEncryptTextDto extends MessageBaseDto implements Serializabl
     private @Hash String publicKeyHash;
     @JsonProperty
     @MonotonicNonNull
-    @Size(min=43, max=43)
-    @Pattern(regexp = "^(?:[A-Za-z0-9+\\/\\-_])*(?:[A-Za-z0-9+\\/\\-_]{2}==|[A-Za-z0-9+\\/\\-_]{3}=)?$")
-    private @Hash String textHash;
+    private @Hash String lookupKey;
     @JsonProperty
     @MonotonicNonNull
     @Size(min = 2)
@@ -55,15 +53,15 @@ public class MessageEncryptTextDto extends MessageBaseDto implements Serializabl
     public MessageEncryptTextDto() {
     }
 
-    public MessageEncryptTextDto(@Hash String publicKeyHash, @Hash String textHash, @Secret String encryptedText) {
+    public MessageEncryptTextDto(@Hash String publicKeyHash, @Hash String lookupKey, @Secret String encryptedText) {
         this.publicKeyHash = publicKeyHash;
-        this.textHash = textHash;
+        this.lookupKey = lookupKey;
         this.encryptedText = encryptedText;
     }
 
-    public MessageEncryptTextDto(@Hash String publicKeyHash, @Hash String textHash, @Secret byte[] encryptedTextBytes) {
+    public MessageEncryptTextDto(@Hash String publicKeyHash, @Hash String lookupKey, @Secret byte[] encryptedTextBytes) {
         this.publicKeyHash = publicKeyHash;
-        this.textHash = textHash;
+        this.lookupKey = lookupKey;
         this.encryptedText = Base64.encodeBase64URLSafeString(encryptedTextBytes);
     }
     
@@ -89,9 +87,9 @@ public class MessageEncryptTextDto extends MessageBaseDto implements Serializabl
             this.publicKeyHash = pubKeyHash;
         }
 
-        String textHash = lfb.textHash();
-        if (textHash != null) {
-            this.textHash = textHash;
+        String lookupKey = lfb.lookupKey();
+        if (lookupKey != null) {
+            this.lookupKey = lookupKey;
         }
         
         if (lfb.encryptedTextLength() > 0) {
@@ -130,26 +128,26 @@ public class MessageEncryptTextDto extends MessageBaseDto implements Serializabl
     }
 
     /**
-     * @return the textHash
+     * @return the lookup key
      */
-    public @Hash String getTextHash() {
+    public @Hash String getLookupKey() {
         MessageEncryptText lfb = fb;
         if (lfb != null) {
-            @Hash String v = lfb.textHash();
+            @Hash String v = lfb.lookupKey();
             if (v != null) return v;
         }
 
-        @Hash String ret = this.textHash;
+        @Hash String ret = this.lookupKey;
         if (ret == null) throw new WebApplicationException("MessageEncryptText has no text hash attached.");
         return ret;
     }
 
     /**
-     * @param textHash the textHash to set
+     * @param lookupKey the lookup key to set
      */
-    public void setTextHash(@Hash String textHash) {
+    public void setLookupKey(@Hash String lookupKey) {
         copyOnWrite();
-        this.textHash = textHash;
+        this.lookupKey = lookupKey;
     }
 
     public @Secret String getEncryptedText() {
@@ -206,7 +204,7 @@ public class MessageEncryptTextDto extends MessageBaseDto implements Serializabl
         String strPublicKeyHash = this.getPublicKeyHash();
         int offsetPublicKeyHash = fbb.createString(strPublicKeyHash);
 
-        String strTextHash = this.getTextHash();
+        String strTextHash = this.getLookupKey();
         int offsetTextHash = fbb.createString(strTextHash);
         
         byte[] bytesEncryptedText = this.getEncryptedTextBytes();
@@ -214,7 +212,7 @@ public class MessageEncryptTextDto extends MessageBaseDto implements Serializabl
 
         MessageEncryptText.startMessageEncryptText(fbb);
         if (offsetPublicKeyHash >= 0) MessageEncryptText.addPublicKeyHash(fbb, offsetPublicKeyHash);
-        if (offsetTextHash >= 0) MessageEncryptText.addTextHash(fbb, offsetTextHash);
+        if (offsetTextHash >= 0) MessageEncryptText.addLookupKey(fbb, offsetTextHash);
         if (offsetEncryptedText >= 0) MessageEncryptText.addEncryptedText(fbb, offsetEncryptedText);
         return MessageEncryptText.endMessageEncryptText(fbb);
     }
@@ -234,7 +232,7 @@ public class MessageEncryptTextDto extends MessageBaseDto implements Serializabl
 
         MessageEncryptTextDto that = (MessageEncryptTextDto) o;
 
-        if (Objects.equals(this.textHash, that.textHash) == false) return false;
+        if (Objects.equals(this.lookupKey, that.lookupKey) == false) return false;
         if (Objects.equals(this.publicKeyHash, that.publicKeyHash) == false) return false;
 
         return true;
@@ -244,7 +242,7 @@ public class MessageEncryptTextDto extends MessageBaseDto implements Serializabl
     public int hashCode()
     {
         int result = (int)0;
-        if (this.textHash != null) result += this.textHash.hashCode();
+        if (this.lookupKey != null) result += this.lookupKey.hashCode();
         if (this.publicKeyHash != null) result += this.publicKeyHash.hashCode();
         return result;
     }

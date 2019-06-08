@@ -72,7 +72,6 @@ public class EffectivePermissionBuilder {
         if (usePostMerged) {
             addPostMergedPerms(ret);
         }
-        ret.updateEncryptKeyFromObjIfNull(origId, this);
         return ret;
     }
 
@@ -93,7 +92,6 @@ public class EffectivePermissionBuilder {
     private void addRootTrust(EffectivePermissions ret) {
         MessageDataHeaderDto rootOfTrust = d.io.getRootOfTrust(PUUID.from(this.partitionKey, this.origId));
         if (rootOfTrust != null) {
-            ret.encryptKeyHash = rootOfTrust.getEncryptKeyHash();
             ret.rolesRead.addAll(rootOfTrust.getAllowRead());
             ret.rolesWrite.addAll(rootOfTrust.getAllowWrite());
             ret.anchorRolesRead.addAll(rootOfTrust.getAllowRead());
@@ -115,10 +113,6 @@ public class EffectivePermissionBuilder {
             DataContainer container = d.io.getRawOrNull(PUUID.from(this.partitionKey, id));
             if (container != null) {
                 MessageDataHeaderDto header = container.getMergedHeader();
-
-                if (ret.encryptKeyHash == null) {
-                    ret.encryptKeyHash = header.getEncryptKeyHash();
-                }
 
                 if (inheritRead == true) {
                     this.addRolesRead(ret, header.getAllowRead(), true);

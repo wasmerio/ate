@@ -23,13 +23,13 @@ public class DefaultSecureKeyRepository implements ISecureKeyRepository {
     private AteDelegate d = AteDelegate.get();
 
     @Override
-    public @Secret byte @Nullable [] get(IPartitionKey partitionKey, @Hash String plainSecretHash, MessagePrivateKeyDto accessKey) {
+    public @Secret byte @Nullable [] get(IPartitionKey partitionKey, @Hash String lookupKey, MessagePrivateKeyDto accessKey) {
         DataPartitionChain chain = d.io.backend().getChain(partitionKey);
 
         // Loop through all the private toPutKeys that we own and try and find
         // an AES key that was encrypted for it
         try {
-            MessageEncryptTextDto text = chain.getEncryptedText(d.encryptor.getPublicKeyHash(accessKey), plainSecretHash);
+            MessageEncryptTextDto text = chain.getEncryptedText(d.encryptor.getPublicKeyHash(accessKey), lookupKey);
             if (text == null) return null;
             byte[] enc = text.getEncryptedTextBytes();
 
@@ -40,7 +40,7 @@ public class DefaultSecureKeyRepository implements ISecureKeyRepository {
     }
 
     @Override
-    public void put(IPartitionKey partitionKey, @Secret byte[] secretKey, @Hash String publicKeyHash) {
+    public void put(IPartitionKey partitionKey, @Hash String lookupKey, @Secret byte[] secretKey, @Hash String publicKeyHash) {
         DataPartition kt = d.io.backend().getPartition(partitionKey);
         DataPartitionChain chain = kt.getChain();
 
@@ -51,20 +51,19 @@ public class DefaultSecureKeyRepository implements ISecureKeyRepository {
         }
 
         // Encrypt the key
-        String plainSecretHash = d.encryptor.hashShaAndEncode(secretKey);
         byte[] encKey = d.encryptor.encrypt(publicKey, secretKey);
 
         // Create a message and add it
         MessageEncryptTextDto encryptText = new MessageEncryptTextDto(
                 publicKeyHash,
-                plainSecretHash,
+                lookupKey,
                 encKey);
         kt.write(encryptText, d.genericLogger);
     }
 
     @Override
-    public boolean exists(IPartitionKey partitionKey, @Hash String plainSecretHash, @Hash String publicKeyHash) {
+    public boolean exists(IPartitionKey partitionKey, @Hash String lookupKey, @Hash String publicKeyHash) {
         DataPartitionChain chain = this.d.storageFactory.get().backend().getChain(partitionKey);
-        return chain.getEncryptedText(publicKeyHash, plainSecretHash) != null;
+        return chain.getEncryptedText(publicKeyHash, lookupKey) != null;
     }
 }

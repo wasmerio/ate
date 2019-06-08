@@ -36,13 +36,13 @@ public class EncryptKeyCachePerRequest {
      * @return Byte array that represents the private key or null if the private
      * key does not exist
      */
-    public @Secret byte @Nullable [] getEncryptKey(IPartitionKey partitionKey, @Hash String encryptKeyHash)
+    public @Secret byte @Nullable [] getEncryptKey(IPartitionKey partitionKey, @Hash String lookupKey)
     {
         /// Check the cache and nak
         Map<String, byte[]> cache = getEncryptKeyCache();
-        @Hash byte[] aesKey = MapTools.getOrNull(cache, encryptKeyHash);
+        @Hash byte[] aesKey = MapTools.getOrNull(cache, lookupKey);
         if (aesKey != null) return aesKey;
-        if (this.hasNakForSigningKey(encryptKeyHash) == true) {
+        if (this.hasNakForSigningKey(lookupKey) == true) {
             return null;
         }
         
@@ -52,15 +52,15 @@ public class EncryptKeyCachePerRequest {
         // Loop through all the private toPutKeys that we own and try and find
         // an AES key that was encrypted for it
         for (MessagePrivateKeyDto key : d.currentRights.getRightsRead()) {
-            aesKey = getEncryptKeyInternal(chain, encryptKeyHash, key);
+            aesKey = getEncryptKeyInternal(chain, lookupKey, key);
             if (aesKey != null) {
-                cache.put(encryptKeyHash, aesKey);
+                cache.put(lookupKey, aesKey);
                 return aesKey;
             }
         }
         
         // The key does not exist but we should still record that fact
-        this.addNakForSigningKey(encryptKeyHash);
+        this.addNakForSigningKey(lookupKey);
         return null;
     }
 
@@ -87,9 +87,9 @@ public class EncryptKeyCachePerRequest {
         return getEncryptKeyInternal(chain, encryptKeyHash, key);
     }
 
-    private @Secret byte @Nullable [] getEncryptKeyInternal(DataPartitionChain chain, @Hash String encryptKeyHash, MessagePrivateKeyDto key)
+    private @Secret byte @Nullable [] getEncryptKeyInternal(DataPartitionChain chain, @Hash String lookupKey, MessagePrivateKeyDto key)
     {
-        return d.io.secureKeyResolver().get(chain.partitionKey(), encryptKeyHash, key);
+        return d.io.secureKeyResolver().get(chain.partitionKey(), lookupKey, key);
     }
 
     /**

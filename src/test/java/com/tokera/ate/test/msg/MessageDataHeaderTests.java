@@ -35,7 +35,7 @@ public class MessageDataHeaderTests
         MessageDataHeaderDto header = new MessageDataHeaderDto(id, version, previousVersion, MyAccount.class);
         header.setInheritRead(true);
         header.setInheritWrite(false);
-        header.setEncryptKeyHash("HASHTEXT");
+        header.setEncryptLookupKey("HASHTEXT");
         header.getAllowRead().add("FIRSTKEY");
         header.getAllowRead().add("SECONDKEY");
         header.getMerges().add(merge1);
@@ -48,7 +48,7 @@ public class MessageDataHeaderTests
         header2.setId(id);
         Assertions.assertTrue(Objects.equal(header.getInheritRead(), header2.getInheritRead()), "Inherit read flag is not equal");
         Assertions.assertTrue(Objects.equal(header.getInheritWrite(), header2.getInheritWrite()), "Inherit write flag is not equal");
-        Assertions.assertTrue(Objects.equal(header.getEncryptKeyHash(), header2.getEncryptKeyHash()), "Encrypt key hash is not equal");
+        Assertions.assertTrue(Objects.equal(header.getEncryptLookupKey(), header2.getEncryptLookupKey()), "Encrypt key hash is not equal");
         Assertions.assertTrue(Objects.equal(header.getPayloadClazzOrThrow(), header2.getPayloadClazzOrThrow()), "Payload class is not equal");
     }
     
@@ -64,7 +64,7 @@ public class MessageDataHeaderTests
         MessageDataHeaderDto header = new MessageDataHeaderDto(id, version, previousVersion, MyAccount.class);
         header.setInheritRead(true);
         header.setInheritWrite(false);
-        header.setEncryptKeyHash("HASHTEXT");
+        header.setEncryptLookupKey("HASHTEXT");
         header.getAllowRead().add("FIRSTKEY");
         header.getAllowRead().add("SECONDKEY");
         header.getMerges().add(merge1);
@@ -85,7 +85,7 @@ public class MessageDataHeaderTests
         header2.setId(id);
         Assertions.assertTrue(Objects.equal(header.getInheritRead(), header2.getInheritRead()), "Inherit read flag is not equal");
         Assertions.assertTrue(Objects.equal(header.getInheritWrite(), header2.getInheritWrite()), "Inherit write flag is not equal");
-        Assertions.assertTrue(Objects.equal(header.getEncryptKeyHash(), header2.getEncryptKeyHash()), "Encrypt key hash is not equal");
+        Assertions.assertTrue(Objects.equal(header.getEncryptLookupKey(), header2.getEncryptLookupKey()), "Encrypt key hash is not equal");
         Assertions.assertTrue(Objects.equal(header.getPayloadClazzOrThrow(), header2.getPayloadClazzOrThrow()), "Payload class is not equal");
         Assertions.assertTrue(header.getAllowRead().size() == header2.getAllowRead().size());
         Assertions.assertTrue(header.getAllowWrite().size() == header2.getAllowWrite().size());
@@ -113,7 +113,7 @@ public class MessageDataHeaderTests
         MessageDataHeaderDto header = new MessageDataHeaderDto(id, version, previousVersion, MyAccount.class);
         header.setInheritRead(true);
         header.setInheritWrite(false);
-        header.setEncryptKeyHash("HASHTEXT123");
+        header.setEncryptLookupKey("HASHTEXT123");
         header.getAllowRead().add("FIRSTKEY");
         header.getAllowRead().add("SECONDKEY");
         header.getMerges().add(merge1);
@@ -169,7 +169,7 @@ public class MessageDataHeaderTests
         Assertions.assertTrue(Objects.equal(header.getVersionOrThrow(), header2.getVersionOrThrow()), "Version is not equal");
         Assertions.assertTrue(Objects.equal(header.getInheritRead(), header2.getInheritRead()), "Inherit read flag is not equal");
         Assertions.assertTrue(Objects.equal(header.getInheritWrite(), header2.getInheritWrite()), "Inherit write flag is not equal");
-        Assertions.assertTrue(Objects.equal(header.getEncryptKeyHash(), header2.getEncryptKeyHash()), "Encrypt key hash is not equal");
+        Assertions.assertTrue(Objects.equal(header.getEncryptLookupKey(), header2.getEncryptLookupKey()), "Encrypt key hash is not equal");
         Assertions.assertTrue(Objects.equal(header.getPayloadClazzOrThrow(), header2.getPayloadClazzOrThrow()), "Payload class is not equal");
         Assertions.assertTrue(header.getAllowRead().size() == header2.getAllowRead().size());
         Assertions.assertTrue(header.getAllowWrite().size() == header2.getAllowWrite().size());

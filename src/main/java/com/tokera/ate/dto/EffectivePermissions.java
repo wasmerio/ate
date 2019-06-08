@@ -33,10 +33,6 @@ import java.util.UUID;
 public class EffectivePermissions
 {
     @JsonProperty
-    @Nullable
-    @Secret
-    public String encryptKeyHash;
-    @JsonProperty
     @NotNull
     public List<@Hash String> rolesRead;
     @JsonProperty
@@ -74,27 +70,6 @@ public class EffectivePermissions
             }
         }
         return false;
-    }
-
-    public void updateEncryptKeyFromObjIfNull(@DaoId UUID id, EffectivePermissionBuilder builder) {
-        if (this.encryptKeyHash == null)
-        {
-            BaseDao obj = builder.findDataObj(id);
-            if (obj == null) return;
-
-            AteDelegate d = AteDelegate.get();
-            String encryptKey64 = d.daoHelper.getEncryptKeySingle(obj, false, false);
-            if (encryptKey64 != null) {
-                byte[] encryptKey = Base64.decodeBase64(encryptKey64);
-                this.encryptKeyHash = d.encryptor.hashShaAndEncode(encryptKey);
-                return;
-            }
-
-            @DaoId UUID parentId = obj.getParentId();
-            if (parentId == null) return;
-
-            updateEncryptKeyFromObjIfNull(parentId, builder);
-        }
     }
 
     public void addWriteRole(MessagePublicKeyDto key) {

@@ -116,7 +116,7 @@ public class MessageSerializer implements Serializer<MessageBase> {
     
     public static String getKey(MessageEncryptText text)
     {
-        return text.publicKeyHash() + ":" + text.textHash();
+        return text.publicKeyHash() + ":" + text.lookupKey();
     }
     
     public static String getKey(MessagePublicKey key)
@@ -156,7 +156,7 @@ public class MessageSerializer implements Serializer<MessageBase> {
     
     public static String getKey(MessageEncryptTextDto text)
     {
-        return text.getPublicKeyHash() + ":" + text.getTextHash();
+        return text.getPublicKeyHash() + ":" + text.getLookupKey();
     }
     
     public static String getKey(MessagePublicKeyDto key)

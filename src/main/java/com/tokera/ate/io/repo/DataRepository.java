@@ -251,9 +251,6 @@ public class DataRepository implements IAteIO {
             validateTrustStructure(entity);
         }
         
-        // Precache all the encryption toPutKeys ready for the mergeThreeWay deferred phase
-        d.daoHelper.getEncryptKey(entity, true, false);
-        
         // Validate that we can write to this entity
         if (validate == true) {
             validateTrustWritability(entity);

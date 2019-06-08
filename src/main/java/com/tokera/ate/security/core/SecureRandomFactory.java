@@ -15,9 +15,14 @@ import java.util.stream.LongStream;
  * Random number generator that is unpredictable, this uses the SecureRandom number generator underneigh.
  */
 public class SecureRandomFactory implements IRandomFactory {
-    private final SecureRandom random = new SecureRandom();
+    private final SecureRandom random;
 
     public SecureRandomFactory() {
+        this.random = new SecureRandom();
+    }
+
+    public SecureRandomFactory(SecureRandom random) {
+        this.random = random;
     }
 
     @Override

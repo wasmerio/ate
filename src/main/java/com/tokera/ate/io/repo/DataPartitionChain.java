@@ -612,8 +612,8 @@ public class DataPartitionChain {
     }
 
     @SuppressWarnings({"return.type.incompatible", "argument.type.incompatible"})       // We want to return a null if the data does not exist and it must be atomic
-    public @Nullable MessageEncryptTextDto getEncryptedText(String publicKeyHash, String textHash) {
-        String index = publicKeyHash + ":" + textHash;
+    public @Nullable MessageEncryptTextDto getEncryptedText(String publicKeyHash, String lookupKey) {
+        String index = publicKeyHash + ":" + lookupKey;
         return encryptText.getOrDefault(index, null);
     }
     

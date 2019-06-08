@@ -4,9 +4,8 @@ package com.tokera.ate.dao.msg;
 
 import java.nio.*;
 import java.lang.*;
-
+import java.util.*;
 import com.google.flatbuffers.*;
-import org.checkerframework.checker.nullness.qual.Nullable;
 
 @SuppressWarnings({"unused", "return.type.incompatible"})
 public final class MessageEncryptText extends Table {
@@ -15,31 +14,31 @@ public final class MessageEncryptText extends Table {
   public void __init(int _i, ByteBuffer _bb) { bb_pos = _i; bb = _bb; }
   public MessageEncryptText __assign(int _i, ByteBuffer _bb) { __init(_i, _bb); return this; }
 
-  public @Nullable String publicKeyHash() { int o = __offset(4); return o != 0 ? __string(o + bb_pos) : null; }
-  public @Nullable ByteBuffer publicKeyHashAsByteBuffer() { return __vector_as_bytebuffer(4, 1); }
-  public @Nullable ByteBuffer publicKeyHashInByteBuffer(ByteBuffer _bb) { return __vector_in_bytebuffer(_bb, 4, 1); }
-  public @Nullable String textHash() { int o = __offset(6); return o != 0 ? __string(o + bb_pos) : null; }
-  public @Nullable ByteBuffer textHashAsByteBuffer() { return __vector_as_bytebuffer(6, 1); }
-  public @Nullable ByteBuffer textHashInByteBuffer(ByteBuffer _bb) { return __vector_in_bytebuffer(_bb, 6, 1); }
+  public @org.checkerframework.checker.nullness.qual.Nullable String publicKeyHash() { int o = __offset(4); return o != 0 ? __string(o + bb_pos) : null; }
+  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer publicKeyHashAsByteBuffer() { return __vector_as_bytebuffer(4, 1); }
+  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer publicKeyHashInByteBuffer(ByteBuffer _bb) { return __vector_in_bytebuffer(_bb, 4, 1); }
+  public @org.checkerframework.checker.nullness.qual.Nullable String lookupKey() { int o = __offset(6); return o != 0 ? __string(o + bb_pos) : null; }
+  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer lookupKeyAsByteBuffer() { return __vector_as_bytebuffer(6, 1); }
+  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer lookupKeyInByteBuffer(ByteBuffer _bb) { return __vector_in_bytebuffer(_bb, 6, 1); }
   public byte encryptedText(int j) { int o = __offset(8); return o != 0 ? bb.get(__vector(o) + j * 1) : 0; }
   public int encryptedTextLength() { int o = __offset(8); return o != 0 ? __vector_len(o) : 0; }
-  public @Nullable ByteBuffer encryptedTextAsByteBuffer() { return __vector_as_bytebuffer(8, 1); }
-  public @Nullable ByteBuffer encryptedTextInByteBuffer(ByteBuffer _bb) { return __vector_in_bytebuffer(_bb, 8, 1); }
+  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer encryptedTextAsByteBuffer() { return __vector_as_bytebuffer(8, 1); }
+  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer encryptedTextInByteBuffer(ByteBuffer _bb) { return __vector_in_bytebuffer(_bb, 8, 1); }
 
   public static int createMessageEncryptText(FlatBufferBuilder builder,
       int publicKeyHashOffset,
-      int textHashOffset,
+      int lookupKeyOffset,
       int encryptedTextOffset) {
     builder.startObject(3);
     MessageEncryptText.addEncryptedText(builder, encryptedTextOffset);
-    MessageEncryptText.addTextHash(builder, textHashOffset);
+    MessageEncryptText.addLookupKey(builder, lookupKeyOffset);
     MessageEncryptText.addPublicKeyHash(builder, publicKeyHashOffset);
     return MessageEncryptText.endMessageEncryptText(builder);
   }
 
   public static void startMessageEncryptText(FlatBufferBuilder builder) { builder.startObject(3); }
   public static void addPublicKeyHash(FlatBufferBuilder builder, int publicKeyHashOffset) { builder.addOffset(0, publicKeyHashOffset, 0); }
-  public static void addTextHash(FlatBufferBuilder builder, int textHashOffset) { builder.addOffset(1, textHashOffset, 0); }
+  public static void addLookupKey(FlatBufferBuilder builder, int lookupKeyOffset) { builder.addOffset(1, lookupKeyOffset, 0); }
   public static void addEncryptedText(FlatBufferBuilder builder, int encryptedTextOffset) { builder.addOffset(2, encryptedTextOffset, 0); }
   public static int createEncryptedTextVector(FlatBufferBuilder builder, byte[] data) { builder.startVector(1, data.length, 1); for (int i = data.length - 1; i >= 0; i--) builder.addByte(data[i]); return builder.endVector(); }
   public static void startEncryptedTextVector(FlatBufferBuilder builder, int numElems) { builder.startVector(1, numElems, 1); }

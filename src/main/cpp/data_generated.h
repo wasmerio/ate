@@ -29,7 +29,7 @@ struct MessageDataHeader FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     VT_PARENTID = 8,
     VT_PREVIOUSVERSION = 10,
     VT_MERGES = 12,
-    VT_ENCRYPTKEYHASH = 14,
+    VT_ENCRYPTLOOKUPKEY = 14,
     VT_INHERITREAD = 16,
     VT_INHERITWRITE = 18,
     VT_PAYLOADCLAZZ = 20,
@@ -52,8 +52,8 @@ struct MessageDataHeader FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   const flatbuffers::Vector<const com::tokera::ate::dao::ObjId *> *merges() const {
     return GetPointer<const flatbuffers::Vector<const com::tokera::ate::dao::ObjId *> *>(VT_MERGES);
   }
-  const flatbuffers::String *encryptKeyHash() const {
-    return GetPointer<const flatbuffers::String *>(VT_ENCRYPTKEYHASH);
+  const flatbuffers::String *encryptLookupKey() const {
+    return GetPointer<const flatbuffers::String *>(VT_ENCRYPTLOOKUPKEY);
   }
   bool inheritRead() const {
     return GetField<uint8_t>(VT_INHERITREAD, 1) != 0;
@@ -81,8 +81,8 @@ struct MessageDataHeader FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
            VerifyField<com::tokera::ate::dao::ObjId>(verifier, VT_PREVIOUSVERSION) &&
            VerifyOffset(verifier, VT_MERGES) &&
            verifier.VerifyVector(merges()) &&
-           VerifyOffset(verifier, VT_ENCRYPTKEYHASH) &&
-           verifier.VerifyString(encryptKeyHash()) &&
+           VerifyOffset(verifier, VT_ENCRYPTLOOKUPKEY) &&
+           verifier.VerifyString(encryptLookupKey()) &&
            VerifyField<uint8_t>(verifier, VT_INHERITREAD) &&
            VerifyField<uint8_t>(verifier, VT_INHERITWRITE) &&
            VerifyOffset(verifier, VT_PAYLOADCLAZZ) &&
@@ -118,8 +118,8 @@ struct MessageDataHeaderBuilder {
   void add_merges(flatbuffers::Offset<flatbuffers::Vector<const com::tokera::ate::dao::ObjId *>> merges) {
     fbb_.AddOffset(MessageDataHeader::VT_MERGES, merges);
   }
-  void add_encryptKeyHash(flatbuffers::Offset<flatbuffers::String> encryptKeyHash) {
-    fbb_.AddOffset(MessageDataHeader::VT_ENCRYPTKEYHASH, encryptKeyHash);
+  void add_encryptLookupKey(flatbuffers::Offset<flatbuffers::String> encryptLookupKey) {
+    fbb_.AddOffset(MessageDataHeader::VT_ENCRYPTLOOKUPKEY, encryptLookupKey);
   }
   void add_inheritRead(bool inheritRead) {
     fbb_.AddElement<uint8_t>(MessageDataHeader::VT_INHERITREAD, static_cast<uint8_t>(inheritRead), 1);
@@ -158,7 +158,7 @@ inline flatbuffers::Offset<MessageDataHeader> CreateMessageDataHeader(
     const com::tokera::ate::dao::ObjId *parentId = 0,
     const com::tokera::ate::dao::ObjId *previousVersion = 0,
     flatbuffers::Offset<flatbuffers::Vector<const com::tokera::ate::dao::ObjId *>> merges = 0,
-    flatbuffers::Offset<flatbuffers::String> encryptKeyHash = 0,
+    flatbuffers::Offset<flatbuffers::String> encryptLookupKey = 0,
     bool inheritRead = true,
     bool inheritWrite = true,
     flatbuffers::Offset<flatbuffers::String> payloadClazz = 0,
@@ -170,7 +170,7 @@ inline flatbuffers::Offset<MessageDataHeader> CreateMessageDataHeader(
   builder_.add_allowWrite(allowWrite);
   builder_.add_allowRead(allowRead);
   builder_.add_payloadClazz(payloadClazz);
-  builder_.add_encryptKeyHash(encryptKeyHash);
+  builder_.add_encryptLookupKey(encryptLookupKey);
   builder_.add_merges(merges);
   builder_.add_previousVersion(previousVersion);
   builder_.add_parentId(parentId);
@@ -188,7 +188,7 @@ inline flatbuffers::Offset<MessageDataHeader> CreateMessageDataHeaderDirect(
     const com::tokera::ate::dao::ObjId *parentId = 0,
     const com::tokera::ate::dao::ObjId *previousVersion = 0,
     const std::vector<com::tokera::ate::dao::ObjId> *merges = nullptr,
-    const char *encryptKeyHash = nullptr,
+    const char *encryptLookupKey = nullptr,
     bool inheritRead = true,
     bool inheritWrite = true,
     const char *payloadClazz = nullptr,
@@ -202,7 +202,7 @@ inline flatbuffers::Offset<MessageDataHeader> CreateMessageDataHeaderDirect(
       parentId,
       previousVersion,
       merges ? _fbb.CreateVectorOfStructs<com::tokera::ate::dao::ObjId>(*merges) : 0,
-      encryptKeyHash ? _fbb.CreateString(encryptKeyHash) : 0,
+      encryptLookupKey ? _fbb.CreateString(encryptLookupKey) : 0,
       inheritRead,
       inheritWrite,
       payloadClazz ? _fbb.CreateString(payloadClazz) : 0,

@@ -17,14 +17,14 @@ struct MessageEncryptText;
 struct MessageEncryptText FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum {
     VT_PUBLICKEYHASH = 4,
-    VT_TEXTHASH = 6,
+    VT_LOOKUPKEY = 6,
     VT_ENCRYPTEDTEXT = 8
   };
   const flatbuffers::String *publicKeyHash() const {
     return GetPointer<const flatbuffers::String *>(VT_PUBLICKEYHASH);
   }
-  const flatbuffers::String *textHash() const {
-    return GetPointer<const flatbuffers::String *>(VT_TEXTHASH);
+  const flatbuffers::String *lookupKey() const {
+    return GetPointer<const flatbuffers::String *>(VT_LOOKUPKEY);
   }
   const flatbuffers::Vector<int8_t> *encryptedText() const {
     return GetPointer<const flatbuffers::Vector<int8_t> *>(VT_ENCRYPTEDTEXT);
@@ -33,8 +33,8 @@ struct MessageEncryptText FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
     return VerifyTableStart(verifier) &&
            VerifyOffset(verifier, VT_PUBLICKEYHASH) &&
            verifier.VerifyString(publicKeyHash()) &&
-           VerifyOffset(verifier, VT_TEXTHASH) &&
-           verifier.VerifyString(textHash()) &&
+           VerifyOffset(verifier, VT_LOOKUPKEY) &&
+           verifier.VerifyString(lookupKey()) &&
            VerifyOffset(verifier, VT_ENCRYPTEDTEXT) &&
            verifier.VerifyVector(encryptedText()) &&
            verifier.EndTable();
@@ -47,8 +47,8 @@ struct MessageEncryptTextBuilder {
   void add_publicKeyHash(flatbuffers::Offset<flatbuffers::String> publicKeyHash) {
     fbb_.AddOffset(MessageEncryptText::VT_PUBLICKEYHASH, publicKeyHash);
   }
-  void add_textHash(flatbuffers::Offset<flatbuffers::String> textHash) {
-    fbb_.AddOffset(MessageEncryptText::VT_TEXTHASH, textHash);
+  void add_lookupKey(flatbuffers::Offset<flatbuffers::String> lookupKey) {
+    fbb_.AddOffset(MessageEncryptText::VT_LOOKUPKEY, lookupKey);
   }
   void add_encryptedText(flatbuffers::Offset<flatbuffers::Vector<int8_t>> encryptedText) {
     fbb_.AddOffset(MessageEncryptText::VT_ENCRYPTEDTEXT, encryptedText);
@@ -68,11 +68,11 @@ struct MessageEncryptTextBuilder {
 inline flatbuffers::Offset<MessageEncryptText> CreateMessageEncryptText(
     flatbuffers::FlatBufferBuilder &_fbb,
     flatbuffers::Offset<flatbuffers::String> publicKeyHash = 0,
-    flatbuffers::Offset<flatbuffers::String> textHash = 0,
+    flatbuffers::Offset<flatbuffers::String> lookupKey = 0,
     flatbuffers::Offset<flatbuffers::Vector<int8_t>> encryptedText = 0) {
   MessageEncryptTextBuilder builder_(_fbb);
   builder_.add_encryptedText(encryptedText);
-  builder_.add_textHash(textHash);
+  builder_.add_lookupKey(lookupKey);
   builder_.add_publicKeyHash(publicKeyHash);
   return builder_.Finish();
 }
@@ -80,12 +80,12 @@ inline flatbuffers::Offset<MessageEncryptText> CreateMessageEncryptText(
 inline flatbuffers::Offset<MessageEncryptText> CreateMessageEncryptTextDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
     const char *publicKeyHash = nullptr,
-    const char *textHash = nullptr,
+    const char *lookupKey = nullptr,
     const std::vector<int8_t> *encryptedText = nullptr) {
   return com::tokera::ate::dao::msg::CreateMessageEncryptText(
       _fbb,
       publicKeyHash ? _fbb.CreateString(publicKeyHash) : 0,
-      textHash ? _fbb.CreateString(textHash) : 0,
+      lookupKey ? _fbb.CreateString(lookupKey) : 0,
       encryptedText ? _fbb.CreateVector<int8_t>(*encryptedText) : 0);
 }
 

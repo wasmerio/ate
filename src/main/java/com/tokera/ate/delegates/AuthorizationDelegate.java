@@ -164,7 +164,7 @@ public class AuthorizationDelegate {
         }
     }
 
-    public RuntimeException buildReadException(IPartitionKey partitionKey, @DaoId UUID objId, EffectivePermissions permissions, boolean showStack)
+    public RuntimeException buildReadException(IPartitionKey partitionKey, String lookupKey, @DaoId UUID objId, EffectivePermissions permissions, boolean showStack)
     {
         StringBuilder sb = new StringBuilder();
         sb.append("Access denied while attempting to read object [");
@@ -174,8 +174,8 @@ public class AuthorizationDelegate {
         }
         sb.append(objId).append("]\n");
 
-        @Secret String encKeyHash = permissions.encryptKeyHash;
-        sb.append(" > encKey: ");
+        @Secret String encKeyHash = lookupKey;
+        sb.append(" > encLookupKey: ");
         if (encKeyHash != null) {
             MessagePublicKeyDto key = d.io.publicKeyOrNull(partitionKey, encKeyHash);
             sb.append(key != null ? d.encryptor.getPublicKeyHash(key) : encKeyHash);
@@ -349,11 +349,6 @@ public class AuthorizationDelegate {
             }
         }
         to.getTrustAllowRead().put(alias, hash);
-
-        // The encryption toPutKeys need to be rebuilt as otherwise the permissions
-        // will not really take effect if one has access to the history of the
-        // distributed commit log
-        d.daoHelper.generateEncryptKey(to);
 
         if (performMerge) {
             d.io.mergeLater(toObj);

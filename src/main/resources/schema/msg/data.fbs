@@ -9,7 +9,7 @@ table MessageDataHeader
   parentId          :ObjId;
   previousVersion   :ObjId;
   merges            :[ObjId];
-  encryptKeyHash    :string;
+  encryptLookupKey  :string;
   inheritRead       :bool = true;
   inheritWrite      :bool = true;
   payloadClazz      :string;

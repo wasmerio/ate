@@ -27,8 +27,6 @@ public abstract class BaseDaoRoles extends BaseDaoParams implements IRoles, Immu
     @JsonProperty
     public final ImmutalizableTreeMap<@Alias String, @Hash String> trustAllowWrite = new ImmutalizableTreeMap<>();
     @JsonProperty
-    public @Nullable @Secret String encryptKey = null;
-    @JsonProperty
     public boolean trustInheritWrite = true;
     @JsonProperty
     public boolean trustInheritRead = true;
@@ -51,23 +49,6 @@ public abstract class BaseDaoRoles extends BaseDaoParams implements IRoles, Immu
     @Override
     public @NonNull Map<@Alias String, @Hash String> getTrustAllowWrite() {
         return trustAllowWrite;
-    }
-
-    /**
-     * @return The encryption key used to encrypt this data entity only for those that have read access
-     */
-    @Override
-    public @Nullable @Secret String getEncryptKey() {
-        return encryptKey;
-    }
-
-    /**
-     * @param encryptKey Sets the encryption key so that only owners with read access will be able to see the actual data
-     */
-    @Override
-    public void setEncryptKey(@Nullable @Secret String encryptKey) {
-        assert this._immutable == false;
-        this.encryptKey = encryptKey;
     }
 
     /**

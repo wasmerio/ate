@@ -71,9 +71,7 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
     private @ClassName String payloadClazz;                 // Class of object held within this payload
     @JsonProperty
     @MonotonicNonNull
-    @Size(min=43, max=43)
-    @Pattern(regexp = "^(?:[A-Za-z0-9+\\/\\-_])*(?:[A-Za-z0-9+\\/\\-_]{2}==|[A-Za-z0-9+\\/\\-_]{3}=)?$")
-    private @Hash String encryptKeyHash;          // Hash of the encryption key used for this payload
+    private @Hash String encryptLookupKey;                  // Lookup key used to locate the encryption key for this data
     @JsonProperty
     @NotNull
     private ImmutalizableHashSet<@Hash String> allowRead = new ImmutalizableHashSet<>();    // List of all the public key hashes roles that are allowed attach to this parent as a right to
@@ -105,9 +103,9 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
         this.payloadClazz = previousHeader.payloadClazz;
         this.previousVersion = previousHeader.version;
         this.parentId = previousHeader.parentId;
-        String encryptKeyHash = previousHeader.getEncryptKeyHash();
-        if (encryptKeyHash != null) {
-            this.encryptKeyHash = encryptKeyHash;
+        String encryptLookupKey = previousHeader.getEncryptLookupKey();
+        if (encryptLookupKey != null) {
+            this.encryptLookupKey = encryptLookupKey;
         }
         this.inheritRead = previousHeader.getInheritRead();
         this.inheritWrite = previousHeader.getInheritWrite();
@@ -145,9 +143,9 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
             this.payloadClazz = payloadClazz;
         }
 
-        @Hash String encryptKeyHash = lfb.encryptKeyHash();
-        if (encryptKeyHash != null) {
-            this.encryptKeyHash = encryptKeyHash;
+        @Hash String encryptLookupKey = lfb.encryptLookupKey();
+        if (encryptLookupKey != null) {
+            this.encryptLookupKey = encryptLookupKey;
         }
 
         merges = new ImmutalizableHashSet<>();
@@ -305,19 +303,19 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
         this.payloadClazz = payloadClazz;
     }
 
-    public @Nullable @Hash String getEncryptKeyHash() {
+    public @Nullable @Hash String getEncryptLookupKey() {
         MessageDataHeader lfb = fb;
         if (lfb != null) {
-            @Hash String v = lfb.encryptKeyHash();
+            @Hash String v = lfb.encryptLookupKey();
             if (v != null) return v;
         }
-        return encryptKeyHash;
+        return this.encryptLookupKey;
     }
 
-    public void setEncryptKeyHash(@Hash String encryptKeyHash) {
+    public void setEncryptLookupKey(@Hash String encryptLookupKey) {
         assert this._immutable == false;
         copyOnWrite();
-        this.encryptKeyHash = encryptKeyHash;
+        this.encryptLookupKey = encryptLookupKey;
     }
 
     public Set<@Hash String> getAllowRead() {
@@ -453,10 +451,10 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
         String strPayloadClazz = this.getPayloadClazzOrThrow();
         int offsetPayloadClazz = fbb.createString(strPayloadClazz);
 
-        String strEncryptKey = this.getEncryptKeyHash();
-        int offsetEncryptKeyHash = -1;
-        if (strEncryptKey != null) {
-            offsetEncryptKeyHash = fbb.createString(strEncryptKey);
+        String strEncryptLookupKey = this.getEncryptLookupKey();
+        int offsetEncryptLookupKey = -1;
+        if (strEncryptLookupKey != null) {
+            offsetEncryptLookupKey = fbb.createString(strEncryptLookupKey);
         }
 
         int offsetMergeVersions = -1;
@@ -498,7 +496,7 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
         }
 
         if (offsetPayloadClazz >= 0) MessageDataHeader.addPayloadClazz(fbb, offsetPayloadClazz);
-        if (offsetEncryptKeyHash >= 0) MessageDataHeader.addEncryptKeyHash(fbb, offsetEncryptKeyHash);
+        if (offsetEncryptLookupKey >= 0) MessageDataHeader.addEncryptLookupKey(fbb, offsetEncryptLookupKey);
         MessageDataHeader.addInheritRead(fbb, this.getInheritRead());
         MessageDataHeader.addInheritWrite(fbb, this.getInheritWrite());
         if (offsetMergeVersions >= 0) MessageDataHeader.addMerges(fbb, offsetMergeVersions);
