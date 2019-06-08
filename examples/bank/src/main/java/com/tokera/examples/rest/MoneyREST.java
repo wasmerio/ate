@@ -8,12 +8,13 @@ import com.tokera.examples.dao.*;
 import com.tokera.examples.dto.*;
 
 import javax.enterprise.context.ApplicationScoped;
+import javax.enterprise.context.RequestScoped;
 import javax.inject.Inject;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 
-@ApplicationScoped
+@RequestScoped
 @Path("/money")
 public class MoneyREST {
     protected AteDelegate d = AteDelegate.get();

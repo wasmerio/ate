@@ -8,13 +8,14 @@ import com.tokera.examples.dao.*;
 import com.tokera.examples.dto.*;
 
 import javax.enterprise.context.ApplicationScoped;
+import javax.enterprise.context.RequestScoped;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.math.BigDecimal;
 import java.util.*;
 
-@ApplicationScoped
+@RequestScoped
 @Path("/account/{accountId}")
 @PermitReadEntity(name="accountId", clazz= Account.class)
 public class AccountREST {
