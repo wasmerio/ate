@@ -31,6 +31,7 @@ public class AccountREST {
     @Consumes({"text/yaml", MediaType.APPLICATION_JSON})
     public TransactionToken beginTransaction(BeginTransactionRequest request) {
         Account acc = d.io.get(accountId, Account.class);
+        d.currentRights.impersonate(acc);
 
         // Find all the shares of the asset that we actually have ownership rights to
         LinkedList<CoinShare> ownedShares = new LinkedList<CoinShare>();
@@ -47,10 +48,10 @@ public class AccountREST {
             CoinShare share = ownedShares.removeFirst();
 
             // Make sure we actually own it and its of the right type of asset
-            if (d.authorization.canWrite(share) == false) {
+            if (d.daoHelper.hasImplicitAuthority(share, request.assetType) == false) {
                 continue;
             }
-            if (d.daoHelper.hasImplicitAuthority(share, request.assetType) == false) {
+            if (d.authorization.canWrite(share) == false) {
                 continue;
             }
 
@@ -80,11 +81,6 @@ public class AccountREST {
                 // We create to child shares and make the original one immutable
                 CoinShare left = new CoinShare(share, split);
                 CoinShare right = new CoinShare(share, split);
-                share.shares.add(left.id);
-                share.shares.add(right.id);
-                share.trustAllowWrite.clear();
-                share.trustInheritWrite = false;
-                d.io.mergeLater(share);
 
                 left.trustInheritWrite = false;
                 right.trustInheritWrite = false;
@@ -94,13 +90,19 @@ public class AccountREST {
                 d.io.mergeLater(left);
                 d.io.mergeLater(right);
 
+                share.shares.add(left.id);
+                share.shares.add(right.id);
+                share.trustAllowWrite.clear();
+                share.trustInheritWrite = false;
+                d.io.mergeLater(share);
+
                 ownedShares.addFirst(left);
                 ownedShares.addFirst(right);
             }
         }
 
         // If there's still some remaining then we don't own enough of this asset to meet the desired amount
-        if (remaining.compareTo(BigDecimal.ZERO) < 0) {
+        if (remaining.compareTo(BigDecimal.ZERO) > 0) {
             throw new WebApplicationException("Insufficient funds.", Response.Status.NOT_ACCEPTABLE);
         }
 
@@ -114,6 +116,8 @@ public class AccountREST {
     @Consumes({"text/yaml", MediaType.APPLICATION_JSON})
     public MonthlyActivity completeTransaction(TransactionToken transactionToken) {
         Account acc = d.io.get(accountId, Account.class);
+        d.currentRights.impersonate(acc);
+
         MonthlyActivity activity = AccountHelper.getCurrentMonthlyActivity(acc);
 
         for (ShareToken shareToken : transactionToken.getShares()) {
@@ -142,6 +146,8 @@ public class AccountREST {
     @Produces({"text/yaml", MediaType.APPLICATION_JSON})
     public MonthlyActivity reconcileTransactions() {
         Account acc = d.io.get(accountId, Account.class);
+        d.currentRights.impersonate(acc);
+
         MonthlyActivity activity = AccountHelper.getCurrentMonthlyActivity(acc);
 
         // For any assets we don't own anymore then we add a transaction to the new owner
@@ -174,6 +180,7 @@ public class AccountREST {
     @Produces({"text/yaml", MediaType.APPLICATION_JSON})
     public MonthlyActivity getTransactions() {
         Account acc = d.io.get(accountId, Account.class);
+        d.currentRights.impersonate(acc);
         return AccountHelper.getCurrentMonthlyActivity(acc);
     }
 }

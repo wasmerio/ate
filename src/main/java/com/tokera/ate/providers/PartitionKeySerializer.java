@@ -98,7 +98,7 @@ public class PartitionKeySerializer extends Serializer<IPartitionKey> implements
     @Override
     public @Nullable String write(@Nullable IPartitionKey t) {
         if (t == null) return "null";
-        return PartitionKeySerializer.toString(t);
+        return PartitionKeySerializer.serialize(t);
     }
 
     @SuppressWarnings("override.return.invalid")
@@ -133,6 +133,10 @@ public class PartitionKeySerializer extends Serializer<IPartitionKey> implements
     }
 
     public static String toString(IPartitionKey key) {
+        return key.partitionTopic() + ":" + key.partitionIndex();
+    }
+
+    public static String serialize(IPartitionKey key) {
         try {
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
             DataOutputStream dos = new DataOutputStream(stream);
@@ -151,7 +155,7 @@ public class PartitionKeySerializer extends Serializer<IPartitionKey> implements
     }
 
     public static int hashCode(IPartitionKey key) {
-        String val = toString(key);
+        String val = serialize(key);
         return val.hashCode();
     }
 
@@ -161,8 +165,8 @@ public class PartitionKeySerializer extends Serializer<IPartitionKey> implements
         if (rightObj == null) return false;
         if (rightObj instanceof IPartitionKey) {
             IPartitionKey right = (IPartitionKey)rightObj;
-            String leftVal = toString(left);
-            String rightVal = toString(right);
+            String leftVal = serialize(left);
+            String rightVal = serialize(right);
             return leftVal.equals(rightVal);
         } else {
             return false;
@@ -173,8 +177,8 @@ public class PartitionKeySerializer extends Serializer<IPartitionKey> implements
         if (left == null && right == null) return -1;
         if (left == null) return -1;
         if (right == null) return 1;
-        String leftVal = toString(left);
-        String rightVal = toString(right);
+        String leftVal = serialize(left);
+        String rightVal = serialize(right);
         return leftVal.compareTo(rightVal);
     }
 

@@ -8,6 +8,8 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.Dependent;
 import java.util.Date;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.UUID;
 
 @Dependent
@@ -17,7 +19,7 @@ public class MonthlyActivity extends BaseDao {
     public UUID account;
     public Date start;
     public Date end;
-    public final ImmutalizableArrayList<Transaction> transactions = new ImmutalizableArrayList<Transaction>();
+    public final List<Transaction> transactions = new LinkedList<Transaction>();
 
     @SuppressWarnings("initialization.fields.uninitialized")
     @Deprecated
@@ -38,4 +40,6 @@ public class MonthlyActivity extends BaseDao {
     public @Nullable @DaoId UUID getParentId() {
         return this.account;
     }
+
+    public List<Transaction> getTransactions() { return this.transactions; }
 }
