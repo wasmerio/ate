@@ -4,10 +4,10 @@ import com.tokera.ate.annotations.PermitReadEntity;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.examples.common.AccountHelper;
+import com.tokera.examples.common.CoinHelper;
 import com.tokera.examples.dao.*;
 import com.tokera.examples.dto.*;
 
-import javax.enterprise.context.ApplicationScoped;
 import javax.enterprise.context.RequestScoped;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
@@ -39,8 +39,10 @@ public class AccountREST {
 
         // Create a new ownership key
         MessagePrivateKeyDto ownership = d.encryptor.genSignKey();
+        d.currentRights.impersonateWrite(ownership);
 
         // Now we need to found up a
+        LinkedList<CoinShare> lostShared = new LinkedList<CoinShare>();
         List<ShareToken> shareTokens = new ArrayList<ShareToken>();
         BigDecimal remaining = request.amount;
         for (;;) {
@@ -56,11 +58,17 @@ public class AccountREST {
             }
 
             // If the share is small enough then create a share token so the received can take ownership of it
-            if (share.shareAmount.compareTo(remaining) <= 0) {
+            if (share.shareAmount.compareTo(remaining) <= 0)
+            {
                 shareTokens.add(new ShareToken(share, ownership));
-                remaining = remaining.subtract(share.shareAmount);
+                lostShared.add(share);
+                share.trustInheritWrite = false;
+                share.trustAllowWrite.clear();
+                d.authorization.authorizeEntityWrite(acc, share);
+                d.authorization.authorizeEntityWrite(ownership, share);
 
                 // Check if we are done as we have transferred enough of these shares
+                remaining = remaining.subtract(share.shareAmount);
                 if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
                     break;
                 }
@@ -78,26 +86,8 @@ public class AccountREST {
                     split = remaining;
                 }
 
-                // We create to child shares and make the original one immutable
-                CoinShare left = new CoinShare(share, split);
-                CoinShare right = new CoinShare(share, split);
-
-                left.trustInheritWrite = false;
-                right.trustInheritWrite = false;
-
-                d.authorization.authorizeEntityWrite(ownership, left);
-                d.authorization.authorizeEntityWrite(ownership, right);
-                d.io.mergeLater(left);
-                d.io.mergeLater(right);
-
-                share.shares.add(left.id);
-                share.shares.add(right.id);
-                share.trustAllowWrite.clear();
-                share.trustInheritWrite = false;
-                d.io.mergeLater(share);
-
-                ownedShares.addFirst(left);
-                ownedShares.addFirst(right);
+                // Split the coin up based on the divider
+                ownedShares.addAll(CoinHelper.splitCoin(share, split));
             }
         }
 
@@ -110,8 +100,17 @@ public class AccountREST {
         d.io.mergeDeferred();
         d.io.sync();
 
+        // Now write the transaction history
+        String description = "Debit of " + request.amount + " coins of type [" + request.assetType + "].";
+        MonthlyActivity activity = AccountHelper.getCurrentMonthlyActivity(acc);
+        TransactionDetails details = new TransactionDetails(activity, lostShared, description);
+        activity.transactions.add(new Transaction(details));
+        d.io.mergeLater(details);
+        d.io.mergeLater(activity);
+
         // Return a transaction token that holds rights to all the shares that the received will be able to take over
-        return new TransactionToken(shareTokens);
+        description = "Crediting " + request.amount + " coins of type [" + request.assetType + "]";
+        return new TransactionToken(shareTokens, description);
     }
 
     @POST
@@ -123,10 +122,15 @@ public class AccountREST {
         d.currentRights.impersonate(acc);
         MessagePrivateKeyDto ownership = d.authorization.getOrCreateImplicitRightToWrite(acc);
 
-        MonthlyActivity activity = AccountHelper.getCurrentMonthlyActivity(acc);
+        // Prepare aggregate counters
+        BigDecimal amount = BigDecimal.ZERO;
+        List<CoinShare> shares = new ArrayList<CoinShare>();
 
         for (ShareToken shareToken : transactionToken.getShares()) {
             CoinShare share = d.io.get(shareToken.getShare(), CoinShare.class);
+            shares.add(share);
+            amount = amount.add(share.shareAmount);
+
             d.currentRights.impersonateWrite(shareToken.getOwnership());
 
             share.trustInheritWrite = false;
@@ -136,46 +140,18 @@ public class AccountREST {
 
             acc.ownerships.add(share.addressableId());
             d.io.mergeLater(acc);
-
-            TransactionDetails details = new TransactionDetails(activity, share);
-            activity.transactions.add(new Transaction(details));
-            d.io.mergeLater(details);
         }
-        d.io.mergeLater(activity);
-        return activity;
-    }
 
-    @Path("reconcileTransactions")
-    @GET
-    @Produces({"text/yaml", MediaType.APPLICATION_JSON})
-    public MonthlyActivity reconcileTransactions() {
-        Account acc = d.io.get(accountId, Account.class);
-        d.currentRights.impersonate(acc);
-
+        // Now write the transaction history
         MonthlyActivity activity = AccountHelper.getCurrentMonthlyActivity(acc);
+        TransactionDetails details = new TransactionDetails(activity, shares, transactionToken.getDescription());
+        activity.transactions.add(new Transaction(details));
+        d.io.mergeLater(details);
+        d.io.mergeLater(activity);
 
-        // For any assets we don't own anymore then we add a transaction to the new owner
-        for (CoinShare share : d.io.getManyAcrossPartitions(acc.ownerships, CoinShare.class)) {
-            if (d.authorization.canWrite(share) == false)
-            {
-                // When we don't own it anymore (as someone else took the rights to it) then we remove it from
-                // our ownership list
-                acc.ownerships.remove(share.addressableId());
-                d.io.mergeLater(acc);
-
-                // Add a transaction details to show that we no longer own it
-                TransactionDetails details = new TransactionDetails(activity, share);
-                details.amount = details.amount.negate();
-                activity.transactions.add(new Transaction(details));
-                d.io.mergeLater(details);
-                d.io.mergeLater(activity);
-
-                // Add the coin share to the account
-                acc.ownerships.add(share.addressableId());
-                d.io.mergeLater(acc);
-            }
-        }
-
+        // Force a merge
+        d.io.mergeDeferred();
+        d.io.sync();
         return activity;
     }
 

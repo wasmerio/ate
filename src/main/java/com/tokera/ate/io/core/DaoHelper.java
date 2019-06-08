@@ -85,14 +85,32 @@ public class DaoHelper {
         if (entity instanceof IRoles) {
             IRoles roles = (IRoles)entity;
 
+            // Read the current encryption key set at this node
             @Secret String encryptKey = roles.getEncryptKey();
+
+            // If we have a parent and our read roles are the same as the parent then we shouldn't fork
+            // the chain-of-trust here as it will cause performance problems if every node forks so we
+            // must merge the trees
+            if (entity.getParentId() != null &&
+                    roles.getTrustAllowRead().size() == 0 &&
+                    roles.getTrustInheritRead() == true)
+            {
+                if (roles.getEncryptKey() != null && shouldSave) {
+                    roles.setEncryptKey(null);
+                    d.io.mergeLater(entity);
+                }
+                return null;
+            }
+
+            // Otherwise we need to fork the chain-of-trust however if we are prohibiting that due to some flags
+            // then we will fail instead
             if (encryptKey == null) {
                 if (!shouldCreate) {
                     return null;
                 }
 
+                // Generate an encryption key and save it
                 generateEncryptKey(roles);
-
                 encryptKey = roles.getEncryptKey();
                 if (encryptKey != null && shouldSave) {
                     d.io.mergeLater(entity);

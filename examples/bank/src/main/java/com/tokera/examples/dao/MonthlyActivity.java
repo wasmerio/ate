@@ -7,10 +7,8 @@ import com.tokera.ate.units.DaoId;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.Dependent;
-import java.util.Date;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.UUID;
+import java.math.BigDecimal;
+import java.util.*;
 
 @Dependent
 @PermitParentType(Account.class)
@@ -20,6 +18,7 @@ public class MonthlyActivity extends BaseDao {
     public Date start;
     public Date end;
     public final List<Transaction> transactions = new LinkedList<Transaction>();
+    public final Map<String, BigDecimal> balances = new TreeMap<String, BigDecimal>();
 
     @SuppressWarnings("initialization.fields.uninitialized")
     @Deprecated
@@ -42,4 +41,6 @@ public class MonthlyActivity extends BaseDao {
     }
 
     public List<Transaction> getTransactions() { return this.transactions; }
+
+    public Map<String, BigDecimal> getBalances() { return this.balances; }
 }

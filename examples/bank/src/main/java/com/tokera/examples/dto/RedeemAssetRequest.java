@@ -1,7 +1,7 @@
 package com.tokera.examples.dto;
 
 public class RedeemAssetRequest {
-    public ShareToken shareToken;
+    public TransactionToken transactionToken;
     public String validateType;
 
     @SuppressWarnings("initialization.fields.uninitialized")
@@ -9,8 +9,8 @@ public class RedeemAssetRequest {
     public RedeemAssetRequest() {
     }
 
-    public RedeemAssetRequest(ShareToken shareToken, String validateType) {
-        this.shareToken = shareToken;
+    public RedeemAssetRequest(TransactionToken transactionToken, String validateType) {
+        this.transactionToken = transactionToken;
         this.validateType = validateType;
     }
 }

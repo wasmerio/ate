@@ -16,6 +16,7 @@ public class CoinShare extends BaseDaoRoles {
     public UUID id;
     public UUID parent;
     public UUID asset;
+    public String type;
     public BigDecimal shareAmount;
     public ImmutalizableArrayList<UUID> shares = new ImmutalizableArrayList<UUID>();
 
@@ -28,6 +29,7 @@ public class CoinShare extends BaseDaoRoles {
         this.id = UUID.randomUUID();
         this.parent = coin.id;
         this.asset = coin.id;
+        this.type = coin.type;
         this.shareAmount = shareAmount;
     }
 
@@ -35,6 +37,7 @@ public class CoinShare extends BaseDaoRoles {
         this.id = UUID.randomUUID();
         this.parent = coinShare.id;
         this.asset = coinShare.asset;
+        this.type = coinShare.type;
         this.shareAmount = shareAmount;
     }
 

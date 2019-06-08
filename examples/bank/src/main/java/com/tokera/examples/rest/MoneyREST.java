@@ -45,7 +45,8 @@ public class MoneyREST {
         //LOG.info(d.yaml.serializeObj(asset));
         //LOG.info(d.yaml.serializeObj(assetShare));
 
-        return new TransactionToken(Lists.newArrayList(new ShareToken(coinShare, request.ownershipKey)));
+        String description = "Printing " + request.value + " coins of type [" + request.type + "]";
+        return new TransactionToken(Lists.newArrayList(new ShareToken(coinShare, request.ownershipKey)), description);
     }
 
     @POST
@@ -53,13 +54,18 @@ public class MoneyREST {
     @Produces(MediaType.TEXT_PLAIN)
     @Consumes({"text/yaml", MediaType.APPLICATION_JSON})
     public boolean burnMoney(RedeemAssetRequest request) {
-        CoinShare coinShare = d.io.get(request.shareToken.getShare(), CoinShare.class);
-        if (d.daoHelper.hasImplicitAuthority(coinShare, request.validateType) == false) {
-            throw new WebApplicationException("Asset is not of the correct type.", Response.Status.NOT_ACCEPTABLE);
+        for (ShareToken shareToken : request.transactionToken.getShares()) {
+            d.currentRights.clearImpersonation();
+            d.currentRights.impersonateWrite(shareToken.getOwnership());
+
+            CoinShare coinShare = d.io.get(shareToken.getShare(), CoinShare.class);
+            if (d.daoHelper.hasImplicitAuthority(coinShare, request.validateType) == false) {
+                throw new WebApplicationException("Asset is not of the correct type.", Response.Status.NOT_ACCEPTABLE);
+            }
+            coinShare.trustInheritWrite = false;
+            coinShare.trustAllowWrite.clear();
+            d.io.merge(coinShare);
         }
-        coinShare.trustInheritWrite = false;
-        coinShare.trustAllowWrite.clear();
-        d.io.merge(coinShare);
         return true;
     }
 }

@@ -428,7 +428,7 @@ public class DataPartitionChain {
                     if (existing != null) {
                         sb.append("\n [needs: impossible as record is missed write roles.]");
                     } else if (parent != null) {
-                        sb.append("\n [needs: impossible as no record or parents exists.]");
+                        sb.append("\n [needs: impossible as no record or parents exist.]");
                     } else {
                         sb.append("\n [needs: impossible as no record exists and its orphaned.]");
                     }

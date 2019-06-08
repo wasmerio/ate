@@ -8,8 +8,8 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.Dependent;
 import java.math.BigDecimal;
-import java.util.Date;
-import java.util.UUID;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Dependent
 @PermitParentType(MonthlyActivity.class)
@@ -17,20 +17,25 @@ public class TransactionDetails extends BaseDao {
     public UUID id;
     public UUID monthlyActivity;
     public BigDecimal amount;
-    public PUUID assetOwnership;
+    public ArrayList<PUUID> shares = new ArrayList<PUUID>();
     public Date when;
+    public String description;
 
     @SuppressWarnings("initialization.fields.uninitialized")
     @Deprecated
     public TransactionDetails() {
     }
 
-    public TransactionDetails(MonthlyActivity monthly, CoinShare ownership) {
+    public TransactionDetails(MonthlyActivity monthly, Iterable<CoinShare> shares, String description) {
         this.id = UUID.randomUUID();
         this.monthlyActivity = monthly.id;
         this.when = new Date();
-        this.assetOwnership = ownership.addressableId();
-        this.amount = ownership.shareAmount;
+        this.amount = BigDecimal.ZERO;
+        for (CoinShare share : shares) {
+            this.shares.add(share.addressableId());
+            this.amount = this.amount.add(share.shareAmount);
+        }
+        this.description = description;
     }
 
     public @DaoId UUID getId() {

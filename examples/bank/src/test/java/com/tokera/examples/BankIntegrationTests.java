@@ -17,7 +17,9 @@ import org.junit.jupiter.api.*;
 import javax.validation.constraints.NotNull;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.MediaType;
+import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
+import java.net.URLEncoder;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.SecureRandom;
@@ -191,7 +193,7 @@ public class BankIntegrationTests {
     @Test
     @Order(9)
     @DisplayName("...printing money for individual")
-    public void printMoney() {
+    public void printMoney() throws UnsupportedEncodingException {
 
         // Create a new ownership key and request
         AteDelegate d = AteDelegate.get();
@@ -204,9 +206,13 @@ public class BankIntegrationTests {
 
         // Give it to the individual
         MonthlyActivity monthly = this.individualSession
-                .restPost("/account/" + individualAccountId + "/completeTransaction", Entity.entity(transactionToken, MediaType.APPLICATION_JSON), MonthlyActivity.class);
+                .restPost("/account/" + individualAccountId + "/completeTransaction",
+                           Entity.entity(transactionToken, MediaType.APPLICATION_JSON),
+                           MonthlyActivity.class);
 
         d.genericLogger.info(d.yaml.serializeObj(monthly));
+
+        Assertions.assertEquals(BigDecimal.valueOf(1000), monthly.getBalances().getOrDefault(coiningDomain, BigDecimal.ZERO));
     }
 
     @Test
@@ -217,7 +223,7 @@ public class BankIntegrationTests {
         AteDelegate d = AteDelegate.get();
 
         // Create the ability to transfer money from the account
-        BeginTransactionRequest request = new BeginTransactionRequest(BigDecimal.valueOf(500), coiningDomain);
+        BeginTransactionRequest request = new BeginTransactionRequest(BigDecimal.valueOf(200), coiningDomain);
         TransactionToken transactionToken = this.individualSession
                 .restPost("/account/" + individualAccountId + "/beginTransaction", Entity.entity(request, MediaType.APPLICATION_JSON), TransactionToken.class);
 
@@ -230,8 +236,42 @@ public class BankIntegrationTests {
 
     @Test
     @Order(11)
+    @DisplayName("...reading active transactions for individual")
+    public void readDebitorsTransactions() {
+        MonthlyActivity response = this.individualSession.restGet("/account/" + this.individualAccountId + "/transactions", MonthlyActivity.class);
+        AteDelegate d = AteDelegate.get();
+        d.genericLogger.info(d.yaml.serializeObj(response));
+
+        Assertions.assertEquals(BigDecimal.valueOf(800), response.getBalances().getOrDefault(coiningDomain, BigDecimal.ZERO));
+    }
+
+    @Test
+    @Order(12)
     @DisplayName("...burning money away")
     public void burnMoney() {
-        throw new NotImplementedException();
+        AteDelegate d = AteDelegate.get();
+
+        // Create the ability to transfer money from the account
+        BeginTransactionRequest request = new BeginTransactionRequest(BigDecimal.valueOf(800), coiningDomain);
+        TransactionToken transactionToken = this.individualSession
+                .restPost("/account/" + individualAccountId + "/beginTransaction", Entity.entity(request, MediaType.APPLICATION_JSON), TransactionToken.class);
+
+        // Print the money
+        RedeemAssetRequest burn = new RedeemAssetRequest(transactionToken, coiningDomain);
+        String ret = this.coiningSession
+                .restPost("/money/burn", Entity.entity(burn, MediaType.APPLICATION_JSON), String.class);
+
+        Assertions.assertEquals("true", ret);
+    }
+
+    @Test
+    @Order(13)
+    @DisplayName("...reading empty individual account")
+    public void readEmptyAccount() {
+        MonthlyActivity response = this.individualSession.restGet("/account/" + this.individualAccountId + "/transactions", MonthlyActivity.class);
+        AteDelegate d = AteDelegate.get();
+        d.genericLogger.info(d.yaml.serializeObj(response));
+
+        Assertions.assertEquals(BigDecimal.ZERO, response.getBalances().getOrDefault(coiningDomain, BigDecimal.ZERO));
     }
 }

@@ -8,6 +8,9 @@ import com.tokera.ate.units.DaoId;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.Dependent;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Dependent
@@ -19,8 +22,8 @@ public class Account extends BaseDaoRights {
     public UUID company;
     @Nullable
     public UUID individual;
-    public final ImmutalizableArrayList<UUID> monthlyActivities = new ImmutalizableArrayList<UUID>();
-    public final ImmutalizableArrayList<PUUID> ownerships = new ImmutalizableArrayList<PUUID>();
+    public final List<UUID> monthlyActivities = new ImmutalizableArrayList<UUID>();
+    public final Set<PUUID> ownerships = new HashSet<PUUID>();
 
     @SuppressWarnings("initialization.fields.uninitialized")
     @Deprecated
