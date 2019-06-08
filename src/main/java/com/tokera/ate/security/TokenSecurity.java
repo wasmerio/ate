@@ -124,13 +124,13 @@ public class TokenSecurity
         }
         
         Set<MessagePrivateKeyDto> ret = new HashSet<>();
-        
+
         if (token == null) return new HashSet<>();
         
         for (ClaimDto key : token.getClaimsForKey(TokenDto.SECURITY_CLAIM_READ_KEY)) {
             ret.add((MessagePrivateKeyDto)d.yaml.deserializeObj(key.getValue()));
         }
-        
+
         readRightsCache = ret.stream().collect(Collectors.toSet());
         return readRightsCache;
     }
@@ -139,15 +139,15 @@ public class TokenSecurity
         if (writeRightsCache != null) {
             return writeRightsCache;
         }
-        
+
         Set<MessagePrivateKeyDto> ret = new HashSet<>();
-        
+
         if (token == null) return new HashSet<>();
         
         for (ClaimDto key : token.getClaimsForKey(TokenDto.SECURITY_CLAIM_WRITE_KEY)) {
             ret.add((MessagePrivateKeyDto)d.yaml.deserializeObj(key.getValue()));
         }
-        
+
         writeRightsCache = ret.stream().collect(Collectors.toSet());
         return writeRightsCache;
     }

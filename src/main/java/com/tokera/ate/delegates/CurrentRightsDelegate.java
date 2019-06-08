@@ -28,8 +28,8 @@ public class CurrentRightsDelegate implements IRights {
     private RightsDiscoverEvent currentRights = new RightsDiscoverEvent();
     private @Nullable Set<MessagePrivateKeyDto> rightsReadCache = null;
     private @Nullable Set<MessagePrivateKeyDto> rightsWriteCache = null;
-    private @Nullable Set<MessagePrivateKeyDto> impersonateRead = null;
-    private @Nullable Set<MessagePrivateKeyDto> impersonateWrite = null;
+    private final Set<MessagePrivateKeyDto> impersonateRead = new HashSet<>();
+    private final Set<MessagePrivateKeyDto> impersonateWrite = new HashSet<>();
     
     public CurrentRightsDelegate() {
     }
@@ -40,8 +40,6 @@ public class CurrentRightsDelegate implements IRights {
         // to them then we will get another copy)
         rightsReadCache = null;
         rightsWriteCache = null;
-        impersonateRead = null;
-        impersonateWrite = null;
 
         // Fire an event that will discover all the authorization rights
         currentRights = new RightsDiscoverEvent();
@@ -51,8 +49,14 @@ public class CurrentRightsDelegate implements IRights {
     }
     
     public void clearRightsCache() {
-        rightsReadCache = null;
-        rightsWriteCache = null;
+        this.rightsReadCache = null;
+        this.rightsWriteCache = null;
+    }
+
+    public void clearImpersonation() {
+        this.impersonateRead.clear();
+        this.impersonateWrite.clear();
+        clearRightsCache();
     }
     
     public void impersonate(IPartitionKey key, IRights rights) {
@@ -61,21 +65,26 @@ public class CurrentRightsDelegate implements IRights {
             d.authorization.getOrCreateImplicitRightToRead(rights);
             d.authorization.getOrCreateImplicitRightToWrite(rights);
 
-            this.impersonateRead = rights.getRightsRead();
-            this.impersonateWrite = rights.getRightsWrite();
+            for (MessagePrivateKeyDto right : rights.getRightsRead()) {
+                this.impersonateRead.add(right);
+            }
+            for (MessagePrivateKeyDto right : rights.getRightsWrite()) {
+                this.impersonateWrite.add(right);
+            }
         } finally {
             d.requestContext.popPartitionKey();
         }
-        
         clearRightsCache();
     }
 
     public void impersonateRead(MessagePrivateKeyDto key) {
-        this.impersonateRead = Sets.newHashSet(key);
+        this.impersonateRead.add(key);
+        clearRightsCache();
     }
 
     public void impersonateWrite(MessagePrivateKeyDto key) {
-        this.impersonateWrite = Sets.newHashSet(key);
+        this.impersonateWrite.add(key);
+        clearRightsCache();
     }
 
     public void impersonate(IRights rights) {
@@ -95,14 +104,14 @@ public class CurrentRightsDelegate implements IRights {
         if (this.rightsReadCache != null) {
             return this.rightsReadCache;
         }
-        
+
         boolean shouldCache = true;
         Set<MessagePrivateKeyDto> ret = new HashSet<>();
-        
+
         if (d.currentToken.getWithinTokenScope() == true) {
             ret.addAll(this.d.tokenSecurity.getRightsRead());
         }
-        
+
         ret.addAll(currentRights.getRolesRead());
 
         MessagePrivateKeyDto currentUserRead = currentRights.getCurrentUserTrustRead();
@@ -111,23 +120,18 @@ public class CurrentRightsDelegate implements IRights {
         } else {
             shouldCache = false;
         }
-        
+
         if (impersonateRead != null) {
-            for (MessagePrivateKeyDto key : impersonateRead) {
-                if (ret.contains(key) == false) {
-                    ret.add(key);
-                }
-            }
+            ret.addAll(this.impersonateRead);
         } else {
             shouldCache = false;
         }
-        
-        if (ret.contains(new MessagePrivateKeyDto(d.encryptor.getTrustOfPublicRead())) == false) {
-            ret.add(new MessagePrivateKeyDto(d.encryptor.getTrustOfPublicRead()));
-        }
-        
+
+        MessagePrivateKeyDto publicRead = new MessagePrivateKeyDto(d.encryptor.getTrustOfPublicRead());
+        ret.add(publicRead);
+
         if (shouldCache == true) {
-            this.rightsReadCache = ret.stream().collect(Collectors.toSet());
+            this.rightsReadCache = ret;
         }
         return ret;
     }
@@ -137,14 +141,14 @@ public class CurrentRightsDelegate implements IRights {
         if (this.rightsWriteCache != null) {
             return this.rightsWriteCache;
         }
-        
+
         boolean shouldCache = true;
         Set<MessagePrivateKeyDto> ret = new HashSet<>();
-        
+
         if (d.currentToken.getWithinTokenScope() == true) {
             ret.addAll(this.d.tokenSecurity.getRightsWrite());
         }
-        
+
         ret.addAll(this.currentRights.getRolesWrite());
 
         MessagePrivateKeyDto currentUserWrite = currentRights.getCurrentUserTrustWrite();
@@ -153,23 +157,18 @@ public class CurrentRightsDelegate implements IRights {
         } else {
             shouldCache = false;
         }
-        
+
         if (impersonateWrite != null) {
-            for (MessagePrivateKeyDto key : impersonateWrite) {
-                if (ret.contains(key) == false) {
-                    ret.add(key);
-                }
-            }
+            ret.addAll(impersonateWrite);
         } else {
             shouldCache = false;
         }
-        
-        if (ret.contains(new MessagePrivateKeyDto(d.encryptor.getTrustOfPublicWrite())) == false) {
-            ret.add(new MessagePrivateKeyDto(d.encryptor.getTrustOfPublicWrite()));
-        }
-                
+
+        MessagePrivateKeyDto publicWrite = new MessagePrivateKeyDto(d.encryptor.getTrustOfPublicWrite());
+        ret.add(publicWrite);
+
         if (shouldCache == true) {
-            this.rightsWriteCache = ret.stream().collect(Collectors.toSet());
+            this.rightsWriteCache = ret;
         }
         return ret;
     }
