@@ -4,7 +4,7 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.io.api.IPartitionKey;
-import com.tokera.ate.io.api.ISecureKeyRepository;
+import com.tokera.ate.io.api.ISecurityCastleFactory;
 import com.tokera.ate.providers.PartitionKeySerializer;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.common.Immutalizable;
@@ -16,6 +16,7 @@ import com.tokera.ate.security.EffectivePermissionBuilder;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.EffectivePermissions;
 import com.tokera.ate.dto.msg.*;
+import com.tokera.ate.security.SecurityCastleContext;
 import com.tokera.ate.units.DaoId;
 import com.tokera.ate.units.Hash;
 import org.apache.commons.codec.binary.Base64;
@@ -55,59 +56,6 @@ public class DataSerializer {
             .maximumSize(10000)
             .expireAfterWrite(10, TimeUnit.MINUTES)
             .build();
-
-
-    public String generateSecurityBoundaryLookupKey(IPartitionKey partitionKey, EffectivePermissions permissions) {
-        return d.encryptor.hashShaAndEncode(PartitionKeySerializer.serialize(partitionKey), permissions.rolesRead);
-    }
-
-    protected class EncryptionKeyWithContext {
-        public final String lookupKey;
-        public final byte[] aesKey;
-
-        public EncryptionKeyWithContext(String lookupKey, byte[] aesKey) {
-            this.lookupKey = lookupKey;
-            this.aesKey = aesKey;
-        }
-    }
-
-    private EncryptionKeyWithContext generateEncryptKey(IPartitionKey partitionKey, EffectivePermissions permissions) {
-        String lookupKey = generateSecurityBoundaryLookupKey(partitionKey, permissions);
-        ISecureKeyRepository repo = d.io.secureKeyResolver();
-
-        // Search to see if the secret key already exists
-        byte[] secretKey = null;
-        for (MessagePrivateKeyDto right : d.currentRights.getRightsRead()) {
-            if (repo.exists(partitionKey, lookupKey, right.getPublicKeyHash()) == true) {
-                secretKey = repo.get(partitionKey, lookupKey, right);
-                break;
-            }
-        }
-
-        // Create the secret key if it doesnt exist
-        if (secretKey == null) {
-            secretKey = Base64.decodeBase64(d.encryptor.generateSecret64());
-
-            // If another lookup value exists in the system but we dont have a private key
-            // to read it then we must randomize the lookup key or else we will run the
-            // risk that the lookup table could become forked resulted in lost data
-            for (String publicKeyHash : permissions.rolesRead) {
-                if (repo.exists(partitionKey, lookupKey, publicKeyHash) == true) {
-                    lookupKey = d.encryptor.generateSecret64();
-                    break;
-                }
-            }
-        }
-
-        // Add the encryption key to any roles that are missing
-        for (String publicKeyHash : permissions.rolesRead) {
-            if (repo.exists(partitionKey, lookupKey, publicKeyHash) == false) {
-                repo.put(partitionKey, lookupKey, secretKey, publicKeyHash);
-            }
-        }
-
-        return new EncryptionKeyWithContext(lookupKey, secretKey);
-    }
 
     private void writeRightPublicKeysForDataObject(BaseDao obj, DataPartition kt) {
         DataPartitionChain chain = kt.getChain();
@@ -169,7 +117,7 @@ public class DataSerializer {
             if (chain.hasPublicKey(publicKeyHash) == false)
             {
                 // We can only sign if we have a private key for the pair
-                MessagePrivateKeyDto privateKey = this.d.encryptKeyCachePerRequest.getSignKey(publicKeyHash);
+                MessagePrivateKeyDto privateKey = this.d.securityCastleManager.getSignKey(publicKeyHash);
                 if (privateKey == null) continue;
 
                 // Add the key
@@ -237,7 +185,7 @@ public class DataSerializer {
         header.setImplicitAuthority(implicitAuthority);
     }
 
-    private MessageDataHeaderDto buildHeaderForDataObject(BaseDao obj)
+    private MessageDataHeaderDto buildHeaderForDataObject(BaseDao obj, UUID castleId)
     {
         UUID version = obj.version;
         if (version == null) {
@@ -247,6 +195,7 @@ public class DataSerializer {
 
         MessageDataHeaderDto header = new MessageDataHeaderDto(
                 obj.getId(),
+                castleId,
                 version,
                 obj.previousVersion,
                 obj.getClass());
@@ -272,7 +221,9 @@ public class DataSerializer {
         // Build a header for a new version of the data object
         IPartitionKey partitionKey = kt.partitionKey();
         BaseDao.newVersion(obj);
-        MessageDataHeaderDto header = buildHeaderForDataObject(obj);
+
+        // Get the partition and declare a list of message that we will write to Kafka
+        writePublicKeysForDataObject(obj, kt);
 
         // Get the effective permissions for a object
         EffectivePermissions permissions = new EffectivePermissionBuilder(partitionKey, obj.getId(), obj.getParentId())
@@ -280,11 +231,8 @@ public class DataSerializer {
                 .build();
 
         // Generate an encryption key for this data object
-        EncryptionKeyWithContext keyWithContext = this.generateEncryptKey(partitionKey, permissions);
-        header.setEncryptLookupKey(keyWithContext.lookupKey);
-
-        // Get the partition and declare a list of message that we will write to Kafka
-        writePublicKeysForDataObject(obj, kt);
+        SecurityCastleContext castle = d.securityCastleManager.makeCastle(partitionKey, permissions);
+        MessageDataHeaderDto header = buildHeaderForDataObject(obj, castle.id);
         
         // Embed the payload if one exists
         byte[] byteStream = null;
@@ -293,7 +241,7 @@ public class DataSerializer {
         {
             // Encrypt the payload and add it to the data message
             byteStream = d.os.serializeObj(obj);
-            encPayload = d.encryptor.encryptAes(keyWithContext.aesKey, byteStream);
+            encPayload = d.encryptor.encryptAes(castle.key, byteStream);
         }
 
         // Sign the data message
@@ -301,7 +249,7 @@ public class DataSerializer {
 
         // Cache it for faster decryption
         if (byteStream != null && digest != null) {
-            @Hash String cacheHash = d.encryptor.hashMd5AndEncode(keyWithContext.aesKey, digest.getDigestBytes());
+            @Hash String cacheHash = d.encryptor.hashMd5AndEncode(castle.key, digest.getDigestBytes());
             this.decryptCacheData.put(cacheHash, byteStream);
         }
 
@@ -443,27 +391,17 @@ public class DataSerializer {
 
     private byte @Nullable [] getAesKeyForHeader(IPartitionKey partitionKey, MessageDataHeaderDto header, boolean shouldThrow)
     {
-        byte[] aesKey = null;
-        @Hash String lookupKey = header.getEncryptLookupKey();
-        if (lookupKey != null) aesKey = d.encryptKeyCachePerRequest.getEncryptKey(partitionKey, lookupKey);
-        if (aesKey == null) {
-
-            if (lookupKey != null) {
-                Set<MessagePrivateKeyDto> rights = this.d.currentRights.getRightsRead();
-                for (MessagePrivateKeyDto privateKey : rights) {
-                    aesKey = d.encryptKeyCachePerRequest.getEncryptKey(partitionKey, lookupKey, privateKey);
-                    if (aesKey != null) break;
-                }
+        SecurityCastleContext castle = d.securityCastleManager
+                .enterCastle(partitionKey,
+                             header.getCastleId(),
+                             this.d.currentRights.getRightsRead());
+        if (castle == null) {
+            if (shouldThrow == true) {
+                EffectivePermissions permissions = d.authorization.perms(partitionKey, header.getIdOrThrow(), header.getParentId(), false);
+                throw d.authorization.buildReadException(partitionKey, header.getCastleIdOrThrow(), header.getIdOrThrow(), permissions, true);
             }
-
-            if (aesKey == null) {
-                if (shouldThrow == true) {
-                    EffectivePermissions permissions = d.authorization.perms(partitionKey, header.getIdOrThrow(), header.getParentId(), false);
-                    throw d.authorization.buildReadException(partitionKey, header.getEncryptLookupKey(), header.getIdOrThrow(), permissions, true);
-                }
-                return null;
-            }
+            return null;
         }
-        return aesKey;
+        return castle.key;
     }
 }

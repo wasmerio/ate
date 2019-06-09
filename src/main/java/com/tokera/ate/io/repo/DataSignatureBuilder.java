@@ -6,13 +6,13 @@ import com.tokera.ate.dto.EffectivePermissions;
 import com.tokera.ate.dto.msg.MessageDataDigestDto;
 import com.tokera.ate.dto.msg.MessageDataHeaderDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
-import com.tokera.ate.security.EncryptKeyCachePerRequest;
 import com.tokera.ate.security.Encryptor;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 
+import com.tokera.ate.security.SecurityCastleManager;
 import com.tokera.ate.units.Hash;
 import org.apache.commons.codec.binary.Base64;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -29,7 +29,7 @@ public class DataSignatureBuilder
     private Encryptor encryptor;
     @SuppressWarnings("initialization.fields.uninitialized")
     @Inject
-    private EncryptKeyCachePerRequest encryptSession;
+    private SecurityCastleManager castleManager;
 
     private byte[] generateStreamBytes(MessageDataHeaderDto header, byte @Nullable [] payloadBytes) {
 
@@ -82,7 +82,7 @@ public class DataSignatureBuilder
         for (String publicKeyHash : permissions.rolesWrite)
         {
             // We can only sign if we have a private key for the pair
-            MessagePrivateKeyDto privateKey = encryptSession.getSignKey(publicKeyHash);
+            MessagePrivateKeyDto privateKey = castleManager.getSignKey(publicKeyHash);
             if (privateKey == null) continue;
             
             //LOG.info("ntru-encrypt:\n" + "  - private-key: " + Base64.encodeBase64URLSafeString(privateKey) + "\n  - data: " + Base64.encodeBase64URLSafeString(digestBytes) + "\n");

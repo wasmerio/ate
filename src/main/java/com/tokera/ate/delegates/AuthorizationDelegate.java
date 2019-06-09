@@ -144,7 +144,7 @@ public class AuthorizationDelegate {
                 sb.append(" >        ");
             }
             sb.append(d.encryptor.getAlias(partitionKey, privateKey)).append(" - ").append(d.encryptor.getPublicKeyHash(privateKey));
-            if (this.d.encryptKeyCachePerRequest.getSignKey(d.encryptor.getPublicKeyHash(privateKey)) == null) {
+            if (this.d.securityCastleManager.getSignKey(d.encryptor.getPublicKeyHash(privateKey)) == null) {
                 sb.append(" [lookup failed!!]");
             }
             sb.append("\n");
@@ -164,7 +164,7 @@ public class AuthorizationDelegate {
         }
     }
 
-    public RuntimeException buildReadException(IPartitionKey partitionKey, String lookupKey, @DaoId UUID objId, EffectivePermissions permissions, boolean showStack)
+    public RuntimeException buildReadException(IPartitionKey partitionKey, @Nullable UUID castleId, @DaoId UUID objId, EffectivePermissions permissions, boolean showStack)
     {
         StringBuilder sb = new StringBuilder();
         sb.append("Access denied while attempting to read object [");
@@ -174,12 +174,9 @@ public class AuthorizationDelegate {
         }
         sb.append(objId).append("]\n");
 
-        @Secret String encKeyHash = lookupKey;
-        sb.append(" > encLookupKey: ");
-        if (encKeyHash != null) {
-            MessagePublicKeyDto key = d.io.publicKeyOrNull(partitionKey, encKeyHash);
-            sb.append(key != null ? d.encryptor.getPublicKeyHash(key) : encKeyHash);
-            sb.append("\n");
+        sb.append(" > castle: ");
+        if (castleId != null) {
+            sb.append(castleId).append("\n");
 
             boolean hasNeeds = false;
             for (String publicKeyHash : permissions.rolesRead) {
@@ -193,7 +190,7 @@ public class AuthorizationDelegate {
                 MessagePublicKeyDto roleKey = d.io.publicKeyOrNull(partitionKey, publicKeyHash);
                 @Hash String roleKeyAlias = roleKey != null ? d.encryptor.getAlias(partitionKey, roleKey) : publicKeyHash;
                 sb.append(roleKeyAlias).append(" - ").append(publicKeyHash).append("]");
-                if (this.d.encryptKeyCachePerRequest.hasEncryptKey(partitionKey, encKeyHash, publicKeyHash)) {
+                if (this.d.securityCastleManager.hasEncryptKey(partitionKey, castleId, publicKeyHash)) {
                     sb.append(" [record found]");
                 } else {
                     sb.append(" [record missing!!]");

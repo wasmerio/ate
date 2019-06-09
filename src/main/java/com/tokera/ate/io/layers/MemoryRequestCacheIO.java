@@ -30,7 +30,7 @@ public class MemoryRequestCacheIO implements IAteIO
     private class PartitionCache {
         public final Map<UUID, BaseDao> entries = new HashMap<>();
         public final Map<String, MessagePublicKeyDto> publicKeys = new HashMap<>();
-        public final Map<String, MessageEncryptTextDto> encryptTexts = new HashMap<>();
+        public final Map<String, MessageSecurityCastleDto> castles = new HashMap<>();
     }
 
     protected Map<IPartitionKey, PartitionCache> cache = new TreeMap<>(new PartitionKeyComparator());
@@ -64,9 +64,9 @@ public class MemoryRequestCacheIO implements IAteIO
     }
 
     @Override
-    public boolean merge(IPartitionKey partitionKey, MessageEncryptTextDto t) {
+    public boolean merge(IPartitionKey partitionKey, MessageSecurityCastleDto t) {
         PartitionCache c = this.getTopicCache(partitionKey);
-        c.encryptTexts.put(MessageSerializer.getKey(t), t);
+        c.castles.put(MessageSerializer.getKey(t), t);
         return true;
     }
 

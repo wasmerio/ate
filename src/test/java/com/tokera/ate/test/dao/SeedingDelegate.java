@@ -42,6 +42,7 @@ public class SeedingDelegate {
         MessageDataHeaderDto header = new MessageDataHeaderDto(
                 UUIDTools.generateUUID("mycompany.org"),
                 UUID.randomUUID(),
+                UUID.randomUUID(),
                 null,
                 MyAccount.class);
 

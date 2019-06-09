@@ -2,7 +2,7 @@
 
 include "../common.fbs";
 include "data.fbs";
-include "encrypt.text.fbs";
+include "castle.fbs";
 include "key.fbs";
 
 namespace com.tokera.ate.dao.msg;
@@ -10,7 +10,7 @@ namespace com.tokera.ate.dao.msg;
 union MessageType
 {
   MessageData,
-  MessageEncryptText,
+  MessageSecurityCastle,
   MessagePublicKey,
   MessageSync
 }

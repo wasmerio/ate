@@ -19,8 +19,8 @@ import com.tokera.ate.io.layers.MemoryRequestCacheIO;
 import com.tokera.ate.io.merge.DataMerger;
 import com.tokera.ate.io.repo.*;
 import com.tokera.ate.qualifiers.FrontendStorageSystem;
-import com.tokera.ate.security.EncryptKeyCachePerRequest;
 import com.tokera.ate.security.Encryptor;
+import com.tokera.ate.security.SecurityCastleManager;
 import com.tokera.ate.security.TokenSecurity;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
@@ -62,7 +62,7 @@ public abstract class BaseAteDelegate {
     public final DaoParentDiscoveryExtension daoParents;
     public final YamlTagDiscoveryExtension yamlDiscovery;
     public final SerializableObjectsExtension serializableObjectsExtension;
-    public final EncryptKeyCachePerRequest encryptKeyCachePerRequest;
+    public final SecurityCastleManager securityCastleManager;
     public final TokenSecurity tokenSecurity;
     public final ImplicitSecurityDelegate implicitSecurity;
     public final CurrentRightsDelegate currentRights;
@@ -138,7 +138,7 @@ public abstract class BaseAteDelegate {
         this.encryptor = getBean(Encryptor.class);
         this.kafkaConfig = getBean(KafkaConfigTools.class);
         this.resourceScopeInterceptor = getBean(ResourceScopeInterceptor.class);
-        this.encryptKeyCachePerRequest = getBean(EncryptKeyCachePerRequest.class);
+        this.securityCastleManager = getBean(SecurityCastleManager.class);
         this.currentToken = getBean(CurrentTokenDelegate.class);
         this.yaml = getBean(YamlDelegate.class);
         this.os = getBean(IObjectSerializer.class);

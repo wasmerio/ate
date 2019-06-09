@@ -43,9 +43,9 @@ final public class SplitIO implements IAteIO {
     }
 
     @Override
-    final public boolean merge(IPartitionKey partitionKey, MessageEncryptTextDto encryptText) {
-        boolean ret = lower.merge(partitionKey, encryptText);
-        upper.merge(partitionKey, encryptText);
+    final public boolean merge(IPartitionKey partitionKey, MessageSecurityCastleDto castle) {
+        boolean ret = lower.merge(partitionKey, castle);
+        upper.merge(partitionKey, castle);
         return ret;
     }
 

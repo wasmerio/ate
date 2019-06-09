@@ -1,8 +1,0 @@
-namespace com.tokera.ate.dao.msg;
-
-table MessageEncryptText
-{
-  publicKeyHash     :string;
-  lookupKey         :string;
-  encryptedText     :[byte];
-}

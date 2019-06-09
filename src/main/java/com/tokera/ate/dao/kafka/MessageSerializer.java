@@ -65,8 +65,8 @@ public class MessageSerializer implements Serializer<MessageBase> {
         if (msg instanceof MessageDataDto) {
             return getKey((MessageDataDto)msg);
         }
-        if (msg instanceof MessageEncryptTextDto) {
-            return getKey((MessageEncryptTextDto)msg);
+        if (msg instanceof MessageSecurityCastleDto) {
+            return getKey((MessageSecurityCastleDto)msg);
         }
         if (msg instanceof MessagePublicKeyDto) {
             return getKey((MessagePublicKeyDto)msg);
@@ -86,10 +86,10 @@ public class MessageSerializer implements Serializer<MessageBase> {
                 MessageData data = (MessageData)msg.msg(new MessageData());
                 if (data != null) return getKey(data);
             }
-            case MessageType.MessageEncryptText:
+            case MessageType.MessageSecurityCastle:
             {
-                MessageEncryptText text = (MessageEncryptText)msg.msg(new MessageEncryptText());
-                if (text != null) return getKey(text);
+                MessageSecurityCastle castle = (MessageSecurityCastle)msg.msg(new MessageSecurityCastle());
+                if (castle != null) return getKey(castle);
             }
             case MessageType.MessagePublicKey:
             {
@@ -114,9 +114,9 @@ public class MessageSerializer implements Serializer<MessageBase> {
 
     public static String getKey(MessageSync sync) { return "sync:" + sync.ticket1() + ":" + sync.ticket2(); }
     
-    public static String getKey(MessageEncryptText text)
+    public static String getKey(MessageSecurityCastle castle)
     {
-        return text.publicKeyHash() + ":" + text.lookupKey();
+        return castle.id().toString();
     }
     
     public static String getKey(MessagePublicKey key)
@@ -154,9 +154,9 @@ public class MessageSerializer implements Serializer<MessageBase> {
         }
     }
     
-    public static String getKey(MessageEncryptTextDto text)
+    public static String getKey(MessageSecurityCastleDto castle)
     {
-        return text.getPublicKeyHash() + ":" + text.getLookupKey();
+        return castle.getIdOrThrow().toString();
     }
     
     public static String getKey(MessagePublicKeyDto key)

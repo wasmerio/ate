@@ -16,18 +16,17 @@ public final class MessageDataHeader extends Table {
 
   public com.tokera.ate.dao.ObjId id() { return id(new com.tokera.ate.dao.ObjId()); }
   public com.tokera.ate.dao.ObjId id(com.tokera.ate.dao.ObjId obj) { int o = __offset(4); return o != 0 ? obj.__assign(o + bb_pos, bb) : null; }
+  public com.tokera.ate.dao.ObjId castle() { return castle(new com.tokera.ate.dao.ObjId()); }
+  public com.tokera.ate.dao.ObjId castle(com.tokera.ate.dao.ObjId obj) { int o = __offset(6); return o != 0 ? obj.__assign(o + bb_pos, bb) : null; }
   public com.tokera.ate.dao.ObjId version() { return version(new com.tokera.ate.dao.ObjId()); }
-  public com.tokera.ate.dao.ObjId version(com.tokera.ate.dao.ObjId obj) { int o = __offset(6); return o != 0 ? obj.__assign(o + bb_pos, bb) : null; }
+  public com.tokera.ate.dao.ObjId version(com.tokera.ate.dao.ObjId obj) { int o = __offset(8); return o != 0 ? obj.__assign(o + bb_pos, bb) : null; }
   public com.tokera.ate.dao.ObjId parentId() { return parentId(new com.tokera.ate.dao.ObjId()); }
-  public com.tokera.ate.dao.ObjId parentId(com.tokera.ate.dao.ObjId obj) { int o = __offset(8); return o != 0 ? obj.__assign(o + bb_pos, bb) : null; }
+  public com.tokera.ate.dao.ObjId parentId(com.tokera.ate.dao.ObjId obj) { int o = __offset(10); return o != 0 ? obj.__assign(o + bb_pos, bb) : null; }
   public com.tokera.ate.dao.ObjId previousVersion() { return previousVersion(new com.tokera.ate.dao.ObjId()); }
-  public com.tokera.ate.dao.ObjId previousVersion(com.tokera.ate.dao.ObjId obj) { int o = __offset(10); return o != 0 ? obj.__assign(o + bb_pos, bb) : null; }
+  public com.tokera.ate.dao.ObjId previousVersion(com.tokera.ate.dao.ObjId obj) { int o = __offset(12); return o != 0 ? obj.__assign(o + bb_pos, bb) : null; }
   public com.tokera.ate.dao.ObjId merges(int j) { return merges(new com.tokera.ate.dao.ObjId(), j); }
-  public com.tokera.ate.dao.ObjId merges(com.tokera.ate.dao.ObjId obj, int j) { int o = __offset(12); return o != 0 ? obj.__assign(__vector(o) + j * 16, bb) : null; }
-  public int mergesLength() { int o = __offset(12); return o != 0 ? __vector_len(o) : 0; }
-  public @org.checkerframework.checker.nullness.qual.Nullable String encryptLookupKey() { int o = __offset(14); return o != 0 ? __string(o + bb_pos) : null; }
-  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer encryptLookupKeyAsByteBuffer() { return __vector_as_bytebuffer(14, 1); }
-  public @org.checkerframework.checker.nullness.qual.Nullable ByteBuffer encryptLookupKeyInByteBuffer(ByteBuffer _bb) { return __vector_in_bytebuffer(_bb, 14, 1); }
+  public com.tokera.ate.dao.ObjId merges(com.tokera.ate.dao.ObjId obj, int j) { int o = __offset(14); return o != 0 ? obj.__assign(__vector(o) + j * 16, bb) : null; }
+  public int mergesLength() { int o = __offset(14); return o != 0 ? __vector_len(o) : 0; }
   public boolean inheritRead() { int o = __offset(16); return o != 0 ? 0!=bb.get(o + bb_pos) : true; }
   public boolean inheritWrite() { int o = __offset(18); return o != 0 ? 0!=bb.get(o + bb_pos) : true; }
   public @org.checkerframework.checker.nullness.qual.Nullable String payloadClazz() { int o = __offset(20); return o != 0 ? __string(o + bb_pos) : null; }
@@ -42,12 +41,12 @@ public final class MessageDataHeader extends Table {
 
   public static void startMessageDataHeader(FlatBufferBuilder builder) { builder.startObject(12); }
   public static void addId(FlatBufferBuilder builder, int idOffset) { builder.addStruct(0, idOffset, 0); }
-  public static void addVersion(FlatBufferBuilder builder, int versionOffset) { builder.addStruct(1, versionOffset, 0); }
-  public static void addParentId(FlatBufferBuilder builder, int parentIdOffset) { builder.addStruct(2, parentIdOffset, 0); }
-  public static void addPreviousVersion(FlatBufferBuilder builder, int previousVersionOffset) { builder.addStruct(3, previousVersionOffset, 0); }
-  public static void addMerges(FlatBufferBuilder builder, int mergesOffset) { builder.addOffset(4, mergesOffset, 0); }
+  public static void addCastle(FlatBufferBuilder builder, int castleOffset) { builder.addStruct(1, castleOffset, 0); }
+  public static void addVersion(FlatBufferBuilder builder, int versionOffset) { builder.addStruct(2, versionOffset, 0); }
+  public static void addParentId(FlatBufferBuilder builder, int parentIdOffset) { builder.addStruct(3, parentIdOffset, 0); }
+  public static void addPreviousVersion(FlatBufferBuilder builder, int previousVersionOffset) { builder.addStruct(4, previousVersionOffset, 0); }
+  public static void addMerges(FlatBufferBuilder builder, int mergesOffset) { builder.addOffset(5, mergesOffset, 0); }
   public static void startMergesVector(FlatBufferBuilder builder, int numElems) { builder.startVector(16, numElems, 8); }
-  public static void addEncryptLookupKey(FlatBufferBuilder builder, int encryptLookupKeyOffset) { builder.addOffset(5, encryptLookupKeyOffset, 0); }
   public static void addInheritRead(FlatBufferBuilder builder, boolean inheritRead) { builder.addBoolean(6, inheritRead, true); }
   public static void addInheritWrite(FlatBufferBuilder builder, boolean inheritWrite) { builder.addBoolean(7, inheritWrite, true); }
   public static void addPayloadClazz(FlatBufferBuilder builder, int payloadClazzOffset) { builder.addOffset(8, payloadClazzOffset, 0); }

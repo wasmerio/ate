@@ -5,11 +5,11 @@ namespace com.tokera.ate.dao.msg;
 table MessageDataHeader
 {
   id                :ObjId;
+  castle            :ObjId;
   version           :ObjId;
   parentId          :ObjId;
   previousVersion   :ObjId;
   merges            :[ObjId];
-  encryptLookupKey  :string;
   inheritRead       :bool = true;
   inheritWrite      :bool = true;
   payloadClazz      :string;

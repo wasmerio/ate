@@ -23,7 +23,7 @@ public interface IAteIO {
 
     boolean merge(IPartitionKey partitionKey, MessagePublicKeyDto publicKey);
 
-    boolean merge(IPartitionKey partitionKey, MessageEncryptTextDto encryptText);
+    boolean merge(IPartitionKey partitionKey, MessageSecurityCastleDto castle);
 
     boolean merge(BaseDao entity);
 

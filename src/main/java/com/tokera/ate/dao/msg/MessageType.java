@@ -6,11 +6,11 @@ public final class MessageType {
   private MessageType() { }
   public static final byte NONE = 0;
   public static final byte MessageData = 1;
-  public static final byte MessageEncryptText = 2;
+  public static final byte MessageSecurityCastle = 2;
   public static final byte MessagePublicKey = 3;
   public static final byte MessageSync = 4;
 
-  public static final String[] names = { "NONE", "MessageData", "MessageEncryptText", "MessagePublicKey", "MessageSync", };
+  public static final String[] names = { "NONE", "MessageData", "MessageSecurityCastle", "MessagePublicKey", "MessageSync", };
 
   public static String name(int e) { return names[e]; }
 }

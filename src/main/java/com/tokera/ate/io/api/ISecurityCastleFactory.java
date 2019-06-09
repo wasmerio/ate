@@ -6,35 +6,37 @@ import com.tokera.ate.units.Hash;
 import com.tokera.ate.units.Secret;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import java.util.UUID;
+
 /**
  * Interface used to get and set the encryption keys under a particular metadata context
  * (This interface can be used to erase data for compliance or security reasons, e.g. GDPR)
  */
-public interface ISecureKeyRepository {
+public interface ISecurityCastleFactory {
 
     /**
      * Gets a secret key based on a public key and a hash of the secret key
      * @param partitionKey The partition that this secure key is related to
-     * @param lookupKey Lookup identifier of the key we wish to extract from the repo
-     * @param accessKey Access key that is used to retrieve this secret key
+     * @param id Lookup identifier of the security boundary
+     * @param accessKeys Access keys that can be used to retrieve the secret
      * @return The secret key or null if it can not be found
      */
-    @Nullable @Secret byte[] get(IPartitionKey partitionKey, @Hash String lookupKey, MessagePrivateKeyDto accessKey);
+    @Nullable @Secret byte[] getSecret(IPartitionKey partitionKey, UUID id, Iterable<MessagePrivateKeyDto> accessKeys);
 
     /**
      * Adds a secret key into the repository
      * @param partitionKey The partition that this secure key is related to
-     * @param secretKey The secret key to be added
-     * @param lookupKey Lookup identifier of the key we wish to extract from the repo
-     * @param publicKeyHash Hash of the public key related to the access key
+     * @param secret The secret key to be added
+     * @param id Lookup identifier of the security boundary
+     * @param accessKeys List of the access keys that will be able to get the secret
      */
-    void put(IPartitionKey partitionKey, @Hash String lookupKey, @Secret byte[] secretKey, @Hash String publicKeyHash);
+    void putSecret(IPartitionKey partitionKey, UUID id, @Secret byte[] secret, Iterable<MessagePublicKeyDto> accessKeys);
 
     /**
      * @param partitionKey The partition that this secure key is related to
-     * @param lookupKey Lookup identifier of the key we wish to extract from the repo
+     * @param id Lookup identifier of the security boundary
      * @param publicKeyHash Hash of the public key related to the access key
      * @return Returns true if the encryption key exists in this repository
      */
-    boolean exists(IPartitionKey partitionKey, @Hash String lookupKey, @Hash String publicKeyHash);
+    boolean exists(IPartitionKey partitionKey, UUID id, @Hash String publicKeyHash);
 }

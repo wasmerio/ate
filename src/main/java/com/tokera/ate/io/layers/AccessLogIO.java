@@ -60,8 +60,8 @@ final public class AccessLogIO implements IAteIO {
     }
 
     @Override
-    public boolean merge(IPartitionKey partitionKey, MessageEncryptTextDto encryptText) {
-        return this.next.merge(partitionKey, encryptText);
+    public boolean merge(IPartitionKey partitionKey, MessageSecurityCastleDto castle) {
+        return this.next.merge(partitionKey, castle);
     }
 
     @Override

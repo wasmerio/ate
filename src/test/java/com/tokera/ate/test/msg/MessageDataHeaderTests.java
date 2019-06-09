@@ -27,15 +27,15 @@ public class MessageDataHeaderTests
     public void forwardTest()
     {
         UUID id = UUID.randomUUID();
+        UUID castle = UUID.randomUUID();
         UUID version = UUID.randomUUID();
         UUID previousVersion = UUID.randomUUID();
         UUID merge1 = UUID.randomUUID();
         UUID merge2 = UUID.randomUUID();
         
-        MessageDataHeaderDto header = new MessageDataHeaderDto(id, version, previousVersion, MyAccount.class);
+        MessageDataHeaderDto header = new MessageDataHeaderDto(id, castle, version, previousVersion, MyAccount.class);
         header.setInheritRead(true);
         header.setInheritWrite(false);
-        header.setEncryptLookupKey("HASHTEXT");
         header.getAllowRead().add("FIRSTKEY");
         header.getAllowRead().add("SECONDKEY");
         header.getMerges().add(merge1);
@@ -48,7 +48,7 @@ public class MessageDataHeaderTests
         header2.setId(id);
         Assertions.assertTrue(Objects.equal(header.getInheritRead(), header2.getInheritRead()), "Inherit read flag is not equal");
         Assertions.assertTrue(Objects.equal(header.getInheritWrite(), header2.getInheritWrite()), "Inherit write flag is not equal");
-        Assertions.assertTrue(Objects.equal(header.getEncryptLookupKey(), header2.getEncryptLookupKey()), "Encrypt key hash is not equal");
+        Assertions.assertTrue(Objects.equal(header.getCastleId(), header2.getCastleId()), "Castle is not equal");
         Assertions.assertTrue(Objects.equal(header.getPayloadClazzOrThrow(), header2.getPayloadClazzOrThrow()), "Payload class is not equal");
     }
     
@@ -56,15 +56,15 @@ public class MessageDataHeaderTests
     public void forwardTest2() throws IOException
     {
         UUID id = UUID.randomUUID();
+        UUID castle = UUID.randomUUID();
         UUID version = UUID.randomUUID();
         UUID previousVersion = UUID.randomUUID();
         UUID merge1 = UUID.randomUUID();
         UUID merge2 = UUID.randomUUID();
         
-        MessageDataHeaderDto header = new MessageDataHeaderDto(id, version, previousVersion, MyAccount.class);
+        MessageDataHeaderDto header = new MessageDataHeaderDto(id, castle, version, previousVersion, MyAccount.class);
         header.setInheritRead(true);
         header.setInheritWrite(false);
-        header.setEncryptLookupKey("HASHTEXT");
         header.getAllowRead().add("FIRSTKEY");
         header.getAllowRead().add("SECONDKEY");
         header.getMerges().add(merge1);
@@ -85,7 +85,7 @@ public class MessageDataHeaderTests
         header2.setId(id);
         Assertions.assertTrue(Objects.equal(header.getInheritRead(), header2.getInheritRead()), "Inherit read flag is not equal");
         Assertions.assertTrue(Objects.equal(header.getInheritWrite(), header2.getInheritWrite()), "Inherit write flag is not equal");
-        Assertions.assertTrue(Objects.equal(header.getEncryptLookupKey(), header2.getEncryptLookupKey()), "Encrypt key hash is not equal");
+        Assertions.assertTrue(Objects.equal(header.getCastleId(), header2.getCastleId()), "Encrypt key hash is not equal");
         Assertions.assertTrue(Objects.equal(header.getPayloadClazzOrThrow(), header2.getPayloadClazzOrThrow()), "Payload class is not equal");
         Assertions.assertTrue(header.getAllowRead().size() == header2.getAllowRead().size());
         Assertions.assertTrue(header.getAllowWrite().size() == header2.getAllowWrite().size());
@@ -105,15 +105,15 @@ public class MessageDataHeaderTests
     public void streamTest() throws IOException
     {
         UUID id = UUID.randomUUID();
+        UUID castle = UUID.randomUUID();
         UUID version = UUID.randomUUID();
         UUID previousVersion = UUID.randomUUID();
         UUID merge1 = UUID.randomUUID();
         UUID merge2 = UUID.randomUUID();
         
-        MessageDataHeaderDto header = new MessageDataHeaderDto(id, version, previousVersion, MyAccount.class);
+        MessageDataHeaderDto header = new MessageDataHeaderDto(id, castle, version, previousVersion, MyAccount.class);
         header.setInheritRead(true);
         header.setInheritWrite(false);
-        header.setEncryptLookupKey("HASHTEXT123");
         header.getAllowRead().add("FIRSTKEY");
         header.getAllowRead().add("SECONDKEY");
         header.getMerges().add(merge1);
@@ -140,12 +140,14 @@ public class MessageDataHeaderTests
     public void serializeTest()
     {
         UUID version = UUID.randomUUID();
+        UUID castle = UUID.randomUUID();
         UUID previousVersion = UUID.randomUUID();
         UUID merge1 = UUID.randomUUID();
         UUID merge2 = UUID.randomUUID();
 
         MessageDataHeaderDto header = new MessageDataHeaderDto(
                 UUID.randomUUID(),
+                castle,
                 version,
                 previousVersion,
                 MyAccount.class
@@ -169,7 +171,7 @@ public class MessageDataHeaderTests
         Assertions.assertTrue(Objects.equal(header.getVersionOrThrow(), header2.getVersionOrThrow()), "Version is not equal");
         Assertions.assertTrue(Objects.equal(header.getInheritRead(), header2.getInheritRead()), "Inherit read flag is not equal");
         Assertions.assertTrue(Objects.equal(header.getInheritWrite(), header2.getInheritWrite()), "Inherit write flag is not equal");
-        Assertions.assertTrue(Objects.equal(header.getEncryptLookupKey(), header2.getEncryptLookupKey()), "Encrypt key hash is not equal");
+        Assertions.assertTrue(Objects.equal(header.getCastleId(), header2.getCastleId()), "Encrypt key hash is not equal");
         Assertions.assertTrue(Objects.equal(header.getPayloadClazzOrThrow(), header2.getPayloadClazzOrThrow()), "Payload class is not equal");
         Assertions.assertTrue(header.getAllowRead().size() == header2.getAllowRead().size());
         Assertions.assertTrue(header.getAllowWrite().size() == header2.getAllowWrite().size());

@@ -9,6 +9,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.flatbuffers.FlatBufferBuilder;
 import com.tokera.ate.common.CopyOnWrite;
+import com.tokera.ate.common.Immutalizable;
 import com.tokera.ate.dao.msg.*;
 import com.tokera.ate.annotations.YamlTag;
 import org.apache.commons.codec.binary.Base64;
@@ -25,7 +26,7 @@ import java.nio.ByteBuffer;
  */
 @Dependent
 @YamlTag("msg.data")
-public class MessageDataDto extends MessageBaseDto implements Serializable, CopyOnWrite {
+public class MessageDataDto extends MessageBaseDto implements Serializable, CopyOnWrite, Immutalizable {
 
     private static final long serialVersionUID = -5267155098387197834L;
 

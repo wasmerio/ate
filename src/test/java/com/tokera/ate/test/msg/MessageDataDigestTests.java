@@ -72,6 +72,7 @@ public class MessageDataDigestTests
         MessageDataHeaderDto header = new MessageDataHeaderDto(
                 UUID.randomUUID(),
                 UUID.randomUUID(),
+                UUID.randomUUID(),
                 null,
                 MyAccount.class
         );

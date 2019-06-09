@@ -140,7 +140,7 @@ public class DataRepository implements IAteIO {
     }
 
     @Override
-    public boolean merge(IPartitionKey partitionKey, MessageEncryptTextDto t) {
+    public boolean merge(IPartitionKey partitionKey, MessageSecurityCastleDto t) {
         this.mergeInternal(partitionKey, t, true);
         return true;
     }

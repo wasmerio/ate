@@ -28,7 +28,7 @@ public class StorageSystemFactory
         private IAteIO first;
         private IPartitionResolver partitionResolver = new DefaultPartitionResolver();
         private IPartitionKeyMapper partitionKeyMapper = new DefaultPartitionKeyMapper();
-        private ISecureKeyRepository secureKeyRepository = new DefaultSecureKeyRepository();
+        private ISecurityCastleFactory secureKeyRepository = new DefaultSecurityCastleFactory();
         private ITokenParser tokenParser = new DefaultTokenParser();
 
         protected Builder(IAteIO next) {
@@ -78,7 +78,7 @@ public class StorageSystemFactory
          * Overrides the default secure key repository with a custom one
          * @param repository Reference to the secure key resolver to use instead of the default one
          */
-        public Builder withSecureKeyRepository(ISecureKeyRepository repository) {
+        public Builder withSecureKeyRepository(ISecurityCastleFactory repository) {
             this.secureKeyRepository = repository;
             return this;
         }
@@ -131,7 +131,7 @@ public class StorageSystemFactory
      */
     @Produces
     @BackendStorageSystem
-    public ISecureKeyRepository secureKeyRepository() {
+    public ISecurityCastleFactory secureKeyRepository() {
         if (tree == null) {
             throw new RuntimeException("You must first initialize this factory by adding a backend and layers.");
         }

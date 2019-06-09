@@ -17,7 +17,6 @@ public class ShareToken {
         AteDelegate d = AteDelegate.get();
 
         this.ownership = ownership;
-        coinShare.encryptKey = null;
         coinShare.trustAllowWrite.clear();
         d.authorization.authorizeEntityWrite(this.ownership, coinShare);
     }

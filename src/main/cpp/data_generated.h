@@ -25,11 +25,11 @@ struct MessageSync;
 struct MessageDataHeader FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   enum {
     VT_ID = 4,
-    VT_VERSION = 6,
-    VT_PARENTID = 8,
-    VT_PREVIOUSVERSION = 10,
-    VT_MERGES = 12,
-    VT_ENCRYPTLOOKUPKEY = 14,
+    VT_CASTLE = 6,
+    VT_VERSION = 8,
+    VT_PARENTID = 10,
+    VT_PREVIOUSVERSION = 12,
+    VT_MERGES = 14,
     VT_INHERITREAD = 16,
     VT_INHERITWRITE = 18,
     VT_PAYLOADCLAZZ = 20,
@@ -39,6 +39,9 @@ struct MessageDataHeader FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   };
   const com::tokera::ate::dao::ObjId *id() const {
     return GetStruct<const com::tokera::ate::dao::ObjId *>(VT_ID);
+  }
+  const com::tokera::ate::dao::ObjId *castle() const {
+    return GetStruct<const com::tokera::ate::dao::ObjId *>(VT_CASTLE);
   }
   const com::tokera::ate::dao::ObjId *version() const {
     return GetStruct<const com::tokera::ate::dao::ObjId *>(VT_VERSION);
@@ -51,9 +54,6 @@ struct MessageDataHeader FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   }
   const flatbuffers::Vector<const com::tokera::ate::dao::ObjId *> *merges() const {
     return GetPointer<const flatbuffers::Vector<const com::tokera::ate::dao::ObjId *> *>(VT_MERGES);
-  }
-  const flatbuffers::String *encryptLookupKey() const {
-    return GetPointer<const flatbuffers::String *>(VT_ENCRYPTLOOKUPKEY);
   }
   bool inheritRead() const {
     return GetField<uint8_t>(VT_INHERITREAD, 1) != 0;
@@ -76,13 +76,12 @@ struct MessageDataHeader FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   bool Verify(flatbuffers::Verifier &verifier) const {
     return VerifyTableStart(verifier) &&
            VerifyField<com::tokera::ate::dao::ObjId>(verifier, VT_ID) &&
+           VerifyField<com::tokera::ate::dao::ObjId>(verifier, VT_CASTLE) &&
            VerifyField<com::tokera::ate::dao::ObjId>(verifier, VT_VERSION) &&
            VerifyField<com::tokera::ate::dao::ObjId>(verifier, VT_PARENTID) &&
            VerifyField<com::tokera::ate::dao::ObjId>(verifier, VT_PREVIOUSVERSION) &&
            VerifyOffset(verifier, VT_MERGES) &&
            verifier.VerifyVector(merges()) &&
-           VerifyOffset(verifier, VT_ENCRYPTLOOKUPKEY) &&
-           verifier.VerifyString(encryptLookupKey()) &&
            VerifyField<uint8_t>(verifier, VT_INHERITREAD) &&
            VerifyField<uint8_t>(verifier, VT_INHERITWRITE) &&
            VerifyOffset(verifier, VT_PAYLOADCLAZZ) &&
@@ -106,6 +105,9 @@ struct MessageDataHeaderBuilder {
   void add_id(const com::tokera::ate::dao::ObjId *id) {
     fbb_.AddStruct(MessageDataHeader::VT_ID, id);
   }
+  void add_castle(const com::tokera::ate::dao::ObjId *castle) {
+    fbb_.AddStruct(MessageDataHeader::VT_CASTLE, castle);
+  }
   void add_version(const com::tokera::ate::dao::ObjId *version) {
     fbb_.AddStruct(MessageDataHeader::VT_VERSION, version);
   }
@@ -117,9 +119,6 @@ struct MessageDataHeaderBuilder {
   }
   void add_merges(flatbuffers::Offset<flatbuffers::Vector<const com::tokera::ate::dao::ObjId *>> merges) {
     fbb_.AddOffset(MessageDataHeader::VT_MERGES, merges);
-  }
-  void add_encryptLookupKey(flatbuffers::Offset<flatbuffers::String> encryptLookupKey) {
-    fbb_.AddOffset(MessageDataHeader::VT_ENCRYPTLOOKUPKEY, encryptLookupKey);
   }
   void add_inheritRead(bool inheritRead) {
     fbb_.AddElement<uint8_t>(MessageDataHeader::VT_INHERITREAD, static_cast<uint8_t>(inheritRead), 1);
@@ -154,11 +153,11 @@ struct MessageDataHeaderBuilder {
 inline flatbuffers::Offset<MessageDataHeader> CreateMessageDataHeader(
     flatbuffers::FlatBufferBuilder &_fbb,
     const com::tokera::ate::dao::ObjId *id = 0,
+    const com::tokera::ate::dao::ObjId *castle = 0,
     const com::tokera::ate::dao::ObjId *version = 0,
     const com::tokera::ate::dao::ObjId *parentId = 0,
     const com::tokera::ate::dao::ObjId *previousVersion = 0,
     flatbuffers::Offset<flatbuffers::Vector<const com::tokera::ate::dao::ObjId *>> merges = 0,
-    flatbuffers::Offset<flatbuffers::String> encryptLookupKey = 0,
     bool inheritRead = true,
     bool inheritWrite = true,
     flatbuffers::Offset<flatbuffers::String> payloadClazz = 0,
@@ -170,11 +169,11 @@ inline flatbuffers::Offset<MessageDataHeader> CreateMessageDataHeader(
   builder_.add_allowWrite(allowWrite);
   builder_.add_allowRead(allowRead);
   builder_.add_payloadClazz(payloadClazz);
-  builder_.add_encryptLookupKey(encryptLookupKey);
   builder_.add_merges(merges);
   builder_.add_previousVersion(previousVersion);
   builder_.add_parentId(parentId);
   builder_.add_version(version);
+  builder_.add_castle(castle);
   builder_.add_id(id);
   builder_.add_inheritWrite(inheritWrite);
   builder_.add_inheritRead(inheritRead);
@@ -184,11 +183,11 @@ inline flatbuffers::Offset<MessageDataHeader> CreateMessageDataHeader(
 inline flatbuffers::Offset<MessageDataHeader> CreateMessageDataHeaderDirect(
     flatbuffers::FlatBufferBuilder &_fbb,
     const com::tokera::ate::dao::ObjId *id = 0,
+    const com::tokera::ate::dao::ObjId *castle = 0,
     const com::tokera::ate::dao::ObjId *version = 0,
     const com::tokera::ate::dao::ObjId *parentId = 0,
     const com::tokera::ate::dao::ObjId *previousVersion = 0,
     const std::vector<com::tokera::ate::dao::ObjId> *merges = nullptr,
-    const char *encryptLookupKey = nullptr,
     bool inheritRead = true,
     bool inheritWrite = true,
     const char *payloadClazz = nullptr,
@@ -198,11 +197,11 @@ inline flatbuffers::Offset<MessageDataHeader> CreateMessageDataHeaderDirect(
   return com::tokera::ate::dao::msg::CreateMessageDataHeader(
       _fbb,
       id,
+      castle,
       version,
       parentId,
       previousVersion,
       merges ? _fbb.CreateVectorOfStructs<com::tokera::ate::dao::ObjId>(*merges) : 0,
-      encryptLookupKey ? _fbb.CreateString(encryptLookupKey) : 0,
       inheritRead,
       inheritWrite,
       payloadClazz ? _fbb.CreateString(payloadClazz) : 0,

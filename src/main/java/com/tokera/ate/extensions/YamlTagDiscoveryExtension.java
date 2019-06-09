@@ -1,6 +1,7 @@
 package com.tokera.ate.extensions;
 
 import com.tokera.ate.annotations.YamlTag;
+import com.tokera.ate.dao.msg.MessageSecurityGate;
 import com.tokera.ate.dto.*;
 import com.tokera.ate.dto.msg.*;
 
@@ -29,7 +30,8 @@ public class YamlTagDiscoveryExtension implements Extension {
         watchForYamlTag(MessageDataDto.class);
         watchForYamlTag(MessageDataHeaderDto.class);
         watchForYamlTag(MessageDataMetaDto.class);
-        watchForYamlTag(MessageEncryptTextDto.class);
+        watchForYamlTag(MessageSecurityCastleDto.class);
+        watchForYamlTag(MessageSecurityGateDto.class);
         watchForYamlTag(MessageMetaDto.class);
         watchForYamlTag(MessagePrivateKeyDto.class);
         watchForYamlTag(MessagePublicKeyDto.class);

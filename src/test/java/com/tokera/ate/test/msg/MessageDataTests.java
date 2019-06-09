@@ -26,6 +26,7 @@ public class MessageDataTests
     public void forwardTest()
     {
         UUID id = UUID.randomUUID();
+        UUID castle = UUID.randomUUID();
         UUID version = UUID.randomUUID();
         UUID previousVersion = UUID.randomUUID();
         byte[] bytes1 = new byte[20];
@@ -44,6 +45,7 @@ public class MessageDataTests
 
         MessageDataHeaderDto header = new MessageDataHeaderDto(
                 id,
+                castle,
                 version,
                 previousVersion,
                 MyAccount.class
@@ -106,6 +108,7 @@ public class MessageDataTests
     public void serializeTest() throws IOException
     {
         UUID id = UUID.randomUUID();
+        UUID castle = UUID.randomUUID();
         byte[] bytes1 = new byte[20];
         byte[] bytes2 = new byte[2000];
         new Random().nextBytes(bytes1);
@@ -120,6 +123,7 @@ public class MessageDataTests
 
         MessageDataHeaderDto header = new MessageDataHeaderDto(
                 id,
+                castle,
                 UUID.randomUUID(),
                 null,
                 MyAccount.class

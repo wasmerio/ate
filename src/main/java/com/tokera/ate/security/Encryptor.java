@@ -1230,6 +1230,7 @@ public class Encryptor implements Runnable
         try {
             MessageDigest digest = (MessageDigest)this.sha256digest.clone();
             for (String data : datas) {
+                if (data == null) continue;
                 digest.update(data.getBytes(Charsets.US_ASCII));
             }
             byte[] ret = digest.digest();

@@ -7,8 +7,8 @@
 #include "flatbuffers/flatbuffers.h"
 
 #include "common_generated.h"
+#include "castle_generated.h"
 #include "data_generated.h"
-#include "encrypt.text_generated.h"
 #include "key_generated.h"
 
 namespace com {
@@ -22,7 +22,7 @@ struct MessageBase;
 enum MessageType {
   MessageType_NONE = 0,
   MessageType_MessageData = 1,
-  MessageType_MessageEncryptText = 2,
+  MessageType_MessageSecurityCastle = 2,
   MessageType_MessagePublicKey = 3,
   MessageType_MessageSync = 4,
   MessageType_MIN = MessageType_NONE,
@@ -33,7 +33,7 @@ inline const MessageType (&EnumValuesMessageType())[5] {
   static const MessageType values[] = {
     MessageType_NONE,
     MessageType_MessageData,
-    MessageType_MessageEncryptText,
+    MessageType_MessageSecurityCastle,
     MessageType_MessagePublicKey,
     MessageType_MessageSync
   };
@@ -44,7 +44,7 @@ inline const char * const *EnumNamesMessageType() {
   static const char * const names[] = {
     "NONE",
     "MessageData",
-    "MessageEncryptText",
+    "MessageSecurityCastle",
     "MessagePublicKey",
     "MessageSync",
     nullptr
@@ -65,8 +65,8 @@ template<> struct MessageTypeTraits<MessageData> {
   static const MessageType enum_value = MessageType_MessageData;
 };
 
-template<> struct MessageTypeTraits<MessageEncryptText> {
-  static const MessageType enum_value = MessageType_MessageEncryptText;
+template<> struct MessageTypeTraits<MessageSecurityCastle> {
+  static const MessageType enum_value = MessageType_MessageSecurityCastle;
 };
 
 template<> struct MessageTypeTraits<MessagePublicKey> {
@@ -95,8 +95,8 @@ struct MessageBase FLATBUFFERS_FINAL_CLASS : private flatbuffers::Table {
   const MessageData *msg_as_MessageData() const {
     return msg_type() == MessageType_MessageData ? static_cast<const MessageData *>(msg()) : nullptr;
   }
-  const MessageEncryptText *msg_as_MessageEncryptText() const {
-    return msg_type() == MessageType_MessageEncryptText ? static_cast<const MessageEncryptText *>(msg()) : nullptr;
+  const MessageSecurityCastle *msg_as_MessageSecurityCastle() const {
+    return msg_type() == MessageType_MessageSecurityCastle ? static_cast<const MessageSecurityCastle *>(msg()) : nullptr;
   }
   const MessagePublicKey *msg_as_MessagePublicKey() const {
     return msg_type() == MessageType_MessagePublicKey ? static_cast<const MessagePublicKey *>(msg()) : nullptr;
@@ -117,8 +117,8 @@ template<> inline const MessageData *MessageBase::msg_as<MessageData>() const {
   return msg_as_MessageData();
 }
 
-template<> inline const MessageEncryptText *MessageBase::msg_as<MessageEncryptText>() const {
-  return msg_as_MessageEncryptText();
+template<> inline const MessageSecurityCastle *MessageBase::msg_as<MessageSecurityCastle>() const {
+  return msg_as_MessageSecurityCastle();
 }
 
 template<> inline const MessagePublicKey *MessageBase::msg_as<MessagePublicKey>() const {
@@ -169,8 +169,8 @@ inline bool VerifyMessageType(flatbuffers::Verifier &verifier, const void *obj, 
       auto ptr = reinterpret_cast<const MessageData *>(obj);
       return verifier.VerifyTable(ptr);
     }
-    case MessageType_MessageEncryptText: {
-      auto ptr = reinterpret_cast<const MessageEncryptText *>(obj);
+    case MessageType_MessageSecurityCastle: {
+      auto ptr = reinterpret_cast<const MessageSecurityCastle *>(obj);
       return verifier.VerifyTable(ptr);
     }
     case MessageType_MessagePublicKey: {

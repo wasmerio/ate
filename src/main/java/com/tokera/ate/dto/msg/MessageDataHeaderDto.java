@@ -9,6 +9,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.flatbuffers.FlatBufferBuilder;
 import com.tokera.ate.common.CopyOnWrite;
+import com.tokera.ate.common.Immutalizable;
 import com.tokera.ate.common.ImmutalizableHashSet;
 import com.tokera.ate.common.UUIDTools;
 import com.tokera.ate.dao.ObjId;
@@ -37,7 +38,7 @@ import java.util.UUID;
  */
 @Dependent
 @YamlTag("msg.data.header")
-public class MessageDataHeaderDto extends MessageBaseDto implements Serializable, CopyOnWrite {
+public class MessageDataHeaderDto extends MessageBaseDto implements Serializable, CopyOnWrite, Immutalizable {
 
     private static final long serialVersionUID = -8052777200722290736L;
 
@@ -48,6 +49,9 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
     @JsonProperty
     @MonotonicNonNull
     private @DaoId UUID id;                                 // ID of the entity within this partition
+    @JsonProperty
+    @MonotonicNonNull
+    private UUID castleId;                                  // Lookup key used to locate the castle that this data has been placed within
     @JsonProperty
     @Nullable
     private @DaoId UUID version;                            // New version of this entity
@@ -70,9 +74,6 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
     @Size(min=1)
     private @ClassName String payloadClazz;                 // Class of object held within this payload
     @JsonProperty
-    @MonotonicNonNull
-    private @Hash String encryptLookupKey;                  // Lookup key used to locate the encryption key for this data
-    @JsonProperty
     @NotNull
     private ImmutalizableHashSet<@Hash String> allowRead = new ImmutalizableHashSet<>();    // List of all the public key hashes roles that are allowed attach to this parent as a right to
     @JsonProperty
@@ -90,8 +91,9 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
     public MessageDataHeaderDto(){
     }
 
-    public MessageDataHeaderDto(@DaoId UUID id, UUID version, @Nullable UUID previousVersion, Class<? extends BaseDao> clazz) {
+    public MessageDataHeaderDto(@DaoId UUID id, UUID castle, UUID version, @Nullable UUID previousVersion, Class<? extends BaseDao> clazz) {
         this.id = id;
+        this.castleId = castle;
         this.version = version;
         this.payloadClazz = clazz.getName();
         this.previousVersion = previousVersion;
@@ -99,14 +101,11 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
 
     public MessageDataHeaderDto(MessageDataHeaderDto previousHeader) {
         this.id = previousHeader.getIdOrThrow();
+        this.castleId = previousHeader.getCastleId();
         this.version = UUID.randomUUID();
         this.payloadClazz = previousHeader.payloadClazz;
         this.previousVersion = previousHeader.version;
         this.parentId = previousHeader.parentId;
-        String encryptLookupKey = previousHeader.getEncryptLookupKey();
-        if (encryptLookupKey != null) {
-            this.encryptLookupKey = encryptLookupKey;
-        }
         this.inheritRead = previousHeader.getInheritRead();
         this.inheritWrite = previousHeader.getInheritWrite();
         this.allowRead = new ImmutalizableHashSet<>(previousHeader.allowRead);
@@ -131,6 +130,7 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
         if (lfb == null) return;
 
         id = UUIDTools.convertUUID(lfb.id());
+        castleId = UUIDTools.convertUUID(lfb.castle());
         version = UUIDTools.convertUUID(lfb.version());
         previousVersion = UUIDTools.convertUUIDOrNull(lfb.previousVersion());
         parentId = UUIDTools.convertUUIDOrNull(lfb.parentId());
@@ -141,11 +141,6 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
         String payloadClazz = lfb.payloadClazz();
         if (payloadClazz != null) {
             this.payloadClazz = payloadClazz;
-        }
-
-        @Hash String encryptLookupKey = lfb.encryptLookupKey();
-        if (encryptLookupKey != null) {
-            this.encryptLookupKey = encryptLookupKey;
         }
 
         merges = new ImmutalizableHashSet<>();
@@ -197,6 +192,30 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
         assert this._immutable == false;
         copyOnWrite();
         this.id = id;
+    }
+
+    public @Nullable UUID getCastleId() {
+        MessageDataHeader lfb = fb;
+        if (lfb != null) {
+            return UUIDTools.convertUUID(lfb.castle());
+        }
+        return this.castleId;
+    }
+
+    public UUID getCastleIdOrThrow() {
+        MessageDataHeader lfb = fb;
+        if (lfb != null) {
+            return UUIDTools.convertUUID(lfb.castle());
+        }
+        UUID ret = this.castleId;
+        if (ret == null) throw new WebApplicationException("Message data header has no castle attached");
+        return ret;
+    }
+
+    public void setCastleId(UUID id) {
+        assert this._immutable == false;
+        copyOnWrite();
+        this.castleId = id;
     }
 
     public @Nullable UUID getVersion() {
@@ -301,21 +320,6 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
         assert this._immutable == false;
         copyOnWrite();
         this.payloadClazz = payloadClazz;
-    }
-
-    public @Nullable @Hash String getEncryptLookupKey() {
-        MessageDataHeader lfb = fb;
-        if (lfb != null) {
-            @Hash String v = lfb.encryptLookupKey();
-            if (v != null) return v;
-        }
-        return this.encryptLookupKey;
-    }
-
-    public void setEncryptLookupKey(@Hash String encryptLookupKey) {
-        assert this._immutable == false;
-        copyOnWrite();
-        this.encryptLookupKey = encryptLookupKey;
     }
 
     public Set<@Hash String> getAllowRead() {
@@ -451,12 +455,6 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
         String strPayloadClazz = this.getPayloadClazzOrThrow();
         int offsetPayloadClazz = fbb.createString(strPayloadClazz);
 
-        String strEncryptLookupKey = this.getEncryptLookupKey();
-        int offsetEncryptLookupKey = -1;
-        if (strEncryptLookupKey != null) {
-            offsetEncryptLookupKey = fbb.createString(strEncryptLookupKey);
-        }
-
         int offsetMergeVersions = -1;
         if (mergeVersions.size() > 0) {
             MessageDataHeader.startMergesVector(fbb, mergeVersions.size());
@@ -484,6 +482,7 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
 
         MessageDataHeader.startMessageDataHeader(fbb);
         MessageDataHeader.addId(fbb, ObjId.createObjId(fbb, this.getIdOrThrow().getLeastSignificantBits(), this.getIdOrThrow().getMostSignificantBits()));
+        MessageDataHeader.addCastle(fbb, ObjId.createObjId(fbb, this.getCastleIdOrThrow().getLeastSignificantBits(), this.getCastleIdOrThrow().getMostSignificantBits()));
         MessageDataHeader.addVersion(fbb, ObjId.createObjId(fbb, this.getVersionOrThrow().getLeastSignificantBits(), this.getVersionOrThrow().getMostSignificantBits()));
         UUID previousVersion = this.getPreviousVersion();
         if (previousVersion != null) {
@@ -496,7 +495,6 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
         }
 
         if (offsetPayloadClazz >= 0) MessageDataHeader.addPayloadClazz(fbb, offsetPayloadClazz);
-        if (offsetEncryptLookupKey >= 0) MessageDataHeader.addEncryptLookupKey(fbb, offsetEncryptLookupKey);
         MessageDataHeader.addInheritRead(fbb, this.getInheritRead());
         MessageDataHeader.addInheritWrite(fbb, this.getInheritWrite());
         if (offsetMergeVersions >= 0) MessageDataHeader.addMerges(fbb, offsetMergeVersions);

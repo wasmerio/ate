@@ -6,7 +6,6 @@ import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.io.api.*;
-import com.tokera.ate.io.core.PartitionKeyComparator;
 import com.tokera.ate.qualifiers.BackendStorageSystem;
 import com.tokera.ate.qualifiers.FrontendStorageSystem;
 import com.tokera.ate.units.*;
@@ -17,7 +16,6 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
-import java.lang.reflect.Array;
 import java.util.*;
 
 /**
@@ -44,7 +42,7 @@ public class HeadIO implements IAteIO
     @SuppressWarnings("initialization.fields.uninitialized")
     @Inject
     @BackendStorageSystem
-    protected ISecureKeyRepository backSecureKeyResolver;
+    protected ISecurityCastleFactory backSecurityCastleFactory;
     @SuppressWarnings("initialization.fields.uninitialized")
     @Inject
     @BackendStorageSystem
@@ -67,8 +65,8 @@ public class HeadIO implements IAteIO
     }
 
     @Override
-    public boolean merge(IPartitionKey partitionKey, MessageEncryptTextDto encryptText) {
-        return this.back.merge(partitionKey, encryptText);
+    public boolean merge(IPartitionKey partitionKey, MessageSecurityCastleDto castle) {
+        return this.back.merge(partitionKey, castle);
     }
 
     @Override
@@ -184,8 +182,8 @@ public class HeadIO implements IAteIO
 
     public IPartitionKeyMapper partitionKeyMapper() { return this.backPartitionKeyMapper; }
 
-    public ISecureKeyRepository secureKeyResolver() {
-        return this.backSecureKeyResolver;
+    public ISecurityCastleFactory securityCastleFactory() {
+        return this.backSecurityCastleFactory;
     }
     
     public ITokenParser tokenParser() { return this.backTokenParser; }

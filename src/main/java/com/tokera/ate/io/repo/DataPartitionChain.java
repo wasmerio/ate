@@ -36,8 +36,8 @@ public class DataPartitionChain {
     private final ConcurrentMap<UUID, MessageDataHeaderDto> rootOfTrust;
     private final ConcurrentMap<UUID, ConcurrentQueue<MessageDataMetaDto>> chainOfPartialTrust;
     private final ConcurrentMap<UUID, DataContainer> chainOfTrust;
+    private final ConcurrentMap<UUID, MessageSecurityCastleDto> castles;
     private final ConcurrentMap<String, MessagePublicKeyDto> publicKeys;
-    private final ConcurrentMap<String, MessageEncryptTextDto> encryptText;
     private final Encryptor encryptor;
     
     public DataPartitionChain(IPartitionKey key) {
@@ -46,7 +46,7 @@ public class DataPartitionChain {
         this.chainOfTrust = new ConcurrentHashMap<>();
         this.chainOfPartialTrust = new ConcurrentHashMap<>();
         this.publicKeys = new ConcurrentHashMap<>();
-        this.encryptText = new ConcurrentHashMap<>();
+        this.castles = new ConcurrentHashMap<>();
         this.encryptor = Encryptor.getInstance();
 
         this.addTrustKey(d.encryptor.getTrustOfPublicRead(), null);
@@ -100,8 +100,8 @@ public class DataPartitionChain {
         });
     }
     
-    public void addTrustEncryptText(MessageEncryptTextDto data, @Nullable LoggerHook LOG) {
-        this.encryptText.put(MessageSerializer.getKey(data), data);
+    public void addTrustCastle(MessageSecurityCastleDto castle, @Nullable LoggerHook LOG) {
+        this.castles.put(castle.getIdOrThrow(), castle);
     }
     
     public boolean rcv(MessageBase raw, MessageMetaDto meta, @Nullable LoggerHook LOG) throws IOException, InvalidCipherTextException {
@@ -111,8 +111,8 @@ public class DataPartitionChain {
             case MessageType.MessageData:
                 msg = new MessageDataDto(raw);
                 break;
-            case MessageType.MessageEncryptText:
-                msg = new MessageEncryptTextDto(raw);
+            case MessageType.MessageSecurityCastle:
+                msg = new MessageSecurityCastleDto(raw);
                 break;
             case MessageType.MessagePublicKey:
                 msg = new MessagePublicKeyDto(raw);
@@ -137,8 +137,8 @@ public class DataPartitionChain {
         if (msg instanceof MessagePublicKeyDto) {
             return processPublicKey((MessagePublicKeyDto)msg, LOG);
         }
-        if (msg instanceof MessageEncryptTextDto) {
-            return processEncryptText((MessageEncryptTextDto)msg, LOG);
+        if (msg instanceof MessageSecurityCastleDto) {
+            return processCastle((MessageSecurityCastleDto)msg, LOG);
         }
         
         drop(LOG, msg, meta, "unhandled message type");
@@ -606,15 +606,19 @@ public class DataPartitionChain {
         return container.getHistory();
     }
     
-    private boolean processEncryptText(MessageEncryptTextDto msg, @Nullable LoggerHook LOG) {
-        encryptText.put(MessageSerializer.getKey(msg), msg);
+    private boolean processCastle(MessageSecurityCastleDto msg, @Nullable LoggerHook LOG) {
+        UUID id = msg.getId();
+        if (id == null) {
+            drop(LOG, msg, null, "missing id", null);
+            return false;
+        }
+        castles.put(msg.getId(), msg);
         return true;
     }
 
     @SuppressWarnings({"return.type.incompatible", "argument.type.incompatible"})       // We want to return a null if the data does not exist and it must be atomic
-    public @Nullable MessageEncryptTextDto getEncryptedText(String publicKeyHash, String lookupKey) {
-        String index = publicKeyHash + ":" + lookupKey;
-        return encryptText.getOrDefault(index, null);
+    public @Nullable MessageSecurityCastleDto getCastle(UUID id) {
+        return castles.getOrDefault(id, null);
     }
     
     private boolean processPublicKey(MessagePublicKeyDto msg, @Nullable LoggerHook LOG)

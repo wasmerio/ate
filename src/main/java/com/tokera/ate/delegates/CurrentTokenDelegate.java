@@ -246,8 +246,7 @@ public class CurrentTokenDelegate {
                         RuntimeException ex;
                         try {
                             EffectivePermissions permissions = d.authorization.perms(partitionKey, entityId, null, false);
-                            String encryptLookupKey = d.dataSerializer.generateSecurityBoundaryLookupKey(partitionKey, permissions);
-                            ex = d.authorization.buildReadException(partitionKey, encryptLookupKey, entityId, permissions, true);
+                            ex = d.authorization.buildReadException(partitionKey, null, entityId, permissions, true);
                         } catch (Throwable dump) {
                             ex = new WebApplicationException("Read access denied (Missing permitted entity). Path Param (" + name + "=" + entityId + ")",
                                     Response.Status.UNAUTHORIZED);

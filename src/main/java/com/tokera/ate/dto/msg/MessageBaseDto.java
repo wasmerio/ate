@@ -25,8 +25,8 @@ public abstract class MessageBaseDto implements Serializable
         MessageBase.startMessageBase(fbb);
         if (this instanceof MessageDataDto) {
             MessageBase.addMsgType(fbb, MessageType.MessageData);
-        } else if (this instanceof MessageEncryptTextDto) {
-            MessageBase.addMsgType(fbb, MessageType.MessageEncryptText);
+        } else if (this instanceof MessageSecurityCastleDto) {
+            MessageBase.addMsgType(fbb, MessageType.MessageSecurityCastle);
         } else if (this instanceof MessagePublicKeyDto) {
             MessageBase.addMsgType(fbb, MessageType.MessagePublicKey);
         } else if (this instanceof MessageSyncDto) {
