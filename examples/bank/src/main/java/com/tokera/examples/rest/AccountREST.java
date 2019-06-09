@@ -57,8 +57,26 @@ public class AccountREST {
                 continue;
             }
 
-            // If the share is small enough then create a share token so the received can take ownership of it
-            if (share.shareAmount.compareTo(remaining) <= 0)
+            // If the share is too big then we need to split it up
+            if (share.shareAmount.compareTo(remaining) > 0)
+            {
+                // We aim to split it in half but if its getting to small just split it by the exact amount needed
+                BigDecimal split;
+                if (remaining.compareTo(BigDecimal.valueOf(2)) >= 0) {
+                    split = share.shareAmount.divide(BigDecimal.valueOf(2));
+                    split = BigDecimal.valueOf(Math.max(split.longValue(), 1L));
+                } else {
+                    split = remaining;
+                }
+
+                // Split the coin up based on the divider
+                for (CoinShare child : CoinHelper.splitCoin(share, split)) {
+                    ownedShares.addFirst(child);
+                }
+            }
+
+            // Otherwise we claim it
+            else
             {
                 shareTokens.add(new ShareToken(share, ownership));
                 lostShared.add(share);
@@ -72,22 +90,6 @@ public class AccountREST {
                 if (remaining.compareTo(BigDecimal.ZERO) <= 0) {
                     break;
                 }
-            }
-
-            // Otherwise we need to split the share in half so that it can be divided
-            else
-            {
-                // We aim to split it in half but if its getting to small just split it by the exact amount needed
-                BigDecimal split;
-                if (remaining.compareTo(BigDecimal.valueOf(2)) >= 0) {
-                    split = share.shareAmount.divide(BigDecimal.valueOf(2));
-                    split = BigDecimal.valueOf(Math.max(split.longValue(), 1L));
-                } else {
-                    split = remaining;
-                }
-
-                // Split the coin up based on the divider
-                ownedShares.addAll(CoinHelper.splitCoin(share, split));
             }
         }
 
