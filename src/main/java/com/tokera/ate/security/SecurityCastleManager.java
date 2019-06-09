@@ -25,7 +25,6 @@ import org.checkerframework.checker.nullness.qual.Nullable;
  */
 @RequestScoped
 public class SecurityCastleManager {
-
     private AteDelegate d = AteDelegate.get();
 
     private final Map<String, SecurityCastleContext> localCastles = new HashMap<>();
@@ -64,8 +63,17 @@ public class SecurityCastleManager {
      * @param permissions Set of read permissions that represent the boundary of this castle
      * @return Castle that can be used to encrypt data and later read by anyone who holds the private keys of the read roles
      */
-    public SecurityCastleContext makeCastle(IPartitionKey partitionKey, EffectivePermissions permissions) {
+    public SecurityCastleContext makeCastle(IPartitionKey partitionKey, EffectivePermissions permissions)
+    {
         String hash = computePermissionsHash(permissions);
+
+        // Perhaps we can reuse a context that already exists in memory
+        if (d.bootstrapConfig.getDefaultAutomaticKeyRotation() == false) {
+            SecurityCastleContext ret = localCastles.getOrDefault(hash, null);
+            if (ret != null) return ret;
+        }
+
+        // Lets create a new castle for the request context (or reuse one if one is already started in this request)
         return localCastles.computeIfAbsent(hash,
                 h ->
                 {

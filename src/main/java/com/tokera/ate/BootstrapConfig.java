@@ -37,7 +37,7 @@ public class BootstrapConfig {
     private String propertiesFileTopicIo = "topic.io.properties";
     private String propertiesFileTopicPublic = "topic.publish.properties";
 
-    private SecurityLevel securityLevel = SecurityLevel.VeryHighlySecure;
+    private SecurityLevel securityLevel = SecurityLevel.HighlySecure;
 
     // Only weld should initialize this configuration using the ApiServer.startWeld method
     @Deprecated()
@@ -251,6 +251,8 @@ public class BootstrapConfig {
     public int getDefaultEncryptionStrength() {
         return securityLevel.encryptionStrength;
     }
+
+    public boolean getDefaultAutomaticKeyRotation() { return securityLevel.automaticKeyRotation; }
 
     public SecurityLevel getSecurityLevel() {
         return securityLevel;
