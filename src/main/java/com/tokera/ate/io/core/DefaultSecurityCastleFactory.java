@@ -52,10 +52,9 @@ public class DefaultSecurityCastleFactory implements ISecurityCastleFactory {
     @Override
     public void putSecret(IPartitionKey partitionKey, UUID id, @Secret byte[] secret, Iterable<MessagePublicKeyDto> accessKeys) {
         DataPartition kt = d.io.backend().getPartition(partitionKey);
-        DataPartitionChain chain = kt.getChain();
 
         // Create a new castle
-        MessageSecurityCastleDto castle = new MessageSecurityCastleDto(UUID.randomUUID());
+        MessageSecurityCastleDto castle = new MessageSecurityCastleDto(id);
 
         // Add the encryption parts
         for (MessagePublicKeyDto publicKey : accessKeys) {
