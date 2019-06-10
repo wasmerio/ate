@@ -158,7 +158,7 @@ public class CoinHelper {
         List<CoinShare> ret = new ArrayList<>();
 
         LinkedList<CoinShare> shares = new LinkedList<>();
-        shares.forEach(c -> shares.addAll(d.io.getMany(c.addressableId().partition(), c.shares, CoinShare.class)));
+        coins.forEach(c -> shares.addAll(d.io.getMany(c.addressableId().partition(), c.shares, CoinShare.class)));
         for (;shares.isEmpty() == false; ) {
             CoinShare share = shares.pop();
 
