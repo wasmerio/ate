@@ -232,6 +232,8 @@ public class BankIntegrationTests {
                 .restPost("/account/" + companyAccountId + "/completeTransaction", Entity.entity(transactionToken, MediaType.APPLICATION_JSON), MonthlyActivity.class);
 
         d.genericLogger.info(d.yaml.serializeObj(monthly));
+
+        Assertions.assertEquals(BigDecimal.valueOf(200), monthly.getBalances().getOrDefault(coiningDomain, BigDecimal.ZERO));
     }
 
     @Test

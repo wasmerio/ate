@@ -239,11 +239,11 @@ public class CoinHelper {
     {
         // Sort it into reverse order otherwise the immutalization will break the role
         List<CoinShare> sorted = Lists.newArrayList(shares);
-        Map<CoinShare, Integer> depths = sorted.stream().collect(Collectors.toMap(c -> c, c -> depthOfShare(c)));
-        sorted.sort(Comparator.comparingInt(depths::get));
+        //Map<CoinShare, Integer> depths = sorted.stream().collect(Collectors.toMap(c -> c, c -> -depthOfShare(c)));
+        //sorted.sort(Comparator.comparingInt(depths::get));
 
         // Now cycle through each one and make it immutable
-        for (CoinShare share : shares) {
+        for (CoinShare share : sorted) {
             if (share.parent == null) continue;
             BaseDao parent = d.daoHelper.getParent(share);
             if (parent instanceof IRoles &&

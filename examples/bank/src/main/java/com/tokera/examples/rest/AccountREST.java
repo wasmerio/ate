@@ -58,7 +58,7 @@ public class AccountREST {
         d.io.mergeDeferredAndSync();
 
         // Immutalize the shares that need to be protected
-        //coinHelper.immutalizeParentTokens(tokens);
+        coinHelper.immutalizeParentTokens(tokens);
 
         // Return a transaction token that holds rights to all the shares that the received will be able to take over
         return new TransactionToken(
