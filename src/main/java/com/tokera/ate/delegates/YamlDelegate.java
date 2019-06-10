@@ -48,9 +48,6 @@ public class YamlDelegate {
     private YamlTagDiscoveryExtension discovery;
 
     @SuppressWarnings("initialization.fields.uninitialized")
-    private static YamlDelegate g_Instance;
-
-    @SuppressWarnings("initialization.fields.uninitialized")
     private YamlConfig m_config;
     @SuppressWarnings("initialization.fields.uninitialized")
     private YamlConfig m_config_no_marker;
@@ -62,7 +59,6 @@ public class YamlDelegate {
     
     @PostConstruct
     public void init() {
-        g_Instance = this;
         m_config = new YamlConfig();
         
         YamlDelegate.initConfig(m_config, discovery);
@@ -238,9 +234,5 @@ public class YamlDelegate {
         } catch (YamlException ex) {
             throw new WebApplicationException(ex);
         }
-    }
-    
-    public static YamlDelegate getInstance() {
-        return g_Instance;
     }
 }

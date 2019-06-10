@@ -73,7 +73,6 @@ public abstract class BaseAteDelegate {
     public final DataMerger merger;
     public final DataSerializer dataSerializer;
     public final DataSignatureBuilder dataSignatureBuilder;
-    public final DataRepoConfig dataRepoConfig;
     public final DataStagingManager dataStagingManager;
     public final DataRepository dataRepository;
     public final KafkaBridgeBuilder kafkaBridgeBuilder;
@@ -89,6 +88,7 @@ public abstract class BaseAteDelegate {
     public final TransactionInterceptor transactionInterceptor;
     public final LoggerHook genericLogger;
     public final BootstrapConfig bootstrapConfig;
+    public final DebugLoggingDelegate debugLogging;
 
     protected static <@NonNull T> T getBean(Class<@NonNull T> clazz) {
         return CDI.current().select(clazz).get();
@@ -154,7 +154,6 @@ public abstract class BaseAteDelegate {
         this.merger = getBean(DataMerger.class);
         this.dataSerializer = getBean(DataSerializer.class);
         this.dataSignatureBuilder = getBean(DataSignatureBuilder.class);
-        this.dataRepoConfig = getBean(DataRepoConfig.class);
         this.dataStagingManager = getBean(DataStagingManager.class);
         this.dataRepository = getBean(DataRepository.class);
         this.kafkaBridgeBuilder = getBean(KafkaBridgeBuilder.class);
@@ -171,5 +170,6 @@ public abstract class BaseAteDelegate {
         this.genericLogger = getBean(LoggerHook.class);
         this.serializableObjectsExtension = getBean(SerializableObjectsExtension.class);
         this.bootstrapConfig = getBean(BootstrapConfig.class);
+        this.debugLogging = getBean(DebugLoggingDelegate.class);
     }
 }

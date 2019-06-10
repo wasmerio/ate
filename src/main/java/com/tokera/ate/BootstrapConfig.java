@@ -39,6 +39,14 @@ public class BootstrapConfig {
 
     private SecurityLevel securityLevel = SecurityLevel.HighlySecure;
 
+    private boolean loggingChainOfTrust = false;
+    private boolean loggingMessages = false;
+    private boolean loggingData = false;
+    private boolean loggingWrites = false;
+    private boolean loggingReads = false;
+    private boolean loggingDeletes = false;
+    private boolean loggingKafka = false;
+
     // Only weld should initialize this configuration using the ApiServer.startWeld method
     @Deprecated()
     public BootstrapConfig() {
@@ -260,5 +268,61 @@ public class BootstrapConfig {
 
     public void setSecurityLevel(SecurityLevel securityLevel) {
         this.securityLevel = securityLevel;
+    }
+
+    public boolean isLoggingChainOfTrust() {
+        return loggingChainOfTrust;
+    }
+
+    public void setLoggingChainOfTrust(boolean loggingChainOfTrust) {
+        this.loggingChainOfTrust = loggingChainOfTrust;
+    }
+
+    public boolean isLoggingMessages() {
+        return loggingMessages;
+    }
+
+    public void setLoggingMessages(boolean loggingMessages) {
+        this.loggingMessages = loggingMessages;
+    }
+
+    public boolean isLoggingWrites() {
+        return loggingWrites;
+    }
+
+    public void setLoggingWrites(boolean loggingWrites) {
+        this.loggingWrites = loggingWrites;
+    }
+
+    public boolean isLoggingReads() {
+        return loggingReads;
+    }
+
+    public void setLoggingReads(boolean loggingReads) {
+        this.loggingReads = loggingReads;
+    }
+
+    public boolean isLoggingData() {
+        return loggingData;
+    }
+
+    public void setLoggingData(boolean loggingData) {
+        this.loggingData = loggingData;
+    }
+
+    public boolean isLoggingDeletes() {
+        return loggingDeletes;
+    }
+
+    public void setLoggingDeletes(boolean loggingDeletes) {
+        this.loggingDeletes = loggingDeletes;
+    }
+
+    public boolean isLoggingKafka() {
+        return loggingKafka;
+    }
+
+    public void setLoggingKafka(boolean loggingKafka) {
+        this.loggingKafka = loggingKafka;
     }
 }

@@ -17,7 +17,6 @@ import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.security.EffectivePermissionBuilder;
 import com.tokera.ate.io.core.StorageSystemFactory;
 import com.tokera.ate.dto.msg.*;
-import com.tokera.ate.delegates.YamlDelegate;
 import com.tokera.ate.dto.EffectivePermissions;
 import com.tokera.ate.enumerations.DataPartitionType;
 
@@ -95,12 +94,7 @@ public class DataRepository implements IAteIO {
             String what = "clazz=" + data.getHeader().getPayloadClazzOrThrow() + ", id=" + data.getHeader().getIdOrThrow();
             throw new RuntimeException("The newly created object was not accepted into the chain of trust [" + what + "]");
         }
-
-        if (DataRepoConfig.g_EnableLogging == true ||
-                DataRepoConfig.g_EnableLoggingWrite == true) {
-            this.LOG.info("write: [->" + key + "]\n" + YamlDelegate.getInstance().serializeObj(data));
-            this.LOG.info("payload: [->" + key + "]\n" + YamlDelegate.getInstance().serializeObj(entity));
-        }
+        d.debugLogging.logMerge(data, entity, LOG);
 
         // Save the data to the bridge and synchronize it
         IDataPartitionBridge bridge = kt.getBridge();
@@ -269,11 +263,7 @@ public class DataRepository implements IAteIO {
             String what = "clazz=" + data.getHeader().getPayloadClazzOrThrow() + ", id=" + data.getHeader().getIdOrThrow();
             throw new RuntimeException("The newly created object was not accepted into the chain of trust [" + what + "]");
         }
-
-        if (DataRepoConfig.g_EnableLogging == true || DataRepoConfig.g_EnableLoggingWrite == true) {
-            this.LOG.info("write: [->" + chain.getPartitionKeyStringValue() + "]\n" + YamlDelegate.getInstance().serializeObj(data));
-            this.LOG.info("payload: [->" + chain.getPartitionKeyStringValue() + "]\n" + YamlDelegate.getInstance().serializeObj(entity));
-        }
+        d.debugLogging.logMerge(data, entity, LOG);
 
         // Add it to the currentRights trust which makes sure that previous
         // records are accounted for during the validation steps
@@ -281,11 +271,8 @@ public class DataRepository implements IAteIO {
     }
     
     @Override
-    public void mergeDeferred()
-    {
-        if (DataRepoConfig.g_EnableLogging == true) {
-            this.LOG.info("merge_deferred: [cnt=" + this.staging.size() + "]\n");
-        }
+    public void mergeDeferred() {
+        d.debugLogging.logMergeDeferred(this.staging, LOG);
 
         for (IPartitionKey partitionKey : this.staging.keys()) {
             d.requestContext.pushPartitionKey(partitionKey);
@@ -347,10 +334,7 @@ public class DataRepository implements IAteIO {
         MessageBaseDto msg = d.dataSerializer.toDataMessage(entity, kt, true, true);
         kt.write(msg, this.LOG);
         
-        if (DataRepoConfig.g_EnableLogging == true) {
-            this.LOG.info("remove_payload:\n" + YamlDelegate.getInstance().serializeObj(entity));
-        }
-        
+        d.debugLogging.logDelete(entity, LOG);
         return true;
     }
     
@@ -380,10 +364,8 @@ public class DataRepository implements IAteIO {
         // Clear it from cache and write the data to Kafka
         MessageDataDto data = new MessageDataDto(header, digest, null);
         kt.write(data, this.LOG);
-        if (DataRepoConfig.g_EnableLogging == true) {
-            this.LOG.info("remove_payload: " + id);
-        }
-        
+
+        d.debugLogging.logDelete(id.partition(), data, LOG);
         return true;
     }
 

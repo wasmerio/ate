@@ -1,6 +1,7 @@
 package com.tokera.ate.io.repo;
 
 import com.tokera.ate.common.LoggerHook;
+import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.extensions.DaoParentDiscoveryExtension;
 import com.tokera.ate.delegates.YamlDelegate;
 import com.tokera.ate.dto.msg.MessageBaseDto;
@@ -12,6 +13,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
  * Represents a partition of data held within the data repositories that make up the storage backend.
  */
 public class DataPartition {
+    private final AteDelegate d = AteDelegate.get();
 
     private final IPartitionKey key;
     private final DataPartitionChain chain;
@@ -53,35 +55,9 @@ public class DataPartition {
     public boolean ethereal() {
         return bridge.ethereal();
     }
-
-    private void debugWrite(MessageBaseDto msg, @Nullable LoggerHook LOG) {
-        boolean hideDebug = false;
-        if (hideDebug == false) {
-
-            String logMsg = "";
-            if (DataRepoConfig.g_EnableVerboseLog == true) {
-                String fullStackTrace = org.apache.commons.lang.exception.ExceptionUtils.getFullStackTrace(new Throwable());
-                logMsg += fullStackTrace + "\n";
-            }
-
-            logMsg += "write: [->" + this.chain.getPartitionKeyStringValue() + "]\n" + YamlDelegate.getInstance().serializeObj(msg);
-
-            if (LOG != null) {
-                LOG.info(logMsg);
-            } else {
-                new LoggerHook(DataPartition.class).info(logMsg);
-            }
-        }
-    }
     
     public void write(MessageBaseDto msg, @Nullable LoggerHook LOG)
     {        
-        // Write some debug information
-        if (DataRepoConfig.g_EnableLogging == true ||
-            DataRepoConfig.g_EnableLoggingWrite == true) {
-            debugWrite(msg, LOG);
-        }
-        
         // First we validate that the entry is going to be accepted
         try {
             if (chain.validate(msg, LOG) == false) {

@@ -4,7 +4,6 @@ import com.tokera.ate.KafkaServer;
 import com.tokera.ate.dao.kafka.MessageSerializer;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.io.api.IPartitionKey;
-import com.tokera.ate.io.repo.DataRepoConfig;
 import com.tokera.ate.io.repo.DataPartitionChain;
 import com.tokera.ate.io.repo.IDataPartitionBridge;
 import com.tokera.ate.common.ApplicationConfigLoader;
@@ -204,9 +203,7 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
                 if (record.topic().equals(m_key.partitionTopic()) == true &&
                     record.partition() == m_key.partitionIndex())
                 {
-                    if (DataRepoConfig.g_EnableLogging == true) {
-                        LOG.info("KafkaSubscriber::record(topic=" + record.topic() + ", partition=" + record.partition() + ", id=" + record.key() + ")");
-                    }
+                    d.debugLogging.logKafkaRecord(record, LOG);
                     
                     MessageMetaDto meta = new MessageMetaDto(
                             record.partition(),

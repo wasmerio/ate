@@ -65,11 +65,8 @@ public class DataPartitionChain {
                 trustedHeader,
                 null,
                 null);
-        
-        if (DataRepoConfig.g_EnableLogging == true) {
-            String info = "trust: [->" + this.getPartitionKeyStringValue() + "]\n" + YamlDelegate.getInstance().serializeObj(trustedHeader);
-            if (LOG != null) LOG.info(info); else new LoggerHook(DataPartitionChain.class).info(info);
-        }
+
+        d.debugLogging.logTrust(this.partitionKey(), trustedHeader, LOG);
 
         MessageMetaDto meta = new MessageMetaDto(
                 0L,
@@ -80,10 +77,7 @@ public class DataPartitionChain {
     }
     
     public void addTrustKey(MessagePublicKeyDto trustedKey, @Nullable LoggerHook LOG) {
-        if (DataRepoConfig.g_EnableLogging == true) {
-            String info = "trust: [->" + this.getPartitionKeyStringValue() + "]\n" + YamlDelegate.getInstance().serializeObj(trustedKey);
-            if (LOG != null) LOG.info(info); else new LoggerHook(DataPartitionChain.class).info(info);
-        }
+        d.debugLogging.logTrust(this.partitionKey(), trustedKey, LOG);
 
         @Hash String trustedKeyHash = trustedKey.getPublicKeyHash();
         if (trustedKeyHash != null) {
@@ -93,6 +87,8 @@ public class DataPartitionChain {
 
     @SuppressWarnings({"known.nonnull"})
     public void addTrustData(MessageDataDto data, MessageMetaDto meta, @Nullable LoggerHook LOG) {
+        d.debugLogging.logTrust(this.partitionKey(), data, LOG);
+
         UUID id = data.getHeader().getIdOrThrow();
         this.chainOfTrust.compute(id, (i, c) -> {
             if (c == null) c = new DataContainer(this.key);
@@ -126,11 +122,8 @@ public class DataPartitionChain {
     }
     
     public boolean rcv(MessageBaseDto msg, MessageMetaDto meta, @Nullable LoggerHook LOG) throws IOException, InvalidCipherTextException {
-        
-        if (DataRepoConfig.g_EnableLogging == true) {
-            new LoggerHook(DataPartitionChain.class).info("rcv:\n" + YamlDelegate.getInstance().serializeObj(msg));
-        }
-        
+        d.debugLogging.logReceive(msg, LOG);
+
         if (msg instanceof MessageDataDto) {
             return processData((MessageDataDto)msg, meta, LOG);
         }
