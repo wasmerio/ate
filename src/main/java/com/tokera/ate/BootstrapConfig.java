@@ -46,6 +46,7 @@ public class BootstrapConfig {
     private boolean loggingReads = false;
     private boolean loggingDeletes = false;
     private boolean loggingKafka = false;
+    private boolean loggingWithStackTrace = false;
 
     // Only weld should initialize this configuration using the ApiServer.startWeld method
     @Deprecated()
@@ -324,5 +325,13 @@ public class BootstrapConfig {
 
     public void setLoggingKafka(boolean loggingKafka) {
         this.loggingKafka = loggingKafka;
+    }
+
+    public boolean isLoggingWithStackTrace() {
+        return loggingWithStackTrace;
+    }
+
+    public void setLoggingWithStackTrace(boolean loggingWithStackTrace) {
+        this.loggingWithStackTrace = loggingWithStackTrace;
     }
 }

@@ -8,6 +8,7 @@ import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.repo.DataPartitionChain;
 import com.tokera.ate.io.repo.DataStagingManager;
 import com.tokera.ate.scopes.Startup;
+import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -26,7 +27,17 @@ public class DebugLoggingDelegate {
 
     public void logMergeDeferred(DataStagingManager staging, @Nullable LoggerHook LOG) {
         if (d.bootstrapConfig.isLoggingWrites()) {
-            logInfo("merge_deferred: [cnt=" + staging.size() + "]\n", LOG);
+            StringBuilder sb = new StringBuilder();
+            sb.append("merge_deferred: [cnt=");
+            sb.append(staging.size());
+            sb.append("]");
+
+            if (d.bootstrapConfig.isLoggingWithStackTrace()) {
+                String fullStackTrace = ExceptionUtils.getFullStackTrace(new Throwable());
+                sb.append("\n");
+                sb.append(fullStackTrace);
+            }
+            logInfo(sb.toString(), LOG);
         }
     }
 

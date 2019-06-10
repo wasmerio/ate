@@ -53,6 +53,9 @@ public class AccountREST {
         MessagePrivateKeyDto ownership = d.encryptor.genSignKey();
         Collection<ShareToken> tokens = coinHelper.makeTokens(transferShares, ownership);
 
+        // Force a merge as the tree structure must be in place before we attempt to immutalize it
+        d.io.mergeDeferredAndSync();
+
         // Immutalize the shares that need to be protected
         coinHelper.immutalizeParentTokens(tokens);
 
