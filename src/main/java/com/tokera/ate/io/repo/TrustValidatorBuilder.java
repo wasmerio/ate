@@ -88,8 +88,8 @@ final class TrustValidatorBuilder {
     /**
      * Builds the validator using the supplied data and a test subject
      */
-    public Validator build(IPartitionKey partitionKey, MessageDataDto data) {
-        return new Validator(partitionKey, data);
+    public ValidatorBasic build(IPartitionKey partitionKey, MessageDataDto data) {
+        return new ValidatorBasic(partitionKey, data);
     }
 
     /**
@@ -97,7 +97,7 @@ final class TrustValidatorBuilder {
      */
     public boolean validate(IPartitionKey partitionKey, MessageDataDto data) {
         try {
-            Validator validator = build(partitionKey, data);
+            ValidatorBasic validator = build(partitionKey, data);
             return validator
                     .upgradeWithParentChecks()
                     .upgradeWithLeafState()
@@ -130,7 +130,7 @@ final class TrustValidatorBuilder {
         if (onGetData != null) {
             return onGetData.apply(id, flush);
         } else {
-            throw new RuntimeException("Validator attempted to load a data but no callback was supplied to load one.");
+            throw new RuntimeException("ValidatorBasic attempted to load a data but no callback was supplied to load one.");
         }
     }
 
@@ -141,7 +141,7 @@ final class TrustValidatorBuilder {
         if (onGetRootOfTrust != null) {
             return onGetRootOfTrust.apply(id);
         } else {
-            throw new RuntimeException("Validator attempted to load the root of trust but no callback was supplied to load one.");
+            throw new RuntimeException("ValidatorBasic attempted to load the root of trust but no callback was supplied to load one.");
         }
     }
 
@@ -152,7 +152,7 @@ final class TrustValidatorBuilder {
         if (onGetPublicKey != null) {
             return onGetPublicKey.apply(hash);
         } else {
-            throw new RuntimeException("Validator attempted to load a public key but no callback was supplied to load one.");
+            throw new RuntimeException("ValidatorBasic attempted to load a public key but no callback was supplied to load one.");
         }
     }
 
@@ -171,7 +171,7 @@ final class TrustValidatorBuilder {
     /**
      * Builder class used to create the trust validator
      */
-    public class Validator {
+    public class ValidatorBasic {
         protected final AteDelegate d = AteDelegate.get();
         protected final UUID id;
         protected final IPartitionKey partitionKey;
@@ -186,7 +186,7 @@ final class TrustValidatorBuilder {
         private boolean validatedParent = false;
         private boolean validatedIsntReparenting = false;
 
-        protected Validator(IPartitionKey partitionKey, MessageDataDto data) {
+        protected ValidatorBasic(IPartitionKey partitionKey, MessageDataDto data) {
             MessageDataHeaderDto header = data.getHeader();
             MessageDataDigestDto digest = data.getDigest();
             if (header == null || digest == null) {
@@ -209,7 +209,7 @@ final class TrustValidatorBuilder {
             }
         }
 
-        protected Validator(Validator last) {
+        protected ValidatorBasic(ValidatorBasic last) {
             this.id = last.id;
             this.partitionKey = last.partitionKey;
             this.parentId = last.parentId;
@@ -317,7 +317,7 @@ final class TrustValidatorBuilder {
     /**
      * Trust validator enhanced with extra information about the parent
      */
-    public class ValidatorWithParentState extends Validator {
+    public class ValidatorWithParentState extends ValidatorBasic {
         protected final @Nullable MessageDataDto parent;
 
         private @Nullable MessageDataDto _leaf;
@@ -325,7 +325,7 @@ final class TrustValidatorBuilder {
         private boolean _roleFound;
         private boolean validatedLeaf = false;
 
-        protected ValidatorWithParentState(Validator last, @Nullable MessageDataDto parent) {
+        protected ValidatorWithParentState(ValidatorBasic last, @Nullable MessageDataDto parent) {
             super(last);
             this.parent = parent;
         }
