@@ -97,11 +97,16 @@ final class TrustValidatorBuilder {
      */
     public boolean validate(IPartitionKey partitionKey, MessageDataDto data) {
         try {
-            ValidatorBasic validator = build(partitionKey, data);
-            return validator
-                    .upgradeWithParentChecks()
-                    .upgradeWithLeafState()
-                    .validateAll();
+            ValidatorBasic basic = build(partitionKey, data);
+            if (basic.validateAll() == false) return false;
+
+            ValidatorWithParentState withParentState = basic.upgradeWithParentChecks();
+            if (withParentState.validateAll() == false) return false;
+
+            ValidatorWithLeaf withLeafState = withParentState.upgradeWithLeafState();
+            if (withLeafState.validateAll() == false) return false;
+
+            return true;
         } catch (Throwable ex) {
             failure(data, ex.getMessage());
             return false;
