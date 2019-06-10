@@ -103,7 +103,7 @@ final class TrustValidatorBuilder {
             ValidatorWithParentState withParentState = basic.upgradeWithParentChecks();
             if (withParentState.validateAll() == false) return false;
 
-            ValidatorWithLeaf withLeafState = withParentState.upgradeWithLeafState();
+            ValidatorWithLeafState withLeafState = withParentState.upgradeWithLeafState();
             if (withLeafState.validateAll() == false) return false;
 
             return true;
@@ -487,9 +487,9 @@ final class TrustValidatorBuilder {
                     if (existing != null) {
                         sb.append("\n [needs: impossible as record is missed write roles.]");
                     } else if (parent != null) {
-                        sb.append("\n [needs: impossible as no record or parents exist.]");
+                        sb.append("\n [needs: impossible as no existing record and its parent is immutable.]");
                     } else {
-                        sb.append("\n [needs: impossible as no record exists and its orphaned.]");
+                        sb.append("\n [needs: impossible as no existing record exists and its orphaned.]");
                     }
                 }
 
@@ -515,32 +515,32 @@ final class TrustValidatorBuilder {
          * Upgrades the validator by performing some checks on the leaf that the data is attempting to attach to
          * Note: To avoid an exception being throw check the validateAll method before this one
          */
-        public ValidatorWithLeaf upgradeWithLeafState() {
+        public ValidatorWithLeafState upgradeWithLeafState() {
             if (validateAll() == false) {
                 throw new RuntimeException("Attempted to upgrade validator but its in a failed state");
             }
-            return new ValidatorWithLeaf(this, this._leaf, this._digestPublicKey, this._roleFound);
+            return new ValidatorWithLeafState(this, this._leaf, this._digestPublicKey, this._roleFound);
         }
     }
 
     /**
      * Trust validator enhanced with information about the parent
      */
-    public class ValidatorWithLeaf extends ValidatorWithParentState {
+    public class ValidatorWithLeafState extends ValidatorWithParentState {
         protected final @Nullable MessageDataDto leaf;
         protected final @Nullable MessagePublicKeyDto digestPublicKey;
         protected final boolean roleFound;
 
         private boolean validatedSignature = false;
 
-        protected ValidatorWithLeaf(ValidatorWithParentState last, @Nullable MessageDataDto leaf, @Nullable MessagePublicKeyDto digestPublicKey, boolean roleFound) {
+        protected ValidatorWithLeafState(ValidatorWithParentState last, @Nullable MessageDataDto leaf, @Nullable MessagePublicKeyDto digestPublicKey, boolean roleFound) {
             super(last);
             this.leaf = leaf;
             this.digestPublicKey = digestPublicKey;
             this.roleFound = roleFound;
         }
 
-        protected ValidatorWithLeaf(ValidatorWithLeaf other) {
+        protected ValidatorWithLeafState(ValidatorWithLeafState other) {
             super(other);
             this.leaf = other.leaf;
             this.digestPublicKey = other.digestPublicKey;
