@@ -545,7 +545,7 @@ public class DataRepository implements IAteIO {
         for (UUID id : ids)
         {
             DataContainer container = chain.getData(id, LOG);
-            if (container == null) return null;
+            if (container == null) continue;
 
             BaseDao entity = container.getMergedData();
             if (entity != null) {
