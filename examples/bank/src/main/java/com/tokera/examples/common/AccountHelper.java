@@ -1,8 +1,10 @@
 package com.tokera.examples.common;
 
+import com.google.common.collect.Lists;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.examples.dao.Account;
+import com.tokera.examples.dao.Coin;
 import com.tokera.examples.dao.CoinShare;
 import com.tokera.examples.dao.MonthlyActivity;
 
@@ -10,39 +12,46 @@ import java.math.BigDecimal;
 import java.util.*;
 
 public class AccountHelper {
+    AteDelegate d = AteDelegate.get();
+    protected CoinHelper coinHelper = new CoinHelper();
 
-    public static void reconcileBalance(Account acc, MonthlyActivity activity) {
-        AteDelegate d = AteDelegate.get();
+    /**
+     * Computes the balances based on the coins we know about that we have shares in
+     */
+    public Map<String, BigDecimal> computeBalances(Account acc)
+    {
+        // Find all the coins for this account
+        LinkedList<CoinShare> shares = new LinkedList<>();
+        List<Coin> coins = d.io.getManyAcrossPartitions(acc.coins, Coin.class);
+        for (Coin coin : coins) {
+            List<CoinShare> coinShares = coinHelper.findOwnedShares(Lists.newArrayList(coin));
+            if (coinShares.size() < 0) {
+                // We have no more shares of this coin so forget about it
+                acc.coins.remove(coin.addressableId());
+                d.io.mergeLater(acc);
+            } else {
+                shares.addAll(coinShares);
+            }
+        }
 
         // For any assets we don't own anymore then we add a transaction to the new owner
         TreeMap<String, BigDecimal> balances = new TreeMap<String, BigDecimal>();
-        LinkedList<CoinShare> shares = new LinkedList<CoinShare>();
-        shares.addAll(d.io.getManyAcrossPartitions(acc.ownerships, CoinShare.class));
+        for (CoinShare share : shares) {
+            Coin coin = coinHelper.getCoinFromShare(share);
 
-        for (;;) {
-            if (shares.isEmpty()) break;
-            CoinShare share = shares.poll();
-            PUUID shareId = share.addressableId();
-
-            if (d.authorization.canWrite(share) == true)
-            {
-                balances.put(share.type,
-                             balances.getOrDefault(share.type, BigDecimal.ZERO).add(share.shareAmount));
-
-                if (acc.ownerships.contains(shareId) == false) {
-                    acc.ownerships.add(shareId);
-                    d.io.mergeLater(acc);
-                }
-            } else  {
-                if (acc.ownerships.contains(shareId) == true) {
-                    acc.ownerships.remove(shareId);
-                    d.io.mergeLater(acc);
-                }
-
-                // If we own any of the children then add them
-                shares.addAll(d.io.getMany(share.addressableId().partition(), share.shares, CoinShare.class));
-            }
+            BigDecimal shareValue = coinHelper.valueOfShare(share);
+            balances.put(coin.type,
+                    balances.getOrDefault(coin.type, BigDecimal.ZERO).add(shareValue));
         }
+        return balances;
+    }
+
+    /**
+     * Update the activity balances based on what we computed
+     */
+    public void reconcileBalance(Account acc, MonthlyActivity activity)
+    {
+        Map<String, BigDecimal> balances = computeBalances(acc);
 
         for (String coinType : activity.balances.keySet()) {
             if (balances.containsKey(coinType) == false) {
@@ -61,8 +70,10 @@ public class AccountHelper {
         }
     }
 
-    public static MonthlyActivity getCurrentMonthlyActivity(Account acc) {
-        AteDelegate d = AteDelegate.get();
+    /**
+     * Gets an activity object that represents the current month
+     */
+    public MonthlyActivity getCurrentMonthlyActivity(Account acc) {
         Date now = new Date();
 
         // Fast path - check the last monthly activity

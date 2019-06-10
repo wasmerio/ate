@@ -99,6 +99,11 @@ public class HeadIO implements IAteIO
         back.mergeDeferred();
     }
 
+    public void mergeDeferredAndSync() {
+        this.mergeDeferred();
+        this.sync();
+    }
+
     @Override
     public void clearDeferred() {
         back.clearDeferred();

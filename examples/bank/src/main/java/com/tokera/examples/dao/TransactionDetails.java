@@ -4,6 +4,7 @@ import com.tokera.ate.annotations.PermitParentType;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.units.DaoId;
+import com.tokera.examples.common.CoinHelper;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.Dependent;
@@ -31,9 +32,11 @@ public class TransactionDetails extends BaseDao {
         this.monthlyActivity = monthly.id;
         this.when = new Date();
         this.amount = BigDecimal.ZERO;
+
+        CoinHelper helper = new CoinHelper();
         for (CoinShare share : shares) {
             this.shares.add(share.addressableId());
-            this.amount = this.amount.add(share.shareAmount);
+            this.amount = this.amount.add(helper.valueOfShare(share));
         }
         this.description = description;
     }

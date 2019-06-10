@@ -19,10 +19,6 @@ import javax.ws.rs.core.Response;
 public class MoneyREST {
     protected AteDelegate d = AteDelegate.get();
 
-    @SuppressWarnings("initialization.fields.uninitialized")
-    @Inject
-    private LoggerHook LOG;
-
     @POST
     @Path("/print")
     @Produces({"text/yaml", MediaType.APPLICATION_JSON})
@@ -35,7 +31,7 @@ public class MoneyREST {
         d.authorization.authorizeEntityWrite(coiningKey, coin);
         d.io.mergeLater(coin);
 
-        CoinShare coinShare = new CoinShare(coin, request.value);
+        CoinShare coinShare = new CoinShare(coin);
         d.authorization.authorizeEntityWrite(request.ownershipKey, coinShare);
         coin.shares.add(coinShare.id);
 
@@ -46,7 +42,7 @@ public class MoneyREST {
         //LOG.info(d.yaml.serializeObj(assetShare));
 
         String description = "Printing " + request.value + " coins of type [" + request.type + "]";
-        return new TransactionToken(Lists.newArrayList(new ShareToken(coinShare, request.ownershipKey)), description);
+        return new TransactionToken(Lists.newArrayList(new ShareToken(coin, coinShare, request.ownershipKey)), description);
     }
 
     @POST

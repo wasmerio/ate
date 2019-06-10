@@ -23,7 +23,7 @@ public class Account extends BaseDaoRights {
     @Nullable
     public UUID individual;
     public final List<UUID> monthlyActivities = new ImmutalizableArrayList<UUID>();
-    public final Set<PUUID> ownerships = new HashSet<PUUID>();
+    public final Set<PUUID> coins = new HashSet<>();
 
     @SuppressWarnings("initialization.fields.uninitialized")
     @Deprecated
