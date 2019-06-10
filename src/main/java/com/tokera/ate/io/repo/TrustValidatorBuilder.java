@@ -487,7 +487,7 @@ final class TrustValidatorBuilder {
                     if (existing != null) {
                         sb.append("\n [needs: impossible as record is missed write roles.]");
                     } else if (parent != null) {
-                        sb.append("\n [needs: impossible as no existing record and its parent is immutable.]");
+                        sb.append("\n [needs: impossible as no existing record exists and its parent is immutable.]");
                     } else {
                         sb.append("\n [needs: impossible as no existing record exists and its orphaned.]");
                     }
