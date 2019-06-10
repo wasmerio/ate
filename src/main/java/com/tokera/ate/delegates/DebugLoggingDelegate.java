@@ -13,6 +13,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.ApplicationScoped;
+import java.util.UUID;
 import java.util.logging.Logger;
 
 /**
@@ -59,14 +60,38 @@ public class DebugLoggingDelegate {
         }
     }
 
-    public void logMerge(MessageDataDto data, @Nullable BaseDao entity, @Nullable LoggerHook LOG)
+    public void logMerge(@Nullable MessageDataDto data, @Nullable BaseDao entity, @Nullable LoggerHook LOG, boolean later)
     {
         if (d.bootstrapConfig.isLoggingWrites()) {
+            MessageDataHeaderDto header = data != null ? data.getHeader() : null;
+
             StringBuilder sb = new StringBuilder();
-            sb.append("write: [->");
-            sb.append(entity != null ? entity.addressableId() : data.getHeader().getId());
-            sb.append("]");
-            if (d.bootstrapConfig.isLoggingMessages()) {
+
+            if (later) {
+                sb.append("write_now:");
+            } else {
+                sb.append("write_later:");
+            }
+
+            UUID id = header != null ? header.getId() : (entity != null ? entity.getId() : null);
+            if (id != null) {
+                sb.append(" [->");
+                sb.append(id);
+                sb.append("]");
+            }
+
+            String payloadClazz = header != null ? header.getPayloadClazz() : (entity != null ? entity.getClass().getName() : null);
+            if (payloadClazz != null) {
+                sb.append(" ");
+                sb.append(payloadClazz);
+            }
+
+            UUID parentId = header != null ? header.getParentId() : (entity != null ? entity.getParentId() : null);
+            if (parentId != null) {
+                sb.append(" parent=");
+                sb.append(parentId);
+            }
+            if (d.bootstrapConfig.isLoggingMessages() && data != null) {
                 sb.append("\n");
                 sb.append(d.yaml.serializeObj(data));
             }

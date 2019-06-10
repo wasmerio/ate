@@ -94,7 +94,7 @@ public class DataRepository implements IAteIO {
             String what = "clazz=" + data.getHeader().getPayloadClazzOrThrow() + ", id=" + data.getHeader().getIdOrThrow();
             throw new RuntimeException("The newly created object was not accepted into the chain of trust [" + what + "]");
         }
-        d.debugLogging.logMerge(data, entity, LOG);
+        d.debugLogging.logMerge(data, entity, LOG, false);
 
         // Save the data to the bridge and synchronize it
         IDataPartitionBridge bridge = kt.getBridge();
@@ -249,6 +249,7 @@ public class DataRepository implements IAteIO {
         if (validate == true) {
             validateTrustWritability(entity);
         }
+        d.debugLogging.logMerge(null, entity, LOG, true);
 
         this.staging.put(partitionKey, entity);
     }
@@ -263,7 +264,7 @@ public class DataRepository implements IAteIO {
             String what = "clazz=" + data.getHeader().getPayloadClazzOrThrow() + ", id=" + data.getHeader().getIdOrThrow();
             throw new RuntimeException("The newly created object was not accepted into the chain of trust [" + what + "]");
         }
-        d.debugLogging.logMerge(data, entity, LOG);
+        d.debugLogging.logMerge(data, entity, LOG, false);
 
         // Add it to the currentRights trust which makes sure that previous
         // records are accounted for during the validation steps
