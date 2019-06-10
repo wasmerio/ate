@@ -90,12 +90,12 @@ public class CoinHelper {
             // If its not divided by anyone then it has no value
             int sharePoolSize = parentShare.shares.size();
             if (sharePoolSize <= 0) return BigDecimal.ZERO;
-            if (sharePoolSize == 1) return BigDecimal.ZERO;
 
             // Obviously we have to be in the share list or we dont have any value in the coin
             if (parentShare.shares.contains(share.id) == false) {
                 return BigDecimal.ZERO;
             }
+            if (sharePoolSize == 1) return valueOfShare(parentShare, fullyOwned);
 
             // Child shares get a semi equal share of the parent share
             if (share.id.equals(Iterators.getLast(parentShare.shares.iterator()))) {
