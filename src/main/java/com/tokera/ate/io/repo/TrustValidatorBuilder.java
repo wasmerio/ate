@@ -183,6 +183,8 @@ final class TrustValidatorBuilder {
         protected final String entityType;
 
         private MessageDataDto _parent = null;
+        private boolean validatedParent = false;
+        private boolean validatedIsntReparenting = false;
 
         protected Validator(IPartitionKey partitionKey, MessageDataDto data) {
             MessageDataHeaderDto header = data.getHeader();
@@ -216,12 +218,15 @@ final class TrustValidatorBuilder {
             this.digest = last.digest;
             this.existing = last.existing;
             this.entityType = last.entityType;
+            this.validatedParent = last.validatedParent;
         }
 
         /**
          * Make sure its a valid parent we are attached to (or not)
          */
         public boolean validateParent() {
+            if (validatedParent == true) return true;
+
             @DaoId UUID parentId = header.getParentId();
             MessageDataDto parent = null;
             if (d.daoParents.getAllowedParentsSimple().containsKey(entityType) == false) {
@@ -255,6 +260,7 @@ final class TrustValidatorBuilder {
             }
 
             this._parent = parent;
+            this.validatedParent = true;
             return true;
         }
 
@@ -262,7 +268,9 @@ final class TrustValidatorBuilder {
          * Now make sure this isnt a duplicate object that has suddenly changed
          * parent ownership (as this would violate the chain of trust)
          */
-        public boolean isntReparenting() {
+        public boolean validateIsntReparenting() {
+            if (this.validatedIsntReparenting == true) return true;
+
             if (existing != null) {
                 @DaoId UUID existingParentId = existing.getHeader().getParentId();
                 if (existingParentId != null && existingParentId.equals(header.getParentId()) == false)
@@ -277,12 +285,13 @@ final class TrustValidatorBuilder {
                     return false;
                 }
             }
+            this.validatedIsntReparenting = true;
             return true;
         }
 
         public boolean validateAll() {
             return validateParent() &&
-                   isntReparenting();
+                   validateIsntReparenting();
         }
 
         /**
@@ -314,6 +323,7 @@ final class TrustValidatorBuilder {
         private @Nullable MessageDataDto _leaf;
         private @Nullable MessagePublicKeyDto _digestPublicKey;
         private boolean _roleFound;
+        private boolean validatedLeaf = false;
 
         protected ValidatorWithParentState(Validator last, @Nullable MessageDataDto parent) {
             super(last);
@@ -323,6 +333,7 @@ final class TrustValidatorBuilder {
         protected ValidatorWithParentState(ValidatorWithParentState last) {
             super(last);
             this.parent = last.parent;
+            this.validatedLeaf = last.validatedLeaf;
         }
 
         /**
@@ -331,6 +342,8 @@ final class TrustValidatorBuilder {
          * in order to be saved
          */
         public boolean validateLeaf() {
+            if (validatedLeaf) return true;
+
             MessagePublicKeyDto digestPublicKey = null;
             MessageDataDto leaf = existing;
             if (leaf == null) leaf = parent;
@@ -435,6 +448,7 @@ final class TrustValidatorBuilder {
             this._digestPublicKey = digestPublicKey;
             this._leaf = leaf;
             this._roleFound = roleFound;
+            this.validatedLeaf = true;
             return true;
         }
 
@@ -487,16 +501,6 @@ final class TrustValidatorBuilder {
         }
 
         @Override
-        public boolean validateParent() {
-            return true;    // Validation was already performed in order to transform the validator
-        }
-
-        @Override
-        public boolean isntReparenting() {
-            return true;    // Validation was already performed in order to transform the validator
-        }
-
-        @Override
         public boolean validateAll() {
             return super.validateAll() &&
                     validateLeaf();
@@ -522,6 +526,8 @@ final class TrustValidatorBuilder {
         protected final @Nullable MessagePublicKeyDto digestPublicKey;
         protected final boolean roleFound;
 
+        private boolean validatedSignature = false;
+
         protected ValidatorWithLeaf(ValidatorWithParentState last, @Nullable MessageDataDto leaf, @Nullable MessagePublicKeyDto digestPublicKey, boolean roleFound) {
             super(last);
             this.leaf = leaf;
@@ -529,11 +535,20 @@ final class TrustValidatorBuilder {
             this.roleFound = roleFound;
         }
 
+        protected ValidatorWithLeaf(ValidatorWithLeaf other) {
+            super(other);
+            this.leaf = other.leaf;
+            this.digestPublicKey = other.digestPublicKey;
+            this.roleFound = other.roleFound;
+            this.validatedSignature = other.validatedSignature;
+        }
+
         /**
          * Validates that the signature attached to the data object is correct
          */
-        public boolean validateSignature()
-        {
+        public boolean validateSignature() {
+            if (validatedSignature == true) return true;
+
             // Compute the byte representation of the header
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
             MessageSerializer.writeBytes(stream, header.createFlatBuffer());
@@ -588,12 +603,8 @@ final class TrustValidatorBuilder {
                 return false;
             }
 
+            this.validatedSignature = true;
             return true;
-        }
-
-        @Override
-        public boolean validateLeaf() {
-            return true;    // Validation was already performed in order to transform the validator
         }
 
         @Override
