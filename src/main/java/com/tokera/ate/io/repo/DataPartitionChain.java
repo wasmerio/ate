@@ -8,20 +8,15 @@ import com.tokera.ate.dao.msg.*;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.common.LoggerHook;
-import com.tokera.ate.delegates.YamlDelegate;
-import com.tokera.ate.extensions.DaoParentDiscoveryExtension;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.security.Encryptor;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-import com.tokera.ate.units.DaoId;
 import com.tokera.ate.units.Hash;
-import org.bouncycastle.util.Arrays;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.bouncycastle.crypto.InvalidCipherTextException;
 
@@ -168,7 +163,7 @@ public class DataPartitionChain {
         }
     }
     
-    public void drop(@Nullable LoggerHook LOG, MessageDataDto data, String why, @Nullable MessageDataHeader parentHeader) {
+    public void drop(@Nullable LoggerHook LOG, MessageDataDto data, String why) {
         String err;
         
         MessageDataHeaderDto header = data.getHeader();
@@ -221,281 +216,24 @@ public class DataPartitionChain {
     {
         return validateTrustStructureAndWritability(data, LOG, new HashMap<>());
     }
+
+    public TrustValidatorBuilder createTrustValidator(@Nullable LoggerHook LOG) {
+        return new TrustValidatorBuilder()
+                .withLogger(LOG)
+                .withFailureCallback(f -> this.drop(f.LOG, f.data, f.why))
+                .withGetRootOfTrust(id -> this.getRootOfTrust(id))
+                .withGetDataCallback((id, flush) -> {
+                    if (flush) this.promoteChainEntry(id, LOG);
+                    return this.getData(id, LOG);
+                })
+                .withGetPublicKeyCallback(hash -> this.getPublicKey(hash));
+    }
     
     public boolean validateTrustStructureAndWritability(MessageDataDto data, @Nullable LoggerHook LOG, Map<UUID, @Nullable MessageDataDto> requestTrust)
     {
-        MessageDataHeaderDto header = data.getHeader();
-        MessageDataDigestDto digest = data.getDigest();
-        @DaoId UUID id = header.getIdOrThrow();
-
-        // When no digest is attached then this message is not valid
-        if (digest == null) return false;
-        
-        // Make sure its a valid parent we are attached to (or not)
-        @DaoId UUID parentId = header.getParentId();
-        MessageDataDto parent = null;
-        String entityType = header.getPayloadClazzOrThrow();
-        if (d.daoParents.getAllowedParentsSimple().containsKey(entityType) == false) {
-            if (d.daoParents.getAllowedParentFreeSimple().contains(entityType) == false) {
-                drop(LOG, data, "parent policy not defined for this entity type", null);
-                return false;
-            }
-            if (parentId != null) {
-                drop(LOG, data, "parent not allowed for this entity type", null);
-                return false;
-            }
-        } else {
-            if (parentId == null) {
-                drop(LOG, data, "must have parent for this entity type", null);
-                return false;
-            }
-            
-            parent = MapTools.getOrNull(requestTrust, parentId);
-            if (parent == null) {
-                this.promoteChainEntry(parentId, LOG);
-
-                DataContainer parentMsg = this.getData(parentId, LOG);
-                parent = parentMsg != null ? parentMsg.getLastDataOrNull() : null;
-            }
-
-            if (parent == null) {
-                drop(LOG, data, "parent is missing in chain of trust", null);
-                return false;
-            } else if (d.daoParents.getAllowedParentsSimple().containsEntry(entityType, parent.getHeader().getPayloadClazzOrThrow()) == false) {
-                drop(LOG, data, "parent type not allowed [see PermitParentType]", null);
-                return false;
-            }
-        }
-        
-        // Now make sure this isnt a duplicate object that has suddenly changed
-        // parent ownership (as this would violate the chain of trust)
-        MessageDataDto existing;
-        if (requestTrust.containsKey(id)) {
-            existing = requestTrust.get(id);
-        } else {
-            DataContainer existingMsg = this.getData(id, LOG);
-            existing = existingMsg != null ? existingMsg.getLastDataOrNull() : null;
-        }
-        if (existing != null) {
-            @DaoId UUID existingParentId = existing.getHeader().getParentId();
-            if (existingParentId != null && existingParentId.equals(header.getParentId()) == false)
-            {
-                drop(LOG, data, "parent has changed [was=" + existingParentId + ", now=" + header.getParentId() + "]", null);
-                return false;
-            }
-            
-            // If the existing header is immutable then fail this update
-            if (existing.getHeader().getInheritWrite() == false && existing.getHeader().getAllowWrite().isEmpty()) {
-                drop(LOG, data, "record is immutable", null);
-                return false;
-            }
-        }
-
-        // Get the end of the chain of trust that we will traverse up in order
-        // to validate the chain of trust. All writes must have a leaf to follow
-        // in order to be saved
-        MessagePublicKeyDto digestPublicKey = null;
-        MessageDataDto leaf = existing;
-        if (leaf == null) leaf = parent;
-        if (leaf == null)
-        {
-            String implicitAuthority = d.daoParents.getAllowedImplicitAuthoritySimple().getOrDefault(entityType, null);
-            if (implicitAuthority == null) {
-                if (d.daoParents.getAllowedDynamicImplicitAuthoritySimple().containsKey(entityType)) {
-                    implicitAuthority = header.getImplicitAuthority().stream().findFirst().orElse(null);
-                    if (implicitAuthority == null) {
-                        drop(LOG, data, "record missing implicit authority", null);
-                        return false;
-                    }
-                }
-            }
-
-            // If the object is a claimable type then its allowed to attach to nothing
-            if (d.daoParents.getAllowedParentFreeSimple().contains(entityType) == true &&
-                    d.daoParents.getAllowedParentClaimableSimple().contains(entityType) == true) {
-                MessagePublicKeyDto trustPublicKey = d.encryptor.getTrustOfPublicWrite();
-                digestPublicKey = trustPublicKey;
-                LOG.info("[" + this.getPartitionKeyStringValue() + "] chain-of-trust claimed: " + entityType + ":" + id);
-            }
-            // If the object is a claimable type then its allowed to attach to nothing
-            else if (d.daoParents.getAllowedParentFreeSimple().contains(entityType) == true &&
-                    implicitAuthority != null)
-            {
-                try {
-                    MessagePublicKeyDto trustImplicit = d.implicitSecurity.enquireDomainKey(implicitAuthority, true, this.partitionKey());
-                    if (trustImplicit == null) {
-                        drop(LOG, data, "dns or log record for implicit authority missing [" + implicitAuthority + "]", null);
-                        return false;
-                    }
-
-                    digestPublicKey = trustImplicit;
-                    LOG.info("[" + this.getPartitionKeyStringValue() + "] chain-of-trust rooted: " + entityType + ":" + id + " on " + trustImplicit.getPublicKeyHash());
-                } catch (Throwable ex) {
-                    drop(LOG, data, ex.getMessage(), null);
-                    return false;
-                }
-            }
-            // Otherwise we fail
-            else {
-                drop(LOG, data, "record has no leaf to attach to", null);
-                return false;
-            }
-        }
-
-        // First check if the digest is allowed to be attached to the parent
-        // by doing a role check all the way up the chain until it finds a
-        // trusted key hash that matches - later we will check the signature
-        // that proves the writer had a copy of this key at the time of writing
-        List<String> availableWriteRoles = new ArrayList<>();
-        boolean roleFound = false;
-        for (;leaf != null;)
-        {
-            MessageDataHeaderDto leafHeader = leaf.getHeader();
-            Set<String> requiredRoles = leafHeader.getAllowWrite();
-
-            for (String trustKeyHash : requiredRoles) {
-                availableWriteRoles.add(trustKeyHash);
-                if (trustKeyHash.equals(digest.getPublicKeyHash()) == true) {
-                    roleFound = true;
-
-                    MessagePublicKeyDto trustPublicKey = this.getPublicKey(trustKeyHash);
-                    if (trustPublicKey != null) digestPublicKey = trustPublicKey;
-                    if (digestPublicKey != null) break;
-                }
-            }
-            if (leafHeader.getInheritWrite() == false) break;
-
-            @DaoId UUID leafParentId = leafHeader.getParentId();
-            if (leafParentId != null) {
-
-                if (requestTrust.containsKey(leafParentId)) {
-                    leaf = requestTrust.get(leafParentId);
-                } else {
-                    this.promoteChainEntry(leafParentId, LOG);
-
-                    DataContainer leafMsg = this.getData(leafParentId, LOG);
-                    leaf = leafMsg != null ? leafMsg.getLastDataOrNull() : null;
-                }
-            } else {
-                leaf = null;
-            }
-        }
-        if (digestPublicKey == null) {
-            MessageDataHeaderDto root = this.getRootOfTrust(id);
-            if (root != null) {
-                for (String trustKeyHash : root.getAllowWrite()) {
-                    availableWriteRoles.add(trustKeyHash);
-                    if (trustKeyHash.equals(digest.getPublicKeyHash()) == true) {
-                        roleFound = true;
-
-                        MessagePublicKeyDto trustPublicKey = this.getPublicKey(trustKeyHash);
-                        if (trustPublicKey != null) digestPublicKey = trustPublicKey;
-                        if (digestPublicKey != null) break;
-                    }
-                }
-            }
-        }
-
-        if (digestPublicKey == null) {
-            if (roleFound == true) {
-                drop(LOG, data, "entity has write roles but public key is missing", null);
-            } else {
-                String entityTxt = "clazz=" + entityType + ", id=" + id;
-
-                String parentTxt = "null";
-                if (parent != null) { parentTxt = "clazz=" + parent.getHeader().getPayloadClazzOrThrow() + ", id=" + parentId; }
-
-                StringBuilder sb = new StringBuilder();
-                sb.append("entity has no right to attach to its parent");
-                sb.append("\n [entity: ").append(entityTxt).append("]");
-                sb.append("\n [parent: ").append(parentTxt).append("]");
-                for (String role : availableWriteRoles) {
-                    sb.append("\n [needs: hash=").append(role);
-                    MessagePublicKeyDto roleKey = this.getPublicKey(role);
-                    if (roleKey != null && roleKey.getAlias() != null) {
-                        sb.append(", alias=").append(roleKey.getAlias());
-                    }
-                    sb.append("]");
-                }
-                if (availableWriteRoles.size() <= 0) {
-                    if (existing != null) {
-                        sb.append("\n [needs: impossible as record is missed write roles.]");
-                    } else if (parent != null) {
-                        sb.append("\n [needs: impossible as no record or parents exist.]");
-                    } else {
-                        sb.append("\n [needs: impossible as no record exists and its orphaned.]");
-                    }
-                }
-
-                sb.append("\n [digest: hash=").append(digest.getPublicKeyHash());
-                MessagePublicKeyDto digestKey = this.getPublicKey(digest.getPublicKeyHash());
-                if (digestKey != null && digestKey.getAlias() != null) {
-                    sb.append(", alias=").append(digestKey.getAlias());
-                }
-                sb.append("]");
-
-                sb.append("\n from ");
-                drop(LOG, data, sb.toString(), null);
-            }
-            return false;
-        }
-        
-        // Compute the byte representation of the header
-        ByteArrayOutputStream stream = new ByteArrayOutputStream();
-        MessageSerializer.writeBytes(stream, header.createFlatBuffer());
-        
-        // Add the payload itself into the stream
-        if (data.hasPayload()) {
-            try {
-                byte[] payloadBytes = data.getPayloadBytes();
-                if (payloadBytes != null) {
-                    stream.write(payloadBytes);
-                } else {
-                    drop(LOG, data, "message data has payload but it did not appear to be attached", null);
-                    return false;
-                }
-            } catch (IOException ex) {
-                String msg = ex.getMessage();
-                if (msg == null) msg = ex.toString();
-                drop(LOG, data, msg.toLowerCase(), null);
-                return false;
-            }
-        }        
-        // Compute the digest bytes
-        byte[] streamBytes = stream.toByteArray();
-        byte[] seedBytes = digest.getSeedBytes();
-        byte[] digestBytes = encryptor.hashSha(seedBytes, streamBytes);
-
-        // Verify the digest bytes match the signature
-        byte[] digestBytesHeader = digest.getDigestBytes();
-        if (Arrays.areEqual(digestBytesHeader, digestBytes) == false) {
-            drop(LOG, data, "digest differential", null);
-            return false;
-        } 
-        
-        // Now check that the public yields the same digit thus proving that
-        // the owner of the private key generated this data
-        byte[] sigBytes = digest.getSignatureBytes();
-        
-        // Validate that the byte arrays are big enough
-        if (digestBytes.length <= 4) {
-            drop(LOG, data, "digest of payload bytes invalid", null);
-            return false;
-        }
-        if (sigBytes.length <= 4) {
-            drop(LOG, data, "signature bytes invalid", null);
-            return false;
-        }        
-    
-        //SLOG.info("ntru-decrypt:\n" + "  - public-key: " + digest.getPublicKey() + "\n  - data: " + digest.getSignature() + "\n");
-        if (encryptor.verify(digestPublicKey, digestBytes, sigBytes) == false)
-        {
-            drop(LOG, data, "signature verification failed", null);
-            return false;
-        }
-        
-        // Success
-        return true;
+        return createTrustValidator(LOG)
+                .withRequestTrust(requestTrust)
+                .validate(this.partitionKey(), data);
     }
     
     private boolean processData(MessageDataDto data, MessageMetaDto meta, @Nullable LoggerHook LOG) throws IOException, InvalidCipherTextException

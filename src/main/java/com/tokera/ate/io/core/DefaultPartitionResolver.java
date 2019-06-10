@@ -60,7 +60,7 @@ public class DefaultPartitionResolver implements IPartitionResolver {
             if (partitionKey != null) return partitionKey;
 
             // If it has a parent then we need to grab the partition key of the parent rather than this object
-            // otherwise the chain of trust will get distributed to different partitions which would break the
+            // otherwise the chain of trust will getData distributed to different partitions which would break the
             // design goals
             BaseDao next = d.memoryRequestCacheIO.getOrNull(obj.getParentId());
             if (next == null)

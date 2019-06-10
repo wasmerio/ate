@@ -15,7 +15,7 @@ import javax.enterprise.inject.Produces;
 import javax.enterprise.inject.spi.CDI;
 
 /**
- * Factory used to configure the storage system using a builder and to get a reference the storage
+ * Factory used to configure the storage system using a builder and to getData a reference the storage
  * system interface itself
  */
 @ApplicationScoped

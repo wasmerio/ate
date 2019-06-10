@@ -141,7 +141,7 @@ public class DataContainer {
         AteDelegate d = AteDelegate.get();
 
         LinkedList<DataGraphNode> leaves = computeCurrentLeaves();
-        if (leaves == null || leaves.isEmpty()) throw new RuntimeException("Unable to get the merged header(#1).");
+        if (leaves == null || leaves.isEmpty()) throw new RuntimeException("Unable to getData the merged header(#1).");
 
         // If there is only one item then we are done
         if (leaves.size() == 1) {
@@ -157,7 +157,7 @@ public class DataContainer {
 
         // Return the result of the merge
         MessageDataHeaderDto ret = d.merger.merge(mergeSet);
-        if (ret == null) throw new RuntimeException("Unable to get the merged header(#2).");
+        if (ret == null) throw new RuntimeException("Unable to getData the merged header(#2).");
         return ret;
     }
 

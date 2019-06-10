@@ -9,7 +9,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import java.util.UUID;
 
 /**
- * Interface used to get and set the encryption keys under a particular metadata context
+ * Interface used to getData and set the encryption keys under a particular metadata context
  * (This interface can be used to erase data for compliance or security reasons, e.g. GDPR)
  */
 public interface ISecurityCastleFactory {
@@ -28,7 +28,7 @@ public interface ISecurityCastleFactory {
      * @param partitionKey The partition that this secure key is related to
      * @param secret The secret key to be added
      * @param id Lookup identifier of the security boundary
-     * @param accessKeys List of the access keys that will be able to get the secret
+     * @param accessKeys List of the access keys that will be able to getData the secret
      */
     void putSecret(IPartitionKey partitionKey, UUID id, @Secret byte[] secret, Iterable<MessagePublicKeyDto> accessKeys);
 

@@ -266,7 +266,7 @@ public class DataRepository implements IAteIO {
         }
         d.debugLogging.logMerge(data, entity, LOG, false);
 
-        // Add it to the currentRights trust which makes sure that previous
+        // Add it to the request trust which makes sure that previous
         // records are accounted for during the validation steps
         requestTrust.put(data.getHeader().getIdOrThrow(), data);
     }

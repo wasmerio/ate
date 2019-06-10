@@ -89,8 +89,8 @@ public class ConcurrentQueue<E> extends AbstractQueue<E> implements BlockingQueu
      * entry to put (and offer), and has an associated condition for
      * waiting puts.  Similarly for the takeLock.  The "count" field
      * that they both rely on is maintained as an atomic to avoid
-     * needing to get both locks in most cases. Also, to minimize need
-     * for puts to get takeLock and vice-versa, cascading notifies are
+     * needing to getData both locks in most cases. Also, to minimize need
+     * for puts to getData takeLock and vice-versa, cascading notifies are
      * used. When a put notices that it has enabled at least one take,
      * it signals taker. That taker in turn signals others if more
      * items have been entered since the signal. And symmetrically for
@@ -102,7 +102,7 @@ public class ConcurrentQueue<E> extends AbstractQueue<E> implements BlockingQueu
      * Whenever an element is enqueued, the putLock is acquired and
      * count updated.  A subsequent reader guarantees visibility to the
      * enqueued Node by either acquiring the putLock (via fullyLock)
-     * or by acquiring the takeLock, and then reading n = count.get();
+     * or by acquiring the takeLock, and then reading n = count.getData();
      * this gives visibility to the first n items.
      *
      * To implement weakly consistent iterators, it appears we need to
@@ -810,7 +810,7 @@ public class ConcurrentQueue<E> extends AbstractQueue<E> implements BlockingQueu
         takeLock.lock();
         try {
             int n = Math.min(maxElements, count.get());
-            // count.get provides visibility to first n Nodes
+            // count.getData provides visibility to first n Nodes
             Node<E> h = head;
             int i = 0;
             try {

@@ -37,7 +37,7 @@ public class CurrentRightsDelegate implements IRights {
     public void init(@Observes NewAccessRightsEvent event)
     {
         // Remove any existing permissions we gains (if we still have the right
-        // to them then we will get another copy)
+        // to them then we will getData another copy)
         rightsReadCache = null;
         rightsWriteCache = null;
 
