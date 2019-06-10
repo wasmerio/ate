@@ -68,9 +68,9 @@ public class DebugLoggingDelegate {
             StringBuilder sb = new StringBuilder();
 
             if (later) {
-                sb.append("write_now:");
-            } else {
                 sb.append("write_later:");
+            } else {
+                sb.append("write_now:");
             }
 
             UUID id = header != null ? header.getId() : (entity != null ? entity.getId() : null);
