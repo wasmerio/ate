@@ -36,7 +36,7 @@ public class TransactionDetails extends BaseDao {
         CoinHelper helper = new CoinHelper();
         for (CoinShare share : shares) {
             this.shares.add(share.addressableId());
-            this.amount = this.amount.add(helper.valueOfShare(share));
+            this.amount = this.amount.add(helper.valueOfShare(share, false));
         }
         this.description = description;
     }

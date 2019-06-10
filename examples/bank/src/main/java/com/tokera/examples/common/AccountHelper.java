@@ -39,7 +39,7 @@ public class AccountHelper {
         for (CoinShare share : shares) {
             Coin coin = coinHelper.getCoinFromShare(share);
 
-            BigDecimal shareValue = coinHelper.valueOfShare(share);
+            BigDecimal shareValue = coinHelper.valueOfShare(share, true);
             balances.put(coin.type,
                     balances.getOrDefault(coin.type, BigDecimal.ZERO).add(shareValue));
         }

@@ -1,6 +1,7 @@
 package com.tokera.examples.common;
 
 import com.google.common.collect.Iterators;
+import com.google.common.collect.Lists;
 import com.tokera.ate.dao.IRoles;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.delegates.AteDelegate;
@@ -72,32 +73,58 @@ public class CoinHelper {
 
     /**
      * @return Returns the value of this share based on how much its divided up the original coin
+     * @param fullyOwned Flag that indicates the share must be fully owned by the current user for it to be considered of value
      */
-    public BigDecimal valueOfShare(CoinShare share) {
-        Coin coin = getCoinFromShare(share);
-        List<CoinShare> familyLine = buildFamilyLine(share);
-        Set<UUID> ids = familyLine.stream().map(s -> s.id).collect(Collectors.toSet());
+    public BigDecimal valueOfShare(CoinShare share, boolean fullyOwned) {
+        BaseDao parent = d.daoHelper.getParent(share);
+        if (parent instanceof CoinShare) {
+            CoinShare parentShare = (CoinShare) parent;
 
-        BigDecimal value = coin.value;
-        for (CoinShare node : familyLine) {
-            if (node.shares.size() <= 0) return value;
-            if (ids.contains(Iterators.getLast(node.shares.iterator()))) {
-                value = computeLastDivideAmount(value, node.shares.size());
+            // If the parent still has control of the parent share then any child shares have no real value
+            if (fullyOwned == true) {
+                if (share.trustInheritWrite == true) return BigDecimal.ZERO;
+                if (parentShare.trustAllowWrite.size() > 0) return BigDecimal.ZERO;
+                if (parentShare.trustInheritWrite == true) return BigDecimal.ZERO;
+            }
+
+            // If its not divided by anyone then it has no value
+            int sharePoolSize = parentShare.shares.size();
+            if (sharePoolSize <= 0) return BigDecimal.ZERO;
+            if (sharePoolSize == 1) return BigDecimal.ZERO;
+
+            // Obviously we have to be in the share list or we dont have any value in the coin
+            if (parentShare.shares.contains(share.id) == false) {
+                return BigDecimal.ZERO;
+            }
+
+            // Child shares get a semi equal share of the parent share
+            if (share.id.equals(Iterators.getLast(parentShare.shares.iterator()))) {
+                return computeLastDivideAmount(valueOfShare(parentShare, fullyOwned), sharePoolSize);
             } else {
-                value = computeDivideAmount(value, node.shares.size());
+                return computeDivideAmount(valueOfShare(parentShare, fullyOwned), sharePoolSize);
             }
         }
-        return value;
+        else if (parent instanceof Coin)
+        {
+            // The root share has a share of the entire coin to divide up
+            return ((Coin) parent).value;
+        }
+        else
+        {
+            // Orphaned shares have no value
+            return BigDecimal.ZERO;
+        }
     }
 
     /**
      * @return Returns the total value of all the shares supplied
+     * @param fullyOwned Flag that indicates the share must be fully owned by the current user for it to be considered of value
      */
-    public BigDecimal valueOfShares(Iterable<CoinShare> shares)
+    public BigDecimal valueOfShares(Iterable<CoinShare> shares, boolean fullyOwned)
     {
         BigDecimal ret = BigDecimal.ZERO;
         for (CoinShare share : shares) {
-            ret = ret.add(valueOfShare(share));
+            ret = ret.add(valueOfShare(share, fullyOwned));
         }
         return ret;
     }
@@ -188,10 +215,34 @@ public class CoinHelper {
     }
 
     /**
+     * Returns how deep the coin share is in levels
+     */
+    public int depthOfShare(CoinShare share) {
+        int depth = 0;
+        for (;;depth++) {
+            BaseDao parent = d.daoHelper.getParent(share);
+            if (parent instanceof CoinShare) {
+                share = (CoinShare)parent;
+                continue;
+            }
+            if (parent instanceof Coin) {
+                return depth;
+            }
+            throw new RuntimeException("This coin share is not attached to a valid coin.");
+        }
+    }
+
+    /**
      * Makes any of the parent shares unclaimable otherwise we could lose the rights to it
      */
     public void immutalizeParentShares(Iterable<CoinShare> shares)
     {
+        // Sort it into reverse order otherwise the immutalization will break the role
+        List<CoinShare> sorted = Lists.newArrayList(shares);
+        Map<CoinShare, Integer> depths = sorted.stream().collect(Collectors.toMap(c -> c, c -> depthOfShare(c)));
+        sorted.sort(Comparator.comparingInt(depths::get));
+
+        // Now cycle through each one and make it immutable
         for (CoinShare share : shares) {
             if (share.parent == null) continue;
             BaseDao parent = d.daoHelper.getParent(share);
@@ -219,7 +270,7 @@ public class CoinHelper {
             CoinShare share = processCoins.removeFirst();
 
             // If the share is small enough to be forked off then claim it otherwise we need to split the share
-            BigDecimal shareValue = this.valueOfShare(share);
+            BigDecimal shareValue = this.valueOfShare(share, false);
             if (shareValue.compareTo(remaining) <= 0) {
                 transferCoins.add(share);
 

@@ -42,8 +42,9 @@ public class AccountREST {
                 request.amount);
 
         // If there's still some remaining then we don't own enough of this asset to meet the desired amount
-        if (coinHelper.valueOfShares(transferShares).compareTo(request.amount) < 0) {
-            throw new WebApplicationException("Insufficient funds.", Response.Status.NOT_ACCEPTABLE);
+        BigDecimal transferSharesValue = coinHelper.valueOfShares(transferShares, false);
+        if (transferSharesValue.compareTo(request.amount) != 0) {
+            throw new WebApplicationException("Insufficient funds [found=" + transferSharesValue + ", needed=" + request.amount + "].", Response.Status.NOT_ACCEPTABLE);
         }
 
         // Force a merge as the tree structure must be in place before we attempt to immutalize it
@@ -57,7 +58,7 @@ public class AccountREST {
         d.io.mergeDeferredAndSync();
 
         // Immutalize the shares that need to be protected
-        coinHelper.immutalizeParentTokens(tokens);
+        //coinHelper.immutalizeParentTokens(tokens);
 
         // Return a transaction token that holds rights to all the shares that the received will be able to take over
         return new TransactionToken(
@@ -75,13 +76,11 @@ public class AccountREST {
         MessagePrivateKeyDto ownership = d.authorization.getOrCreateImplicitRightToWrite(acc);
 
         // Prepare aggregate counters
-        BigDecimal amount = BigDecimal.ZERO;
         List<CoinShare> shares = new ArrayList<CoinShare>();
 
         for (ShareToken shareToken : transactionToken.getShares()) {
             CoinShare share = d.io.get(shareToken.getShare(), CoinShare.class);
             shares.add(share);
-            amount = amount.add(coinHelper.valueOfShare(share));
 
             d.currentRights.impersonateWrite(shareToken.getOwnership());
 
