@@ -30,7 +30,7 @@ final class TrustValidatorBuilder {
     private LoggerHook LOG;
     private @Nullable Map<UUID, @Nullable MessageDataDto> requestTrust;
     private Consumer<Failure> onFailure = null;
-    private BiFunction<UUID, Boolean, DataContainer> onGetData = null;
+    private Function<UUID, DataContainer> onGetData = null;
     private Function<UUID, MessageDataHeaderDto> onGetRootOfTrust = null;
     private Function<String, MessagePublicKeyDto> onGetPublicKey = null;
 
@@ -64,7 +64,7 @@ final class TrustValidatorBuilder {
     /**
      * Callback thats invoked when the validator needs to lookup another record
      */
-    public TrustValidatorBuilder withGetDataCallback(BiFunction<UUID, Boolean, DataContainer> callback) {
+    public TrustValidatorBuilder withGetDataCallback(Function<UUID, DataContainer> callback) {
         this.onGetData = callback;
         return this;
     }
@@ -131,9 +131,9 @@ final class TrustValidatorBuilder {
     /**
      * Loads a data object of interest to this validator
      */
-    protected DataContainer getData(UUID id, boolean flush) {
+    protected DataContainer getData(UUID id) {
         if (onGetData != null) {
-            return onGetData.apply(id, flush);
+            return onGetData.apply(id);
         } else {
             throw new RuntimeException("ValidatorBasic attempted to load a data but no callback was supplied to load one.");
         }
@@ -209,7 +209,7 @@ final class TrustValidatorBuilder {
             if (requestTrust != null && requestTrust.containsKey(id)) {
                 this.existing = requestTrust.get(id);
             } else {
-                DataContainer existingMsg = getData(id, false);
+                DataContainer existingMsg = getData(id);
                 this.existing = existingMsg != null ? existingMsg.getLastDataOrNull() : null;
             }
         }
@@ -251,7 +251,7 @@ final class TrustValidatorBuilder {
 
                 parent = requestTrust != null ? MapTools.getOrNull(requestTrust, parentId) : null;
                 if (parent == null) {
-                    DataContainer parentMsg = getData(parentId, true);
+                    DataContainer parentMsg = getData(parentId);
                     parent = parentMsg != null ? parentMsg.getLastDataOrNull() : null;
                 }
 
@@ -422,7 +422,7 @@ final class TrustValidatorBuilder {
                     if (requestTrust != null && requestTrust.containsKey(leafParentId)) {
                         leaf = requestTrust.get(leafParentId);
                     } else {
-                        DataContainer leafMsg = getData(leafParentId, true);
+                        DataContainer leafMsg = getData(leafParentId);
                         leaf = leafMsg != null ? leafMsg.getLastDataOrNull() : null;
                     }
                 } else {

@@ -29,7 +29,6 @@ public class DataPartitionChain {
     
     private final IPartitionKey key;
     private final ConcurrentMap<UUID, MessageDataHeaderDto> rootOfTrust;
-    private final ConcurrentMap<UUID, ConcurrentQueue<MessageDataMetaDto>> chainOfPartialTrust;
     private final ConcurrentMap<UUID, DataContainer> chainOfTrust;
     private final ConcurrentMap<UUID, MessageSecurityCastleDto> castles;
     private final ConcurrentMap<String, MessagePublicKeyDto> publicKeys;
@@ -39,7 +38,6 @@ public class DataPartitionChain {
         this.key = key;
         this.rootOfTrust = new ConcurrentHashMap<>();
         this.chainOfTrust = new ConcurrentHashMap<>();
-        this.chainOfPartialTrust = new ConcurrentHashMap<>();
         this.publicKeys = new ConcurrentHashMap<>();
         this.castles = new ConcurrentHashMap<>();
         this.encryptor = Encryptor.getInstance();
@@ -176,19 +174,6 @@ public class DataPartitionChain {
             new LoggerHook(DataPartitionChain.class).warn(err);
         }
     }
-
-    @SuppressWarnings({"return.type.incompatible"})
-    private void reconcileChainEntry(UUID id) {
-        chainOfPartialTrust.computeIfPresent(id, (k, q) -> q.size() > 0 ? q : null);
-    }
-    
-    private void promoteChainEntry(UUID id, @Nullable LoggerHook LOG)
-    {
-        ConcurrentQueue<MessageDataMetaDto> queue = MapTools.getOrNull(chainOfPartialTrust, id);
-        if (queue == null) return;
-        queue.pollAndConsumeAll((m, l) -> promoteChainEntry(m, l), LOG);
-        reconcileChainEntry(id);
-    }
     
     public boolean promoteChainEntry(MessageDataMetaDto msg, @Nullable LoggerHook LOG) {
         MessageDataDto data = msg.getData();
@@ -222,10 +207,7 @@ public class DataPartitionChain {
                 .withLogger(LOG)
                 .withFailureCallback(f -> this.drop(f.LOG, f.data, f.why))
                 .withGetRootOfTrust(id -> this.getRootOfTrust(id))
-                .withGetDataCallback((id, flush) -> {
-                    if (flush) this.promoteChainEntry(id, LOG);
-                    return this.getData(id, LOG);
-                })
+                .withGetDataCallback(id -> this.getData(id, LOG))
                 .withGetPublicKeyCallback(hash -> this.getPublicKey(hash));
     }
     
@@ -247,21 +229,9 @@ public class DataPartitionChain {
             drop(LOG, data, meta, "missing header or digest", null);
             return false;
         }
-        
-        // Get the ID and process any existing values that already hold this
-        // slot so that the chain of trust grows as new values are added but
-        // without causing issues with breaks of the trust chain in the time
-        // dimensions
-        UUID id = header.getIdOrThrow();
-        
-        // Construct an index using the validated parameters
-        ConcurrentQueue<MessageDataMetaDto> queue = chainOfPartialTrust.computeIfAbsent(id, i -> new ConcurrentQueue<>());
-        queue.add(new MessageDataMetaDto(data, meta));
-        if (queue.size() > 100) {
-            this.promoteChainEntry(id, LOG);
-        }
-        
-        // Success
+
+        // Process it
+        this.promoteChainEntry(new MessageDataMetaDto(data, meta), LOG);
         return true;
     }
     
@@ -269,20 +239,6 @@ public class DataPartitionChain {
         Class<T> clazz = _clazz;
         String clazzName = clazz != null ? clazz.getName() : null;
 
-        List<UUID> partialIds = new ArrayList<>();
-        this.chainOfPartialTrust.forEach( (key, q) -> {
-            MessageDataMetaDto msg = q.peek();
-            if (msg == null) return;
-            MessageDataDto data = msg.getData();
-            if (clazzName == null || clazzName.equals(data.getHeader().getPayloadClazzOrThrow()) == true) {
-                partialIds.add(data.getHeader().getIdOrThrow());
-            }
-        });
-        
-        partialIds.forEach( (id) -> {
-            this.promoteChainEntry(id, LOG);
-        });
-        
         List<DataContainer> ret = new ArrayList<>();
         this.chainOfTrust.forEach( (key, a) -> {
             if (clazzName == null || clazzName.equals(a.getPayloadClazz())) {
@@ -321,7 +277,6 @@ public class DataPartitionChain {
     @SuppressWarnings({"return.type.incompatible", "argument.type.incompatible"})       // We want to return a null if the data does not exist and it must be atomic
     public @Nullable DataContainer getData(UUID id, @Nullable LoggerHook LOG)
     {
-        this.promoteChainEntry(id, LOG);
         return this.chainOfTrust.getOrDefault(id, null);
     }
 
