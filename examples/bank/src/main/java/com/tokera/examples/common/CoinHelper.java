@@ -237,22 +237,21 @@ public class CoinHelper {
      */
     public void immutalizeParentShares(Iterable<CoinShare> shares)
     {
-        // Sort it into reverse order otherwise the immutalization will break the role
-        List<CoinShare> sorted = Lists.newArrayList(shares);
-        //Map<CoinShare, Integer> depths = sorted.stream().collect(Collectors.toMap(c -> c, c -> -depthOfShare(c)));
-        //sorted.sort(Comparator.comparingInt(depths::get));
-
-        // Now cycle through each one and make it immutable
-        for (CoinShare share : sorted) {
-            if (share.parent == null) continue;
+        // Loop through all the shares we want to immutalize
+        for (CoinShare share : shares)
+        {
+            // Make all its parents immutable (if we have rights to write to them)
             BaseDao parent = d.daoHelper.getParent(share);
-            if (parent instanceof IRoles &&
-                d.authorization.canWrite(parent))
-            {
-                IRoles roles = (IRoles)parent;
-                roles.getTrustAllowWrite().clear();
-                roles.setTrustInheritWrite(false);
-                d.io.mergeLater(parent);
+            for (;parent instanceof CoinShare;) {
+                CoinShare parentShare = (CoinShare) parent;
+
+                if (d.authorization.canWrite(parent)) {
+                    parentShare.getTrustAllowWrite().clear();
+                    parentShare.setTrustInheritWrite(false);
+                    d.io.mergeLater(parentShare);
+                }
+
+                parent = d.daoHelper.getParent(parentShare);
             }
         }
     }
