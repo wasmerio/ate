@@ -4,14 +4,10 @@ import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.TokenDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.security.TokenBuilder;
-import com.tokera.examples.dao.Account;
-import com.tokera.examples.dao.Company;
-import com.tokera.examples.dao.Individual;
 import com.tokera.examples.dto.PasswordLoginRequest;
 import com.tokera.examples.dto.RootLoginRequest;
 
 import javax.annotation.security.PermitAll;
-import javax.enterprise.context.ApplicationScoped;
 import javax.enterprise.context.RequestScoped;
 import javax.ws.rs.Consumes;
 import javax.ws.rs.POST;
@@ -45,8 +41,8 @@ public class LoginREST {
     @Consumes({"text/yaml", MediaType.APPLICATION_JSON})
     @PermitAll
     public String passwordLogin(PasswordLoginRequest request) {
-        MessagePrivateKeyDto writeKey = AteDelegate.get().encryptor.genSignKeyFromSeedWithAlias(256, request.getPasswordHash(), request.getUsername());
-        MessagePrivateKeyDto readKey = AteDelegate.get().encryptor.genEncryptKeyFromSeedWithAlias(256, request.getPasswordHash(), request.getUsername());
+        MessagePrivateKeyDto writeKey = d.encryptor.genSignKeyFromSeedWithAlias(256, request.getPasswordHash(), request.getUsername());
+        MessagePrivateKeyDto readKey = d.encryptor.genEncryptKeyFromSeedWithAlias(256, request.getPasswordHash(), request.getUsername());
         return new TokenBuilder()
                 .withUsername(request.getUsername())
                 .addReadKey(readKey)
@@ -63,7 +59,7 @@ public class LoginREST {
     @PermitAll
     public String tokenLogin(String tokenXml) {
         TokenDto token = new TokenDto(tokenXml);
-        AteDelegate.get().currentToken.publishToken(token);
+        d.currentToken.publishToken(token);
         return token.getHash();
     }
 }

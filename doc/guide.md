@@ -13,6 +13,7 @@ ATE library reference guide
 1. [Maven](#maven) 
 2. [Bootstrap Application](#bootstrap-application)
 3. [Data Access Objects](#data-access-objects)
+4. [ATE common interface](#ate-common-interface)
 
 ## Maven
 
@@ -159,10 +160,7 @@ public class HelloWorldApp extends BootstrapApp {
         BootstrapConfig config = ApiServer.startWeld();
         config.setApplicationClass(MainApp.class);
         config.setDeploymentName("Example API");
-        config.setRestApiPath("/rs");
-        config.setPropertiesFile("example.configuration");
         config.setDomain("examples.tokera.com");
-        config.setPingCheckOnStart(true);
         ApiServer apiServer = ApiServer.startApiServer(config);
     }
 }
@@ -277,3 +275,55 @@ The following annotations and overrides are mandatory for a data object to be re
   of the data object within the database.
 - BaseDao.getParentId() - method must be implemented that returns the ID of the parent object that this
   particular object is attached to, this must correctly match the PermitParentType annotation.
+
+## ATE common interface
+
+The AteDelegate singleton is a convenient means for accessing multiple key delegates used to interact
+with the ATE library. References to the AteDelegate can be used for the duration of the application
+execution which you can acquire as follows:
+
+```java
+protected AteDelegate d = AteDelegate.get();
+```
+
+Using this reference you can execute scope specific functionality as needed, for instance to write
+a debug message using the generic logger you can write the following code:
+
+```java
+d.genericLogger.info("Something of interest!");
+```
+
+## Making a REST service
+
+Note: This section assumes that you are using the default bootstrap, Resteasy and Weld as an
+application framework for implementing your services.
+
+Creating services within Ate is as simple as defining a new class:
+
+```java
+@RequestScoped
+@Path("/login")
+public class LoginREST
+{
+    @POST
+    @Path("/root")
+    @Produces(MediaType.APPLICATION_XML)
+    @Consumes({"text/yaml", MediaType.APPLICATION_JSON})
+    @PermitAll
+    public String rootLogin(RootLoginRequest request) {
+        return new TokenBuilder()
+                .withUsername(request.getUsername())
+                .addReadKeys(request.getReadRights())
+                .addWriteKeys(request.getWriteRights())
+                .shouldPublish(true)
+                .build()
+                .getXmlToken();
+    }
+}
+```
+
+The example service above will bind to the "/login/root" path and accept POST HTTP calls to build
+and return a newly generated token.
+
+The PermitAll annotation tells ATE that it should allow calls without any built-in authentication
+and/or authorization checks, other annotations can be applied to add additional layers of authentication.
