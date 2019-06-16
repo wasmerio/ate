@@ -39,7 +39,7 @@ public class MemoryRequestCacheIO implements IAteIO
     public MemoryRequestCacheIO() {
     }
 
-    protected PartitionCache getTopicCache(IPartitionKey partitionKey) {
+    protected PartitionCache getPartitionCache(IPartitionKey partitionKey) {
         if (this.cache.containsKey(partitionKey) == true) {
             return this.cache.get(partitionKey);
         }
@@ -51,21 +51,21 @@ public class MemoryRequestCacheIO implements IAteIO
 
     @Override
     public boolean merge(BaseDao entity) {
-        PartitionCache c = this.getTopicCache(entity.partitionKey());
+        PartitionCache c = this.getPartitionCache(entity.partitionKey());
         c.entries.put(entity.getId(), entity);
         return true;
     }
 
     @Override
     public boolean merge(IPartitionKey partitionKey, MessagePublicKeyDto t) {
-        PartitionCache c = this.getTopicCache(partitionKey);
+        PartitionCache c = this.getPartitionCache(partitionKey);
         c.publicKeys.put(MessageSerializer.getKey(t), t);
         return true;
     }
 
     @Override
     public boolean merge(IPartitionKey partitionKey, MessageSecurityCastleDto t) {
-        PartitionCache c = this.getTopicCache(partitionKey);
+        PartitionCache c = this.getPartitionCache(partitionKey);
         c.castles.put(MessageSerializer.getKey(t), t);
         return true;
     }
@@ -87,7 +87,7 @@ public class MemoryRequestCacheIO implements IAteIO
 
     public <T extends BaseDao> boolean mergeMany(Iterable<T> entities) {
         for (BaseDao entity : entities) {
-            PartitionCache c = this.getTopicCache(entity.partitionKey());
+            PartitionCache c = this.getPartitionCache(entity.partitionKey());
             c.entries.put(entity.getId(), entity);
         }
         return true;
@@ -110,14 +110,14 @@ public class MemoryRequestCacheIO implements IAteIO
 
     @Override
     public boolean remove(PUUID id, Class<?> type) {
-        PartitionCache c = this.getTopicCache(id.partition());
+        PartitionCache c = this.getPartitionCache(id.partition());
         return c.entries.remove(id) != null;
     }
 
     @Override
     public void removeLater(BaseDao entity)
     {
-        PartitionCache c = this.getTopicCache(entity.partitionKey());
+        PartitionCache c = this.getPartitionCache(entity.partitionKey());
         c.entries.remove(entity.getId());
     }
 
@@ -135,7 +135,7 @@ public class MemoryRequestCacheIO implements IAteIO
     public boolean exists(@Nullable PUUID _id) {
         @DaoId PUUID id = _id;
         if (id == null) return false;
-        PartitionCache c = this.getTopicCache(id.partition());
+        PartitionCache c = this.getPartitionCache(id.partition());
         return c.entries.containsKey(id);
     }
 
@@ -173,7 +173,7 @@ public class MemoryRequestCacheIO implements IAteIO
 
     @Override
     public @Nullable BaseDao getOrNull(PUUID id) {
-        PartitionCache c = this.getTopicCache(id.partition());
+        PartitionCache c = this.getPartitionCache(id.partition());
         if (c.entries.containsKey(id.id()) == false) return null;
         BaseDao ret = c.entries.get(id.id());
         BaseDaoInternal.assertStillMutable(ret);
@@ -202,7 +202,7 @@ public class MemoryRequestCacheIO implements IAteIO
 
     @Override
     public Set<BaseDao> getAll(IPartitionKey partitionKey) {
-        PartitionCache c = this.getTopicCache(partitionKey);
+        PartitionCache c = this.getPartitionCache(partitionKey);
         return c.entries.values()
                 .stream()
                 .collect(Collectors.toSet());
@@ -211,7 +211,7 @@ public class MemoryRequestCacheIO implements IAteIO
     @SuppressWarnings({"unchecked"})
     @Override
     public <T extends BaseDao> Set<T> getAll(IPartitionKey partitionKey, Class<T> type) {
-        PartitionCache c = this.getTopicCache(partitionKey);
+        PartitionCache c = this.getPartitionCache(partitionKey);
         return c.entries.values()
                 .stream()
                 .filter(e -> e.getClass() == type)
@@ -245,7 +245,7 @@ public class MemoryRequestCacheIO implements IAteIO
 
     @Override
     public @Nullable MessagePublicKeyDto publicKeyOrNull(IPartitionKey partitionKey, @Hash String hash) {
-        PartitionCache c = this.getTopicCache(partitionKey);
+        PartitionCache c = this.getPartitionCache(partitionKey);
         if (c.publicKeys.containsKey(hash) == false) return null;
         return c.publicKeys.get(hash);
     }

@@ -5,6 +5,7 @@ import com.tokera.ate.common.MapTools;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.TokenDto;
 import com.tokera.ate.events.TokenScopeChangedEvent;
+import com.tokera.ate.io.api.IPartitionKey;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.annotation.PostConstruct;
@@ -158,8 +159,11 @@ public class AuthorityInterceptor implements ContainerRequestFilter, ContainerRe
 
         // If we dont have a partition set from the headers then we can
         // just use the one thats passed in the token
-        d.requestContext.pushPartitionKey(discovery.getPartitionKey());
-        inferredPartition++;
+        IPartitionKey partitionKey = discovery.getPartitionKey();
+        if (partitionKey != null) {
+            d.requestContext.pushPartitionKey(partitionKey);
+            inferredPartition++;
+        }
     }
 
     @Override
