@@ -91,7 +91,7 @@ public abstract class BaseDao implements Serializable, Immutalizable {
         return this._version != null;
     }
 
-    void assertStillMutable() {
+    protected void assertStillMutable() {
         assert _immutable == false;
     }
 
