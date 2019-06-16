@@ -17,10 +17,11 @@ import java.util.UUID;
  */
 public abstract class BaseDao implements Serializable, Immutalizable {
 
-    public transient @JsonIgnore @Nullable Set<UUID> mergesVersions = null;
-    public transient @JsonIgnore @Nullable UUID previousVersion = null;
-    public transient @JsonIgnore @Nullable UUID version = null;
-    protected transient @JsonIgnore boolean _immutable = false;
+    transient @JsonIgnore @Nullable Set<UUID> _mergesVersions = null;
+    transient @JsonIgnore @Nullable UUID _previousVersion = null;
+    transient @JsonIgnore @Nullable UUID _version = null;
+    transient @JsonIgnore boolean _immutable = false;
+    transient @JsonIgnore IPartitionKey _partitionKey = null;
 
     /**
      * @return Returns the unique primary key of this data entity within the
@@ -34,9 +35,19 @@ public abstract class BaseDao implements Serializable, Immutalizable {
      */
     @JsonIgnore
     public PUUID addressableId() {
-        IPartitionKey key = AteDelegate.get().io.partitionResolver().resolve(this);
-        UUID id = this.getId();
-        return new PUUID(key, id);
+        return new PUUID(this.partitionKey(), this.getId());
+    }
+
+    /**
+     * @return Returns the partition that this object belongs too based on its inheritance tree and the current
+     * partition key resolver
+     */
+    @JsonIgnore
+    public IPartitionKey partitionKey() {
+        IPartitionKey ret = _partitionKey;
+        if (ret != null) return ret;
+        ret = AteDelegate.get().io.partitionResolver().resolve(this);
+        return ret;
     }
     
     /**
@@ -71,24 +82,22 @@ public abstract class BaseDao implements Serializable, Immutalizable {
         return this.getClass().getSimpleName() + "[ id=" + getId().toString().substring(0, 8) + "... ]";
     }
 
-    public boolean hasSaved() {
-        return this.version != null;
-    }
-
     @Override
     public void immutalize() {
         this._immutable = true;
     }
 
-    public static void assertStillMutable(@Nullable BaseDao _entity) {
-        BaseDao entity = _entity;
-        if (entity == null) return;
-        assert entity._immutable == false;
+    boolean hasSaved() {
+        return this._version != null;
     }
 
-    public static void newVersion(BaseDao obj) {
-        UUID oldVerison = obj.version;
-        obj.version = UUID.randomUUID();
-        obj.previousVersion = oldVerison;
+    void assertStillMutable() {
+        assert _immutable == false;
+    }
+
+    void newVersion() {
+        UUID oldVerison = _version;
+        _version = UUID.randomUUID();
+        _previousVersion = oldVerison;
     }
 }

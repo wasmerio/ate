@@ -149,7 +149,7 @@ public class EffectivePermissionBuilder {
             }
         } else if (obj != null) {
             Class<?> type = obj.getClass();
-            IPartitionKey key = d.io.partitionResolver().resolve(obj);
+            IPartitionKey key = obj.partitionKey();
 
             // If it contains dynamic implicit authority
             Field field = MapTools.getOrNull(d.daoParents.getAllowedDynamicImplicitAuthority(), type);

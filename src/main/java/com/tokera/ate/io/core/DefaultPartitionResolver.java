@@ -113,7 +113,7 @@ public class DefaultPartitionResolver implements IPartitionResolver {
     @Override
     public IPartitionKey resolve(IRights obj) {
         if (obj instanceof BaseDao) {
-            return d.io.partitionResolver().resolve((BaseDao)obj);
+            return ((BaseDao) obj).partitionKey();
         }
         throw new RuntimeException("Unable to determine the partition key for this access rights object as it is not of the type BaseDao.");
     }

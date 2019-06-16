@@ -7,6 +7,7 @@ package com.tokera.ate.io.repo;
 
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.base.BaseDao;
+import com.tokera.ate.dao.base.BaseDaoInternal;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.EffectivePermissions;
 import com.tokera.ate.dto.msg.*;
@@ -165,15 +166,15 @@ public class DataContainer {
         AteDelegate d = AteDelegate.get();
         BaseDao ret = _ret;
         if (ret == null) return null;
-        IPartitionKey partitionKey = d.io.partitionResolver().resolve(ret);
+        IPartitionKey partitionKey = ret.partitionKey();
 
         // Reconcile the parent version pointers
         if (leaves.size() == 1) {
-            ret.previousVersion = leaves.getLast().version;
+            BaseDaoInternal.setPreviousVersion(ret, leaves.getLast().version);
         } else {
-            ret.previousVersion = null;
-            ret.version = UUID.randomUUID();
-            ret.mergesVersions = leaves.stream().map(n -> n.version).collect(Collectors.toSet());
+            BaseDaoInternal.setPreviousVersion(ret, null);
+            BaseDaoInternal.setVersion(ret, UUID.randomUUID());
+            BaseDaoInternal.setMergesVersions(ret, leaves.stream().map(n -> n.version).collect(Collectors.toSet()));
 
             // If a mergeThreeWay was performed and we have writability then we should save it down to reduce future merges and
             // so that log compaction doesnt lose data (Kafka compacting)

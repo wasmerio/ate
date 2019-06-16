@@ -3,6 +3,7 @@ package com.tokera.ate.io.layers;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
+import com.tokera.ate.dao.base.BaseDaoInternal;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.io.api.*;
@@ -219,6 +220,11 @@ public class HeadIO implements IAteIO
         return back.exists(PUUID.from(partitionKey, id));
     }
 
+    @EnsuresNonNullIf(expression="#1", result=true)
+    public boolean exists(IPartitionKey partitionKey, @DaoId UUID id) {
+        return back.exists(PUUID.from(partitionKey, id));
+    }
+
     @Override
     @EnsuresNonNullIf(expression="#1", result=true)
     public boolean exists(@Nullable PUUID id) {
@@ -294,7 +300,7 @@ public class HeadIO implements IAteIO
             if (ret.getClass() != type) {
                 throw new RuntimeException(type.getSimpleName() + " of the wrong type (id=" + id.print() + ", actual=" + ret.getClass().getSimpleName() + ", expected=" + type.getSimpleName() + ")");
             }
-            BaseDao.assertStillMutable(ret);
+            BaseDaoInternal.assertStillMutable(ret);
             return (T)ret;
         } catch (ClassCastException ex) {
             throw new RuntimeException(type.getSimpleName() + " of the wrong type (id=" + id.print() + ")", ex);

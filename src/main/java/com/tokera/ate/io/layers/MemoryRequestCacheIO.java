@@ -2,6 +2,7 @@ package com.tokera.ate.io.layers;
 
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
+import com.tokera.ate.dao.base.BaseDaoInternal;
 import com.tokera.ate.dao.kafka.MessageSerializer;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.*;
@@ -50,8 +51,7 @@ public class MemoryRequestCacheIO implements IAteIO
 
     @Override
     public boolean merge(BaseDao entity) {
-        IPartitionKey key = d.io.partitionResolver().resolve(entity);
-        PartitionCache c = this.getTopicCache(key);
+        PartitionCache c = this.getTopicCache(entity.partitionKey());
         c.entries.put(entity.getId(), entity);
         return true;
     }
@@ -87,8 +87,7 @@ public class MemoryRequestCacheIO implements IAteIO
 
     public <T extends BaseDao> boolean mergeMany(Iterable<T> entities) {
         for (BaseDao entity : entities) {
-            IPartitionKey key = d.io.partitionResolver().resolve(entity);
-            PartitionCache c = this.getTopicCache(key);
+            PartitionCache c = this.getTopicCache(entity.partitionKey());
             c.entries.put(entity.getId(), entity);
         }
         return true;
@@ -118,8 +117,7 @@ public class MemoryRequestCacheIO implements IAteIO
     @Override
     public void removeLater(BaseDao entity)
     {
-        IPartitionKey key = d.io.partitionResolver().resolve(entity);
-        PartitionCache c = this.getTopicCache(key);
+        PartitionCache c = this.getTopicCache(entity.partitionKey());
         c.entries.remove(entity.getId());
     }
 
@@ -167,7 +165,7 @@ public class MemoryRequestCacheIO implements IAteIO
         for (PartitionCache c : this.cache.values()) {
             if (c.entries.containsKey(id) == false) continue;
             BaseDao ret = c.entries.get(id);
-            BaseDao.assertStillMutable(ret);
+            BaseDaoInternal.assertStillMutable(ret);
             return ret;
         }
         return null;
@@ -178,7 +176,7 @@ public class MemoryRequestCacheIO implements IAteIO
         PartitionCache c = this.getTopicCache(id.partition());
         if (c.entries.containsKey(id.id()) == false) return null;
         BaseDao ret = c.entries.get(id.id());
-        BaseDao.assertStillMutable(ret);
+        BaseDaoInternal.assertStillMutable(ret);
         return ret;
     }
 

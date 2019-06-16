@@ -85,7 +85,7 @@ public class AuthorizationDelegate {
     public void ensureCanWrite(BaseDao obj)
     {
         if (canWrite(obj) == false) {
-            IPartitionKey partitionKey = d.io.partitionResolver().resolve(obj);
+            IPartitionKey partitionKey = obj.partitionKey();
             EffectivePermissions permissions = d.authorization.perms(obj);
             throw buildWriteException(partitionKey, obj.getId(), permissions, true);
         }
@@ -234,7 +234,7 @@ public class AuthorizationDelegate {
     }
 
     public EffectivePermissions perms(BaseDao obj) {
-        IPartitionKey partitionKey = d.io.partitionResolver().resolve(obj);
+        IPartitionKey partitionKey = obj.partitionKey();
         return new EffectivePermissionBuilder(partitionKey, obj.getId(), obj.getParentId())
                 .setUsePostMerged(true)
                 .withSuppliedObject(obj)
@@ -330,7 +330,7 @@ public class AuthorizationDelegate {
 
         // If its not in the chain-of-trust then add it
         BaseDao toObj = (BaseDao)to;
-        IPartitionKey partitionKey = d.io.partitionResolver().resolve(toObj);
+        IPartitionKey partitionKey = toObj.partitionKey();
         if (performMerge) {
             if (d.io.publicKeyOrNull(partitionKey, hash) == null) {
                 d.io.merge(partitionKey, new MessagePublicKeyDto(right));
@@ -432,7 +432,7 @@ public class AuthorizationDelegate {
 
         // If its not in the chain-of-trust then add it
         BaseDao toObj = (BaseDao)to;
-        IPartitionKey partitionKey = d.io.partitionResolver().resolve(toObj);
+        IPartitionKey partitionKey = toObj.partitionKey();
         if (performMerge == true) {
             if (d.io.publicKeyOrNull(partitionKey, hash) == null) {
                 d.io.merge(partitionKey, new MessagePublicKeyDto(right));

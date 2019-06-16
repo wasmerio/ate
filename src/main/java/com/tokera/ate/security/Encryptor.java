@@ -581,6 +581,10 @@ public class Encryptor implements Runnable
         return ret;
     }
 
+    public MessagePrivateKeyDto genSignKeyFromSeed(String seed) {
+        return this.genSignKeyFromSeed(config.getDefaultSigningStrength(), seed);
+    }
+
     public MessagePrivateKeyDto genSignKeyFromSeed(int keySize, String seed) {
         return genSignKeyFromSeedWithAlias(keySize, config.getDefaultSigningTypes(), seed, null);
     }
@@ -641,6 +645,11 @@ public class Encryptor implements Runnable
         }
         
         return genEncryptKeyNow(keysize, config.getDefaultEncryptTypes());
+    }
+
+    public MessagePrivateKeyDto genEncryptKeyWithAlias(@Nullable @Alias String alias)
+    {
+        return genEncryptKeyWithAlias(config.getDefaultEncryptionStrength(), alias);
     }
 
     public MessagePrivateKeyDto genEncryptKeyWithAlias(int keysize, @Nullable @Alias String _alias)

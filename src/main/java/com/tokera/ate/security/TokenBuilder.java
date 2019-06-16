@@ -102,7 +102,7 @@ public class TokenBuilder {
     }
 
     public TokenBuilder withPartitionkeyFromDao(BaseDao obj) {
-        IPartitionKey key = AteDelegate.get().io.partitionResolver().resolve(obj);
+        IPartitionKey key = obj.partitionKey();
         return withPartitionkey(key);
     }
 

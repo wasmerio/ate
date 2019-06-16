@@ -3,9 +3,8 @@ package com.tokera.ate.io.repo;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.tokera.ate.common.MapTools;
+import com.tokera.ate.dao.base.BaseDaoInternal;
 import com.tokera.ate.io.api.IPartitionKey;
-import com.tokera.ate.io.api.ISecurityCastleFactory;
-import com.tokera.ate.providers.PartitionKeySerializer;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.common.Immutalizable;
 import com.tokera.ate.common.LoggerHook;
@@ -19,7 +18,6 @@ import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.security.SecurityCastleContext;
 import com.tokera.ate.units.DaoId;
 import com.tokera.ate.units.Hash;
-import org.apache.commons.codec.binary.Base64;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.annotation.PostConstruct;
@@ -187,17 +185,17 @@ public class DataSerializer {
 
     private MessageDataHeaderDto buildHeaderForDataObject(BaseDao obj, UUID castleId)
     {
-        UUID version = obj.version;
+        UUID version = BaseDaoInternal.getVersion(obj);
         if (version == null) {
             version = UUID.randomUUID();
-            obj.version = version;
+            BaseDaoInternal.setVersion(obj, version);
         }
 
         MessageDataHeaderDto header = new MessageDataHeaderDto(
                 obj.getId(),
                 castleId,
                 version,
-                obj.previousVersion,
+                BaseDaoInternal.getPreviousVersion(obj),
                 obj.getClass());
 
         updateHeaderWithRolesForDataObject(obj, header);
@@ -208,7 +206,7 @@ public class DataSerializer {
             header.setParentId(parentId);
         }
 
-        Set<UUID> previousVersions = obj.mergesVersions;
+        Set<UUID> previousVersions = BaseDaoInternal.getMergesVersions(obj);
         if (previousVersions != null) {
             header.getMerges().copyFrom(previousVersions);
         }
@@ -220,7 +218,7 @@ public class DataSerializer {
     {
         // Build a header for a new version of the data object
         IPartitionKey partitionKey = kt.partitionKey();
-        BaseDao.newVersion(obj);
+        BaseDaoInternal.newVersion(obj);
 
         // Get the partition and declare a list of message that we will write to Kafka
         writePublicKeysForDataObject(obj, kt);
@@ -285,7 +283,7 @@ public class DataSerializer {
     }
 
     @SuppressWarnings({"unchecked"})
-    private <T extends BaseDao> @Nullable T lintDataObject(@Nullable T _orig, MessageDataDto msg) {
+    private <T extends BaseDao> @Nullable T lintDataObject(@Nullable T _orig, IPartitionKey partitionKey, MessageDataDto msg) {
         T orig = _orig;
         if (orig == null) return null;
 
@@ -294,9 +292,10 @@ public class DataSerializer {
         Object cloned = d.merger.cloneObject(orig);
         if (cloned == null) return null;
         T ret = (T)cloned;
-        ret.version = header.getVersionOrThrow();
-        ret.previousVersion = header.getPreviousVersion();
-        ret.mergesVersions = header.getMerges();
+        BaseDaoInternal.setPartitionKey(ret, partitionKey);
+        BaseDaoInternal.setVersion(ret, header.getVersionOrThrow());
+        BaseDaoInternal.setPreviousVersion(ret, header.getPreviousVersion());
+        BaseDaoInternal.setMergesVersions(ret, header.getMerges());
 
         Field implicitAuthorityField = d.daoParents.getAllowedDynamicImplicitAuthoritySimple().getOrDefault(header.getPayloadClazzOrThrow(), null);
         if (implicitAuthorityField != null) {
@@ -337,10 +336,10 @@ public class DataSerializer {
                 if (ret instanceof Immutalizable) ((Immutalizable)ret).immutalize();
                 return ret;
             });
-            return lintDataObject(orig, msg);
+            return lintDataObject(orig, partitionKey, msg);
         } catch (ExecutionException e) {
             BaseDao orig = readObjectFromDataMessageInternal(cacheKey, aesKey, msg);
-            return lintDataObject(orig, msg);
+            return lintDataObject(orig, partitionKey, msg);
         }
     }
 
