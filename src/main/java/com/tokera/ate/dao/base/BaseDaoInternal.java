@@ -12,6 +12,10 @@ import java.util.UUID;
  */
 public class BaseDaoInternal
 {
+    public static @Nullable IPartitionKey getPartitionKey(BaseDao obj) {
+        return obj._partitionKey;
+    }
+
     public static void setPartitionKey(BaseDao obj, IPartitionKey partitionKey) {
         obj._partitionKey = partitionKey;
     }

@@ -5,6 +5,7 @@ import com.google.common.cache.CacheBuilder;
 import com.tokera.ate.dao.IRights;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
+import com.tokera.ate.dao.base.BaseDaoInternal;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.api.IPartitionResolver;
@@ -34,8 +35,12 @@ public class DefaultPartitionResolver implements IPartitionResolver {
                 return (IPartitionKey) obj;
             }
 
+            // Check the object itself
+            IPartitionKey partitionKey = BaseDaoInternal.getPartitionKey(obj);
+            if (partitionKey != null) return partitionKey;
+
             // Maybe its already in the cache
-            IPartitionKey partitionKey = this.cache.getIfPresent(obj.getId());
+            partitionKey = this.cache.getIfPresent(obj.getId());
             if (partitionKey != null) return partitionKey;
 
             // Follow the chain-of-trust up to the root of the tree

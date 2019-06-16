@@ -21,7 +21,7 @@ public abstract class BaseDao implements Serializable, Immutalizable {
     transient @JsonIgnore @Nullable UUID _previousVersion = null;
     transient @JsonIgnore @Nullable UUID _version = null;
     transient @JsonIgnore boolean _immutable = false;
-    transient @JsonIgnore IPartitionKey _partitionKey = null;
+    transient @JsonIgnore @Nullable IPartitionKey _partitionKey = null;
 
     /**
      * @return Returns the unique primary key of this data entity within the
