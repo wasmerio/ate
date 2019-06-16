@@ -208,11 +208,12 @@ public class HeadIO implements IAteIO
     }
 
     @Override
-    public @Nullable MessagePublicKeyDto publicKeyOrNull(IPartitionKey partitionKey, @Hash String hash) {
+    public @Nullable MessagePublicKeyDto publicKeyOrNull(IPartitionKey partitionKey, @Nullable @Hash String _hash) {
+        @Hash String hash = _hash;
+        if (hash == null) return null;
         return back.publicKeyOrNull(partitionKey, hash);
     }
 
-    @EnsuresNonNullIf(expression="#1", result=true)
     public boolean exists(@Nullable @DaoId UUID _id) {
         @DaoId UUID id = _id;
         if (id == null) return false;

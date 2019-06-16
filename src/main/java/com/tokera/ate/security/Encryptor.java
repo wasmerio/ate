@@ -5,6 +5,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.tokera.ate.BootstrapConfig;
 import com.tokera.ate.dao.enumerations.KeyType;
+import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessageKeyPartDto;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.scopes.Startup;
@@ -893,7 +894,7 @@ public class Encryptor implements Runnable
         return this.decryptAes(encKey, encData);
     }
 
-    @SuppressWarnings("deprecation")
+    @SuppressWarnings({"deprecation", "known.nonnull"})
     public @Secret byte[] encrypt(MessagePublicKeyDto publicKey, @PlainText byte[] data)
     {
         if (validEncryptSizes.contains(data.length*8) == false) {
@@ -916,14 +917,17 @@ public class Encryptor implements Runnable
             throw new RuntimeException("Failed to encrypt the data has the public key is empty.");
         }
 
-        for (MessageKeyPartDto part : parts) {
+        for (MessageKeyPartDto part : parts)
+        {
+            @PEM byte[] keyBytes = part.getKeyBytes();
+            if (keyBytes == null) throw new RuntimeException("The public key is missing the binary data in one of its parts.");
 
             switch (part.getType()) {
                 case ntru:
-                    ret = encryptNtruWithPublic(part.getKeyBytes(), ret, part.getSize());
+                    ret = encryptNtruWithPublic(keyBytes, ret, part.getSize());
                     break;
                 case newhope:
-                    ret = encryptNewHopeWithPublic(part.getKeyBytes(), ret, part.getSize());
+                    ret = encryptNewHopeWithPublic(keyBytes, ret, part.getSize());
                     break;
                 default:
                     throw new RuntimeException("Unknown encryption crypto algorithm: " + part.getType());
@@ -933,7 +937,7 @@ public class Encryptor implements Runnable
         return ret;
     }
 
-    @SuppressWarnings("deprecation")
+    @SuppressWarnings({"deprecation", "known.nonnull"})
     public @PlainText byte[] decrypt(MessagePrivateKeyDto privateKey, @Secret byte[] data) throws IOException, InvalidCipherTextException
     {
         @PlainText byte[] ret = data;
@@ -944,12 +948,15 @@ public class Encryptor implements Runnable
         }
 
         for (MessageKeyPartDto part : Lists.reverse(parts)) {
+            @PEM byte[] keyBytes = part.getKeyBytes();
+            if (keyBytes == null) throw new RuntimeException("The private key is missing the binary data in one of its parts.");
+
             switch (part.getType()) {
                 case ntru:
-                    ret = decryptNtruWithPrivate(part.getKeyBytes(), ret, part.getSize());
+                    ret = decryptNtruWithPrivate(keyBytes, ret, part.getSize());
                     break;
                 case newhope:
-                    ret = decryptNewHopeWithPrivate(part.getKeyBytes(), ret, part.getSize());
+                    ret = decryptNewHopeWithPrivate(keyBytes, ret, part.getSize());
                     break;
                 default:
                     throw new RuntimeException("Unknown encryption crypto algorithm: " + part.getType());
@@ -1098,16 +1105,18 @@ public class Encryptor implements Runnable
     {
         List<@Signature byte[]> ret = new ArrayList<>();
         for (MessageKeyPartDto part : privateKey.getPrivateParts()) {
+            @PEM byte[] keyBytes = part.getKeyBytes();
+            if (keyBytes == null) throw new RuntimeException("The private key is missing the binary data in one of its parts.");
 
             switch (part.getType()) {
                 case qtesla:
-                    ret.add(signQTesla(part.getKeyBytes(), digest, part.getSize()));
+                    ret.add(signQTesla(keyBytes, digest, part.getSize()));
                     break;
                 case xmssmt:
-                    ret.add(signXmssMt(part.getKeyBytes(), digest));
+                    ret.add(signXmssMt(keyBytes, digest));
                     break;
                 case rainbow:
-                    ret.add(signRainbow(part.getKeyBytes(), digest));
+                    ret.add(signRainbow(keyBytes, digest));
                     break;
                 default:
                     throw new RuntimeException("Unknown signing crypto algorithm: " + part.getType());
@@ -1128,7 +1137,7 @@ public class Encryptor implements Runnable
         return baos.toByteArray();
     }
 
-    @SuppressWarnings("deprecation")
+    @SuppressWarnings({"deprecation", "known.nonnull"})
     public boolean verify(MessagePublicKeyDto publicKey, @Hash byte[] digest, @Signature byte[] sigs)
     {
         ByteBuffer bb = ByteBuffer.wrap(sigs);
@@ -1137,6 +1146,8 @@ public class Encryptor implements Runnable
         if (parts == null || parts.size() <= 0) return false;
 
         for (MessageKeyPartDto part : parts) {
+            @PEM byte[] keyBytes = part.getKeyBytes();
+            if (keyBytes == null) throw new RuntimeException("The public key is missing the binary data in one of its parts.");
 
             int len = bb.getInt();
             if (len <= 0 || len > bb.remaining()) {
@@ -1147,17 +1158,17 @@ public class Encryptor implements Runnable
 
             switch (part.getType()) {
                 case qtesla:
-                    if (verifyQTesla(part.getKeyBytes(), digest, partSig, part.getSize()) == false) {
+                    if (verifyQTesla(keyBytes, digest, partSig, part.getSize()) == false) {
                         return false;
                     }
                     break;
                 case xmssmt:
-                    if (verifyXmssMt(part.getKeyBytes(), digest, partSig) == false) {
+                    if (verifyXmssMt(keyBytes, digest, partSig) == false) {
                         return false;
                     }
                     break;
                 case rainbow:
-                    if (verifyRainbow(part.getKeyBytes(), digest, partSig) == false) {
+                    if (verifyRainbow(keyBytes, digest, partSig) == false) {
                         return false;
                     }
                     break;
@@ -1235,6 +1246,7 @@ public class Encryptor implements Runnable
         return hashShaAndEncode(Iterables.concat(Lists.newArrayList(seed), Iterables.concat(datas1, datas2)));
     }
 
+    @SuppressWarnings("known.nonnull")
     public @Hash String hashShaAndEncode(Iterable<@PlainText String> datas) {
         try {
             MessageDigest digest = (MessageDigest)this.sha256digest.clone();
@@ -1536,7 +1548,8 @@ public class Encryptor implements Runnable
         }
         return ret;
     }
-    
+
+    @SuppressWarnings("known.nonnull")
     public @Hash String getPublicKeyHash(MessagePrivateKey key)
     {
         MessagePublicKey publicKey = key.publicKey();
@@ -1545,7 +1558,8 @@ public class Encryptor implements Runnable
         }
         return this.getPublicKeyHash(publicKey);
     }
-    
+
+    @SuppressWarnings("known.nonnull")
     public @Alias String getAlias(MessagePrivateKey key)
     {
         MessagePublicKey publicKey = key.publicKey();
@@ -1579,6 +1593,7 @@ public class Encryptor implements Runnable
         return ret;
     }
 
+    @SuppressWarnings("known.nonnull")
     public MessagePublicKey getPublicKey(MessagePrivateKey key)
     {
         MessagePublicKey publicKey = key.publicKey();

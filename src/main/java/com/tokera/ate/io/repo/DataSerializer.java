@@ -105,6 +105,7 @@ public class DataSerializer {
         }
     }
 
+    @SuppressWarnings("known.nonnull")
     private void writePermissionPublicKeysForDataObject(EffectivePermissions permissions, DataPartition kt) {
         DataPartitionChain chain = kt.getChain();
 
@@ -183,6 +184,7 @@ public class DataSerializer {
         header.setImplicitAuthority(implicitAuthority);
     }
 
+    @SuppressWarnings("known.nonnull")
     private MessageDataHeaderDto buildHeaderForDataObject(BaseDao obj, UUID castleId)
     {
         UUID version = BaseDaoInternal.getVersion(obj);
@@ -297,7 +299,7 @@ public class DataSerializer {
         BaseDaoInternal.setPreviousVersion(ret, header.getPreviousVersion());
         BaseDaoInternal.setMergesVersions(ret, header.getMerges());
 
-        Field implicitAuthorityField = d.daoParents.getAllowedDynamicImplicitAuthoritySimple().getOrDefault(header.getPayloadClazzOrThrow(), null);
+        Field implicitAuthorityField = MapTools.getOrNull(d.daoParents.getAllowedDynamicImplicitAuthoritySimple(), header.getPayloadClazzOrThrow());
         if (implicitAuthorityField != null) {
             try {
                 implicitAuthorityField.set(ret, header.getImplicitAuthority().stream().findFirst().orElse(null));

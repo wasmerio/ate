@@ -21,7 +21,7 @@ public interface ISecurityCastleFactory {
      * @param accessKeys Access keys that can be used to retrieve the secret
      * @return The secret key or null if it can not be found
      */
-    @Nullable @Secret byte[] getSecret(IPartitionKey partitionKey, UUID id, Iterable<MessagePrivateKeyDto> accessKeys);
+    @Secret byte @Nullable [] getSecret(IPartitionKey partitionKey, UUID id, Iterable<MessagePrivateKeyDto> accessKeys);
 
     /**
      * Adds a secret key into the repository

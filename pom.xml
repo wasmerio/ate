@@ -76,11 +76,11 @@
                         <Xmaxerrs>10000</Xmaxerrs>
                         <Xmaxwarns>10000</Xmaxwarns>
                     </compilerArguments>
-                    <!--annotationProcessors>
-                        <annotationProcessor>
+                    <annotationProcessors>
+                        <!--annotationProcessor>
                             org.checkerframework.checker.nullness.NullnessChecker
-                        </annotationProcessor>
-                    </annotationProcessors-->
+                        </annotationProcessor-->
+                    </annotationProcessors>
                     <fork>true</fork>
                     <source>1.8</source>
                     <target>1.8</target>

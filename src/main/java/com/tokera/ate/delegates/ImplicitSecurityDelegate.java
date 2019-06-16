@@ -97,7 +97,7 @@ public class ImplicitSecurityDelegate {
         return enquireDomainKey(prefix, domain, shouldThrow, alias, null);
     }
 
-    public @Nullable MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, boolean shouldThrow, @Alias String alias, @Nullable IPartitionKey partitionKey)
+    public @Nullable MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, boolean shouldThrow, @Nullable @Alias String alias, @Nullable IPartitionKey partitionKey)
     {
         String domainStr = enquireDomainString(prefix + "." + domain, shouldThrow);
         if (domainStr == null) {
@@ -139,14 +139,16 @@ public class ImplicitSecurityDelegate {
         return generateDnsTxtRecord(key, d.requestContext.getPartitionKeyScopeOrNull());
     }
 
-    public String generateDnsTxtRecord(MessagePublicKeyDto key, @Nullable IPartitionKey partitionKey) {
+    public String generateDnsTxtRecord(MessagePublicKeyDto key, IPartitionKey partitionKey) {
         if (partitionKey == null) {
-            return key.getPublicKeyHash();
+            String ret = key.getPublicKeyHash();
+            if (ret == null) throw new RuntimeException("Failed to generate the DNS TXT record entry as the hash of the public key could not be generated.");
         }
         if (d.io.publicKeyOrNull(partitionKey, key.getPublicKeyHash()) == null) {
             d.io.merge(partitionKey, key);
         }
         String partitionKeyTxt = new PartitionKeySerializer().write(partitionKey);
+        assert partitionKeyTxt != null : "@AssumeAssertion(nullness): Must not be null";
         return Base64.encodeBase64URLSafeString(partitionKeyTxt.getBytes()) + ":" + key.getPublicKeyHash();
     }
 
@@ -173,7 +175,7 @@ public class ImplicitSecurityDelegate {
                     throw new WebApplicationException("Failed to lookup DNS record on [" + domain + "] - " + lookup.getErrorString());
                 }
                 this.LOG.debug("dns(" + domain + ")::" + lookup.getErrorString());
-                return null;
+                return new ArrayList<>();
             }
 
             List<String> ret = new ArrayList<>();
@@ -195,7 +197,7 @@ public class ImplicitSecurityDelegate {
                 throw new WebApplicationException(ex);
             }
             this.LOG.info("dns(" + domain + ")::" + ex.getMessage());
-            return null;
+            return new ArrayList<>();
         }
     }
     

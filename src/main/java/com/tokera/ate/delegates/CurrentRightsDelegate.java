@@ -99,6 +99,7 @@ public class CurrentRightsDelegate implements IRights {
         return token.getUserId();
     }
 
+    @SuppressWarnings("known.nonnull")
     @Override
     public Set<MessagePrivateKeyDto> getRightsRead() {
         if (this.rightsReadCache != null) {
@@ -136,6 +137,7 @@ public class CurrentRightsDelegate implements IRights {
         return ret;
     }
 
+    @SuppressWarnings("known.nonnull")
     @Override
     public Set<MessagePrivateKeyDto> getRightsWrite() {
         if (this.rightsWriteCache != null) {

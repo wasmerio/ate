@@ -69,7 +69,7 @@ public class YamlDelegate {
         m_config_no_marker.writeConfig.setExplicitEndDocument(false);
     }
 
-    @SuppressWarnings({"unchecked.method.invocation", "unchecked.conversion"})
+    @SuppressWarnings({"unchecked.method.invocation", "unchecked.conversion", "known.nonnull"})
     public static void initConfig(YamlConfig cfg, YamlTagDiscoveryExtension discovery)
     {
         for (Class<?> clazz : discovery.getYamlTagClasses()) {
@@ -96,6 +96,7 @@ public class YamlDelegate {
 
                     try {
                         Class<?> propClazz = prop.getPropertyType();
+                        if (propClazz == null) continue;
 
                         if (Collection.class.isAssignableFrom(propClazz) || Map.class.isAssignableFrom(propClazz)) {
                             ParameterizedType aType = (ParameterizedType)propType;

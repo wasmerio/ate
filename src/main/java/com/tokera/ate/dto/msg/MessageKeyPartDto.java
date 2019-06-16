@@ -251,7 +251,14 @@ public class MessageKeyPartDto extends MessageBaseDto implements Serializable, C
         }
         byte[] hash = null;
         for (MessageKeyPartDto part : parts) {
-            hash = Encryptor.hashShaStatic(hash, part.getKeyBytes());
+            @PEM byte[] keyBytes = part.getKeyBytes();
+            if (keyBytes == null) {
+                throw new RuntimeException("The key parts have missing data.");
+            }
+            hash = Encryptor.hashShaStatic(hash, keyBytes);
+        }
+        if (hash == null) {
+            throw new RuntimeException("The key has no parts to it.");
         }
         return Base64.encodeBase64URLSafeString(hash);
     }

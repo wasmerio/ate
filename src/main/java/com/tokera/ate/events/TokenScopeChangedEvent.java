@@ -3,13 +3,14 @@ package com.tokera.ate.events;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.TokenDto;
 import com.tokera.ate.io.api.IPartitionKey;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
  * Event thats triggered whenever the Token scope is entered
  */
 public class TokenScopeChangedEvent {
 
-    private IPartitionKey partitionKey;
+    private @Nullable IPartitionKey partitionKey;
 
     public TokenScopeChangedEvent(TokenDto token) {
         this.partitionKey = AteDelegate.get().io.tokenParser().extractPartitionKey(token);
@@ -19,11 +20,11 @@ public class TokenScopeChangedEvent {
         this.partitionKey = partitionKey;
     }
 
-    public IPartitionKey getPartitionKey() {
+    public @Nullable IPartitionKey getPartitionKey() {
         return this.partitionKey;
     }
 
-    public void setPartitionKey(IPartitionKey val) {
+    public void setPartitionKey(@Nullable IPartitionKey val) {
         this.partitionKey = val;
     }
 }

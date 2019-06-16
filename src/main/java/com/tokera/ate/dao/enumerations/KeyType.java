@@ -1,5 +1,7 @@
 package com.tokera.ate.dao.enumerations;
 
+import com.tokera.ate.common.MapTools;
+
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
@@ -31,6 +33,8 @@ public enum KeyType {
     public int getCode() { return this.code; }
 
     public static KeyType get(int code) {
-        return lookup.get(code);
+        KeyType ret = MapTools.getOrNull(lookup, code);
+        if (ret == null) throw new RuntimeException("Failed to map the value(" + code + ") to a valid KeyType.");
+        return ret;
     }
 }

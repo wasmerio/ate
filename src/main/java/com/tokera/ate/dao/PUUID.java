@@ -1,6 +1,5 @@
 package com.tokera.ate.dao;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.tokera.ate.annotations.YamlTag;
@@ -9,7 +8,6 @@ import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.providers.PartitionKeySerializer;
 import com.tokera.ate.providers.PuuidJsonDeserializer;
 import com.tokera.ate.providers.PuuidJsonSerializer;
-import com.tokera.ate.providers.PuuidSerializer;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.io.output.ByteArrayOutputStream;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -83,7 +81,9 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
         }
 
         @Override
-        public boolean equals(Object val) {
+        public boolean equals(@Nullable Object _val) {
+            Object val = _val;
+            if (val == null) return false;
             return PartitionKeySerializer.equals(this, val);
         }
     }
@@ -113,6 +113,7 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
         return this.id.compareTo(pid.id);
     }
 
+    @SuppressWarnings("known.nonnull")
     public int hashCode() {
         long hash = (this.partitionTopic() != null ? this.partitionTopic().hashCode() : 0) ^
                     Integer.hashCode(this.partitionIndex()) ^
@@ -120,7 +121,8 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
         return (int)(hash >> 32) ^ (int)hash;
     }
 
-    public boolean equals(Object other) {
+    public boolean equals(@Nullable Object _other) {
+        Object other = _other;
         if (null != other && other.getClass() == PUUID.class) {
             PUUID pid = (PUUID)other;
             return Objects.equals(this.partitionTopic(), pid.partitionTopic()) &&
@@ -136,6 +138,7 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
         return print();
     }
 
+    @SuppressWarnings("known.nonnull")
     public String serializer() {
         try {
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
@@ -186,28 +189,32 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
             if (comps.length == 3) {
                 return new PUUID(comps[0], Integer.parseInt(comps[1]), UUID.fromString(comps[2]));
             } else {
-                throw new RuntimeException("Failed to parse string [" + val + "] into PUUID.");
+                throw new RuntimeException("Failed to parse string [" + val + "] into PUUID as the separators(:) were missing or incomplete.");
             }
         }
 
         byte[] data = Base64.decodeBase64(val);
         ByteBuffer bb = ByteBuffer.wrap(data);
 
-        String topic = null;
+        String topic;
         int topicLen = bb.getShort();
         if (topicLen > 0) {
             byte[] topicBytes = new byte[topicLen];
             bb.get(topicBytes);
             topic = new String(topicBytes);
+        } else {
+            throw new RuntimeException("Failed to parse string [" + val + "] into PUUID as the topic name was missing or incomplete");
         }
 
         int index = bb.getInt();
 
         long mostSigBits = bb.getLong();
         long leastSigBits = bb.getLong();
-        UUID id = null;
+        UUID id;
         if (mostSigBits != 0 && leastSigBits != 0) {
             id = new UUID(mostSigBits, leastSigBits);
+        } else {
+            throw new RuntimeException("Failed to parse string [" + val + "] into PUUID as the id was missing or incomplete");
         }
 
         return new PUUID(

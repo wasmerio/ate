@@ -357,7 +357,9 @@ public class AuthorizationDelegate {
     }
 
     public void authorizeEntityPublicRead(IRoles to, boolean performMerge) {
-        to.getTrustAllowRead().put("public", d.encryptor.getTrustOfPublicRead().getPublicKeyHash());
+        @Hash String hash = d.encryptor.getTrustOfPublicRead().getPublicKeyHash();
+        assert hash != null : "@AssumeAssertion(nullness): Must not be null";
+        to.getTrustAllowRead().put("public", hash);
 
         if (performMerge) {
             d.io.mergeLater((BaseDao) to);
@@ -459,7 +461,9 @@ public class AuthorizationDelegate {
     }
 
     public void authorizeEntityPublicWrite(IRoles to, boolean performMerge) {
-        to.getTrustAllowWrite().put("public", d.encryptor.getTrustOfPublicWrite().getPublicKeyHash());
+        @Hash String hash = d.encryptor.getTrustOfPublicWrite().getPublicKeyHash();
+        assert hash != null : "@AssumeAssertion(nullness): Must not be null";
+        to.getTrustAllowWrite().put("public", hash);
 
         if (performMerge) {
             d.io.mergeLater((BaseDao) to);

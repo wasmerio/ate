@@ -36,7 +36,7 @@ public class SecurityCastleManager {
      * @return Hash that represents a unique set of read permissions
      */
     public String computePermissionsHash(EffectivePermissions permissions) {
-        return d.encryptor.hashShaAndEncode(null, permissions.rolesRead);
+        return d.encryptor.hashShaAndEncode(permissions.rolesRead);
     }
 
     /**
@@ -69,7 +69,7 @@ public class SecurityCastleManager {
 
         // Perhaps we can reuse a context that already exists in memory
         if (d.bootstrapConfig.getDefaultAutomaticKeyRotation() == false) {
-            SecurityCastleContext ret = localCastles.getOrDefault(hash, null);
+            SecurityCastleContext ret = MapTools.getOrNull(localCastles, hash);
             if (ret != null) return ret;
         }
 
@@ -98,7 +98,7 @@ public class SecurityCastleManager {
      * @param accessKeys List of private access keys that can be used to enter the castle
      * @return Reference to castle context that allows the decryption of data previously saved
      */
-    public SecurityCastleContext enterCastle(IPartitionKey partitionKey, UUID castleId, Iterable<MessagePrivateKeyDto> accessKeys)
+    public @Nullable SecurityCastleContext enterCastle(IPartitionKey partitionKey, UUID castleId, Iterable<MessagePrivateKeyDto> accessKeys)
     {
         SecurityCastleContext ret = MapTools.getOrNull(this.lookupCastles, castleId);
         if (ret != null) return ret;
