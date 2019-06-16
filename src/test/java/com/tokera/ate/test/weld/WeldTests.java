@@ -30,12 +30,12 @@ public class WeldTests {
             .activate(RequestScoped.class)
             .build();
 
-    @Test
+    //@Test
     public void zookeeper() {
         CDI.current().select(ZooServer.class).get().touch();
     }
 
-    @Test
+    //@Test
     public void kafka() {
         CDI.current().select(KafkaServer.class).get().touch();
     }
