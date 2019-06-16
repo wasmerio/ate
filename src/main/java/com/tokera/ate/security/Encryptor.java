@@ -709,6 +709,10 @@ public class Encryptor implements Runnable
         return genEncryptKeyFromSeedWithAlias(keySize, config.getDefaultEncryptTypes(), seed, null);
     }
 
+    public MessagePrivateKeyDto genEncryptKeyFromSeed(String seed) {
+        return genEncryptKeyFromSeedWithAlias(config.getDefaultEncryptionStrength(), config.getDefaultEncryptTypes(), seed, null);
+    }
+
     public MessagePrivateKeyDto genEncryptKeyFromSeedWithAlias(String seed, @Nullable @Alias String alias) {
         return genEncryptKeyFromSeedWithAlias(config.getDefaultEncryptionStrength(), config.getDefaultEncryptTypes(), seed, alias);
     }
