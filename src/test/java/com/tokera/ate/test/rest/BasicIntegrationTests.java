@@ -1,6 +1,7 @@
 package com.tokera.ate.test.rest;
 
 import com.tokera.ate.ApiServer;
+import com.tokera.ate.BootstrapApp;
 import com.tokera.ate.BootstrapConfig;
 import com.tokera.ate.client.RawClient;
 import com.tokera.ate.client.RawClientBuilder;
@@ -30,7 +31,7 @@ public class BasicIntegrationTests {
 		ApiServer.setPreventKafka(true);
 		//AuditInterceptor.setPreventObscuring(true);
 
-        BootstrapConfig config = ApiServer.startWeld(null);
+        BootstrapConfig config = ApiServer.startWeld(null, BootstrapApp.class);
         config.setPingCheckOnStart(false);
 
         ApiServer.startApiServer(config);

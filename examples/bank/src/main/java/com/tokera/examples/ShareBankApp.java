@@ -12,7 +12,7 @@ public class ShareBankApp extends BootstrapApp {
     public ShareBankApp() { }
 
     public static void main(String[] args) {
-        BootstrapConfig config = ApiServer.startWeld(args);
+        BootstrapConfig config = ApiServer.startWeld(args, ShareBankApp.class);
         config.setDeploymentName("ShareBank");
         config.setLoggingChainOfTrust(true);
         config.setLoggingWrites(true);

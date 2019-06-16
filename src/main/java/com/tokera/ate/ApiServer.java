@@ -112,7 +112,7 @@ public class ApiServer {
         return providers;
     }
 
-    public static BootstrapConfig startWeld(String @Nullable [] _args) {
+    public static <T extends BootstrapApp> BootstrapConfig startWeld(String @Nullable [] _args, Class<T> clazz) {
         ValidatorFactory validatorFactory = Validation.byProvider( HibernateValidator.class )
                 .configure()
                 .buildValidatorFactory();
@@ -120,7 +120,6 @@ public class ApiServer {
 
         Configuration<?> config = Validation.byDefaultProvider().configure();
         config.parameterNameProvider(config.getDefaultParameterNameProvider());
-        BootstrapConfiguration bootstrap = config.getBootstrapConfiguration();
 
         // Load the CDI extension
         Weld weld = new Weld();
@@ -152,6 +151,7 @@ public class ApiServer {
         if (args != null && args.length >= 1) {
             bootstrapConfig.setArguments(Arrays.asList(args));
         }
+        bootstrapConfig.setApplicationClass(clazz);
         return bootstrapConfig;
     }
 

@@ -20,7 +20,7 @@ public class TestREST {
     public void addText(String val) {
         MyTextDao text = new MyTextDao();
         text.text = val;
-        d.headIO.mergeLater(text);
+        d.io.mergeLater(text);
     }
 
     @GET
@@ -32,7 +32,7 @@ public class TestREST {
         StringBuilder sb = new StringBuilder();
         sb.append("hi\n");
 
-        for (MyTextDao text : d.headIO.getAll(MyTextDao.class)) {
+        for (MyTextDao text : d.io.getAll(MyTextDao.class)) {
             sb.append(text.text).append("\n");
         }
 

@@ -15,7 +15,7 @@ public class HelloWorldApp extends BootstrapApp {
     }
 
     public static void start(String[] args) {
-        BootstrapConfig config = ApiServer.startWeld(args);
+        BootstrapConfig config = ApiServer.startWeld(args, HelloWorldApp.class);
         config.setDeploymentName("HelloWorld API");
 
         ApiServer.startApiServer(config);
