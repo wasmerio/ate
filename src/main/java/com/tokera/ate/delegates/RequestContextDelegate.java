@@ -115,10 +115,11 @@ public class RequestContextDelegate {
      */
     public Iterable<IPartitionKey> getOtherPartitionKeys() {
         if (this.partitionKeyStack.empty()) return new LinkedList<>();
-        IPartitionKey curTopic = this.partitionKeyStack.peek();
+        IPartitionKey curKey = this.partitionKeyStack.peek();
+        if (curKey == null) return this.partitionKeyStack;
         return this.partitionKeyStack
                 .stream()
-                .filter(t -> t.equals(curTopic) == false)
+                .filter(t -> t.equals(curKey) == false)
                 .collect(Collectors.toList());
     }
 
