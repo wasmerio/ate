@@ -1644,7 +1644,7 @@ public class Encryptor implements Runnable
         return deserializePublicKey64WithAlias(data64, null);
     }
 
-    public MessagePublicKeyDto deserializePrivateKey64(String data64) {
+    public MessagePrivateKeyDto deserializePrivateKey64(String data64) {
         return deserializePrivateKey64WithAlias(data64, null);
     }
 
@@ -1653,7 +1653,7 @@ public class Encryptor implements Runnable
         return deserializePublicKeyWithAlias(data, alias);
     }
 
-    public MessagePublicKeyDto deserializePrivateKey64WithAlias(String data64, @Nullable @Alias String alias) {
+    public MessagePrivateKeyDto deserializePrivateKey64WithAlias(String data64, @Nullable @Alias String alias) {
         byte[] data = Base64.decodeBase64(data64);
         return deserializePrivateKeyWithAlias(data, alias);
     }
