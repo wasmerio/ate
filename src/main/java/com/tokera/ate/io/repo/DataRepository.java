@@ -306,7 +306,7 @@ public class DataRepository implements IAteIO {
                 // Now we wait for the bridge to synchronize
                 if (shouldWait) {
                     if (d.currentToken.getWithinTokenScope()) {
-                        d.transaction.add(bridge.startSync());
+                        d.transaction.add(partitionKey, bridge.startSync());
                     } else {
                         bridge.sync();
                     }

@@ -161,18 +161,13 @@ public class HeadIO implements IAteIO
 
     public void sync()
     {
-        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
-        back.sync(partitionKey);
+        for (IPartitionKey partitionKey : d.dataStagingManager.getTouchedPartitions()) {
+            back.sync(partitionKey);
+        }
     }
 
     @Override
     public void sync(IPartitionKey partitionKey) { back.sync(partitionKey); }
-
-    public boolean sync(MessageSyncDto sync)
-    {
-        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
-        return back.sync(partitionKey, sync);
-    }
 
     @Override
     public boolean sync(IPartitionKey partitionKey, MessageSyncDto sync) { return back.sync(partitionKey, sync); }

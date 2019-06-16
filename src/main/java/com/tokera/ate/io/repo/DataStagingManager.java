@@ -18,6 +18,7 @@ import java.util.stream.Collectors;
 @RequestScoped
 public class DataStagingManager {
     private final Map<IPartitionKey, PartitionContext> partitionMergeContexts = new TreeMap<>(new PartitionKeyComparator());
+    private final Set<IPartitionKey> touchedPartitions = new HashSet<>();
 
     public DataStagingManager() {
     }
@@ -58,6 +59,9 @@ public class DataStagingManager {
         if (context.toDelete.remove(id) != null) {
             context.toDeleteOrder.remove(id);
         }
+        if (touchedPartitions.contains(partitionKey) == false) {
+            touchedPartitions.add(partitionKey);
+        }
     }
 
     public void delete(IPartitionKey partitionKey, BaseDao obj) {
@@ -69,6 +73,9 @@ public class DataStagingManager {
         }
         if (context.toPut.remove(id) != null) {
             context.toPutOrder.remove(id);
+        }
+        if (touchedPartitions.contains(partitionKey) == false) {
+            touchedPartitions.add(partitionKey);
         }
     }
 
@@ -113,5 +120,9 @@ public class DataStagingManager {
         PartitionContext context = getPartitionMergeContext(partitionKey, false);
         if (context == null) return null;
         return context.toPut.getOrDefault(id, null);
+    }
+
+    public Set<IPartitionKey> getTouchedPartitions() {
+        return this.touchedPartitions;
     }
 }
