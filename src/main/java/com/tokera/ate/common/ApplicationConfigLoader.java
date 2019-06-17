@@ -6,14 +6,21 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.SecureRandom;
+import java.util.Collection;
 import java.util.Properties;
 
+import com.tokera.ate.delegates.AteDelegate;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.ws.rs.WebApplicationException;
-
+import java.util.ArrayList;
+import java.util.Enumeration;
+import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipException;
+import java.util.zip.ZipFile;
 
 /**
  * Class used to parse application configuration files and use these to override default settings
@@ -53,58 +60,82 @@ public class ApplicationConfigLoader {
         }
         return g_Singleton.currentVersion;
     }
-    
-    public @Nullable Properties getPropertiesByName(@Nullable String _name) {
 
-        String name = _name;
-        if (name == null) {
-            return null;
-        }
-        
-        Properties versionProps = new Properties();
+    public @Nullable Properties getPropertiesByName(@Nullable String name) {
+        InputStream input = getResourceByName(name);
         try {
-            FileInputStream input = null;
-            input = new FileInputStream(new File(name));
+            Properties versionProps = new Properties();
             versionProps.load(input);
-        } catch (FileNotFoundException e) {
-            InputStream input = null;
-            try {
-                ClassLoader loader = this.getClass().getClassLoader();
-                if (loader == null) {
-                    throw new WebApplicationException("No class loader found for this class.");
-                }
-                input = loader.getResourceAsStream(name);
-                if (input == null) {
-                    throw new FileNotFoundException("Could not find resource stream [" + name + "]");
-                }
-                versionProps.load(input);
-            } catch (FileNotFoundException ex) {
-                String msg = ex.getMessage();
-                if (msg == null) msg = ex.getClass().getSimpleName();
-                LOG.warn(msg, ex);
-                return null;
-            } catch (IOException ex) {
-                String msg = ex.getMessage();
-                if (msg == null) msg = ex.getClass().getSimpleName();
-                LOG.warn(msg, ex);
-                return null;
-            } finally {
-                try {
-                    if (input != null) {
-                        input.close();
-                    }
-                } catch (IOException ex) {
-                    String msg = ex.getMessage();
-                    if (msg == null) msg = ex.getClass().getSimpleName();
-                    LOG.warn(msg, ex);
-                }
-            }
+            return versionProps;
         } catch (IOException ex) {
             String msg = ex.getMessage();
             if (msg == null) msg = ex.getClass().getSimpleName();
             LOG.warn(msg, ex);
             return null;
+        } finally {
+            try {
+                if (input != null) {
+                    input.close();
+                }
+            } catch (IOException ex) {
+                String msg = ex.getMessage();
+                if (msg == null) msg = ex.getClass().getSimpleName();
+                LOG.warn(msg, ex);
+            }
         }
-        return versionProps;
+    }
+
+    public @Nullable InputStream getResourceByName(@Nullable String _name) {
+        String name = _name;
+        if (name == null) return null;
+
+        ClassLoader loader = AteDelegate.get().bootstrapConfig.getApplicationClass().getClassLoader();
+        InputStream ret = getResourceByNameInternal(loader, name);
+        if (ret != null) return ret;
+
+        loader = this.getClass().getClassLoader();
+        ret = getResourceByNameInternal(loader, name);
+        if (ret != null) return ret;
+
+        return getResourceByName(this.getClass().getClassLoader(), name, true);
+    }
+
+    private @Nullable InputStream getResourceByNameInternal(ClassLoader loader, String name) {
+        InputStream ret = getResourceByName(loader, name, false);
+        if (ret != null) return ret;
+        if (name.startsWith("/") == false) {
+            ret = getResourceByName(loader, "/" + name, false);
+            if (ret != null) return ret;
+        }
+        return null;
+    }
+    
+    public @Nullable InputStream getResourceByName(ClassLoader loader, @Nullable String _name, boolean shouldThrow) {
+        String name = _name;
+        if (name == null) return null;
+        
+        try {
+            return new FileInputStream(new File(name));
+        }
+        catch (FileNotFoundException e) {
+            InputStream input = null;
+            try {
+                if (loader == null) {
+                    if (shouldThrow == false) return null;
+                    throw new WebApplicationException("No class loader found for this class.");
+                }
+                input = loader.getResourceAsStream(name);
+                if (input == null) {
+                    if (shouldThrow == false) return null;
+                    throw new FileNotFoundException("Could not find resource stream [" + name + "]");
+                }
+                return input;
+            } catch (FileNotFoundException ex) {
+                String msg = ex.getMessage();
+                if (msg == null) msg = ex.getClass().getSimpleName();
+                LOG.warn(msg, ex);
+                return null;
+            }
+        }
     }
 }

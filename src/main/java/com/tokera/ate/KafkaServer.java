@@ -32,16 +32,16 @@ public class KafkaServer {
     private kafka.server.KafkaServer kafkaServer;
     private boolean shouldRun = true;
 
-    private static String getGenericBootstrap(String filename) {
+    private static String getGenericBootstrap(String propName) {
         AteDelegate d = AteDelegate.get();
 
         // Load the list of servers (bootstrap)
-        String bootstrap = BootstrapConfig.propertyOrThrow(d.bootstrapConfig.propertiesForAte(), filename);
+        String bootstrap = BootstrapConfig.propertyOrThrow(d.bootstrapConfig.propertiesForAte(), propName);
         Integer bootstrapPort = NetworkTools.extractPortFromBootstrapOrThrow(bootstrap);
 
         List<String> bootstrapServers = d.implicitSecurity.enquireDomainAddresses(bootstrap, true);
         if (bootstrapServers == null) {
-            throw new RuntimeException("Failed to find the " + filename + " list at " + bootstrap);
+            throw new RuntimeException("Failed to find the " + propName + " list at " + bootstrap);
         }
 
         // Build a list of all the servers we will connect to

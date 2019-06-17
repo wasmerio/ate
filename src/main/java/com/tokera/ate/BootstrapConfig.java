@@ -1,12 +1,9 @@
 package com.tokera.ate;
 
-import com.google.common.collect.Lists;
 import com.tokera.ate.common.ApplicationConfigLoader;
-import com.tokera.ate.configuration.AteConstants;
 import com.tokera.ate.dao.enumerations.KeyType;
 import com.tokera.ate.scopes.Startup;
 import javax.enterprise.context.ApplicationScoped;
-import javax.ws.rs.WebApplicationException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
@@ -20,7 +17,7 @@ public class BootstrapConfig {
     private String pingCheckUrl = "login/ping";
     private String implicitAuthorityAlias = "auth";
     private boolean pingCheckOnStart = false;
-    private String stsVaultFilename = "/token.signing.jks";
+    private String stsVaultFilename = "token.signing.jks";
     private String stsVaultPassword = "7E264A281750DBEA5F15269D47AF1003877426D5EF7F99C4E739E0C9942C58470F15E678C32FB99B";
     private String stsSigningKeyPassword = "F4257978B79904B78903AB62C3B9F7EBFF42FDC8ED1F66995584DCD4D9E27E1082563FE92D7078A4";
     private String stsCertificateAliasName = "sts";

@@ -12,6 +12,7 @@ import java.security.cert.X509Certificate;
 import javax.enterprise.inject.spi.CDI;
 import javax.ws.rs.WebApplicationException;
 
+import com.tokera.ate.common.ApplicationConfigLoader;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.filters.DefaultBootstrapInit;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
@@ -46,7 +47,7 @@ public class SignAssertion {
         try {
             AteDelegate d = AteDelegate.get();
             String where = d.bootstrapConfig.getStsVaultFilename();
-            try (InputStream fis = SignAssertion.class.getResourceAsStream(where)) {
+            try (InputStream fis = ApplicationConfigLoader.getInstance().getResourceByName(where)) {
                 char[] store_password = d.bootstrapConfig.getStsVaultPassword().toCharArray();
 
                 // Get Default Instance of KeyStore
