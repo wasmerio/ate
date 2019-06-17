@@ -14,8 +14,10 @@ import org.jboss.resteasy.plugins.providers.jackson.ResteasyJackson2Provider;
 
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.client.Entity;
+import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
 import java.security.InvalidParameterException;
+import java.util.Map;
 
 public class RawClientBuilder {
 
@@ -27,6 +29,7 @@ public class RawClientBuilder {
     private @Nullable String session;
     private @Nullable String loginViaRestPostPath;
     private @Nullable Entity<?> loginViaRestPostEntity;
+    private @Nullable MultivaluedMap<String, Object> loginViaRestPostQueryParams;
 
     public RawClientBuilder server(String server) {
         this.server = server;
@@ -61,13 +64,19 @@ public class RawClientBuilder {
         this.session = session;
         this.loginViaRestPostPath = null;
         this.loginViaRestPostEntity = null;
+        this.loginViaRestPostQueryParams = null;
         return this;
     }
 
     public RawClientBuilder withLoginPost(String path, Entity<?> entity) {
+        return withLoginPost(path, entity, null);
+    }
+
+    public RawClientBuilder withLoginPost(String path, Entity<?> entity, MultivaluedMap<String, Object> queryParams) {
         this.session = null;
         this.loginViaRestPostPath = path;
         this.loginViaRestPostEntity = entity;
+        this.loginViaRestPostQueryParams = queryParams;
         return this;
     }
 
@@ -113,7 +122,7 @@ public class RawClientBuilder {
             String url = urlBase + prefixForRest + loginViaRestPostPath;
 
             AteDelegate d = AteDelegate.get();
-            Response response = TestTools.restPost(null, url, loginViaRestPostEntity);
+            Response response = TestTools.restPost(null, url, loginViaRestPostEntity, loginViaRestPostQueryParams);
 
             String auth = response.getHeaderString("Authorization");
             d.genericLogger.info("auth:\n" + auth);

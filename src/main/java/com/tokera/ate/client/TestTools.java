@@ -10,6 +10,7 @@ import org.apache.commons.io.IOUtils;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.jboss.resteasy.client.jaxrs.ResteasyClient;
 import org.jboss.resteasy.client.jaxrs.ResteasyClientBuilder;
+import org.jboss.resteasy.client.jaxrs.ResteasyWebTarget;
 import org.jboss.resteasy.client.jaxrs.engines.ApacheHttpClient4Engine;
 import org.jboss.resteasy.plugins.providers.jackson.ResteasyJackson2Provider;
 import org.junit.jupiter.api.Assertions;
@@ -19,11 +20,13 @@ import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.client.Invocation;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class TestTools {
 
@@ -107,16 +110,25 @@ public class TestTools {
     }
 
     public static Response restPut(@Nullable String token, String url, Entity<?> entity) {
+        return restPut(token, url, entity, null);
+    }
+
+    public static Response restPut(@Nullable String token, String url, Entity<?> entity, @Nullable MultivaluedMap<String, Object> queryParams) {
         Response resp;
         ResteasyClient client = TestTools.buildResteasyClient();
         try {
-            Invocation.Builder target = client.target(url)
+            ResteasyWebTarget target = client.target(url);
+            if (queryParams != null) {
+                target = target.queryParams(queryParams);
+            }
+
+            Invocation.Builder builder = target
                     .request()
                     .accept(MediaType.WILDCARD_TYPE);
             if (token != null) {
-                target = target.header("Authorization", token);
+                builder = builder.header("Authorization", token);
             }
-            resp = target.put(entity);
+            resp = builder.put(entity);
 
         } catch (ClientErrorException e) {
             resp = e.getResponse();
@@ -154,16 +166,25 @@ public class TestTools {
     }
 
     public static Response restPost(@Nullable String token, String url, Entity<?> entity) {
+        return restPost(token, url, entity, null);
+    }
+
+    public static Response restPost(@Nullable String token, String url, Entity<?> entity, @Nullable MultivaluedMap<String, Object> queryParams) {
         Response resp;
         ResteasyClient client = TestTools.buildResteasyClient();
         try {
-            Invocation.Builder target = client.target(url)
+            ResteasyWebTarget target = client.target(url);
+            if (queryParams != null) {
+                target = target.queryParams(queryParams);
+            }
+
+            Invocation.Builder builder = target
                     .request()
                     .accept(MediaType.WILDCARD_TYPE);
             if (token != null) {
-                target = target.header("Authorization", token);
+                builder = builder.header("Authorization", token);
             }
-            resp = target.post(entity);
+            resp = builder.post(entity);
 
         } catch (ClientErrorException e) {
             resp = e.getResponse();
@@ -178,16 +199,25 @@ public class TestTools {
     }
 
     public static Response restGet(@Nullable String token, String url) {
+        return restGet(token, url, null);
+    }
+
+    public static Response restGet(@Nullable String token, String url, @Nullable MultivaluedMap<String, Object> queryParams) {
         Response resp;
         ResteasyClient client = TestTools.buildResteasyClient();
         try {
-            Invocation.Builder target = client.target(url)
+            ResteasyWebTarget target = client.target(url);
+            if (queryParams != null) {
+                target = target.queryParams(queryParams);
+            }
+
+            Invocation.Builder builder = target
                     .request()
                     .accept(MediaType.WILDCARD_TYPE);
             if (token != null) {
-                target = target.header("Authorization", token);
+                builder = builder.header("Authorization", token);
             }
-            resp = target.get();
+            resp = builder.get();
         } catch (ClientErrorException e) {
             resp = e.getResponse();
             resp.close();
@@ -201,16 +231,25 @@ public class TestTools {
     }
 
     public static @Nullable Response restGetOrNull(@Nullable String token, String url) {
+        return restGetOrNull(token, url, null);
+    }
+
+    public static @Nullable Response restGetOrNull(@Nullable String token, String url, @Nullable MultivaluedMap<String, Object> queryParams) {
         Response resp;
         ResteasyClient client = TestTools.buildResteasyClient();
         try {
-            Invocation.Builder target = client.target(url)
+            ResteasyWebTarget target = client.target(url);
+            if (queryParams != null) {
+                target = target.queryParams(queryParams);
+            }
+
+            Invocation.Builder builder = target
                     .request()
                     .accept(MediaType.WILDCARD_TYPE);
             if (token != null) {
-                target = target.header("Authorization", token);
+                builder = builder.header("Authorization", token);
             }
-            resp = target.get();
+            resp = builder.get();
         } catch (ClientErrorException e) {
             resp = e.getResponse();
             resp.close();
@@ -233,5 +272,36 @@ public class TestTools {
 
         System.out.println(d.yaml.serializeObj(ret));
         return ret;
+    }
+
+    public static void restDelete(@Nullable String token, String url) {
+        restDelete(token, url, null);
+    }
+
+    public static void restDelete(@Nullable String token, String url, @Nullable MultivaluedMap<String, Object> queryParams) {
+        Response resp;
+        ResteasyClient client = TestTools.buildResteasyClient();
+        try {
+            ResteasyWebTarget target = client.target(url);
+            if (queryParams != null) {
+                target = target.queryParams(queryParams);
+            }
+
+            Invocation.Builder builder = target
+                    .request()
+                    .accept(MediaType.WILDCARD_TYPE);
+            if (token != null) {
+                builder = builder.header("Authorization", token);
+            }
+            resp = builder.delete();
+        } catch (ClientErrorException e) {
+            resp = e.getResponse();
+            resp.close();
+
+            validateResponse(resp, url);
+            throw new WebApplicationException(e);
+        }
+
+        validateResponse(resp, url);
     }
 }

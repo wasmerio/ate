@@ -12,6 +12,7 @@ import org.jboss.resteasy.plugins.providers.jackson.ResteasyJackson2Provider;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.client.Invocation;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
 
 public class RawClient {
@@ -171,23 +172,55 @@ public class RawClient {
         return response.readEntity(String.class);
     }
 
+    private String buildUrl(String path) {
+        if (path.startsWith("/") == false && prefixForRest.endsWith("/") == false) {
+            return this.urlBase + prefixForRest + "/" + path;
+        } else {
+            return this.urlBase + prefixForRest + path;
+        }
+    }
+
     public <T> T restPut(String path, Entity<?> entity, Class<T> clazz) {
-        return TestTools.restPut(this.session, this.urlBase + prefixForRest + path, entity).readEntity(clazz);
+        return TestTools.restPut(this.session, buildUrl(path), entity).readEntity(clazz);
+    }
+
+    public <T> T restPut(String path, Entity<?> entity, Class<T> clazz, MultivaluedMap<String, Object> queryParams) {
+        return TestTools.restPut(this.session, buildUrl(path), entity, queryParams).readEntity(clazz);
     }
 
     public <T> T restPost(String path, Entity<?> entity, Class<T> clazz) {
-        return TestTools.restPost(this.session, this.urlBase + prefixForRest + path, entity).readEntity(clazz);
+        return TestTools.restPost(this.session, buildUrl(path), entity).readEntity(clazz);
+    }
+
+    public <T> T restPost(String path, Entity<?> entity, Class<T> clazz, MultivaluedMap<String, Object> queryParams) {
+        return TestTools.restPost(this.session, buildUrl(path), entity, queryParams).readEntity(clazz);
     }
 
     public <T> T restGet(String path, Class<T> clazz) {
-        return TestTools.restGet(this.session, this.urlBase + prefixForRest + path).readEntity(clazz);
+        return TestTools.restGet(this.session, buildUrl(path)).readEntity(clazz);
+    }
+
+    public <T> T restGet(String path, Class<T> clazz, MultivaluedMap<String, Object> queryParams) {
+        return TestTools.restGet(this.session, buildUrl(path), queryParams).readEntity(clazz);
+    }
+
+    public void restDelete(String path) {
+        TestTools.restDelete(this.session, buildUrl(path));
+    }
+
+    public void restDelete(String path, MultivaluedMap<String, Object> queryParams) {
+        TestTools.restDelete(this.session, buildUrl(path), queryParams);
     }
 
     public <T> @Nullable T restGetOrNull(String path, Class<T> clazz) {
-        Response resp = TestTools.restGetOrNull(this.session, this.urlBase + prefixForRest + path);
+        Response resp = TestTools.restGetOrNull(this.session, buildUrl(path));
         if (resp == null) return null;
         if (resp.getLength() <= 0) return null;
         return resp.readEntity(clazz);
+    }
+
+    public <T> T restGetAndOutput(String path, Class<T> clazz) {
+        return TestTools.restGetAndOutput(this.session, buildUrl(path), clazz);
     }
 
     public static RawClient createViaRestPost(String server, Integer port, String prefixForRest, String path, Entity<?> entity) {
