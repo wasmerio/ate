@@ -8,6 +8,7 @@ import com.tokera.ate.client.RawClientBuilder;
 import com.tokera.ate.client.TestTools;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
+import com.tokera.ate.enumerations.DefaultStorageSystem;
 import com.tokera.ate.test.dao.MyAccount;
 import com.tokera.ate.test.dto.NewAccountDto;
 import org.junit.jupiter.api.*;
@@ -32,6 +33,7 @@ public class BasicIntegrationTests {
 		//AuditInterceptor.setPreventObscuring(true);
 
         BootstrapConfig config = ApiServer.startWeld(null, BootstrapApp.class);
+        config.setDefaultStorageSystem(DefaultStorageSystem.LocalRam);
         config.setPingCheckOnStart(false);
 
         ApiServer.startApiServer(config);
@@ -39,11 +41,6 @@ public class BasicIntegrationTests {
 		AteDelegate d = AteDelegate.get();
 		d.init();
 		d.encryptor.touch();
-
-        // Build a storage system in memory for testing purposes
-        d.storageFactory.buildRamBackend()
-                .addCacheLayer()
-                .addAccessLoggerLayer();
 	}
 
     @Test

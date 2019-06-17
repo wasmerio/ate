@@ -163,9 +163,24 @@ public class ApiServer {
         loadEncryptorSettings(apiConfig);
 
         // Build the default storage subsystem
-        d.storageFactory.buildKafkaBackend()
+        switch (apiConfig.getDefaultStorageSystem()) {
+            case KafkaWithCache:
+                d.storageFactory.buildKafkaBackend()
                         .addCacheLayer()
                         .addAccessLoggerLayer();
+                break;
+            case Kafka:
+                d.storageFactory.buildKafkaBackend()
+                        .addAccessLoggerLayer();
+                break;
+            case LocalRam:
+                d.storageFactory.buildRamBackend()
+                        .addCacheLayer()
+                        .addAccessLoggerLayer();
+                break;
+            default:
+                throw new WebApplicationException("Unknown default storage system type [" + apiConfig.getDefaultStorageSystem() + "]");
+        }
         
         // Load the properties file
         Properties props = ApplicationConfigLoader.getInstance().getPropertiesByName(apiConfig.getPropertiesFileAte());
@@ -270,6 +285,8 @@ public class ApiServer {
                 }
             }
         }
+        d.init();
+        d.encryptor.touch();
 
         return apiServer;
     }

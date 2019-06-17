@@ -7,6 +7,7 @@ import com.tokera.ate.client.TestTools;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.TokenDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
+import com.tokera.ate.enumerations.DefaultStorageSystem;
 import com.tokera.examples.dao.Company;
 import com.tokera.examples.dao.Individual;
 import com.tokera.examples.dao.MonthlyActivity;
@@ -53,16 +54,7 @@ public class BankIntegrationTests {
         ApiServer.setPreventKafka(true);
         //AuditInterceptor.setPreventObscuring(true);
 
-        ShareBankApp.main(new String[0]);
-
-        AteDelegate d = AteDelegate.get();
-        d.init();
-        d.encryptor.touch();
-
-        // Build a storage system in memory for testing purposes
-        d.storageFactory.buildRamBackend()
-                .addCacheLayer()
-                .addAccessLoggerLayer();
+        ShareBankApp.run(new String[0], DefaultStorageSystem.LocalRam);
     }
 
     private RawClient createClient() {
