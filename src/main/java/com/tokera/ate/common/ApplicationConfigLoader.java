@@ -61,7 +61,10 @@ public class ApplicationConfigLoader {
         return g_Singleton.currentVersion;
     }
 
-    public @Nullable Properties getPropertiesByName(@Nullable String name) {
+    public @Nullable Properties getPropertiesByName(@Nullable String _name) {
+        String name = _name;
+        if (name == null) return null;
+
         InputStream input = getResourceByName(name);
         try {
             Properties versionProps = new Properties();
