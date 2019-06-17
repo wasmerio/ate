@@ -4,7 +4,7 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.Multimap;
 import com.tokera.ate.annotations.*;
 import com.tokera.ate.dao.IRoles;
-import com.tokera.ate.dao.base.BaseDao;
+import com.tokera.ate.dao.base.*;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.lang.annotation.Annotation;
@@ -15,9 +15,9 @@ import java.util.Map;
 import java.util.Set;
 import javax.enterprise.context.Dependent;
 import javax.enterprise.event.Observes;
-import javax.enterprise.inject.spi.Extension;
-import javax.enterprise.inject.spi.ProcessAnnotatedType;
-import javax.enterprise.inject.spi.WithAnnotations;
+import javax.enterprise.inject.spi.*;
+import javax.ws.rs.core.MultivaluedHashMap;
+import javax.ws.rs.core.MultivaluedMap;
 
 /**
  * Extension that will build a graph of allowed parent/child relationships for all data objects
@@ -30,6 +30,7 @@ public class DaoParentDiscoveryExtension implements Extension {
     private final HashSet<Class<?>> allowedParentFree = new HashSet<>();
     private final Multimap<Class<?>, Class<?>> allowedParents = HashMultimap.create();
     private final Multimap<Class<?>, Class<?>> allowedChildren = HashMultimap.create();
+    private final Multimap<Class<?>, Class<?>> dataObjectInherits = HashMultimap.create();
     private final Map<String, String> allowedImplicitAuthoritySimple = new HashMap<>();
     private final Map<String, Field> allowedDynamicImplicitAuthoritySimple = new HashMap<>();
     private final HashSet<String> allowedParentFreeSimple = new HashSet<>();
@@ -39,12 +40,33 @@ public class DaoParentDiscoveryExtension implements Extension {
 
     public DaoParentDiscoveryExtension() {
     }
+
+    void afterDeploymentValidation(@Observes AfterDeploymentValidation event, BeanManager manager)
+    {
+        flattenParentTypes();
+    }
+
+    private void flattenParentTypes() {
+        for (Class<?> baseClass : dataObjectInherits.keySet()) {
+            for (Class<?> parentType : dataObjectInherits.get(baseClass)) {
+                if (allowedChildren.containsKey(baseClass)) {
+                    for (Class<?> resource : allowedChildren.get(baseClass)) {
+                        allowedParents.put(resource, parentType);
+                        allowedChildren.put(parentType, resource);
+                        allowedParentsSimple.put(resource.getName(), parentType.getName());
+                        allowedChildrenSimple.put(parentType.getName(), resource.getName());
+                    }
+                }
+            }
+        }
+    }
     
     public void watchForPermitParentType(@Observes @WithAnnotations(PermitParentType.class) ProcessAnnotatedType processAnnotatedType) {
         Class<?> resource = processAnnotatedType.getAnnotatedType().getJavaClass();
         validateDaoObject(resource, false);
         watchForPermitParentType(resource);
         watchForImplicitAuthority(resource);
+        watchForInheritance(resource);
     }
 
     public void watchForPermitParentFree(@Observes @WithAnnotations(PermitParentFree.class) ProcessAnnotatedType processAnnotatedType) {
@@ -52,6 +74,25 @@ public class DaoParentDiscoveryExtension implements Extension {
         validateDaoObject(resource, true);
         watchForPermitParentFree(resource);
         watchForImplicitAuthority(resource);
+        watchForInheritance(resource);
+    }
+
+    public void watchForInheritance(Class<?> resource) {
+        Class<?> baseClass = resource;
+        for (;;) {
+            baseClass = baseClass.getSuperclass();
+            if (baseClass == null ||
+                    baseClass == Object.class ||
+                    baseClass == BaseDao.class ||
+                    baseClass == BaseDaoRoles.class ||
+                    baseClass == BaseDaoRolesRights.class ||
+                    baseClass == BaseDaoRights.class ||
+                    baseClass == BaseDaoParams.class)
+            {
+                break;
+            }
+            dataObjectInherits.put(baseClass, resource);
+        }
     }
     
     public void watchForPermitParentType(Class<?> resource) {
