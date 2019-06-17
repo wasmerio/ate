@@ -47,7 +47,7 @@ public class KafkaConfigTools {
                 break;
         }
         
-        Properties config = ApplicationConfigLoader.getInstance().getPropertiesByName(System.getProperty(topicRole));
+        Properties config = ApplicationConfigLoader.getInstance().getPropertiesByName(topicRole);
         if (config == null) config = new Properties();
         
         if (role == TopicRole.Consumer) {
@@ -69,7 +69,7 @@ public class KafkaConfigTools {
                 break;
         }
 
-        Properties entries = ApplicationConfigLoader.getInstance().getPropertiesByName(System.getProperty(topicType));
+        Properties entries = ApplicationConfigLoader.getInstance().getPropertiesByName(topicType);
         if (entries != null) {
             for (Map.Entry<Object, Object> pair : entries.entrySet()){
                 config.put(pair.getKey(), pair.getValue());

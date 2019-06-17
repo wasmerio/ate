@@ -442,7 +442,7 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
                 topicPropsName = d.bootstrapConfig.getPropertiesFileTopicPublish();
                 break;
         }
-        Properties topicProps = ApplicationConfigLoader.getInstance().getPropertiesByName(System.getProperty(topicPropsName));
+        Properties topicProps = ApplicationConfigLoader.getInstance().getPropertiesByName(topicPropsName);
         if (topicProps != null) {
             // Create the topic
             try {
