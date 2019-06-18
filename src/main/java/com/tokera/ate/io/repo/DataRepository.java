@@ -450,7 +450,7 @@ public class DataRepository implements IAteIO {
         DataContainer container = chain.getData(id.id(), LOG);
         if (container == null) return null;
 
-        return container.getMergedData();
+        return container.getMergedData(false);
     }
 
     @Override

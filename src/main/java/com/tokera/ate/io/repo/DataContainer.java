@@ -189,8 +189,12 @@ public class DataContainer {
         return ret;
     }
 
-    @SuppressWarnings("return.type.incompatible")
     public @Nullable BaseDao getMergedData() {
+        return getMergedData(true);
+    }
+
+    @SuppressWarnings("return.type.incompatible")
+    public @Nullable BaseDao getMergedData(boolean shouldThrow) {
         AteDelegate d = AteDelegate.get();
         BaseDao ret;
 
@@ -199,17 +203,16 @@ public class DataContainer {
 
         // If there is only one item then we are done
         if (leaves.size() == 1) {
-            return d.dataSerializer.fromDataMessage(this.partitionKey, leaves.get(0).msg, true);
+            return d.dataSerializer.fromDataMessage(this.partitionKey, leaves.get(0).msg, shouldThrow);
         }
 
         // Build a merge set of the headers for this
         Map<DataGraphNode, BaseDao> deserializeCache = new HashMap<>();
         List<MergePair<BaseDao>> mergeSet = leaves
                 .stream().map(n -> new MergePair<>(
-                        n.parentNode != null ? deserializeCache.computeIfAbsent(n.parentNode, v -> d.dataSerializer.fromDataMessage(this.partitionKey, v.msg, true)) : null,
-                        deserializeCache.computeIfAbsent(n, v -> d.dataSerializer.fromDataMessage(this.partitionKey, n.msg, true))))
+                        n.parentNode != null ? deserializeCache.computeIfAbsent(n.parentNode, v -> d.dataSerializer.fromDataMessage(this.partitionKey, v.msg, shouldThrow)) : null,
+                        deserializeCache.computeIfAbsent(n, v -> d.dataSerializer.fromDataMessage(this.partitionKey, n.msg, shouldThrow))))
                 .collect(Collectors.toList());
-        MergePair<BaseDao> last = mergeSet.get(mergeSet.size()-1);
 
         // Merge the actual merge of the data object
         ret = d.merger.merge(mergeSet);
