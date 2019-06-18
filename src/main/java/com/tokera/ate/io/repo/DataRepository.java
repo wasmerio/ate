@@ -454,6 +454,17 @@ public class DataRepository implements IAteIO {
     }
 
     @Override
+    public BaseDao getOrThrow(PUUID id) {
+        DataPartitionChain chain = this.subscriber.getChain(id.partition());
+        DataContainer container = chain.getData(id.id(), LOG);
+        if (container == null) {
+            throw new RuntimeException("Failed to find a data object of id [" + id + "]");
+        }
+
+        return container.getMergedData(true);
+    }
+
+    @Override
     public @Nullable DataContainer getRawOrNull(@Nullable PUUID id) {
         if (id == null) return null;
         DataPartitionChain chain = this.subscriber.getChain(id.partition());

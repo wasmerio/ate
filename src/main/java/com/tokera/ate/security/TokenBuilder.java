@@ -162,7 +162,7 @@ public class TokenBuilder {
                 TokenSecurity.addClaim(this.claims, TokenDto.SECURITY_CLAIM_USERNAME, this.username);
             }
             if (this.claims.containsKey(TokenDto.SECURITY_CLAIM_USER_ID) == false) {
-                UUID id = UUIDTools.generateUUID(this.username);
+                UUID id = UUIDTools.generateUUID("user://" + this.username);
                 TokenSecurity.addClaim(this.claims, TokenDto.SECURITY_CLAIM_USER_ID, id.toString());
             }
         }

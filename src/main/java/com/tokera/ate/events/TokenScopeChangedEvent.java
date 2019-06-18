@@ -10,9 +10,11 @@ import org.checkerframework.checker.nullness.qual.Nullable;
  */
 public class TokenScopeChangedEvent {
 
+    private TokenDto token;
     private @Nullable IPartitionKey partitionKey;
 
     public TokenScopeChangedEvent(TokenDto token) {
+        this.token = token;
         this.partitionKey = AteDelegate.get().io.tokenParser().extractPartitionKey(token);
     }
 
@@ -26,5 +28,13 @@ public class TokenScopeChangedEvent {
 
     public void setPartitionKey(@Nullable IPartitionKey val) {
         this.partitionKey = val;
+    }
+
+    public TokenDto getToken() {
+        return token;
+    }
+
+    public void setToken(TokenDto token) {
+        this.token = token;
     }
 }

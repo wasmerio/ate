@@ -59,8 +59,8 @@ public class CurrentTokenDelegate {
         }
         
         // Trigger the token scope entered flag
-        d.eventNewAccessRights.fire(new NewAccessRightsEvent());
         d.eventTokenChanged.fire(new TokenStateChangedEvent());
+        d.eventNewAccessRights.fire(new NewAccessRightsEvent());
     }
 
     /**

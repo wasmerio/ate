@@ -59,6 +59,8 @@ public interface IAteIO {
 
     @Nullable BaseDao getOrNull(PUUID id);
 
+    BaseDao getOrThrow(PUUID id);
+
     @Nullable DataContainer getRawOrNull(PUUID id);
     
     <T extends BaseDao> Iterable<MessageMetaDto> getHistory(PUUID id, Class<T> clazz);

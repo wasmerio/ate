@@ -232,21 +232,25 @@ public class EffectivePermissionBuilder {
                 }
                 parentId = obj.getParentId();
             }
-            else
-            {
-                DataContainer container = d.io.getRawOrNull(PUUID.from(this.partitionKey, id));
-                if (container != null) {
-                    MessageDataHeaderDto header = container.getMergedHeader();
 
-                    if (header.getInheritRead() == false) {
-                        inheritRead = false;
-                    }
-                    if (header.getInheritWrite() == false) {
-                        inheritWrite = false;
-                    }
+            DataContainer container = d.io.getRawOrNull(PUUID.from(this.partitionKey, id));
+            if (container != null) {
+                MessageDataHeaderDto header = container.getMergedHeader();
 
-                    parentId = header.getParentId();
+                if (inheritRead == true) {
+                    addRolesRead(ret, header.getAllowRead(), isParents);
                 }
+                if (inheritWrite == true) {
+                    addRolesWrite(ret, header.getAllowWrite(), isParents);
+                }
+                if (header.getInheritRead() == false) {
+                    inheritRead = false;
+                }
+                if (header.getInheritWrite() == false) {
+                    inheritWrite = false;
+                }
+
+                parentId = header.getParentId();
             }
 
             isParents = true;

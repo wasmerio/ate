@@ -155,6 +155,17 @@ final public class SplitIO implements IAteIO {
     }
 
     @Override
+    final public BaseDao getOrThrow(PUUID id) {
+        BaseDao ret = this.upper.getOrNull(id);
+        if (ret != null) return ret;
+
+        ret = lower.getOrThrow(id);
+
+        this.upper.mergeLaterWithoutValidation(ret);
+        return ret;
+    }
+
+    @Override
     final public <T extends BaseDao> List<T> getMany(IPartitionKey partitionKey, Iterable<@DaoId UUID> ids, Class<T> type) {
         List<T> first = upper.getMany(partitionKey, ids, type);
         if (first.size() == Iterables.size(ids)) {

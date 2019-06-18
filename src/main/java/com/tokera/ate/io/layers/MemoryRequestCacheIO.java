@@ -181,6 +181,17 @@ public class MemoryRequestCacheIO implements IAteIO
     }
 
     @Override
+    public BaseDao getOrThrow(PUUID id) {
+        PartitionCache c = this.getPartitionCache(id.partition());
+        if (c.entries.containsKey(id.id()) == false) {
+            throw new RuntimeException("Failed to find a data object of id [" + id + "]");
+        }
+        BaseDao ret = c.entries.get(id.id());
+        BaseDaoInternal.assertStillMutable(ret);
+        return ret;
+    }
+
+    @Override
     public @Nullable DataContainer getRawOrNull(PUUID id) {
         return null;
     }

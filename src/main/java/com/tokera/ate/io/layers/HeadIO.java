@@ -281,6 +281,11 @@ public class HeadIO implements IAteIO
         return back.getOrNull(id);
     }
 
+    @Override
+    public BaseDao getOrThrow(PUUID id) {
+        return back.getOrThrow(id);
+    }
+
     public <T extends BaseDao> T get(@DaoId UUID id, Class<T> type) {
         IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
         return this.get(PUUID.from(partitionKey, id), type);

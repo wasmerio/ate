@@ -167,6 +167,11 @@ public class PassThroughIO implements IAteIO
     }
 
     @Override
+    public BaseDao getOrThrow(PUUID id) {
+        return next.getOrThrow(id);
+    }
+
+    @Override
     public @Nullable DataContainer getRawOrNull(PUUID id) { return next.getRawOrNull(id); }
     
     @Override
