@@ -1,6 +1,7 @@
 package com.tokera.ate.delegates;
 
 import com.tokera.ate.dao.PUUID;
+import com.tokera.ate.events.RightsValidationEvent;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.common.LoggerHook;
@@ -177,51 +178,53 @@ public class AuthorizationDelegate {
         sb.append(" > castle: ");
         if (castleId != null) {
             sb.append(castleId).append("\n");
-
-            boolean hasNeeds = false;
-            for (String publicKeyHash : permissions.rolesRead) {
-
-                if (hasNeeds == false) {
-                    sb.append(" > needs: ");
-                } else {
-                    sb.append(" >        ");
-                }
-
-                MessagePublicKeyDto roleKey = d.io.publicKeyOrNull(partitionKey, publicKeyHash);
-                @Hash String roleKeyAlias = roleKey != null ? d.encryptor.getAlias(partitionKey, roleKey) : publicKeyHash;
-                sb.append(roleKeyAlias).append(" - ").append(publicKeyHash).append("]");
-                if (this.d.securityCastleManager.hasEncryptKey(partitionKey, castleId, publicKeyHash)) {
-                    sb.append(" [record found]");
-                } else {
-                    sb.append(" [record missing!!]");
-                }
-                sb.append("\n");
-                hasNeeds = true;
-            }
-            if (hasNeeds == false) {
-                sb.append(" > needs: [no read roles exist!]\n");
-            }
-
-            boolean hasOwns = false;
-            Set<MessagePrivateKeyDto> rights = this.d.currentRights.getRightsRead();
-            for (MessagePrivateKeyDto privateKey : rights) {
-                if (hasOwns == false) {
-                    sb.append(" > roles: ");
-                } else {
-                    sb.append(" >        ");
-                }
-
-                String privateKeyPublicHash = d.encryptor.getPublicKeyHash(privateKey);
-                sb.append(d.encryptor.getAlias(partitionKey, privateKey)).append(" - ").append(privateKeyPublicHash);
-                sb.append("\n");
-                hasOwns = true;
-            }
-
-            if (hasOwns == false) {
-                sb.append(" > roles: [no access rights]\n");
-            }
         } else {
-            sb.append("[missing!!]");
+            sb.append("[missing!!]\n");
+        }
+
+        boolean hasNeeds = false;
+        for (String publicKeyHash : permissions.rolesRead) {
+
+            if (hasNeeds == false) {
+                sb.append(" > needs: ");
+            } else {
+                sb.append(" >        ");
+            }
+
+            MessagePublicKeyDto roleKey = d.io.publicKeyOrNull(partitionKey, publicKeyHash);
+            @Hash String roleKeyAlias = roleKey != null ? d.encryptor.getAlias(partitionKey, roleKey) : publicKeyHash;
+            sb.append(roleKeyAlias).append(" - ").append(publicKeyHash).append("]");
+            if (castleId == null) {
+                sb.append(" [castle missing]");
+            } else if (this.d.securityCastleManager.hasEncryptKey(partitionKey, castleId, publicKeyHash)) {
+                sb.append(" [record found]");
+            } else {
+                sb.append(" [record missing!!]");
+            }
+            sb.append("\n");
+            hasNeeds = true;
+        }
+        if (hasNeeds == false) {
+            sb.append(" > needs: [no read roles exist!]\n");
+        }
+
+        boolean hasOwns = false;
+        Set<MessagePrivateKeyDto> rights = this.d.currentRights.getRightsRead();
+        for (MessagePrivateKeyDto privateKey : rights) {
+            if (hasOwns == false) {
+                sb.append(" > roles: ");
+            } else {
+                sb.append(" >        ");
+            }
+
+            String privateKeyPublicHash = d.encryptor.getPublicKeyHash(privateKey);
+            sb.append(d.encryptor.getAlias(partitionKey, privateKey)).append(" - ").append(privateKeyPublicHash);
+            sb.append("\n");
+            hasOwns = true;
+        }
+
+        if (hasOwns == false) {
+            sb.append(" > roles: [no access rights]\n");
         }
 
         // Throw an exception which we will write to the stack
@@ -314,8 +317,9 @@ public class AuthorizationDelegate {
         TokenDto token = d.currentToken.getTokenOrNull();
         if (token != null && entity.getId().equals(token.getUserIdOrNull())) {
             d.eventTokenScopeChanged.fire(new TokenScopeChangedEvent(token));
-            d.eventNewAccessRights.fire(new NewAccessRightsEvent());
             d.eventTokenChanged.fire(new TokenStateChangedEvent());
+            d.eventNewAccessRights.fire(new NewAccessRightsEvent());
+            d.eventRightsValidation.fire(new RightsValidationEvent());
         }
 
         entity.onAddRight(to);
@@ -420,6 +424,7 @@ public class AuthorizationDelegate {
             d.eventTokenScopeChanged.fire(new TokenScopeChangedEvent(token));
             d.eventNewAccessRights.fire(new NewAccessRightsEvent());
             d.eventTokenChanged.fire(new TokenStateChangedEvent());
+            d.eventRightsValidation.fire(new RightsValidationEvent());
         }
 
         entity.onAddRight(to);

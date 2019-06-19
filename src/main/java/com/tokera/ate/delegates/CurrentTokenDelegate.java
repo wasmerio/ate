@@ -7,10 +7,7 @@ import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.enumerations.RiskRole;
 import com.tokera.ate.dao.enumerations.UserRole;
 import com.tokera.ate.dto.EffectivePermissions;
-import com.tokera.ate.events.NewAccessRightsEvent;
-import com.tokera.ate.events.TokenDiscoveryEvent;
-import com.tokera.ate.events.TokenScopeChangedEvent;
-import com.tokera.ate.events.TokenStateChangedEvent;
+import com.tokera.ate.events.*;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.scopes.TokenScoped;
 import com.tokera.ate.units.DaoId;
@@ -61,6 +58,7 @@ public class CurrentTokenDelegate {
         // Trigger the token scope entered flag
         d.eventTokenChanged.fire(new TokenStateChangedEvent());
         d.eventNewAccessRights.fire(new NewAccessRightsEvent());
+        d.eventRightsValidation.fire(new RightsValidationEvent());
     }
 
     /**
@@ -99,7 +97,7 @@ public class CurrentTokenDelegate {
     /**
      * Event that is triggered whenever the token state has changed (fired after the TokenDiscoveryEvent)
      */
-    public void tokenChanged(@Observes TokenStateChangedEvent event)
+    public void tokenChanged(@Observes RightsValidationEvent event)
     {
         validate();
     }
@@ -346,7 +344,8 @@ public class CurrentTokenDelegate {
 
         // Trigger the token scope entered flag
         d.eventTokenScopeChanged.fire(new TokenScopeChangedEvent(token));
-        d.eventNewAccessRights.fire(new NewAccessRightsEvent());
         d.eventTokenChanged.fire(new TokenStateChangedEvent());
+        d.eventNewAccessRights.fire(new NewAccessRightsEvent());
+        d.eventRightsValidation.fire(new RightsValidationEvent());
     }
 }
