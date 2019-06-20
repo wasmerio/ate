@@ -31,6 +31,7 @@ public class EffectivePermissionBuilder {
     private @DaoId UUID origId;
     private @Nullable @DaoId UUID origParentId;
     private boolean usePostMerged = true;
+    private boolean allowSavingOfChildren = true;
     private final @Nullable Map<UUID, BaseDao> suppliedObjects = new HashMap<>();
 
     public EffectivePermissionBuilder(PUUID id, @Nullable @DaoId UUID parentId) {
@@ -47,6 +48,11 @@ public class EffectivePermissionBuilder {
 
     public EffectivePermissionBuilder setUsePostMerged(boolean val) {
         this.usePostMerged = val;
+        return this;
+    }
+
+    public EffectivePermissionBuilder setAllowSavingOfChildren(boolean val) {
+        this.allowSavingOfChildren = val;
         return this;
     }
 
@@ -81,7 +87,7 @@ public class EffectivePermissionBuilder {
     public @Nullable BaseDao findDataObj(UUID id) {
         BaseDao obj = MapTools.getOrNull(this.suppliedObjects, id);
         if (obj == null) obj = d.dataStagingManager.find(this.partitionKey, id);
-        if (obj == null) obj = d.io.getOrNull(PUUID.from(this.partitionKey, id));
+        if (obj == null) obj = d.io.getOrNull(PUUID.from(this.partitionKey, id), false);
         return obj;
     }
 

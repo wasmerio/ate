@@ -156,8 +156,8 @@ final public class BackendIO implements IAteIO {
     }
 
     @Override
-    public @Nullable BaseDao getOrNull(PUUID id) {
-        return next.getOrNull(id);
+    public @Nullable BaseDao getOrNull(PUUID id, boolean shouldSave) {
+        return next.getOrNull(id, shouldSave);
     }
 
     @Override

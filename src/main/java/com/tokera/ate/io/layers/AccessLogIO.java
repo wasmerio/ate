@@ -192,8 +192,8 @@ final public class AccessLogIO implements IAteIO {
     }
 
     @Override
-    public @Nullable BaseDao getOrNull(PUUID id) {
-        BaseDao ret = next.getOrNull(id);
+    public @Nullable BaseDao getOrNull(PUUID id, boolean shouldSave) {
+        BaseDao ret = next.getOrNull(id, shouldSave);
         if (ret != null) {
             this.onRead(id.id(), ret.getClass());
         }

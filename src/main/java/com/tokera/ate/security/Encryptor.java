@@ -767,17 +767,46 @@ public class Encryptor implements Runnable
     }
 
     private NTRUEncryptionKeyGenerationParameters getNtruEncryptParamtersForKeySize(int keySize) {
+        NTRUEncryptionKeyGenerationParameters orig;
         switch (keySize) {
             case 512:
             case 256:
-                return NTRUEncryptionKeyGenerationParameters.APR2011_743;
+                orig = NTRUEncryptionKeyGenerationParameters.APR2011_743;
+                break;
             case 192:
-                return NTRUEncryptionKeyGenerationParameters.APR2011_743_FAST;
+                orig = NTRUEncryptionKeyGenerationParameters.APR2011_743_FAST;
+                break;
             case 128:
-                return NTRUEncryptionKeyGenerationParameters.APR2011_439;
+                orig = NTRUEncryptionKeyGenerationParameters.APR2011_439;
+                break;
             default:
                 throw new RuntimeException("Unknown NTRU key size(" + keySize + ")");
         }
+
+        int N = orig.N;
+        int q = orig.q;
+        int df = orig.df;
+        int dm0 = orig.dm0;
+        int db = orig.db;
+        int c = orig.c;
+        int minCallsR = orig.minCallsR;
+        int minCallsMask = orig.minCallsMask;
+        boolean hashSeed = orig.hashSeed;
+        byte[] oid = orig.oid;
+        boolean sparse = orig.sparse;
+        boolean fastFp = orig.fastFp;
+
+        String digestName = orig.hashAlg.getAlgorithmName();
+        Digest digest;
+        if ("SHA-512".equals(digestName)) {
+            digest = new SHA512Digest();
+        } else if ("SHA-256".equals(digestName))  {
+            digest = new SHA256Digest();
+        } else {
+            throw new RuntimeException("Unknown digest size");
+        }
+
+        return new NTRUEncryptionKeyGenerationParameters(N, q, df, dm0, db, c ,minCallsR, minCallsMask, hashSeed, oid, sparse, fastFp, digest);
     }
     
     public KeyPairBytes genEncryptKeyNtruNow(int keySize, IRandomFactory randomFactory)

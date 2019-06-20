@@ -441,7 +441,7 @@ public class DataRepository implements IAteIO {
     }
 
     @Override
-    public @Nullable BaseDao getOrNull(@Nullable PUUID _id) {
+    public @Nullable BaseDao getOrNull(@Nullable PUUID _id, boolean shouldSave) {
         PUUID id = _id;
         if (id == null) return null;
 
@@ -450,7 +450,7 @@ public class DataRepository implements IAteIO {
         DataContainer container = chain.getData(id.id(), LOG);
         if (container == null) return null;
 
-        return container.getMergedData(false);
+        return container.getMergedData(false, shouldSave);
     }
 
     @Override
@@ -461,7 +461,7 @@ public class DataRepository implements IAteIO {
             throw new RuntimeException("Failed to find a data object of id [" + id + "]");
         }
 
-        return container.getMergedData(true);
+        return container.getMergedData(true, true);
     }
 
     @Override

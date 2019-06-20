@@ -162,7 +162,7 @@ public class DataContainer {
         return ret;
     }
 
-    private static @Nullable BaseDao reconcileMergedData(@Nullable BaseDao _ret, LinkedList<DataGraphNode> leaves) {
+    private static @Nullable BaseDao reconcileMergedData(@Nullable BaseDao _ret, LinkedList<DataGraphNode> leaves, boolean shouldSave) {
         AteDelegate d = AteDelegate.get();
         BaseDao ret = _ret;
         if (ret == null) return null;
@@ -180,7 +180,7 @@ public class DataContainer {
             // so that log compaction doesnt lose data (Kafka compacting)
             if (leaves.size() > 1) {
                 EffectivePermissions perms = d.authorization.perms(partitionKey, ret.getId(), ret.getParentId(), false);
-                if (perms.canWrite(d.currentRights)) {
+                if (shouldSave && perms.canWrite(d.currentRights)) {
                     d.io.mergeAsyncWithoutValidation(ret);
                 }
             }
@@ -190,11 +190,11 @@ public class DataContainer {
     }
 
     public @Nullable BaseDao getMergedData() {
-        return getMergedData(true);
+        return getMergedData(true, true);
     }
 
     @SuppressWarnings("return.type.incompatible")
-    public @Nullable BaseDao getMergedData(boolean shouldThrow) {
+    public @Nullable BaseDao getMergedData(boolean shouldThrow, boolean shouldSave) {
         AteDelegate d = AteDelegate.get();
         BaseDao ret;
 
@@ -216,6 +216,6 @@ public class DataContainer {
 
         // Merge the actual merge of the data object
         ret = d.merger.merge(mergeSet);
-        return reconcileMergedData(ret, leaves);
+        return reconcileMergedData(ret, leaves, shouldSave);
     }
 }

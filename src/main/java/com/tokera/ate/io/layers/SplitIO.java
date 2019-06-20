@@ -142,11 +142,11 @@ final public class SplitIO implements IAteIO {
     }
 
     @Override
-    final public @Nullable BaseDao getOrNull(PUUID id) {
-        BaseDao ret = this.upper.getOrNull(id);
+    final public @Nullable BaseDao getOrNull(PUUID id, boolean shouldSave) {
+        BaseDao ret = this.upper.getOrNull(id, shouldSave);
         if (ret != null) return ret;
 
-        ret = lower.getOrNull(id);
+        ret = lower.getOrNull(id, shouldSave);
 
         if (ret != null) {
             this.upper.mergeLaterWithoutValidation(ret);
@@ -156,7 +156,7 @@ final public class SplitIO implements IAteIO {
 
     @Override
     final public BaseDao getOrThrow(PUUID id) {
-        BaseDao ret = this.upper.getOrNull(id);
+        BaseDao ret = this.upper.getOrNull(id, true);
         if (ret != null) return ret;
 
         ret = lower.getOrThrow(id);

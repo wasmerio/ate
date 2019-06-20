@@ -172,7 +172,7 @@ public class MemoryRequestCacheIO implements IAteIO
     }
 
     @Override
-    public @Nullable BaseDao getOrNull(PUUID id) {
+    public @Nullable BaseDao getOrNull(PUUID id, boolean shouldSave) {
         PartitionCache c = this.getPartitionCache(id.partition());
         if (c.entries.containsKey(id.id()) == false) return null;
         BaseDao ret = c.entries.get(id.id());
@@ -245,7 +245,7 @@ public class MemoryRequestCacheIO implements IAteIO
     public <T extends BaseDao> List<T> getMany(IPartitionKey partitionKey, Iterable<@DaoId UUID> ids, Class<T> type) {
         List<T> ret = new LinkedList<>();
         for (UUID id : ids) {
-            @Nullable BaseDao entity = this.getOrNull(PUUID.from(partitionKey, id));
+            @Nullable BaseDao entity = this.getOrNull(PUUID.from(partitionKey, id), true);
             if (entity == null) continue;
             if (entity.getClass() == type) {
                 ret.add((T)entity);

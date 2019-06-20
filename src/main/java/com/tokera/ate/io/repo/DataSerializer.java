@@ -228,6 +228,7 @@ public class DataSerializer {
         // Get the effective permissions for a object
         EffectivePermissions permissions = new EffectivePermissionBuilder(partitionKey, obj.getId(), obj.getParentId())
                 .setUsePostMerged(true)
+                .setAllowSavingOfChildren(allowSavingOfChildren)
                 .build();
 
         // Generate an encryption key for this data object

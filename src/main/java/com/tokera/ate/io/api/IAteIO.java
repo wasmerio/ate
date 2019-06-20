@@ -57,7 +57,7 @@ public interface IAteIO {
 
     @Nullable MessageDataHeaderDto getRootOfTrust(PUUID id);
 
-    @Nullable BaseDao getOrNull(PUUID id);
+    @Nullable BaseDao getOrNull(PUUID id, boolean shouldSave);
 
     BaseDao getOrThrow(PUUID id);
 

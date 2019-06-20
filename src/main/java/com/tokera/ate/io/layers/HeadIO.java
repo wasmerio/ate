@@ -273,12 +273,15 @@ public class HeadIO implements IAteIO
 
     public @Nullable BaseDao getOrNull(@DaoId UUID id) {
         IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
-        return back.getOrNull(PUUID.from(partitionKey, id));
+        return back.getOrNull(PUUID.from(partitionKey, id), true);
     }
 
-    @Override
     public @Nullable BaseDao getOrNull(PUUID id) {
-        return back.getOrNull(id);
+        return back.getOrNull(id, true);
+    }
+
+    public @Nullable BaseDao getOrNull(PUUID id, boolean shouldSave) {
+        return back.getOrNull(id, shouldSave);
     }
 
     @Override
@@ -294,7 +297,7 @@ public class HeadIO implements IAteIO
     @SuppressWarnings({"unchecked"})
     public <T extends BaseDao> T get(PUUID id, Class<T> type) {
         try {
-            BaseDao ret = back.getOrNull(id);
+            BaseDao ret = back.getOrNull(id, true);
             if (ret == null) {
                 throw new RuntimeException(type.getSimpleName() + " not found (id=" + id.print() + ")");
             }
@@ -314,7 +317,7 @@ public class HeadIO implements IAteIO
     }
 
     protected BaseDao get(PUUID id) {
-        BaseDao ret = back.getOrNull(id);
+        BaseDao ret = back.getOrNull(id, true);
         if (ret == null) {
             throw new RuntimeException("Object data (id=" + id.print() + ") not found");
         }
