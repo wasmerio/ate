@@ -54,6 +54,14 @@
 
     <dependencies>
 
+        <!-- https://mvnrepository.com/artifact/org.apache.httpcomponents/httpclient -->
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
+            <version>4.5.9</version>
+        </dependency>
+
+
         <!-- Compile and shift-left related dependencies -->
         <dependency>
             <groupId>org.checkerframework</groupId>
