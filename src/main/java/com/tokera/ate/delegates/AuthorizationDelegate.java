@@ -334,15 +334,21 @@ public class AuthorizationDelegate {
 
         // If its not in the chain-of-trust then add it
         BaseDao toObj = (BaseDao)to;
-        IPartitionKey partitionKey = toObj.partitionKey();
         if (performMerge) {
+            IPartitionKey partitionKey = toObj.partitionKey();
             if (d.io.publicKeyOrNull(partitionKey, hash) == null) {
                 d.io.merge(partitionKey, new MessagePublicKeyDto(right));
             }
         }
 
         // Add it to the roles list (if its not already there)
-        String alias = d.encryptor.getAlias(partitionKey, right);
+        String alias;
+        if (performMerge) {
+            IPartitionKey partitionKey = toObj.partitionKey();
+            alias = d.encryptor.getAlias(partitionKey, right);
+        } else {
+            alias = right.getAlias();
+        }
         if (to.getTrustAllowRead().containsKey(alias)) {
             String rightHash = to.getTrustAllowRead().get(alias);
             if (hash.equals(rightHash)) {
@@ -439,22 +445,28 @@ public class AuthorizationDelegate {
 
         // If its not in the chain-of-trust then add it
         BaseDao toObj = (BaseDao)to;
-        IPartitionKey partitionKey = toObj.partitionKey();
         if (performMerge == true) {
+            IPartitionKey partitionKey = toObj.partitionKey();
             if (d.io.publicKeyOrNull(partitionKey, hash) == null) {
                 d.io.merge(partitionKey, new MessagePublicKeyDto(right));
             }
         }
 
         // Add it to the roles (if it doesnt exist)
-        String alias = d.encryptor.getAlias(partitionKey, right);
+        String alias;
+        if (performMerge) {
+            IPartitionKey partitionKey = toObj.partitionKey();
+            alias = d.encryptor.getAlias(partitionKey, right);
+        } else {
+            alias = right.getAlias();
+        }
         if (to.getTrustAllowWrite().containsKey(alias)) {
             String rightHash = to.getTrustAllowWrite().get(alias);
             if (hash.equals(rightHash)) {
                 return;
             }
         }
-        to.getTrustAllowWrite().put(d.encryptor.getAlias(partitionKey, right), d.encryptor.getPublicKeyHash(right));
+        to.getTrustAllowWrite().put(alias, d.encryptor.getPublicKeyHash(right));
 
         if (performMerge) {
             d.io.mergeLater(toObj);

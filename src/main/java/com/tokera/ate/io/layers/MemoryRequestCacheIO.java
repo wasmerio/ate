@@ -271,7 +271,8 @@ public class MemoryRequestCacheIO implements IAteIO
 
     @Override
     public void clearCache(PUUID id) {
-        cache.remove(id);
+        PartitionCache c = this.getPartitionCache(id.partition());
+        c.entries.remove(id.id());
     }
 
     @Override
