@@ -202,6 +202,16 @@ public class CurrentTokenDelegate {
 
     private void validateUserRole(@Nullable TokenDto token)
     {
+        // Check if we allow any user roles for this operation
+        for (UserRole role : d.resourceInfo.getPermitUserRoles()) {
+            if (UserRole.ANYTHING.equals(role)) {
+                if (token == null) {
+                    missingToken();
+                }
+                return;
+            }
+        }
+
         // Make sure we have the user role
         boolean needsUserRole = false;
         boolean hasUserRole = false;
