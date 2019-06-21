@@ -38,7 +38,7 @@ import java.util.List;
 @Dependent
 @PrivateKeyConstraint
 @YamlTag("msg.private.key")
-public class MessagePrivateKeyDto extends MessagePublicKeyDto implements Serializable, ConstraintValidator, CopyOnWrite
+public class MessagePrivateKeyDto extends MessagePublicKeyDto implements Serializable, CopyOnWrite
 {
     private static final long serialVersionUID = 5567939210238733755L;
 
@@ -241,11 +241,6 @@ public class MessagePrivateKeyDto extends MessagePublicKeyDto implements Seriali
 
         this.hashCache = ret;
         return ret;
-    }
-
-    @Override
-    public boolean isValid(Object o, ConstraintValidatorContext constraintValidatorContext) {
-        return false;
     }
 
     public void addKeyPart(KeyType keyType, int keySize, Encryptor.KeyPairBytes pair)

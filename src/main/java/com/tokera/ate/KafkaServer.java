@@ -71,10 +71,6 @@ public class KafkaServer {
         String bootstrapKafka = BootstrapConfig.propertyOrThrow(d.bootstrapConfig.propertiesForAte(), "kafka.bootstrap");
         Integer bootstrapKafkaPort = NetworkTools.extractPortFromBootstrapOrThrow(bootstrapKafka);
 
-        // Load the list of ZooKeeper servers (bootstrap)
-        String bootstrapZooKeeper = BootstrapConfig.propertyOrThrow(d.bootstrapConfig.propertiesForAte(), "zookeeper.bootstrap");
-        Integer bootstrapZooKeeperPort = NetworkTools.extractPortFromBootstrapOrThrow(bootstrapZooKeeper);
-
         // Load the properties
         Properties props = d.bootstrapConfig.propertiesForKafka();
 
@@ -105,9 +101,9 @@ public class KafkaServer {
         // Fix the advertised ports and IPs if we are on a real public IP
         if (myAdvertisingIp != null) {
             props.put("advertised.host.name", myAdvertisingIp);
-            props.put("advertised.listeners", "PLAINTEXT://" + myAdvertisingIp + ":" + bootstrapZooKeeperPort);
+            props.put("advertised.listeners", "PLAINTEXT://" + myAdvertisingIp + ":" + bootstrapKafkaPort);
         }
-        props.put("advertised.port", bootstrapZooKeeperPort);
+        props.put("advertised.port", bootstrapKafkaPort);
 
         // Cap the number of replicas so they do not exceed the number of brokers
         Integer numOfReplicas = 2;
