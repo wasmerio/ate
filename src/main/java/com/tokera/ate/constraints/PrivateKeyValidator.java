@@ -18,12 +18,36 @@ public class PrivateKeyValidator implements ConstraintValidator<PrivateKeyConstr
     @Override
     public boolean isValid(@Nullable MessagePrivateKeyDto key, ConstraintValidatorContext constraintValidatorContext) {
         if (key == null) return true;
-        if (key.getPublicParts() == null) return false;
-        if (key.getPublicParts().size() <= 0) return false;
-        if (key.getPublicKeyHash() == null) return false;
-        if (key.getPrivateParts() == null) return false;
-        if (key.getPrivateParts().size() <= 0) return false;
-        if (key.getPrivateKeyHash() == null) return false;
+        if (key.getPublicParts() == null) {
+            constraintValidatorContext.disableDefaultConstraintViolation();
+            constraintValidatorContext.buildConstraintViolationWithTemplate("The key has no public parts.").addConstraintViolation();
+            return false;
+        }
+        if (key.getPublicParts().size() <= 0) {
+            constraintValidatorContext.disableDefaultConstraintViolation();
+            constraintValidatorContext.buildConstraintViolationWithTemplate("The key public parts are empty.").addConstraintViolation();
+            return false;
+        }
+        if (key.getPublicKeyHash() == null) {
+            constraintValidatorContext.disableDefaultConstraintViolation();
+            constraintValidatorContext.buildConstraintViolationWithTemplate("The key has no public key hash.").addConstraintViolation();
+            return false;
+        }
+        if (key.getPrivateParts() == null) {
+            constraintValidatorContext.disableDefaultConstraintViolation();
+            constraintValidatorContext.buildConstraintViolationWithTemplate("The key has no private parts.").addConstraintViolation();
+            return false;
+        }
+        if (key.getPrivateParts().size() <= 0) {
+            constraintValidatorContext.disableDefaultConstraintViolation();
+            constraintValidatorContext.buildConstraintViolationWithTemplate("The key private parts are empty.").addConstraintViolation();
+            return false;
+        }
+        if (key.getPrivateKeyHash() == null) {
+            constraintValidatorContext.disableDefaultConstraintViolation();
+            constraintValidatorContext.buildConstraintViolationWithTemplate("The key has no private key hash.").addConstraintViolation();
+            return false;
+        }
         return true;
     }
 }
