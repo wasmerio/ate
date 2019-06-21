@@ -7,14 +7,14 @@ import java.util.HashMap;
 import java.util.Map;
 
 public enum KeyType {
-    unknown(0),
-    ntru(1),
-    ntru_sign(2),
-    qtesla(3),
-    newhope(4),
-    xmss(5),
-    xmssmt(6),
-    rainbow(7);
+    unknown(0, KeyUse.unknown),
+    ntru(1, KeyUse.encrypt),
+    ntru_sign(2, KeyUse.sign),
+    qtesla(3, KeyUse.sign),
+    newhope(4, KeyUse.encrypt),
+    xmss(5, KeyUse.sign),
+    xmssmt(6, KeyUse.sign),
+    rainbow(7, KeyUse.sign);
 
     private static final Map<Integer,KeyType> lookup
             = new HashMap<Integer,KeyType>();
@@ -25,12 +25,16 @@ public enum KeyType {
     }
 
     private int code;
+    private KeyUse use;
 
-    KeyType(int code) {
-        this.code =code;
+    KeyType(int code, KeyUse use) {
+        this.code = code;
+        this.use = use;
     }
 
     public int getCode() { return this.code; }
+
+    public KeyUse getUse() { return this.use; }
 
     public static KeyType get(int code) {
         KeyType ret = MapTools.getOrNull(lookup, code);
