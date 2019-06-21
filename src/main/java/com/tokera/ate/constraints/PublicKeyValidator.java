@@ -18,21 +18,22 @@ public class PublicKeyValidator implements ConstraintValidator<PublicKeyConstrai
     @Override
     public boolean isValid(@Nullable MessagePublicKeyDto key, ConstraintValidatorContext constraintValidatorContext) {
         if (key == null) return true;
+        boolean ret = true;
         if (key.getPublicParts() == null) {
-            constraintValidatorContext.disableDefaultConstraintViolation();
+            if (ret == true) constraintValidatorContext.disableDefaultConstraintViolation();
             constraintValidatorContext.buildConstraintViolationWithTemplate("The key has no public parts.").addConstraintViolation();
-            return false;
+            ret = false;
         }
         if (key.getPublicParts().size() <= 0) {
-            constraintValidatorContext.disableDefaultConstraintViolation();
+            if (ret == true) constraintValidatorContext.disableDefaultConstraintViolation();
             constraintValidatorContext.buildConstraintViolationWithTemplate("The key public parts are empty.").addConstraintViolation();
-            return false;
+            ret = false;
         }
         if (key.getPublicKeyHash() == null) {
-            constraintValidatorContext.disableDefaultConstraintViolation();
+            if (ret == true) constraintValidatorContext.disableDefaultConstraintViolation();
             constraintValidatorContext.buildConstraintViolationWithTemplate("The key has no public key hash.").addConstraintViolation();
-            return false;
+            ret = false;
         }
-        return true;
+        return ret;
     }
 }
