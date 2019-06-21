@@ -14,3 +14,6 @@ VERSION=$(echo $JAR | cut -d "-" -f2 | sed 's|\.jar||g')
 mkdir -p bin-lib
 mvn install:install-file -Dfile=ate-deps/pom.xml -DgroupId=com.tokera -DartifactId=ate-deps -Dversion=$VERSION -Dpackaging=pom -DpomFile=ate-deps/pom.xml
 mvn install:install-file -Dfile=target/$JAR -DgroupId=com.tokera -DartifactId=ate -Dversion=$VERSION -Dpackaging=jar -DpomFile=pom.xml
+
+mvn install:install-file -Dfile=ate-deps/pom.xml -DgroupId=com.tokera -DartifactId=ate-deps -Dversion=$VERSION -Dpackaging=pom -DpomFile=ate-deps/pom.xml -DlocalRepositoryPath=../tokera/tokapi/.m2
+mvn install:install-file -Dfile=target/$JAR -DgroupId=com.tokera -DartifactId=ate -Dversion=$VERSION -Dpackaging=jar -DpomFile=pom.xml -DlocalRepositoryPath=../tokera/tokapi/.m2

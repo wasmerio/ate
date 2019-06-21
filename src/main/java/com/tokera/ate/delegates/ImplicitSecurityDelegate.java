@@ -38,7 +38,8 @@ public class ImplicitSecurityDelegate {
     
     private static final Cache g_dnsCache = new Cache();
 
-    private ConcurrentHashMap<String, String> enquireOverride = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, String> enquireTxtOverride = new ConcurrentHashMap<>();
+    private ConcurrentHashMap<String, List<String>> enquireAddressOverride = new ConcurrentHashMap<>();
     private static Set<String> g_publicPartitions = new HashSet<>();
 
     @SuppressWarnings("initialization.fields.uninitialized")
@@ -159,6 +160,11 @@ public class ImplicitSecurityDelegate {
         }
         if (domain.endsWith(".") == false) domain += ".";
 
+        List<String> override = MapTools.getOrNull(enquireAddressOverride, domain);
+        if (override != null) {
+            return override;
+        }
+
         if ("localhost.".equalsIgnoreCase(domain)) {
             return Collections.singletonList("127.0.0.1");
         }
@@ -184,13 +190,14 @@ public class ImplicitSecurityDelegate {
 
                 if (record instanceof ARecord) {
                     ARecord a = (ARecord) record;
-                    ret.add(a.getAddress().toString());
+                    ret.add(a.getAddress().getHostAddress().trim().toLowerCase());
                 }
                 if (record instanceof AAAARecord) {
                     AAAARecord aaaa = (AAAARecord) record;
-                    ret.add(aaaa.getAddress().toString());
+                    ret.add("[" + aaaa.getAddress().getHostAddress().trim().toLowerCase() + "]");
                 }
             }
+            Collections.sort(ret);
             return ret;
         } catch (TextParseException ex) {
             if (shouldThrow) {
@@ -203,7 +210,7 @@ public class ImplicitSecurityDelegate {
     
     public @Nullable @PlainText String enquireDomainString(@DomainName String domain, boolean shouldThrow)
     {
-        String override = MapTools.getOrNull(enquireOverride, domain);
+        String override = MapTools.getOrNull(enquireTxtOverride, domain);
         if (override != null) {
             return override;
         }
@@ -263,7 +270,11 @@ public class ImplicitSecurityDelegate {
         }
     }
 
-    public ConcurrentHashMap<String, String> getEnquireOverride() {
-        return enquireOverride;
+    public ConcurrentHashMap<String, String> getEnquireTxtOverride() {
+        return enquireTxtOverride;
+    }
+
+    public ConcurrentHashMap<String, List<String>> getEnquireAddressOverride() {
+        return enquireAddressOverride;
     }
 }

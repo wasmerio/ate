@@ -57,7 +57,7 @@ public class BasicIntegrationTests {
 
         String keyPem = d.encryptor.serializePublicKey64(key);
         if (keyPem == null) throw new WebApplicationException("Failed to generate private key for domain");
-        d.implicitSecurity.getEnquireOverride().put("tokauth.mycompany.org", keyPem);
+        d.implicitSecurity.getEnquireTxtOverride().put("tokauth.mycompany.org", keyPem);
 
         this.session = new RawClientBuilder()
                 .server("127.0.0.1")
