@@ -188,6 +188,7 @@ public class TokenDto {
      * @return True if a particular user role type is claimed within this token
      */
     public boolean hasUserRole(UserRole role) {
+        if (hasClaim(TokenDto.SECURITY_CLAIM_USER_ROLE, UserRole.ANYTHING.name())) return true;
         return hasClaim(TokenDto.SECURITY_CLAIM_USER_ROLE, role.name());
     }
 
