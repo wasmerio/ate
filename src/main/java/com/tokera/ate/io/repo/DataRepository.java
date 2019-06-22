@@ -71,8 +71,11 @@ public class DataRepository implements IAteIO {
 
     @Override
     public @Nullable MessagePublicKeyDto publicKeyOrNull(IPartitionKey partitionKey, @Hash String hash) {
+        MessagePublicKeyDto key = staging.findPublicKey(partitionKey, hash);
+        if (key != null) return key;
+
         DataPartitionChain chain = this.subscriber.getChain(partitionKey);
-        MessagePublicKeyDto key = chain.getPublicKey(hash);
+        key = chain.getPublicKey(hash);
 
         if (key == null) {
             chain = this.subscriber.getChain(partitionKey);
@@ -131,6 +134,12 @@ public class DataRepository implements IAteIO {
         // Synchronize
         if (performSync == true) {
             bridge.sync();
+        }
+
+        // If its a public key then we should record that we already saved it
+        if (data instanceof MessagePublicKeyDto) {
+            MessagePublicKeyDto key = (MessagePublicKeyDto)data;
+            staging.put(partitionKey, key);
         }
     }
 
@@ -223,7 +232,7 @@ public class DataRepository implements IAteIO {
         IPartitionKey partitionKey = entity.partitionKey();
         for (String hash : publicKeys) {
             if (this.publicKeyOrNull(partitionKey, hash) == null) {
-                throw new RuntimeException("Unable to save [" + entity + "] as this object has public keys that have not yet been saved.");
+                throw new RuntimeException("Unable to save [" + entity + "] as this object has public key(s) [" + hash + "] that have not yet been saved.");
             }
         }
     }

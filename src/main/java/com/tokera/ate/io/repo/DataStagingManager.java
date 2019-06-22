@@ -1,14 +1,20 @@
 package com.tokera.ate.io.repo;
 
+import com.google.common.collect.Multimap;
+import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
+import com.tokera.ate.dao.msg.MessagePublicKey;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import com.tokera.ate.io.api.IAteIO;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.core.PartitionKeyComparator;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import org.jboss.resteasy.specimpl.MultivaluedTreeMap;
 
 import javax.enterprise.context.RequestScoped;
+import javax.ws.rs.core.MultivaluedMap;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -28,6 +34,7 @@ public class DataStagingManager {
         public List<UUID> toDeleteOrder = new ArrayList<>();
         public Map<UUID, BaseDao> toPut = new HashMap<>();
         public Map<UUID, BaseDao> toDelete = new HashMap<>();
+        public Map<String, MessagePublicKeyDto> savedPublicKeys = new HashMap();
     }
 
     private @Nullable PartitionContext getPartitionMergeContext(IPartitionKey key, boolean create)
@@ -47,6 +54,11 @@ public class DataStagingManager {
 
     public void clear() {
         partitionMergeContexts.clear();
+    }
+
+    public void put(IPartitionKey partitionKey, MessagePublicKeyDto key) {
+        PartitionContext context = getPartitionMergeContext(partitionKey, true);
+        context.savedPublicKeys.put(key.getPublicKeyHash(), key);
     }
 
     public void put(IPartitionKey partitionKey, BaseDao obj) {
@@ -120,6 +132,12 @@ public class DataStagingManager {
         PartitionContext context = getPartitionMergeContext(partitionKey, false);
         if (context == null) return null;
         return context.toPut.getOrDefault(id, null);
+    }
+
+    public @Nullable MessagePublicKeyDto findPublicKey(IPartitionKey partitionKey, String publicKeyHash) {
+        PartitionContext context = getPartitionMergeContext(partitionKey, false);
+        if (context == null) return null;
+        return MapTools.getOrNull(context.savedPublicKeys, publicKeyHash);
     }
 
     public Set<IPartitionKey> getTouchedPartitions() {
