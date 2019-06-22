@@ -47,8 +47,15 @@ public class SecurityCastleManager {
     public Set<MessagePublicKeyDto> findPublicKeys(IPartitionKey partitionKey, Iterable<String> hashes) {
         DataPartitionChain chain = d.io.backend().getChain(partitionKey);
         Set<MessagePublicKeyDto> ret = new HashSet<>();
-        for (String publicKeyHash : hashes) {
-            MessagePublicKeyDto publicKey = chain.getPublicKey(publicKeyHash);
+        for (String publicKeyHash : hashes)
+        {
+            MessagePublicKeyDto publicKey = d.dataStagingManager.findPublicKey(partitionKey, publicKeyHash);
+            if (publicKey != null) {
+                ret.add(publicKey);
+                continue;
+            }
+
+            publicKey = chain.getPublicKey(publicKeyHash);
             if (publicKey == null) {
                 throw new RuntimeException("We encountered a public key [" + publicKeyHash + "] that is not yet known to the distributed commit log. Ensure all public keys are merged before using them in data entities by either calling mergeLater(obj), mergeThreeWay(obj) or mergeThreeWay(publicKeyOrNull).");
             }
