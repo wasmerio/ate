@@ -286,7 +286,7 @@ public class DataRepository implements IAteIO {
         MessageDataDto data = (MessageDataDto)d.dataSerializer.toDataMessage(entity, kt, false, false);
         datas.add(data);
 
-        if (chain.validateTrustStructureAndWritability(data, LOG, requestTrust) == false) {
+        if (chain.validateTrustStructureAndWritabilityIncludingStaging(data, LOG, requestTrust) == false) {
             String what = "clazz=" + data.getHeader().getPayloadClazzOrThrow() + ", id=" + data.getHeader().getIdOrThrow();
             throw new RuntimeException("The newly created object was not accepted into the chain of trust [" + what + "]");
         }

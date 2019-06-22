@@ -210,10 +210,26 @@ public class DataPartitionChain {
                 .withGetDataCallback(id -> this.getData(id, LOG))
                 .withGetPublicKeyCallback(hash -> this.getPublicKey(hash));
     }
+
+    public TrustValidatorBuilder createTrustValidatorIncludingStaging(@Nullable LoggerHook LOG) {
+        return createTrustValidator(LOG)
+                .withGetPublicKeyCallback(hash -> {
+                    MessagePublicKeyDto ret = d.dataStagingManager.findPublicKey(this.key, hash);
+                    if (ret != null) return ret;
+                    return this.getPublicKey(hash);
+                });
+    }
     
     public boolean validateTrustStructureAndWritability(MessageDataDto data, @Nullable LoggerHook LOG, Map<UUID, @Nullable MessageDataDto> requestTrust)
     {
         return createTrustValidator(LOG)
+                .withRequestTrust(requestTrust)
+                .validate(this.partitionKey(), data);
+    }
+
+    public boolean validateTrustStructureAndWritabilityIncludingStaging(MessageDataDto data, @Nullable LoggerHook LOG, Map<UUID, @Nullable MessageDataDto> requestTrust)
+    {
+        return createTrustValidatorIncludingStaging(LOG)
                 .withRequestTrust(requestTrust)
                 .validate(this.partitionKey(), data);
     }
