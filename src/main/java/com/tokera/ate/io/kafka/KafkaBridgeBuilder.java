@@ -50,7 +50,7 @@ public class KafkaBridgeBuilder {
 
     public IDataPartitionBridge build(IPartitionKey key, DataPartitionChain chain, DataPartitionType type) {
         touch();
-        return new KafkaPartitionBridge(key, chain, d.kafkaConfig, type, m_keeperServers, m_bootstrapServers);
+        return new KafkaPartitionBridge(key, chain, d.kafkaConfig, type, m_bootstrapServers);
     }
 
     public void touch()

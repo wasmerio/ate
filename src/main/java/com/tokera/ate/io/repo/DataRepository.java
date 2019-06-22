@@ -602,7 +602,7 @@ public class DataRepository implements IAteIO {
     @Override
     public void sync(IPartitionKey partitionKey)
     {
-        d.transaction.finish();
+        this.subscriber.getPartition(partitionKey).getBridge().sync();
     }
 
     @Override

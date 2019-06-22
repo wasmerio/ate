@@ -11,6 +11,7 @@ import com.tokera.ate.scopes.Startup;
 import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.ApplicationScoped;
@@ -171,7 +172,35 @@ public class DebugLoggingDelegate {
     public void logReceive(MessageBaseDto msg, @Nullable LoggerHook LOG)
     {
         if (d.bootstrapConfig.isLoggingMessages()) {
-            new LoggerHook(DataPartitionChain.class).info("rcv:\n" + d.yaml.serializeObj(msg));
+            LOG.info("rcv:\n" + d.yaml.serializeObj(msg));
+        }
+    }
+
+    public void logSyncStart(MessageSyncDto sync, @Nullable LoggerHook LOG)
+    {
+        if (d.bootstrapConfig.isLoggingSync()) {
+            LOG.info("sync_start (" + sync.getTicket1() + ":" + sync.getTicket2() + ")");
+        }
+    }
+
+    public void logSyncMiss(MessageSyncDto sync, @Nullable LoggerHook LOG)
+    {
+        if (d.bootstrapConfig.isLoggingSync()) {
+            LOG.info("sync_miss (" + sync.getTicket1() + ":" + sync.getTicket2() + ")");
+        }
+    }
+
+    public void logSyncFinish(MessageSyncDto sync, @Nullable LoggerHook LOG)
+    {
+        if (d.bootstrapConfig.isLoggingSync()) {
+            LOG.info("sync_finish (" + sync.getTicket1() + ":" + sync.getTicket2() + ")");
+        }
+    }
+
+    public void logSyncWake(MessageSyncDto sync, @Nullable LoggerHook LOG)
+    {
+        if (d.bootstrapConfig.isLoggingSync()) {
+            LOG.info("sync_wake (" + sync.getTicket1() + ":" + sync.getTicket2() + ")");
         }
     }
 
@@ -179,12 +208,34 @@ public class DebugLoggingDelegate {
         if (d.bootstrapConfig.isLoggingKafka()) {
             StringBuilder sb = new StringBuilder();
 
-            sb.append("record(topic=");
+            sb.append("kafka_rcv(topic=");
             sb.append(record.topic());
             sb.append(", partition=");
             sb.append(record.partition());
             sb.append(", id=");
             sb.append(record.key());
+            sb.append(", size=");
+            sb.append(record.serializedValueSize());
+            sb.append(")");
+
+            logInfo(sb.toString(), LOG);
+        }
+    }
+
+    public void logKafkaSend(ProducerRecord<String, MessageBase> record, @Nullable MessageBaseDto msg, @Nullable LoggerHook LOG) {
+        if (d.bootstrapConfig.isLoggingKafka()) {
+            StringBuilder sb = new StringBuilder();
+
+            sb.append("kafka_send(topic=");
+            sb.append(record.topic());
+            sb.append(", partition=");
+            sb.append(record.partition());
+            sb.append(", id=");
+            sb.append(record.key());
+            if (msg != null) {
+                sb.append(", type=");
+                sb.append(msg.getClass().getSimpleName());
+            }
             sb.append(")");
 
             logInfo(sb.toString(), LOG);

@@ -130,8 +130,8 @@ public class MessageSyncDto extends MessageBaseDto implements Serializable, Copy
 
         MessageSyncDto that = (MessageSyncDto) o;
 
-        if (Objects.equals(this.ticket1, that.ticket1) == false) return false;
-        if (Objects.equals(this.ticket2, that.ticket2) == false) return false;
+        if (Objects.equals(this.getTicket1(), that.getTicket1()) == false) return false;
+        if (Objects.equals(this.getTicket2(), that.getTicket2()) == false) return false;
 
         return true;
     }
@@ -140,8 +140,8 @@ public class MessageSyncDto extends MessageBaseDto implements Serializable, Copy
     public int hashCode()
     {
         int result = (int)0;
-        result += ((Long)this.ticket1).hashCode();
-        result += ((Long)this.ticket2).hashCode();
+        result += ((Long)this.getTicket1()).hashCode();
+        result += ((Long)this.getTicket2()).hashCode();
         return result;
     }
 }

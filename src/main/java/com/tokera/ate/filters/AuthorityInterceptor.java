@@ -143,6 +143,11 @@ public class AuthorityInterceptor implements ContainerRequestFilter, ContainerRe
         
         // Now perform all the security checks
         d.currentToken.validate();
+
+        // Finally complete any sync operations
+        if (tokenHash != null) {
+            d.transaction.finish();
+        }
     }
 
     private void undoInferredPartition() {

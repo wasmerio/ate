@@ -43,11 +43,12 @@ import org.apache.kafka.common.errors.TopicExistsException;
 public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
 
     protected AteDelegate d = AteDelegate.get();
+    protected LoggerHook LOG = new LoggerHook(KafkaPartitionBridge.class);
+
     private final IPartitionKey m_key;
     private final DataPartitionChain m_chain;
     private final KafkaConfigTools m_config;
     private final DataPartitionType m_type;
-    private final String m_keeperServers;
     private final String m_bootstrapServers;
     private @MonotonicNonNull Thread thread;
     private volatile boolean isRunning = true;
@@ -62,16 +63,15 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
     private List<TopicPartition> partitions = new LinkedList<>();
 
     private final Random rand = new Random();
-    private Map<MessageSyncDto, Object> syncs = new ConcurrentHashMap<MessageSyncDto, Object>();
+    private Map<MessageSyncDto, Object> syncs = new ConcurrentHashMap<>();
     
-    public KafkaPartitionBridge(IPartitionKey key, DataPartitionChain chain, KafkaConfigTools config, DataPartitionType topicType, String keeperServers, String bootstrapServers)
+    public KafkaPartitionBridge(IPartitionKey key, DataPartitionChain chain, KafkaConfigTools config, DataPartitionType topicType, String bootstrapServers)
     {
         this.m_key = key;
         this.m_chain = chain;
         this.m_config = config;
         this.m_type = topicType;
-        
-        this.m_keeperServers = keeperServers;
+
         this.m_bootstrapServers = bootstrapServers;
     }
     
@@ -96,7 +96,6 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
     @Override
     public void run() {
         Long errorWaitTime = 500L;
-        LoggerHook LOG = new LoggerHook(KafkaPartitionBridge.class);
         
         // Enter the main processing loop
         StopWatch timer = new StopWatch();
@@ -168,8 +167,6 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
     
     private int poll()
     {
-        LoggerHook LOG = new LoggerHook(KafkaPartitionBridge.class);
-        
         int foundRecords = 0;
         int emptyCount = 0;
         while (true)
@@ -211,7 +208,7 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
                             record.timestamp());
 
                     if (record.value().msgType() == MessageType.MessageSync) {
-                        processSync(new MessageSyncDto(record.value()));
+                        processSync(new MessageSyncDto(record.value()), LOG);
                         return;
                     }
 
@@ -239,6 +236,8 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
         syncs.put(sync, waitOn);
 
         this.send(sync);
+
+        d.debugLogging.logSyncStart(sync, LOG);
         return sync;
     }
 
@@ -271,7 +270,7 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
     }
 
     public boolean sync() {
-        return sync(60);
+        return sync(60000);
     }
 
     public boolean sync(int timeout) {
@@ -283,6 +282,7 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
 
             try {
                 wait.wait(timeout);
+                d.debugLogging.logSyncWake(sync, LOG);
                 return hasFinishSync(sync);
             } catch (InterruptedException e) {
                 return false;
@@ -292,12 +292,18 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
         }
     }
 
-    private void processSync(MessageSyncDto sync)
+    private void processSync(MessageSyncDto sync, LoggerHook LOG)
     {
+        d.debugLogging.logReceive(sync, LOG);
+
         Object wait = syncs.remove(sync);
-        if (wait == null) return;
+        if (wait == null) {
+            d.debugLogging.logSyncMiss(sync, LOG);
+            return;
+        }
 
         synchronized (wait) {
+            d.debugLogging.logSyncFinish(sync, LOG);
             wait.notifyAll();
         }
     }
@@ -333,8 +339,6 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
         // If the consumer is not yet assigned to partitions then assign it
         if (c.assignment().size() <= 0)
         {
-            LoggerHook LOG = new LoggerHook(KafkaPartitionBridge.class);
-            
             // Configure the consumers
             if (this.partitions.isEmpty())
             {
@@ -471,7 +475,7 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
     public void send(MessageBaseDto msg)
     {
         // Send the message do Kafka
-        ProducerRecord<String, MessageBase> record = new ProducerRecord<>(this.m_key.partitionTopic(), MessageSerializer.getKey(msg), msg.createBaseFlatBuffer());
+        ProducerRecord<String, MessageBase> record = new ProducerRecord<>(this.m_key.partitionTopic(), this.m_key.partitionIndex(), MessageSerializer.getKey(msg), msg.createBaseFlatBuffer());
         waitTillLoaded();
         
         // If we are Ethereal then we should attempt to create the topic and
@@ -484,6 +488,8 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
         if (producer != null) {
             producer.send(record);
         }
+
+        d.debugLogging.logKafkaSend(record, msg, LOG);
     }
    
     public @Nullable MessageDataDto getVersion(UUID id, MessageMetaDto meta) {

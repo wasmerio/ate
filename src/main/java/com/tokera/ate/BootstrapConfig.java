@@ -47,6 +47,7 @@ public class BootstrapConfig {
     private boolean loggingChainOfTrust = false;
     private boolean loggingMessages = false;
     private boolean loggingData = false;
+    private boolean loggingSync = false;
     private boolean loggingWrites = false;
     private boolean loggingReads = false;
     private boolean loggingDeletes = false;
@@ -371,5 +372,13 @@ public class BootstrapConfig {
 
     public void setDefaultStorageSystem(DefaultStorageSystem defaultStorageSystem) {
         this.defaultStorageSystem = defaultStorageSystem;
+    }
+
+    public boolean isLoggingSync() {
+        return loggingSync;
+    }
+
+    public void setLoggingSync(boolean loggingSync) {
+        this.loggingSync = loggingSync;
     }
 }
