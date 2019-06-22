@@ -34,7 +34,7 @@ public class DataStagingManager {
         public List<UUID> toDeleteOrder = new ArrayList<>();
         public Map<UUID, BaseDao> toPut = new HashMap<>();
         public Map<UUID, BaseDao> toDelete = new HashMap<>();
-        public Map<String, MessagePublicKeyDto> savedPublicKeys = new HashMap();
+        public Map<String, MessagePublicKeyDto> savedPublicKeys = new HashMap<>();
     }
 
     private @Nullable PartitionContext getPartitionMergeContext(IPartitionKey key, boolean create)
