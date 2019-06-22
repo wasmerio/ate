@@ -5,6 +5,7 @@ import com.tokera.ate.common.Immutalizable;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.io.api.IPartitionKey;
+import com.tokera.ate.io.api.IPartitionKeyProvider;
 import com.tokera.ate.units.DaoId;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -15,7 +16,7 @@ import java.util.UUID;
 /**
  * Represents the common fields and methods of all data objects that are stored in the ATE data-store
  */
-public abstract class BaseDao implements Serializable, Immutalizable {
+public abstract class BaseDao implements Serializable, Immutalizable, IPartitionKeyProvider {
 
     transient @JsonIgnore @Nullable Set<UUID> _mergesVersions = null;
     transient @JsonIgnore @Nullable UUID _previousVersion = null;
@@ -43,10 +44,12 @@ public abstract class BaseDao implements Serializable, Immutalizable {
      * partition key resolver
      */
     @JsonIgnore
+    @Override
     public IPartitionKey partitionKey() {
         IPartitionKey ret = _partitionKey;
         if (ret != null) return ret;
         ret = AteDelegate.get().io.partitionResolver().resolve(this);
+        _partitionKey = ret;
         return ret;
     }
     
