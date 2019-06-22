@@ -75,13 +75,7 @@ public class DataRepository implements IAteIO {
         if (key != null) return key;
 
         DataPartitionChain chain = this.subscriber.getChain(partitionKey);
-        key = chain.getPublicKey(hash);
-
-        if (key == null) {
-            chain = this.subscriber.getChain(partitionKey);
-            key = chain.getPublicKey(hash);
-        }
-        return key;
+        return chain.getPublicKey(hash);
     }
     
     private boolean mergeInternal(BaseDao entity, boolean performValidation, boolean performSync)
@@ -268,16 +262,17 @@ public class DataRepository implements IAteIO {
     }
 
     private void mergeLaterInternal(BaseDao entity, boolean validate) {
-        IPartitionKey partitionKey = entity.partitionKey();
-        if (this.staging.find(partitionKey, entity.getId()) != null) {
-            return;
-        }
-
         if (validate == true) {
             validateTrustStructure(entity);
             validateTrustPublicKeys(entity);
             validateTrustWritability(entity);
         }
+
+        IPartitionKey partitionKey = entity.partitionKey();
+        if (this.staging.find(partitionKey, entity.getId()) != null) {
+            return;
+        }
+
         d.debugLogging.logMerge(null, entity, LOG, true);
 
         this.staging.put(partitionKey, entity);
