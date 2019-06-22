@@ -2,6 +2,7 @@ package com.tokera.ate.io.repo;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.tokera.ate.dao.IRoles;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
 
@@ -85,6 +86,11 @@ public class DataRepository implements IAteIO {
         // Get the partition
         IPartitionKey key = entity.partitionKey();
         DataPartition kt = this.subscriber.getPartition(key);
+
+        // Validate the public keys
+        if (performValidation) {
+            validateTrustPublicKeys(entity);
+        }
 
         // Generate the data that represents this entity
         DataPartitionChain chain = kt.getChain();
@@ -213,6 +219,23 @@ public class DataRepository implements IAteIO {
         }
     }
 
+    private void validateTrustPublicKeys(BaseDao entity, Collection<String> publicKeys) {
+        IPartitionKey partitionKey = entity.partitionKey();
+        for (String hash : publicKeys) {
+            if (this.publicKeyOrNull(partitionKey, hash) == null) {
+                throw new RuntimeException("Unable to save [" + entity + "] as this object has public keys that have not yet been saved.");
+            }
+        }
+    }
+
+    private void validateTrustPublicKeys(BaseDao entity) {
+        if (entity instanceof IRoles) {
+            IRoles roles = (IRoles)entity;
+            validateTrustPublicKeys(entity, roles.getTrustAllowRead().values());
+            validateTrustPublicKeys(entity, roles.getTrustAllowWrite().values());
+        }
+    }
+
     private void validateTrustWritability(BaseDao entity) {
         if (d.authorization.canWrite(entity) == false)
         {
@@ -241,13 +264,9 @@ public class DataRepository implements IAteIO {
             return;
         }
 
-        // Validate the object is attached to a parent
         if (validate == true) {
             validateTrustStructure(entity);
-        }
-        
-        // Validate that we can write to this entity
-        if (validate == true) {
+            validateTrustPublicKeys(entity);
             validateTrustWritability(entity);
         }
         d.debugLogging.logMerge(null, entity, LOG, true);
@@ -257,6 +276,8 @@ public class DataRepository implements IAteIO {
 
     private void mergeDeferredInternal(DataPartition kt, BaseDao entity, List<MessageDataDto> datas, Map<UUID, @Nullable MessageDataDto> requestTrust) {
         DataPartitionChain chain = kt.getChain();
+
+        validateTrustPublicKeys(entity);
 
         MessageDataDto data = (MessageDataDto)d.dataSerializer.toDataMessage(entity, kt, false, false);
         datas.add(data);
@@ -378,10 +399,8 @@ public class DataRepository implements IAteIO {
         // We only actually need to validate and queue if the object has ever been saved
         if (BaseDaoInternal.hasSaved(entity) == true)
         {
-            // Validate the object is attached to a parent
             validateTrustStructure(entity);
-
-            // Validate that we can write to this entity
+            validateTrustPublicKeys(entity);
             validateTrustWritability(entity);
 
             this.staging.delete(partitionKey, entity);

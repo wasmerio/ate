@@ -478,8 +478,13 @@ final class TrustValidatorBuilder {
                 for (String role : availableWriteRoles) {
                     sb.append("\n [needs: hash=").append(role);
                     MessagePublicKeyDto roleKey = getPublicKey(role);
-                    if (roleKey != null && roleKey.getAlias() != null) {
-                        sb.append(", alias=").append(roleKey.getAlias());
+                    if (roleKey != null) {
+                        if (roleKey.getAlias() != null) {
+                            sb.append(", alias=").append(roleKey.getAlias());
+                        }
+                    } else {
+                        sb.append(", missing");
+
                     }
                     sb.append("]");
                 }
@@ -495,8 +500,12 @@ final class TrustValidatorBuilder {
 
                 sb.append("\n [digest: hash=").append(digest.getPublicKeyHash());
                 MessagePublicKeyDto digestKey = getPublicKey(digest.getPublicKeyHash());
-                if (digestKey != null && digestKey.getAlias() != null) {
-                    sb.append(", alias=").append(digestKey.getAlias());
+                if (digestKey != null) {
+                    if (digestKey.getAlias() != null) {
+                        sb.append(", alias=").append(digestKey.getAlias());
+                    }
+                } else {
+                    sb.append(", missing");
                 }
                 sb.append("]");
 

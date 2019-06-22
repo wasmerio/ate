@@ -1,9 +1,14 @@
 package com.tokera.ate;
 
 import com.tokera.ate.common.ApplicationConfigLoader;
+import com.tokera.ate.common.LoggerHook;
+import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.enumerations.KeyType;
+import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.enumerations.DefaultStorageSystem;
 import com.tokera.ate.scopes.Startup;
+import scala.sys.Prop;
+
 import javax.enterprise.context.ApplicationScoped;
 import java.util.ArrayList;
 import java.util.List;
@@ -218,7 +223,32 @@ public class BootstrapConfig {
     }
 
     public Properties propertiesForKafka() {
-        return getPropertiesFile(this.getPropertiesFileKafka(), "Kafka");
+        return propertiesForKafka(null);
+    }
+
+    public Properties propertiesForKafka(org.slf4j.Logger LOG) {
+        Properties props = getPropertiesFile(this.getPropertiesFileKafka(), "Kafka");
+
+        String bootstrapKafka = BootstrapConfig.propertyOrThrow(propertiesForAte(), "kafka.bootstrap");
+        int numBrokers = AteDelegate.get().implicitSecurity.enquireDomainAddresses(bootstrapKafka, true).size();
+
+        // Cap the number of replicas so they do not exceed the number of brokers
+        Integer numOfReplicas = 2;
+        Object numOfReplicasObj = MapTools.getOrNull(props, "default.replication.factor");
+        if (numOfReplicasObj != null) {
+            try {
+                numOfReplicas = Integer.parseInt(numOfReplicasObj.toString());
+            } catch (NumberFormatException ex) {
+            }
+        }
+        if (numBrokers < 1) numBrokers = 1;
+        if (numOfReplicas > numBrokers) numOfReplicas = numBrokers;
+
+        props.put("default.replication.factor", numOfReplicas.toString());
+        props.put("transaction.state.log.replication.factor", numOfReplicas.toString());
+
+        if (LOG != null) LOG.info("Kafka Replication Factor: " + numOfReplicas);
+        return props;
     }
 
     public Properties propertiesForZooKeeper() {

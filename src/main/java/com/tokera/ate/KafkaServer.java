@@ -72,19 +72,17 @@ public class KafkaServer {
         Integer bootstrapKafkaPort = NetworkTools.extractPortFromBootstrapOrThrow(bootstrapKafka);
 
         // Load the properties
-        Properties props = d.bootstrapConfig.propertiesForKafka();
+        Properties props = d.bootstrapConfig.propertiesForKafka(SLOG);
 
         // Get all my local IP addresses
         Set<String> myAddresses = NetworkTools.getMyNetworkAddresses();
 
         // Loop through all the data servers and process them
         String myAdvertisingIp = null;
-        Integer numBrokers = 0;
         Integer myId = 0;
         List<String> dataservers = d.implicitSecurity.enquireDomainAddresses(bootstrapKafka, true);
         int n = 0;
         for (String serverIp : dataservers) {
-            numBrokers++;
             n++;
 
             SLOG.info("KafkaBootstrap(" + n + ")->" + serverIp + ":" + bootstrapKafkaPort);
@@ -104,22 +102,6 @@ public class KafkaServer {
             props.put("advertised.listeners", "PLAINTEXT://" + myAdvertisingIp + ":" + bootstrapKafkaPort);
         }
         props.put("advertised.port", bootstrapKafkaPort);
-
-        // Cap the number of replicas so they do not exceed the number of brokers
-        Integer numOfReplicas = 2;
-        Object numOfReplicasObj = MapTools.getOrNull(props, "default.replication.factor");
-        if (numOfReplicasObj != null) {
-            try {
-                numOfReplicas = Integer.parseInt(numOfReplicasObj.toString());
-            } catch (NumberFormatException ex) {
-            }
-        }
-        if (numBrokers < 1) numBrokers = 1;
-        if (numOfReplicas > numBrokers) numOfReplicas = numBrokers;
-
-        props.put("default.replication.factor", numOfReplicas.toString());
-        props.put("transaction.state.log.replication.factor", numOfReplicas.toString());
-        SLOG.info("Kafka Replication Factor: " + numOfReplicas);
 
         if (shouldRun == false) {
             SLOG.info("Kafka Broker should not run on this server");
