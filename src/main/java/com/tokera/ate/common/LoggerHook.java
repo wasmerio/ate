@@ -96,13 +96,13 @@ public class LoggerHook implements org.slf4j.Logger {
         {
             Boolean forceContextLogger = LoggerHook.getForceContextLogger();
             if (forceContextLogger == null) {
-                if (loggingDelegate.getLogStack().empty() == false) {
+                if (loggingDelegate != null && loggingDelegate.getLogStack() != null && loggingDelegate.getLogStack().empty() == false) {
                     return new LoggerToRequest(getStaticForwader(), loggingDelegate);
                 } else {
                     return getStaticForwader();
                 }
             } else {
-                if (forceContextLogger == true) {
+                if (forceContextLogger == true && loggingDelegate != null) {
                     return new LoggerToRequest(getStaticForwader(), loggingDelegate);
                 } else {
                     return getStaticForwader();
