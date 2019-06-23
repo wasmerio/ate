@@ -17,6 +17,7 @@ import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import com.tokera.ate.events.TokenScopeChangedEvent;
 import com.tokera.ate.events.TokenStateChangedEvent;
+import com.tokera.ate.security.SecurityCastleContext;
 import com.tokera.ate.units.Alias;
 import com.tokera.ate.units.DaoId;
 import com.tokera.ate.units.Hash;
@@ -162,6 +163,22 @@ public class AuthorizationDelegate {
         } catch (Throwable ex) {
             this.LOG.warn(ex);
             return new WebApplicationException(sb.toString(), Response.Status.UNAUTHORIZED);
+        }
+    }
+
+    public void validateReadOrThrow(IPartitionKey partitionKey, @DaoId UUID objId) {
+        EffectivePermissions permissions = this.perms(partitionKey, objId, null, false);
+        SecurityCastleContext castle = d.securityCastleManager.makeCastle(partitionKey, permissions);
+        if (canRead(partitionKey, objId, null) == false) {
+            throw buildReadException(partitionKey, castle.id, objId, permissions, false);
+        }
+    }
+
+    public void validateWriteOrThrow(IPartitionKey partitionKey, @DaoId UUID objId) {
+        EffectivePermissions permissions = this.perms(partitionKey, objId, null, false);
+        SecurityCastleContext castle = d.securityCastleManager.makeCastle(partitionKey, permissions);
+        if (canWrite(partitionKey, objId, null) == false) {
+            throw buildWriteException(partitionKey, objId, permissions, false);
         }
     }
 
