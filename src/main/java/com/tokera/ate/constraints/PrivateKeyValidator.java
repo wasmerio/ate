@@ -1,12 +1,18 @@
 package com.tokera.ate.constraints;
 
 import com.tokera.ate.dao.enumerations.KeyType;
+import com.tokera.ate.dao.enumerations.KeyUse;
+import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessageKeyPartDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
+import org.apache.commons.codec.binary.Base64;
+import org.bouncycastle.crypto.InvalidCipherTextException;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.validation.ConstraintValidator;
 import javax.validation.ConstraintValidatorContext;
+import java.io.IOException;
+import java.util.Arrays;
 
 /**
  * Validator that holds a bunch of rules that determine if a private key is valid
@@ -66,6 +72,36 @@ public class PrivateKeyValidator implements ConstraintValidator<PrivateKeyConstr
                 ret = false;
             }
         }
+
+        try {
+            AteDelegate d = AteDelegate.get();
+            if (d.bootstrapConfig.isExtraValidation()) {
+                if (key.getPrivateParts().stream().anyMatch(p -> p.getType().getUse() == KeyUse.encrypt)) {
+                    byte[] plain = Base64.decodeBase64(d.encryptor.generateSecret64());
+                    byte[] enc = d.encryptor.encrypt(key, plain);
+                    byte[] plain2 = d.encryptor.decrypt(key, enc);
+                    if (Arrays.equals(plain, plain2) == false) {
+                        if (ret == true) constraintValidatorContext.disableDefaultConstraintViolation();
+                        constraintValidatorContext.buildConstraintViolationWithTemplate("The key did not pass the encrypt/decrypt test.").addConstraintViolation();
+                        ret = false;
+                    }
+                }
+                if (key.getPrivateParts().stream().anyMatch(p -> p.getType().getUse() == KeyUse.sign)) {
+                    byte[] plain = Base64.decodeBase64(d.encryptor.generateSecret64());
+                    byte[] sig = d.encryptor.sign(key, plain);
+                    if (d.encryptor.verify(key, plain, sig) == false) {
+                        if (ret == true) constraintValidatorContext.disableDefaultConstraintViolation();
+                        constraintValidatorContext.buildConstraintViolationWithTemplate("The key did not pass the sign/verify test.").addConstraintViolation();
+                        ret = false;
+                    }
+                }
+            }
+        } catch (IOException | InvalidCipherTextException e) {
+            if (ret == true) constraintValidatorContext.disableDefaultConstraintViolation();
+            constraintValidatorContext.buildConstraintViolationWithTemplate("The key did not pass the testing phase - " + e.getMessage()).addConstraintViolation();
+            ret = false;
+        }
+
         return ret;
     }
 }

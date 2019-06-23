@@ -986,7 +986,9 @@ public class Encryptor implements Runnable
 
         for (MessageKeyPartDto part : Lists.reverse(parts)) {
             @PEM byte[] keyBytes = part.getKeyBytes();
-            if (keyBytes == null) throw new RuntimeException("The private key is missing the binary data in one of its parts.");
+            if (keyBytes == null || keyBytes.length <= 0) {
+                throw new RuntimeException("The private key is missing the binary data in one of its parts.");
+            }
 
             switch (part.getType()) {
                 case ntru:

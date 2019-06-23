@@ -17,6 +17,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import org.bouncycastle.crypto.InvalidCipherTextException;
 
 import javax.ws.rs.WebApplicationException;
+import javax.ws.rs.core.Response;
 import java.io.IOException;
 import java.util.UUID;
 
@@ -33,21 +34,20 @@ public class DefaultSecurityCastleFactory implements ISecurityCastleFactory {
 
         // Loop through all the private toPutKeys that we own and try and find
         // an AES key that was encrypted for it
-        try {
-            MessageSecurityCastleDto castle = chain.getCastle(id);
-            if (castle == null) return null;
+        MessageSecurityCastleDto castle = chain.getCastle(id);
+        if (castle == null) return null;
 
-            for (MessagePrivateKeyDto accessKey : accessKeys) {
-                String encStr = MapTools.getOrNull(castle.getLookup(), accessKey.getPublicKeyHash());
-                if (encStr == null) continue;
-                byte[] enc = Base64.decodeBase64(encStr);
+        for (MessagePrivateKeyDto accessKey : accessKeys) {
+            String encStr = MapTools.getOrNull(castle.getLookup(), accessKey.getPublicKeyHash());
+            if (encStr == null) continue;
+            byte[] enc = Base64.decodeBase64(encStr);
+            try {
                 return d.encryptor.decrypt(accessKey, enc);
+            } catch (IOException | InvalidCipherTextException ex) {
+                throw new WebApplicationException("Failed to retrieve AES secret [castle=" + castle.getIdOrThrow() + ", key=" + accessKey.getPublicKeyHash() + "] while processing data object [id=" + partitionKey + ":" + id + "].", ex, Response.Status.UNAUTHORIZED);
             }
-            return null;
-
-        } catch (IOException | InvalidCipherTextException ex) {
-            throw new WebApplicationException("Failed to retrieve AES secret while processing data object [id=" + partitionKey + ":" + id + "].", ex);
         }
+        return null;
     }
 
     @Override
