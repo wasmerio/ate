@@ -55,6 +55,8 @@ public class BootstrapConfig {
     private boolean loggingWithStackTrace = false;
     private boolean loggingValidationVerbose = false;
 
+    private boolean extraValidation = false;
+
     // Only weld should initialize this configuration using the ApiServer.startWeld method
     @Deprecated()
     public BootstrapConfig() {
@@ -389,5 +391,13 @@ public class BootstrapConfig {
 
     public void setLoggingValidationVerbose(boolean loggingValidationVerbose) {
         this.loggingValidationVerbose = loggingValidationVerbose;
+    }
+
+    public boolean isExtraValidation() {
+        return extraValidation;
+    }
+
+    public void setExtraValidation(boolean extraValidation) {
+        this.extraValidation = extraValidation;
     }
 }

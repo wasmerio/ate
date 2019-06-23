@@ -388,6 +388,13 @@ final class TrustValidatorBuilder {
                             return false;
                         }
 
+                        if (d.bootstrapConfig.isExtraValidation()) {
+                            if (d.validationUtil.validateOrLog(trustImplicit, LOG) == false) {
+                                fail("implicit trust returns a public key that failed validation");
+                                return false;
+                            }
+                        }
+
                         digestPublicKey = trustImplicit;
                         LOG.info("[" + partitionKey + "] chain-of-trust rooted: " + entityType + ":" + id + " on " + trustImplicit.getPublicKeyHash());
                     } catch (Throwable ex) {

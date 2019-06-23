@@ -58,10 +58,8 @@ public class MessageKeyPartDto extends MessageBaseDto implements Serializable, C
 
     public MessageKeyPartDto(MessageKeyPartDto key) {
 
-        this.type = key.type;
-
-        this.size = key.size;
-
+        this.type = key.getType();
+        this.size = key.getSize();
         @PEM String key64 = key.getKey64();
         if (key64 != null) {
             this.keyBytes = Base64.decodeBase64(key64);

@@ -70,6 +70,10 @@ public class DataPartitionChain {
     public void addTrustKey(MessagePublicKeyDto trustedKey, @Nullable LoggerHook LOG) {
         d.debugLogging.logTrust(this.partitionKey(), trustedKey, LOG);
 
+        if (d.bootstrapConfig.isExtraValidation()) {
+            d.validationUtil.validateOrThrow(trustedKey);
+        }
+
         @Hash String trustedKeyHash = trustedKey.getPublicKeyHash();
         if (trustedKeyHash != null) {
             this.publicKeys.put(trustedKeyHash, trustedKey);
@@ -239,7 +243,9 @@ public class DataPartitionChain {
     
     private boolean processData(MessageDataDto data, MessageMetaDto meta, @Nullable LoggerHook LOG) throws IOException, InvalidCipherTextException
     {
-        if (d.validationUtil.validateOrLog(data, LOG) == false) return false;
+        if (d.bootstrapConfig.isExtraValidation()) {
+            if (d.validationUtil.validateOrLog(data, LOG) == false) return false;
+        }
 
         MessageDataHeaderDto header = data.getHeader();
         MessageDataDigestDto digest = data.getDigest();
@@ -314,7 +320,9 @@ public class DataPartitionChain {
     }
     
     private boolean processCastle(MessageSecurityCastleDto msg, @Nullable LoggerHook LOG) {
-        if (d.validationUtil.validateOrLog(msg, LOG) == false) return false;
+        if (d.bootstrapConfig.isExtraValidation()) {
+            if (d.validationUtil.validateOrLog(msg, LOG) == false) return false;
+        }
 
         UUID id = msg.getId();
         if (id == null) {
@@ -331,7 +339,9 @@ public class DataPartitionChain {
     }
     
     private boolean processPublicKey(MessagePublicKeyDto msg, @Nullable LoggerHook LOG) {
-        if (d.validationUtil.validateOrLog(msg, LOG) == false) return false;
+        if (d.bootstrapConfig.isExtraValidation()) {
+            if (d.validationUtil.validateOrLog(msg, LOG) == false) return false;
+        }
 
         // Now add it to the cache
         publicKeys.put(MessageSerializer.getKey(msg), msg);

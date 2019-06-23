@@ -7,6 +7,7 @@ import com.tokera.ate.scopes.Startup;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import javax.annotation.Nullable;
@@ -14,6 +15,8 @@ import javax.annotation.PostConstruct;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 import javax.validation.*;
+import javax.ws.rs.WebApplicationException;
+import javax.ws.rs.core.Response;
 
 /**
  * Provides validation utilities to validate Beans that conform to the Java
@@ -42,7 +45,7 @@ public class ValidationUtil {
     public List<ErrorDetail> validate(Object obj) {
         Set<ConstraintViolation<Object>> constraintViolations = validator.validate(obj);
         if (constraintViolations.isEmpty()) {
-            return new ArrayList<>();
+            return new LinkedList<>();
         }
         return getValidationErrorMessage(constraintViolations);
     }
@@ -67,7 +70,8 @@ public class ValidationUtil {
     public void validateOrThrow(Object obj) {
         List<ErrorDetail> errors = validate(obj);
         if (errors.size() > 0) {
-            throw new RuntimeException(convertValidationErrorDetails(obj, errors));
+            String msg = convertValidationErrorDetails(obj, errors);
+            throw new WebApplicationException(msg, Response.Status.BAD_REQUEST);
         }
     }
 
