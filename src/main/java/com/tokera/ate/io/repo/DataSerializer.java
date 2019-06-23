@@ -250,7 +250,7 @@ public class DataSerializer {
 
         // Cache it for faster decryption
         if (byteStream != null && digest != null) {
-            @Hash String cacheHash = d.encryptor.hashMd5AndEncode(castle.key, digest.getDigestBytes());
+            @Hash String cacheHash = d.encryptor.hashMd5AndEncode(castle.key, digest.getDigestBytesOrThrow());
             this.decryptCacheData.put(cacheHash, byteStream);
         }
 
@@ -324,7 +324,7 @@ public class DataSerializer {
         byte[] hashBytes;
         MessageDataDigestDto digest = msg.getDigest();
         if (digest != null) {
-            hashBytes = digest.getDigestBytes();
+            hashBytes = digest.getDigestBytesOrThrow();
         } else {
             hashBytes = msg.getPayloadBytes();
         }

@@ -43,10 +43,10 @@ public class MessageDataDigestTests
         MessageDataDigest digest = header.createFlatBuffer();
         MessageDataDigestDto header2 = new MessageDataDigestDto(digest);
 
-        Assertions.assertTrue(Objects.equal(header.getSeed(), header2.getSeed()), "Seed is not equal");
+        Assertions.assertTrue(Objects.equal(header.getSeedOrThrow(), header2.getSeed()), "Seed is not equal");
         header2.setSeed(Base64.encodeBase64URLSafeString(bytes1));
         Assertions.assertTrue(Objects.equal(header.getPublicKeyHash(), header2.getPublicKeyHash()), "Public key hash is not equal");
-        Assertions.assertTrue(Objects.equal(header.getDigest(), header2.getDigest()), "Digest is not equal");
+        Assertions.assertTrue(Objects.equal(header.getDigestOrThrow(), header2.getDigest()), "Digest is not equal");
         Assertions.assertTrue(Objects.equal(header.getSignature(), header2.getSignature()), "Signature is not equal");
     }
     
@@ -92,9 +92,9 @@ public class MessageDataDigestTests
         WritableByteChannel channel2 = Channels.newChannel(stream2);
         channel2.write(header2.createFlatBuffer().getByteBuffer().duplicate());
 
-        Assertions.assertTrue(Objects.equal(digest.getSeed(), header2.getSeed()), "Seed is not equal");
+        Assertions.assertTrue(Objects.equal(digest.getSeedOrThrow(), header2.getSeed()), "Seed is not equal");
         Assertions.assertTrue(Objects.equal(digest.getPublicKeyHash(), header2.getPublicKeyHash()), "Public key hash is not equal");
-        Assertions.assertTrue(Objects.equal(digest.getDigest(), header2.getDigest()), "Digest is not equal");
+        Assertions.assertTrue(Objects.equal(digest.getDigestOrThrow(), header2.getDigest()), "Digest is not equal");
         Assertions.assertTrue(Objects.equal(digest.getSignature(), header2.getSignature()), "Signature is not equal");
         
         byte[] streamBytes1 = stream.toByteArray();

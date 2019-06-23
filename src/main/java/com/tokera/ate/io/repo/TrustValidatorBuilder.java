@@ -600,11 +600,11 @@ final class TrustValidatorBuilder {
             }
             // Compute the digest bytes
             byte[] streamBytes = stream.toByteArray();
-            byte[] seedBytes = digest.getSeedBytes();
+            byte[] seedBytes = digest.getSeedBytesOrThrow();
             byte[] digestBytes = d.encryptor.hashSha(seedBytes, streamBytes);
 
             // Verify the digest bytes match the signature
-            byte[] digestBytesHeader = digest.getDigestBytes();
+            byte[] digestBytesHeader = digest.getDigestBytesOrThrow();
             if (Arrays.areEqual(digestBytesHeader, digestBytes) == false) {
                 fail("digest differential");
                 return false;

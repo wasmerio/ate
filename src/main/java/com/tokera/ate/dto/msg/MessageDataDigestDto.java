@@ -120,7 +120,7 @@ public class MessageDataDigestDto extends MessageBaseDto implements Serializable
         fb = null;
     }
     
-    public @Signature String getSignature() {
+    public @Nullable @Signature String getSignature() {
         MessageDataDigest lfb = fb;
         if (lfb != null) {
             if (lfb.signatureLength() > 0) {
@@ -132,11 +132,11 @@ public class MessageDataDigestDto extends MessageBaseDto implements Serializable
             }
         }
         @Signature String ret = this.signature;
-        if (ret == null) throw new WebApplicationException("MessageDataDigest has no signature bytes attached.");
+        if (ret == null) return null;
         return ret;
     }
     
-    public @Signature byte[] getSignatureBytes() {
+    public @Nullable @Signature byte[] getSignatureBytes() {
         MessageDataDigest lfb = fb;
         if (lfb != null) {
             if (lfb.signatureLength() > 0) {
@@ -149,7 +149,7 @@ public class MessageDataDigestDto extends MessageBaseDto implements Serializable
             }
         }
         @Signature String ret = this.signature;
-        if (ret == null) throw new WebApplicationException("MessageDataDigest has no signature bytes attached.");
+        if (ret == null) return null;
         return Base64.decodeBase64(ret);
     }
 
@@ -159,14 +159,14 @@ public class MessageDataDigestDto extends MessageBaseDto implements Serializable
         this.signature = signature;
     }
 
-    public @Hash String getPublicKeyHash() {
+    public @Nullable @Hash String getPublicKeyHash() {
         MessageDataDigest lfb = fb;
         if (lfb != null) {
             @Hash String v = lfb.publicKeyHash();
             if (v != null) return v;
         }
         String ret = this.publicKeyHash;
-        if (ret == null) throw new WebApplicationException("MessageDataDigest has no public key hash attached.");
+        if (ret == null) return null;
         return ret;
     }
 
@@ -190,13 +190,20 @@ public class MessageDataDigestDto extends MessageBaseDto implements Serializable
         return this.seed;
     }
 
+    @JsonIgnore
+    public @Salt String getSeedOrThrow() {
+        @Salt String ret = this.getSeed();
+        if (ret == null) throw new WebApplicationException("MessageDataDigest has no seed bytes attached.");
+        return ret;
+    }
+
     public void setSeed(@Salt String seed) {
         assert this._immutable == false;
         copyOnWrite();
         this.seed = seed;
     }
     
-    public @PlainText byte[] getSeedBytes() {
+    public @Nullable @PlainText byte[] getSeedBytes() {
         MessageDataDigest lfb = fb;
         if (lfb != null) {
             if (lfb.seedLength() > 0) {
@@ -209,11 +216,18 @@ public class MessageDataDigestDto extends MessageBaseDto implements Serializable
             }
         }
         @PlainText String ret = this.seed;
-        if (ret == null) throw new WebApplicationException("MessageDataDigest has no seed bytes attached.");
+        if (ret == null) return null;
         return Base64.decodeBase64(ret);
     }
+
+    @JsonIgnore
+    public @PlainText byte[] getSeedBytesOrThrow() {
+        @PlainText byte[] ret = this.getSeedBytes();
+        if (ret == null) throw new WebApplicationException("MessageDataDigest has no seed bytes attached.");
+        return ret;
+    }
     
-    public @Hash String getDigest() {
+    public @Nullable @Hash String getDigest() {
         MessageDataDigest lfb = fb;
         if (lfb != null) {
             if (lfb.digestLength() > 0) {
@@ -225,12 +239,17 @@ public class MessageDataDigestDto extends MessageBaseDto implements Serializable
             }
         }
 
-        @Hash String ret = this.digest;
+        return this.digest;
+    }
+
+    @JsonIgnore
+    public @Hash String getDigestOrThrow() {
+        @Hash String ret = this.getDigest();
         if (ret == null) throw new WebApplicationException("MessageDataDigest has no digest bytes attached.");
         return ret;
     }
-    
-    public @Hash byte[] getDigestBytes() {
+
+    public @Nullable @Hash byte[] getDigestBytes() {
         MessageDataDigest lfb = fb;
         if (lfb != null) {
             if (lfb.digestLength() > 0) {
@@ -243,8 +262,15 @@ public class MessageDataDigestDto extends MessageBaseDto implements Serializable
             }
         }
         @Hash String ret = this.digest;
-        if (ret == null) throw new WebApplicationException("MessageDataDigest has no digest bytes attached.");
+        if (ret == null) return null;
         return Base64.decodeBase64(ret);
+    }
+
+    @JsonIgnore
+    public @Hash byte[] getDigestBytesOrThrow() {
+        @Hash byte[] ret = this.getDigestBytes();
+        if (ret == null) throw new WebApplicationException("MessageDataDigest has no digest bytes attached.");
+        return ret;
     }
     
     public void setDigest(@Hash String digest) {
@@ -267,17 +293,17 @@ public class MessageDataDigestDto extends MessageBaseDto implements Serializable
         }
         
         String sigStr1 = this.getSignature();
-        if (sigStr1.length() > 0) {
+        if (sigStr1 != null && sigStr1.length() > 0) {
             offsetSignature = MessageDataDigest.createSignatureVector(fbb, Base64.decodeBase64(sigStr1));
         }
         
         String digestStr = this.getDigest();
-        if (digestStr.length() > 0) {
-            offsetDigest = MessageDataDigest.createDigestVector(fbb, Base64.decodeBase64(this.getDigest()));
+        if (digestStr != null && digestStr.length() > 0) {
+            offsetDigest = MessageDataDigest.createDigestVector(fbb, Base64.decodeBase64(digestStr));
         }
         
         String publicKeyHashStr = this.getPublicKeyHash();
-        if (publicKeyHashStr.length() > 0) {
+        if (publicKeyHashStr != null && publicKeyHashStr.length() > 0) {
             offsetPublicKeyHash = fbb.createString(publicKeyHashStr);
         }
         
