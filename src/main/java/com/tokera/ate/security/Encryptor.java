@@ -75,6 +75,7 @@ import org.bouncycastle.crypto.digests.SHA512Digest;
 @ApplicationScoped
 public class Encryptor implements Runnable
 {
+    AteDelegate d = AteDelegate.get();
     @SuppressWarnings("initialization.fields.uninitialized")
     @Inject
     private LoggerHook LOG;
@@ -500,7 +501,11 @@ public class Encryptor implements Runnable
 
     public MessagePrivateKeyDto genSignKey()
     {
-        return genSignKey(config.getDefaultSigningStrength());
+        MessagePrivateKeyDto ret = genSignKey(config.getDefaultSigningStrength());
+        if (d.bootstrapConfig.isExtraValidation()) {
+            d.validationUtil.validateOrThrow(ret);
+        }
+        return ret;
     }
 
     public MessagePrivateKeyDto genSignKey(int keysize)
@@ -628,7 +633,11 @@ public class Encryptor implements Runnable
     }
 
     public MessagePrivateKeyDto genEncryptKey() {
-        return this.genEncryptKey(config.getDefaultEncryptionStrength());
+        MessagePrivateKeyDto ret = this.genEncryptKey(config.getDefaultEncryptionStrength());
+        if (d.bootstrapConfig.isExtraValidation()) {
+            d.validationUtil.validateOrThrow(ret);
+        }
+        return ret;
     }
     
     public MessagePrivateKeyDto genEncryptKey(int keysize)
