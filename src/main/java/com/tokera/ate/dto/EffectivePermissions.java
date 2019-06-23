@@ -33,6 +33,9 @@ import java.util.UUID;
 public class EffectivePermissions
 {
     @JsonProperty
+    @Nullable
+    public UUID castleId;
+    @JsonProperty
     @NotNull
     public List<@Hash String> rolesRead;
     @JsonProperty
@@ -46,6 +49,7 @@ public class EffectivePermissions
     public List<@Hash String> anchorRolesWrite;
     
     public EffectivePermissions() {
+        this.castleId = null;
         this.rolesRead = new ArrayList<>();
         this.rolesWrite = new ArrayList<>();
         this.anchorRolesRead = new ArrayList<>();

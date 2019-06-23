@@ -98,6 +98,7 @@ public class EffectivePermissionBuilder {
     private void addRootTrust(EffectivePermissions ret) {
         MessageDataHeaderDto rootOfTrust = d.io.getRootOfTrust(PUUID.from(this.partitionKey, this.origId));
         if (rootOfTrust != null) {
+            ret.castleId = rootOfTrust.getCastleId();
             ret.rolesRead.addAll(rootOfTrust.getAllowRead());
             ret.rolesWrite.addAll(rootOfTrust.getAllowWrite());
             ret.anchorRolesRead.addAll(rootOfTrust.getAllowRead());
@@ -113,12 +114,18 @@ public class EffectivePermissionBuilder {
         boolean inheritWrite = true;
 
         // Next we transverse up the tree finding other keys that have already been accepted into the chain of trust
+        boolean isFirst = true;
         @DaoId UUID id = origId;
         @DaoId UUID parentId = origParentId;
         do {
             DataContainer container = d.io.getRawOrNull(PUUID.from(this.partitionKey, id));
             if (container != null) {
                 MessageDataHeaderDto header = container.getMergedHeader();
+
+                if (isFirst) {
+                    ret.castleId = header.getCastleId();
+                    isFirst = false;
+                }
 
                 if (inheritRead == true) {
                     this.addRolesRead(ret, header.getAllowRead(), true);

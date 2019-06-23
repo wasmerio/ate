@@ -400,7 +400,7 @@ public class DataSerializer {
         if (castle == null) {
             if (shouldThrow == true) {
                 EffectivePermissions permissions = d.authorization.perms(partitionKey, header.getIdOrThrow(), header.getParentId(), false);
-                throw d.authorization.buildReadException(partitionKey, header.getCastleIdOrThrow(), header.getIdOrThrow(), permissions, true);
+                throw d.authorization.buildReadException(partitionKey, header.getIdOrThrow(), permissions, true);
             }
             return null;
         }

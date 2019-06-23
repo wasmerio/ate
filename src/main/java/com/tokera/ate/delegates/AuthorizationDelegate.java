@@ -166,23 +166,37 @@ public class AuthorizationDelegate {
         }
     }
 
-    public void validateReadOrThrow(IPartitionKey partitionKey, @DaoId UUID objId) {
-        EffectivePermissions permissions = this.perms(partitionKey, objId, null, false);
-        SecurityCastleContext castle = d.securityCastleManager.makeCastle(partitionKey, permissions);
-        if (canRead(partitionKey, objId, null) == false) {
-            throw buildReadException(partitionKey, castle.id, objId, permissions, false);
+    public void validateReadOrThrow(PUUID pid) {
+        validateReadOrThrow(pid.partition(), pid.id(), null);
+    }
+
+    public void validateWriteOrThrow(PUUID pid) {
+        validateWriteOrThrow(pid.partition(), pid.id(), null);
+    }
+
+    public void validateReadOrThrow(PUUID pid, @DaoId UUID parentId) {
+        validateReadOrThrow(pid.partition(), pid.id(), parentId);
+    }
+
+    public void validateWriteOrThrow(PUUID pid, @DaoId UUID parentId) {
+        validateWriteOrThrow(pid.partition(), pid.id(), parentId);
+    }
+
+    public void validateReadOrThrow(IPartitionKey partitionKey, @DaoId UUID objId, @Nullable @DaoId UUID parentId) {
+        EffectivePermissions permissions = this.perms(partitionKey, objId, parentId, false);
+        if (canRead(partitionKey, objId, parentId) == false) {
+            throw buildReadException(partitionKey, objId, permissions, false);
         }
     }
 
-    public void validateWriteOrThrow(IPartitionKey partitionKey, @DaoId UUID objId) {
-        EffectivePermissions permissions = this.perms(partitionKey, objId, null, false);
-        SecurityCastleContext castle = d.securityCastleManager.makeCastle(partitionKey, permissions);
-        if (canWrite(partitionKey, objId, null) == false) {
+    public void validateWriteOrThrow(IPartitionKey partitionKey, @DaoId UUID objId, @Nullable @DaoId UUID parentId) {
+        EffectivePermissions permissions = this.perms(partitionKey, objId, parentId, false);
+        if (canWrite(partitionKey, objId, parentId) == false) {
             throw buildWriteException(partitionKey, objId, permissions, false);
         }
     }
 
-    public RuntimeException buildReadException(IPartitionKey partitionKey, @Nullable UUID castleId, @DaoId UUID objId, EffectivePermissions permissions, boolean showStack)
+    public RuntimeException buildReadException(IPartitionKey partitionKey, @DaoId UUID objId, EffectivePermissions permissions, boolean showStack)
     {
         StringBuilder sb = new StringBuilder();
         sb.append("Access denied while attempting to read object [");
@@ -193,6 +207,7 @@ public class AuthorizationDelegate {
         sb.append(objId).append("]\n");
 
         sb.append(" > castle: ");
+        UUID castleId = permissions.castleId;
         if (castleId != null) {
             sb.append(castleId).append("\n");
         } else {
