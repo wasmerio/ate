@@ -26,7 +26,7 @@ public class FsFolderDto {
     @JsonProperty
     @NotNull
     @Size(min=1, max=64)
-    @Pattern(regexp = "^[a-zA-Z0-9_\\-\\:\\@\\.]+$")
+    @Pattern(regexp = "^[a-zA-Z0-9_\\#\\-\\:\\@\\.]+$")
     private @Alias String name;
     @JsonProperty
     @NotNull

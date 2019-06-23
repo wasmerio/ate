@@ -297,7 +297,7 @@ public class HeadIO implements IAteIO
     @SuppressWarnings({"unchecked"})
     public <T extends BaseDao> T get(PUUID id, Class<T> type) {
         try {
-            BaseDao ret = back.getOrNull(id, true);
+            BaseDao ret = back.getOrThrow(id);
             if (ret == null) {
                 throw new RuntimeException(type.getSimpleName() + " not found (id=" + id.print() + ")");
             }
@@ -317,7 +317,7 @@ public class HeadIO implements IAteIO
     }
 
     protected BaseDao get(PUUID id) {
-        BaseDao ret = back.getOrNull(id, true);
+        BaseDao ret = back.getOrThrow(id);
         if (ret == null) {
             throw new RuntimeException("Object data (id=" + id.print() + ") not found");
         }

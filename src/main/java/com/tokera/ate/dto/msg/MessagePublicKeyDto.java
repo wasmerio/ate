@@ -48,7 +48,7 @@ public class MessagePublicKeyDto extends MessageBaseDto implements Serializable,
     @JsonProperty
     @MonotonicNonNull
     @Size(min=1, max=64)
-    @Pattern(regexp = "^[a-zA-Z0-9_\\-\\:\\@\\.]+$")
+    @Pattern(regexp = "^[a-zA-Z0-9_\\#\\-\\:\\@\\.]+$")
     protected @Alias String alias;
     @JsonProperty
     @MonotonicNonNull

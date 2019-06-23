@@ -16,6 +16,7 @@ import org.apache.commons.codec.binary.Base64;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.bouncycastle.crypto.InvalidCipherTextException;
 
+import javax.ws.rs.WebApplicationException;
 import java.io.IOException;
 import java.util.UUID;
 
@@ -45,7 +46,7 @@ public class DefaultSecurityCastleFactory implements ISecurityCastleFactory {
             return null;
 
         } catch (IOException | InvalidCipherTextException ex) {
-            return null;
+            throw new WebApplicationException("Failed to retrieve AES secret while processing data object [id=" + partitionKey + ":" + id + "].", ex);
         }
     }
 

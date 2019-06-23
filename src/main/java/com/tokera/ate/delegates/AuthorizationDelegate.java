@@ -231,7 +231,7 @@ public class AuthorizationDelegate {
 
             MessagePublicKeyDto roleKey = d.io.publicKeyOrNull(partitionKey, publicKeyHash);
             @Hash String roleKeyAlias = roleKey != null ? d.encryptor.getAlias(partitionKey, roleKey) : publicKeyHash;
-            sb.append(roleKeyAlias).append(" - ").append(publicKeyHash).append("]");
+            sb.append(roleKeyAlias).append(" - ").append(publicKeyHash);
             if (castleId == null) {
                 sb.append(" [castle missing]");
             } else if (this.d.securityCastleManager.hasEncryptKey(partitionKey, castleId, publicKeyHash)) {
@@ -257,6 +257,21 @@ public class AuthorizationDelegate {
 
             String privateKeyPublicHash = d.encryptor.getPublicKeyHash(privateKey);
             sb.append(d.encryptor.getAlias(partitionKey, privateKey)).append(" - ").append(privateKeyPublicHash);
+            if (castleId == null) {
+                sb.append(" [castle missing]");
+            } else if (this.d.securityCastleManager.hasEncryptKey(partitionKey, castleId, privateKeyPublicHash)) {
+                if (permissions.rolesRead.contains(privateKeyPublicHash)) {
+                    sb.append(" [record found]");
+                } else {
+                    sb.append(" [irrelevant record found]");
+                }
+            } else {
+                if (permissions.rolesRead.contains(privateKeyPublicHash)) {
+                    sb.append(" [record missing]");
+                } else {
+                    sb.append(" [irrelevant record missing]");
+                }
+            }
             sb.append("\n");
             hasOwns = true;
         }
