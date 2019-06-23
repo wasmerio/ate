@@ -145,4 +145,18 @@ public class RequestContextDelegate {
         }
         return this.requestUriInfo;
     }
+
+    public static boolean isWithinRequestContext() {
+        javax.enterprise.context.spi.Context requestContext;
+        try {
+            requestContext = AteDelegate.get().beanManager.getContext(RequestScoped.class);
+        } catch (Throwable ex) {
+            requestContext = null;
+        }
+        if (requestContext != null) {
+            return requestContext.isActive();
+        } else {
+            return false;
+        }
+    }
 }

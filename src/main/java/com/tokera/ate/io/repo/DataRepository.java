@@ -139,13 +139,13 @@ public class DataRepository implements IAteIO {
 
     @Override
     public boolean merge(IPartitionKey partitionKey, MessagePublicKeyDto t) {
-        this.mergeInternal(partitionKey, t, true);
+        this.mergeInternal(partitionKey, t, false);
         return true;
     }
 
     @Override
     public boolean merge(IPartitionKey partitionKey, MessageSecurityCastleDto t) {
-        this.mergeInternal(partitionKey, t, true);
+        this.mergeInternal(partitionKey, t, false);
         return true;
     }
 

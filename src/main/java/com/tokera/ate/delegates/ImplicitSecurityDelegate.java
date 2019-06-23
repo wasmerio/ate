@@ -10,6 +10,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 import javax.annotation.PostConstruct;
 import javax.enterprise.context.ApplicationScoped;
 import javax.enterprise.event.Observes;
@@ -78,53 +79,61 @@ public class ImplicitSecurityDelegate {
         return enquireDomainKey(domain, shouldThrow, null);
     }
 
-    public @Nullable MessagePublicKeyDto enquireDomainKey(@DomainName String domain, boolean shouldThrow, @Nullable IPartitionKey partitionKey)
+    public @Nullable MessagePublicKeyDto enquireDomainKey(@DomainName String domain, boolean shouldThrow, IPartitionKey partitionKey)
     {
         return enquireDomainKey(d.bootstrapConfig.getImplicitAuthorityAlias(), domain, shouldThrow, partitionKey);
     }
 
+    public @Nullable MessagePublicKeyDto enquireDomainKey(@DomainName String domain, boolean shouldThrow, IPartitionKey partitionKey, Function<String, MessagePublicKeyDto> publicKeyResolver) {
+        return enquireDomainKey(d.bootstrapConfig.getImplicitAuthorityAlias(), domain, shouldThrow, null, partitionKey, publicKeyResolver);
+    }
+
     public @Nullable MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, boolean shouldThrow)
     {
-        return enquireDomainKey(prefix, domain, shouldThrow, domain, null);
+        return enquireDomainKey(prefix, domain, shouldThrow, domain, null, null);
     }
 
     public @Nullable MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, boolean shouldThrow, @Nullable IPartitionKey partitionKey)
     {
-        return enquireDomainKey(prefix, domain, shouldThrow, domain, partitionKey);
+        return enquireDomainKey(prefix, domain, shouldThrow, domain, partitionKey, null);
     }
 
     public @Nullable MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, boolean shouldThrow, @Alias String alias)
     {
-        return enquireDomainKey(prefix, domain, shouldThrow, alias, null);
+        return enquireDomainKey(prefix, domain, shouldThrow, alias, null, null);
     }
 
-    public @Nullable MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, boolean shouldThrow, @Nullable @Alias String alias, @Nullable IPartitionKey partitionKey)
+    public @Nullable MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, boolean shouldThrow, @Nullable @Alias String alias, @Nullable IPartitionKey partitionKey, @Nullable Function<String, MessagePublicKeyDto> publicKeyResolver)
     {
-        String domainStr = enquireDomainString(prefix + "." + domain, shouldThrow);
-        if (domainStr == null) {
+        String publicKeyHash = enquireDomainString(prefix + "." + domain, shouldThrow);
+        if (publicKeyHash == null) {
             if (shouldThrow) {
                 throw new RuntimeException("No implicit authority found at domain name [" + prefix + "." + domain + "] (missing TXT record).");
             }
             return null;
         }
 
-        MessagePublicKeyDto ret;
-        if (partitionKey != null) {
-            ret = d.io.publicKeyOrNull(partitionKey, domainStr);
+        MessagePublicKeyDto ret = null;
+        if (publicKeyResolver != null) {
+            ret = publicKeyResolver.apply(publicKeyHash);
         } else {
-            ret = d.io.publicKeyOrNull(domainStr);
-        }
-        if (ret == null) {
-            ret = d.currentRights.getRightsWrite()
-                    .stream()
-                    .filter(k -> domainStr.equals(k.getPublicKeyHash()))
-                    .findFirst()
-                    .orElse(null);
+            if (partitionKey != null) {
+                ret = d.io.publicKeyOrNull(partitionKey, publicKeyHash);
+            } else {
+                ret = d.io.publicKeyOrNull(publicKeyHash);
+            }
+            if (ret == null) {
+                ret = d.currentRights.getRightsWrite()
+                        .stream()
+                        .filter(k -> publicKeyHash.equals(k.getPublicKeyHash()))
+                        .findFirst()
+                        .orElse(null);
+            }
         }
 
         if (ret == null) {
             if (shouldThrow) {
-                throw new RuntimeException("Unknown implicit authority found at domain name [" + prefix + "." + domain + "] (public key is missing with hash [" + domainStr + "]).");
+                throw new RuntimeException("Unknown implicit authority found at domain name [" + prefix + "." + domain + "] (public key is missing with hash [" + publicKeyHash + "]).");
             }
         } else {
             ret = new MessagePublicKeyDto(ret);

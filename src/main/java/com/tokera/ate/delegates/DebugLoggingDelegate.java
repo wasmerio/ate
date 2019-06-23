@@ -72,6 +72,12 @@ public class DebugLoggingDelegate {
         }
     }
 
+    public void logTrustValidationException(Throwable ex, @Nullable LoggerHook LOG) {
+        if (d.bootstrapConfig.isLoggingChainOfTrust()) {
+            logWarn(ex, LOG);
+        }
+    }
+
     public void logMerge(@Nullable MessageDataDto data, @Nullable BaseDao entity, @Nullable LoggerHook LOG, boolean later)
     {
         if (d.bootstrapConfig.isLoggingWrites()) {
@@ -247,6 +253,14 @@ public class DebugLoggingDelegate {
             LOG.info(info);
         } else {
             d.genericLogger.info(info);
+        }
+    }
+
+    public void logWarn(Throwable ex, @Nullable LoggerHook LOG) {
+        if (LOG != null) {
+            LOG.warn(ex);
+        } else {
+            d.genericLogger.warn(ex);
         }
     }
 }

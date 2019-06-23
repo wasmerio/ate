@@ -108,6 +108,7 @@ final class TrustValidatorBuilder {
 
             return true;
         } catch (Throwable ex) {
+            d.debugLogging.logTrustValidationException(ex, LOG);
             failure(data, ex.getMessage());
             return false;
         }
@@ -377,7 +378,11 @@ final class TrustValidatorBuilder {
                         implicitAuthority != null)
                 {
                     try {
-                        MessagePublicKeyDto trustImplicit = d.implicitSecurity.enquireDomainKey(implicitAuthority, true, partitionKey);
+                        MessagePublicKeyDto trustImplicit = d.implicitSecurity.enquireDomainKey(
+                                implicitAuthority,
+                                true,
+                                partitionKey,
+                                onGetPublicKey);
                         if (trustImplicit == null) {
                             fail("dns or log record for implicit authority missing [" + implicitAuthority + "]");
                             return false;
@@ -386,6 +391,7 @@ final class TrustValidatorBuilder {
                         digestPublicKey = trustImplicit;
                         LOG.info("[" + partitionKey + "] chain-of-trust rooted: " + entityType + ":" + id + " on " + trustImplicit.getPublicKeyHash());
                     } catch (Throwable ex) {
+                        d.debugLogging.logTrustValidationException(ex, LOG);
                         fail(ex.getMessage());
                         return false;
                     }
@@ -578,6 +584,7 @@ final class TrustValidatorBuilder {
                         return false;
                     }
                 } catch (IOException ex) {
+                    d.debugLogging.logTrustValidationException(ex, LOG);
                     String msg = ex.getMessage();
                     if (msg == null) msg = ex.toString();
                     fail(msg.toLowerCase());

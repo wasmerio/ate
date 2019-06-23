@@ -11,6 +11,7 @@ import com.tokera.ate.delegates.LoggingDelegate;
 import java.lang.reflect.Member;
 import java.util.Date;
 
+import com.tokera.ate.delegates.RequestContextDelegate;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.slf4j.Marker;
 
@@ -72,7 +73,7 @@ public class LoggerHook implements org.slf4j.Logger {
     
     public void pushContext(ILogable context)
     {
-        if (isRequestContext() == false) return;
+        if (RequestContextDelegate.isWithinRequestContext() == false) return;
         loggingDelegate.getLogStack().push(context);
         
         context.setError(null);
@@ -80,31 +81,17 @@ public class LoggerHook implements org.slf4j.Logger {
     }
     
     public void popContext() {
-        if (isRequestContext() == false) return;
+        if (RequestContextDelegate.isWithinRequestContext() == false) return;
         loggingDelegate.getLogStack().pop();
     }
     
     protected org.slf4j.Logger getStaticForwader() {
         return org.slf4j.LoggerFactory.getLogger(logClazz);
     }
-    
-    protected boolean isRequestContext() {
-        Context requestContext = null;
-        try {
-            requestContext = beanManager.getContext(RequestScoped.class);
-        } catch (Throwable ex) {
-            requestContext = null;
-        }
-        if (requestContext != null) {
-            return requestContext.isActive();
-        } else {
-            return false;
-        }
-    }
 
     protected org.slf4j.Logger getForwarder() {
         
-        if (isRequestContext() == true &&
+        if (RequestContextDelegate.isWithinRequestContext() == true &&
             LoggerHook.getForceStatic() == false)
         {
             Boolean forceContextLogger = LoggerHook.getForceContextLogger();
@@ -127,7 +114,7 @@ public class LoggerHook implements org.slf4j.Logger {
     }
 
     public boolean getIsStatic() {
-        if (isRequestContext() == true &&
+        if (RequestContextDelegate.isWithinRequestContext() == true &&
             LoggerHook.getForceStatic() == false)
         {
             Boolean forceContextLogger = LoggerHook.getForceContextLogger();
@@ -150,12 +137,12 @@ public class LoggerHook implements org.slf4j.Logger {
     }
     
     public void prefixIndent() {
-        if (isRequestContext() == false) return;
+        if (RequestContextDelegate.isWithinRequestContext() == false) return;
         loggingDelegate.setLogPrefix(loggingDelegate.getLogPrefix() + "...");
     }
     
     public void prefixDeindent() {
-        if (isRequestContext() == false) return;
+        if (RequestContextDelegate.isWithinRequestContext() == false) return;
         if (loggingDelegate.getLogPrefix().length() > 3) {
             loggingDelegate.setLogPrefix(loggingDelegate.getLogPrefix().substring(0, loggingDelegate.getLogPrefix().length() - 3));
         } else {
