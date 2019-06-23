@@ -1,7 +1,5 @@
 package com.tokera.ate.io.repo;
 
-import com.tokera.ate.common.ConcurrentQueue;
-import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.kafka.MessageSerializer;
 import com.tokera.ate.dao.msg.*;
@@ -179,7 +177,7 @@ public class DataPartitionChain {
         MessageDataDto data = msg.getData();
 
         // Validate the data
-        if (validateTrustStructureAndWritability(data, LOG) == false) {
+        if (validateTrustStructureAndWritability(data, LOG, null) == false) {
             return false;
         }
         
@@ -220,11 +218,16 @@ public class DataPartitionChain {
                 });
     }
     
-    public boolean validateTrustStructureAndWritability(MessageDataDto data, @Nullable LoggerHook LOG, Map<UUID, @Nullable MessageDataDto> requestTrust)
+    public boolean validateTrustStructureAndWritability(MessageDataDto data, @Nullable LoggerHook LOG, @Nullable Map<UUID, @Nullable MessageDataDto> requestTrust)
     {
-        return createTrustValidator(LOG)
-                .withRequestTrust(requestTrust)
-                .validate(this.partitionKey(), data);
+        if (requestTrust != null) {
+            return createTrustValidator(LOG)
+                    .withRequestTrust(requestTrust)
+                    .validate(this.partitionKey(), data);
+        } else {
+            return createTrustValidator(LOG)
+                    .validate(this.partitionKey(), data);
+        }
     }
 
     public boolean validateTrustStructureAndWritabilityIncludingStaging(MessageDataDto data, @Nullable LoggerHook LOG, Map<UUID, @Nullable MessageDataDto> requestTrust)
@@ -236,11 +239,13 @@ public class DataPartitionChain {
     
     private boolean processData(MessageDataDto data, MessageMetaDto meta, @Nullable LoggerHook LOG) throws IOException, InvalidCipherTextException
     {
+        if (d.validationUtil.validateOrLog(data, LOG) == false) return false;
+
         MessageDataHeaderDto header = data.getHeader();
         MessageDataDigestDto digest = data.getDigest();
         
         // Extract the header and digest
-        if (digest == null)
+        if (header == null || digest == null)
         {
             drop(LOG, data, meta, "missing header or digest", null);
             return false;
@@ -309,6 +314,8 @@ public class DataPartitionChain {
     }
     
     private boolean processCastle(MessageSecurityCastleDto msg, @Nullable LoggerHook LOG) {
+        if (d.validationUtil.validateOrLog(msg, LOG) == false) return false;
+
         UUID id = msg.getId();
         if (id == null) {
             drop(LOG, msg, null, "missing id", null);
@@ -323,8 +330,9 @@ public class DataPartitionChain {
         return castles.getOrDefault(id, null);
     }
     
-    private boolean processPublicKey(MessagePublicKeyDto msg, @Nullable LoggerHook LOG)
-    {
+    private boolean processPublicKey(MessagePublicKeyDto msg, @Nullable LoggerHook LOG) {
+        if (d.validationUtil.validateOrLog(msg, LOG) == false) return false;
+
         // Now add it to the cache
         publicKeys.put(MessageSerializer.getKey(msg), msg);
         return true;

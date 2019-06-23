@@ -2,6 +2,7 @@ package com.tokera.ate.delegates;
 
 import com.tokera.ate.BootstrapConfig;
 import com.tokera.ate.common.LoggerHook;
+import com.tokera.ate.common.ValidationUtil;
 import com.tokera.ate.common.XmlUtils;
 import com.tokera.ate.events.*;
 import com.tokera.ate.extensions.DaoParentDiscoveryExtension;
@@ -90,6 +91,7 @@ public abstract class BaseAteDelegate {
     public final LoggerHook genericLogger;
     public final BootstrapConfig bootstrapConfig;
     public final DebugLoggingDelegate debugLogging;
+    public final ValidationUtil validationUtil;
 
     protected static <@NonNull T> T getBean(Class<@NonNull T> clazz) {
         return CDI.current().select(clazz).get();
@@ -173,5 +175,6 @@ public abstract class BaseAteDelegate {
         this.serializableObjectsExtension = getBean(SerializableObjectsExtension.class);
         this.bootstrapConfig = getBean(BootstrapConfig.class);
         this.debugLogging = getBean(DebugLoggingDelegate.class);
+        this.validationUtil = getBean(ValidationUtil.class);
     }
 }

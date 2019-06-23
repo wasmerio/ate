@@ -1,5 +1,7 @@
 package com.tokera.ate.constraints;
 
+import com.tokera.ate.dao.enumerations.KeyType;
+import com.tokera.ate.dto.msg.MessageKeyPartDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -34,6 +36,14 @@ public class PrivateKeyValidator implements ConstraintValidator<PrivateKeyConstr
             constraintValidatorContext.buildConstraintViolationWithTemplate("The key has no public key hash.").addConstraintViolation();
             ret = false;
         }
+        for (MessageKeyPartDto part : key.getPublicParts()) {
+            if (part.getType() == KeyType.unknown) {
+                if (ret == true) constraintValidatorContext.disableDefaultConstraintViolation();
+                constraintValidatorContext.buildConstraintViolationWithTemplate("The key has public parts that use an unknown crypto algorithm.").addConstraintViolation();
+                ret = false;
+            }
+        }
+
         if (key.getPrivateParts() == null) {
             if (ret == true) constraintValidatorContext.disableDefaultConstraintViolation();
             constraintValidatorContext.buildConstraintViolationWithTemplate("The key has no private parts.").addConstraintViolation();
@@ -48,6 +58,13 @@ public class PrivateKeyValidator implements ConstraintValidator<PrivateKeyConstr
             if (ret == true) constraintValidatorContext.disableDefaultConstraintViolation();
             constraintValidatorContext.buildConstraintViolationWithTemplate("The key has no private key hash.").addConstraintViolation();
             ret = false;
+        }
+        for (MessageKeyPartDto part : key.getPrivateParts()) {
+            if (part.getType() == KeyType.unknown) {
+                if (ret == true) constraintValidatorContext.disableDefaultConstraintViolation();
+                constraintValidatorContext.buildConstraintViolationWithTemplate("The key has private parts that use an unknown crypto algorithm.").addConstraintViolation();
+                ret = false;
+            }
         }
         return ret;
     }
