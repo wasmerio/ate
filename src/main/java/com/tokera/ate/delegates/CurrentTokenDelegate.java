@@ -254,7 +254,7 @@ public class CurrentTokenDelegate {
                         RuntimeException ex;
                         try {
                             EffectivePermissions permissions = d.authorization.perms(partitionKey, entityId, null, false);
-                            ex = d.authorization.buildReadException(partitionKey, entityId, permissions, true);
+                            ex = d.authorization.buildReadException(permissions, true);
                         } catch (Throwable dump) {
                             ex = new WebApplicationException("Read access denied (Missing permitted entity). Path Param (" + name + "=" + entityId + ")",
                                     Response.Status.UNAUTHORIZED);
@@ -279,7 +279,7 @@ public class CurrentTokenDelegate {
                         RuntimeException ex;
                         try {
                             EffectivePermissions permissions = d.authorization.perms(partitionKey, entityId, null, false);
-                            ex = d.authorization.buildWriteException(partitionKey, entityId, permissions, true);
+                            ex = d.authorization.buildWriteException(permissions, true);
                         } catch (Throwable dump) {
                             ex = new WebApplicationException("Write access denied (Missing permitted entity). Path Param (" + name + "=" + entityId + ")",
                                     Response.Status.UNAUTHORIZED);

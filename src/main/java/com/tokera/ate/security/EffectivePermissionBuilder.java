@@ -70,7 +70,7 @@ public class EffectivePermissionBuilder {
      */
     public EffectivePermissions build()
     {
-        EffectivePermissions ret = new EffectivePermissions();
+        EffectivePermissions ret = new EffectivePermissions(this.partitionKey, this.origId);
         addRootTrust(ret);
         addChainTrust(ret);
         addImplicitTrust(ret);

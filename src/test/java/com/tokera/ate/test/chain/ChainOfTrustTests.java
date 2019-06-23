@@ -128,7 +128,7 @@ public class ChainOfTrustTests
         header.getAllowWrite().add(hash);
         chain.addTrustDataHeader(header, LOG);
         
-        EffectivePermissions permissions = new EffectivePermissions();
+        EffectivePermissions permissions = new EffectivePermissions(chain.partitionKey(), rootId);
         permissions.rolesWrite.add(hash);
         permissions.anchorRolesWrite.add(hash);
         request.getRightsWrite().add(encryptor.getTrustOfPublicWrite());

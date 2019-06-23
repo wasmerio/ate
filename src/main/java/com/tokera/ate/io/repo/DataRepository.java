@@ -242,9 +242,8 @@ public class DataRepository implements IAteIO {
     private void validateTrustWritability(BaseDao entity) {
         if (d.authorization.canWrite(entity) == false)
         {
-            IPartitionKey partitionKey = entity.partitionKey();
             EffectivePermissions permissions = d.authorization.perms(entity);
-            throw d.authorization.buildWriteException(partitionKey, entity.getId(), permissions, true);
+            throw d.authorization.buildWriteException(permissions, true);
         }
         if (this.immutable(entity.addressableId()) == true) {
             throw new RuntimeException("Unable to save [" + entity + "] as this object is immutable.");

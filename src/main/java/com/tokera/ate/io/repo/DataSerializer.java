@@ -117,20 +117,12 @@ public class DataSerializer {
             {
                 // We can only sign if we have a private key for the pair
                 MessagePrivateKeyDto privateKey = this.d.securityCastleManager.getSignKey(publicKeyHash);
-                if (privateKey == null) continue;
-
-                // Add the key
-                Iterable<MessageKeyPartDto> keyParts = privateKey.getPublicParts();
-                @Hash String keyHash = privateKey.getPublicKeyHash();
-                if (keyParts == null) continue;
-                if (keyHash == null) continue;
-                MessagePublicKeyDto publicKey = new MessagePublicKeyDto(keyParts, keyHash);
-
-                String alias = privateKey.getAlias();
-                if (alias != null) {
-                    publicKey.setAlias(alias);
+                if (privateKey == null) {
+                    throw d.authorization.buildWriteException(permissions, true);
                 }
 
+                // Add the key
+                MessagePublicKeyDto publicKey = new MessagePublicKeyDto(privateKey);
                 kt.write(publicKey, this.LOG);
             }
         }
@@ -233,6 +225,7 @@ public class DataSerializer {
 
         // Generate an encryption key for this data object
         SecurityCastleContext castle = d.securityCastleManager.makeCastle(partitionKey, permissions);
+        permissions.castleId = castle.id;
         MessageDataHeaderDto header = buildHeaderForDataObject(obj, castle.id);
         
         // Embed the payload if one exists
@@ -259,7 +252,7 @@ public class DataSerializer {
         
         // Make sure we are actually writing something to Kafka
         if (digest == null) {
-            throw d.authorization.buildWriteException(partitionKey, obj.getId(), permissions, false);
+            throw d.authorization.buildWriteException(permissions, false);
         }
 
         // Create the message skeleton
@@ -400,7 +393,7 @@ public class DataSerializer {
         if (castle == null) {
             if (shouldThrow == true) {
                 EffectivePermissions permissions = d.authorization.perms(partitionKey, header.getIdOrThrow(), header.getParentId(), false);
-                throw d.authorization.buildReadException(partitionKey, header.getIdOrThrow(), permissions, true);
+                throw d.authorization.buildReadException(permissions, true);
             }
             return null;
         }

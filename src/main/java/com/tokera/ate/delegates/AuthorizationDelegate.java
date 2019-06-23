@@ -89,7 +89,7 @@ public class AuthorizationDelegate {
         if (canWrite(obj) == false) {
             IPartitionKey partitionKey = obj.partitionKey();
             EffectivePermissions permissions = d.authorization.perms(obj);
-            throw buildWriteException(partitionKey, obj.getId(), permissions, true);
+            throw buildWriteException(permissions, true);
         }
     }
 
@@ -99,8 +99,11 @@ public class AuthorizationDelegate {
         return perms.canWrite(d.currentRights);
     }
 
-    public RuntimeException buildWriteException(IPartitionKey partitionKey, @DaoId UUID entityId, EffectivePermissions permissions, boolean showStack)
+    public RuntimeException buildWriteException(EffectivePermissions permissions, boolean showStack)
     {
+        IPartitionKey partitionKey = permissions.partitionKey;
+        @DaoId UUID entityId = permissions.id;
+
         StringBuilder sb = new StringBuilder();
         sb.append("Access denied while attempting to write object [");
         DataContainer container = d.io.getRawOrNull(PUUID.from(partitionKey, entityId));
@@ -185,19 +188,22 @@ public class AuthorizationDelegate {
     public void validateReadOrThrow(IPartitionKey partitionKey, @DaoId UUID objId, @Nullable @DaoId UUID parentId) {
         EffectivePermissions permissions = this.perms(partitionKey, objId, parentId, false);
         if (canRead(partitionKey, objId, parentId) == false) {
-            throw buildReadException(partitionKey, objId, permissions, false);
+            throw buildReadException(permissions, false);
         }
     }
 
     public void validateWriteOrThrow(IPartitionKey partitionKey, @DaoId UUID objId, @Nullable @DaoId UUID parentId) {
         EffectivePermissions permissions = this.perms(partitionKey, objId, parentId, false);
         if (canWrite(partitionKey, objId, parentId) == false) {
-            throw buildWriteException(partitionKey, objId, permissions, false);
+            throw buildWriteException(permissions, false);
         }
     }
 
-    public RuntimeException buildReadException(IPartitionKey partitionKey, @DaoId UUID objId, EffectivePermissions permissions, boolean showStack)
+    public RuntimeException buildReadException(EffectivePermissions permissions, boolean showStack)
     {
+        IPartitionKey partitionKey = permissions.partitionKey;
+        @DaoId UUID objId = permissions.id;
+
         StringBuilder sb = new StringBuilder();
         sb.append("Access denied while attempting to read object [");
         DataContainer container = d.io.getRawOrNull(PUUID.from(partitionKey, objId));

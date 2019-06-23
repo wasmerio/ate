@@ -12,6 +12,7 @@ import com.tokera.ate.dao.IRights;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
+import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.security.EffectivePermissionBuilder;
 import com.tokera.ate.units.DaoId;
 import com.tokera.ate.units.Hash;
@@ -33,6 +34,12 @@ import java.util.UUID;
 public class EffectivePermissions
 {
     @JsonProperty
+    @NotNull
+    public final IPartitionKey partitionKey;
+    @JsonProperty
+    @NotNull
+    public final UUID id;
+    @JsonProperty
     @Nullable
     public UUID castleId;
     @JsonProperty
@@ -48,7 +55,9 @@ public class EffectivePermissions
     @NotNull
     public List<@Hash String> anchorRolesWrite;
     
-    public EffectivePermissions() {
+    public EffectivePermissions(IPartitionKey partitionKey, UUID id) {
+        this.partitionKey = partitionKey;
+        this.id = id;
         this.castleId = null;
         this.rolesRead = new ArrayList<>();
         this.rolesWrite = new ArrayList<>();
