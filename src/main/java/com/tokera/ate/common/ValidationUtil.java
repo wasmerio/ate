@@ -4,6 +4,8 @@ import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.exceptions.ErrorDetail;
 import com.tokera.ate.scopes.Startup;
 
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
@@ -11,10 +13,7 @@ import javax.annotation.Nullable;
 import javax.annotation.PostConstruct;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
-import javax.validation.ConstraintViolation;
-import javax.validation.Validation;
-import javax.validation.Validator;
-import javax.validation.ValidatorFactory;
+import javax.validation.*;
 
 /**
  * Provides validation utilities to validate Beans that conform to the Java
@@ -75,12 +74,30 @@ public class ValidationUtil {
     /**
      * Converts a list of error details into a message
      **/
-    public static String convertValidationErrorDetails(Object obj, List<ErrorDetail> errors) {
+    public String convertValidationErrorDetails(Object obj, List<ErrorDetail> errors) {
         StringBuilder sb = new StringBuilder();
         sb.append(obj.getClass().getSimpleName() + " failed validation:\n");
         for (ErrorDetail detail : errors) {
             sb.append("- " + detail.getMessage());
         }
+
+        if (d.bootstrapConfig.isLoggingValidationVerbose()) {
+            String objTxt;
+            try {
+                objTxt = d.yaml.serializeObj(obj);
+            } catch (Throwable ex) {
+                objTxt = "[serialization failed]";
+            }
+
+            try {
+                throw new ValidationException(sb.toString());
+            } catch (Throwable ex) {
+                StringWriter sw = new StringWriter();
+                ex.printStackTrace(new PrintWriter(sw));
+                return ex.getMessage() + "\n" + objTxt + "\n" + sw.toString();
+            }
+        }
+
         return sb.toString();
     }
 
@@ -90,7 +107,7 @@ public class ValidationUtil {
      * @param constraintViolations set of constraint violations
      * @return validation error message in one string
      */
-    public static List<ErrorDetail> getValidationErrorMessage(Set<ConstraintViolation<Object>> constraintViolations) {
+    public List<ErrorDetail> getValidationErrorMessage(Set<ConstraintViolation<Object>> constraintViolations) {
         List<ErrorDetail> errorDetails = new ArrayList<>();
         for (ConstraintViolation<?> cv : constraintViolations) {
             errorDetails.add(new ErrorDetail(cv.getPropertyPath().toString(), cv.getMessage()));

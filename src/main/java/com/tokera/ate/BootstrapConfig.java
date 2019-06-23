@@ -53,6 +53,7 @@ public class BootstrapConfig {
     private boolean loggingDeletes = false;
     private boolean loggingKafka = false;
     private boolean loggingWithStackTrace = false;
+    private boolean loggingValidationVerbose = false;
 
     // Only weld should initialize this configuration using the ApiServer.startWeld method
     @Deprecated()
@@ -380,5 +381,13 @@ public class BootstrapConfig {
 
     public void setLoggingSync(boolean loggingSync) {
         this.loggingSync = loggingSync;
+    }
+
+    public boolean isLoggingValidationVerbose() {
+        return loggingValidationVerbose;
+    }
+
+    public void setLoggingValidationVerbose(boolean loggingValidationVerbose) {
+        this.loggingValidationVerbose = loggingValidationVerbose;
     }
 }
