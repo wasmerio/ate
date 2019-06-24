@@ -22,11 +22,6 @@ import java.util.concurrent.TimeUnit;
 public class DefaultPartitionResolver implements IPartitionResolver {
     private AteDelegate d = AteDelegate.get();
 
-    private Cache<UUID, IPartitionKey> cache = CacheBuilder.newBuilder()
-            .maximumSize(10000)
-            .expireAfterAccess(1, TimeUnit.MINUTES)
-            .build();
-
     private IPartitionKey resolveInternal(BaseDao obj)
     {
         // If the object implements the partition key interface then it can define its own partition key
@@ -36,10 +31,6 @@ public class DefaultPartitionResolver implements IPartitionResolver {
 
         // Check the object itself
         IPartitionKey partitionKey = BaseDaoInternal.getPartitionKey(obj);
-        if (partitionKey != null) return partitionKey;
-
-        // Maybe its already in the cache
-        partitionKey = this.cache.getIfPresent(obj.getId());
         if (partitionKey != null) return partitionKey;
 
         // Follow the chain-of-trust up to the root of the tree
@@ -58,10 +49,6 @@ public class DefaultPartitionResolver implements IPartitionResolver {
             // can be used to determine which partition to place the data object
             return d.io.partitionKeyMapper().resolve(obj.getId());
         }
-
-        // Maybe its already in the cache
-        partitionKey = this.cache.getIfPresent(parentId);
-        if (partitionKey != null) return partitionKey;
 
         // If it has a parent then we need to grab the partition key of the parent rather than this object
         // otherwise the chain of trust will get distributed to different partitions which would break the
@@ -105,12 +92,7 @@ public class DefaultPartitionResolver implements IPartitionResolver {
 
     @Override
     public IPartitionKey resolve(BaseDao obj) {
-        IPartitionKey ret = this.cache.getIfPresent(obj.getId());
-        if (ret != null) return ret;
-
-        ret = resolveInternal(obj);
-        this.cache.put(obj.getId(), ret);
-        return ret;
+        return resolveInternal(obj);
     }
 
     @Override

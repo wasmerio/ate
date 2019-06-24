@@ -33,7 +33,7 @@ public class DefaultPartitionKeyMapper implements IPartitionKeyMapper {
 
         @Override
         public String partitionTopic() {
-            return String.format("data%d", hash % maxTopics);
+            return String.format("d%d", hash % maxTopics);
         }
 
         @Override
