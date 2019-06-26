@@ -12,6 +12,7 @@ import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.scopes.TokenScoped;
 import com.tokera.ate.units.DaoId;
 import com.tokera.ate.dto.TokenDto;
+import com.tokera.ate.units.TopicName;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import com.tokera.ate.scopes.ScopeContext;
 
@@ -20,6 +21,7 @@ import javax.enterprise.event.Observes;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.container.ContainerRequestContext;
 import javax.ws.rs.core.Response;
+import java.util.Stack;
 import java.util.UUID;
 
 /**

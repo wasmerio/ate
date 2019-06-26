@@ -27,7 +27,6 @@ import java.io.IOException;
 @ApplicationScoped
 @Path("/acc")
 public class AccountREST {
-
     protected AteDelegate d = AteDelegate.get();
 
     @POST

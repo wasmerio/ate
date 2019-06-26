@@ -19,6 +19,7 @@ import com.tokera.ate.io.layers.HeadIO;
 import com.tokera.ate.io.layers.MemoryRequestCacheIO;
 import com.tokera.ate.io.merge.DataMerger;
 import com.tokera.ate.io.repo.*;
+import com.tokera.ate.io.task.TaskManager;
 import com.tokera.ate.qualifiers.FrontendStorageSystem;
 import com.tokera.ate.security.Encryptor;
 import com.tokera.ate.security.SecurityCastleManager;
@@ -92,6 +93,7 @@ public abstract class BaseAteDelegate {
     public final BootstrapConfig bootstrapConfig;
     public final DebugLoggingDelegate debugLogging;
     public final ValidationUtil validationUtil;
+    public final TaskManager taskManager;
 
     protected static <@NonNull T> T getBean(Class<@NonNull T> clazz) {
         return CDI.current().select(clazz).get();
@@ -176,5 +178,6 @@ public abstract class BaseAteDelegate {
         this.bootstrapConfig = getBean(BootstrapConfig.class);
         this.debugLogging = getBean(DebugLoggingDelegate.class);
         this.validationUtil = getBean(ValidationUtil.class);
+        this.taskManager = getBean(TaskManager.class);
     }
 }

@@ -1,6 +1,5 @@
 package com.tokera.ate.io.layers;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;

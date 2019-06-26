@@ -4,7 +4,9 @@ import com.tokera.ate.annotations.ImplicitAuthorityField;
 import com.tokera.ate.annotations.PermitParentFree;
 import com.tokera.ate.common.ImmutalizableArrayList;
 import com.tokera.ate.dao.base.BaseDaoRoles;
+import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.units.DaoId;
+import com.tokera.examples.common.CoinPartitionKey;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.Dependent;
@@ -37,5 +39,10 @@ public class Coin extends BaseDaoRoles {
 
     public @Nullable @DaoId UUID getParentId() {
         return null;
+    }
+
+    @Override
+    public IPartitionKey partitionKey() {
+        return new CoinPartitionKey();
     }
 }

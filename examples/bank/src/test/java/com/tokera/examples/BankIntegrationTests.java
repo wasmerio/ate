@@ -156,6 +156,13 @@ public class BankIntegrationTests {
 
     @Test
     @Order(7)
+    @DisplayName("...starting coin watcher task")
+    public void startCoinWatcher() {
+        this.companySession.restGet("/task/coinWatcher", String.class);
+    }
+
+    @Test
+    @Order(8)
     @DisplayName("...reading empty transactions for company")
     public void readCompanyTransactions() {
         MonthlyActivity response = this.companySession.restGet("/account/" + this.companyAccountId + "/transactions", MonthlyActivity.class);
@@ -164,7 +171,7 @@ public class BankIntegrationTests {
     }
 
     @Test
-    @Order(8)
+    @Order(9)
     @DisplayName("...coining login with key")
     public void coiningLogin() {
         RootLoginRequest request = new RootLoginRequest();
@@ -183,7 +190,7 @@ public class BankIntegrationTests {
     }
 
     @Test
-    @Order(9)
+    @Order(10)
     @DisplayName("...printing money for individual")
     public void printMoney() throws UnsupportedEncodingException {
 
@@ -208,7 +215,7 @@ public class BankIntegrationTests {
     }
 
     @Test
-    @Order(10)
+    @Order(11)
     @DisplayName("...sending money from individual to company")
     public void transferMoney() {
         // Create a new ownership key and request
@@ -229,7 +236,7 @@ public class BankIntegrationTests {
     }
 
     @Test
-    @Order(11)
+    @Order(12)
     @DisplayName("...reading active transactions for individual")
     public void readDebitorsTransactions() {
         MonthlyActivity response = this.individualSession.restGet("/account/" + this.individualAccountId + "/transactions", MonthlyActivity.class);
@@ -240,7 +247,7 @@ public class BankIntegrationTests {
     }
 
     @Test
-    @Order(12)
+    @Order(13)
     @DisplayName("...burning money away")
     public void burnMoney() {
         AteDelegate d = AteDelegate.get();
@@ -259,7 +266,7 @@ public class BankIntegrationTests {
     }
 
     @Test
-    @Order(13)
+    @Order(14)
     @DisplayName("...reading empty individual account")
     public void readEmptyAccount() {
         MonthlyActivity response = this.individualSession.restGet("/account/" + this.individualAccountId + "/transactions", MonthlyActivity.class);
@@ -267,5 +274,13 @@ public class BankIntegrationTests {
         d.genericLogger.info(d.yaml.serializeObj(response));
 
         Assertions.assertEquals(BigDecimal.ZERO, response.getBalances().getOrDefault(coiningDomain, BigDecimal.ZERO));
+    }
+
+    @Test
+    @Order(15)
+    @DisplayName("...unregistering coin callback")
+    public void stopWatcherTask() throws InterruptedException {
+        this.companySession.restDelete("/task/coinWatcher");
+        Thread.sleep(1000L);
     }
 }

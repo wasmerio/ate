@@ -13,6 +13,7 @@ import com.tokera.ate.test.dao.MyAccount;
 import com.tokera.ate.test.dto.NewAccountDto;
 import org.junit.jupiter.api.*;
 
+import javax.enterprise.inject.spi.CDI;
 import javax.validation.constraints.NotNull;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.client.Entity;

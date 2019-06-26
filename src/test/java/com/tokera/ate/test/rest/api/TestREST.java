@@ -11,7 +11,6 @@ import java.util.UUID;
 @ApplicationScoped
 @Path("/test")
 public class TestREST {
-
     protected AteDelegate d = AteDelegate.get();
 
     @GET

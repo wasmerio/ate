@@ -2,7 +2,6 @@ package com.tokera.ate.io.layers;
 
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
-import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.io.api.IAteIO;
 import com.tokera.ate.io.api.IPartitionKey;
@@ -17,8 +16,7 @@ import java.util.*;
 /**
  * IO implementation that simple passes through IO commands to the next IO module with built in callbacks
  */
-public class PassThroughIO implements IAteIO
-{
+public class PassThroughIO implements IAteIO {
     protected final IAteIO next;
 
     public PassThroughIO(IAteIO next) {
@@ -72,17 +70,17 @@ public class PassThroughIO implements IAteIO
     public void mergeLaterWithoutValidation(BaseDao t) {
         next.mergeLaterWithoutValidation(t);
     }
-    
+
     @Override
     public void mergeDeferred() {
         next.mergeDeferred();
     }
-    
+
     @Override
     public void clearDeferred() {
         next.clearDeferred();
     }
-    
+
     @Override
     public void clearCache(PUUID id) {
         next.clearCache(id);
@@ -92,12 +90,12 @@ public class PassThroughIO implements IAteIO
     public boolean remove(BaseDao t) {
         return next.remove(t);
     }
-    
+
     @Override
     public void removeLater(BaseDao t) {
         next.removeLater(t);
     }
-    
+
     @Override
     public boolean remove(PUUID id, Class<?> type) {
         return next.remove(id, type);
@@ -119,13 +117,19 @@ public class PassThroughIO implements IAteIO
     }
 
     @Override
-    public void warm(IPartitionKey partitionKey) { next.warm(partitionKey); }
+    public void warm(IPartitionKey partitionKey) {
+        next.warm(partitionKey);
+    }
 
     @Override
-    public void sync(IPartitionKey partitionKey) { next.sync(partitionKey); }
+    public void sync(IPartitionKey partitionKey) {
+        next.sync(partitionKey);
+    }
 
     @Override
-    public boolean sync(IPartitionKey partitionKey, MessageSyncDto sync) { return next.sync(partitionKey, sync); }
+    public boolean sync(IPartitionKey partitionKey, MessageSyncDto sync) {
+        return next.sync(partitionKey, sync);
+    }
 
     @Override
     public DataSubscriber backend() {
@@ -136,26 +140,26 @@ public class PassThroughIO implements IAteIO
     public @Nullable MessagePublicKeyDto publicKeyOrNull(IPartitionKey partitionKey, @Hash String hash) {
         return next.publicKeyOrNull(partitionKey, hash);
     }
-    
+
     @Override
     public boolean exists(@Nullable PUUID _id) {
         @DaoId PUUID id = _id;
         if (id == null) return false;
         return next.exists(id);
     }
-    
+
     @Override
     public boolean ethereal(IPartitionKey partitionKey) {
         return next.ethereal(partitionKey);
     }
-    
+
     @Override
     public boolean everExisted(@Nullable PUUID _id) {
         @DaoId PUUID id = _id;
         if (id == null) return false;
         return next.everExisted(id);
     }
-    
+
     @Override
     public boolean immutable(PUUID id) {
         return next.immutable(id);
@@ -172,18 +176,20 @@ public class PassThroughIO implements IAteIO
     }
 
     @Override
-    public @Nullable DataContainer getRawOrNull(PUUID id) { return next.getRawOrNull(id); }
-    
+    public @Nullable DataContainer getRawOrNull(PUUID id) {
+        return next.getRawOrNull(id);
+    }
+
     @Override
     public @Nullable BaseDao getVersionOrNull(PUUID id, MessageMetaDto meta) {
         return next.getVersionOrNull(id, meta);
     }
-    
+
     @Override
     public @Nullable MessageDataDto getVersionMsgOrNull(PUUID id, MessageMetaDto meta) {
         return next.getVersionMsgOrNull(id, meta);
     }
-    
+
     @Override
     public <T extends BaseDao> Iterable<MessageMetaDto> getHistory(PUUID id, Class<T> clazz) {
         return next.getHistory(id, clazz);
@@ -208,7 +214,7 @@ public class PassThroughIO implements IAteIO
     public <T extends BaseDao> List<DataContainer> getAllRaw(IPartitionKey partitionKey, Class<T> type) {
         return next.getAllRaw(partitionKey, type);
     }
-    
+
     @Override
     public <T extends BaseDao> List<T> getMany(IPartitionKey partitionKey, Iterable<@DaoId UUID> ids, Class<T> type) {
         return next.getMany(partitionKey, ids, type);

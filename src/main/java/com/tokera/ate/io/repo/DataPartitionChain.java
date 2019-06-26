@@ -6,6 +6,7 @@ import com.tokera.ate.dao.msg.*;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.common.LoggerHook;
+import com.tokera.ate.enumerations.TaskCallbackType;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.security.Encryptor;
 
@@ -84,11 +85,15 @@ public class DataPartitionChain {
     public void addTrustData(MessageDataDto data, MessageMetaDto meta, @Nullable LoggerHook LOG) {
         d.debugLogging.logTrust(this.partitionKey(), data, LOG);
 
+        // Add it to the chain of trust
         UUID id = data.getHeader().getIdOrThrow();
         this.chainOfTrust.compute(id, (i, c) -> {
             if (c == null) c = new DataContainer(this.key);
             return c.add(data, meta);
         });
+
+        // Invoke the task manager so anything waiting for events will trigger
+        d.taskManager.feed(this.partitionKey(), data, meta);
     }
     
     public void addTrustCastle(MessageSecurityCastleDto castle, @Nullable LoggerHook LOG) {
