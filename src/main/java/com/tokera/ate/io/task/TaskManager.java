@@ -30,12 +30,17 @@ public class TaskManager {
     ConcurrentHashMap<IPartitionKey, ConcurrentHashMap<Class<? extends BaseDao>, ITaskContext>> lookup
             = new ConcurrentHashMap<>();
 
-    @SuppressWarnings("unchecked")
     public <T extends BaseDao> ITask subscribe(IPartitionKey partitionKey, Class<T> clazz, ITaskCallback<T> callback) {
+        TokenDto token = d.currentToken.getTokenOrNull();
+        return subscribe(partitionKey, clazz, callback, token);
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T extends BaseDao> ITask subscribe(IPartitionKey partitionKey, Class<T> clazz, ITaskCallback<T> callback, @Nullable TokenDto token) {
         ConcurrentHashMap<Class<? extends BaseDao>, ITaskContext> first
                 = lookup.computeIfAbsent(partitionKey, k -> new ConcurrentHashMap<>());
         ITaskContext second = first.computeIfAbsent(clazz, c -> new TaskContext(partitionKey, clazz, CDI.current().select(BoundRequestContext.class).get()));
-        return second.addTask(callback, clazz);
+        return second.addTask(callback, clazz, token);
     }
 
     public <T extends BaseDao> void unsubscribe(ITask task) {
