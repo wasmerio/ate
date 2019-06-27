@@ -6,7 +6,6 @@ import com.tokera.ate.dto.TokenDto;
 import com.tokera.ate.dto.msg.MessageDataMetaDto;
 import com.tokera.ate.io.api.*;
 import org.checkerframework.checker.nullness.qual.Nullable;
-import org.jboss.weld.context.bound.BoundRequestContext;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -23,13 +22,11 @@ public class TaskContext<T extends BaseDao> implements ITaskContext {
     public final IPartitionKey partitionKey;
     public final Class<T> clazz;
     public final List<Task<T>> tasks;
-    public final BoundRequestContext boundRequestContext;
 
-    public TaskContext(IPartitionKey partitionKey, Class<T> clazz, BoundRequestContext boundRequestContext) {
+    public TaskContext(IPartitionKey partitionKey, Class<T> clazz) {
         this.partitionKey = partitionKey;
         this.clazz = clazz;
         this.tasks = new LinkedList<>();
-        this.boundRequestContext = boundRequestContext;
     }
 
     @Override
@@ -71,39 +68,6 @@ public class TaskContext<T extends BaseDao> implements ITaskContext {
         }
         ret.stop();
         return true;
-    }
-
-    /**
-     * Enters a fake request scope and brings the token online so that the callback will
-     * @param token
-     * @param callback
-     */
-    public void enterRequestScopeAndInvoke(@Nullable TokenDto token, Runnable callback) {
-        if (boundRequestContext.isActive()) {
-            throw new RuntimeException("Nested request context are not currently supported.");
-        }
-
-        synchronized (token) {
-            Map<String, Object> requestDataStore = new TreeMap<>();
-            boundRequestContext.associate(requestDataStore);
-            try {
-                boundRequestContext.activate();
-
-                // Publish the token but skip the validation as we already trust the token
-                d.currentToken.setPerformedValidation(true);
-                d.currentToken.publishToken(token);
-
-                // Run the stuff under this scope context
-                callback.run();
-
-                boundRequestContext.invalidate();
-                boundRequestContext.deactivate();
-            } catch (Throwable ex) {
-                d.genericLogger.warn(ex);
-            } finally {
-                boundRequestContext.dissociate(requestDataStore);
-            }
-        }
     }
 
     @Override

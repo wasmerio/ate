@@ -14,8 +14,12 @@ import com.tokera.ate.io.api.ITaskCallback;
 import org.apache.commons.lang.time.StopWatch;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import org.jboss.weld.context.bound.BoundRequestContext;
 
+import javax.enterprise.inject.spi.CDI;
 import java.util.ArrayList;
+import java.util.Map;
+import java.util.TreeMap;
 
 /**
  * Represents the context of a processor to be invoked on callbacks, this object can be used to unsubscribe
@@ -79,17 +83,23 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
     @Override
     public void run()
     {
+        boolean doneExisting = false;
         AteDelegate d = AteDelegate.get();
 
-        // Invoke any existing objects after its been added so that race conditions are avoided
-        invokeExisting();
+        // Create the bounded request context
+        BoundRequestContext boundRequestContext = CDI.current().select(BoundRequestContext.class).get();
 
         // Enter the main processing loop
         StopWatch timer = new StopWatch();
         timer.start();
         while (isRunning) {
             try {
-                invokeTick();
+                if (doneExisting == false) {
+                    invokeExisting(boundRequestContext);
+                    doneExisting = true;
+                }
+
+                invokeTick(boundRequestContext);
 
                 ArrayList<MessageDataMetaDto> msgs = new ArrayList<>();
                 for (int n = 0; n < 1000; n++) {
@@ -99,14 +109,14 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
                 }
 
                 if (msgs.size() <= 0) {
-                    invokeWarm();
+                    invokeWarm(boundRequestContext);
 
                     synchronized (this.toProcess) {
                         this.toProcess.wait(1000);
                     }
                 }
 
-                invokeMessages(msgs);
+                invokeMessages(boundRequestContext, msgs);
 
             } catch (InterruptedException e){
                 continue;
@@ -126,8 +136,8 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
     /**
      * Gathers all the objects in the tree of this particular type and invokes a processor for them
      */
-    public void invokeExisting() {
-        context.enterRequestScopeAndInvoke(token, () ->
+    public void invokeExisting(BoundRequestContext boundRequestContext) {
+        enterRequestScopeAndInvoke(boundRequestContext, token, () ->
         {
             AteDelegate d = AteDelegate.get();
             for (T obj : AteDelegate.get().io.getAll(clazz)) {
@@ -141,8 +151,8 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
     }
 
     @SuppressWarnings("unchecked")
-    public void invokeMessages(Iterable<MessageDataMetaDto> msgs) {
-        context.enterRequestScopeAndInvoke(token, () ->
+    public void invokeMessages(BoundRequestContext boundRequestContext, Iterable<MessageDataMetaDto> msgs) {
+        enterRequestScopeAndInvoke(boundRequestContext, token, () ->
         {
             AteDelegate d = AteDelegate.get();
             for (MessageDataMetaDto msg : msgs) {
@@ -168,12 +178,47 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
         });
     }
 
-    public void invokeTick() {
-        context.enterRequestScopeAndInvoke(token, () -> callback.onTick(this));
+    public void invokeTick(BoundRequestContext boundRequestContext) {
+        enterRequestScopeAndInvoke(boundRequestContext, token, () -> callback.onTick(this));
     }
 
-    public void invokeWarm() {
+    public void invokeWarm(BoundRequestContext boundRequestContext) {
         AteDelegate d = AteDelegate.get();
-        context.enterRequestScopeAndInvoke(token, () -> d.io.warm(partitionKey()));
+        enterRequestScopeAndInvoke(boundRequestContext, token, () -> d.io.warm(partitionKey()));
+    }
+
+    /**
+     * Enters a fake request scope and brings the token online so that the callback will
+     * @param token
+     * @param callback
+     */
+    public void enterRequestScopeAndInvoke(BoundRequestContext boundRequestContext, @Nullable TokenDto token, Runnable callback) {
+        AteDelegate d = AteDelegate.get();
+        if (boundRequestContext.isActive()) {
+            throw new RuntimeException("Nested request context are not currently supported.");
+        }
+
+        synchronized (token) {
+            Map<String, Object> requestDataStore = new TreeMap<>();
+            boundRequestContext.associate(requestDataStore);
+            try {
+                boundRequestContext.activate();
+                try {
+                    // Publish the token but skip the validation as we already trust the token
+                    d.currentToken.setPerformedValidation(true);
+                    d.currentToken.publishToken(token);
+
+                    // Run the stuff under this scope context
+                    callback.run();
+                } finally {
+                    boundRequestContext.invalidate();
+                    boundRequestContext.deactivate();
+                }
+            } catch (Throwable ex) {
+                d.genericLogger.warn(ex);
+            } finally {
+                boundRequestContext.dissociate(requestDataStore);
+            }
+        }
     }
 }
