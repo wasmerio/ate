@@ -2,17 +2,12 @@ package com.tokera.ate.client;
 
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
-import com.tokera.ate.providers.PartitionKeySerializer;
-import com.tokera.ate.providers.PuuidSerializer;
-import com.tokera.ate.providers.UuidSerializer;
-import com.tokera.ate.providers.YamlProvider;
+import com.tokera.ate.providers.*;
 import org.apache.commons.io.IOUtils;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.jboss.resteasy.client.jaxrs.ResteasyClient;
 import org.jboss.resteasy.client.jaxrs.ResteasyClientBuilder;
 import org.jboss.resteasy.client.jaxrs.ResteasyWebTarget;
-import org.jboss.resteasy.client.jaxrs.engines.ApacheHttpClient4Engine;
-import org.jboss.resteasy.plugins.providers.jackson.ResteasyJackson2Provider;
 import org.junit.jupiter.api.Assertions;
 
 import javax.ws.rs.ClientErrorException;
@@ -26,7 +21,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 public class TestTools {
 
@@ -36,6 +30,7 @@ public class TestTools {
                 .register(new UuidSerializer())
                 .register(new PartitionKeySerializer())
                 .register(new PuuidSerializer())
+                .register(new RangeLongSerializer())
                 .build();
         return client;
     }

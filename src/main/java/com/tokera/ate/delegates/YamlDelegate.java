@@ -7,16 +7,11 @@ import com.esotericsoftware.yamlbeans.YamlReader;
 import com.esotericsoftware.yamlbeans.YamlWriter;
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.annotations.YamlTags;
-import com.tokera.ate.common.ImmutalizableArrayList;
-import com.tokera.ate.common.ImmutalizableHashMap;
-import com.tokera.ate.common.ImmutalizableHashSet;
-import com.tokera.ate.common.ImmutalizableTreeMap;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.extensions.YamlTagDiscoveryExtension;
 import com.tokera.ate.io.api.IPartitionKey;
-import com.tokera.ate.io.merge.DataMerger;
 import com.tokera.ate.providers.*;
-import org.apache.commons.beanutils.BeanUtils;
+import org.apache.commons.lang.math.LongRange;
 
 import java.beans.IntrospectionException;
 import java.beans.Introspector;
@@ -28,7 +23,6 @@ import java.io.OutputStreamWriter;
 import java.io.Reader;
 import java.io.StringWriter;
 import java.io.Writer;
-import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.*;
@@ -137,6 +131,7 @@ public class YamlDelegate {
         //cfg.setClassTag("int", Integer.class);
         cfg.setClassTag("timestamp", java.util.Date.class);
         cfg.setClassTag("uuid", java.util.UUID.class);
+        cfg.setClassTag("longrange", LongRange.class);
         cfg.setClassTag("key", IPartitionKey.class);
         cfg.setClassTag("puuid", PUUID.class);
         cfg.setClassTag("bigdecimal", java.math.BigDecimal.class);
@@ -147,6 +142,7 @@ public class YamlDelegate {
         cfg.setScalarSerializer(java.util.Date.class, new DateSerializer());
         cfg.setScalarSerializer(java.util.UUID.class, new UuidSerializer());
         cfg.setScalarSerializer(PUUID.class, new PuuidSerializer());
+        cfg.setScalarSerializer(LongRange.class, new RangeLongSerializer());
         cfg.setScalarSerializer(IPartitionKey.class, new PartitionKeySerializer());
         cfg.setScalarSerializer(java.math.BigDecimal.class, new BigDecimalSerializer());
 

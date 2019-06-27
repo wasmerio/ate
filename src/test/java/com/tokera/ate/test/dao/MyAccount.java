@@ -6,7 +6,9 @@ import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.common.ImmutalizableArrayList;
 import com.tokera.ate.common.ImmutalizableTreeMap;
 import com.tokera.ate.dao.PUUID;
+import com.tokera.ate.dao.RangeLong;
 import com.tokera.ate.units.*;
+import org.apache.commons.lang.math.LongRange;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.Dependent;
@@ -37,11 +39,13 @@ public class MyAccount extends MyBaseAccount {
     @NotNull
     @Size(min=1, max=512)
     @Pattern(regexp="[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?", message="Invalid email")//if the field contains email address consider using this annotation to enforce field validation
-    private @EmailAddress String email;
+    public @EmailAddress String email;
     @JsonProperty
-    private @Nullable UUID idNullTest = null;
+    public @Nullable UUID idNullTest = null;
     @JsonProperty
-    private PUUID pid = new PUUID("data1234", 1, UUID.randomUUID());
+    public PUUID pid = new PUUID("data1234", 1, UUID.randomUUID());
+    @JsonProperty
+    public RangeLong range = new RangeLong(1, 10);
 
     public MyAccount() {
         this.email = "test@test.org";
