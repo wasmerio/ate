@@ -18,7 +18,6 @@ import java.io.IOException;
 import java.util.*;
 import java.util.function.Consumer;
 import java.util.function.Function;
-import java.util.function.BiFunction;
 
 /**
  * This builder class constructs a validator that will check the chain-of-trust rules to make sure the data
@@ -28,7 +27,7 @@ final class TrustValidatorBuilder {
     private final AteDelegate d = AteDelegate.get();
 
     private LoggerHook LOG;
-    private @Nullable Map<UUID, @Nullable MessageDataDto> requestTrust;
+    private @Nullable Map<UUID, @Nullable MessageDataDto> savedDatas;
     private Consumer<Failure> onFailure = null;
     private Function<UUID, DataContainer> onGetData = null;
     private Function<UUID, MessageDataHeaderDto> onGetRootOfTrust = null;
@@ -48,8 +47,8 @@ final class TrustValidatorBuilder {
     /**
      * Adds a request trust cache to the validator so that it can build a trust tree in memory as it works
      */
-    public TrustValidatorBuilder withRequestTrust(Map<UUID, @Nullable MessageDataDto> requestTrust) {
-        this.requestTrust = requestTrust;
+    public TrustValidatorBuilder withSavedDatas(Map<UUID, @Nullable MessageDataDto> requestTrust) {
+        this.savedDatas = requestTrust;
         return this;
     }
 
@@ -207,8 +206,8 @@ final class TrustValidatorBuilder {
             this.digest = data.getDigest();
             this.entityType = header.getPayloadClazzOrThrow();
 
-            if (requestTrust != null && requestTrust.containsKey(id)) {
-                this.existing = requestTrust.get(id);
+            if (savedDatas != null && savedDatas.containsKey(id)) {
+                this.existing = savedDatas.get(id);
             } else {
                 DataContainer existingMsg = getData(id);
                 this.existing = existingMsg != null ? existingMsg.getLastDataOrNull() : null;
@@ -250,7 +249,7 @@ final class TrustValidatorBuilder {
                     return false;
                 }
 
-                parent = requestTrust != null ? MapTools.getOrNull(requestTrust, parentId) : null;
+                parent = savedDatas != null ? MapTools.getOrNull(savedDatas, parentId) : null;
                 if (parent == null) {
                     DataContainer parentMsg = getData(parentId);
                     parent = parentMsg != null ? parentMsg.getLastDataOrNull() : null;
@@ -432,8 +431,8 @@ final class TrustValidatorBuilder {
                 @DaoId UUID leafParentId = leafHeader.getParentId();
                 if (leafParentId != null) {
 
-                    if (requestTrust != null && requestTrust.containsKey(leafParentId)) {
-                        leaf = requestTrust.get(leafParentId);
+                    if (savedDatas != null && savedDatas.containsKey(leafParentId)) {
+                        leaf = savedDatas.get(leafParentId);
                     } else {
                         DataContainer leafMsg = getData(leafParentId);
                         leaf = leafMsg != null ? leafMsg.getLastDataOrNull() : null;

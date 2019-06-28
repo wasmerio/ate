@@ -6,6 +6,8 @@ import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.msg.MessagePublicKey;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.dto.msg.MessageDataDto;
+import com.tokera.ate.dto.msg.MessageDataHeaderDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import com.tokera.ate.io.api.IAteIO;
 import com.tokera.ate.io.api.IPartitionKey;
@@ -23,6 +25,8 @@ import java.util.stream.Collectors;
  */
 @RequestScoped
 public class DataStagingManager {
+    AteDelegate d = AteDelegate.get();
+
     private final Map<IPartitionKey, PartitionContext> partitionMergeContexts = new TreeMap<>(new PartitionKeyComparator());
     private final Set<IPartitionKey> touchedPartitions = new HashSet<>();
 
@@ -35,6 +39,7 @@ public class DataStagingManager {
         public Map<UUID, BaseDao> toPut = new HashMap<>();
         public Map<UUID, BaseDao> toDelete = new HashMap<>();
         public Map<String, MessagePublicKeyDto> savedPublicKeys = new HashMap<>();
+        public Map<UUID, MessageDataDto> savedDatas = new HashMap<>();
     }
 
     private @Nullable PartitionContext getPartitionMergeContext(IPartitionKey key, boolean create)
@@ -59,6 +64,16 @@ public class DataStagingManager {
     public void put(IPartitionKey partitionKey, MessagePublicKeyDto key) {
         PartitionContext context = getPartitionMergeContext(partitionKey, true);
         context.savedPublicKeys.put(key.getPublicKeyHash(), key);
+    }
+
+    public void put(PUUID key, MessageDataDto data) {
+        PartitionContext context = getPartitionMergeContext(key.partition(), true);
+        context.savedDatas.put(key.id(), data);
+    }
+
+    public void put(IPartitionKey partitionKey, UUID id, MessageDataDto data) {
+        PartitionContext context = getPartitionMergeContext(partitionKey, true);
+        context.savedDatas.put(id, data);
     }
 
     public void put(IPartitionKey partitionKey, BaseDao obj) {
@@ -137,10 +152,24 @@ public class DataStagingManager {
     public @Nullable MessagePublicKeyDto findPublicKey(IPartitionKey partitionKey, String publicKeyHash) {
         PartitionContext context = getPartitionMergeContext(partitionKey, false);
         if (context == null) return null;
-        return MapTools.getOrNull(context.savedPublicKeys, publicKeyHash);
+        MessagePublicKeyDto ret = MapTools.getOrNull(context.savedPublicKeys, publicKeyHash);
+        if (ret == null) {
+            ret = d.currentRights.findKey(publicKeyHash);
+        }
+        return ret;
+    }
+
+    public @Nullable MessageDataDto findData(IPartitionKey partitionKey, UUID id) {
+        PartitionContext context = getPartitionMergeContext(partitionKey, false);
+        if (context == null) return null;
+        return MapTools.getOrNull(context.savedDatas, id);
     }
 
     public Set<IPartitionKey> getTouchedPartitions() {
         return this.touchedPartitions;
+    }
+
+    public Map<UUID, MessageDataDto> getSavedDataMap(IPartitionKey partitionKey) {
+        return getPartitionMergeContext(partitionKey, true).savedDatas;
     }
 }

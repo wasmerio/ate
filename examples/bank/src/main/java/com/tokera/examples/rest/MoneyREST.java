@@ -22,6 +22,7 @@ public class MoneyREST {
     @Consumes({"text/yaml", MediaType.APPLICATION_JSON})
     public TransactionToken printMoney(CreateAssetRequest request) {
         MessagePublicKeyDto coiningKey = d.implicitSecurity.enquireDomainKey(request.type, true);
+        d.genericLogger.info("coining-key: " + coiningKey.getPublicKeyHash());
 
         Coin coin = new Coin(request.type, request.value);
         d.authorization.authorizeEntityPublicRead(coin);
@@ -39,7 +40,10 @@ public class MoneyREST {
         //LOG.info(d.yaml.serializeObj(assetShare));
 
         String description = "Printing " + request.value + " coins of type [" + request.type + "]";
-        return new TransactionToken(Lists.newArrayList(new ShareToken(coin, coinShare, request.ownershipKey)), description);
+        TransactionToken ret = new TransactionToken(Lists.newArrayList(new ShareToken(coin, coinShare, request.ownershipKey)), description);
+
+        d.io.mergeDeferredAndSync();
+        return ret;
     }
 
     @POST

@@ -48,6 +48,14 @@ public class BaseDaoInternal
         return obj._mergesVersions;
     }
 
+    public static String getType(BaseDao obj) {
+        return obj.getClass().getName();
+    }
+
+    public static String getShortType(BaseDao obj) {
+        return obj.getClass().getSimpleName();
+    }
+
     public static void setMergesVersions(BaseDao obj, Set<UUID> mergesVersions) {
         obj._mergesVersions = mergesVersions;
     }

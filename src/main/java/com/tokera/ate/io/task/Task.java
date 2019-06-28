@@ -170,7 +170,7 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
                         continue;
                     }
 
-                    if (d.authorization.canRead(context.partitionKey(), header.getIdOrThrow(), header.getParentId()) == false) {
+                    if (d.authorization.canRead(context.partitionKey(), header.getIdOrThrow()) == false) {
                         continue;
                     }
 

@@ -4,6 +4,7 @@ import com.tokera.ate.annotations.PermitReadEntity;
 import com.tokera.ate.annotations.PermitWriteEntity;
 import com.tokera.ate.common.UUIDTools;
 import com.tokera.ate.dao.PUUID;
+import com.tokera.ate.dao.enumerations.PermissionPhase;
 import com.tokera.ate.dao.enumerations.RiskRole;
 import com.tokera.ate.dao.enumerations.UserRole;
 import com.tokera.ate.dto.EffectivePermissions;
@@ -256,11 +257,11 @@ public class CurrentTokenDelegate {
                 IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
                 for (String name : paramRead.name()) {
                     @DaoId UUID entityId = this.getAndValidateRequestParamValue(name, paramRead.prefix());
-                    boolean perm = d.authorization.canRead(partitionKey, entityId, null);
+                    boolean perm = d.authorization.canRead(partitionKey, entityId);
                     if (perm == false) {
                         RuntimeException ex;
                         try {
-                            EffectivePermissions permissions = d.authorization.perms(null, partitionKey, entityId, null, false);
+                            EffectivePermissions permissions = d.authorization.perms(null, partitionKey, entityId, PermissionPhase.BeforeMerge);
                             ex = d.authorization.buildReadException(permissions, true);
                         } catch (Throwable dump) {
                             ex = new WebApplicationException("Read access denied (Missing permitted entity). Path Param (" + name + "=" + entityId + ")",
@@ -281,11 +282,11 @@ public class CurrentTokenDelegate {
                 IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
                 for (String name : paramWrite.name()) {
                     @DaoId UUID entityId = this.getAndValidateRequestParamValue(name, paramWrite.prefix());
-                    boolean perm = d.authorization.canWrite(partitionKey, entityId, null);
+                    boolean perm = d.authorization.canWrite(partitionKey, entityId);
                     if (perm == false) {
                         RuntimeException ex;
                         try {
-                            EffectivePermissions permissions = d.authorization.perms(null, partitionKey, entityId, null, false);
+                            EffectivePermissions permissions = d.authorization.perms(null, partitionKey, entityId, PermissionPhase.BeforeMerge);
                             ex = d.authorization.buildWriteException(permissions, true);
                         } catch (Throwable dump) {
                             ex = new WebApplicationException("Write access denied (Missing permitted entity). Path Param (" + name + "=" + entityId + ")",

@@ -4,17 +4,24 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.Iterables;
 import com.google.flatbuffers.FlatBufferBuilder;
+import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.common.*;
+import com.tokera.ate.constraints.CastleConstraint;
+import com.tokera.ate.constraints.PrivateKeyConstraint;
 import com.tokera.ate.dao.ObjId;
 import com.tokera.ate.dao.msg.*;
 import com.tokera.ate.units.DaoId;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import javax.enterprise.context.Dependent;
 import javax.ws.rs.WebApplicationException;
 import java.io.Serializable;
 import java.util.*;
 
+@Dependent
+@CastleConstraint
+@YamlTag("msg.castle")
 public class MessageSecurityCastleDto extends MessageBaseDto implements Serializable, CopyOnWrite, Immutalizable {
     private static final long serialVersionUID = 1352819172417741228L;
 

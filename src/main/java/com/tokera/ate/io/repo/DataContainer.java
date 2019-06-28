@@ -8,6 +8,7 @@ package com.tokera.ate.io.repo;
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.base.BaseDaoInternal;
+import com.tokera.ate.dao.enumerations.PermissionPhase;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.EffectivePermissions;
 import com.tokera.ate.dto.msg.*;
@@ -98,6 +99,12 @@ public class DataContainer {
         return lastHeader.getPayloadClazzOrThrow();
     }
 
+    public @Nullable UUID getParentId() {
+        MessageDataHeaderDto lastHeader = getLastHeaderOrNull();
+        if (lastHeader == null) return null;
+        return lastHeader.getParentId();
+    }
+
     public boolean getImmutable() {
         MessageDataHeaderDto lastHeader = getLastHeaderOrNull();
         if (lastHeader == null) return false;
@@ -179,7 +186,7 @@ public class DataContainer {
             // If a mergeThreeWay was performed and we have writability then we should save it down to reduce future merges and
             // so that log compaction doesnt lose data (Kafka compacting)
             if (leaves.size() > 1) {
-                EffectivePermissions perms = d.authorization.perms(ret.getClass().getSimpleName(), partitionKey, ret.getId(), ret.getParentId(), false);
+                EffectivePermissions perms = d.authorization.perms(BaseDaoInternal.getType(ret), partitionKey, ret.getId(), PermissionPhase.BeforeMerge);
                 if (shouldSave && perms.canWrite(d.currentRights)) {
                     d.io.mergeAsyncWithoutValidation(ret);
                 }

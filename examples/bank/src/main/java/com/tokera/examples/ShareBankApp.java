@@ -22,6 +22,7 @@ public class ShareBankApp extends BootstrapApp {
         config.setLoggingChainOfTrust(true);
         config.setLoggingWrites(true);
         config.setDefaultStorageSystem(storage);
+        config.setExtraValidation(true);
 
         ApiServer.startApiServer(config);
     }

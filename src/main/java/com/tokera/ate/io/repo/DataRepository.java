@@ -13,6 +13,7 @@ import javax.inject.Inject;
 
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.dao.base.BaseDaoInternal;
+import com.tokera.ate.dao.enumerations.PermissionPhase;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.io.api.IAteIO;
 import com.tokera.ate.io.api.IPartitionKey;
@@ -91,10 +92,10 @@ public class DataRepository implements IAteIO {
 
         // Generate the data that represents this entity
         DataPartitionChain chain = kt.getChain();
-        MessageDataDto data = (MessageDataDto)d.dataSerializer.toDataMessage(entity, kt, false, false);
+        MessageDataDto data = (MessageDataDto)d.dataSerializer.toDataMessage(entity, kt, false);
 
         // Perform the validations and checks
-        if (performValidation && chain.validateTrustStructureAndWritability(data, LOG, new HashMap<>()) == false) {
+        if (performValidation && chain.validateTrustStructureAndWritability(data, LOG) == false) {
             String what = "clazz=" + data.getHeader().getPayloadClazzOrThrow() + ", id=" + data.getHeader().getIdOrThrow();
             throw new RuntimeException("The newly created object was not accepted into the chain of trust [" + what + "]");
         }
@@ -204,7 +205,7 @@ public class DataRepository implements IAteIO {
                 if (parentEntity == null) {
                     throw new RuntimeException("You have yet saved the parent object [" + entity.getParentId() + "] which you must do before this one [" + entity.getId() + "] otherwise the chain of trust will break.");
                 }
-                parentClazz = parentEntity.getClass().getName();
+                parentClazz = BaseDaoInternal.getType(parentEntity);
             }
 
             // Now make sure the parent type is actually valid
@@ -239,14 +240,25 @@ public class DataRepository implements IAteIO {
         }
     }
 
-    private void validateTrustWritability(BaseDao entity) {
-        if (d.authorization.canWrite(entity) == false)
-        {
-            EffectivePermissions permissions = d.authorization.perms(entity);
-            throw d.authorization.buildWriteException(permissions, true);
+    private void validateReadability(BaseDao entity)
+    {
+        EffectivePermissions perms = d.authorization.perms(entity, PermissionPhase.AfterMerge);
+        if (perms.rolesRead.size() <= 0) {
+            throw d.authorization.buildReadException("Saving this object without any read roles would orphan it, consider deleting it instead.", perms, false);
+        }
+    }
+
+    private void validateWritability(BaseDao entity)
+    {
+        EffectivePermissions perms = d.authorization.perms(entity, PermissionPhase.DynamicStaging);
+        if (perms.rolesWrite.size() <= 0) {
+            throw d.authorization.buildWriteException("Failed to save this object as there are no valid write roles for this spot in the chain-of-trust or its not connected to a parent.", perms, false);
         }
         if (this.immutable(entity.addressableId()) == true) {
             throw new RuntimeException("Unable to save [" + entity + "] as this object is immutable.");
+        }
+        if (perms.canWrite(d.currentRights) == false) {
+            throw d.authorization.buildWriteException(perms, true);
         }
     }
 
@@ -264,7 +276,6 @@ public class DataRepository implements IAteIO {
         if (validate == true) {
             validateTrustStructure(entity);
             validateTrustPublicKeys(entity);
-            validateTrustWritability(entity);
         }
 
         IPartitionKey partitionKey = entity.partitionKey();
@@ -272,20 +283,25 @@ public class DataRepository implements IAteIO {
             return;
         }
 
+        if (validate == true) {
+            validateReadability(entity);
+            validateWritability(entity);
+        }
+
         d.debugLogging.logMerge(null, entity, LOG, true);
 
         this.staging.put(partitionKey, entity);
     }
 
-    private void mergeDeferredInternal(DataPartition kt, BaseDao entity, List<MessageDataDto> datas, Map<UUID, @Nullable MessageDataDto> requestTrust) {
+    private void mergeDeferredInternal(DataPartition kt, BaseDao entity, List<MessageDataDto> datas) {
         DataPartitionChain chain = kt.getChain();
 
         validateTrustPublicKeys(entity);
 
-        MessageDataDto data = (MessageDataDto)d.dataSerializer.toDataMessage(entity, kt, false, false);
+        MessageDataDto data = (MessageDataDto)d.dataSerializer.toDataMessage(entity, kt, false);
         datas.add(data);
 
-        if (chain.validateTrustStructureAndWritabilityIncludingStaging(data, LOG, requestTrust) == false) {
+        if (chain.validateTrustStructureAndWritabilityIncludingStaging(data, LOG) == false) {
             String what = "clazz=" + data.getHeader().getPayloadClazzOrThrow() + ", id=" + data.getHeader().getIdOrThrow();
             throw new RuntimeException("The newly created object was not accepted into the chain of trust [" + what + "]");
         }
@@ -293,7 +309,7 @@ public class DataRepository implements IAteIO {
 
         // Add it to the request trust which makes sure that previous
         // records are accounted for during the validation steps
-        requestTrust.put(data.getHeader().getIdOrThrow(), data);
+        staging.put(kt.partitionKey(), data.getHeader().getIdOrThrow(), data);
     }
     
     @Override
@@ -307,10 +323,9 @@ public class DataRepository implements IAteIO {
                 DataPartition kt = this.subscriber.getPartition(partitionKey);
 
                 // Loop through all the entities and validate them all
-                Map<UUID, @Nullable MessageDataDto> requestTrust = new HashMap<>();
                 List<MessageDataDto> datas = new ArrayList<>();
                 for (BaseDao entity : this.staging.puts(partitionKey)) {
-                    mergeDeferredInternal(kt, entity, datas, requestTrust);
+                    mergeDeferredInternal(kt, entity, datas);
                 }
 
                 // Write them all out to Kafka
@@ -357,7 +372,7 @@ public class DataRepository implements IAteIO {
         //String encryptKey64 = d.daoHelper.getEncryptKey(entity, false, this.inMergeDeferred == false, false);
         //if (encryptKey64 == null) return false;
 
-        MessageBaseDto msg = d.dataSerializer.toDataMessage(entity, kt, true, true);
+        MessageBaseDto msg = d.dataSerializer.toDataMessage(entity, kt, true);
         kt.write(msg, this.LOG);
         
         d.debugLogging.logDelete(entity, LOG);
@@ -379,8 +394,8 @@ public class DataRepository implements IAteIO {
         MessageDataHeaderDto header = new MessageDataHeaderDto(lastHeader);
 
         // Sign the data message
-        EffectivePermissions permissions = new EffectivePermissionBuilder(type.getSimpleName(), id, lastHeader.getParentId())
-                .setUsePostMerged(false)
+        EffectivePermissions permissions = new EffectivePermissionBuilder(type.getName(), id)
+                .withPhase(PermissionPhase.DynamicStaging)
                 .build();
 
         // Make sure we are actually writing something to Kafka
@@ -404,7 +419,6 @@ public class DataRepository implements IAteIO {
         {
             validateTrustStructure(entity);
             validateTrustPublicKeys(entity);
-            validateTrustWritability(entity);
 
             this.staging.delete(partitionKey, entity);
         }

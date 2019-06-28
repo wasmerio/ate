@@ -40,6 +40,13 @@ public class SecurityCastleManager {
     }
 
     /**
+     * @return Hash that represents a unique set of read permissions
+     */
+    public String computePermissionsHash(List<String> roles) {
+        return d.encryptor.hashShaAndEncode(roles);
+    }
+
+    /**
      * @param partitionKey Partition key that the public keys exist within
      * @param hashes List of public key hashes that will be looked up in the partition
      * @return Set of public keys that can be used for encrypting or signing data
@@ -55,6 +62,12 @@ public class SecurityCastleManager {
                 continue;
             }
 
+            MessagePrivateKeyDto rightsKey = d.currentRights.findKey(publicKeyHash);
+            if (rightsKey != null) {
+                ret.add(new MessagePublicKeyDto(rightsKey));
+                continue;
+            }
+
             publicKey = chain.getPublicKey(publicKeyHash);
             if (publicKey == null) {
                 throw new RuntimeException("We encountered a public key [" + publicKeyHash + "] that is not yet known to the distributed commit log. Ensure all public keys are merged before using them in data entities by either calling mergeLater(obj), mergeThreeWay(obj) or mergeThreeWay(publicKeyOrNull).");
@@ -67,12 +80,12 @@ public class SecurityCastleManager {
     /**
      * Creates a security castle for the current request context that matches a particular set of read permissions
      * @param partitionKey Partition key that the castle will be created within
-     * @param permissions Set of read permissions that represent the boundary of this castle
+     * @param roles Set of read permissions that represent the boundary of this castle
      * @return Castle that can be used to encrypt data and later read by anyone who holds the private keys of the read roles
      */
-    public SecurityCastleContext makeCastle(IPartitionKey partitionKey, EffectivePermissions permissions)
+    public SecurityCastleContext makeCastle(IPartitionKey partitionKey, List<String> roles)
     {
-        String hash = computePermissionsHash(permissions);
+        String hash = computePermissionsHash(roles);
 
         // Perhaps we can reuse a context that already exists in memory
         if (d.bootstrapConfig.getDefaultAutomaticKeyRotation() == false) {
@@ -90,7 +103,7 @@ public class SecurityCastleManager {
                             .putSecret( partitionKey,
                                         castleId,
                                         key,
-                                        findPublicKeys(partitionKey, permissions.rolesRead));
+                                        findPublicKeys(partitionKey, roles));
 
                     SecurityCastleContext ret = new SecurityCastleContext(castleId, key);
                     lookupCastles.put(castleId, ret);
@@ -127,6 +140,16 @@ public class SecurityCastleManager {
     public boolean hasEncryptKey(IPartitionKey partitionKey, UUID castleId, @Hash String keyPublicKeyHash)
     {
         return d.io.securityCastleFactory().exists(partitionKey, castleId, keyPublicKeyHash);
+    }
+
+    /**
+     * @param partitionKey Partition that the castle was previous created within
+     * @param castleId ID of the castle that uniquely identifies it
+     * @return Returns true if the castle itself exists at all
+     */
+    public boolean hasCastle(IPartitionKey partitionKey, UUID castleId)
+    {
+        return d.io.securityCastleFactory().exists(partitionKey, castleId);
     }
 
     /**

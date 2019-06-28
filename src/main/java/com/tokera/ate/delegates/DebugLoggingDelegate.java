@@ -2,6 +2,7 @@ package com.tokera.ate.delegates;
 
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.dao.base.BaseDao;
+import com.tokera.ate.dao.base.BaseDaoInternal;
 import com.tokera.ate.dao.msg.MessageBase;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.io.api.IPartitionKey;
@@ -98,7 +99,7 @@ public class DebugLoggingDelegate {
                 sb.append("]");
             }
 
-            String payloadClazz = header != null ? header.getPayloadClazz() : (entity != null ? entity.getClass().getName() : null);
+            String payloadClazz = header != null ? header.getPayloadClazz() : (entity != null ? BaseDaoInternal.getType(entity) : null);
             if (payloadClazz != null) {
                 sb.append(" ");
                 sb.append(payloadClazz);
@@ -149,6 +150,23 @@ public class DebugLoggingDelegate {
     {
         if (d.bootstrapConfig.isLoggingChainOfTrust()) {
             logTrust(part, data.getHeader(), LOG);
+        }
+    }
+
+    public void logCastle(IPartitionKey part, MessageSecurityCastleDto castle, @Nullable LoggerHook LOG) {
+        if (d.bootstrapConfig.isLoggingChainOfTrust()) {
+            StringBuilder sb = new StringBuilder();
+            sb.append("castle: [->");
+            sb.append(part);
+            sb.append("] id: ");
+            sb.append(castle.getIdOrThrow());
+
+            if (d.bootstrapConfig.isLoggingMessages()) {
+                sb.append("\n");
+                sb.append(d.yaml.serializeObj(castle));
+            }
+
+            logInfo(sb.toString(), LOG);
         }
     }
 

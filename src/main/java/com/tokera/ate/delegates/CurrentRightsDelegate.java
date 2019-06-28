@@ -3,6 +3,7 @@ package com.tokera.ate.delegates;
 import com.google.common.collect.Sets;
 import com.tokera.ate.dao.IRights;
 import com.tokera.ate.dao.IRoles;
+import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import com.tokera.ate.events.NewAccessRightsEvent;
 import com.tokera.ate.events.RightsDiscoverEvent;
 import com.tokera.ate.io.api.IPartitionKey;
@@ -174,6 +175,20 @@ public class CurrentRightsDelegate implements IRights {
         }
         return ret;
     }
+
+    public @Nullable MessagePrivateKeyDto findKey(String publicKeyHash) {
+        for (MessagePrivateKeyDto key : this.getRightsRead()) {
+            if (publicKeyHash.equals(key.getPublicKeyHash())) {
+                return key;
+            }
+        }
+        for (MessagePrivateKeyDto key : this.getRightsWrite()) {
+            if (publicKeyHash.equals(key.getPublicKeyHash())) {
+                return key;
+            }
+        }
+        return null;
+    }
     
     @Override
     public @Alias String getRightsAlias() {
@@ -181,7 +196,7 @@ public class CurrentRightsDelegate implements IRights {
         if (token == null) {
             throw new UnsupportedOperationException("No token attached to this session.");
         }
-        return (@Alias String)token.getUsername();
+        return token.getUsername();
     }
 
     @Override

@@ -74,4 +74,10 @@ public class DefaultSecurityCastleFactory implements ISecurityCastleFactory {
         if (castle == null) return false;
         return castle.getLookup().containsKey(publicKeyHash);
     }
+
+    @Override
+    public boolean exists(IPartitionKey partitionKey, UUID id) {
+        DataPartitionChain chain = this.d.storageFactory.get().backend().getChain(partitionKey);
+        return chain.getCastle(id) != null;
+    }
 }

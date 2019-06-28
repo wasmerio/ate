@@ -65,6 +65,7 @@ public class AccountREST {
         MyAccount acc = new MyAccount(email, "pass123");
         acc.id = UUIDTools.generateUUID(StringTools.getDomain(email));
         acc.description = theDetails.getDescription();
+        d.authorization.authorizeEntityPublicRead(acc);
         d.io.mergeLater(acc);
         return acc;
     }

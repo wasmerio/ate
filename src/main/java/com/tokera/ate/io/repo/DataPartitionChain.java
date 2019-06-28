@@ -6,7 +6,6 @@ import com.tokera.ate.dao.msg.*;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.common.LoggerHook;
-import com.tokera.ate.enumerations.TaskCallbackType;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.security.Encryptor;
 
@@ -97,6 +96,8 @@ public class DataPartitionChain {
     }
     
     public void addTrustCastle(MessageSecurityCastleDto castle, @Nullable LoggerHook LOG) {
+        d.debugLogging.logCastle(this.partitionKey(), castle, LOG);
+
         this.castles.put(castle.getIdOrThrow(), castle);
     }
     
@@ -186,7 +187,7 @@ public class DataPartitionChain {
         MessageDataDto data = msg.getData();
 
         // Validate the data
-        if (validateTrustStructureAndWritability(data, LOG, null) == false) {
+        if (validateTrustStructureAndWritabilityWithoutSavedData(data, LOG) == false) {
             return false;
         }
         
@@ -202,11 +203,6 @@ public class DataPartitionChain {
         } else {
             return true;
         }
-    }
-    
-    public boolean validateTrustStructureAndWritability(MessageDataDto data, @Nullable LoggerHook LOG)
-    {
-        return validateTrustStructureAndWritability(data, LOG, new HashMap<>());
     }
 
     public TrustValidatorBuilder createTrustValidator(@Nullable LoggerHook LOG) {
@@ -226,23 +222,24 @@ public class DataPartitionChain {
                     return this.getPublicKey(hash);
                 });
     }
-    
-    public boolean validateTrustStructureAndWritability(MessageDataDto data, @Nullable LoggerHook LOG, @Nullable Map<UUID, @Nullable MessageDataDto> requestTrust)
+
+    public boolean validateTrustStructureAndWritabilityWithoutSavedData(MessageDataDto data, @Nullable LoggerHook LOG)
     {
-        if (requestTrust != null) {
-            return createTrustValidator(LOG)
-                    .withRequestTrust(requestTrust)
-                    .validate(this.partitionKey(), data);
-        } else {
-            return createTrustValidator(LOG)
-                    .validate(this.partitionKey(), data);
-        }
+        return createTrustValidator(LOG)
+                .validate(this.partitionKey(), data);
+    }
+    
+    public boolean validateTrustStructureAndWritability(MessageDataDto data, @Nullable LoggerHook LOG)
+    {
+        return createTrustValidator(LOG)
+                .withSavedDatas(d.dataStagingManager.getSavedDataMap(this.partitionKey()))
+                .validate(this.partitionKey(), data);
     }
 
-    public boolean validateTrustStructureAndWritabilityIncludingStaging(MessageDataDto data, @Nullable LoggerHook LOG, Map<UUID, @Nullable MessageDataDto> requestTrust)
+    public boolean validateTrustStructureAndWritabilityIncludingStaging(MessageDataDto data, @Nullable LoggerHook LOG)
     {
         return createTrustValidatorIncludingStaging(LOG)
-                .withRequestTrust(requestTrust)
+                .withSavedDatas(d.dataStagingManager.getSavedDataMap(this.partitionKey()))
                 .validate(this.partitionKey(), data);
     }
     
@@ -334,7 +331,8 @@ public class DataPartitionChain {
             drop(LOG, msg, null, "missing id", null);
             return false;
         }
-        castles.put(msg.getId(), msg);
+
+        addTrustCastle(msg, LOG);
         return true;
     }
 

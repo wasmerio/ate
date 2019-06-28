@@ -3,6 +3,7 @@ package com.tokera.ate.dto.msg;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.flatbuffers.FlatBufferBuilder;
+import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.common.CopyOnWrite;
 import com.tokera.ate.common.Immutalizable;
 import com.tokera.ate.dao.msg.MessageSecurityGate;
@@ -12,6 +13,7 @@ import org.apache.commons.codec.binary.Base64;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import javax.enterprise.context.Dependent;
 import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
 import javax.ws.rs.WebApplicationException;
@@ -19,6 +21,8 @@ import java.io.Serializable;
 import java.nio.ByteBuffer;
 import java.util.Objects;
 
+@Dependent
+@YamlTag("msg.gate")
 public class MessageSecurityGateDto implements Serializable, CopyOnWrite, Immutalizable {
     private static final long serialVersionUID = -4924053477617023297L;
 

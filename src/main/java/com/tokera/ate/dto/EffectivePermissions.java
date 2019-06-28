@@ -35,7 +35,7 @@ public class EffectivePermissions
 {
     @JsonProperty
     @NotNull
-    public final @Nullable String type;
+    public @Nullable String type;
     @JsonProperty
     @NotNull
     public final IPartitionKey partitionKey;
@@ -51,12 +51,6 @@ public class EffectivePermissions
     @JsonProperty
     @NotNull
     public List<@Hash String> rolesWrite;
-    @JsonProperty
-    @NotNull
-    public List<@Hash String> anchorRolesRead;
-    @JsonProperty
-    @NotNull
-    public List<@Hash String> anchorRolesWrite;
     
     public EffectivePermissions(@Nullable String type, IPartitionKey partitionKey, UUID id) {
         this.type = type;
@@ -65,8 +59,6 @@ public class EffectivePermissions
         this.castleId = null;
         this.rolesRead = new ArrayList<>();
         this.rolesWrite = new ArrayList<>();
-        this.anchorRolesRead = new ArrayList<>();
-        this.anchorRolesWrite = new ArrayList<>();
     }
     
     public boolean canRead(IRights entity) {
@@ -94,18 +86,12 @@ public class EffectivePermissions
         if (rolesWrite.contains(hash) == false) {
             rolesWrite.add(hash);
         }
-        if (anchorRolesWrite.contains(hash) == false) {
-            anchorRolesWrite.add(hash);
-        }
     }
 
     public void addReadRole(MessagePublicKeyDto key) {
         @Hash String hash = key.getPublicKeyHash();
         if (rolesRead.contains(hash) == false) {
             rolesRead.add(hash);
-        }
-        if (anchorRolesRead.contains(hash) == false) {
-            anchorRolesRead.add(hash);
         }
     }
 }

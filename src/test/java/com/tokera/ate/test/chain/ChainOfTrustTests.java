@@ -130,7 +130,6 @@ public class ChainOfTrustTests
         
         EffectivePermissions permissions = new EffectivePermissions(header.getPayloadClazz(), chain.partitionKey(), rootId);
         permissions.rolesWrite.add(hash);
-        permissions.anchorRolesWrite.add(hash);
         request.getRightsWrite().add(encryptor.getTrustOfPublicWrite());
 
         MessageDataDigestDto digest = builder.signDataMessage(header, bytes1, permissions);

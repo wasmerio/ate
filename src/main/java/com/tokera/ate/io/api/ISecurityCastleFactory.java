@@ -39,4 +39,11 @@ public interface ISecurityCastleFactory {
      * @return Returns true if the encryption key exists in this repository
      */
     boolean exists(IPartitionKey partitionKey, UUID id, @Hash String publicKeyHash);
+
+    /**
+     * @param partitionKey The partition that this secure key is related to
+     * @param id Lookup identifier of the security boundary
+     * @return Returns true if the castle exists at all
+     */
+    boolean exists(IPartitionKey partitionKey, UUID id);
 }

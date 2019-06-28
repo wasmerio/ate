@@ -171,6 +171,7 @@ public class CoinHelper {
             share.trustInheritWrite = false;
             share.trustAllowWrite.clear();
             d.authorization.authorizeEntityWrite(ownership, share);
+            d.io.mergeLater(share);
 
             Coin coin = this.getCoinFromShare(share);
             tokens.add(new ShareToken(coin, share, ownership));

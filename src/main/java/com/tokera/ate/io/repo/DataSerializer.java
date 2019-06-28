@@ -4,6 +4,7 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.base.BaseDaoInternal;
+import com.tokera.ate.dao.enumerations.PermissionPhase;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.common.Immutalizable;
@@ -208,7 +209,7 @@ public class DataSerializer {
         return header;
     }
     
-    public MessageBaseDto toDataMessage(BaseDao obj, DataPartition kt, boolean isDeleted, boolean allowSavingOfChildren)
+    public MessageBaseDto toDataMessage(BaseDao obj, DataPartition kt, boolean isDeleted)
     {
         // Build a header for a new version of the data object
         IPartitionKey partitionKey = kt.partitionKey();
@@ -218,13 +219,17 @@ public class DataSerializer {
         writePublicKeysForDataObject(obj, kt);
 
         // Get the effective permissions for a object
-        EffectivePermissions permissions = new EffectivePermissionBuilder(obj.getClass().getSimpleName(), partitionKey, obj.getId(), obj.getParentId())
-                .setUsePostMerged(true)
-                .setAllowSavingOfChildren(allowSavingOfChildren)
+        EffectivePermissions permissions = new EffectivePermissionBuilder(BaseDaoInternal.getType(obj), partitionKey, obj.getId())
+                .withPhase(PermissionPhase.AfterMerge)
                 .build();
 
+        // Validate the permissions are acceptable
+        if (permissions.rolesRead.size() <= 0) {
+            throw d.authorization.buildReadException("Saving this object without any read roles would orphan it, consider deleting it instead.", permissions, false);
+        }
+
         // Generate an encryption key for this data object
-        SecurityCastleContext castle = d.securityCastleManager.makeCastle(partitionKey, permissions);
+        SecurityCastleContext castle = d.securityCastleManager.makeCastle(partitionKey, permissions.rolesRead);
         permissions.castleId = castle.id;
         MessageDataHeaderDto header = buildHeaderForDataObject(obj, castle.id);
         
@@ -236,6 +241,16 @@ public class DataSerializer {
             // Encrypt the payload and add it to the data message
             byteStream = d.os.serializeObj(obj);
             encPayload = d.encryptor.encryptAes(castle.key, byteStream);
+        }
+
+        // Now get the permissions before we merge for the digest
+        permissions = new EffectivePermissionBuilder(BaseDaoInternal.getType(obj), partitionKey, obj.getId())
+                .withPhase(PermissionPhase.DynamicChain)
+                .build();
+
+        // Validate the permissions are acceptable
+        if (permissions.rolesWrite.size() <= 0) {
+            throw d.authorization.buildWriteException("Failed to write the object as there are no valid roles for this data object or its not connected to a parent.", permissions, false);
         }
 
         // Sign the data message
@@ -379,7 +394,7 @@ public class DataSerializer {
         }
 
         // Make sure the deserialized type matches the header
-        if (header.getPayloadClazzOrThrow().equals(ret.getClass().getName()) == false) {
+        if (header.getPayloadClazzOrThrow().equals(BaseDaoInternal.getType(ret)) == false) {
             throw new RuntimeException("Read access denied (payload types do not match) - ID=" + id);
         }
     }
@@ -391,11 +406,17 @@ public class DataSerializer {
                              header.getCastleId(),
                              this.d.currentRights.getRightsRead());
         if (castle == null) {
-            if (shouldThrow == true) {
-                EffectivePermissions permissions = d.authorization.perms(header.getPayloadClazz(), partitionKey, header.getIdOrThrow(), header.getParentId(), false);
-                throw d.authorization.buildReadException(permissions, true);
+            castle = d.securityCastleManager
+                    .enterCastle(partitionKey,
+                            header.getCastleId(),
+                            this.d.currentRights.getRightsRead());
+            if (castle == null) {
+                if (shouldThrow == true) {
+                    EffectivePermissions permissions = d.authorization.perms(header.getPayloadClazz(), partitionKey, header.getIdOrThrow(), PermissionPhase.BeforeMerge);
+                    throw d.authorization.buildReadException(permissions, true);
+                }
+                return null;
             }
-            return null;
         }
         return castle.key;
     }
