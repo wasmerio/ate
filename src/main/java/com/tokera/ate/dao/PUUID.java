@@ -8,6 +8,7 @@ import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.providers.PartitionKeySerializer;
 import com.tokera.ate.providers.PuuidJsonDeserializer;
 import com.tokera.ate.providers.PuuidJsonSerializer;
+import com.tokera.ate.providers.PuuidSerializer;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.io.output.ByteArrayOutputStream;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -26,6 +27,12 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
     private static final long serialVersionUID = -642512169720015696L;
     private Partition partition;
     private UUID id;
+
+    public PUUID(String value) {
+        PUUID other = new PuuidSerializer().read(value);
+        this.partition = other.partition;
+        this.id = other.id;
+    }
 
     public PUUID(String topic, int index, long mostSigBits, long leastSigBits) {
         this.partition = new Partition(topic, index);
