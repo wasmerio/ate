@@ -220,6 +220,7 @@ public class DataSerializer {
 
         // Get the effective permissions for a object
         EffectivePermissions permissions = new EffectivePermissionBuilder(BaseDaoInternal.getType(obj), partitionKey, obj.getId())
+                .withSuppliedObject(obj)
                 .withPhase(PermissionPhase.AfterMerge)
                 .build();
 
@@ -245,6 +246,7 @@ public class DataSerializer {
 
         // Now get the permissions before we merge for the digest
         permissions = new EffectivePermissionBuilder(BaseDaoInternal.getType(obj), partitionKey, obj.getId())
+                .withSuppliedObject(obj)
                 .withPhase(PermissionPhase.DynamicChain)
                 .build();
 

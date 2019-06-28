@@ -226,6 +226,9 @@ public class DataRepository implements IAteIO {
     private void validateTrustPublicKeys(BaseDao entity, Collection<String> publicKeys) {
         IPartitionKey partitionKey = entity.partitionKey(true);
         for (String hash : publicKeys) {
+            if (hash == null) {
+                throw new RuntimeException("Unable to save [" + entity + "] as this object has null public key(s) in one of the role lists.");
+            }
             if (this.publicKeyOrNull(partitionKey, hash) == null) {
                 throw new RuntimeException("Unable to save [" + entity + "] as this object has public key(s) [" + hash + "] that have not yet been saved.");
             }
