@@ -10,6 +10,7 @@ import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.api.IPartitionResolver;
 import com.tokera.ate.units.DaoId;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.Dependent;
 import java.util.UUID;
@@ -22,7 +23,7 @@ import java.util.concurrent.TimeUnit;
 public class DefaultPartitionResolver implements IPartitionResolver {
     private AteDelegate d = AteDelegate.get();
 
-    private IPartitionKey resolveInternal(BaseDao obj)
+    private @Nullable IPartitionKey resolveInternal(BaseDao obj, boolean shouldThrow)
     {
         // If the object implements the partition key interface then it can define its own partition key
         if (obj instanceof IPartitionKey) {
@@ -40,8 +41,10 @@ public class DefaultPartitionResolver implements IPartitionResolver {
             Class<?> type = obj.getClass();
             if (d.daoParents.getAllowedParentFree().contains(type) == false) {
                 if (type.getAnnotation(Dependent.class) == null) {
+                    if (shouldThrow == false) return null;
                     throw new RuntimeException("This entity [" + type.getSimpleName() + "] has not been marked with the Dependent annotation.");
                 }
+                if (shouldThrow == false) return null;
                 throw new RuntimeException("This entity [" + type.getSimpleName() + "] is not attached to a parent [see PermitParentType annotation].");
             }
 
@@ -83,23 +86,37 @@ public class DefaultPartitionResolver implements IPartitionResolver {
             }
 
             // This object isn't known to the current context so we really can't do much with it
+            if (shouldThrow == false) return null;
             throw new RuntimeException("Unable to transverse up the tree high enough to determine the topic and partition for this data object [" + obj + "].");
         }
 
         // Return the partition key of the parent
-        return next.partitionKey();
+        return next.partitionKey(shouldThrow);
     }
 
     @Override
-    public IPartitionKey resolve(BaseDao obj) {
-        return resolveInternal(obj);
+    public IPartitionKey resolveOrThrow(BaseDao obj) {
+        return resolveInternal(obj, true);
     }
 
     @Override
-    public IPartitionKey resolve(IRights obj) {
+    public IPartitionKey resolveOrThrow(IRights obj) {
         if (obj instanceof BaseDao) {
-            return ((BaseDao) obj).partitionKey();
+            return ((BaseDao) obj).partitionKey(true);
         }
         throw new RuntimeException("Unable to determine the partition key for this access rights object as it is not of the type BaseDao.");
+    }
+
+    @Override
+    public @Nullable IPartitionKey resolveOrNull(BaseDao obj) {
+        return resolveInternal(obj, false);
+    }
+
+    @Override
+    public @Nullable IPartitionKey resolveOrNull(IRights obj) {
+        if (obj instanceof BaseDao) {
+            return ((BaseDao)obj).partitionKey(false);
+        }
+        return null;
     }
 }

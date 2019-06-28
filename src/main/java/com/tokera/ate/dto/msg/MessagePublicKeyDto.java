@@ -136,6 +136,13 @@ public class MessagePublicKeyDto extends MessageBaseDto implements Serializable,
         }
         return this.alias;
     }
+
+    @JsonIgnore
+    public @Alias String getAliasOrHash() {
+        String ret = getAlias();
+        if (ret != null) return ret;
+        return getPublicKeyHash();
+    }
     
     public MessagePublicKeyDto setAlias(@Alias String alias) {
         copyOnWrite();

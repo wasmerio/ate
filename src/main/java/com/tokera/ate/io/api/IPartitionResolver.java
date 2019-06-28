@@ -2,6 +2,7 @@ package com.tokera.ate.io.api;
 
 import com.tokera.ate.dao.IRights;
 import com.tokera.ate.dao.base.BaseDao;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.UUID;
 
@@ -18,12 +19,26 @@ public interface IPartitionResolver {
      * @param obj Reference to the data object to be mapped
      * @return The topic and partition that this data object is related to
      */
-    IPartitionKey resolve(BaseDao obj);
+    IPartitionKey resolveOrThrow(BaseDao obj);
+
+    /**
+     * Maps a data object to a particular partition
+     * @param obj Reference to the data object to be mapped
+     * @return The topic and partition that this data object is related to
+     */
+    @Nullable IPartitionKey resolveOrNull(BaseDao obj);
 
     /**
      * Maps a rights interface to a particular partition
      * @param obj Reference to the rights interface to be mapped
      * @return The topic and partition that this data object is related to
      */
-    IPartitionKey resolve(IRights obj);
+    IPartitionKey resolveOrThrow(IRights obj);
+
+    /**
+     * Maps a rights interface to a particular partition
+     * @param obj Reference to the rights interface to be mapped
+     * @return The topic and partition that this data object is related to
+     */
+    @Nullable IPartitionKey resolveOrNull(IRights obj);
 }

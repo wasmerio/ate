@@ -173,7 +173,7 @@ public class DataContainer {
         AteDelegate d = AteDelegate.get();
         BaseDao ret = _ret;
         if (ret == null) return null;
-        IPartitionKey partitionKey = ret.partitionKey();
+        IPartitionKey partitionKey = ret.partitionKey(true);
 
         // Reconcile the parent version pointers
         if (leaves.size() == 1) {

@@ -97,12 +97,12 @@ public class TokenBuilder {
     }
 
     public TokenBuilder withPartitionKeyFromRights(IRights rights) {
-        IPartitionKey key = AteDelegate.get().io.partitionResolver().resolve(rights);
+        IPartitionKey key = AteDelegate.get().io.partitionResolver().resolveOrThrow(rights);
         return withPartitionkey(key);
     }
 
     public TokenBuilder withPartitionkeyFromDao(BaseDao obj) {
-        IPartitionKey key = obj.partitionKey();
+        IPartitionKey key = obj.partitionKey(true);
         return withPartitionkey(key);
     }
 

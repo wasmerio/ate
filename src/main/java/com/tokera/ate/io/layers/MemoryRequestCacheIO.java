@@ -48,7 +48,7 @@ public class MemoryRequestCacheIO implements IAteIO
 
     @Override
     public boolean merge(BaseDao entity) {
-        PartitionCache c = this.getPartitionCache(entity.partitionKey());
+        PartitionCache c = this.getPartitionCache(entity.partitionKey(true));
         c.entries.put(entity.getId(), entity);
         return true;
     }
@@ -84,7 +84,7 @@ public class MemoryRequestCacheIO implements IAteIO
 
     public <T extends BaseDao> boolean mergeMany(Iterable<T> entities) {
         for (BaseDao entity : entities) {
-            PartitionCache c = this.getPartitionCache(entity.partitionKey());
+            PartitionCache c = this.getPartitionCache(entity.partitionKey(true));
             c.entries.put(entity.getId(), entity);
         }
         return true;
@@ -114,7 +114,7 @@ public class MemoryRequestCacheIO implements IAteIO
     @Override
     public void removeLater(BaseDao entity)
     {
-        PartitionCache c = this.getPartitionCache(entity.partitionKey());
+        PartitionCache c = this.getPartitionCache(entity.partitionKey(true));
         c.entries.remove(entity.getId());
     }
 

@@ -36,7 +36,7 @@ public abstract class BaseDao implements Serializable, Immutalizable, IPartition
      */
     @JsonIgnore
     public PUUID addressableId() {
-        return new PUUID(this.partitionKey(), this.getId());
+        return new PUUID(this.partitionKey(true), this.getId());
     }
 
     /**
@@ -45,14 +45,18 @@ public abstract class BaseDao implements Serializable, Immutalizable, IPartition
      */
     @JsonIgnore
     @Override
-    public IPartitionKey partitionKey() {
+    public IPartitionKey partitionKey(boolean shouldThrow) {
         IPartitionKey ret = _partitionKey;
         if (ret != null) return ret;
-        ret = AteDelegate.get().io.partitionResolver().resolve(this);
+        if (shouldThrow) {
+            ret = AteDelegate.get().io.partitionResolver().resolveOrThrow(this);
+        } else {
+            ret = AteDelegate.get().io.partitionResolver().resolveOrNull(this);
+        }
         _partitionKey = ret;
         return ret;
     }
-    
+
     /**
      * @return Returns the parent object that this object is attached to
      */

@@ -1,30 +1,28 @@
 package com.tokera.ate.delegates;
 
-import com.tokera.ate.dao.PUUID;
-import com.tokera.ate.dao.base.BaseDaoInternal;
-import com.tokera.ate.dao.enumerations.PermissionPhase;
-import com.tokera.ate.events.RightsValidationEvent;
-import com.tokera.ate.io.api.IPartitionKey;
-import com.tokera.ate.providers.PartitionKeySerializer;
-import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.dao.IRights;
 import com.tokera.ate.dao.IRoles;
+import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
-import com.tokera.ate.events.NewAccessRightsEvent;
-import com.tokera.ate.io.repo.DataContainer;
-import com.tokera.ate.security.EffectivePermissionBuilder;
+import com.tokera.ate.dao.base.BaseDaoInternal;
+import com.tokera.ate.dao.enumerations.PermissionPhase;
 import com.tokera.ate.dto.EffectivePermissions;
 import com.tokera.ate.dto.TokenDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
+import com.tokera.ate.events.NewAccessRightsEvent;
+import com.tokera.ate.events.RightsValidationEvent;
 import com.tokera.ate.events.TokenScopeChangedEvent;
 import com.tokera.ate.events.TokenStateChangedEvent;
-import com.tokera.ate.security.SecurityCastleContext;
+import com.tokera.ate.io.api.IPartitionKey;
+import com.tokera.ate.io.repo.DataContainer;
+import com.tokera.ate.providers.PartitionKeySerializer;
+import com.tokera.ate.scopes.Startup;
+import com.tokera.ate.security.EffectivePermissionBuilder;
 import com.tokera.ate.units.Alias;
 import com.tokera.ate.units.DaoId;
 import com.tokera.ate.units.Hash;
-import com.tokera.ate.units.Secret;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.ApplicationScoped;
@@ -90,7 +88,6 @@ public class AuthorizationDelegate {
     public void ensureCanWrite(BaseDao obj)
     {
         if (canWrite(obj) == false) {
-            IPartitionKey partitionKey = obj.partitionKey();
             EffectivePermissions permissions = d.authorization.perms(obj);
             throw buildWriteException(permissions, true);
         }
@@ -141,8 +138,8 @@ public class AuthorizationDelegate {
             }
 
             MessagePublicKeyDto key = d.io.publicKeyOrNull(partitionKey, publicKeyHash);
-            if (key != null && key.getAlias() != null) {
-                sb.append(key.getAlias()).append(" - ").append(publicKeyHash).append("]");
+            if (key != null && key.getAliasOrHash() != null) {
+                sb.append(key.getAliasOrHash()).append(" - ").append(publicKeyHash).append("]");
             } else {
                 sb.append(publicKeyHash);
             }
@@ -319,7 +316,7 @@ public class AuthorizationDelegate {
     }
 
     public EffectivePermissions perms(BaseDao obj, PermissionPhase phase) {
-        IPartitionKey partitionKey = obj.partitionKey();
+        IPartitionKey partitionKey = obj.partitionKey(true);
         return new EffectivePermissionBuilder(BaseDaoInternal.getType(obj), partitionKey, obj.getId())
                 .withPhase(phase)
                 .withSuppliedObject(obj)
@@ -352,12 +349,9 @@ public class AuthorizationDelegate {
     }
 
     public void authorizeRead(MessagePublicKeyDto publicKey, IRoles to) {
-        IPartitionKey partitionKey = d.io.partitionResolver().resolve((BaseDao)to);
-        if (d.io.publicKeyOrNull(partitionKey, publicKey.getPublicKeyHash()) == null) {
-            d.io.merge(partitionKey, publicKey);
-        }
+        ensureKeyIsThere(publicKey, to);
         if (to.getTrustAllowRead().values().contains(publicKey.getPublicKeyHash()) == false) {
-            to.getTrustAllowRead().put(publicKey.getAlias(), publicKey.getPublicKeyHash());
+            to.getTrustAllowRead().put(publicKey.getAliasOrHash(), publicKey.getPublicKeyHash());
         }
     }
 
@@ -365,7 +359,7 @@ public class AuthorizationDelegate {
     {
         @Alias String alias = entity.getRightsAlias();
         MessagePrivateKeyDto right = entity.getRightsRead().stream()
-                .filter(p -> alias.equals(p.getAlias()))
+                .filter(p -> alias.equals(p.getAliasOrHash()))
                 .filter(p -> d.encryptor.getPublicKeyHash(p).equals(d.encryptor.getPublicKeyHash(d.encryptor.getTrustOfPublicRead())) == false)
                 .findFirst()
                 .orElse(null);
@@ -376,20 +370,23 @@ public class AuthorizationDelegate {
     {
         @Alias String alias = entity.getRightsAlias();
         MessagePrivateKeyDto right = entity.getRightsRead().stream()
-                .filter(p -> alias.equals(p.getAlias()))
+                .filter(p -> alias.equals(p.getAliasOrHash()))
                 .filter(p -> d.encryptor.getPublicKeyHash(p).equals(d.encryptor.getPublicKeyHash(d.encryptor.getTrustOfPublicRead())) == false)
                 .findFirst()
                 .orElse(null);
         if (right == null) {
             right = new MessagePrivateKeyDto(d.encryptor.genEncryptKeyWithAlias(128, alias));
-            
+
             entity.getRightsRead().add(right);
+            ensureKeyIsThere(right, entity);
         }
         return right;
     }
 
     public void authorizeEntityRead(IRights entity, IRoles to) {
         MessagePrivateKeyDto right = getOrCreateImplicitRightToRead(entity);
+        ensureKeyIsThere(right, to);
+
         authorizeEntityRead(right, to);
 
         TokenDto token = d.currentToken.getTokenOrNull();
@@ -406,15 +403,10 @@ public class AuthorizationDelegate {
     public void authorizeEntityRead(MessagePublicKeyDto right, IRoles to) {
         String hash = d.encryptor.getPublicKeyHash(right);
 
-        // If its not in the chain-of-trust then add it
-        BaseDao toObj = (BaseDao)to;
-        IPartitionKey partitionKey = toObj.partitionKey();
-        if (d.io.publicKeyOrNull(partitionKey, hash) == null) {
-            d.io.merge(partitionKey, new MessagePublicKeyDto(right));
-        }
+        ensureKeyIsThere(right, to);
 
         // Add it to the roles list (if its not already there)
-        String alias = d.encryptor.getAlias(partitionKey, right);
+        String alias = right.getAliasOrHash();
         if (to.getTrustAllowRead().containsKey(alias)) {
             String rightHash = to.getTrustAllowRead().get(alias);
             if (hash.equals(rightHash)) {
@@ -425,19 +417,19 @@ public class AuthorizationDelegate {
     }
 
     public void authorizeEntityPublicRead(IRoles to) {
-        @Hash String hash = d.encryptor.getTrustOfPublicRead().getPublicKeyHash();
+        MessagePublicKeyDto key = d.encryptor.getTrustOfPublicRead();
+        ensureKeyIsThere(key, to);
+
+        @Hash String hash = key.getPublicKeyHash();
         assert hash != null : "@AssumeAssertion(nullness): Must not be null";
         to.getTrustAllowRead().put("public", hash);
     }
 
     public void authorizeWrite(MessagePublicKeyDto publicKey, IRoles to) {
-        IPartitionKey partitionKey = d.io.partitionResolver().resolve((BaseDao)to);
-        if (d.io.publicKeyOrNull(partitionKey, publicKey.getPublicKeyHash()) == null) {
-            d.io.merge(partitionKey, publicKey);
-        }
+        ensureKeyIsThere(publicKey, to);
 
         if (to.getTrustAllowWrite().values().contains(publicKey.getPublicKeyHash()) == false) {
-            to.getTrustAllowWrite().put(publicKey.getAlias(), publicKey.getPublicKeyHash());
+            to.getTrustAllowWrite().put(publicKey.getAliasOrHash(), publicKey.getPublicKeyHash());
         }
     }
 
@@ -445,7 +437,7 @@ public class AuthorizationDelegate {
     {
         @Alias String alias = entity.getRightsAlias();
         MessagePrivateKeyDto right = entity.getRightsWrite().stream()
-                .filter(p -> alias.equals(p.getAlias()))
+                .filter(p -> alias.equals(p.getAliasOrHash()))
                 .filter(p -> d.encryptor.getPublicKeyHash(p).equals(d.encryptor.getPublicKeyHash(d.encryptor.getTrustOfPublicWrite())) == false)
                 .findFirst()
                 .orElse(null);
@@ -456,13 +448,14 @@ public class AuthorizationDelegate {
     {
         @Alias String alias = entity.getRightsAlias();
         MessagePrivateKeyDto right = entity.getRightsWrite().stream()
-                .filter(p -> alias.equals(p.getAlias()))
+                .filter(p -> alias.equals(p.getAliasOrHash()))
                 .filter(p -> d.encryptor.getPublicKeyHash(p).equals(d.encryptor.getPublicKeyHash(d.encryptor.getTrustOfPublicWrite())) == false)
                 .findFirst()
                 .orElse(null);
         if (right == null) {
             right = new MessagePrivateKeyDto(d.encryptor.genSignKeyWithAlias(alias));
             entity.getRightsWrite().add(right);
+            ensureKeyIsThere(right, entity);
         }
         return right;
     }
@@ -470,6 +463,7 @@ public class AuthorizationDelegate {
     public void authorizeEntityWrite(IRights entity, IRoles to) {
         MessagePrivateKeyDto right = getOrCreateImplicitRightToWrite(entity);
         authorizeEntityWrite(right, to);
+        ensureKeyIsThere(right, to);
 
         TokenDto token = d.currentToken.getTokenOrNull();
         if (token != null && entity.getId().equals(token.getUserIdOrNull())) {
@@ -485,15 +479,10 @@ public class AuthorizationDelegate {
     public void authorizeEntityWrite(MessagePublicKeyDto right, IRoles to) {
         String hash = d.encryptor.getPublicKeyHash(right);
 
-        // If its not in the chain-of-trust then add it
-        BaseDao toObj = (BaseDao)to;
-        IPartitionKey partitionKey = toObj.partitionKey();
-        if (d.io.publicKeyOrNull(partitionKey, hash) == null) {
-            d.io.merge(partitionKey, new MessagePublicKeyDto(right));
-        }
+        ensureKeyIsThere(right, to);
 
         // Add it to the roles (if it doesnt exist)
-        String alias = d.encryptor.getAlias(partitionKey, right);
+        String alias = right.getAliasOrHash();
         if (to.getTrustAllowWrite().containsKey(alias)) {
             String rightHash = to.getTrustAllowWrite().get(alias);
             if (hash.equals(rightHash)) {
@@ -504,7 +493,10 @@ public class AuthorizationDelegate {
     }
 
     public void authorizeEntityPublicWrite(IRoles to) {
-        @Hash String hash = d.encryptor.getTrustOfPublicWrite().getPublicKeyHash();
+        MessagePublicKeyDto key = d.encryptor.getTrustOfPublicWrite();
+        ensureKeyIsThere(key, to);
+
+        @Hash String hash = key.getPublicKeyHash();
         assert hash != null : "@AssumeAssertion(nullness): Must not be null";
         to.getTrustAllowWrite().put("public", hash);
     }
@@ -583,6 +575,52 @@ public class AuthorizationDelegate {
                 .collect(Collectors.toList());
         for (MessagePrivateKeyDto r : rs) {
             rights.getRightsWrite().remove(r);
+        }
+    }
+
+    public void ensureKeyIsThere(MessagePublicKeyDto publicKey, IRoles roles) {
+        if (roles instanceof BaseDao) {
+            IPartitionKey partitionKey = ((BaseDao)roles).partitionKey(false);
+            if (partitionKey != null) {
+                ensureKeyIsThere(partitionKey, publicKey);
+            }
+        }
+
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScopeOrNull();
+        if (partitionKey != null) {
+            ensureKeyIsThere(partitionKey, publicKey);
+        }
+    }
+
+    public void ensureKeyIsThere(MessagePublicKeyDto publicKey, IRights rights) {
+        if (rights instanceof BaseDao) {
+            IPartitionKey partitionKey = ((BaseDao)rights).partitionKey(false);
+            if (partitionKey != null) {
+                ensureKeyIsThere(partitionKey, publicKey);
+            }
+        } else {
+            IPartitionKey partitionKey = d.io.partitionResolver().resolveOrNull(rights);
+            if (partitionKey != null) {
+                ensureKeyIsThere(partitionKey, publicKey);
+            }
+        }
+
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScopeOrNull();
+        if (partitionKey != null) {
+            ensureKeyIsThere(partitionKey, publicKey);
+        }
+    }
+
+    public void ensureKeyIsThere(MessagePublicKeyDto publicKey) {
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScopeOrNull();
+        if (partitionKey != null) {
+            ensureKeyIsThere(partitionKey, publicKey);
+        }
+    }
+
+    public void ensureKeyIsThere(IPartitionKey partitionKey, MessagePublicKeyDto publicKey) {
+        if (d.io.publicKeyOrNull(partitionKey, publicKey.getPublicKeyHash()) == null) {
+            d.io.merge(partitionKey, publicKey);
         }
     }
 }

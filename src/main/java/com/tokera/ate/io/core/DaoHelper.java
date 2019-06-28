@@ -73,7 +73,9 @@ public class DaoHelper {
         if (parentId == null) return null;
         if (parentId.equals(entity.getId())) return null;
 
-        IPartitionKey partitionKey = entity.partitionKey();
+        IPartitionKey partitionKey = entity.partitionKey(false);
+        if (partitionKey == null) return null;
+
         BaseDao ret = this.staging.find(partitionKey, parentId);
         if (ret != null) return ret;
 

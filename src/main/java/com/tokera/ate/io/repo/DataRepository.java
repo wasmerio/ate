@@ -82,7 +82,7 @@ public class DataRepository implements IAteIO {
     private boolean mergeInternal(BaseDao entity, boolean performValidation, boolean performSync)
     {
         // Get the partition
-        IPartitionKey key = entity.partitionKey();
+        IPartitionKey key = entity.partitionKey(true);
         DataPartition kt = this.subscriber.getPartition(key);
 
         // Validate the public keys
@@ -186,7 +186,7 @@ public class DataRepository implements IAteIO {
                 throw new RuntimeException("This entity [" + type.getSimpleName() + "] is not attached to a parent [see PermitParentType annotation].");
             }
 
-            IPartitionKey partitionKey = entity.partitionKey();
+            IPartitionKey partitionKey = entity.partitionKey(true);
             DataPartitionChain chain = this.subscriber.getChain(partitionKey);
             DataContainer parentContainer = chain.getData(entityParentId, LOG);
             if (parentContainer != null && d.daoParents.getAllowedParentsSimple().containsEntry(entityType, parentContainer.getPayloadClazz()) == false) {
@@ -224,7 +224,7 @@ public class DataRepository implements IAteIO {
     }
 
     private void validateTrustPublicKeys(BaseDao entity, Collection<String> publicKeys) {
-        IPartitionKey partitionKey = entity.partitionKey();
+        IPartitionKey partitionKey = entity.partitionKey(true);
         for (String hash : publicKeys) {
             if (this.publicKeyOrNull(partitionKey, hash) == null) {
                 throw new RuntimeException("Unable to save [" + entity + "] as this object has public key(s) [" + hash + "] that have not yet been saved.");
@@ -278,7 +278,7 @@ public class DataRepository implements IAteIO {
             validateTrustPublicKeys(entity);
         }
 
-        IPartitionKey partitionKey = entity.partitionKey();
+        IPartitionKey partitionKey = entity.partitionKey(true);
         if (this.staging.find(partitionKey, entity.getId()) != null) {
             return;
         }
@@ -362,7 +362,7 @@ public class DataRepository implements IAteIO {
     public boolean remove(BaseDao entity) {
         
         // Now create and write the data messages themselves
-        IPartitionKey partitionKey = entity.partitionKey();
+        IPartitionKey partitionKey = entity.partitionKey(true);
         DataPartition kt = this.subscriber.getPartition(partitionKey);
 
         if (BaseDaoInternal.hasSaved(entity) == false) {
@@ -412,7 +412,7 @@ public class DataRepository implements IAteIO {
 
     @Override
     public void removeLater(BaseDao entity) {
-        IPartitionKey partitionKey = entity.partitionKey();
+        IPartitionKey partitionKey = entity.partitionKey(true);
 
         // We only actually need to validate and queue if the object has ever been saved
         if (BaseDaoInternal.hasSaved(entity) == true)
