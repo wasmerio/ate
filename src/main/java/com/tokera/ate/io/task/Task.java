@@ -5,9 +5,7 @@ import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.TokenDto;
-import com.tokera.ate.dto.msg.MessageDataDto;
-import com.tokera.ate.dto.msg.MessageDataHeaderDto;
-import com.tokera.ate.dto.msg.MessageDataMetaDto;
+import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.api.ITask;
 import com.tokera.ate.io.api.ITaskCallback;
@@ -95,7 +93,8 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
         while (isRunning) {
             try {
                 if (doneExisting == false) {
-                    invokeExisting(boundRequestContext);
+                    invokeSeedKeys(boundRequestContext);
+                    invokeInit(boundRequestContext);
                     doneExisting = true;
                 }
 
@@ -136,16 +135,23 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
     /**
      * Gathers all the objects in the tree of this particular type and invokes a processor for them
      */
-    public void invokeExisting(BoundRequestContext boundRequestContext) {
+    public void invokeInit(BoundRequestContext boundRequestContext) {
         enterRequestScopeAndInvoke(boundRequestContext, token, () ->
         {
             AteDelegate d = AteDelegate.get();
-            for (T obj : AteDelegate.get().io.getAll(clazz)) {
-                try {
-                    callback.onInit(obj, this);
-                } catch (Throwable ex) {
-                    d.genericLogger.warn(ex);
-                }
+            callback.onInit(d.io.getAll(clazz), this);
+        });
+    }
+
+    public void invokeSeedKeys(BoundRequestContext boundRequestContext) {
+        enterRequestScopeAndInvoke(boundRequestContext, token, () ->
+        {
+            AteDelegate d = AteDelegate.get();
+            for (MessagePublicKeyDto key : d.currentRights.getRightsRead()) {
+                d.io.merge(this.partitionKey(), key);
+            }
+            for (MessagePublicKeyDto key : d.currentRights.getRightsWrite()) {
+                d.io.merge(this.partitionKey(), key);
             }
         });
     }
@@ -205,11 +211,15 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
                 boundRequestContext.activate();
                 try {
                     // Publish the token but skip the validation as we already trust the token
+                    d.currentToken.setSkipValidation(true);
                     d.currentToken.setPerformedValidation(true);
                     d.currentToken.publishToken(token);
 
                     // Run the stuff under this scope context
                     callback.run();
+
+                    // Invoke the merge
+                    d.io.mergeDeferred();
                 } finally {
                     boundRequestContext.invalidate();
                     boundRequestContext.deactivate();

@@ -3,6 +3,7 @@ package com.tokera.ate.delegates;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.events.RightsValidationEvent;
 import com.tokera.ate.io.api.IPartitionKey;
+import com.tokera.ate.providers.PartitionKeySerializer;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.dao.IRights;
@@ -66,7 +67,7 @@ public class AuthorizationDelegate {
         if (d.memoryRequestCacheIO.exists(PUUID.from(partitionKey, id)) == true) return true;
 
         // Otherwise we need to compute some permissions for it
-        EffectivePermissions perms = d.authorization.perms(partitionKey, id, parentId, true);
+        EffectivePermissions perms = d.authorization.perms(null, partitionKey, id, parentId, true);
         return perms.canRead(d.currentRights);
     }
 
@@ -95,7 +96,7 @@ public class AuthorizationDelegate {
 
     public boolean canWrite(IPartitionKey partitionKey, @DaoId UUID id, @Nullable @DaoId UUID parentId)
     {
-        EffectivePermissions perms = d.authorization.perms(partitionKey, id, parentId, true);
+        EffectivePermissions perms = d.authorization.perms(null, partitionKey, id, parentId, true);
         return perms.canWrite(d.currentRights);
     }
 
@@ -116,6 +117,11 @@ public class AuthorizationDelegate {
             }
         }
         sb.append(entityId).append("]\n");
+
+        if (permissions.type != null) {
+            sb.append(" >  type: ").append(permissions.type).append("\n");
+        }
+        sb.append(" > where: ").append(PartitionKeySerializer.toString(permissions.partitionKey)).append("\n");
 
         boolean hasNeeds = false;
         for (String publicKeyHash : permissions.rolesWrite) {
@@ -186,14 +192,14 @@ public class AuthorizationDelegate {
     }
 
     public void validateReadOrThrow(IPartitionKey partitionKey, @DaoId UUID objId, @Nullable @DaoId UUID parentId) {
-        EffectivePermissions permissions = this.perms(partitionKey, objId, parentId, false);
+        EffectivePermissions permissions = this.perms(null, partitionKey, objId, parentId, false);
         if (canRead(partitionKey, objId, parentId) == false) {
             throw buildReadException(permissions, false);
         }
     }
 
     public void validateWriteOrThrow(IPartitionKey partitionKey, @DaoId UUID objId, @Nullable @DaoId UUID parentId) {
-        EffectivePermissions permissions = this.perms(partitionKey, objId, parentId, false);
+        EffectivePermissions permissions = this.perms(null, partitionKey, objId, parentId, false);
         if (canWrite(partitionKey, objId, parentId) == false) {
             throw buildWriteException(permissions, false);
         }
@@ -211,6 +217,11 @@ public class AuthorizationDelegate {
             sb.append(container.getPayloadClazz()).append(":");
         }
         sb.append(objId).append("]\n");
+
+        if (permissions.type != null) {
+            sb.append(" >  type: ").append(permissions.type).append("\n");
+        }
+        sb.append(" > where: ").append(PartitionKeySerializer.toString(permissions.partitionKey)).append("\n");
 
         sb.append(" > castle: ");
         UUID castleId = permissions.castleId;
@@ -291,20 +302,20 @@ public class AuthorizationDelegate {
 
     public EffectivePermissions perms(BaseDao obj) {
         IPartitionKey partitionKey = obj.partitionKey();
-        return new EffectivePermissionBuilder(partitionKey, obj.getId(), obj.getParentId())
+        return new EffectivePermissionBuilder(obj.getClass().getSimpleName(), partitionKey, obj.getId(), obj.getParentId())
                 .setUsePostMerged(true)
                 .withSuppliedObject(obj)
                 .build();
     }
 
-    public EffectivePermissions perms(PUUID id, @Nullable @DaoId UUID parentId, boolean usePostMerged) {
-        return new EffectivePermissionBuilder(id.partition(), id.id(), parentId)
+    public EffectivePermissions perms(String type, PUUID id, @Nullable @DaoId UUID parentId, boolean usePostMerged) {
+        return new EffectivePermissionBuilder(type, id.partition(), id.id(), parentId)
                 .setUsePostMerged(usePostMerged)
                 .build();
     }
 
-    public EffectivePermissions perms(IPartitionKey partitionKey, @DaoId UUID id, @Nullable @DaoId UUID parentId, boolean usePostMerged) {
-        return new EffectivePermissionBuilder(partitionKey, id, parentId)
+    public EffectivePermissions perms(String type, IPartitionKey partitionKey, @DaoId UUID id, @Nullable @DaoId UUID parentId, boolean usePostMerged) {
+        return new EffectivePermissionBuilder(type, partitionKey, id, parentId)
                 .setUsePostMerged(usePostMerged)
                 .build();
     }

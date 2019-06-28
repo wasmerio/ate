@@ -218,7 +218,7 @@ public class DataSerializer {
         writePublicKeysForDataObject(obj, kt);
 
         // Get the effective permissions for a object
-        EffectivePermissions permissions = new EffectivePermissionBuilder(partitionKey, obj.getId(), obj.getParentId())
+        EffectivePermissions permissions = new EffectivePermissionBuilder(obj.getClass().getSimpleName(), partitionKey, obj.getId(), obj.getParentId())
                 .setUsePostMerged(true)
                 .setAllowSavingOfChildren(allowSavingOfChildren)
                 .build();
@@ -392,7 +392,7 @@ public class DataSerializer {
                              this.d.currentRights.getRightsRead());
         if (castle == null) {
             if (shouldThrow == true) {
-                EffectivePermissions permissions = d.authorization.perms(partitionKey, header.getIdOrThrow(), header.getParentId(), false);
+                EffectivePermissions permissions = d.authorization.perms(header.getPayloadClazz(), partitionKey, header.getIdOrThrow(), header.getParentId(), false);
                 throw d.authorization.buildReadException(permissions, true);
             }
             return null;

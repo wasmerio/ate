@@ -35,6 +35,9 @@ public class EffectivePermissions
 {
     @JsonProperty
     @NotNull
+    public final @Nullable String type;
+    @JsonProperty
+    @NotNull
     public final IPartitionKey partitionKey;
     @JsonProperty
     @NotNull
@@ -55,7 +58,8 @@ public class EffectivePermissions
     @NotNull
     public List<@Hash String> anchorRolesWrite;
     
-    public EffectivePermissions(IPartitionKey partitionKey, UUID id) {
+    public EffectivePermissions(@Nullable String type, IPartitionKey partitionKey, UUID id) {
+        this.type = type;
         this.partitionKey = partitionKey;
         this.id = id;
         this.castleId = null;

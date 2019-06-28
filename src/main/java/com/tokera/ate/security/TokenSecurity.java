@@ -104,6 +104,10 @@ public class TokenSecurity
         this.token = token;
     }
 
+    public void setTokenWithoutValidation(TokenDto token) {
+        this.token = token;
+    }
+
     /**
      * @return the token
      */

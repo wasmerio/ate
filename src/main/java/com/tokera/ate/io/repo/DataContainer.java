@@ -179,7 +179,7 @@ public class DataContainer {
             // If a mergeThreeWay was performed and we have writability then we should save it down to reduce future merges and
             // so that log compaction doesnt lose data (Kafka compacting)
             if (leaves.size() > 1) {
-                EffectivePermissions perms = d.authorization.perms(partitionKey, ret.getId(), ret.getParentId(), false);
+                EffectivePermissions perms = d.authorization.perms(ret.getClass().getSimpleName(), partitionKey, ret.getId(), ret.getParentId(), false);
                 if (shouldSave && perms.canWrite(d.currentRights)) {
                     d.io.mergeAsyncWithoutValidation(ret);
                 }

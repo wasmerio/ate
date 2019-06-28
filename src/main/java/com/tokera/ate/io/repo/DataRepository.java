@@ -379,7 +379,7 @@ public class DataRepository implements IAteIO {
         MessageDataHeaderDto header = new MessageDataHeaderDto(lastHeader);
 
         // Sign the data message
-        EffectivePermissions permissions = new EffectivePermissionBuilder(id, lastHeader.getParentId())
+        EffectivePermissions permissions = new EffectivePermissionBuilder(type.getSimpleName(), id, lastHeader.getParentId())
                 .setUsePostMerged(false)
                 .build();
 

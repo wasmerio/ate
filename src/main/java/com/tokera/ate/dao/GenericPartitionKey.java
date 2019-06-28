@@ -2,6 +2,7 @@ package com.tokera.ate.dao;
 
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.io.api.IPartitionKey;
+import com.tokera.ate.providers.PartitionKeySerializer;
 
 import javax.enterprise.context.Dependent;
 import java.io.Serializable;
@@ -27,5 +28,20 @@ public class GenericPartitionKey implements IPartitionKey, Serializable {
     @Override
     public int partitionIndex() {
         return partition;
+    }
+
+    @Override
+    public String toString() {
+        return PartitionKeySerializer.toString(this);
+    }
+
+    @Override
+    public int hashCode() {
+        return PartitionKeySerializer.hashCode(this);
+    }
+
+    @Override
+    public boolean equals(Object val) {
+        return PartitionKeySerializer.equals(this, val);
     }
 }

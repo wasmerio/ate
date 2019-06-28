@@ -27,6 +27,7 @@ import java.util.UUID;
 public class EffectivePermissionBuilder {
 
     private final AteDelegate d = AteDelegate.get();
+    private @Nullable String type;
     private IPartitionKey partitionKey;
     private @DaoId UUID origId;
     private @Nullable @DaoId UUID origParentId;
@@ -34,13 +35,15 @@ public class EffectivePermissionBuilder {
     private boolean allowSavingOfChildren = true;
     private final @Nullable Map<UUID, BaseDao> suppliedObjects = new HashMap<>();
 
-    public EffectivePermissionBuilder(PUUID id, @Nullable @DaoId UUID parentId) {
+    public EffectivePermissionBuilder(@Nullable String type, PUUID id, @Nullable @DaoId UUID parentId) {
+        this.type = type;
         this.partitionKey = id.partition();
         this.origId = id.id();
         this.origParentId = parentId;
     }
 
-    public EffectivePermissionBuilder(IPartitionKey partitionKey, @DaoId UUID id, @Nullable @DaoId UUID parentId) {
+    public EffectivePermissionBuilder(@Nullable String type, IPartitionKey partitionKey, @DaoId UUID id, @Nullable @DaoId UUID parentId) {
+        this.type = type;
         this.partitionKey = partitionKey;
         this.origId = id;
         this.origParentId = parentId;
@@ -70,7 +73,7 @@ public class EffectivePermissionBuilder {
      */
     public EffectivePermissions build()
     {
-        EffectivePermissions ret = new EffectivePermissions(this.partitionKey, this.origId);
+        EffectivePermissions ret = new EffectivePermissions(this.type, this.partitionKey, this.origId);
         addRootTrust(ret);
         addChainTrust(ret);
         addImplicitTrust(ret);
@@ -300,5 +303,9 @@ public class EffectivePermissionBuilder {
                 }
             }
         }
+    }
+
+    public String getType() {
+        return type;
     }
 }

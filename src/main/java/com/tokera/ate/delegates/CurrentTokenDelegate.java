@@ -32,6 +32,7 @@ public class CurrentTokenDelegate {
 
     private AteDelegate                         d = AteDelegate.get();
     private boolean                             performedValidation = false;
+    private boolean                             skipValidation = false;
     private boolean                             withinTokenScope = false;
     private @Nullable ScopeContext<String>      tokenScopeContext = null;
     private @Nullable String                    tokenScopeContextKey = null;
@@ -121,7 +122,11 @@ public class CurrentTokenDelegate {
         this.enterTokenScope(token.getHash());
 
         // Set the token
-        d.tokenSecurity.setToken(token);
+        if (skipValidation) {
+            d.tokenSecurity.setTokenWithoutValidation(token);
+        } else {
+            d.tokenSecurity.setToken(token);
+        }
     }
 
     /**
@@ -255,7 +260,7 @@ public class CurrentTokenDelegate {
                     if (perm == false) {
                         RuntimeException ex;
                         try {
-                            EffectivePermissions permissions = d.authorization.perms(partitionKey, entityId, null, false);
+                            EffectivePermissions permissions = d.authorization.perms(null, partitionKey, entityId, null, false);
                             ex = d.authorization.buildReadException(permissions, true);
                         } catch (Throwable dump) {
                             ex = new WebApplicationException("Read access denied (Missing permitted entity). Path Param (" + name + "=" + entityId + ")",
@@ -280,7 +285,7 @@ public class CurrentTokenDelegate {
                     if (perm == false) {
                         RuntimeException ex;
                         try {
-                            EffectivePermissions permissions = d.authorization.perms(partitionKey, entityId, null, false);
+                            EffectivePermissions permissions = d.authorization.perms(null, partitionKey, entityId, null, false);
                             ex = d.authorization.buildWriteException(permissions, true);
                         } catch (Throwable dump) {
                             ex = new WebApplicationException("Write access denied (Missing permitted entity). Path Param (" + name + "=" + entityId + ")",
@@ -359,5 +364,13 @@ public class CurrentTokenDelegate {
         d.eventTokenChanged.fire(new TokenStateChangedEvent());
         d.eventNewAccessRights.fire(new NewAccessRightsEvent());
         d.eventRightsValidation.fire(new RightsValidationEvent());
+    }
+
+    public boolean isSkipValidation() {
+        return skipValidation;
+    }
+
+    public void setSkipValidation(boolean skipValidation) {
+        this.skipValidation = skipValidation;
     }
 }
