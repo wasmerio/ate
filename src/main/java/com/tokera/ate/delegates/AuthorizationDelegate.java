@@ -363,10 +363,9 @@ public class AuthorizationDelegate {
 
     public @Nullable MessagePrivateKeyDto getImplicitRightToRead(IRights entity)
     {
-        IPartitionKey partitionKey = d.io.partitionResolver().resolve(entity);
         @Alias String alias = entity.getRightsAlias();
         MessagePrivateKeyDto right = entity.getRightsRead().stream()
-                .filter(p -> alias.equals(d.encryptor.getAlias(partitionKey, p)))
+                .filter(p -> alias.equals(p.getAlias()))
                 .filter(p -> d.encryptor.getPublicKeyHash(p).equals(d.encryptor.getPublicKeyHash(d.encryptor.getTrustOfPublicRead())) == false)
                 .findFirst()
                 .orElse(null);
@@ -375,21 +374,16 @@ public class AuthorizationDelegate {
 
     public MessagePrivateKeyDto getOrCreateImplicitRightToRead(IRights entity)
     {
-        IPartitionKey partitionKey = d.io.partitionResolver().resolve(entity);
         @Alias String alias = entity.getRightsAlias();
         MessagePrivateKeyDto right = entity.getRightsRead().stream()
-                .filter(p -> alias.equals(d.encryptor.getAlias(partitionKey, p)))
+                .filter(p -> alias.equals(p.getAlias()))
                 .filter(p -> d.encryptor.getPublicKeyHash(p).equals(d.encryptor.getPublicKeyHash(d.encryptor.getTrustOfPublicRead())) == false)
                 .findFirst()
                 .orElse(null);
         if (right == null) {
             right = new MessagePrivateKeyDto(d.encryptor.genEncryptKeyWithAlias(128, alias));
-
+            
             entity.getRightsRead().add(right);
-
-            if (d.io.publicKeyOrNull(partitionKey, right.getPublicKeyHash()) == null) {
-                d.io.merge(partitionKey, d.encryptor.getPublicKey(right));
-            }
         }
         return right;
     }
@@ -449,10 +443,9 @@ public class AuthorizationDelegate {
 
     public @Nullable MessagePrivateKeyDto getImplicitRightToWrite(IRights entity)
     {
-        IPartitionKey partitionKey = d.io.partitionResolver().resolve(entity);
         @Alias String alias = entity.getRightsAlias();
         MessagePrivateKeyDto right = entity.getRightsWrite().stream()
-                .filter(p -> alias.equals(d.encryptor.getAlias(partitionKey, p)))
+                .filter(p -> alias.equals(p.getAlias()))
                 .filter(p -> d.encryptor.getPublicKeyHash(p).equals(d.encryptor.getPublicKeyHash(d.encryptor.getTrustOfPublicWrite())) == false)
                 .findFirst()
                 .orElse(null);
@@ -461,21 +454,15 @@ public class AuthorizationDelegate {
 
     public MessagePrivateKeyDto getOrCreateImplicitRightToWrite(IRights entity)
     {
-        IPartitionKey partitionKey = d.io.partitionResolver().resolve(entity);
         @Alias String alias = entity.getRightsAlias();
         MessagePrivateKeyDto right = entity.getRightsWrite().stream()
-                .filter(p -> alias.equals(d.encryptor.getAlias(partitionKey, p)))
+                .filter(p -> alias.equals(p.getAlias()))
                 .filter(p -> d.encryptor.getPublicKeyHash(p).equals(d.encryptor.getPublicKeyHash(d.encryptor.getTrustOfPublicWrite())) == false)
                 .findFirst()
                 .orElse(null);
         if (right == null) {
             right = new MessagePrivateKeyDto(d.encryptor.genSignKeyWithAlias(alias));
-
             entity.getRightsWrite().add(right);
-
-            if (d.io.publicKeyOrNull(partitionKey, right.getPublicKeyHash()) == null) {
-                d.io.merge(partitionKey, d.encryptor.getPublicKey(right));
-            }
         }
         return right;
     }
@@ -578,12 +565,10 @@ public class AuthorizationDelegate {
     }
 
     public void unauthorizeAliasRead(IRights rights, @Alias String alias) {
-
-        IPartitionKey partitionKey = d.io.partitionResolver().resolve(rights);
         List<MessagePrivateKeyDto> rs = rights.getRightsRead()
                 .stream()
                 .filter(p -> alias.equals(d.encryptor.getPublicKeyHash(p)) == true ||
-                        alias.equals(d.encryptor.getAlias(partitionKey, p)) == true)
+                        alias.equals(p.getPublicKeyHash()) == true)
                 .collect(Collectors.toList());
         for (MessagePrivateKeyDto r : rs) {
             rights.getRightsRead().remove(r);
@@ -591,12 +576,10 @@ public class AuthorizationDelegate {
     }
 
     public void unauthorizeAliasWrite(IRights rights, @Alias String alias) {
-
-        IPartitionKey partitionKey = d.io.partitionResolver().resolve(rights);
         List<MessagePrivateKeyDto> rs = rights.getRightsWrite()
                 .stream()
                 .filter(p -> alias.equals(d.encryptor.getPublicKeyHash(p)) == true ||
-                        alias.equals(d.encryptor.getAlias(partitionKey, p)) == true)
+                        alias.equals(p.getPublicKeyHash()) == true)
                 .collect(Collectors.toList());
         for (MessagePrivateKeyDto r : rs) {
             rights.getRightsWrite().remove(r);
