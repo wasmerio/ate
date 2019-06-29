@@ -408,17 +408,11 @@ public class DataSerializer {
                              header.getCastleId(),
                              this.d.currentRights.getRightsRead());
         if (castle == null) {
-            castle = d.securityCastleManager
-                    .enterCastle(partitionKey,
-                            header.getCastleId(),
-                            this.d.currentRights.getRightsRead());
-            if (castle == null) {
-                if (shouldThrow == true) {
-                    EffectivePermissions permissions = d.authorization.perms(header.getPayloadClazz(), partitionKey, header.getIdOrThrow(), PermissionPhase.BeforeMerge);
-                    throw d.authorization.buildReadException(permissions, true);
-                }
-                return null;
+            if (shouldThrow == true) {
+                EffectivePermissions permissions = d.authorization.perms(header.getPayloadClazz(), partitionKey, header.getIdOrThrow(), PermissionPhase.BeforeMerge);
+                throw d.authorization.buildReadException(permissions, true);
             }
+            return null;
         }
         return castle.key;
     }

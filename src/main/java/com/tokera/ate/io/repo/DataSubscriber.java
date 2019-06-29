@@ -9,6 +9,7 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalNotification;
 import com.tokera.ate.common.LoggerHook;
+import com.tokera.ate.dao.GenericPartitionKey;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.enumerations.DataPartitionType;
 import com.tokera.ate.events.PartitionSeedingEvent;
@@ -29,8 +30,8 @@ public class DataSubscriber {
 
     private AteDelegate d = AteDelegate.get();
     private final LoggerHook LOG;
-    private final Cache<IPartitionKey, @NonNull DataPartition> topicCache;
-    private final ConcurrentHashMap<String, RamTopicPartition> ramPartitions;
+    private final Cache<GenericPartitionKey, @NonNull DataPartition> topicCache;
+    private final ConcurrentHashMap<GenericPartitionKey, RamTopicPartition> ramPartitions;
     private final Mode mode;
 
     public enum Mode {
@@ -44,7 +45,7 @@ public class DataSubscriber {
         this.topicCache = CacheBuilder.newBuilder()
                 .maximumSize(500)
                 .expireAfterAccess(1, TimeUnit.MINUTES)
-                .removalListener((RemovalNotification<IPartitionKey, DataPartition> notification) -> {
+                .removalListener((RemovalNotification<GenericPartitionKey, DataPartition> notification) -> {
                     DataPartition t = notification.getValue();
                     if (t != null) t.stop();
                 })
@@ -68,11 +69,12 @@ public class DataSubscriber {
     }
 
     private IDataPartitionBridge createBridge(IPartitionKey key, DataPartitionChain chain, DataPartitionType type) {
+        GenericPartitionKey keyWrap = new GenericPartitionKey(key);
         if (this.mode == Mode.Ram) {
-            RamTopicPartition p = this.ramPartitions.computeIfAbsent(chain.getPartitionKeyStringValue(), RamTopicPartition::new);
+            RamTopicPartition p = this.ramPartitions.computeIfAbsent(keyWrap, RamTopicPartition::new);
             return new RamPartitionBridge(chain, type, p);
         } else {
-            return d.kafkaBridgeBuilder.build(key, chain, type);
+            return d.kafkaBridgeBuilder.build(keyWrap, chain, type);
         }
     }
 
@@ -87,7 +89,8 @@ public class DataSubscriber {
     }
     
     public DataPartition getPartition(IPartitionKey partition, boolean shouldWait, DataPartitionType type) {
-        DataPartition ret = this.topicCache.getIfPresent(partition);
+        GenericPartitionKey keyWrap = new GenericPartitionKey(partition);
+        DataPartition ret = this.topicCache.getIfPresent(keyWrap);
         if (ret != null) {
             if (shouldWait == true) {
                 ret.waitTillLoaded();
@@ -97,13 +100,13 @@ public class DataSubscriber {
 
         try
         {
-            ret = this.topicCache.get(partition, () ->
+            ret = this.topicCache.get(keyWrap, () ->
                 {
                     synchronized(this)
                     {
-                        LOG.info("loading-partition: " + partition.partitionTopic() + ":" + partition.partitionIndex());
+                        LOG.info("loading-partition: " + keyWrap.partitionTopic() + ":" + keyWrap.partitionIndex());
                         d.encryptor.touch(); // required as the kafka partition needs an instance reference
-                        return createPartition(partition, type);
+                        return createPartition(keyWrap, type);
                     }
                 });
         } catch (ExecutionException ex) {

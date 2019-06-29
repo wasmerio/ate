@@ -170,6 +170,9 @@ final public class SplitIO implements IAteIO {
         if (first.size() == Iterables.size(ids)) {
             return first;
         }
+        if (first.size() <= 0) {
+            return lower.getMany(partitionKey, ids, type);
+        }
 
         Map<@DaoId UUID, T> found = first.stream().collect(Collectors.toMap(a -> a.getId(), b -> b));
         List<@DaoId UUID> left = new ArrayList<>();

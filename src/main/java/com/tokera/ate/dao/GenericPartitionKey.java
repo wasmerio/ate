@@ -20,6 +20,11 @@ public class GenericPartitionKey implements IPartitionKey, Serializable {
         this.partition = partition;
     }
 
+    public GenericPartitionKey(IPartitionKey key) {
+        this.topic = key.partitionTopic();
+        this.partition = key.partitionIndex();
+    }
+
     @Override
     public String partitionTopic() {
         return topic;

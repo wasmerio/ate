@@ -15,6 +15,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import javax.enterprise.context.RequestScoped;
 
+import com.tokera.ate.providers.PartitionKeySerializer;
 import com.tokera.ate.units.Hash;
 import com.tokera.ate.units.Secret;
 import org.apache.commons.codec.binary.Base64;
@@ -36,14 +37,16 @@ public class SecurityCastleManager {
      * @return Hash that represents a unique set of read permissions
      */
     public String computePermissionsHash(EffectivePermissions permissions) {
-        return d.encryptor.hashShaAndEncode(permissions.rolesRead);
+        String seed = new PartitionKeySerializer().write(permissions.partitionKey);
+        return d.encryptor.hashShaAndEncode(seed, permissions.rolesRead);
     }
 
     /**
      * @return Hash that represents a unique set of read permissions
      */
-    public String computePermissionsHash(List<String> roles) {
-        return d.encryptor.hashShaAndEncode(roles);
+    public String computePermissionsHash(IPartitionKey key, List<String> roles) {
+        String seed = new PartitionKeySerializer().write(key);
+        return d.encryptor.hashShaAndEncode(seed, roles);
     }
 
     /**
@@ -85,7 +88,7 @@ public class SecurityCastleManager {
      */
     public SecurityCastleContext makeCastle(IPartitionKey partitionKey, List<String> roles)
     {
-        String hash = computePermissionsHash(roles);
+        String hash = computePermissionsHash(partitionKey, roles);
 
         // Perhaps we can reuse a context that already exists in memory
         if (d.bootstrapConfig.getDefaultAutomaticKeyRotation() == false) {
