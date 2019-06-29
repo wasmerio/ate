@@ -87,7 +87,7 @@ public class DataSubscriber {
     }
     
     public DataPartition getPartition(IPartitionKey partition, boolean shouldWait, DataPartitionType type) {
-        DataPartition ret = this.topicCache.getIfPresent(partition.partitionTopic());
+        DataPartition ret = this.topicCache.getIfPresent(partition);
         if (ret != null) {
             if (shouldWait == true) {
                 ret.waitTillLoaded();
