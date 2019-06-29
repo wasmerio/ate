@@ -29,7 +29,7 @@ public class DataSubscriber {
 
     private AteDelegate d = AteDelegate.get();
     private final LoggerHook LOG;
-    private final Cache<String, @NonNull DataPartition> topicCache;
+    private final Cache<IPartitionKey, @NonNull DataPartition> topicCache;
     private final ConcurrentHashMap<String, RamTopicPartition> ramPartitions;
     private final Mode mode;
 
@@ -44,7 +44,7 @@ public class DataSubscriber {
         this.topicCache = CacheBuilder.newBuilder()
                 .maximumSize(500)
                 .expireAfterAccess(1, TimeUnit.MINUTES)
-                .removalListener((RemovalNotification<String, DataPartition> notification) -> {
+                .removalListener((RemovalNotification<IPartitionKey, DataPartition> notification) -> {
                     DataPartition t = notification.getValue();
                     if (t != null) t.stop();
                 })
@@ -97,7 +97,7 @@ public class DataSubscriber {
 
         try
         {
-            ret = this.topicCache.get(partition.partitionTopic(), () ->
+            ret = this.topicCache.get(partition, () ->
                 {
                     synchronized(this)
                     {
