@@ -4,6 +4,7 @@ import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.common.UUIDTools;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.io.api.IPartitionKey;
+import com.tokera.ate.providers.PartitionKeySerializer;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.annotation.PostConstruct;
@@ -32,7 +33,6 @@ public class PartitionKeyInterceptor implements ContainerRequestFilter {
     @Inject
     private DefaultBootstrapInit interceptorInit;
 
-    public static final String HEADER_TOPIC = "Topic";
     public static final String HEADER_PARTITION_KEY = "PartitionKey";
 
     @PostConstruct
@@ -52,16 +52,12 @@ public class PartitionKeyInterceptor implements ContainerRequestFilter {
         d.requestContext.setContainerRequestContext(requestContext);
 
         // Attempt to extract an ID from the headers (if none exists then we are done)
-        String idTxt = PartitionKeyInterceptor.getHeaderStringOrNull(requestContext, HEADER_PARTITION_KEY);
-        if (idTxt == null) idTxt = PartitionKeyInterceptor.getHeaderStringOrNull(requestContext, HEADER_TOPIC);
-        if (idTxt == null) return;
-
-        // Convert it to a partition key
-        UUID id = UUIDTools.parseUUIDorNull(idTxt);
-        IPartitionKey partitionKey = d.io.partitionKeyMapper().resolve(id);
-        if (id == null) id = UUIDTools.generateUUID(idTxt);
+        String keyText = PartitionKeyInterceptor.getHeaderStringOrNull(requestContext, HEADER_PARTITION_KEY);
+        if (keyText == null) return;
 
         // Enter the partition key scope based on this header
+        PartitionKeySerializer serializer = new PartitionKeySerializer();
+        IPartitionKey partitionKey = serializer.read(keyText);
         if (partitionKey != null) {
             d.requestContext.pushPartitionKey(partitionKey);
             

@@ -187,6 +187,18 @@ public class PartitionKeySerializer extends Serializer<IPartitionKey> implements
         val = StringTools.specialParse(val);
         if (val == null || val.length() <= 0) return null;
 
+        if (val.contains(":")) {
+            String[] comps = val.split(":");
+            if (comps.length != 2) return null;
+
+            String topic = comps[0];
+            Integer index = Integer.parseInt(comps[1]);
+
+            return new PartitionKeyValue(
+                    topic,
+                    index);
+        }
+
         byte[] data = Base64.decodeBase64(val);
         ByteBuffer bb = ByteBuffer.wrap(data);
 
