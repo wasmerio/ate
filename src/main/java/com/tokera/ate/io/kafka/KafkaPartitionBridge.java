@@ -65,9 +65,17 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
 
     private final Random rand = new Random();
     private Map<MessageSyncDto, Object> syncs = new ConcurrentHashMap<>();
+
+    public final static int maxTopics = 10000;
+    public final static int maxPartitions = 200000;
+    public final static int maxPartitionsPerTopic = maxPartitions / maxTopics;
     
     public KafkaPartitionBridge(IPartitionKey key, DataPartitionChain chain, KafkaConfigTools config, DataPartitionType topicType, String bootstrapServers)
     {
+        if (key.partitionIndex() >= maxPartitionsPerTopic) {
+            throw new WebApplicationException("Partition index can not exceed the maximum of " + maxPartitionsPerTopic + " per topic.");
+        }
+
         this.m_key = key;
         this.m_chain = chain;
         this.m_config = config;
@@ -244,7 +252,6 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
         if (topicProps != null) {
             // Create the topic
             try {
-                int maxPartitionsPerTopic = AteDelegate.get().io.partitionKeyMapper().maxPartitionsPerTopic();
                 AdminUtils.createTopic(utils, this.m_key.partitionTopic(), maxPartitionsPerTopic, numOfReplicas, topicProps, kafka.admin.RackAwareMode.Disabled$.MODULE$);
                 return true;
             } catch (TopicExistsException ex) {

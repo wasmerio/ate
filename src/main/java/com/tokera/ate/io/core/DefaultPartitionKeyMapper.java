@@ -2,6 +2,7 @@ package com.tokera.ate.io.core;
 
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.api.IPartitionKeyMapper;
+import com.tokera.ate.io.kafka.KafkaPartitionBridge;
 import com.tokera.ate.providers.PartitionKeySerializer;
 import org.apache.kafka.common.utils.Utils;
 
@@ -13,10 +14,6 @@ import java.util.UUID;
  * key of the root of the tree to determine the partition that data will be mapped to.
  */
 public class DefaultPartitionKeyMapper implements IPartitionKeyMapper {
-    private final static int maxTopics = 10000;
-    private final static int maxPartitions = 200000;
-    private final int maxPartitionsPerTopic = maxPartitions / maxTopics;
-
     public class Murmur2BasedPartitioningStrategy implements IPartitionKey {
         private final int hash;
 
@@ -33,12 +30,12 @@ public class DefaultPartitionKeyMapper implements IPartitionKeyMapper {
 
         @Override
         public String partitionTopic() {
-            return String.format("d%d", hash % maxTopics);
+            return String.format("d%d", hash % KafkaPartitionBridge.maxTopics);
         }
 
         @Override
         public int partitionIndex() {
-            return (hash / maxTopics) % maxPartitionsPerTopic;
+            return (hash / KafkaPartitionBridge.maxTopics) % KafkaPartitionBridge.maxPartitionsPerTopic;
         }
 
         @Override
@@ -64,6 +61,6 @@ public class DefaultPartitionKeyMapper implements IPartitionKeyMapper {
 
     @Override
     public int maxPartitionsPerTopic() {
-        return maxPartitionsPerTopic;
+        return KafkaPartitionBridge.maxPartitionsPerTopic;
     }
 }
