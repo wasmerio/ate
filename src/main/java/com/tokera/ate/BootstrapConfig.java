@@ -29,6 +29,8 @@ public class BootstrapConfig {
     private String stsSigningKeyPassword = "F4257978B79904B78903AB62C3B9F7EBFF42FDC8ED1F66995584DCD4D9E27E1082563FE92D7078A4";
     private String stsCertificateAliasName = "sts";
 
+    private String dnsServer = "8.8.8.8";
+
     private List<String> arguments = new ArrayList<>();
 
     private String propertiesFileAte = "ate.properties";
@@ -399,5 +401,14 @@ public class BootstrapConfig {
 
     public void setExtraValidation(boolean extraValidation) {
         this.extraValidation = extraValidation;
+    }
+
+    public String getDnsServer() {
+        return dnsServer;
+    }
+
+    public void setDnsServer(String dnsServer) {
+        this.dnsServer = dnsServer;
+        AteDelegate.get().implicitSecurity.init();
     }
 }

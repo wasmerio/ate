@@ -15,6 +15,12 @@ import javax.annotation.PostConstruct;
 import javax.enterprise.context.ApplicationScoped;
 import javax.enterprise.event.Observes;
 import javax.inject.Inject;
+import javax.naming.NamingEnumeration;
+import javax.naming.NamingException;
+import javax.naming.directory.Attribute;
+import javax.naming.directory.Attributes;
+import javax.naming.directory.DirContext;
+import javax.naming.directory.InitialDirContext;
 import javax.ws.rs.WebApplicationException;
 
 import com.tokera.ate.events.RegisterPublicTopicEvent;
@@ -59,7 +65,7 @@ public class ImplicitSecurityDelegate {
             m_resolver.setTCP(true);
             m_resolver.setTimeout(4);
             //m_resolver.setTSIGKey(null);
-            m_resolver.setAddress(InetAddress.getByName("8.8.8.8"));
+            m_resolver.setAddress(InetAddress.getByName(d.bootstrapConfig.getDnsServer()));
         } catch (UnknownHostException ex) {
             LOG.error(ex);
         }
@@ -264,13 +270,27 @@ public class ImplicitSecurityDelegate {
                         if (str == null) continue;
                         sb.append(str.toString());
                     }
+                    if (sb.length() <= 0) continue;
                     return sb.toString();
                 }
             }
 
+            // Fall back to another DNS resolver
+            Hashtable<String, String> env = new Hashtable<>();
+            env.put("java.naming.factory.initial","com.sun.jndi.dns.DnsContextFactory");
+            DirContext dirContext = new InitialDirContext(env);
+            Attributes attrs = dirContext.getAttributes(implicitAuth, new String[] { "TXT" });
+            Attribute txt = attrs.get("TXT");
+            NamingEnumeration e = txt.getAll();
+            while (e.hasMore()) {
+                String ret = e.next().toString();
+                if (ret.length() <= 0) continue;
+                return ret;
+            }
+
             //this.LOG.info("dns(" + domain + ")::no_record");
             return null;
-        } catch (TextParseException ex) {
+        } catch (TextParseException | NamingException ex) {
             if (shouldThrow) {
                 throw new WebApplicationException(ex);
             }
