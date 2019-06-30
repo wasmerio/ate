@@ -171,6 +171,7 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
         int emptyCount = 0;
         while (true)
         {
+            // This will cause the subscription to a particular partition and topic
             if (touchConsumer() == false)
             {
                 dispose();
@@ -371,6 +372,7 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
                         .filter(i -> i.partition() == m_key.partitionIndex())
                         .map(i -> new TopicPartition(i.topic(), i.partition()))
                         .collect(Collectors.toList());
+                if (this.partitions.size() <= 0) return false;
             }
 
             c.assign(this.partitions);

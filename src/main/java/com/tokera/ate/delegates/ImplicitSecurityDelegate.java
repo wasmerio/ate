@@ -1,35 +1,30 @@
 package com.tokera.ate.delegates;
 
-import com.tokera.ate.io.api.IPartitionKey;
-import com.tokera.ate.providers.PartitionKeySerializer;
-import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.function.Function;
-import javax.annotation.PostConstruct;
-import javax.enterprise.context.ApplicationScoped;
-import javax.enterprise.event.Observes;
-import javax.inject.Inject;
-import javax.naming.NamingEnumeration;
-import javax.naming.NamingException;
-import javax.naming.directory.Attribute;
-import javax.naming.directory.Attributes;
-import javax.naming.directory.DirContext;
-import javax.naming.directory.InitialDirContext;
-import javax.ws.rs.WebApplicationException;
-
 import com.tokera.ate.events.RegisterPublicTopicEvent;
+import com.tokera.ate.io.api.IPartitionKey;
+import com.tokera.ate.providers.PartitionKeySerializer;
+import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.units.Alias;
 import com.tokera.ate.units.DomainName;
 import com.tokera.ate.units.PlainText;
 import org.apache.commons.codec.binary.Base64;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.xbill.DNS.*;
+
+import javax.annotation.PostConstruct;
+import javax.enterprise.context.ApplicationScoped;
+import javax.enterprise.event.Observes;
+import javax.inject.Inject;
+import javax.naming.NamingException;
+import javax.ws.rs.WebApplicationException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Function;
 
 /**
  * Uses properties of the Internet to derive authentication and authorization rules
@@ -69,15 +64,6 @@ public class ImplicitSecurityDelegate {
         } catch (UnknownHostException ex) {
             LOG.error(ex);
         }
-    }
-
-    public void onRegisterPublicPartition(@Observes RegisterPublicTopicEvent partition)
-    {
-        g_publicPartitions.add(partition.getName());
-    }
-
-    public boolean checkPartitionIsPublic(String accDomain) {
-        return g_publicPartitions.contains(accDomain);
     }
 
     public @Nullable MessagePublicKeyDto enquireDomainKey(@DomainName String domain, boolean shouldThrow)
@@ -230,12 +216,6 @@ public class ImplicitSecurityDelegate {
             return override;
         }
 
-        for (String publicTopic : this.g_publicPartitions) {
-            if ((d.bootstrapConfig.getImplicitAuthorityAlias() + "." + publicTopic).equals(domain)) {
-                return null;
-            }
-        }
-
         try
         {
             @DomainName String implicitAuth = domain;
@@ -275,22 +255,9 @@ public class ImplicitSecurityDelegate {
                 }
             }
 
-            // Fall back to another DNS resolver
-            Hashtable<String, String> env = new Hashtable<>();
-            env.put("java.naming.factory.initial","com.sun.jndi.dns.DnsContextFactory");
-            DirContext dirContext = new InitialDirContext(env);
-            Attributes attrs = dirContext.getAttributes(implicitAuth, new String[] { "TXT" });
-            Attribute txt = attrs.get("TXT");
-            NamingEnumeration e = txt.getAll();
-            while (e.hasMore()) {
-                String ret = e.next().toString();
-                if (ret.length() <= 0) continue;
-                return ret;
-            }
-
             //this.LOG.info("dns(" + domain + ")::no_record");
             return null;
-        } catch (TextParseException | NamingException ex) {
+        } catch (TextParseException ex) {
             if (shouldThrow) {
                 throw new WebApplicationException(ex);
             }
