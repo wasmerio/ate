@@ -30,12 +30,12 @@ public class DefaultPartitionKeyMapper implements IPartitionKeyMapper {
 
         @Override
         public String partitionTopic() {
-            return String.format("d%d", hash % KafkaPartitionBridge.maxTopics);
+            return String.format("d%d", (hash / KafkaPartitionBridge.maxPartitionsPerTopic) % KafkaPartitionBridge.maxTopics);
         }
 
         @Override
         public int partitionIndex() {
-            return (hash / KafkaPartitionBridge.maxTopics) % KafkaPartitionBridge.maxPartitionsPerTopic;
+            return hash % KafkaPartitionBridge.maxPartitionsPerTopic;
         }
 
         @Override
