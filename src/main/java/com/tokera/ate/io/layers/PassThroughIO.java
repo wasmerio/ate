@@ -149,11 +149,6 @@ public class PassThroughIO implements IAteIO {
     }
 
     @Override
-    public boolean ethereal(IPartitionKey partitionKey) {
-        return next.ethereal(partitionKey);
-    }
-
-    @Override
     public boolean everExisted(@Nullable PUUID _id) {
         @DaoId PUUID id = _id;
         if (id == null) return false;

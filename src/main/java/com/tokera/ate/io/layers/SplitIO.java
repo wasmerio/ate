@@ -119,11 +119,6 @@ final public class SplitIO implements IAteIO {
     }
 
     @Override
-    final public boolean ethereal(IPartitionKey partitionKey) {
-        return upper.ethereal(partitionKey) || lower.ethereal(partitionKey);
-    }
-
-    @Override
     final public boolean everExisted(@Nullable PUUID id) {
         return upper.everExisted(id) || lower.everExisted(id);
     }

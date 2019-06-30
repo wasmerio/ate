@@ -13,6 +13,7 @@ import javax.enterprise.context.ApplicationScoped;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Startup
 @ApplicationScoped
@@ -58,6 +59,13 @@ public class BootstrapConfig {
     private boolean loggingValidationVerbose = false;
 
     private boolean extraValidation = false;
+
+    private String bootstrapOverrideZookeeper = null;
+    private String bootstrapOverrideKafka = null;
+    private String kafkaLogDirOverride = null;
+    private String zookeeperDataDirOverride = null;
+
+    private ConcurrentHashMap<String, Properties> propertiesCache = new ConcurrentHashMap<>();
 
     // Only weld should initialize this configuration using the ApiServer.startWeld method
     @Deprecated()
@@ -217,11 +225,14 @@ public class BootstrapConfig {
     }
 
     private Properties getPropertiesFile(String filename, String logicalName) {
-        Properties props = ApplicationConfigLoader.getInstance().getPropertiesByName(filename);
-        if (props == null) {
-            throw new RuntimeException("Properties file (" + filename + ") for " + logicalName + " does not exist.");
-        }
-        return props;
+        return propertiesCache.computeIfAbsent(filename, f ->
+        {
+            Properties props = ApplicationConfigLoader.getInstance().getPropertiesByName(filename);
+            if (props == null) {
+                throw new RuntimeException("Properties file (" + filename + ") for " + logicalName + " does not exist.");
+            }
+            return props;
+        });
     }
 
     public Properties propertiesForAte() {
@@ -239,7 +250,7 @@ public class BootstrapConfig {
         int numBrokers = AteDelegate.get().implicitSecurity.enquireDomainAddresses(bootstrapKafka, true).size();
 
         // Cap the number of replicas so they do not exceed the number of brokers
-        Integer numOfReplicas = 2;
+        Integer numOfReplicas = 1;
         Object numOfReplicasObj = MapTools.getOrNull(props, "default.replication.factor");
         if (numOfReplicasObj != null) {
             try {
@@ -253,15 +264,40 @@ public class BootstrapConfig {
         props.put("default.replication.factor", numOfReplicas.toString());
         props.put("transaction.state.log.replication.factor", numOfReplicas.toString());
 
+        AteDelegate d = AteDelegate.get();
+        if (d.bootstrapConfig.getKafkaLogDirOverride() != null) {
+            props.put("log.dir", d.bootstrapConfig.getKafkaLogDirOverride());
+            props.put("log.dirs", d.bootstrapConfig.getKafkaLogDirOverride());
+        }
+
         if (LOG != null) LOG.info("Kafka Replication Factor: " + numOfReplicas);
         return props;
     }
 
     public Properties propertiesForZooKeeper() {
-        return getPropertiesFile(this.getPropertiesFileZooKeeper(), "ZooKeeper");
+        Properties props = getPropertiesFile(this.getPropertiesFileZooKeeper(), "ZooKeeper");
+
+        AteDelegate d = AteDelegate.get();
+        if (d.bootstrapConfig.getZookeeperDataDirOverride() != null) {
+            props.put("dataDir", d.bootstrapConfig.getZookeeperDataDirOverride());
+        }
+
+        return props;
     }
 
     public static String propertyOrThrow(Properties props, String name) {
+        AteDelegate d = AteDelegate.get();
+        if (props == d.bootstrapConfig.propertiesForAte()) {
+            if ("zookeeper.bootstrap".equals(name)) {
+                String override = d.bootstrapConfig.getBootstrapOverrideZookeeper();
+                if (override != null) return override;
+            }
+            if ("kafka.bootstrap".equals(name)) {
+                String override = d.bootstrapConfig.getBootstrapOverrideKafka();
+                if (override != null) return override;
+            }
+        }
+
         String ret = props.getProperty(name, null);
         if (ret == null) {
             throw new RuntimeException("Unable to initialize the subsystem as the [" + name + "] is missing from the properties file.");
@@ -410,5 +446,37 @@ public class BootstrapConfig {
     public void setDnsServer(String dnsServer) {
         this.dnsServer = dnsServer;
         AteDelegate.get().implicitSecurity.init();
+    }
+
+    public String getBootstrapOverrideZookeeper() {
+        return bootstrapOverrideZookeeper;
+    }
+
+    public void setBootstrapOverrideZookeeper(String bootstrapOverrideZookeeper) {
+        this.bootstrapOverrideZookeeper = bootstrapOverrideZookeeper;
+    }
+
+    public String getBootstrapOverrideKafka() {
+        return bootstrapOverrideKafka;
+    }
+
+    public void setBootstrapOverrideKafka(String bootstrapOverrideKafka) {
+        this.bootstrapOverrideKafka = bootstrapOverrideKafka;
+    }
+
+    public String getKafkaLogDirOverride() {
+        return kafkaLogDirOverride;
+    }
+
+    public void setKafkaLogDirOverride(String kafkaLogDirOverride) {
+        this.kafkaLogDirOverride = kafkaLogDirOverride;
+    }
+
+    public String getZookeeperDataDirOverride() {
+        return zookeeperDataDirOverride;
+    }
+
+    public void setZookeeperDataDirOverride(String zookeeperDataDirOverride) {
+        this.zookeeperDataDirOverride = zookeeperDataDirOverride;
     }
 }

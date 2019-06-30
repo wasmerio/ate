@@ -13,6 +13,8 @@ public class NetworkTools {
 
     public static Set<String> getMyNetworkAddresses() {
         HashSet<String> myAddresses = new HashSet<>();
+        myAddresses.add("127.0.0.1");
+        myAddresses.add("localhost");
         try {
             for (NetworkInterface net : Collections.list(NetworkInterface.getNetworkInterfaces())) {
                 for (InetAddress addr : Collections.list(net.getInetAddresses())) {

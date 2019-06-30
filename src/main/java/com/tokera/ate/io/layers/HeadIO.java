@@ -229,16 +229,6 @@ public class HeadIO implements IAteIO
         return back.exists(id);
     }
 
-    public boolean ethereal() {
-        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
-        return back.ethereal(partitionKey);
-    }
-
-    @Override
-    public boolean ethereal(IPartitionKey partitionKey) {
-        return back.ethereal(partitionKey);
-    }
-
     public boolean everExisted(@Nullable @DaoId UUID _id) {
         @DaoId UUID id = _id;
         if (id == null) return false;

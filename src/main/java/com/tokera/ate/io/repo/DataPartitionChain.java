@@ -7,6 +7,7 @@ import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.io.api.IPartitionKey;
+import com.tokera.ate.providers.PartitionKeySerializer;
 import com.tokera.ate.security.Encryptor;
 
 import java.io.IOException;
@@ -45,10 +46,6 @@ public class DataPartitionChain {
     }
 
     public IPartitionKey partitionKey() { return this.key; }
-
-    public String getPartitionKeyStringValue() {
-        return this.key.partitionTopic() + ":" + this.key.partitionIndex();
-    }
     
     public void addTrustDataHeader(MessageDataHeaderDto trustedHeader, @Nullable LoggerHook LOG) {
 
@@ -146,9 +143,9 @@ public class DataPartitionChain {
     public void drop(@Nullable LoggerHook LOG, @Nullable MessageBaseDto msg, @Nullable MessageMetaDto meta, String why, @Nullable MessageDataHeader parentHeader) {
         String index;
         if (meta != null) {
-            index = "partition=" + this.getPartitionKeyStringValue() + ", offset=" + meta.getOffset();
+            index = "partition=" + PartitionKeySerializer.toString(this.partitionKey()) + ", offset=" + meta.getOffset();
         } else {
-            index = "partition=" + this.getPartitionKeyStringValue();
+            index = "partition=" + PartitionKeySerializer.toString(this.partitionKey());
         }
 
         String err;
@@ -174,7 +171,7 @@ public class DataPartitionChain {
         
         MessageDataHeaderDto header = data.getHeader();
         UUID id = header.getIdOrThrow();
-        err = "Dropping data on [" + this.getPartitionKeyStringValue() + "] - " + why + " [clazz=" + header.getPayloadClazzOrThrow() + ", id=" + id + "]";
+        err = "Dropping data on [" + PartitionKeySerializer.toString(this.partitionKey()) + "] - " + why + " [clazz=" + header.getPayloadClazzOrThrow() + ", id=" + id + "]";
 
         if (LOG != null) {
             LOG.error(err);

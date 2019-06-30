@@ -21,8 +21,6 @@ public interface IDataPartitionBridge {
 
     void stop();
 
-    boolean ethereal();
-
     boolean sync();
 
     MessageSyncDto startSync();

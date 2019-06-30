@@ -52,10 +52,6 @@ public class DataPartition {
         return bridge;
     }
     
-    public boolean ethereal() {
-        return bridge.ethereal();
-    }
-    
     public void write(MessageBaseDto msg, @Nullable LoggerHook LOG)
     {        
         // First we validate that the entry is going to be accepted

@@ -20,7 +20,6 @@ import java.util.*;
 /**
  * Bridge between the data tree in memory and the Kafka BUS that persists those messages
  */
-@Startup
 @ApplicationScoped
 public class KafkaBridgeBuilder {
 

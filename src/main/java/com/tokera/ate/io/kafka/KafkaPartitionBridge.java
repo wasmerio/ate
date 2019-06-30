@@ -20,6 +20,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
+import com.tokera.ate.providers.PartitionKeySerializer;
 import org.apache.commons.lang.time.StopWatch;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -37,11 +38,13 @@ import org.I0Itec.zkclient.ZkConnection;
 import kafka.utils.ZKStringSerializer$;
 import org.apache.kafka.common.errors.TopicExistsException;
 
+import javax.ws.rs.WebApplicationException;
+import javax.ws.rs.core.Response;
+
 /**
  * Represents the bridge of a particular Kafka topic
  */
 public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
-
     protected AteDelegate d = AteDelegate.get();
     protected LoggerHook LOG = new LoggerHook(KafkaPartitionBridge.class);
 
@@ -51,11 +54,9 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
     private final DataPartitionType m_type;
     private final String m_bootstrapServers;
     private @MonotonicNonNull Thread thread;
-    private volatile boolean isRunning = true;
     private volatile boolean isLoaded = false;
-    private volatile boolean isEthereal = false;
-    private volatile boolean isCreated = false;
-    private volatile boolean hasLoadingMessages = false;
+    private volatile boolean isInit = false;
+    private volatile boolean isRunning = false;
 
     private @Nullable KafkaConsumer<String, MessageBase> consumer;
     private @Nullable KafkaProducer<String, MessageBase> producer;
@@ -92,6 +93,169 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
             this.thread.interrupt();
         }
     }
+
+    private void initOrThrow()
+    {
+        if (isInit == true) {
+            return;
+        }
+
+        synchronized (this) {
+            // Load the consumer and producer
+            if (this.consumer == null) {
+                this.consumer = this.m_config.newConsumer(KafkaConfigTools.TopicRole.Consumer, KafkaConfigTools.TopicType.Dao, m_bootstrapServers);
+            }
+
+            // We only create the producer once things have got going
+            if (this.producer == null) {
+                this.producer = this.m_config.newProducer(KafkaConfigTools.TopicRole.Producer, KafkaConfigTools.TopicType.Dao, m_bootstrapServers);
+            }
+
+            // Success now subscribe to these partitions
+            KafkaConsumer<String, MessageBase> c = this.consumer;
+            if (c == null) throw new WebApplicationException("Failed to initialize the Kafka consumer.", Response.Status.INTERNAL_SERVER_ERROR);
+
+            // If we already have assigned partitions then we are done
+            if (c.assignment().size() > 0) {
+                isInit = true;
+                return;
+            }
+
+            // Attempt to load the parititons for this topic in a loop and while
+            // they are not loaded (because the topic doesnt exist) switch to an
+            // ethereal state
+            this.partitions = myPartitionsFrom(probePartitions());
+
+            // If there are no partitions then attempt to create one
+            if (this.partitions.size() <= 0) {
+                if (createPartition() == false) {
+                    throw new WebApplicationException("Failed to create the new partition.", Response.Status.INTERNAL_SERVER_ERROR);
+                }
+            }
+
+            // Wait for the topic to come online
+            StopWatch waitTime = new StopWatch();
+            waitTime.start();
+            while (true) {
+                this.partitions = myPartitionsFrom(probePartitions());
+                if (this.partitions.size() > 0) {
+                    break;
+                }
+
+                if (waitTime.getTime() > 20000L) {
+                    throw new WebApplicationException("Busy while creating data topic [" + m_key.partitionTopic() + "]", Response.Status.REQUEST_TIMEOUT);
+                }
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException ex) {
+                    throw new WebApplicationException("Interrupted while waiting for newly created topic.", Response.Status.REQUEST_TIMEOUT);
+                }
+            }
+
+            // Assign the consumer to these partitions
+            c.assign(this.partitions);
+            c.seekToBeginning(this.partitions);
+            isInit = true;
+        }
+    }
+
+    /**
+     * Returns all the partitions for a particular topic
+     */
+    @SuppressWarnings({"return.type.incompatible"})       // This is a fix for the consumer which can actually return null in this instance
+    private static @Nullable List<PartitionInfo> partitionsForOrNull(KafkaConsumer<String, MessageBase> consumer, String topic) {
+        return consumer.partitionsFor(topic);
+    }
+
+    /**
+     * Probes for partitions related to this particular partition key
+     */
+    private @Nullable List<PartitionInfo> probePartitions() {
+        KafkaConsumer<String, MessageBase> c = this.consumer;
+        if (c == null) throw new RuntimeException("You must first initialize the Kafka consumer.");
+
+        List<PartitionInfo> parts = KafkaPartitionBridge.partitionsForOrNull(c, this.m_key.partitionTopic());
+        if (parts == null) return new ArrayList<>();
+
+        return parts;
+    }
+
+    /**
+     * Filters down the partitions to only the ones relevant for this topic
+     */
+    private List<TopicPartition> myPartitionsFrom(@Nullable List<PartitionInfo> parts) {
+        if (parts == null) return new ArrayList<>();
+        return parts.stream()
+                .filter(i -> i.topic().equals(m_key.partitionTopic()))
+                .filter(i -> i.partition() == m_key.partitionIndex())
+                .map(i -> new TopicPartition(i.topic(), i.partition()))
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Initializes the partition by creating it
+     */
+    private boolean createPartition()
+    {
+        // Load the properties for the zookeeper instance
+        Properties props = d.bootstrapConfig.propertiesForKafka();
+
+        // Add the bootstrap to the configuration file
+        String zookeeperHosts = KafkaServer.getZooKeeperBootstrap();
+        props.put("zookeeper.connect", zookeeperHosts);
+
+        int connectionTimeOutInMs = 10000;
+        Object connectionTimeOutInMsObj = MapTools.getOrNull(props, "zookeeper.connection.timeout.ms");
+        if (connectionTimeOutInMsObj != null) {
+            try {
+                connectionTimeOutInMs = Integer.parseInt(connectionTimeOutInMsObj.toString());
+            } catch (NumberFormatException ex) {
+            }
+        }
+        int sessionTimeOutInMs = 10000;
+
+        int numOfReplicas = 1;
+        Object numOfReplicasObj = MapTools.getOrNull(props, "default.replication.factor");
+        if (numOfReplicasObj != null) {
+            try {
+                numOfReplicas = Integer.parseInt(numOfReplicasObj.toString());
+            } catch (NumberFormatException ex) {
+            }
+        }
+
+        ZkClient client = new ZkClient(zookeeperHosts, sessionTimeOutInMs, connectionTimeOutInMs, ZKStringSerializer$.MODULE$);
+        kafka.utils.ZkUtils utils = new kafka.utils.ZkUtils(client, new ZkConnection(zookeeperHosts), false);
+
+        // Load the topic properties depending on the need
+        String topicPropsName;
+        switch (this.m_type) {
+            default:
+            case Dao:
+                topicPropsName = d.bootstrapConfig.getPropertiesFileTopicDao();
+                break;
+            case Io:
+                topicPropsName = d.bootstrapConfig.getPropertiesFileTopicIo();
+                break;
+            case Publish:
+                topicPropsName = d.bootstrapConfig.getPropertiesFileTopicPublish();
+                break;
+        }
+        Properties topicProps = ApplicationConfigLoader.getInstance().getPropertiesByName(topicPropsName);
+        if (topicProps != null) {
+            // Create the topic
+            try {
+                int maxPartitionsPerTopic = AteDelegate.get().io.partitionKeyMapper().maxPartitionsPerTopic();
+                AdminUtils.createTopic(utils, this.m_key.partitionTopic(), maxPartitionsPerTopic, numOfReplicas, topicProps, kafka.admin.RackAwareMode.Disabled$.MODULE$);
+                return true;
+            } catch (TopicExistsException ex) {
+                return true;
+            } catch (Throwable ex) {
+                return false;
+            }
+        }
+
+        return false;
+    }
     
     @Override
     public void run() {
@@ -102,16 +266,8 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
         timer.start();
         while (isRunning) {
             try {
-        
-                // Load the consumer and producer
-                if (this.consumer == null) {
-                    this.consumer = this.m_config.newConsumer(KafkaConfigTools.TopicRole.Consumer, KafkaConfigTools.TopicType.Dao, m_bootstrapServers);
-                }
-                
-                // We only create the producer once things have got going
-                if (this.producer == null) {
-                    this.producer = this.m_config.newProducer(KafkaConfigTools.TopicRole.Producer, KafkaConfigTools.TopicType.Dao, m_bootstrapServers);
-                }
+                // Initialize or throw an exception
+                initOrThrow();
         
                 // Perform a poll of all the data for topics
                 int numRecords = poll();
@@ -119,13 +275,8 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
                 // Check if records have been loaded or enough time has passed
                 // that we judge it is an empty partition
                 if (isLoaded == false) {
-                    if (hasLoadingMessages) {
-                        if (numRecords <= 0) isLoaded = true;
-                        else if (timer.getTime() > 15000) isLoaded = true;
-                    } else {
-                        if (numRecords > 0 || this.isCreated) hasLoadingMessages = true;
-                        else if (timer.getTime() > 15000) isLoaded = true;
-                    }
+                    if (numRecords <= 0) isLoaded = true;
+                    else if (timer.getTime() > 30000) isLoaded = true;
                 }
                 
                 errorWaitTime = 500L;
@@ -162,7 +313,6 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
         this.partitions.clear();
 
         isLoaded = false;
-        hasLoadingMessages = false;
     }
     
     private int poll()
@@ -171,13 +321,6 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
         int emptyCount = 0;
         while (true)
         {
-            // This will cause the subscription to a particular partition and topic
-            if (touchConsumer() == false)
-            {
-                dispose();
-                break;
-            }
-
             KafkaConsumer<String, MessageBase> c = this.consumer;
             if (c == null) {
                 dispose();
@@ -314,190 +457,8 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
             StopWatch waitTime = new StopWatch();
             waitTime.start();
             while (isLoaded == false) {
-                if (isEthereal) return;
                 if (waitTime.getTime() > 20000L) {
-                    throw new RuntimeException("Busy loading data partition [" + m_chain.getPartitionKeyStringValue() + "]");
-                }
-                try {
-                    Thread.sleep(50);
-                } catch (InterruptedException ex) {
-                    break;
-                }
-            }
-        }
-    }
-
-    @SuppressWarnings({"return.type.incompatible"})       // This is a fix for the consumer which can actually return null in this instance
-    private static @Nullable List<PartitionInfo> partitionsForOrNull(KafkaConsumer<String, MessageBase> consumer, String topic) {
-        return consumer.partitionsFor(topic);
-    }
-
-    private @Nullable List<PartitionInfo> probePartitions() {
-        KafkaConsumer<String, MessageBase> c = this.consumer;
-        if (c == null) return null;
-
-        while (true) {
-            List<PartitionInfo> parts = KafkaPartitionBridge.partitionsForOrNull(c, this.m_key.partitionTopic());
-            if (parts != null)
-            {
-                isEthereal = false;
-                return parts;
-            }
-
-            isEthereal = true;
-            try {
-                Thread.sleep(200);
-            } catch (InterruptedException ex1) {
-                LOG.warn(ex1);
-                return null;
-            }
-        }
-    }
-
-    private List<TopicPartition> myPartitionsFrom(@Nullable List<PartitionInfo> parts) {
-        if (parts == null) return new ArrayList<>();
-        return parts.stream()
-                .filter(i -> i.topic().equals(m_key.partitionTopic()))
-                .filter(i -> i.partition() == m_key.partitionIndex())
-                .map(i -> new TopicPartition(i.topic(), i.partition()))
-                .collect(Collectors.toList());
-    }
-
-    private boolean touchConsumer() {
-        return touchConsumer(true);
-    }
-
-    private boolean touchConsumer(boolean recursive)
-    {
-        KafkaConsumer<String, MessageBase> c = this.consumer;
-        if (c == null) return false;
-
-        // If the consumer is not yet assigned to partitions then assign it
-        if (c.assignment().size() <= 0)
-        {
-            // Configure the consumers
-            if (this.partitions.isEmpty())
-            {
-                // Attempt to load the parititons for this topic in a loop and while
-                // they are not loaded (because the topic doesnt exist) switch to an
-                // ethereal state
-                this.partitions = myPartitionsFrom(probePartitions());
-                if (this.partitions.size() <= 0) {
-                    this.isEthereal = true;
-
-                    if (recursive == false) return false;
-
-                    try {
-                        try {
-                            touchProducer();
-                        } catch (Throwable ex) {
-                            LOG.warn(ex);
-                        }
-                        Thread.sleep(1000);
-
-                        this.partitions = myPartitionsFrom(probePartitions());
-                        if (this.partitions.size() <= 0) {
-                            Thread.sleep(10000);
-                            return false;
-                        }
-
-                    } catch (InterruptedException ex1) {
-                        LOG.warn(ex1);
-                        return false;
-                    }
-                }
-            }
-
-            c.assign(this.partitions);
-            c.seekToBeginning(this.partitions);
-        }
-        
-         return true;
-    }
-
-    public void touchProducer()
-    {
-        touchProducer(true);
-    }
-    
-    public void touchProducer(boolean recursive)
-    {
-        // The producer must also could the consumer otherwise it will wait
-        // until it times out
-        // WARNING: Can not touch the consumer while poll is going on or we hit a multithreading issue
-        //          as the kafka consumer is not threadsafe
-        //touchConsumer();
-
-        // Wait for the topic to go into an Ethereal status or load
-        StopWatch waitTime = new StopWatch();
-        waitTime.start();
-
-        if (recursive) {
-            waitTillLoaded();
-        }
-
-        // Load the properties for the zookeeper instance
-        Properties props = d.bootstrapConfig.propertiesForKafka();
-
-        // Add the bootstrap to the configuration file
-        String zookeeperHosts = KafkaServer.getZooKeeperBootstrap();
-        props.put("zookeeper.connect", zookeeperHosts);
-        
-        int connectionTimeOutInMs = 10000;
-        Object connectionTimeOutInMsObj = MapTools.getOrNull(props, "zookeeper.connection.timeout.ms");
-        if (connectionTimeOutInMsObj != null) {
-            try {
-                connectionTimeOutInMs = Integer.parseInt(connectionTimeOutInMsObj.toString());
-            } catch (NumberFormatException ex) {
-            }
-        }
-        int sessionTimeOutInMs = 10000;
-
-        int numOfReplicas = 2;
-        Object numOfReplicasObj = MapTools.getOrNull(props, "default.replication.factor");
-        if (numOfReplicasObj != null) {
-            try {
-                numOfReplicas = Integer.parseInt(numOfReplicasObj.toString());
-            } catch (NumberFormatException ex) {
-            }
-        }
-
-        ZkClient client = new ZkClient(zookeeperHosts, sessionTimeOutInMs, connectionTimeOutInMs, ZKStringSerializer$.MODULE$);
-        kafka.utils.ZkUtils utils = new kafka.utils.ZkUtils(client, new ZkConnection(zookeeperHosts), false);
-
-        // Load the topic properties depending on the need
-        String topicPropsName;
-        switch (this.m_type) {
-            default:
-            case Dao:
-                topicPropsName = d.bootstrapConfig.getPropertiesFileTopicDao();
-                break;
-            case Io:
-                topicPropsName = d.bootstrapConfig.getPropertiesFileTopicIo();
-                break;
-            case Publish:
-                topicPropsName = d.bootstrapConfig.getPropertiesFileTopicPublish();
-                break;
-        }
-        Properties topicProps = ApplicationConfigLoader.getInstance().getPropertiesByName(topicPropsName);
-        if (topicProps != null) {
-            // Create the topic
-            try {
-                int maxPartitionsPerTopic = AteDelegate.get().io.partitionKeyMapper().maxPartitionsPerTopic();
-                AdminUtils.createTopic(utils, this.m_key.partitionTopic(), maxPartitionsPerTopic, numOfReplicas, topicProps, kafka.admin.RackAwareMode.Disabled$.MODULE$);
-                this.isCreated = true;
-            } catch (TopicExistsException ex) {
-                this.isCreated = true;
-            }
-        }
-
-        if (recursive) {
-            this.isEthereal = false;
-
-            // Wait for the topic to come online
-            while (isLoaded == false) {
-                if (waitTime.getTime() > 20000L) {
-                    throw new RuntimeException("Busy while creating data topic [" + m_key.partitionTopic() + "]");
+                    throw new RuntimeException("Busy loading data partition [" + PartitionKeySerializer.toString(m_chain.partitionKey()) + "]");
                 }
                 try {
                     Thread.sleep(50);
@@ -513,12 +474,6 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
         // Send the message do Kafka
         ProducerRecord<String, MessageBase> record = new ProducerRecord<>(this.m_key.partitionTopic(), this.m_key.partitionIndex(), MessageSerializer.getKey(msg), msg.createBaseFlatBuffer());
         waitTillLoaded();
-        
-        // If we are Ethereal then we should attempt to create the topic and
-        // then wait for it to be loaded
-        if (this.isEthereal == true) {
-            touchProducer();
-        }
         
         // Send the record to Kafka
         if (producer != null) {
@@ -554,9 +509,5 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
         }
         
         return null;
-    }
-    
-    public boolean ethereal() {
-        return this.isEthereal;
     }
 }

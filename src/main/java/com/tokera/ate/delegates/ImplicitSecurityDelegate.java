@@ -1,5 +1,6 @@
 package com.tokera.ate.delegates;
 
+import com.google.common.collect.Lists;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
@@ -166,8 +167,11 @@ public class ImplicitSecurityDelegate {
             return override;
         }
 
-        if ("localhost.".equalsIgnoreCase(domain)) {
+        if ("127.0.0.1.".equals(domain)) {
             return Collections.singletonList("127.0.0.1");
+        }
+        if ("localhost.".equals(domain)) {
+            return Collections.singletonList("localhost");
         }
 
         try {

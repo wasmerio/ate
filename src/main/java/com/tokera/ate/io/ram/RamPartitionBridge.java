@@ -75,11 +75,6 @@ public class RamPartitionBridge implements IDataPartitionBridge {
     }
 
     @Override
-    public boolean ethereal() {
-        return false;
-    }
-
-    @Override
     public boolean sync() {
         return true;
     }

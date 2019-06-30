@@ -140,11 +140,6 @@ final public class BackendIO implements IAteIO {
     }
     
     @Override
-    public boolean ethereal(IPartitionKey partitionKey) {
-        return next.ethereal(partitionKey);
-    }
-    
-    @Override
     public boolean everExisted(@Nullable PUUID id) {
         return next.everExisted(id);
     }

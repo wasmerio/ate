@@ -450,12 +450,6 @@ public class DataRepository implements IAteIO {
     }
     
     @Override
-    public boolean ethereal(IPartitionKey partitionKey) {
-        DataPartition partition = this.subscriber.getPartition(partitionKey);
-        return partition.ethereal();
-    }
-    
-    @Override
     public boolean everExisted(@Nullable PUUID _id) {
         PUUID id = _id;
         if (id == null) return false;

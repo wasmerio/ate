@@ -137,11 +137,6 @@ public class MemoryRequestCacheIO implements IAteIO
     }
 
     @Override
-    public boolean ethereal(IPartitionKey partitionKey) {
-        return false;
-    }
-
-    @Override
     public boolean everExisted(@Nullable PUUID _id) {
         @DaoId PUUID id = _id;
         if (id == null) return false;

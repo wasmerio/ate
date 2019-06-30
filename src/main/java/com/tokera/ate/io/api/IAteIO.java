@@ -49,8 +49,6 @@ public interface IAteIO {
 
     boolean exists(@Nullable PUUID id);
     
-    boolean ethereal(IPartitionKey partitionKey);
-    
     boolean everExisted(@Nullable PUUID id);
     
     boolean immutable(PUUID id);
