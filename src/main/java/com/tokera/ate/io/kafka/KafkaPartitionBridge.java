@@ -331,8 +331,43 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
     private static @Nullable List<PartitionInfo> partitionsForOrNull(KafkaConsumer<String, MessageBase> consumer, String topic) {
         return consumer.partitionsFor(topic);
     }
-    
-    private boolean touchConsumer()
+
+    private @Nullable List<PartitionInfo> probePartitions() {
+        KafkaConsumer<String, MessageBase> c = this.consumer;
+        if (c == null) return null;
+
+        while (true) {
+            List<PartitionInfo> parts = KafkaPartitionBridge.partitionsForOrNull(c, this.m_key.partitionTopic());
+            if (parts != null)
+            {
+                isEthereal = false;
+                return parts;
+            }
+
+            isEthereal = true;
+            try {
+                Thread.sleep(200);
+            } catch (InterruptedException ex1) {
+                LOG.warn(ex1);
+                return null;
+            }
+        }
+    }
+
+    private List<TopicPartition> myPartitionsFrom(@Nullable List<PartitionInfo> parts) {
+        if (parts == null) return new ArrayList<>();
+        return parts.stream()
+                .filter(i -> i.topic().equals(m_key.partitionTopic()))
+                .filter(i -> i.partition() == m_key.partitionIndex())
+                .map(i -> new TopicPartition(i.topic(), i.partition()))
+                .collect(Collectors.toList());
+    }
+
+    private boolean touchConsumer() {
+        return touchConsumer(true);
+    }
+
+    private boolean touchConsumer(boolean recursive)
     {
         KafkaConsumer<String, MessageBase> c = this.consumer;
         if (c == null) return false;
@@ -346,33 +381,31 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
                 // Attempt to load the parititons for this topic in a loop and while
                 // they are not loaded (because the topic doesnt exist) switch to an
                 // ethereal state
-                List<PartitionInfo> parts = null;
-                if (parts == null) {
-                    while (true) {
-                        parts = KafkaPartitionBridge.partitionsForOrNull(c, this.m_key.partitionTopic());
-                        if (parts != null &&
-                            parts.size() > 0)
-                        {
-                            isEthereal = false;
-                            break;
-                        }
+                this.partitions = myPartitionsFrom(probePartitions());
+                if (this.partitions.size() <= 0) {
+                    this.isEthereal = true;
 
-                        isEthereal = true;
+                    if (recursive == false) return false;
+
+                    try {
                         try {
-                            Thread.sleep(200);
-                        } catch (InterruptedException ex1) {
-                            LOG.warn(ex1);
+                            touchProducer();
+                        } catch (Throwable ex) {
+                            LOG.warn(ex);
+                        }
+                        Thread.sleep(1000);
+
+                        this.partitions = myPartitionsFrom(probePartitions());
+                        if (this.partitions.size() <= 0) {
+                            Thread.sleep(10000);
                             return false;
                         }
+
+                    } catch (InterruptedException ex1) {
+                        LOG.warn(ex1);
+                        return false;
                     }
                 }
-                
-                if (parts == null) return false;
-                this.partitions = parts.stream()
-                        .filter(i -> i.partition() == m_key.partitionIndex())
-                        .map(i -> new TopicPartition(i.topic(), i.partition()))
-                        .collect(Collectors.toList());
-                if (this.partitions.size() <= 0) return false;
             }
 
             c.assign(this.partitions);
@@ -381,8 +414,13 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
         
          return true;
     }
-    
+
     public void touchProducer()
+    {
+        touchProducer(true);
+    }
+    
+    public void touchProducer(boolean recursive)
     {
         // The producer must also could the consumer otherwise it will wait
         // until it times out
@@ -394,7 +432,9 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
         StopWatch waitTime = new StopWatch();
         waitTime.start();
 
-        waitTillLoaded();
+        if (recursive) {
+            waitTillLoaded();
+        }
 
         // Load the properties for the zookeeper instance
         Properties props = d.bootstrapConfig.propertiesForKafka();
@@ -412,15 +452,6 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
             }
         }
         int sessionTimeOutInMs = 10000;
-
-        int numOfPartitions = 1;
-        Object numOfPartitionsObj = MapTools.getOrNull(props, "num.partitions");
-        if (numOfPartitionsObj != null) {
-            try {
-                numOfPartitions = Integer.parseInt(numOfPartitionsObj.toString());
-            } catch (NumberFormatException ex) {
-            }
-        }
 
         int numOfReplicas = 2;
         Object numOfReplicasObj = MapTools.getOrNull(props, "default.replication.factor");
@@ -459,17 +490,20 @@ public class KafkaPartitionBridge implements Runnable, IDataPartitionBridge {
                 this.isCreated = true;
             }
         }
-        this.isEthereal = false;
 
-        // Wait for the topic to come online
-        while (isLoaded == false) {
-            if (waitTime.getTime() > 20000L) {
-                throw new RuntimeException("Busy while creating data topic [" + m_key.partitionTopic() + "]");
-            }
-            try {
-                Thread.sleep(50);
-            } catch (InterruptedException ex) {
-                break;
+        if (recursive) {
+            this.isEthereal = false;
+
+            // Wait for the topic to come online
+            while (isLoaded == false) {
+                if (waitTime.getTime() > 20000L) {
+                    throw new RuntimeException("Busy while creating data topic [" + m_key.partitionTopic() + "]");
+                }
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException ex) {
+                    break;
+                }
             }
         }
     }
