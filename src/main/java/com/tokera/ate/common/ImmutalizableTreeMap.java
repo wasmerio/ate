@@ -115,6 +115,9 @@ public class ImmutalizableTreeMap<K, V> extends TreeMap<K, V> implements Navigab
 
     @Override
     public void immutalize() {
+        if (this instanceof CopyOnWrite) {
+            ((CopyOnWrite)this).copyOnWrite();
+        }
         this._immutable = true;
     }
 }

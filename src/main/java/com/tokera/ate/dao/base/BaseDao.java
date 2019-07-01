@@ -1,6 +1,7 @@
 package com.tokera.ate.dao.base;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.tokera.ate.common.CopyOnWrite;
 import com.tokera.ate.common.Immutalizable;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.delegates.AteDelegate;
@@ -91,6 +92,9 @@ public abstract class BaseDao implements Serializable, Immutalizable, IPartition
 
     @Override
     public void immutalize() {
+        if (this instanceof CopyOnWrite) {
+            ((CopyOnWrite)this).copyOnWrite();
+        }
         this._immutable = true;
     }
 

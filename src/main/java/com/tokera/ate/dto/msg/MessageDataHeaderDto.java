@@ -512,6 +512,9 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
     }
 
     public void immutalize() {
+        if (this instanceof CopyOnWrite) {
+            ((CopyOnWrite)this).copyOnWrite();
+        }
         this._immutable = true;
         this.merges.immutalize();
         this.allowRead.immutalize();

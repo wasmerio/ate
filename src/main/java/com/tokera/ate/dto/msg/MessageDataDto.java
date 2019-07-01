@@ -187,6 +187,9 @@ public class MessageDataDto extends MessageBaseDto implements Serializable, Copy
     }
 
     public void immutalize() {
+        if (this instanceof CopyOnWrite) {
+            ((CopyOnWrite)this).copyOnWrite();
+        }
         this._immutable = true;
         this.header.immutalize();
         if (this.digest != null) this.digest.immutalize();

@@ -67,6 +67,9 @@ public class ImmutalizableHashSet<E> extends HashSet<E> implements Set<E>, Clone
 
     @Override
     public void immutalize() {
+        if (this instanceof CopyOnWrite) {
+            ((CopyOnWrite)this).copyOnWrite();
+        }
         this._immutable = true;
     }
 }

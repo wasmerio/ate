@@ -115,6 +115,9 @@ public class ImmutalizableHashMap<K, V> extends HashMap<K, V> implements Map<K, 
 
     @Override
     public void immutalize() {
+        if (this instanceof CopyOnWrite) {
+            ((CopyOnWrite)this).copyOnWrite();
+        }
         this._immutable = true;
     }
 }

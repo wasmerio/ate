@@ -165,6 +165,9 @@ public class MessageSecurityCastleDto extends MessageBaseDto implements Serializ
 
     @Override
     public void immutalize() {
+        if (this instanceof CopyOnWrite) {
+            ((CopyOnWrite)this).copyOnWrite();
+        }
         this._immutable = true;
         this.gates.immutalize();
     }

@@ -8,6 +8,7 @@ package com.tokera.ate.dto.msg;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tokera.ate.annotations.YamlTag;
+import com.tokera.ate.common.CopyOnWrite;
 
 import javax.enterprise.context.Dependent;
 import javax.validation.constraints.NotNull;
@@ -74,6 +75,9 @@ public class MessageMetaDto implements Serializable {
     }
 
     public void immutalize() {
+        if (this instanceof CopyOnWrite) {
+            ((CopyOnWrite)this).copyOnWrite();
+        }
         this._immutable = true;
     }
 }

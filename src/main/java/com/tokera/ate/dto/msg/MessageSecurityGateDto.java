@@ -178,6 +178,9 @@ public class MessageSecurityGateDto implements Serializable, CopyOnWrite, Immuta
 
     @Override
     public void immutalize() {
+        if (this instanceof CopyOnWrite) {
+            ((CopyOnWrite)this).copyOnWrite();
+        }
         this._immutable = true;
     }
 
