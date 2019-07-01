@@ -18,6 +18,7 @@ import com.tokera.ate.io.kafka.KafkaConfigTools;
 import com.tokera.ate.io.layers.HeadIO;
 import com.tokera.ate.io.layers.MemoryRequestCacheIO;
 import com.tokera.ate.io.merge.DataMerger;
+import com.tokera.ate.io.ram.RamBridgeBuilder;
 import com.tokera.ate.io.repo.*;
 import com.tokera.ate.io.task.TaskManager;
 import com.tokera.ate.qualifiers.FrontendStorageSystem;
@@ -78,6 +79,7 @@ public abstract class BaseAteDelegate {
     public final DataSignatureBuilder dataSignatureBuilder;
     public final DataStagingManager dataStagingManager;
     public final DataRepository dataRepository;
+    public final RamBridgeBuilder ramBridgeBuilder;
     public final KafkaBridgeBuilder kafkaBridgeBuilder;
     public final XmlUtils xml;
     public final RequestAccessLog requestAccessLog;
@@ -162,6 +164,7 @@ public abstract class BaseAteDelegate {
         this.dataSignatureBuilder = getBean(DataSignatureBuilder.class);
         this.dataStagingManager = getBean(DataStagingManager.class);
         this.dataRepository = getBean(DataRepository.class);
+        this.ramBridgeBuilder = getBean(RamBridgeBuilder.class);
         this.kafkaBridgeBuilder = getBean(KafkaBridgeBuilder.class);
         this.xml = getBean(XmlUtils.class);
         this.requestAccessLog = getBean(RequestAccessLog.class);

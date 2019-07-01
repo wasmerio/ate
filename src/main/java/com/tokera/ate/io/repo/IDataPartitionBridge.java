@@ -4,6 +4,7 @@ import com.tokera.ate.dto.msg.MessageBaseDto;
 import com.tokera.ate.dto.msg.MessageDataDto;
 import com.tokera.ate.dto.msg.MessageMetaDto;
 import com.tokera.ate.dto.msg.MessageSyncDto;
+import com.tokera.ate.io.api.IPartitionKey;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.UUID;
@@ -17,10 +18,6 @@ public interface IDataPartitionBridge {
 
     void waitTillLoaded();
 
-    void start();
-
-    void stop();
-
     boolean sync();
 
     MessageSyncDto startSync();
@@ -32,4 +29,10 @@ public interface IDataPartitionBridge {
     boolean hasFinishSync(MessageSyncDto sync);
 
     @Nullable MessageDataDto getVersion(UUID id, MessageMetaDto meta);
+
+    IDataTopicBridge topicBridge();
+
+    IPartitionKey partitionKey();
+
+    DataPartitionChain chain();
 }

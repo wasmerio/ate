@@ -60,6 +60,7 @@ public class DataContainer {
 
     public DataContainer add(MessageDataDto data, MessageMetaDto meta) {
         MessageDataMetaDto msg = new MessageDataMetaDto(data, meta);
+        msg.immutalize();
         this.add(msg);
         return this;
     }

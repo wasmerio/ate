@@ -2,7 +2,7 @@ package com.tokera.ate.io.core;
 
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.api.IPartitionKeyMapper;
-import com.tokera.ate.io.kafka.KafkaPartitionBridge;
+import com.tokera.ate.io.kafka.KafkaTopicBridge;
 import com.tokera.ate.providers.PartitionKeySerializer;
 import org.apache.kafka.common.utils.Utils;
 
@@ -30,12 +30,12 @@ public class DefaultPartitionKeyMapper implements IPartitionKeyMapper {
 
         @Override
         public String partitionTopic() {
-            return String.format("d%d", (hash / KafkaPartitionBridge.maxPartitionsPerTopic) % KafkaPartitionBridge.maxTopics);
+            return String.format("d%d", (hash / KafkaTopicBridge.maxPartitionsPerTopic) % KafkaTopicBridge.maxTopics);
         }
 
         @Override
         public int partitionIndex() {
-            return hash % KafkaPartitionBridge.maxPartitionsPerTopic;
+            return hash % KafkaTopicBridge.maxPartitionsPerTopic;
         }
 
         @Override
@@ -61,6 +61,6 @@ public class DefaultPartitionKeyMapper implements IPartitionKeyMapper {
 
     @Override
     public int maxPartitionsPerTopic() {
-        return KafkaPartitionBridge.maxPartitionsPerTopic;
+        return KafkaTopicBridge.maxPartitionsPerTopic;
     }
 }

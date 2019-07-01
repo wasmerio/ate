@@ -1,28 +1,37 @@
 package com.tokera.ate.io.ram;
 
 import com.tokera.ate.common.MapTools;
-import com.tokera.ate.dto.msg.*;
+import com.tokera.ate.dto.msg.MessageBaseDto;
+import com.tokera.ate.dto.msg.MessageDataDto;
+import com.tokera.ate.dto.msg.MessageMetaDto;
+import com.tokera.ate.dto.msg.MessageSyncDto;
 import com.tokera.ate.enumerations.DataPartitionType;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.repo.DataPartitionChain;
 import com.tokera.ate.io.repo.IDataPartitionBridge;
-import org.checkerframework.checker.nullness.qual.Nullable;
+import com.tokera.ate.io.repo.IDataTopicBridge;
 import org.bouncycastle.crypto.InvalidCipherTextException;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Date;
+import java.util.Map;
+import java.util.Random;
+import java.util.UUID;
 
 /**
  * Represents a bridge of a particular partition with an in memory RAM copy of the data
  */
 public class RamPartitionBridge implements IDataPartitionBridge {
 
-    private DataPartitionChain chain;
-    private DataPartitionType type;
+    private final RamTopicBridge topicBridge;
+    private final DataPartitionChain chain;
+    private final DataPartitionType type;
     private final Random rand = new Random();
-    private RamTopicPartition partition;
+    private final RamTopicPartition partition;
 
-    public RamPartitionBridge(DataPartitionChain chain, DataPartitionType type, RamTopicPartition p) {
+    public RamPartitionBridge(RamTopicBridge topicBridge, DataPartitionChain chain, DataPartitionType type, RamTopicPartition p) {
+        this.topicBridge = topicBridge;
         this.chain = chain;
         this.type = type;
         this.partition = p;
@@ -65,16 +74,6 @@ public class RamPartitionBridge implements IDataPartitionBridge {
     }
 
     @Override
-    public void start() {
-
-    }
-
-    @Override
-    public void stop() {
-
-    }
-
-    @Override
     public boolean sync() {
         return true;
     }
@@ -113,5 +112,20 @@ public class RamPartitionBridge implements IDataPartitionBridge {
         }
 
         return null;
+    }
+
+    @Override
+    public IDataTopicBridge topicBridge() {
+        return this.topicBridge;
+    }
+
+    @Override
+    public IPartitionKey partitionKey() {
+        return this.chain.partitionKey();
+    }
+
+    @Override
+    public DataPartitionChain chain() {
+        return this.chain;
     }
 }

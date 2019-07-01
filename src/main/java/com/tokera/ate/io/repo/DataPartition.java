@@ -3,7 +3,6 @@ package com.tokera.ate.io.repo;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.extensions.DaoParentDiscoveryExtension;
-import com.tokera.ate.delegates.YamlDelegate;
 import com.tokera.ate.dto.msg.MessageBaseDto;
 import com.tokera.ate.enumerations.DataPartitionType;
 import com.tokera.ate.io.api.IPartitionKey;
@@ -21,21 +20,13 @@ public class DataPartition {
     private final DataPartitionType type;
     private final DaoParentDiscoveryExtension parentDiscovery;
     
-    public DataPartition(IPartitionKey key, DataPartitionChain chain, IDataPartitionBridge bridge, DataPartitionType type, DaoParentDiscoveryExtension parentDiscovery)
+    public DataPartition(IPartitionKey key, IDataPartitionBridge bridge, DataPartitionType type, DaoParentDiscoveryExtension parentDiscovery)
     {
         this.key = key;
         this.parentDiscovery = parentDiscovery;
-        this.chain = chain;
+        this.chain = bridge.chain();
         this.bridge = bridge;
         this.type = type;
-    }
-    
-    public void start() {
-        bridge.start();
-    }
-    
-    public void stop() {
-        bridge.stop();
     }
     
     public void waitTillLoaded() {
