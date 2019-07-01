@@ -219,6 +219,22 @@ public class DataMerger {
         }
     }
 
+    private void mergeSetThreeWay(Set ret, @Nullable Set common, @Nullable Set left, @Nullable Set right) {
+        if (common != null) {
+            common.stream().filter(val -> left.contains(val) == true && right.contains(val) == true)
+                    .forEach(val -> ret.add(cloneObject(val)));
+        }
+        if (left != null) {
+            left.stream().filter(val -> common.contains(val) == false)
+                    .forEach(val -> ret.add(cloneObject(val)));
+        }
+
+        if (right != null) {
+            right.stream().filter(val -> common.contains(val) == false && left.contains(val) == false)
+                    .forEach(val -> ret.add(cloneObject(val)));
+        }
+    }
+
     private void mergeCollectionThreeWay(Collection ret, @Nullable Collection common, @Nullable Collection left, @Nullable Collection right) {
         HashSet existsCommon;
         HashSet existsLeft;
@@ -245,6 +261,37 @@ public class DataMerger {
         }
     }
 
+    private void mergeSetApply(Set ret, @Nullable Set _base, @Nullable Set _what) {
+        Set base = _base;
+        Set what = _what;
+
+        if (what == null) {
+            if (base == null) return;
+            for (Object val : base) {
+                ret.remove(val);
+            }
+            return;
+        }
+        if (base == null) {
+            for (Object val : what) {
+                if (ret.contains(val) == false) {
+                    ret.add(cloneObject(val));
+                }
+            }
+            return;
+        }
+        for (Object val : base) {
+            if (what.contains(val) == false) {
+                ret.remove(val);
+            }
+        }
+        for (Object val : what) {
+            if (base.contains(val) == false) {
+                ret.add(cloneObject(val));
+            }
+        }
+    }
+
     private void mergeCollectionApply(Collection ret, @Nullable Collection _base, @Nullable Collection _what) {
         Collection base = _base;
         Collection what = _what;
@@ -259,7 +306,7 @@ public class DataMerger {
         if (base == null) {
             HashMultiset<Object> existingRet = HashMultiset.create(ret);
             for (Object val : what) {
-                if (existingRet.remove(val) == false) {
+                if (existingRet.contains(val) == false) {
                     ret.add(cloneObject(val));
                 }
             }
@@ -268,7 +315,7 @@ public class DataMerger {
         {
             HashMultiset<Object> existingWhat = HashMultiset.create(what);
             for (Object val : base) {
-                if (existingWhat.remove(val) == false) {
+                if (existingWhat.contains(val) == false) {
                     ret.remove(val);
                 }
             }
@@ -276,7 +323,7 @@ public class DataMerger {
         {
             HashMultiset<Object> existingBase = HashMultiset.create(base);
             for (Object val : what) {
-                if (existingBase.remove(val) == false) {
+                if (existingBase.contains(val) == false) {
                     ret.add(cloneObject(val));
                 }
             }
@@ -474,6 +521,12 @@ public class DataMerger {
             return (T)ret;
         }
 
+        // If its a set then mergeThreeWay the entries
+        if (ret instanceof Set) {
+            mergeSetThreeWay((Set) ret, (Set) common, (Set) left, (Set) right);
+            return (T)ret;
+        }
+
         // If its a collection then mergeThreeWay the entries
         if (ret instanceof Collection) {
             mergeCollectionThreeWay((Collection) ret, (Collection) common, (Collection) left, (Collection) right);
@@ -555,6 +608,12 @@ public class DataMerger {
         // If its a list then mergeThreeWay the entries
         if (ret instanceof List) {
             mergeListApply((List) ret, (List) base, (List) what);
+            return (T)ret;
+        }
+
+        // If its a collection then mergeThreeWay the entries
+        if (ret instanceof Set) {
+            mergeSetApply((Set) ret, (Set) base, (Set) what);
             return (T)ret;
         }
 
