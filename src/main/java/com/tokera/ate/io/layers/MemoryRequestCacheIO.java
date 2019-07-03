@@ -222,6 +222,7 @@ public class MemoryRequestCacheIO implements IAteIO
                 .collect(Collectors.toSet());
     }
 
+    @SuppressWarnings({"unchecked"})
     @Override
     public <T extends BaseDao> Set<T> getAll(Collection<IPartitionKey> keys, Class<T> type) {
         Set<T> ret = new HashSet<>();
