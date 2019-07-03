@@ -223,6 +223,20 @@ public class MemoryRequestCacheIO implements IAteIO
     }
 
     @Override
+    public <T extends BaseDao> Set<T> getAll(Collection<IPartitionKey> keys, Class<T> type) {
+        Set<T> ret = new HashSet<>();
+        for (IPartitionKey partitionKey : keys) {
+            PartitionCache c = this.getPartitionCache(partitionKey);
+            ret.addAll(c.entries.values()
+                        .stream()
+                        .filter(e -> e.getClass() == type)
+                        .map(e -> (T) e)
+                        .collect(Collectors.toSet()));
+        }
+        return ret;
+    }
+
+    @Override
     public <T extends BaseDao> List<DataContainer> getAllRaw(IPartitionKey partitionKey) {
         throw new NotImplementedException();
     }

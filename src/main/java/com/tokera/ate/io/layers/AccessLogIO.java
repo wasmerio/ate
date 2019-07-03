@@ -1,5 +1,6 @@
 package com.tokera.ate.io.layers;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -230,6 +231,13 @@ final public class AccessLogIO implements IAteIO {
     @Override
     public <T extends BaseDao> Set<T> getAll(IPartitionKey partitionKey, Class<T> type) {
         Set<T> ret = next.getAll(partitionKey, type);
+        this.onRead(type);
+        return ret;
+    }
+
+    @Override
+    public <T extends BaseDao> Set<T> getAll(Collection<IPartitionKey> keys, Class<T> type) {
+        Set<T> ret = next.getAll(keys, type);
         this.onRead(type);
         return ret;
     }

@@ -25,6 +25,7 @@ import com.tokera.ate.enumerations.DataPartitionType;
 
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import com.tokera.ate.units.DaoId;
 import com.tokera.ate.units.Hash;
@@ -54,8 +55,7 @@ public class DataRepository implements IAteIO {
     }
 
     @PostConstruct
-    public void init()
-    {
+    public void init() {
         this.subscriber = factory.get().backend();
         this.LOG.setLogClazz(DataRepository.class);
     }
@@ -64,7 +64,7 @@ public class DataRepository implements IAteIO {
             .maximumSize(10000)
             .expireAfterWrite(10, TimeUnit.MINUTES)
             .build();
-    
+
     @Override
     public void warm(IPartitionKey partitionKey) {
         this.subscriber.getPartition(partitionKey, false, DataPartitionType.Dao);
@@ -78,9 +78,8 @@ public class DataRepository implements IAteIO {
         DataPartitionChain chain = this.subscriber.getChain(partitionKey);
         return chain.getPublicKey(hash);
     }
-    
-    private boolean mergeInternal(BaseDao entity, boolean performValidation, boolean performSync)
-    {
+
+    private boolean mergeInternal(BaseDao entity, boolean performValidation, boolean performSync) {
         // Get the partition
         IPartitionKey key = entity.partitionKey(true);
         DataPartition kt = this.subscriber.getPartition(key);
@@ -92,7 +91,7 @@ public class DataRepository implements IAteIO {
 
         // Generate the data that represents this entity
         DataPartitionChain chain = kt.getChain();
-        MessageDataDto data = (MessageDataDto)d.dataSerializer.toDataMessage(entity, kt, false);
+        MessageDataDto data = (MessageDataDto) d.dataSerializer.toDataMessage(entity, kt, false);
 
         // Perform the validations and checks
         if (performValidation && chain.validateTrustStructureAndWritability(data, LOG) == false) {
@@ -119,8 +118,7 @@ public class DataRepository implements IAteIO {
         return mergeInternal(entity, true, true);
     }
 
-    public void mergeInternal(IPartitionKey partitionKey, MessageBaseDto data, boolean performSync)
-    {
+    public void mergeInternal(IPartitionKey partitionKey, MessageBaseDto data, boolean performSync) {
         // Save the data to the bridge and synchronize it
         DataPartition kt = this.subscriber.getPartition(partitionKey);
         IDataPartitionBridge bridge = kt.getBridge();
@@ -133,7 +131,7 @@ public class DataRepository implements IAteIO {
 
         // If its a public key then we should record that we already saved it
         if (data instanceof MessagePublicKeyDto) {
-            MessagePublicKeyDto key = (MessagePublicKeyDto)data;
+            MessagePublicKeyDto key = (MessagePublicKeyDto) data;
             staging.put(partitionKey, key);
         }
     }
@@ -237,22 +235,20 @@ public class DataRepository implements IAteIO {
 
     private void validateTrustPublicKeys(BaseDao entity) {
         if (entity instanceof IRoles) {
-            IRoles roles = (IRoles)entity;
+            IRoles roles = (IRoles) entity;
             validateTrustPublicKeys(entity, roles.getTrustAllowRead().values());
             validateTrustPublicKeys(entity, roles.getTrustAllowWrite().values());
         }
     }
 
-    private void validateReadability(BaseDao entity)
-    {
+    private void validateReadability(BaseDao entity) {
         EffectivePermissions perms = d.authorization.perms(entity, PermissionPhase.AfterMerge);
         if (perms.rolesRead.size() <= 0) {
             throw d.authorization.buildReadException("Saving this object without any read roles would orphan it, consider deleting it instead.", perms, false);
         }
     }
 
-    private void validateWritability(BaseDao entity)
-    {
+    private void validateWritability(BaseDao entity) {
         EffectivePermissions perms = d.authorization.perms(entity, PermissionPhase.DynamicStaging);
         if (perms.rolesWrite.size() <= 0) {
             throw d.authorization.buildWriteException("Failed to save this object as there are no valid write roles for this spot in the chain-of-trust or its not connected to a parent.", perms, false);
@@ -301,7 +297,7 @@ public class DataRepository implements IAteIO {
 
         validateTrustPublicKeys(entity);
 
-        MessageDataDto data = (MessageDataDto)d.dataSerializer.toDataMessage(entity, kt, false);
+        MessageDataDto data = (MessageDataDto) d.dataSerializer.toDataMessage(entity, kt, false);
         datas.add(data);
 
         if (chain.validateTrustStructureAndWritabilityIncludingStaging(data, LOG) == false) {
@@ -314,7 +310,7 @@ public class DataRepository implements IAteIO {
         // records are accounted for during the validation steps
         staging.put(kt.partitionKey(), data.getHeader().getIdOrThrow(), data);
     }
-    
+
     @Override
     public void mergeDeferred() {
         d.debugLogging.logMergeDeferred(this.staging, LOG);
@@ -360,10 +356,10 @@ public class DataRepository implements IAteIO {
 
         this.staging.clear();
     }
-    
+
     @Override
     public boolean remove(BaseDao entity) {
-        
+
         // Now create and write the data messages themselves
         IPartitionKey partitionKey = entity.partitionKey(true);
         DataPartition kt = this.subscriber.getPartition(partitionKey);
@@ -377,11 +373,11 @@ public class DataRepository implements IAteIO {
 
         MessageBaseDto msg = d.dataSerializer.toDataMessage(entity, kt, true);
         kt.write(msg, this.LOG);
-        
+
         d.debugLogging.logDelete(entity, LOG);
         return true;
     }
-    
+
     @Override
     public boolean remove(PUUID id, Class<?> type) {
 
@@ -404,7 +400,7 @@ public class DataRepository implements IAteIO {
         // Make sure we are actually writing something to Kafka
         MessageDataDigestDto digest = d.dataSignatureBuilder.signDataMessage(header, null, permissions);
         if (digest == null) return false;
-        
+
         // Clear it from cache and write the data to Kafka
         MessageDataDto data = new MessageDataDto(header, digest, null);
         kt.write(data, this.LOG);
@@ -418,15 +414,12 @@ public class DataRepository implements IAteIO {
         IPartitionKey partitionKey = entity.partitionKey(true);
 
         // We only actually need to validate and queue if the object has ever been saved
-        if (BaseDaoInternal.hasSaved(entity) == true)
-        {
+        if (BaseDaoInternal.hasSaved(entity) == true) {
             validateTrustStructure(entity);
             validateTrustPublicKeys(entity);
 
             this.staging.delete(partitionKey, entity);
-        }
-        else
-        {
+        } else {
             this.staging.undo(partitionKey, entity);
         }
     }
@@ -443,23 +436,23 @@ public class DataRepository implements IAteIO {
     public boolean exists(@Nullable PUUID _id) {
         PUUID id = _id;
         if (id == null) return false;
-        
+
         DataPartitionChain kt = this.subscriber.getChain(id.partition());
         if (kt.exists(id.id(), LOG)) return true;
         return false;
     }
-    
+
     @Override
     public boolean everExisted(@Nullable PUUID _id) {
         PUUID id = _id;
         if (id == null) return false;
-        
+
         DataPartitionChain chain = this.subscriber.getChain(id.partition());
         if (chain.everExisted(id.id(), LOG)) return true;
-        
+
         return false;
     }
-    
+
     @Override
     public boolean immutable(PUUID id) {
         DataPartitionChain chain = this.subscriber.getChain(id.partition());
@@ -503,17 +496,17 @@ public class DataRepository implements IAteIO {
         DataPartitionChain chain = this.subscriber.getChain(id.partition());
         return chain.getData(id.id(), LOG);
     }
-    
+
     @Override
     public <T extends BaseDao> Iterable<MessageMetaDto> getHistory(PUUID id, Class<T> clazz) {
         DataPartitionChain chain = this.subscriber.getChain(id.partition());
         return chain.getHistory(id.id(), LOG);
     }
-    
+
     @Override
     public @Nullable BaseDao getVersionOrNull(PUUID id, MessageMetaDto meta) {
         DataPartition kt = this.subscriber.getPartition(id.partition());
-        
+
         MessageDataDto data = kt.getBridge().getVersion(id.id(), meta);
         if (data != null) {
             return d.dataSerializer.fromDataMessage(id.partition(), data, false);
@@ -522,7 +515,7 @@ public class DataRepository implements IAteIO {
             return null;
         }
     }
-    
+
     @Override
     public @Nullable MessageDataDto getVersionMsgOrNull(PUUID id, MessageMetaDto meta) {
         DataPartition kt = this.subscriber.getPartition(id.partition());
@@ -530,8 +523,7 @@ public class DataRepository implements IAteIO {
     }
 
     @Override
-    public Set<BaseDao> getAll(IPartitionKey partitionKey)
-    {
+    public Set<BaseDao> getAll(IPartitionKey partitionKey) {
         DataPartitionChain chain = this.subscriber.getChain(partitionKey);
 
         Set<BaseDao> ret = new HashSet<>();
@@ -543,6 +535,12 @@ public class DataRepository implements IAteIO {
         }
 
         return ret;
+    }
+
+    @Override
+    public <T extends BaseDao> Set<T> getAll(Collection<IPartitionKey> keys, Class<T> type) {
+        keys.stream().forEach(k -> this.subscriber.getPartition(k, false));
+        return keys.stream().flatMap(k -> d.io.getAll(k, type).stream()).collect(Collectors.toSet());
     }
 
     @SuppressWarnings({"unchecked"})

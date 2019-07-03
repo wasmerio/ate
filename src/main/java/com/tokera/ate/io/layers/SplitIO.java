@@ -237,6 +237,17 @@ final public class SplitIO implements IAteIO {
     }
 
     @Override
+    final public <T extends BaseDao> Set<T> getAll(Collection<IPartitionKey> keys, Class<T> type) {
+        Set<T> ret = lower.getAll(keys, type);
+
+        for (T entity : upper.getAll(keys, type)) {
+            ret.add(entity);
+        }
+
+        return ret;
+    }
+
+    @Override
     final public <T extends BaseDao> List<DataContainer> getAllRaw(IPartitionKey partitionKey) {
         return lower.getAllRaw(partitionKey);
     }

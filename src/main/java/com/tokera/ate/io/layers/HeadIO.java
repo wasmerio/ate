@@ -418,6 +418,11 @@ public class HeadIO implements IAteIO
         return back.getAll(partitionKey, type);
     }
 
+    @Override
+    public <T extends BaseDao> Set<T> getAll(Collection<IPartitionKey> keys, Class<T> type) {
+        return back.getAll(keys, type);
+    }
+
     public <T extends BaseDao> List<DataContainer> getAllRaw()
     {
         IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();

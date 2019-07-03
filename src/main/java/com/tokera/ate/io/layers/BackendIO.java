@@ -12,6 +12,7 @@ import com.tokera.ate.io.repo.DataRepository;
 import com.tokera.ate.io.repo.DataSubscriber;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -187,6 +188,11 @@ final public class BackendIO implements IAteIO {
     @Override
     public <T extends BaseDao> Set<T> getAll(IPartitionKey partitionKey, Class<T> type) {
         return next.getAll(partitionKey, type);
+    }
+
+    @Override
+    public <T extends BaseDao> Set<T> getAll(Collection<IPartitionKey> keys, Class<T> type) {
+        return next.getAll(keys, type);
     }
 
     @Override

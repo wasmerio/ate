@@ -71,6 +71,8 @@ public interface IAteIO {
     
     <T extends BaseDao> Set<T> getAll(IPartitionKey partitionKey, Class<T> type);
 
+    <T extends BaseDao> Set<T> getAll(Collection<IPartitionKey> keys, Class<T> type);
+
     <T extends BaseDao> List<DataContainer> getAllRaw(IPartitionKey partitionKey);
 
     <T extends BaseDao> List<DataContainer> getAllRaw(IPartitionKey partitionKey, Class<T> type);
