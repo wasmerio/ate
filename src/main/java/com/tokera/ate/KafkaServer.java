@@ -137,7 +137,7 @@ public class KafkaServer {
         this.kafkaServer = null;
     }
     
-    public void start()
+    public KafkaServer start()
     {
         init();
 
@@ -182,10 +182,17 @@ public class KafkaServer {
             // We are finished
             break;
         }
+
+        return this;
     }
     
     public void stop() {
         getKafkaServer().shutdown();
+    }
+
+    public void restart() {
+        stop();
+        start();
     }
 
     public void touch() { }

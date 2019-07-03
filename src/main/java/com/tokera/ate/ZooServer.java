@@ -36,17 +36,25 @@ public class ZooServer implements Runnable {
     private @MonotonicNonNull Thread thread;
     private volatile boolean isRunning = true;
     private volatile boolean isLoaded = true;
+    private boolean isForceRunning = false;
     private Properties props;
-    
+
     @PostConstruct
     public void init() {
         // Create the thread but dont start it yet
-        this.thread = new Thread(this);
-        this.thread.setDaemon(true);
+        if (this.thread == null) {
+            this.thread = new Thread(this);
+            this.thread.setDaemon(true);
+        }
     }
     
-    public void start(boolean shouldRun)
+    public ZooServer start(boolean shouldForceRun)
     {
+        init();
+
+        isForceRunning = shouldForceRun;
+        boolean shouldRun;
+
         List<String> zkServers = new ArrayList<>();
 
         // Load the list of ZooKeeper servers (bootstrap)
@@ -85,11 +93,11 @@ public class ZooServer implements Runnable {
                 myId = n;
             }
         }
-        shouldRun = myAdvertisingIp != null;
+        shouldRun = myAdvertisingIp != null || shouldForceRun;
         
         if (shouldRun == false) {
             SLOG.info("ZooKeeper should not run on this server");
-            return;
+            return this;
         } else {
             SLOG.info("ZooKeeper required on this node");
         }
@@ -133,6 +141,7 @@ public class ZooServer implements Runnable {
         } catch (InterruptedException ex) {
             throw new WebApplicationException("Interrupted while loading zookeeper", ex);
         }
+        return this;
     }
     
     public void stop() {
@@ -140,11 +149,18 @@ public class ZooServer implements Runnable {
         try {
             Thread thread = this.thread;
             if (thread != null) {
+                thread.interrupt();
                 thread.join();
+                this.thread = null;
             }
         } catch (InterruptedException ex) {
             this.LOG.warn(ex);
         }
+    }
+
+    public void restart() {
+        stop();
+        start(this.isForceRunning);
     }
     
     @Override
@@ -155,11 +171,11 @@ public class ZooServer implements Runnable {
             try {
 
                 ZooKeeperServerMain server = new ZooKeeperServerMain();
-        
+
                 QuorumPeerConfig quorumConfiguration = new QuorumPeerConfig();
                 try {
                     quorumConfiguration.parseProperties(props);
-                } catch(IOException | QuorumPeerConfig.ConfigException e) {
+                } catch (IOException | QuorumPeerConfig.ConfigException e) {
                     throw new RuntimeException(e);
                 }
 
@@ -168,7 +184,7 @@ public class ZooServer implements Runnable {
 
                 this.isLoaded = true;
                 server.runFromConfig(configuration);
-                
+
             } catch (Throwable ex) {
                 this.LOG.error(ex);
                 try {

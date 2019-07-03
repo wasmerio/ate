@@ -25,8 +25,6 @@ public class RamTopicBridge implements IDataTopicBridge {
     private final DataPartitionType type;
     private final ConcurrentHashMap<Integer, RamPartitionBridge> ramBridges;
 
-    private static final ConcurrentHashMap<IPartitionKey, RamTopicPartition> allRamPartitions = new ConcurrentHashMap<>();
-
     public RamTopicBridge(String topic, DataPartitionType type) {
         this.topic = topic;
         this.type = type;
@@ -43,7 +41,7 @@ public class RamTopicBridge implements IDataTopicBridge {
 
         GenericPartitionKey wrapKey = new GenericPartitionKey(key);
         return ramBridges.computeIfAbsent(key.partitionIndex(), a -> {
-            RamTopicPartition data = allRamPartitions.computeIfAbsent(key, i -> new RamTopicPartition(wrapKey));
+            RamTopicPartition data = RamBridgeBuilder.allRamPartitions.computeIfAbsent(key, i -> new RamTopicPartition(wrapKey));
             DataPartitionChain chain = new DataPartitionChain(key);
             return new RamPartitionBridge(this, chain, type, data);
         });

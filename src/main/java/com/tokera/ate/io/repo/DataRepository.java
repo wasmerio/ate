@@ -626,4 +626,9 @@ public class DataRepository implements IAteIO {
     public DataSubscriber backend() {
         return this.subscriber;
     }
+
+    public void destroyAll() {
+        d.ramBridgeBuilder.destroyAll();
+        this.subscriber.destroyAll();
+    }
 }

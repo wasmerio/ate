@@ -60,7 +60,7 @@ public class DataSubscriber {
     }
     
     public DataPartition getPartition(IPartitionKey partition) {
-        return getPartition(partition, true, DataPartitionType.Dao);
+        return getPartition(partition, true);
     }
     
     public DataPartitionChain getChain(IPartitionKey partitionKey) {
@@ -96,6 +96,10 @@ public class DataSubscriber {
         DataPartition newTopic = new DataPartition(key, partitionBridge, type, d.daoParents);
         seedTopic(newTopic);
         return newTopic;
+    }
+
+    public DataPartition getPartition(IPartitionKey partition, boolean shouldWait) {
+        return getPartition(partition, shouldWait, DataPartitionType.Dao);
     }
     
     public DataPartition getPartition(IPartitionKey partition, boolean shouldWait, DataPartitionType type) {
@@ -136,5 +140,12 @@ public class DataSubscriber {
     }
     
     public void touch() {
+    }
+
+    public void destroyAll() {
+        partitionCache.invalidateAll();
+        synchronized (topicCache) {
+            topicCache.clear();
+        }
     }
 }

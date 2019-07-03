@@ -58,6 +58,10 @@ public class ApiServer {
 
     private static boolean preventKafka = false;
     private static boolean preventZooKeeper = false;
+    public static boolean isStarted = false;
+
+    public static KafkaServer kafkaServer;
+    public static ZooServer zooServer;
 
     private ApiServer(BootstrapConfig config) {
         this.config = config;
@@ -69,6 +73,7 @@ public class ApiServer {
         LOG.info("Stopping Undertow server...");
         this.getServer().stop();
         LOG.info("Undertow server has stopped");
+        isStarted = false;
     }
 
     private static List<Class> getRestProviders(ResteasyCdiExtension cdiExtension) {
@@ -195,13 +200,13 @@ public class ApiServer {
                 preventZooKeeper == false)
         {
             boolean shouldForce = "true".equals(props.getOrDefault("zookeeper.force", "false").toString());
-            CDI.current().select(ZooServer.class).get().start(shouldForce);
+            d.zooKeeper = zooServer = CDI.current().select(ZooServer.class).get().start(shouldForce);
         }
         if ("true".equals(props.getOrDefault("kafka.server", "false").toString()) &&
                 preventKafka == false)
         {
             CDI.current().select(KafkaBridgeBuilder.class).get().touch();
-            CDI.current().select(KafkaServer.class).get().start();
+            d.kafka = kafkaServer = CDI.current().select(KafkaServer.class).get().start();
         }
         
         try {
@@ -287,6 +292,8 @@ public class ApiServer {
         }
         d.init();
         d.encryptor.touch();
+
+        isStarted = true;
 
         return apiServer;
     }

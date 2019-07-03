@@ -1,6 +1,8 @@
 package com.tokera.ate.delegates;
 
 import com.tokera.ate.BootstrapConfig;
+import com.tokera.ate.KafkaServer;
+import com.tokera.ate.ZooServer;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.common.ValidationUtil;
 import com.tokera.ate.common.XmlUtils;
@@ -25,6 +27,7 @@ import com.tokera.ate.qualifiers.FrontendStorageSystem;
 import com.tokera.ate.security.Encryptor;
 import com.tokera.ate.security.SecurityCastleManager;
 import com.tokera.ate.security.TokenSecurity;
+import org.apache.zookeeper.ZooKeeper;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
 import javax.enterprise.event.Event;
@@ -97,6 +100,9 @@ public abstract class BaseAteDelegate {
     public final ValidationUtil validationUtil;
     public final TaskManager taskManager;
 
+    public ZooServer zooKeeper;
+    public KafkaServer kafka;
+
     protected static <@NonNull T> T getBean(Class<@NonNull T> clazz) {
         return CDI.current().select(clazz).get();
     }
@@ -110,10 +116,10 @@ public abstract class BaseAteDelegate {
     }
 
     public void init() {
-        Object replace;
+        BaseAteDelegate replace;
         try {
             Class<?> type = getClass();
-            replace = type.getConstructor().newInstance();
+            replace = (BaseAteDelegate)type.getConstructor().newInstance();
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchMethodException e) {
             throw new WebApplicationException(e);
         }
@@ -126,6 +132,9 @@ public abstract class BaseAteDelegate {
                 continue;
             }
         }
+
+        replace.zooKeeper = this.zooKeeper;
+        replace.kafka = this.kafka;
     }
 
     protected BaseAteDelegate() {
