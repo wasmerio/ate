@@ -5,6 +5,7 @@ import com.tokera.ate.annotations.PermitParentFree;
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.common.ImmutalizableArrayList;
 import com.tokera.ate.common.ImmutalizableTreeMap;
+import com.tokera.ate.dao.CountLong;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.RangeLong;
 import com.tokera.ate.units.*;
@@ -46,6 +47,8 @@ public class MyAccount extends MyBaseAccount {
     public PUUID pid = new PUUID("data1234", 1, UUID.randomUUID());
     @JsonProperty
     public RangeLong range = new RangeLong(1, 10);
+    @JsonProperty
+    public CountLong counter = new CountLong(0L);
 
     public MyAccount() {
         this.email = "test@test.org";

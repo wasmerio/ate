@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.HashMultiset;
 import com.tokera.ate.common.CopyOnWrite;
 import com.tokera.ate.common.MapTools;
+import com.tokera.ate.dao.CountLong;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.providers.PartitionKeySerializer;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -34,7 +35,8 @@ public class DataMerger {
             return true;
         }
 
-        if (clazz == PUUID.class) {
+        if (clazz == PUUID.class ||
+            clazz == CountLong.class) {
             return true;
         }
         if (clazz == PartitionKeySerializer.PartitionKeyValue.class) {
@@ -99,6 +101,7 @@ public class DataMerger {
         Class<?> clazz = source.getClass();
 
         if (isInternal(clazz)) {
+            if (clazz == CountLong.class) return CountLong.clone(source);
             return source;
         }
 
@@ -223,15 +226,31 @@ public class DataMerger {
         if (common != null) {
             common.stream().filter(val -> left.contains(val) == true && right.contains(val) == true)
                     .forEach(val -> ret.add(cloneObject(val)));
-        }
-        if (left != null) {
-            left.stream().filter(val -> common.contains(val) == false)
-                    .forEach(val -> ret.add(cloneObject(val)));
-        }
+            if (left != null) {
+                left.stream().filter(val -> common.contains(val) == false)
+                        .forEach(val -> ret.add(cloneObject(val)));
 
-        if (right != null) {
-            right.stream().filter(val -> common.contains(val) == false && left.contains(val) == false)
-                    .forEach(val -> ret.add(cloneObject(val)));
+                if (right != null) {
+                    right.stream().filter(val -> common.contains(val) == false && left.contains(val) == false)
+                            .forEach(val -> ret.add(cloneObject(val)));
+                }
+            } else {
+                if (right != null) {
+                    right.stream().filter(val -> common.contains(val) == false)
+                            .forEach(val -> ret.add(cloneObject(val)));
+                }
+            }
+        } else {
+            if (left != null) {
+                left.stream().forEach(val -> ret.add(cloneObject(val)));
+                if (right != null) {
+                    right.stream().filter(val -> left.contains(val) == false).forEach(val -> ret.add(cloneObject(val)));
+                }
+            } else {
+                if (right != null) {
+                    right.stream().forEach(val -> ret.add(cloneObject(val)));
+                }
+            }
         }
     }
 
@@ -474,17 +493,26 @@ public class DataMerger {
         if (clazzCommon == null) clazzCommon = clazzLeft;
         if (clazzCommon == null) return null;
 
-        // Maps and collections will be handled later
-        if (Map.class.isAssignableFrom(clazzCommon) == false &&
-                Collection.class.isAssignableFrom(clazzCommon) == false) {
-            // If its a primative type then pick the right one (otherwise fall through)
-            if (isInternal(clazzCommon)) {
-                if (Objects.equals(common, right) == false) {
-                    return (T)cloneObject(right);
-                } else if (Objects.equals(common, left) == false) {
-                    return (T)cloneObject(left);
+        // If its a primative type then pick the right one (otherwise fall through)
+        if (isInternal(clazzCommon))
+        {
+            // Maps and collections will be handled later
+            if (Map.class.isAssignableFrom(clazzCommon) == false &&
+                Collection.class.isAssignableFrom(clazzCommon) == false)
+            {
+                if (clazzCommon == CountLong.class) {
+                    long b = common != null ? ((CountLong)common).longValue() : 0L;
+                    long l = left != null ? ((CountLong)left).longValue() : 0L;
+                    long r = right != null ? ((CountLong)right).longValue() : 0L;
+                    return (T)new CountLong(b + (l-b) + (r-b));
                 } else {
-                    return (T)cloneObject(common);
+                    if (Objects.equals(common, right) == false) {
+                        return (T) cloneObject(right);
+                    } else if (Objects.equals(common, left) == false) {
+                        return (T) cloneObject(left);
+                    } else {
+                        return (T) cloneObject(common);
+                    }
                 }
             }
         }
@@ -572,10 +600,11 @@ public class DataMerger {
             return (T)cloneObject(what);
         }
 
-        // Maps and collections will be handled later
-        if (Map.class.isAssignableFrom(clazz) == false && Collection.class.isAssignableFrom(clazz) == false) {
-            // If its a primative type then we just clone the value and return it
-            if (isInternal(clazz)) {
+        // If its a primative type then we just clone the value and return it
+        if (isInternal(clazz))
+        {
+            // Maps and collections will be handled later
+            if (Map.class.isAssignableFrom(clazz) == false && Collection.class.isAssignableFrom(clazz) == false) {
                 if (Objects.equals(_base, _what) == true) {
                     return _ret;
                 } else {

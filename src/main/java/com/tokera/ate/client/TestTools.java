@@ -30,6 +30,7 @@ public class TestTools {
                 .register(new UuidSerializer())
                 .register(new PartitionKeySerializer())
                 .register(new PuuidSerializer())
+                .register(new CountLongSerializer())
                 .register(new RangeLongSerializer())
                 .build();
         return client;

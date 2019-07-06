@@ -146,7 +146,7 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
     }
 
     @SuppressWarnings("known.nonnull")
-    public String serializer() {
+    public String serialize() {
         try {
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
             DataOutputStream dos = new DataOutputStream(stream);
@@ -183,7 +183,7 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
 
     public static String serialize(@Nullable PUUID pid) {
         if (pid == null) return "null";
-        return pid.serializer();
+        return pid.serialize();
     }
 
     public static @Nullable PUUID parse(@Nullable String _val) {
