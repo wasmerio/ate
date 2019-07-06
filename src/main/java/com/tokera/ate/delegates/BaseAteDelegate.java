@@ -53,6 +53,7 @@ public abstract class BaseAteDelegate {
     public final Event<RightsDiscoverEvent> eventRightsDiscover;
     public final Event<RegisterPublicTopicEvent> eventRegisterPublicTopic;
     public final Event<PartitionSeedingEvent> eventTopicSeeding;
+    public final Event<KeysDiscoverEvent> eventKeysDiscovery;
 
     public final RequestContextDelegate requestContext;
     public final ResourceStatsDelegate resourceStats;
@@ -147,6 +148,8 @@ public abstract class BaseAteDelegate {
         this.eventRegisterPublicTopic = getEventBean(RegisterPublicTopicEvent.class);
         this.eventTopicSeeding = getEventBean(PartitionSeedingEvent.class);
         this.eventRightsValidation = getEventBean(RightsValidationEvent.class);
+        this.eventKeysDiscovery = getEventBean(KeysDiscoverEvent.class);
+
         this.requestContext = getBean(RequestContextDelegate.class);
         this.resourceStats = getBean(ResourceStatsDelegate.class);
         this.resourceInfo = getBean(ResourceInfoDelegate.class);

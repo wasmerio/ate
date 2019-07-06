@@ -11,7 +11,10 @@ import com.google.common.cache.RemovalNotification;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.dao.GenericPartitionKey;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import com.tokera.ate.enumerations.DataPartitionType;
+import com.tokera.ate.events.KeysDiscoverEvent;
+import com.tokera.ate.events.NewAccessRightsEvent;
 import com.tokera.ate.events.PartitionSeedingEvent;
 import com.tokera.ate.io.api.IPartitionKey;
 import org.checkerframework.checker.nullness.qual.NonNull;
@@ -57,6 +60,13 @@ public class DataSubscriber {
     {   
         DataPartitionChain chain = kt.getChain();
         d.eventTopicSeeding.fire(new PartitionSeedingEvent(kt, chain));
+
+        KeysDiscoverEvent discovery = new KeysDiscoverEvent(kt.partitionKey());
+        d.eventKeysDiscovery.fire(discovery);
+
+        for (MessagePublicKeyDto key : discovery.getKeys()) {
+            chain.addTrustKey(key, this.LOG);
+        }
     }
     
     public DataPartition getPartition(IPartitionKey partition) {
