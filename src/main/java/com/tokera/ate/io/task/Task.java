@@ -108,7 +108,7 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
                 }
 
                 if (msgs.size() <= 0) {
-                    invokeWarm(boundRequestContext);
+                    invokeWarmAndIdle(boundRequestContext);
 
                     synchronized (this.toProcess) {
                         this.toProcess.wait(1000);
@@ -188,9 +188,12 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
         enterRequestScopeAndInvoke(boundRequestContext, token, () -> callback.onTick(this));
     }
 
-    public void invokeWarm(BoundRequestContext boundRequestContext) {
+    public void invokeWarmAndIdle(BoundRequestContext boundRequestContext) {
         AteDelegate d = AteDelegate.get();
-        enterRequestScopeAndInvoke(boundRequestContext, token, () -> d.io.warm(partitionKey()));
+        enterRequestScopeAndInvoke(boundRequestContext, token, () -> {
+            d.io.warm(partitionKey());
+            callback.onIdle(this);
+        });
     }
 
     /**

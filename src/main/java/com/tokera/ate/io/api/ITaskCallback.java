@@ -30,4 +30,9 @@ public interface ITaskCallback<T extends BaseDao> {
      * Callback invoked every tick of time that passes (defaults to 10 seconds)
      */
     void onTick(ITask task);
+
+    /**
+     * Callback invoked every tick of time that passes and its been idle (defaults to 10 seconds)
+     */
+    void onIdle(ITask task);
 }
