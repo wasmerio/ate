@@ -13,8 +13,8 @@ import java.util.*;
 public class LoggingDelegate  {
 
     private final Stack<ILogable> logStack = new Stack<>();
-    private final Map<@DaoId UUID, StringBuilder> logBuilderStdout = new TreeMap<>();
-    private final Map<@DaoId UUID, StringBuilder> logBuilderStderr = new TreeMap<>();
+    private final Map<ILogable, StringBuilder> logBuilderStdout = new TreeMap<>();
+    private final Map<ILogable, StringBuilder> logBuilderStderr = new TreeMap<>();
     private String logPrefix = "";
     private StringBuilder loggingBuffer = new StringBuilder();
 
@@ -45,14 +45,14 @@ public class LoggingDelegate  {
     /**
      * @return Gets a StringBuilder for a particular data object that can be used for StdOut buffering
      */
-    public Map<@DaoId UUID, StringBuilder> getLogBuilderStdout() {
+    public Map<ILogable, StringBuilder> getLogBuilderStdout() {
         return logBuilderStdout;
     }
 
     /**
      * @return Gets a StringBuilder for a particular data object that can be used for StdErr buffering
      */
-    public Map<@DaoId UUID, StringBuilder> getLogBuilderStderr() {
+    public Map<ILogable, StringBuilder> getLogBuilderStderr() {
         return logBuilderStderr;
     }
 

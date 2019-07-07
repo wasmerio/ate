@@ -53,10 +53,10 @@ public class LoggerToRequest implements org.slf4j.Logger {
         for (ILogable logable : requestDelegate.getLogStack())
         {
             if (stdout) {
-                StringBuilder ctxSB = MapTools.getOrNull(requestDelegate.getLogBuilderStdout(), logable.getId());
+                StringBuilder ctxSB = MapTools.getOrNull(requestDelegate.getLogBuilderStdout(), logable);
                 if (ctxSB == null) {
                     ctxSB = new StringBuilder();
-                    requestDelegate.getLogBuilderStdout().put(logable.getId(), ctxSB);
+                    requestDelegate.getLogBuilderStdout().put(logable, ctxSB);
                 }
 
                 String prefix = requestDelegate.getLogPrefix();
@@ -70,10 +70,10 @@ public class LoggerToRequest implements org.slf4j.Logger {
             }
 
             if (stderr) {
-                StringBuilder ctxSB = MapTools.getOrNull(requestDelegate.getLogBuilderStderr(), logable.getId());
+                StringBuilder ctxSB = MapTools.getOrNull(requestDelegate.getLogBuilderStderr(), logable);
                 if (ctxSB == null) {
                     ctxSB = new StringBuilder();
-                    requestDelegate.getLogBuilderStderr().put(logable.getId(), ctxSB);
+                    requestDelegate.getLogBuilderStderr().put(logable, ctxSB);
                 }
 
                 String prefix = requestDelegate.getLogPrefix();

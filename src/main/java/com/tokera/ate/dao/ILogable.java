@@ -5,18 +5,13 @@
  */
 package com.tokera.ate.dao;
 
-import com.tokera.ate.units.DaoId;
 import com.tokera.ate.units.LogText;
 import org.checkerframework.checker.nullness.qual.Nullable;
-
-import java.util.UUID;
 
 /**
  * Interface to a data object that provides basic logging functionality
  */
 public interface ILogable {
-
-    @DaoId UUID getId();
     
     @Nullable @LogText String getError();
     
