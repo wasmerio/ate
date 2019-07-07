@@ -13,8 +13,8 @@ import java.util.*;
 public class LoggingDelegate  {
 
     private final Stack<ILogable> logStack = new Stack<>();
-    private final Map<ILogable, StringBuilder> logBuilderStdout = new TreeMap<>();
-    private final Map<ILogable, StringBuilder> logBuilderStderr = new TreeMap<>();
+    private final Map<ILogable, StringBuilder> logBuilderStdout = new HashMap<>();
+    private final Map<ILogable, StringBuilder> logBuilderStderr = new HashMap<>();
     private String logPrefix = "";
     private StringBuilder loggingBuffer = new StringBuilder();
 
