@@ -79,6 +79,13 @@ public class LoggerHook implements org.slf4j.Logger {
         context.setError(null);
         context.setLog(null);
     }
+
+    public void resumeContext(ILogable context)
+    {
+        if (RequestContextDelegate.isWithinRequestContext() == false) return;
+        loggingDelegate.getLogStack().push(context);
+
+    }
     
     public void popContext() {
         if (RequestContextDelegate.isWithinRequestContext() == false) return;

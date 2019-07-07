@@ -56,6 +56,9 @@ public class LoggerToRequest implements org.slf4j.Logger {
                 StringBuilder ctxSB = MapTools.getOrNull(requestDelegate.getLogBuilderStdout(), logable);
                 if (ctxSB == null) {
                     ctxSB = new StringBuilder();
+                    if (logable.getLog() != null) {
+                        ctxSB.append(logable.getLog());
+                    }
                     requestDelegate.getLogBuilderStdout().put(logable, ctxSB);
                 }
 
@@ -73,6 +76,9 @@ public class LoggerToRequest implements org.slf4j.Logger {
                 StringBuilder ctxSB = MapTools.getOrNull(requestDelegate.getLogBuilderStderr(), logable);
                 if (ctxSB == null) {
                     ctxSB = new StringBuilder();
+                    if (logable.getError() != null) {
+                        ctxSB.append(logable.getError());
+                    }
                     requestDelegate.getLogBuilderStderr().put(logable, ctxSB);
                 }
 
