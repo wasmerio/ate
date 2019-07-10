@@ -375,6 +375,28 @@ public class AuthorizationDelegate {
         }
     }
 
+    public void copyEffective(BaseDao from, IRoles to)
+    {
+        EffectivePermissions perms = d.authorization.perms(from);
+
+        boolean save = false;
+        for (String role : perms.rolesRead) {
+            if (to.getTrustAllowRead().containsValue(role) == false) {
+                to.getTrustAllowRead().put(role, role);
+                save = true;
+            }
+        }
+        for (String role : perms.rolesWrite) {
+            if (to.getTrustAllowWrite().containsValue(role) == false) {
+                to.getTrustAllowWrite().put(role, role);
+                save = true;
+            }
+        }
+        if (save && to instanceof BaseDao) {
+            d.io.mergeLater((BaseDao)to);
+        }
+    }
+
     public @Nullable MessagePrivateKeyDto getImplicitRightToRead(IRights entity)
     {
         @Alias String alias = entity.getRightsAlias();
