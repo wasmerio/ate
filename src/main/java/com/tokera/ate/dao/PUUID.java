@@ -186,47 +186,66 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
         return pid.serialize();
     }
 
-    public static @Nullable PUUID parse(@Nullable String _val) {
-        String val = StringTools.makeOneLineOrNull(_val);
-        val = StringTools.specialParse(val);
-        if (val == null || val.length() <= 0) return null;
-
-        if (val.contains(":")) {
-            String[] comps = val.split(":");
-            if (comps.length == 3) {
-                return new PUUID(comps[0], Integer.parseInt(comps[1]), UUID.fromString(comps[2]));
-            } else {
-                throw new RuntimeException("Failed to parse string [" + val + "] into PUUID as the separators(:) were missing or incomplete.");
-            }
-        }
-
-        byte[] data = Base64.decodeBase64(val);
-        ByteBuffer bb = ByteBuffer.wrap(data);
-
-        String topic;
-        int topicLen = bb.getShort();
-        if (topicLen > 0) {
-            byte[] topicBytes = new byte[topicLen];
-            bb.get(topicBytes);
-            topic = new String(topicBytes);
-        } else {
-            throw new RuntimeException("Failed to parse string [" + val + "] into PUUID as the topic name was missing or incomplete");
-        }
-
-        int index = bb.getInt();
-
-        long mostSigBits = bb.getLong();
-        long leastSigBits = bb.getLong();
-        UUID id;
-        if (mostSigBits != 0 && leastSigBits != 0) {
-            id = new UUID(mostSigBits, leastSigBits);
-        } else {
+    public static PUUID parse(@Nullable String val) {
+        PUUID ret = parseOrNull(val, true);
+        if (ret == null) {
             throw new RuntimeException("Failed to parse string [" + val + "] into PUUID as the id was missing or incomplete");
         }
+        return ret;
+    }
 
-        return new PUUID(
-                topic,
-                index,
-                id);
+    public static @Nullable PUUID parseOrNull(@Nullable String val) {
+        return parseOrNull(val, false);
+    }
+
+    private static @Nullable PUUID parseOrNull(@Nullable String _val, boolean shouldThrow) {
+        try {
+            String val = StringTools.makeOneLineOrNull(_val);
+            val = StringTools.specialParse(val);
+            if (val == null || val.length() <= 0) return null;
+
+            if (val.contains(":")) {
+                String[] comps = val.split(":");
+                if (comps.length == 3) {
+                    return new PUUID(comps[0], Integer.parseInt(comps[1]), UUID.fromString(comps[2]));
+                } else {
+                    return null;
+                }
+            }
+
+            byte[] data = Base64.decodeBase64(val);
+            ByteBuffer bb = ByteBuffer.wrap(data);
+
+            String topic;
+            int topicLen = bb.getShort();
+            if (topicLen > 0) {
+                byte[] topicBytes = new byte[topicLen];
+                bb.get(topicBytes);
+                topic = new String(topicBytes);
+            } else {
+                return null;
+            }
+
+            int index = bb.getInt();
+
+            long mostSigBits = bb.getLong();
+            long leastSigBits = bb.getLong();
+            UUID id;
+            if (mostSigBits != 0 && leastSigBits != 0) {
+                id = new UUID(mostSigBits, leastSigBits);
+            } else {
+                return null;
+            }
+
+            return new PUUID(
+                    topic,
+                    index,
+                    id);
+        } catch (Throwable ex) {
+            if (shouldThrow) {
+                throw new RuntimeException("Failed to parse string [" + _val + "] into PUUID as the id was missing or incomplete", ex);
+            }
+            return null;
+        }
     }
 }

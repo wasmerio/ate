@@ -8,6 +8,7 @@ import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.repo.DataPartitionChain;
 import com.tokera.ate.io.repo.DataStagingManager;
+import com.tokera.ate.providers.PartitionKeySerializer;
 import com.tokera.ate.scopes.Startup;
 import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -39,6 +40,26 @@ public class DebugLoggingDelegate {
                 sb.append("\n");
                 sb.append(fullStackTrace);
             }
+            logInfo(sb.toString(), LOG);
+        }
+    }
+
+    public void seedingPartitionStart(IPartitionKey partitionKey, @Nullable LoggerHook LOG) {
+        if (d.bootstrapConfig.isLoggingChainOfTrust()) {
+            StringBuilder sb = new StringBuilder();
+            sb.append("seeding_partition_start: [");
+            sb.append(PartitionKeySerializer.toString(partitionKey));
+            sb.append("]");
+            logInfo(sb.toString(), LOG);
+        }
+    }
+
+    public void seedingPartitionEnd(IPartitionKey partitionKey, @Nullable LoggerHook LOG) {
+        if (d.bootstrapConfig.isLoggingChainOfTrust()) {
+            StringBuilder sb = new StringBuilder();
+            sb.append("seeding_partition_end: [");
+            sb.append(PartitionKeySerializer.toString(partitionKey));
+            sb.append("]");
             logInfo(sb.toString(), LOG);
         }
     }

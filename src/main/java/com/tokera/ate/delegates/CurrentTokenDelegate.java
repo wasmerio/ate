@@ -254,14 +254,13 @@ public class CurrentTokenDelegate {
             if (token == null) {
                 missingToken();
             } else {
-                IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
                 for (String name : paramRead.name()) {
-                    @DaoId UUID entityId = this.getAndValidateRequestParamValue(name, paramRead.prefix());
-                    boolean perm = d.authorization.canRead(partitionKey, entityId);
+                    @DaoId PUUID entityId = this.getAndValidateRequestParamValue(name, paramRead.prefix());
+                    boolean perm = d.authorization.canRead(entityId);
                     if (perm == false) {
                         RuntimeException ex;
                         try {
-                            EffectivePermissions permissions = d.authorization.perms(null, partitionKey, entityId, PermissionPhase.BeforeMerge);
+                            EffectivePermissions permissions = d.authorization.perms(null, entityId, PermissionPhase.BeforeMerge);
                             ex = d.authorization.buildReadException(permissions, true);
                         } catch (Throwable dump) {
                             ex = new WebApplicationException("Read access denied (Missing permitted entity). Path Param (" + name + "=" + entityId + ")",
@@ -279,14 +278,13 @@ public class CurrentTokenDelegate {
             if (token == null) {
                 missingToken();
             } else {
-                IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
                 for (String name : paramWrite.name()) {
-                    @DaoId UUID entityId = this.getAndValidateRequestParamValue(name, paramWrite.prefix());
-                    boolean perm = d.authorization.canWrite(partitionKey, entityId);
+                    @DaoId PUUID entityId = this.getAndValidateRequestParamValue(name, paramWrite.prefix());
+                    boolean perm = d.authorization.canWrite(entityId);
                     if (perm == false) {
                         RuntimeException ex;
                         try {
-                            EffectivePermissions permissions = d.authorization.perms(null, partitionKey, entityId, PermissionPhase.BeforeMerge);
+                            EffectivePermissions permissions = d.authorization.perms(null, entityId, PermissionPhase.BeforeMerge);
                             ex = d.authorization.buildWriteException(permissions, true);
                         } catch (Throwable dump) {
                             ex = new WebApplicationException("Write access denied (Missing permitted entity). Path Param (" + name + "=" + entityId + ")",
@@ -299,7 +297,7 @@ public class CurrentTokenDelegate {
         }
     }
 
-    private @DaoId UUID getAndValidateRequestParamValue(String name, @Nullable String _prefix) {
+    private @DaoId PUUID getAndValidateRequestParamValue(String name, @Nullable String _prefix) {
         if (d.requestContext.getUriInfo().getPathParameters().keySet().contains(name) == false) {
             throw new WebApplicationException("Access denied (Missing path parameter). Path Param Name:"
                     + name, Response.Status.UNAUTHORIZED);
@@ -307,20 +305,26 @@ public class CurrentTokenDelegate {
         String paramVal = d.requestContext.getUriInfo().getPathParameters().getFirst(name);
 
         String prefix = _prefix;
-        UUID entityId;
+
+        PUUID pid;
         if (prefix != null && prefix.length() > 0) {
-            entityId = UUIDTools.generateUUID(prefix + paramVal);
+            UUID entityId = UUIDTools.generateUUID(prefix + paramVal);
+            pid = PUUID.from(d.requestContext.getPartitionKeyScope(), entityId);
         } else {
-            entityId = UUIDTools.convertUUID(paramVal);
+            UUID entityId = UUIDTools.parseUUIDorNull(paramVal);
+            if (entityId == null) {
+                pid = PUUID.parse(paramVal);
+            } else {
+                pid = PUUID.from(d.requestContext.getPartitionKeyScope(), entityId);
+            }
         }
 
-        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
-        if (d.io.exists(PUUID.from(partitionKey, entityId)) == false) {
-            throw new WebApplicationException("Entity does not exist (" + name + "=" + paramVal + ")", Response.Status.NOT_FOUND);
+        if (d.io.exists(pid) == false) {
+            throw new WebApplicationException("Entity does not exist (" + name + "=" + paramVal + ", pid=" + pid.toString() + ")", Response.Status.NOT_FOUND);
 
         }
         
-        return entityId;
+        return pid;
     }
 
     /**

@@ -355,6 +355,26 @@ public class AuthorizationDelegate {
         }
     }
 
+    public void copy(IRoles from, IRoles to)
+    {
+        boolean save = false;
+        for (Map.Entry<String, String> pair : from.getTrustAllowRead().entrySet()) {
+            if (to.getTrustAllowRead().getOrDefault(pair.getKey(), "").equals(pair.getValue()) == false) {
+                to.getTrustAllowRead().put(pair.getKey(), pair.getValue());
+                save = true;
+            }
+        }
+        for (Map.Entry<String, String> pair : from.getTrustAllowWrite().entrySet()) {
+            if (to.getTrustAllowWrite().getOrDefault(pair.getKey(), "").equals(pair.getValue()) == false) {
+                to.getTrustAllowWrite().put(pair.getKey(), pair.getValue());
+                save = true;
+            }
+        }
+        if (save && to instanceof BaseDao) {
+            d.io.mergeLater((BaseDao)to);
+        }
+    }
+
     public @Nullable MessagePrivateKeyDto getImplicitRightToRead(IRights entity)
     {
         @Alias String alias = entity.getRightsAlias();

@@ -1,6 +1,7 @@
 package com.tokera.ate.io.ram;
 
 import com.tokera.ate.common.MapTools;
+import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessageBaseDto;
 import com.tokera.ate.dto.msg.MessageDataDto;
 import com.tokera.ate.dto.msg.MessageMetaDto;
@@ -40,6 +41,8 @@ public class RamPartitionBridge implements IDataPartitionBridge {
     }
 
     private static void seed(DataPartitionChain chain, RamTopicPartition p) {
+        AteDelegate.get().debugLogging.seedingPartitionStart(p.partitionKey, null);
+
         for (Map.Entry<Long, MessageBaseDto> pair : p.messages.entrySet()) {
             long offset = pair.getKey();
             MessageBaseDto msg = pair.getValue();
@@ -53,6 +56,7 @@ public class RamPartitionBridge implements IDataPartitionBridge {
                 p.LOG.warn(e);
             }
         }
+        AteDelegate.get().debugLogging.seedingPartitionEnd(p.partitionKey, null);
     }
 
     @Override
