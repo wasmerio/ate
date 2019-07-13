@@ -29,4 +29,7 @@ public class SecureRandomFactory implements IRandomFactory {
     public SecureRandom getRandom() {
         return random;
     }
+
+    @Override
+    public boolean idempotent() { return false; }
 }

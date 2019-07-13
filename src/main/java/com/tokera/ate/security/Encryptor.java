@@ -1040,15 +1040,15 @@ public class Encryptor implements Runnable
     public KeyPairBytes genSignKeyQTeslaNow(int keysize, IRandomFactory randomFactory)
     {
         int attempts = 10;
-        for (int n = 1; n <= attempts; n++) {
+        for (int n = 1; ; n++) {
             try {
                 QTESLAKeyGenerationParameters params = new QTESLAKeyGenerationParameters(getQTeslaSecurityCategory(keysize), randomFactory.getRandom());
                 QTESLAKeyPairGenerator gen = new QTESLAKeyPairGenerator();
                 gen.init(params);
                 return extractKey(gen.generateKeyPair());
             } catch (ArrayIndexOutOfBoundsException ex) {
-                if (n == attempts) {
-                    throw new RuntimeException("Failed to generate the QTESLA signing keys after " + n + " attempts.", ex);
+                if (n >= attempts || randomFactory.idempotent()) {
+                    throw new RuntimeException("Failed to generate the QTESLA signing keys after " + n + " attempts (idempotent=" + randomFactory.idempotent() + ").", ex);
                 }
             }
         }

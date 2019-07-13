@@ -47,4 +47,7 @@ public class PredictablyRandomFactory implements IRandomFactory {
     public SecureRandom getRandom() {
         return this.random;
     }
+
+    @Override
+    public boolean idempotent() { return true; }
 }
