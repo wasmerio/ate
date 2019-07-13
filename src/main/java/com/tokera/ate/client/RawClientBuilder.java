@@ -2,7 +2,7 @@ package com.tokera.ate.client;
 
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
-import com.tokera.ate.providers.YamlProvider;
+import com.tokera.ate.providers.*;
 import com.tokera.ate.units.EmailAddress;
 import com.tokera.ate.units.Port;
 import com.tokera.ate.units.Secret;
@@ -137,6 +137,10 @@ public class RawClientBuilder {
         ResteasyClient client = new ResteasyClientBuilder()
                 .register(new YamlProvider())
                 .register(new ResteasyJackson2Provider())
+                .register(new UuidSerializer())
+                .register(new PartitionKeySerializer())
+                .register(new PuuidSerializer())
+                .register(new CountLongSerializer())
                 .build();
 
         return client.target(urlBaseAndPrefix + postfix);

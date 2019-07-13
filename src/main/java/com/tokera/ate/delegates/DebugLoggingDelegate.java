@@ -64,6 +64,12 @@ public class DebugLoggingDelegate {
         }
     }
 
+    public void logLoadingPartition(IPartitionKey key, @Nullable LoggerHook LOG) {
+        if (d.bootstrapConfig.isLoggingChainOfTrust()) {
+            logInfo("loading-partition: " + key.partitionTopic() + ":" + key.partitionIndex(), LOG);
+        }
+    }
+
     public void logDelete(IPartitionKey part, MessageDataDto data, @Nullable LoggerHook LOG) {
         if (d.bootstrapConfig.isLoggingDeletes()) {
             StringBuilder sb = new StringBuilder();

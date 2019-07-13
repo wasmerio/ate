@@ -8,6 +8,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import org.jboss.resteasy.client.jaxrs.ResteasyClient;
 import org.jboss.resteasy.client.jaxrs.ResteasyClientBuilder;
 import org.jboss.resteasy.client.jaxrs.ResteasyWebTarget;
+import org.jboss.resteasy.plugins.providers.jackson.ResteasyJackson2Provider;
 import org.junit.jupiter.api.Assertions;
 
 import javax.ws.rs.ClientErrorException;
@@ -27,6 +28,7 @@ public class TestTools {
     public static ResteasyClient buildResteasyClient() {
         ResteasyClient client = new ResteasyClientBuilder()
                 .register(new YamlProvider())
+                .register(new ResteasyJackson2Provider())
                 .register(new UuidSerializer())
                 .register(new PartitionKeySerializer())
                 .register(new PuuidSerializer())

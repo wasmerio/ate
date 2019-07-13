@@ -128,7 +128,7 @@ public class DataSubscriber {
                 {
                     synchronized(this)
                     {
-                        LOG.info("loading-partition: " + keyWrap.partitionTopic() + ":" + keyWrap.partitionIndex());
+                        d.debugLogging.logLoadingPartition(keyWrap, this.LOG);
                         d.encryptor.touch(); // required as the kafka partition needs an instance reference
                         return createPartition(keyWrap, type);
                     }
