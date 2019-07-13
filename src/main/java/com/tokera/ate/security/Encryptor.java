@@ -1039,10 +1039,19 @@ public class Encryptor implements Runnable
 
     public KeyPairBytes genSignKeyQTeslaNow(int keysize, IRandomFactory randomFactory)
     {
-        QTESLAKeyGenerationParameters params = new QTESLAKeyGenerationParameters(getQTeslaSecurityCategory(keysize), randomFactory.getRandom());
-        QTESLAKeyPairGenerator gen = new QTESLAKeyPairGenerator();
-        gen.init(params);
-        return extractKey(gen.generateKeyPair());
+        int attempts = 10;
+        for (int n = 1; n <= attempts; n++) {
+            try {
+                QTESLAKeyGenerationParameters params = new QTESLAKeyGenerationParameters(getQTeslaSecurityCategory(keysize), randomFactory.getRandom());
+                QTESLAKeyPairGenerator gen = new QTESLAKeyPairGenerator();
+                gen.init(params);
+                return extractKey(gen.generateKeyPair());
+            } catch (ArrayIndexOutOfBoundsException ex) {
+                if (n == attempts) {
+                    throw new RuntimeException("Failed to generate the QTESLA signing keys after " + n + " attempts.", ex);
+                }
+            }
+        }
     }
 
     public @Signature byte[] signQTesla(@Secret byte[] privateKey, @Hash byte[] digest, int keySize)
