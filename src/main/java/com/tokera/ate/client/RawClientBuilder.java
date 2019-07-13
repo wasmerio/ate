@@ -136,7 +136,6 @@ public class RawClientBuilder {
     private static ResteasyWebTarget target(String urlBaseAndPrefix, String postfix) {
         ResteasyClient client = new ResteasyClientBuilder()
                 .register(new YamlProvider())
-                .register(new ResteasyJackson2Provider())
                 .register(new UuidSerializer())
                 .register(new PartitionKeySerializer())
                 .register(new PuuidSerializer())

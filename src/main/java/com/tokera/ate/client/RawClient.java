@@ -59,7 +59,6 @@ public class RawClient {
     public static ResteasyClient createResteasyClient() {
         ResteasyClient client = new ResteasyClientBuilder()
                 .register(new YamlProvider())
-                .register(new ResteasyJackson2Provider())
                 .register(new UuidSerializer())
                 .register(new PartitionKeySerializer())
                 .register(new PuuidSerializer())
