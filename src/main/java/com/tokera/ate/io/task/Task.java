@@ -219,7 +219,12 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
                     d.currentToken.publishToken(token);
 
                     // Run the stuff under this scope context
-                    callback.run();
+                    d.requestContext.pushPartitionKey(this.partitionKey());
+                    try {
+                        callback.run();
+                    } finally {
+                        d.requestContext.popPartitionKey();
+                    }
 
                     // Invoke the merge
                     d.io.mergeDeferred();
