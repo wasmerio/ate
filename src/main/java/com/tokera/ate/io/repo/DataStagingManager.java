@@ -155,6 +155,9 @@ public class DataStagingManager {
         MessagePublicKeyDto ret = MapTools.getOrNull(context.savedPublicKeys, publicKeyHash);
         if (ret == null) {
             ret = d.currentRights.findKey(publicKeyHash);
+            if (ret == null) {
+                ret = d.implicitSecurity.findEmbeddedKeyOrNull(publicKeyHash);
+            }
         }
         return ret;
     }
