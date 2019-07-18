@@ -152,6 +152,9 @@ final public class AccessLogIO implements IAteIO {
     public void warm(IPartitionKey partitionKey) { next.warm(partitionKey); }
 
     @Override
+    public void warmAndWait(IPartitionKey partitionKey) { next.warmAndWait(partitionKey); }
+
+    @Override
     public void sync(IPartitionKey partitionKey) { next.sync(partitionKey); }
 
     @Override

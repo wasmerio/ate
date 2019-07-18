@@ -289,6 +289,12 @@ final public class SplitIO implements IAteIO {
     }
 
     @Override
+    final public void warmAndWait(IPartitionKey partitionKey) {
+        upper.warmAndWait(partitionKey);
+        lower.warmAndWait(partitionKey);
+    }
+
+    @Override
     final public void sync(IPartitionKey partitionKey) {
         upper.sync(partitionKey);
         lower.sync(partitionKey);

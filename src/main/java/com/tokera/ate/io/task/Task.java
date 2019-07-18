@@ -136,7 +136,7 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
      * Gathers all the objects in the tree of this particular type and invokes a processor for them
      */
     public void invokeInit(BoundRequestContext boundRequestContext) {
-        enterRequestScopeAndInvoke(boundRequestContext, token, () ->
+        HookContext.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () ->
         {
             AteDelegate d = AteDelegate.get();
             callback.onInit(d.io.getAll(clazz), this);
@@ -144,7 +144,7 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
     }
 
     public void invokeSeedKeys(BoundRequestContext boundRequestContext) {
-        enterRequestScopeAndInvoke(boundRequestContext, token, () ->
+        HookContext.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () ->
         {
             AteDelegate d = AteDelegate.get();
             for (MessagePublicKeyDto key : d.currentRights.getRightsRead()) {
@@ -158,7 +158,7 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
 
     @SuppressWarnings("unchecked")
     public void invokeMessages(BoundRequestContext boundRequestContext, Iterable<MessageDataMetaDto> msgs) {
-        enterRequestScopeAndInvoke(boundRequestContext, token, () ->
+        HookContext.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () ->
         {
             AteDelegate d = AteDelegate.get();
             for (MessageDataMetaDto msg : msgs) {
@@ -185,58 +185,14 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
     }
 
     public void invokeTick(BoundRequestContext boundRequestContext) {
-        enterRequestScopeAndInvoke(boundRequestContext, token, () -> callback.onTick(this));
+        HookContext.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () -> callback.onTick(this));
     }
 
     public void invokeWarmAndIdle(BoundRequestContext boundRequestContext) {
         AteDelegate d = AteDelegate.get();
-        enterRequestScopeAndInvoke(boundRequestContext, token, () -> {
+        HookContext.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () -> {
             d.io.warm(partitionKey());
             callback.onIdle(this);
         });
-    }
-
-    /**
-     * Enters a fake request scope and brings the token online so that the callback will
-     * @param token
-     * @param callback
-     */
-    public void enterRequestScopeAndInvoke(BoundRequestContext boundRequestContext, @Nullable TokenDto token, Runnable callback) {
-        AteDelegate d = AteDelegate.get();
-        if (boundRequestContext.isActive()) {
-            throw new RuntimeException("Nested request context are not currently supported.");
-        }
-
-        synchronized (token) {
-            Map<String, Object> requestDataStore = new TreeMap<>();
-            boundRequestContext.associate(requestDataStore);
-            try {
-                boundRequestContext.activate();
-                try {
-                    // Publish the token but skip the validation as we already trust the token
-                    d.currentToken.setSkipValidation(true);
-                    d.currentToken.setPerformedValidation(true);
-                    d.currentToken.publishToken(token);
-
-                    // Run the stuff under this scope context
-                    d.requestContext.pushPartitionKey(this.partitionKey());
-                    try {
-                        callback.run();
-                    } finally {
-                        d.requestContext.popPartitionKey();
-                    }
-
-                    // Invoke the merge
-                    d.io.mergeDeferred();
-                } finally {
-                    boundRequestContext.invalidate();
-                    boundRequestContext.deactivate();
-                }
-            } catch (Throwable ex) {
-                d.genericLogger.warn(ex);
-            } finally {
-                boundRequestContext.dissociate(requestDataStore);
-            }
-        }
     }
 }

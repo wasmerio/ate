@@ -71,6 +71,12 @@ public class DataRepository implements IAteIO {
     }
 
     @Override
+    public void warmAndWait(IPartitionKey partitionKey) {
+        DataPartition partition = this.subscriber.getPartition(partitionKey, false, DataPartitionType.Dao);
+        partition.getBridge().waitTillLoaded();
+    }
+
+    @Override
     public @Nullable MessagePublicKeyDto publicKeyOrNull(IPartitionKey partitionKey, @Hash String hash) {
         MessagePublicKeyDto key = staging.findPublicKey(partitionKey, hash);
         if (key != null) return key;

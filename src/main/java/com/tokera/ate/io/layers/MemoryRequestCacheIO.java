@@ -287,6 +287,10 @@ public class MemoryRequestCacheIO implements IAteIO
     }
 
     @Override
+    public void warmAndWait(IPartitionKey partitionKey) {
+    }
+
+    @Override
     public void sync(IPartitionKey partitionKey) {
     }
 

@@ -17,5 +17,9 @@ public interface ITaskContext
 
     boolean removeTask(ITask task);
 
+    <T extends BaseDao> void addHook(IHookCallback<T> callback, Class<T> clazz);
+
+    <T extends BaseDao> boolean removeHook(IHookCallback<T> callback, Class<T> clazz);
+
     List<ITask> tasks();
 }

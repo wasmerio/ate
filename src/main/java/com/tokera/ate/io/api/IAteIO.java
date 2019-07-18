@@ -89,6 +89,8 @@ public interface IAteIO {
 
     void warm(IPartitionKey partitionKey);
 
+    void warmAndWait(IPartitionKey partitionKey);
+
     void sync(IPartitionKey partitionKey);
 
     boolean sync(IPartitionKey partitionKey, MessageSyncDto sync);

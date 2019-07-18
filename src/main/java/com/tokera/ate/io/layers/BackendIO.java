@@ -121,6 +121,9 @@ final public class BackendIO implements IAteIO {
     }
 
     @Override
+    public void warmAndWait(IPartitionKey partitionKey) { next.warmAndWait(partitionKey); }
+
+    @Override
     public void sync(IPartitionKey partitionKey) {
         next.sync(partitionKey);
     }

@@ -30,6 +30,36 @@ public class TaskManager {
     ConcurrentHashMap<IPartitionKey, ConcurrentHashMap<Class<? extends BaseDao>, ITaskContext>> lookup
             = new ConcurrentHashMap<>();
 
+    @SuppressWarnings("unchecked")
+    public <T extends BaseDao> void hook(IPartitionKey partitionKey, Class<T> clazz, IHookCallback<T> callback) {
+        ConcurrentHashMap<Class<? extends BaseDao>, ITaskContext> first
+                = lookup.computeIfAbsent(partitionKey, k -> new ConcurrentHashMap<>());
+        ITaskContext second = first.computeIfAbsent(clazz, c -> new TaskContext(partitionKey, clazz));
+        second.addHook(callback, clazz);
+
+        d.io.warmAndWait(partitionKey);
+    }
+
+    public <T extends BaseDao> boolean unhook(IPartitionKey partitionKey, Class<T> clazz, IHookCallback<T> callback) {
+        ITaskContext context = getContext(partitionKey, clazz);
+        return context.removeHook(callback, clazz);
+    }
+
+    public <T extends BaseDao> boolean unhook(Class<T> clazz, IHookCallback<T> callback) {
+        boolean ret = false;
+        List<ITaskContext> contexts = lookup
+                .values()
+                .stream()
+                .flatMap(a -> a.values().stream())
+                .collect(Collectors.toList());
+        for (ITaskContext context : contexts) {
+            if (context.removeHook(callback, clazz) == true) {
+                ret = true;
+            }
+        }
+        return ret;
+    }
+
     public <T extends BaseDao> ITask subscribe(IPartitionKey partitionKey, Class<T> clazz, ITaskCallback<T> callback) {
         TokenDto token = d.currentToken.getTokenOrNull();
         return subscribe(partitionKey, clazz, callback, token);
@@ -48,7 +78,7 @@ public class TaskManager {
         context.removeTask(task);
     }
 
-    public <T extends BaseDao> void unsubscribeByCallback(ITaskCallback<T> callback) {
+    public <T extends BaseDao> void unsubscribe(ITaskCallback<T> callback) {
         List<ITask> subscriptions = lookup
                 .values()
                 .stream()
@@ -61,7 +91,7 @@ public class TaskManager {
         }
     }
 
-    public void unsubscribeByPartition(IPartitionKey partitionKey) {
+    public void unsubscribe(IPartitionKey partitionKey) {
         List<ITask> subscriptions = lookup
                 .values()
                 .stream()
@@ -74,7 +104,7 @@ public class TaskManager {
         }
     }
 
-    public <T extends BaseDao> void unsubscribeByPartitionAndCallback(IPartitionKey partitionKey, ITaskCallback<T> callback) {
+    public <T extends BaseDao> void unsubscribe(IPartitionKey partitionKey, ITaskCallback<T> callback) {
         List<ITask> subscriptions = lookup
                 .values()
                 .stream()

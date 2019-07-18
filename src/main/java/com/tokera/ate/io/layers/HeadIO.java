@@ -157,8 +157,17 @@ public class HeadIO implements IAteIO
         back.warm(partitionKey);
     }
 
+    public void warmAndWait()
+    {
+        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScope();
+        back.warmAndWait(partitionKey);
+    }
+
     @Override
     public void warm(IPartitionKey partitionKey) { back.warm(partitionKey); }
+
+    @Override
+    public void warmAndWait(IPartitionKey partitionKey) { back.warmAndWait(partitionKey); }
 
     public void sync()
     {
