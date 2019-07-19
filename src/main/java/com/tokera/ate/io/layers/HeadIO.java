@@ -82,6 +82,11 @@ public class HeadIO implements IAteIO
     }
 
     @Override
+    public boolean mergeWithoutSync(BaseDao t) {
+        return back.mergeWithoutSync(t);
+    }
+
+    @Override
     public boolean mergeAsyncWithoutValidation(BaseDao t) {
         return back.mergeAsyncWithoutValidation(t);
     }

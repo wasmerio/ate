@@ -29,6 +29,8 @@ public interface IAteIO {
 
     boolean mergeAsync(BaseDao entity);
 
+    boolean mergeWithoutSync(BaseDao entity);
+
     boolean mergeWithoutValidation(BaseDao entity);
 
     boolean mergeAsyncWithoutValidation(BaseDao entity);

@@ -59,6 +59,11 @@ final public class BackendIO implements IAteIO {
     public boolean mergeAsyncWithoutValidation(BaseDao t) {
         return next.mergeAsyncWithoutValidation(t);
     }
+
+    @Override
+    public boolean mergeWithoutSync(BaseDao t) {
+        return next.mergeWithoutSync(t);
+    }
     
     @Override
     public void mergeLater(BaseDao t) {

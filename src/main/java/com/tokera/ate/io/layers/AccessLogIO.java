@@ -81,6 +81,14 @@ final public class AccessLogIO implements IAteIO {
     }
 
     @Override
+    public boolean mergeWithoutSync(BaseDao t) {
+        boolean ret = next.mergeWithoutSync(t);
+        if (ret == false) return false;
+        this.onWrote(t.getId(), t.getClass());
+        return true;
+    }
+
+    @Override
     public boolean mergeAsyncWithoutValidation(BaseDao t) {
         boolean ret = next.mergeAsyncWithoutValidation(t);
         if (ret == false) return false;

@@ -63,6 +63,13 @@ final public class SplitIO implements IAteIO {
     }
 
     @Override
+    final public boolean mergeWithoutSync(BaseDao entity) {
+        boolean ret = lower.mergeWithoutSync(entity);
+        upper.mergeWithoutSync(entity);
+        return ret;
+    }
+
+    @Override
     final public boolean mergeAsyncWithoutValidation(BaseDao entity) {
         boolean ret = lower.mergeAsyncWithoutValidation(entity);
         upper.mergeAsyncWithoutValidation(entity);

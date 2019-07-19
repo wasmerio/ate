@@ -78,6 +78,11 @@ public class MemoryRequestCacheIO implements IAteIO
     }
 
     @Override
+    public boolean mergeWithoutSync(BaseDao entity) {
+        return merge(entity);
+    }
+
+    @Override
     public boolean mergeAsyncWithoutValidation(BaseDao entity) {
         return merge(entity);
     }

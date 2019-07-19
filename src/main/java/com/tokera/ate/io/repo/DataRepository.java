@@ -124,6 +124,11 @@ public class DataRepository implements IAteIO {
         return mergeInternal(entity, true, true);
     }
 
+    @Override
+    public boolean mergeWithoutSync(BaseDao entity) {
+        return mergeInternal(entity, true, false);
+    }
+
     public void mergeInternal(IPartitionKey partitionKey, MessageBaseDto data, boolean performSync) {
         // Save the data to the bridge and synchronize it
         DataPartition kt = this.subscriber.getPartition(partitionKey);
