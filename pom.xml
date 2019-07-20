@@ -31,7 +31,7 @@
     <parent>
         <groupId>com.tokera</groupId>
         <artifactId>ate-deps</artifactId>
-        <version>1.5</version>
+        <version>1.7</version>
     </parent>
 
     <scm>

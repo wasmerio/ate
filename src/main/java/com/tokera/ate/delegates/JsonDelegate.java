@@ -12,9 +12,18 @@ import java.io.IOException;
 @Startup
 public class JsonDelegate {
     AteDelegate d = AteDelegate.get();
+    private final ThreadLocal<ObjectMapper> mappers;
+
+    public JsonDelegate() {
+        mappers = ThreadLocal.withInitial(() ->
+        {
+            ObjectMapper mapper = new ObjectMapper();
+            return mapper;
+        });
+    }
 
     public String serialize(Object obj) {
-        ObjectMapper mapper = new ObjectMapper();
+        ObjectMapper mapper = mappers.get();
         try {
             return mapper.writeValueAsString(obj);
         } catch (JsonProcessingException e) {
@@ -23,7 +32,7 @@ public class JsonDelegate {
     }
 
     public <T> Object deserialize(String data, Class<T> clazz) {
-        ObjectMapper mapper = new ObjectMapper();
+        ObjectMapper mapper = mappers.get();
         try {
             return mapper.readValue(data, clazz);
         } catch (IOException e) {
