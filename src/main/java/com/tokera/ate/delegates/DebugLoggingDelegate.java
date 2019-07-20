@@ -51,6 +51,13 @@ public class DebugLoggingDelegate {
         }
     }
 
+    public void logClaimed(IPartitionKey partitionKey, UUID id, String entityType, @Nullable LoggerHook LOG)
+    {
+        if (d.bootstrapConfig.isLoggingChainOfTrust()) {
+            logInfo("[" + partitionKey + "] chain-of-trust claimed: " + entityType + ":" + id, LOG);
+        }
+    }
+
     public void seedingPartitionStart(IPartitionKey partitionKey, @Nullable LoggerHook LOG) {
         if (d.bootstrapConfig.isLoggingChainOfTrust()) {
             StringBuilder sb = new StringBuilder();
