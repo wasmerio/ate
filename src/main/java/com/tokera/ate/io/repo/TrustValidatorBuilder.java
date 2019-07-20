@@ -372,7 +372,7 @@ final class TrustValidatorBuilder {
                     digestPublicKey = trustPublicKey;
                     d.debugLogging.logClaimed(partitionKey, id, entityType, LOG);
                 }
-                
+
                 // If the object is a claimable type then its allowed to attach to nothing
                 else if (d.daoParents.getAllowedParentFreeSimple().contains(entityType) == true &&
                         implicitAuthority != null)

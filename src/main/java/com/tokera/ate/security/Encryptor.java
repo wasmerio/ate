@@ -6,7 +6,9 @@ import com.google.common.collect.Lists;
 import com.tokera.ate.BootstrapConfig;
 import com.tokera.ate.dao.enumerations.KeyType;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.dto.SigningKeyWithSeedDto;
 import com.tokera.ate.dto.msg.MessageKeyPartDto;
+import com.tokera.ate.exceptions.KeyGenerationException;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.io.api.IAteIO;
@@ -98,6 +100,7 @@ public class Encryptor implements Runnable
     public static final int AES_KEY_SIZE = 128; // in bits
     public static final int AES_KEY_SIZE_BYTES = AES_KEY_SIZE / 8; // in bytes
     public static final int GCM_TAG_LENGTH = 16; // in bytes
+    public static final int retryAttempts = 10;
     
     private final SecureRandom srandom = new SecureRandom();
     private final ArrayList<Thread> threads = new ArrayList<>();
@@ -587,23 +590,61 @@ public class Encryptor implements Runnable
         return ret;
     }
 
+    public SigningKeyWithSeedDto genSignKeyAndSeed() {
+        return genSignKeyAndSeed(retryAttempts);
+    }
+
+    public SigningKeyWithSeedDto genSignKeyAndSeed(int attempts) {
+        for (int n = 0;; n++) {
+            try {
+                String seed = this.generateSecret64(256);
+                MessagePrivateKeyDto key = this.genSignKeyFromSeed(seed, 1);
+                return new SigningKeyWithSeedDto(seed, key);
+            } catch (KeyGenerationException ex) {
+                if (n >= attempts) {
+                    throw new KeyGenerationException("Failed to signing keys with random seeds after " + n + " attempts -" + ex.getMessage() + ".", ex);
+                }
+            }
+        }
+    }
+
     public MessagePrivateKeyDto genSignKeyFromSeed(String seed) {
-        return this.genSignKeyFromSeed(config.getDefaultSigningStrength(), seed);
+        return genSignKeyFromSeed(seed, retryAttempts);
+    }
+
+    public MessagePrivateKeyDto genSignKeyFromSeed(String seed, int attempts) {
+        return this.genSignKeyFromSeed(config.getDefaultSigningStrength(), seed, attempts);
     }
 
     public MessagePrivateKeyDto genSignKeyFromSeed(int keySize, String seed) {
-        return genSignKeyFromSeedWithAlias(keySize, config.getDefaultSigningTypes(), seed, null);
+        return genSignKeyFromSeed(keySize, seed, retryAttempts);
+    }
+
+    public MessagePrivateKeyDto genSignKeyFromSeed(int keySize, String seed, int attempts) {
+        return genSignKeyFromSeedWithAlias(keySize, config.getDefaultSigningTypes(), seed, attempts, null);
     }
 
     public MessagePrivateKeyDto genSignKeyFromSeedWithAlias(int keySize, String seed, @Nullable @Alias String alias) {
+        return genSignKeyFromSeedWithAlias(keySize, seed, retryAttempts, alias);
+    }
+
+    public MessagePrivateKeyDto genSignKeyFromSeedWithAlias(int keySize, String seed, int attempts, @Nullable @Alias String alias) {
         return genSignKeyFromSeedWithAlias(keySize, config.getDefaultSigningTypes(), seed, alias);
     }
 
     public MessagePrivateKeyDto genSignKeyFromSeed(int keySize, Iterable<KeyType> keyTypes, String seed) {
-        return genSignKeyFromSeedWithAlias(keySize, keyTypes, seed, null);
+        return genSignKeyFromSeed(keySize, keyTypes, seed, retryAttempts);
+    }
+
+    public MessagePrivateKeyDto genSignKeyFromSeed(int keySize, Iterable<KeyType> keyTypes, String seed, int attempts) {
+        return genSignKeyFromSeedWithAlias(keySize, keyTypes, seed, attempts, null);
     }
 
     public MessagePrivateKeyDto genSignKeyFromSeedWithAlias(int keySize, Iterable<KeyType> keyTypes, String seed, @Nullable @Alias String alias) {
+        return genSignKeyFromSeedWithAlias(keySize, keyTypes, seed, retryAttempts, alias);
+    }
+
+    public MessagePrivateKeyDto genSignKeyFromSeedWithAlias(int keySize, Iterable<KeyType> keyTypes, String seed, int attempts, @Nullable @Alias String alias) {
         IRandomFactory randomFactory = new PredictablyRandomFactory(seed);
         List<MessageKeyPartDto> publicParts = new LinkedList<>();
         List<MessageKeyPartDto> privateParts = new LinkedList<>();
@@ -612,7 +653,7 @@ public class Encryptor implements Runnable
             KeyPairBytes pair;
             switch (keyType) {
                 case qtesla:
-                    pair = genSignKeyQTeslaNow(keySize, randomFactory);
+                    pair = genSignKeyQTeslaNow(keySize, randomFactory, attempts);
                     break;
                 case xmssmt:
                     pair = genSignKeyXmssMtNow(keySize, randomFactory);
@@ -621,7 +662,7 @@ public class Encryptor implements Runnable
                     pair = genSignKeyRainbowNow(keySize, randomFactory);
                     break;
                 default:
-                    throw new RuntimeException("The key type [" + keyType + "] is not supported as an asymmetric encryption key.");
+                    throw new KeyGenerationException("The key type [" + keyType + "] is not supported as an asymmetric encryption key.");
             }
             publicParts.add(new MessageKeyPartDto(keyType, keySize, pair.publicKey));
             privateParts.add(new MessageKeyPartDto(keyType, keySize, pair.privateKey));
@@ -1039,7 +1080,11 @@ public class Encryptor implements Runnable
 
     public KeyPairBytes genSignKeyQTeslaNow(int keysize, IRandomFactory randomFactory)
     {
-        int attempts = 10;
+        return genSignKeyQTeslaNow(keysize, randomFactory, retryAttempts);
+    }
+
+    public KeyPairBytes genSignKeyQTeslaNow(int keysize, IRandomFactory randomFactory, int attempts)
+    {
         for (int n = 1; ; n++) {
             try {
                 QTESLAKeyGenerationParameters params = new QTESLAKeyGenerationParameters(getQTeslaSecurityCategory(keysize), randomFactory.getRandom());
@@ -1048,7 +1093,7 @@ public class Encryptor implements Runnable
                 return extractKey(gen.generateKeyPair());
             } catch (ArrayIndexOutOfBoundsException ex) {
                 if (n >= attempts) {
-                    throw new RuntimeException("Failed to generate the QTESLA signing keys after " + n + " attempts (idempotent=" + randomFactory.idempotent() + ").", ex);
+                    throw new KeyGenerationException("Failed to generate the QTESLA signing keys after " + n + " attempts (idempotent=" + randomFactory.idempotent() + ").", ex);
                 }
                 if (randomFactory.idempotent()) {
                     randomFactory.reset();
