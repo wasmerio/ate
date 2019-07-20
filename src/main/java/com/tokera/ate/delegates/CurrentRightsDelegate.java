@@ -218,4 +218,9 @@ public class CurrentRightsDelegate implements IRights {
     @Override
     public void onRemoveRight(IRoles from) {
     }
+
+    @Override
+    public boolean readOnly() {
+        return true;
+    }
 }

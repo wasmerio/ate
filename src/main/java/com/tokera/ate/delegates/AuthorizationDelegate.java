@@ -419,6 +419,9 @@ public class AuthorizationDelegate {
                 .findFirst()
                 .orElse(null);
         if (right == null) {
+            if (entity.readOnly()) {
+                throw new WebApplicationException("Unable to create an implicit right to read for this entity as it is read only.", Response.Status.BAD_REQUEST);
+            }
             right = new MessagePrivateKeyDto(d.encryptor.genEncryptKeyWithAlias(128, alias));
 
             entity.getRightsRead().add(right);
@@ -497,6 +500,9 @@ public class AuthorizationDelegate {
                 .findFirst()
                 .orElse(null);
         if (right == null) {
+            if (entity.readOnly()) {
+                throw new WebApplicationException("Unable to create an implicit right to write for this entity as it is read only.", Response.Status.BAD_REQUEST);
+            }
             right = new MessagePrivateKeyDto(d.encryptor.genSignKeyWithAlias(alias));
             entity.getRightsWrite().add(right);
             ensureKeyIsThere(right, entity);

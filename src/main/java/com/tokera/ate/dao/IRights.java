@@ -28,7 +28,13 @@ public interface IRights
     
     @Alias String getRightsAlias();
 
-    void onAddRight(IRoles to);
+    default void onAddRight(IRoles to) {
+    }
 
-    void onRemoveRight(IRoles from);
+    default void onRemoveRight(IRoles from) {
+    }
+
+    default boolean readOnly() {
+        return true;
+    }
 }
