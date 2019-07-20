@@ -5,6 +5,7 @@
  */
 package com.tokera.ate.dao.base;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tokera.ate.common.Immutalizable;
 import com.tokera.ate.common.ImmutalizableTreeMap;
@@ -100,6 +101,7 @@ public abstract class BaseDaoParams extends BaseDao implements IParams, Immutali
         this.paramsKey = paramsKey;
     }
 
+    @JsonIgnore
     @Override
     public void immutalize() {
         super.immutalize();

@@ -5,6 +5,7 @@
  */
 package com.tokera.ate.dao;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.units.Alias;
 import com.tokera.ate.units.DaoId;
@@ -20,12 +21,16 @@ import java.util.UUID;
  */
 public interface IRights
 {
+    @JsonIgnore
     @DaoId UUID getId();
 
+    @JsonIgnore
     Set<MessagePrivateKeyDto> getRightsRead();
 
+    @JsonIgnore
     Set<MessagePrivateKeyDto> getRightsWrite();
-    
+
+    @JsonIgnore
     @Alias String getRightsAlias();
 
     default void onAddRight(IRoles to) {

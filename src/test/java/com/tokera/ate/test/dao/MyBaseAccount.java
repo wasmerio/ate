@@ -1,5 +1,6 @@
 package com.tokera.ate.test.dao;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tokera.ate.annotations.PermitParentFree;
 import com.tokera.ate.annotations.YamlTag;
@@ -27,11 +28,13 @@ public class MyBaseAccount extends BaseDaoRoles {
     public MyBaseAccount() { }
 
     @Override
+    @JsonIgnore
     public @DaoId UUID getId() {
         return this.id;
     }
 
     @Override
+    @JsonIgnore
     public @Nullable @DaoId UUID getParentId() {
         return null;
     }

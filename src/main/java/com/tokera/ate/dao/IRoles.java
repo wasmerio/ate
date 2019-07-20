@@ -5,6 +5,7 @@
  */
 package com.tokera.ate.dao;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.tokera.ate.units.Alias;
 import com.tokera.ate.units.Hash;
 import com.tokera.ate.units.Secret;
@@ -19,36 +20,30 @@ import java.util.Map;
 public interface IRoles
 {
     /**
-     * @return Returns a list of all the public toPutKeys of those who have read
+     * @return Returns a list of all the public keys of those who have read
      * access to the objects held by this data entity and the children attached
      * to it
      */
+    @JsonIgnore
     Map<@Alias String, @Hash String> getTrustAllowRead();
 
     /**
-     * @return Returns a list of all the public toPutKeys of those who have write
+     * @return Returns a list of all the public keys of those who have write
      * access to the objects held by this data entity and the children attached
      * to it
      */
+    @JsonIgnore
     Map<@Alias String, @Hash String> getTrustAllowWrite();
     
     /**
      * @return True if the chain of trust should inherit write permissions from its parent
      */
+    @JsonIgnore
     boolean getTrustInheritWrite();
-
-    /**
-     * @param val Set to true if the object should inherit write rights from its parent
-     */
-    void setTrustInheritWrite(boolean val);
     
     /**
      * @return True if the chain of trust should inherit read permission from its parent
      */
+    @JsonIgnore
     boolean getTrustInheritRead();
-
-    /**
-     * @param val Set to true if the object should inherit read rights from its parent
-     */
-    void setTrustInheritRead(boolean val);
 }

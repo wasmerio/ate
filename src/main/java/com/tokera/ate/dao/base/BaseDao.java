@@ -29,6 +29,7 @@ public abstract class BaseDao implements Serializable, Immutalizable, IPartition
      * @return Returns the unique primary key of this data entity within the
      * scope of the partition
      */
+    @JsonIgnore
     public abstract @DaoId UUID getId();
 
     /**

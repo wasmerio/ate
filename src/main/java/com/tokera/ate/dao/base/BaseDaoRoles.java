@@ -5,6 +5,7 @@
  */
 package com.tokera.ate.dao.base;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tokera.ate.common.Immutalizable;
 import com.tokera.ate.common.ImmutalizableTreeMap;
@@ -37,6 +38,7 @@ public abstract class BaseDaoRoles extends BaseDaoParams implements IRoles, Immu
      * to it
      */
     @Override
+    @JsonIgnore
     public @NonNull Map<@Alias String, @Hash String> getTrustAllowRead() {
         return trustAllowRead;
     }
@@ -47,6 +49,7 @@ public abstract class BaseDaoRoles extends BaseDaoParams implements IRoles, Immu
      * to it
      */
     @Override
+    @JsonIgnore
     public @NonNull Map<@Alias String, @Hash String> getTrustAllowWrite() {
         return trustAllowWrite;
     }
@@ -55,34 +58,18 @@ public abstract class BaseDaoRoles extends BaseDaoParams implements IRoles, Immu
      * @return True if the chain of trust should inherit write permissions from its parent
      */
     @Override
+    @JsonIgnore
     public boolean getTrustInheritWrite() {
         return trustInheritWrite;
-    }
-
-    /**
-     * @param val Set to true if the object should inherit write rights from its parent
-     */
-    @Override
-    public void setTrustInheritWrite(boolean val) {
-        assert this._immutable == false;
-        this.trustInheritWrite = val;
     }
 
     /**
      * @return True if the chain of trust should inherit read permission from its parent
      */
     @Override
+    @JsonIgnore
     public boolean getTrustInheritRead() {
         return trustInheritRead;
-    }
-
-    /**
-     * @param val Set to true if the object should inherit read rights from its parent
-     */
-    @Override
-    public void setTrustInheritRead(boolean val) {
-        assert this._immutable == false;
-        this.trustInheritRead = val;
     }
 
     @Override

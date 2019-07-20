@@ -5,6 +5,7 @@
  */
 package com.tokera.ate.dao.base;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tokera.ate.common.Immutalizable;
 import com.tokera.ate.common.ImmutalizableHashSet;
@@ -26,23 +27,21 @@ public abstract class BaseDaoRights extends BaseDao implements IRights, Immutali
     private final ImmutalizableHashSet<MessagePrivateKeyDto> rightsRead = new ImmutalizableHashSet<>();
     @JsonProperty
     private final ImmutalizableHashSet<MessagePrivateKeyDto> rightsWrite = new ImmutalizableHashSet<>();
+
     @Override
+    @JsonIgnore
     public Set<MessagePrivateKeyDto> getRightsRead() {
         return rightsRead;
     }
+
     @Override
+    @JsonIgnore
     public Set<MessagePrivateKeyDto> getRightsWrite() {
         return rightsWrite;
     }
 
     @Override
-    public void immutalize() {
-        super.immutalize();
-        this.rightsRead.immutalize();
-        this.rightsWrite.immutalize();
-    }
-
-    @Override
+    @JsonIgnore
     public @Alias String getRightsAlias() {
         return getClass().getSimpleName().toLowerCase() + ":" + this.getId();
     }
@@ -50,12 +49,17 @@ public abstract class BaseDaoRights extends BaseDao implements IRights, Immutali
     // Override this method to hook into notifications when an access right is added to this data object
     @Override
     public void onAddRight(IRoles to) {
-
     }
 
     // Override this method to hook into notifications when an access right is remove this data object
     @Override
     public void onRemoveRight(IRoles from) {
+    }
 
+    @Override
+    public void immutalize() {
+        super.immutalize();
+        this.rightsRead.immutalize();
+        this.rightsWrite.immutalize();
     }
 }

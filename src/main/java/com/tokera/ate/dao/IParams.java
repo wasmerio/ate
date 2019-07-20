@@ -5,6 +5,7 @@
  */
 package com.tokera.ate.dao;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.tokera.ate.units.Alias;
 import com.tokera.ate.units.DaoId;
 import com.tokera.ate.units.PlainText;
@@ -19,21 +20,30 @@ import java.util.UUID;
  */
 public interface IParams {
 
+    @JsonIgnore
     @DaoId UUID getId();
 
+    @JsonIgnore
     Map<@Alias String, @PlainText String> getParams();
 
+    @JsonIgnore
     Map<@Alias String, @Secret String> getParamsEnc();
 
+    @JsonIgnore
     boolean getShowParamsYml();
 
+    @JsonIgnore
     void setShowParamsYml(boolean showParamsYml);
 
+    @JsonIgnore
     boolean getHideParamsYml();
 
+    @JsonIgnore
     void setHideParamsYml(boolean hideParamsYml);
 
+    @JsonIgnore
     @Nullable @Secret String getParamsKey();
 
-    void setParamsKey(@Secret String paramsKey);
+    @JsonIgnore
+    void setParamsKey(@Nullable @Secret String paramsKey);
 }
