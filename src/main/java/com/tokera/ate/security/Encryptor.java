@@ -6,6 +6,7 @@ import com.google.common.collect.Lists;
 import com.tokera.ate.BootstrapConfig;
 import com.tokera.ate.dao.enumerations.KeyType;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.dto.KeysPreLoadConfig;
 import com.tokera.ate.dto.SigningKeyWithSeedDto;
 import com.tokera.ate.dto.msg.MessageKeyPartDto;
 import com.tokera.ate.exceptions.KeyGenerationException;
@@ -23,10 +24,7 @@ import com.tokera.ate.dao.msg.MessagePublicKey;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 
-import java.io.ByteArrayOutputStream;
-import java.io.DataOutputStream;
-import java.io.IOException;
-import java.io.UnsupportedEncodingException;
+import java.io.*;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -53,9 +51,12 @@ import javax.enterprise.context.ApplicationScoped;
 import javax.enterprise.inject.spi.CDI;
 import javax.enterprise.util.AnnotationLiteral;
 import javax.inject.Inject;
+import javax.ws.rs.WebApplicationException;
+import javax.ws.rs.core.Response;
 import javax.xml.bind.DatatypeConverter;
 
 import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang.time.StopWatch;
 import org.apache.kafka.common.utils.Utils;
 import org.bouncycastle.crypto.*;
@@ -69,6 +70,14 @@ import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.bouncycastle.crypto.digests.SHA256Digest;
 import org.bouncycastle.crypto.digests.SHA512Digest;
+import org.junit.jupiter.api.Assertions;
+import org.reflections.Reflections;
+import org.reflections.scanners.ResourcesScanner;
+import org.reflections.util.ClasspathHelper;
+import org.reflections.util.ConfigurationBuilder;
+import org.reflections.util.FilterBuilder;
+
+import static org.reflections.util.Utils.findLogger;
 
 /**
  * System used for all kinds of encryption steps that the storage system and other components need
@@ -121,6 +130,9 @@ public class Encryptor implements Runnable
     private final ConcurrentLinkedQueue<MessagePrivateKeyDto> genSign64Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<MessagePrivateKeyDto> genSign128Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<MessagePrivateKeyDto> genSign256Queue = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<SigningKeyWithSeedDto> genSignAndSeed64Queue = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<SigningKeyWithSeedDto> genSignAndSeed128Queue = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<SigningKeyWithSeedDto> genSignAndSeed256Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<MessagePrivateKeyDto> genEncrypt128Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<MessagePrivateKeyDto> genEncrypt256Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<@Secret String> genAes128Queue = new ConcurrentLinkedQueue<>();
@@ -129,6 +141,8 @@ public class Encryptor implements Runnable
     private final ConcurrentLinkedQueue<@Secret String> genSaltQueue = new ConcurrentLinkedQueue<>();
 
     private Set<Integer> validEncryptSizes = new HashSet<>(Lists.newArrayList(32, 64, 128, 192, 256, 512));
+
+    private Reflections resReflection;
 
     public class KeyPairBytes
     {
@@ -148,6 +162,18 @@ public class Encryptor implements Runnable
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         }
+    }
+
+    public Encryptor() {
+        Reflections.log = null;
+        resReflection = new Reflections(
+                new ConfigurationBuilder()
+                        .filterInputsBy(new FilterBuilder()
+                                .exclude("(.*)\\.so$")
+                                .include("preload-entropy-keys\\.(.*)"))
+                        .setUrls(ClasspathHelper.forClassLoader())
+                        .setScanners(new ResourcesScanner()));
+        Reflections.log = findLogger(Reflections.class);
     }
 
     /**
@@ -178,6 +204,8 @@ public class Encryptor implements Runnable
         java.security.Security.addProvider(
                 new org.bouncycastle.jce.provider.BouncyCastleProvider()
         );
+
+        loadPreLoadEntropyConfig();
 
         for (int n = 0; n < c_KeyPreGenThreads; n++) {
             Thread thread = new Thread(this);
@@ -303,6 +331,9 @@ public class Encryptor implements Runnable
         int cntSign64 = genSign64Queue.size();
         int cntSign128 = genSign128Queue.size();
         int cntSign256 = genSign256Queue.size();
+        int cntSignAndSeed64 = genSignAndSeed64Queue.size();
+        int cntSignAndSeed128 = genSignAndSeed128Queue.size();
+        int cntSignAndSeed256 = genSignAndSeed256Queue.size();
         int cntEncrypt128 = genEncrypt128Queue.size();
         int cntEncrypt256 = genEncrypt256Queue.size();
         int cntAes128 = genAes128Queue.size();
@@ -326,6 +357,21 @@ public class Encryptor implements Runnable
             if (cntSign256 < c_KeyPreGen256 && cntSign256 < cap) {
                 genSign256Queue.add(this.genSignKeyNow(256, config.getDefaultSigningTypes()));
                 cntSign256++;
+                didGen = true;
+            }
+            if (cntSignAndSeed64 < c_KeyPreGen64 && cntSign64 < cap) {
+                genSignAndSeed64Queue.add(this.genSignKeyAndSeedNow(64, config.getDefaultSigningTypes()));
+                cntSignAndSeed64++;
+                didGen = true;
+            }
+            if (cntSignAndSeed128 < c_KeyPreGen128 && cntSign128 < cap) {
+                genSignAndSeed128Queue.add(this.genSignKeyAndSeedNow(128, config.getDefaultSigningTypes()));
+                cntSignAndSeed128++;
+                didGen = true;
+            }
+            if (cntSignAndSeed256 < c_KeyPreGen256 && cntSign256 < cap) {
+                genSignAndSeed256Queue.add(this.genSignKeyAndSeedNow(256, config.getDefaultSigningTypes()));
+                cntSignAndSeed256++;
                 didGen = true;
             }
             if (cntEncrypt128 < c_KeyPreGen128 && cntEncrypt128 < cap) {
@@ -604,14 +650,62 @@ public class Encryptor implements Runnable
     }
 
     public SigningKeyWithSeedDto genSignKeyAndSeed() {
-        return genSignKeyAndSeed(retryAttempts);
+        return genSignKeyAndSeed(config.getDefaultSigningStrength(), config.getDefaultSigningTypes(), null);
     }
 
-    public SigningKeyWithSeedDto genSignKeyAndSeed(int attempts) {
+    public SigningKeyWithSeedDto genSignKeyAndSeed(int keysize, Iterable<KeyType> keyTypes, @Nullable @Alias String alias) {
+        if (keysize == 64) {
+            SigningKeyWithSeedDto ret = this.genSignAndSeed64Queue.poll();
+            if (ret != null) {
+                if (alias != null) ret.key.setAlias(alias);
+                return ret;
+            }
+        }
+        if (keysize == 128) {
+            SigningKeyWithSeedDto ret = this.genSignAndSeed128Queue.poll();
+            this.moreKeys();
+            if (ret != null) {
+                if (alias != null) ret.key.setAlias(alias);
+                return ret;
+            }
+        }
+        if (keysize == 256) {
+            SigningKeyWithSeedDto ret = this.genSignAndSeed256Queue.poll();
+            if (ret != null) {
+                if (alias != null) ret.key.setAlias(alias);
+                return ret;
+            }
+        }
+
+        return genSignKeyAndSeedNow(keysize, keyTypes, retryAttempts, alias);
+    }
+
+    public SigningKeyWithSeedDto genSignKeyAndSeedNow() {
+        return genSignKeyAndSeedNow(config.getDefaultSigningStrength(), config.getDefaultSigningTypes(), retryAttempts, null);
+    }
+
+    public SigningKeyWithSeedDto genSignKeyAndSeedNow(@Nullable @Alias String alias) {
+        return genSignKeyAndSeedNow(config.getDefaultSigningStrength(), config.getDefaultSigningTypes(), retryAttempts, alias);
+    }
+
+    public SigningKeyWithSeedDto genSignKeyAndSeedNow(int keysize, int attempts, @Nullable @Alias String alias) {
+        return genSignKeyAndSeedNow(keysize, config.getDefaultSigningTypes(), attempts, alias);
+    }
+
+    public SigningKeyWithSeedDto genSignKeyAndSeedNow(Iterable<KeyType> keyTypes, @Nullable @Alias String alias) {
+        return genSignKeyAndSeedNow(config.getDefaultSigningStrength(), keyTypes, retryAttempts, alias);
+    }
+
+    public SigningKeyWithSeedDto genSignKeyAndSeedNow(int keysize, Iterable<KeyType> keyTypes) {
+        return genSignKeyAndSeedNow(keysize, keyTypes, retryAttempts, null);
+    }
+
+    public SigningKeyWithSeedDto genSignKeyAndSeedNow(int keysize, Iterable<KeyType> keyTypes, int attempts, @Nullable @Alias String alias) {
         for (int n = 1; ; n++) {
             try {
                 String seed = this.generateSecret64(256);
-                MessagePrivateKeyDto key = this.genSignKeyFromSeed(seed);
+                MessagePrivateKeyDto key = this.genSignKeyFromSeed(keysize, keyTypes, seed);
+                if (alias != null) key.setAlias(alias);
                 return new SigningKeyWithSeedDto(seed, key);
             } catch (KeyGenerationException ex) {
                 if (n >= attempts) {
@@ -1833,5 +1927,122 @@ public class Encryptor implements Runnable
             ret.setAlias(alias);
         }
         return ret;
+    }
+
+    public KeysPreLoadConfig generatePreLoadEntropy() {
+        return generatePreLoadEntropy(Integer.MAX_VALUE);
+    }
+
+    public KeysPreLoadConfig generatePreLoadEntropy(int cap) {
+        KeysPreLoadConfig ret = new KeysPreLoadConfig();
+
+        int cntSign64 = 0;
+        int cntSign128 = 0;
+        int cntSign256 = 0;
+        int cntSignAndSeed64 = 0;
+        int cntSignAndSeed128 = 0;
+        int cntSignAndSeed256 = 0;
+        int cntEncrypt128 = 0;
+        int cntEncrypt256 = 0;
+        int cntAes128 = 0;
+        int cntAes256 = 0;
+        int cntAes512 = 0;
+        int cntSalt = 0;
+
+        for (;cntSign64 < c_KeyPreGen64 && cntSign64 < cap;) {
+            ret.sign64.add(this.genSignKeyNow(64, config.getDefaultSigningTypes()));
+            cntSign64++;
+        }
+        for (;cntSign128 < c_KeyPreGen128 && cntSign128 < cap;) {
+            ret.sign128.add(this.genSignKeyNow(128, config.getDefaultSigningTypes()));
+            cntSign128++;
+        }
+        for (;cntSign256 < c_KeyPreGen256 && cntSign256 < cap;) {
+            ret.sign256.add(this.genSignKeyNow(256, config.getDefaultSigningTypes()));
+            cntSign256++;
+        }
+        for (;cntSignAndSeed64 < c_KeyPreGen64 && cntSign64 < cap;) {
+            ret.signAndSeed64.add(this.genSignKeyAndSeedNow(64, config.getDefaultSigningTypes()));
+            cntSignAndSeed64++;
+        }
+        for (;cntSignAndSeed128 < c_KeyPreGen128 && cntSign128 < cap;) {
+            ret.signAndSeed128.add(this.genSignKeyAndSeedNow(128, config.getDefaultSigningTypes()));
+            cntSignAndSeed128++;
+        }
+        for (;cntSignAndSeed256 < c_KeyPreGen256 && cntSign256 < cap;) {
+            ret.signAndSeed256.add(this.genSignKeyAndSeedNow(256, config.getDefaultSigningTypes()));
+            cntSignAndSeed256++;
+        }
+        for (;cntEncrypt128 < c_KeyPreGen128 && cntEncrypt128 < cap;) {
+            ret.encrypt128.add(this.genEncryptKeyNow(128, config.getDefaultEncryptTypes()));
+            cntEncrypt128++;
+        }
+        for (;cntEncrypt256 < c_KeyPreGen256 && cntEncrypt256 < cap;) {
+            ret.encrypt256.add(this.genEncryptKeyNow(256, config.getDefaultEncryptTypes()));
+            cntEncrypt256++;
+        }
+        for (;cntSalt < c_AesPreGen128 && cntSalt < cap;) {
+            ret.salt.add(new BigInteger(320, srandom).toString(16).toUpperCase());
+            cntSalt++;
+        }
+        for (;cntAes128 < c_AesPreGen128 && cntAes128 < cap;) {
+            ret.aes128.add(this.generateSecret64Now(128));
+            cntAes128++;
+        }
+        for (;cntAes256 < c_AesPreGen256 && cntAes256 < cap;) {
+            ret.aes256.add(this.generateSecret64Now(256));
+            cntAes256++;
+        }
+        for (;cntAes512 < c_AesPreGen512 && cntAes512 < cap;) {
+            ret.aes512.add(this.generateSecret64Now(512));
+            cntAes512++;
+        }
+
+        return ret;
+    }
+
+    public void preload(KeysPreLoadConfig config)
+    {
+        this.genSign64Queue.addAll(config.sign64);
+        this.genSign128Queue.addAll(config.sign128);
+        this.genSign256Queue.addAll(config.sign256);
+        this.genSignAndSeed64Queue.addAll(config.signAndSeed64);
+        this.genSignAndSeed128Queue.addAll(config.signAndSeed128);
+        this.genSignAndSeed256Queue.addAll(config.signAndSeed256);
+        this.genEncrypt128Queue.addAll(config.encrypt128);
+        this.genEncrypt256Queue.addAll(config.encrypt256);
+        this.genAes128Queue.addAll(config.aes128);
+        this.genAes256Queue.addAll(config.aes256);
+        this.genAes512Queue.addAll(config.aes512);
+    }
+
+    private void loadPreLoadEntropyConfig() {
+        List<MessagePublicKeyDto> ret = new ArrayList<>();
+
+        for (String file : resReflection.getResources(n -> true)) {
+            try {
+                if (file.startsWith("preload-entropy-keys/") == false)
+                    continue;
+
+                InputStream inputStream = ClassLoader.getSystemResourceAsStream(file);
+                assert inputStream != null : "@AssumeAssertion(nullness): Must not be null";
+                Assertions.assertNotNull(inputStream);
+
+                String keysFile = IOUtils.toString(inputStream, com.google.common.base.Charsets.UTF_8);
+
+                for (String _keyTxt : keysFile.split("\\.\\.\\.")) {
+                    String keyTxt = _keyTxt + "...";
+
+                    Object obj = AteDelegate.get().yaml.deserializeObj(keyTxt);
+                    if (obj instanceof KeysPreLoadConfig) {
+                        KeysPreLoadConfig config = (KeysPreLoadConfig) obj;
+                        preload(config);
+                    }
+                }
+
+            } catch (IOException ex) {
+                throw new WebApplicationException("Failed to load standard rate card", ex, Response.Status.INTERNAL_SERVER_ERROR);
+            }
+        }
     }
 }
