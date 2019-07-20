@@ -58,6 +58,7 @@ public class MessageDataDigestDto extends MessageBaseDto implements Serializable
     @Pattern(regexp = "^(?:[A-Za-z0-9+\\/\\-_])*(?:[A-Za-z0-9+\\/\\-_]{2}==|[A-Za-z0-9+\\/\\-_]{3}=)?$")
     private @Hash String publicKeyHash;       // public key hash used in the verifiation process of the payload signature
 
+    @com.jsoniter.annotation.JsonIgnore
     @JsonIgnore
     private transient boolean _immutable = false;
 
@@ -190,6 +191,7 @@ public class MessageDataDigestDto extends MessageBaseDto implements Serializable
         return this.seed;
     }
 
+    @com.jsoniter.annotation.JsonIgnore
     @JsonIgnore
     public @Salt String getSeedOrThrow() {
         @Salt String ret = this.getSeed();
@@ -220,6 +222,7 @@ public class MessageDataDigestDto extends MessageBaseDto implements Serializable
         return Base64.decodeBase64(ret);
     }
 
+    @com.jsoniter.annotation.JsonIgnore
     @JsonIgnore
     public @PlainText byte[] getSeedBytesOrThrow() {
         @PlainText byte[] ret = this.getSeedBytes();
@@ -242,6 +245,7 @@ public class MessageDataDigestDto extends MessageBaseDto implements Serializable
         return this.digest;
     }
 
+    @com.jsoniter.annotation.JsonIgnore
     @JsonIgnore
     public @Hash String getDigestOrThrow() {
         @Hash String ret = this.getDigest();
@@ -266,6 +270,7 @@ public class MessageDataDigestDto extends MessageBaseDto implements Serializable
         return Base64.decodeBase64(ret);
     }
 
+    @com.jsoniter.annotation.JsonIgnore
     @JsonIgnore
     public @Hash byte[] getDigestBytesOrThrow() {
         @Hash byte[] ret = this.getDigestBytes();

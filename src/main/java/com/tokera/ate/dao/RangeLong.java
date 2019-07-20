@@ -114,6 +114,7 @@ public final class RangeLong extends Range implements Serializable, Comparable<R
      *
      * @return the minimum number in this range
      */
+    @com.jsoniter.annotation.JsonIgnore
     @JsonIgnore
     public Number getMinimumNumber() {
         return new Long(min);
@@ -124,6 +125,7 @@ public final class RangeLong extends Range implements Serializable, Comparable<R
      *
      * @return the minimum number in this range
      */
+    @com.jsoniter.annotation.JsonIgnore
     @JsonIgnore
     public long getMinimumLong() {
         return min;
@@ -136,6 +138,7 @@ public final class RangeLong extends Range implements Serializable, Comparable<R
      *
      * @return the minimum number in this range
      */
+    @com.jsoniter.annotation.JsonIgnore
     @JsonIgnore
     public int getMinimumInteger() {
         return (int) min;
@@ -148,6 +151,7 @@ public final class RangeLong extends Range implements Serializable, Comparable<R
      *
      * @return the minimum number in this range
      */
+    @com.jsoniter.annotation.JsonIgnore
     @JsonIgnore
     public double getMinimumDouble() {
         return min;
@@ -160,6 +164,7 @@ public final class RangeLong extends Range implements Serializable, Comparable<R
      *
      * @return the minimum number in this range
      */
+    @com.jsoniter.annotation.JsonIgnore
     @JsonIgnore
     public float getMinimumFloat() {
         return min;
@@ -170,6 +175,7 @@ public final class RangeLong extends Range implements Serializable, Comparable<R
      *
      * @return the maximum number in this range
      */
+    @com.jsoniter.annotation.JsonIgnore
     @JsonIgnore
     public Number getMaximumNumber() {
         return new Long(max);
@@ -180,6 +186,7 @@ public final class RangeLong extends Range implements Serializable, Comparable<R
      *
      * @return the maximum number in this range
      */
+    @com.jsoniter.annotation.JsonIgnore
     @JsonIgnore
     public long getMaximumLong() {
         return max;
@@ -192,6 +199,7 @@ public final class RangeLong extends Range implements Serializable, Comparable<R
      *
      * @return the maximum number in this range cast to an <code>int</code>.
      */
+    @com.jsoniter.annotation.JsonIgnore
     @JsonIgnore
     public int getMaximumInteger() {
         return (int) max;
@@ -204,6 +212,7 @@ public final class RangeLong extends Range implements Serializable, Comparable<R
      *
      * @return The maximum number in this range as a <code>double</code>.
      */
+    @com.jsoniter.annotation.JsonIgnore
     @JsonIgnore
     public double getMaximumDouble() {
         return max;
@@ -216,6 +225,7 @@ public final class RangeLong extends Range implements Serializable, Comparable<R
      *
      * @return The maximum number in this range as a <code>float</code>.
      */
+    @com.jsoniter.annotation.JsonIgnore
     @JsonIgnore
     public float getMaximumFloat() {
         return max;

@@ -142,6 +142,7 @@ public class MessagePublicKeyDto extends MessageBaseDto implements Serializable,
         return this.alias;
     }
 
+    @com.jsoniter.annotation.JsonIgnore
     @JsonIgnore
     public @Alias String getAliasOrHash() {
         String ret = getAlias();

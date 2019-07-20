@@ -3,6 +3,7 @@ package com.tokera.ate.security;
 import com.google.common.base.Charsets;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+import com.jsoniter.JsonIterator;
 import com.tokera.ate.BootstrapConfig;
 import com.tokera.ate.dao.enumerations.KeyType;
 import com.tokera.ate.delegates.AteDelegate;
@@ -2033,7 +2034,13 @@ public class Encryptor implements Runnable
                 for (String _keyTxt : keysFile.split("\\.\\.\\.")) {
                     String keyTxt = _keyTxt + "...";
 
-                    Object obj = AteDelegate.get().yaml.deserializeObj(keyTxt);
+                    Object obj = null;
+                    if (file.endsWith(".yaml") || file.endsWith(".yml")) {
+                        obj = AteDelegate.get().yaml.deserializeObj(keyTxt);
+                    } else if (file.endsWith(".json") || file.endsWith(".json")) {
+                        obj = JsonIterator.deserialize(keyTxt).as(KeysPreLoadConfig.class);
+                    }
+                    if (obj == null) continue;
                     if (obj instanceof KeysPreLoadConfig) {
                         KeysPreLoadConfig config = (KeysPreLoadConfig) obj;
                         preload(config);

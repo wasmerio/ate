@@ -38,6 +38,7 @@ public class MessageSecurityGateDto implements Serializable, CopyOnWrite, Immuta
     @Size(min = 2)
     private @Secret String encryptedText;
 
+    @com.jsoniter.annotation.JsonIgnore
     @JsonIgnore
     private transient boolean _immutable = false;
 

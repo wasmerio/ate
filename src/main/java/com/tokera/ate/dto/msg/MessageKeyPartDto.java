@@ -42,6 +42,7 @@ public class MessageKeyPartDto extends MessageBaseDto implements Serializable, C
     protected KeyType type = KeyType.unknown;
     @JsonProperty
     protected int size = 0;
+    @com.jsoniter.annotation.JsonIgnore
     @JsonIgnore
     protected transient @PEM byte @MonotonicNonNull [] keyBytes;
     @JsonProperty
@@ -162,6 +163,7 @@ public class MessageKeyPartDto extends MessageBaseDto implements Serializable, C
         this.key64 = key64;
     }
 
+    @com.jsoniter.annotation.JsonIgnore
     @JsonIgnore
     private @PEM byte @Nullable [] getKeyBytesInternal() {
         MessageKeyPart lfb = fb;
@@ -176,6 +178,7 @@ public class MessageKeyPartDto extends MessageBaseDto implements Serializable, C
         return this.keyBytes;
     }
 
+    @com.jsoniter.annotation.JsonIgnore
     @JsonIgnore
     public @PEM byte @Nullable [] getKeyBytes() {
         @PEM byte [] ret = getKeyBytesInternal();

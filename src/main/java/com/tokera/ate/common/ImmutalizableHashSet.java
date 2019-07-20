@@ -20,6 +20,7 @@ public class ImmutalizableHashSet<E> extends HashSet<E> implements Set<E>, Clone
         super(var1);
     }
 
+    @com.jsoniter.annotation.JsonIgnore
     @JsonIgnore
     private transient boolean _immutable = false;
 

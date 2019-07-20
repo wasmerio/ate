@@ -21,6 +21,7 @@ public class ImmutalizableArrayList<E> extends ArrayList<E> implements List<E>, 
         super(var1);
     }
 
+    @com.jsoniter.annotation.JsonIgnore
     @JsonIgnore
     private transient boolean _immutable = false;
 

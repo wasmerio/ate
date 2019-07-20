@@ -35,6 +35,7 @@ public class MessageSecurityCastleDto extends MessageBaseDto implements Serializ
     @JsonProperty
     private ImmutalizableArrayList<MessageSecurityGateDto> gates = new ImmutalizableArrayList<>();
 
+    @com.jsoniter.annotation.JsonIgnore
     @JsonIgnore
     private transient boolean _immutable = false;
 

@@ -30,6 +30,7 @@ public class MessageDataDto extends MessageBaseDto implements Serializable, Copy
 
     private static final long serialVersionUID = -5267155098387197834L;
 
+    @com.jsoniter.annotation.JsonIgnore
     @JsonIgnore
     private transient @Nullable MessageData fb;
 
@@ -42,6 +43,7 @@ public class MessageDataDto extends MessageBaseDto implements Serializable, Copy
     @JsonProperty
     private byte @Nullable [] payloadAsBytes;
 
+    @com.jsoniter.annotation.JsonIgnore
     @JsonIgnore
     private transient boolean _immutable = false;
 
