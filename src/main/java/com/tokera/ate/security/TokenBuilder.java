@@ -130,6 +130,10 @@ public class TokenBuilder {
         return this;
     }
 
+    public TokenBuilder addReadKey(MessagePrivateKeyDto key, String alias) {
+        return addReadKey(new MessagePrivateKeyDto(key, alias));
+    }
+
     public TokenBuilder addReadKeys(Iterable<MessagePrivateKeyDto> keys) {
         for (MessagePrivateKeyDto key : keys) {
             addReadKey(key);
@@ -141,6 +145,10 @@ public class TokenBuilder {
         AteDelegate d = AteDelegate.get();
         TokenSecurity.addClaim(this.claims, TokenDto.SECURITY_CLAIM_WRITE_KEY, d.yaml.serializeObj(key));
         return this;
+    }
+
+    public TokenBuilder addWriteKey(MessagePrivateKeyDto key, String alias) {
+        return addWriteKey(new MessagePrivateKeyDto(key, alias));
     }
 
     public TokenBuilder addWriteKeys(Iterable<MessagePrivateKeyDto> keys) {
