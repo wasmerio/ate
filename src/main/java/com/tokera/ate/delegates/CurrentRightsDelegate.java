@@ -88,6 +88,18 @@ public class CurrentRightsDelegate implements IRights {
         clearRightsCache();
     }
 
+    public boolean unimpersonateRead(MessagePrivateKeyDto key) {
+        boolean ret = this.impersonateRead.remove(key);
+        clearRightsCache();
+        return ret;
+    }
+
+    public boolean unimpersonateWrite(MessagePrivateKeyDto key) {
+        boolean ret = this.impersonateWrite.remove(key);
+        clearRightsCache();
+        return ret;
+    }
+
     public void impersonate(IRights rights) {
         IPartitionKey key = d.io.partitionResolver().resolveOrThrow(rights);
         impersonate(key, rights);
