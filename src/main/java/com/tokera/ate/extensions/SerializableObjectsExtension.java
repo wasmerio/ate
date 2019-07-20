@@ -15,12 +15,7 @@ import javax.enterprise.inject.spi.WithAnnotations;
 import java.util.Map;
 
 public class SerializableObjectsExtension implements Extension {
-    private final ImmutalizableArrayList<TypeLiteral> types = new ImmutalizableArrayList<>();
     private final ImmutalizableHashMap<String, Class<?>> lookup = new ImmutalizableHashMap<>();
-
-    public TypeLiteral[] asTypeLiterals() {
-        return types.toArray(new TypeLiteral[types.size()]);
-    }
 
     public Map<String, Class<?>> asMap() {
         return lookup;
@@ -30,13 +25,10 @@ public class SerializableObjectsExtension implements Extension {
     public void watchForDto(@Observes @WithAnnotations({PermitParentType.class, PermitParentFree.class, YamlTag.class}) ProcessAnnotatedType processAnnotatedType) {
         Class<?> resource = processAnnotatedType.getAnnotatedType().getJavaClass();
 
-        TypeLiteral literal = TypeLiteral.create(resource);
-        types.add(literal);
         lookup.put(resource.getName(), resource);
     }
 
     public void start(@Observes final ContainerInitialized event) {
-        types.immutalize();
         lookup.immutalize();
     }
 

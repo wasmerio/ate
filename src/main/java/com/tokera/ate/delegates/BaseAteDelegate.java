@@ -100,6 +100,7 @@ public abstract class BaseAteDelegate {
     public final DebugLoggingDelegate debugLogging;
     public final ValidationUtil validationUtil;
     public final TaskManager taskManager;
+    public final JsonDelegate json;
 
     public ZooServer zooKeeper;
     public KafkaServer kafka;
@@ -194,5 +195,6 @@ public abstract class BaseAteDelegate {
         this.debugLogging = getBean(DebugLoggingDelegate.class);
         this.validationUtil = getBean(ValidationUtil.class);
         this.taskManager = getBean(TaskManager.class);
+        this.json = getBean(JsonDelegate.class);
     }
 }

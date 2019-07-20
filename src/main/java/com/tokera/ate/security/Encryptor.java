@@ -2037,7 +2037,7 @@ public class Encryptor implements Runnable
                     if (file.endsWith(".yaml") || file.endsWith(".yml")) {
                         obj = AteDelegate.get().yaml.deserializeObj(keyTxt);
                     } else if (file.endsWith(".json") || file.endsWith(".json")) {
-                        obj = JsonIterator.deserialize(keyTxt).as(KeysPreLoadConfig.class);
+                        obj = d.json.deserialize(keyTxt, KeysPreLoadConfig.class);
                     }
                     if (obj == null) continue;
                     if (obj instanceof KeysPreLoadConfig) {

@@ -12,50 +12,16 @@ import java.util.UUID;
 
 @Startup
 @ApplicationScoped
-public class JsonObjectSerializerDelegate implements IObjectSerializer, StaticCodegenConfig {
-
-    @SuppressWarnings({"known.nonnull", "argument.type.incompatible", "return.type.incompatible"})
-    @PostConstruct
-    public void init() {
-        JsoniterSpi.registerTypeEncoder(UUID.class, (obj, stream) -> {
-            String val = obj != null ? obj.toString() : null;
-            stream.writeVal(val);
-        });
-        JsoniterSpi.registerTypeDecoder(UUID.class, iter -> {
-            if (iter == null) return null;
-            String val = iter.readString();
-            if (val == null) return null;
-            return UUID.fromString(val);
-        });
-        JsoniterSpi.registerTypeEncoder(PUUID.class, (obj, stream) -> {
-            String val = obj != null ? obj.toString() : null;
-            stream.writeVal(val);
-        });
-        JsoniterSpi.registerTypeDecoder(PUUID.class, iter -> {
-            if (iter == null) return null;
-            String val = iter.readString();
-            if (val == null) return null;
-            return PUUID.parse(val);
-        });
-    }
+public class JsonObjectSerializerDelegate implements IObjectSerializer {
+    AteDelegate d = AteDelegate.get();
 
     @Override
     public byte[] serializeObj(@NonNull BaseDao obj) {
-        return JsonStream.serialize(obj).getBytes();
+        return d.json.serialize(obj).getBytes();
     }
 
     @Override
     public <T extends BaseDao> T deserializeObj(byte[] bytes, Class<T> clazz) {
-        Any ret = JsonIterator.deserialize(bytes);
-        return ret.as(clazz);
-    }
-
-    @Override
-    public void setup() {
-    }
-
-    @Override
-    public TypeLiteral[] whatToCodegen() {
-        return AteDelegate.get().serializableObjectsExtension.asTypeLiterals();
+        return (T)d.json.deserialize(new String(bytes), clazz);
     }
 }

@@ -58,7 +58,6 @@
     <orderEntry type="library" name="Maven: org.jboss.aerogear:aerogear-crypto:0.1.6" level="project" />
     <orderEntry type="library" name="Maven: com.madgag:scprov-jdk15on:1.47.0.3" level="project" />
     <orderEntry type="library" name="Maven: com.madgag:sc-light-jdk15on:1.47.0.3" level="project" />
-    <orderEntry type="library" name="Maven: com.jsoniter:jsoniter:0.9.23" level="project" />
     <orderEntry type="library" name="Maven: org.javassist:javassist:3.25.0-GA" level="project" />
     <orderEntry type="library" name="Maven: org.scala-lang:scala-library:2.11.12" level="project" />
     <orderEntry type="library" name="Maven: org.apache.kafka:kafka_2.11:1.1.1" level="project" />
