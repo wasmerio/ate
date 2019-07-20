@@ -54,10 +54,8 @@ public class DataMerger {
     private static boolean isDataField(Field field) {
         if (Modifier.isTransient(field.getModifiers()) == true) return false;
         if (field.getAnnotation(JsonIgnore.class) != null) return false;
-        if (field.getAnnotation(com.jsoniter.annotation.JsonIgnore.class) != null) return false;
 
         if (field.getAnnotation(JsonProperty.class) != null) return true;
-        if (field.getAnnotation(com.jsoniter.annotation.JsonProperty.class) != null) return true;
 
         int modifiers = field.getModifiers();
         return Modifier.isPublic(modifiers);

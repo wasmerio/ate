@@ -1,11 +1,5 @@
 package com.tokera.ate.delegates;
 
-import com.jsoniter.JsonIterator;
-import com.jsoniter.any.Any;
-import com.jsoniter.output.JsonStream;
-import com.jsoniter.spi.JsoniterSpi;
-import com.jsoniter.spi.TypeLiteral;
-import com.jsoniter.static_codegen.StaticCodegenConfig;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.io.repo.IObjectSerializer;

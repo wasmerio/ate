@@ -83,7 +83,6 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
     @NotNull
     private ImmutalizableHashSet<@Hash String> implicitAuthority = new ImmutalizableHashSet<>();   // List of all implicit authority addresses used to validate this object in the tree
 
-    @com.jsoniter.annotation.JsonIgnore
     @JsonIgnore
     private transient boolean _immutable = false;
 

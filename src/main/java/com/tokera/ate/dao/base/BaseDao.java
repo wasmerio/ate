@@ -19,15 +19,10 @@ import java.util.UUID;
  */
 public abstract class BaseDao implements Serializable, Immutalizable, IPartitionKeyProvider {
 
-    @com.jsoniter.annotation.JsonIgnore
     transient @JsonIgnore @Nullable Set<UUID> _mergesVersions = null;
-    @com.jsoniter.annotation.JsonIgnore
     transient @JsonIgnore @Nullable UUID _previousVersion = null;
-    @com.jsoniter.annotation.JsonIgnore
     transient @JsonIgnore @Nullable UUID _version = null;
-    @com.jsoniter.annotation.JsonIgnore
     transient @JsonIgnore boolean _immutable = false;
-    @com.jsoniter.annotation.JsonIgnore
     transient @JsonIgnore @Nullable IPartitionKey _partitionKey = null;
 
     /**
@@ -40,7 +35,6 @@ public abstract class BaseDao implements Serializable, Immutalizable, IPartition
      * @return Returns an identifier that can be used to reference this data
      * object even if its in a different partition
      */
-    @com.jsoniter.annotation.JsonIgnore
     @JsonIgnore
     public PUUID addressableId() {
         return new PUUID(this.partitionKey(true), this.getId());
@@ -50,7 +44,6 @@ public abstract class BaseDao implements Serializable, Immutalizable, IPartition
      * @return Returns the partition that this object belongs too based on its inheritance tree and the current
      * partition key resolver
      */
-    @com.jsoniter.annotation.JsonIgnore
     @JsonIgnore
     @Override
     public IPartitionKey partitionKey(boolean shouldThrow) {
@@ -68,7 +61,6 @@ public abstract class BaseDao implements Serializable, Immutalizable, IPartition
     /**
      * @return Returns the parent object that this object is attached to
      */
-    @com.jsoniter.annotation.JsonIgnore
     public abstract @JsonIgnore @Nullable @DaoId UUID getParentId();
     
     @Override

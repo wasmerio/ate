@@ -3,7 +3,6 @@ package com.tokera.ate.security;
 import com.google.common.base.Charsets;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
-import com.jsoniter.JsonIterator;
 import com.tokera.ate.BootstrapConfig;
 import com.tokera.ate.dao.enumerations.KeyType;
 import com.tokera.ate.delegates.AteDelegate;

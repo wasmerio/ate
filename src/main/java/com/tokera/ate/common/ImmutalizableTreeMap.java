@@ -26,7 +26,6 @@ public class ImmutalizableTreeMap<K, V> extends TreeMap<K, V> implements Navigab
         super(var1);
     }
 
-    @com.jsoniter.annotation.JsonIgnore
     @JsonIgnore
     private transient boolean _immutable = false;
 

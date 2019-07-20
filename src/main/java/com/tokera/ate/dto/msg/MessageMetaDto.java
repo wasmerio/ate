@@ -33,7 +33,6 @@ public class MessageMetaDto implements Serializable {
     @NotNull
     private long timestamp;
 
-    @com.jsoniter.annotation.JsonIgnore
     @JsonIgnore
     private transient boolean _immutable = false;
 

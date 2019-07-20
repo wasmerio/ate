@@ -26,7 +26,6 @@ public class ImmutalizableHashMap<K, V> extends HashMap<K, V> implements Map<K, 
         super(var1);
     }
 
-    @com.jsoniter.annotation.JsonIgnore
     @JsonIgnore
     private transient boolean _immutable = false;
 

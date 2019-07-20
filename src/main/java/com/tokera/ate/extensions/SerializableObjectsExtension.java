@@ -1,6 +1,5 @@
 package com.tokera.ate.extensions;
 
-import com.jsoniter.spi.TypeLiteral;
 import com.tokera.ate.annotations.PermitParentFree;
 import com.tokera.ate.annotations.PermitParentType;
 import com.tokera.ate.annotations.YamlTag;
