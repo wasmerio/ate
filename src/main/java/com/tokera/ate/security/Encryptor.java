@@ -598,7 +598,7 @@ public class Encryptor implements Runnable
         for (int n = 0;; n++) {
             try {
                 String seed = this.generateSecret64(256);
-                MessagePrivateKeyDto key = this.genSignKeyFromSeed(seed, 1);
+                MessagePrivateKeyDto key = this.genSignKeyFromSeed(seed);
                 return new SigningKeyWithSeedDto(seed, key);
             } catch (KeyGenerationException ex) {
                 if (n >= attempts) {
@@ -609,7 +609,7 @@ public class Encryptor implements Runnable
     }
 
     public MessagePrivateKeyDto genSignKeyFromSeed(String seed) {
-        return genSignKeyFromSeed(seed, retryAttempts);
+        return genSignKeyFromSeed(seed, 1);
     }
 
     public MessagePrivateKeyDto genSignKeyFromSeed(String seed, int attempts) {
@@ -617,7 +617,7 @@ public class Encryptor implements Runnable
     }
 
     public MessagePrivateKeyDto genSignKeyFromSeed(int keySize, String seed) {
-        return genSignKeyFromSeed(keySize, seed, retryAttempts);
+        return genSignKeyFromSeed(keySize, seed, 1);
     }
 
     public MessagePrivateKeyDto genSignKeyFromSeed(int keySize, String seed, int attempts) {
@@ -625,7 +625,7 @@ public class Encryptor implements Runnable
     }
 
     public MessagePrivateKeyDto genSignKeyFromSeedWithAlias(int keySize, String seed, @Nullable @Alias String alias) {
-        return genSignKeyFromSeedWithAlias(keySize, seed, retryAttempts, alias);
+        return genSignKeyFromSeedWithAlias(keySize, seed, 1, alias);
     }
 
     public MessagePrivateKeyDto genSignKeyFromSeedWithAlias(int keySize, String seed, int attempts, @Nullable @Alias String alias) {
@@ -633,7 +633,7 @@ public class Encryptor implements Runnable
     }
 
     public MessagePrivateKeyDto genSignKeyFromSeed(int keySize, Iterable<KeyType> keyTypes, String seed) {
-        return genSignKeyFromSeed(keySize, keyTypes, seed, retryAttempts);
+        return genSignKeyFromSeed(keySize, keyTypes, seed, 1);
     }
 
     public MessagePrivateKeyDto genSignKeyFromSeed(int keySize, Iterable<KeyType> keyTypes, String seed, int attempts) {
@@ -641,7 +641,7 @@ public class Encryptor implements Runnable
     }
 
     public MessagePrivateKeyDto genSignKeyFromSeedWithAlias(int keySize, Iterable<KeyType> keyTypes, String seed, @Nullable @Alias String alias) {
-        return genSignKeyFromSeedWithAlias(keySize, keyTypes, seed, retryAttempts, alias);
+        return genSignKeyFromSeedWithAlias(keySize, keyTypes, seed, 1, alias);
     }
 
     public MessagePrivateKeyDto genSignKeyFromSeedWithAlias(int keySize, Iterable<KeyType> keyTypes, String seed, int attempts, @Nullable @Alias String alias) {
