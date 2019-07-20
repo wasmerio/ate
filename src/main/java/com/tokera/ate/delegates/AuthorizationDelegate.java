@@ -172,11 +172,12 @@ public class AuthorizationDelegate {
         }
 
         // Throw an exception which we will write to the stack
+        String exMsg = sb.toString();
         try {
-            return new WebApplicationException(sb.toString(), Response.Status.UNAUTHORIZED);
+            return new WebApplicationException(exMsg, Response.Status.UNAUTHORIZED);
         } catch (Throwable ex) {
             this.LOG.warn(ex);
-            return new WebApplicationException(sb.toString(), Response.Status.UNAUTHORIZED);
+            return new WebApplicationException(exMsg, Response.Status.UNAUTHORIZED);
         }
     }
 
@@ -303,11 +304,12 @@ public class AuthorizationDelegate {
         }
 
         // Throw an exception which we will write to the stack
+        String exMsg = sb.toString();
         try {
-            return new WebApplicationException(sb.toString(), Response.Status.UNAUTHORIZED);
+            return new WebApplicationException(exMsg, Response.Status.UNAUTHORIZED);
         } catch (Throwable ex) {
             this.LOG.warn(ex);
-            return new WebApplicationException(sb.toString(), Response.Status.UNAUTHORIZED);
+            return new WebApplicationException(exMsg, Response.Status.UNAUTHORIZED);
         }
     }
 
