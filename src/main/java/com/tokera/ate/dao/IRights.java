@@ -35,6 +35,6 @@ public interface IRights
     }
 
     default boolean readOnly() {
-        return true;
+        return false;
     }
 }

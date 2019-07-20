@@ -14,7 +14,8 @@ public interface ITaskCallback<T extends BaseDao> {
      * Callback invoked for every object of this type that is discovered when the task processor first starts up, after
      * its in an operational state the onCreate callback will be called for all newly created objects
      */
-    void onInit(Collection<T> obj, ITask task);
+    default void onInit(Collection<T> obj, ITask task) {
+    }
 
     /**
      * Callback invoked whenever a data object is created or updated
@@ -24,15 +25,18 @@ public interface ITaskCallback<T extends BaseDao> {
     /**
      * Callback invoked whenever a data object is removed
      */
-    void onRemove(PUUID id, ITask task);
+    default void onRemove(PUUID id, ITask task) {
+    }
 
     /**
      * Callback invoked every tick of time that passes (defaults to 10 seconds)
      */
-    void onTick(ITask task);
+    default void onTick(ITask task) {
+    }
 
     /**
      * Callback invoked every tick of time that passes and its been idle (defaults to 10 seconds)
      */
-    void onIdle(ITask task);
+    default void onIdle(ITask task) {
+    }
 }

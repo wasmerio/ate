@@ -18,5 +18,6 @@ public interface IHookCallback<T extends BaseDao> {
     /**
      * Callback invoked whenever a data object is removed
      */
-    void onRemove(PUUID id, IHookContext context);
+    default void onRemove(PUUID id, IHookContext context) {
+    }
 }
