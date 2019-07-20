@@ -395,7 +395,7 @@ final class TrustValidatorBuilder {
                         }
 
                         digestPublicKey = trustImplicit;
-                        LOG.info("[" + partitionKey + "] chain-of-trust rooted: " + entityType + ":" + id + " on " + trustImplicit.getPublicKeyHash());
+                        d.debugLogging.logRooted(partitionKey, id, entityType, implicitAuthority, LOG);
                     } catch (Throwable ex) {
                         d.debugLogging.logTrustValidationException(ex, LOG);
                         fail(ex.getMessage());
