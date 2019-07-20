@@ -8,6 +8,7 @@ import com.tokera.ate.dao.msg.MessagePublicKey;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessageDataDto;
 import com.tokera.ate.dto.msg.MessageDataHeaderDto;
+import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import com.tokera.ate.io.api.IAteIO;
 import com.tokera.ate.io.api.IPartitionKey;
@@ -63,6 +64,9 @@ public class DataStagingManager {
 
     public void put(IPartitionKey partitionKey, MessagePublicKeyDto key) {
         PartitionContext context = getPartitionMergeContext(partitionKey, true);
+        if (key instanceof MessagePrivateKeyDto) {
+            key = new MessagePublicKeyDto(key);
+        }
         context.savedPublicKeys.put(key.getPublicKeyHash(), key);
     }
 

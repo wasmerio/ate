@@ -141,7 +141,7 @@ public class AuthorizationDelegate {
             if (key != null && key.getAliasOrHash() != null) {
                 sb.append(key.getAliasOrHash()).append(" - ").append(publicKeyHash).append("]");
             } else {
-                sb.append(publicKeyHash);
+                sb.append("[missing] - ").append(publicKeyHash);
             }
 
             sb.append("\n");
@@ -249,7 +249,7 @@ public class AuthorizationDelegate {
             }
 
             MessagePublicKeyDto roleKey = d.io.publicKeyOrNull(partitionKey, publicKeyHash);
-            @Hash String roleKeyAlias = roleKey != null ? d.encryptor.getAlias(partitionKey, roleKey) : publicKeyHash;
+            @Hash String roleKeyAlias = roleKey != null ? d.encryptor.getAlias(partitionKey, roleKey) : "[missing]";
             sb.append(roleKeyAlias).append(" - ").append(publicKeyHash);
             if (castleId == null) {
                 sb.append(" [castle unknown]");
