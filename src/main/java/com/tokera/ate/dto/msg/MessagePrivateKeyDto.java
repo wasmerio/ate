@@ -73,6 +73,11 @@ public class MessagePrivateKeyDto extends MessagePublicKeyDto implements Seriali
             this.privateParts.add(new MessageKeyPartDto(part));
         }
     }
+
+    public MessagePrivateKeyDto(MessagePrivateKeyDto key, String alias) {
+        this(key);
+        this.alias = alias;
+    }
     
     public MessagePrivateKeyDto(MessagePrivateKey val) {
         super(val);

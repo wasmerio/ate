@@ -90,6 +90,11 @@ public class MessagePublicKeyDto extends MessageBaseDto implements Serializable,
         }
     }
 
+    public MessagePublicKeyDto(MessagePublicKeyDto key, String alias) {
+        this(key);
+        this.alias = alias;
+    }
+
     public MessagePublicKeyDto(Iterable<MessageKeyPartDto> publicParts) {
         this.publicParts.clear();
         for (MessageKeyPartDto part : publicParts) {
