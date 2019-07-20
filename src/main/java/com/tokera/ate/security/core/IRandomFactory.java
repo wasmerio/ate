@@ -7,4 +7,6 @@ public interface IRandomFactory {
     SecureRandom getRandom();
 
     boolean idempotent();
+
+    void reset();
 }

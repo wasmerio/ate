@@ -26,21 +26,18 @@ import javax.ws.rs.WebApplicationException;
 public class PredictablyRandomFactory implements IRandomFactory {
     private final MessageDigest digest;
     private final String seed;
-    private final SecureRandom random;
+    private SecureRandom random;
     
     public PredictablyRandomFactory(String seed) {
         try {
             this.digest = MessageDigest.getInstance("SHA-512");
             this.seed = seed;
 
-            byte[] digestBytes = this.digest.digest(seed.getBytes());
-            this.random = SecureRandom.getInstance("SHA1PRNG", "SUN");
-            this.random.setSeed(digestBytes);
-
-        } catch (NoSuchAlgorithmException | NoSuchProviderException ex) {
+        } catch (NoSuchAlgorithmException ex) {
             throw new RuntimeException(ex);
         }
 
+        reset();
     }
     
     @Override
@@ -50,4 +47,15 @@ public class PredictablyRandomFactory implements IRandomFactory {
 
     @Override
     public boolean idempotent() { return true; }
+
+    @Override
+    public void reset() {
+        try {
+            byte[] digestBytes = this.digest.digest(seed.getBytes());
+            this.random = SecureRandom.getInstance("SHA1PRNG", "SUN");
+            this.random.setSeed(digestBytes);
+        } catch (NoSuchAlgorithmException | NoSuchProviderException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
 }

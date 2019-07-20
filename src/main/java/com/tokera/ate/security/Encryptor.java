@@ -1047,8 +1047,11 @@ public class Encryptor implements Runnable
                 gen.init(params);
                 return extractKey(gen.generateKeyPair());
             } catch (ArrayIndexOutOfBoundsException ex) {
-                if (n >= attempts || randomFactory.idempotent()) {
+                if (n >= attempts) {
                     throw new RuntimeException("Failed to generate the QTESLA signing keys after " + n + " attempts (idempotent=" + randomFactory.idempotent() + ").", ex);
+                }
+                if (randomFactory.idempotent()) {
+                    randomFactory.reset();
                 }
             }
         }

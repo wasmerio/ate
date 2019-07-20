@@ -32,4 +32,8 @@ public class SecureRandomFactory implements IRandomFactory {
 
     @Override
     public boolean idempotent() { return false; }
+
+    @Override
+    public void reset() {
+    }
 }
