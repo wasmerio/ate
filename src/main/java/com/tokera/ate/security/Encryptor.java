@@ -563,31 +563,44 @@ public class Encryptor implements Runnable
     }
 
     public MessagePrivateKeyDto genSignKeyNowWithAlias(int keySize, Iterable<KeyType> keyTypes, @Nullable @Alias String alias) {
-        List<MessageKeyPartDto> publicParts = new LinkedList<>();
-        List<MessageKeyPartDto> privateParts = new LinkedList<>();
+        return genSignKeyNowWithAlias(keySize, keyTypes, retryAttempts, alias);
+    }
 
-        for (KeyType keyType : keyTypes) {
-            KeyPairBytes pair;
-            switch (keyType) {
-                case qtesla:
-                    pair = genSignKeyQTeslaNow(keySize);
-                    break;
-                case xmssmt:
-                    pair = genSignKeyXmssMtNow(keySize);
-                    break;
-                case rainbow:
-                    pair = genSignKeyRainbowNow(keySize);
-                    break;
-                default:
-                    throw new RuntimeException("The key type [" + keyType + "] is not supported as an asymmetric encryption key.");
+    public MessagePrivateKeyDto genSignKeyNowWithAlias(int keySize, Iterable<KeyType> keyTypes, int attempts, @Nullable @Alias String alias) {
+        for (int n = 1; ; n++) {
+            try {
+                List<MessageKeyPartDto> publicParts = new LinkedList<>();
+                List<MessageKeyPartDto> privateParts = new LinkedList<>();
+
+                for (KeyType keyType : keyTypes) {
+                    KeyPairBytes pair;
+                    switch (keyType) {
+                        case qtesla:
+                            pair = genSignKeyQTeslaNow(keySize);
+                            break;
+                        case xmssmt:
+                            pair = genSignKeyXmssMtNow(keySize);
+                            break;
+                        case rainbow:
+                            pair = genSignKeyRainbowNow(keySize);
+                            break;
+                        default:
+                            throw new RuntimeException("The key type [" + keyType + "] is not supported as an asymmetric encryption key.");
+                    }
+                    publicParts.add(new MessageKeyPartDto(keyType, keySize, pair.publicKey));
+                    privateParts.add(new MessageKeyPartDto(keyType, keySize, pair.privateKey));
+                }
+
+                MessagePrivateKeyDto ret = new MessagePrivateKeyDto(publicParts, privateParts);
+                if (alias != null) ret.setAlias(alias);
+                return ret;
+
+            } catch (ArrayIndexOutOfBoundsException ex) {
+                if (n >= attempts) {
+                    throw new KeyGenerationException("Failed to generate the signing keys after " + n + " attempts (idempotent=false).", ex);
+                }
             }
-            publicParts.add(new MessageKeyPartDto(keyType, keySize, pair.publicKey));
-            privateParts.add(new MessageKeyPartDto(keyType, keySize, pair.privateKey));
         }
-
-        MessagePrivateKeyDto ret = new MessagePrivateKeyDto(publicParts, privateParts);
-        if (alias != null) ret.setAlias(alias);
-        return ret;
     }
 
     public SigningKeyWithSeedDto genSignKeyAndSeed() {
@@ -595,7 +608,7 @@ public class Encryptor implements Runnable
     }
 
     public SigningKeyWithSeedDto genSignKeyAndSeed(int attempts) {
-        for (int n = 0;; n++) {
+        for (int n = 1; ; n++) {
             try {
                 String seed = this.generateSecret64(256);
                 MessagePrivateKeyDto key = this.genSignKeyFromSeed(seed);
@@ -649,28 +662,40 @@ public class Encryptor implements Runnable
         List<MessageKeyPartDto> publicParts = new LinkedList<>();
         List<MessageKeyPartDto> privateParts = new LinkedList<>();
 
-        for (KeyType keyType : keyTypes) {
-            KeyPairBytes pair;
-            switch (keyType) {
-                case qtesla:
-                    pair = genSignKeyQTeslaNow(keySize, randomFactory, attempts);
-                    break;
-                case xmssmt:
-                    pair = genSignKeyXmssMtNow(keySize, randomFactory);
-                    break;
-                case rainbow:
-                    pair = genSignKeyRainbowNow(keySize, randomFactory);
-                    break;
-                default:
-                    throw new KeyGenerationException("The key type [" + keyType + "] is not supported as an asymmetric encryption key.");
-            }
-            publicParts.add(new MessageKeyPartDto(keyType, keySize, pair.publicKey));
-            privateParts.add(new MessageKeyPartDto(keyType, keySize, pair.privateKey));
-        }
+        for (int n = 1; ; n++) {
+            try {
+                for (KeyType keyType : keyTypes) {
+                    KeyPairBytes pair;
+                    switch (keyType) {
+                        case qtesla:
+                            pair = genSignKeyQTeslaNow(keySize, randomFactory);
+                            break;
+                        case xmssmt:
+                            pair = genSignKeyXmssMtNow(keySize, randomFactory);
+                            break;
+                        case rainbow:
+                            pair = genSignKeyRainbowNow(keySize, randomFactory);
+                            break;
+                        default:
+                            throw new KeyGenerationException("The key type [" + keyType + "] is not supported as an asymmetric encryption key.");
+                    }
+                    publicParts.add(new MessageKeyPartDto(keyType, keySize, pair.publicKey));
+                    privateParts.add(new MessageKeyPartDto(keyType, keySize, pair.privateKey));
+                }
 
-        MessagePrivateKeyDto ret = new MessagePrivateKeyDto(publicParts, privateParts);
-        if (alias != null) ret.setAlias(alias);
-        return ret;
+                MessagePrivateKeyDto ret = new MessagePrivateKeyDto(publicParts, privateParts);
+                if (alias != null) ret.setAlias(alias);
+                return ret;
+
+            } catch (ArrayIndexOutOfBoundsException ex) {
+                if (n >= attempts) {
+                    throw new KeyGenerationException("Failed to generate the signing keys after " + n + " attempts (idempotent=" + randomFactory.idempotent() + ").", ex);
+                }
+                if (randomFactory.idempotent()) {
+                    randomFactory.reset();
+                }
+            }
+        }
     }
 
     public MessagePrivateKeyDto genEncryptKey() {
@@ -727,32 +752,45 @@ public class Encryptor implements Runnable
     }
 
     public MessagePrivateKeyDto genEncryptKeyNowWithAlias(int keySize, Iterable<KeyType> keyTypes, @Nullable @Alias String alias) {
+        return genEncryptKeyNowWithAlias(keySize, keyTypes, retryAttempts, alias);
+    }
+
+    public MessagePrivateKeyDto genEncryptKeyNowWithAlias(int keySize, Iterable<KeyType> keyTypes, int attempts, @Nullable @Alias String alias) {
         if (Iterables.size(keyTypes) <= 0) {
             throw new RuntimeException("Generated encryption key must have at least one key type.");
         }
 
-        List<MessageKeyPartDto> publicParts = new LinkedList<>();
-        List<MessageKeyPartDto> privateParts = new LinkedList<>();
+        for (int n = 1; ; n++) {
+            try {
+                List<MessageKeyPartDto> publicParts = new LinkedList<>();
+                List<MessageKeyPartDto> privateParts = new LinkedList<>();
 
-        for (KeyType keyType : keyTypes) {
-            KeyPairBytes pair;
-            switch (keyType) {
-                case ntru:
-                    pair = genEncryptKeyNtruNow(keySize);
-                    break;
-                case newhope:
-                    pair = genEncryptKeyNewHopeNow(keySize);
-                    break;
-                default:
-                    throw new RuntimeException("The key type [" + keyType + "] is not supported as an asymmetric encryption key.");
+                for (KeyType keyType : keyTypes) {
+                    KeyPairBytes pair;
+                    switch (keyType) {
+                        case ntru:
+                            pair = genEncryptKeyNtruNow(keySize);
+                            break;
+                        case newhope:
+                            pair = genEncryptKeyNewHopeNow(keySize);
+                            break;
+                        default:
+                            throw new RuntimeException("The key type [" + keyType + "] is not supported as an asymmetric encryption key.");
+                    }
+                    publicParts.add(new MessageKeyPartDto(keyType, keySize, pair.publicKey));
+                    privateParts.add(new MessageKeyPartDto(keyType, keySize, pair.privateKey));
+                }
+
+                MessagePrivateKeyDto ret = new MessagePrivateKeyDto(publicParts, privateParts);
+                if (alias != null) ret.setAlias(alias);
+                return ret;
+
+            } catch (ArrayIndexOutOfBoundsException ex) {
+                if (n >= attempts) {
+                    throw new KeyGenerationException("Failed to generate the encryption keys after " + n + " attempts (idempotent=false).", ex);
+                }
             }
-            publicParts.add(new MessageKeyPartDto(keyType, keySize, pair.publicKey));
-            privateParts.add(new MessageKeyPartDto(keyType, keySize, pair.privateKey));
         }
-
-        MessagePrivateKeyDto ret = new MessagePrivateKeyDto(publicParts, privateParts);
-        if (alias != null) ret.setAlias(alias);
-        return ret;
     }
 
     public MessagePrivateKeyDto genEncryptKeyFromSeed(int keySize, String seed) {
@@ -776,34 +814,50 @@ public class Encryptor implements Runnable
     }
 
     public MessagePrivateKeyDto genEncryptKeyFromSeedWithAlias(int keySize, Iterable<KeyType> keyTypes, String seed, @Nullable @Alias String alias) {
+        return genEncryptKeyFromSeedWithAlias(keySize, keyTypes, seed, 1, alias);
+    }
+
+    public MessagePrivateKeyDto genEncryptKeyFromSeedWithAlias(int keySize, Iterable<KeyType> keyTypes, String seed, int attempts, @Nullable @Alias String alias) {
         IRandomFactory randomFactory = new PredictablyRandomFactory(seed);
 
         if (Iterables.size(keyTypes) <= 0) {
             throw new RuntimeException("Generated encryption key must have at least one key type.");
         }
 
-        List<MessageKeyPartDto> publicParts = new LinkedList<>();
-        List<MessageKeyPartDto> privateParts = new LinkedList<>();
+        for (int n = 1; ; n++) {
+            try {
+                List<MessageKeyPartDto> publicParts = new LinkedList<>();
+                List<MessageKeyPartDto> privateParts = new LinkedList<>();
 
-        for (KeyType keyType : keyTypes) {
-            KeyPairBytes pair;
-            switch (keyType) {
-                case ntru:
-                    pair = genEncryptKeyNtruNow(keySize, randomFactory);
-                    break;
-                case newhope:
-                    pair = genEncryptKeyNewHopeNow(keySize, randomFactory);
-                    break;
-                default:
-                    throw new RuntimeException("The key type [" + keyType + "] is not supported as an asymmetric encryption key.");
+                for (KeyType keyType : keyTypes) {
+                    KeyPairBytes pair;
+                    switch (keyType) {
+                        case ntru:
+                            pair = genEncryptKeyNtruNow(keySize, randomFactory);
+                            break;
+                        case newhope:
+                            pair = genEncryptKeyNewHopeNow(keySize, randomFactory);
+                            break;
+                        default:
+                            throw new RuntimeException("The key type [" + keyType + "] is not supported as an asymmetric encryption key.");
+                    }
+                    publicParts.add(new MessageKeyPartDto(keyType, keySize, pair.publicKey));
+                    privateParts.add(new MessageKeyPartDto(keyType, keySize, pair.privateKey));
+                }
+
+                MessagePrivateKeyDto ret = new MessagePrivateKeyDto(publicParts, privateParts);
+                if (alias != null) ret.setAlias(alias);
+                return ret;
+
+            } catch (ArrayIndexOutOfBoundsException ex) {
+                if (n >= attempts) {
+                    throw new KeyGenerationException("Failed to generate the encryption keys after " + n + " attempts (idempotent=" + randomFactory.idempotent() + ").", ex);
+                }
+                if (randomFactory.idempotent()) {
+                    randomFactory.reset();
+                }
             }
-            publicParts.add(new MessageKeyPartDto(keyType, keySize, pair.publicKey));
-            privateParts.add(new MessageKeyPartDto(keyType, keySize, pair.privateKey));
         }
-
-        MessagePrivateKeyDto ret = new MessagePrivateKeyDto(publicParts, privateParts);
-        if (alias != null) ret.setAlias(alias);
-        return ret;
     }
 
     public KeyPairBytes genEncryptKeyNtruFromSeed(int keysize, @Secret String seed)
@@ -1080,26 +1134,10 @@ public class Encryptor implements Runnable
 
     public KeyPairBytes genSignKeyQTeslaNow(int keysize, IRandomFactory randomFactory)
     {
-        return genSignKeyQTeslaNow(keysize, randomFactory, retryAttempts);
-    }
-
-    public KeyPairBytes genSignKeyQTeslaNow(int keysize, IRandomFactory randomFactory, int attempts)
-    {
-        for (int n = 1; ; n++) {
-            try {
-                QTESLAKeyGenerationParameters params = new QTESLAKeyGenerationParameters(getQTeslaSecurityCategory(keysize), randomFactory.getRandom());
-                QTESLAKeyPairGenerator gen = new QTESLAKeyPairGenerator();
-                gen.init(params);
-                return extractKey(gen.generateKeyPair());
-            } catch (ArrayIndexOutOfBoundsException ex) {
-                if (n >= attempts) {
-                    throw new KeyGenerationException("Failed to generate the QTESLA signing keys after " + n + " attempts (idempotent=" + randomFactory.idempotent() + ").", ex);
-                }
-                if (randomFactory.idempotent()) {
-                    randomFactory.reset();
-                }
-            }
-        }
+        QTESLAKeyGenerationParameters params = new QTESLAKeyGenerationParameters(getQTeslaSecurityCategory(keysize), randomFactory.getRandom());
+        QTESLAKeyPairGenerator gen = new QTESLAKeyPairGenerator();
+        gen.init(params);
+        return extractKey(gen.generateKeyPair());
     }
 
     public @Signature byte[] signQTesla(@Secret byte[] privateKey, @Hash byte[] digest, int keySize)
