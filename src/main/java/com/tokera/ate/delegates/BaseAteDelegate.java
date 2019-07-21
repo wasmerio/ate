@@ -101,6 +101,7 @@ public abstract class BaseAteDelegate {
     public final ValidationUtil validationUtil;
     public final TaskManager taskManager;
     public final JsonDelegate json;
+    public final ResourceFileDelegate resourceFile;
 
     public ZooServer zooKeeper;
     public KafkaServer kafka;
@@ -196,5 +197,6 @@ public abstract class BaseAteDelegate {
         this.validationUtil = getBean(ValidationUtil.class);
         this.taskManager = getBean(TaskManager.class);
         this.json = getBean(JsonDelegate.class);
+        this.resourceFile = getBean(ResourceFileDelegate.class);
     }
 }

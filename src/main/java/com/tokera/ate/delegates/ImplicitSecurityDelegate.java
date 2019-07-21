@@ -1,11 +1,8 @@
 package com.tokera.ate.delegates;
 
-import com.google.common.collect.Lists;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.common.MapTools;
-import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
-import com.tokera.ate.events.RegisterPublicTopicEvent;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.providers.PartitionKeySerializer;
 import com.tokera.ate.scopes.Startup;
@@ -13,32 +10,18 @@ import com.tokera.ate.units.Alias;
 import com.tokera.ate.units.DomainName;
 import com.tokera.ate.units.PlainText;
 import org.apache.commons.codec.binary.Base64;
-import org.apache.commons.io.IOUtils;
 import org.checkerframework.checker.nullness.qual.Nullable;
-import org.junit.jupiter.api.Assertions;
-import org.reflections.Reflections;
-import org.reflections.scanners.ResourcesScanner;
-import org.reflections.util.ClasspathHelper;
-import org.reflections.util.ConfigurationBuilder;
-import org.reflections.util.FilterBuilder;
 import org.xbill.DNS.*;
 
 import javax.annotation.PostConstruct;
 import javax.enterprise.context.ApplicationScoped;
-import javax.enterprise.event.Observes;
 import javax.inject.Inject;
-import javax.naming.NamingException;
 import javax.ws.rs.WebApplicationException;
-import javax.ws.rs.core.Response;
-import java.io.IOException;
-import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
-
-import static org.reflections.util.Utils.findLogger;
 
 /**
  * Uses properties of the Internet to derive authentication and authorization rules
@@ -57,7 +40,6 @@ public class ImplicitSecurityDelegate {
     private ConcurrentHashMap<String, String> enquireTxtOverride = new ConcurrentHashMap<>();
     private ConcurrentHashMap<String, List<String>> enquireAddressOverride = new ConcurrentHashMap<>();
 
-    private Reflections resReflection;
     private Map<String, MessagePublicKeyDto> embeddedKeys = new HashMap<>();
 
     @SuppressWarnings("initialization.fields.uninitialized")
@@ -69,18 +51,6 @@ public class ImplicitSecurityDelegate {
         g_dnsCache.setMaxEntries(20000);
     }
 
-    public ImplicitSecurityDelegate() {
-        Reflections.log = null;
-        resReflection = new Reflections(
-                new ConfigurationBuilder()
-                        .filterInputsBy(new FilterBuilder()
-                                .exclude("(.*)\\.so$")
-                                .include("embedded-keys\\.(.*)"))
-                        .setUrls(ClasspathHelper.forClassLoader())
-                        .setScanners(new ResourcesScanner()));
-        Reflections.log = findLogger(Reflections.class);
-    }
-    
     @PostConstruct
     public void init() {
         try {
@@ -316,34 +286,6 @@ public class ImplicitSecurityDelegate {
     }
 
     private List<MessagePublicKeyDto> loadEmbeddedKeys() {
-        List<MessagePublicKeyDto> ret = new ArrayList<>();
-
-        for (String file : resReflection.getResources(n -> true)) {
-            try {
-                if (file.startsWith("embedded-keys/") == false)
-                    continue;
-
-                InputStream inputStream = ClassLoader.getSystemResourceAsStream(file);
-                assert inputStream != null : "@AssumeAssertion(nullness): Must not be null";
-                Assertions.assertNotNull(inputStream);
-
-                String keysFile = IOUtils.toString(inputStream, com.google.common.base.Charsets.UTF_8);
-
-                for (String _keyTxt : keysFile.split("\\.\\.\\.")) {
-                    String keyTxt = _keyTxt + "...";
-
-                    Object obj = AteDelegate.get().yaml.deserializeObj(keyTxt);
-                    if (obj instanceof MessagePublicKeyDto) {
-                        MessagePublicKeyDto key = (MessagePublicKeyDto) obj;
-                        ret.add(key);
-                    }
-                }
-
-            } catch (IOException ex) {
-                throw new WebApplicationException("Failed to load standard rate card", ex, Response.Status.INTERNAL_SERVER_ERROR);
-            }
-        }
-
-        return ret;
+        return d.resourceFile.loadAll("embedded-keys/", MessagePublicKeyDto.class);
     }
 }

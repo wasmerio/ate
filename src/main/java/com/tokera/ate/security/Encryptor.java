@@ -142,8 +142,6 @@ public class Encryptor implements Runnable
 
     private Set<Integer> validEncryptSizes = new HashSet<>(Lists.newArrayList(32, 64, 128, 192, 256, 512));
 
-    private Reflections resReflection;
-
     public class KeyPairBytes
     {
         public final byte[] privateKey;
@@ -162,18 +160,6 @@ public class Encryptor implements Runnable
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         }
-    }
-
-    public Encryptor() {
-        Reflections.log = null;
-        resReflection = new Reflections(
-                new ConfigurationBuilder()
-                        .filterInputsBy(new FilterBuilder()
-                                .exclude("(.*)\\.so$")
-                                .include("preload-entropy-keys\\.(.*)"))
-                        .setUrls(ClasspathHelper.forClassLoader())
-                        .setScanners(new ResourcesScanner()));
-        Reflections.log = findLogger(Reflections.class);
     }
 
     /**
@@ -2017,38 +2003,9 @@ public class Encryptor implements Runnable
     }
 
     private void loadPreLoadEntropyConfig() {
-        List<MessagePublicKeyDto> ret = new ArrayList<>();
-
-        for (String file : resReflection.getResources(n -> true)) {
-            try {
-                if (file.startsWith("preload-entropy-keys/") == false)
-                    continue;
-
-                InputStream inputStream = ClassLoader.getSystemResourceAsStream(file);
-                assert inputStream != null : "@AssumeAssertion(nullness): Must not be null";
-                Assertions.assertNotNull(inputStream);
-
-                String keysFile = IOUtils.toString(inputStream, com.google.common.base.Charsets.UTF_8);
-
-                for (String _keyTxt : keysFile.split("\\.\\.\\.")) {
-                    String keyTxt = _keyTxt + "...";
-
-                    Object obj = null;
-                    if (file.endsWith(".yaml") || file.endsWith(".yml")) {
-                        obj = AteDelegate.get().yaml.deserializeObj(keyTxt);
-                    } else if (file.endsWith(".json") || file.endsWith(".json")) {
-                        obj = d.json.deserialize(keyTxt, KeysPreLoadConfig.class);
-                    }
-                    if (obj == null) continue;
-                    if (obj instanceof KeysPreLoadConfig) {
-                        KeysPreLoadConfig config = (KeysPreLoadConfig) obj;
-                        preload(config);
-                    }
-                }
-
-            } catch (IOException ex) {
-                throw new WebApplicationException("Failed to load standard rate card", ex, Response.Status.INTERNAL_SERVER_ERROR);
-            }
+        List<KeysPreLoadConfig> configs = d.resourceFile.loadAll("preload-entropy-keys/", KeysPreLoadConfig.class);
+        for (KeysPreLoadConfig config : configs) {
+            preload(config);
         }
     }
 }
