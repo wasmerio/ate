@@ -18,9 +18,16 @@ public interface ITaskCallback<T extends BaseDao> {
     }
 
     /**
+     * Callback invoked when an object is encountered for the first time
+     */
+    default void onCreate(T obj, ITask task) {
+    }
+
+    /**
      * Callback invoked whenever a data object is created or updated
      */
-    void onData(T obj, ITask task);
+    default void onData(T obj, ITask task) {
+    }
 
     /**
      * Callback invoked whenever a data object is removed

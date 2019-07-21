@@ -176,6 +176,11 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
 
                     BaseDao obj = d.dataSerializer.fromDataMessage(partitionKey(), msg, true);
                     if (obj == null || obj.getClass() != clazz) continue;
+
+                    if (header.getPreviousVersion() == null) {
+                        callback.onCreate((T)obj, this);
+                    }
+
                     callback.onData((T)obj, this);
                 } catch (Throwable ex) {
                     d.genericLogger.warn(ex);
