@@ -223,4 +223,20 @@ public class CurrentRightsDelegate implements IRights {
     public boolean readOnly() {
         return true;
     }
+
+    public @Nullable MessagePrivateKeyDto findReadKey(String publicKeyHash)
+    {
+        return this.getRightsRead().stream()
+                .filter(k -> publicKeyHash.equals(k.getPublicKeyHash()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    public @Nullable MessagePrivateKeyDto findWriteKey(String publicKeyHash)
+    {
+        return this.getRightsWrite().stream()
+                .filter(k -> publicKeyHash.equals(k.getPublicKeyHash()))
+                .findFirst()
+                .orElse(null);
+    }
 }
