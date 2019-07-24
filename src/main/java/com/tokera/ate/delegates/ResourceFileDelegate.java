@@ -44,38 +44,47 @@ public class ResourceFileDelegate {
         List<T> ret = new ArrayList<>();
 
         for (String file : resReflection.getResources(n -> true)) {
-            try {
-                if (file.startsWith(prefix) == false)
-                    continue;
+            if (file.startsWith(prefix) == false)
+                continue;
 
-                InputStream inputStream = ClassLoader.getSystemResourceAsStream(file);
-                assert inputStream != null : "@AssumeAssertion(nullness): Must not be null";
-                Assertions.assertNotNull(inputStream);
-
-                String data = IOUtils.toString(inputStream, com.google.common.base.Charsets.UTF_8);
-
-                if (file.endsWith("yml") || file.endsWith("yaml")) {
-                    for (String _keyTxt : data.split("\\.\\.\\.")) {
-                        String keyTxt = _keyTxt + "...";
-
-                        Object obj = AteDelegate.get().yaml.deserializeObj(keyTxt);
-                        if (obj != null && obj.getClass() == clazz) {
-                            ret.add((T)obj);
-                        }
-                    }
-                }
-                if (file.endsWith("json")) {
-                    Object obj = AteDelegate.get().json.deserialize(data, clazz);
-                    if (obj != null && obj.getClass() == clazz) {
-                        ret.add((T)obj);
-                    }
-                }
-
-            } catch (IOException ex) {
-                throw new WebApplicationException("Failed to load standard rate card", ex, Response.Status.INTERNAL_SERVER_ERROR);
+            T obj = load(file, clazz);
+            if (obj != null) {
+                ret.add(obj);
             }
         }
 
         return ret;
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T> T load(String file, Class<T> clazz) {
+        try {
+            InputStream inputStream = ClassLoader.getSystemResourceAsStream(file);
+            assert inputStream != null : "@AssumeAssertion(nullness): Must not be null";
+            Assertions.assertNotNull(inputStream);
+
+            String data = IOUtils.toString(inputStream, com.google.common.base.Charsets.UTF_8);
+
+            if (file.endsWith("yml") || file.endsWith("yaml")) {
+                for (String _keyTxt : data.split("\\.\\.\\.")) {
+                    String keyTxt = _keyTxt + "...";
+
+                    Object obj = AteDelegate.get().yaml.deserializeObj(keyTxt);
+                    if (obj != null && obj.getClass() == clazz) {
+                        return (T)obj;
+                    }
+                }
+            }
+            if (file.endsWith("json")) {
+                Object obj = AteDelegate.get().json.deserialize(data, clazz);
+                if (obj != null && obj.getClass() == clazz) {
+                    return (T)obj;
+                }
+            }
+
+            return null;
+        } catch (IOException ex) {
+            throw new WebApplicationException("Failed to load file", ex, Response.Status.INTERNAL_SERVER_ERROR);
+        }
     }
 }

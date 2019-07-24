@@ -16,8 +16,6 @@ import org.jboss.weld.context.bound.BoundRequestContext;
 
 import javax.enterprise.inject.spi.CDI;
 import java.util.ArrayList;
-import java.util.Map;
-import java.util.TreeMap;
 
 /**
  * Represents the context of a processor to be invoked on callbacks, this object can be used to unsubscribe
@@ -179,9 +177,9 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
 
                     if (header.getPreviousVersion() == null) {
                         callback.onCreate((T)obj, this);
+                    } else {
+                        callback.onUpdate((T) obj, this);
                     }
-
-                    callback.onData((T)obj, this);
                 } catch (Throwable ex) {
                     d.genericLogger.warn(ex);
                 }
