@@ -83,7 +83,7 @@ public class DataSignatureBuilder
         for (String publicKeyHash : permissions.rolesWrite)
         {
             // We can only sign if we have a private key for the pair
-            MessagePrivateKeyDto privateKey = staging.findPrivateKey(partitionKey, header.getId(), publicKeyHash);
+            MessagePrivateKeyDto privateKey = staging.findPrivateKey(partitionKey, publicKeyHash);
             if (privateKey == null) continue;
             
             //LOG.info("ntru-encrypt:\n" + "  - private-key: " + Base64.encodeBase64URLSafeString(privateKey) + "\n  - data: " + Base64.encodeBase64URLSafeString(digestBytes) + "\n");

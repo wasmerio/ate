@@ -598,7 +598,7 @@ public class DataRepository implements IAteIO {
         }
 
         // Push all the write keys to the staging area before we attempt to serialize it
-        this.staging.put(key, entity.getId(), d.currentRights.getRightsWrite());
+        this.staging.put(key, d.currentRights.getRightsWrite());
 
         // Generate the data that represents this entity
         DataPartitionChain chain = kt.getChain();
@@ -642,7 +642,7 @@ public class DataRepository implements IAteIO {
 
         d.debugLogging.logMerge(null, entity, LOG, true);
 
-        this.staging.put(partitionKey, entity.getId(), d.currentRights.getRightsWrite());
+        this.staging.put(partitionKey, d.currentRights.getRightsWrite());
         this.staging.put(partitionKey, entity);
     }
 }

@@ -40,7 +40,7 @@ public class DataStagingManager {
         public final Map<UUID, BaseDao> toPut = new HashMap<>();
         public final Map<UUID, BaseDao> toDelete = new HashMap<>();
         public final Map<String, MessagePublicKeyDto> savedPublicKeys = new HashMap<>();
-        public final Map<UUID, Map<String, MessagePrivateKeyDto>> savedWriteKeys = new TreeMap<>();
+        public final Map<String, MessagePrivateKeyDto> savedWriteKeys = new TreeMap<>();
         public final Map<UUID, MessageDataDto> savedDatas = new HashMap<>();
     }
 
@@ -71,11 +71,14 @@ public class DataStagingManager {
         context.savedPublicKeys.put(key.getPublicKeyHash(), key);
     }
 
-    public void put(IPartitionKey partitionKey, UUID id, Set<MessagePrivateKeyDto> keys) {
+    public void put(IPartitionKey partitionKey, Set<MessagePrivateKeyDto> keys) {
         PartitionContext context = getPartitionMergeContext(partitionKey, true);
-        HashMap<String, MessagePrivateKeyDto> keysMap = new HashMap<>();
-        keys.forEach(k -> keysMap.put(k.getPublicKeyHash(), k));
-        context.savedWriteKeys.put(id, keysMap);
+        Map<String, MessagePrivateKeyDto> keysMap = context.savedWriteKeys;
+        keys.forEach(k -> {
+            if (keysMap.containsKey(k.getPublicKeyHash()) == false) {
+                keysMap.put(k.getPublicKeyHash(), k);
+            }
+        });
     }
 
     public void put(PUUID key, MessageDataDto data) {
@@ -174,20 +177,22 @@ public class DataStagingManager {
         return ret;
     }
 
-    public @Nullable MessagePrivateKeyDto findPrivateKey(IPartitionKey partitionKey, UUID id, String publicKeyHash) {
+    public Collection<MessagePublicKeyDto> findPublicKeys(IPartitionKey partitionKey) {
         PartitionContext context = getPartitionMergeContext(partitionKey, false);
-        if (context == null) return null;
-        Map<String, MessagePrivateKeyDto> ret = MapTools.getOrNull(context.savedWriteKeys, id);
-        if (ret == null) return null;
-        return MapTools.getOrNull(ret, publicKeyHash);
+        if (context == null) return new LinkedList<>();
+        return context.savedPublicKeys.values();
     }
 
-    public @Nullable Collection<MessagePrivateKeyDto> findPrivateKeys(IPartitionKey partitionKey, UUID id) {
+    public @Nullable MessagePrivateKeyDto findPrivateKey(IPartitionKey partitionKey, String publicKeyHash) {
         PartitionContext context = getPartitionMergeContext(partitionKey, false);
         if (context == null) return null;
-        Map<String, MessagePrivateKeyDto> ret = MapTools.getOrNull(context.savedWriteKeys, id);
-        if (ret == null) return null;
-        return ret.values();
+        return MapTools.getOrNull(context.savedWriteKeys, publicKeyHash);
+    }
+
+    public Collection<MessagePrivateKeyDto> findPrivateKeys(IPartitionKey partitionKey) {
+        PartitionContext context = getPartitionMergeContext(partitionKey, false);
+        if (context == null) return new LinkedList<>();
+        return context.savedWriteKeys.values();
     }
 
     public @Nullable MessageDataDto findData(IPartitionKey partitionKey, UUID id) {

@@ -5,6 +5,7 @@ import com.google.common.cache.CacheBuilder;
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.base.BaseDaoInternal;
 import com.tokera.ate.dao.enumerations.PermissionPhase;
+import com.tokera.ate.dao.msg.MessagePublicKey;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.common.Immutalizable;
@@ -107,24 +108,18 @@ public class DataSerializer {
     }
 
     @SuppressWarnings("known.nonnull")
-    private void writePermissionPublicKeysForDataObject(EffectivePermissions permissions, DataPartition kt) {
+    private void writePermissionPublicKeysForDataObject(DataPartition kt) {
         DataPartitionChain chain = kt.getChain();
 
-        // Write all the public toPutKeys that the chain is unaway of
-        for (String publicKeyHash : permissions.rolesWrite)
-        {
-            // Add the public side of this key if its not already added
-            if (chain.hasPublicKey(publicKeyHash) == false)
-            {
-                // We can only sign if we have a private key for the pair
-                MessagePrivateKeyDto privateKey = this.d.dataStagingManager.findPrivateKey(chain.partitionKey(), permissions.id, publicKeyHash);
-                if (privateKey == null) {
-                    throw d.authorization.buildWriteException(permissions, true);
-                }
-
-                // Add the key
-                MessagePublicKeyDto publicKey = new MessagePublicKeyDto(privateKey);
-                kt.write(publicKey, this.LOG);
+        // Write any public keys that are missing in this chain
+        for (MessagePrivateKeyDto key : this.d.dataStagingManager.findPrivateKeys(kt.partitionKey())) {
+            if (chain.hasPublicKey(key.getPublicKeyHash()) == false) {
+                kt.write(new MessagePublicKeyDto(key), this.LOG);
+            }
+        }
+        for (MessagePublicKeyDto key : this.d.dataStagingManager.findPublicKeys(kt.partitionKey())) {
+            if (chain.hasPublicKey(key.getPublicKeyHash()) == false) {
+                kt.write(key, this.LOG);
             }
         }
     }
@@ -265,7 +260,7 @@ public class DataSerializer {
         }
 
         // Write all the public toPutKeys that the chain is unaware of
-        writePermissionPublicKeysForDataObject(permissions, kt);
+        writePermissionPublicKeysForDataObject(kt);
         
         // Make sure we are actually writing something to Kafka
         if (digest == null) {
