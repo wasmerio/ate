@@ -428,7 +428,11 @@ public class DataRepository implements IAteIO {
             throw new RuntimeException("Failed to find a data object of id [" + id + "]");
         }
 
-        return container.getMergedData(true, true);
+        BaseDao ret = container.getMergedData(true, true);
+        if (ret == null) {
+            throw new RuntimeException("This object has been removed according to evidence we found that matches data object of id [" + id + "].");
+        }
+        return ret;
     }
 
     @Override
