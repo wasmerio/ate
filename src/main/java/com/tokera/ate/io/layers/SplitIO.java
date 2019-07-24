@@ -162,7 +162,9 @@ final public class SplitIO implements IAteIO {
 
         ret = lower.getOrThrow(id);
 
-        this.upper.mergeLaterWithoutValidation(ret);
+        if (ret != null) {
+            this.upper.mergeLaterWithoutValidation(ret);
+        }
         return ret;
     }
 
