@@ -117,7 +117,7 @@ public class DataSerializer {
             if (chain.hasPublicKey(publicKeyHash) == false)
             {
                 // We can only sign if we have a private key for the pair
-                MessagePrivateKeyDto privateKey = this.d.securityCastleManager.getSignKey(publicKeyHash);
+                MessagePrivateKeyDto privateKey = this.d.dataStagingManager.findPrivateKey(chain.partitionKey(), permissions.id, publicKeyHash);
                 if (privateKey == null) {
                     throw d.authorization.buildWriteException(permissions, true);
                 }
@@ -256,7 +256,7 @@ public class DataSerializer {
         }
 
         // Sign the data message
-        MessageDataDigestDto digest = d.dataSignatureBuilder.signDataMessage(header, encPayload, permissions);
+        MessageDataDigestDto digest = d.dataSignatureBuilder.signDataMessage(partitionKey, header, encPayload, permissions);
 
         // Cache it for faster decryption
         if (byteStream != null && digest != null) {
@@ -264,7 +264,7 @@ public class DataSerializer {
             this.decryptCacheData.put(cacheHash, byteStream);
         }
 
-        // Write all the public toPutKeys that the chain is unaway of
+        // Write all the public toPutKeys that the chain is unaware of
         writePermissionPublicKeysForDataObject(permissions, kt);
         
         // Make sure we are actually writing something to Kafka

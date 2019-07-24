@@ -13,9 +13,11 @@ import org.apache.commons.lang.time.StopWatch;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.jboss.weld.context.bound.BoundRequestContext;
+import org.joda.time.DateTime;
 
 import javax.enterprise.inject.spi.CDI;
 import java.util.ArrayList;
+import java.util.Date;
 
 /**
  * Represents the context of a processor to be invoked on callbacks, this object can be used to unsubscribe
@@ -26,16 +28,19 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
     public final @Nullable TokenDto token;
     public final ConcurrentStack<MessageDataMetaDto> toProcess;
     public final Class<T> clazz;
+    public final int idleTime;
 
     private @MonotonicNonNull Thread thread;
     private volatile boolean isRunning = true;
+    private Date lastIdle = new Date();
 
-    public Task(TaskContext<T> context, Class<T> clazz, ITaskCallback<T> callback, @Nullable TokenDto token) {
+    public Task(TaskContext<T> context, Class<T> clazz, ITaskCallback<T> callback, int idleTime, @Nullable TokenDto token) {
         this.context = context;
         this.clazz = clazz;
         this.callback = callback;
         this.token = token;
         this.toProcess = new ConcurrentStack<>();
+        this.idleTime = idleTime;
     }
 
     @Override
@@ -105,11 +110,15 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
                     msgs.add(msg);
                 }
 
-                if (msgs.size() <= 0) {
-                    invokeWarmAndIdle(boundRequestContext);
+                if (msgs.size() <= 0)
+                {
+                    if (lastIdle.before(new DateTime().minusMillis(this.idleTime).toDate())) {
+                        invokeWarmAndIdle(boundRequestContext);
+                        lastIdle = new Date();
+                    }
 
                     synchronized (this.toProcess) {
-                        this.toProcess.wait(1000);
+                        this.toProcess.wait(Math.max(this.idleTime, 1000));
                     }
                 }
 

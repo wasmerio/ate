@@ -13,7 +13,7 @@ public interface ITaskContext
 
     void feed(MessageDataMetaDto msg);
 
-    <T extends BaseDao> ITask addTask(ITaskCallback<T> callback, Class<T> clazz, @Nullable TokenDto token);
+    <T extends BaseDao> ITask addTask(ITaskCallback<T> callback, Class<T> clazz, int idleTime, @Nullable TokenDto token);
 
     boolean removeTask(ITask task);
 

@@ -85,40 +85,6 @@ public class DataRepository implements IAteIO {
         return chain.getPublicKey(hash);
     }
 
-    private boolean mergeInternal(BaseDao entity, boolean performValidation, boolean performSync) {
-        // Get the partition
-        IPartitionKey key = entity.partitionKey(true);
-        DataPartition kt = this.subscriber.getPartition(key);
-
-        // Validate the public keys
-        if (performValidation) {
-            validateTrustPublicKeys(entity);
-        }
-
-        // Generate the data that represents this entity
-        DataPartitionChain chain = kt.getChain();
-        MessageDataDto data = (MessageDataDto) d.dataSerializer.toDataMessage(entity, kt, false);
-
-        // Perform the validations and checks
-        if (performValidation && chain.validateTrustStructureAndWritability(data, LOG) == false) {
-            String what = "clazz=" + data.getHeader().getPayloadClazzOrThrow() + ", id=" + data.getHeader().getIdOrThrow();
-            throw new RuntimeException("The newly created object was not accepted into the chain of trust [" + what + "]");
-        }
-        d.debugLogging.logMerge(data, entity, LOG, false);
-
-        // Save the data to the bridge and synchronize it
-        IDataPartitionBridge bridge = kt.getBridge();
-        bridge.send(data);
-
-        // Synchronize
-        if (performSync == true) {
-            bridge.sync();
-        }
-
-        // Return if the object was actually created
-        return exists(entity.addressableId());
-    }
-
     @Override
     public boolean merge(BaseDao entity) {
         return mergeInternal(entity, true, true);
@@ -127,24 +93,6 @@ public class DataRepository implements IAteIO {
     @Override
     public boolean mergeWithoutSync(BaseDao entity) {
         return mergeInternal(entity, true, false);
-    }
-
-    public void mergeInternal(IPartitionKey partitionKey, MessageBaseDto data, boolean performSync) {
-        // Save the data to the bridge and synchronize it
-        DataPartition kt = this.subscriber.getPartition(partitionKey);
-        IDataPartitionBridge bridge = kt.getBridge();
-        bridge.send(data);
-
-        // Synchronize
-        if (performSync == true) {
-            bridge.sync();
-        }
-
-        // If its a public key then we should record that we already saved it
-        if (data instanceof MessagePublicKeyDto) {
-            MessagePublicKeyDto key = (MessagePublicKeyDto) data;
-            staging.put(partitionKey, key);
-        }
     }
 
     @Override
@@ -282,27 +230,6 @@ public class DataRepository implements IAteIO {
         mergeLaterInternal(t, false);
     }
 
-    private void mergeLaterInternal(BaseDao entity, boolean validate) {
-        if (validate == true) {
-            validateTrustStructure(entity);
-            validateTrustPublicKeys(entity);
-        }
-
-        IPartitionKey partitionKey = entity.partitionKey(true);
-        if (this.staging.find(partitionKey, entity.getId()) != null) {
-            return;
-        }
-
-        if (validate == true) {
-            validateReadability(entity);
-            validateWritability(entity);
-        }
-
-        d.debugLogging.logMerge(null, entity, LOG, true);
-
-        this.staging.put(partitionKey, entity);
-    }
-
     private void mergeDeferredInternal(DataPartition kt, BaseDao entity, List<MessageDataDto> datas) {
         DataPartitionChain chain = kt.getChain();
 
@@ -409,7 +336,7 @@ public class DataRepository implements IAteIO {
                 .build();
 
         // Make sure we are actually writing something to Kafka
-        MessageDataDigestDto digest = d.dataSignatureBuilder.signDataMessage(header, null, permissions);
+        MessageDataDigestDto digest = d.dataSignatureBuilder.signDataMessage(id.partition(), header, null, permissions);
         if (digest == null) return false;
 
         // Clear it from cache and write the data to Kafka
@@ -639,5 +566,83 @@ public class DataRepository implements IAteIO {
     public void destroyAll() {
         d.ramBridgeBuilder.destroyAll();
         this.subscriber.destroyAll();
+    }
+
+    public void mergeInternal(IPartitionKey partitionKey, MessageBaseDto data, boolean performSync)
+    {
+        // Save the data to the bridge and synchronize it
+        DataPartition kt = this.subscriber.getPartition(partitionKey);
+        IDataPartitionBridge bridge = kt.getBridge();
+        bridge.send(data);
+
+        // Synchronize
+        if (performSync == true) {
+            bridge.sync();
+        }
+
+        // If its a public key then we should record that we already saved it
+        if (data instanceof MessagePublicKeyDto) {
+            MessagePublicKeyDto key = (MessagePublicKeyDto) data;
+            staging.put(partitionKey, key);
+        }
+    }
+
+    private boolean mergeInternal(BaseDao entity, boolean performValidation, boolean performSync) {
+        // Get the partition
+        IPartitionKey key = entity.partitionKey(true);
+        DataPartition kt = this.subscriber.getPartition(key);
+
+        // Validate the public keys
+        if (performValidation) {
+            validateTrustPublicKeys(entity);
+        }
+
+        // Push all the write keys to the staging area before we attempt to serialize it
+        this.staging.put(key, entity.getId(), d.currentRights.getRightsWrite());
+
+        // Generate the data that represents this entity
+        DataPartitionChain chain = kt.getChain();
+        MessageDataDto data = (MessageDataDto) d.dataSerializer.toDataMessage(entity, kt, false);
+
+        // Perform the validations and checks
+        if (performValidation && chain.validateTrustStructureAndWritability(data, LOG) == false) {
+            String what = "clazz=" + data.getHeader().getPayloadClazzOrThrow() + ", id=" + data.getHeader().getIdOrThrow();
+            throw new RuntimeException("The newly created object was not accepted into the chain of trust [" + what + "]");
+        }
+        d.debugLogging.logMerge(data, entity, LOG, false);
+
+        // Save the data to the bridge and synchronize it
+        IDataPartitionBridge bridge = kt.getBridge();
+        bridge.send(data);
+
+        // Synchronize
+        if (performSync == true) {
+            bridge.sync();
+        }
+
+        // Return if the object was actually created
+        return exists(entity.addressableId());
+    }
+
+    private void mergeLaterInternal(BaseDao entity, boolean validate) {
+        if (validate == true) {
+            validateTrustStructure(entity);
+            validateTrustPublicKeys(entity);
+        }
+
+        IPartitionKey partitionKey = entity.partitionKey(true);
+        if (this.staging.find(partitionKey, entity.getId()) != null) {
+            return;
+        }
+
+        if (validate == true) {
+            validateReadability(entity);
+            validateWritability(entity);
+        }
+
+        d.debugLogging.logMerge(null, entity, LOG, true);
+
+        this.staging.put(partitionKey, entity.getId(), d.currentRights.getRightsWrite());
+        this.staging.put(partitionKey, entity);
     }
 }

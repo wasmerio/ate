@@ -160,8 +160,8 @@ public class AuthorizationDelegate {
                 sb.append(" >        ");
             }
             sb.append(d.encryptor.getAlias(partitionKey, privateKey)).append(" - ").append(d.encryptor.getPublicKeyHash(privateKey));
-            if (this.d.securityCastleManager.getSignKey(d.encryptor.getPublicKeyHash(privateKey)) == null) {
-                sb.append(" [lookup failed!!]");
+            if (this.d.dataStagingManager.findPrivateKey(partitionKey, entityId, d.encryptor.getPublicKeyHash(privateKey)) == null) {
+                sb.append(" [not staged!!]");
             }
             sb.append("\n");
             hasOwns = true;

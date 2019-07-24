@@ -1,6 +1,7 @@
 package com.tokera.ate.security;
 
 import com.tokera.ate.common.MapTools;
+import com.tokera.ate.dao.msg.MessagePrivateKey;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.EffectivePermissions;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
@@ -30,8 +31,6 @@ public class SecurityCastleManager {
 
     private final Map<String, SecurityCastleContext> localCastles = new HashMap<>();
     private final Map<UUID, SecurityCastleContext> lookupCastles = new HashMap<>();
-    private final Set<String> nakCache = new HashSet<>();
-    private final ConcurrentMap<String, MessagePrivateKeyDto> signKeyCache = new ConcurrentHashMap<>();
 
     /**
      * @return Hash that represents a unique set of read permissions
@@ -153,61 +152,5 @@ public class SecurityCastleManager {
     public boolean hasCastle(IPartitionKey partitionKey, UUID castleId)
     {
         return d.io.securityCastleFactory().exists(partitionKey, castleId);
-    }
-
-    /**
-     * Adds a NAK to the signing key cache
-     */
-    private void addNakForSigningKey(String val) {
-        nakCache.add(val);
-    }
-
-    /**
-     * Checks if the signing key cache has a NAK already
-     */
-    private boolean hasNakForSigningKey(String val) {
-        return nakCache.contains(val);
-    }
-
-    /**
-     * Gets the private key pair for a particular public key if the caller has
-     * access to it in the token
-     * @param publicKeyHash String that represents the public key
-     * @return Byte array that represents the private key or null if the private
-     * key does not exist
-     */
-    public @Nullable MessagePrivateKeyDto getSignKey(String publicKeyHash)
-    {
-        // Check the cache
-        MessagePrivateKeyDto signKey = null;
-        if (signKeyCache.containsKey(publicKeyHash)) {
-            signKey = signKeyCache.get(publicKeyHash);
-        }
-        if (signKey != null) return signKey;
-
-        // Check the null key cache (this speeds things up alot)
-        if (this.hasNakForSigningKey(publicKeyHash) == true) {
-            return null;
-        }
-
-        // Loop through all the private toPutKeys that we own and try and find
-        // an AES key that was encrypted for it
-        MessagePrivateKeyDto key = d.currentRights.getRightsWrite()
-                .stream()
-                .filter(p -> publicKeyHash.equals(d.encryptor.getPublicKeyHash(p)))
-                .findFirst()
-                .orElse(null);
-        if (key != null) {
-            this.signKeyCache.put(publicKeyHash, key);
-            return key;
-        }
-
-        // The key does not exist but we should still record that fact
-        this.addNakForSigningKey(publicKeyHash);
-        return null;
-    }
-
-    public void addSignKeyToCache(String publicKeyHash, MessagePrivateKeyDto key) {
-        this.signKeyCache.put(publicKeyHash, key);
     }
 }

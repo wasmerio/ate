@@ -1,5 +1,6 @@
 package com.tokera.ate.io.repo;
 
+import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.dao.kafka.MessageSerializer;
 import com.tokera.ate.dto.EffectivePermissions;
@@ -29,7 +30,7 @@ public class DataSignatureBuilder
     private Encryptor encryptor;
     @SuppressWarnings("initialization.fields.uninitialized")
     @Inject
-    private SecurityCastleManager castleManager;
+    private DataStagingManager staging;
 
     private byte[] generateStreamBytes(MessageDataHeaderDto header, byte @Nullable [] payloadBytes) {
 
@@ -74,7 +75,7 @@ public class DataSignatureBuilder
         return new MessageDataDigestDto(seed, sig, digest, keyHash);
     }
     
-    public @Nullable MessageDataDigestDto signDataMessage(MessageDataHeaderDto header, byte @Nullable [] payloadBytes, EffectivePermissions permissions)
+    public @Nullable MessageDataDigestDto signDataMessage(IPartitionKey partitionKey, MessageDataHeaderDto header, byte @Nullable [] payloadBytes, EffectivePermissions permissions)
     {
         // Loop through all the roles until we find a key that we can
         // use of writing a valid digest for this entity
@@ -82,7 +83,7 @@ public class DataSignatureBuilder
         for (String publicKeyHash : permissions.rolesWrite)
         {
             // We can only sign if we have a private key for the pair
-            MessagePrivateKeyDto privateKey = castleManager.getSignKey(publicKeyHash);
+            MessagePrivateKeyDto privateKey = staging.findPrivateKey(partitionKey, header.getId(), publicKeyHash);
             if (privateKey == null) continue;
             
             //LOG.info("ntru-encrypt:\n" + "  - private-key: " + Base64.encodeBase64URLSafeString(privateKey) + "\n  - data: " + Base64.encodeBase64URLSafeString(digestBytes) + "\n");

@@ -43,7 +43,7 @@ public class TaskContext<T extends BaseDao> implements ITaskContext {
 
     @Override
     @SuppressWarnings("unchecked")
-    public <A extends BaseDao> ITask addTask(ITaskCallback<A> callback, Class<A> clazz, @Nullable TokenDto token) {
+    public <A extends BaseDao> ITask addTask(ITaskCallback<A> callback, Class<A> clazz, int idleTIme, @Nullable TokenDto token) {
         AteDelegate d = AteDelegate.get();
 
         if (this.clazz != clazz) {
@@ -57,7 +57,7 @@ public class TaskContext<T extends BaseDao> implements ITaskContext {
         }
 
         // Add the processor to the subscription list
-        processorContext = new Task(this, clazz, callback, token);
+        processorContext = new Task(this, clazz, callback, idleTIme, token);
         synchronized (tasks) {
             this.tasks.add(processorContext);
         }

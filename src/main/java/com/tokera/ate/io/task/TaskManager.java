@@ -30,6 +30,8 @@ public class TaskManager {
     ConcurrentHashMap<IPartitionKey, ConcurrentHashMap<Class<? extends BaseDao>, ITaskContext>> lookup
             = new ConcurrentHashMap<>();
 
+    public static int DEFAULT_IDLE_TIME = 1000;
+
     @SuppressWarnings("unchecked")
     public <T extends BaseDao> void hook(IPartitionKey partitionKey, Class<T> clazz, IHookCallback<T> callback) {
         ConcurrentHashMap<Class<? extends BaseDao>, ITaskContext> first
@@ -61,16 +63,24 @@ public class TaskManager {
     }
 
     public <T extends BaseDao> ITask subscribe(IPartitionKey partitionKey, Class<T> clazz, ITaskCallback<T> callback) {
+        return subscribe(partitionKey, clazz, callback, DEFAULT_IDLE_TIME);
+    }
+
+    public <T extends BaseDao> ITask subscribe(IPartitionKey partitionKey, Class<T> clazz, ITaskCallback<T> callback, int idleTime) {
         TokenDto token = d.currentToken.getTokenOrNull();
-        return subscribe(partitionKey, clazz, callback, token);
+        return subscribe(partitionKey, clazz, callback, idleTime, token);
+    }
+
+    public <T extends BaseDao> ITask subscribe(IPartitionKey partitionKey, Class<T> clazz, ITaskCallback<T> callback, @Nullable TokenDto token) {
+        return subscribe(partitionKey, clazz, callback, DEFAULT_IDLE_TIME, token);
     }
 
     @SuppressWarnings("unchecked")
-    public <T extends BaseDao> ITask subscribe(IPartitionKey partitionKey, Class<T> clazz, ITaskCallback<T> callback, @Nullable TokenDto token) {
+    public <T extends BaseDao> ITask subscribe(IPartitionKey partitionKey, Class<T> clazz, ITaskCallback<T> callback, int idleTIme, @Nullable TokenDto token) {
         ConcurrentHashMap<Class<? extends BaseDao>, ITaskContext> first
                 = lookup.computeIfAbsent(partitionKey, k -> new ConcurrentHashMap<>());
         ITaskContext second = first.computeIfAbsent(clazz, c -> new TaskContext(partitionKey, clazz));
-        return second.addTask(callback, clazz, token);
+        return second.addTask(callback, clazz, idleTIme, token);
     }
 
     public <T extends BaseDao> void unsubscribe(ITask task) {

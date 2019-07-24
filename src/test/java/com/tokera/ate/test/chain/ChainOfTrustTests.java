@@ -132,7 +132,7 @@ public class ChainOfTrustTests
         permissions.rolesWrite.add(hash);
         request.getRightsWrite().add(encryptor.getTrustOfPublicWrite());
 
-        MessageDataDigestDto digest = builder.signDataMessage(header, bytes1, permissions);
+        MessageDataDigestDto digest = builder.signDataMessage(chain.partitionKey(), header, bytes1, permissions);
         Assertions.assertTrue(digest != null);
 
         long index = 0L;
@@ -141,7 +141,7 @@ public class ChainOfTrustTests
         header.setParentId(rootId);
         header.setInheritWrite(true);
 
-        digest = builder.signDataMessage(header, bytes1, permissions);
+        digest = builder.signDataMessage(chain.partitionKey(), header, bytes1, permissions);
         Assertions.assertTrue(digest != null);
 
         MessageDataDto data = new MessageDataDto(header, digest, bytes1);
@@ -155,7 +155,7 @@ public class ChainOfTrustTests
             header.setParentId(rootId);
             header.setInheritWrite(true);
 
-            digest = builder.signDataMessage(header, bytes1, permissions);
+            digest = builder.signDataMessage(chain.partitionKey(), header, bytes1, permissions);
             Assertions.assertTrue(digest != null);
             
             for (int x = 0; x < 100; x++) {
@@ -176,7 +176,7 @@ public class ChainOfTrustTests
         Assertions.assertTrue(rcvdata == null);
 
         // Now if we actually sign it then it will be accepted
-        digest = builder.signDataMessage(header, bytes1, permissions);
+        digest = builder.signDataMessage(chain.partitionKey(), header, bytes1, permissions);
         Assertions.assertTrue(digest != null);
 
         data = new MessageDataDto(header, digest, bytes1);
