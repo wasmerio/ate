@@ -335,6 +335,8 @@ public class DataRepository implements IAteIO {
                 .withPhase(PermissionPhase.DynamicStaging)
                 .build();
 
+        d.dataStagingManager.put(kt.partitionKey(), d.currentRights.getRightsWrite());
+
         // Make sure we are actually writing something to Kafka
         MessageDataDigestDto digest = d.dataSignatureBuilder.signDataMessage(id.partition(), header, null, permissions);
         if (digest == null) return false;
@@ -356,6 +358,7 @@ public class DataRepository implements IAteIO {
             validateTrustStructure(entity);
             validateTrustPublicKeys(entity);
 
+            d.dataStagingManager.put(partitionKey, d.currentRights.getRightsWrite());
             this.staging.delete(partitionKey, entity);
         } else {
             this.staging.undo(partitionKey, entity);
