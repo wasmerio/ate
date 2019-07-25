@@ -18,23 +18,26 @@ import javax.enterprise.inject.spi.CDI;
 import java.lang.ref.WeakReference;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
 public class Hook<T extends BaseDao> implements IHook {
+    private final AteDelegate d = AteDelegate.get();
 
     private static final Executor executor;
     static {
         executor = Executors.newFixedThreadPool(16);
     }
 
-    private final AteDelegate d = AteDelegate.get();
+    private final UUID id;
     private final IPartitionKey partitionKey;
     private final WeakReference<IHookCallback<T>> callback;
     private final Class<T> clazz;
     private final TokenDto token;
 
     public Hook(IPartitionKey partitionKey, IHookCallback<T> callback, Class<T> clazz, TokenDto token) {
+        this.id = callback.id();
         this.partitionKey = partitionKey;
         this.callback = new WeakReference<>(callback);
         this.clazz = clazz;
@@ -102,6 +105,9 @@ public class Hook<T extends BaseDao> implements IHook {
     public boolean isActive() {
         return this.callback.get() != null;
     }
+
+    @Override
+    public UUID id() { return this.id; }
 
     /**
      * Enters a fake request scope and brings the token online so that the callback will

@@ -58,6 +58,8 @@ public class TaskManager {
 
     @SuppressWarnings("unchecked")
     public <T extends BaseDao> ITask subscribe(IPartitionKey partitionKey, Class<T> clazz, ITaskCallback<T> callback, int idleTIme, @Nullable TokenDto token) {
+        clean();
+        
         ConcurrentHashMap<Class<? extends BaseDao>, ITaskContext> first
                 = lookup.computeIfAbsent(partitionKey, k -> new ConcurrentHashMap<>());
         ITaskContext second = first.computeIfAbsent(clazz, c -> new TaskContext(partitionKey, clazz));

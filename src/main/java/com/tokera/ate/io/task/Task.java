@@ -20,11 +20,13 @@ import javax.enterprise.inject.spi.CDI;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.UUID;
 
 /**
  * Represents the context of a processor to be invoked on callbacks, this object can be used to unsubscribe
  */
 public class Task<T extends BaseDao> implements Runnable, ITask {
+    public final UUID id;
     public final TaskContext<T> context;
     public final WeakReference<ITaskCallback<T>> callback;
     public final @Nullable TokenDto token;
@@ -37,6 +39,7 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
     private Date lastIdle = new Date();
 
     public Task(TaskContext<T> context, Class<T> clazz, ITaskCallback<T> callback, int idleTime, @Nullable TokenDto token) {
+        this.id = callback.id();
         this.context = context;
         this.clazz = clazz;
         this.callback = new WeakReference<>(callback);
@@ -64,6 +67,9 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
     public boolean isActive() {
         return this.callback.get() != null;
     }
+
+    @Override
+    public UUID id() { return this.id; }
 
     public void start() {
         if (this.thread == null) {

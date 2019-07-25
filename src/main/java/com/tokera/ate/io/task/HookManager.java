@@ -42,6 +42,8 @@ public class HookManager {
 
     @SuppressWarnings("unchecked")
     public <T extends BaseDao> void hook(IPartitionKey partitionKey, Class<T> clazz, IHookCallback<T> callback) {
+        clean();
+
         ConcurrentHashMap<Class<? extends BaseDao>, IHookContext> first
                 = lookup.computeIfAbsent(partitionKey, k -> new ConcurrentHashMap<>());
         IHookContext second = first.computeIfAbsent(clazz, c -> new HookContext<>(partitionKey, clazz));
