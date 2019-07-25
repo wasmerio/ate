@@ -6,6 +6,7 @@ import com.google.common.collect.Lists;
 import com.tokera.ate.BootstrapConfig;
 import com.tokera.ate.dao.enumerations.KeyType;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.delegates.ResourceFileDelegate;
 import com.tokera.ate.dto.KeysPreLoadConfig;
 import com.tokera.ate.dto.SigningKeyWithSeedDto;
 import com.tokera.ate.dto.msg.MessageKeyPartDto;
@@ -2003,7 +2004,8 @@ public class Encryptor implements Runnable
     }
 
     private void loadPreLoadEntropyConfig() {
-        List<KeysPreLoadConfig> configs = d.resourceFile.loadAll("preload-entropy-keys/", KeysPreLoadConfig.class);
+        ResourceFileDelegate fileLoader = new ResourceFileDelegate();
+        List<KeysPreLoadConfig> configs = fileLoader.loadAll("preload-entropy-keys/", KeysPreLoadConfig.class);
         for (KeysPreLoadConfig config : configs) {
             preload(config);
         }
