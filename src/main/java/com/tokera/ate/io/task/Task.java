@@ -4,6 +4,7 @@ import com.tokera.ate.common.ConcurrentStack;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.delegates.DebugLoggingDelegate;
 import com.tokera.ate.dto.TokenDto;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.io.api.IPartitionKey;
@@ -173,15 +174,16 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
                     MessageDataDto data = msg.getData();
                     MessageDataHeaderDto header = data.getHeader();
 
-                    PUUID id = PUUID.from(partitionKey(), header.getId());
+                    PUUID id = PUUID.from(partitionKey(), header.getIdOrThrow());
                     synchronized (d.locking.lockable(id))
                     {
                         if (data.hasPayload() == false) {
-                            callback.onRemove(PUUID.from(partitionKey(), header.getIdOrThrow()), this);
+                            d.debugLogging.logTaskData(id.partition(), id.id(), DebugLoggingDelegate.TaskDataType.Removed, callback.getClass(), null);
+                            callback.onRemove(id, this);
                             continue;
                         }
 
-                        if (d.authorization.canRead(context.partitionKey(), header.getIdOrThrow()) == false) {
+                        if (d.authorization.canRead(id.partition(), id.id()) == false) {
                             continue;
                         }
 
@@ -189,8 +191,10 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
                         if (obj == null || obj.getClass() != clazz) continue;
 
                         if (header.getPreviousVersion() == null) {
+                            d.debugLogging.logTaskData(id.partition(), id.id(), DebugLoggingDelegate.TaskDataType.Created, callback.getClass(), null);
                             callback.onCreate((T) obj, this);
                         } else {
+                            d.debugLogging.logTaskData(id.partition(), id.id(), DebugLoggingDelegate.TaskDataType.Removed, callback.getClass(), null);
                             callback.onUpdate((T) obj, this);
                         }
                     }

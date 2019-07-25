@@ -3,6 +3,7 @@ package com.tokera.ate.io.task;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.delegates.DebugLoggingDelegate;
 import com.tokera.ate.dto.TokenDto;
 import com.tokera.ate.dto.msg.MessageDataDto;
 import com.tokera.ate.dto.msg.MessageDataHeaderDto;
@@ -50,8 +51,11 @@ public class HookContext<T extends BaseDao> implements IHookContext {
                 try {
                     MessageDataDto data = msg.getData();
                     MessageDataHeaderDto header = data.getHeader();
+
+                    PUUID id = PUUID.from(partitionKey, header.getIdOrThrow());
                     if (data.hasPayload() == false) {
-                        callback.onRemove(PUUID.from(partitionKey, header.getIdOrThrow()), this);
+                        d.debugLogging.logHookData(id.partition(), id.id(), DebugLoggingDelegate.TaskDataType.Removed, callback.getClass(), null);
+                        callback.onRemove(id, this);
                         return;
                     }
 
@@ -59,11 +63,17 @@ public class HookContext<T extends BaseDao> implements IHookContext {
                         return;
                     }
 
-                    PUUID id = PUUID.from(partitionKey, header.getId());
                     synchronized (d.locking.lockable(id)) {
                         BaseDao obj = d.dataSerializer.fromDataMessage(partitionKey, msg, true);
                         if (obj == null || obj.getClass() != clazz) return;
-                        callback.onData((T) obj, this);
+
+                        if (header.getPreviousVersion() == null) {
+                            d.debugLogging.logHookData(id.partition(), id.id(), DebugLoggingDelegate.TaskDataType.Created, callback.getClass(), null);
+                            callback.onData((T) obj, this);
+                        } else {
+                            d.debugLogging.logHookData(id.partition(), id.id(), DebugLoggingDelegate.TaskDataType.Update, callback.getClass(), null);
+                            callback.onData((T) obj, this);
+                        }
                     }
                 } catch (Throwable ex) {
                     d.genericLogger.warn(ex);

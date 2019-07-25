@@ -57,6 +57,7 @@ public class BootstrapConfig {
     private boolean loggingKafka = false;
     private boolean loggingWithStackTrace = false;
     private boolean loggingValidationVerbose = false;
+    private boolean loggingTasks = false;
 
     private boolean extraValidation = false;
 
@@ -478,5 +479,13 @@ public class BootstrapConfig {
 
     public void setZookeeperDataDirOverride(String zookeeperDataDirOverride) {
         this.zookeeperDataDirOverride = zookeeperDataDirOverride;
+    }
+
+    public boolean isLoggingTasks() {
+        return loggingTasks;
+    }
+
+    public void setLoggingTasks(boolean loggingTasks) {
+        this.loggingTasks = loggingTasks;
     }
 }

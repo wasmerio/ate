@@ -28,6 +28,12 @@ import java.util.logging.Logger;
 public class DebugLoggingDelegate {
     AteDelegate d = AteDelegate.get();
 
+    public enum TaskDataType {
+        Created,
+        Update,
+        Removed
+    }
+
     public void logMergeDeferred(DataStagingManager staging, @Nullable LoggerHook LOG) {
         if (d.bootstrapConfig.isLoggingWrites()) {
             StringBuilder sb = new StringBuilder();
@@ -40,6 +46,38 @@ public class DebugLoggingDelegate {
                 sb.append("\n");
                 sb.append(fullStackTrace);
             }
+            logInfo(sb.toString(), LOG);
+        }
+    }
+
+    public void logHookData(IPartitionKey partitionKey, UUID id, TaskDataType type, Class<?> clazz, @Nullable LoggerHook LOG) {
+        if (d.bootstrapConfig.isLoggingTasks()) {
+            StringBuilder sb = new StringBuilder();
+            sb.append("hook: [data partition=");
+            sb.append(PartitionKeySerializer.toString(partitionKey));
+            sb.append(", id=");
+            sb.append(id);
+            sb.append(", type=");
+            sb.append(type);
+            sb.append(", callback=");
+            sb.append(clazz);
+            sb.append("]");
+            logInfo(sb.toString(), LOG);
+        }
+    }
+
+    public void logTaskData(IPartitionKey partitionKey, UUID id, TaskDataType type, Class<?> clazz, @Nullable LoggerHook LOG) {
+        if (d.bootstrapConfig.isLoggingTasks()) {
+            StringBuilder sb = new StringBuilder();
+            sb.append("task: [data partition=");
+            sb.append(PartitionKeySerializer.toString(partitionKey));
+            sb.append(", id=");
+            sb.append(id);
+            sb.append(", type=");
+            sb.append(type);
+            sb.append(", callback=");
+            sb.append(clazz);
+            sb.append("]");
             logInfo(sb.toString(), LOG);
         }
     }
