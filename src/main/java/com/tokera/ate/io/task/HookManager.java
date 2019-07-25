@@ -62,7 +62,8 @@ public class HookManager {
         List<IHookContext> contexts = lookup
                 .values()
                 .stream()
-                .flatMap(a -> a.values().stream())
+                .map(a -> a.getOrDefault(clazz, null))
+                .filter(a -> a != null)
                 .collect(Collectors.toList());
         for (IHookContext context : contexts) {
             if (context.removeHook(callback, clazz) == true) {
