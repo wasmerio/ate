@@ -75,7 +75,7 @@ public class TestTools {
     }
 
     @SuppressWarnings("argument.type.incompatible")
-    static public void assertEquals(String expected, @Nullable String actual) {
+    static public void assertEquals(Object expected, @Nullable Object actual) {
         Assertions.assertEquals(expected, actual);
     }
 
