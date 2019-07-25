@@ -59,9 +59,12 @@ public class HookContext<T extends BaseDao> implements IHookContext {
                         return;
                     }
 
-                    BaseDao obj = d.dataSerializer.fromDataMessage(partitionKey(), msg, true);
-                    if (obj == null || obj.getClass() != clazz) return;
-                    callback.onData((T) obj, this);
+                    PUUID id = PUUID.from(partitionKey, header.getId());
+                    synchronized (d.locking.lockable(id)) {
+                        BaseDao obj = d.dataSerializer.fromDataMessage(partitionKey, msg, true);
+                        if (obj == null || obj.getClass() != clazz) return;
+                        callback.onData((T) obj, this);
+                    }
                 } catch (Throwable ex) {
                     d.genericLogger.warn(ex);
                 }

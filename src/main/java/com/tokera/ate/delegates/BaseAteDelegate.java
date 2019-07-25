@@ -102,6 +102,7 @@ public abstract class BaseAteDelegate {
     public final TaskManager taskManager;
     public final JsonDelegate json;
     public final ResourceFileDelegate resourceFile;
+    public final LockingDelegate locking;
 
     public ZooServer zooKeeper;
     public KafkaServer kafka;
@@ -198,5 +199,6 @@ public abstract class BaseAteDelegate {
         this.taskManager = getBean(TaskManager.class);
         this.json = getBean(JsonDelegate.class);
         this.resourceFile = getBean(ResourceFileDelegate.class);
+        this.locking = getBean(LockingDelegate.class);
     }
 }

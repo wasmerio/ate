@@ -172,22 +172,27 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
                 try {
                     MessageDataDto data = msg.getData();
                     MessageDataHeaderDto header = data.getHeader();
-                    if (data.hasPayload() == false) {
-                        callback.onRemove(PUUID.from(partitionKey(), header.getIdOrThrow()), this);
-                        continue;
-                    }
 
-                    if (d.authorization.canRead(context.partitionKey(), header.getIdOrThrow()) == false) {
-                        continue;
-                    }
+                    PUUID id = PUUID.from(partitionKey(), header.getId());
+                    synchronized (d.locking.lockable(id))
+                    {
+                        if (data.hasPayload() == false) {
+                            callback.onRemove(PUUID.from(partitionKey(), header.getIdOrThrow()), this);
+                            continue;
+                        }
 
-                    BaseDao obj = d.dataSerializer.fromDataMessage(partitionKey(), msg, true);
-                    if (obj == null || obj.getClass() != clazz) continue;
+                        if (d.authorization.canRead(context.partitionKey(), header.getIdOrThrow()) == false) {
+                            continue;
+                        }
 
-                    if (header.getPreviousVersion() == null) {
-                        callback.onCreate((T)obj, this);
-                    } else {
-                        callback.onUpdate((T) obj, this);
+                        BaseDao obj = d.dataSerializer.fromDataMessage(partitionKey(), msg, true);
+                        if (obj == null || obj.getClass() != clazz) continue;
+
+                        if (header.getPreviousVersion() == null) {
+                            callback.onCreate((T) obj, this);
+                        } else {
+                            callback.onUpdate((T) obj, this);
+                        }
                     }
                 } catch (Throwable ex) {
                     d.genericLogger.warn(ex);
