@@ -144,7 +144,7 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
      * Gathers all the objects in the tree of this particular type and invokes a processor for them
      */
     public void invokeInit(BoundRequestContext boundRequestContext) {
-        HookContext.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () ->
+        Hook.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () ->
         {
             AteDelegate d = AteDelegate.get();
             callback.onInit(d.io.getAll(clazz), this);
@@ -152,7 +152,7 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
     }
 
     public void invokeSeedKeys(BoundRequestContext boundRequestContext) {
-        HookContext.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () ->
+        Hook.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () ->
         {
             AteDelegate d = AteDelegate.get();
             for (MessagePublicKeyDto key : d.currentRights.getRightsRead()) {
@@ -166,7 +166,7 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
 
     @SuppressWarnings("unchecked")
     public void invokeMessages(BoundRequestContext boundRequestContext, Iterable<MessageDataMetaDto> msgs) {
-        HookContext.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () ->
+        Hook.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () ->
         {
             AteDelegate d = AteDelegate.get();
             for (MessageDataMetaDto msg : msgs) {
@@ -206,12 +206,12 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
     }
 
     public void invokeTick(BoundRequestContext boundRequestContext) {
-        HookContext.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () -> callback.onTick(this));
+        Hook.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () -> callback.onTick(this));
     }
 
     public void invokeWarmAndIdle(BoundRequestContext boundRequestContext) {
         AteDelegate d = AteDelegate.get();
-        HookContext.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () -> {
+        Hook.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () -> {
             d.io.warm(partitionKey());
             callback.onIdle(this);
         });

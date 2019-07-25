@@ -13,11 +13,12 @@ public interface IHookCallback<T extends BaseDao> {
     /**
      * Callback invoked whenever a data object is created or updated
      */
-    void onData(T obj, IHookContext context);
+    default void onData(T obj, IHook context) {
+    }
 
     /**
      * Callback invoked whenever a data object is removed
      */
-    default void onRemove(PUUID id, IHookContext context) {
+    default void onRemove(PUUID id, IHook context) {
     }
 }

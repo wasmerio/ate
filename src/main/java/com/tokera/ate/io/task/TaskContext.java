@@ -27,13 +27,11 @@ public class TaskContext<T extends BaseDao> implements ITaskContext {
     public final IPartitionKey partitionKey;
     public final Class<T> clazz;
     public final List<Task<T>> tasks;
-    public final List<HookContext<T>> hooks;
 
     public TaskContext(IPartitionKey partitionKey, Class<T> clazz) {
         this.partitionKey = partitionKey;
         this.clazz = clazz;
         this.tasks = new LinkedList<>();
-        this.hooks = new LinkedList<>();
     }
 
     @Override
@@ -67,21 +65,6 @@ public class TaskContext<T extends BaseDao> implements ITaskContext {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public <A extends BaseDao> void addHook(IHookCallback<A> callback, Class<A> clazz) {
-        AteDelegate d = AteDelegate.get();
-
-        if (this.clazz != clazz) {
-            throw new RuntimeException("Clazz type of the callback must match.");
-        }
-
-        synchronized (hooks) {
-            HookContext context = new HookContext(this.partitionKey, callback, clazz, d.currentToken.getTokenOrNull());
-            hooks.add(context);
-        }
-    }
-
-    @Override
     public boolean removeTask(ITask task) {
         Task<T> ret;
         synchronized (tasks) {
@@ -93,34 +76,10 @@ public class TaskContext<T extends BaseDao> implements ITaskContext {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public <A extends BaseDao> boolean removeHook(IHookCallback<A> callback, Class<A> clazz) {
-        AteDelegate d = AteDelegate.get();
-
-        if (this.clazz != clazz) {
-            throw new RuntimeException("Clazz type of the callback must match.");
-        }
-
-        synchronized (hooks) {
-            for (HookContext<T> context : hooks) {
-                if (context.callback(clazz) == callback) {
-                    return hooks.remove(context);
-                }
-            }
-        }
-        return false;
-    }
-
-    @Override
     public void feed(MessageDataMetaDto msg) {
         synchronized (tasks) {
             for (Task<T> context : this.tasks) {
                 context.add(msg);
-            }
-        }
-        synchronized (hooks) {
-            for (HookContext<T> context : this.hooks) {
-                context.feed(msg);
             }
         }
     }

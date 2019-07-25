@@ -22,6 +22,7 @@ import com.tokera.ate.io.layers.MemoryRequestCacheIO;
 import com.tokera.ate.io.merge.DataMerger;
 import com.tokera.ate.io.ram.RamBridgeBuilder;
 import com.tokera.ate.io.repo.*;
+import com.tokera.ate.io.task.HookManager;
 import com.tokera.ate.io.task.TaskManager;
 import com.tokera.ate.qualifiers.FrontendStorageSystem;
 import com.tokera.ate.security.Encryptor;
@@ -100,6 +101,7 @@ public abstract class BaseAteDelegate {
     public final DebugLoggingDelegate debugLogging;
     public final ValidationUtil validationUtil;
     public final TaskManager taskManager;
+    public final HookManager hookManager;
     public final JsonDelegate json;
     public final ResourceFileDelegate resourceFile;
     public final LockingDelegate locking;
@@ -197,6 +199,7 @@ public abstract class BaseAteDelegate {
         this.debugLogging = getBean(DebugLoggingDelegate.class);
         this.validationUtil = getBean(ValidationUtil.class);
         this.taskManager = getBean(TaskManager.class);
+        this.hookManager = getBean(HookManager.class);
         this.json = getBean(JsonDelegate.class);
         this.resourceFile = getBean(ResourceFileDelegate.class);
         this.locking = getBean(LockingDelegate.class);

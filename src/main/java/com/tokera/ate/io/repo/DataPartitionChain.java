@@ -90,6 +90,7 @@ public class DataPartitionChain {
 
         // Invoke the task manager so anything waiting for events will trigger
         d.taskManager.feed(this.partitionKey(), data, meta);
+        d.hookManager.feed(this.partitionKey(), data, meta);
     }
     
     public void addTrustCastle(MessageSecurityCastleDto castle, @Nullable LoggerHook LOG) {

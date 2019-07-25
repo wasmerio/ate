@@ -32,36 +32,6 @@ public class TaskManager {
 
     public static int DEFAULT_IDLE_TIME = 1000;
 
-    @SuppressWarnings("unchecked")
-    public <T extends BaseDao> void hook(IPartitionKey partitionKey, Class<T> clazz, IHookCallback<T> callback) {
-        ConcurrentHashMap<Class<? extends BaseDao>, ITaskContext> first
-                = lookup.computeIfAbsent(partitionKey, k -> new ConcurrentHashMap<>());
-        ITaskContext second = first.computeIfAbsent(clazz, c -> new TaskContext(partitionKey, clazz));
-        second.addHook(callback, clazz);
-
-        d.io.warmAndWait(partitionKey);
-    }
-
-    public <T extends BaseDao> boolean unhook(IPartitionKey partitionKey, Class<T> clazz, IHookCallback<T> callback) {
-        ITaskContext context = getContext(partitionKey, clazz);
-        return context.removeHook(callback, clazz);
-    }
-
-    public <T extends BaseDao> boolean unhook(Class<T> clazz, IHookCallback<T> callback) {
-        boolean ret = false;
-        List<ITaskContext> contexts = lookup
-                .values()
-                .stream()
-                .flatMap(a -> a.values().stream())
-                .collect(Collectors.toList());
-        for (ITaskContext context : contexts) {
-            if (context.removeHook(callback, clazz) == true) {
-                ret = true;
-            }
-        }
-        return ret;
-    }
-
     public <T extends BaseDao> ITask subscribe(IPartitionKey partitionKey, Class<T> clazz, ITaskCallback<T> callback) {
         return subscribe(partitionKey, clazz, callback, DEFAULT_IDLE_TIME);
     }
