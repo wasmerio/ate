@@ -21,6 +21,7 @@ import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
  * Represents the context of a processor to be invoked on callbacks, this object can be used to unsubscribe
@@ -30,7 +31,7 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
     public final TaskContext<T> context;
     public final WeakReference<ITaskCallback<T>> callback;
     public final @Nullable TokenDto token;
-    public final ConcurrentStack<MessageDataMetaDto> toProcess;
+    public final ConcurrentLinkedQueue<MessageDataMetaDto> toProcess;
     public final Class<T> clazz;
     public final int idleTime;
 
@@ -44,7 +45,7 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
         this.clazz = clazz;
         this.callback = new WeakReference<>(callback);
         this.token = token;
-        this.toProcess = new ConcurrentStack<>();
+        this.toProcess = new ConcurrentLinkedQueue<>();
         this.idleTime = idleTime;
     }
 
@@ -113,7 +114,7 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
 
                 ArrayList<MessageDataMetaDto> msgs = new ArrayList<>();
                 for (int n = 0; n < 1000; n++) {
-                    MessageDataMetaDto msg = toProcess.pop();
+                    MessageDataMetaDto msg = toProcess.poll();
                     if (msg == null) break;
                     msgs.add(msg);
                 }
@@ -144,7 +145,7 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
     public void feed(MessageDataMetaDto msg) {
         if (this.isActive() == false) return;
 
-        this.toProcess.push(msg);
+        this.toProcess.add(msg);
         synchronized (this.toProcess) {
             this.toProcess.notify();
         }
