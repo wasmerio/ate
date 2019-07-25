@@ -2,10 +2,12 @@ package com.tokera.ate.common;
 
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import java.io.IOException;
 import java.net.*;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 public class NetworkTools {
 
@@ -74,5 +76,17 @@ public class NetworkTools {
 
     public static void addExternalNetworkAddress(String addr) {
         externalNetworkAddresses.add(addr);
+    }
+
+    public static boolean isReachableByTcp(String host, int port, int timeout) {
+        try {
+            Socket socket = new Socket();
+            SocketAddress socketAddress = new InetSocketAddress(host, port);
+            socket.connect(socketAddress, timeout);
+            socket.close();
+            return true;
+        } catch (IOException e) {
+            return false;
+        }
     }
 }
