@@ -194,7 +194,7 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
                             d.debugLogging.logTaskData(id.partition(), id.id(), obj.getClass().getSimpleName(), DebugLoggingDelegate.TaskDataType.Created, callback.getClass(), null);
                             callback.onCreate((T) obj, this);
                         } else {
-                            d.debugLogging.logTaskData(id.partition(), id.id(), obj.getClass().getSimpleName(), DebugLoggingDelegate.TaskDataType.Removed, callback.getClass(), null);
+                            d.debugLogging.logTaskData(id.partition(), id.id(), obj.getClass().getSimpleName(), DebugLoggingDelegate.TaskDataType.Update, callback.getClass(), null);
                             callback.onUpdate((T) obj, this);
                         }
                     }
