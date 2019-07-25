@@ -38,6 +38,12 @@ public class HookManager {
                 context.clean();
             }
         }
+
+        lookup.entrySet().removeIf(a ->
+        {
+            a.getValue().entrySet().removeIf(b -> b.getValue().isEmpty());
+            return a.getValue().size() <= 0;
+        });
     }
 
     @SuppressWarnings("unchecked")

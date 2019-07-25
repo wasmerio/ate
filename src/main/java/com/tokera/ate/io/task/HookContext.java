@@ -76,9 +76,8 @@ public class HookContext<T extends BaseDao> implements IHookContext {
     }
 
     @Override
-    public List<IHook> hooks() {
-        return this.hooks.stream()
-                .collect(Collectors.toList());
+    public boolean isEmpty() {
+        return this.hooks.isEmpty();
     }
 
     @Override

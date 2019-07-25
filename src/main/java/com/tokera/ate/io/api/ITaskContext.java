@@ -17,7 +17,7 @@ public interface ITaskContext
 
     <T extends BaseDao> boolean removeTask(ITaskCallback<T> callback, Class<T> clazz);
 
-    List<ITask> tasks();
+    boolean isEmpty();
 
     void clean();
 }

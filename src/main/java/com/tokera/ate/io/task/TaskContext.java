@@ -94,9 +94,8 @@ public class TaskContext<T extends BaseDao> implements ITaskContext {
     }
 
     @Override
-    public List<ITask> tasks() {
-        return this.tasks.stream()
-                .collect(Collectors.toList());
+    public boolean isEmpty() {
+        return this.tasks.isEmpty();
     }
 
     @Override
