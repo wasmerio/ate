@@ -1,13 +1,11 @@
 package com.tokera.ate;
 
 import com.tokera.ate.common.ApplicationConfigLoader;
-import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.enumerations.KeyType;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.enumerations.DefaultStorageSystem;
 import com.tokera.ate.scopes.Startup;
-import scala.sys.Prop;
 
 import javax.enterprise.context.ApplicationScoped;
 import java.util.ArrayList;
@@ -57,7 +55,8 @@ public class BootstrapConfig {
     private boolean loggingKafka = false;
     private boolean loggingWithStackTrace = false;
     private boolean loggingValidationVerbose = false;
-    private boolean loggingTasks = false;
+    private boolean loggingCallbacks = false;
+    private boolean loggingCallbackData = false;
 
     private boolean extraValidation = false;
 
@@ -481,11 +480,19 @@ public class BootstrapConfig {
         this.zookeeperDataDirOverride = zookeeperDataDirOverride;
     }
 
-    public boolean isLoggingTasks() {
-        return loggingTasks;
+    public boolean isLoggingCallbacks() {
+        return loggingCallbacks;
     }
 
-    public void setLoggingTasks(boolean loggingTasks) {
-        this.loggingTasks = loggingTasks;
+    public void setLoggingCallbacks(boolean loggingCallbacks) {
+        this.loggingCallbacks = loggingCallbacks;
+    }
+
+    public boolean isLoggingCallbackData() {
+        return loggingCallbackData;
+    }
+
+    public void setLoggingCallbackData(boolean loggingCallbackData) {
+        this.loggingCallbackData = loggingCallbackData;
     }
 }

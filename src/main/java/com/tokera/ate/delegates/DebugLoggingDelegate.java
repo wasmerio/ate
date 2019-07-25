@@ -6,19 +6,16 @@ import com.tokera.ate.dao.base.BaseDaoInternal;
 import com.tokera.ate.dao.msg.MessageBase;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.io.api.IPartitionKey;
-import com.tokera.ate.io.repo.DataPartitionChain;
 import com.tokera.ate.io.repo.DataStagingManager;
 import com.tokera.ate.providers.PartitionKeySerializer;
 import com.tokera.ate.scopes.Startup;
 import org.apache.commons.lang.exception.ExceptionUtils;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.ApplicationScoped;
 import java.util.UUID;
-import java.util.logging.Logger;
 
 /**
  * Delegate used to perform some extra logging for debug purposes
@@ -50,38 +47,29 @@ public class DebugLoggingDelegate {
         }
     }
 
-    public void logHookData(IPartitionKey partitionKey, UUID id, String type, TaskDataType action, Class<?> clazz, @Nullable LoggerHook LOG) {
-        if (d.bootstrapConfig.isLoggingTasks()) {
+    public void logCallbackData(String prefix, IPartitionKey partitionKey, UUID id, TaskDataType action, Class<?> callbackClazz, @Nullable BaseDao obj, @Nullable LoggerHook LOG) {
+        if (d.bootstrapConfig.isLoggingCallbacks()) {
             StringBuilder sb = new StringBuilder();
-            sb.append("hook: [data partition=");
+            sb.append(prefix);
+            sb.append(": [data partition=");
             sb.append(PartitionKeySerializer.toString(partitionKey));
             sb.append(", id=");
             sb.append(id);
-            sb.append(", type=");
-            sb.append(type);
+            if (obj != null) {
+                sb.append(", type=");
+                sb.append(obj.getClass().getSimpleName());
+            }
             sb.append(", action=");
             sb.append(action);
             sb.append(", callback=");
-            sb.append(clazz.getSimpleName());
+            sb.append(callbackClazz.getSimpleName());
             sb.append("]");
-            logInfo(sb.toString(), LOG);
-        }
-    }
 
-    public void logTaskData(IPartitionKey partitionKey, UUID id, String type, TaskDataType action, Class<?> clazz, @Nullable LoggerHook LOG) {
-        if (d.bootstrapConfig.isLoggingTasks()) {
-            StringBuilder sb = new StringBuilder();
-            sb.append("task: [data partition=");
-            sb.append(PartitionKeySerializer.toString(partitionKey));
-            sb.append(", id=");
-            sb.append(id);
-            sb.append(", type=");
-            sb.append(type);
-            sb.append(", action=");
-            sb.append(action);
-            sb.append(", callback=");
-            sb.append(clazz.getSimpleName());
-            sb.append("]");
+            if (d.bootstrapConfig.isLoggingCallbackData() && obj != null) {
+                sb.append("\n");
+                sb.append(d.yaml.serializeObj(obj));
+            }
+
             logInfo(sb.toString(), LOG);
         }
     }

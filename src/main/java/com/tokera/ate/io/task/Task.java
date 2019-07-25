@@ -178,7 +178,7 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
                     synchronized (d.locking.lockable(id))
                     {
                         if (data.hasPayload() == false) {
-                            d.debugLogging.logTaskData(id.partition(), id.id(), header.getPayloadClazzOrThrow(), DebugLoggingDelegate.TaskDataType.Removed, callback.getClass(), null);
+                            d.debugLogging.logCallbackData("task", id.partition(), id.id(), DebugLoggingDelegate.TaskDataType.Removed, callback.getClass(), null, null);
                             callback.onRemove(id, this);
                             continue;
                         }
@@ -191,10 +191,10 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
                         if (obj == null || obj.getClass() != clazz) continue;
 
                         if (header.getPreviousVersion() == null) {
-                            d.debugLogging.logTaskData(id.partition(), id.id(), obj.getClass().getSimpleName(), DebugLoggingDelegate.TaskDataType.Created, callback.getClass(), null);
+                            d.debugLogging.logCallbackData("task", id.partition(), id.id(), DebugLoggingDelegate.TaskDataType.Created, callback.getClass(), obj, null);
                             callback.onCreate((T) obj, this);
                         } else {
-                            d.debugLogging.logTaskData(id.partition(), id.id(), obj.getClass().getSimpleName(), DebugLoggingDelegate.TaskDataType.Update, callback.getClass(), null);
+                            d.debugLogging.logCallbackData("task", id.partition(), id.id(), DebugLoggingDelegate.TaskDataType.Update, callback.getClass(), obj, null);
                             callback.onUpdate((T) obj, this);
                         }
                     }
