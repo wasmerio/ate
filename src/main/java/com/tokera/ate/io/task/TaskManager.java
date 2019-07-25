@@ -32,6 +32,17 @@ public class TaskManager {
 
     public static int DEFAULT_IDLE_TIME = 1000;
 
+    /**
+     * Cleans up any dead hooks
+     */
+    private void clean() {
+        for (ConcurrentHashMap<Class<? extends BaseDao>, ITaskContext> map : lookup.values()) {
+            for (ITaskContext context : map.values()) {
+                context.clean();
+            }
+        }
+    }
+
     public <T extends BaseDao> ITask subscribe(IPartitionKey partitionKey, Class<T> clazz, ITaskCallback<T> callback) {
         return subscribe(partitionKey, clazz, callback, DEFAULT_IDLE_TIME);
     }
@@ -53,49 +64,24 @@ public class TaskManager {
         return second.addTask(callback, clazz, idleTIme, token);
     }
 
-    public <T extends BaseDao> void unsubscribe(ITask task) {
-        ITaskContext context = getContext(task.partitionKey(), task.clazz());
-        context.removeTask(task);
+    public <T extends BaseDao> boolean unsubscribe(IPartitionKey partitionKey, ITaskCallback<T> callback, Class<T> clazz) {
+        ITaskContext context = getContext(partitionKey, clazz);
+        return context.removeTask(callback, clazz);
     }
 
-    public <T extends BaseDao> void unsubscribe(ITaskCallback<T> callback) {
-        List<ITask> subscriptions = lookup
+    public <T extends BaseDao> boolean unsubscribe(ITaskCallback<T> callback, Class<T> clazz) {
+        boolean ret = false;
+        List<ITaskContext> contexts = lookup
                 .values()
                 .stream()
                 .flatMap(a -> a.values().stream())
-                .flatMap(a -> a.tasks().stream())
-                .filter(a -> a.callback() == callback)
                 .collect(Collectors.toList());
-        for (ITask subscription : subscriptions) {
-            unsubscribe(subscription);
+        for (ITaskContext context : contexts) {
+            if (context.removeTask(callback, clazz) == true) {
+                ret = true;
+            }
         }
-    }
-
-    public void unsubscribe(IPartitionKey partitionKey) {
-        List<ITask> subscriptions = lookup
-                .values()
-                .stream()
-                .flatMap(a -> a.values().stream())
-                .filter(a -> a.partitionKey().equals(partitionKey))
-                .flatMap(a -> a.tasks().stream())
-                .collect(Collectors.toList());
-        for (ITask subscription : subscriptions) {
-            unsubscribe(subscription);
-        }
-    }
-
-    public <T extends BaseDao> void unsubscribe(IPartitionKey partitionKey, ITaskCallback<T> callback) {
-        List<ITask> subscriptions = lookup
-                .values()
-                .stream()
-                .flatMap(a -> a.values().stream())
-                .filter(a -> a.partitionKey().equals(partitionKey))
-                .flatMap(a -> a.tasks().stream())
-                .filter(a -> a.callback() == callback)
-                .collect(Collectors.toList());
-        for (ITask subscription : subscriptions) {
-            unsubscribe(subscription);
-        }
+        return ret;
     }
 
     @SuppressWarnings("unchecked")

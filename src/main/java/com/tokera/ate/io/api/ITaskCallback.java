@@ -4,11 +4,18 @@ import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
 
 import java.util.Collection;
+import java.util.UUID;
 
 /**
  * Interface that's invoked when a particular data object on a particular partition is created, modifeid or removed
  */
 public interface ITaskCallback<T extends BaseDao> {
+
+    /**
+     * Unique ID of this callback
+     * @return
+     */
+    UUID id();
 
     /**
      * Callback invoked for every object of this type that is discovered when the task processor first starts up, after

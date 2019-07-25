@@ -65,21 +65,30 @@ public class TaskContext<T extends BaseDao> implements ITaskContext {
     }
 
     @Override
-    public boolean removeTask(ITask task) {
-        Task<T> ret;
-        synchronized (tasks) {
-            ret = this.tasks.stream().filter(t -> t == task).findFirst().orElse(null);
-            if (ret == null) return false;
+    public <A extends BaseDao> boolean removeTask(ITaskCallback<A> callback, Class<A> clazz) {
+        AteDelegate d = AteDelegate.get();
+
+        if (this.clazz != clazz) {
+            throw new RuntimeException("Clazz type of the callback must match.");
         }
-        ret.stop();
-        return true;
+
+        synchronized (tasks) {
+            for (Task<T> task : tasks) {
+                if (task.id().equals(callback.id())) {
+                    boolean ret = tasks.remove(task);
+                    task.stop();
+                    return ret;
+                }
+            }
+        }
+        return false;
     }
 
     @Override
     public void feed(MessageDataMetaDto msg) {
         synchronized (tasks) {
-            for (Task<T> context : this.tasks) {
-                context.add(msg);
+            for (Task<T> task : this.tasks) {
+                task.feed(msg);
             }
         }
     }
@@ -88,5 +97,17 @@ public class TaskContext<T extends BaseDao> implements ITaskContext {
     public List<ITask> tasks() {
         return this.tasks.stream()
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public void clean() {
+        synchronized (tasks) {
+            List<Task<T>> toRemove = tasks.stream()
+                    .filter(h -> h.isActive() == false)
+                    .collect(Collectors.toList());
+            for (Task<T> task : toRemove) {
+                tasks.remove(task);
+            }
+        }
     }
 }

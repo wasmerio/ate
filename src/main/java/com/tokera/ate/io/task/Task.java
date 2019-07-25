@@ -17,6 +17,7 @@ import org.jboss.weld.context.bound.BoundRequestContext;
 import org.joda.time.DateTime;
 
 import javax.enterprise.inject.spi.CDI;
+import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Date;
 
@@ -25,7 +26,7 @@ import java.util.Date;
  */
 public class Task<T extends BaseDao> implements Runnable, ITask {
     public final TaskContext<T> context;
-    public final ITaskCallback<T> callback;
+    public final WeakReference<ITaskCallback<T>> callback;
     public final @Nullable TokenDto token;
     public final ConcurrentStack<MessageDataMetaDto> toProcess;
     public final Class<T> clazz;
@@ -38,7 +39,7 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
     public Task(TaskContext<T> context, Class<T> clazz, ITaskCallback<T> callback, int idleTime, @Nullable TokenDto token) {
         this.context = context;
         this.clazz = clazz;
-        this.callback = callback;
+        this.callback = new WeakReference<>(callback);
         this.token = token;
         this.toProcess = new ConcurrentStack<>();
         this.idleTime = idleTime;
@@ -55,13 +56,13 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
     }
 
     @Override
-    public ITaskCallback<T> callback() {
-        return callback;
+    public @Nullable TokenDto token() {
+        return token;
     }
 
     @Override
-    public @Nullable TokenDto token() {
-        return token;
+    public boolean isActive() {
+        return this.callback.get() != null;
     }
 
     public void start() {
@@ -94,7 +95,7 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
         // Enter the main processing loop
         StopWatch timer = new StopWatch();
         timer.start();
-        while (isRunning) {
+        while (isRunning && this.isActive()) {
             try {
                 if (doneExisting == false) {
                     invokeSeedKeys(boundRequestContext);
@@ -133,7 +134,10 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
         }
     }
 
-    public void add(MessageDataMetaDto msg) {
+    @Override
+    public void feed(MessageDataMetaDto msg) {
+        if (this.isActive() == false) return;
+
         this.toProcess.push(msg);
         synchronized (this.toProcess) {
             this.toProcess.notify();
@@ -147,7 +151,8 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
         Hook.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () ->
         {
             AteDelegate d = AteDelegate.get();
-            callback.onInit(d.io.getAll(clazz), this);
+            ITaskCallback<T> callback = this.callback.get();
+            if (callback != null) callback.onInit(d.io.getAll(clazz), this);
         });
     }
 
@@ -173,6 +178,9 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
                 try {
                     MessageDataDto data = msg.getData();
                     MessageDataHeaderDto header = data.getHeader();
+
+                    ITaskCallback<T> callback = this.callback.get();
+                    if (callback == null) continue;
 
                     PUUID id = PUUID.from(partitionKey(), header.getIdOrThrow());
                     synchronized (d.locking.lockable(id))
@@ -206,14 +214,18 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
     }
 
     public void invokeTick(BoundRequestContext boundRequestContext) {
-        Hook.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () -> callback.onTick(this));
+        Hook.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () -> {
+            ITaskCallback<T> callback = this.callback.get();
+            if (callback != null) callback.onTick(this);
+        });
     }
 
     public void invokeWarmAndIdle(BoundRequestContext boundRequestContext) {
         AteDelegate d = AteDelegate.get();
         Hook.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () -> {
             d.io.warm(partitionKey());
-            callback.onIdle(this);
+            ITaskCallback<T> callback = this.callback.get();
+            if (callback != null) callback.onIdle(this);
         });
     }
 }

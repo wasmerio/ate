@@ -57,9 +57,9 @@ public class HookContext<T extends BaseDao> implements IHookContext {
         }
 
         synchronized (hooks) {
-            for (Hook<T> context : hooks) {
-                if (context.callback(clazz) == callback) {
-                    return hooks.remove(context);
+            for (Hook<T> hook : hooks) {
+                if (hook.id().equals(callback.id())) {
+                    return hooks.remove(hook);
                 }
             }
         }
@@ -69,8 +69,8 @@ public class HookContext<T extends BaseDao> implements IHookContext {
     @Override
     public void feed(MessageDataMetaDto msg) {
         synchronized (hooks) {
-            for (Hook<T> context : this.hooks) {
-                context.feed(msg);
+            for (Hook<T> hook : this.hooks) {
+                hook.feed(msg);
             }
         }
     }
@@ -79,5 +79,17 @@ public class HookContext<T extends BaseDao> implements IHookContext {
     public List<IHook> hooks() {
         return this.hooks.stream()
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public void clean() {
+        synchronized (hooks) {
+            List<Hook<T>> toRemove = hooks.stream()
+                    .filter(h -> h.isActive() == false)
+                    .collect(Collectors.toList());
+            for (Hook<T> hook : toRemove) {
+                hooks.remove(hook);
+            }
+        }
     }
 }

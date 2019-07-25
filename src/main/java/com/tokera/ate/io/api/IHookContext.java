@@ -16,4 +16,6 @@ public interface IHookContext {
     <T extends BaseDao> boolean removeHook(IHookCallback<T> callback, Class<T> clazz);
 
     List<IHook> hooks();
+
+    void clean();
 }

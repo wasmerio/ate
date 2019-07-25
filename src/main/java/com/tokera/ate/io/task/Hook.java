@@ -15,6 +15,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import org.jboss.weld.context.bound.BoundRequestContext;
 
 import javax.enterprise.inject.spi.CDI;
+import java.lang.ref.WeakReference;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.concurrent.Executor;
@@ -29,13 +30,13 @@ public class Hook<T extends BaseDao> implements IHook {
 
     private final AteDelegate d = AteDelegate.get();
     private final IPartitionKey partitionKey;
-    private final IHookCallback<T> callback;
+    private final WeakReference<IHookCallback<T>> callback;
     private final Class<T> clazz;
     private final TokenDto token;
 
     public Hook(IPartitionKey partitionKey, IHookCallback<T> callback, Class<T> clazz, TokenDto token) {
         this.partitionKey = partitionKey;
-        this.callback = callback;
+        this.callback = new WeakReference<>(callback);
         this.clazz = clazz;
         this.token = token;
     }
@@ -44,6 +45,8 @@ public class Hook<T extends BaseDao> implements IHook {
     @SuppressWarnings("unchecked")
     public void feed(MessageDataMetaDto msg)
     {
+        if (this.isActive() == false) return;
+
         executor.execute(() -> {
             BoundRequestContext boundRequestContext = CDI.current().select(BoundRequestContext.class).get();
             Hook.enterRequestScopeAndInvoke(this.partitionKey, boundRequestContext, this.token, () ->
@@ -51,6 +54,9 @@ public class Hook<T extends BaseDao> implements IHook {
                 try {
                     MessageDataDto data = msg.getData();
                     MessageDataHeaderDto header = data.getHeader();
+
+                    IHookCallback<T> callback = this.callback.get();
+                    if (callback == null) return;
 
                     PUUID id = PUUID.from(partitionKey, header.getIdOrThrow());
                     if (data.hasPayload() == false) {
@@ -88,17 +94,13 @@ public class Hook<T extends BaseDao> implements IHook {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    public <A extends BaseDao> @Nullable IHookCallback<A> callback(Class<A> clazz) {
-        if (this.clazz != clazz) {
-            return null;
-        }
-        return (IHookCallback<A>)this.callback;
+    public @Nullable TokenDto token() {
+        return this.token;
     }
 
     @Override
-    public @Nullable TokenDto token() {
-        return this.token;
+    public boolean isActive() {
+        return this.callback.get() != null;
     }
 
     /**

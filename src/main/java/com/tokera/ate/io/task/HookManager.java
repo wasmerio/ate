@@ -29,6 +29,17 @@ public class HookManager {
     ConcurrentHashMap<IPartitionKey, ConcurrentHashMap<Class<? extends BaseDao>, IHookContext>> lookup
             = new ConcurrentHashMap<>();
 
+    /**
+     * Cleans up any dead hooks
+     */
+    private void clean() {
+        for (ConcurrentHashMap<Class<? extends BaseDao>, IHookContext> map : lookup.values()) {
+            for (IHookContext context : map.values()) {
+                context.clean();
+            }
+        }
+    }
+
     @SuppressWarnings("unchecked")
     public <T extends BaseDao> void hook(IPartitionKey partitionKey, Class<T> clazz, IHookCallback<T> callback) {
         ConcurrentHashMap<Class<? extends BaseDao>, IHookContext> first
@@ -39,12 +50,12 @@ public class HookManager {
         d.io.warmAndWait(partitionKey);
     }
 
-    public <T extends BaseDao> boolean unhook(IPartitionKey partitionKey, Class<T> clazz, IHookCallback<T> callback) {
+    public <T extends BaseDao> boolean unhook(IPartitionKey partitionKey, IHookCallback<T> callback, Class<T> clazz) {
         IHookContext context = getContext(partitionKey, clazz);
         return context.removeHook(callback, clazz);
     }
 
-    public <T extends BaseDao> boolean unhook(Class<T> clazz, IHookCallback<T> callback) {
+    public <T extends BaseDao> boolean unhook(IHookCallback<T> callback, Class<T> clazz) {
         boolean ret = false;
         List<IHookContext> contexts = lookup
                 .values()

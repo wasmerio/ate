@@ -15,7 +15,9 @@ public interface ITaskContext
 
     <T extends BaseDao> ITask addTask(ITaskCallback<T> callback, Class<T> clazz, int idleTime, @Nullable TokenDto token);
 
-    boolean removeTask(ITask task);
+    <T extends BaseDao> boolean removeTask(ITaskCallback<T> callback, Class<T> clazz);
 
     List<ITask> tasks();
+
+    void clean();
 }
