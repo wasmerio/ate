@@ -50,7 +50,7 @@ public class DebugLoggingDelegate {
         }
     }
 
-    public void logHookData(IPartitionKey partitionKey, UUID id, TaskDataType type, Class<?> clazz, @Nullable LoggerHook LOG) {
+    public void logHookData(IPartitionKey partitionKey, UUID id, String type, TaskDataType action, Class<?> clazz, @Nullable LoggerHook LOG) {
         if (d.bootstrapConfig.isLoggingTasks()) {
             StringBuilder sb = new StringBuilder();
             sb.append("hook: [data partition=");
@@ -59,14 +59,16 @@ public class DebugLoggingDelegate {
             sb.append(id);
             sb.append(", type=");
             sb.append(type);
+            sb.append(", action=");
+            sb.append(action);
             sb.append(", callback=");
-            sb.append(clazz);
+            sb.append(clazz.getSimpleName());
             sb.append("]");
             logInfo(sb.toString(), LOG);
         }
     }
 
-    public void logTaskData(IPartitionKey partitionKey, UUID id, TaskDataType type, Class<?> clazz, @Nullable LoggerHook LOG) {
+    public void logTaskData(IPartitionKey partitionKey, UUID id, String type, TaskDataType action, Class<?> clazz, @Nullable LoggerHook LOG) {
         if (d.bootstrapConfig.isLoggingTasks()) {
             StringBuilder sb = new StringBuilder();
             sb.append("task: [data partition=");
@@ -75,8 +77,10 @@ public class DebugLoggingDelegate {
             sb.append(id);
             sb.append(", type=");
             sb.append(type);
+            sb.append(", action=");
+            sb.append(action);
             sb.append(", callback=");
-            sb.append(clazz);
+            sb.append(clazz.getSimpleName());
             sb.append("]");
             logInfo(sb.toString(), LOG);
         }

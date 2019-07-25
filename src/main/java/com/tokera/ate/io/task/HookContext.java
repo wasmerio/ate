@@ -54,7 +54,7 @@ public class HookContext<T extends BaseDao> implements IHookContext {
 
                     PUUID id = PUUID.from(partitionKey, header.getIdOrThrow());
                     if (data.hasPayload() == false) {
-                        d.debugLogging.logHookData(id.partition(), id.id(), DebugLoggingDelegate.TaskDataType.Removed, callback.getClass(), null);
+                        d.debugLogging.logHookData(id.partition(), id.id(), header.getPayloadClazzOrThrow(), DebugLoggingDelegate.TaskDataType.Removed, callback.getClass(), null);
                         callback.onRemove(id, this);
                         return;
                     }
@@ -68,10 +68,10 @@ public class HookContext<T extends BaseDao> implements IHookContext {
                         if (obj == null || obj.getClass() != clazz) return;
 
                         if (header.getPreviousVersion() == null) {
-                            d.debugLogging.logHookData(id.partition(), id.id(), DebugLoggingDelegate.TaskDataType.Created, callback.getClass(), null);
+                            d.debugLogging.logHookData(id.partition(), id.id(), obj.getClass().getSimpleName(), DebugLoggingDelegate.TaskDataType.Created, callback.getClass(), null);
                             callback.onData((T) obj, this);
                         } else {
-                            d.debugLogging.logHookData(id.partition(), id.id(), DebugLoggingDelegate.TaskDataType.Update, callback.getClass(), null);
+                            d.debugLogging.logHookData(id.partition(), id.id(), obj.getClass().getSimpleName(), DebugLoggingDelegate.TaskDataType.Update, callback.getClass(), null);
                             callback.onData((T) obj, this);
                         }
                     }
