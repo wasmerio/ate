@@ -356,7 +356,7 @@ public class DebugLoggingDelegate {
         if (LOG != null) {
             LOG.info(info);
         } else {
-            d.genericLogger.info(info);
+            System.out.println(info);
         }
     }
 
@@ -364,6 +364,12 @@ public class DebugLoggingDelegate {
         if (LOG != null) {
             LOG.warn(ex);
         } else {
+            String msg = ex.getMessage();
+            if (msg != null) {
+                System.out.println(ex.getClass().getName() + " - " + ex.getMessage());
+            } else {
+                System.out.println(ex.getClass().getName());
+            }
             d.genericLogger.warn(ex);
         }
     }
