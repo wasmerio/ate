@@ -19,9 +19,11 @@ import java.lang.ref.WeakReference;
 import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Hook<T extends BaseDao> implements IHook {
     private final AteDelegate d = AteDelegate.get();
@@ -36,6 +38,8 @@ public class Hook<T extends BaseDao> implements IHook {
     private final WeakReference<IHookCallback<T>> callback;
     private final Class<T> clazz;
     private final TokenDto token;
+    private final ConcurrentLinkedQueue<MessageDataMetaDto> toProcess;
+    private final AtomicBoolean woken = new AtomicBoolean(false);
 
     public Hook(IPartitionKey partitionKey, IHookCallback<T> callback, Class<T> clazz, TokenDto token) {
         this.id = callback.id();
@@ -43,6 +47,54 @@ public class Hook<T extends BaseDao> implements IHook {
         this.callback = new WeakReference<>(callback);
         this.clazz = clazz;
         this.token = token;
+        this.toProcess = new ConcurrentLinkedQueue<>();
+    }
+
+    private void run()
+    {
+        while (woken.compareAndSet(true, false)) {
+            for (;;) {
+                if (this.toProcess.isEmpty()) break;
+                MessageDataMetaDto msg = toProcess.poll();
+                if (msg == null) break;
+
+                BoundRequestContext boundRequestContext = CDI.current().select(BoundRequestContext.class).get();
+                Hook.enterRequestScopeAndInvoke(this.partitionKey, boundRequestContext, this.token, () ->
+                {
+                    try {
+                        MessageDataDto data = msg.getData();
+                        MessageDataHeaderDto header = data.getHeader();
+
+                        IHookCallback<T> callback = this.callback.get();
+                        if (callback == null) return;
+
+                        PUUID id = PUUID.from(partitionKey, header.getIdOrThrow());
+                        if (data.hasPayload() == false) {
+                            d.debugLogging.logCallbackData("feed-hook", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Removed, callback.getClass(), null);
+                            callback.onRemove(id, this);
+                            return;
+                        }
+
+                        if (AteDelegate.get().authorization.canRead(partitionKey, header.getIdOrThrow()) == false) {
+                            return;
+                        }
+
+                        BaseDao obj = d.dataSerializer.fromDataMessage(partitionKey, msg, true);
+                        if (obj == null || obj.getClass() != clazz) return;
+
+                        if (header.getPreviousVersion() == null) {
+                            d.debugLogging.logCallbackData("feed-hook", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Created, callback.getClass(), obj);
+                            callback.onData((T) obj, this);
+                        } else {
+                            d.debugLogging.logCallbackData("feed-hook", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Update, callback.getClass(), obj);
+                            callback.onData((T) obj, this);
+                        }
+                    } catch (Throwable ex) {
+                        d.genericLogger.warn(ex);
+                    }
+                });
+            }
+        }
     }
 
     @Override
@@ -51,43 +103,10 @@ public class Hook<T extends BaseDao> implements IHook {
     {
         if (this.isActive() == false) return;
 
-        executor.submit(() -> {
-            BoundRequestContext boundRequestContext = CDI.current().select(BoundRequestContext.class).get();
-            Hook.enterRequestScopeAndInvoke(this.partitionKey, boundRequestContext, this.token, () ->
-            {
-                try {
-                    MessageDataDto data = msg.getData();
-                    MessageDataHeaderDto header = data.getHeader();
-
-                    IHookCallback<T> callback = this.callback.get();
-                    if (callback == null) return;
-
-                    PUUID id = PUUID.from(partitionKey, header.getIdOrThrow());
-                    if (data.hasPayload() == false) {
-                        d.debugLogging.logCallbackData("feed-hook", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Removed, callback.getClass(), null);
-                        callback.onRemove(id, this);
-                        return;
-                    }
-
-                    if (AteDelegate.get().authorization.canRead(partitionKey, header.getIdOrThrow()) == false) {
-                        return;
-                    }
-
-                    BaseDao obj = d.dataSerializer.fromDataMessage(partitionKey, msg, true);
-                    if (obj == null || obj.getClass() != clazz) return;
-
-                    if (header.getPreviousVersion() == null) {
-                        d.debugLogging.logCallbackData("feed-hook", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Created, callback.getClass(), obj);
-                        callback.onData((T) obj, this);
-                    } else {
-                        d.debugLogging.logCallbackData("feed-hook", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Update, callback.getClass(), obj);
-                        callback.onData((T) obj, this);
-                    }
-                } catch (Throwable ex) {
-                    d.genericLogger.warn(ex);
-                }
-            });
-        });
+        this.toProcess.add(msg);
+        if (woken.compareAndSet(false, true)) {
+            executor.submit(this::run);
+        }
     }
 
     @Override
