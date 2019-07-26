@@ -7,13 +7,11 @@ import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.scopes.TokenScoped;
 
 import javax.enterprise.event.Observes;
-import java.util.HashSet;
-import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ConcurrentSkipListSet;
 
 /**
  * Coordinator that ensures pending transactions will be synchronized at user-defined points in the program
+ * NOTE: This delegate must be multithread safe
  */
 @TokenScoped
 public class TransactionCoordinator  {

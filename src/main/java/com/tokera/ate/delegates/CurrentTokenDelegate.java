@@ -9,11 +9,9 @@ import com.tokera.ate.dao.enumerations.RiskRole;
 import com.tokera.ate.dao.enumerations.UserRole;
 import com.tokera.ate.dto.EffectivePermissions;
 import com.tokera.ate.events.*;
-import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.scopes.TokenScoped;
 import com.tokera.ate.units.DaoId;
 import com.tokera.ate.dto.TokenDto;
-import com.tokera.ate.units.TopicName;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import com.tokera.ate.scopes.ScopeContext;
 
@@ -22,7 +20,6 @@ import javax.enterprise.event.Observes;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.container.ContainerRequestContext;
 import javax.ws.rs.core.Response;
-import java.util.Stack;
 import java.util.UUID;
 
 /**
@@ -37,7 +34,7 @@ public class CurrentTokenDelegate {
     private boolean                             withinTokenScope = false;
     private @Nullable ScopeContext<String>      tokenScopeContext = null;
     private @Nullable String                    tokenScopeContextKey = null;
-    private @Nullable TokenDto                  currentToken = null;
+    private @Nullable TokenDto                  initToken = null;
 
     public CurrentTokenDelegate() {
     }
@@ -54,7 +51,7 @@ public class CurrentTokenDelegate {
         this.tokenScopeContextKey = context.enter(tokenHash);
         this.withinTokenScope = true;
 
-        TokenDto token = d.tokenSecurity.getTokenOrNull();
+        TokenDto token = d.tokenSecurity.getToken();
         if (token != null) {
             d.eventTokenScopeChanged.fire(new TokenScopeChangedEvent(token));
         }
@@ -113,21 +110,19 @@ public class CurrentTokenDelegate {
     {
         // We only need to fire the event if the token has actually changed
         TokenDto token = discovery.getToken();
-        TokenDto oldToken = this.currentToken;
+        TokenDto oldToken = this.initToken;
         if (oldToken != null && token.getHash().equals(oldToken.getHash())) {
             return;
         }
-        this.currentToken = token;
-
-        // Enter the token scope
-        this.enterTokenScope(token.getHash());
+        this.initToken = token;
 
         // Set the token
         if (skipValidation) {
-            d.tokenSecurity.setTokenWithoutValidation(token);
-        } else {
-            d.tokenSecurity.setToken(token);
+            token.validated.set(true);
         }
+
+        // Enter the token scope
+        this.enterTokenScope(token.getHash());
     }
 
     /**
@@ -158,10 +153,17 @@ public class CurrentTokenDelegate {
         if (this.withinTokenScope == false) {
             return null;
         }
-        return d.tokenSecurity.getTokenOrNull();
+        return d.tokenSecurity.getToken();
     }
 
-    private void missingToken() {
+    /**
+     * Returns the initialization token or null if none was supplied
+     */
+    public @Nullable TokenDto getInitTokenOrNull() {
+        return this.initToken;
+    }
+
+    public void missingToken() {
         ContainerRequestContext request = this.d.requestContext.getContainerRequestContextOrNull();
 
         if (d.resourceInfo.isPermitMissingToken() == false) {

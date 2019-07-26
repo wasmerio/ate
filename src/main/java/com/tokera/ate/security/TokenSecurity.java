@@ -1,5 +1,6 @@
 package com.tokera.ate.security;
 
+import com.tokera.ate.common.ImmutalizableHashSet;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.token.SAMLWriter;
 import com.tokera.ate.common.LoggerHook;
@@ -32,6 +33,7 @@ import org.opensaml.xml.validation.ValidationException;
 
 /**
  * Represents the Token loaded into a token scope
+ * NOTE: This delegate must be multithread safe
  */
 @TokenScoped
 public class TokenSecurity
@@ -41,26 +43,37 @@ public class TokenSecurity
     @Inject
     protected LoggerHook LOG;
 
-    @SuppressWarnings("initialization.fields.uninitialized")
-    private BasicX509Credential signingCredential;
-    @SuppressWarnings("initialization.fields.uninitialized")
-    private SignatureValidator validator;
-    
+    private final BasicX509Credential signingCredential;
+    private final SignatureValidator validator;
     private final ConcurrentMap<String, byte[]> encryptKeyCache = new ConcurrentHashMap<>();
+    private final TokenDto token;
+    private final ImmutalizableHashSet<MessagePrivateKeyDto> readRightsCache;
+    private final ImmutalizableHashSet<MessagePrivateKeyDto> writeRightsCache;
 
-    private @MonotonicNonNull TokenDto token;
-    
-    // List of all the rights the token bearer has to read objects
-    private @MonotonicNonNull Set<MessagePrivateKeyDto> readRightsCache;
-    // List of all the rights the token bearer has to write objects
-    private @MonotonicNonNull Set<MessagePrivateKeyDto> writeRightsCache;
+    public TokenSecurity()
+    {
+        TokenDto token = d.currentToken.getInitTokenOrNull();
+        if (token == null) d.currentToken.missingToken();
 
-    @PostConstruct
-    public void init() {
-        
-        // Load the certificate
-        signingCredential = SignAssertion.getSigningCredential();
-        validator = new SignatureValidator(signingCredential);
+        if (token.validated.compareAndSet(false, true)) {
+            validateToken(token);
+        }
+
+        this.signingCredential = SignAssertion.getSigningCredential();
+        this.validator = new SignatureValidator(signingCredential);
+        this.token = token;
+
+        this.writeRightsCache = new ImmutalizableHashSet<>();
+        for (ClaimDto key : token.getClaimsForKey(TokenDto.SECURITY_CLAIM_WRITE_KEY)) {
+            this.writeRightsCache.add((MessagePrivateKeyDto)d.yaml.deserializeObj(key.getValue()));
+        }
+        this.writeRightsCache.immutalize();
+
+        this.readRightsCache = new ImmutalizableHashSet<>();
+        for (ClaimDto key : token.getClaimsForKey(TokenDto.SECURITY_CLAIM_READ_KEY)) {
+            this.readRightsCache.add((MessagePrivateKeyDto)d.yaml.deserializeObj(key.getValue()));
+        }
+        this.readRightsCache.immutalize();
     }
     
     public Map<String, byte[]> getEncryptKeyCache() {
@@ -99,60 +112,15 @@ public class TokenSecurity
         }
     }
 
-    public void setToken(TokenDto token) {
-        validateToken(token);
-        this.token = token;
-    }
-
-    public void setTokenWithoutValidation(TokenDto token) {
-        this.token = token;
-    }
-
-    /**
-     * @return the token
-     */
     public TokenDto getToken() {
-        if (this.token == null) {
-            throw new WebApplicationException("There is not token currentRights attached to this token scope.");
-        }
-        return this.token;
-    }
-
-    public @Nullable TokenDto getTokenOrNull() {
         return this.token;
     }
     
     public Set<MessagePrivateKeyDto> getRightsRead() {
-        if (readRightsCache != null) {
-            return readRightsCache;
-        }
-        
-        Set<MessagePrivateKeyDto> ret = new HashSet<>();
-
-        if (token == null) return new HashSet<>();
-        
-        for (ClaimDto key : token.getClaimsForKey(TokenDto.SECURITY_CLAIM_READ_KEY)) {
-            ret.add((MessagePrivateKeyDto)d.yaml.deserializeObj(key.getValue()));
-        }
-
-        readRightsCache = ret.stream().collect(Collectors.toSet());
         return readRightsCache;
     }
 
     public Set<MessagePrivateKeyDto> getRightsWrite() {
-        if (writeRightsCache != null) {
-            return writeRightsCache;
-        }
-
-        Set<MessagePrivateKeyDto> ret = new HashSet<>();
-
-        if (token == null) return new HashSet<>();
-        
-        for (ClaimDto key : token.getClaimsForKey(TokenDto.SECURITY_CLAIM_WRITE_KEY)) {
-            ret.add((MessagePrivateKeyDto)d.yaml.deserializeObj(key.getValue()));
-        }
-
-        writeRightsCache = ret.stream().collect(Collectors.toSet());
         return writeRightsCache;
     }
 }

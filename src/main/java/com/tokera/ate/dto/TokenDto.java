@@ -1,7 +1,9 @@
 package com.tokera.ate.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tokera.ate.annotations.YamlTag;
+import com.tokera.ate.common.ImmutalizableArrayList;
 import com.tokera.ate.common.UUIDTools;
 import com.tokera.ate.dao.enumerations.RiskRole;
 import com.tokera.ate.dao.enumerations.UserRole;
@@ -34,11 +36,13 @@ import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import javax.ws.rs.WebApplicationException;
 
 /**
  * Represents an authentication and authorization token that has been signed by the issuer
  * @author John
+ * Note: This class must be multiple safe
  */
 @YamlTag("dto.token")
 public class TokenDto {
@@ -54,7 +58,9 @@ public class TokenDto {
     private @Hash String tokenHash;
     @JsonProperty
     @Nullable
-    private List<ClaimDto> claimsCache = null;
+    private ImmutalizableArrayList<ClaimDto> claimsCache = null;
+    @JsonIgnore
+    public transient AtomicBoolean validated = new AtomicBoolean(false);
 
     public static final String SECURITY_CLAIM_USERNAME = "claim://token/username";
     public static final String SECURITY_CLAIM_USER_ID = "claim://token/user-id";
@@ -99,8 +105,13 @@ public class TokenDto {
     public @Hash String getHash() {
         @Hash String ret = tokenHash;
         if (ret == null) {
-            ret = computeTokenHash(this.xmlToken);
-            tokenHash = ret;
+            synchronized (this) {
+                ret = tokenHash;
+                if (ret == null) {
+                    ret = computeTokenHash(this.xmlToken);
+                    tokenHash = ret;
+                }
+            }
         }
         return ret;
     }
@@ -146,35 +157,45 @@ public class TokenDto {
      */
     public List<ClaimDto> getClaims() {
 
-        List<ClaimDto> ret = claimsCache;
+        ImmutalizableArrayList<ClaimDto> ret = claimsCache;
         if (ret != null) {
             return ret;
         }
 
-        // Get the assertion
-        Assertion assertion = getAssertion();
+        synchronized (this)
+        {
+            ret = claimsCache;
+            if (ret != null) {
+                return ret;
+            }
 
-        // Get the claims
-        ret = new ArrayList<>();
-        for (AttributeStatement statement : assertion.getAttributeStatements()) {
-            for (Attribute att : statement.getAttributes()) {
-                if (att.getName().length() <= 0) {
-                    continue;
-                }
+            // Get the assertion
+            Assertion assertion = getAssertion();
 
-                for (XMLObject value : att.getAttributeValues()) {
-                    if (value instanceof XSString) {
-                        XSString valueStr = (XSString) value;
-                        ClaimDto claim = new ClaimDto(
-                                att.getName(),
-                                valueStr.getValue());
-                        ret.add(claim);
+            // Get the claims
+            ret = new ImmutalizableArrayList<>();
+            for (AttributeStatement statement : assertion.getAttributeStatements()) {
+                for (Attribute att : statement.getAttributes()) {
+                    if (att.getName().length() <= 0) {
+                        continue;
+                    }
+
+                    for (XMLObject value : att.getAttributeValues()) {
+                        if (value instanceof XSString) {
+                            XSString valueStr = (XSString) value;
+                            ClaimDto claim = new ClaimDto(
+                                    att.getName(),
+                                    valueStr.getValue());
+                            ret.add(claim);
+                        }
                     }
                 }
             }
+
+            ret.immutalize();
+            claimsCache = ret;
+            return ret;
         }
-        claimsCache = ret;
-        return ret;
     }
 
     /**

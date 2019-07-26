@@ -1,9 +1,11 @@
 package com.tokera.ate.io.task;
 
+import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.delegates.DebugLoggingDelegate;
+import com.tokera.ate.delegates.LoggingDelegate;
 import com.tokera.ate.dto.TokenDto;
 import com.tokera.ate.dto.msg.MessageDataDto;
 import com.tokera.ate.dto.msg.MessageDataHeaderDto;
@@ -40,6 +42,7 @@ public class Hook<T extends BaseDao> implements IHook {
     private final TokenDto token;
     private final ConcurrentLinkedQueue<MessageDataMetaDto> toProcess;
     private final AtomicBoolean woken = new AtomicBoolean(false);
+    private final LoggerHook LOG;
 
     public Hook(IPartitionKey partitionKey, IHookCallback<T> callback, Class<T> clazz, TokenDto token) {
         this.id = callback.id();
@@ -48,8 +51,10 @@ public class Hook<T extends BaseDao> implements IHook {
         this.clazz = clazz;
         this.token = token;
         this.toProcess = new ConcurrentLinkedQueue<>();
+        this.LOG = CDI.current().select(LoggerHook.class).get();
     }
 
+    @SuppressWarnings("unchecked")
     private void run()
     {
         while (woken.compareAndSet(true, false)) {
@@ -90,7 +95,7 @@ public class Hook<T extends BaseDao> implements IHook {
                             callback.onData((T) obj, this);
                         }
                     } catch (Throwable ex) {
-                        d.genericLogger.warn(ex);
+                        LOG.warn(ex);
                     }
                 });
             }
@@ -98,7 +103,6 @@ public class Hook<T extends BaseDao> implements IHook {
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public void feed(MessageDataMetaDto msg)
     {
         if (this.isActive() == false) return;
@@ -138,36 +142,34 @@ public class Hook<T extends BaseDao> implements IHook {
             throw new RuntimeException("Nested request context are not currently supported.");
         }
 
-        synchronized (token) {
-            Map<String, Object> requestDataStore = new TreeMap<>();
-            boundRequestContext.associate(requestDataStore);
+        Map<String, Object> requestDataStore = new TreeMap<>();
+        boundRequestContext.associate(requestDataStore);
+        try {
+            boundRequestContext.activate();
             try {
-                boundRequestContext.activate();
+                // Publish the token but skip the validation as we already trust the token
+                d.currentToken.setSkipValidation(true);
+                d.currentToken.setPerformedValidation(true);
+                d.currentToken.publishToken(token);
+
+                // Run the stuff under this scope context
+                d.requestContext.pushPartitionKey(partitionKey);
                 try {
-                    // Publish the token but skip the validation as we already trust the token
-                    d.currentToken.setSkipValidation(true);
-                    d.currentToken.setPerformedValidation(true);
-                    d.currentToken.publishToken(token);
-
-                    // Run the stuff under this scope context
-                    d.requestContext.pushPartitionKey(partitionKey);
-                    try {
-                        callback.run();
-                    } finally {
-                        d.requestContext.popPartitionKey();
-                    }
-
-                    // Invoke the merge
-                    d.io.mergeDeferred();
+                    callback.run();
                 } finally {
-                    boundRequestContext.invalidate();
-                    boundRequestContext.deactivate();
+                    d.requestContext.popPartitionKey();
                 }
-            } catch (Throwable ex) {
-                d.genericLogger.warn(ex);
+
+                // Invoke the merge
+                d.io.mergeDeferred();
             } finally {
-                boundRequestContext.dissociate(requestDataStore);
+                boundRequestContext.invalidate();
+                boundRequestContext.deactivate();
             }
+        } catch (Throwable ex) {
+            d.genericLogger.warn(ex);
+        } finally {
+            boundRequestContext.dissociate(requestDataStore);
         }
     }
 }
