@@ -191,28 +191,25 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
                     if (callback == null) continue;
 
                     PUUID id = PUUID.from(partitionKey(), header.getIdOrThrow());
-                    synchronized (d.locking.lockable(id))
-                    {
-                        if (data.hasPayload() == false) {
-                            d.debugLogging.logCallbackData("feed-task", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Removed, callback.getClass(), null);
-                            callback.onRemove(id, this);
-                            continue;
-                        }
+                    if (data.hasPayload() == false) {
+                        d.debugLogging.logCallbackData("feed-task", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Removed, callback.getClass(), null);
+                        callback.onRemove(id, this);
+                        continue;
+                    }
 
-                        if (d.authorization.canRead(id.partition(), id.id()) == false) {
-                            continue;
-                        }
+                    if (d.authorization.canRead(id.partition(), id.id()) == false) {
+                        continue;
+                    }
 
-                        BaseDao obj = d.dataSerializer.fromDataMessage(partitionKey(), msg, true);
-                        if (obj == null || obj.getClass() != clazz) continue;
+                    BaseDao obj = d.dataSerializer.fromDataMessage(partitionKey(), msg, true);
+                    if (obj == null || obj.getClass() != clazz) continue;
 
-                        if (header.getPreviousVersion() == null) {
-                            d.debugLogging.logCallbackData("feed-task", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Created, callback.getClass(), obj);
-                            callback.onCreate((T) obj, this);
-                        } else {
-                            d.debugLogging.logCallbackData("feed-task", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Update, callback.getClass(), obj);
-                            callback.onUpdate((T) obj, this);
-                        }
+                    if (header.getPreviousVersion() == null) {
+                        d.debugLogging.logCallbackData("feed-task", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Created, callback.getClass(), obj);
+                        callback.onCreate((T) obj, this);
+                    } else {
+                        d.debugLogging.logCallbackData("feed-task", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Update, callback.getClass(), obj);
+                        callback.onUpdate((T) obj, this);
                     }
                 } catch (Throwable ex) {
                     d.genericLogger.warn(ex);
