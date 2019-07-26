@@ -25,7 +25,7 @@ import java.util.UUID;
 public class DebugLoggingDelegate {
     AteDelegate d = AteDelegate.get();
 
-    public enum TaskDataType {
+    public enum CallbackDataType {
         Created,
         Update,
         Removed
@@ -47,7 +47,22 @@ public class DebugLoggingDelegate {
         }
     }
 
-    public void logCallbackData(String prefix, IPartitionKey partitionKey, UUID id, TaskDataType action, Class<?> callbackClazz, @Nullable BaseDao obj, @Nullable LoggerHook LOG) {
+    public void logCallbackHook(String prefix, IPartitionKey partitionKey, Class<? extends BaseDao> objType, Class<?> callbackClazz, @Nullable LoggerHook LOG) {
+        if (d.bootstrapConfig.isLoggingCallbacks()) {
+            StringBuilder sb = new StringBuilder();
+            sb.append(prefix);
+            sb.append(": [partition=");
+            sb.append(PartitionKeySerializer.toString(partitionKey));
+            sb.append(", type=");
+            sb.append(objType.getSimpleName());
+            sb.append(", callback=");
+            sb.append(callbackClazz.getSimpleName());
+            sb.append("]");
+            logInfo(sb.toString(), LOG);
+        }
+    }
+
+    public void logCallbackData(String prefix, IPartitionKey partitionKey, UUID id, CallbackDataType action, Class<?> callbackClazz, @Nullable BaseDao obj, @Nullable LoggerHook LOG) {
         if (d.bootstrapConfig.isLoggingCallbacks()) {
             StringBuilder sb = new StringBuilder();
             sb.append(prefix);

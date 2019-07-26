@@ -3,6 +3,7 @@ package com.tokera.ate.io.task;
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.delegates.DebugLoggingDelegate;
 import com.tokera.ate.dto.TokenDto;
 import com.tokera.ate.dto.msg.MessageDataDto;
 import com.tokera.ate.dto.msg.MessageDataHeaderDto;
@@ -69,12 +70,19 @@ public class TaskManager {
         ConcurrentHashMap<Class<? extends BaseDao>, ITaskContext> first
                 = lookup.computeIfAbsent(partitionKey, k -> new ConcurrentHashMap<>());
         ITaskContext second = first.computeIfAbsent(clazz, c -> new TaskContext(partitionKey, clazz));
-        return second.addTask(callback, clazz, idleTIme, token);
+
+        ITask ret = second.addTask(callback, clazz, idleTIme, token);
+        d.debugLogging.logCallbackHook("subscribe", partitionKey, clazz, callback.getClass(), null);
+        return ret;
     }
 
     public <T extends BaseDao> boolean unsubscribe(IPartitionKey partitionKey, ITaskCallback<T> callback, Class<T> clazz) {
         ITaskContext context = getContext(partitionKey, clazz);
-        return context.removeTask(callback, clazz);
+        if (context.removeTask(callback, clazz) == true) {
+            d.debugLogging.logCallbackHook("unsubscribe", context.partitionKey(), clazz, callback.getClass(), null);
+            return true;
+        }
+        return false;
     }
 
     public <T extends BaseDao> boolean unsubscribe(ITaskCallback<T> callback, Class<T> clazz) {
@@ -87,6 +95,7 @@ public class TaskManager {
                 .collect(Collectors.toList());
         for (ITaskContext context : contexts) {
             if (context.removeTask(callback, clazz) == true) {
+                d.debugLogging.logCallbackHook("unsubscribe", context.partitionKey(), clazz, callback.getClass(), null);
                 ret = true;
             }
         }

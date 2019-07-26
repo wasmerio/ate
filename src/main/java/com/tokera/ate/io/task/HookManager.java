@@ -4,6 +4,7 @@ import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.base.BaseDaoInternal;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.delegates.DebugLoggingDelegate;
 import com.tokera.ate.dto.msg.MessageDataDto;
 import com.tokera.ate.dto.msg.MessageDataHeaderDto;
 import com.tokera.ate.dto.msg.MessageDataMetaDto;
@@ -56,12 +57,20 @@ public class HookManager {
         IHookContext second = first.computeIfAbsent(clazz.getName(), c -> new HookContext<>(partitionKey, clazz));
         second.addHook(callback, clazz);
 
+        d.debugLogging.logCallbackHook("hook", partitionKey, clazz, callback.getClass(), null);
+
         d.io.warmAndWait(partitionKey);
     }
 
     public <T extends BaseDao> boolean unhook(IPartitionKey partitionKey, IHookCallback<T> callback, Class<T> clazz) {
+
         IHookContext context = getContext(partitionKey, clazz.getName());
-        return context.removeHook(callback, clazz);
+        if (context.removeHook(callback, clazz)) {
+            d.debugLogging.logCallbackHook("unhook", partitionKey, clazz, callback.getClass(), null);
+            return true;
+        }
+
+        return false;
     }
 
     public <T extends BaseDao> boolean unhook(IHookCallback<T> callback, Class<T> clazz) {
@@ -74,6 +83,7 @@ public class HookManager {
                 .collect(Collectors.toList());
         for (IHookContext context : contexts) {
             if (context.removeHook(callback, clazz) == true) {
+                d.debugLogging.logCallbackHook("unhook", context.partitionKey(), clazz, callback.getClass(), null);
                 ret = true;
             }
         }
