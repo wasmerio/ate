@@ -64,7 +64,7 @@ public class Hook<T extends BaseDao> implements IHook {
 
                     PUUID id = PUUID.from(partitionKey, header.getIdOrThrow());
                     if (data.hasPayload() == false) {
-                        d.debugLogging.logCallbackData("hook", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Removed, callback.getClass(), null);
+                        d.debugLogging.logCallbackData("feed-hook", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Removed, callback.getClass(), null);
                         callback.onRemove(id, this);
                         return;
                     }
@@ -78,10 +78,10 @@ public class Hook<T extends BaseDao> implements IHook {
                         if (obj == null || obj.getClass() != clazz) return;
 
                         if (header.getPreviousVersion() == null) {
-                            d.debugLogging.logCallbackData("hook", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Created, callback.getClass(), obj);
+                            d.debugLogging.logCallbackData("feed-hook", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Created, callback.getClass(), obj);
                             callback.onData((T) obj, this);
                         } else {
-                            d.debugLogging.logCallbackData("hook", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Update, callback.getClass(), obj);
+                            d.debugLogging.logCallbackData("feed-hook", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Update, callback.getClass(), obj);
                             callback.onData((T) obj, this);
                         }
                     }
