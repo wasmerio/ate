@@ -415,7 +415,7 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
                         // Now find the bridge and send the message to it
                         IDataPartitionBridge partitionBridge = MapTools.getOrNull(this.partitionBridges, record.partition());
                         if (partitionBridge != null) {
-                            d.debugLogging.logKafkaRecord(record, LOG);
+                            d.debugLogging.logKafkaRecord(record);
 
                             // Now process the message itself
                             MessageMetaDto meta = new MessageMetaDto(
@@ -454,7 +454,7 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
 
         this.send(key, sync);
 
-        d.debugLogging.logSyncStart(sync, LOG);
+        d.debugLogging.logSyncStart(sync);
         return sync;
     }
 
@@ -499,7 +499,7 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
 
             try {
                 wait.wait(timeout);
-                d.debugLogging.logSyncWake(sync, LOG);
+                d.debugLogging.logSyncWake(sync);
                 return hasFinishSync(key, sync);
             } catch (InterruptedException e) {
                 return false;
@@ -511,16 +511,16 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
 
     private void processSync(MessageSyncDto sync, LoggerHook LOG)
     {
-        d.debugLogging.logReceive(sync, LOG);
+        d.debugLogging.logReceive(sync);
 
         Object wait = syncs.remove(sync);
         if (wait == null) {
-            d.debugLogging.logSyncMiss(sync, LOG);
+            d.debugLogging.logSyncMiss(sync);
             return;
         }
 
         synchronized (wait) {
-            d.debugLogging.logSyncFinish(sync, LOG);
+            d.debugLogging.logSyncFinish(sync);
             wait.notifyAll();
         }
     }
@@ -574,7 +574,7 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
             producer.send(record);
         }
 
-        d.debugLogging.logKafkaSend(record, msg, LOG);
+        d.debugLogging.logKafkaSend(record, msg);
     }
    
     public @Nullable MessageDataDto getVersion(PUUID id, MessageMetaDto meta) {

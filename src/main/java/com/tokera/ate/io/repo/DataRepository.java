@@ -242,7 +242,7 @@ public class DataRepository implements IAteIO {
             String what = "clazz=" + data.getHeader().getPayloadClazzOrThrow() + ", id=" + data.getHeader().getIdOrThrow();
             throw new RuntimeException("The newly created object was not accepted into the chain of trust [" + what + "]");
         }
-        d.debugLogging.logMerge(data, entity, LOG, false);
+        d.debugLogging.logMerge(data, entity, false);
 
         // Add it to the request trust which makes sure that previous
         // records are accounted for during the validation steps
@@ -251,7 +251,7 @@ public class DataRepository implements IAteIO {
 
     @Override
     public void mergeDeferred() {
-        d.debugLogging.logMergeDeferred(this.staging, LOG);
+        d.debugLogging.logMergeDeferred(this.staging);
 
         for (IPartitionKey partitionKey : this.staging.keys()) {
             d.requestContext.pushPartitionKey(partitionKey);
@@ -312,7 +312,7 @@ public class DataRepository implements IAteIO {
         MessageBaseDto msg = d.dataSerializer.toDataMessage(entity, kt, true);
         kt.write(msg, this.LOG);
 
-        d.debugLogging.logDelete(entity, LOG);
+        d.debugLogging.logDelete(entity);
         return true;
     }
 
@@ -345,7 +345,7 @@ public class DataRepository implements IAteIO {
         MessageDataDto data = new MessageDataDto(header, digest, null);
         kt.write(data, this.LOG);
 
-        d.debugLogging.logDelete(id.partition(), data, LOG);
+        d.debugLogging.logDelete(id.partition(), data);
         return true;
     }
 
@@ -616,7 +616,7 @@ public class DataRepository implements IAteIO {
             String what = "clazz=" + data.getHeader().getPayloadClazzOrThrow() + ", id=" + data.getHeader().getIdOrThrow();
             throw new RuntimeException("The newly created object was not accepted into the chain of trust [" + what + "]");
         }
-        d.debugLogging.logMerge(data, entity, LOG, false);
+        d.debugLogging.logMerge(data, entity, false);
 
         // Save the data to the bridge and synchronize it
         IDataPartitionBridge bridge = kt.getBridge();
@@ -647,7 +647,7 @@ public class DataRepository implements IAteIO {
             validateWritability(entity);
         }
 
-        d.debugLogging.logMerge(null, entity, LOG, true);
+        d.debugLogging.logMerge(null, entity, true);
 
         this.staging.put(partitionKey, d.currentRights.getRightsWrite());
         this.staging.put(partitionKey, entity);

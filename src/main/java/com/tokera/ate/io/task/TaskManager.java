@@ -72,14 +72,14 @@ public class TaskManager {
         ITaskContext second = first.computeIfAbsent(clazz, c -> new TaskContext(partitionKey, clazz));
 
         ITask ret = second.addTask(callback, clazz, idleTIme, token);
-        d.debugLogging.logCallbackHook("subscribe", partitionKey, clazz, callback.getClass(), null);
+        d.debugLogging.logCallbackHook("subscribe", partitionKey, clazz, callback.getClass());
         return ret;
     }
 
     public <T extends BaseDao> boolean unsubscribe(IPartitionKey partitionKey, ITaskCallback<T> callback, Class<T> clazz) {
         ITaskContext context = getContext(partitionKey, clazz);
         if (context.removeTask(callback, clazz) == true) {
-            d.debugLogging.logCallbackHook("unsubscribe", context.partitionKey(), clazz, callback.getClass(), null);
+            d.debugLogging.logCallbackHook("unsubscribe", context.partitionKey(), clazz, callback.getClass());
             return true;
         }
         return false;
@@ -95,7 +95,7 @@ public class TaskManager {
                 .collect(Collectors.toList());
         for (ITaskContext context : contexts) {
             if (context.removeTask(callback, clazz) == true) {
-                d.debugLogging.logCallbackHook("unsubscribe", context.partitionKey(), clazz, callback.getClass(), null);
+                d.debugLogging.logCallbackHook("unsubscribe", context.partitionKey(), clazz, callback.getClass());
                 ret = true;
             }
         }

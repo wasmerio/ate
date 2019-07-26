@@ -57,7 +57,7 @@ public class HookManager {
         IHookContext second = first.computeIfAbsent(clazz.getName(), c -> new HookContext<>(partitionKey, clazz));
         second.addHook(callback, clazz);
 
-        d.debugLogging.logCallbackHook("hook", partitionKey, clazz, callback.getClass(), null);
+        d.debugLogging.logCallbackHook("hook", partitionKey, clazz, callback.getClass());
 
         d.io.warmAndWait(partitionKey);
     }
@@ -66,7 +66,7 @@ public class HookManager {
 
         IHookContext context = getContext(partitionKey, clazz.getName());
         if (context.removeHook(callback, clazz)) {
-            d.debugLogging.logCallbackHook("unhook", partitionKey, clazz, callback.getClass(), null);
+            d.debugLogging.logCallbackHook("unhook", partitionKey, clazz, callback.getClass());
             return true;
         }
 
@@ -83,7 +83,7 @@ public class HookManager {
                 .collect(Collectors.toList());
         for (IHookContext context : contexts) {
             if (context.removeHook(callback, clazz) == true) {
-                d.debugLogging.logCallbackHook("unhook", context.partitionKey(), clazz, callback.getClass(), null);
+                d.debugLogging.logCallbackHook("unhook", context.partitionKey(), clazz, callback.getClass());
                 ret = true;
             }
         }

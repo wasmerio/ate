@@ -54,7 +54,7 @@ public class DataPartitionChain {
                 null,
                 null);
 
-        d.debugLogging.logTrust(this.partitionKey(), trustedHeader, LOG);
+        d.debugLogging.logTrust(this.partitionKey(), trustedHeader);
 
         MessageMetaDto meta = new MessageMetaDto(
                 0L,
@@ -65,7 +65,7 @@ public class DataPartitionChain {
     }
     
     public void addTrustKey(MessagePublicKeyDto trustedKey, @Nullable LoggerHook LOG) {
-        d.debugLogging.logTrust(this.partitionKey(), trustedKey, LOG);
+        d.debugLogging.logTrust(this.partitionKey(), trustedKey);
 
         if (d.bootstrapConfig.isExtraValidation()) {
             d.validationUtil.validateOrThrow(trustedKey);
@@ -79,7 +79,7 @@ public class DataPartitionChain {
 
     @SuppressWarnings({"known.nonnull"})
     public void addTrustData(MessageDataDto data, MessageMetaDto meta, @Nullable LoggerHook LOG) {
-        d.debugLogging.logTrust(this.partitionKey(), data, LOG);
+        d.debugLogging.logTrust(this.partitionKey(), data);
 
         // Add it to the chain of trust
         UUID id = data.getHeader().getIdOrThrow();
@@ -94,7 +94,7 @@ public class DataPartitionChain {
     }
     
     public void addTrustCastle(MessageSecurityCastleDto castle, @Nullable LoggerHook LOG) {
-        d.debugLogging.logCastle(this.partitionKey(), castle, LOG);
+        d.debugLogging.logCastle(this.partitionKey(), castle);
 
         this.castles.put(castle.getIdOrThrow(), castle);
     }
@@ -121,7 +121,7 @@ public class DataPartitionChain {
     }
     
     public boolean rcv(MessageBaseDto msg, MessageMetaDto meta, @Nullable LoggerHook LOG) throws IOException, InvalidCipherTextException {
-        d.debugLogging.logReceive(msg, LOG);
+        d.debugLogging.logReceive(msg);
 
         if (msg instanceof MessageDataDto) {
             return processData((MessageDataDto)msg, meta, LOG);

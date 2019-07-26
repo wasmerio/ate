@@ -31,7 +31,7 @@ public class DebugLoggingDelegate {
         Removed
     }
 
-    public void logMergeDeferred(DataStagingManager staging, @Nullable LoggerHook LOG) {
+    public void logMergeDeferred(DataStagingManager staging) {
         if (d.bootstrapConfig.isLoggingWrites()) {
             StringBuilder sb = new StringBuilder();
             sb.append("merge_deferred: [cnt=");
@@ -43,11 +43,11 @@ public class DebugLoggingDelegate {
                 sb.append("\n");
                 sb.append(fullStackTrace);
             }
-            logInfo(sb.toString(), LOG);
+            logInfo(sb.toString());
         }
     }
 
-    public void logCallbackHook(String prefix, IPartitionKey partitionKey, Class<? extends BaseDao> objType, Class<?> callbackClazz, @Nullable LoggerHook LOG) {
+    public void logCallbackHook(String prefix, IPartitionKey partitionKey, Class<? extends BaseDao> objType, Class<?> callbackClazz) {
         if (d.bootstrapConfig.isLoggingCallbacks()) {
             StringBuilder sb = new StringBuilder();
             sb.append(prefix);
@@ -58,11 +58,11 @@ public class DebugLoggingDelegate {
             sb.append(", callback=");
             sb.append(callbackClazz.getSimpleName());
             sb.append("]");
-            logInfo(sb.toString(), LOG);
+            logInfo(sb.toString());
         }
     }
 
-    public void logCallbackData(String prefix, IPartitionKey partitionKey, UUID id, CallbackDataType action, Class<?> callbackClazz, @Nullable BaseDao obj, @Nullable LoggerHook LOG) {
+    public void logCallbackData(String prefix, IPartitionKey partitionKey, UUID id, CallbackDataType action, Class<?> callbackClazz, @Nullable BaseDao obj) {
         if (d.bootstrapConfig.isLoggingCallbacks()) {
             StringBuilder sb = new StringBuilder();
             sb.append(prefix);
@@ -85,51 +85,51 @@ public class DebugLoggingDelegate {
                 sb.append(d.yaml.serializeObj(obj));
             }
 
-            logInfo(sb.toString(), LOG);
+            logInfo(sb.toString());
         }
     }
 
-    public void logRooted(IPartitionKey partitionKey, UUID id, String entityType, String keyHash, @Nullable LoggerHook LOG)
+    public void logRooted(IPartitionKey partitionKey, UUID id, String entityType, String keyHash)
     {
         if (d.bootstrapConfig.isLoggingChainOfTrust()) {
-            logInfo("[" + partitionKey + "] chain-of-trust rooted: " + entityType + ":" + id + " on " + keyHash, LOG);
+            logInfo("[" + partitionKey + "] chain-of-trust rooted: " + entityType + ":" + id + " on " + keyHash);
         }
     }
 
-    public void logClaimed(IPartitionKey partitionKey, UUID id, String entityType, @Nullable LoggerHook LOG)
+    public void logClaimed(IPartitionKey partitionKey, UUID id, String entityType)
     {
         if (d.bootstrapConfig.isLoggingChainOfTrust()) {
-            logInfo("[" + partitionKey + "] chain-of-trust claimed: " + entityType + ":" + id, LOG);
+            logInfo("[" + partitionKey + "] chain-of-trust claimed: " + entityType + ":" + id);
         }
     }
 
-    public void seedingPartitionStart(IPartitionKey partitionKey, @Nullable LoggerHook LOG) {
+    public void seedingPartitionStart(IPartitionKey partitionKey) {
         if (d.bootstrapConfig.isLoggingChainOfTrust()) {
             StringBuilder sb = new StringBuilder();
             sb.append("seeding_partition_start: [");
             sb.append(PartitionKeySerializer.toString(partitionKey));
             sb.append("]");
-            logInfo(sb.toString(), LOG);
+            logInfo(sb.toString());
         }
     }
 
-    public void seedingPartitionEnd(IPartitionKey partitionKey, @Nullable LoggerHook LOG) {
+    public void seedingPartitionEnd(IPartitionKey partitionKey) {
         if (d.bootstrapConfig.isLoggingChainOfTrust()) {
             StringBuilder sb = new StringBuilder();
             sb.append("seeding_partition_end: [");
             sb.append(PartitionKeySerializer.toString(partitionKey));
             sb.append("]");
-            logInfo(sb.toString(), LOG);
+            logInfo(sb.toString());
         }
     }
 
-    public void logLoadingPartition(IPartitionKey key, @Nullable LoggerHook LOG) {
+    public void logLoadingPartition(IPartitionKey key) {
         if (d.bootstrapConfig.isLoggingChainOfTrust()) {
-            logInfo("loading-partition: " + key.partitionTopic() + ":" + key.partitionIndex(), LOG);
+            logInfo("loading-partition: " + key.partitionTopic() + ":" + key.partitionIndex());
         }
     }
 
-    public void logDelete(IPartitionKey part, MessageDataDto data, @Nullable LoggerHook LOG) {
+    public void logDelete(IPartitionKey part, MessageDataDto data) {
         if (d.bootstrapConfig.isLoggingDeletes()) {
             StringBuilder sb = new StringBuilder();
             sb.append("remove: [->");
@@ -141,11 +141,11 @@ public class DebugLoggingDelegate {
                 sb.append("\n");
                 sb.append(d.yaml.serializeObj(data));
             }
-            logInfo(sb.toString(), LOG);
+            logInfo(sb.toString());
         }
     }
 
-    public void logDelete(BaseDao entity, @Nullable LoggerHook LOG) {
+    public void logDelete(BaseDao entity) {
         if (d.bootstrapConfig.isLoggingDeletes()) {
             StringBuilder sb = new StringBuilder();
             sb.append("remove: [->");
@@ -155,17 +155,17 @@ public class DebugLoggingDelegate {
                 sb.append("\n");
                 sb.append(d.yaml.serializeObj(entity));
             }
-            logInfo(sb.toString(), LOG);
+            logInfo(sb.toString());
         }
     }
 
-    public void logTrustValidationException(Throwable ex, @Nullable LoggerHook LOG) {
+    public void logTrustValidationException(Throwable ex) {
         if (d.bootstrapConfig.isLoggingChainOfTrust()) {
-            logWarn(ex, LOG);
+            logWarn(ex);
         }
     }
 
-    public void logMerge(@Nullable MessageDataDto data, @Nullable BaseDao entity, @Nullable LoggerHook LOG, boolean later)
+    public void logMerge(@Nullable MessageDataDto data, @Nullable BaseDao entity, boolean later)
     {
         if (d.bootstrapConfig.isLoggingWrites()) {
             MessageDataHeaderDto header = data != null ? data.getHeader() : null;
@@ -204,11 +204,11 @@ public class DebugLoggingDelegate {
                 sb.append("\n");
                 sb.append(d.yaml.serializeObj(entity));
             }
-            logInfo(sb.toString(), LOG);
+            logInfo(sb.toString());
         }
     }
 
-    public void logTrust(IPartitionKey part, MessagePublicKeyDto trustedKey, @Nullable LoggerHook LOG) {
+    public void logTrust(IPartitionKey part, MessagePublicKeyDto trustedKey) {
         if (d.bootstrapConfig.isLoggingChainOfTrust()) {
             StringBuilder sb = new StringBuilder();
             sb.append("trust: [->");
@@ -228,18 +228,18 @@ public class DebugLoggingDelegate {
                 sb.append(d.yaml.serializeObj(trustedKey));
             }
 
-            logInfo(sb.toString(), LOG);
+            logInfo(sb.toString());
         }
     }
 
-    public void logTrust(IPartitionKey part, MessageDataDto data, @Nullable LoggerHook LOG)
+    public void logTrust(IPartitionKey part, MessageDataDto data)
     {
         if (d.bootstrapConfig.isLoggingChainOfTrust()) {
-            logTrust(part, data.getHeader(), LOG);
+            logTrust(part, data.getHeader());
         }
     }
 
-    public void logCastle(IPartitionKey part, MessageSecurityCastleDto castle, @Nullable LoggerHook LOG) {
+    public void logCastle(IPartitionKey part, MessageSecurityCastleDto castle) {
         if (d.bootstrapConfig.isLoggingChainOfTrust()) {
             StringBuilder sb = new StringBuilder();
             sb.append("castle: [->");
@@ -252,11 +252,11 @@ public class DebugLoggingDelegate {
                 sb.append(d.yaml.serializeObj(castle));
             }
 
-            logInfo(sb.toString(), LOG);
+            logInfo(sb.toString());
         }
     }
 
-    public void logTrust(IPartitionKey part, MessageDataHeaderDto header, @Nullable LoggerHook LOG)
+    public void logTrust(IPartitionKey part, MessageDataHeaderDto header)
     {
         if (d.bootstrapConfig.isLoggingChainOfTrust()) {
             StringBuilder sb = new StringBuilder();
@@ -275,46 +275,46 @@ public class DebugLoggingDelegate {
                 sb.append(d.yaml.serializeObj(header));
             }
 
-            logInfo(sb.toString(), LOG);
+            logInfo(sb.toString());
         }
     }
 
-    public void logReceive(MessageBaseDto msg, @Nullable LoggerHook LOG)
+    public void logReceive(MessageBaseDto msg)
     {
         if (d.bootstrapConfig.isLoggingMessages()) {
-            LOG.info("rcv:\n" + d.yaml.serializeObj(msg));
+            logInfo("rcv:\n" + d.yaml.serializeObj(msg));
         }
     }
 
-    public void logSyncStart(MessageSyncDto sync, @Nullable LoggerHook LOG)
+    public void logSyncStart(MessageSyncDto sync)
     {
         if (d.bootstrapConfig.isLoggingSync()) {
-            LOG.info("sync_start (" + sync.getTicket1() + ":" + sync.getTicket2() + ")");
+            logInfo("sync_start (" + sync.getTicket1() + ":" + sync.getTicket2() + ")");
         }
     }
 
-    public void logSyncMiss(MessageSyncDto sync, @Nullable LoggerHook LOG)
+    public void logSyncMiss(MessageSyncDto sync)
     {
         if (d.bootstrapConfig.isLoggingSync()) {
-            LOG.info("sync_miss (" + sync.getTicket1() + ":" + sync.getTicket2() + ")");
+            logInfo("sync_miss (" + sync.getTicket1() + ":" + sync.getTicket2() + ")");
         }
     }
 
-    public void logSyncFinish(MessageSyncDto sync, @Nullable LoggerHook LOG)
+    public void logSyncFinish(MessageSyncDto sync)
     {
         if (d.bootstrapConfig.isLoggingSync()) {
-            LOG.info("sync_finish (" + sync.getTicket1() + ":" + sync.getTicket2() + ")");
+            logInfo("sync_finish (" + sync.getTicket1() + ":" + sync.getTicket2() + ")");
         }
     }
 
-    public void logSyncWake(MessageSyncDto sync, @Nullable LoggerHook LOG)
+    public void logSyncWake(MessageSyncDto sync)
     {
         if (d.bootstrapConfig.isLoggingSync()) {
-            LOG.info("sync_wake (" + sync.getTicket1() + ":" + sync.getTicket2() + ")");
+            logInfo("sync_wake (" + sync.getTicket1() + ":" + sync.getTicket2() + ")");
         }
     }
 
-    public void logKafkaRecord(ConsumerRecord<String, MessageBase> record, @Nullable LoggerHook LOG) {
+    public void logKafkaRecord(ConsumerRecord<String, MessageBase> record) {
         if (d.bootstrapConfig.isLoggingKafka()) {
             StringBuilder sb = new StringBuilder();
 
@@ -328,11 +328,11 @@ public class DebugLoggingDelegate {
             sb.append(record.serializedValueSize());
             sb.append(")");
 
-            logInfo(sb.toString(), LOG);
+            logInfo(sb.toString());
         }
     }
 
-    public void logKafkaSend(ProducerRecord<String, MessageBase> record, @Nullable MessageBaseDto msg, @Nullable LoggerHook LOG) {
+    public void logKafkaSend(ProducerRecord<String, MessageBase> record, @Nullable MessageBaseDto msg) {
         if (d.bootstrapConfig.isLoggingKafka()) {
             StringBuilder sb = new StringBuilder();
 
@@ -348,29 +348,21 @@ public class DebugLoggingDelegate {
             }
             sb.append(")");
 
-            logInfo(sb.toString(), LOG);
+            logInfo(sb.toString());
         }
     }
 
-    public void logInfo(String info, @Nullable LoggerHook LOG) {
-        if (LOG != null) {
-            LOG.info(info);
-        } else {
-            System.out.println(info);
-        }
+    public void logInfo(String info) {
+        System.out.println(info);
     }
 
-    public void logWarn(Throwable ex, @Nullable LoggerHook LOG) {
-        if (LOG != null) {
-            LOG.warn(ex);
+    public void logWarn(Throwable ex) {
+        String msg = ex.getMessage();
+        if (msg != null) {
+            System.err.println(ex.getClass().getName() + " - " + ex.getMessage());
         } else {
-            String msg = ex.getMessage();
-            if (msg != null) {
-                System.out.println(ex.getClass().getName() + " - " + ex.getMessage());
-            } else {
-                System.out.println(ex.getClass().getName());
-            }
-            d.genericLogger.warn(ex);
+            System.err.println(ex.getClass().getName());
         }
+        d.genericLogger.warn(ex);
     }
 }

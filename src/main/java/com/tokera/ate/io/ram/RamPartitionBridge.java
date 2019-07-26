@@ -41,7 +41,7 @@ public class RamPartitionBridge implements IDataPartitionBridge {
     }
 
     private static void seed(DataPartitionChain chain, RamTopicPartition p) {
-        AteDelegate.get().debugLogging.seedingPartitionStart(p.partitionKey, null);
+        AteDelegate.get().debugLogging.seedingPartitionStart(p.partitionKey);
 
         for (Map.Entry<Long, MessageBaseDto> pair : p.messages.entrySet()) {
             long offset = pair.getKey();
@@ -56,7 +56,7 @@ public class RamPartitionBridge implements IDataPartitionBridge {
                 p.LOG.warn(e);
             }
         }
-        AteDelegate.get().debugLogging.seedingPartitionEnd(p.partitionKey, null);
+        AteDelegate.get().debugLogging.seedingPartitionEnd(p.partitionKey);
     }
 
     @Override

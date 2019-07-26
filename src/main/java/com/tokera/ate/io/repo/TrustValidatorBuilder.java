@@ -107,7 +107,7 @@ final class TrustValidatorBuilder {
 
             return true;
         } catch (Throwable ex) {
-            d.debugLogging.logTrustValidationException(ex, LOG);
+            d.debugLogging.logTrustValidationException(ex);
             failure(data, ex.getMessage());
             return false;
         }
@@ -370,7 +370,7 @@ final class TrustValidatorBuilder {
                         d.daoParents.getAllowedParentClaimableSimple().contains(entityType) == true) {
                     MessagePublicKeyDto trustPublicKey = d.encryptor.getTrustOfPublicWrite();
                     digestPublicKey = trustPublicKey;
-                    d.debugLogging.logClaimed(partitionKey, id, entityType, LOG);
+                    d.debugLogging.logClaimed(partitionKey, id, entityType);
                 }
 
                 // If the object is a claimable type then its allowed to attach to nothing
@@ -396,9 +396,9 @@ final class TrustValidatorBuilder {
                         }
 
                         digestPublicKey = trustImplicit;
-                        d.debugLogging.logRooted(partitionKey, id, entityType, implicitAuthority, LOG);
+                        d.debugLogging.logRooted(partitionKey, id, entityType, implicitAuthority);
                     } catch (Throwable ex) {
-                        d.debugLogging.logTrustValidationException(ex, LOG);
+                        d.debugLogging.logTrustValidationException(ex);
                         fail(ex.getMessage());
                         return false;
                     }
@@ -591,7 +591,7 @@ final class TrustValidatorBuilder {
                         return false;
                     }
                 } catch (IOException ex) {
-                    d.debugLogging.logTrustValidationException(ex, LOG);
+                    d.debugLogging.logTrustValidationException(ex);
                     String msg = ex.getMessage();
                     if (msg == null) msg = ex.toString();
                     fail(msg.toLowerCase());
