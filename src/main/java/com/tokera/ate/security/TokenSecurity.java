@@ -43,8 +43,6 @@ public class TokenSecurity
     @Inject
     protected LoggerHook LOG;
 
-    private final BasicX509Credential signingCredential;
-    private final SignatureValidator validator;
     private final ConcurrentMap<String, byte[]> encryptKeyCache = new ConcurrentHashMap<>();
     private final TokenDto token;
     private final ImmutalizableHashSet<MessagePrivateKeyDto> readRightsCache;
@@ -59,8 +57,6 @@ public class TokenSecurity
             validateToken(token);
         }
 
-        this.signingCredential = SignAssertion.getSigningCredential();
-        this.validator = new SignatureValidator(signingCredential);
         this.token = token;
 
         this.writeRightsCache = new ImmutalizableHashSet<>();
@@ -106,6 +102,9 @@ public class TokenSecurity
 
         // Validate the assertion
         try {
+            BasicX509Credential signingCredential = SignAssertion.getSigningCredential();
+            SignatureValidator validator = new SignatureValidator(signingCredential);
+            
             validator.validate(assertion.getSignature());
         } catch (ValidationException e) {
             throw new WebApplicationException("Token signature is not valid", e, Response.Status.UNAUTHORIZED);
