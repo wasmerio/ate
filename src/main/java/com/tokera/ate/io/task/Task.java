@@ -114,6 +114,7 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
 
                 ArrayList<MessageDataMetaDto> msgs = new ArrayList<>();
                 for (int n = 0; n < 1000; n++) {
+                    if (toProcess.isEmpty()) break;
                     MessageDataMetaDto msg = toProcess.poll();
                     if (msg == null) break;
                     msgs.add(msg);
