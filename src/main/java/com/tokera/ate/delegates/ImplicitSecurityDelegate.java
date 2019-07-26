@@ -1,9 +1,13 @@
 package com.tokera.ate.delegates;
 
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.RemovalNotification;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.common.MapTools;
+import com.tokera.ate.dao.GenericPartitionKey;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import com.tokera.ate.io.api.IPartitionKey;
+import com.tokera.ate.io.repo.DataPartition;
 import com.tokera.ate.providers.PartitionKeySerializer;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.units.Alias;
@@ -21,6 +25,8 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 /**
@@ -37,10 +43,10 @@ public class ImplicitSecurityDelegate {
     
     private static final Cache g_dnsCache = new Cache();
 
-    private ConcurrentHashMap<String, String> enquireTxtOverride = new ConcurrentHashMap<>();
-    private ConcurrentHashMap<String, List<String>> enquireAddressOverride = new ConcurrentHashMap<>();
-
-    private Map<String, MessagePublicKeyDto> embeddedKeys = new HashMap<>();
+    private final ConcurrentHashMap<String, String> enquireTxtOverride = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, List<String>> enquireAddressOverride = new ConcurrentHashMap<>();
+    private final Map<String, MessagePublicKeyDto> embeddedKeys = new HashMap<>();
+    private final com.google.common.cache.Cache<String, MessagePublicKeyDto> implicitAuthorityCache;
 
     @SuppressWarnings("initialization.fields.uninitialized")
     private SimpleResolver m_resolver;
@@ -49,6 +55,12 @@ public class ImplicitSecurityDelegate {
         g_dnsCache.setMaxNCache(300);
         g_dnsCache.setMaxCache(300);
         g_dnsCache.setMaxEntries(20000);
+    }
+
+    public ImplicitSecurityDelegate() {
+        this.implicitAuthorityCache = CacheBuilder.newBuilder()
+                .expireAfterAccess(600, TimeUnit.SECONDS)
+                .build();
     }
 
     @PostConstruct
@@ -100,44 +112,52 @@ public class ImplicitSecurityDelegate {
 
     public @Nullable MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, boolean shouldThrow, @Nullable @Alias String alias, @Nullable IPartitionKey partitionKey, @Nullable Function<String, MessagePublicKeyDto> publicKeyResolver)
     {
-        String publicKeyHash = enquireDomainString(prefix + "." + domain, shouldThrow);
-        if (publicKeyHash == null) {
-            if (shouldThrow) {
-                throw new RuntimeException("No implicit authority found at domain name [" + prefix + "." + domain + "] (missing TXT record).");
-            }
-            return null;
-        }
+        String fullDomain = prefix + "." + domain;
+        try {
+            return implicitAuthorityCache.get(fullDomain, () ->
+            {
+                String publicKeyHash = enquireDomainString(fullDomain, shouldThrow);
+                if (publicKeyHash == null) {
+                    if (shouldThrow) {
+                        throw new RuntimeException("No implicit authority found at domain name [" + fullDomain + "] (missing TXT record).");
+                    }
+                    return null;
+                }
 
-        MessagePublicKeyDto ret = null;
-        if (publicKeyResolver != null) {
-            ret = publicKeyResolver.apply(publicKeyHash);
-        } else {
-            if (partitionKey != null) {
-                ret = d.io.publicKeyOrNull(partitionKey, publicKeyHash);
-            } else {
-                ret = d.io.publicKeyOrNull(publicKeyHash);
-            }
-            if (ret == null) {
-                ret = d.currentRights.getRightsWrite()
-                        .stream()
-                        .filter(k -> publicKeyHash.equals(k.getPublicKeyHash()))
-                        .findFirst()
-                        .orElse(null);
-            }
-        }
+                MessagePublicKeyDto ret = null;
+                if (publicKeyResolver != null) {
+                    ret = publicKeyResolver.apply(publicKeyHash);
+                } else {
+                    if (partitionKey != null) {
+                        ret = d.io.publicKeyOrNull(partitionKey, publicKeyHash);
+                    } else {
+                        ret = d.io.publicKeyOrNull(publicKeyHash);
+                    }
+                    if (ret == null) {
+                        ret = d.currentRights.getRightsWrite()
+                                .stream()
+                                .filter(k -> publicKeyHash.equals(k.getPublicKeyHash()))
+                                .findFirst()
+                                .orElse(null);
+                    }
+                }
 
-        if (ret == null) {
-            if (shouldThrow) {
-                throw new RuntimeException("Unknown implicit authority found at domain name [" + prefix + "." + domain + "] (public key is missing with hash [" + publicKeyHash + "]).");
-            }
-        } else {
-            ret = new MessagePublicKeyDto(ret);
-            if (alias != null) {
-                ret.setAlias(alias);
-            }
-        }
+                if (ret == null) {
+                    if (shouldThrow) {
+                        throw new RuntimeException("Unknown implicit authority found at domain name [" + fullDomain + "] (public key is missing with hash [" + publicKeyHash + "]).");
+                    }
+                } else {
+                    ret = new MessagePublicKeyDto(ret);
+                    if (alias != null) {
+                        ret.setAlias(alias);
+                    }
+                }
 
-        return ret;
+                return ret;
+            });
+        } catch (ExecutionException e) {
+            throw new WebApplicationException(e);
+        }
     }
 
     public String generateDnsTxtRecord(MessagePublicKeyDto key) {

@@ -104,7 +104,7 @@ public class TokenSecurity
         try {
             BasicX509Credential signingCredential = SignAssertion.getSigningCredential();
             SignatureValidator validator = new SignatureValidator(signingCredential);
-            
+
             validator.validate(assertion.getSignature());
         } catch (ValidationException e) {
             throw new WebApplicationException("Token signature is not valid", e, Response.Status.UNAUTHORIZED);
