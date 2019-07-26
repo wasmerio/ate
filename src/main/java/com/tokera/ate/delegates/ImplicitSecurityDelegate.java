@@ -6,6 +6,7 @@ import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.GenericPartitionKey;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
+import com.tokera.ate.exceptions.ImplicitAuthorityMissingException;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.repo.DataPartition;
 import com.tokera.ate.providers.PartitionKeySerializer;
@@ -118,10 +119,7 @@ public class ImplicitSecurityDelegate {
             {
                 String publicKeyHash = enquireDomainString(fullDomain, shouldThrow);
                 if (publicKeyHash == null) {
-                    if (shouldThrow) {
-                        throw new RuntimeException("No implicit authority found at domain name [" + fullDomain + "] (missing TXT record).");
-                    }
-                    return null;
+                    throw new ImplicitAuthorityMissingException("No implicit authority found at domain name [" + fullDomain + "] (missing TXT record).");
                 }
 
                 MessagePublicKeyDto ret = null;
@@ -143,20 +141,20 @@ public class ImplicitSecurityDelegate {
                 }
 
                 if (ret == null) {
-                    if (shouldThrow) {
-                        throw new RuntimeException("Unknown implicit authority found at domain name [" + fullDomain + "] (public key is missing with hash [" + publicKeyHash + "]).");
-                    }
-                } else {
-                    ret = new MessagePublicKeyDto(ret);
-                    if (alias != null) {
-                        ret.setAlias(alias);
-                    }
+                    throw new ImplicitAuthorityMissingException("Unknown implicit authority found at domain name [" + fullDomain + "] (public key is missing with hash [" + publicKeyHash + "]).");
                 }
 
+                ret = new MessagePublicKeyDto(ret);
+                if (alias != null) {
+                    ret.setAlias(alias);
+                }
                 return ret;
             });
         } catch (ExecutionException e) {
             throw new WebApplicationException(e);
+        } catch (ImplicitAuthorityMissingException e) {
+            if (shouldThrow) throw e;
+            return null;
         }
     }
 
