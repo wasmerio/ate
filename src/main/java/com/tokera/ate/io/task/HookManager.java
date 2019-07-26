@@ -2,6 +2,7 @@ package com.tokera.ate.io.task;
 
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.base.BaseDao;
+import com.tokera.ate.dao.base.BaseDaoInternal;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessageDataDto;
 import com.tokera.ate.dto.msg.MessageDataHeaderDto;
@@ -26,14 +27,14 @@ import java.util.stream.Collectors;
 @ApplicationScoped
 public class HookManager {
     AteDelegate d = AteDelegate.get();
-    ConcurrentHashMap<IPartitionKey, ConcurrentHashMap<Class<? extends BaseDao>, IHookContext>> lookup
+    ConcurrentHashMap<IPartitionKey, ConcurrentHashMap<String, IHookContext>> lookup
             = new ConcurrentHashMap<>();
 
     /**
      * Cleans up any dead hooks
      */
     private void clean() {
-        for (ConcurrentHashMap<Class<? extends BaseDao>, IHookContext> map : lookup.values()) {
+        for (ConcurrentHashMap<String, IHookContext> map : lookup.values()) {
             for (IHookContext context : map.values()) {
                 context.clean();
             }
@@ -50,16 +51,16 @@ public class HookManager {
     public <T extends BaseDao> void hook(IPartitionKey partitionKey, Class<T> clazz, IHookCallback<T> callback) {
         clean();
 
-        ConcurrentHashMap<Class<? extends BaseDao>, IHookContext> first
+        ConcurrentHashMap<String, IHookContext> first
                 = lookup.computeIfAbsent(partitionKey, k -> new ConcurrentHashMap<>());
-        IHookContext second = first.computeIfAbsent(clazz, c -> new HookContext<>(partitionKey, clazz));
+        IHookContext second = first.computeIfAbsent(clazz.getName(), c -> new HookContext<>(partitionKey, clazz));
         second.addHook(callback, clazz);
 
         d.io.warmAndWait(partitionKey);
     }
 
     public <T extends BaseDao> boolean unhook(IPartitionKey partitionKey, IHookCallback<T> callback, Class<T> clazz) {
-        IHookContext context = getContext(partitionKey, clazz);
+        IHookContext context = getContext(partitionKey, clazz.getName());
         return context.removeHook(callback, clazz);
     }
 
@@ -85,13 +86,12 @@ public class HookManager {
     public void feed(IPartitionKey partitionKey, MessageDataDto data, MessageMetaDto meta) {
         if (lookup.containsKey(partitionKey) == false) return;
 
-        // Find the type of object this is
+        // Get the clazz name and search for a context thats interested in it
         MessageDataHeaderDto header = data.getHeader();
         String clazzName = header.getPayloadClazzOrThrow();
-        Class<BaseDao> clazz = d.serializableObjectsExtension.findClass(clazzName, BaseDao.class);
 
         // Now get the context and callback
-        IHookContext context = getContext(partitionKey, clazz);
+        IHookContext context = getContext(partitionKey, clazzName);
         if (context == null) return;
 
         MessageDataMetaDto msg = new MessageDataMetaDto(data, meta);
@@ -99,9 +99,9 @@ public class HookManager {
     }
 
     @SuppressWarnings("unchecked")
-    private <T extends BaseDao> IHookContext getContext(IPartitionKey partitionKey, Class<T> clazz) {
-        ConcurrentHashMap<Class<? extends BaseDao>, IHookContext> first = MapTools.getOrNull(lookup, partitionKey);
+    private <T extends BaseDao> IHookContext getContext(IPartitionKey partitionKey, String clazzName) {
+        ConcurrentHashMap<String, IHookContext> first = MapTools.getOrNull(lookup, partitionKey);
         if (first == null) return null;
-        return MapTools.getOrNull(first, clazz);
+        return MapTools.getOrNull(first, clazzName);
     }
 }
