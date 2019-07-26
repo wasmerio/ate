@@ -20,14 +20,15 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.UUID;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class Hook<T extends BaseDao> implements IHook {
     private final AteDelegate d = AteDelegate.get();
 
-    private static final Executor executor;
+    private static final ExecutorService executor;
     static {
-        executor = Executors.newFixedThreadPool(16);
+        executor = Executors.newCachedThreadPool();
     }
 
     private final UUID id;
@@ -50,7 +51,7 @@ public class Hook<T extends BaseDao> implements IHook {
     {
         if (this.isActive() == false) return;
 
-        executor.execute(() -> {
+        executor.submit(() -> {
             BoundRequestContext boundRequestContext = CDI.current().select(BoundRequestContext.class).get();
             Hook.enterRequestScopeAndInvoke(this.partitionKey, boundRequestContext, this.token, () ->
             {
