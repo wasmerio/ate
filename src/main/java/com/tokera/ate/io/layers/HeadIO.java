@@ -486,4 +486,23 @@ public class HeadIO implements IAteIO
         }
         return ret;
     }
+
+    public void mergeDeferred(Iterable<IPartitionKey> partitionKeys)
+    {
+        for (IPartitionKey key : partitionKeys) {
+            mergeDeferred(key);
+        }
+    }
+
+    public void sync(Iterable<IPartitionKey> partitionKeys)
+    {
+        Map<IPartitionKey, MessageSyncDto> syncs = new HashMap<>();
+        for (IPartitionKey key : partitionKeys) {
+            syncs.put(key, beginSync(key));
+        }
+
+        for (Map.Entry<IPartitionKey, MessageSyncDto> pair : syncs.entrySet()) {
+            finishSync(pair.getKey(), pair.getValue());
+        }
+    }
 }
