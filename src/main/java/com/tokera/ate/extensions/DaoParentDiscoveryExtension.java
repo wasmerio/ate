@@ -16,8 +16,6 @@ import java.util.Set;
 import javax.enterprise.context.Dependent;
 import javax.enterprise.event.Observes;
 import javax.enterprise.inject.spi.*;
-import javax.ws.rs.core.MultivaluedHashMap;
-import javax.ws.rs.core.MultivaluedMap;
 
 /**
  * Extension that will build a graph of allowed parent/child relationships for all data objects
@@ -84,8 +82,8 @@ public class DaoParentDiscoveryExtension implements Extension {
             if (baseClass == null ||
                     baseClass == Object.class ||
                     baseClass == BaseDao.class ||
-                    baseClass == BaseDaoRoles.class ||
-                    baseClass == BaseDaoRolesRights.class ||
+                    baseClass == BaseDaoParamsRoles.class ||
+                    baseClass == BaseDaoParamsRolesRights.class ||
                     baseClass == BaseDaoRights.class ||
                     baseClass == BaseDaoParams.class)
             {

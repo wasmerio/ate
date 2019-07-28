@@ -4,7 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tokera.ate.annotations.PermitParentFree;
 import com.tokera.ate.annotations.YamlTag;
-import com.tokera.ate.dao.base.BaseDaoRoles;
+import com.tokera.ate.dao.base.BaseDaoParamsRoles;
 import com.tokera.ate.units.DaoId;
 import com.tokera.ate.units.TextDocument;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -15,7 +15,7 @@ import java.util.UUID;
 @Dependent
 @YamlTag("dao.mybaseaccount")
 @PermitParentFree
-public class MyBaseAccount extends BaseDaoRoles {
+public class MyBaseAccount extends BaseDaoParamsRoles {
     @JsonProperty
     public UUID id = UUID.randomUUID();
     @JsonProperty

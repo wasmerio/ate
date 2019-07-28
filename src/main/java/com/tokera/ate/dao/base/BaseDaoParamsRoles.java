@@ -12,15 +12,16 @@ import com.tokera.ate.common.ImmutalizableTreeMap;
 import com.tokera.ate.dao.IRoles;
 import com.tokera.ate.units.Alias;
 import com.tokera.ate.units.Hash;
+import com.tokera.ate.units.Secret;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.Map;
-
 /**
  * Represents what who is allowed to access this data entity and its children
  * through the maintenance of roles
  */
-public abstract class BaseDaoRoles extends BaseDao implements IRoles, Immutalizable {
+public abstract class BaseDaoParamsRoles extends BaseDaoParams implements IRoles, Immutalizable {
 
     @JsonProperty
     public final ImmutalizableTreeMap<@Alias String, @Hash String> trustAllowRead = new ImmutalizableTreeMap<>();
