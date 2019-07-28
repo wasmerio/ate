@@ -8,6 +8,7 @@ import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.base.BaseDaoInternal;
 import com.tokera.ate.dao.enumerations.PermissionPhase;
 import com.tokera.ate.dto.EffectivePermissions;
+import com.tokera.ate.dto.RolesPairDto;
 import com.tokera.ate.dto.TokenDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
@@ -445,6 +446,15 @@ public class AuthorizationDelegate {
         }
 
         entity.onAddRight(to);
+    }
+
+    public void authorizeEntity(RolesPairDto pair, IRoles to) {
+        if (pair.read != null) {
+            authorizeEntityWrite(pair.read, to);
+        }
+        if (pair.write != null) {
+            authorizeEntityWrite(pair.write, to);
+        }
     }
 
     public void authorizeEntityRead(MessagePublicKeyDto right, IRoles to) {
