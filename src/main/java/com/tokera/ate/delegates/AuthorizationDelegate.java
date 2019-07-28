@@ -451,9 +451,15 @@ public class AuthorizationDelegate {
     public void authorizeEntity(RolesPairDto pair, IRoles to) {
         if (pair.read != null) {
             authorizeEntityWrite(pair.read, to);
+            if (to instanceof BaseDao) {
+                d.io.mergeLater(((BaseDao)to));
+            }
         }
         if (pair.write != null) {
             authorizeEntityWrite(pair.write, to);
+            if (to instanceof BaseDao) {
+                d.io.mergeLater(((BaseDao)to));
+            }
         }
     }
 
