@@ -450,9 +450,9 @@ public class AuthorizationDelegate {
 
     public void authorizeEntity(@Nullable RolesPairDto pair, IRoles to) {
         if (pair == null) return;
-        
+
         if (pair.read != null) {
-            authorizeEntityWrite(pair.read, to);
+            authorizeEntityRead(pair.read, to);
             if (to instanceof BaseDao) {
                 d.io.mergeLater(((BaseDao)to));
             }
