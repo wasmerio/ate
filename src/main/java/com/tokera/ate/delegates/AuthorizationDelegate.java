@@ -139,8 +139,10 @@ public class AuthorizationDelegate {
             }
 
             MessagePublicKeyDto key = d.io.publicKeyOrNull(partitionKey, publicKeyHash);
-            if (key != null && key.getAlias() != null) {
-                sb.append(key.getAlias()).append(" - ").append(publicKeyHash).append("]");
+            if (key != null) {
+                if (key.getAlias() != null) {
+                    sb.append(key.getAlias()).append(" - ").append(publicKeyHash).append("]");
+                }
             } else {
                 sb.append("[missing] - ").append(publicKeyHash);
             }
