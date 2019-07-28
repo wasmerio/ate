@@ -132,7 +132,7 @@ public class DataStagingManager {
         }
     }
 
-    public Iterable<IPartitionKey> keys() {
+    public Collection<IPartitionKey> keys() {
         return this.partitionMergeContexts.keySet().stream().collect(Collectors.toList());
     }
 

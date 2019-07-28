@@ -106,6 +106,11 @@ public class HeadIO implements IAteIO
         back.mergeDeferred();
     }
 
+    @Override
+    public void mergeDeferred(IPartitionKey partitionKey) {
+        back.mergeDeferred(partitionKey);
+    }
+
     public void mergeDeferredAndSync() {
         this.mergeDeferred();
         this.sync();

@@ -84,6 +84,8 @@ public interface IAteIO {
     @Nullable MessagePublicKeyDto publicKeyOrNull(IPartitionKey partitionKey, @Hash String hash);
     
     void mergeDeferred();
+
+    void mergeDeferred(IPartitionKey partitionKey);
     
     void clearDeferred();
     

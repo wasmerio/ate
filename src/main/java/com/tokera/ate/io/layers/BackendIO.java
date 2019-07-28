@@ -79,6 +79,11 @@ final public class BackendIO implements IAteIO {
     public void mergeDeferred() {
         next.mergeDeferred();
     }
+
+    @Override
+    public void mergeDeferred(IPartitionKey partitionKey) {
+        next.mergeDeferred(partitionKey);
+    }
     
     @Override
     public void clearDeferred() {

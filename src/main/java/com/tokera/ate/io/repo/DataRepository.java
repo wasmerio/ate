@@ -253,46 +253,51 @@ public class DataRepository implements IAteIO {
     public void mergeDeferred() {
         d.debugLogging.logMergeDeferred(this.staging);
 
-        for (IPartitionKey partitionKey : this.staging.keys()) {
-            d.requestContext.pushPartitionKey(partitionKey);
-            try {
-                // Get the partition
-                DataPartition kt = this.subscriber.getPartition(partitionKey);
-
-                // Loop through all the entities and validate them all
-                List<MessageDataDto> datas = new ArrayList<>();
-                for (BaseDao entity : this.staging.puts(partitionKey)) {
-                    mergeDeferredInternal(kt, entity, datas);
-                }
-
-                // Write them all out to Kafka
-                boolean shouldWait = false;
-                IDataPartitionBridge bridge = kt.getBridge();
-                for (MessageDataDto data : datas) {
-                    bridge.send(data);
-                    shouldWait = true;
-                }
-
-                // Remove delete any entities that need to be removed
-                for (BaseDao entity : this.staging.deletes(partitionKey)) {
-                    remove(entity);
-                    shouldWait = true;
-                }
-
-                // Now we wait for the bridge to synchronize
-                if (shouldWait) {
-                    if (d.currentToken.getWithinTokenScope()) {
-                        d.transaction.add(partitionKey, bridge.startSync());
-                    } else {
-                        bridge.sync();
-                    }
-                }
-            } finally {
-                d.requestContext.popPartitionKey();
-            }
+        for (IPartitionKey partitionKey : this.staging.keys().stream().collect(Collectors.toList())) {
+            mergeDeferred(partitionKey);
         }
+    }
 
-        this.staging.clear();
+    @Override
+    public void mergeDeferred(IPartitionKey partitionKey) {
+        d.debugLogging.logMergeDeferred(this.staging, partitionKey);
+
+        d.requestContext.pushPartitionKey(partitionKey);
+        try {
+            // Get the partition
+            DataPartition kt = this.subscriber.getPartition(partitionKey);
+
+            // Loop through all the entities and validate them all
+            List<MessageDataDto> datas = new ArrayList<>();
+            for (BaseDao entity : this.staging.puts(partitionKey)) {
+                mergeDeferredInternal(kt, entity, datas);
+            }
+
+            // Write them all out to Kafka
+            boolean shouldWait = false;
+            IDataPartitionBridge bridge = kt.getBridge();
+            for (MessageDataDto data : datas) {
+                bridge.send(data);
+                shouldWait = true;
+            }
+
+            // Remove delete any entities that need to be removed
+            for (BaseDao entity : this.staging.deletes(partitionKey)) {
+                remove(entity);
+                shouldWait = true;
+            }
+
+            // Now we wait for the bridge to synchronize
+            if (shouldWait) {
+                if (d.currentToken.getWithinTokenScope()) {
+                    d.transaction.add(partitionKey, bridge.startSync());
+                } else {
+                    bridge.sync();
+                }
+            }
+        } finally {
+            d.requestContext.popPartitionKey();
+        }
     }
 
     @Override

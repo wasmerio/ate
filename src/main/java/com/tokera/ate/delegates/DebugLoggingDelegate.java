@@ -47,6 +47,24 @@ public class DebugLoggingDelegate {
         }
     }
 
+    public void logMergeDeferred(DataStagingManager staging, IPartitionKey partitionKey) {
+        if (d.bootstrapConfig.isLoggingWrites()) {
+            StringBuilder sb = new StringBuilder();
+            sb.append("merge_deferred: [cnt=");
+            sb.append(staging.size());
+            sb.append(", partition=");
+            sb.append(partitionKey.toString());
+            sb.append("]");
+
+            if (d.bootstrapConfig.isLoggingWithStackTrace()) {
+                String fullStackTrace = ExceptionUtils.getFullStackTrace(new Throwable());
+                sb.append("\n");
+                sb.append(fullStackTrace);
+            }
+            logInfo(sb.toString());
+        }
+    }
+
     public void logCallbackHook(String prefix, IPartitionKey partitionKey, Class<? extends BaseDao> objType, Class<?> callbackClazz) {
         if (d.bootstrapConfig.isLoggingCallbacks()) {
             StringBuilder sb = new StringBuilder();

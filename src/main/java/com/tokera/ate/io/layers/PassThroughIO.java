@@ -89,6 +89,11 @@ public class PassThroughIO implements IAteIO {
     }
 
     @Override
+    public void mergeDeferred(IPartitionKey partitionKey) {
+        next.mergeDeferred(partitionKey);
+    }
+
+    @Override
     public void clearCache(PUUID id) {
         next.clearCache(id);
     }

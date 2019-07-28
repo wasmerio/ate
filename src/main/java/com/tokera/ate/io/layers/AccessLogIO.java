@@ -114,6 +114,11 @@ final public class AccessLogIO implements IAteIO {
     }
 
     @Override
+    public void mergeDeferred(IPartitionKey partitionKey) {
+        next.mergeDeferred(partitionKey);
+    }
+
+    @Override
     public void clearDeferred() {
         next.clearDeferred();
     }

@@ -278,6 +278,10 @@ public class MemoryRequestCacheIO implements IAteIO
     }
 
     @Override
+    public void mergeDeferred(IPartitionKey partitionKey) {
+    }
+
+    @Override
     public void clearDeferred() {
     }
 

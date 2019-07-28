@@ -280,6 +280,12 @@ final public class SplitIO implements IAteIO {
     }
 
     @Override
+    public void mergeDeferred(IPartitionKey partitionKey) {
+        lower.mergeDeferred(partitionKey);
+        upper.mergeDeferred(partitionKey);
+    }
+
+    @Override
     final public void clearDeferred() {
         lower.clearDeferred();
         upper.clearDeferred();
