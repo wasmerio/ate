@@ -63,6 +63,10 @@ public class DataStagingManager {
         partitionMergeContexts.clear();
     }
 
+    public void clear(IPartitionKey partitionKey) {
+        partitionMergeContexts.remove(partitionKey);
+    }
+
     public void put(IPartitionKey partitionKey, MessagePublicKeyDto key) {
         PartitionContext context = getPartitionMergeContext(partitionKey, true);
         if (key instanceof MessagePrivateKeyDto) {

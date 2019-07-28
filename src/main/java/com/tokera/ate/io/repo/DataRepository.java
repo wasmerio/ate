@@ -287,6 +287,9 @@ public class DataRepository implements IAteIO {
                 shouldWait = true;
             }
 
+            // Remove it from the staging
+            this.staging.clear(partitionKey);
+
             // Now we wait for the bridge to synchronize
             if (shouldWait) {
                 if (d.currentToken.getWithinTokenScope()) {
