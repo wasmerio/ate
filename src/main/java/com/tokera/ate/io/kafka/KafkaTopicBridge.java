@@ -442,20 +442,25 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
     }
 
     public MessageSyncDto startSync(IPartitionKey key) {
-        return startSync(key, new Object());
-    }
-
-    private MessageSyncDto startSync(IPartitionKey key, Object waitOn) {
         MessageSyncDto sync = new MessageSyncDto(
                 rand.nextLong(),
                 rand.nextLong());
+        startSync(key, sync, new Object());
+        return sync;
+    }
 
+    public MessageSyncDto startSync(IPartitionKey key, MessageSyncDto sync) {
+        sync = new MessageSyncDto(sync);
+        startSync(key, sync, new Object());
+        return sync;
+    }
+
+    private void startSync(IPartitionKey key, MessageSyncDto sync, Object waitOn) {
         syncs.put(sync, waitOn);
 
         this.send(key, sync);
 
         d.debugLogging.logSyncStart(sync);
-        return sync;
     }
 
     public boolean hasFinishSync(IPartitionKey key, MessageSyncDto sync) {
@@ -495,7 +500,10 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
         Object wait = new Object();
         synchronized (wait)
         {
-            MessageSyncDto sync = startSync(key, wait);
+            MessageSyncDto sync = new MessageSyncDto(
+                    rand.nextLong(),
+                    rand.nextLong());
+            startSync(key, sync, wait);
 
             try {
                 wait.wait(timeout);

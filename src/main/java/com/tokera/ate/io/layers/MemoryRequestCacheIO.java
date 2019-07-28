@@ -25,6 +25,8 @@ import java.util.stream.Collectors;
 @RequestScoped
 public class MemoryRequestCacheIO implements IAteIO
 {
+    private final Random rand = new Random();
+
     private class PartitionCache {
         public final Map<UUID, BaseDao> entries = new HashMap<>();
         public final Map<String, MessagePublicKeyDto> publicKeys = new HashMap<>();
@@ -304,7 +306,17 @@ public class MemoryRequestCacheIO implements IAteIO
     }
 
     @Override
-    public boolean sync(IPartitionKey partitionKey, MessageSyncDto sync) {
+    public MessageSyncDto beginSync(IPartitionKey partitionKey) {
+        return new MessageSyncDto(rand.nextLong(), rand.nextLong());
+    }
+
+    @Override
+    public MessageSyncDto beginSync(IPartitionKey partitionKey, MessageSyncDto sync) {
+        return new MessageSyncDto(rand.nextLong(), rand.nextLong());
+    }
+
+    @Override
+    public boolean finishSync(IPartitionKey partitionKey, MessageSyncDto sync) {
         return true;
     }
 

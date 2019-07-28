@@ -87,6 +87,11 @@ public class RamTopicBridge implements IDataTopicBridge {
     }
 
     @Override
+    public MessageSyncDto startSync(IPartitionKey key, MessageSyncDto sync) {
+        return getOrCreateBridge(key).startSync(sync);
+    }
+
+    @Override
     public boolean finishSync(IPartitionKey key, MessageSyncDto sync) {
         return getOrCreateBridge(key).finishSync(sync);
     }

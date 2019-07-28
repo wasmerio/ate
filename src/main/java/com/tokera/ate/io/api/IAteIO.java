@@ -97,7 +97,11 @@ public interface IAteIO {
 
     void sync(IPartitionKey partitionKey);
 
-    boolean sync(IPartitionKey partitionKey, MessageSyncDto sync);
+    MessageSyncDto beginSync(IPartitionKey partitionKey);
+
+    MessageSyncDto beginSync(IPartitionKey partitionKey, MessageSyncDto sync);
+
+    boolean finishSync(IPartitionKey partitionKey, MessageSyncDto sync);
 
     DataSubscriber backend();
 }

@@ -564,7 +564,18 @@ public class DataRepository implements IAteIO {
     }
 
     @Override
-    public boolean sync(IPartitionKey partitionKey, MessageSyncDto sync)
+    public MessageSyncDto beginSync(IPartitionKey partitionKey)
+    {
+        return this.subscriber.getPartition(partitionKey).getBridge().startSync();
+    }
+
+    @Override
+    public MessageSyncDto beginSync(IPartitionKey partitionKey, MessageSyncDto sync) {
+        return this.subscriber.getPartition(partitionKey).getBridge().startSync(sync);
+    }
+
+    @Override
+    public boolean finishSync(IPartitionKey partitionKey, MessageSyncDto sync)
     {
         DataPartition kt = this.subscriber.getPartition(partitionKey);
         return kt.getBridge().finishSync(sync);

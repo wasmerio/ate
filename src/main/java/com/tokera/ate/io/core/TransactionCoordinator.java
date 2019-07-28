@@ -39,7 +39,7 @@ public class TransactionCoordinator  {
         while (true) {
             QueuedSync sync = syncs.poll();
             if (sync == null) return;
-            d.io.sync(sync.partitionKey, sync.sync);
+            d.io.finishSync(sync.partitionKey, sync.sync);
         }
     }
 

@@ -21,6 +21,7 @@ final public class SplitIO implements IAteIO {
 
     private final IAteIO upper;
     private final IAteIO lower;
+    private final Random rand = new Random();
 
     public SplitIO(IAteIO upper, IAteIO lower) {
         this.upper = upper;
@@ -311,14 +312,31 @@ final public class SplitIO implements IAteIO {
 
     @Override
     final public void sync(IPartitionKey partitionKey) {
-        upper.sync(partitionKey);
-        lower.sync(partitionKey);
+        MessageSyncDto sync = beginSync(partitionKey);
+        finishSync(partitionKey, sync);
     }
 
     @Override
-    final public boolean sync(IPartitionKey partitionKey, MessageSyncDto sync) {
-        upper.sync(partitionKey, sync);
-        return lower.sync(partitionKey, sync);
+    public MessageSyncDto beginSync(IPartitionKey partitionKey) {
+        MessageSyncDto sync = new MessageSyncDto(
+                rand.nextLong(),
+                rand.nextLong());
+        upper.beginSync(partitionKey, sync);
+        lower.beginSync(partitionKey, sync);
+        return sync;
+    }
+
+    @Override
+    public MessageSyncDto beginSync(IPartitionKey partitionKey, MessageSyncDto sync) {
+        upper.beginSync(partitionKey, sync);
+        lower.beginSync(partitionKey, sync);
+        return sync;
+    }
+
+    @Override
+    final public boolean finishSync(IPartitionKey partitionKey, MessageSyncDto sync) {
+        upper.finishSync(partitionKey, sync);
+        return lower.finishSync(partitionKey, sync);
     }
 
     @Override

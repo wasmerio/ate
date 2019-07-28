@@ -1,6 +1,7 @@
 package com.tokera.ate.io.repo;
 
 import com.tokera.ate.dao.PUUID;
+import com.tokera.ate.dao.msg.MessageSync;
 import com.tokera.ate.dto.msg.MessageBaseDto;
 import com.tokera.ate.dto.msg.MessageDataDto;
 import com.tokera.ate.dto.msg.MessageMetaDto;
@@ -30,6 +31,8 @@ public interface IDataTopicBridge {
     boolean sync(IPartitionKey key);
 
     MessageSyncDto startSync(IPartitionKey key);
+
+    MessageSyncDto startSync(IPartitionKey key, MessageSyncDto sync);
 
     boolean finishSync(IPartitionKey key, MessageSyncDto sync);
 

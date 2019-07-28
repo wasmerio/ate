@@ -37,6 +37,11 @@ public class GenericPartitionBridge implements IDataPartitionBridge {
     }
 
     @Override
+    public MessageSyncDto startSync(MessageSyncDto sync) {
+        return bridge.startSync(key, sync);
+    }
+
+    @Override
     public MessageSyncDto startSync() {
         return bridge.startSync(key);
     }

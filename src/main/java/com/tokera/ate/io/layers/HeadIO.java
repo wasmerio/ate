@@ -5,7 +5,6 @@ import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.base.BaseDaoInternal;
 import com.tokera.ate.delegates.AteDelegate;
-import com.tokera.ate.dto.TokenDto;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.io.api.*;
 import com.tokera.ate.qualifiers.BackendStorageSystem;
@@ -190,7 +189,17 @@ public class HeadIO implements IAteIO
     public void sync(IPartitionKey partitionKey) { back.sync(partitionKey); }
 
     @Override
-    public boolean sync(IPartitionKey partitionKey, MessageSyncDto sync) { return back.sync(partitionKey, sync); }
+    public MessageSyncDto beginSync(IPartitionKey partitionKey) {
+        return back.beginSync(partitionKey);
+    }
+
+    @Override
+    public MessageSyncDto beginSync(IPartitionKey partitionKey, MessageSyncDto sync) {
+        return back.beginSync(partitionKey, sync);
+    }
+
+    @Override
+    public boolean finishSync(IPartitionKey partitionKey, MessageSyncDto sync) { return back.finishSync(partitionKey, sync); }
 
     @Override
     public DataSubscriber backend() {

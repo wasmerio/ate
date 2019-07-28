@@ -142,8 +142,18 @@ public class PassThroughIO implements IAteIO {
     }
 
     @Override
-    public boolean sync(IPartitionKey partitionKey, MessageSyncDto sync) {
-        return next.sync(partitionKey, sync);
+    public MessageSyncDto beginSync(IPartitionKey partitionKey) {
+        return next.beginSync(partitionKey);
+    }
+
+    @Override
+    public MessageSyncDto beginSync(IPartitionKey partitionKey, MessageSyncDto sync) {
+        return next.beginSync(partitionKey, sync);
+    }
+
+    @Override
+    public boolean finishSync(IPartitionKey partitionKey, MessageSyncDto sync) {
+        return next.finishSync(partitionKey, sync);
     }
 
     @Override

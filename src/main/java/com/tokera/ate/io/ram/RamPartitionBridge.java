@@ -1,6 +1,7 @@
 package com.tokera.ate.io.ram;
 
 import com.tokera.ate.common.MapTools;
+import com.tokera.ate.dao.msg.MessageSync;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessageBaseDto;
 import com.tokera.ate.dto.msg.MessageDataDto;
@@ -88,6 +89,11 @@ public class RamPartitionBridge implements IDataPartitionBridge {
                 rand.nextLong(),
                 rand.nextLong());
         return sync;
+    }
+
+    @Override
+    public MessageSyncDto startSync(MessageSyncDto sync) {
+        return new MessageSyncDto(sync);
     }
 
     @Override

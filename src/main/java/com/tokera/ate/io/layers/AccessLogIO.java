@@ -171,7 +171,17 @@ final public class AccessLogIO implements IAteIO {
     public void sync(IPartitionKey partitionKey) { next.sync(partitionKey); }
 
     @Override
-    public boolean sync(IPartitionKey partitionKey, MessageSyncDto sync) { return next.sync(partitionKey, sync); }
+    public MessageSyncDto beginSync(IPartitionKey partitionKey) {
+        return next.beginSync(partitionKey);
+    }
+
+    @Override
+    public MessageSyncDto beginSync(IPartitionKey partitionKey, MessageSyncDto sync) {
+        return next.beginSync(partitionKey, sync);
+    }
+
+    @Override
+    public boolean finishSync(IPartitionKey partitionKey, MessageSyncDto sync) { return next.finishSync(partitionKey, sync); }
 
     @Override
     public DataSubscriber backend() {

@@ -1,5 +1,6 @@
 package com.tokera.ate.io.repo;
 
+import com.tokera.ate.dao.msg.MessageSync;
 import com.tokera.ate.dto.msg.MessageBaseDto;
 import com.tokera.ate.dto.msg.MessageDataDto;
 import com.tokera.ate.dto.msg.MessageMetaDto;
@@ -21,6 +22,8 @@ public interface IDataPartitionBridge {
     boolean sync();
 
     MessageSyncDto startSync();
+
+    MessageSyncDto startSync(MessageSyncDto sync);
 
     boolean finishSync(MessageSyncDto sync);
 

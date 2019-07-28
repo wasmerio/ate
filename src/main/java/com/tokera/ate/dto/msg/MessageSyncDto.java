@@ -51,6 +51,12 @@ public class MessageSyncDto extends MessageBaseDto implements Serializable, Copy
         this.ticket2 = ticket2;
     }
 
+    public MessageSyncDto(MessageSyncDto sync)
+    {
+        this.ticket1 = sync.ticket1;
+        this.ticket2 = sync.ticket2;
+    }
+
     public MessageSyncDto(MessageSync val)
     {
         this.fb = val;
