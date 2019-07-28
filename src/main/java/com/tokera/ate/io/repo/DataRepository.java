@@ -607,6 +607,10 @@ public class DataRepository implements IAteIO {
         }
 
         // If its a public key then we should record that we already saved it
+        if (data instanceof MessagePrivateKeyDto) {
+            MessagePublicKeyDto key = new MessagePublicKeyDto((MessagePrivateKeyDto) data);
+            staging.put(partitionKey, key);
+        }
         if (data instanceof MessagePublicKeyDto) {
             MessagePublicKeyDto key = (MessagePublicKeyDto) data;
             staging.put(partitionKey, key);
@@ -627,10 +631,10 @@ public class DataRepository implements IAteIO {
         this.staging.put(key, d.currentRights.getRightsWrite());
 
         // Generate the data that represents this entity
-        DataPartitionChain chain = kt.getChain();
         MessageDataDto data = (MessageDataDto) d.dataSerializer.toDataMessage(entity, kt, false);
 
         // Perform the validations and checks
+        DataPartitionChain chain = kt.getChain();
         if (performValidation && chain.validateTrustStructureAndWritability(data, LOG) == false) {
             String what = "clazz=" + data.getHeader().getPayloadClazzOrThrow() + ", id=" + data.getHeader().getIdOrThrow();
             throw new RuntimeException("The newly created object was not accepted into the chain of trust [" + what + "]");
