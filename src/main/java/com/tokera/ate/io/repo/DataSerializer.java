@@ -5,7 +5,6 @@ import com.google.common.cache.CacheBuilder;
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.base.BaseDaoInternal;
 import com.tokera.ate.dao.enumerations.PermissionPhase;
-import com.tokera.ate.dao.msg.MessagePublicKey;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.common.Immutalizable;
@@ -112,12 +111,12 @@ public class DataSerializer {
         DataPartitionChain chain = kt.getChain();
 
         // Write any public keys that are missing in this chain
-        for (MessagePrivateKeyDto key : this.d.dataStagingManager.findPrivateKeys(kt.partitionKey())) {
+        for (MessagePrivateKeyDto key : d.requestContext.currentTransaction().findPrivateKeys(kt.partitionKey())) {
             if (chain.hasPublicKey(key.getPublicKeyHash()) == false) {
                 kt.write(new MessagePublicKeyDto(key), this.LOG);
             }
         }
-        for (MessagePublicKeyDto key : this.d.dataStagingManager.findPublicKeys(kt.partitionKey())) {
+        for (MessagePublicKeyDto key : d.requestContext.currentTransaction().findPublicKeys(kt.partitionKey())) {
             if (chain.hasPublicKey(key.getPublicKeyHash()) == false) {
                 kt.write(key, this.LOG);
             }

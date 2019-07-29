@@ -1,21 +1,17 @@
 package com.tokera.ate.security;
 
 import com.tokera.ate.common.MapTools;
-import com.tokera.ate.dao.msg.MessagePrivateKey;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.EffectivePermissions;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
-import com.tokera.ate.dto.msg.MessageSecurityCastleDto;
 import com.tokera.ate.io.api.IPartitionKey;
-import com.tokera.ate.io.api.ISecurityCastleFactory;
 import com.tokera.ate.io.repo.DataPartitionChain;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import javax.enterprise.context.RequestScoped;
 
+import com.tokera.ate.io.repo.DataTransaction;
 import com.tokera.ate.providers.PartitionKeySerializer;
 import com.tokera.ate.units.Hash;
 import com.tokera.ate.units.Secret;
@@ -58,7 +54,7 @@ public class SecurityCastleManager {
         Set<MessagePublicKeyDto> ret = new HashSet<>();
         for (String publicKeyHash : hashes)
         {
-            MessagePublicKeyDto publicKey = d.dataStagingManager.findPublicKey(partitionKey, publicKeyHash);
+            MessagePublicKeyDto publicKey = d.requestContext.currentTransaction().findPublicKey(partitionKey, publicKeyHash);
             if (publicKey != null) {
                 ret.add(publicKey);
                 continue;

@@ -65,7 +65,7 @@ public class AuthorizationDelegate {
     public boolean canRead(IPartitionKey partitionKey, @DaoId UUID id)
     {
         // If its in the cache then we can obviously read it
-        if (d.memoryRequestCacheIO.exists(PUUID.from(partitionKey, id)) == true) return true;
+        if (d.requestContext.currentTransaction().exists(PUUID.from(partitionKey, id)) == true) return true;
 
         // Otherwise we need to compute some permissions for it
         EffectivePermissions perms = d.authorization.perms(null, partitionKey, id, PermissionPhase.BeforeMerge);
@@ -113,11 +113,11 @@ public class AuthorizationDelegate {
         StringBuilder sb = new StringBuilder();
         sb.append(msg);
         sb.append(" [");
-        DataContainer container = d.io.getRawOrNull(PUUID.from(partitionKey, entityId));
+        DataContainer container = d.io.readRawOrNull(PUUID.from(partitionKey, entityId));
         if (container != null) {
             sb.append(container.getPayloadClazz()).append(":");
         } else {
-            BaseDao obj = d.dataStagingManager.find(PUUID.from(partitionKey, entityId));
+            BaseDao obj = d.requestContext.currentTransaction().find(PUUID.from(partitionKey, entityId));
             if (obj != null) {
                 sb.append(BaseDaoInternal.getShortType(obj)).append(":");
             }
@@ -163,7 +163,7 @@ public class AuthorizationDelegate {
                 sb.append(" >        ");
             }
             sb.append(d.encryptor.getAlias(partitionKey, privateKey)).append(" - ").append(d.encryptor.getPublicKeyHash(privateKey));
-            if (this.d.dataStagingManager.findPrivateKey(partitionKey, d.encryptor.getPublicKeyHash(privateKey)) == null) {
+            if (d.requestContext.currentTransaction().findPrivateKey(partitionKey, d.encryptor.getPublicKeyHash(privateKey)) == null) {
                 sb.append(" [not staged!!]");
             }
             sb.append("\n");
@@ -219,7 +219,7 @@ public class AuthorizationDelegate {
         StringBuilder sb = new StringBuilder();
         sb.append(msg);
         sb.append(" [");
-        DataContainer container = d.io.getRawOrNull(PUUID.from(partitionKey, objId));
+        DataContainer container = d.io.readRawOrNull(PUUID.from(partitionKey, objId));
         if (container != null) {
             sb.append(container.getPayloadClazz()).append(":");
         }
@@ -376,7 +376,7 @@ public class AuthorizationDelegate {
             }
         }
         if (save && to instanceof BaseDao) {
-            d.io.mergeLater((BaseDao)to);
+            d.io.write((BaseDao)to);
         }
     }
 
@@ -398,7 +398,7 @@ public class AuthorizationDelegate {
             }
         }
         if (save && to instanceof BaseDao) {
-            d.io.mergeLater((BaseDao)to);
+            d.io.write((BaseDao)to);
         }
     }
 
@@ -456,13 +456,13 @@ public class AuthorizationDelegate {
         if (pair.read != null) {
             authorizeEntityRead(pair.read, to);
             if (to instanceof BaseDao) {
-                d.io.mergeLater(((BaseDao)to));
+                d.io.write(((BaseDao)to));
             }
         }
         if (pair.write != null) {
             authorizeEntityWrite(pair.write, to);
             if (to instanceof BaseDao) {
-                d.io.mergeLater(((BaseDao)to));
+                d.io.write(((BaseDao)to));
             }
         }
     }
@@ -690,7 +690,7 @@ public class AuthorizationDelegate {
 
     public void ensureKeyIsThere(IPartitionKey partitionKey, MessagePublicKeyDto publicKey) {
         if (d.io.publicKeyOrNull(partitionKey, publicKey.getPublicKeyHash()) == null) {
-            d.io.merge(partitionKey, publicKey);
+            d.io.write(partitionKey, publicKey);
         }
     }
 }

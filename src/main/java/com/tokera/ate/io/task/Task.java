@@ -1,6 +1,5 @@
 package com.tokera.ate.io.task;
 
-import com.tokera.ate.common.ConcurrentStack;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.delegates.AteDelegate;
@@ -160,7 +159,7 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
         {
             AteDelegate d = AteDelegate.get();
             ITaskCallback<T> callback = this.callback.get();
-            if (callback != null) callback.onInit(d.io.getAll(clazz), this);
+            if (callback != null) callback.onInit(d.io.readAll(clazz), this);
         });
     }
 
@@ -169,10 +168,10 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
         {
             AteDelegate d = AteDelegate.get();
             for (MessagePublicKeyDto key : d.currentRights.getRightsRead()) {
-                d.io.merge(this.partitionKey(), key);
+                d.io.write(this.partitionKey(), key);
             }
             for (MessagePublicKeyDto key : d.currentRights.getRightsWrite()) {
-                d.io.merge(this.partitionKey(), key);
+                d.io.write(this.partitionKey(), key);
             }
         });
     }

@@ -3,8 +3,6 @@ package com.tokera.ate.io.core;
 import com.tokera.ate.io.api.*;
 import com.tokera.ate.io.layers.AccessLogIO;
 import com.tokera.ate.io.layers.BackendIO;
-import com.tokera.ate.io.layers.SplitIO;
-import com.tokera.ate.io.layers.MemoryRequestCacheIO;
 import com.tokera.ate.qualifiers.BackendStorageSystem;
 import com.tokera.ate.io.repo.DataRepository;
 import com.tokera.ate.io.repo.DataSubscriber;
@@ -41,18 +39,6 @@ public class StorageSystemFactory
          */
         public Builder addAccessLoggerLayer() {
             first = new AccessLogIO(first);
-            return this;
-        }
-
-        /**
-         * Adds a caching layer to the storage system that will improve performance of multiple requests to the
-         * same data objects during the same currentRights
-         */
-        public Builder addCacheLayer() {
-            first = new SplitIO(
-                    CDI.current().select(MemoryRequestCacheIO.class).get(),
-                    first
-                );
             return this;
         }
 

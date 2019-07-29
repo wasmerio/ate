@@ -7,16 +7,13 @@ import com.tokera.ate.annotations.ImplicitAuthorityField;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.merge.DataMerger;
-import com.tokera.ate.io.repo.DataStagingManager;
+import com.tokera.ate.io.repo.DataTransaction;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.dao.IParams;
 import com.tokera.ate.dao.IRights;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.IRoles;
 import com.tokera.ate.delegates.AteDelegate;
-import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
-import com.tokera.ate.units.Secret;
-import org.apache.commons.codec.binary.Base64;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.ApplicationScoped;
@@ -29,9 +26,6 @@ import javax.inject.Inject;
 @ApplicationScoped
 public class DaoHelper {
     private AteDelegate d = AteDelegate.get();
-    @SuppressWarnings("initialization.fields.uninitialized")
-    @Inject
-    private DataStagingManager staging;
     
     public List<BaseDao> getObjAndParents(BaseDao entity) {
         ArrayList<BaseDao> ret = new ArrayList<>();
@@ -76,14 +70,14 @@ public class DaoHelper {
         IPartitionKey partitionKey = entity.partitionKey(false);
         if (partitionKey == null) return null;
 
-        BaseDao ret = this.staging.find(partitionKey, parentId);
+        BaseDao ret = d.requestContext.currentTransaction().find(partitionKey, parentId);
         if (ret != null) return ret;
 
-        return d.io.getOrNull(PUUID.from(partitionKey, parentId));
+        return d.io.readOrNull(PUUID.from(partitionKey, parentId));
     }
 
     public @Nullable IParams getDaoParams(PUUID id) {
-        BaseDao ret = d.io.getOrNull(id);
+        BaseDao ret = d.io.readOrNull(id);
         if (ret instanceof IParams) {
             return (IParams)ret;
         }
@@ -91,7 +85,7 @@ public class DaoHelper {
     }
 
     public @Nullable IRights getDaoRights(PUUID id) {
-        BaseDao ret = d.io.getOrNull(id);
+        BaseDao ret = d.io.readOrNull(id);
         if (ret instanceof IRights) {
             return (IRights)ret;
         }
@@ -99,7 +93,7 @@ public class DaoHelper {
     }
 
     public @Nullable IRoles getDaoRoles(PUUID id) {
-        BaseDao ret = d.io.getOrNull(id);
+        BaseDao ret = d.io.readOrNull(id);
         if (ret instanceof IRoles) {
             return (IRoles)ret;
         }

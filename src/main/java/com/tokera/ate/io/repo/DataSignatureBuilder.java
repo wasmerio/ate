@@ -1,5 +1,6 @@
 package com.tokera.ate.io.repo;
 
+import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.dao.kafka.MessageSerializer;
@@ -13,7 +14,6 @@ import java.io.IOException;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 
-import com.tokera.ate.security.SecurityCastleManager;
 import com.tokera.ate.units.Hash;
 import org.apache.commons.codec.binary.Base64;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -23,14 +23,12 @@ import org.checkerframework.checker.nullness.qual.Nullable;
  */
 @Startup
 @ApplicationScoped
-public class DataSignatureBuilder
-{
+public class DataSignatureBuilder {
+    AteDelegate d = AteDelegate.get();
+
     @SuppressWarnings("initialization.fields.uninitialized")
     @Inject
     private Encryptor encryptor;
-    @SuppressWarnings("initialization.fields.uninitialized")
-    @Inject
-    private DataStagingManager staging;
 
     private byte[] generateStreamBytes(MessageDataHeaderDto header, byte @Nullable [] payloadBytes) {
 
@@ -83,7 +81,7 @@ public class DataSignatureBuilder
         for (String publicKeyHash : permissions.rolesWrite)
         {
             // We can only sign if we have a private key for the pair
-            MessagePrivateKeyDto privateKey = staging.findPrivateKey(partitionKey, publicKeyHash);
+            MessagePrivateKeyDto privateKey = d.requestContext.currentTransaction().findPrivateKey(partitionKey, publicKeyHash);
             if (privateKey == null) continue;
             
             //LOG.info("ntru-encrypt:\n" + "  - private-key: " + Base64.encodeBase64URLSafeString(privateKey) + "\n  - data: " + Base64.encodeBase64URLSafeString(digestBytes) + "\n");

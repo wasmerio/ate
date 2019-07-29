@@ -1,6 +1,5 @@
 package com.tokera.ate.io.layers;
 
-import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -11,6 +10,7 @@ import com.tokera.ate.io.api.IAteIO;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.core.RequestAccessLog;
 import com.tokera.ate.dto.msg.*;
+import com.tokera.ate.io.repo.DataTransaction;
 import com.tokera.ate.units.DaoId;
 import com.tokera.ate.units.Hash;
 import com.tokera.ate.io.repo.DataContainer;
@@ -47,118 +47,8 @@ final public class AccessLogIO implements IAteIO {
     }
 
     @Override
-    public boolean merge(BaseDao t) {
-        boolean ret = next.merge(t);
-        if (ret == false) return false;
-        this.onWrote(t.getId(), t.getClass());
-        return true;
-    }
-
-    @Override
-    public boolean merge(IPartitionKey partitionKey, MessagePublicKeyDto publicKey) {
-        return this.next.merge(partitionKey, publicKey);
-    }
-
-    @Override
-    public boolean merge(IPartitionKey partitionKey, MessageSecurityCastleDto castle) {
-        return this.next.merge(partitionKey, castle);
-    }
-
-    @Override
-    public boolean mergeAsync(BaseDao t) {
-        boolean ret = next.mergeAsync(t);
-        if (ret == false) return false;
-        this.onWrote(t.getId(), t.getClass());
-        return true;
-    }
-
-    @Override
-    public boolean mergeWithoutValidation(BaseDao t) {
-        boolean ret = next.mergeWithoutValidation(t);
-        if (ret == false) return false;
-        this.onWrote(t.getId(), t.getClass());
-        return true;
-    }
-
-    @Override
-    public boolean mergeWithoutSync(BaseDao t) {
-        boolean ret = next.mergeWithoutSync(t);
-        if (ret == false) return false;
-        this.onWrote(t.getId(), t.getClass());
-        return true;
-    }
-
-    @Override
-    public boolean mergeAsyncWithoutValidation(BaseDao t) {
-        boolean ret = next.mergeAsyncWithoutValidation(t);
-        if (ret == false) return false;
-        this.onWrote(t.getId(), t.getClass());
-        return true;
-    }
-
-    @Override
-    public void mergeLater(BaseDao t) {
-        next.mergeLater(t);
-        this.onWrote(t.getId(), t.getClass());
-    }
-
-    @Override
-    public void mergeLaterWithoutValidation(BaseDao t) {
-        next.mergeLaterWithoutValidation(t);
-        this.onWrote(t.getId(), t.getClass());
-    }
-
-    @Override
-    public void mergeDeferred() {
-        next.mergeDeferred();
-    }
-
-    @Override
-    public void mergeDeferred(IPartitionKey partitionKey) {
-        next.mergeDeferred(partitionKey);
-    }
-
-    @Override
-    public void clearDeferred() {
-        next.clearDeferred();
-    }
-
-    @Override
-    public void clearCache(PUUID id) {
-        next.clearCache(id);
-    }
-
-    @Override
-    public boolean remove(BaseDao t) {
-        this.onWrote(t.getId(), t.getClass());
-        return next.remove(t);
-    }
-
-    @Override
-    public void removeLater(BaseDao t) {
-        this.onWrote(t.getId(), t.getClass());
-        next.removeLater(t);
-    }
-
-    @Override
-    public boolean remove(PUUID id, Class<?> type) {
-        this.onWrote(id.id(), type);
-        return next.remove(id, type);
-    }
-
-    @Override
-    public void cache(BaseDao entity) {
-        next.cache(entity);
-    }
-
-    @Override
-    public void decache(BaseDao entity) {
-        next.decache(entity);
-    }
-
-    @Override
-    public @Nullable MessageDataHeaderDto getRootOfTrust(PUUID id) {
-        return next.getRootOfTrust(id);
+    public @Nullable MessageDataHeaderDto readRootOfTrust(PUUID id) {
+        return next.readRootOfTrust(id);
     }
 
     @Override
@@ -166,14 +56,6 @@ final public class AccessLogIO implements IAteIO {
 
     @Override
     public void warmAndWait(IPartitionKey partitionKey) { next.warmAndWait(partitionKey); }
-
-    @Override
-    public void sync(IPartitionKey partitionKey) { next.sync(partitionKey); }
-
-    @Override
-    public MessageSyncDto beginSync(IPartitionKey partitionKey) {
-        return next.beginSync(partitionKey);
-    }
 
     @Override
     public MessageSyncDto beginSync(IPartitionKey partitionKey, MessageSyncDto sync) {
@@ -191,6 +73,11 @@ final public class AccessLogIO implements IAteIO {
     @Override
     public @Nullable MessagePublicKeyDto publicKeyOrNull(IPartitionKey partitionKey, @Hash String hash) {
         return next.publicKeyOrNull(partitionKey, hash);
+    }
+
+    @Override
+    public void send(DataTransaction transaction, boolean validate) {
+        next.send(transaction, validate);
     }
 
     @Override
@@ -213,8 +100,8 @@ final public class AccessLogIO implements IAteIO {
     }
 
     @Override
-    public @Nullable BaseDao getOrNull(PUUID id, boolean shouldSave) {
-        BaseDao ret = next.getOrNull(id, shouldSave);
+    public @Nullable BaseDao readOrNull(PUUID id, boolean shouldSave) {
+        BaseDao ret = next.readOrNull(id, shouldSave);
         if (ret != null) {
             this.onRead(id.id(), ret.getClass());
         }
@@ -222,8 +109,8 @@ final public class AccessLogIO implements IAteIO {
     }
 
     @Override
-    public BaseDao getOrThrow(PUUID id) {
-        BaseDao ret = next.getOrThrow(id);
+    public BaseDao readOrThrow(PUUID id) {
+        BaseDao ret = next.readOrThrow(id);
         if (ret != null) {
             this.onRead(id.id(), ret.getClass());
         }
@@ -231,59 +118,43 @@ final public class AccessLogIO implements IAteIO {
     }
 
     @Override
-    public @Nullable DataContainer getRawOrNull(PUUID id) { return next.getRawOrNull(id); }
+    public @Nullable DataContainer readRawOrNull(PUUID id) { return next.readRawOrNull(id); }
 
     @Override
-    public @Nullable BaseDao getVersionOrNull(PUUID id, MessageMetaDto meta) {
-        return next.getVersionOrNull(id, meta);
+    public @Nullable BaseDao readVersionOrNull(PUUID id, MessageMetaDto meta) {
+        return next.readVersionOrNull(id, meta);
     }
 
     @Override
-    public @Nullable MessageDataDto getVersionMsgOrNull(PUUID id, MessageMetaDto meta) {
-        return next.getVersionMsgOrNull(id, meta);
+    public @Nullable MessageDataDto readVersionMsgOrNull(PUUID id, MessageMetaDto meta) {
+        return next.readVersionMsgOrNull(id, meta);
     }
 
     @Override
-    public <T extends BaseDao> Iterable<MessageMetaDto> getHistory(PUUID id, Class<T> clazz) {
+    public <T extends BaseDao> Iterable<MessageMetaDto> readHistory(PUUID id, Class<T> clazz) {
         this.onRead(id.id(), clazz);
-        return next.getHistory(id, clazz);
+        return next.readHistory(id, clazz);
     }
 
     @Override
-    public Set<BaseDao> getAll(IPartitionKey partitionKey) {
-        return next.getAll(partitionKey);
+    public Set<BaseDao> readAll(IPartitionKey partitionKey) {
+        return next.readAll(partitionKey);
     }
 
     @Override
-    public <T extends BaseDao> Set<T> getAll(IPartitionKey partitionKey, Class<T> type) {
-        Set<T> ret = next.getAll(partitionKey, type);
+    public <T extends BaseDao> Set<T> readAll(IPartitionKey partitionKey, Class<T> type) {
+        Set<T> ret = next.readAll(partitionKey, type);
         this.onRead(type);
         return ret;
     }
 
     @Override
-    public <T extends BaseDao> Set<T> getAll(Collection<IPartitionKey> keys, Class<T> type) {
-        Set<T> ret = next.getAll(keys, type);
-        this.onRead(type);
-        return ret;
+    public <T extends BaseDao> List<DataContainer> readAllRaw(IPartitionKey partitionKey) {
+        return next.readAllRaw(partitionKey);
     }
 
     @Override
-    public <T extends BaseDao> List<DataContainer> getAllRaw(IPartitionKey partitionKey) {
-        return next.getAllRaw(partitionKey);
-    }
-
-    @Override
-    public <T extends BaseDao> List<DataContainer> getAllRaw(IPartitionKey partitionKey, Class<T> type) {
-        return next.getAllRaw(partitionKey, type);
-    }
-
-    @Override
-    public <T extends BaseDao> List<T> getMany(IPartitionKey partitionKey, Iterable<@DaoId  UUID> ids, Class<T> type) {
-        List<T> ret = next.getMany(partitionKey, ids, type);
-        for (T entity : ret) {
-            this.onRead(entity.getId(), type);
-        }
-        return ret;
+    public <T extends BaseDao> List<DataContainer> readAllRaw(IPartitionKey partitionKey, Class<T> type) {
+        return next.readAllRaw(partitionKey, type);
     }
 }

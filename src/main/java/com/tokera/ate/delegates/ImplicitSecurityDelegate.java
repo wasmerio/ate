@@ -168,8 +168,9 @@ public class ImplicitSecurityDelegate {
             if (ret == null) throw new RuntimeException("Failed to generate the DNS TXT record entry as the hash of the public key could not be generated.");
         }
         if (d.io.publicKeyOrNull(partitionKey, key.getPublicKeyHash()) == null) {
-            d.io.merge(partitionKey, key);
+            d.io.write(partitionKey, key);
         }
+
         String partitionKeyTxt = new PartitionKeySerializer().write(partitionKey);
         assert partitionKeyTxt != null : "@AssumeAssertion(nullness): Must not be null";
         return Base64.encodeBase64URLSafeString(partitionKeyTxt.getBytes()) + ":" + key.getPublicKeyHash();

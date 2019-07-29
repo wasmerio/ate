@@ -161,7 +161,7 @@ public class Hook<T extends BaseDao> implements IHook {
                 }
 
                 // Invoke the merge
-                d.io.mergeDeferred();
+                d.io.flushAll();
             } finally {
                 boundRequestContext.invalidate();
                 boundRequestContext.deactivate();

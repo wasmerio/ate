@@ -6,6 +6,7 @@
 package com.tokera.ate.delegates;
 
 import com.tokera.ate.io.api.IPartitionKey;
+import com.tokera.ate.io.repo.DataTransaction;
 import com.tokera.ate.units.TopicName;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -25,10 +26,14 @@ import java.util.stream.Collectors;
  */
 @RequestScoped
 public class RequestContextDelegate {
+    AteDelegate d = AteDelegate.get();
 
     private @Context @Nullable ContainerRequestContext requestContext;
     private @MonotonicNonNull UriInfo requestUriInfo;
     private Stack<@TopicName IPartitionKey> partitionKeyStack = new Stack<>();
+
+    private final DataTransaction rootTransaction = new DataTransaction(false);
+    private final LinkedList<DataTransaction> transactionStack = new LinkedList<>();
 
     /**
      * Requests the currentRights container currentRights requestContext that was earlier stored by an filter/interceptor
@@ -73,7 +78,7 @@ public class RequestContextDelegate {
      * @return Returns the partition key for the current partition scope else it throws an exception
      * @throws WebApplicationException Thrown if the caller is not currently in a partition scope
      */
-    public IPartitionKey getPartitionKeyScope() {
+    public IPartitionKey currentPartitionKey() {
         try {
             return this.partitionKeyStack.peek();
         } catch (EmptyStackException ex) {
@@ -158,5 +163,57 @@ public class RequestContextDelegate {
         } else {
             return false;
         }
+    }
+
+    /**
+     * Gets the current transaction thats in scope
+     */
+    public DataTransaction currentTransaction()
+    {
+        if (this.transactionStack.isEmpty()) {
+            return this.rootTransaction;
+        }
+
+        return this.transactionStack.peek();
+    }
+
+    public DataTransaction rootTransaction() {
+        return rootTransaction;
+    }
+
+    /**
+     * Returns all the transactions currently tracked for this request
+     */
+    public Iterable<DataTransaction> transactions() {
+        ArrayList<DataTransaction> ret = new ArrayList<>();
+        ret.addAll(this.transactionStack);
+        Collections.reverse(ret);
+        ret.add(this.rootTransaction);
+        return ret;
+    }
+
+    /**
+     * Completes the transaction and removes it from scope (if its still in scope that is
+     * @param transaction
+     */
+    public void removeTransaction(DataTransaction transaction)
+    {
+        this.transactionStack.remove(transaction);
+    }
+
+    /**
+     * Pushes a previously create data transaction into scope
+     */
+    public void pushTransaction(DataTransaction transaction)
+    {
+        this.transactionStack.push(transaction);
+    }
+
+    /**
+     * Removes the current transaction from scope
+     */
+    public DataTransaction popTransaction()
+    {
+        return this.transactionStack.pop();
     }
 }

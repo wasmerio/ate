@@ -82,7 +82,6 @@ public class ChainOfTrustTests
         d.encryptor.touch();
 
         d.storageFactory.buildRamBackend()
-                .addCacheLayer()
                 .addAccessLoggerLayer();
     }
     

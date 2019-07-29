@@ -2,6 +2,7 @@ package com.tokera.ate.io.api;
 
 import com.tokera.ate.dao.IRights;
 import com.tokera.ate.dao.base.BaseDao;
+import com.tokera.ate.io.repo.DataTransaction;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.UUID;

@@ -46,9 +46,6 @@ public class DataRepository implements IAteIO {
     private StorageSystemFactory factory;
     @SuppressWarnings("initialization.fields.uninitialized")
     private DataSubscriber subscriber;
-    @SuppressWarnings("initialization.fields.uninitialized")
-    @Inject
-    private DataStagingManager staging;
 
     public DataRepository() {
 
@@ -78,51 +75,14 @@ public class DataRepository implements IAteIO {
 
     @Override
     public @Nullable MessagePublicKeyDto publicKeyOrNull(IPartitionKey partitionKey, @Hash String hash) {
-        MessagePublicKeyDto key = staging.findPublicKey(partitionKey, hash);
+        MessagePublicKeyDto key = d.requestContext.currentTransaction().findPublicKey(partitionKey, hash);
         if (key != null) return key;
 
         DataPartitionChain chain = this.subscriber.getChain(partitionKey);
         return chain.getPublicKey(hash);
     }
 
-    @Override
-    public boolean merge(BaseDao entity) {
-        return mergeInternal(entity, true, true);
-    }
-
-    @Override
-    public boolean mergeWithoutSync(BaseDao entity) {
-        return mergeInternal(entity, true, false);
-    }
-
-    @Override
-    public boolean merge(IPartitionKey partitionKey, MessagePublicKeyDto t) {
-        this.mergeInternal(partitionKey, t, false);
-        return true;
-    }
-
-    @Override
-    public boolean merge(IPartitionKey partitionKey, MessageSecurityCastleDto t) {
-        this.mergeInternal(partitionKey, t, false);
-        return true;
-    }
-
-    @Override
-    public boolean mergeAsync(BaseDao entity) {
-        return mergeInternal(entity, true, false);
-    }
-
-    @Override
-    public boolean mergeWithoutValidation(BaseDao entity) {
-        return mergeInternal(entity, false, true);
-    }
-
-    @Override
-    public boolean mergeAsyncWithoutValidation(BaseDao entity) {
-        return mergeInternal(entity, false, false);
-    }
-
-    private void validateTrustStructure(BaseDao entity) {
+    void validateTrustStructure(BaseDao entity) {
 
         // Make sure its a valid parent we are attached to
         Class<?> type = entity.getClass();
@@ -158,7 +118,7 @@ public class DataRepository implements IAteIO {
             if (parentContainer != null) {
                 parentClazz = parentContainer.getPayloadClazz();
             } else {
-                BaseDao parentEntity = staging.find(partitionKey, entityParentId);
+                BaseDao parentEntity = d.requestContext.currentTransaction().find(partitionKey, entityParentId);
                 if (parentEntity == null) {
                     throw new RuntimeException("You have yet saved the parent object [" + entity.getParentId() + "] which you must do before this one [" + entity.getId() + "] otherwise the chain of trust will break.");
                 }
@@ -180,7 +140,7 @@ public class DataRepository implements IAteIO {
         }
     }
 
-    private void validateTrustPublicKeys(BaseDao entity, Collection<String> publicKeys) {
+    void validateTrustPublicKeys(BaseDao entity, Collection<String> publicKeys) {
         IPartitionKey partitionKey = entity.partitionKey(true);
         for (String hash : publicKeys) {
             if (hash == null) {
@@ -192,7 +152,7 @@ public class DataRepository implements IAteIO {
         }
     }
 
-    private void validateTrustPublicKeys(BaseDao entity) {
+    void validateTrustPublicKeys(BaseDao entity) {
         if (entity instanceof IRoles) {
             IRoles roles = (IRoles) entity;
             validateTrustPublicKeys(entity, roles.getTrustAllowRead().values());
@@ -200,14 +160,14 @@ public class DataRepository implements IAteIO {
         }
     }
 
-    private void validateReadability(BaseDao entity) {
+    void validateReadability(BaseDao entity) {
         EffectivePermissions perms = d.authorization.perms(entity, PermissionPhase.AfterMerge);
         if (perms.rolesRead.size() <= 0) {
             throw d.authorization.buildReadException("Saving this object without any read roles would orphan it, consider deleting it instead.", perms, false);
         }
     }
 
-    private void validateWritability(BaseDao entity) {
+    void validateWritability(BaseDao entity) {
         EffectivePermissions perms = d.authorization.perms(entity, PermissionPhase.DynamicStaging);
         if (perms.rolesWrite.size() <= 0) {
             throw d.authorization.buildWriteException("Failed to save this object as there are no valid write roles for this spot in the chain-of-trust or its not connected to a parent.", perms, false);
@@ -220,94 +180,9 @@ public class DataRepository implements IAteIO {
         }
     }
 
-    @Override
-    public void mergeLater(BaseDao t) {
-        mergeLaterInternal(t, true);
-    }
-
-    @Override
-    public void mergeLaterWithoutValidation(BaseDao t) {
-        mergeLaterInternal(t, false);
-    }
-
-    private void mergeDeferredInternal(DataPartition kt, BaseDao entity, List<MessageDataDto> datas) {
-        DataPartitionChain chain = kt.getChain();
-
-        validateTrustPublicKeys(entity);
-
-        MessageDataDto data = (MessageDataDto) d.dataSerializer.toDataMessage(entity, kt, false);
-        datas.add(data);
-
-        if (chain.validateTrustStructureAndWritabilityIncludingStaging(data, LOG) == false) {
-            String what = "clazz=" + data.getHeader().getPayloadClazzOrThrow() + ", id=" + data.getHeader().getIdOrThrow();
-            throw new RuntimeException("The newly created object was not accepted into the chain of trust [" + what + "]");
-        }
-        d.debugLogging.logMerge(data, entity, false);
-
-        // Add it to the request trust which makes sure that previous
-        // records are accounted for during the validation steps
-        staging.put(kt.partitionKey(), data.getHeader().getIdOrThrow(), data);
-    }
-
-    @Override
-    public void mergeDeferred() {
-        d.debugLogging.logMergeDeferred(this.staging);
-
-        for (IPartitionKey partitionKey : this.staging.keys().stream().collect(Collectors.toList())) {
-            mergeDeferred(partitionKey);
-        }
-    }
-
-    @Override
-    public void mergeDeferred(IPartitionKey partitionKey) {
-        d.debugLogging.logMergeDeferred(this.staging, partitionKey);
-
-        d.requestContext.pushPartitionKey(partitionKey);
-        try {
-            // Get the partition
-            DataPartition kt = this.subscriber.getPartition(partitionKey);
-
-            // Loop through all the entities and validate them all
-            List<MessageDataDto> datas = new ArrayList<>();
-            for (BaseDao entity : this.staging.puts(partitionKey)) {
-                mergeDeferredInternal(kt, entity, datas);
-            }
-
-            // Write them all out to Kafka
-            boolean shouldWait = false;
-            IDataPartitionBridge bridge = kt.getBridge();
-            for (MessageDataDto data : datas) {
-                bridge.send(data);
-                shouldWait = true;
-            }
-
-            // Remove delete any entities that need to be removed
-            for (BaseDao entity : this.staging.deletes(partitionKey)) {
-                remove(entity);
-                shouldWait = true;
-            }
-
-            // Remove it from the staging
-            this.staging.clear(partitionKey);
-
-            // Now we wait for the bridge to synchronize
-            if (shouldWait) {
-                if (d.currentToken.getWithinTokenScope()) {
-                    d.transaction.add(partitionKey, bridge.startSync());
-                } else {
-                    bridge.sync();
-                }
-            }
-        } finally {
-            d.requestContext.popPartitionKey();
-        }
-    }
-
-    @Override
-    public boolean remove(BaseDao entity) {
+    boolean remove(IPartitionKey partitionKey, BaseDao entity) {
 
         // Now create and write the data messages themselves
-        IPartitionKey partitionKey = entity.partitionKey(true);
         DataPartition kt = this.subscriber.getPartition(partitionKey);
 
         if (BaseDaoInternal.hasSaved(entity) == false) {
@@ -324,8 +199,7 @@ public class DataRepository implements IAteIO {
         return true;
     }
 
-    @Override
-    public boolean remove(PUUID id, Class<?> type) {
+    boolean remove(PUUID id, Class<?> type) {
 
         // Loiad the existing record
         DataPartition kt = this.subscriber.getPartition(id.partition());
@@ -343,7 +217,7 @@ public class DataRepository implements IAteIO {
                 .withPhase(PermissionPhase.DynamicStaging)
                 .build();
 
-        d.dataStagingManager.put(kt.partitionKey(), d.currentRights.getRightsWrite());
+        d.requestContext.currentTransaction().put(kt.partitionKey(), d.currentRights.getRightsWrite());
 
         // Make sure we are actually writing something to Kafka
         MessageDataDigestDto digest = d.dataSignatureBuilder.signDataMessage(id.partition(), header, null, permissions);
@@ -355,30 +229,6 @@ public class DataRepository implements IAteIO {
 
         d.debugLogging.logDelete(id.partition(), data);
         return true;
-    }
-
-    @Override
-    public void removeLater(BaseDao entity) {
-        IPartitionKey partitionKey = entity.partitionKey(true);
-
-        // We only actually need to validate and queue if the object has ever been saved
-        if (BaseDaoInternal.hasSaved(entity) == true) {
-            validateTrustStructure(entity);
-            validateTrustPublicKeys(entity);
-
-            d.dataStagingManager.put(partitionKey, d.currentRights.getRightsWrite());
-            this.staging.delete(partitionKey, entity);
-        } else {
-            this.staging.undo(partitionKey, entity);
-        }
-    }
-
-    @Override
-    public void cache(BaseDao entity) {
-    }
-
-    @Override
-    public void decache(BaseDao entity) {
     }
 
     @Override
@@ -410,13 +260,13 @@ public class DataRepository implements IAteIO {
     }
 
     @Override
-    public @Nullable MessageDataHeaderDto getRootOfTrust(PUUID id) {
+    public @Nullable MessageDataHeaderDto readRootOfTrust(PUUID id) {
         DataPartitionChain chain = this.subscriber.getChain(id.partition());
         return chain.getRootOfTrust(id.id());
     }
 
     @Override
-    public @Nullable BaseDao getOrNull(@Nullable PUUID _id, boolean shouldSave) {
+    public @Nullable BaseDao readOrNull(@Nullable PUUID _id, boolean shouldSave) {
         PUUID id = _id;
         if (id == null) return null;
 
@@ -429,7 +279,7 @@ public class DataRepository implements IAteIO {
     }
 
     @Override
-    public BaseDao getOrThrow(PUUID id) {
+    public BaseDao readOrThrow(PUUID id) {
         DataPartitionChain chain = this.subscriber.getChain(id.partition());
         DataContainer container = chain.getData(id.id(), LOG);
         if (container == null) {
@@ -444,20 +294,20 @@ public class DataRepository implements IAteIO {
     }
 
     @Override
-    public @Nullable DataContainer getRawOrNull(@Nullable PUUID id) {
+    public @Nullable DataContainer readRawOrNull(@Nullable PUUID id) {
         if (id == null) return null;
         DataPartitionChain chain = this.subscriber.getChain(id.partition());
         return chain.getData(id.id(), LOG);
     }
 
     @Override
-    public <T extends BaseDao> Iterable<MessageMetaDto> getHistory(PUUID id, Class<T> clazz) {
+    public <T extends BaseDao> Iterable<MessageMetaDto> readHistory(PUUID id, Class<T> clazz) {
         DataPartitionChain chain = this.subscriber.getChain(id.partition());
         return chain.getHistory(id.id(), LOG);
     }
 
     @Override
-    public @Nullable BaseDao getVersionOrNull(PUUID id, MessageMetaDto meta) {
+    public @Nullable BaseDao readVersionOrNull(PUUID id, MessageMetaDto meta) {
         DataPartition kt = this.subscriber.getPartition(id.partition());
 
         MessageDataDto data = kt.getBridge().getVersion(id.id(), meta);
@@ -470,13 +320,13 @@ public class DataRepository implements IAteIO {
     }
 
     @Override
-    public @Nullable MessageDataDto getVersionMsgOrNull(PUUID id, MessageMetaDto meta) {
+    public @Nullable MessageDataDto readVersionMsgOrNull(PUUID id, MessageMetaDto meta) {
         DataPartition kt = this.subscriber.getPartition(id.partition());
         return kt.getBridge().getVersion(id.id(), meta);
     }
 
     @Override
-    public Set<BaseDao> getAll(IPartitionKey partitionKey) {
+    public Set<BaseDao> readAll(IPartitionKey partitionKey) {
         DataPartitionChain chain = this.subscriber.getChain(partitionKey);
 
         Set<BaseDao> ret = new HashSet<>();
@@ -490,15 +340,9 @@ public class DataRepository implements IAteIO {
         return ret;
     }
 
-    @Override
-    public <T extends BaseDao> Set<T> getAll(Collection<IPartitionKey> keys, Class<T> type) {
-        keys.stream().forEach(k -> this.subscriber.getPartition(k, false));
-        return keys.stream().flatMap(k -> d.io.getAll(k, type).stream()).collect(Collectors.toSet());
-    }
-
     @SuppressWarnings({"unchecked"})
     @Override
-    public <T extends BaseDao> Set<T> getAll(IPartitionKey partitionKey, Class<T> type)
+    public <T extends BaseDao> Set<T> readAll(IPartitionKey partitionKey, Class<T> type)
     {
         DataPartitionChain chain = this.subscriber.getChain(partitionKey);
 
@@ -514,14 +358,14 @@ public class DataRepository implements IAteIO {
     }
 
     @Override
-    public <T extends BaseDao> List<DataContainer> getAllRaw(IPartitionKey partitionKey)
+    public <T extends BaseDao> List<DataContainer> readAllRaw(IPartitionKey partitionKey)
     {
         DataPartitionChain chain = this.subscriber.getChain(partitionKey);
         return chain.getAllData(null, LOG);
     }
 
     @Override
-    public <T extends BaseDao> List<DataContainer> getAllRaw(IPartitionKey partitionKey, @Nullable Class<T> type)
+    public <T extends BaseDao> List<DataContainer> readAllRaw(IPartitionKey partitionKey, @Nullable Class<T> type)
     {
         DataPartitionChain chain = this.subscriber.getChain(partitionKey);
 
@@ -530,46 +374,6 @@ public class DataRepository implements IAteIO {
         } else {
             return chain.getAllData(null, LOG);
         }
-    }
-
-    @SuppressWarnings({"unchecked"})
-    @Override
-    public <T extends BaseDao> List<T> getMany(IPartitionKey partitionKey, Iterable<UUID> ids, Class<T> type) {
-        DataPartitionChain chain = this.subscriber.getChain(partitionKey);
-
-        List<T> ret = new ArrayList<>();
-        for (UUID id : ids)
-        {
-            DataContainer container = chain.getData(id, LOG);
-            if (container == null) continue;
-
-            BaseDao entity = container.getMergedData();
-            if (entity != null) {
-                ret.add((T)entity);
-            }
-        }
-        return ret;
-    }
-
-    @Override
-    public void clearDeferred() {
-        this.staging.clear();
-    }
-
-    @Override
-    public void clearCache(PUUID id) {
-    }
-
-    @Override
-    public void sync(IPartitionKey partitionKey)
-    {
-        this.subscriber.getPartition(partitionKey).getBridge().sync();
-    }
-
-    @Override
-    public MessageSyncDto beginSync(IPartitionKey partitionKey)
-    {
-        return this.subscriber.getPartition(partitionKey).getBridge().startSync();
     }
 
     @Override
@@ -594,7 +398,7 @@ public class DataRepository implements IAteIO {
         this.subscriber.destroyAll();
     }
 
-    public void mergeInternal(IPartitionKey partitionKey, MessageBaseDto data, boolean performSync)
+    void mergeInternal(DataTransaction trans, IPartitionKey partitionKey, MessageBaseDto data, boolean performSync)
     {
         // Save the data to the bridge and synchronize it
         DataPartition kt = this.subscriber.getPartition(partitionKey);
@@ -609,70 +413,85 @@ public class DataRepository implements IAteIO {
         // If its a public key then we should record that we already saved it
         if (data instanceof MessagePrivateKeyDto) {
             MessagePublicKeyDto key = new MessagePublicKeyDto((MessagePrivateKeyDto) data);
-            staging.put(partitionKey, key);
+            trans.put(partitionKey, key);
         }
         if (data instanceof MessagePublicKeyDto) {
             MessagePublicKeyDto key = (MessagePublicKeyDto) data;
-            staging.put(partitionKey, key);
+            trans.put(partitionKey, key);
         }
     }
 
-    private boolean mergeInternal(BaseDao entity, boolean performValidation, boolean performSync) {
-        // Get the partition
-        IPartitionKey key = entity.partitionKey(true);
-        DataPartition kt = this.subscriber.getPartition(key);
+    /**
+     * Flushes a data transaction to the repository
+     * @param trans
+     */
+    @Override
+    public void send(DataTransaction trans, boolean validation) {
+        d.debugLogging.logFlush(trans);
 
-        // Validate the public keys
-        if (performValidation) {
-            validateTrustPublicKeys(entity);
+        for (IPartitionKey partitionKey : trans.keys().stream().collect(Collectors.toList())) {
+            d.debugLogging.logFlush(trans, partitionKey);
+
+            d.requestContext.pushPartitionKey(partitionKey);
+            try {
+                // Get the partition
+                DataPartition kt = this.subscriber.getPartition(partitionKey);
+                DataPartitionChain chain = kt.getChain();
+                IDataPartitionBridge bridge = kt.getBridge();
+
+                // Push all the public keys that are in the cache but not known to this partition
+                for (MessagePublicKeyDto key : trans.findPublicKeys(partitionKey)) {
+                    if (chain.hasPublicKey(key.getPublicKeyHash()) == false) {
+                        bridge.send(key);
+                    }
+                }
+
+                // Loop through all the entities and flush them down to the database
+                List<MessageDataDto> datas = new ArrayList<>();
+                for (BaseDao entity : trans.puts(partitionKey)) {
+                    datas.add(convert(kt, entity));
+                }
+
+                // Write them all out to Kafka
+                boolean shouldWait = false;
+                for (MessageDataDto data : datas) {
+                    bridge.send(data);
+                    shouldWait = true;
+                }
+
+                // Remove delete any entities that need to be removed
+                for (BaseDao entity : trans.deletes(partitionKey)) {
+                    remove(partitionKey, entity);
+                    shouldWait = true;
+                }
+
+                // Now we wait for the bridge to synchronize
+                if (shouldWait) {
+                    if (d.currentToken.getWithinTokenScope()) {
+                        d.transaction.add(partitionKey, bridge.startSync());
+                    } else {
+                        bridge.sync();
+                    }
+                }
+            } finally {
+                d.requestContext.popPartitionKey();
+            }
         }
+    }
 
-        // Push all the write keys to the staging area before we attempt to serialize it
-        this.staging.put(key, d.currentRights.getRightsWrite());
+    private MessageDataDto convert(DataPartition kt, BaseDao entity) {
+        DataPartitionChain chain = kt.getChain();
 
-        // Generate the data that represents this entity
+        d.dataRepository.validateTrustPublicKeys(entity);
+
         MessageDataDto data = (MessageDataDto) d.dataSerializer.toDataMessage(entity, kt, false);
 
-        // Perform the validations and checks
-        DataPartitionChain chain = kt.getChain();
-        if (performValidation && chain.validateTrustStructureAndWritability(data, LOG) == false) {
+        if (chain.validateTrustStructureAndWritabilityIncludingStaging(data, LOG) == false) {
             String what = "clazz=" + data.getHeader().getPayloadClazzOrThrow() + ", id=" + data.getHeader().getIdOrThrow();
             throw new RuntimeException("The newly created object was not accepted into the chain of trust [" + what + "]");
         }
         d.debugLogging.logMerge(data, entity, false);
 
-        // Save the data to the bridge and synchronize it
-        IDataPartitionBridge bridge = kt.getBridge();
-        bridge.send(data);
-
-        // Synchronize
-        if (performSync == true) {
-            bridge.sync();
-        }
-
-        // Return if the object was actually created
-        return exists(entity.addressableId());
-    }
-
-    private void mergeLaterInternal(BaseDao entity, boolean validate) {
-        if (validate == true) {
-            validateTrustStructure(entity);
-            validateTrustPublicKeys(entity);
-        }
-
-        IPartitionKey partitionKey = entity.partitionKey(true);
-        if (this.staging.find(partitionKey, entity.getId()) != null) {
-            return;
-        }
-
-        if (validate == true) {
-            validateReadability(entity);
-            validateWritability(entity);
-        }
-
-        d.debugLogging.logMerge(null, entity, true);
-
-        this.staging.put(partitionKey, d.currentRights.getRightsWrite());
-        this.staging.put(partitionKey, entity);
+        return data;
     }
 }

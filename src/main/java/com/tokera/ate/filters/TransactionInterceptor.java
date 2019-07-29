@@ -23,12 +23,14 @@ public class TransactionInterceptor implements ContainerResponseFilter {
     protected AteDelegate d = AteDelegate.get();
 
     @Override
-    public void filter(ContainerRequestContext requestContext, ContainerResponseContext responseContext) throws IOException {
+    public void filter(ContainerRequestContext requestContext, ContainerResponseContext responseContext) {
         
         // Send all the data to the Kafka
         // (but only if we are not encountering an error of some kind)
         if (responseContext.getStatus() >= 200 && responseContext.getStatus() < 400) {
-            d.io.mergeDeferred();
+            d.io.flushAll();
+        } else {
+            d.io.clearAll();
         }
     }
 }

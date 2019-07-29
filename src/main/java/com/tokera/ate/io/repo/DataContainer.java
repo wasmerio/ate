@@ -189,7 +189,7 @@ public class DataContainer {
             if (leaves.size() > 1) {
                 EffectivePermissions perms = d.authorization.perms(BaseDaoInternal.getType(ret), partitionKey, ret.getId(), PermissionPhase.BeforeMerge);
                 if (shouldSave && perms.canWrite(d.currentRights)) {
-                    d.io.mergeAsyncWithoutValidation(ret);
+                    d.io.write(ret, false);
                 }
             }
         }

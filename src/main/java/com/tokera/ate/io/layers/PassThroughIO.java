@@ -5,6 +5,7 @@ import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.io.api.IAteIO;
 import com.tokera.ate.io.api.IPartitionKey;
+import com.tokera.ate.io.repo.DataTransaction;
 import com.tokera.ate.units.DaoId;
 import com.tokera.ate.units.Hash;
 import com.tokera.ate.io.repo.DataContainer;
@@ -24,108 +25,8 @@ public class PassThroughIO implements IAteIO {
     }
 
     @Override
-    public boolean merge(BaseDao t) {
-        boolean ret = next.merge(t);
-        if (ret == false) return false;
-        return true;
-    }
-
-    @Override
-    public boolean merge(IPartitionKey partitionKey, MessagePublicKeyDto publicKey) {
-        return this.next.merge(partitionKey, publicKey);
-    }
-
-    @Override
-    public boolean merge(IPartitionKey partitionKey, MessageSecurityCastleDto castle) {
-        return this.next.merge(partitionKey, castle);
-    }
-
-    @Override
-    public boolean mergeAsync(BaseDao t) {
-        boolean ret = next.mergeAsync(t);
-        if (ret == false) return false;
-        return true;
-    }
-
-    @Override
-    public boolean mergeWithoutValidation(BaseDao t) {
-        boolean ret = next.mergeWithoutValidation(t);
-        if (ret == false) return false;
-        return true;
-    }
-
-    @Override
-    public boolean mergeWithoutSync(BaseDao t) {
-        boolean ret = next.mergeWithoutSync(t);
-        if (ret == false) return false;
-        return true;
-    }
-
-    @Override
-    public boolean mergeAsyncWithoutValidation(BaseDao t) {
-        boolean ret = next.mergeAsyncWithoutValidation(t);
-        if (ret == false) return false;
-        return true;
-    }
-
-    @Override
-    public void mergeLater(BaseDao t) {
-        next.mergeLater(t);
-    }
-
-    @Override
-    public void mergeLaterWithoutValidation(BaseDao t) {
-        next.mergeLaterWithoutValidation(t);
-    }
-
-    @Override
-    public void mergeDeferred() {
-        next.mergeDeferred();
-    }
-
-    @Override
-    public void clearDeferred() {
-        next.clearDeferred();
-    }
-
-    @Override
-    public void mergeDeferred(IPartitionKey partitionKey) {
-        next.mergeDeferred(partitionKey);
-    }
-
-    @Override
-    public void clearCache(PUUID id) {
-        next.clearCache(id);
-    }
-
-    @Override
-    public boolean remove(BaseDao t) {
-        return next.remove(t);
-    }
-
-    @Override
-    public void removeLater(BaseDao t) {
-        next.removeLater(t);
-    }
-
-    @Override
-    public boolean remove(PUUID id, Class<?> type) {
-        return next.remove(id, type);
-    }
-
-    @Override
-    public void cache(BaseDao entity) {
-        next.cache(entity);
-    }
-
-    @Override
-    public void decache(BaseDao entity) {
-        next.decache(entity);
-    }
-
-    @Override
-    public @Nullable MessageDataHeaderDto getRootOfTrust(PUUID id) {
-        return next.getRootOfTrust(id);
+    public @Nullable MessageDataHeaderDto readRootOfTrust(PUUID id) {
+        return next.readRootOfTrust(id);
     }
 
     @Override
@@ -135,16 +36,6 @@ public class PassThroughIO implements IAteIO {
 
     @Override
     public void warmAndWait(IPartitionKey partitionKey) { next.warmAndWait(partitionKey); }
-
-    @Override
-    public void sync(IPartitionKey partitionKey) {
-        next.sync(partitionKey);
-    }
-
-    @Override
-    public MessageSyncDto beginSync(IPartitionKey partitionKey) {
-        return next.beginSync(partitionKey);
-    }
 
     @Override
     public MessageSyncDto beginSync(IPartitionKey partitionKey, MessageSyncDto sync) {
@@ -167,6 +58,11 @@ public class PassThroughIO implements IAteIO {
     }
 
     @Override
+    public void send(DataTransaction transaction, boolean validate) {
+        next.send(transaction, validate);
+    }
+
+    @Override
     public boolean exists(@Nullable PUUID _id) {
         @DaoId PUUID id = _id;
         if (id == null) return false;
@@ -186,62 +82,52 @@ public class PassThroughIO implements IAteIO {
     }
 
     @Override
-    public @Nullable BaseDao getOrNull(PUUID id, boolean shouldSave) {
-        return next.getOrNull(id, shouldSave);
+    public @Nullable BaseDao readOrNull(PUUID id, boolean shouldSave) {
+        return next.readOrNull(id, shouldSave);
     }
 
     @Override
-    public BaseDao getOrThrow(PUUID id) {
-        return next.getOrThrow(id);
+    public BaseDao readOrThrow(PUUID id) {
+        return next.readOrThrow(id);
     }
 
     @Override
-    public @Nullable DataContainer getRawOrNull(PUUID id) {
-        return next.getRawOrNull(id);
+    public @Nullable DataContainer readRawOrNull(PUUID id) {
+        return next.readRawOrNull(id);
     }
 
     @Override
-    public @Nullable BaseDao getVersionOrNull(PUUID id, MessageMetaDto meta) {
-        return next.getVersionOrNull(id, meta);
+    public @Nullable BaseDao readVersionOrNull(PUUID id, MessageMetaDto meta) {
+        return next.readVersionOrNull(id, meta);
     }
 
     @Override
-    public @Nullable MessageDataDto getVersionMsgOrNull(PUUID id, MessageMetaDto meta) {
-        return next.getVersionMsgOrNull(id, meta);
+    public @Nullable MessageDataDto readVersionMsgOrNull(PUUID id, MessageMetaDto meta) {
+        return next.readVersionMsgOrNull(id, meta);
     }
 
     @Override
-    public <T extends BaseDao> Iterable<MessageMetaDto> getHistory(PUUID id, Class<T> clazz) {
-        return next.getHistory(id, clazz);
+    public <T extends BaseDao> Iterable<MessageMetaDto> readHistory(PUUID id, Class<T> clazz) {
+        return next.readHistory(id, clazz);
     }
 
     @Override
-    public Set<BaseDao> getAll(IPartitionKey partitionKey) {
-        return next.getAll(partitionKey);
+    public Set<BaseDao> readAll(IPartitionKey partitionKey) {
+        return next.readAll(partitionKey);
     }
 
     @Override
-    public <T extends BaseDao> Set<T> getAll(IPartitionKey partitionKey, Class<T> type) {
-        return next.getAll(partitionKey, type);
+    public <T extends BaseDao> Set<T> readAll(IPartitionKey partitionKey, Class<T> type) {
+        return next.readAll(partitionKey, type);
     }
 
     @Override
-    public <T extends BaseDao> Set<T> getAll(Collection<IPartitionKey> keys, Class<T> type) {
-        return next.getAll(keys, type);
+    public <T extends BaseDao> List<DataContainer> readAllRaw(IPartitionKey partitionKey) {
+        return next.readAllRaw(partitionKey);
     }
 
     @Override
-    public <T extends BaseDao> List<DataContainer> getAllRaw(IPartitionKey partitionKey) {
-        return next.getAllRaw(partitionKey);
-    }
-
-    @Override
-    public <T extends BaseDao> List<DataContainer> getAllRaw(IPartitionKey partitionKey, Class<T> type) {
-        return next.getAllRaw(partitionKey, type);
-    }
-
-    @Override
-    public <T extends BaseDao> List<T> getMany(IPartitionKey partitionKey, Iterable<@DaoId UUID> ids, Class<T> type) {
-        return next.getMany(partitionKey, ids, type);
+    public <T extends BaseDao> List<DataContainer> readAllRaw(IPartitionKey partitionKey, Class<T> type) {
+        return next.readAllRaw(partitionKey, type);
     }
 }

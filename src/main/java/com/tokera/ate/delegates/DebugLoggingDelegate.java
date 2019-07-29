@@ -1,12 +1,11 @@
 package com.tokera.ate.delegates;
 
-import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.base.BaseDaoInternal;
 import com.tokera.ate.dao.msg.MessageBase;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.io.api.IPartitionKey;
-import com.tokera.ate.io.repo.DataStagingManager;
+import com.tokera.ate.io.repo.DataTransaction;
 import com.tokera.ate.providers.PartitionKeySerializer;
 import com.tokera.ate.scopes.Startup;
 import org.apache.commons.lang.exception.ExceptionUtils;
@@ -31,10 +30,10 @@ public class DebugLoggingDelegate {
         Removed
     }
 
-    public void logMergeDeferred(DataStagingManager staging) {
+    public void logFlush(DataTransaction staging) {
         if (d.bootstrapConfig.isLoggingWrites()) {
             StringBuilder sb = new StringBuilder();
-            sb.append("merge_deferred: [cnt=");
+            sb.append("flush: [cnt=");
             sb.append(staging.size());
             sb.append("]");
 
@@ -47,10 +46,10 @@ public class DebugLoggingDelegate {
         }
     }
 
-    public void logMergeDeferred(DataStagingManager staging, IPartitionKey partitionKey) {
+    public void logFlush(DataTransaction staging, IPartitionKey partitionKey) {
         if (d.bootstrapConfig.isLoggingWrites()) {
             StringBuilder sb = new StringBuilder();
-            sb.append("merge_deferred: [cnt=");
+            sb.append("flush: [cnt=");
             sb.append(staging.size());
             sb.append(", partition=");
             sb.append(partitionKey.toString());

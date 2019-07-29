@@ -13,6 +13,7 @@ import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import com.tokera.ate.io.api.IPartitionKey;
+import com.tokera.ate.io.repo.DataTransaction;
 import com.tokera.ate.security.EffectivePermissionBuilder;
 import com.tokera.ate.units.DaoId;
 import com.tokera.ate.units.Hash;

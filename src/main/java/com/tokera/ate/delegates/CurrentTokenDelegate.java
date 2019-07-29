@@ -311,13 +311,13 @@ public class CurrentTokenDelegate {
         PUUID pid;
         if (prefix != null && prefix.length() > 0) {
             UUID entityId = UUIDTools.generateUUID(prefix + paramVal);
-            pid = PUUID.from(d.requestContext.getPartitionKeyScope(), entityId);
+            pid = PUUID.from(d.requestContext.currentPartitionKey(), entityId);
         } else {
             UUID entityId = UUIDTools.parseUUIDorNull(paramVal);
             if (entityId == null) {
                 pid = PUUID.parse(paramVal);
             } else {
-                pid = PUUID.from(d.requestContext.getPartitionKeyScope(), entityId);
+                pid = PUUID.from(d.requestContext.currentPartitionKey(), entityId);
             }
         }
 

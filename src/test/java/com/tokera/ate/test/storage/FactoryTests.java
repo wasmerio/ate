@@ -35,7 +35,6 @@ public class FactoryTests {
 
         // Build the default storage subsystem
         d.storageFactory.buildKafkaBackend()
-                .addCacheLayer()
                 .addAccessLoggerLayer();
     }
 

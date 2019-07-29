@@ -68,11 +68,13 @@ public class EffectivePermissionBuilder {
     private PermissionPhase computePhase(UUID id) {
         switch (origPhase) {
             case DynamicStaging:
-                return d.dataStagingManager.find(this.partitionKey, id) != null
+                return d.requestContext.currentTransaction()
+                        .written(this.partitionKey, id)
                         ? PermissionPhase.AfterMerge
                         : PermissionPhase.BeforeMerge;
             case DynamicChain:
-                return d.dataStagingManager.findData(this.partitionKey, id) != null
+                return d.requestContext.currentTransaction()
+                       .findData(this.partitionKey, id) != null
                        ? PermissionPhase.AfterMerge
                        : PermissionPhase.BeforeMerge;
             default:
@@ -106,7 +108,7 @@ public class EffectivePermissionBuilder {
      */
     private void reconcileType(EffectivePermissions ret) {
         if (ret.type == null) {
-            DataContainer container = d.io.getRawOrNull(PUUID.from(this.partitionKey, this.origId));
+            DataContainer container = d.io.readRawOrNull(PUUID.from(this.partitionKey, this.origId));
             if (container != null) ret.type = container.getPayloadClazz();
         }
         if (ret.type == null && computePhase(this.origId) == PermissionPhase.AfterMerge) {
@@ -120,8 +122,8 @@ public class EffectivePermissionBuilder {
      */
     public @Nullable BaseDao findDataObj(UUID id) {
         BaseDao obj = MapTools.getOrNull(this.suppliedObjects, id);
-        if (obj == null) obj = d.dataStagingManager.find(this.partitionKey, id);
-        if (obj == null) obj = d.io.getOrNull(PUUID.from(this.partitionKey, id), false);
+        if (obj == null) obj = d.requestContext.currentTransaction().find(this.partitionKey, id);
+        if (obj == null) obj = d.io.readOrNull(PUUID.from(this.partitionKey, id), false);
         return obj;
     }
 
@@ -130,7 +132,7 @@ public class EffectivePermissionBuilder {
      * writing data into the chain which has been accepted into the chain
      */
     private void addRootTrust(EffectivePermissions ret) {
-        MessageDataHeaderDto rootOfTrust = d.io.getRootOfTrust(PUUID.from(this.partitionKey, this.origId));
+        MessageDataHeaderDto rootOfTrust = d.io.readRootOfTrust(PUUID.from(this.partitionKey, this.origId));
         if (rootOfTrust != null) {
             ret.castleId = rootOfTrust.getCastleId();
             ret.rolesRead.addAll(rootOfTrust.getAllowRead());
@@ -152,7 +154,7 @@ public class EffectivePermissionBuilder {
         {
             if (computePhase(id) == PermissionPhase.AfterMerge)
             {
-                MessageDataDto data = d.dataStagingManager.findData(partitionKey, id);
+                MessageDataDto data = d.requestContext.currentTransaction().findData(partitionKey, id);
                 if (data != null) {
                     MessageDataHeaderDto header = data.getHeader();
 
@@ -202,7 +204,7 @@ public class EffectivePermissionBuilder {
                 }
             }
 
-            DataContainer container = d.io.getRawOrNull(PUUID.from(this.partitionKey, id));
+            DataContainer container = d.io.readRawOrNull(PUUID.from(this.partitionKey, id));
             if (container != null) {
                 MessageDataHeaderDto header = container.getMergedHeader();
 
@@ -228,7 +230,7 @@ public class EffectivePermissionBuilder {
                 continue;
             }
 
-            MessageDataDto data = d.dataStagingManager.findData(partitionKey, id);
+            MessageDataDto data = d.requestContext.currentTransaction().findData(partitionKey, id);
             if (data != null) {
                 id = data.getHeader().getParentId();
                 continue;
@@ -246,7 +248,7 @@ public class EffectivePermissionBuilder {
     private void addImplicitTrust(EffectivePermissions ret)
     {
         // If its already in the chain-of-trust then we just use this ones implicit authority
-        DataContainer container = d.io.getRawOrNull(PUUID.from(this.partitionKey, this.origId));
+        DataContainer container = d.io.readRawOrNull(PUUID.from(this.partitionKey, this.origId));
         if (container != null) {
             MessageDataHeaderDto header = container.getMergedHeader();
             for (String implicitAuthority : header.getImplicitAuthority()) {
@@ -257,7 +259,7 @@ public class EffectivePermissionBuilder {
         }
 
         // Maybe its been pushed to the chain of trust already
-        MessageDataDto data = d.dataStagingManager.findData(partitionKey, this.origId);
+        MessageDataDto data = d.requestContext.currentTransaction().findData(partitionKey, this.origId);
         if (data != null) {
             MessageDataHeaderDto header = container.getMergedHeader();
             for (String implicitAuthority : header.getImplicitAuthority()) {
@@ -305,7 +307,7 @@ public class EffectivePermissionBuilder {
     {
         // If the data object is marked as claimable we only add the public write role if the
         // data object does not yet have a root record stored on the chain-of-trust (first come, first serve).
-        if (ret.type != null && d.io.getRawOrNull(PUUID.from(this.partitionKey, this.origId)) == null)  {
+        if (ret.type != null && d.io.readRawOrNull(PUUID.from(this.partitionKey, this.origId)) == null)  {
             if (d.daoParents.getAllowedParentClaimableSimple().contains(ret.type)) {
                 MessagePublicKeyDto publicKey = d.encryptor.getTrustOfPublicWrite();
                 ret.addWriteRole(publicKey);

@@ -171,7 +171,6 @@ public class ApiServer {
         switch (apiConfig.getDefaultStorageSystem()) {
             case KafkaWithCache:
                 d.storageFactory.buildKafkaBackend()
-                        .addCacheLayer()
                         .addAccessLoggerLayer();
                 break;
             case Kafka:
@@ -180,7 +179,6 @@ public class ApiServer {
                 break;
             case LocalRam:
                 d.storageFactory.buildRamBackend()
-                        .addCacheLayer()
                         .addAccessLoggerLayer();
                 break;
             default:
