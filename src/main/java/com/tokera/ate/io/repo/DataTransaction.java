@@ -180,7 +180,12 @@ public class DataTransaction {
         c.castles.put(MessageSerializer.getKey(t), t);
     }
 
-    boolean uncache(IPartitionKey partitionKey, UUID id)
+    public boolean uncache(PUUID id)
+    {
+        return uncache(id.partition(), id.id());
+    }
+
+    public boolean uncache(IPartitionKey partitionKey, UUID id)
     {
         PartitionCache c = this.getPartitionCache(partitionKey);
         return c.entries.remove(id) != null;
