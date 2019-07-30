@@ -19,8 +19,8 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
-import javax.xml.crypto.Data;
 import java.util.*;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -149,12 +149,29 @@ public class HeadIO
     /**
      * Runs a piece of run under a transaction that will commit when the code finishes or rollback if an exception is thrown
      */
-    public void withTransaction(Runnable f, boolean sync)
+    public void withTransaction(boolean sync, Runnable f)
     {
         DataTransaction trans = this.newTransaction(sync);
         try
         {
             f.run();
+        } catch (Throwable ex) {
+            trans.clear();
+            throw new TransactionAbortedException(ex);
+        } finally {
+            completeTransaction(trans);
+        }
+    }
+
+    /**
+     * Runs a piece of run under a transaction that will commit when the code finishes or rollback if an exception is thrown
+     */
+    public <T> T withTransaction(boolean sync, Supplier<T> f)
+    {
+        DataTransaction trans = this.newTransaction(sync);
+        try
+        {
+            return f.get();
         } catch (Throwable ex) {
             trans.clear();
             throw new TransactionAbortedException(ex);
