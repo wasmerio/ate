@@ -421,6 +421,34 @@ public class DataRepository implements IAteIO {
         }
     }
 
+    private void sendMissingKeys(DataTransaction trans, DataPartition kt, BaseDao entity)
+    {
+        if (entity instanceof IRoles) {
+            IRoles roles = (IRoles)entity;
+            sendMissingKeys(trans, kt, roles.getTrustAllowRead().values());
+            sendMissingKeys(trans, kt, roles.getTrustAllowWrite().values());
+        }
+    }
+
+    private void sendMissingKeys(DataTransaction trans, DataPartition kt, Collection<String> roles)
+    {
+        DataPartitionChain chain = kt.getChain();
+        IDataPartitionBridge bridge = kt.getBridge();
+
+        for (String role : roles) {
+            if (chain.hasPublicKey(role) == false) {
+                MessagePublicKeyDto key = trans.findPublicKey(kt.partitionKey(), role);
+                if (key == null) {
+                    key = d.implicitSecurity.findEmbeddedKeyOrNull(role);
+                    trans.put(kt.partitionKey(), key);
+                }
+                if (key == null) continue;
+
+                bridge.send(key);
+            }
+        }
+    }
+
     /**
      * Flushes a data transaction to the repository
      * @param trans
@@ -436,20 +464,19 @@ public class DataRepository implements IAteIO {
             try {
                 // Get the partition
                 DataPartition kt = this.subscriber.getPartition(partitionKey);
-                DataPartitionChain chain = kt.getChain();
                 IDataPartitionBridge bridge = kt.getBridge();
 
                 // Push all the public keys that are in the cache but not known to this partition
-                for (MessagePublicKeyDto key : trans.findPublicKeys(partitionKey)) {
-                    if (chain.hasPublicKey(key.getPublicKeyHash()) == false) {
-                        bridge.send(key);
-                    }
+                for (BaseDao entity : trans.puts(partitionKey)) {
+                    sendMissingKeys(trans, kt, entity);
                 }
 
                 // Loop through all the entities and flush them down to the database
                 List<MessageDataDto> datas = new ArrayList<>();
                 for (BaseDao entity : trans.puts(partitionKey)) {
-                    datas.add(convert(kt, entity));
+                    MessageDataDto data = convert(kt, entity);
+                    datas.add(data);
+                    trans.put(partitionKey, data);
                 }
 
                 // Write them all out to Kafka
@@ -463,6 +490,11 @@ public class DataRepository implements IAteIO {
                 for (BaseDao entity : trans.deletes(partitionKey)) {
                     remove(partitionKey, entity);
                     shouldWait = true;
+                }
+
+                // Cache all the results so they flow between transactions
+                for (BaseDao entity : trans.puts(partitionKey)) {
+                    trans.cache(partitionKey, entity);
                 }
 
                 // Now we wait for the bridge to synchronize

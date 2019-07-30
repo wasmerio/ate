@@ -20,9 +20,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 import java.util.*;
-import java.util.function.BiFunction;
-import java.util.function.Function;
-import java.util.function.Supplier;
+import java.util.function.*;
 import java.util.stream.Collectors;
 
 /**
@@ -163,6 +161,20 @@ public class HeadIO
         } finally {
             completeTransaction(trans);
         }
+    }
+
+    /**
+     * Runs a piece of run under a transaction that will commit when the code finishes or rollback if an exception is thrown
+     */
+    public <A> void underTransaction(boolean sync, Consumer<A> f, A a) {
+        underTransaction(sync, () -> f.accept(a));
+    }
+
+    /**
+     * Runs a piece of run under a transaction that will commit when the code finishes or rollback if an exception is thrown
+     */
+    public <A, B> void underTransaction(boolean sync, BiConsumer<A, B> f, A a, B b) {
+        underTransaction(sync, () -> f.accept(a, b));
     }
 
     /**

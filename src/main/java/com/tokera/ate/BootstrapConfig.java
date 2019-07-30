@@ -65,6 +65,9 @@ public class BootstrapConfig {
     private String kafkaLogDirOverride = null;
     private String zookeeperDataDirOverride = null;
 
+    private int subscriberPartitionTimeout = 60000;
+    private int subscriberMaxPartitions = 500;
+
     private ConcurrentHashMap<String, Properties> propertiesCache = new ConcurrentHashMap<>();
 
     // Only weld should initialize this configuration using the ApiServer.startWeld method
@@ -494,5 +497,21 @@ public class BootstrapConfig {
 
     public void setLoggingCallbackData(boolean loggingCallbackData) {
         this.loggingCallbackData = loggingCallbackData;
+    }
+
+    public int getSubscriberPartitionTimeout() {
+        return subscriberPartitionTimeout;
+    }
+
+    public void setSubscriberPartitionTimeout(int subscriberPartitionTimeout) {
+        this.subscriberPartitionTimeout = subscriberPartitionTimeout;
+    }
+
+    public int getSubscriberMaxPartitions() {
+        return subscriberMaxPartitions;
+    }
+
+    public void setSubscriberMaxPartitions(int subscriberMaxPartitions) {
+        this.subscriberMaxPartitions = subscriberMaxPartitions;
     }
 }

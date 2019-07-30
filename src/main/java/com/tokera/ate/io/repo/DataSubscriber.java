@@ -46,8 +46,8 @@ public class DataSubscriber {
         this.mode = mode;
         this.LOG = CDI.current().select(LoggerHook.class).get();
         this.partitionCache = CacheBuilder.newBuilder()
-                .maximumSize(500)
-                .expireAfterAccess(1, TimeUnit.MINUTES)
+                .maximumSize(d.bootstrapConfig.getSubscriberMaxPartitions())
+                .expireAfterAccess(d.bootstrapConfig.getSubscriberPartitionTimeout(), TimeUnit.MILLISECONDS)
                 .removalListener((RemovalNotification<GenericPartitionKey, DataPartition> notification) -> {
                     DataPartition t = notification.getValue();
                     if (t != null) t.getBridge().topicBridge().removeKey(t.partitionKey());

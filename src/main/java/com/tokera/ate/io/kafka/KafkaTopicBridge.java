@@ -130,32 +130,44 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
     }
 
     private void start() {
-        if (this.thread == null) {
-            this.thread = new Thread(this);
-            this.thread.setDaemon(true);
-        }
+        synchronized (this) {
+            if (this.thread == null) {
+                this.thread = new Thread(this);
+                this.thread.setDaemon(true);
+            }
 
-        this.isRunning = true;
-        this.thread.start();
+            this.isRunning = true;
+            this.thread.start();
+        }
     }
     
     private void stop() {
-        isRunning = false;
+        synchronized (this) {
+            isRunning = false;
 
-        if (this.thread != null) {
-            this.thread.interrupt();
+            if (this.thread != null) {
+                this.thread.interrupt();
+            }
         }
     }
 
     private void touchConsumer() {
         if (this.consumer == null) {
-            this.consumer = this.m_config.newConsumer(KafkaConfigTools.TopicRole.Consumer, KafkaConfigTools.TopicType.Dao, m_bootstrapServers);
+            synchronized (this) {
+                if (this.consumer == null) {
+                    this.consumer = this.m_config.newConsumer(KafkaConfigTools.TopicRole.Consumer, KafkaConfigTools.TopicType.Dao, m_bootstrapServers);
+                }
+            }
         }
     }
 
     private void touchProducer() {
         if (this.producer == null) {
-            this.producer = this.m_config.newProducer(KafkaConfigTools.TopicRole.Producer, KafkaConfigTools.TopicType.Dao, m_bootstrapServers);
+            synchronized (this) {
+                if (this.producer == null) {
+                    this.producer = this.m_config.newProducer(KafkaConfigTools.TopicRole.Producer, KafkaConfigTools.TopicType.Dao, m_bootstrapServers);
+                }
+            }
         }
     }
 
@@ -234,77 +246,79 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
      */
     private boolean createTopic()
     {
-        // If the topic has ever been created by this TokAPI then we dont attempt it again
-        if (everCreated.contains(this.topic)) {
-            return true;
-        }
-
-        // Load the properties for the zookeeper instance
-        Properties props = d.bootstrapConfig.propertiesForKafka();
-
-        // Add the bootstrap to the configuration file
-        String zookeeperHosts = KafkaServer.getZooKeeperBootstrap();
-        props.put("zookeeper.connect", zookeeperHosts);
-
-        int connectionTimeOutInMs = 10000;
-        Object connectionTimeOutInMsObj = MapTools.getOrNull(props, "zookeeper.connection.timeout.ms");
-        if (connectionTimeOutInMsObj != null) {
-            try {
-                connectionTimeOutInMs = Integer.parseInt(connectionTimeOutInMsObj.toString());
-            } catch (NumberFormatException ex) {
-            }
-        }
-        int sessionTimeOutInMs = 10000;
-
-        int numOfReplicas = 1;
-        Object numOfReplicasObj = MapTools.getOrNull(props, "default.replication.factor");
-        if (numOfReplicasObj != null) {
-            try {
-                numOfReplicas = Integer.parseInt(numOfReplicasObj.toString());
-            } catch (NumberFormatException ex) {
-            }
-        }
-
-        ZkClient client = new ZkClient(zookeeperHosts, sessionTimeOutInMs, connectionTimeOutInMs, ZKStringSerializer$.MODULE$);
-        kafka.utils.ZkUtils utils = new kafka.utils.ZkUtils(client, new ZkConnection(zookeeperHosts), false);
-
-        // If it already exists the nwe are done
-        if (AdminUtils.topicExists(utils, this.topic)) {
-            everCreated.add(this.topic);
-            return true;
-        }
-
-        // Load the topic properties depending on the need
-        String topicPropsName;
-        switch (this.m_type) {
-            default:
-            case Dao:
-                topicPropsName = d.bootstrapConfig.getPropertiesFileTopicDao();
-                break;
-            case Io:
-                topicPropsName = d.bootstrapConfig.getPropertiesFileTopicIo();
-                break;
-            case Publish:
-                topicPropsName = d.bootstrapConfig.getPropertiesFileTopicPublish();
-                break;
-        }
-        Properties topicProps = ApplicationConfigLoader.getInstance().getPropertiesByName(topicPropsName);
-        if (topicProps != null) {
-            // Create the topic
-            try {
-                AdminUtils.createTopic(utils, this.topic, maxPartitionsPerTopic, numOfReplicas, topicProps, kafka.admin.RackAwareMode.Disabled$.MODULE$);
-                everCreated.add(this.topic);
-                sendEmptyMessagesToNewTopic();
+        synchronized (this) {
+            // If the topic has ever been created by this TokAPI then we dont attempt it again
+            if (everCreated.contains(this.topic)) {
                 return true;
-            } catch (TopicExistsException ex) {
+            }
+
+            // Load the properties for the zookeeper instance
+            Properties props = d.bootstrapConfig.propertiesForKafka();
+
+            // Add the bootstrap to the configuration file
+            String zookeeperHosts = KafkaServer.getZooKeeperBootstrap();
+            props.put("zookeeper.connect", zookeeperHosts);
+
+            int connectionTimeOutInMs = 10000;
+            Object connectionTimeOutInMsObj = MapTools.getOrNull(props, "zookeeper.connection.timeout.ms");
+            if (connectionTimeOutInMsObj != null) {
+                try {
+                    connectionTimeOutInMs = Integer.parseInt(connectionTimeOutInMsObj.toString());
+                } catch (NumberFormatException ex) {
+                }
+            }
+            int sessionTimeOutInMs = 10000;
+
+            int numOfReplicas = 1;
+            Object numOfReplicasObj = MapTools.getOrNull(props, "default.replication.factor");
+            if (numOfReplicasObj != null) {
+                try {
+                    numOfReplicas = Integer.parseInt(numOfReplicasObj.toString());
+                } catch (NumberFormatException ex) {
+                }
+            }
+
+            ZkClient client = new ZkClient(zookeeperHosts, sessionTimeOutInMs, connectionTimeOutInMs, ZKStringSerializer$.MODULE$);
+            kafka.utils.ZkUtils utils = new kafka.utils.ZkUtils(client, new ZkConnection(zookeeperHosts), false);
+
+            // If it already exists the nwe are done
+            if (AdminUtils.topicExists(utils, this.topic)) {
                 everCreated.add(this.topic);
                 return true;
-            } catch (Throwable ex) {
-                return false;
             }
-        }
 
-        return false;
+            // Load the topic properties depending on the need
+            String topicPropsName;
+            switch (this.m_type) {
+                default:
+                case Dao:
+                    topicPropsName = d.bootstrapConfig.getPropertiesFileTopicDao();
+                    break;
+                case Io:
+                    topicPropsName = d.bootstrapConfig.getPropertiesFileTopicIo();
+                    break;
+                case Publish:
+                    topicPropsName = d.bootstrapConfig.getPropertiesFileTopicPublish();
+                    break;
+            }
+            Properties topicProps = ApplicationConfigLoader.getInstance().getPropertiesByName(topicPropsName);
+            if (topicProps != null) {
+                // Create the topic
+                try {
+                    AdminUtils.createTopic(utils, this.topic, maxPartitionsPerTopic, numOfReplicas, topicProps, kafka.admin.RackAwareMode.Disabled$.MODULE$);
+                    everCreated.add(this.topic);
+                    sendEmptyMessagesToNewTopic();
+                    return true;
+                } catch (TopicExistsException ex) {
+                    everCreated.add(this.topic);
+                    return true;
+                } catch (Throwable ex) {
+                    return false;
+                }
+            }
+
+            return false;
+        }
     }
     
     @Override
@@ -355,13 +369,15 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
     
     private void dispose()
     {
-        if (this.consumer != null) {
-            this.consumer.close();
-            this.consumer = null;
-        }
-        if (this.producer != null) {
-            this.producer.close();
-            this.producer = null;
+        synchronized (this) {
+            if (this.consumer != null) {
+                this.consumer.close();
+                this.consumer = null;
+            }
+            if (this.producer != null) {
+                this.producer.close();
+                this.producer = null;
+            }
         }
 
         isInit = false;

@@ -39,8 +39,16 @@ public class DataTransaction {
         for (IPartitionKey key : other.partitions.keySet()) {
             PartitionContext otherContext = other.partitions.get(key);
             PartitionContext myContext = getPartitionMergeContext(key, true);
+
             myContext.savedWriteKeys.putAll(otherContext.savedWriteKeys);
             myContext.savedDatas.putAll(otherContext.savedDatas);
+
+            for (UUID id : otherContext.savedDatas.keySet()) {
+                myContext.toPut.remove(id);
+                myContext.toPutOrder.remove(id);
+                myContext.toDelete.remove(id);
+                myContext.toDeleteOrder.remove(id);
+            }
         }
 
         for (IPartitionKey key : other.cache.keySet()) {
@@ -113,14 +121,9 @@ public class DataTransaction {
         });
     }
 
-    void put(PUUID key, MessageDataDto data) {
-        PartitionContext context = getPartitionMergeContext(key.partition(), true);
-        context.savedDatas.put(key.id(), data);
-    }
-
-    void put(IPartitionKey partitionKey, UUID id, MessageDataDto data) {
+    void put(IPartitionKey partitionKey, MessageDataDto data) {
         PartitionContext context = getPartitionMergeContext(partitionKey, true);
-        context.savedDatas.put(id, data);
+        context.savedDatas.put(data.getHeader().getIdOrThrow(), data);
     }
 
     void put(IPartitionKey partitionKey, BaseDao obj) {
