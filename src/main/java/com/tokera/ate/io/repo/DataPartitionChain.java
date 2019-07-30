@@ -353,7 +353,7 @@ public class DataPartitionChain {
     public @Nullable MessagePublicKeyDto getPublicKey(String publicKeyHash) {
         return publicKeys.getOrDefault(publicKeyHash, null);
     }
-    
+
     public boolean hasPublicKey(@Nullable String _publicKeyHash) {
         @Hash String publicKeyHash = _publicKeyHash;
         if (publicKeyHash == null) return false;

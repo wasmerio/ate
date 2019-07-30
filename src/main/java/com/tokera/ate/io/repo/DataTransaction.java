@@ -6,10 +6,7 @@ import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.base.BaseDaoInternal;
 import com.tokera.ate.dao.kafka.MessageSerializer;
 import com.tokera.ate.delegates.AteDelegate;
-import com.tokera.ate.dto.msg.MessageDataDto;
-import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
-import com.tokera.ate.dto.msg.MessagePublicKeyDto;
-import com.tokera.ate.dto.msg.MessageSecurityCastleDto;
+import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.core.PartitionKeyComparator;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -42,6 +39,7 @@ public class DataTransaction {
 
             myContext.savedWriteKeys.putAll(otherContext.savedWriteKeys);
             myContext.savedDatas.putAll(otherContext.savedDatas);
+            myContext.savedPublicKeys.putAll(otherContext.savedPublicKeys);
 
             for (UUID id : otherContext.savedDatas.keySet()) {
                 myContext.toPut.remove(id);
@@ -68,7 +66,8 @@ public class DataTransaction {
         public final List<UUID> toDeleteOrder = new ArrayList<>();
         public final Map<UUID, BaseDao> toPut = new HashMap<>();
         public final Map<UUID, BaseDao> toDelete = new HashMap<>();
-        public final Map<String, MessagePrivateKeyDto> savedWriteKeys = new TreeMap<>();
+        public final Map<String, MessagePrivateKeyDto> savedWriteKeys = new HashMap<>();
+        public final Map<String, MessagePublicKeyDto> savedPublicKeys = new HashMap<>();
         public final Map<UUID, MessageDataDto> savedDatas = new HashMap<>();
     }
 
@@ -121,9 +120,16 @@ public class DataTransaction {
         });
     }
 
-    void put(IPartitionKey partitionKey, MessageDataDto data) {
+    void wrote(IPartitionKey partitionKey, MessageBaseDto msg) {
         PartitionContext context = getPartitionMergeContext(partitionKey, true);
-        context.savedDatas.put(data.getHeader().getIdOrThrow(), data);
+        if (msg instanceof MessageDataDto) {
+            MessageDataDto data = (MessageDataDto)msg;
+            context.savedDatas.put(data.getHeader().getIdOrThrow(), data);
+        }
+        if (msg instanceof MessagePublicKeyDto) {
+            MessagePublicKeyDto key = (MessagePublicKeyDto)msg;
+            context.savedPublicKeys.put(key.getPublicKeyHash(), key);
+        }
     }
 
     void put(IPartitionKey partitionKey, BaseDao obj) {
@@ -297,10 +303,16 @@ public class DataTransaction {
         return context.savedWriteKeys.values();
     }
 
-    public @Nullable MessageDataDto findData(IPartitionKey partitionKey, UUID id) {
+    public @Nullable MessageDataDto findSavedData(IPartitionKey partitionKey, UUID id) {
         PartitionContext context = getPartitionMergeContext(partitionKey, false);
         if (context == null) return null;
         return MapTools.getOrNull(context.savedDatas, id);
+    }
+
+    public @Nullable MessagePublicKeyDto findSavedPublicKey(IPartitionKey partitionKey, String hash) {
+        PartitionContext context = getPartitionMergeContext(partitionKey, false);
+        if (context == null) return null;
+        return MapTools.getOrNull(context.savedPublicKeys, hash);
     }
 
     Map<UUID, MessageDataDto> getSavedDataMap(IPartitionKey partitionKey) {
@@ -316,7 +328,7 @@ public class DataTransaction {
         // We only actually need to validate and queue if the object has ever been saved
         if (BaseDaoInternal.hasSaved(entity) == true) {
             d.dataRepository.validateTrustStructure(entity);
-            d.dataRepository.validateTrustPublicKeys(entity);
+            d.dataRepository.validateTrustPublicKeys(this, entity);
 
             d.requestContext.currentTransaction().put(partitionKey, d.currentRights.getRightsWrite());
             delete(partitionKey, entity);
@@ -340,7 +352,7 @@ public class DataTransaction {
     public void write(BaseDao entity, boolean validate) {
         if (validate == true) {
             d.dataRepository.validateTrustStructure(entity);
-            d.dataRepository.validateTrustPublicKeys(entity);
+            d.dataRepository.validateTrustPublicKeys(this, entity);
         }
 
         IPartitionKey partitionKey = entity.partitionKey(true);

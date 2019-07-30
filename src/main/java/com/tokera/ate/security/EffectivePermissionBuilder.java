@@ -74,7 +74,7 @@ public class EffectivePermissionBuilder {
                         : PermissionPhase.BeforeMerge;
             case DynamicChain:
                 return d.requestContext.currentTransaction()
-                       .findData(this.partitionKey, id) != null
+                       .findSavedData(this.partitionKey, id) != null
                        ? PermissionPhase.AfterMerge
                        : PermissionPhase.BeforeMerge;
             default:
@@ -154,7 +154,7 @@ public class EffectivePermissionBuilder {
         {
             if (computePhase(id) == PermissionPhase.AfterMerge)
             {
-                MessageDataDto data = d.requestContext.currentTransaction().findData(partitionKey, id);
+                MessageDataDto data = d.requestContext.currentTransaction().findSavedData(partitionKey, id);
                 if (data != null) {
                     MessageDataHeaderDto header = data.getHeader();
 
@@ -230,7 +230,7 @@ public class EffectivePermissionBuilder {
                 continue;
             }
 
-            MessageDataDto data = d.requestContext.currentTransaction().findData(partitionKey, id);
+            MessageDataDto data = d.requestContext.currentTransaction().findSavedData(partitionKey, id);
             if (data != null) {
                 id = data.getHeader().getParentId();
                 continue;
@@ -259,7 +259,7 @@ public class EffectivePermissionBuilder {
         }
 
         // Maybe its been pushed to the chain of trust already
-        MessageDataDto data = d.requestContext.currentTransaction().findData(partitionKey, this.origId);
+        MessageDataDto data = d.requestContext.currentTransaction().findSavedData(partitionKey, this.origId);
         if (data != null) {
             MessageDataHeaderDto header = container.getMergedHeader();
             for (String implicitAuthority : header.getImplicitAuthority()) {

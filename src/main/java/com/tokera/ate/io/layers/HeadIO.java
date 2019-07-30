@@ -281,10 +281,6 @@ public class HeadIO
     public @Nullable MessagePublicKeyDto publicKeyOrNull(IPartitionKey partitionKey, @Nullable @Hash String _hash) {
         @Hash String hash = _hash;
         if (hash == null) return null;
-
-        MessagePublicKeyDto ret = currentTransaction().findPublicKey(partitionKey, hash);
-        if (ret != null) return ret;
-
         return back.publicKeyOrNull(partitionKey, hash);
     }
 

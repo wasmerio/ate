@@ -304,6 +304,10 @@ public class ImplicitSecurityDelegate {
         return MapTools.getOrNull(this.embeddedKeys, hash);
     }
 
+    public Collection<MessagePublicKeyDto> embeddedKeys() {
+        return this.embeddedKeys.values();
+    }
+
     private List<MessagePublicKeyDto> loadEmbeddedKeys() {
         return d.resourceFile.loadAll("embedded-keys/", MessagePublicKeyDto.class);
     }

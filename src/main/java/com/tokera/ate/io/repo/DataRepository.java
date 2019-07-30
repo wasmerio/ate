@@ -75,11 +75,24 @@ public class DataRepository implements IAteIO {
 
     @Override
     public @Nullable MessagePublicKeyDto publicKeyOrNull(IPartitionKey partitionKey, @Hash String hash) {
-        MessagePublicKeyDto key = d.requestContext.currentTransaction().findPublicKey(partitionKey, hash);
-        if (key != null) return key;
+        return publicKeyOrNull(d.requestContext.currentTransaction(), partitionKey, hash);
+    }
 
+    public @Nullable MessagePublicKeyDto publicKeyOrNull(DataTransaction trans, IPartitionKey partitionKey, @Hash String hash) {
         DataPartitionChain chain = this.subscriber.getChain(partitionKey);
-        return chain.getPublicKey(hash);
+        MessagePublicKeyDto ret = chain.getPublicKey(hash);
+        if (ret != null) return ret;
+
+        ret = trans.findPublicKey(partitionKey, hash);
+        if (ret != null) return ret;
+
+        ret = trans.findSavedPublicKey(partitionKey, hash);
+        if (ret != null) return ret;
+
+        ret = d.implicitSecurity.findEmbeddedKeyOrNull(hash);
+        if (ret != null) return ret;
+
+        return null;
     }
 
     void validateTrustStructure(BaseDao entity) {
@@ -140,23 +153,54 @@ public class DataRepository implements IAteIO {
         }
     }
 
-    void validateTrustPublicKeys(BaseDao entity, Collection<String> publicKeys) {
+    String knownPublicKeys(DataTransaction trans, IPartitionKey partitionKey)
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append("requestPublicKeys:\n");
+        for (MessagePublicKeyDto key : trans.findPublicKeys(partitionKey)) {
+            sb.append("- ");
+            if (key.getAlias() != null) {
+                sb.append(key.getAlias()).append(": ");
+            }
+            sb.append(key.getPublicKeyHash()).append("\n");
+        }
+        sb.append("requestPrivateKeys:\n");
+        for (MessagePrivateKeyDto key : trans.findPrivateKeys(partitionKey)) {
+            sb.append("- ");
+            if (key.getAlias() != null) {
+                sb.append(key.getAlias()).append(": ");
+            }
+            sb.append(key.getPublicKeyHash()).append("\n");
+        }
+        sb.append("embeddedPublicKeys:\n");
+        for (MessagePublicKeyDto key : d.implicitSecurity.embeddedKeys()) {
+            sb.append("- ");
+            if (key.getAlias() != null) {
+                sb.append(key.getAlias()).append(": ");
+            }
+            sb.append(key.getPublicKeyHash()).append("\n");
+        }
+        return sb.toString();
+    }
+
+    void validateTrustPublicKeys(DataTransaction trans, BaseDao entity, Collection<String> publicKeys) {
         IPartitionKey partitionKey = entity.partitionKey(true);
         for (String hash : publicKeys) {
             if (hash == null) {
-                throw new RuntimeException("Unable to save [" + entity + "] in [" + entity.partitionKey(false) + "] as this object has null public key(s) in one of the role lists.");
+                throw new RuntimeException("Unable to save [" + entity + "] in [" + entity.partitionKey(false) + "] as this object has null public key(s) in one of the role lists.\n" + knownPublicKeys(trans, partitionKey));
             }
-            if (this.publicKeyOrNull(partitionKey, hash) == null) {
-                throw new RuntimeException("Unable to save [" + entity + "] in [" + entity.partitionKey(false) + "] as this object has public key(s) [" + hash + "] that have not yet been saved.");
+            if (this.publicKeyOrNull(trans, partitionKey, hash) == null)
+            {
+                throw new RuntimeException("Unable to save [" + entity + "] in [" + entity.partitionKey(false) + "] as this object has public key(s) [" + hash + "] that have not yet been saved.\n" + knownPublicKeys(trans, partitionKey));
             }
         }
     }
 
-    void validateTrustPublicKeys(BaseDao entity) {
+    void validateTrustPublicKeys(DataTransaction trans, BaseDao entity) {
         if (entity instanceof IRoles) {
             IRoles roles = (IRoles) entity;
-            validateTrustPublicKeys(entity, roles.getTrustAllowRead().values());
-            validateTrustPublicKeys(entity, roles.getTrustAllowWrite().values());
+            validateTrustPublicKeys(trans, entity, roles.getTrustAllowRead().values());
+            validateTrustPublicKeys(trans, entity, roles.getTrustAllowWrite().values());
         }
     }
 
@@ -436,15 +480,16 @@ public class DataRepository implements IAteIO {
         IDataPartitionBridge bridge = kt.getBridge();
 
         for (String role : roles) {
-            if (chain.hasPublicKey(role) == false) {
-                MessagePublicKeyDto key = trans.findPublicKey(kt.partitionKey(), role);
+            if (chain.hasPublicKey(role) == false &&
+                trans.findSavedPublicKey(kt.partitionKey(), role) == null)
+            {
+                MessagePublicKeyDto key = this.publicKeyOrNull(kt.partitionKey(), role);
                 if (key == null) {
-                    key = d.implicitSecurity.findEmbeddedKeyOrNull(role);
-                    trans.put(kt.partitionKey(), key);
+                    continue;
                 }
-                if (key == null) continue;
 
                 bridge.send(key);
+                trans.wrote(kt.partitionKey(), key);
             }
         }
     }
@@ -474,9 +519,9 @@ public class DataRepository implements IAteIO {
                 // Loop through all the entities and flush them down to the database
                 List<MessageDataDto> datas = new ArrayList<>();
                 for (BaseDao entity : trans.puts(partitionKey)) {
-                    MessageDataDto data = convert(kt, entity);
+                    MessageDataDto data = convert(trans, kt, entity);
                     datas.add(data);
-                    trans.put(partitionKey, data);
+                    trans.wrote(partitionKey, data);
                 }
 
                 // Write them all out to Kafka
@@ -511,10 +556,10 @@ public class DataRepository implements IAteIO {
         }
     }
 
-    private MessageDataDto convert(DataPartition kt, BaseDao entity) {
+    private MessageDataDto convert(DataTransaction trans, DataPartition kt, BaseDao entity) {
         DataPartitionChain chain = kt.getChain();
 
-        d.dataRepository.validateTrustPublicKeys(entity);
+        d.dataRepository.validateTrustPublicKeys(trans, entity);
 
         MessageDataDto data = (MessageDataDto) d.dataSerializer.toDataMessage(entity, kt, false);
 
