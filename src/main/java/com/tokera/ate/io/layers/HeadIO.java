@@ -146,9 +146,6 @@ public class HeadIO
         back.finishSync(partitionKey, sync);
     }
 
-    /**
-     * Runs a piece of run under a transaction that will commit when the code finishes or rollback if an exception is thrown
-     */
     public void underTransaction(boolean sync, Runnable f)
     {
         DataTransaction trans = this.newTransaction(sync);
@@ -163,23 +160,14 @@ public class HeadIO
         }
     }
 
-    /**
-     * Runs a piece of run under a transaction that will commit when the code finishes or rollback if an exception is thrown
-     */
     public <A> void underTransaction(boolean sync, Consumer<A> f, A a) {
         underTransaction(sync, () -> f.accept(a));
     }
 
-    /**
-     * Runs a piece of run under a transaction that will commit when the code finishes or rollback if an exception is thrown
-     */
     public <A, B> void underTransaction(boolean sync, BiConsumer<A, B> f, A a, B b) {
         underTransaction(sync, () -> f.accept(a, b));
     }
 
-    /**
-     * Runs a piece of run under a transaction that will commit when the code finishes or rollback if an exception is thrown
-     */
     public <T> T underTransaction(boolean sync, Supplier<T> f)
     {
         DataTransaction trans = this.newTransaction(sync);
@@ -194,16 +182,10 @@ public class HeadIO
         }
     }
 
-    /**
-     * Runs a piece of run under a transaction that will commit when the code finishes or rollback if an exception is thrown
-     */
     public <A, R> R underTransaction(boolean sync, Function<A, R> f, A a) {
         return underTransaction(sync, () -> f.apply(a));
     }
 
-    /**
-     * Runs a piece of run under a transaction that will commit when the code finishes or rollback if an exception is thrown
-     */
     public <A, B, R> R underTransaction(boolean sync, BiFunction<A, B, R> f, A a, B b) {
         return underTransaction(sync, () -> f.apply(a, b));
     }
@@ -253,11 +235,97 @@ public class HeadIO
         }
     }
 
+    public void withPartitionKey(IPartitionKey key, Runnable f)
+    {
+        d.requestContext.pushPartitionKey(key);
+        try { f.run(); }
+        finally { d.requestContext.popPartitionKey(); }
+    }
+
+    public <A> void withPartitionKey(IPartitionKey key, Consumer<A> f, A a) {
+        withPartitionKey(key, () -> f.accept(a));
+    }
+
+    public <A, B> void withPartitionKey(IPartitionKey key, BiConsumer<A, B> f, A a, B b) {
+        withPartitionKey(key, () -> f.accept(a, b));
+    }
+
+    public <T> T withPartitionKey(IPartitionKey key, Supplier<T> f)
+    {
+        d.requestContext.pushPartitionKey(key);
+        try { return f.get(); }
+        finally { d.requestContext.popPartitionKey(); }
+    }
+
+    public <A, R> R withPartitionKey(IPartitionKey key, Function<A, R> f, A a) {
+        return withPartitionKey(key, () -> f.apply(a));
+    }
+
+    public <A, B, R> R withPartitionKey(IPartitionKey key, BiFunction<A, B, R> f, A a, B b) {
+        return withPartitionKey(key, () -> f.apply(a, b));
+    }
+
+    public @Nullable IPartitionKey currentPartitionKey() {
+        return d.requestContext.currentPartitionKey();
+    }
+
     public IPartitionResolver partitionResolver() {
         return this.backPartitionResolver;
     }
 
     public IPartitionKeyMapper partitionKeyMapper() { return this.backPartitionKeyMapper; }
+
+    public void underTransactionWithPartitionKey(boolean sync, IPartitionKey key, Runnable f)
+    {
+        d.requestContext.pushPartitionKey(key);
+        try {
+            DataTransaction trans = this.newTransaction(sync);
+            try {
+                f.run();
+            } catch (Throwable ex) {
+                trans.clear();
+                throw new TransactionAbortedException(ex);
+            } finally {
+                completeTransaction(trans);
+            }
+        } finally {
+            d.requestContext.popPartitionKey();
+        }
+    }
+
+    public <A> void underTransactionWithPartitionKey(boolean sync, IPartitionKey key, Consumer<A> f, A a) {
+        underTransactionWithPartitionKey(sync, key, () -> f.accept(a));
+    }
+
+    public <A, B> void underTransactionWithPartitionKey(boolean sync, IPartitionKey key, BiConsumer<A, B> f, A a, B b) {
+        underTransactionWithPartitionKey(sync, key, () -> f.accept(a, b));
+    }
+
+    public <T> T underTransactionWithPartitionKey(boolean sync, IPartitionKey key, Supplier<T> f)
+    {
+        d.requestContext.pushPartitionKey(key);
+        try {
+            DataTransaction trans = this.newTransaction(sync);
+            try {
+                return f.get();
+            } catch (Throwable ex) {
+                trans.clear();
+                throw new TransactionAbortedException(ex);
+            } finally {
+                completeTransaction(trans);
+            }
+        } finally {
+            d.requestContext.popPartitionKey();
+        }
+    }
+
+    public <A, R> R underTransactionWithPartitionKey(boolean sync, IPartitionKey key, Function<A, R> f, A a) {
+        return underTransactionWithPartitionKey(sync, key, () -> f.apply(a));
+    }
+
+    public <A, B, R> R underTransactionWithPartitionKey(boolean sync, IPartitionKey key, BiFunction<A, B, R> f, A a, B b) {
+        return underTransactionWithPartitionKey(sync, key, () -> f.apply(a, b));
+    }
 
     public ISecurityCastleFactory securityCastleFactory() {
         return this.backSecurityCastleFactory;
