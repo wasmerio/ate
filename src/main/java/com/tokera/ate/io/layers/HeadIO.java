@@ -149,7 +149,7 @@ public class HeadIO
     /**
      * Runs a piece of run under a transaction that will commit when the code finishes or rollback if an exception is thrown
      */
-    public void withTransaction(boolean sync, Runnable f)
+    public void underTransaction(boolean sync, Runnable f)
     {
         DataTransaction trans = this.newTransaction(sync);
         try
@@ -166,7 +166,7 @@ public class HeadIO
     /**
      * Runs a piece of run under a transaction that will commit when the code finishes or rollback if an exception is thrown
      */
-    public <T> T withTransaction(boolean sync, Supplier<T> f)
+    public <T> T underTransaction(boolean sync, Supplier<T> f)
     {
         DataTransaction trans = this.newTransaction(sync);
         try
