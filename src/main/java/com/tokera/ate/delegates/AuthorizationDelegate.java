@@ -655,11 +655,6 @@ public class AuthorizationDelegate {
                 ensureKeyIsThere(partitionKey, publicKey);
             }
         }
-
-        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScopeOrNull();
-        if (partitionKey != null) {
-            ensureKeyIsThere(partitionKey, publicKey);
-        }
     }
 
     public void ensureKeyIsThere(MessagePublicKeyDto publicKey, IRights rights) {
@@ -673,11 +668,6 @@ public class AuthorizationDelegate {
             if (partitionKey != null) {
                 ensureKeyIsThere(partitionKey, publicKey);
             }
-        }
-
-        IPartitionKey partitionKey = d.requestContext.getPartitionKeyScopeOrNull();
-        if (partitionKey != null) {
-            ensureKeyIsThere(partitionKey, publicKey);
         }
     }
 
