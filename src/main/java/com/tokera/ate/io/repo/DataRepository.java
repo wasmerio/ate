@@ -465,12 +465,21 @@ public class DataRepository implements IAteIO {
         }
     }
 
-    private void sendMissingKeys(DataTransaction trans, DataPartition kt, BaseDao entity)
+    private void sendMissingKeys(DataTransaction trans, DataPartition kt)
     {
-        if (entity instanceof IRoles) {
-            IRoles roles = (IRoles)entity;
-            sendMissingKeys(trans, kt, roles.getTrustAllowRead().values());
-            sendMissingKeys(trans, kt, roles.getTrustAllowWrite().values());
+        sendMissingKeys(trans, kt, trans.findPublicKeys(kt.partitionKey()).stream()
+                .map(k -> k.getPublicKeyHash())
+                .collect(Collectors.toList()));
+        sendMissingKeys(trans, kt, trans.findPrivateKeys(kt.partitionKey()).stream()
+                .map(k -> k.getPublicKeyHash())
+                .collect(Collectors.toList()));
+
+        for (BaseDao entity : trans.puts(kt.partitionKey())) {
+            if (entity instanceof IRoles) {
+                IRoles roles = (IRoles) entity;
+                sendMissingKeys(trans, kt, roles.getTrustAllowRead().values());
+                sendMissingKeys(trans, kt, roles.getTrustAllowWrite().values());
+            }
         }
     }
 
@@ -512,9 +521,7 @@ public class DataRepository implements IAteIO {
                 IDataPartitionBridge bridge = kt.getBridge();
 
                 // Push all the public keys that are in the cache but not known to this partition
-                for (BaseDao entity : trans.puts(partitionKey)) {
-                    sendMissingKeys(trans, kt, entity);
-                }
+                sendMissingKeys(trans, kt);
 
                 // Loop through all the entities and flush them down to the database
                 List<MessageDataDto> datas = new ArrayList<>();

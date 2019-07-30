@@ -689,7 +689,9 @@ public class AuthorizationDelegate {
     }
 
     public void ensureKeyIsThere(IPartitionKey partitionKey, MessagePublicKeyDto publicKey) {
-        if (d.io.publicKeyOrNull(partitionKey, publicKey.getPublicKeyHash()) == null) {
+        if (d.io.publicKeyOrNull(partitionKey, publicKey.getPublicKeyHash()) == null &&
+            d.requestContext.currentTransaction().findSavedPublicKey(partitionKey, publicKey.getPublicKeyHash()) == null)
+        {
             d.io.write(partitionKey, publicKey);
         }
     }

@@ -282,7 +282,7 @@ public class DataTransaction {
         return ret;
     }
 
-    Iterable<MessagePublicKeyDto> findPublicKeys(IPartitionKey partitionKey) {
+    Collection<MessagePublicKeyDto> findPublicKeys(IPartitionKey partitionKey) {
         if (this.cache.containsKey(partitionKey)) {
             PartitionCache cache = this.cache.get(partitionKey);
             return cache.publicKeys.values();
