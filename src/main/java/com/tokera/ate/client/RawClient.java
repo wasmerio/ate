@@ -14,6 +14,8 @@ import javax.ws.rs.client.Invocation;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
+import java.util.HashMap;
+import java.util.Map;
 
 public class RawClient {
 
@@ -23,6 +25,7 @@ public class RawClient {
     private String prefixForFs;
     @Nullable
     private String session = null;
+    private Map<String, String> headers = new HashMap<>();
 
     public RawClient(String urlBase, @Nullable String session, String prefixForRest, String prefixForFs) {
         this.urlBase = urlBase;
@@ -52,6 +55,10 @@ public class RawClient {
         return this;
     }
 
+    public void addHeader(String header, String val) {
+        this.headers.put(header, val);
+    }
+
     public String getSession() {
         return this.session;
     }
@@ -72,6 +79,16 @@ public class RawClient {
         return client.target(urlBase + prefix + postfix);
     }
 
+    private Invocation.Builder addHeaders(Invocation.Builder builder) {
+        if (this.session != null) {
+            builder = builder.header("Authorization", this.session);
+        }
+        for (Map.Entry<String, String> entry : this.headers.entrySet()) {
+            builder = builder.header(entry.getKey(), entry.getValue());
+        }
+        return builder;
+    }
+
     public FsFolderDto fsList(String path) {
         String uri = path;
         Invocation.Builder builder = target(prefixForFs, uri)
@@ -90,9 +107,8 @@ public class RawClient {
         Invocation.Builder builder = target(prefixForFs, uri)
                 .request()
                 .accept(MediaType.WILDCARD);
-        if (this.session != null) {
-            builder = builder.header("Authorization", this.session);
-        }
+        builder = addHeaders(builder);
+
         Response response = builder.get();
         TestTools.validateResponse(response, uri);
         return response.readEntity(String.class);
@@ -102,9 +118,8 @@ public class RawClient {
         Invocation.Builder builder = target(prefixForFs, path)
                 .request()
                 .accept(MediaType.WILDCARD);
-        if (this.session != null) {
-            builder = builder.header("Authorization", this.session);
-        }
+        builder = addHeaders(builder);
+
         Response response = builder.get();
         if (response.getStatus() < 200 || response.getStatus() >= 300) {
             return null;
@@ -120,9 +135,8 @@ public class RawClient {
         Invocation.Builder builder = target(prefixForFs, path)
                 .request(mediaType)
                 .accept(MediaType.WILDCARD);
-        if (this.session != null) {
-            builder = builder.header("Authorization", this.session);
-        }
+        builder = addHeaders(builder);
+
         Response response = builder.post(data);
         TestTools.validateResponse(response, path);
         return response.readEntity(String.class);
@@ -136,9 +150,8 @@ public class RawClient {
         Invocation.Builder builder = target(prefixForFs, path)
                 .request(mediaType)
                 .accept(MediaType.WILDCARD);
-        if (this.session != null) {
-            builder = builder.header("Authorization", this.session);
-        }
+        builder = addHeaders(builder);
+
         Response response = builder.post(data);
         TestTools.validateResponse(response, path);
         return response.readEntity(String.class);
@@ -152,9 +165,8 @@ public class RawClient {
         Invocation.Builder builder = target(prefixForFs, path)
                 .request(mediaType)
                 .accept(MediaType.WILDCARD);
-        if (this.session != null) {
-            builder = builder.header("Authorization", this.session);
-        }
+        builder = addHeaders(builder);
+
         Response response = builder.put(data);
         TestTools.validateResponse(response, path);
         return response.readEntity(String.class);
@@ -168,9 +180,8 @@ public class RawClient {
         Invocation.Builder builder = target(prefixForFs, path)
                 .request(mediaType)
                 .accept(MediaType.WILDCARD);
-        if (this.session != null) {
-            builder = builder.header("Authorization", this.session);
-        }
+        builder = addHeaders(builder);
+
         Response response = builder.put(data);
         TestTools.validateResponse(response, path);
         return response.readEntity(String.class);
