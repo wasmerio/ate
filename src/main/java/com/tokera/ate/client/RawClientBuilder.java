@@ -122,7 +122,7 @@ public class RawClientBuilder {
             String url = urlBase + prefixForRest + loginViaRestPostPath;
 
             AteDelegate d = AteDelegate.get();
-            Response response = TestTools.restPost(null, url, loginViaRestPostEntity, loginViaRestPostQueryParams);
+            Response response = TestTools.restPost(null, url, loginViaRestPostEntity, loginViaRestPostQueryParams, null);
 
             String auth = response.getHeaderString("Authorization");
             d.genericLogger.info("auth:\n" + auth);

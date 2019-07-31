@@ -12,9 +12,11 @@ import org.jboss.resteasy.plugins.providers.jackson.ResteasyJackson2Provider;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.client.Invocation;
 import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.MultivaluedHashMap;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class RawClient {
@@ -25,7 +27,7 @@ public class RawClient {
     private String prefixForFs;
     @Nullable
     private String session = null;
-    private Map<String, String> headers = new HashMap<>();
+    private MultivaluedMap<String, Object> headers = new MultivaluedHashMap<>();
 
     public RawClient(String urlBase, @Nullable String session, String prefixForRest, String prefixForFs) {
         this.urlBase = urlBase;
@@ -55,8 +57,8 @@ public class RawClient {
         return this;
     }
 
-    public void addHeader(String header, String val) {
-        this.headers.put(header, val);
+    public void addHeader(String header, Object val) {
+        this.headers.add(header, val);
     }
 
     public String getSession() {
@@ -83,8 +85,10 @@ public class RawClient {
         if (this.session != null) {
             builder = builder.header("Authorization", this.session);
         }
-        for (Map.Entry<String, String> entry : this.headers.entrySet()) {
-            builder = builder.header(entry.getKey(), entry.getValue());
+        for (Map.Entry<String, List<Object>> entry : this.headers.entrySet()) {
+            for (Object headerVal : entry.getValue()) {
+                builder = builder.header(entry.getKey(), headerVal);
+            }
         }
         return builder;
     }
@@ -94,9 +98,8 @@ public class RawClient {
         Invocation.Builder builder = target(prefixForFs, uri)
                 .request()
                 .accept(MediaType.APPLICATION_JSON_TYPE);
-        if (this.session != null) {
-            builder = builder.header("Authorization", this.session);
-        }
+        builder = addHeaders(builder);
+
         Response response = builder.get();
         TestTools.validateResponse(response, uri);
         return response.readEntity(FsFolderDto.class);
@@ -196,46 +199,46 @@ public class RawClient {
     }
 
     public <T> T restPut(String path, Entity<?> entity, Class<T> clazz) {
-        return TestTools.restPut(this.session, buildUrl(path), entity).readEntity(clazz);
+        return TestTools.restPut(this.session, buildUrl(path), entity, null, headers).readEntity(clazz);
     }
 
     public <T> T restPut(String path, Entity<?> entity, Class<T> clazz, MultivaluedMap<String, Object> queryParams) {
-        return TestTools.restPut(this.session, buildUrl(path), entity, queryParams).readEntity(clazz);
+        return TestTools.restPut(this.session, buildUrl(path), entity, queryParams, headers).readEntity(clazz);
     }
 
     public <T> T restPost(String path, Entity<?> entity, Class<T> clazz) {
-        return TestTools.restPost(this.session, buildUrl(path), entity).readEntity(clazz);
+        return TestTools.restPost(this.session, buildUrl(path), entity, null, headers).readEntity(clazz);
     }
 
     public <T> T restPost(String path, Entity<?> entity, Class<T> clazz, MultivaluedMap<String, Object> queryParams) {
-        return TestTools.restPost(this.session, buildUrl(path), entity, queryParams).readEntity(clazz);
+        return TestTools.restPost(this.session, buildUrl(path), entity, queryParams, headers).readEntity(clazz);
     }
 
     public <T> T restGet(String path, Class<T> clazz) {
-        return TestTools.restGet(this.session, buildUrl(path)).readEntity(clazz);
+        return TestTools.restGet(this.session, buildUrl(path), null, headers).readEntity(clazz);
     }
 
     public <T> T restGet(String path, Class<T> clazz, MultivaluedMap<String, Object> queryParams) {
-        return TestTools.restGet(this.session, buildUrl(path), queryParams).readEntity(clazz);
+        return TestTools.restGet(this.session, buildUrl(path), queryParams, headers).readEntity(clazz);
     }
 
     public void restDelete(String path) {
-        TestTools.restDelete(this.session, buildUrl(path));
+        TestTools.restDelete(this.session, buildUrl(path), null, headers);
     }
 
     public void restDelete(String path, MultivaluedMap<String, Object> queryParams) {
-        TestTools.restDelete(this.session, buildUrl(path), queryParams);
+        TestTools.restDelete(this.session, buildUrl(path), queryParams, headers);
     }
 
     public <T> @Nullable T restGetOrNull(String path, Class<T> clazz) {
-        Response resp = TestTools.restGetOrNull(this.session, buildUrl(path));
+        Response resp = TestTools.restGetOrNull(this.session, buildUrl(path), null, headers);
         if (resp == null) return null;
         if (resp.getLength() <= 0) return null;
         return resp.readEntity(clazz);
     }
 
     public <T> T restGetAndOutput(String path, Class<T> clazz) {
-        return TestTools.restGetAndOutput(this.session, buildUrl(path), clazz);
+        return TestTools.restGetAndOutput(this.session, buildUrl(path), clazz, null, headers);
     }
 
     public static RawClient createViaRestPost(String server, Integer port, String prefixForRest, String path, Entity<?> entity) {
