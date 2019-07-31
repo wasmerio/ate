@@ -69,7 +69,7 @@ public class EffectivePermissionBuilder {
         switch (origPhase) {
             case DynamicStaging:
                 return d.requestContext.currentTransaction()
-                        .written(this.partitionKey, id)
+                        .isWritten(this.partitionKey, id)
                         ? PermissionPhase.AfterMerge
                         : PermissionPhase.BeforeMerge;
             case DynamicChain:
@@ -122,7 +122,6 @@ public class EffectivePermissionBuilder {
      */
     public @Nullable BaseDao findDataObj(UUID id) {
         BaseDao obj = MapTools.getOrNull(this.suppliedObjects, id);
-        if (obj == null) obj = d.requestContext.currentTransaction().find(this.partitionKey, id);
         if (obj == null) obj = d.io.readOrNull(PUUID.from(this.partitionKey, id), false);
         return obj;
     }

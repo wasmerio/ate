@@ -70,6 +70,10 @@ public class DaoHelper {
         IPartitionKey partitionKey = entity.partitionKey(false);
         if (partitionKey == null) return null;
 
+        if (d.requestContext.currentTransaction().findSavedDelete(partitionKey, parentId)) {
+            return null;
+        }
+
         BaseDao ret = d.requestContext.currentTransaction().find(partitionKey, parentId);
         if (ret != null) return ret;
 

@@ -467,6 +467,10 @@ public class HeadIO
     public @Nullable BaseDao readOrNull(@DaoId UUID id, boolean shouldSave) {
         IPartitionKey partitionKey = d.requestContext.currentPartitionKey();
 
+        if (currentTransaction().findSavedDelete(partitionKey, id)) {
+            return null;
+        }
+
         BaseDao ret = currentTransaction().find(partitionKey, id);
         if (ret != null) return ret;
 
@@ -479,6 +483,10 @@ public class HeadIO
 
     public @Nullable BaseDao readOrNull(PUUID id, boolean shouldSave) {
         IPartitionKey partitionKey = id.partition();
+
+        if (currentTransaction().findSavedDelete(partitionKey, id.id())) {
+            return null;
+        }
 
         BaseDao ret = currentTransaction().find(partitionKey, id.id());
         if (ret != null) return ret;
@@ -500,6 +508,10 @@ public class HeadIO
     public BaseDao readOrThrow(PUUID id) {
         IPartitionKey partitionKey = id.partition();
 
+        if (currentTransaction().findSavedDelete(id.partition(), id.id())) {
+            throw new RuntimeException("This object has been removed according to the transaction logs [" + id + "].");
+        }
+
         BaseDao ret = currentTransaction().find(partitionKey, id.id());
         if (ret != null) return ret;
 
@@ -515,13 +527,9 @@ public class HeadIO
     @SuppressWarnings({"unchecked"})
     public <T extends BaseDao> T read(PUUID id, Class<T> type) {
         try {
-            BaseDao ret = currentTransaction().find(id.partition(), id.id());
-            if (ret == null) {
-                ret = back.readOrThrow(id);
-
-                if (ret != null) {
-                    currentTransaction().cache(id.partition(), ret);
-                }
+            BaseDao ret = this.readOrThrow(id);
+            if (ret != null) {
+                currentTransaction().cache(id.partition(), ret);
             }
             if (ret == null) {
                 throw new RuntimeException(type.getSimpleName() + " not found (id=" + id.print() + ")");
@@ -542,18 +550,12 @@ public class HeadIO
     }
 
     protected BaseDao read(PUUID id) {
-        BaseDao ret = currentTransaction().find(id.partition(), id.id());
-        if (ret != null) return ret;
-
-        ret = back.readOrThrow(id);
+        BaseDao ret = this.readOrThrow(id);
         if (ret == null) {
             throw new RuntimeException("Object data (id=" + id.print() + ") not found");
         }
 
-        if (ret != null) {
-            currentTransaction().cache(id.partition(), ret);
-        }
-
+        currentTransaction().cache(id.partition(), ret);
         return ret;
     }
 

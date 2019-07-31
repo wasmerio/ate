@@ -27,6 +27,26 @@ public class DataTransaction {
     @SuppressWarnings("initialization.fields.uninitialized")
     private DataSubscriber subscriber;
 
+    /**
+     * Context of the transaction to a particular partition
+     */
+    protected class PartitionContext {
+        public final List<UUID> toPutOrder = new ArrayList<>();
+        public final List<UUID> toDeleteOrder = new ArrayList<>();
+        public final Map<UUID, BaseDao> toPut = new HashMap<>();
+        public final Map<UUID, BaseDao> toDelete = new HashMap<>();
+        public final Map<String, MessagePrivateKeyDto> savedWriteKeys = new HashMap<>();
+        public final Map<String, MessagePublicKeyDto> savedPublicKeys = new HashMap<>();
+        public final Map<UUID, MessageDataDto> savedDatas = new HashMap<>();
+        public final HashSet<UUID> savedDeletes = new HashSet<>();
+    }
+
+    protected class PartitionCache {
+        public final Map<UUID, BaseDao> entries = new HashMap<>();
+        public final Map<String, MessagePublicKeyDto> publicKeys = new HashMap<>();
+        public final Map<String, MessageSecurityCastleDto> castles = new HashMap<>();
+    }
+
     public DataTransaction(boolean sync) {
         this.shouldSync = sync;
         this.subscriber = d.storageFactory.get().backend();
@@ -40,6 +60,7 @@ public class DataTransaction {
             myContext.savedWriteKeys.putAll(otherContext.savedWriteKeys);
             myContext.savedDatas.putAll(otherContext.savedDatas);
             myContext.savedPublicKeys.putAll(otherContext.savedPublicKeys);
+            myContext.savedDeletes.addAll(otherContext.savedDeletes);
 
             for (UUID id : otherContext.savedDatas.keySet()) {
                 myContext.toPut.remove(id);
@@ -56,25 +77,6 @@ public class DataTransaction {
             myCache.publicKeys.putAll(otherCache.publicKeys);
             myCache.castles.putAll(otherCache.castles);
         }
-    }
-
-    /**
-     * Context of the transaction to a particular partition
-     */
-    protected class PartitionContext {
-        public final List<UUID> toPutOrder = new ArrayList<>();
-        public final List<UUID> toDeleteOrder = new ArrayList<>();
-        public final Map<UUID, BaseDao> toPut = new HashMap<>();
-        public final Map<UUID, BaseDao> toDelete = new HashMap<>();
-        public final Map<String, MessagePrivateKeyDto> savedWriteKeys = new HashMap<>();
-        public final Map<String, MessagePublicKeyDto> savedPublicKeys = new HashMap<>();
-        public final Map<UUID, MessageDataDto> savedDatas = new HashMap<>();
-    }
-
-    protected class PartitionCache {
-        public final Map<UUID, BaseDao> entries = new HashMap<>();
-        public final Map<String, MessagePublicKeyDto> publicKeys = new HashMap<>();
-        public final Map<String, MessageSecurityCastleDto> castles = new HashMap<>();
     }
 
     private @Nullable PartitionContext getPartitionMergeContext(IPartitionKey key, boolean create)
@@ -130,6 +132,11 @@ public class DataTransaction {
             MessagePublicKeyDto key = (MessagePublicKeyDto)msg;
             context.savedPublicKeys.put(key.getPublicKeyHash(), key);
         }
+    }
+
+    void deleted(IPartitionKey partitionKey, UUID id) {
+        PartitionContext context = getPartitionMergeContext(partitionKey, true);
+        context.savedDeletes.add(id);
     }
 
     void put(IPartitionKey partitionKey, BaseDao obj) {
@@ -222,15 +229,25 @@ public class DataTransaction {
         return context.toDeleteOrder.stream().map(id -> context.toDelete.get(id)).collect(Collectors.toList());
     }
 
-    public boolean written(PUUID id) {
+    public boolean isWritten(PUUID id) {
         return this.exists(id.partition(), id.id());
     }
 
-    public boolean written(IPartitionKey partitionKey, UUID id)
+    public boolean isWritten(IPartitionKey partitionKey, UUID id)
     {
         PartitionContext context = getPartitionMergeContext(partitionKey, false);
         if (context == null) return false;
         return context.toPut.containsKey(id);
+    }
+
+    public boolean isDeleted(PUUID id) {
+        return isDeleted(id.partition(), id.id());
+    }
+
+    public boolean isDeleted(IPartitionKey partitionKey, UUID id) {
+        PartitionContext context = getPartitionMergeContext(partitionKey, false);
+        if (context == null) return false;
+        return context.toDelete.containsKey(id);
     }
 
     public boolean exists(PUUID id) {
@@ -308,6 +325,11 @@ public class DataTransaction {
         if (context == null) return null;
         return MapTools.getOrNull(context.savedDatas, id);
     }
+    public boolean findSavedDelete(IPartitionKey partitionKey, UUID id) {
+        PartitionContext context = getPartitionMergeContext(partitionKey, false);
+        if (context == null) return false;
+        return context.savedDeletes.contains(id);
+    }
 
     public @Nullable MessagePublicKeyDto findSavedPublicKey(IPartitionKey partitionKey, String hash) {
         PartitionContext context = getPartitionMergeContext(partitionKey, false);
@@ -356,7 +378,7 @@ public class DataTransaction {
         }
 
         IPartitionKey partitionKey = entity.partitionKey(true);
-        if (written(partitionKey, entity.getId())) {
+        if (isWritten(partitionKey, entity.getId())) {
             return;
         }
 

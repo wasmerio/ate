@@ -2,6 +2,7 @@ package com.tokera.ate.io.api;
 
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
+import com.tokera.ate.delegates.AteDelegate;
 
 import java.util.Collection;
 import java.util.UUID;
@@ -52,5 +53,12 @@ public interface ITaskCallback<T extends BaseDao> {
      * Callback invoked every tick of time that passes and its been idle (defaults to 10 seconds)
      */
     default void onIdle(ITask task) {
+    }
+
+    /**
+     * Callback invoked when an exception occurs
+     */
+    default void onException(T obj, ITask task, Throwable ex) {
+        AteDelegate.get().genericLogger.warn(ex);
     }
 }

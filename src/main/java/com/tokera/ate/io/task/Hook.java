@@ -87,12 +87,20 @@ public class Hook<T extends BaseDao> implements IHook {
                         BaseDao obj = d.dataSerializer.fromDataMessage(partitionKey, msg, true);
                         if (obj == null || obj.getClass() != clazz) return;
 
-                        if (header.getPreviousVersion() == null) {
-                            d.debugLogging.logCallbackData("feed-hook", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Created, callback.getClass(), obj);
-                            callback.onData((T) obj, this);
-                        } else {
-                            d.debugLogging.logCallbackData("feed-hook", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Update, callback.getClass(), obj);
-                            callback.onData((T) obj, this);
+                        try {
+                            d.io.underTransaction(false, () -> {
+                                if (header.getPreviousVersion() == null) {
+                                    d.debugLogging.logCallbackData("feed-hook", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Created, callback.getClass(), obj);
+                                    callback.onData((T) obj, this);
+                                } else {
+                                    d.debugLogging.logCallbackData("feed-hook", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Update, callback.getClass(), obj);
+                                    callback.onData((T) obj, this);
+                                }
+                            });
+                        } catch (Throwable ex) {
+                            d.io.underTransaction(false, () -> {
+                                callback.onException((T)obj, this, ex);
+                            });
                         }
                     } catch (Throwable ex) {
                         LOG.warn(ex);
