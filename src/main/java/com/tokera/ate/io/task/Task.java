@@ -204,13 +204,15 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
                     if (obj == null || obj.getClass() != clazz) continue;
 
                     try {
-                        if (header.getPreviousVersion() == null) {
-                            d.debugLogging.logCallbackData("feed-task", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Created, callback.getClass(), obj);
-                            callback.onCreate((T) obj, this);
-                        } else {
-                            d.debugLogging.logCallbackData("feed-task", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Update, callback.getClass(), obj);
-                            callback.onUpdate((T) obj, this);
-                        }
+                        d.io.underTransaction(false, () -> {
+                            if (header.getPreviousVersion() == null) {
+                                d.debugLogging.logCallbackData("feed-task", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Created, callback.getClass(), obj);
+                                callback.onCreate((T) obj, this);
+                            } else {
+                                d.debugLogging.logCallbackData("feed-task", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Update, callback.getClass(), obj);
+                                callback.onUpdate((T) obj, this);
+                            }
+                        });
                     } catch (Throwable ex) {
                         d.io.underTransaction(false, () -> {
                             callback.onException((T)obj, this, ex);

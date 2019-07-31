@@ -5,7 +5,7 @@ import javax.ws.rs.WebApplicationException;
 /**
  * Exception thats thrown when a transaction is aborted due to another error
  */
-public class TransactionAbortedException extends WebApplicationException {
+public class TransactionAbortedException extends RuntimeException {
 
     public TransactionAbortedException() {
     }
@@ -19,6 +19,6 @@ public class TransactionAbortedException extends WebApplicationException {
     }
 
     public TransactionAbortedException(Throwable var1) {
-        super(var1);
+        super(var1.getMessage(), var1);
     }
 }
