@@ -265,6 +265,42 @@ public class HeadIO
         return withPartitionKey(key, () -> f.apply(a, b));
     }
 
+    public void withPartitionKey(BaseDao from, Runnable f)
+    {
+        IPartitionKey key = from.partitionKey(true);
+        d.requestContext.pushPartitionKey(key);
+        try { f.run(); }
+        finally { d.requestContext.popPartitionKey(); }
+    }
+
+    public <A> void withPartitionKey(BaseDao from, Consumer<A> f, A a) {
+        IPartitionKey key = from.partitionKey(true);
+        withPartitionKey(key, () -> f.accept(a));
+    }
+
+    public <A, B> void withPartitionKey(BaseDao from, BiConsumer<A, B> f, A a, B b) {
+        IPartitionKey key = from.partitionKey(true);
+        withPartitionKey(key, () -> f.accept(a, b));
+    }
+
+    public <T> T withPartitionKey(BaseDao from, Supplier<T> f)
+    {
+        IPartitionKey key = from.partitionKey(true);
+        d.requestContext.pushPartitionKey(key);
+        try { return f.get(); }
+        finally { d.requestContext.popPartitionKey(); }
+    }
+
+    public <A, R> R withPartitionKey(BaseDao from, Function<A, R> f, A a) {
+        IPartitionKey key = from.partitionKey(true);
+        return withPartitionKey(key, () -> f.apply(a));
+    }
+
+    public <A, B, R> R withPartitionKey(BaseDao from, BiFunction<A, B, R> f, A a, B b) {
+        IPartitionKey key = from.partitionKey(true);
+        return withPartitionKey(key, () -> f.apply(a, b));
+    }
+
     public @Nullable IPartitionKey currentPartitionKey() {
         return d.requestContext.currentPartitionKey();
     }
