@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
 public class DataTransaction {
     AteDelegate d = AteDelegate.get();
 
-    private final boolean shouldSync;
+    public boolean shouldSync;
     private final Map<IPartitionKey, PartitionContext> partitions = new TreeMap<>(new PartitionKeyComparator());
     private final Map<IPartitionKey, PartitionCache> cache = new TreeMap<>(new PartitionKeyComparator());
 
