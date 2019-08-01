@@ -10,9 +10,12 @@ import com.tokera.ate.delegates.LoggingDelegate;
 
 import java.lang.reflect.Member;
 import java.util.Date;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import com.tokera.ate.delegates.RequestContextDelegate;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import org.junit.jupiter.api.Assertions;
 import org.slf4j.Marker;
 
 import javax.annotation.PostConstruct;
@@ -44,6 +47,9 @@ public class LoggerHook implements org.slf4j.Logger {
 
     private static boolean forceStatic = true;
     private static @Nullable Boolean forceContextLogger = null;
+
+    private static volatile boolean flagWarning = false;
+    private static volatile boolean flagError = false;
     
     public LoggerHook() {
         logClazz = LoggerHook.class;
@@ -354,30 +360,37 @@ public class LoggerHook implements org.slf4j.Logger {
 
     @Override
     public void warn(String string) {
+        flagWarning = true;
         this.getForwarder().warn(string);
     }
 
     @Override
     public void warn(String string, Object o) {
+        flagWarning = true;
         this.getForwarder().warn(string, o);
     }
 
     @Override
     public void warn(String string, Object[] os) {
+        flagWarning = true;
         this.getForwarder().warn(string, os);
     }
 
     @Override
     public void warn(String string, Object o, Object o1) {
+        flagWarning = true;
         this.getForwarder().warn(string, o, o1);
     }
 
     @Override
     public void warn(String string, Throwable thrwbl) {
+        flagWarning = true;
         this.getForwarder().warn(string, thrwbl);
     }
 
     public void warn(Throwable thrwbl) {
+        flagWarning = true;
+
         String msg = thrwbl.getMessage();
         if (msg == null) msg = thrwbl.toString();
         this.getForwarder().warn(msg, thrwbl);
@@ -390,26 +403,31 @@ public class LoggerHook implements org.slf4j.Logger {
 
     @Override
     public void warn(Marker marker, String string) {
+        flagWarning = true;
         this.getForwarder().warn(marker, string);
     }
 
     @Override
     public void warn(Marker marker, String string, Object o) {
+        flagWarning = true;
         this.getForwarder().warn(marker, string, o);
     }
 
     @Override
     public void warn(Marker marker, String string, Object o, Object o1) {
+        flagWarning = true;
         this.getForwarder().warn(marker, string, o, o1);
     }
 
     @Override
     public void warn(Marker marker, String string, Object[] os) {
+        flagWarning = true;
         this.getForwarder().warn(marker, string, os);
     }
 
     @Override
     public void warn(Marker marker, String string, Throwable thrwbl) {
+        flagWarning = true;
         this.getForwarder().warn(marker, string, thrwbl);
     }
 
@@ -420,26 +438,31 @@ public class LoggerHook implements org.slf4j.Logger {
 
     @Override
     public void error(String string) {
+        flagError = true;
         this.getForwarder().error(string);
     }
 
     @Override
     public void error(String string, Object o) {
+        flagError = true;
         this.getForwarder().error(string, o);
     }
 
     @Override
     public void error(String string, Object o, Object o1) {
+        flagError = true;
         this.getForwarder().error(string, o, o1);
     }
 
     @Override
     public void error(String string, Object[] os) {
+        flagError = true;
         this.getForwarder().error(string, os);
     }
 
     @Override
     public void error(String string, Throwable thrwbl) {
+        flagError = true;
         this.getForwarder().error(string, thrwbl);
     }
 
@@ -456,26 +479,31 @@ public class LoggerHook implements org.slf4j.Logger {
 
     @Override
     public void error(Marker marker, String string) {
+        flagError = true;
         this.getForwarder().error(marker, string);
     }
 
     @Override
     public void error(Marker marker, String string, Object o) {
+        flagError = true;
         this.getForwarder().error(marker, string, o);
     }
 
     @Override
     public void error(Marker marker, String string, Object o, Object o1) {
+        flagError = true;
         this.getForwarder().error(marker, string, o, o1);
     }
 
     @Override
     public void error(Marker marker, String string, Object[] os) {
+        flagError = true;
         this.getForwarder().error(marker, string, os);
     }
 
     @Override
     public void error(Marker marker, String string, Throwable thrwbl) {
+        flagError = true;
         this.getForwarder().error(marker, string, thrwbl);
     }
 
@@ -493,5 +521,58 @@ public class LoggerHook implements org.slf4j.Logger {
 
     public static void setForceContextLogger(boolean forceContextLogger) {
         LoggerHook.forceContextLogger = forceContextLogger;
+    }
+
+    public static boolean pollWarningFlag() {
+        if (flagWarning) {
+            flagWarning = false;
+            return true;
+        }
+        return false;
+    }
+
+    public static boolean pollErrorFlag() {
+        if (flagError) {
+            flagError = false;
+            return true;
+        }
+        return false;
+    }
+
+    public static boolean pollWarningOrErrorFlag() {
+        boolean ret = flagWarning | flagError;
+        if (ret) {
+            flagWarning = false;
+            flagError = false;
+            return true;
+        }
+        return false;
+    }
+
+    public static void assertWarningOrErrorFlag() {
+        Assertions.assertFalse(pollWarningOrErrorFlag());
+    }
+
+    public static void resetWarningOrErrorFlag() {
+        flagWarning = false;
+        flagError = false;
+    }
+
+    public static void withNoWarningsOrErrors(Runnable f) {
+        resetWarningOrErrorFlag();
+        try {
+            f.run();
+            assertWarningOrErrorFlag();
+        } finally {
+            resetWarningOrErrorFlag();
+        }
+    }
+
+    public static <A> void withNoWarningsOrErrors(Consumer<A> f, A a) {
+        withNoWarningsOrErrors(() -> f.accept(a));
+    }
+
+    public static <A, B> void withNoWarningsOrErrors(BiConsumer<A, B> f, A a, B b) {
+        withNoWarningsOrErrors(() -> f.accept(a, b));
     }
 }
