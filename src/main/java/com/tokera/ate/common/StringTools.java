@@ -6,11 +6,7 @@ import com.tokera.ate.units.Filepath;
 import com.tokera.ate.units.LogText;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.util.List;
 import java.util.Scanner;
 import java.util.zip.DeflaterOutputStream;
@@ -71,6 +67,13 @@ public class StringTools
         }
 
         return "";
+    }
+
+    public static @LogText String toString(Throwable ex)
+    {
+        StringWriter stack = new StringWriter();
+        ex.printStackTrace(new PrintWriter(stack));
+        return ex.getMessage() != null ? ex.getMessage() + "\n" + stack.toString() : stack.toString();
     }
 
     public static @DomainName String getDomain(@EmailAddress String email)
