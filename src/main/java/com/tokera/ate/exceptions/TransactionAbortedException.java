@@ -19,6 +19,14 @@ public class TransactionAbortedException extends RuntimeException {
     }
 
     public TransactionAbortedException(Throwable var1) {
-        super("Transaction aborted: " + var1.getMessage(), var1);
+        super("Transaction aborted: " + exceptionToSummary(var1), var1);
+    }
+
+    private static String exceptionToSummary(Throwable ex)
+    {
+        if (ex.getMessage() != null) {
+            return ex.getMessage();
+        }
+        return ex.getClass().getSimpleName();
     }
 }
