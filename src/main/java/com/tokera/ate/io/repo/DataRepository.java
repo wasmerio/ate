@@ -370,10 +370,10 @@ public class DataRepository implements IAteIO {
     }
 
     @Override
-    public Set<BaseDao> readAll(IPartitionKey partitionKey) {
+    public List<BaseDao> readAll(IPartitionKey partitionKey) {
         DataPartitionChain chain = this.subscriber.getChain(partitionKey);
 
-        Set<BaseDao> ret = new HashSet<>();
+        List<BaseDao> ret = new ArrayList<>();
         for (DataContainer container : chain.getAllData(LOG)) {
             BaseDao entity = container.getMergedData();
             if (entity != null) {
@@ -386,11 +386,11 @@ public class DataRepository implements IAteIO {
 
     @SuppressWarnings({"unchecked"})
     @Override
-    public <T extends BaseDao> Set<T> readAll(IPartitionKey partitionKey, Class<T> type)
+    public <T extends BaseDao> List<T> readAll(IPartitionKey partitionKey, Class<T> type)
     {
         DataPartitionChain chain = this.subscriber.getChain(partitionKey);
 
-        Set<T> ret = new HashSet<>();
+        List<T> ret = new ArrayList<>();
         for (DataContainer container : chain.getAllData(type, LOG)) {
             T entity = (@Nullable T)container.getMergedData();
             if (entity != null) {

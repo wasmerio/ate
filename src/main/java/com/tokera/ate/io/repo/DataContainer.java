@@ -23,6 +23,8 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 public class DataContainer {
+    private Long firstOffset = 0L;
+    private Long lastOffset = 0L;
     public final IPartitionKey partitionKey;
     public final Map<UUID, @NonNull DataGraphNode> lookup = new HashMap<>();
     public final LinkedList<DataGraphNode> timeline = new LinkedList<>();
@@ -34,6 +36,11 @@ public class DataContainer {
     }
 
     private DataContainer add(MessageDataMetaDto msg) {
+        if (firstOffset == 0L) {
+            firstOffset = msg.getMeta().getOffset();
+        }
+        lastOffset = msg.getMeta().getOffset();
+
         DataGraphNode node = new DataGraphNode(msg);
         Lock w = this.lock.writeLock();
         w.lock();
@@ -104,6 +111,14 @@ public class DataContainer {
         MessageDataHeaderDto lastHeader = getLastHeaderOrNull();
         if (lastHeader == null) return null;
         return lastHeader.getParentId();
+    }
+
+    public Long getFirstOffset() {
+        return this.firstOffset;
+    }
+
+    public Long getLastOffset() {
+        return this.lastOffset;
     }
 
     public boolean getImmutable() {

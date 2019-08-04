@@ -137,13 +137,13 @@ final public class AccessLogIO implements IAteIO {
     }
 
     @Override
-    public Set<BaseDao> readAll(IPartitionKey partitionKey) {
+    public List<BaseDao> readAll(IPartitionKey partitionKey) {
         return next.readAll(partitionKey);
     }
 
     @Override
-    public <T extends BaseDao> Set<T> readAll(IPartitionKey partitionKey, Class<T> type) {
-        Set<T> ret = next.readAll(partitionKey, type);
+    public <T extends BaseDao> List<T> readAll(IPartitionKey partitionKey, Class<T> type) {
+        List<T> ret = next.readAll(partitionKey, type);
         this.onRead(type);
         return ret;
     }

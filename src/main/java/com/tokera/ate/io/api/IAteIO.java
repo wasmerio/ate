@@ -42,9 +42,9 @@ public interface IAteIO {
     
     @Nullable MessageDataDto readVersionMsgOrNull(PUUID id, MessageMetaDto meta);
 
-    Set<BaseDao> readAll(IPartitionKey partitionKey);
+    List<BaseDao> readAll(IPartitionKey partitionKey);
     
-    <T extends BaseDao> Set<T> readAll(IPartitionKey partitionKey, Class<T> type);
+    <T extends BaseDao> List<T> readAll(IPartitionKey partitionKey, Class<T> type);
 
     <T extends BaseDao> List<DataContainer> readAllRaw(IPartitionKey partitionKey);
 

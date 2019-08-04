@@ -638,35 +638,35 @@ public class HeadIO
         return ret;
     }
 
-    public Set<BaseDao> readAll() {
+    public List<BaseDao> readAll() {
         IPartitionKey partitionKey = d.requestContext.currentPartitionKey();
 
-        Set<BaseDao> ret = back.readAll(partitionKey);
+        List<BaseDao> ret = back.readAll(partitionKey);
         for (BaseDao entity : ret) {
             currentTransaction().cache(partitionKey, entity);
         }
         return ret;
     }
 
-    public Set<BaseDao> readAll(IPartitionKey partitionKey) {
-        Set<BaseDao> ret = back.readAll(partitionKey);
+    public List<BaseDao> readAll(IPartitionKey partitionKey) {
+        List<BaseDao> ret = back.readAll(partitionKey);
         for (BaseDao entity : ret) {
             currentTransaction().cache(partitionKey, entity);
         }
         return ret;
     }
 
-    public <T extends BaseDao> Set<T> readAll(Class<T> type) {
+    public <T extends BaseDao> List<T> readAll(Class<T> type) {
         IPartitionKey partitionKey = d.requestContext.currentPartitionKey();
-        Set<T> ret = back.readAll(partitionKey, type);
+        List<T> ret = back.readAll(partitionKey, type);
         for (BaseDao entity : ret) {
             currentTransaction().cache(partitionKey, entity);
         }
         return ret;
     }
 
-    public <T extends BaseDao> Set<T> readAll(IPartitionKey partitionKey, Class<T> type) {
-        Set<T> ret = back.readAll(partitionKey, type);
+    public <T extends BaseDao> List<T> readAll(IPartitionKey partitionKey, Class<T> type) {
+        List<T> ret = back.readAll(partitionKey, type);
         for (BaseDao entity : ret) {
             currentTransaction().cache(partitionKey, entity);
         }

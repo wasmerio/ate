@@ -272,6 +272,7 @@ public class DataPartitionChain {
                 ret.add(a);
             }
         });
+        ret.sort(Comparator.comparing(DataContainer::getFirstOffset));
         return ret;
     }
 

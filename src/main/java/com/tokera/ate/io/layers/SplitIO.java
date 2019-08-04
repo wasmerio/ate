@@ -89,8 +89,8 @@ final public class SplitIO implements IAteIO {
     }
 
     @Override
-    final public Set<BaseDao> readAll(IPartitionKey partitionKey) {
-        Set<BaseDao> ret = lower.readAll(partitionKey);
+    final public List<BaseDao> readAll(IPartitionKey partitionKey) {
+        List<BaseDao> ret = lower.readAll(partitionKey);
 
         for (BaseDao entity : upper.readAll(partitionKey)) {
             ret.add(entity);
@@ -100,8 +100,8 @@ final public class SplitIO implements IAteIO {
     }
 
     @Override
-    final public <T extends BaseDao> Set<T> readAll(IPartitionKey partitionKey, Class<T> type) {
-        Set<T> ret = lower.readAll(partitionKey, type);
+    final public <T extends BaseDao> List<T> readAll(IPartitionKey partitionKey, Class<T> type) {
+        List<T> ret = lower.readAll(partitionKey, type);
 
         for (T entity : upper.readAll(partitionKey, type)) {
             ret.add(entity);

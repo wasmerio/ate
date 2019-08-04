@@ -107,12 +107,12 @@ final public class BackendIO implements IAteIO {
     }
 
     @Override
-    public Set<BaseDao> readAll(IPartitionKey partitionKey) {
+    public List<BaseDao> readAll(IPartitionKey partitionKey) {
         return next.readAll(partitionKey);
     }
 
     @Override
-    public <T extends BaseDao> Set<T> readAll(IPartitionKey partitionKey, Class<T> type) {
+    public <T extends BaseDao> List<T> readAll(IPartitionKey partitionKey, Class<T> type) {
         return next.readAll(partitionKey, type);
     }
 
