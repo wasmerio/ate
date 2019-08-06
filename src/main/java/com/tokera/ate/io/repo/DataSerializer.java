@@ -278,7 +278,7 @@ public class DataSerializer {
     
     protected @Nullable BaseDao fromDataMessage(IPartitionKey partitionKey, @Nullable MessageDataDto msg, boolean shouldThrow)
     {
-        if (msg == null || msg.hasPayload() == false) {
+        if (msg == null) {
             return null;
         }
 
@@ -319,6 +319,8 @@ public class DataSerializer {
     @SuppressWarnings({"unchecked"})
     protected @Nullable BaseDao readObjectFromDataMessage(IPartitionKey partitionKey, MessageDataDto msg, boolean shouldThrow)
     {
+        if (msg.hasPayload() == false) return null;
+
         // We need to decrypt the data using an encryption key, search for it
         // using all the private toPutKeys we have in our token
         byte[] aesKey = getAesKeyForHeader(partitionKey, msg.getHeader(), shouldThrow);

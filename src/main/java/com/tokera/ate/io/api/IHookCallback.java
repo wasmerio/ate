@@ -1,10 +1,8 @@
 package com.tokera.ate.io.api;
 
-import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
-import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.dto.msg.MessageDataMetaDto;
 
-import java.util.Collection;
 import java.util.UUID;
 
 /**
@@ -21,19 +19,6 @@ public interface IHookCallback<T extends BaseDao> {
     /**
      * Callback invoked whenever a data object is created or updated
      */
-    default void onData(T obj, IHook context) {
-    }
-
-    /**
-     * Callback invoked whenever a data object is removed
-     */
-    default void onRemove(PUUID id, IHook context) {
-    }
-
-    /**
-     * Callback invoked when an exception occurs
-     */
-    default void onException(T obj, IHook context, Throwable ex) {
-        AteDelegate.get().genericLogger.warn(ex);
+    default void onData(MessageDataMetaDto msg, IHook context) {
     }
 }

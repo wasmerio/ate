@@ -17,9 +17,7 @@ import org.joda.time.DateTime;
 
 import javax.enterprise.inject.spi.CDI;
 import java.lang.ref.WeakReference;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 /**
@@ -155,7 +153,7 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
      * Gathers all the objects in the tree of this particular type and invokes a processor for them
      */
     public void invokeInit(BoundRequestContext boundRequestContext) {
-        Hook.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () ->
+        Task.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () ->
         {
             AteDelegate d = AteDelegate.get();
             ITaskCallback<T> callback = this.callback.get();
@@ -164,7 +162,7 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
     }
 
     public void invokeSeedKeys(BoundRequestContext boundRequestContext) {
-        Hook.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () ->
+        Task.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () ->
         {
             AteDelegate d = AteDelegate.get();
             for (MessagePublicKeyDto key : d.currentRights.getRightsRead()) {
@@ -178,7 +176,7 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
 
     @SuppressWarnings("unchecked")
     public void invokeMessages(BoundRequestContext boundRequestContext, Iterable<MessageDataMetaDto> msgs) {
-        Hook.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () ->
+        Task.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () ->
         {
             AteDelegate d = AteDelegate.get();
             for (MessageDataMetaDto msg : msgs) {
@@ -230,7 +228,7 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
     }
 
     public void invokeTick(BoundRequestContext boundRequestContext) {
-        Hook.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () -> {
+        Task.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () -> {
             ITaskCallback<T> callback = this.callback.get();
             if (callback != null) callback.onTick(this);
         });
@@ -238,10 +236,52 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
 
     public void invokeWarmAndIdle(BoundRequestContext boundRequestContext) {
         AteDelegate d = AteDelegate.get();
-        Hook.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () -> {
+        Task.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () -> {
             d.io.warm(partitionKey());
             ITaskCallback<T> callback = this.callback.get();
             if (callback != null) callback.onIdle(this);
         });
+    }
+
+    /**
+     * Enters a fake request scope and brings the token online so that the callback will
+     * @param token
+     * @param callback
+     */
+    public static void enterRequestScopeAndInvoke(IPartitionKey partitionKey, BoundRequestContext boundRequestContext, @Nullable TokenDto token, Runnable callback) {
+        AteDelegate d = AteDelegate.get();
+        if (boundRequestContext.isActive()) {
+            throw new RuntimeException("Nested request context are not currently supported.");
+        }
+
+        Map<String, Object> requestDataStore = new TreeMap<>();
+        boundRequestContext.associate(requestDataStore);
+        try {
+            boundRequestContext.activate();
+            try {
+                // Publish the token but skip the validation as we already trust the token
+                d.currentToken.setSkipValidation(true);
+                d.currentToken.setPerformedValidation(true);
+                d.currentToken.publishToken(token);
+
+                // Run the stuff under this scope context
+                d.requestContext.pushPartitionKey(partitionKey);
+                try {
+                    callback.run();
+                } finally {
+                    d.requestContext.popPartitionKey();
+                }
+
+                // Invoke the merge
+                d.io.flushAll();
+            } finally {
+                boundRequestContext.invalidate();
+                boundRequestContext.deactivate();
+            }
+        } catch (Throwable ex) {
+            d.genericLogger.warn(ex);
+        } finally {
+            boundRequestContext.dissociate(requestDataStore);
+        }
     }
 }

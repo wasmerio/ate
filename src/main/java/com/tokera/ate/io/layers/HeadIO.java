@@ -10,6 +10,7 @@ import com.tokera.ate.exceptions.TransactionAbortedException;
 import com.tokera.ate.io.api.*;
 import com.tokera.ate.io.repo.DataSubscriber;
 import com.tokera.ate.io.repo.DataTransaction;
+import com.tokera.ate.io.task.PollHook;
 import com.tokera.ate.qualifiers.BackendStorageSystem;
 import com.tokera.ate.qualifiers.FrontendStorageSystem;
 import com.tokera.ate.units.*;
@@ -240,6 +241,36 @@ public class HeadIO
         d.requestContext.pushPartitionKey(key);
         try { f.run(); }
         finally { d.requestContext.popPartitionKey(); }
+    }
+
+    /**
+     * Commits the current transaction and waits for the object to change ignoring any changes that result
+     * from the commit of the transaction itself
+     * @return True if a change was detected to the data object within the 30 seconds
+     */
+    public <T extends BaseDao> T poll(PUUID id, Class<T> clazz) {
+        return poll(id, clazz, 30000);
+    }
+
+    /**
+     * Commits the current transaction and waits for the object to change ignoring any changes that result
+     * from the commit of the transaction itself
+     * @param timeout Time in milliseconds before the poll request will timeout
+     * @return True if a change was detected to the data object within the timeout
+     */
+    @SuppressWarnings("unchecked")
+    public <T extends BaseDao> T poll(PUUID id, Class<T> clazz, int timeout)
+    {
+        IPartitionKey partitionKey = id.partition();
+
+        PollHook pollHook = new PollHook(id, clazz);
+        try {
+            d.hookManager.hook(partitionKey, clazz, pollHook);
+            currentTransaction().flush(true,  null);
+            return (T)pollHook.poll(timeout);
+        } finally {
+            d.hookManager.unhook(pollHook, clazz);
+        }
     }
 
     public <A> void withPartitionKey(IPartitionKey key, Consumer<A> f, A a) {

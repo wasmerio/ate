@@ -42,7 +42,7 @@ public class HookContext<T extends BaseDao> implements IHookContext {
         }
 
         synchronized (hooks) {
-            Hook context = new Hook(this.partitionKey, callback, clazz, d.currentToken.getTokenOrNull());
+            Hook context = new Hook(this.partitionKey, callback, clazz);
             hooks.add(context);
         }
     }

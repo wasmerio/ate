@@ -15,7 +15,5 @@ public interface IHook {
 
     void feed(MessageDataMetaDto msg);
 
-    @Nullable TokenDto token();
-
     boolean isActive();
 }
