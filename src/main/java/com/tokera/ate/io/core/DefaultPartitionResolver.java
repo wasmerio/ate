@@ -58,7 +58,7 @@ public class DefaultPartitionResolver implements IPartitionResolver {
         }
 
         // Try all the partition keys that are currently active or that have not yet been saved
-        for (IPartitionKey activePartitionKey : d.requestContext.currentTransaction().keys()) {
+        for (IPartitionKey activePartitionKey : d.requestContext.currentTransaction().allKeys()) {
             if (d.io.exists(activePartitionKey, parentId)) {
                 return activePartitionKey;
             }
