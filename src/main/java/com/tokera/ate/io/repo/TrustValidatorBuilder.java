@@ -490,7 +490,7 @@ final class TrustValidatorBuilder {
                     } else {
                         leafTxt = "payload=" + existing.getPayloadBytes().length + " bytes";
                     }
-                    leafTxt = leafTxt + "\n" + d.yaml.serializeObj(existing.getHeader());
+                    //leafTxt = leafTxt + "\n" + d.yaml.serializeObj(existing.getHeader());
                 }
 
                 StringBuilder sb = new StringBuilder();
