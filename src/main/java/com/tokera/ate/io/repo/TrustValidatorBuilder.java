@@ -474,8 +474,6 @@ final class TrustValidatorBuilder {
          * Called when there is no digest present or it could not be found
          */
         private void noDigest(List<String> availableWriteRoles) {
-            MessageDataDto leaf = existing;
-
             if (this._roleFound == true) {
                 fail("entity has write roles but public key is missing");
             } else {
@@ -484,8 +482,12 @@ final class TrustValidatorBuilder {
                 String parentTxt = "null";
                 if (parent != null) { parentTxt = "clazz=" + parent.getHeader().getPayloadClazzOrThrow() + ", id=" + parentId; }
 
+                String leafTxt = "new";
+                if (existing != null) { leafTxt = existing.getHeader().getVersionOrThrow().toString(); }
+
                 StringBuilder sb = new StringBuilder();
                 sb.append("entity has no right to attach to its parent");
+                sb.append("\n [leaf: ").append(leafTxt).append("]");
                 sb.append("\n [entity: ").append(entityTxt).append("]");
                 sb.append("\n [parent: ").append(parentTxt).append("]");
                 for (String role : availableWriteRoles) {
