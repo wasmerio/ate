@@ -483,7 +483,7 @@ final class TrustValidatorBuilder {
                 if (parent != null) { parentTxt = "clazz=" + parent.getHeader().getPayloadClazzOrThrow() + ", id=" + parentId; }
 
                 String leafTxt = "new";
-                if (existing != null) { leafTxt = existing.getHeader().getVersionOrThrow().toString(); }
+                if (existing != null) { leafTxt = "\n" + d.yaml.serializeObj(existing.getHeader()); }
 
                 StringBuilder sb = new StringBuilder();
                 sb.append("entity has no right to attach to its parent");
