@@ -89,6 +89,8 @@ public class Hook<T extends BaseDao> implements IHook {
 
                         try {
                             d.io.underTransaction(false, () -> {
+                                d.io.currentTransaction().cache(id.partition(), obj);
+
                                 if (header.getPreviousVersion() == null) {
                                     d.debugLogging.logCallbackData("feed-hook", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Created, callback.getClass(), obj);
                                     callback.onData((T) obj, this);
@@ -101,6 +103,8 @@ public class Hook<T extends BaseDao> implements IHook {
                             d.io.underTransaction(false, () -> {
                                 callback.onException((T)obj, this, ex);
                             });
+                        } finally {
+                            d.io.currentTransaction().clear();
                         }
                     } catch (Throwable ex) {
                         LOG.warn(ex);

@@ -205,6 +205,8 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
 
                     try {
                         d.io.underTransaction(false, () -> {
+                            d.io.currentTransaction().cache(id.partition(), obj);
+
                             if (header.getPreviousVersion() == null) {
                                 d.debugLogging.logCallbackData("feed-task", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Created, callback.getClass(), obj);
                                 callback.onCreate((T) obj, this);
@@ -217,6 +219,8 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
                         d.io.underTransaction(false, () -> {
                             callback.onException((T)obj, this, ex);
                         });
+                    } finally {
+                        d.io.currentTransaction().clear();
                     }
                 } catch (Throwable ex) {
                     d.genericLogger.warn(ex);
