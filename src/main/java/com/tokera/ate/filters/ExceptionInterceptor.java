@@ -20,7 +20,7 @@ import java.io.StringWriter;
  */
 @ApplicationScoped
 @Provider
-@Priority(5210)
+@Priority(6100)
 public class ExceptionInterceptor implements ExceptionMapper<Throwable> {
 
     protected AteDelegate d = AteDelegate.get();

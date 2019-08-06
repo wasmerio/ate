@@ -17,7 +17,7 @@ import javax.ws.rs.ext.Provider;
  */
 @ApplicationScoped
 @Provider
-@Priority(5100)
+@Priority(6000)
 public class TransactionInterceptor implements ContainerResponseFilter {
 
     protected AteDelegate d = AteDelegate.get();
