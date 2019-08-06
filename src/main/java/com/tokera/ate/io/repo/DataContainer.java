@@ -185,11 +185,10 @@ public class DataContainer {
         return ret;
     }
 
-    private static @Nullable BaseDao reconcileMergedData(@Nullable BaseDao _ret, LinkedList<DataGraphNode> leaves, boolean shouldSave) {
+    private static @Nullable BaseDao reconcileMergedData(IPartitionKey partitionKey, @Nullable BaseDao _ret, LinkedList<DataGraphNode> leaves, boolean shouldSave) {
         AteDelegate d = AteDelegate.get();
         BaseDao ret = _ret;
         if (ret == null) return null;
-        IPartitionKey partitionKey = ret.partitionKey(true);
 
         // Reconcile the parent version pointers
         if (leaves.size() == 1) {
@@ -239,6 +238,6 @@ public class DataContainer {
 
         // Merge the actual merge of the data object
         ret = d.merger.merge(mergeSet);
-        return reconcileMergedData(ret, leaves, shouldSave);
+        return reconcileMergedData(this.partitionKey, ret, leaves, shouldSave);
     }
 }
