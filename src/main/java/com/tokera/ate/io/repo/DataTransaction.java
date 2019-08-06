@@ -208,7 +208,10 @@ public class DataTransaction {
     }
 
     public Collection<IPartitionKey> keys() {
-        return this.partitions.keySet().stream().collect(Collectors.toList());
+        Set<IPartitionKey> ret = new HashSet<>();
+        ret.addAll(this.partitions.keySet());
+        ret.addAll(this.cache.keySet());
+        return ret;
     }
 
     public int size() {
