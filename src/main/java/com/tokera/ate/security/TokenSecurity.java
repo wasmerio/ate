@@ -90,6 +90,10 @@ public class TokenSecurity
         List<@Claim String> keyValues = map.get(key);
         keyValues.add(value);
     }
+
+    public static void clearClaims(Map<@Alias String, List<@Claim String>> map, @Alias String key) {
+        map.remove(key);
+    }
     
     /**
      * Validates the contents of a token

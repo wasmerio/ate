@@ -108,7 +108,7 @@ public class TokenBuilder {
 
     public TokenBuilder withPartitionkey(IPartitionKey key) {
         if (partitionKeySet == true) {
-            throw new RuntimeException("The partition key was already set earlier in the builder.");
+            TokenSecurity.clearClaims(this.claims, TokenDto.SECURITY_CLAIM_PARTITION_KEY);
         }
         partitionKeySet = true;
 
