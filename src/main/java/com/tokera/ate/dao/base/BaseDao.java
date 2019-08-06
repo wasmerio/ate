@@ -46,6 +46,15 @@ public abstract class BaseDao implements Serializable, Immutalizable, IPartition
      * partition key resolver
      */
     @JsonIgnore
+    public IPartitionKey partitionKey() {
+        return partitionKey(true);
+    }
+
+    /**
+     * @return Returns the partition that this object belongs too based on its inheritance tree and the current
+     * partition key resolver
+     */
+    @JsonIgnore
     @Override
     public IPartitionKey partitionKey(boolean shouldThrow) {
         IPartitionKey ret = _partitionKey;
