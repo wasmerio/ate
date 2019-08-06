@@ -60,18 +60,14 @@ public class PollHook implements IHookCallback {
     }
 
     public @Nullable BaseDao poll(long timeout) {
-        MessageDataMetaDto ret;
+        MessageDataMetaDto ret = null;
         synchronized (this)
         {
             Stopwatch timer = Stopwatch.createStarted();
-            for (;;) {
+            do {
                 if (msgs.isEmpty() == false) {
                     ret = msgs.pop();
                     break;
-                }
-
-                if (timer.elapsed(TimeUnit.MILLISECONDS) > timeout) {
-                    return null;
                 }
 
                 long waitTime = Math.max(1, timeout - timer.elapsed(TimeUnit.MILLISECONDS));
@@ -79,7 +75,12 @@ public class PollHook implements IHookCallback {
                     this.wait(waitTime);
                 } catch (InterruptedException e) {
                 }
-            }
+
+                if (msgs.isEmpty() == false) {
+                    ret = msgs.pop();
+                    break;
+                }
+            } while (timer.elapsed(TimeUnit.MILLISECONDS) <= timeout);
         }
 
         return process(ret);
