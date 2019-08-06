@@ -531,6 +531,10 @@ public class HeadIO
         return ret;
     }
 
+    public <T extends BaseDao> T read(IPartitionKey partitionKey, @DaoId UUID id, Class<T> type) {
+        return read(PUUID.from(partitionKey, id), type);
+    }
+
     public <T extends BaseDao> T read(@DaoId UUID id, Class<T> type) {
         IPartitionKey partitionKey = d.requestContext.currentPartitionKey();
         return this.read(PUUID.from(partitionKey, id), type);
