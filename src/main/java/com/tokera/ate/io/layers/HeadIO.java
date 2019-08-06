@@ -259,7 +259,7 @@ public class HeadIO
      * @return True if a change was detected to the data object within the timeout
      */
     @SuppressWarnings("unchecked")
-    public <T extends BaseDao> T poll(PUUID id, Class<T> clazz, int timeout)
+    public <T extends BaseDao> T poll(PUUID id, Class<T> clazz, long timeout)
     {
         IPartitionKey partitionKey = id.partition();
 
