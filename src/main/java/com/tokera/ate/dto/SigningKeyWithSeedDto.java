@@ -43,4 +43,8 @@ public class SigningKeyWithSeedDto {
         this.seed = seed;
         this.key = AteDelegate.get().encryptor.genSignKeyFromSeed(seed);
     }
+
+    public String publicHash() {
+        return this.key.getPublicKeyHash();
+    }
 }
