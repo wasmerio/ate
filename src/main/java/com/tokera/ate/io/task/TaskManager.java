@@ -113,30 +113,29 @@ public class TaskManager {
      * Callback invoked whenever a data object changes or is created in this context
      */
     public void feed(IPartitionKey partitionKey, MessageDataDto data, MessageMetaDto meta) {
-        if (lookup.containsKey(partitionKey) == false) {
-            if (d.bootstrapConfig.isLoggingCallbacks()) {
-                MessageDataHeaderDto header = data.getHeader();
-                String clazzName = header.getPayloadClazzOrThrow();
-                Class<BaseDao> clazz = d.serializableObjectsExtension.findClass(clazzName, BaseDao.class);
-                DebugLoggingDelegate.CallbackDataType type = DebugLoggingDelegate.CallbackDataType.Update;
-                if (header.getPreviousVersion() == null) {
-                    type = DebugLoggingDelegate.CallbackDataType.Created;
-                }
-                d.debugLogging.logCallbackData("feed-task(ignored)", partitionKey, header.getId(), type, clazz, null);
+        if (lookup.containsKey(partitionKey) == true) {
+            // Find the type of object this is
+            MessageDataHeaderDto header = data.getHeader();
+            String clazzName = header.getPayloadClazzOrThrow();
+            Class<BaseDao> clazz = d.serializableObjectsExtension.findClass(clazzName, BaseDao.class);
+
+            // Now get the context and callback
+            ITaskContext context = getContext(partitionKey, clazz);
+            if (context != null) {
+                MessageDataMetaDto msg = new MessageDataMetaDto(data, meta);
+                context.feed(msg);
             }
-            return;
         }
 
-        // Find the type of object this is
-        MessageDataHeaderDto header = data.getHeader();
-        String clazzName = header.getPayloadClazzOrThrow();
-        Class<BaseDao> clazz = d.serializableObjectsExtension.findClass(clazzName, BaseDao.class);
-
-        // Now get the context and callback
-        ITaskContext context = getContext(partitionKey, clazz);
-        if (context == null) return;
-
-        MessageDataMetaDto msg = new MessageDataMetaDto(data, meta);
-        context.feed(msg);
+        if (d.bootstrapConfig.isLoggingCallbacks()) {
+            MessageDataHeaderDto header = data.getHeader();
+            String clazzName = header.getPayloadClazzOrThrow();
+            Class<BaseDao> clazz = d.serializableObjectsExtension.findClass(clazzName, BaseDao.class);
+            DebugLoggingDelegate.CallbackDataType type = DebugLoggingDelegate.CallbackDataType.Update;
+            if (header.getPreviousVersion() == null) {
+                type = DebugLoggingDelegate.CallbackDataType.Created;
+            }
+            d.debugLogging.logCallbackData("feed-task(ignored)", partitionKey, header.getId(), type, clazz, null);
+        }
     }
 }
