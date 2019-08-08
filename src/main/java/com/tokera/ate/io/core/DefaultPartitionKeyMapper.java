@@ -1,5 +1,6 @@
 package com.tokera.ate.io.core;
 
+import com.tokera.ate.enumerations.DataPartitionType;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.api.IPartitionKeyMapper;
 import com.tokera.ate.io.kafka.KafkaTopicBridge;
@@ -37,6 +38,9 @@ public class DefaultPartitionKeyMapper implements IPartitionKeyMapper {
         public int partitionIndex() {
             return hash % KafkaTopicBridge.maxPartitionsPerTopic;
         }
+
+        @Override
+        public DataPartitionType partitionType() { return DataPartitionType.Dao; }
 
         @Override
         public String toString() {

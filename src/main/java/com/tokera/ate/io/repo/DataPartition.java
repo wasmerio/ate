@@ -17,16 +17,14 @@ public class DataPartition {
     private final IPartitionKey key;
     private final DataPartitionChain chain;
     private final IDataPartitionBridge bridge;
-    private final DataPartitionType type;
     private final DaoParentDiscoveryExtension parentDiscovery;
     
-    public DataPartition(IPartitionKey key, IDataPartitionBridge bridge, DataPartitionType type, DaoParentDiscoveryExtension parentDiscovery)
+    public DataPartition(IPartitionKey key, IDataPartitionBridge bridge, DaoParentDiscoveryExtension parentDiscovery)
     {
         this.key = key;
         this.parentDiscovery = parentDiscovery;
         this.chain = bridge.chain();
         this.bridge = bridge;
-        this.type = type;
     }
     
     public void waitTillLoaded() {

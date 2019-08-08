@@ -100,19 +100,15 @@ public class DataSubscriber {
         return ret;
     }
 
-    private DataPartition createPartition(IPartitionKey key, DataPartitionType type) {
-        IDataTopicBridge topicBridge = getOrCreateTopicBridge(key.partitionTopic(), type);
+    private DataPartition createPartition(IPartitionKey key) {
+        IDataTopicBridge topicBridge = getOrCreateTopicBridge(key.partitionTopic(), key.partitionType());
         IDataPartitionBridge partitionBridge = topicBridge.addKey(key);
-        DataPartition newTopic = new DataPartition(key, partitionBridge, type, d.daoParents);
+        DataPartition newTopic = new DataPartition(key, partitionBridge, d.daoParents);
         seedTopic(newTopic);
         return newTopic;
     }
 
     public DataPartition getPartition(IPartitionKey partition, boolean shouldWait) {
-        return getPartition(partition, shouldWait, DataPartitionType.Dao);
-    }
-    
-    public DataPartition getPartition(IPartitionKey partition, boolean shouldWait, DataPartitionType type) {
         GenericPartitionKey keyWrap = new GenericPartitionKey(partition);
         DataPartition ret = this.partitionCache.getIfPresent(keyWrap);
         if (ret != null) {
@@ -130,7 +126,7 @@ public class DataSubscriber {
                     {
                         d.debugLogging.logLoadingPartition(keyWrap);
                         d.encryptor.touch(); // required as the kafka partition needs an instance reference
-                        return createPartition(keyWrap, type);
+                        return createPartition(keyWrap);
                     }
                 });
         } catch (ExecutionException ex) {
@@ -145,7 +141,7 @@ public class DataSubscriber {
     }
     
     public DataPartitionChain getChain(IPartitionKey key, boolean shouldWait) {
-        DataPartition partition = getPartition(key, shouldWait, DataPartitionType.Dao);
+        DataPartition partition = getPartition(key, shouldWait);
         return partition.getChain();
     }
     

@@ -8,6 +8,7 @@ import com.tokera.ate.common.ImmutalizableTreeMap;
 import com.tokera.ate.dao.CountLong;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.RangeLong;
+import com.tokera.ate.enumerations.DataPartitionType;
 import com.tokera.ate.units.*;
 import org.apache.commons.lang.math.LongRange;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -44,7 +45,7 @@ public class MyAccount extends MyBaseAccount {
     @JsonProperty
     public @Nullable UUID idNullTest = null;
     @JsonProperty
-    public PUUID pid = new PUUID("data1234", 1, UUID.randomUUID());
+    public PUUID pid = new PUUID("data1234", 1, UUID.randomUUID(), DataPartitionType.Dao);
     @JsonProperty
     public RangeLong range = new RangeLong(1, 10);
     @JsonProperty

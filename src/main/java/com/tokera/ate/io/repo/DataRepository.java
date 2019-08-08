@@ -64,12 +64,12 @@ public class DataRepository implements IAteIO {
 
     @Override
     public void warm(IPartitionKey partitionKey) {
-        this.subscriber.getPartition(partitionKey, false, DataPartitionType.Dao);
+        this.subscriber.getPartition(partitionKey, false);
     }
 
     @Override
     public void warmAndWait(IPartitionKey partitionKey) {
-        DataPartition partition = this.subscriber.getPartition(partitionKey, false, DataPartitionType.Dao);
+        DataPartition partition = this.subscriber.getPartition(partitionKey, false);
         partition.getBridge().waitTillLoaded();
     }
 

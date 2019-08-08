@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.common.StringTools;
+import com.tokera.ate.enumerations.DataPartitionType;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.providers.PartitionKeySerializer;
 import com.tokera.ate.providers.PuuidJsonDeserializer;
@@ -34,23 +35,23 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
         this.id = other.id;
     }
 
-    public PUUID(String topic, int index, long mostSigBits, long leastSigBits) {
-        this.partition = new Partition(topic, index);
+    public PUUID(String topic, int index, long mostSigBits, long leastSigBits, DataPartitionType type) {
+        this.partition = new Partition(topic, index, type);
         this.id = new UUID(mostSigBits, leastSigBits);
     }
 
-    public PUUID(String topic, int index, UUID id) {
-        this.partition = new Partition(topic, index);
+    public PUUID(String topic, int index, UUID id, DataPartitionType type) {
+        this.partition = new Partition(topic, index, type);
         this.id = id;
     }
 
     public PUUID(IPartitionKey key, long mostSigBits, long leastSigBits) {
-        this.partition = new Partition(key.partitionTopic(), key.partitionIndex());
+        this.partition = new Partition(key.partitionTopic(), key.partitionIndex(), key.partitionType());
         this.id = new UUID(mostSigBits, leastSigBits);
     }
 
     public PUUID(IPartitionKey key, UUID id) {
-        this.partition = new Partition(key.partitionTopic(), key.partitionIndex());
+        this.partition = new Partition(key.partitionTopic(), key.partitionIndex(), key.partitionType());
         this.id = id;
     }
 
@@ -61,10 +62,12 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
     public class Partition implements IPartitionKey {
         private final String partitionTopic;
         private final int partitionIndex;
+        private final DataPartitionType partitionType;
 
-        public Partition(String partitionTopic, int partitionIndex) {
+        public Partition(String partitionTopic, int partitionIndex, DataPartitionType partitionType) {
             this.partitionTopic = partitionTopic;
             this.partitionIndex = partitionIndex;
+            this.partitionType = partitionType;
         }
 
         @Override
@@ -76,6 +79,9 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
         public int partitionIndex() {
             return this.partitionIndex;
         }
+
+        @Override
+        public DataPartitionType partitionType() { return this.partitionType; }
 
         @Override
         public String toString() {
@@ -107,6 +113,8 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
         return this.partition.partitionIndex;
     }
 
+    public DataPartitionType partitionType() { return this.partition.partitionType; }
+
     public UUID id() {
         return this.id;
     }
@@ -117,6 +125,8 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
         if (diff != 0) return diff;
         diff = Integer.compare(this.partitionIndex(), pid.partitionIndex());
         if (diff != 0) return diff;
+        diff = this.partitionType().compareTo(pid.partitionType());
+        if (diff != 0) return diff;
         return this.id.compareTo(pid.id);
     }
 
@@ -124,6 +134,7 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
     public int hashCode() {
         long hash = (this.partitionTopic() != null ? this.partitionTopic().hashCode() : 0) ^
                     Integer.hashCode(this.partitionIndex()) ^
+                    (this.partitionType() != null ? this.partitionType().hashCode() : 0) ^
                     (this.id != null ? this.id.hashCode() : 0);
         return (int)(hash >> 32) ^ (int)hash;
     }
@@ -134,6 +145,7 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
             PUUID pid = (PUUID)other;
             return Objects.equals(this.partitionTopic(), pid.partitionTopic()) &&
                     Objects.equals(this.partitionIndex(), pid.partitionIndex()) &&
+                    Objects.equals(this.partitionType(), pid.partitionType()) &&
                     Objects.equals(this.id, pid.id);
         } else {
             return false;
@@ -150,6 +162,7 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
         try {
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
             DataOutputStream dos = new DataOutputStream(stream);
+            dos.writeShort(this.partitionType().getCode());
             String topic = this.partitionTopic();
             if (topic != null) {
                 dos.writeShort(topic.length());
@@ -173,7 +186,7 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
     }
 
     public String print() {
-        return this.partitionTopic() + ":" + this.partitionIndex() + ":" + this.id();
+        return this.partitionType().name().toLowerCase() + ":" + this.partitionTopic() + ":" + this.partitionIndex() + ":" + this.id();
     }
 
     public static String toString(@Nullable PUUID pid) {
@@ -206,8 +219,9 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
 
             if (val.contains(":")) {
                 String[] comps = val.split(":");
-                if (comps.length == 3) {
-                    return new PUUID(comps[0], Integer.parseInt(comps[1]), UUID.fromString(comps[2]));
+                if (comps.length == 4) {
+                    DataPartitionType type = DataPartitionType.valueOf(comps[0]);
+                    return new PUUID(comps[1], Integer.parseInt(comps[2]), UUID.fromString(comps[3]), type);
                 } else {
                     return null;
                 }
@@ -215,6 +229,9 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
 
             byte[] data = Base64.decodeBase64(val);
             ByteBuffer bb = ByteBuffer.wrap(data);
+
+            int typeCode = bb.getShort();
+            DataPartitionType type = DataPartitionType.fromCode(typeCode);
 
             String topic;
             int topicLen = bb.getShort();
@@ -240,7 +257,8 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
             return new PUUID(
                     topic,
                     index,
-                    id);
+                    id,
+                    type);
         } catch (Throwable ex) {
             if (shouldThrow) {
                 throw new RuntimeException("Failed to parse string [" + _val + "] into PUUID as the id was missing or incomplete", ex);

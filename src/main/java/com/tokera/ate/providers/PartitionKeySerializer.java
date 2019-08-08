@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.ser.std.StdScalarSerializer;
 import com.tokera.ate.common.StringTools;
 import com.tokera.ate.common.UUIDTools;
 import com.tokera.ate.dao.PUUID;
+import com.tokera.ate.enumerations.DataPartitionType;
 import com.tokera.ate.io.api.IPartitionKey;
 import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.io.IOUtils;
@@ -51,10 +52,12 @@ public class PartitionKeySerializer extends Serializer<IPartitionKey> implements
     public class PartitionKeyValue implements IPartitionKey {
         private final String m_partitionTopic;
         private final int m_partitionIndex;
+        private final DataPartitionType m_partitionType;
 
-        public PartitionKeyValue(String topic, int index) {
+        public PartitionKeyValue(String topic, int index, DataPartitionType type) {
             this.m_partitionTopic = topic;
             this.m_partitionIndex = index;
+            this.m_partitionType = type;
         }
 
         @Override
@@ -66,6 +69,9 @@ public class PartitionKeySerializer extends Serializer<IPartitionKey> implements
         public int partitionIndex() {
             return m_partitionIndex;
         }
+
+        @Override
+        public DataPartitionType partitionType() { return m_partitionType; }
 
         @Override
         public String toString() {
@@ -133,13 +139,14 @@ public class PartitionKeySerializer extends Serializer<IPartitionKey> implements
     }
 
     public static String toString(IPartitionKey key) {
-        return key.partitionTopic() + ":" + key.partitionIndex();
+        return key.partitionType().name().toLowerCase() + ":" + key.partitionTopic() + ":" + key.partitionIndex();
     }
 
     public static String serialize(IPartitionKey key) {
         try {
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
             DataOutputStream dos = new DataOutputStream(stream);
+            dos.writeShort(key.partitionType().getCode());
             String topic = key.partitionTopic();
             if (topic != null) {
                 dos.writeShort(topic.length());
@@ -189,18 +196,23 @@ public class PartitionKeySerializer extends Serializer<IPartitionKey> implements
 
         if (val.contains(":")) {
             String[] comps = val.split(":");
-            if (comps.length != 2) return null;
+            if (comps.length != 3) return null;
 
-            String topic = comps[0];
-            Integer index = Integer.parseInt(comps[1]);
+            String type = comps[0];
+            String topic = comps[1];
+            Integer index = Integer.parseInt(comps[2]);
 
             return new PartitionKeyValue(
                     topic,
-                    index);
+                    index,
+                    DataPartitionType.valueOf(type));
         }
 
         byte[] data = Base64.decodeBase64(val);
         ByteBuffer bb = ByteBuffer.wrap(data);
+
+        int typeCode = bb.getShort();
+        DataPartitionType type = DataPartitionType.fromCode(typeCode);
 
         String topic = null;
         int topicLen = bb.getShort();
@@ -214,6 +226,7 @@ public class PartitionKeySerializer extends Serializer<IPartitionKey> implements
 
         return new PartitionKeyValue(
                 topic,
-                index);
+                index,
+                type);
     }
 }

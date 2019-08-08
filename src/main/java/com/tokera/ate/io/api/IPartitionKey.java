@@ -2,6 +2,7 @@ package com.tokera.ate.io.api;
 
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
+import com.tokera.ate.enumerations.DataPartitionType;
 import com.tokera.ate.providers.PartitionKeyJsonDeserializer;
 import com.tokera.ate.providers.PartitionKeyJsonSerializer;
 
@@ -21,4 +22,9 @@ public interface IPartitionKey {
      * @return Index of the partition within this topic
      */
     int partitionIndex();
+
+    /**
+     * @return Type of partition that should be created
+     */
+    DataPartitionType partitionType();
 }

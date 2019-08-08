@@ -1,6 +1,7 @@
 package com.tokera.ate.dao;
 
 import com.tokera.ate.annotations.YamlTag;
+import com.tokera.ate.enumerations.DataPartitionType;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.providers.PartitionKeySerializer;
 
@@ -14,15 +15,18 @@ public class GenericPartitionKey implements IPartitionKey, Serializable {
 
     private final String topic;
     private final int partition;
+    private final DataPartitionType type;
 
-    public GenericPartitionKey(String topic, int partition) {
+    public GenericPartitionKey(String topic, int partition, DataPartitionType type) {
         this.topic = topic;
         this.partition = partition;
+        this.type = type;
     }
 
     public GenericPartitionKey(IPartitionKey key) {
         this.topic = key.partitionTopic();
         this.partition = key.partitionIndex();
+        this.type = key.partitionType();
     }
 
     @Override
@@ -34,6 +38,9 @@ public class GenericPartitionKey implements IPartitionKey, Serializable {
     public int partitionIndex() {
         return partition;
     }
+
+    @Override
+    public DataPartitionType partitionType() { return type; }
 
     @Override
     public String toString() {

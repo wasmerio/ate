@@ -125,7 +125,7 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
     @Override
     public Set<IPartitionKey> keys() {
         synchronized (this.partitionBridges) {
-            return this.partitionBridges.keySet().stream().map(i -> new GenericPartitionKey(this.topic, i)).collect(Collectors.toSet());
+            return this.partitionBridges.keySet().stream().map(i -> new GenericPartitionKey(this.topic, i, m_type)).collect(Collectors.toSet());
         }
     }
 
@@ -196,7 +196,7 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
             // Take a snapshot of the keys we are adding
             Set<IPartitionKey> keys;
             synchronized (this.partitionBridges) {
-                keys = this.partitionBridges.keySet().stream().map(i -> new GenericPartitionKey(this.topic, i)).collect(Collectors.toSet());
+                keys = this.partitionBridges.keySet().stream().map(i -> new GenericPartitionKey(this.topic, i, m_type)).collect(Collectors.toSet());
             }
 
             // Success now subscribe to these partitions
@@ -237,7 +237,7 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
     private void sendEmptyMessagesToNewTopic() {
 
         for (Integer n = 0; n < maxPartitionsPerTopic; n++) {
-            this.send(new GenericPartitionKey(topic, n), new MessageSyncDto(0, 0), false);
+            this.send(new GenericPartitionKey(topic, n, m_type), new MessageSyncDto(0, 0), false);
         }
     }
 

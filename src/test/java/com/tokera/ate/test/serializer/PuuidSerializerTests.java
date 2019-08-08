@@ -2,6 +2,7 @@ package com.tokera.ate.test.serializer;
 
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.delegates.YamlDelegate;
+import com.tokera.ate.enumerations.DataPartitionType;
 import com.tokera.ate.extensions.YamlTagDiscoveryExtension;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.providers.PartitionKeySerializer;
@@ -38,6 +39,9 @@ public class PuuidSerializerTests {
         public int partitionIndex() {
             return partitionIndex;
         }
+
+        @Override
+        public DataPartitionType partitionType() { return DataPartitionType.Dao; }
 
         @Override
         public String toString() {
