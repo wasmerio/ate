@@ -103,7 +103,6 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
             try {
                 if (doneExisting == false) {
                     invokeSeedKeys(boundRequestContext);
-                    invokeInit(boundRequestContext);
                     doneExisting = true;
                 }
 
@@ -147,18 +146,6 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
         synchronized (this.toProcess) {
             this.toProcess.notify();
         }
-    }
-
-    /**
-     * Gathers all the objects in the tree of this particular type and invokes a processor for them
-     */
-    public void invokeInit(BoundRequestContext boundRequestContext) {
-        Task.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () ->
-        {
-            AteDelegate d = AteDelegate.get();
-            ITaskCallback<T> callback = this.callback.get();
-            if (callback != null) callback.onInit(d.io.readAll(clazz), this);
-        });
     }
 
     public void invokeSeedKeys(BoundRequestContext boundRequestContext) {
