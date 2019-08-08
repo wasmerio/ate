@@ -105,6 +105,7 @@ public class TaskContext<T extends BaseDao> implements ITaskContext {
                     .filter(h -> h.isActive() == false)
                     .collect(Collectors.toList());
             for (Task<T> task : toRemove) {
+                d.debugLogging.logCallbackHook("gc-callback-task", this.partitionKey, this.clazz, null);
                 tasks.remove(task);
             }
         }

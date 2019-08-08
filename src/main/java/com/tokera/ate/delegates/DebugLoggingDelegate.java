@@ -64,16 +64,23 @@ public class DebugLoggingDelegate {
         }
     }
 
-    public void logCallbackHook(String prefix, IPartitionKey partitionKey, Class<? extends BaseDao> objType, Class<?> callbackClazz) {
+    public void logCallbackHook(String prefix, @Nullable IPartitionKey partitionKey, @Nullable Class<? extends BaseDao> objType, @Nullable Class<?> callbackClazz) {
         if (d.bootstrapConfig.isLoggingCallbacks()) {
             StringBuilder sb = new StringBuilder();
             sb.append(prefix);
-            sb.append(": [partition=");
-            sb.append(PartitionKeySerializer.toString(partitionKey));
-            sb.append(", type=");
-            sb.append(objType.getSimpleName());
-            sb.append(", callback=");
-            sb.append(callbackClazz.getSimpleName());
+            sb.append(": [");
+            if (partitionKey != null) {
+                sb.append("partition=");
+                sb.append(PartitionKeySerializer.toString(partitionKey));
+            }
+            if (objType != null) {
+                sb.append(", type=");
+                sb.append(objType.getSimpleName());
+            }
+            if (callbackClazz != null) {
+                sb.append(", callback=");
+                sb.append(callbackClazz.getSimpleName());
+            }
             sb.append("]");
             logInfo(sb.toString());
         }

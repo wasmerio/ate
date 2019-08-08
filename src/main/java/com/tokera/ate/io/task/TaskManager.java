@@ -45,8 +45,19 @@ public class TaskManager {
 
         lookup.entrySet().removeIf(a ->
         {
-            a.getValue().entrySet().removeIf(b -> b.getValue().isEmpty());
-            return a.getValue().size() <= 0;
+            a.getValue().entrySet().removeIf(b -> {
+                if (b.getValue().isEmpty()) {
+                    d.debugLogging.logCallbackHook("gc-callback-context", a.getKey(), b.getKey(), null);
+                    return true;
+                }
+                return false;
+            });
+
+            if (a.getValue().size() <= 0) {
+                d.debugLogging.logCallbackHook("gc-callback-partition", a.getKey(), null, null);
+                return true;
+            }
+            return false;
         });
     }
 
