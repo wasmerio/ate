@@ -29,4 +29,12 @@ public enum DataPartitionType {
         }
         throw new WebApplicationException("Unknown partition type code [" + code + "]");
     }
+
+    public static DataPartitionType parse(String val) {
+        for (DataPartitionType type : values()) {
+            if (type.name().equalsIgnoreCase(val)) return type;
+            if (type.shortHand.equalsIgnoreCase(val)) return type;
+        }
+        throw new WebApplicationException("Unknown partition type code [" + val + "]");
+    }
 }

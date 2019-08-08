@@ -220,7 +220,7 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
             if (val.contains(":")) {
                 String[] comps = val.split(":");
                 if (comps.length == 4) {
-                    DataPartitionType type = DataPartitionType.valueOf(comps[0]);
+                    DataPartitionType type = DataPartitionType.parse(comps[0]);
                     return new PUUID(comps[1], Integer.parseInt(comps[2]), UUID.fromString(comps[3]), type);
                 } else {
                     return null;

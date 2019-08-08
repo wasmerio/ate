@@ -205,7 +205,7 @@ public class PartitionKeySerializer extends Serializer<IPartitionKey> implements
             return new PartitionKeyValue(
                     topic,
                     index,
-                    DataPartitionType.valueOf(type));
+                    DataPartitionType.parse(type));
         }
 
         byte[] data = Base64.decodeBase64(val);
