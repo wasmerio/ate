@@ -7,6 +7,7 @@ package com.tokera.ate.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tokera.ate.annotations.YamlTag;
+import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.units.Alias;
 import com.tokera.ate.units.Claim;
@@ -36,5 +37,10 @@ public class SigningKeyWithSeedDto {
     public SigningKeyWithSeedDto(String seed, MessagePrivateKeyDto key) {
         this.key = key;
         this.seed = seed;
+    }
+
+    public SigningKeyWithSeedDto(String seed) {
+        this.seed = seed;
+        this.key = AteDelegate.get().encryptor.genSignKeyFromSeed(seed);
     }
 }
