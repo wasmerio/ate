@@ -19,6 +19,13 @@ public interface ITaskCallback<T extends BaseDao> {
     UUID id();
 
     /**
+     * Callback invoked for every object of this type that is discovered when the task processor first starts up, after
+     * its in an operational state the onCreate callback will be called for all newly created objects
+     */
+    default void onInit(ITask task) {
+    }
+
+    /**
      * Callback invoked when an object is encountered for the first time
      */
     default void onCreate(T obj, ITask task) {
