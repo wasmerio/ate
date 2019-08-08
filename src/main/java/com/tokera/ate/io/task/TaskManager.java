@@ -113,7 +113,19 @@ public class TaskManager {
      * Callback invoked whenever a data object changes or is created in this context
      */
     public void feed(IPartitionKey partitionKey, MessageDataDto data, MessageMetaDto meta) {
-        if (lookup.containsKey(partitionKey) == false) return;
+        if (lookup.containsKey(partitionKey) == false) {
+            if (d.bootstrapConfig.isLoggingCallbacks()) {
+                MessageDataHeaderDto header = data.getHeader();
+                String clazzName = header.getPayloadClazzOrThrow();
+                Class<BaseDao> clazz = d.serializableObjectsExtension.findClass(clazzName, BaseDao.class);
+                DebugLoggingDelegate.CallbackDataType type = DebugLoggingDelegate.CallbackDataType.Update;
+                if (header.getPreviousVersion() == null) {
+                    type = DebugLoggingDelegate.CallbackDataType.Created;
+                }
+                d.debugLogging.logCallbackData("feed-task(ignored)", partitionKey, header.getId(), type, clazz, null);
+            }
+            return;
+        }
 
         // Find the type of object this is
         MessageDataHeaderDto header = data.getHeader();
