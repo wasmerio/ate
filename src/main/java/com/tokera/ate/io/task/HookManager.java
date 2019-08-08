@@ -9,15 +9,13 @@ import com.tokera.ate.dto.msg.MessageDataDto;
 import com.tokera.ate.dto.msg.MessageDataHeaderDto;
 import com.tokera.ate.dto.msg.MessageDataMetaDto;
 import com.tokera.ate.dto.msg.MessageMetaDto;
-import com.tokera.ate.io.api.IHookCallback;
-import com.tokera.ate.io.api.IHookContext;
-import com.tokera.ate.io.api.IPartitionKey;
-import com.tokera.ate.io.api.ITaskContext;
+import com.tokera.ate.io.api.*;
 import com.tokera.ate.scopes.Startup;
 
 import javax.enterprise.context.ApplicationScoped;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -52,13 +50,19 @@ public class HookManager {
     public <T extends BaseDao> void hook(IPartitionKey partitionKey, Class<T> clazz, IHookCallback<T> callback) {
         clean();
 
-        ConcurrentHashMap<String, IHookContext> first
-                = lookup.computeIfAbsent(partitionKey, k -> new ConcurrentHashMap<>());
-        IHookContext second = first.computeIfAbsent(clazz.getName(), c -> new HookContext<>(partitionKey, clazz));
-        second.addHook(callback, clazz);
+        lookup.compute(partitionKey, (k, map) ->
+        {
+            if (map == null) map = new ConcurrentHashMap<>();
+            map.compute(clazz.getName(), (c, ctx) ->
+            {
+                if (ctx == null) ctx = new HookContext<>(partitionKey, clazz);
+                ctx.addHook(callback, clazz);
+                return ctx;
+            });
+            return map;
+        });
 
         d.debugLogging.logCallbackHook("hook", partitionKey, clazz, callback.getClass());
-
         d.io.warmAndWait(partitionKey);
     }
 

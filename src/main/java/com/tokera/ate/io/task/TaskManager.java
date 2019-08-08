@@ -12,12 +12,11 @@ import com.tokera.ate.dto.msg.MessageMetaDto;
 import com.tokera.ate.io.api.*;
 import com.tokera.ate.scopes.Startup;
 import org.checkerframework.checker.nullness.qual.Nullable;
-import org.jboss.weld.context.bound.BoundRequestContext;
 
 import javax.enterprise.context.ApplicationScoped;
-import javax.enterprise.inject.spi.CDI;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
@@ -78,13 +77,23 @@ public class TaskManager {
     public <T extends BaseDao> ITask subscribe(IPartitionKey partitionKey, Class<T> clazz, ITaskCallback<T> callback, int idleTIme, @Nullable TokenDto token) {
         clean();
 
-        ConcurrentHashMap<Class<? extends BaseDao>, ITaskContext> first
-                = lookup.computeIfAbsent(partitionKey, k -> new ConcurrentHashMap<>());
-        ITaskContext second = first.computeIfAbsent(clazz, c -> new TaskContext(partitionKey, clazz));
+        AtomicReference<ITask> ret = new AtomicReference<>();
+        lookup.compute(partitionKey, (k, map) ->
+        {
+            if (map == null) map = new ConcurrentHashMap<>();
+            map.compute(clazz, (c, ctx) ->
+            {
+                if (ctx == null) ctx = new TaskContext(partitionKey, clazz);
 
-        ITask ret = second.addTask(callback, clazz, idleTIme, token);
+                ITask task = ctx.addTask(callback, clazz, idleTIme, token);
+                ret.set(task);
+                return ctx;
+            });
+            return map;
+        });
+
         d.debugLogging.logCallbackHook("subscribe", partitionKey, clazz, callback.getClass());
-        return ret;
+        return ret.get();
     }
 
     public <T extends BaseDao> boolean unsubscribe(IPartitionKey partitionKey, ITaskCallback<T> callback, Class<T> clazz) {
