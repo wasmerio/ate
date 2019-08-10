@@ -657,6 +657,32 @@ public class AuthorizationDelegate {
         }
     }
 
+    public boolean authorize(String alias, String readRoleHash, String writeRoleHash, IRoles roles) {
+        // Grant rights to the cluster for the contracting system
+        boolean ret = false;
+        if (roles.getTrustAllowRead().containsKey(alias) == false) {
+            roles.getTrustAllowRead().put(alias, readRoleHash);
+            ret = true;
+        }
+        if (roles.getTrustAllowWrite().containsKey(alias) == false) {
+            roles.getTrustAllowWrite().put(alias, writeRoleHash);
+            ret = true;
+        }
+        return ret;
+    }
+
+    public boolean unauthorize(String alias, IRoles roles) {
+        // Grant rights to the cluster for the contracting system
+        boolean ret = false;
+        if (roles.getTrustAllowRead().remove(alias) != null) {
+            ret = true;
+        }
+        if (roles.getTrustAllowWrite().remove(alias) != null) {
+            ret = true;
+        }
+        return ret;
+    }
+
     public void ensureKeyIsThere(MessagePublicKeyDto publicKey, IRights rights) {
         if (rights instanceof BaseDao) {
             IPartitionKey partitionKey = ((BaseDao)rights).partitionKey(false);
