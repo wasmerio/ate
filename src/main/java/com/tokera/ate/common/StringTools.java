@@ -189,6 +189,15 @@ public class StringTools
         return value;
     }
 
+    public static String toList(List<String> lines) {
+        StringBuilder sb = new StringBuilder();
+        for (String line : lines) {
+            if (sb.length() > 0) sb.append("\n");
+            sb.append(line);
+        }
+        return sb.toString();
+    }
+
     public static String toMsg(ClientErrorException e)
     {
         Response resp = e.getResponse();
