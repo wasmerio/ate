@@ -31,7 +31,7 @@ public class JsonDelegate {
         }
     }
 
-    public <T> Object deserialize(String data, Class<T> clazz) {
+    public <T> T deserialize(String data, Class<T> clazz) {
         ObjectMapper mapper = mappers.get();
         try {
             return mapper.readValue(data, clazz);
