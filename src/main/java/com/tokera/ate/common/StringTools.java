@@ -190,9 +190,14 @@ public class StringTools
     }
 
     public static String toList(List<String> lines) {
+        return toList(lines, null);
+    }
+
+    public static String toList(List<String> lines, @Nullable String prefix) {
         StringBuilder sb = new StringBuilder();
         for (String line : lines) {
             if (sb.length() > 0) sb.append("\n");
+            if (prefix != null) sb.append(prefix);
             sb.append(line);
         }
         return sb.toString();
