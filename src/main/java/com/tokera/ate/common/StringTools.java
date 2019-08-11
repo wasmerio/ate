@@ -1,11 +1,14 @@
 package com.tokera.ate.common;
 
+import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.units.DomainName;
 import com.tokera.ate.units.EmailAddress;
 import com.tokera.ate.units.Filepath;
 import com.tokera.ate.units.LogText;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import javax.ws.rs.ClientErrorException;
+import javax.ws.rs.core.Response;
 import java.io.*;
 import java.util.List;
 import java.util.Scanner;
@@ -184,5 +187,32 @@ public class StringTools
         }
 
         return value;
+    }
+
+    public static String toMsg(ClientErrorException e)
+    {
+        Response resp = e.getResponse();
+        Object msg;
+        msg = resp.getEntity();
+        if (msg instanceof InputStream) {
+            msg = null;
+
+            InputStream stream = (InputStream)msg;
+            if (stream != null) {
+                try {
+                    Scanner scanner = new Scanner(stream);
+                    scanner.useDelimiter("\\Z");
+                    String data = "";
+                    if (scanner.hasNext()) data = scanner.next();
+                    if (data.length() > 0) msg = data;
+                } catch (Throwable e1) {
+                    AteDelegate.get().genericLogger.warn(e1.getMessage(), e1);
+                }
+            }
+        }
+        if (msg == null) msg = e.getMessage();
+        if (msg == null) msg = e.getClass().getSimpleName();
+        resp.close();
+        return msg.toString();
     }
 }
