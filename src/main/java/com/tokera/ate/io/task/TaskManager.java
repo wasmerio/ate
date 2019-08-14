@@ -144,6 +144,7 @@ public class TaskManager {
             if (context != null) {
                 MessageDataMetaDto msg = new MessageDataMetaDto(data, meta);
                 context.feed(msg);
+                return;
             }
         }
 

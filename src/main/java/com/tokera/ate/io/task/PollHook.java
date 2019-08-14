@@ -4,6 +4,7 @@ import com.google.common.base.Stopwatch;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.delegates.DebugLoggingDelegate;
 import com.tokera.ate.dto.msg.MessageDataDto;
 import com.tokera.ate.dto.msg.MessageDataHeaderDto;
 import com.tokera.ate.dto.msg.MessageDataMetaDto;
@@ -41,6 +42,10 @@ public class PollHook implements IHookCallback {
 
         MessageDataHeaderDto header = data.getHeader();
         if (header.getIdOrThrow().equals(objId.id()) == false) {
+            if (d.bootstrapConfig.isLoggingCallbacks()) {
+                Class<BaseDao> clazz = d.serializableObjectsExtension.findClass(header.getPayloadClazzOrThrow(), BaseDao.class);
+                d.debugLogging.logCallbackData("feed-hook(ignored)", partitionKey, header.getId(), DebugLoggingDelegate.CallbackDataType.Update, clazz, null);
+            }
             return;
         }
 
