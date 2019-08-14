@@ -149,7 +149,7 @@ public class DebugLoggingDelegate {
 
     public void logLoadingPartition(IPartitionKey key) {
         if (d.bootstrapConfig.isLoggingChainOfTrust()) {
-            logInfo("loading-partition: " + key.partitionTopic() + ":" + key.partitionIndex());
+            logInfo("loading-partition: " + key.partitionType() + ":" + key.partitionTopic() + ":" + key.partitionIndex());
         }
     }
 
