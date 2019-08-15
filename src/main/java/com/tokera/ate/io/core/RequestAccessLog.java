@@ -58,7 +58,11 @@ public class RequestAccessLog {
 
     public void recordRead(@DaoId UUID id, Class<?> clazz) {
         if (isPaused == true) return;
-        String clazzName = clazz.getSimpleName();
+        recordRead(id, clazz.getSimpleName());
+    }
+
+    public void recordRead(@DaoId UUID id, String clazzName) {
+        if (isPaused == true) return;
         String clazzNameSep = clazzName + ":";
         
         Integer cnt = readClazzCnts.getOrDefault(clazzName, 0);
@@ -71,7 +75,7 @@ public class RequestAccessLog {
             readClazzCnts.put(clazzName, Integer.MAX_VALUE);
         }
         
-        if (readRecords.add(clazz.getSimpleName() + ":" + id) == true) {
+        if (readRecords.add(clazzName + ":" + id) == true) {
             readClazzCnts.put(clazzName, cnt + 1);
         }
     }

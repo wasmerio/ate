@@ -107,6 +107,12 @@ public class DataContainer {
         return lastHeader.getPayloadClazzOrThrow();
     }
 
+    public String getPayloadClazzShort() {
+        MessageDataHeaderDto lastHeader = getLastHeaderOrNull();
+        if (lastHeader == null) return "[null]";
+        return lastHeader.getPayloadClazzShortOrThrow();
+    }
+
     public @Nullable UUID getParentId() {
         MessageDataHeaderDto lastHeader = getLastHeaderOrNull();
         if (lastHeader == null) return null;

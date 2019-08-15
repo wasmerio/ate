@@ -35,14 +35,6 @@ final public class AccessLogIO implements IAteIO {
         this.logger = CDI.current().select(RequestAccessLog.class).get();
     }
 
-    final protected <T extends BaseDao> void onRead(Class<T> clazz) {
-        logger.recordRead(clazz);
-    }
-
-    final protected void onRead(UUID id, Class<?> clazz) {
-        logger.recordRead(id, clazz);
-    }
-
     @Override
     public @Nullable MessageDataHeaderDto readRootOfTrust(PUUID id) {
         return next.readRootOfTrust(id);
@@ -108,7 +100,7 @@ final public class AccessLogIO implements IAteIO {
     public @Nullable BaseDao readOrNull(PUUID id, boolean shouldSave) {
         BaseDao ret = next.readOrNull(id, shouldSave);
         if (ret != null) {
-            this.onRead(id.id(), ret.getClass());
+            logger.recordRead(id.id(), ret.getClass());
         }
         return ret;
     }
@@ -117,13 +109,19 @@ final public class AccessLogIO implements IAteIO {
     public BaseDao readOrThrow(PUUID id) {
         BaseDao ret = next.readOrThrow(id);
         if (ret != null) {
-            this.onRead(id.id(), ret.getClass());
+            logger.recordRead(id.id(), ret.getClass());
         }
         return ret;
     }
 
     @Override
-    public @Nullable DataContainer readRawOrNull(PUUID id) { return next.readRawOrNull(id); }
+    public @Nullable DataContainer readRawOrNull(PUUID id) {
+        DataContainer ret = next.readRawOrNull(id);
+        if (ret != null) {
+            logger.recordRead(id.id(), ret.getPayloadClazzShort());
+        }
+        return ret;
+    }
 
     @Override
     public @Nullable BaseDao readVersionOrNull(PUUID id, MessageMetaDto meta) {
@@ -137,8 +135,9 @@ final public class AccessLogIO implements IAteIO {
 
     @Override
     public <T extends BaseDao> Iterable<MessageMetaDto> readHistory(PUUID id, Class<T> clazz) {
-        this.onRead(id.id(), clazz);
-        return next.readHistory(id, clazz);
+        Iterable<MessageMetaDto> ret = next.readHistory(id, clazz);
+        logger.recordRead(id.id(), clazz);
+        return ret;
     }
 
     @Override
@@ -149,7 +148,7 @@ final public class AccessLogIO implements IAteIO {
     @Override
     public <T extends BaseDao> List<T> readAll(IPartitionKey partitionKey, Class<T> type) {
         List<T> ret = next.readAll(partitionKey, type);
-        this.onRead(type);
+        logger.recordRead(type);
         return ret;
     }
 
@@ -160,6 +159,8 @@ final public class AccessLogIO implements IAteIO {
 
     @Override
     public <T extends BaseDao> List<DataContainer> readAllRaw(IPartitionKey partitionKey, Class<T> type) {
-        return next.readAllRaw(partitionKey, type);
+        List<DataContainer> ret = next.readAllRaw(partitionKey, type);
+        logger.recordRead(type);
+        return ret;
     }
 }
