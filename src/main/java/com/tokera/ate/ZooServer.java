@@ -7,6 +7,7 @@ import com.tokera.ate.common.MapTools;
 import com.tokera.ate.common.NetworkTools;
 import com.tokera.ate.configuration.AteConstants;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.enumerations.EnquireDomainKeyHandling;
 import org.apache.zookeeper.server.ServerConfig;
 import org.apache.zookeeper.server.ZooKeeperServerMain;
 import org.apache.zookeeper.server.quorum.QuorumPeerConfig;
@@ -68,7 +69,7 @@ public class ZooServer implements Runnable {
         // Get all my local IP addresses
         Set<String> myAddresses = NetworkTools.getMyNetworkAddresses();
 
-        List<String> dataservers = d.implicitSecurity.enquireDomainAddresses(bootstrapZooKeeperAddress, true);
+        List<String> dataservers = d.implicitSecurity.enquireDomainAddresses(bootstrapZooKeeperAddress, EnquireDomainKeyHandling.ThrowOnError);
         if (dataservers == null) {
             throw new RuntimeException("Failed to find the ZooKeeper bootstrap list at " + bootstrapZooKeeperAddress);
         }

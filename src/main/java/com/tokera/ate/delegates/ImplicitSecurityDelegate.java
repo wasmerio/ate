@@ -6,6 +6,7 @@ import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.GenericPartitionKey;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
+import com.tokera.ate.enumerations.EnquireDomainKeyHandling;
 import com.tokera.ate.exceptions.ImplicitAuthorityMissingException;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.repo.DataPartition;
@@ -82,47 +83,51 @@ public class ImplicitSecurityDelegate {
         }
     }
 
-    public @Nullable MessagePublicKeyDto enquireDomainKey(@DomainName String domain, boolean shouldThrow)
+    public @Nullable MessagePublicKeyDto enquireDomainKey(@DomainName String domain, EnquireDomainKeyHandling handling)
     {
-        return enquireDomainKey(domain, shouldThrow, null);
+        return enquireDomainKey(domain, handling, null);
     }
 
-    public @Nullable MessagePublicKeyDto enquireDomainKey(@DomainName String domain, boolean shouldThrow, IPartitionKey partitionKey)
+    public @Nullable MessagePublicKeyDto enquireDomainKey(@DomainName String domain, EnquireDomainKeyHandling handling, IPartitionKey partitionKey)
     {
-        return enquireDomainKey(d.bootstrapConfig.getImplicitAuthorityAlias(), domain, shouldThrow, partitionKey);
+        return enquireDomainKey(d.bootstrapConfig.getImplicitAuthorityAlias(), domain, handling, partitionKey);
     }
 
-    public @Nullable MessagePublicKeyDto enquireDomainKey(@DomainName String domain, boolean shouldThrow, IPartitionKey partitionKey, Function<String, MessagePublicKeyDto> publicKeyResolver) {
-        return enquireDomainKey(d.bootstrapConfig.getImplicitAuthorityAlias(), domain, shouldThrow, null, partitionKey, publicKeyResolver);
+    public @Nullable MessagePublicKeyDto enquireDomainKey(@DomainName String domain, EnquireDomainKeyHandling handling, IPartitionKey partitionKey, Function<String, MessagePublicKeyDto> publicKeyResolver) {
+        return enquireDomainKey(d.bootstrapConfig.getImplicitAuthorityAlias(), domain, handling, null, partitionKey, publicKeyResolver);
     }
 
-    public @Nullable MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, boolean shouldThrow)
+    public @Nullable MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, EnquireDomainKeyHandling handling)
     {
-        return enquireDomainKey(prefix, domain, shouldThrow, domain, null, null);
+        return enquireDomainKey(prefix, domain, handling, domain, null, null);
     }
 
-    public @Nullable MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, boolean shouldThrow, @Nullable IPartitionKey partitionKey)
+    public @Nullable MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, EnquireDomainKeyHandling handling, @Nullable IPartitionKey partitionKey)
     {
-        return enquireDomainKey(prefix, domain, shouldThrow, domain, partitionKey, null);
+        return enquireDomainKey(prefix, domain, handling, domain, partitionKey, null);
     }
 
-    public @Nullable MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, boolean shouldThrow, @Alias String alias)
+    public @Nullable MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, EnquireDomainKeyHandling handling, @Alias String alias)
     {
-        return enquireDomainKey(prefix, domain, shouldThrow, alias, null, null);
+        return enquireDomainKey(prefix, domain, handling, alias, null, null);
     }
 
-    public @Nullable MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, boolean shouldThrow, @Nullable @Alias String alias, @Nullable IPartitionKey partitionKey, @Nullable Function<String, MessagePublicKeyDto> publicKeyResolver)
+    public @Nullable MessagePublicKeyDto enquireDomainKey(String prefix, @DomainName String domain, EnquireDomainKeyHandling handling, @Nullable @Alias String alias, @Nullable IPartitionKey partitionKey, @Nullable Function<String, MessagePublicKeyDto> publicKeyResolver)
     {
         String fullDomain = prefix + "." + domain;
         try {
             return implicitAuthorityCache.get(fullDomain, () ->
             {
-                String publicKeyHash = enquireDomainString(fullDomain, shouldThrow);
+                String publicKeyHash = enquireDomainString(fullDomain, handling);
                 if (publicKeyHash == null) {
-                    throw new ImplicitAuthorityMissingException("No implicit authority found at domain name [" + fullDomain + "] (missing TXT record).");
+                    if (handling == EnquireDomainKeyHandling.ThrowOnNull) {
+                        throw new ImplicitAuthorityMissingException("No implicit authority found at domain name [" + fullDomain + "] (missing TXT record).");
+                    } else {
+                        return null;
+                    }
                 }
 
-                MessagePublicKeyDto ret = null;
+                MessagePublicKeyDto ret;
                 if (publicKeyResolver != null) {
                     ret = publicKeyResolver.apply(publicKeyHash);
                 } else {
@@ -141,7 +146,11 @@ public class ImplicitSecurityDelegate {
                 }
 
                 if (ret == null) {
-                    throw new ImplicitAuthorityMissingException("Unknown implicit authority found at domain name [" + fullDomain + "] (public key is missing with hash [" + publicKeyHash + "]).");
+                    if (handling == EnquireDomainKeyHandling.ThrowOnNull) {
+                        throw new ImplicitAuthorityMissingException("Unknown implicit authority found at domain name [" + fullDomain + "] (public key is missing with hash [" + publicKeyHash + "]).");
+                    } else {
+                        return null;
+                    }
                 }
 
                 ret = new MessagePublicKeyDto(ret);
@@ -153,7 +162,7 @@ public class ImplicitSecurityDelegate {
         } catch (ExecutionException e) {
             throw new WebApplicationException(e);
         } catch (ImplicitAuthorityMissingException e) {
-            if (shouldThrow) throw e;
+            if (handling.shouldThrowOnError() || handling == EnquireDomainKeyHandling.ThrowOnNull) throw e;
             return null;
         }
     }
@@ -176,7 +185,7 @@ public class ImplicitSecurityDelegate {
         return Base64.encodeBase64URLSafeString(partitionKeyTxt.getBytes()) + ":" + key.getPublicKeyHash();
     }
 
-    public List<String> enquireDomainAddresses(@DomainName String domain, boolean shouldThrow) {
+    public List<String> enquireDomainAddresses(@DomainName String domain, EnquireDomainKeyHandling handling) {
         if (domain.contains(":")) {
             String[] comps = domain.split(":");
             if (comps.length >= 1) domain = comps[0];
@@ -203,11 +212,15 @@ public class ImplicitSecurityDelegate {
 
             final Record[] records = lookup.run();
             if (lookup.getResult() != Lookup.SUCCESSFUL) {
-                if (shouldThrow && lookup.getResult() == Lookup.UNRECOVERABLE) {
+                if (handling.shouldThrowOnError() && lookup.getResult() == Lookup.UNRECOVERABLE) {
                     throw new WebApplicationException("Failed to lookup DNS record on [" + domain + "] - " + lookup.getErrorString());
                 }
                 this.LOG.debug("dns(" + domain + ")::" + lookup.getErrorString());
-                return new ArrayList<>();
+                if (handling == EnquireDomainKeyHandling.ThrowOnNull) {
+                    throw new ImplicitAuthorityMissingException("No domain TXT record found at [" + domain + "].");
+                } else {
+                    return new ArrayList<>();
+                }
             }
 
             List<String> ret = new ArrayList<>();
@@ -223,18 +236,25 @@ public class ImplicitSecurityDelegate {
                     ret.add("[" + aaaa.getAddress().getHostAddress().trim().toLowerCase() + "]");
                 }
             }
+            if (ret.size() <= 0 && handling == EnquireDomainKeyHandling.ThrowOnNull) {
+                throw new ImplicitAuthorityMissingException("No domain TXT record found at [" + domain + "].");
+            }
             Collections.sort(ret);
             return ret;
         } catch (TextParseException ex) {
-            if (shouldThrow) {
+            if (handling.shouldThrowOnError()) {
                 throw new WebApplicationException(ex);
             }
             this.LOG.info("dns(" + domain + ")::" + ex.getMessage());
-            return new ArrayList<>();
+            if (handling == EnquireDomainKeyHandling.ThrowOnNull) {
+                throw new ImplicitAuthorityMissingException("No domain TXT record found at [" + domain + "].");
+            } else {
+                return new ArrayList<>();
+            }
         }
     }
     
-    public @Nullable @PlainText String enquireDomainString(@DomainName String domain, boolean shouldThrow)
+    public @Nullable @PlainText String enquireDomainString(@DomainName String domain, EnquireDomainKeyHandling handling)
     {
         String override = MapTools.getOrNull(enquireTxtOverride, domain);
         if (override != null) {
@@ -252,11 +272,15 @@ public class ImplicitSecurityDelegate {
 
             final Record[] records = lookup.run();
             if (lookup.getResult() != Lookup.SUCCESSFUL) {
-                if (shouldThrow && lookup.getResult() == Lookup.UNRECOVERABLE) {
+                if (handling.shouldThrowOnError() && lookup.getResult() == Lookup.UNRECOVERABLE) {
                     throw new WebApplicationException("Failed to lookup DNS record on [" + domain + "] - " + lookup.getErrorString());
                 }
                 this.LOG.debug("dns(" + domain + ")::" + lookup.getErrorString());
-                return null;
+                if (handling == EnquireDomainKeyHandling.ThrowOnNull) {
+                    throw new ImplicitAuthorityMissingException("No domain TXT record found at [" + domain + "].");
+                } else {
+                    return null;
+                }
             }
             
             for (Record record : records) {
@@ -281,13 +305,21 @@ public class ImplicitSecurityDelegate {
             }
 
             //this.LOG.info("dns(" + domain + ")::no_record");
-            return null;
+            if (handling == EnquireDomainKeyHandling.ThrowOnNull) {
+                throw new ImplicitAuthorityMissingException("No domain TXT record found at [" + domain + "].");
+            } else {
+                return null;
+            }
         } catch (TextParseException ex) {
-            if (shouldThrow) {
+            if (handling.shouldThrowOnError()) {
                 throw new WebApplicationException(ex);
             }
             this.LOG.info("dns(" + domain + ")::" + ex.getMessage());
-            return null;
+            if (handling == EnquireDomainKeyHandling.ThrowOnNull) {
+                throw new ImplicitAuthorityMissingException("No domain TXT record found at [" + domain + "].");
+            } else {
+                return null;
+            }
         }
     }
 

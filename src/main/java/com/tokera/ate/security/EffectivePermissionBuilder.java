@@ -10,6 +10,7 @@ import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import com.tokera.ate.dao.IRoles;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dto.msg.MessageDataHeaderDto;
+import com.tokera.ate.enumerations.EnquireDomainKeyHandling;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.units.DaoId;
 import com.tokera.ate.dto.EffectivePermissions;
@@ -251,7 +252,7 @@ public class EffectivePermissionBuilder {
         if (container != null) {
             MessageDataHeaderDto header = container.getMergedHeader();
             for (String implicitAuthority : header.getImplicitAuthority()) {
-                MessagePublicKeyDto implicitKey = d.implicitSecurity.enquireDomainKey(implicitAuthority, true, container.partitionKey);
+                MessagePublicKeyDto implicitKey = d.implicitSecurity.enquireDomainKey(implicitAuthority, EnquireDomainKeyHandling.ThrowOnNull, container.partitionKey);
                 ret.addWriteRole(implicitKey);
             }
             return;
@@ -262,7 +263,7 @@ public class EffectivePermissionBuilder {
         if (data != null) {
             MessageDataHeaderDto header = container.getMergedHeader();
             for (String implicitAuthority : header.getImplicitAuthority()) {
-                MessagePublicKeyDto implicitKey = d.implicitSecurity.enquireDomainKey(implicitAuthority, true, container.partitionKey);
+                MessagePublicKeyDto implicitKey = d.implicitSecurity.enquireDomainKey(implicitAuthority, EnquireDomainKeyHandling.ThrowOnNull, container.partitionKey);
                 ret.addWriteRole(implicitKey);
             }
             return;
@@ -282,7 +283,7 @@ public class EffectivePermissionBuilder {
                     if (domainObj == null || domainObj.toString().isEmpty()) {
                         throw new RuntimeException("The implicit authority field can not be null or empty [field: " + field.getName() + "].");
                     }
-                    MessagePublicKeyDto implicitKey = d.implicitSecurity.enquireDomainKey(domainObj.toString(), true, key);
+                    MessagePublicKeyDto implicitKey = d.implicitSecurity.enquireDomainKey(domainObj.toString(), EnquireDomainKeyHandling.ThrowOnError, key);
                     if (implicitKey == null) {
                         throw new WebApplicationException("No implicit authority found at domain name (missing TXT record)[" + d.bootstrapConfig.getImplicitAuthorityAlias() + "." + domainObj + "].", Response.Status.UNAUTHORIZED);
                     }
@@ -295,7 +296,7 @@ public class EffectivePermissionBuilder {
             // If it contains static implicit authority
             String staticImplicitAuthority = MapTools.getOrNull(d.daoParents.getAllowedImplicitAuthority(), type);
             if (staticImplicitAuthority != null) {
-                MessagePublicKeyDto implicitKey = d.implicitSecurity.enquireDomainKey(staticImplicitAuthority, true, key);
+                MessagePublicKeyDto implicitKey = d.implicitSecurity.enquireDomainKey(staticImplicitAuthority, EnquireDomainKeyHandling.ThrowOnNull, key);
                 ret.addWriteRole(implicitKey);
             }
             return;

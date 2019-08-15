@@ -5,6 +5,7 @@ import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.enumerations.KeyType;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.enumerations.DefaultStorageSystem;
+import com.tokera.ate.enumerations.EnquireDomainKeyHandling;
 import com.tokera.ate.scopes.Startup;
 
 import javax.enterprise.context.ApplicationScoped;
@@ -250,7 +251,7 @@ public class BootstrapConfig {
         Properties props = getPropertiesFile(this.getPropertiesFileKafka(), "Kafka");
 
         String bootstrapKafka = BootstrapConfig.propertyOrThrow(propertiesForAte(), "kafka.bootstrap");
-        int numBrokers = AteDelegate.get().implicitSecurity.enquireDomainAddresses(bootstrapKafka, true).size();
+        int numBrokers = AteDelegate.get().implicitSecurity.enquireDomainAddresses(bootstrapKafka, EnquireDomainKeyHandling.ThrowOnError).size();
 
         // Cap the number of replicas so they do not exceed the number of brokers
         Integer numOfReplicas = 1;

@@ -5,6 +5,7 @@ import com.tokera.ate.common.ApplicationConfigLoader;
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.common.NetworkTools;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.enumerations.EnquireDomainKeyHandling;
 import kafka.metrics.KafkaMetricsReporter;
 import kafka.metrics.KafkaMetricsReporter$;
 import kafka.server.KafkaConfig;
@@ -39,7 +40,7 @@ public class KafkaServer {
         String bootstrap = BootstrapConfig.propertyOrThrow(d.bootstrapConfig.propertiesForAte(), propName);
         Integer bootstrapPort = NetworkTools.extractPortFromBootstrapOrThrow(bootstrap);
 
-        List<String> bootstrapServers = d.implicitSecurity.enquireDomainAddresses(bootstrap, true);
+        List<String> bootstrapServers = d.implicitSecurity.enquireDomainAddresses(bootstrap, EnquireDomainKeyHandling.ThrowOnError);
         if (bootstrapServers == null) {
             throw new RuntimeException("Failed to find the " + propName + " list at " + bootstrap);
         }
@@ -80,7 +81,7 @@ public class KafkaServer {
         // Loop through all the data servers and process them
         String myAdvertisingIp = null;
         Integer myId = 0;
-        List<String> dataservers = d.implicitSecurity.enquireDomainAddresses(bootstrapKafka, true);
+        List<String> dataservers = d.implicitSecurity.enquireDomainAddresses(bootstrapKafka, EnquireDomainKeyHandling.ThrowOnError);
         int n = 0;
         for (String serverIp : dataservers) {
             n++;

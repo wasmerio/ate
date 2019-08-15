@@ -8,6 +8,7 @@ import com.tokera.ate.dto.msg.MessageDataDigestDto;
 import com.tokera.ate.dto.msg.MessageDataDto;
 import com.tokera.ate.dto.msg.MessageDataHeaderDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
+import com.tokera.ate.enumerations.EnquireDomainKeyHandling;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.units.DaoId;
 import org.bouncycastle.util.Arrays;
@@ -380,7 +381,7 @@ final class TrustValidatorBuilder {
                     try {
                         MessagePublicKeyDto trustImplicit = d.implicitSecurity.enquireDomainKey(
                                 implicitAuthority,
-                                true,
+                                EnquireDomainKeyHandling.SilentIgnore,
                                 partitionKey,
                                 onGetPublicKey);
                         if (trustImplicit == null) {
