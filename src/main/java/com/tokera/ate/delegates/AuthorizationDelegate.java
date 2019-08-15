@@ -658,6 +658,9 @@ public class AuthorizationDelegate {
     }
 
     public boolean authorize(String alias, String readRoleHash, String writeRoleHash, IRoles roles) {
+        if (readRoleHash == null) throw new WebApplicationException("Failed to authorize (" + alias + ") - the read role hash is null.");
+        if (writeRoleHash == null) throw new WebApplicationException("Failed to authorize (" + alias + ") - the write role hash is null.");
+
         // Grant rights to the cluster for the contracting system
         boolean ret = false;
         if (roles.getTrustAllowRead().containsKey(alias) == false) {
