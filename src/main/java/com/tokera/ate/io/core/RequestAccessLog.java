@@ -78,20 +78,24 @@ public class RequestAccessLog {
 
     public void recordWrote(@DaoId UUID id, Class<?> clazz) {
         if (isPaused == true) return;
-        String clazzName = clazz.getSimpleName();
+        recordWrote(id, clazz.getSimpleName());
+    }
+
+    public void recordWrote(@DaoId UUID id, String clazzName) {
+        if (isPaused == true) return;
         String clazzNameSep = clazzName + ":";
-        
+
         Integer cnt = wroteClazzCnts.getOrDefault(clazzName, 0);
         if (cnt >= max_items_per_clazz && cnt < Integer.MAX_VALUE) {
             wroteRecords.removeAll(wroteRecords.stream()
                     .filter(r -> r.startsWith(clazzNameSep))
                     .collect(Collectors.toSet()));
-            
+
             wroteRecords.add(clazzNameSep + "*");
             wroteClazzCnts.put(clazzName, Integer.MAX_VALUE);
         }
-        
-        if (wroteRecords.add(clazz.getSimpleName() + ":" + id) == true) {
+
+        if (wroteRecords.add(clazzName + ":" + id) == true) {
             wroteClazzCnts.put(clazzName, cnt + 1);
         }
     }

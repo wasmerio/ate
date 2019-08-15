@@ -316,6 +316,14 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
         return ret;
     }
 
+    public @ClassName String getPayloadClazzShortOrThrow() {
+        String clazzName = getPayloadClazzOrThrow();
+        if (clazzName.contains(".")) {
+            return clazzName.substring(clazzName.lastIndexOf(".") + 1);
+        }
+        return clazzName;
+    }
+
     public void setPayloadClazz(@ClassName String payloadClazz) {
         assert this._immutable == false;
         copyOnWrite();

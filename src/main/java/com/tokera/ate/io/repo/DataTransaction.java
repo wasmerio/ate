@@ -344,7 +344,7 @@ public class DataTransaction {
         return MapTools.getOrNull(context.savedPublicKeys, hash);
     }
 
-    Map<UUID, MessageDataDto> getSavedDataMap(IPartitionKey partitionKey) {
+    public Map<UUID, MessageDataDto> getSavedDataMap(IPartitionKey partitionKey) {
         return getPartitionMergeContext(partitionKey, true).savedDatas;
     }
 

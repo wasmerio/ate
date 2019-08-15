@@ -1,6 +1,7 @@
 package com.tokera.ate.io.layers;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -42,10 +43,6 @@ final public class AccessLogIO implements IAteIO {
         logger.recordRead(id, clazz);
     }
 
-    final protected void onWrote(UUID id, Class<?> clazz) {
-        logger.recordWrote(id, clazz);
-    }
-
     @Override
     public @Nullable MessageDataHeaderDto readRootOfTrust(PUUID id) {
         return next.readRootOfTrust(id);
@@ -78,6 +75,14 @@ final public class AccessLogIO implements IAteIO {
     @Override
     public void send(DataTransaction transaction, boolean validate) {
         next.send(transaction, validate);
+
+        for (IPartitionKey key : transaction.allKeys()) {
+            Map<UUID, MessageDataDto> datas = transaction.getSavedDataMap(key);
+            for (Map.Entry<UUID, MessageDataDto> pair : datas.entrySet()) {
+                MessageDataHeaderDto header = pair.getValue().getHeader();
+                logger.recordWrote(pair.getKey(), header.getPayloadClazzShortOrThrow());
+            }
+        }
     }
 
     @Override
