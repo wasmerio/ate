@@ -183,15 +183,16 @@ public class DataRepository implements IAteIO {
         return sb.toString();
     }
 
-    void validateTrustPublicKeys(DataTransaction trans, BaseDao entity, Collection<String> publicKeys) {
+    void validateTrustPublicKeys(DataTransaction trans, BaseDao entity, Map<String, String> publicKeys) {
         IPartitionKey partitionKey = entity.partitionKey(true);
-        for (String hash : publicKeys) {
+        for (Map.Entry<String, String> pair : publicKeys.entrySet()) {
+            String hash = pair.getValue();
             if (hash == null) {
-                throw new RuntimeException("Unable to save [" + entity + "] in [" + entity.partitionKey(false) + "] as this object has null public key(s) in one of the role lists.\n" + knownPublicKeys(trans, partitionKey));
+                throw new RuntimeException("Unable to save [" + entity + "] in [" + entity.partitionKey(false) + "] as this object has null public key(s) (alias=" + pair.getKey() + ") in one of the role lists.\n" + knownPublicKeys(trans, partitionKey));
             }
             if (this.publicKeyOrNull(trans, partitionKey, hash) == null)
             {
-                throw new RuntimeException("Unable to save [" + entity + "] in [" + entity.partitionKey(false) + "] as this object has public key(s) [" + hash + "] that have not yet been saved.\n" + knownPublicKeys(trans, partitionKey));
+                throw new RuntimeException("Unable to save [" + entity + "] in [" + entity.partitionKey(false) + "] as this object has public key(s) [" + hash + "] (alias=" + pair.getKey() + ") that have not yet been saved.\n" + knownPublicKeys(trans, partitionKey));
             }
         }
     }
@@ -199,8 +200,8 @@ public class DataRepository implements IAteIO {
     void validateTrustPublicKeys(DataTransaction trans, BaseDao entity) {
         if (entity instanceof IRoles) {
             IRoles roles = (IRoles) entity;
-            validateTrustPublicKeys(trans, entity, roles.getTrustAllowRead().values());
-            validateTrustPublicKeys(trans, entity, roles.getTrustAllowWrite().values());
+            validateTrustPublicKeys(trans, entity, roles.getTrustAllowRead());
+            validateTrustPublicKeys(trans, entity, roles.getTrustAllowWrite());
         }
     }
 
