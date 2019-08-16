@@ -23,7 +23,7 @@ public class RequestAccessLog {
     private final Set<String> wroteRecords = new HashSet<>();
     private AtomicInteger pauseStack = new AtomicInteger(0);
 
-    public static boolean blockPausing = false;
+    public static boolean enablePausing = false;
 
     private final int max_items_per_clazz = 10;
     
@@ -116,13 +116,13 @@ public class RequestAccessLog {
     }
     
     public void pause() {
-        if (blockPausing == false) {
+        if (enablePausing) {
             pauseStack.incrementAndGet();
         }
     }
     
     public void unpause() {
-        if (blockPausing == false) {
+        if (enablePausing) {
             pauseStack.decrementAndGet();
         }
     }
