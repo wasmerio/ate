@@ -65,6 +65,8 @@ public class RawClient {
         return this.session;
     }
 
+    public void setSession(String val) { this.session = val; }
+
     public static ResteasyClient createResteasyClient() {
         ResteasyClient client = new ResteasyClientBuilder()
                 .register(new YamlProvider())

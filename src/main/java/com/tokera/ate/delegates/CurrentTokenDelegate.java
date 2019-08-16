@@ -51,17 +51,27 @@ public class CurrentTokenDelegate {
             ScopeContext<String> context = (ScopeContext<String>) d.beanManager.getContext(TokenScoped.class);
             this.tokenScopeContext = context;
             this.tokenScopeContextKey = context.enter(tokenHash);
+
+            boolean finished = false;
             this.withinTokenScope = true;
+            try {
+                TokenDto token = d.tokenSecurity.getToken();
+                if (token != null) {
+                    d.eventTokenScopeChanged.fire(new TokenScopeChangedEvent(token));
+                }
 
-            TokenDto token = d.tokenSecurity.getToken();
-            if (token != null) {
-                d.eventTokenScopeChanged.fire(new TokenScopeChangedEvent(token));
+                // Trigger the token scope entered flag
+                d.eventTokenChanged.fire(new TokenStateChangedEvent());
+                d.eventNewAccessRights.fire(new NewAccessRightsEvent());
+                d.eventRightsValidation.fire(new RightsValidationEvent());
+                finished = true;
             }
-
-            // Trigger the token scope entered flag
-            d.eventTokenChanged.fire(new TokenStateChangedEvent());
-            d.eventNewAccessRights.fire(new NewAccessRightsEvent());
-            d.eventRightsValidation.fire(new RightsValidationEvent());
+            finally
+            {
+                if (finished == false) {
+                    this.withinTokenScope = false;
+                }
+            }
         } finally {
             d.requestAccessLog.unpause();
         }
