@@ -74,8 +74,6 @@ public class BasicIntegrationTests {
         NewAccountDto newDetails = new NewAccountDto();
         newDetails.setEmail("test@mycompany.org");
 
-        session.setSession("sdjbabsdf");
-
         MyAccount ret = session.restPut("/acc/register", Entity.entity(newDetails, MediaType.APPLICATION_JSON_TYPE), MyAccount.class);
         this.session.appendToPrefixForFs(ret.id + "/");
         this.session.appendToPrefixForRest(ret.id + "/");
