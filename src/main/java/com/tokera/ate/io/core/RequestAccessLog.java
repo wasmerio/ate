@@ -7,6 +7,7 @@ import com.tokera.ate.units.Hash;
 
 import javax.enterprise.context.RequestScoped;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 /**
@@ -20,12 +21,12 @@ public class RequestAccessLog {
     private final Map<@ClassName String, Integer> wroteClazzCnts = new HashMap<>();
     private final Set<String> readRecords = new HashSet<>();
     private final Set<String> wroteRecords = new HashSet<>();
-    private boolean isPaused = false;
+    private AtomicInteger pauseStack = new AtomicInteger(0);
 
     private final int max_items_per_clazz = 10;
     
     public <T extends BaseDao> void recordRead(Class<T> clazz) {
-        if (isPaused == true) return;
+        if (pauseStack.get() > 0) return;
         String clazzName = clazz.getSimpleName();
         String clazzNameSep = clazzName + ":";
         
@@ -41,7 +42,7 @@ public class RequestAccessLog {
     }
 
     public <T extends BaseDao> void recordWrote(Class<T> clazz) {
-        if (isPaused == true) return;
+        if (pauseStack.get() > 0) return;
         String clazzName = clazz.getSimpleName();
         String clazzNameSep = clazzName + ":";
         
@@ -57,12 +58,12 @@ public class RequestAccessLog {
     }
 
     public void recordRead(@DaoId UUID id, Class<?> clazz) {
-        if (isPaused == true) return;
+        if (pauseStack.get() > 0) return;
         recordRead(id, clazz.getSimpleName());
     }
 
     public void recordRead(@DaoId UUID id, String clazzName) {
-        if (isPaused == true) return;
+        if (pauseStack.get() > 0) return;
         String clazzNameSep = clazzName + ":";
         
         Integer cnt = readClazzCnts.getOrDefault(clazzName, 0);
@@ -81,12 +82,12 @@ public class RequestAccessLog {
     }
 
     public void recordWrote(@DaoId UUID id, Class<?> clazz) {
-        if (isPaused == true) return;
+        if (pauseStack.get() > 0) return;
         recordWrote(id, clazz.getSimpleName());
     }
 
     public void recordWrote(@DaoId UUID id, String clazzName) {
-        if (isPaused == true) return;
+        if (pauseStack.get() > 0) return;
         String clazzNameSep = clazzName + ":";
 
         Integer cnt = wroteClazzCnts.getOrDefault(clazzName, 0);
@@ -113,10 +114,10 @@ public class RequestAccessLog {
     }
     
     public void pause() {
-        isPaused = true;
+        pauseStack.incrementAndGet();
     }
     
     public void unpause() {
-        isPaused = false;
+        pauseStack.decrementAndGet();
     }
 }

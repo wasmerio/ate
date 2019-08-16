@@ -361,16 +361,21 @@ public class CurrentTokenDelegate {
      */
     public void publishToken(TokenDto token)
     {
-        // Fire an event that notifies about the discovery of a Token
-        // (this event should be used by any beans in the TokenScope)
-        TokenDiscoveryEvent discovery = new TokenDiscoveryEvent(token);
-        d.eventTokenDiscovery.fire(discovery);
+        d.requestAccessLog.pause();
+        try {
+            // Fire an event that notifies about the discovery of a Token
+            // (this event should be used by any beans in the TokenScope)
+            TokenDiscoveryEvent discovery = new TokenDiscoveryEvent(token);
+            d.eventTokenDiscovery.fire(discovery);
 
-        // Trigger the token scope entered flag
-        d.eventTokenScopeChanged.fire(new TokenScopeChangedEvent(token));
-        d.eventTokenChanged.fire(new TokenStateChangedEvent());
-        d.eventNewAccessRights.fire(new NewAccessRightsEvent());
-        d.eventRightsValidation.fire(new RightsValidationEvent());
+            // Trigger the token scope entered flag
+            d.eventTokenScopeChanged.fire(new TokenScopeChangedEvent(token));
+            d.eventTokenChanged.fire(new TokenStateChangedEvent());
+            d.eventNewAccessRights.fire(new NewAccessRightsEvent());
+            d.eventRightsValidation.fire(new RightsValidationEvent());
+        } finally {
+            d.requestAccessLog.unpause();
+        }
     }
 
     public boolean isSkipValidation() {
