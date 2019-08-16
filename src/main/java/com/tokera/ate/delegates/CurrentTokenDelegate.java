@@ -45,21 +45,26 @@ public class CurrentTokenDelegate {
     @SuppressWarnings({"unchecked"})
     public void enterTokenScope(String tokenHash)
     {
-        // Create the requestContext object
-        ScopeContext<String> context = (ScopeContext<String>) d.beanManager.getContext(TokenScoped.class);
-        this.tokenScopeContext = context;
-        this.tokenScopeContextKey = context.enter(tokenHash);
-        this.withinTokenScope = true;
+        d.requestAccessLog.pause();
+        try {
+            // Create the requestContext object
+            ScopeContext<String> context = (ScopeContext<String>) d.beanManager.getContext(TokenScoped.class);
+            this.tokenScopeContext = context;
+            this.tokenScopeContextKey = context.enter(tokenHash);
+            this.withinTokenScope = true;
 
-        TokenDto token = d.tokenSecurity.getToken();
-        if (token != null) {
-            d.eventTokenScopeChanged.fire(new TokenScopeChangedEvent(token));
+            TokenDto token = d.tokenSecurity.getToken();
+            if (token != null) {
+                d.eventTokenScopeChanged.fire(new TokenScopeChangedEvent(token));
+            }
+
+            // Trigger the token scope entered flag
+            d.eventTokenChanged.fire(new TokenStateChangedEvent());
+            d.eventNewAccessRights.fire(new NewAccessRightsEvent());
+            d.eventRightsValidation.fire(new RightsValidationEvent());
+        } finally {
+            d.requestAccessLog.unpause();
         }
-        
-        // Trigger the token scope entered flag
-        d.eventTokenChanged.fire(new TokenStateChangedEvent());
-        d.eventNewAccessRights.fire(new NewAccessRightsEvent());
-        d.eventRightsValidation.fire(new RightsValidationEvent());
     }
 
     /**
