@@ -23,6 +23,8 @@ public class RequestAccessLog {
     private final Set<String> wroteRecords = new HashSet<>();
     private AtomicInteger pauseStack = new AtomicInteger(0);
 
+    public static boolean blockPausing = false;
+
     private final int max_items_per_clazz = 10;
     
     public <T extends BaseDao> void recordRead(Class<T> clazz) {
@@ -114,10 +116,14 @@ public class RequestAccessLog {
     }
     
     public void pause() {
-        pauseStack.incrementAndGet();
+        if (blockPausing == false) {
+            pauseStack.incrementAndGet();
+        }
     }
     
     public void unpause() {
-        pauseStack.decrementAndGet();
+        if (blockPausing == false) {
+            pauseStack.decrementAndGet();
+        }
     }
 }
