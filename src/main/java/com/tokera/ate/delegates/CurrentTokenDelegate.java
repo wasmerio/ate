@@ -33,8 +33,8 @@ public class CurrentTokenDelegate {
     private boolean                             skipValidation = false;
     private boolean                             withinTokenScope = false;
     private @Nullable ScopeContext<String>      tokenScopeContext = null;
+    private @Nullable String                    tokenScopeValue = null;
     private @Nullable String                    tokenScopeContextKey = null;
-    private @Nullable TokenDto                  initToken = null;
 
     public CurrentTokenDelegate() {
     }
@@ -43,14 +43,15 @@ public class CurrentTokenDelegate {
      * Enters the Token scope hased on a hash of the token itself
      */
     @SuppressWarnings({"unchecked"})
-    public void enterTokenScope(String tokenHash)
+    public void enterTokenScope(String token64)
     {
         d.requestAccessLog.pause();
         try {
             // Create the requestContext object
             ScopeContext<String> context = (ScopeContext<String>) d.beanManager.getContext(TokenScoped.class);
+            this.tokenScopeValue = token64;
             this.tokenScopeContext = context;
-            this.tokenScopeContextKey = context.enter(tokenHash);
+            this.tokenScopeContextKey = context.enter(token64);
 
             boolean finished = false;
             this.withinTokenScope = true;
@@ -99,6 +100,7 @@ public class CurrentTokenDelegate {
                 // Clear the values
                 this.tokenScopeContext = null;
                 this.tokenScopeContextKey = null;
+                this.tokenScopeValue = null;
 
             } catch (Throwable ex) {
                 if (ex instanceof RuntimeException) {
@@ -117,6 +119,13 @@ public class CurrentTokenDelegate {
     {
         validate();
     }
+
+    /**
+     * Gets the current token key
+     */
+    public String getTokenScopeValue() {
+        return this.tokenScopeValue;
+    }
     
     /**
      * Event that is triggered whenever a new Token is discovered (this event is fired before the TokenChanged event)
@@ -125,19 +134,18 @@ public class CurrentTokenDelegate {
     {
         // We only need to fire the event if the token has actually changed
         TokenDto token = discovery.getToken();
-        TokenDto oldToken = this.initToken;
-        if (oldToken != null && token.getHash().equals(oldToken.getHash())) {
+        String oldToken = this.tokenScopeValue;
+        if (oldToken != null && token.getBase64().equals(oldToken)) {
             return;
         }
-        this.initToken = token;
 
         // Set the token
         if (skipValidation) {
-            token.validated.set(true);
+            token.setValidated(true);
         }
 
         // Enter the token scope
-        this.enterTokenScope(token.getHash());
+        this.enterTokenScope(token.getBase64());
     }
 
     /**
@@ -169,13 +177,6 @@ public class CurrentTokenDelegate {
             return null;
         }
         return d.tokenSecurity.getToken();
-    }
-
-    /**
-     * Returns the initialization token or null if none was supplied
-     */
-    public @Nullable TokenDto getInitTokenOrNull() {
-        return this.initToken;
     }
 
     public void missingToken() {

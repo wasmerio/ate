@@ -1,5 +1,13 @@
 package com.tokera.ate.dto;
 
+import com.auth0.jwt.JWT;
+import com.auth0.jwt.JWTCreator;
+import com.auth0.jwt.JWTVerifier;
+import com.auth0.jwt.algorithms.Algorithm;
+import com.auth0.jwt.exceptions.JWTDecodeException;
+import com.auth0.jwt.exceptions.JWTVerificationException;
+import com.auth0.jwt.interfaces.Claim;
+import com.auth0.jwt.interfaces.DecodedJWT;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tokera.ate.annotations.YamlTag;
@@ -13,31 +21,21 @@ import com.tokera.ate.providers.PartitionKeySerializer;
 import com.tokera.ate.units.*;
 import org.apache.commons.codec.binary.Base64;
 import org.checkerframework.checker.nullness.qual.Nullable;
-import org.opensaml.saml2.core.Assertion;
+import org.joda.time.DateTime;
 import org.opensaml.saml2.core.Attribute;
 import org.opensaml.saml2.core.AttributeStatement;
-import org.opensaml.saml2.core.impl.AssertionUnmarshaller;
 import org.opensaml.xml.XMLObject;
-import org.opensaml.xml.io.UnmarshallingException;
-import org.opensaml.xml.parse.BasicParserPool;
-import org.opensaml.xml.parse.XMLParserException;
 import org.opensaml.xml.schema.XSString;
-import org.w3c.dom.Document;
 
 import javax.validation.constraints.NotNull;
-import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
-import javax.ws.rs.core.Response.Status;
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import javax.ws.rs.WebApplicationException;
+import javax.ws.rs.core.Response;
 
 /**
  * Represents an authentication and authorization token that has been signed by the issuer
@@ -50,12 +48,12 @@ public class TokenDto {
     @JsonProperty
     @NotNull
     @Size(min=1)
-    private @TextDocument String jwt;
+    private @TextDocument String base64;
     @JsonProperty
     @Nullable
     private ImmutalizableArrayList<ClaimDto> claimsCache = null;
     @JsonIgnore
-    public transient AtomicBoolean validated = new AtomicBoolean(false);
+    private transient AtomicBoolean validated = new AtomicBoolean(false);
 
     public static final String SECURITY_CLAIM_USERNAME = "usr";
     public static final String SECURITY_CLAIM_USER_ID = "uid";
@@ -73,18 +71,21 @@ public class TokenDto {
     public TokenDto() {
     }
 
-    public TokenDto(@TextDocument String jwt) {
-        this.jwt = jwt;
+    public TokenDto(@TextDocument String base64) {
+        this.base64 = base64;
     }
 
-    private static @Hash String computeTokenHash(@TextDocument String xmlToken) {
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] digestBytes = digest.digest(xmlToken.getBytes("UTF-8"));
-            return Base64.encodeBase64String(digestBytes);
-        } catch (NoSuchAlgorithmException | UnsupportedEncodingException ex) {
-            throw new WebApplicationException("Unable to generate the token hash.", ex);
-        }
+    public TokenDto(Map<@Alias String, List<String>> claims, int expiresMins) {
+        this.base64 = AteDelegate.get().authorization.createToken(claims, expiresMins);
+    }
+
+    /**
+     * Validates the token and throws an exception if its not validate
+     */
+    public void validate() {
+        if (this.validated.get() == true) return;
+        AteDelegate.get().authorization.validateToken(this.base64);
+        this.validated.set(true);
     }
 
     /**
@@ -117,27 +118,8 @@ public class TokenDto {
                 return ret;
             }
 
-            // Get the claims
-            ret = new ImmutalizableArrayList<>();
-            for (AttributeStatement statement : assertion.getAttributeStatements()) {
-                for (Attribute att : statement.getAttributes()) {
-                    if (att.getName().length() <= 0) {
-                        continue;
-                    }
+            ret = AteDelegate.get().authorization.extractTokenClaims(this.base64);
 
-                    for (XMLObject value : att.getAttributeValues()) {
-                        if (value instanceof XSString) {
-                            XSString valueStr = (XSString) value;
-                            ClaimDto claim = new ClaimDto(
-                                    att.getName(),
-                                    valueStr.getValue());
-                            ret.add(claim);
-                        }
-                    }
-                }
-            }
-
-            ret.immutalize();
             claimsCache = ret;
             return ret;
         }
@@ -237,7 +219,7 @@ public class TokenDto {
     /**
      * @return True if a particular claim exists that matches both the key and the value
      */
-    public boolean hasClaim(@Alias String key, @Claim String value) {
+    public boolean hasClaim(@Alias String key, String value) {
 
         for (ClaimDto claim : getClaims()) {
             if (claim.getKey().compareToIgnoreCase(key) != 0) {
@@ -249,5 +231,19 @@ public class TokenDto {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Returns a Base64 representation of the token
+     */
+    public String getBase64() {
+        return this.base64;
+    }
+
+    /**
+     * Sets the validated flag
+     */
+    public void setValidated(boolean val) {
+        this.validated.set(val);
     }
 }

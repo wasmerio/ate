@@ -13,11 +13,11 @@ import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import javax.enterprise.context.Dependent;
 
 /**
- * Represents a signing key with a seed that was used to generate it which makes it easier to share
+ * Represents a encrypt key with a seed that was used to generate it which makes it easier to share
  */
 @Dependent
-@YamlTag("dto.signing.key.with.seed")
-public class SigningKeyWithSeedDto {
+@YamlTag("dto.encrypt.key.with.seed")
+public class EncryptKeyWithSeedDto {
 
     @JsonProperty
     public MessagePrivateKeyDto key;
@@ -26,17 +26,17 @@ public class SigningKeyWithSeedDto {
 
     @SuppressWarnings("initialization.fields.uninitialized")
     @Deprecated
-    public SigningKeyWithSeedDto() {
+    public EncryptKeyWithSeedDto() {
     }
 
-    public SigningKeyWithSeedDto(String seed, MessagePrivateKeyDto key) {
+    public EncryptKeyWithSeedDto(String seed, MessagePrivateKeyDto key) {
         this.key = key;
         this.seed = seed;
     }
 
-    public SigningKeyWithSeedDto(String seed) {
+    public EncryptKeyWithSeedDto(String seed) {
         this.seed = seed;
-        this.key = AteDelegate.get().encryptor.genSignKeyFromSeed(seed);
+        this.key = AteDelegate.get().encryptor.genEncryptKeyFromSeed(seed);
     }
 
     public String publicHash() {

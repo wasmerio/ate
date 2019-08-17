@@ -8,7 +8,6 @@ package com.tokera.ate.dto;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.units.Alias;
-import com.tokera.ate.units.Claim;
 
 import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Pattern;
@@ -28,14 +27,14 @@ public class ClaimDto {
     @JsonProperty
     @NotNull
     @Size(min=1)
-    private @Claim String value;
+    private String value;
 
     @SuppressWarnings("initialization.fields.uninitialized")
     @Deprecated
     public ClaimDto() {
     }
 
-    public ClaimDto(@Alias String key, @Claim String val) {
+    public ClaimDto(@Alias String key, String val) {
         this.key = key;
         this.value = val;
     }
@@ -48,11 +47,11 @@ public class ClaimDto {
         this.key = value;
     }
 
-    public @Claim String getValue() {
+    public String getValue() {
         return this.value;
     }
 
-    public void setValue(@Claim String value) {
+    public void setValue(String value) {
         this.value = value;
     }
 }

@@ -36,6 +36,7 @@ public class BootstrapConfig {
     private String propertiesFileAte = "ate.properties";
     private String propertiesFileLog4j = "log4j.properties";
     private String propertiesFileKafka = "kafka.properties";
+    private String propertiesFileToken = "token.properties";
     private String propertiesFileZooKeeper = "zookeeper.properties";
     private String propertiesFileConsumer = "consumer.properties";
     private String propertiesFileProducer = "producer.properties";
@@ -289,6 +290,10 @@ public class BootstrapConfig {
         return props;
     }
 
+    public Properties propertiesForToken() {
+        return getPropertiesFile(this.getPropertiesFileToken(), "Token");
+    }
+
     public static String propertyOrThrow(Properties props, String name) {
         AteDelegate d = AteDelegate.get();
         if (props == d.bootstrapConfig.propertiesForAte()) {
@@ -514,5 +519,13 @@ public class BootstrapConfig {
 
     public void setSubscriberMaxPartitions(int subscriberMaxPartitions) {
         this.subscriberMaxPartitions = subscriberMaxPartitions;
+    }
+
+    public String getPropertiesFileToken() {
+        return propertiesFileToken;
+    }
+
+    public void setPropertiesFileToken(String propertiesFileToken) {
+        this.propertiesFileToken = propertiesFileToken;
     }
 }

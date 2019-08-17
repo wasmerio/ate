@@ -7,6 +7,7 @@ import com.tokera.ate.client.RawClient;
 import com.tokera.ate.client.RawClientBuilder;
 import com.tokera.ate.client.TestTools;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.dto.SigningKeyWithSeedDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.enumerations.DefaultStorageSystem;
 import com.tokera.ate.test.dao.MyAccount;
@@ -54,11 +55,9 @@ public class BasicIntegrationTests {
     @Order(10)
     public void getAdminKey() {
         AteDelegate d = AteDelegate.get();
-        MessagePrivateKeyDto key = d.encryptor.genSignKey(512);
+        SigningKeyWithSeedDto key = d.encryptor.genSignKeyAndSeed();
 
-        String keyPem = d.encryptor.serializePublicKey64(key);
-        if (keyPem == null) throw new WebApplicationException("Failed to generate private key for domain");
-        d.implicitSecurity.getEnquireTxtOverride().put("tokauth.mycompany.org", keyPem);
+        d.implicitSecurity.getEnquireTxtOverride().put("tokauth.mycompany.org", key.publicHash());
 
         this.session = new RawClientBuilder()
                 .server("127.0.0.1")

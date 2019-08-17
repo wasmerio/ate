@@ -25,6 +25,10 @@ public class KeysPreLoadConfig {
     @JsonProperty
     public final ArrayList<SigningKeyWithSeedDto> signAndSeed256 = new ArrayList<>();
     @JsonProperty
+    public final ArrayList<EncryptKeyWithSeedDto> encryptAndSeed128 = new ArrayList<>();
+    @JsonProperty
+    public final ArrayList<EncryptKeyWithSeedDto> encryptAndSeed256 = new ArrayList<>();
+    @JsonProperty
     public final ArrayList<MessagePrivateKeyDto> encrypt128 = new ArrayList<>();
     @JsonProperty
     public final ArrayList<MessagePrivateKeyDto> encrypt256 = new ArrayList<>();

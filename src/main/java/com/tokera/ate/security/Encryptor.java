@@ -7,6 +7,7 @@ import com.tokera.ate.BootstrapConfig;
 import com.tokera.ate.dao.enumerations.KeyType;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.delegates.ResourceFileDelegate;
+import com.tokera.ate.dto.EncryptKeyWithSeedDto;
 import com.tokera.ate.dto.KeysPreLoadConfig;
 import com.tokera.ate.dto.SigningKeyWithSeedDto;
 import com.tokera.ate.dto.msg.MessageKeyPartDto;
@@ -134,6 +135,8 @@ public class Encryptor implements Runnable
     private final ConcurrentLinkedQueue<SigningKeyWithSeedDto> genSignAndSeed64Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<SigningKeyWithSeedDto> genSignAndSeed128Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<SigningKeyWithSeedDto> genSignAndSeed256Queue = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<EncryptKeyWithSeedDto> genEncryptAndSeed128Queue = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<EncryptKeyWithSeedDto> genEncryptAndSeed256Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<MessagePrivateKeyDto> genEncrypt128Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<MessagePrivateKeyDto> genEncrypt256Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<@Secret String> genAes128Queue = new ConcurrentLinkedQueue<>();
@@ -321,6 +324,8 @@ public class Encryptor implements Runnable
         int cntSignAndSeed64 = genSignAndSeed64Queue.size();
         int cntSignAndSeed128 = genSignAndSeed128Queue.size();
         int cntSignAndSeed256 = genSignAndSeed256Queue.size();
+        int cntEncryptAndSeed128 = genEncryptAndSeed128Queue.size();
+        int cntEncryptAndSeed256 = genEncryptAndSeed256Queue.size();
         int cntEncrypt128 = genEncrypt128Queue.size();
         int cntEncrypt256 = genEncrypt256Queue.size();
         int cntAes128 = genAes128Queue.size();
@@ -359,6 +364,16 @@ public class Encryptor implements Runnable
             if (cntSignAndSeed256 < c_KeyPreGen256 && cntSign256 < cap) {
                 genSignAndSeed256Queue.add(this.genSignKeyAndSeedNow(256, config.getDefaultSigningTypes()));
                 cntSignAndSeed256++;
+                didGen = true;
+            }
+            if (cntEncryptAndSeed128 < c_KeyPreGen128 && cntEncrypt128 < cap) {
+                genEncryptAndSeed128Queue.add(this.genEncryptKeyAndSeedNow(128, config.getDefaultEncryptTypes()));
+                cntEncryptAndSeed128++;
+                didGen = true;
+            }
+            if (cntEncryptAndSeed256 < c_KeyPreGen256 && cntEncrypt256 < cap) {
+                genEncryptAndSeed256Queue.add(this.genEncryptKeyAndSeedNow(256, config.getDefaultEncryptTypes()));
+                cntEncryptAndSeed256++;
                 didGen = true;
             }
             if (cntEncrypt128 < c_KeyPreGen128 && cntEncrypt128 < cap) {
@@ -697,6 +712,65 @@ public class Encryptor implements Runnable
             } catch (KeyGenerationException ex) {
                 if (n >= attempts) {
                     throw new KeyGenerationException("Failed to signing keys with random seeds after " + n + " attempts -" + ex.getMessage() + ".", ex);
+                }
+            }
+        }
+    }
+
+    public EncryptKeyWithSeedDto genEncryptKeyAndSeed() {
+        return genEncryptKeyAndSeed(config.getDefaultEncryptionStrength(), config.getDefaultEncryptTypes(), null);
+    }
+
+    public EncryptKeyWithSeedDto genEncryptKeyAndSeed(int keysize, Iterable<KeyType> keyTypes, @Nullable @Alias String alias) {
+        if (keysize == 128) {
+            EncryptKeyWithSeedDto ret = this.genEncryptAndSeed128Queue.poll();
+            this.moreKeys();
+            if (ret != null) {
+                if (alias != null) ret.key.setAlias(alias);
+                return ret;
+            }
+        }
+        if (keysize == 256) {
+            EncryptKeyWithSeedDto ret = this.genEncryptAndSeed256Queue.poll();
+            if (ret != null) {
+                if (alias != null) ret.key.setAlias(alias);
+                return ret;
+            }
+        }
+
+        return genEncryptKeyAndSeedNow(keysize, keyTypes, retryAttempts, alias);
+    }
+
+    public EncryptKeyWithSeedDto genEncryptKeyAndSeedNow() {
+        return genEncryptKeyAndSeedNow(config.getDefaultEncryptionStrength(), config.getDefaultEncryptTypes(), retryAttempts, null);
+    }
+
+    public EncryptKeyWithSeedDto genEncryptKeyAndSeedNow(@Nullable @Alias String alias) {
+        return genEncryptKeyAndSeedNow(config.getDefaultEncryptionStrength(), config.getDefaultEncryptTypes(), retryAttempts, alias);
+    }
+
+    public EncryptKeyWithSeedDto genEncryptKeyAndSeedNow(int keysize, int attempts, @Nullable @Alias String alias) {
+        return genEncryptKeyAndSeedNow(keysize, config.getDefaultEncryptTypes(), attempts, alias);
+    }
+
+    public EncryptKeyWithSeedDto genEncryptKeyAndSeedNow(Iterable<KeyType> keyTypes, @Nullable @Alias String alias) {
+        return genEncryptKeyAndSeedNow(config.getDefaultEncryptionStrength(), keyTypes, retryAttempts, alias);
+    }
+
+    public EncryptKeyWithSeedDto genEncryptKeyAndSeedNow(int keysize, Iterable<KeyType> keyTypes) {
+        return genEncryptKeyAndSeedNow(keysize, keyTypes, retryAttempts, null);
+    }
+
+    public EncryptKeyWithSeedDto genEncryptKeyAndSeedNow(int keysize, Iterable<KeyType> keyTypes, int attempts, @Nullable @Alias String alias) {
+        for (int n = 1; ; n++) {
+            try {
+                String seed = this.generateSecret64(256);
+                MessagePrivateKeyDto key = this.genEncryptKeyFromSeed(keysize, keyTypes, seed);
+                if (alias != null) key.setAlias(alias);
+                return new EncryptKeyWithSeedDto(seed, key);
+            } catch (KeyGenerationException ex) {
+                if (n >= attempts) {
+                    throw new KeyGenerationException("Failed to generate encryption keys with random seeds after " + n + " attempts -" + ex.getMessage() + ".", ex);
                 }
             }
         }
@@ -1996,6 +2070,8 @@ public class Encryptor implements Runnable
         this.genSignAndSeed64Queue.addAll(config.signAndSeed64);
         this.genSignAndSeed128Queue.addAll(config.signAndSeed128);
         this.genSignAndSeed256Queue.addAll(config.signAndSeed256);
+        this.genEncryptAndSeed128Queue.addAll(config.encryptAndSeed128);
+        this.genEncryptAndSeed256Queue.addAll(config.encryptAndSeed256);
         this.genEncrypt128Queue.addAll(config.encrypt128);
         this.genEncrypt256Queue.addAll(config.encrypt256);
         this.genAes128Queue.addAll(config.aes128);

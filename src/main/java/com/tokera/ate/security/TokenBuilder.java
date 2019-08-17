@@ -7,6 +7,8 @@ import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.enumerations.RiskRole;
 import com.tokera.ate.dao.enumerations.UserRole;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.dto.EncryptKeyWithSeedDto;
+import com.tokera.ate.dto.SigningKeyWithSeedDto;
 import com.tokera.ate.dto.TokenDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.io.api.IPartitionKey;
@@ -22,11 +24,7 @@ public class TokenBuilder {
     @Nullable
     private String company;
     @Nullable
-    private String reference;
-    @Nullable
     private String username;
-    @Nullable
-    private String nameQualifier;
     private final Map<String, List<String>> claims = new TreeMap<>();
     private int expiresMins = 0;
     private boolean partitionKeySet = false;
@@ -37,23 +35,8 @@ public class TokenBuilder {
     public TokenBuilder() {
     }
 
-    public TokenBuilder withCompanyName(String companyName) {
-        this.company = companyName;
-        return this;
-    }
-
-    public TokenBuilder withReference(String reference) {
-        this.reference = reference;
-        return this;
-    }
-
     public TokenBuilder withUsername(String username) {
         this.username = username;
-        return this;
-    }
-
-    public TokenBuilder withNameQualifier(String nameQualifier) {
-        this.nameQualifier = nameQualifier;
         return this;
     }
 
@@ -124,35 +107,25 @@ public class TokenBuilder {
         return this;
     }
 
-    public TokenBuilder addReadKey(MessagePrivateKeyDto key) {
-        AteDelegate d = AteDelegate.get();
-        TokenSecurity.addClaim(this.claims, TokenDto.SECURITY_CLAIM_READ_KEY, d.yaml.serializeObj(key));
+    public TokenBuilder addReadKey(EncryptKeyWithSeedDto key) {
+        TokenSecurity.addClaim(this.claims, TokenDto.SECURITY_CLAIM_READ_KEY, key.seed);
         return this;
     }
 
-    public TokenBuilder addReadKey(MessagePrivateKeyDto key, String alias) {
-        return addReadKey(new MessagePrivateKeyDto(key, alias));
-    }
-
-    public TokenBuilder addReadKeys(Iterable<MessagePrivateKeyDto> keys) {
-        for (MessagePrivateKeyDto key : keys) {
+    public TokenBuilder addReadKeys(Iterable<EncryptKeyWithSeedDto> keys) {
+        for (EncryptKeyWithSeedDto key : keys) {
             addReadKey(key);
         }
         return this;
     }
 
-    public TokenBuilder addWriteKey(MessagePrivateKeyDto key) {
-        AteDelegate d = AteDelegate.get();
-        TokenSecurity.addClaim(this.claims, TokenDto.SECURITY_CLAIM_WRITE_KEY, d.yaml.serializeObj(key));
+    public TokenBuilder addWriteKey(SigningKeyWithSeedDto key) {
+        TokenSecurity.addClaim(this.claims, TokenDto.SECURITY_CLAIM_WRITE_KEY, key.seed);
         return this;
     }
 
-    public TokenBuilder addWriteKey(MessagePrivateKeyDto key, String alias) {
-        return addWriteKey(new MessagePrivateKeyDto(key, alias));
-    }
-
-    public TokenBuilder addWriteKeys(Iterable<MessagePrivateKeyDto> keys) {
-        for (MessagePrivateKeyDto key : keys) {
+    public TokenBuilder addWriteKeys(Iterable<SigningKeyWithSeedDto> keys) {
+        for (SigningKeyWithSeedDto key : keys) {
             addWriteKey(key);
         }
         return this;
@@ -190,15 +163,7 @@ public class TokenBuilder {
 
         reconcileClaims();
 
-        String domain = StringTools.getDomainOrNull(username);
-        if (this.reference == null) this.reference = domain;
-        if (this.nameQualifier == null) this.nameQualifier = domain;
-
         TokenDto ret = TokenSecurity.generateToken(
-                this.company,
-                this.reference,
-                this.username,
-                this.nameQualifier,
                 this.claims,
                 this.expiresMins);
 
