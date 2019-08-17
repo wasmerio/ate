@@ -1,5 +1,6 @@
 package com.tokera.ate.io.core;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.tokera.ate.enumerations.DataPartitionType;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.api.IPartitionKeyMapper;
@@ -17,6 +18,8 @@ import java.util.UUID;
 public class DefaultPartitionKeyMapper implements IPartitionKeyMapper {
     public class Murmur2BasedPartitioningStrategy implements IPartitionKey {
         private final int hash;
+        @JsonIgnore
+        private transient String base64;
 
         public Murmur2BasedPartitioningStrategy(UUID id) {
             ByteBuffer bb = ByteBuffer.wrap(new byte[16]);
@@ -55,6 +58,13 @@ public class DefaultPartitionKeyMapper implements IPartitionKeyMapper {
         @Override
         public boolean equals(Object val) {
             return PartitionKeySerializer.equals(this, val);
+        }
+
+        @Override
+        public String asBase64() {
+            if (base64 != null) return base64;
+            base64 = PartitionKeySerializer.serialize(this);
+            return base64;
         }
     }
 

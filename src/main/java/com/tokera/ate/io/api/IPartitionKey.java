@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.tokera.ate.enumerations.DataPartitionType;
 import com.tokera.ate.providers.PartitionKeyJsonDeserializer;
 import com.tokera.ate.providers.PartitionKeyJsonSerializer;
+import com.tokera.ate.providers.PartitionKeySerializer;
 
 /**
  * Represents a partition within the distributed commit log
@@ -27,4 +28,11 @@ public interface IPartitionKey {
      * @return Type of partition that should be created
      */
     DataPartitionType partitionType();
+
+    /**
+     * @return Returns this partition key as a Base64 version
+     */
+    default String asBase64() {
+        return PartitionKeySerializer.serialize(this);
+    }
 }

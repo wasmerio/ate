@@ -1,5 +1,6 @@
 package com.tokera.ate.test.serializer;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.delegates.YamlDelegate;
 import com.tokera.ate.enumerations.DataPartitionType;
@@ -24,6 +25,8 @@ public class PuuidSerializerTests {
     public class FakePartitionKey implements IPartitionKey {
         private String partitionTopic;
         private int partitionIndex;
+        @JsonIgnore
+        private transient String base64;
 
         public FakePartitionKey(String partitionTopic, int partitionIndex) {
             this.partitionTopic = partitionTopic;
@@ -56,6 +59,13 @@ public class PuuidSerializerTests {
         @Override
         public boolean equals(Object val) {
             return PartitionKeySerializer.equals(this, val);
+        }
+
+        @Override
+        public String asBase64() {
+            if (base64 != null) return base64;
+            base64 = PartitionKeySerializer.serialize(this);
+            return base64;
         }
     }
 

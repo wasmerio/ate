@@ -22,6 +22,8 @@ public class Coin extends BaseDaoRoles implements IPartitionKeyProvider {
     public String type;
     public BigDecimal value;
     public ImmutalizableArrayList<UUID> shares = new ImmutalizableArrayList<UUID>();
+    @JsonIgnore
+    private transient String base64;
 
     @SuppressWarnings("initialization.fields.uninitialized")
     @Deprecated
@@ -45,5 +47,12 @@ public class Coin extends BaseDaoRoles implements IPartitionKeyProvider {
     @Override
     public IPartitionKey partitionKey(boolean shouldThrow) {
         return new CoinPartitionKey();
+    }
+
+    @Override
+    public String asBase64() {
+        if (base64 != null) return base64;
+        base64 = PartitionKeySerializer.serialize(this);
+        return base64;
     }
 }

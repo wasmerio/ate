@@ -11,6 +11,7 @@ import com.esotericsoftware.kryo.io.Input;
 import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.yamlbeans.YamlException;
 import com.esotericsoftware.yamlbeans.scalar.ScalarSerializer;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -53,6 +54,8 @@ public class PartitionKeySerializer extends Serializer<IPartitionKey> implements
         private final String m_partitionTopic;
         private final int m_partitionIndex;
         private final DataPartitionType m_partitionType;
+        @JsonIgnore
+        private transient String m_base64;
 
         public PartitionKeyValue(String topic, int index, DataPartitionType type) {
             this.m_partitionTopic = topic;
@@ -72,6 +75,13 @@ public class PartitionKeySerializer extends Serializer<IPartitionKey> implements
 
         @Override
         public DataPartitionType partitionType() { return m_partitionType; }
+
+        @Override
+        public String asBase64() {
+            if (m_base64 != null) return m_base64;
+            m_base64 = PartitionKeySerializer.serialize(this);
+            return m_base64;
+        }
 
         @Override
         public String toString() {
@@ -104,7 +114,7 @@ public class PartitionKeySerializer extends Serializer<IPartitionKey> implements
     @Override
     public @Nullable String write(@Nullable IPartitionKey t) {
         if (t == null) return "null";
-        return PartitionKeySerializer.serialize(t);
+        return t.asBase64();
     }
 
     @SuppressWarnings("override.return.invalid")
@@ -162,8 +172,7 @@ public class PartitionKeySerializer extends Serializer<IPartitionKey> implements
     }
 
     public static int hashCode(IPartitionKey key) {
-        String val = serialize(key);
-        return val.hashCode();
+        return key.asBase64().hashCode();
     }
 
     public static boolean equals(@Nullable IPartitionKey left, @Nullable Object rightObj) {
@@ -172,8 +181,8 @@ public class PartitionKeySerializer extends Serializer<IPartitionKey> implements
         if (rightObj == null) return false;
         if (rightObj instanceof IPartitionKey) {
             IPartitionKey right = (IPartitionKey)rightObj;
-            String leftVal = serialize(left);
-            String rightVal = serialize(right);
+            String leftVal = left.asBase64();
+            String rightVal = right.asBase64();
             return leftVal.equals(rightVal);
         } else {
             return false;
@@ -184,8 +193,8 @@ public class PartitionKeySerializer extends Serializer<IPartitionKey> implements
         if (left == null && right == null) return -1;
         if (left == null) return -1;
         if (right == null) return 1;
-        String leftVal = serialize(left);
-        String rightVal = serialize(right);
+        String leftVal = left.asBase64();
+        String rightVal = right.asBase64();
         return leftVal.compareTo(rightVal);
     }
 

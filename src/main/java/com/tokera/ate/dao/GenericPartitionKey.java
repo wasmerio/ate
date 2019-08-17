@@ -1,5 +1,6 @@
 package com.tokera.ate.dao;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.enumerations.DataPartitionType;
 import com.tokera.ate.io.api.IPartitionKey;
@@ -16,6 +17,8 @@ public class GenericPartitionKey implements IPartitionKey, Serializable {
     private final String topic;
     private final int partition;
     private final DataPartitionType type;
+    @JsonIgnore
+    private transient String base64;
 
     public GenericPartitionKey(String topic, int partition, DataPartitionType type) {
         this.topic = topic;
@@ -55,5 +58,12 @@ public class GenericPartitionKey implements IPartitionKey, Serializable {
     @Override
     public boolean equals(Object val) {
         return PartitionKeySerializer.equals(this, val);
+    }
+
+    @Override
+    public String asBase64() {
+        if (base64 != null) return base64;
+        base64 = PartitionKeySerializer.serialize(this);
+        return base64;
     }
 }

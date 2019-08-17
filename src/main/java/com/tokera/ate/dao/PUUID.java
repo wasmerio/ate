@@ -1,5 +1,6 @@
 package com.tokera.ate.dao;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.tokera.ate.annotations.YamlTag;
@@ -63,6 +64,8 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
         private final String partitionTopic;
         private final int partitionIndex;
         private final DataPartitionType partitionType;
+        @JsonIgnore
+        private transient String base64;
 
         public Partition(String partitionTopic, int partitionIndex, DataPartitionType partitionType) {
             this.partitionTopic = partitionTopic;
@@ -98,6 +101,13 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
             Object val = _val;
             if (val == null) return false;
             return PartitionKeySerializer.equals(this, val);
+        }
+
+        @Override
+        public String asBase64() {
+            if (base64 != null) return base64;
+            base64 = PartitionKeySerializer.serialize(this);
+            return base64;
         }
     }
 

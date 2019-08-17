@@ -50,43 +50,31 @@ public class TokenDto {
     @JsonProperty
     @NotNull
     @Size(min=1)
-    private @TextDocument String xmlToken;
-    @JsonProperty
-    @Nullable
-    @Size(min=43, max=43)
-    @Pattern(regexp = "^(?:[A-Za-z0-9+\\/\\-_])*(?:[A-Za-z0-9+\\/\\-_]{2}==|[A-Za-z0-9+\\/\\-_]{3}=)?$")
-    private @Hash String tokenHash;
+    private @TextDocument String jwt;
     @JsonProperty
     @Nullable
     private ImmutalizableArrayList<ClaimDto> claimsCache = null;
     @JsonIgnore
     public transient AtomicBoolean validated = new AtomicBoolean(false);
 
-    public static final String SECURITY_CLAIM_USERNAME = "claim://token/username";
-    public static final String SECURITY_CLAIM_USER_ID = "claim://token/user-id";
-    public static final String SECURITY_CLAIM_ACCOUNT_ID = "claim://token/account-id";
-    public static final String SECURITY_CLAIM_NODE_ID = "claim://token/node-id";
-    public static final String SECURITY_CLAIM_CLUSTER_ID = "claim://token/cluster-id";
-    public static final String SECURITY_CLAIM_RISK_ROLE = "claim://token/risk-role";
-    public static final String SECURITY_CLAIM_USER_ROLE = "claim://token/user-role";
-    public static final String SECURITY_CLAIM_READ_KEY = "claim://token/read-key";
-    public static final String SECURITY_CLAIM_WRITE_KEY = "claim://token/write-key";
-    public static final String SECURITY_CLAIM_PARTITION_KEY = "claim://token/partition-key";
+    public static final String SECURITY_CLAIM_USERNAME = "usr";
+    public static final String SECURITY_CLAIM_USER_ID = "uid";
+    public static final String SECURITY_CLAIM_ACCOUNT_ID = "aid";
+    public static final String SECURITY_CLAIM_NODE_ID = "nid";
+    public static final String SECURITY_CLAIM_CLUSTER_ID = "cid";
+    public static final String SECURITY_CLAIM_RISK_ROLE = "rsk";
+    public static final String SECURITY_CLAIM_USER_ROLE = "usr";
+    public static final String SECURITY_CLAIM_READ_KEY = "rd";
+    public static final String SECURITY_CLAIM_WRITE_KEY = "wrt";
+    public static final String SECURITY_CLAIM_PARTITION_KEY = "key";
 
     @SuppressWarnings("initialization.fields.uninitialized")
     @Deprecated
     public TokenDto() {
     }
 
-    public TokenDto(@TextDocument String xmlToken) {
-        this.xmlToken = xmlToken;
-    }
-
-    /**
-     * @return XML representation of the Token content
-     */
-    public @TextDocument String getXmlToken() {
-        return this.xmlToken;
+    public TokenDto(@TextDocument String jwt) {
+        this.jwt = jwt;
     }
 
     private static @Hash String computeTokenHash(@TextDocument String xmlToken) {
@@ -97,46 +85,6 @@ public class TokenDto {
         } catch (NoSuchAlgorithmException | UnsupportedEncodingException ex) {
             throw new WebApplicationException("Unable to generate the token hash.", ex);
         }
-    }
-
-    /**
-     * @return Hash of the Token which can be used as an caching index and/or as an authorization header in HTTP requests
-     */
-    public @Hash String getHash() {
-        @Hash String ret = tokenHash;
-        if (ret == null) {
-            synchronized (this) {
-                ret = tokenHash;
-                if (ret == null) {
-                    ret = computeTokenHash(this.xmlToken);
-                    tokenHash = ret;
-                }
-            }
-        }
-        return ret;
-    }
-
-    /**
-     * @return Gets the signing assertion from the XML body of the token or throws an exception if none exists
-     */
-    public Assertion getAssertion() {
-        // Convert the token to a assertion
-        Assertion assertion;
-        try {
-            // Get parser pool manager
-            BasicParserPool ppMgr = new BasicParserPool();
-            ppMgr.setNamespaceAware(true);
-
-            InputStream in = new ByteArrayInputStream(this.getXmlToken().getBytes());
-            Document inCommonMDDoc = ppMgr.parse(in);
-            AssertionUnmarshaller unmarshaller = new AssertionUnmarshaller();
-            assertion = (Assertion) unmarshaller.unmarshall(inCommonMDDoc.getDocumentElement());
-        } catch (UnmarshallingException | XMLParserException ex) {
-            throw new WebApplicationException("Client passed an invalid Token", Status.BAD_REQUEST);
-        }
-
-        // return the assertion
-        return assertion;
     }
 
     /**
@@ -168,9 +116,6 @@ public class TokenDto {
             if (ret != null) {
                 return ret;
             }
-
-            // Get the assertion
-            Assertion assertion = getAssertion();
 
             // Get the claims
             ret = new ImmutalizableArrayList<>();
