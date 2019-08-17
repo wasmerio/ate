@@ -7,6 +7,7 @@ package com.tokera.ate.dto.fs;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tokera.ate.annotations.YamlTag;
+import com.tokera.ate.enumerations.SymbolicLinkType;
 import com.tokera.ate.units.Alias;
 import com.tokera.ate.units.Filepath;
 
@@ -31,15 +32,19 @@ public class FsSymbolicDto {
     @NotNull
     @Pattern(regexp = "^[\\w,\\s-\\.\\/)]+$")
     private @Filepath String path;
+    @JsonProperty
+    @NotNull
+    private SymbolicLinkType type;
 
     @SuppressWarnings("initialization.fields.uninitialized")
     @Deprecated
     public FsSymbolicDto() {
     }
 
-    public FsSymbolicDto(@Alias String name, @Filepath String path) {
+    public FsSymbolicDto(@Alias String name, @Filepath String path, SymbolicLinkType type) {
         this.name = name;
         this.path = path;
+        this.type = type;
     }
 
     public @Alias String getName() {
@@ -58,5 +63,13 @@ public class FsSymbolicDto {
     public FsSymbolicDto setPath(@Filepath String value) {
         this.path = value;
         return this;
+    }
+
+    public SymbolicLinkType getType() {
+        return type;
+    }
+
+    public void setType(SymbolicLinkType type) {
+        this.type = type;
     }
 }
