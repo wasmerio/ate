@@ -2,7 +2,7 @@ package com.tokera.ate.test.dao;
 
 import com.tokera.ate.common.UUIDTools;
 import com.tokera.ate.delegates.AteDelegate;
-import com.tokera.ate.dto.SigningKeyWithSeedDto;
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.msg.MessageDataHeaderDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.events.PartitionSeedingEvent;
@@ -20,9 +20,9 @@ import java.util.UUID;
 @ApplicationScoped
 public class SeedingDelegate {
     private AteDelegate d = AteDelegate.get();
-    private @MonotonicNonNull SigningKeyWithSeedDto rootkey;
+    private @MonotonicNonNull PrivateKeyWithSeedDto rootkey;
 
-    public SigningKeyWithSeedDto getRootKey() {
+    public PrivateKeyWithSeedDto getRootKey() {
         assert rootkey != null : "@AssumeAssertion(nullness): Must not be null";
         return rootkey;
     }
@@ -37,7 +37,7 @@ public class SeedingDelegate {
 
         // Add the root key into the chain of trust
         assert rootkey != null : "@AssumeAssertion(nullness): Must not be null";
-        chain.addTrustKey(rootkey.key, d.genericLogger);
+        chain.addTrustKey(rootkey.key(), d.genericLogger);
 
         // Add a dummy record for the root account
         MessageDataHeaderDto header = new MessageDataHeaderDto(

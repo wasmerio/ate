@@ -7,7 +7,7 @@ import com.tokera.ate.client.RawClient;
 import com.tokera.ate.client.RawClientBuilder;
 import com.tokera.ate.client.TestTools;
 import com.tokera.ate.delegates.AteDelegate;
-import com.tokera.ate.dto.SigningKeyWithSeedDto;
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.enumerations.DefaultStorageSystem;
 import com.tokera.ate.test.dao.MyAccount;
@@ -57,11 +57,8 @@ public class BasicIntegrationTests {
     @Order(10)
     public void getAdminKey() {
         AteDelegate d = AteDelegate.get();
-        SigningKeyWithSeedDto key = CDI.current().select(SeedingDelegate.class).get().getRootKey();
-
-        SigningKeyWithSeedDto test = new SigningKeyWithSeedDto(key.seed, key.getAlias());
-        Assertions.assertEquals(key.seed, test.seed);
-        Assertions.assertEquals(key.key.getPublicKeyHash(), test.key.getPublicKeyHash());
+        PrivateKeyWithSeedDto key = CDI.current().select(SeedingDelegate.class).get().getRootKey();
+        String keyVal = key.serialize();
 
         d.implicitSecurity.addEnquireTxtOverride("tokauth.mycompany.org", key.publicHash());
 

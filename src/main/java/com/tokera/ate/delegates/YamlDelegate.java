@@ -10,6 +10,7 @@ import com.tokera.ate.annotations.YamlTags;
 import com.tokera.ate.dao.CountLong;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.RangeLong;
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.TokenDto;
 import com.tokera.ate.extensions.YamlTagDiscoveryExtension;
 import com.tokera.ate.io.api.IPartitionKey;
@@ -145,6 +146,7 @@ public class YamlDelegate {
         cfg.setScalarSerializer(java.util.UUID.class, new UuidSerializer());
         cfg.setScalarSerializer(PUUID.class, new PuuidSerializer());
         cfg.setScalarSerializer(TokenDto.class, new TokenSerializer());
+        cfg.setScalarSerializer(PrivateKeyWithSeedDto.class, new PrivateKeyWithSeedSerializer());
         cfg.setScalarSerializer(CountLong.class, new CountLongSerializer());
         cfg.setScalarSerializer(RangeLong.class, new RangeLongSerializer());
         cfg.setScalarSerializer(IPartitionKey.class, new PartitionKeySerializer());

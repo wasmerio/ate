@@ -7,7 +7,7 @@ import com.tokera.ate.common.UUIDTools;
 import com.tokera.ate.dao.enumerations.RiskRole;
 import com.tokera.ate.dao.enumerations.UserRole;
 import com.tokera.ate.delegates.AteDelegate;
-import com.tokera.ate.dto.SigningKeyWithSeedDto;
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.security.TokenBuilder;
 import com.tokera.ate.test.dao.MyAccount;
@@ -35,12 +35,12 @@ public class AccountREST {
     @Produces(MediaType.APPLICATION_XML)
     @Consumes({"text/yaml", MediaType.APPLICATION_JSON})
     @PermitAll
-    public String createAdminToken(@PathParam("username") String username, @Valid SigningKeyWithSeedDto key)
+    public String createAdminToken(@PathParam("username") String username, @Valid PrivateKeyWithSeedDto key)
     {
         // Set the alias in the key to be the username
         username = username + "@mycompany.org";
 
-        SigningKeyWithSeedDto anotherKey = d.encryptor.genSignKeyAndSeed();
+        PrivateKeyWithSeedDto anotherKey = d.encryptor.genSignKeyAndSeed();
         anotherKey.setAlias("useless-key@nowhere.com");
 
         return new TokenBuilder()

@@ -74,6 +74,7 @@ public class RawClient {
                 .register(new PartitionKeySerializer())
                 .register(new PuuidSerializer())
                 .register(new TokenSerializer())
+                .register(new PrivateKeyWithSeedSerializer())
                 .register(new CountLongSerializer())
                 .register(new RangeLongSerializer())
                 .build();

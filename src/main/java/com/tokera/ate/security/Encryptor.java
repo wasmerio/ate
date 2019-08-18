@@ -10,12 +10,12 @@ import com.tokera.ate.dao.msg.MessagePrivateKey;
 import com.tokera.ate.dao.msg.MessagePublicKey;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.delegates.ResourceFileDelegate;
-import com.tokera.ate.dto.EncryptKeyWithSeedDto;
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.KeysPreLoadConfig;
-import com.tokera.ate.dto.SigningKeyWithSeedDto;
 import com.tokera.ate.dto.msg.MessageKeyPartDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
+import com.tokera.ate.enumerations.PrivateKeyType;
 import com.tokera.ate.exceptions.KeyGenerationException;
 import com.tokera.ate.io.api.IAteIO;
 import com.tokera.ate.io.api.IPartitionKey;
@@ -113,11 +113,11 @@ public class Encryptor implements Runnable
     private final ConcurrentLinkedQueue<MessagePrivateKeyDto> genSign64Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<MessagePrivateKeyDto> genSign128Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<MessagePrivateKeyDto> genSign256Queue = new ConcurrentLinkedQueue<>();
-    private final ConcurrentLinkedQueue<SigningKeyWithSeedDto> genSignAndSeed64Queue = new ConcurrentLinkedQueue<>();
-    private final ConcurrentLinkedQueue<SigningKeyWithSeedDto> genSignAndSeed128Queue = new ConcurrentLinkedQueue<>();
-    private final ConcurrentLinkedQueue<SigningKeyWithSeedDto> genSignAndSeed256Queue = new ConcurrentLinkedQueue<>();
-    private final ConcurrentLinkedQueue<EncryptKeyWithSeedDto> genEncryptAndSeed128Queue = new ConcurrentLinkedQueue<>();
-    private final ConcurrentLinkedQueue<EncryptKeyWithSeedDto> genEncryptAndSeed256Queue = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<PrivateKeyWithSeedDto> genSignAndSeed64Queue = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<PrivateKeyWithSeedDto> genSignAndSeed128Queue = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<PrivateKeyWithSeedDto> genSignAndSeed256Queue = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<PrivateKeyWithSeedDto> genEncryptAndSeed128Queue = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<PrivateKeyWithSeedDto> genEncryptAndSeed256Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<MessagePrivateKeyDto> genEncrypt128Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<MessagePrivateKeyDto> genEncrypt256Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<@Secret String> genAes128Queue = new ConcurrentLinkedQueue<>();
@@ -632,30 +632,30 @@ public class Encryptor implements Runnable
         }
     }
 
-    public SigningKeyWithSeedDto genSignKeyAndSeed() {
-        return genSignKeyAndSeed(SigningKeyWithSeedDto.KEYSIZE, SigningKeyWithSeedDto.KEYTYPE, null);
+    public PrivateKeyWithSeedDto genSignKeyAndSeed() {
+        return genSignKeyAndSeed(d.bootstrapConfig.getDefaultSigningStrength(), d.bootstrapConfig.getDefaultSigningTypes(), null);
     }
 
-    public SigningKeyWithSeedDto genSignKeyAndSeed(int keysize, Iterable<KeyType> keyTypes, @Nullable @Alias String alias) {
+    public PrivateKeyWithSeedDto genSignKeyAndSeed(int keysize, List<KeyType> keyTypes, @Nullable @Alias String alias) {
         if (keysize == 64) {
-            SigningKeyWithSeedDto ret = this.genSignAndSeed64Queue.poll();
+            PrivateKeyWithSeedDto ret = this.genSignAndSeed64Queue.poll();
             if (ret != null) {
-                if (alias != null) ret.key.setAlias(alias);
+                if (alias != null) ret.setAlias(alias);
                 return ret;
             }
         }
         if (keysize == 128) {
-            SigningKeyWithSeedDto ret = this.genSignAndSeed128Queue.poll();
+            PrivateKeyWithSeedDto ret = this.genSignAndSeed128Queue.poll();
             this.moreKeys();
             if (ret != null) {
-                if (alias != null) ret.key.setAlias(alias);
+                if (alias != null) ret.setAlias(alias);
                 return ret;
             }
         }
         if (keysize == 256) {
-            SigningKeyWithSeedDto ret = this.genSignAndSeed256Queue.poll();
+            PrivateKeyWithSeedDto ret = this.genSignAndSeed256Queue.poll();
             if (ret != null) {
-                if (alias != null) ret.key.setAlias(alias);
+                if (alias != null) ret.setAlias(alias);
                 return ret;
             }
         }
@@ -663,33 +663,31 @@ public class Encryptor implements Runnable
         return genSignKeyAndSeedNow(keysize, keyTypes, retryAttempts, alias);
     }
 
-    public SigningKeyWithSeedDto genSignKeyAndSeedNow() {
-        return genSignKeyAndSeedNow(SigningKeyWithSeedDto.KEYSIZE, SigningKeyWithSeedDto.KEYTYPE, retryAttempts, null);
+    public PrivateKeyWithSeedDto genSignKeyAndSeedNow() {
+        return genSignKeyAndSeedNow(d.bootstrapConfig.getDefaultSigningStrength(), d.bootstrapConfig.getDefaultSigningTypes(), retryAttempts, null);
     }
 
-    public SigningKeyWithSeedDto genSignKeyAndSeedNow(@Nullable @Alias String alias) {
-        return genSignKeyAndSeedNow(SigningKeyWithSeedDto.KEYSIZE, SigningKeyWithSeedDto.KEYTYPE, retryAttempts, alias);
+    public PrivateKeyWithSeedDto genSignKeyAndSeedNow(@Nullable @Alias String alias) {
+        return genSignKeyAndSeedNow(d.bootstrapConfig.getDefaultSigningStrength(), d.bootstrapConfig.getDefaultSigningTypes(), retryAttempts, alias);
     }
 
-    public SigningKeyWithSeedDto genSignKeyAndSeedNow(int keysize, int attempts, @Nullable @Alias String alias) {
-        return genSignKeyAndSeedNow(keysize, SigningKeyWithSeedDto.KEYTYPE, attempts, alias);
+    public PrivateKeyWithSeedDto genSignKeyAndSeedNow(int keysize, int attempts, @Nullable @Alias String alias) {
+        return genSignKeyAndSeedNow(keysize, d.bootstrapConfig.getDefaultSigningTypes(), attempts, alias);
     }
 
-    public SigningKeyWithSeedDto genSignKeyAndSeedNow(Iterable<KeyType> keyTypes, @Nullable @Alias String alias) {
-        return genSignKeyAndSeedNow(SigningKeyWithSeedDto.KEYSIZE, keyTypes, retryAttempts, alias);
+    public PrivateKeyWithSeedDto genSignKeyAndSeedNow(List<KeyType> keyTypes, @Nullable @Alias String alias) {
+        return genSignKeyAndSeedNow(d.bootstrapConfig.getDefaultSigningStrength(), keyTypes, retryAttempts, alias);
     }
 
-    public SigningKeyWithSeedDto genSignKeyAndSeedNow(int keysize, Iterable<KeyType> keyTypes) {
-        return genSignKeyAndSeedNow(SigningKeyWithSeedDto.KEYSIZE, keyTypes, retryAttempts, null);
+    public PrivateKeyWithSeedDto genSignKeyAndSeedNow(int keysize, List<KeyType> keyTypes) {
+        return genSignKeyAndSeedNow(keysize, keyTypes, retryAttempts, null);
     }
 
-    public SigningKeyWithSeedDto genSignKeyAndSeedNow(int keysize, Iterable<KeyType> keyTypes, int attempts, @Nullable @Alias String alias) {
+    public PrivateKeyWithSeedDto genSignKeyAndSeedNow(int keysize, List<KeyType> keyTypes, int attempts, @Nullable @Alias String alias) {
         for (int n = 1; ; n++) {
             try {
-                String seed = this.generateSecret64(SigningKeyWithSeedDto.KEYSIZE);
-                MessagePrivateKeyDto key = this.genSignKeyFromSeed(keysize, keyTypes, seed);
-                if (alias != null) key.setAlias(alias);
-                return new SigningKeyWithSeedDto(key, seed);
+                String seed = this.generateSecret64(keysize);
+                return new PrivateKeyWithSeedDto(PrivateKeyType.write, seed, keysize, keyTypes, alias);
             } catch (KeyGenerationException ex) {
                 if (n >= attempts) {
                     throw new KeyGenerationException("Failed to signing keys with random seeds after " + n + " attempts -" + ex.getMessage() + ".", ex);
@@ -698,23 +696,23 @@ public class Encryptor implements Runnable
         }
     }
 
-    public EncryptKeyWithSeedDto genEncryptKeyAndSeed() {
-        return genEncryptKeyAndSeed(EncryptKeyWithSeedDto.KEYSIZE, EncryptKeyWithSeedDto.KEYTYPE, null);
+    public PrivateKeyWithSeedDto genEncryptKeyAndSeed() {
+        return genEncryptKeyAndSeed(d.bootstrapConfig.getDefaultEncryptionStrength(), d.bootstrapConfig.getDefaultEncryptTypes(), null);
     }
 
-    public EncryptKeyWithSeedDto genEncryptKeyAndSeed(int keysize, Iterable<KeyType> keyTypes, @Nullable @Alias String alias) {
+    public PrivateKeyWithSeedDto genEncryptKeyAndSeed(int keysize, List<KeyType> keyTypes, @Nullable @Alias String alias) {
         if (keysize == 128) {
-            EncryptKeyWithSeedDto ret = this.genEncryptAndSeed128Queue.poll();
+            PrivateKeyWithSeedDto ret = this.genEncryptAndSeed128Queue.poll();
             this.moreKeys();
             if (ret != null) {
-                if (alias != null) ret.key.setAlias(alias);
+                if (alias != null) ret.setAlias(alias);
                 return ret;
             }
         }
         if (keysize == 256) {
-            EncryptKeyWithSeedDto ret = this.genEncryptAndSeed256Queue.poll();
+            PrivateKeyWithSeedDto ret = this.genEncryptAndSeed256Queue.poll();
             if (ret != null) {
-                if (alias != null) ret.key.setAlias(alias);
+                if (alias != null) ret.setAlias(alias);
                 return ret;
             }
         }
@@ -722,33 +720,31 @@ public class Encryptor implements Runnable
         return genEncryptKeyAndSeedNow(keysize, keyTypes, retryAttempts, alias);
     }
 
-    public EncryptKeyWithSeedDto genEncryptKeyAndSeedNow() {
-        return genEncryptKeyAndSeedNow(EncryptKeyWithSeedDto.KEYSIZE, EncryptKeyWithSeedDto.KEYTYPE, retryAttempts, null);
+    public PrivateKeyWithSeedDto genEncryptKeyAndSeedNow() {
+        return genEncryptKeyAndSeedNow(d.bootstrapConfig.getDefaultEncryptionStrength(), d.bootstrapConfig.getDefaultSigningTypes(), retryAttempts, null);
     }
 
-    public EncryptKeyWithSeedDto genEncryptKeyAndSeedNow(@Nullable @Alias String alias) {
-        return genEncryptKeyAndSeedNow(EncryptKeyWithSeedDto.KEYSIZE, EncryptKeyWithSeedDto.KEYTYPE, retryAttempts, alias);
+    public PrivateKeyWithSeedDto genEncryptKeyAndSeedNow(@Nullable @Alias String alias) {
+        return genEncryptKeyAndSeedNow(d.bootstrapConfig.getDefaultEncryptionStrength(), d.bootstrapConfig.getDefaultEncryptTypes(), retryAttempts, alias);
     }
 
-    public EncryptKeyWithSeedDto genEncryptKeyAndSeedNow(int keysize, int attempts, @Nullable @Alias String alias) {
-        return genEncryptKeyAndSeedNow(keysize, EncryptKeyWithSeedDto.KEYTYPE, attempts, alias);
+    public PrivateKeyWithSeedDto genEncryptKeyAndSeedNow(int keysize, int attempts, @Nullable @Alias String alias) {
+        return genEncryptKeyAndSeedNow(keysize, d.bootstrapConfig.getDefaultEncryptTypes(), attempts, alias);
     }
 
-    public EncryptKeyWithSeedDto genEncryptKeyAndSeedNow(Iterable<KeyType> keyTypes, @Nullable @Alias String alias) {
-        return genEncryptKeyAndSeedNow(EncryptKeyWithSeedDto.KEYSIZE, keyTypes, retryAttempts, alias);
+    public PrivateKeyWithSeedDto genEncryptKeyAndSeedNow(List<KeyType> keyTypes, @Nullable @Alias String alias) {
+        return genEncryptKeyAndSeedNow(d.bootstrapConfig.getDefaultEncryptionStrength(), keyTypes, retryAttempts, alias);
     }
 
-    public EncryptKeyWithSeedDto genEncryptKeyAndSeedNow(int keysize, Iterable<KeyType> keyTypes) {
+    public PrivateKeyWithSeedDto genEncryptKeyAndSeedNow(int keysize, List<KeyType> keyTypes) {
         return genEncryptKeyAndSeedNow(keysize, keyTypes, retryAttempts, null);
     }
 
-    public EncryptKeyWithSeedDto genEncryptKeyAndSeedNow(int keysize, Iterable<KeyType> keyTypes, int attempts, @Nullable @Alias String alias) {
+    public PrivateKeyWithSeedDto genEncryptKeyAndSeedNow(int keysize, List<KeyType> keyTypes, int attempts, @Nullable @Alias String alias) {
         for (int n = 1; ; n++) {
             try {
-                String seed = this.generateSecret64(EncryptKeyWithSeedDto.KEYSIZE);
-                MessagePrivateKeyDto key = this.genEncryptKeyFromSeed(keysize, keyTypes, seed);
-                if (alias != null) key.setAlias(alias);
-                return new EncryptKeyWithSeedDto(key, seed);
+                String seed = this.generateSecret64(keysize);
+                return new PrivateKeyWithSeedDto(PrivateKeyType.read, seed, keysize, keyTypes, alias);
             } catch (KeyGenerationException ex) {
                 if (n >= attempts) {
                     throw new KeyGenerationException("Failed to generate encryption keys with random seeds after " + n + " attempts -" + ex.getMessage() + ".", ex);

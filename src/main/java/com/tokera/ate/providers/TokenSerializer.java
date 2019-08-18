@@ -47,7 +47,7 @@ import java.util.Properties;
 @Provider
 @Consumes("text/plain")
 @Produces("text/plain")
-public class TokenSerializer extends Serializer<TokenDto> implements ScalarSerializer<TokenDto>, MessageBodyReader<TokenDto>, MessageBodyWriter<TokenDto> {
+public class TokenSerializer implements ScalarSerializer<TokenDto>, MessageBodyReader<TokenDto>, MessageBodyWriter<TokenDto> {
     private AteDelegate d = AteDelegate.get();
 
     private String jwtSecret;
@@ -59,16 +59,6 @@ public class TokenSerializer extends Serializer<TokenDto> implements ScalarSeria
         this.jwtSecret = props.getOrDefault("secret", "anyone").toString();
         this.jwtEncrypt = Base64.decodeBase64(props.getOrDefault("encrypt", "VD5eE_z1crGougAuE-xubgJwACNzN4aF7h5VrltBsYw").toString());
         this.jwtIssuer = props.getOrDefault("issuer", "nobody").toString();
-    }
-
-    @Override
-    public void write(Kryo kryo, Output output, TokenDto object) {
-
-    }
-
-    @Override
-    public TokenDto read(Kryo kryo, Input input, Class<? extends TokenDto> type) {
-        return null;
     }
 
     public TokenDto createToken(Map<@Alias String, List<String>> claims, int expiresMins) {

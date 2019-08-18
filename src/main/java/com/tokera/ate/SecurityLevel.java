@@ -3,9 +3,11 @@ package com.tokera.ate;
 import com.google.common.collect.Lists;
 import com.tokera.ate.dao.enumerations.KeyType;
 
+import java.util.List;
+
 public class SecurityLevel {
-    public final Iterable<KeyType> signingTypes;
-    public final Iterable<KeyType> encryptTypes;
+    public final List<KeyType> signingTypes;
+    public final List<KeyType> encryptTypes;
     public final int aesStrength;
     public final int signingStrength;
     public final int encryptionStrength;
@@ -26,7 +28,7 @@ public class SecurityLevel {
         this.tokenExpiresMins = 5;
     }
 
-    public SecurityLevel(int aesStrength, int signingStrength, int encryptionStrength, boolean automaticKeyRotation, Iterable<KeyType> signingTypes, Iterable<KeyType> encryptTypes, boolean encryptToken, boolean signToken, int tokenExpiresMins) {
+    public SecurityLevel(int aesStrength, int signingStrength, int encryptionStrength, boolean automaticKeyRotation, List<KeyType> signingTypes, List<KeyType> encryptTypes, boolean encryptToken, boolean signToken, int tokenExpiresMins) {
         this.automaticKeyRotation = automaticKeyRotation;
         this.signingTypes = signingTypes;
         this.encryptTypes = encryptTypes;

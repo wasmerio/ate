@@ -4,8 +4,8 @@ import com.tokera.ate.common.ImmutalizableHashSet;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.ClaimDto;
-import com.tokera.ate.dto.EncryptKeyWithSeedDto;
-import com.tokera.ate.dto.SigningKeyWithSeedDto;
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.TokenDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.scopes.TokenScoped;
@@ -56,25 +56,17 @@ public class TokenSecurity
 
         this.writeRightsCache = new ImmutalizableHashSet<>();
         for (ClaimDto claimVal : token.getClaimsForKey(TokenDto.SECURITY_CLAIM_WRITE_KEY)) {
-            String[] comps = claimVal.getValue().split(":");
-            String keyAlias = comps.length > 1 ? comps[0] : alias;
-            String keySeed = comps[comps.length-1];
-
-            SigningKeyWithSeedDto keyWithSeed = new SigningKeyWithSeedDto(keySeed);
-            MessagePrivateKeyDto newKey = new MessagePrivateKeyDto(keyWithSeed.key, keyAlias);
-            this.writeRightsCache.add(newKey);
+            PrivateKeyWithSeedDto keyWithSeed = PrivateKeyWithSeedDto.deserialize(claimVal.getValue());
+            if (keyWithSeed.alias() == null) keyWithSeed.setAlias(alias);
+            this.writeRightsCache.add(keyWithSeed.key());
         }
         this.writeRightsCache.immutalize();
 
         this.readRightsCache = new ImmutalizableHashSet<>();
         for (ClaimDto claimVal : token.getClaimsForKey(TokenDto.SECURITY_CLAIM_READ_KEY)) {
-            String[] comps = claimVal.getValue().split(":");
-            String keyAlias = comps.length > 1 ? comps[0] : alias;
-            String keySeed = comps[comps.length-1];
-
-            EncryptKeyWithSeedDto keyWithSeed = new EncryptKeyWithSeedDto(keySeed);
-            MessagePrivateKeyDto newKey = new MessagePrivateKeyDto(keyWithSeed.key, keyAlias);
-            this.readRightsCache.add(newKey);
+            PrivateKeyWithSeedDto keyWithSeed = PrivateKeyWithSeedDto.deserialize(claimVal.getValue());
+            if (keyWithSeed.alias() == null) keyWithSeed.setAlias(alias);
+            this.readRightsCache.add(keyWithSeed.key());
         }
         this.readRightsCache.immutalize();
     }

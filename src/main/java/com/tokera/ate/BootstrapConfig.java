@@ -285,11 +285,11 @@ public class BootstrapConfig {
         this.implicitAuthorityAlias = implicitAuthorityAlias;
     }
 
-    public Iterable<KeyType> getDefaultSigningTypes() {
+    public List<KeyType> getDefaultSigningTypes() {
         return securityLevel.signingTypes;
     }
 
-    public Iterable<KeyType> getDefaultEncryptTypes() {
+    public List<KeyType> getDefaultEncryptTypes() {
         return securityLevel.encryptTypes;
     }
 

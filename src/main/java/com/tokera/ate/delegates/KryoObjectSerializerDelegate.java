@@ -91,7 +91,6 @@ public class KryoObjectSerializerDelegate implements IObjectSerializer {
         kryo.register( UUID.class, new UUIDSerializer() );
         kryo.register( IPartitionKey.class, new PartitionKeySerializer() );
         kryo.register( PUUID.class, new PuuidSerializer() );
-        kryo.register( TokenDto.class, new TokenSerializer() );
         kryo.register( CountLong.class, new CountLongSerializer() );
         kryo.register( RangeLong.class, new RangeLongSerializer() );
         kryo.register( GregorianCalendar.class, new GregorianCalendarSerializer() );
