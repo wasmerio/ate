@@ -41,5 +41,6 @@ public class SecurityLevel {
     public static SecurityLevel RidiculouslySecure = new SecurityLevel(256, 512, 512, true, Lists.newArrayList(KeyType.qtesla, KeyType.rainbow), Lists.newArrayList(KeyType.ntru, KeyType.newhope), true, true, 1);
     public static SecurityLevel VeryHighlySecure = new SecurityLevel(256, 256, 256, true, Lists.newArrayList(KeyType.qtesla), Lists.newArrayList(KeyType.ntru), true, true, 5);
     public static SecurityLevel HighlySecure = new SecurityLevel(192, 192, 192, false, Lists.newArrayList(KeyType.qtesla), Lists.newArrayList(KeyType.ntru), true, true, 20);
-    public static SecurityLevel ModeratelySecure = new SecurityLevel(128, 128, 128, false, Lists.newArrayList(KeyType.qtesla), Lists.newArrayList(KeyType.ntru), false, false, 0);
+    public static SecurityLevel ModeratelySecure = new SecurityLevel(128, 128, 128, false, Lists.newArrayList(KeyType.qtesla), Lists.newArrayList(KeyType.ntru), false, true, 0);
+    public static SecurityLevel PoorlySecure = new SecurityLevel(128, 64, 128, false, Lists.newArrayList(KeyType.qtesla), Lists.newArrayList(KeyType.ntru), false, false, 0);
 }
