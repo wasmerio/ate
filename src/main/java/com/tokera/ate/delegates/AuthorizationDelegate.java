@@ -358,13 +358,6 @@ public class AuthorizationDelegate {
         authorizeEntityWrite(entity, to);
     }
 
-    public void authorizeRead(MessagePublicKeyDto publicKey, IRoles to) {
-        ensureKeyIsThere(publicKey, to);
-        if (to.getTrustAllowRead().values().contains(publicKey.getPublicKeyHash()) == false) {
-            to.getTrustAllowRead().put(publicKey.getAliasOrHash(), publicKey.getPublicKeyHash());
-        }
-    }
-
     public void copy(IRoles from, IRoles to)
     {
         boolean save = false;
@@ -473,6 +466,10 @@ public class AuthorizationDelegate {
         }
     }
 
+    public void authorizeEntityRead(PrivateKeyWithSeedDto key, IRoles to) {
+        authorizeEntityRead(key.key(), to);
+    }
+
     public void authorizeEntityRead(MessagePublicKeyDto right, IRoles to) {
         String hash = d.encryptor.getPublicKeyHash(right);
 
@@ -550,6 +547,10 @@ public class AuthorizationDelegate {
         }
 
         entity.onAddRight(to);
+    }
+
+    public void authorizeEntityWrite(PrivateKeyWithSeedDto key, IRoles to) {
+        authorizeEntityWrite(key.key(), to);
     }
 
     public void authorizeEntityWrite(MessagePublicKeyDto right, IRoles to) {
