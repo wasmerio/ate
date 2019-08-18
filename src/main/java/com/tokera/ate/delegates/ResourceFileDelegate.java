@@ -1,6 +1,5 @@
 package com.tokera.ate.delegates;
 
-import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import com.tokera.ate.scopes.Startup;
 import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.Assertions;
@@ -47,17 +46,16 @@ public class ResourceFileDelegate {
             if (file.startsWith(prefix) == false)
                 continue;
 
-            T obj = load(file, clazz);
-            if (obj != null) {
-                ret.add(obj);
-            }
+            ret.addAll(loadFile(file, clazz));
         }
 
         return ret;
     }
 
     @SuppressWarnings("unchecked")
-    public <T> T load(String file, Class<T> clazz) {
+    public <T> List<T> loadFile(String file, Class<T> clazz) {
+        List<T> ret = new ArrayList<>();
+
         try {
             InputStream inputStream = ClassLoader.getSystemResourceAsStream(file);
             assert inputStream != null : "@AssumeAssertion(nullness): Must not be null";
@@ -71,20 +69,20 @@ public class ResourceFileDelegate {
 
                     Object obj = AteDelegate.get().yaml.deserializeObj(keyTxt);
                     if (obj != null && obj.getClass() == clazz) {
-                        return (T)obj;
+                        ret.add((T)obj);
                     }
                 }
             }
             if (file.endsWith("json")) {
                 Object obj = AteDelegate.get().json.deserialize(data, clazz);
                 if (obj != null && obj.getClass() == clazz) {
-                    return (T)obj;
+                    ret.add((T)obj);
                 }
             }
-
-            return null;
         } catch (IOException ex) {
             throw new WebApplicationException("Failed to load file", ex, Response.Status.INTERNAL_SERVER_ERROR);
         }
+
+        return ret;
     }
 }
