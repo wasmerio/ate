@@ -143,7 +143,15 @@ public class TokenSerializer extends Serializer<TokenDto> implements ScalarSeria
             DecodedJWT jwt = JWT.decode(plain);
             for (Map.Entry<String, Claim> claim : jwt.getClaims().entrySet()) {
                 if (claim.getKey().equals("iss")) continue;
-                for (String val : claim.getValue().asList(String.class)) {
+                if (claim.getKey().equals("exp")) continue;
+                if (claim.getValue().isNull()) {
+                    continue;
+                }
+                List<String> vals = claim.getValue().asList(String.class);
+                if (vals == null) {
+                    continue;
+                }
+                for (String val : vals) {
                     ret.add(new ClaimDto(claim.getKey(), val));
                 }
             }

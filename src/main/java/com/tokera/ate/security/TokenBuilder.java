@@ -26,7 +26,7 @@ public class TokenBuilder {
     @Nullable
     private String username;
     private final Map<String, List<String>> claims = new TreeMap<>();
-    private int expiresMins = 0;
+    private @Nullable Integer expiresMins = null;
     private boolean partitionKeySet = false;
     private boolean riskRoleSet = false;
     private boolean userRoleSet = false;
@@ -169,9 +169,16 @@ public class TokenBuilder {
 
         reconcileClaims();
 
+        int expiresMins;
+        if (this.expiresMins != null) {
+            expiresMins = this.expiresMins.intValue();
+        } else {
+            expiresMins = AteDelegate.get().bootstrapConfig.getSecurityLevel().tokenExpiresMins;
+        }
+
         TokenDto ret = TokenSecurity.generateToken(
                 this.claims,
-                this.expiresMins);
+                expiresMins);
 
         if (shouldPublish) {
             AteDelegate.get().currentToken.publishToken(ret);
