@@ -77,6 +77,7 @@ public class ImplicitSecurityDelegate {
             List<MessagePublicKeyDto> keys = this.loadEmbeddedKeys();
             for (MessagePublicKeyDto key : keys) {
                 this.embeddedKeys.put(key.getPublicKeyHash(), key);
+                LOG.info("found embedded-key: " + key.getAliasOrHash());
             }
         } catch (UnknownHostException ex) {
             LOG.error(ex);
