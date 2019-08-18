@@ -400,12 +400,11 @@ public class AuthorizationDelegate {
         }
     }
 
-    public @Nullable MessagePrivateKeyDto getImplicitRightToRead(IRights entity)
+    public @Nullable PrivateKeyWithSeedDto getImplicitRightToRead(IRights entity)
     {
         @Alias String alias = entity.getRightsAlias();
-        MessagePrivateKeyDto right = entity.getRightsRead().stream()
-                .map(p -> p.key())
-                .filter(p -> alias.equals(p.getAliasOrHash()))
+        PrivateKeyWithSeedDto right = entity.getRightsRead().stream()
+                .filter(p -> alias.equals(p.aliasOrHash()))
                 .filter(p -> d.encryptor.getPublicKeyHash(p).equals(d.encryptor.getPublicKeyHash(d.encryptor.getTrustOfPublicRead())) == false)
                 .findFirst()
                 .orElse(null);
