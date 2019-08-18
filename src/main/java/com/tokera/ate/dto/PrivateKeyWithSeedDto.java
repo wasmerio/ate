@@ -89,10 +89,12 @@ public class PrivateKeyWithSeedDto {
         this(keyType, AteDelegate.get().encryptor.generateSecret64(), keySize,
              (keyType == PrivateKeyType.write ? AteDelegate.get().bootstrapConfig.getDefaultSigningTypes() : AteDelegate.get().bootstrapConfig.getDefaultEncryptTypes()),
              alias);
+        assert alias == null || alias.contains(":") == false;
     }
 
     public PrivateKeyWithSeedDto(PrivateKeyType keyType, String seed) {
         this(keyType, seed, null);
+        assert seed == null || seed.contains(":") == false;
     }
 
     public PrivateKeyWithSeedDto(PrivateKeyType keyType, String seed, @Nullable String alias) {
@@ -119,6 +121,9 @@ public class PrivateKeyWithSeedDto {
                 break;
             }
         }
+
+        assert seed == null || seed.contains(":") == false;
+        assert alias == null || alias.contains(":") == false;
     }
 
     public PrivateKeyWithSeedDto(PrivateKeyType keyType, String seed, int keySize, KeyType alg, @Nullable String alias) {
@@ -133,6 +138,9 @@ public class PrivateKeyWithSeedDto {
         this.keySize = keySize;
         this.algs = new ArrayList<>();
         this.algs.add(alg);
+
+        assert seed == null || seed.contains(":") == false;
+        assert alias == null || alias.contains(":") == false;
     }
 
     public PrivateKeyWithSeedDto(PrivateKeyType keyType, String seed, int keySize, List<KeyType> algs, @Nullable String alias) {
@@ -146,6 +154,9 @@ public class PrivateKeyWithSeedDto {
         this.type = keyType;
         this.keySize = keySize;
         this.algs = algs;
+
+        assert seed == null || seed.contains(":") == false;
+        assert alias == null || alias.contains(":") == false;
     }
 
     @JsonIgnore
