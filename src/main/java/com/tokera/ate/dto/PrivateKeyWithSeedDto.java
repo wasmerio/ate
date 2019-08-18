@@ -63,6 +63,20 @@ public class PrivateKeyWithSeedDto {
         this.algs = d.bootstrapConfig.getDefaultEncryptTypes();
     }
 
+    public PrivateKeyWithSeedDto(PrivateKeyWithSeedDto a) {
+        this.seed = a.seed;
+        this.key = null;
+        this.alias = a.alias;
+        this.type = a.type;
+        this.keySize = a.keySize;
+        this.algs = a.algs;
+    }
+
+    public PrivateKeyWithSeedDto(PrivateKeyWithSeedDto a, String newAlias) {
+        this(a);
+        this.alias = newAlias;
+    }
+
     public PrivateKeyWithSeedDto(PrivateKeyType keyType) {
         this(keyType, AteDelegate.get().encryptor.generateSecret64(), null);
     }
