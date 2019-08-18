@@ -6,9 +6,12 @@
 package com.tokera.ate.dto;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.common.collect.Lists;
 import com.tokera.ate.annotations.YamlTag;
+import com.tokera.ate.dao.enumerations.KeyType;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.Dependent;
 
@@ -24,22 +27,40 @@ public class EncryptKeyWithSeedDto {
     @JsonProperty
     public String seed;
 
+    public static int KEYSIZE = 192;
+    public static Iterable<KeyType> KEYTYPE = Lists.newArrayList(KeyType.ntru);
+
     @SuppressWarnings("initialization.fields.uninitialized")
     @Deprecated
     public EncryptKeyWithSeedDto() {
     }
 
-    public EncryptKeyWithSeedDto(String seed, MessagePrivateKeyDto key) {
+    public EncryptKeyWithSeedDto(MessagePrivateKeyDto key, String seed) {
         this.key = key;
         this.seed = seed;
     }
 
     public EncryptKeyWithSeedDto(String seed) {
+        this(seed, null);
+    }
+
+    public EncryptKeyWithSeedDto(String seed, @Nullable String alias) {
         this.seed = seed;
-        this.key = AteDelegate.get().encryptor.genEncryptKeyFromSeed(seed);
+        this.key = AteDelegate.get().encryptor.genEncryptKeyFromSeed(KEYSIZE, KEYTYPE, seed);
+        if (alias != null) {
+            this.key.setAlias(alias);
+        }
     }
 
     public String publicHash() {
         return this.key.getPublicKeyHash();
+    }
+
+    public @Nullable String getAlias() {
+        return this.key.getAlias();
+    }
+
+    public void setAlias(String alias) {
+        this.key.setAlias(alias);
     }
 }

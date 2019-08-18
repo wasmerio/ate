@@ -108,7 +108,10 @@ public class TokenBuilder {
     }
 
     public TokenBuilder addReadKey(EncryptKeyWithSeedDto key) {
-        TokenSecurity.addClaim(this.claims, TokenDto.SECURITY_CLAIM_READ_KEY, key.seed);
+        String val = key.getAlias() != null ?
+                     key.getAlias() + ":" + key.seed :
+                     key.seed;
+        TokenSecurity.addClaim(this.claims, TokenDto.SECURITY_CLAIM_READ_KEY, val);
         return this;
     }
 
@@ -120,7 +123,10 @@ public class TokenBuilder {
     }
 
     public TokenBuilder addWriteKey(SigningKeyWithSeedDto key) {
-        TokenSecurity.addClaim(this.claims, TokenDto.SECURITY_CLAIM_WRITE_KEY, key.seed);
+        String val = key.getAlias() != null ?
+                key.getAlias() + ":" + key.seed :
+                key.seed;
+        TokenSecurity.addClaim(this.claims, TokenDto.SECURITY_CLAIM_WRITE_KEY, val);
         return this;
     }
 

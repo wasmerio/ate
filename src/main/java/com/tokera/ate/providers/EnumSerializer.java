@@ -3,7 +3,6 @@ package com.tokera.ate.providers;
 import com.esotericsoftware.yamlbeans.YamlException;
 import com.esotericsoftware.yamlbeans.scalar.ScalarSerializer;
 import com.tokera.ate.common.StringTools;
-import org.apache.commons.lang.enums.Enum;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 public class EnumSerializer implements ScalarSerializer<Enum>
@@ -18,7 +17,7 @@ public class EnumSerializer implements ScalarSerializer<Enum>
     @Override
     public @Nullable String write(@Nullable Enum object) throws YamlException {
         if (object == null) return "null";
-        return object.getName().toLowerCase();
+        return object.name().toLowerCase();
     }
 
     @SuppressWarnings("override.return.invalid")
@@ -34,7 +33,7 @@ public class EnumSerializer implements ScalarSerializer<Enum>
         for (Object thisObj : values) {
             if (thisObj instanceof Enum) {
                 Enum thisEnum = (Enum)thisObj;
-                if (thisEnum.getName().equalsIgnoreCase(val)) {
+                if (thisEnum.name().equalsIgnoreCase(val)) {
                     return thisEnum;
                 }
             }

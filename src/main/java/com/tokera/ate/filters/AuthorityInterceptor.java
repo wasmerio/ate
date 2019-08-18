@@ -42,17 +42,9 @@ public class AuthorityInterceptor implements ContainerRequestFilter, ContainerRe
     private @Context @Nullable HttpServletRequest request;
     private @Context @Nullable HttpServletResponse response;
     private int inferredPartition = 0;
-    @SuppressWarnings("initialization.fields.uninitialized")
-    @Inject
-    private DefaultBootstrapInit interceptorInit;
     
     public static final String HEADER_AUTHORIZATION = "Authorization";
     public static boolean c_logVerbose = false;
-
-    @PostConstruct
-    public void init() {
-        interceptorInit.touch();
-    }
 
     @SuppressWarnings({"return.type.incompatible", "argument.type.incompatible"})       // Fixed an issue where the return type is actually nullable
     private static @Nullable String getHeaderString(ContainerRequestContext requestContext, String header) {

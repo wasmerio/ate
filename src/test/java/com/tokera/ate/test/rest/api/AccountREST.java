@@ -40,11 +40,15 @@ public class AccountREST {
         // Set the alias in the key to be the username
         username = username + "@mycompany.org";
 
+        SigningKeyWithSeedDto anotherKey = d.encryptor.genSignKeyAndSeed();
+        anotherKey.setAlias("useless-key@nowhere.com");
+
         return new TokenBuilder()
                 .withUsername(username)
                 .withRiskRole(RiskRole.HIGH)
                 .withUserRole(UserRole.HUMAN)
                 .addWriteKey(key)
+                .addWriteKey(anotherKey)
                 .shouldPublish(true)
                 .build()
                 .getBase64();

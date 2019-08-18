@@ -88,7 +88,6 @@ public abstract class BaseAteDelegate {
     public final AccessLogInterceptor accessLogInterceptor;
     public final AuthorityInterceptor authorityInterceptor;
     public final CorsInterceptor corsInterceptor;
-    public final DefaultBootstrapInit defaultBootstrapInit;
     public final FixResteasyBug fixResteasyBug;
     public final PartitionKeyInterceptor partitionKeyInterceptor;
     public final TransactionInterceptor transactionInterceptor;
@@ -184,7 +183,6 @@ public abstract class BaseAteDelegate {
         this.accessLogInterceptor = getBean(AccessLogInterceptor.class);
         this.authorityInterceptor = getBean(AuthorityInterceptor.class);
         this.corsInterceptor = getBean(CorsInterceptor.class);
-        this.defaultBootstrapInit = getBean(DefaultBootstrapInit.class);
         this.fixResteasyBug = getBean(FixResteasyBug.class);
         this.partitionKeyInterceptor = getBean(PartitionKeyInterceptor.class);
         this.transactionInterceptor = getBean(TransactionInterceptor.class);

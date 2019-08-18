@@ -16,7 +16,7 @@ import javax.validation.constraints.Size;
 /**
  * Represents a claim within a token, claims have both a key and value.
  */
-@YamlTag("dto.claim")
+@YamlTag("claim")
 public class ClaimDto {
 
     @JsonProperty

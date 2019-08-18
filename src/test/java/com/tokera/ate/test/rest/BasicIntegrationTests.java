@@ -11,10 +11,12 @@ import com.tokera.ate.dto.SigningKeyWithSeedDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.enumerations.DefaultStorageSystem;
 import com.tokera.ate.test.dao.MyAccount;
+import com.tokera.ate.test.dao.SeedingDelegate;
 import com.tokera.ate.test.dto.NewAccountDto;
 import org.junit.jupiter.api.*;
 
 import javax.enterprise.inject.spi.CDI;
+import javax.inject.Inject;
 import javax.validation.constraints.NotNull;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.client.Entity;
@@ -55,9 +57,13 @@ public class BasicIntegrationTests {
     @Order(10)
     public void getAdminKey() {
         AteDelegate d = AteDelegate.get();
-        SigningKeyWithSeedDto key = d.encryptor.genSignKeyAndSeed();
+        SigningKeyWithSeedDto key = CDI.current().select(SeedingDelegate.class).get().getRootKey();
 
-        d.implicitSecurity.getEnquireTxtOverride().put("tokauth.mycompany.org", key.publicHash());
+        SigningKeyWithSeedDto test = new SigningKeyWithSeedDto(key.seed, key.getAlias());
+        Assertions.assertEquals(key.seed, test.seed);
+        Assertions.assertEquals(key.key.getPublicKeyHash(), test.key.getPublicKeyHash());
+
+        d.implicitSecurity.addEnquireTxtOverride("tokauth.mycompany.org", key.publicHash());
 
         this.session = new RawClientBuilder()
                 .server("127.0.0.1")

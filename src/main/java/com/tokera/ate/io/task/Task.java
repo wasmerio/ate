@@ -5,15 +5,18 @@ import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.delegates.DebugLoggingDelegate;
 import com.tokera.ate.dto.TokenDto;
-import com.tokera.ate.dto.msg.*;
+import com.tokera.ate.dto.msg.MessageDataDto;
+import com.tokera.ate.dto.msg.MessageDataHeaderDto;
+import com.tokera.ate.dto.msg.MessageDataMetaDto;
+import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.api.ITask;
 import com.tokera.ate.io.api.ITaskCallback;
-import org.apache.commons.lang.time.StopWatch;
+import org.apache.commons.lang3.time.DateUtils;
+import org.apache.commons.lang3.time.StopWatch;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.jboss.weld.context.bound.BoundRequestContext;
-import org.joda.time.DateTime;
 
 import javax.enterprise.inject.spi.CDI;
 import java.lang.ref.WeakReference;
@@ -119,7 +122,7 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
 
                 if (msgs.size() <= 0)
                 {
-                    if (lastIdle.before(new DateTime().minusMillis(this.idleTime).toDate())) {
+                    if (DateUtils.addMilliseconds(lastIdle, this.idleTime).before(new Date())) {
                         invokeWarmAndIdle(boundRequestContext);
                         lastIdle = new Date();
                     }

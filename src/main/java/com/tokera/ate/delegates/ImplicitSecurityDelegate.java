@@ -327,6 +327,11 @@ public class ImplicitSecurityDelegate {
         return enquireTxtOverride;
     }
 
+    public void addEnquireTxtOverride(String key, String val) {
+        enquireTxtOverride.put("tokauth.mycompany.org", val);
+        LOG.info("enquire.txt.override: " + key + " -> " + val);
+    }
+
     public ConcurrentHashMap<String, List<String>> getEnquireAddressOverride() {
         return enquireAddressOverride;
     }

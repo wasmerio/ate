@@ -7,15 +7,13 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.providers.RangeLongJsonDeserializer;
 import com.tokera.ate.providers.RangeLongJsonSerializer;
-import org.apache.commons.lang.math.Range;
-import org.apache.commons.lang.text.StrBuilder;
 
 import java.io.Serializable;
 
 @YamlTag("puuid")
 @JsonSerialize(using = RangeLongJsonSerializer.class)
 @JsonDeserialize(using = RangeLongJsonDeserializer.class)
-public final class RangeLong extends Range implements Serializable, Comparable<RangeLong> {
+public final class RangeLong implements Serializable, Comparable<RangeLong> {
     private static final long serialVersionUID = -8412288864327818063L;
 
     @JsonProperty
@@ -268,7 +266,7 @@ public final class RangeLong extends Range implements Serializable, Comparable<R
      * @return <code>true</code> if the specified range occurs entirely within this range
      * @throws IllegalArgumentException if the range is not of this type
      */
-    public boolean containsRange(Range range) {
+    public boolean containsRange(RangeLong range) {
         if (range == null) {
             return false;
         }
@@ -285,7 +283,7 @@ public final class RangeLong extends Range implements Serializable, Comparable<R
      * @param range  the range to test, may be <code>null</code>
      * @return <code>true</code> if the specified range overlaps with this range
      */
-    public boolean overlapsRange(Range range) {
+    public boolean overlapsRange(RangeLong range) {
         if (range == null) {
             return false;
         }
@@ -337,11 +335,11 @@ public final class RangeLong extends Range implements Serializable, Comparable<R
      * @return the <code>String</code> representation of this range
      */
     public String toString() {
-        StrBuilder buf = new StrBuilder(32);
-        buf.append(min);
-        buf.append(':');
-        buf.append(max);
-        return buf.toString();
+        StringBuilder sb = new StringBuilder();
+        sb.append(min);
+        sb.append(":");
+        sb.append(max);
+        return sb.toString();
     }
 
     /**

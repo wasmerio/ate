@@ -44,17 +44,37 @@ public class TokenSecurity
 
         this.token = token;
 
+        String alias = token.getClaimsForKey(TokenDto.SECURITY_CLAIM_USERNAME)
+            .stream()
+            .map(c -> c.getValue())
+            .findFirst()
+            .orElse(token.getClaimsForKey(TokenDto.SECURITY_CLAIM_USER_ID)
+                    .stream()
+                    .map(c -> "user://" + c.getValue())
+                    .findFirst()
+                    .orElse(null));
+
         this.writeRightsCache = new ImmutalizableHashSet<>();
-        for (ClaimDto keySeed : token.getClaimsForKey(TokenDto.SECURITY_CLAIM_WRITE_KEY)) {
-            SigningKeyWithSeedDto key = new SigningKeyWithSeedDto(keySeed.getValue());
-            this.writeRightsCache.add(key.key);
+        for (ClaimDto claimVal : token.getClaimsForKey(TokenDto.SECURITY_CLAIM_WRITE_KEY)) {
+            String[] comps = claimVal.getValue().split(":");
+            String keyAlias = comps.length > 1 ? comps[0] : alias;
+            String keySeed = comps[comps.length-1];
+
+            SigningKeyWithSeedDto keyWithSeed = new SigningKeyWithSeedDto(keySeed);
+            MessagePrivateKeyDto newKey = new MessagePrivateKeyDto(keyWithSeed.key, keyAlias);
+            this.writeRightsCache.add(newKey);
         }
         this.writeRightsCache.immutalize();
 
         this.readRightsCache = new ImmutalizableHashSet<>();
-        for (ClaimDto keySeed : token.getClaimsForKey(TokenDto.SECURITY_CLAIM_READ_KEY)) {
-            EncryptKeyWithSeedDto key = new EncryptKeyWithSeedDto(keySeed.getValue());
-            this.readRightsCache.add(key.key);
+        for (ClaimDto claimVal : token.getClaimsForKey(TokenDto.SECURITY_CLAIM_READ_KEY)) {
+            String[] comps = claimVal.getValue().split(":");
+            String keyAlias = comps.length > 1 ? comps[0] : alias;
+            String keySeed = comps[comps.length-1];
+
+            EncryptKeyWithSeedDto keyWithSeed = new EncryptKeyWithSeedDto(keySeed);
+            MessagePrivateKeyDto newKey = new MessagePrivateKeyDto(keyWithSeed.key, keyAlias);
+            this.readRightsCache.add(newKey);
         }
         this.readRightsCache.immutalize();
     }

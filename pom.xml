@@ -31,16 +31,8 @@
     <parent>
         <groupId>com.tokera</groupId>
         <artifactId>ate-deps</artifactId>
-        <version>1.8</version>
+        <version>1.9</version>
     </parent>
-
-    <dependencies>
-        <dependency>
-            <groupId>com.auth0</groupId>
-            <artifactId>java-jwt</artifactId>
-            <version>3.8.2</version>
-        </dependency>
-    </dependencies>
 
     <scm>
         <connection>scm:git:git://github.com/john-sharratt/ate.git</connection>

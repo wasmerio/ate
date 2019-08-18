@@ -29,16 +29,8 @@ public class PartitionKeyInterceptor implements ContainerRequestFilter {
     @SuppressWarnings("initialization.fields.uninitialized")
     @Inject
     private LoggerHook LOG;
-    @SuppressWarnings("initialization.fields.uninitialized")
-    @Inject
-    private DefaultBootstrapInit interceptorInit;
 
     public static final String HEADER_PARTITION_KEY = "PartitionKey";
-
-    @PostConstruct
-    public void init() {
-        interceptorInit.touch();
-    }
 
     @SuppressWarnings({"return.type.incompatible", "argument.type.incompatible"})       // We want to return a null if the data does not exist and it must be atomic
     private static @Nullable String getHeaderStringOrNull(ContainerRequestContext requestContext, String s) {

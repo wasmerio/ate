@@ -2,6 +2,7 @@ package com.tokera.ate.test.dao;
 
 import com.tokera.ate.common.UUIDTools;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.dto.SigningKeyWithSeedDto;
 import com.tokera.ate.dto.msg.MessageDataHeaderDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.events.PartitionSeedingEvent;
@@ -19,16 +20,16 @@ import java.util.UUID;
 @ApplicationScoped
 public class SeedingDelegate {
     private AteDelegate d = AteDelegate.get();
-    private @MonotonicNonNull MessagePrivateKeyDto rootkey;
+    private @MonotonicNonNull SigningKeyWithSeedDto rootkey;
 
-    public MessagePrivateKeyDto getRootKey() {
+    public SigningKeyWithSeedDto getRootKey() {
         assert rootkey != null : "@AssumeAssertion(nullness): Must not be null";
         return rootkey;
     }
 
     @PostConstruct
     public void init() {
-        rootkey = d.encryptor.genSignKey();
+        rootkey = d.encryptor.genSignKeyAndSeed();
     }
 
     public void onPartitionSeeding(@Observes PartitionSeedingEvent event) {
@@ -36,7 +37,7 @@ public class SeedingDelegate {
 
         // Add the root key into the chain of trust
         assert rootkey != null : "@AssumeAssertion(nullness): Must not be null";
-        chain.addTrustKey(rootkey, d.genericLogger);
+        chain.addTrustKey(rootkey.key, d.genericLogger);
 
         // Add a dummy record for the root account
         MessageDataHeaderDto header = new MessageDataHeaderDto(
@@ -47,7 +48,7 @@ public class SeedingDelegate {
                 MyAccount.class);
 
         // Allow root key to edit the root account
-        @Hash String hash = rootkey.getPublicKeyHash();
+        @Hash String hash = rootkey.publicHash();
         assert hash != null : "@AssumeAssertion(nullness): Must not be null";
         header.getAllowWrite().add(hash);
         chain.addTrustDataHeader(header, d.genericLogger);

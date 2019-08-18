@@ -1,13 +1,5 @@
 package com.tokera.ate.delegates;
 
-import com.auth0.jwt.JWT;
-import com.auth0.jwt.JWTCreator;
-import com.auth0.jwt.JWTVerifier;
-import com.auth0.jwt.algorithms.Algorithm;
-import com.auth0.jwt.exceptions.JWTDecodeException;
-import com.auth0.jwt.exceptions.JWTVerificationException;
-import com.auth0.jwt.interfaces.Claim;
-import com.auth0.jwt.interfaces.DecodedJWT;
 import com.tokera.ate.common.ImmutalizableArrayList;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.dao.IRights;
@@ -29,22 +21,22 @@ import com.tokera.ate.events.TokenStateChangedEvent;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.repo.DataContainer;
 import com.tokera.ate.providers.PartitionKeySerializer;
+import com.tokera.ate.providers.TokenSerializer;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.security.EffectivePermissionBuilder;
 import com.tokera.ate.units.Alias;
 import com.tokera.ate.units.DaoId;
-import com.tokera.ate.units.EmailAddress;
 import com.tokera.ate.units.Hash;
-import org.apache.commons.codec.binary.Base64;
 import org.checkerframework.checker.nullness.qual.Nullable;
-import org.joda.time.DateTime;
 
-import javax.annotation.PostConstruct;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -59,17 +51,7 @@ public class AuthorizationDelegate {
     @Inject
     private LoggerHook LOG;
 
-    private String jwtSecret;
-    private byte[] jwtEncrypt;
-    private String jwtIssuer;
-
-    @PostConstruct
-    public void init() {
-        Properties props = d.bootstrapConfig.propertiesForToken();
-        this.jwtSecret = props.getOrDefault("secret", "anyone").toString();
-        this.jwtEncrypt = Base64.decodeBase64(props.getOrDefault("encrypt", "VD5eE_z1crGougAuE-xubgJwACNzN4aF7h5VrltBsYw").toString());
-        this.jwtIssuer = props.getOrDefault("issuer", "nobody").toString();
-    }
+    private TokenSerializer tokenSerializer = new TokenSerializer();
 
     public boolean canRead(@Nullable BaseDao obj)
     {
@@ -164,7 +146,9 @@ public class AuthorizationDelegate {
             MessagePublicKeyDto key = d.io.publicKeyOrNull(partitionKey, publicKeyHash);
             if (key != null) {
                 if (key.getAlias() != null) {
-                    sb.append(key.getAlias()).append(" - ").append(publicKeyHash).append("]");
+                    sb.append(key.getAlias()).append(" - ").append(publicKeyHash);
+                } else {
+                    sb.append(publicKeyHash);
                 }
             } else {
                 sb.append("[missing] - ").append(publicKeyHash);
@@ -739,56 +723,15 @@ public class AuthorizationDelegate {
     }
 
     public String createToken(Map<@Alias String, List<String>> claims, int expiresMins) {
-        Algorithm algorithm = Algorithm.HMAC256(this.jwtSecret);
-
-        JWTCreator.Builder builder = JWT.create()
-                .withIssuer(jwtIssuer);
-
-        for (Map.Entry<String, List<String>> claim : claims.entrySet()) {
-            builder = builder.withArrayClaim(claim.getKey(), claim.getValue().stream().toArray(String[]::new));
-        }
-        if (expiresMins > 0) {
-            builder = builder.withExpiresAt(new DateTime().plusMinutes(expiresMins).toDate());
-        }
-
-        String plain = builder.sign(algorithm);
-        byte[] enc = d.encryptor.encryptAes(jwtEncrypt, plain.getBytes());
-        return Base64.encodeBase64URLSafeString(enc);
+        return tokenSerializer.createToken(claims, expiresMins).getBase64();
     }
 
     public void validateToken(String encToken) {
-        byte[] bytes = Base64.decodeBase64(encToken);
-        String plain = new String(d.encryptor.decryptAes(jwtEncrypt, bytes));
-
-        try {
-            Algorithm algorithm = Algorithm.HMAC256(this.jwtSecret);
-            JWTVerifier verifier = JWT.require(algorithm)
-                    .withIssuer(jwtIssuer)
-                    .build(); //Reusable verifier instance
-            verifier.verify(plain);
-        } catch (JWTVerificationException exception){
-            throw new WebApplicationException("JWT token failed validation", exception, Response.Status.UNAUTHORIZED);
-        }
+        TokenDto token = new TokenDto(encToken);
+        tokenSerializer.validateToken(token);
     }
 
     public ImmutalizableArrayList<ClaimDto> extractTokenClaims(String encToken) {
-        byte[] bytes = Base64.decodeBase64(encToken);
-        String plain = new String(d.encryptor.decryptAes(jwtEncrypt, bytes));
-
-        ImmutalizableArrayList<ClaimDto> ret = new ImmutalizableArrayList<>();
-        try {
-            DecodedJWT jwt = JWT.decode(plain);
-            for (Map.Entry<String, Claim> claim : jwt.getClaims().entrySet()) {
-                if (claim.getKey().equals("iss")) continue;
-                for (String val : claim.getValue().asList(String.class)) {
-                    ret.add(new ClaimDto(claim.getKey(), val));
-                }
-            }
-        } catch (JWTDecodeException exception){
-            throw new WebApplicationException("Failed to decode the JWT token.", exception, Response.Status.UNAUTHORIZED);
-        }
-
-        ret.immutalize();
-        return ret;
+        return tokenSerializer.extractTokenClaims(new TokenDto(encToken));
     }
 }
