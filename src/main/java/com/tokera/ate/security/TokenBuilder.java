@@ -110,6 +110,10 @@ public class TokenBuilder {
         return this;
     }
 
+    public TokenBuilder addReadKey(PrivateKeyWithSeedDto key, String alias) {
+        return addReadKey(new PrivateKeyWithSeedDto(key, alias));
+    }
+
     public TokenBuilder addReadKeys(Iterable<PrivateKeyWithSeedDto> keys) {
         for (PrivateKeyWithSeedDto key : keys) {
             addReadKey(key);
@@ -120,6 +124,10 @@ public class TokenBuilder {
     public TokenBuilder addWriteKey(PrivateKeyWithSeedDto key) {
         TokenSecurity.addClaim(this.claims, TokenDto.SECURITY_CLAIM_WRITE_KEY, key.serialize());
         return this;
+    }
+
+    public TokenBuilder addWriteKey(PrivateKeyWithSeedDto key, String alias) {
+        return addWriteKey(new PrivateKeyWithSeedDto(key, alias));
     }
 
     public TokenBuilder addWriteKeys(Iterable<PrivateKeyWithSeedDto> keys) {
