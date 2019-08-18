@@ -299,7 +299,7 @@ public class DataTransaction {
 
         PartitionContext context = getPartitionMergeContext(partitionKey, false);
         if (context == null) return null;
-        MessagePublicKeyDto ret = d.currentRights.findKey(publicKeyHash);
+        MessagePublicKeyDto ret = d.currentRights.findKeyAndConvertToPublic(publicKeyHash);
         if (ret == null) {
             ret = d.implicitSecurity.findEmbeddedKeyOrNull(publicKeyHash);
         }
@@ -359,7 +359,8 @@ public class DataTransaction {
             d.dataRepository.validateTrustStructure(entity);
             d.dataRepository.validateTrustPublicKeys(this, entity);
 
-            d.requestContext.currentTransaction().put(partitionKey, d.currentRights.getRightsWrite());
+            d.requestContext.currentTransaction().put(partitionKey,
+                    d.currentRights.getRightsWrite().stream().map(k -> k.key()).collect(Collectors.toSet()));;
             delete(partitionKey, entity);
         } else {
             undo(partitionKey, entity);
@@ -396,7 +397,7 @@ public class DataTransaction {
 
         d.debugLogging.logMerge(null, entity, true);
 
-        put(partitionKey, d.currentRights.getRightsWrite());
+        put(partitionKey, d.currentRights.getRightsWrite().stream().map(k -> k.key()).collect(Collectors.toSet()));
         put(partitionKey, entity);
     }
 

@@ -14,6 +14,7 @@ import com.tokera.ate.common.ImmutalizableArrayList;
 import com.tokera.ate.constraints.PublicKeyConstraint;
 import com.tokera.ate.dao.msg.*;
 import com.tokera.ate.annotations.YamlTag;
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.security.Encryptor;
 
 import java.io.Serializable;
@@ -60,6 +61,10 @@ public class MessagePublicKeyDto extends MessageBaseDto implements Serializable,
 
     @Deprecated
     public MessagePublicKeyDto() {
+    }
+
+    public MessagePublicKeyDto(PrivateKeyWithSeedDto val) {
+        this(val.key());
     }
     
     public MessagePublicKeyDto(MessagePublicKey val) {

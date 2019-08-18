@@ -5,11 +5,9 @@ import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.ClaimDto;
 import com.tokera.ate.dto.PrivateKeyWithSeedDto;
-import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.TokenDto;
-import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.scopes.TokenScoped;
-import com.tokera.ate.units.*;
+import com.tokera.ate.units.Alias;
 
 import javax.inject.Inject;
 import java.util.ArrayList;
@@ -33,8 +31,8 @@ public class TokenSecurity
 
     private final ConcurrentMap<String, byte[]> encryptKeyCache = new ConcurrentHashMap<>();
     private final TokenDto token;
-    private final ImmutalizableHashSet<MessagePrivateKeyDto> readRightsCache;
-    private final ImmutalizableHashSet<MessagePrivateKeyDto> writeRightsCache;
+    private final ImmutalizableHashSet<PrivateKeyWithSeedDto> readRightsCache;
+    private final ImmutalizableHashSet<PrivateKeyWithSeedDto> writeRightsCache;
 
     public TokenSecurity()
     {
@@ -58,7 +56,7 @@ public class TokenSecurity
         for (ClaimDto claimVal : token.getClaimsForKey(TokenDto.SECURITY_CLAIM_WRITE_KEY)) {
             PrivateKeyWithSeedDto keyWithSeed = PrivateKeyWithSeedDto.deserialize(claimVal.getValue());
             if (keyWithSeed.alias() == null) keyWithSeed.setAlias(alias);
-            this.writeRightsCache.add(keyWithSeed.key());
+            this.writeRightsCache.add(keyWithSeed);
         }
         this.writeRightsCache.immutalize();
 
@@ -66,7 +64,7 @@ public class TokenSecurity
         for (ClaimDto claimVal : token.getClaimsForKey(TokenDto.SECURITY_CLAIM_READ_KEY)) {
             PrivateKeyWithSeedDto keyWithSeed = PrivateKeyWithSeedDto.deserialize(claimVal.getValue());
             if (keyWithSeed.alias() == null) keyWithSeed.setAlias(alias);
-            this.readRightsCache.add(keyWithSeed.key());
+            this.readRightsCache.add(keyWithSeed);
         }
         this.readRightsCache.immutalize();
     }
@@ -98,11 +96,11 @@ public class TokenSecurity
         return this.token;
     }
     
-    public Set<MessagePrivateKeyDto> getRightsRead() {
+    public Set<PrivateKeyWithSeedDto> getRightsRead() {
         return readRightsCache;
     }
 
-    public Set<MessagePrivateKeyDto> getRightsWrite() {
+    public Set<PrivateKeyWithSeedDto> getRightsWrite() {
         return writeRightsCache;
     }
 }

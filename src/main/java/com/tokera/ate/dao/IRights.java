@@ -6,6 +6,7 @@
 package com.tokera.ate.dao;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.units.Alias;
 import com.tokera.ate.units.DaoId;
@@ -25,10 +26,10 @@ public interface IRights
     @DaoId UUID getId();
 
     @JsonIgnore
-    Set<MessagePrivateKeyDto> getRightsRead();
+    Set<PrivateKeyWithSeedDto> getRightsRead();
 
     @JsonIgnore
-    Set<MessagePrivateKeyDto> getRightsWrite();
+    Set<PrivateKeyWithSeedDto> getRightsWrite();
 
     @JsonIgnore
     @Alias String getRightsAlias();

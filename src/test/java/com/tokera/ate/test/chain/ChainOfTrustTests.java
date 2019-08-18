@@ -89,7 +89,7 @@ public class ChainOfTrustTests
     public void seeding()
     {
         DataPartitionChain chain = createChain();
-        MessagePublicKeyDto trustedKeyWrite = encryptor.getTrustOfPublicWrite();
+        MessagePublicKeyDto trustedKeyWrite = new MessagePublicKeyDto(encryptor.getTrustOfPublicWrite());
         chain.addTrustKey(trustedKeyWrite, null);
 
         @Hash String hash = trustedKeyWrite.getPublicKeyHash();
@@ -108,7 +108,7 @@ public class ChainOfTrustTests
         new Random().nextBytes(bytes1);
         
         DataPartitionChain chain = createChain();
-        MessagePrivateKeyDto trustedKeyWrite = encryptor.getTrustOfPublicWrite();
+        MessagePrivateKeyDto trustedKeyWrite = encryptor.getTrustOfPublicWrite().key();
         chain.addTrustKey(trustedKeyWrite, null);
         
         UUID rootId = UUID.randomUUID();

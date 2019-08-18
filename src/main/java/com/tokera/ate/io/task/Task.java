@@ -4,6 +4,7 @@ import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.delegates.DebugLoggingDelegate;
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.TokenDto;
 import com.tokera.ate.dto.msg.MessageDataDto;
 import com.tokera.ate.dto.msg.MessageDataHeaderDto;
@@ -168,11 +169,11 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
         Task.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () ->
         {
             AteDelegate d = AteDelegate.get();
-            for (MessagePublicKeyDto key : d.currentRights.getRightsRead()) {
-                d.io.write(this.partitionKey(), key);
+            for (PrivateKeyWithSeedDto key : d.currentRights.getRightsRead()) {
+                d.io.write(this.partitionKey(), key.key());
             }
-            for (MessagePublicKeyDto key : d.currentRights.getRightsWrite()) {
-                d.io.write(this.partitionKey(), key);
+            for (PrivateKeyWithSeedDto key : d.currentRights.getRightsWrite()) {
+                d.io.write(this.partitionKey(), key.key());
             }
         });
     }

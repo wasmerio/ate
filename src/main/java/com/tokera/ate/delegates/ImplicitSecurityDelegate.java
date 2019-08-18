@@ -139,6 +139,7 @@ public class ImplicitSecurityDelegate {
                     if (ret == null) {
                         ret = d.currentRights.getRightsWrite()
                                 .stream()
+                                .map(k -> k.key())
                                 .filter(k -> publicKeyHash.equals(k.getPublicKeyHash()))
                                 .findFirst()
                                 .orElse(null);

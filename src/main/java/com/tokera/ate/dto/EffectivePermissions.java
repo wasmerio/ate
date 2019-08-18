@@ -52,6 +52,13 @@ public class EffectivePermissions
     @JsonProperty
     @NotNull
     public List<@Hash String> rolesWrite;
+
+    @SuppressWarnings("initialization.fields.uninitialized")
+    @Deprecated
+    public EffectivePermissions() {
+        partitionKey = null;
+        id = UUID.randomUUID();
+    }
     
     public EffectivePermissions(@Nullable String type, IPartitionKey partitionKey, UUID id) {
         this.type = type;
@@ -63,9 +70,9 @@ public class EffectivePermissions
     }
     
     public boolean canRead(IRights entity) {
-        Set<MessagePrivateKeyDto> privateKeys = entity.getRightsRead();
-        for (MessagePrivateKeyDto privateKey : privateKeys) {
-            if (this.rolesRead.contains(privateKey.getPublicKeyHash())) {
+        Set<PrivateKeyWithSeedDto> privateKeys = entity.getRightsRead();
+        for (PrivateKeyWithSeedDto privateKey : privateKeys) {
+            if (this.rolesRead.contains(privateKey.publicHash())) {
                 return true;
             }
         }
@@ -73,9 +80,9 @@ public class EffectivePermissions
     }
     
     public boolean canWrite(IRights entity) {
-        Set<MessagePrivateKeyDto> privateKeys = entity.getRightsWrite();
-        for (MessagePrivateKeyDto privateKey : privateKeys) {
-            if (this.rolesWrite.contains(privateKey.getPublicKeyHash())) {
+        Set<PrivateKeyWithSeedDto> privateKeys = entity.getRightsWrite();
+        for (PrivateKeyWithSeedDto privateKey : privateKeys) {
+            if (this.rolesWrite.contains(privateKey.publicHash())) {
                 return true;
             }
         }

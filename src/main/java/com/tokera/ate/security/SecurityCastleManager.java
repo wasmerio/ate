@@ -3,6 +3,7 @@ package com.tokera.ate.security;
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.EffectivePermissions;
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import com.tokera.ate.io.api.IPartitionKey;
@@ -60,7 +61,7 @@ public class SecurityCastleManager {
                 continue;
             }
 
-            MessagePrivateKeyDto rightsKey = d.currentRights.findKey(publicKeyHash);
+            PrivateKeyWithSeedDto rightsKey = d.currentRights.findKey(publicKeyHash);
             if (rightsKey != null) {
                 ret.add(new MessagePublicKeyDto(rightsKey));
                 continue;

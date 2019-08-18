@@ -4,6 +4,7 @@ import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.kafka.MessageSerializer;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.msg.MessageDataDigestDto;
 import com.tokera.ate.dto.msg.MessageDataDto;
 import com.tokera.ate.dto.msg.MessageDataHeaderDto;
@@ -369,8 +370,8 @@ final class TrustValidatorBuilder {
                 // If the object is a claimable type then its allowed to attach to nothing
                 if (d.daoParents.getAllowedParentFreeSimple().contains(entityType) == true &&
                         d.daoParents.getAllowedParentClaimableSimple().contains(entityType) == true) {
-                    MessagePublicKeyDto trustPublicKey = d.encryptor.getTrustOfPublicWrite();
-                    digestPublicKey = trustPublicKey;
+                    PrivateKeyWithSeedDto trustPublicKey = d.encryptor.getTrustOfPublicWrite();
+                    digestPublicKey = new MessagePublicKeyDto(trustPublicKey.key());
                     d.debugLogging.logClaimed(partitionKey, id, entityType);
                 }
 

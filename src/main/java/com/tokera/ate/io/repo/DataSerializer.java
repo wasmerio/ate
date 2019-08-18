@@ -5,6 +5,7 @@ import com.google.common.cache.CacheBuilder;
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.base.BaseDaoInternal;
 import com.tokera.ate.dao.enumerations.PermissionPhase;
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.common.Immutalizable;
@@ -28,6 +29,7 @@ import java.lang.reflect.Field;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 @Startup
 @ApplicationScoped
@@ -64,15 +66,15 @@ public class DataSerializer {
         if (obj instanceof IRights) {
             IRights rights = (IRights) obj;
 
-            for (MessagePrivateKeyDto key : rights.getRightsRead()) {
-                if (chain.hasPublicKey(key.getPublicKeyHash()) == false) {
+            for (PrivateKeyWithSeedDto key : rights.getRightsRead()) {
+                if (chain.hasPublicKey(key.publicHash()) == false) {
                     MessagePublicKeyDto publicKey = new MessagePublicKeyDto(key);
                     kt.write(publicKey, this.LOG);
                 }
             }
 
-            for (MessagePrivateKeyDto key : rights.getRightsWrite()) {
-                @Hash String keyHash = key.getPublicKeyHash();
+            for (PrivateKeyWithSeedDto key : rights.getRightsWrite()) {
+                @Hash String keyHash = key.publicHash();
                 if (keyHash == null) continue;
                 if (chain.hasPublicKey(keyHash) == false) {
                     MessagePublicKeyDto publicKey = new MessagePublicKeyDto(key);
@@ -402,7 +404,7 @@ public class DataSerializer {
         SecurityCastleContext castle = d.securityCastleManager
                 .enterCastle(partitionKey,
                              header.getCastleId(),
-                             this.d.currentRights.getRightsRead());
+                             this.d.currentRights.getRightsRead().stream().map(k -> k.key()).collect(Collectors.toCollection(ArrayList::new)));
         if (castle == null) {
             if (shouldThrow == true) {
                 EffectivePermissions permissions = d.authorization.perms(header.getPayloadClazz(), partitionKey, header.getIdOrThrow(), PermissionPhase.BeforeMerge);

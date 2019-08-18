@@ -81,6 +81,16 @@ public class PrivateKeyWithSeedDto {
         this(keyType, AteDelegate.get().encryptor.generateSecret64(), null);
     }
 
+    public PrivateKeyWithSeedDto(PrivateKeyType keyType, int keySize) {
+        this(keyType, keySize, null);
+    }
+
+    public PrivateKeyWithSeedDto(PrivateKeyType keyType, int keySize, @Nullable String alias) {
+        this(keyType, AteDelegate.get().encryptor.generateSecret64(), keySize,
+             (keyType == PrivateKeyType.write ? AteDelegate.get().bootstrapConfig.getDefaultSigningTypes() : AteDelegate.get().bootstrapConfig.getDefaultEncryptTypes()),
+             alias);
+    }
+
     public PrivateKeyWithSeedDto(PrivateKeyType keyType, String seed) {
         this(keyType, seed, null);
     }
@@ -173,7 +183,15 @@ public class PrivateKeyWithSeedDto {
 
     @JsonIgnore
     public @Nullable String alias() {
-        return key().getAlias();
+        return this.alias;
+    }
+
+    @JsonIgnore
+    public String aliasOrHash() {
+        if (this.alias != null) {
+            return this.alias;
+        }
+        return publicHash();
     }
 
     @JsonIgnore
