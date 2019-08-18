@@ -72,7 +72,12 @@ public class TokenSerializer extends Serializer<TokenDto> implements ScalarSeria
     }
 
     public TokenDto createToken(Map<@Alias String, List<String>> claims, int expiresMins) {
-        Algorithm algorithm = Algorithm.HMAC256(this.jwtSecret);
+        Algorithm algorithm;
+        if (d.bootstrapConfig.getSecurityLevel().signToken) {
+            algorithm = Algorithm.HMAC256(this.jwtSecret);
+        }  else {
+            algorithm = Algorithm.none();
+        }
 
         JWTCreator.Builder builder = JWT.create()
                 .withIssuer(jwtIssuer);
@@ -84,20 +89,36 @@ public class TokenSerializer extends Serializer<TokenDto> implements ScalarSeria
             builder = builder.withExpiresAt(DateUtils.addMinutes(new Date(), expiresMins));
         }
 
+        String base64;
         String plain = builder.sign(algorithm);
-        byte[] enc = d.encryptor.encryptAes(jwtEncrypt, plain.getBytes());
-        String base64 = Base64.encodeBase64URLSafeString(enc);
+        if (d.bootstrapConfig.getSecurityLevel().encryptToken) {
+            byte[] enc = d.encryptor.encryptAes(jwtEncrypt, plain.getBytes());
+            base64 = Base64.encodeBase64URLSafeString(enc);
+        } else {
+            base64 = plain;
+        }
 
         return new TokenDto(base64);
     }
 
     public void validateToken(TokenDto token) {
-        String encToken = token.getBase64();
-        byte[] bytes = Base64.decodeBase64(encToken);
-        String plain = new String(d.encryptor.decryptAes(jwtEncrypt, bytes));
+        String plain;
+        if (d.bootstrapConfig.getSecurityLevel().encryptToken) {
+            String encToken = token.getBase64();
+            byte[] bytes = Base64.decodeBase64(encToken);
+            plain = new String(d.encryptor.decryptAes(jwtEncrypt, bytes));
+        } else {
+            plain = token.getBase64();
+        }
+
+        Algorithm algorithm;
+        if (d.bootstrapConfig.getSecurityLevel().signToken) {
+            algorithm = Algorithm.HMAC256(this.jwtSecret);
+        }  else {
+            algorithm = Algorithm.none();
+        }
 
         try {
-            Algorithm algorithm = Algorithm.HMAC256(this.jwtSecret);
             JWTVerifier verifier = JWT.require(algorithm)
                     .withIssuer(jwtIssuer)
                     .build(); //Reusable verifier instance
@@ -108,9 +129,14 @@ public class TokenSerializer extends Serializer<TokenDto> implements ScalarSeria
     }
 
     public ImmutalizableArrayList<ClaimDto> extractTokenClaims(TokenDto token) {
-        String encToken = token.getBase64();
-        byte[] bytes = Base64.decodeBase64(encToken);
-        String plain = new String(d.encryptor.decryptAes(jwtEncrypt, bytes));
+        String plain;
+        if (d.bootstrapConfig.getSecurityLevel().encryptToken) {
+            String encToken = token.getBase64();
+            byte[] bytes = Base64.decodeBase64(encToken);
+            plain = new String(d.encryptor.decryptAes(jwtEncrypt, bytes));
+        } else {
+            plain = token.getBase64();
+        }
 
         ImmutalizableArrayList<ClaimDto> ret = new ImmutalizableArrayList<>();
         try {
