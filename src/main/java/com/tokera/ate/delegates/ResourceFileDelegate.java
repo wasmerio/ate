@@ -46,14 +46,21 @@ public class ResourceFileDelegate {
             if (file.startsWith(prefix) == false)
                 continue;
 
-            ret.addAll(loadFile(file, clazz));
+            ret.addAll(loadAllFromFile(file, clazz));
         }
 
         return ret;
     }
 
     @SuppressWarnings("unchecked")
-    public <T> List<T> loadFile(String file, Class<T> clazz) {
+    public <T> T load(String file, Class<T> clazz) {
+        return loadAllFromFile(file, clazz).stream()
+                .findFirst()
+                .orElseThrow(() -> new WebApplicationException("Object of type [" + clazz + "] was not found in the file [" + file + "].", Response.Status.INTERNAL_SERVER_ERROR));
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T> List<T> loadAllFromFile(String file, Class<T> clazz) {
         List<T> ret = new ArrayList<>();
 
         try {
