@@ -24,6 +24,8 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import javax.enterprise.context.Dependent;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
+import java.net.URLDecoder;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -89,7 +91,6 @@ public class PrivateKeyWithSeedDto {
         this(keyType, AteDelegate.get().encryptor.generateSecret64(), keySize,
              (keyType == PrivateKeyType.write ? AteDelegate.get().bootstrapConfig.getDefaultSigningTypes() : AteDelegate.get().bootstrapConfig.getDefaultEncryptTypes()),
              alias);
-        assert alias == null || alias.contains(":") == false;
     }
 
     public PrivateKeyWithSeedDto(PrivateKeyType keyType, String seed) {
@@ -123,7 +124,6 @@ public class PrivateKeyWithSeedDto {
         }
 
         assert seed == null || seed.contains(":") == false;
-        assert alias == null || alias.contains(":") == false;
     }
 
     public PrivateKeyWithSeedDto(PrivateKeyType keyType, String seed, int keySize, KeyType alg, @Nullable String alias) {
@@ -140,7 +140,6 @@ public class PrivateKeyWithSeedDto {
         this.algs.add(alg);
 
         assert seed == null || seed.contains(":") == false;
-        assert alias == null || alias.contains(":") == false;
     }
 
     public PrivateKeyWithSeedDto(PrivateKeyType keyType, String seed, int keySize, List<KeyType> algs, @Nullable String alias) {
@@ -156,7 +155,6 @@ public class PrivateKeyWithSeedDto {
         this.algs = algs;
 
         assert seed == null || seed.contains(":") == false;
-        assert alias == null || alias.contains(":") == false;
     }
 
     @JsonIgnore
@@ -233,7 +231,7 @@ public class PrivateKeyWithSeedDto {
         sb.append(this.seed);
         if (this.alias != null) {
             sb.append(":");
-            sb.append(this.alias);
+            sb.append(URLEncoder.encode(this.alias));
         }
 
         return sb.toString();
@@ -254,7 +252,7 @@ public class PrivateKeyWithSeedDto {
             String seed = comps[3];
             String alias = null;
             if (comps.length >= 5) {
-                alias = comps[4];
+                alias = URLDecoder.decode(comps[4]);
             }
 
             return new PrivateKeyWithSeedDto(type, seed, size, algs, alias);
