@@ -111,6 +111,20 @@ public class PrivateKeyWithSeedDto {
         }
     }
 
+    public PrivateKeyWithSeedDto(PrivateKeyType keyType, String seed, int keySize, KeyType alg, @Nullable String alias) {
+        this.seed = seed;
+        this.key = null;
+        if (alias != null && alias.length() > 0) {
+            this.alias = alias;
+        } else {
+            this.alias = null;
+        }
+        this.type = keyType;
+        this.keySize = keySize;
+        this.algs = new ArrayList<>();
+        this.algs.add(alg);
+    }
+
     public PrivateKeyWithSeedDto(PrivateKeyType keyType, String seed, int keySize, List<KeyType> algs, @Nullable String alias) {
         this.seed = seed;
         this.key = null;
