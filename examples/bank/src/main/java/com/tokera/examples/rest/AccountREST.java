@@ -33,29 +33,29 @@ public class AccountREST {
     @Produces({"text/yaml", MediaType.APPLICATION_JSON})
     @Consumes({"text/yaml", MediaType.APPLICATION_JSON})
     public TransactionToken beginTransaction(BeginTransactionRequest request) {
-        Account acc = d.io.get(accountId, Account.class);
+        Account acc = d.io.read(accountId, Account.class);
         d.currentRights.impersonate(acc);
 
-        // Carve off the value that was requested
-        List<CoinShare> transferShares = coinHelper.carveOfValue(
-                d.io.getManyAcrossPartitions(acc.coins, Coin.class).stream().filter(c -> c.type.equals(request.assetType)).collect(Collectors.toList()),
-                request.amount);
+        List<CoinShare> transferShares = d.io.underTransaction(true, () -> {
+            // Carve off the value that was requested
+            List<CoinShare> shares = coinHelper.carveOfValue(
+                    d.io.read(acc.coins, Coin.class).stream().filter(c -> c.type.equals(request.assetType)).collect(Collectors.toList()),
+                    request.amount);
 
-        // If there's still some remaining then we don't own enough of this asset to meet the desired amount
-        BigDecimal transferSharesValue = coinHelper.valueOfShares(transferShares, false);
-        if (transferSharesValue.compareTo(request.amount) != 0) {
-            throw new WebApplicationException("Insufficient funds [found=" + transferSharesValue + ", needed=" + request.amount + "].", Response.Status.NOT_ACCEPTABLE);
-        }
+            // If there's still some remaining then we don't own enough of this asset to meet the desired amount
+            BigDecimal transferSharesValue = coinHelper.valueOfShares(shares, false);
+            if (transferSharesValue.compareTo(request.amount) != 0) {
+                throw new WebApplicationException("Insufficient funds [found=" + transferSharesValue + ", needed=" + request.amount + "].", Response.Status.NOT_ACCEPTABLE);
+            }
+            return shares;
+        });
 
-        // Force a merge as the tree structure must be in place before we attempt to immutalize it
-        d.io.mergeDeferredAndSync();
 
-        // Claim all the coins
-        MessagePrivateKeyDto ownership = d.encryptor.genSignKey();
-        Collection<ShareToken> tokens = coinHelper.makeTokens(transferShares, ownership);
-
-        // Force a merge as the tree structure must be in place before we attempt to immutalize it
-        d.io.mergeDeferredAndSync();
+        Collection<ShareToken> tokens = d.io.underTransaction(true, () -> {
+            // Claim all the coins
+            MessagePrivateKeyDto ownership = d.encryptor.genSignKey();
+            return coinHelper.makeTokens(transferShares, ownership);
+        });
 
         // Immutalize the shares that need to be protected
         coinHelper.immutalizeParentTokens(tokens);
@@ -71,48 +71,47 @@ public class AccountREST {
     @Produces({"text/yaml", MediaType.APPLICATION_JSON})
     @Consumes({"text/yaml", MediaType.APPLICATION_JSON})
     public MonthlyActivity completeTransaction(TransactionToken transactionToken) {
-        Account acc = d.io.get(accountId, Account.class);
-        d.currentRights.impersonate(acc);
-        MessagePrivateKeyDto ownership = d.authorization.getOrCreateImplicitRightToWrite(acc);
+        return d.io.underTransaction(true, () -> {
+            Account acc = d.io.read(accountId, Account.class);
+            d.currentRights.impersonate(acc);
+            MessagePrivateKeyDto ownership = d.authorization.getOrCreateImplicitRightToWrite(acc);
 
-        // Prepare aggregate counters
-        List<CoinShare> shares = new ArrayList<CoinShare>();
+            // Prepare aggregate counters
+            List<CoinShare> shares = new ArrayList<CoinShare>();
 
-        for (ShareToken shareToken : transactionToken.getShares()) {
-            CoinShare share = d.io.get(shareToken.getShare(), CoinShare.class);
-            shares.add(share);
+            for (ShareToken shareToken : transactionToken.getShares()) {
+                CoinShare share = d.io.read(shareToken.getShare(), CoinShare.class);
+                shares.add(share);
 
-            d.currentRights.impersonateWrite(shareToken.getOwnership());
+                d.currentRights.impersonateWrite(shareToken.getOwnership());
 
-            share.trustInheritWrite = false;
-            share.getTrustAllowWrite().clear();
-            d.authorization.authorizeEntityWrite(ownership, share);
-            d.io.mergeLater(share);
+                share.trustInheritWrite = false;
+                share.getTrustAllowWrite().clear();
+                d.authorization.authorizeEntityWrite(ownership, share);
+                d.io.write(share);
 
-            if (acc.coins.contains(shareToken.getCoin()) == false) {
-                acc.coins.add(shareToken.getCoin());
-                d.io.mergeLater(acc);
+                if (acc.coins.contains(shareToken.getCoin()) == false) {
+                    acc.coins.add(shareToken.getCoin());
+                    d.io.write(acc);
+                }
             }
-        }
 
-        // Now write the transaction history
-        MonthlyActivity activity = accountHelper.getCurrentMonthlyActivity(acc);
-        TransactionDetails details = new TransactionDetails(activity, shares, transactionToken.getDescription());
-        activity.transactions.add(new Transaction(details));
-        d.io.mergeLater(details);
-        d.io.mergeLater(activity);
+            // Now write the transaction history
+            MonthlyActivity activity = accountHelper.getCurrentMonthlyActivity(acc);
+            TransactionDetails details = new TransactionDetails(activity, shares, transactionToken.getDescription());
+            activity.transactions.add(new Transaction(details));
+            d.io.write(details);
+            d.io.write(activity);
 
-        // Force a merge
-        d.io.mergeDeferred();
-        d.io.sync();
-        return activity;
+            return activity;
+        });
     }
 
     @GET
     @Path("transactions")
     @Produces({"text/yaml", MediaType.APPLICATION_JSON})
     public MonthlyActivity getTransactions() {
-        Account acc = d.io.get(accountId, Account.class);
+        Account acc = d.io.read(accountId, Account.class);
         d.currentRights.impersonate(acc);
         return accountHelper.getCurrentMonthlyActivity(acc);
     }

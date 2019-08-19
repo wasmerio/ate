@@ -1,5 +1,6 @@
 package com.tokera.examples.dao;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tokera.ate.annotations.PermitParentType;
 import com.tokera.ate.common.ImmutalizableArrayList;
 import com.tokera.ate.dao.base.BaseDaoRoles;
@@ -13,8 +14,11 @@ import java.util.UUID;
 @Dependent
 @PermitParentType({Coin.class, CoinShare.class})
 public class CoinShare extends BaseDaoRoles {
+    @JsonProperty
     public UUID id;
+    @JsonProperty
     public UUID parent;
+    @JsonProperty
     public ImmutalizableArrayList<UUID> shares = new ImmutalizableArrayList<UUID>();
 
     @SuppressWarnings("initialization.fields.uninitialized")

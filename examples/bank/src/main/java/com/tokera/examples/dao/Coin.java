@@ -1,11 +1,14 @@
 package com.tokera.examples.dao;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tokera.ate.annotations.ImplicitAuthorityField;
 import com.tokera.ate.annotations.PermitParentFree;
 import com.tokera.ate.common.ImmutalizableArrayList;
 import com.tokera.ate.dao.base.BaseDaoRoles;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.api.IPartitionKeyProvider;
+import com.tokera.ate.providers.PartitionKeySerializer;
 import com.tokera.ate.units.DaoId;
 import com.tokera.examples.common.CoinPartitionKey;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -17,13 +20,15 @@ import java.util.UUID;
 @Dependent
 @PermitParentFree
 public class Coin extends BaseDaoRoles implements IPartitionKeyProvider {
+    @JsonProperty
     public UUID id;
+    @JsonProperty
     @ImplicitAuthorityField
     public String type;
+    @JsonProperty
     public BigDecimal value;
+    @JsonProperty
     public ImmutalizableArrayList<UUID> shares = new ImmutalizableArrayList<UUID>();
-    @JsonIgnore
-    private transient String base64;
 
     @SuppressWarnings("initialization.fields.uninitialized")
     @Deprecated
@@ -47,12 +52,5 @@ public class Coin extends BaseDaoRoles implements IPartitionKeyProvider {
     @Override
     public IPartitionKey partitionKey(boolean shouldThrow) {
         return new CoinPartitionKey();
-    }
-
-    @Override
-    public String asBase64() {
-        if (base64 != null) return base64;
-        base64 = PartitionKeySerializer.serialize(this);
-        return base64;
     }
 }

@@ -1,5 +1,6 @@
 package com.tokera.examples.dao;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tokera.ate.annotations.PermitParentType;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
@@ -15,11 +16,17 @@ import java.util.stream.Collectors;
 @Dependent
 @PermitParentType(MonthlyActivity.class)
 public class TransactionDetails extends BaseDao {
+    @JsonProperty
     public UUID id;
+    @JsonProperty
     public UUID monthlyActivity;
+    @JsonProperty
     public BigDecimal amount;
+    @JsonProperty
     public ArrayList<PUUID> shares = new ArrayList<PUUID>();
+    @JsonProperty
     public Date when;
+    @JsonProperty
     public String description;
 
     @SuppressWarnings("initialization.fields.uninitialized")

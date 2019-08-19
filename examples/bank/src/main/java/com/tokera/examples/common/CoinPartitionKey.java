@@ -1,5 +1,7 @@
 package com.tokera.examples.common;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.tokera.ate.enumerations.DataPartitionType;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.providers.PartitionKeySerializer;
 
@@ -18,6 +20,11 @@ public class CoinPartitionKey implements IPartitionKey {
     }
 
     @Override
+    public DataPartitionType partitionType() {
+        return DataPartitionType.Dao;
+    }
+
+    @Override
     public String toString() {
         return PartitionKeySerializer.toString(this);
     }
@@ -30,12 +37,5 @@ public class CoinPartitionKey implements IPartitionKey {
     @Override
     public boolean equals(Object val) {
         return PartitionKeySerializer.equals(this, val);
-    }
-
-    @Override
-    public String asBase64() {
-        if (base64 != null) return base64;
-        base64 = PartitionKeySerializer.serialize(this);
-        return base64;
     }
 }

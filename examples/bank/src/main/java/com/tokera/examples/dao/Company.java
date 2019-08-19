@@ -1,5 +1,6 @@
 package com.tokera.examples.dao;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tokera.ate.annotations.ImplicitAuthority;
 import com.tokera.ate.annotations.ImplicitAuthorityField;
 import com.tokera.ate.annotations.PermitParentFree;
@@ -15,8 +16,10 @@ import java.util.UUID;
 @Dependent
 @PermitParentFree
 public class Company extends BaseDaoRolesRights {
+    @JsonProperty
     @ImplicitAuthorityField
     public String domain;
+    @JsonProperty
     public UUID companyAccount;
 
     @SuppressWarnings("initialization.fields.uninitialized")

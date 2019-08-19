@@ -33,6 +33,6 @@ public class TaskREST {
     @Path("coinWatcher")
     @PermitUserRole(UserRole.ANYTHING)
     public void stopCoinWatcher() {
-        d.taskManager.unsubscribeByCallback(coinWatcher);
+        d.taskManager.unsubscribe(coinWatcher, CoinShare.class);
     }
 }

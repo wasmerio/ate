@@ -31,28 +31,29 @@ public class RegisterREST {
     @PermitAll
     public RegistrationResponse registerCompany(String domain) {
         Account acc = new Account("Company account for " + domain);
-
         Company company = new Company(domain, acc);
-        acc.company = company.getId();
+        return d.io.withPartitionKey(company.partitionKey(), () -> {
+            acc.company = company.getId();
 
-        // Create access rights and grant them to ourselves
-        d.authorization.authorizeEntity(company, company);
-        d.currentRights.impersonate(company);
-        d.io.mergeLater(company);
+            // Create access rights and grant them to ourselves
+            d.authorization.authorizeEntity(company, company);
+            d.currentRights.impersonate(company);
+            d.io.write(company);
 
-        // Now save the account using this access rights
-        d.io.mergeLater(acc);
+            // Now save the account using this access rights
+            d.io.write(acc);
 
-        TokenDto token = new TokenBuilder()
-                .withUsername("root@" + company.domain)
-                .withCompanyName(company.domain)
-                .withUserRole(UserRole.HUMAN)
-                .withRiskRole(RiskRole.HIGH)
-                .withPartitionkeyFromDao(company)
-                .addReadKey(d.authorization.getOrCreateImplicitRightToRead(company))
-                .addWriteKey(d.authorization.getOrCreateImplicitRightToWrite(company))
-                .build();
-        return new RegistrationResponse(company.getId(), company.companyAccount, token);
+            TokenDto token = new TokenBuilder()
+                    .withUsername("root@" + company.domain)
+                    .withCompanyName(company.domain)
+                    .withUserRole(UserRole.HUMAN)
+                    .withRiskRole(RiskRole.HIGH)
+                    .withPartitionkeyFromDao(company)
+                    .addReadKey(d.authorization.getOrCreateImplicitRightToRead(company))
+                    .addWriteKey(d.authorization.getOrCreateImplicitRightToWrite(company))
+                    .build();
+            return new RegistrationResponse(company.getId(), company.companyAccount, token);
+        });
     }
 
     @POST
@@ -63,24 +64,26 @@ public class RegisterREST {
     public RegistrationResponse registerIndividual(String email) {
         Account acc = new Account("Individual account for " + email);
         Individual individual = new Individual(email, acc);
-        acc.individual = individual.getId();
+        return d.io.withPartitionKey(individual.partitionKey(), () -> {
+            acc.individual = individual.getId();
 
-        // Create access rights and grant them to ourselves
-        d.authorization.authorizeEntity(individual, individual);
-        d.currentRights.impersonate(individual);
-        d.io.mergeLater(individual);
+            // Create access rights and grant them to ourselves
+            d.authorization.authorizeEntity(individual, individual);
+            d.currentRights.impersonate(individual);
+            d.io.write(individual);
 
-        // Now save the account using this access rights
-        d.io.mergeLater(acc);
+            // Now save the account using this access rights
+            d.io.write(acc);
 
-        TokenDto token = new TokenBuilder()
-                .withUsername(individual.email)
-                .withUserRole(UserRole.HUMAN)
-                .withRiskRole(RiskRole.HIGH)
-                .withPartitionkeyFromDao(individual)
-                .addReadKey(d.authorization.getOrCreateImplicitRightToRead(individual))
-                .addWriteKey(d.authorization.getOrCreateImplicitRightToWrite(individual))
-                .build();
-        return new RegistrationResponse(individual.getId(), individual.personalAccount, token);
+            TokenDto token = new TokenBuilder()
+                    .withUsername(individual.email)
+                    .withUserRole(UserRole.HUMAN)
+                    .withRiskRole(RiskRole.HIGH)
+                    .withPartitionkeyFromDao(individual)
+                    .addReadKey(d.authorization.getOrCreateImplicitRightToRead(individual))
+                    .addWriteKey(d.authorization.getOrCreateImplicitRightToWrite(individual))
+                    .build();
+            return new RegistrationResponse(individual.getId(), individual.personalAccount, token);
+        });
     }
 }

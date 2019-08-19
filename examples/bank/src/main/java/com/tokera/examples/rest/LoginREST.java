@@ -57,8 +57,8 @@ public class LoginREST {
     @Produces(MediaType.TEXT_PLAIN)
     @Consumes(MediaType.APPLICATION_XML)
     @PermitAll
-    public String tokenLogin(String tokenXml) {
-        TokenDto token = new TokenDto(tokenXml);
+    public String tokenLogin(String tokenTxt) {
+        TokenDto token = new TokenDto(tokenTxt);
         d.currentToken.publishToken(token);
         return token.getHash();
     }

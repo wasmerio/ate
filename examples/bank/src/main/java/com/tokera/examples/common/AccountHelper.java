@@ -22,13 +22,13 @@ public class AccountHelper {
     {
         // Find all the coins for this account
         LinkedList<CoinShare> shares = new LinkedList<>();
-        List<Coin> coins = d.io.getManyAcrossPartitions(acc.coins, Coin.class);
+        List<Coin> coins = d.io.read(acc.coins, Coin.class);
         for (Coin coin : coins) {
             List<CoinShare> coinShares = coinHelper.findOwnedShares(Lists.newArrayList(coin));
             if (coinShares.size() < 0) {
                 // We have no more shares of this coin so forget about it
                 acc.coins.remove(coin.addressableId());
-                d.io.mergeLater(acc);
+                d.io.write(acc);
             } else {
                 shares.addAll(coinShares);
             }
@@ -56,7 +56,7 @@ public class AccountHelper {
         for (String coinType : activity.balances.keySet()) {
             if (balances.containsKey(coinType) == false) {
                 activity.balances.remove(coinType);
-                d.io.mergeLater(activity);
+                d.io.write(activity);
             }
         }
         for (String coinType : balances.keySet()) {
@@ -65,7 +65,7 @@ public class AccountHelper {
 
             if (left.compareTo(right) != 0) {
                 activity.balances.put(coinType, right);
-                d.io.mergeLater(activity);
+                d.io.write(activity);
             }
         }
     }
@@ -78,7 +78,7 @@ public class AccountHelper {
 
         // Fast path - check the last monthly activity
         if (acc.monthlyActivities.size() > 0) {
-            MonthlyActivity last = d.io.get(acc.monthlyActivities.get(acc.monthlyActivities.size()-1), MonthlyActivity.class);
+            MonthlyActivity last = d.io.read(acc.monthlyActivities.get(acc.monthlyActivities.size()-1), MonthlyActivity.class);
             if (now.compareTo(last.start) >= 0 &&
                 now.compareTo(last.end) <= 0)
             {
@@ -88,7 +88,7 @@ public class AccountHelper {
         }
 
         // Slow path - make sure there's no duplicates
-        List<MonthlyActivity> monthlyActivities = d.io.getMany(acc.monthlyActivities, MonthlyActivity.class);
+        List<MonthlyActivity> monthlyActivities = d.io.read(acc.monthlyActivities, MonthlyActivity.class);
         for (MonthlyActivity monthlyActivity : monthlyActivities) {
             if (now.compareTo(monthlyActivity.start) >= 0 &&
                 now.compareTo(monthlyActivity.end) <= 0)
@@ -109,8 +109,8 @@ public class AccountHelper {
         MonthlyActivity ret = new MonthlyActivity(acc, start, end);
         acc.monthlyActivities.add(ret.id);
 
-        d.io.mergeLater(ret);
-        d.io.mergeLater(acc);
+        d.io.write(ret);
+        d.io.write(acc);
 
         reconcileBalance(acc, ret);
         return ret;

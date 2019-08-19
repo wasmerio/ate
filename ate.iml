@@ -86,17 +86,7 @@
     <orderEntry type="library" name="Maven: org.apache.commons:commons-lang3:3.8" level="project" />
     <orderEntry type="library" name="Maven: org.apache.commons:commons-csv:1.5" level="project" />
     <orderEntry type="library" name="Maven: commons-codec:commons-codec:1.11" level="project" />
-    <orderEntry type="library" name="Maven: org.opensaml:opensaml:2.6.1" level="project" />
-    <orderEntry type="library" name="Maven: org.opensaml:openws:1.5.1" level="project" />
-    <orderEntry type="library" name="Maven: org.opensaml:xmltooling:1.4.1" level="project" />
-    <orderEntry type="library" name="Maven: org.bouncycastle:bcprov-jdk15:1.46" level="project" />
-    <orderEntry type="library" name="Maven: ca.juliusdavies:not-yet-commons-ssl:0.3.9" level="project" />
-    <orderEntry type="library" name="Maven: commons-httpclient:commons-httpclient:3.1" level="project" />
-    <orderEntry type="library" name="Maven: org.apache.santuario:xmlsec:1.5.6" level="project" />
-    <orderEntry type="library" name="Maven: commons-lang:commons-lang:2.6" level="project" />
-    <orderEntry type="library" name="Maven: org.apache.velocity:velocity:1.7" level="project" />
-    <orderEntry type="library" name="Maven: org.owasp.esapi:esapi:2.0.1" level="project" />
-    <orderEntry type="library" name="Maven: joda-time:joda-time:2.2" level="project" />
+    <orderEntry type="library" name="Maven: com.auth0:java-jwt:3.8.2" level="project" />
     <orderEntry type="library" name="Maven: org.junit.jupiter:junit-jupiter-api:5.4.2" level="project" />
     <orderEntry type="library" name="Maven: org.apiguardian:apiguardian-api:1.0.0" level="project" />
     <orderEntry type="library" name="Maven: org.opentest4j:opentest4j:1.1.1" level="project" />

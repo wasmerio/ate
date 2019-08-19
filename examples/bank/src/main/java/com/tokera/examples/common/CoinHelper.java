@@ -136,11 +136,11 @@ public class CoinHelper {
     {
         CoinShare ret = new CoinShare(share);
         share.shares.add(ret.id);
-        d.io.mergeLater(share);
+        d.io.write(share);
 
         ret.trustInheritWrite = false;
         ret.trustAllowWrite.putAll(share.trustAllowWrite);
-        d.io.mergeLater(ret);
+        d.io.write(ret);
         return ret;
     }
 
@@ -150,7 +150,7 @@ public class CoinHelper {
     public Collection<CoinShare> splitShare(CoinShare share)
     {
         if (share.shares.size() > 0) {
-            return d.io.getMany(share.shares, CoinShare.class);
+            return d.io.read(share.shares, CoinShare.class);
         }
 
         ArrayList<CoinShare> ret = new ArrayList<>();
@@ -171,7 +171,7 @@ public class CoinHelper {
             share.trustInheritWrite = false;
             share.trustAllowWrite.clear();
             d.authorization.authorizeEntityWrite(ownership, share);
-            d.io.mergeLater(share);
+            d.io.write(share);
 
             Coin coin = this.getCoinFromShare(share);
             tokens.add(new ShareToken(coin, share, ownership));
@@ -186,7 +186,7 @@ public class CoinHelper {
         List<CoinShare> ret = new ArrayList<>();
 
         LinkedList<CoinShare> shares = new LinkedList<>();
-        coins.forEach(c -> shares.addAll(d.io.getMany(c.addressableId().partition(), c.shares, CoinShare.class)));
+        coins.forEach(c -> shares.addAll(d.io.read(c.addressableId().partition(), c.shares, CoinShare.class)));
         for (;shares.isEmpty() == false; ) {
             CoinShare share = shares.pop();
 
@@ -194,7 +194,7 @@ public class CoinHelper {
                 ret.add(share);
             } else {
                 shares.addAll(
-                    d.io.getMany(
+                    d.io.read(
                         share.addressableId().partition(),
                         share.shares,
                         CoinShare.class));
@@ -210,7 +210,7 @@ public class CoinHelper {
     {
         List<CoinShare> shares = new ArrayList<>();
         tokens.forEach(t -> {
-            shares.add(d.io.get(t.getShare(), CoinShare.class));
+            shares.add(d.io.read(t.getShare(), CoinShare.class));
         });
         immutalizeParentShares(shares);
     }
@@ -248,8 +248,8 @@ public class CoinHelper {
 
                 if (d.authorization.canWrite(parent)) {
                     parentShare.getTrustAllowWrite().clear();
-                    parentShare.setTrustInheritWrite(false);
-                    d.io.mergeLater(parentShare);
+                    parentShare.trustInheritWrite = false;
+                    d.io.write(parentShare);
                 }
 
                 parent = d.daoHelper.getParent(parentShare);

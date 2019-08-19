@@ -12,34 +12,34 @@ import com.tokera.examples.dao.CoinShare;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 import java.util.Collection;
+import java.util.UUID;
 
 @Startup
 @ApplicationScoped
 public class CoinWatcherTask implements ITaskCallback<CoinShare> {
+    private UUID id = UUID.randomUUID();
+
     @SuppressWarnings("initialization.fields.uninitialized")
     @Inject
     private LoggerHook LOG;
 
     @Override
-    public void onInit(Collection<CoinShare> coinShares, ITask task) {
-        for (CoinShare coinShare : coinShares) {
-            LOG.info("coin-share:init:" + coinShare.id);
-        }
+    public UUID id() {
+        return this.id;
     }
 
     @Override
-    public void onData(CoinShare coinShare, ITask task) {
+    public void onUpdate(CoinShare coinShare, ITask task) {
+        process(coinShare);
+    }
+
+    @Override
+    public void onCreate(CoinShare coinShare, ITask task) {
+        process(coinShare);
+    }
+
+    public void process(CoinShare coinShare) {
         AteDelegate d = AteDelegate.get();
-        BaseDao parent = d.daoHelper.getParent(coinShare);
         LOG.info("coin-share:data:" + coinShare.id);
-    }
-
-    @Override
-    public void onRemove(PUUID id, ITask task) {
-        LOG.info("coin-share:create:" + id);
-    }
-
-    @Override
-    public void onTick(ITask iTask) {
     }
 }
