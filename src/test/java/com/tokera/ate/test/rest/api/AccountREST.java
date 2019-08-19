@@ -24,6 +24,7 @@ import javax.validation.Valid;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import java.io.IOException;
+import java.util.UUID;
 
 @ApplicationScoped
 @Path("/acc")
@@ -72,5 +73,14 @@ public class AccountREST {
         d.authorization.authorizeEntityPublicRead(acc);
         d.io.write(acc);
         return acc;
+    }
+
+    @GET
+    @Path("/{id}")
+    @Produces(MediaType.APPLICATION_JSON)
+    @PermitUserRole(UserRole.HUMAN)
+    @PermitRiskRole(RiskRole.MEDIUM)
+    public MyAccount getAccount(@PathParam("id") UUID id) {
+        return d.io.read(id, MyAccount.class);
     }
 }

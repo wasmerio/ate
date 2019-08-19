@@ -196,6 +196,24 @@ public class DataContainer {
         BaseDao ret = _ret;
         if (ret == null) return null;
 
+        // Validate we have something and then get the first and last
+        if (leaves.size() <= 0) return null;
+        DataGraphNode first = leaves.getFirst();
+        DataGraphNode last = leaves.getLast();
+
+        // If the last leave has an empty payload then we are done
+        if (last.msg.getData().hasPayload() == false) {
+            return null;
+        }
+
+        // Remove any leaves in the front that are empty as they will have no bearing on the final merged version
+        // and cause needless writes
+        while (first.msg.getData().hasPayload() == false) {
+            leaves.remove(first);
+            first = leaves.getFirst();
+        }
+        if (leaves.size() <= 0) return null;
+
         // Reconcile the parent version pointers
         if (leaves.size() == 1) {
             BaseDaoInternal.setPreviousVersion(ret, leaves.getLast().version);

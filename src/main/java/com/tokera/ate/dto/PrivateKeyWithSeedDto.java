@@ -24,6 +24,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import javax.enterprise.context.Dependent;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
+import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.util.ArrayList;
@@ -42,13 +43,13 @@ public class PrivateKeyWithSeedDto {
     @JsonProperty
     private @Nullable String alias;
     @JsonProperty
-    public final String seed;
+    private String seed;
     @JsonProperty
-    public final PrivateKeyType type;
+    private PrivateKeyType type;
     @JsonProperty
-    public final int keySize;
+    private int keySize;
     @JsonProperty
-    public final List<KeyType> algs;
+    private List<KeyType> algs;
 
     @JsonIgnore
     private transient MessagePrivateKeyDto key;
@@ -56,13 +57,6 @@ public class PrivateKeyWithSeedDto {
     @SuppressWarnings("initialization.fields.uninitialized")
     @Deprecated
     public PrivateKeyWithSeedDto() {
-        AteDelegate d = AteDelegate.get();
-        this.seed = d.encryptor.generateSecret64(d.bootstrapConfig.getDefaultEncryptionStrength());
-        this.key = null;
-        this.alias = null;
-        this.type = PrivateKeyType.read;
-        this.keySize = d.bootstrapConfig.getDefaultEncryptionStrength();
-        this.algs = d.bootstrapConfig.getDefaultEncryptTypes();
     }
 
     public PrivateKeyWithSeedDto(PrivateKeyWithSeedDto a) {
@@ -212,6 +206,26 @@ public class PrivateKeyWithSeedDto {
     }
 
     @JsonIgnore
+    public String seed() {
+        return this.seed;
+    }
+
+    @JsonIgnore
+    public PrivateKeyType type() {
+        return this.type;
+    }
+
+    @JsonIgnore
+    public int keySize() {
+        return this.keySize;
+    }
+
+    @JsonIgnore
+    public Iterable<KeyType> algs() {
+        return this.algs;
+    }
+
+    @JsonIgnore
     public String serialize() {
         StringBuilder sb = new StringBuilder();
         sb.append(this.type.shortName());
@@ -231,7 +245,11 @@ public class PrivateKeyWithSeedDto {
         sb.append(this.seed);
         if (this.alias != null) {
             sb.append(":");
-            sb.append(URLEncoder.encode(this.alias));
+            try {
+                sb.append(URLEncoder.encode(this.alias, "UTF-8"));
+            } catch (UnsupportedEncodingException e) {
+                throw new WebApplicationException(e);
+            }
         }
 
         return sb.toString();
@@ -252,7 +270,11 @@ public class PrivateKeyWithSeedDto {
             String seed = comps[3];
             String alias = null;
             if (comps.length >= 5) {
-                alias = URLDecoder.decode(comps[4]);
+                try {
+                    alias = URLDecoder.decode(comps[4], "UTF-8");
+                } catch (UnsupportedEncodingException e) {
+                    throw new WebApplicationException(e);
+                }
             }
 
             return new PrivateKeyWithSeedDto(type, seed, size, algs, alias);

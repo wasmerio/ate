@@ -30,6 +30,8 @@ public class BasicIntegrationTests {
     @SuppressWarnings("initialization.fields.uninitialized")
     private @NotNull RawClient session;
 
+    private UUID accountId;
+
     @BeforeAll
 	public static void init() {
 		ApiServer.setPreventZooKeeper(true);
@@ -77,7 +79,13 @@ public class BasicIntegrationTests {
         newDetails.setEmail("test@mycompany.org");
 
         MyAccount ret = session.restPut("/acc/register", Entity.entity(newDetails, MediaType.APPLICATION_JSON_TYPE), MyAccount.class);
-        this.session.appendToPrefixForFs(ret.id + "/");
-        this.session.appendToPrefixForRest(ret.id + "/");
+        this.accountId = ret.id;
+        session.setPartitionKey(ret.partitionKey());
+    }
+
+    @RepeatedTest(500)
+    @Order(20)
+    public void getAccount() {
+        session.restGet("/acc/" + this.accountId, MyAccount.class);
     }
 }
