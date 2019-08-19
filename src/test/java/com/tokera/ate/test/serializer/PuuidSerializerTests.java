@@ -69,7 +69,7 @@ public class PuuidSerializerTests {
         }
     }
 
-    @Test
+    //@Test
     public void yamlTest() {
         Test1Dto test = new Test1Dto();
         test.setShare(PUUID.from(new FakePartitionKey("testdomain.com", 1), UUID.randomUUID()));

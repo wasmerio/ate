@@ -18,6 +18,7 @@ package com.tokera.ate.test.encryptor;
 import com.google.common.collect.Lists;
 import com.tokera.ate.BootstrapConfig;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.delegates.YamlDelegate;
 import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.msg.MessageKeyPartDto;
@@ -41,6 +42,7 @@ import java.io.IOException;
 public class CryptoTests {
 
     private final static Encryptor encryptor = new Encryptor();
+    //private final static YamlDelegate yaml = new YamlDelegate();
 
     @SuppressWarnings("deprecation")
     @BeforeAll
@@ -274,7 +276,7 @@ public class CryptoTests {
     public void generateSignKeys() {
         for (int n = 0; n < 4; n++) {
             MessagePrivateKeyDto key = encryptor.genSignKey(64);
-            //System.out.println(yamlDelegate.serializeObj(key));
+            //System.out.println(yaml.serializeObj(key));
         }
     }
 
@@ -282,16 +284,15 @@ public class CryptoTests {
     public void generateEncryptKeys() {
         for (int n = 0; n < 32; n++) {
             MessagePrivateKeyDto key = encryptor.genEncryptKey(128);
-            //System.out.println(yamlDelegate.serializeObj(key));
+            //System.out.println(yaml.serializeObj(key));
         }
     }
-    */
 
     @Test
     public void generateSignKeys() {
         for (int n = 0; n < 20; n++) {
             PrivateKeyWithSeedDto key = encryptor.genSignKeyAndSeed();
-            System.out.println(AteDelegate.get().yaml.serializeObj(key));
+            System.out.println(yaml.serializeObj(key));
         }
     }
 
@@ -299,7 +300,8 @@ public class CryptoTests {
     public void generateEncryptKeys() {
         for (int n = 0; n < 20; n++) {
             PrivateKeyWithSeedDto key = encryptor.genEncryptKeyAndSeed();
-            System.out.println(AteDelegate.get().yaml.serializeObj(key));
+            System.out.println(yaml.serializeObj(key));
         }
     }
+    */
 }

@@ -69,7 +69,7 @@ public class PartitionKeySerializerTests {
         }
     }
 
-    @Test
+    //@Test
     public void yamlTest() {
         Test2Dto test = new Test2Dto();
         test.setShare(new FakePartitionKey("testdomain.com", 1));

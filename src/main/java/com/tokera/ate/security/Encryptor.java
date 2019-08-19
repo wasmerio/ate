@@ -546,7 +546,7 @@ public class Encryptor implements Runnable
     public MessagePrivateKeyDto genSignKey()
     {
         MessagePrivateKeyDto ret = genSignKey(config.getDefaultSigningStrength());
-        if (d.bootstrapConfig.isExtraValidation()) {
+        if (this.config.isExtraValidation()) {
             d.validationUtil.validateOrThrow(ret);
         }
         return ret;
@@ -645,7 +645,7 @@ public class Encryptor implements Runnable
     }
 
     public PrivateKeyWithSeedDto genSignKeyAndSeed() {
-        return genSignKeyAndSeed(d.bootstrapConfig.getDefaultSigningStrength(), d.bootstrapConfig.getDefaultSigningTypes(), null);
+        return genSignKeyAndSeed(this.config.getDefaultSigningStrength(), this.config.getDefaultSigningTypes(), null);
     }
 
     public PrivateKeyWithSeedDto genSignKeyAndSeed(int keysize, List<KeyType> keyTypes, @Nullable @Alias String alias) {
@@ -676,19 +676,19 @@ public class Encryptor implements Runnable
     }
 
     public PrivateKeyWithSeedDto genSignKeyAndSeedNow() {
-        return genSignKeyAndSeedNow(d.bootstrapConfig.getDefaultSigningStrength(), d.bootstrapConfig.getDefaultSigningTypes(), retryAttempts, null);
+        return genSignKeyAndSeedNow(this.config.getDefaultSigningStrength(), this.config.getDefaultSigningTypes(), retryAttempts, null);
     }
 
     public PrivateKeyWithSeedDto genSignKeyAndSeedNow(@Nullable @Alias String alias) {
-        return genSignKeyAndSeedNow(d.bootstrapConfig.getDefaultSigningStrength(), d.bootstrapConfig.getDefaultSigningTypes(), retryAttempts, alias);
+        return genSignKeyAndSeedNow(this.config.getDefaultSigningStrength(), this.config.getDefaultSigningTypes(), retryAttempts, alias);
     }
 
     public PrivateKeyWithSeedDto genSignKeyAndSeedNow(int keysize, int attempts, @Nullable @Alias String alias) {
-        return genSignKeyAndSeedNow(keysize, d.bootstrapConfig.getDefaultSigningTypes(), attempts, alias);
+        return genSignKeyAndSeedNow(keysize, this.config.getDefaultSigningTypes(), attempts, alias);
     }
 
     public PrivateKeyWithSeedDto genSignKeyAndSeedNow(List<KeyType> keyTypes, @Nullable @Alias String alias) {
-        return genSignKeyAndSeedNow(d.bootstrapConfig.getDefaultSigningStrength(), keyTypes, retryAttempts, alias);
+        return genSignKeyAndSeedNow(this.config.getDefaultSigningStrength(), keyTypes, retryAttempts, alias);
     }
 
     public PrivateKeyWithSeedDto genSignKeyAndSeedNow(int keysize, List<KeyType> keyTypes) {
@@ -709,7 +709,7 @@ public class Encryptor implements Runnable
     }
 
     public PrivateKeyWithSeedDto genEncryptKeyAndSeed() {
-        return genEncryptKeyAndSeed(d.bootstrapConfig.getDefaultEncryptionStrength(), d.bootstrapConfig.getDefaultEncryptTypes(), null);
+        return genEncryptKeyAndSeed(this.config.getDefaultEncryptionStrength(), this.config.getDefaultEncryptTypes(), null);
     }
 
     public PrivateKeyWithSeedDto genEncryptKeyAndSeed(int keysize, List<KeyType> keyTypes, @Nullable @Alias String alias) {
@@ -733,19 +733,19 @@ public class Encryptor implements Runnable
     }
 
     public PrivateKeyWithSeedDto genEncryptKeyAndSeedNow() {
-        return genEncryptKeyAndSeedNow(d.bootstrapConfig.getDefaultEncryptionStrength(), d.bootstrapConfig.getDefaultSigningTypes(), retryAttempts, null);
+        return genEncryptKeyAndSeedNow(this.config.getDefaultEncryptionStrength(), this.config.getDefaultSigningTypes(), retryAttempts, null);
     }
 
     public PrivateKeyWithSeedDto genEncryptKeyAndSeedNow(@Nullable @Alias String alias) {
-        return genEncryptKeyAndSeedNow(d.bootstrapConfig.getDefaultEncryptionStrength(), d.bootstrapConfig.getDefaultEncryptTypes(), retryAttempts, alias);
+        return genEncryptKeyAndSeedNow(this.config.getDefaultEncryptionStrength(), this.config.getDefaultEncryptTypes(), retryAttempts, alias);
     }
 
     public PrivateKeyWithSeedDto genEncryptKeyAndSeedNow(int keysize, int attempts, @Nullable @Alias String alias) {
-        return genEncryptKeyAndSeedNow(keysize, d.bootstrapConfig.getDefaultEncryptTypes(), attempts, alias);
+        return genEncryptKeyAndSeedNow(keysize, this.config.getDefaultEncryptTypes(), attempts, alias);
     }
 
     public PrivateKeyWithSeedDto genEncryptKeyAndSeedNow(List<KeyType> keyTypes, @Nullable @Alias String alias) {
-        return genEncryptKeyAndSeedNow(d.bootstrapConfig.getDefaultEncryptionStrength(), keyTypes, retryAttempts, alias);
+        return genEncryptKeyAndSeedNow(this.config.getDefaultEncryptionStrength(), keyTypes, retryAttempts, alias);
     }
 
     public PrivateKeyWithSeedDto genEncryptKeyAndSeedNow(int keysize, List<KeyType> keyTypes) {
@@ -844,7 +844,7 @@ public class Encryptor implements Runnable
 
     public MessagePrivateKeyDto genEncryptKey() {
         MessagePrivateKeyDto ret = this.genEncryptKey(config.getDefaultEncryptionStrength());
-        if (d.bootstrapConfig.isExtraValidation()) {
+        if (this.config.isExtraValidation()) {
             d.validationUtil.validateOrThrow(ret);
         }
         return ret;
