@@ -3,16 +3,12 @@ package com.tokera.examples;
 import com.tokera.ate.ApiServer;
 import com.tokera.ate.client.RawClient;
 import com.tokera.ate.client.RawClientBuilder;
-import com.tokera.ate.client.TestTools;
 import com.tokera.ate.delegates.AteDelegate;
-import com.tokera.ate.dto.TokenDto;
-import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.enumerations.DefaultStorageSystem;
-import com.tokera.examples.dao.Company;
-import com.tokera.examples.dao.Individual;
+import com.tokera.ate.enumerations.PrivateKeyType;
 import com.tokera.examples.dao.MonthlyActivity;
 import com.tokera.examples.dto.*;
-import org.apache.commons.lang.NotImplementedException;
 import org.junit.jupiter.api.*;
 
 import javax.validation.constraints.NotNull;
@@ -20,10 +16,6 @@ import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.MediaType;
 import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
-import java.net.URLEncoder;
-import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
-import java.security.SecureRandom;
 import java.util.UUID;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -36,12 +28,12 @@ public class BankIntegrationTests {
 
     private RawClient rootSession;
 
-    private MessagePrivateKeyDto coiningKey;
+    private PrivateKeyWithSeedDto coiningKey;
     private RawClient coiningSession;
     private RawClient individualSession;
     private UUID individualAccountId;
 
-    private MessagePrivateKeyDto companyKey;
+    private PrivateKeyWithSeedDto companyKey;
     private RawClient companySession;
     private String companyDomain = "example.tokera.com";
     private String coiningDomain = "coin.example.tokera.com";
@@ -100,8 +92,8 @@ public class BankIntegrationTests {
     @DisplayName("...generating company key")
     public void generateCompanyKey() {
         AteDelegate d = AteDelegate.get();
-        this.companyKey = d.encryptor.genSignKeyFromSeedWithAlias(256, "not_so_secret_secret", companyDomain);
-        d.genericLogger.info("Put this DNS entry at auth." + companyDomain + ": " + this.companyKey.getPublicKeyHash());
+        this.companyKey = new PrivateKeyWithSeedDto(PrivateKeyType.write, "not_so_secret_secret", companyDomain);
+        d.genericLogger.info("Put this DNS entry at auth." + companyDomain + ": " + this.companyKey.publicHash());
     }
 
     @Test
@@ -109,8 +101,8 @@ public class BankIntegrationTests {
     @DisplayName("...generating coining key")
     public void generateCoiningKey() {
         AteDelegate d = AteDelegate.get();
-        this.coiningKey = d.encryptor.genSignKeyFromSeedWithAlias(256, "unobtainium", coiningDomain);
-        d.genericLogger.info("Put this DNS entry at auth." + coiningDomain + ": " + this.coiningKey.getPublicKeyHash());
+        this.coiningKey = new PrivateKeyWithSeedDto(PrivateKeyType.write, "unobtainium", coiningDomain);
+        d.genericLogger.info("Put this DNS entry at auth." + coiningDomain + ": " + this.coiningKey.publicHash());
     }
 
     @Test
@@ -196,7 +188,7 @@ public class BankIntegrationTests {
 
         // Create a new ownership key and request
         AteDelegate d = AteDelegate.get();
-        MessagePrivateKeyDto ownership = d.encryptor.genSignKey();
+        PrivateKeyWithSeedDto ownership = d.encryptor.genSignKeyAndSeed();
         CreateAssetRequest request = new CreateAssetRequest(coiningDomain, BigDecimal.valueOf(1000), ownership);
 
         // Print the money

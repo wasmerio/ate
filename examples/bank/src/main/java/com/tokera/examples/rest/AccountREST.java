@@ -2,6 +2,7 @@ package com.tokera.examples.rest;
 
 import com.tokera.ate.annotations.PermitReadEntity;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.examples.common.AccountHelper;
 import com.tokera.examples.common.CoinHelper;
@@ -53,7 +54,7 @@ public class AccountREST {
 
         Collection<ShareToken> tokens = d.io.underTransaction(true, () -> {
             // Claim all the coins
-            MessagePrivateKeyDto ownership = d.encryptor.genSignKey();
+            PrivateKeyWithSeedDto ownership = d.encryptor.genSignKeyAndSeed();
             return coinHelper.makeTokens(transferShares, ownership);
         });
 
@@ -74,7 +75,7 @@ public class AccountREST {
         return d.io.underTransaction(true, () -> {
             Account acc = d.io.read(accountId, Account.class);
             d.currentRights.impersonate(acc);
-            MessagePrivateKeyDto ownership = d.authorization.getOrCreateImplicitRightToWrite(acc);
+            PrivateKeyWithSeedDto ownership = d.authorization.getOrCreateImplicitRightToWrite(acc);
 
             // Prepare aggregate counters
             List<CoinShare> shares = new ArrayList<CoinShare>();

@@ -15,7 +15,7 @@ public class RegistrationResponse {
     public RegistrationResponse(UUID id, UUID accountId, TokenDto token) {
         this.id = id;
         this.accountId = accountId;
-        this.token = token.getXmlToken();
+        this.token = token.getBase64();
     }
 
     public String getToken() {

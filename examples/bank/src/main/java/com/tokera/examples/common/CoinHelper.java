@@ -5,6 +5,7 @@ import com.google.common.collect.Lists;
 import com.tokera.ate.dao.IRoles;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.examples.dao.Coin;
 import com.tokera.examples.dao.CoinShare;
@@ -162,7 +163,7 @@ public class CoinHelper {
     /**
      * Turns a bunch of shares of coins into tokens that can be passed to someone else
      */
-    public Collection<ShareToken> makeTokens(Iterable<CoinShare> shares, MessagePrivateKeyDto ownership)
+    public Collection<ShareToken> makeTokens(Iterable<CoinShare> shares, PrivateKeyWithSeedDto ownership)
     {
         d.currentRights.impersonateWrite(ownership);
 

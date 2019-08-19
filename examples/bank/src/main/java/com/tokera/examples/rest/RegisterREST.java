@@ -45,7 +45,6 @@ public class RegisterREST {
 
             TokenDto token = new TokenBuilder()
                     .withUsername("root@" + company.domain)
-                    .withCompanyName(company.domain)
                     .withUserRole(UserRole.HUMAN)
                     .withRiskRole(RiskRole.HIGH)
                     .withPartitionkeyFromDao(company)

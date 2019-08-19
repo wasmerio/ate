@@ -3,6 +3,7 @@ package com.tokera.examples.rest;
 import com.google.common.collect.Lists;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
+import com.tokera.ate.enumerations.EnquireDomainKeyHandling;
 import com.tokera.examples.dao.*;
 import com.tokera.examples.dto.*;
 
@@ -21,7 +22,7 @@ public class MoneyREST {
     @Produces({"text/yaml", MediaType.APPLICATION_JSON})
     @Consumes({"text/yaml", MediaType.APPLICATION_JSON})
     public TransactionToken printMoney(CreateAssetRequest request) {
-        MessagePublicKeyDto coiningKey = d.implicitSecurity.enquireDomainKey(request.type, true);
+        MessagePublicKeyDto coiningKey = d.implicitSecurity.enquireDomainKey(request.type, EnquireDomainKeyHandling.ThrowOnNull);
         return d.io.underTransaction(true, () -> {
             d.genericLogger.info("coining-key: " + coiningKey.getPublicKeyHash());
 

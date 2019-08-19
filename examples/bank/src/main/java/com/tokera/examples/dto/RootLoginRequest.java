@@ -1,5 +1,6 @@
 package com.tokera.examples.dto;
 
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 
 import javax.enterprise.context.Dependent;
@@ -8,8 +9,8 @@ import java.util.ArrayList;
 @Dependent
 public class RootLoginRequest {
     private String username = "root";
-    private ArrayList<MessagePrivateKeyDto> readRights = new ArrayList<MessagePrivateKeyDto>();
-    private ArrayList<MessagePrivateKeyDto> writeRights = new ArrayList<MessagePrivateKeyDto>();
+    private ArrayList<PrivateKeyWithSeedDto> readRights = new ArrayList<PrivateKeyWithSeedDto>();
+    private ArrayList<PrivateKeyWithSeedDto> writeRights = new ArrayList<PrivateKeyWithSeedDto>();
 
     public String getUsername() {
         return username;
@@ -19,19 +20,19 @@ public class RootLoginRequest {
         this.username = username;
     }
 
-    public ArrayList<MessagePrivateKeyDto> getReadRights() {
+    public ArrayList<PrivateKeyWithSeedDto> getReadRights() {
         return readRights;
     }
 
-    public void setReadRights(ArrayList<MessagePrivateKeyDto> readRights) {
+    public void setReadRights(ArrayList<PrivateKeyWithSeedDto> readRights) {
         this.readRights = readRights;
     }
 
-    public ArrayList<MessagePrivateKeyDto> getWriteRights() {
+    public ArrayList<PrivateKeyWithSeedDto> getWriteRights() {
         return writeRights;
     }
 
-    public void setWriteRights(ArrayList<MessagePrivateKeyDto> writeRights) {
+    public void setWriteRights(ArrayList<PrivateKeyWithSeedDto> writeRights) {
         this.writeRights = writeRights;
     }
 }
