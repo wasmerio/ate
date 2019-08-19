@@ -178,61 +178,61 @@ public class RawClient {
 
     public <T> T restGet(String path, Class<T> clazz) {
         String url = buildUrl(path);
-        return TestTools.restRunner(() -> target(url, null, MediaType.WILDCARD_TYPE, MediaType.APPLICATION_JSON_TYPE)
+        return TestTools.restRunner(() -> target(url, null, MediaType.WILDCARD_TYPE, MediaType.WILDCARD_TYPE)
                 .get(), url)
                 .readEntity(clazz);
     }
 
     public <T> T restGet(String path, Class<T> clazz, MultivaluedMap<String, Object> queryParams) {
         String url = buildUrl(path);
-        return TestTools.restRunner(() -> target(url, queryParams, MediaType.WILDCARD_TYPE, MediaType.APPLICATION_JSON_TYPE)
+        return TestTools.restRunner(() -> target(url, queryParams, MediaType.WILDCARD_TYPE, MediaType.WILDCARD_TYPE)
                 .get(), url)
                 .readEntity(clazz);
     }
 
     public <T> T restPut(String path, Entity<?> entity, Class<T> clazz) {
         String url = buildUrl(path);
-        return TestTools.restRunner(() -> target(url, null, MediaType.WILDCARD_TYPE, MediaType.APPLICATION_JSON_TYPE)
+        return TestTools.restRunner(() -> target(url, null, MediaType.WILDCARD_TYPE, MediaType.WILDCARD_TYPE)
                 .put(entity), url)
                 .readEntity(clazz);
     }
 
     public <T> T restPut(String path, Entity<?> entity, Class<T> clazz, MultivaluedMap<String, Object> queryParams) {
         String url = buildUrl(path);
-        return TestTools.restRunner(() -> target(url, queryParams, MediaType.WILDCARD_TYPE, MediaType.APPLICATION_JSON_TYPE)
+        return TestTools.restRunner(() -> target(url, queryParams, MediaType.WILDCARD_TYPE, MediaType.WILDCARD_TYPE)
                 .put(entity), url)
                 .readEntity(clazz);
     }
 
     public <T> T restPost(String path, Entity<?> entity, Class<T> clazz) {
         String url = buildUrl(path);
-        return TestTools.restRunner(() -> target(url, null, MediaType.WILDCARD_TYPE, MediaType.APPLICATION_JSON_TYPE)
+        return TestTools.restRunner(() -> target(url, null, MediaType.WILDCARD_TYPE, MediaType.WILDCARD_TYPE)
                 .post(entity), url)
                 .readEntity(clazz);
     }
 
     public <T> T restPost(String path, Entity<?> entity, Class<T> clazz, MultivaluedMap<String, Object> queryParams) {
         String url = buildUrl(path);
-        return TestTools.restRunner(() -> target(url, queryParams, MediaType.WILDCARD_TYPE, MediaType.APPLICATION_JSON_TYPE)
+        return TestTools.restRunner(() -> target(url, queryParams, MediaType.WILDCARD_TYPE, MediaType.WILDCARD_TYPE)
                 .post(entity), url)
                 .readEntity(clazz);
     }
 
     public void restDelete(String path) {
         String url = buildUrl(path);
-        TestTools.restRunner(() -> target(url, null, MediaType.WILDCARD_TYPE, MediaType.APPLICATION_JSON_TYPE)
+        TestTools.restRunner(() -> target(url, null, MediaType.WILDCARD_TYPE, MediaType.WILDCARD_TYPE)
                 .delete(), url);
     }
 
     public void restDelete(String path, MultivaluedMap<String, Object> queryParams) {
         String url = buildUrl(path);
-        TestTools.restRunner(() -> target(url, queryParams, MediaType.WILDCARD_TYPE, MediaType.APPLICATION_JSON_TYPE)
+        TestTools.restRunner(() -> target(url, queryParams, MediaType.WILDCARD_TYPE, MediaType.WILDCARD_TYPE)
                 .delete(), url);
     }
 
     public <T> @Nullable T restGetOrNull(String path, Class<T> clazz) {
         String url = buildUrl(path);
-        Response resp = TestTools.restRunner(() -> target(url, null, MediaType.WILDCARD_TYPE, MediaType.APPLICATION_JSON_TYPE)
+        Response resp = TestTools.restRunner(() -> target(url, null, MediaType.WILDCARD_TYPE, MediaType.WILDCARD_TYPE)
                 .get(), url);
         if (resp == null) return null;
         if (resp.getLength() <= 0) return null;
