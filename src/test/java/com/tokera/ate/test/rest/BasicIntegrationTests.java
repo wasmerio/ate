@@ -83,7 +83,7 @@ public class BasicIntegrationTests {
         session.setPartitionKey(ret.partitionKey());
     }
 
-    @RepeatedTest(500)
+    @RepeatedTest(100)
     @Order(20)
     public void getAccount() {
         session.restGet("/acc/" + this.accountId, MyAccount.class);

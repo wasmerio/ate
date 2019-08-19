@@ -1406,7 +1406,7 @@ public class Encryptor implements Runnable
                     ret.add(signRainbow(keyBytes, digest));
                     break;
                 default:
-                    throw new RuntimeException("Unknown signing crypto algorithm: " + part.getType());
+                    throw new RuntimeException("Unknown signing crypto algorithm: " + part.getType() + " [key=" + privateKey.getAliasOrHash() + "]");
             }
         }
 
@@ -1460,7 +1460,7 @@ public class Encryptor implements Runnable
                     }
                     break;
                 default:
-                    throw new RuntimeException("Unknown signing crypto algorithm: " + part.getType());
+                    throw new RuntimeException("Unknown signing crypto algorithm: " + part.getType() + " [key=" + publicKey.getAliasOrHash() + "]");
             }
         }
 
