@@ -2084,7 +2084,7 @@ public class Encryptor implements Runnable
 
     public MessagePrivateKeyDto genKeyFromSeed(PrivateKeyWithSeedDto key) {
         try {
-            return seededKeyCache.get(key.seed(), () -> {
+            return seededKeyCache.get(key.serialize(false), () -> {
                 MessagePrivateKeyDto ret;
 
                 switch (key.type()) {
