@@ -1,5 +1,7 @@
 package com.tokera.ate.io.core;
 
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
@@ -20,6 +22,8 @@ import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Represents the default key store which just stores the encryption keys in the distributed commit
@@ -27,6 +31,11 @@ import java.util.UUID;
  */
 public class DefaultSecurityCastleFactory implements ISecurityCastleFactory {
     private AteDelegate d = AteDelegate.get();
+
+    private static Cache<String, byte[]> secretCache = CacheBuilder.newBuilder()
+            .maximumSize(20000)
+            .expireAfterWrite(5, TimeUnit.MINUTES)
+            .build();
 
     @Override
     public @Nullable @Secret byte[] getSecret(IPartitionKey partitionKey, UUID id, Iterable<MessagePrivateKeyDto> accessKeys) {
@@ -40,11 +49,12 @@ public class DefaultSecurityCastleFactory implements ISecurityCastleFactory {
         for (MessagePrivateKeyDto accessKey : accessKeys) {
             String encStr = MapTools.getOrNull(castle.getLookup(), accessKey.getPublicKeyHash());
             if (encStr == null) continue;
-            byte[] enc = Base64.decodeBase64(encStr);
+
+            String lookup = accessKey.getPrivateKeyHash() + encStr;
             try {
-                return d.encryptor.decrypt(accessKey, enc);
-            } catch (IOException | InvalidCipherTextException ex) {
-                throw new WebApplicationException("Failed to retrieve AES secret [castle=" + castle.getIdOrThrow() + ", key=" + accessKey.getPublicKeyHash() + "] while processing data object [id=" + partitionKey + ":" + id + "].", ex, Response.Status.UNAUTHORIZED);
+                return secretCache.get(lookup, () -> d.encryptor.decrypt(accessKey, Base64.decodeBase64(encStr)));
+            } catch (ExecutionException e) {
+                throw new WebApplicationException("Failed to retrieve AES secret [castle=" + castle.getIdOrThrow() + ", key=" + accessKey.getPublicKeyHash() + "] while processing data object [id=" + partitionKey + ":" + id + "].", e, Response.Status.UNAUTHORIZED);
             }
         }
         return null;
