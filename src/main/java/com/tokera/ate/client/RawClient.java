@@ -240,7 +240,9 @@ public class RawClient {
     }
 
     public <T> T restGetAndOutput(String path, Class<T> clazz) {
-        return TestTools.restGetAndOutput(this.session, buildUrl(path), clazz, null, headers, this.partitionKey);
+        T ret = restGet(path, clazz);
+        System.out.println(AteDelegate.get().yaml.serializeObj(ret));
+        return ret;
     }
 
     public static RawClient createViaRestPost(String server, Integer port, String prefixForRest, String path, Entity<?> entity) {

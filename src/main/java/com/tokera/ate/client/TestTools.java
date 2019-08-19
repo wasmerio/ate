@@ -179,7 +179,6 @@ public class TestTools {
     public static Response restRunner(Supplier<Response> f, String url)
     {
         Response resp;
-        ResteasyClient client = TestTools.buildResteasyClient();
         try {
             resp = f.get();
 
