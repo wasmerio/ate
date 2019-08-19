@@ -156,24 +156,7 @@ public class PrivateKeyWithSeedDto {
         if (this.key != null) return this.key;
 
         AteDelegate d = AteDelegate.get();
-        MessagePrivateKeyDto ret;
-        switch (this.type) {
-            case read: {
-                ret = d.encryptor.genEncryptKeyFromSeed(this.keySize, this.algs, this.seed);
-                break;
-            }
-            case write: {
-                ret = d.encryptor.genSignKeyFromSeed(this.keySize, this.algs, this.seed);
-                break;
-            }
-            default: {
-                throw new WebApplicationException("Unknown private key type: " + this.type, Response.Status.INTERNAL_SERVER_ERROR);
-            }
-        }
-
-        if (this.alias != null) {
-            ret.setAlias(this.alias);
-        }
+        MessagePrivateKeyDto ret = d.encryptor.genKeyFromSeed(this);
 
         this.key = ret;
         return ret;

@@ -1,10 +1,13 @@
 package com.tokera.ate.security;
 
 import com.google.common.base.Charsets;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.tokera.ate.BootstrapConfig;
 import com.tokera.ate.common.LoggerHook;
+import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.enumerations.KeyType;
 import com.tokera.ate.dao.msg.MessagePrivateKey;
 import com.tokera.ate.dao.msg.MessagePublicKey;
@@ -49,6 +52,8 @@ import javax.enterprise.context.ApplicationScoped;
 import javax.enterprise.inject.spi.CDI;
 import javax.enterprise.util.AnnotationLiteral;
 import javax.inject.Inject;
+import javax.ws.rs.WebApplicationException;
+import javax.ws.rs.core.Response;
 import javax.xml.bind.DatatypeConverter;
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
@@ -60,6 +65,8 @@ import java.nio.charset.StandardCharsets;
 import java.security.*;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -126,6 +133,11 @@ public class Encryptor implements Runnable
     private final ConcurrentLinkedQueue<@Secret String> genSaltQueue = new ConcurrentLinkedQueue<>();
 
     private Set<Integer> validEncryptSizes = new HashSet<>(Lists.newArrayList(32, 64, 128, 192, 256, 512));
+
+    private static Cache<String, MessagePrivateKeyDto> seededKeyCache = CacheBuilder.newBuilder()
+            .maximumSize(10000)
+            .expireAfterWrite(60, TimeUnit.MINUTES)
+            .build();
 
     public class KeyPairBytes
     {
@@ -2067,6 +2079,36 @@ public class Encryptor implements Runnable
         List<KeysPreLoadConfig> configs = fileLoader.loadAll("preload-entropy-keys/", KeysPreLoadConfig.class);
         for (KeysPreLoadConfig config : configs) {
             preload(config);
+        }
+    }
+
+    public MessagePrivateKeyDto genKeyFromSeed(PrivateKeyWithSeedDto key) {
+        try {
+            return seededKeyCache.get(key.seed(), () -> {
+                MessagePrivateKeyDto ret;
+
+                switch (key.type()) {
+                    case read: {
+                        ret = d.encryptor.genEncryptKeyFromSeed(key.keySize(), key.algs(), key.seed());
+                        break;
+                    }
+                    case write: {
+                        ret = d.encryptor.genSignKeyFromSeed(key.keySize(), key.algs(), key.seed());
+                        break;
+                    }
+                    default: {
+                        throw new WebApplicationException("Unknown private key type: " + key.type(), Response.Status.INTERNAL_SERVER_ERROR);
+                    }
+                }
+
+                if (key.alias() != null) {
+                    ret.setAlias(key.alias());
+                }
+
+                return ret;
+            });
+        } catch (ExecutionException e) {
+            throw new WebApplicationException(e);
         }
     }
 }
