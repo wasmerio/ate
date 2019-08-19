@@ -77,6 +77,7 @@ public class ImplicitSecurityDelegate {
             List<MessagePublicKeyDto> keys = this.loadEmbeddedKeys();
             for (MessagePublicKeyDto key : keys) {
                 this.embeddedKeys.put(key.getPublicKeyHash(), key);
+                LOG.info("found embedded-key: " + key.getAliasOrHash());
             }
         } catch (UnknownHostException ex) {
             LOG.error(ex);
@@ -139,6 +140,7 @@ public class ImplicitSecurityDelegate {
                     if (ret == null) {
                         ret = d.currentRights.getRightsWrite()
                                 .stream()
+                                .map(k -> k.key())
                                 .filter(k -> publicKeyHash.equals(k.getPublicKeyHash()))
                                 .findFirst()
                                 .orElse(null);
@@ -325,6 +327,11 @@ public class ImplicitSecurityDelegate {
 
     public ConcurrentHashMap<String, String> getEnquireTxtOverride() {
         return enquireTxtOverride;
+    }
+
+    public void addEnquireTxtOverride(String key, String val) {
+        enquireTxtOverride.put("tokauth.mycompany.org", val);
+        LOG.info("enquire.txt.override: " + key + " -> " + val);
     }
 
     public ConcurrentHashMap<String, List<String>> getEnquireAddressOverride() {

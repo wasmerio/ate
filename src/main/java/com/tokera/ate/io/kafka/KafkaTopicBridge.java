@@ -1,47 +1,50 @@
 package com.tokera.ate.io.kafka;
 
 import com.tokera.ate.KafkaServer;
+import com.tokera.ate.common.ApplicationConfigLoader;
+import com.tokera.ate.common.LoggerHook;
+import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.GenericPartitionKey;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.kafka.MessageSerializer;
+import com.tokera.ate.dao.msg.MessageBase;
+import com.tokera.ate.dao.msg.MessageData;
+import com.tokera.ate.dao.msg.MessageType;
 import com.tokera.ate.delegates.AteDelegate;
-import com.tokera.ate.dto.msg.*;
+import com.tokera.ate.dto.msg.MessageBaseDto;
+import com.tokera.ate.dto.msg.MessageDataDto;
+import com.tokera.ate.dto.msg.MessageMetaDto;
+import com.tokera.ate.dto.msg.MessageSyncDto;
+import com.tokera.ate.enumerations.DataPartitionType;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.repo.DataPartitionChain;
 import com.tokera.ate.io.repo.GenericPartitionBridge;
 import com.tokera.ate.io.repo.IDataPartitionBridge;
 import com.tokera.ate.io.repo.IDataTopicBridge;
-import com.tokera.ate.common.ApplicationConfigLoader;
-import com.tokera.ate.common.LoggerHook;
-import com.tokera.ate.common.MapTools;
-import com.tokera.ate.dao.msg.*;
-import com.tokera.ate.enumerations.DataPartitionType;
+import kafka.admin.AdminUtils;
+import kafka.utils.ZKStringSerializer$;
+import org.I0Itec.zkclient.ZkClient;
+import org.I0Itec.zkclient.ZkConnection;
+import org.apache.commons.lang3.time.StopWatch;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.common.errors.TopicExistsException;
+import org.bouncycastle.crypto.InvalidCipherTextException;
+import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
+
+import javax.ws.rs.WebApplicationException;
+import javax.ws.rs.core.Response;
 import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-
-import org.apache.commons.lang.time.StopWatch;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
-import org.apache.kafka.clients.consumer.ConsumerRecords;
-import org.apache.kafka.clients.consumer.KafkaConsumer;
-import org.apache.kafka.clients.producer.KafkaProducer;
-import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.PartitionInfo;
-import org.apache.kafka.common.TopicPartition;
-import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
-import org.checkerframework.checker.nullness.qual.Nullable;
-import org.bouncycastle.crypto.InvalidCipherTextException;
-import kafka.admin.AdminUtils;
-import org.I0Itec.zkclient.ZkClient;
-import org.I0Itec.zkclient.ZkConnection;
-import kafka.utils.ZKStringSerializer$;
-import org.apache.kafka.common.errors.TopicExistsException;
-
-import javax.ws.rs.WebApplicationException;
-import javax.ws.rs.core.Response;
 
 /**
  * Represents the bridge of a particular Kafka topic

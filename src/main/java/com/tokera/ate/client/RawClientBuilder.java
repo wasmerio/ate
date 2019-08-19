@@ -139,6 +139,8 @@ public class RawClientBuilder {
                 .register(new UuidSerializer())
                 .register(new PartitionKeySerializer())
                 .register(new PuuidSerializer())
+                .register(new TokenSerializer())
+                .register(new PrivateKeyWithSeedSerializer())
                 .register(new CountLongSerializer())
                 .build();
 

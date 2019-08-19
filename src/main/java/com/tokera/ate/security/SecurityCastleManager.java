@@ -3,6 +3,7 @@ package com.tokera.ate.security;
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.EffectivePermissions;
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import com.tokera.ate.io.api.IPartitionKey;
@@ -60,7 +61,7 @@ public class SecurityCastleManager {
                 continue;
             }
 
-            MessagePrivateKeyDto rightsKey = d.currentRights.findKey(publicKeyHash);
+            PrivateKeyWithSeedDto rightsKey = d.currentRights.findKey(publicKeyHash);
             if (rightsKey != null) {
                 ret.add(new MessagePublicKeyDto(rightsKey));
                 continue;
@@ -116,7 +117,7 @@ public class SecurityCastleManager {
      * @param accessKeys List of private access keys that can be used to enter the castle
      * @return Reference to castle context that allows the decryption of data previously saved
      */
-    public @Nullable SecurityCastleContext enterCastle(IPartitionKey partitionKey, UUID castleId, Iterable<MessagePrivateKeyDto> accessKeys)
+    public @Nullable SecurityCastleContext enterCastle(IPartitionKey partitionKey, UUID castleId, Set<PrivateKeyWithSeedDto> accessKeys)
     {
         SecurityCastleContext ret = MapTools.getOrNull(this.lookupCastles, castleId);
         if (ret != null) return ret;

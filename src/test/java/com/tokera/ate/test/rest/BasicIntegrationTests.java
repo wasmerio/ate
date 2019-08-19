@@ -7,13 +7,16 @@ import com.tokera.ate.client.RawClient;
 import com.tokera.ate.client.RawClientBuilder;
 import com.tokera.ate.client.TestTools;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.enumerations.DefaultStorageSystem;
 import com.tokera.ate.test.dao.MyAccount;
+import com.tokera.ate.test.dao.SeedingDelegate;
 import com.tokera.ate.test.dto.NewAccountDto;
 import org.junit.jupiter.api.*;
 
 import javax.enterprise.inject.spi.CDI;
+import javax.inject.Inject;
 import javax.validation.constraints.NotNull;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.client.Entity;
@@ -26,6 +29,8 @@ public class BasicIntegrationTests {
 
     @SuppressWarnings("initialization.fields.uninitialized")
     private @NotNull RawClient session;
+
+    private UUID accountId;
 
     @BeforeAll
 	public static void init() {
@@ -54,11 +59,10 @@ public class BasicIntegrationTests {
     @Order(10)
     public void getAdminKey() {
         AteDelegate d = AteDelegate.get();
-        MessagePrivateKeyDto key = d.encryptor.genSignKey(512);
+        PrivateKeyWithSeedDto key = CDI.current().select(SeedingDelegate.class).get().getRootKey();
+        String keyVal = key.serialize();
 
-        String keyPem = d.encryptor.serializePublicKey64(key);
-        if (keyPem == null) throw new WebApplicationException("Failed to generate private key for domain");
-        d.implicitSecurity.getEnquireTxtOverride().put("tokauth.mycompany.org", keyPem);
+        d.implicitSecurity.addEnquireTxtOverride("tokauth.mycompany.org", key.publicHash());
 
         this.session = new RawClientBuilder()
                 .server("127.0.0.1")
@@ -75,7 +79,13 @@ public class BasicIntegrationTests {
         newDetails.setEmail("test@mycompany.org");
 
         MyAccount ret = session.restPut("/acc/register", Entity.entity(newDetails, MediaType.APPLICATION_JSON_TYPE), MyAccount.class);
-        this.session.appendToPrefixForFs(ret.id + "/");
-        this.session.appendToPrefixForRest(ret.id + "/");
+        this.accountId = ret.id;
+        session.setPartitionKey(ret.partitionKey());
+    }
+
+    @RepeatedTest(100)
+    @Order(20)
+    public void getAccount() {
+        session.restGet("/acc/" + this.accountId, MyAccount.class);
     }
 }

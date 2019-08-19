@@ -10,6 +10,7 @@ import com.tokera.ate.common.Immutalizable;
 import com.tokera.ate.common.ImmutalizableHashSet;
 import com.tokera.ate.dao.IRights;
 import com.tokera.ate.dao.IRoles;
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.units.Alias;
 
@@ -24,17 +25,17 @@ import java.util.Set;
 public abstract class BaseDaoRolesRights extends BaseDaoRoles implements IRights, Immutalizable
 {
     @JsonProperty
-    public final ImmutalizableHashSet<MessagePrivateKeyDto> rightsRead = new ImmutalizableHashSet<>();
+    public final ImmutalizableHashSet<PrivateKeyWithSeedDto> rightsRead = new ImmutalizableHashSet<>();
     @JsonProperty
-    public final ImmutalizableHashSet<MessagePrivateKeyDto> rightsWrite = new ImmutalizableHashSet<>();
+    public final ImmutalizableHashSet<PrivateKeyWithSeedDto> rightsWrite = new ImmutalizableHashSet<>();
     
     @Override
-    public Set<MessagePrivateKeyDto> getRightsRead() {
+    public Set<PrivateKeyWithSeedDto> getRightsRead() {
         return rightsRead;
     }
 
     @Override
-    public Set<MessagePrivateKeyDto> getRightsWrite() {
+    public Set<PrivateKeyWithSeedDto> getRightsWrite() {
         return rightsWrite;
     }
 

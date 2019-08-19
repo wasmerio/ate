@@ -1,50 +1,50 @@
 package com.tokera.ate.security;
 
 import com.google.common.base.Charsets;
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 import com.tokera.ate.BootstrapConfig;
-import com.tokera.ate.dao.enumerations.KeyType;
-import com.tokera.ate.delegates.AteDelegate;
-import com.tokera.ate.delegates.ResourceFileDelegate;
-import com.tokera.ate.dto.KeysPreLoadConfig;
-import com.tokera.ate.dto.SigningKeyWithSeedDto;
-import com.tokera.ate.dto.msg.MessageKeyPartDto;
-import com.tokera.ate.exceptions.KeyGenerationException;
-import com.tokera.ate.io.api.IPartitionKey;
-import com.tokera.ate.scopes.Startup;
-import com.tokera.ate.io.api.IAteIO;
-import com.tokera.ate.qualifiers.BackendStorageSystem;
 import com.tokera.ate.common.LoggerHook;
-import com.tokera.ate.security.core.*;
-import com.tokera.ate.security.core.XmssKeySerializer;
-import com.tokera.ate.security.core.ntru_predictable.EncryptionKeyPairGenerator;
-import com.tokera.ate.units.*;
+import com.tokera.ate.dao.base.BaseDao;
+import com.tokera.ate.dao.enumerations.KeyType;
 import com.tokera.ate.dao.msg.MessagePrivateKey;
 import com.tokera.ate.dao.msg.MessagePublicKey;
+import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.delegates.ResourceFileDelegate;
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
+import com.tokera.ate.dto.KeysPreLoadConfig;
+import com.tokera.ate.dto.msg.MessageKeyPartDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
+import com.tokera.ate.enumerations.PrivateKeyType;
+import com.tokera.ate.exceptions.KeyGenerationException;
+import com.tokera.ate.io.api.IAteIO;
+import com.tokera.ate.io.api.IPartitionKey;
+import com.tokera.ate.qualifiers.BackendStorageSystem;
+import com.tokera.ate.scopes.Startup;
+import com.tokera.ate.security.core.*;
+import com.tokera.ate.security.core.ntru_predictable.EncryptionKeyPairGenerator;
+import com.tokera.ate.units.Signature;
+import com.tokera.ate.units.*;
+import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.lang3.time.StopWatch;
+import org.apache.kafka.common.utils.Utils;
+import org.bouncycastle.crypto.*;
+import org.bouncycastle.crypto.digests.SHA256Digest;
+import org.bouncycastle.crypto.digests.SHA512Digest;
+import org.bouncycastle.pqc.crypto.ExchangePair;
+import org.bouncycastle.pqc.crypto.newhope.*;
+import org.bouncycastle.pqc.crypto.ntru.*;
+import org.bouncycastle.pqc.crypto.qtesla.*;
+import org.bouncycastle.pqc.crypto.rainbow.*;
+import org.bouncycastle.pqc.crypto.xmss.*;
+import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
-import java.io.*;
-import java.math.BigInteger;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.security.InvalidAlgorithmParameterException;
-import java.security.InvalidKeyException;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.NoSuchProviderException;
-import java.security.SecureRandom;
-import java.util.*;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.stream.Collectors;
 import javax.annotation.PostConstruct;
-import javax.crypto.BadPaddingException;
-import javax.crypto.Cipher;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
-import javax.crypto.SecretKey;
-import javax.crypto.ShortBufferException;
+import javax.crypto.*;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
@@ -55,30 +55,19 @@ import javax.inject.Inject;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 import javax.xml.bind.DatatypeConverter;
-
-import org.apache.commons.codec.binary.Base64;
-import org.apache.commons.io.IOUtils;
-import org.apache.commons.lang.time.StopWatch;
-import org.apache.kafka.common.utils.Utils;
-import org.bouncycastle.crypto.*;
-import org.bouncycastle.pqc.crypto.ExchangePair;
-import org.bouncycastle.pqc.crypto.newhope.*;
-import org.bouncycastle.pqc.crypto.ntru.*;
-import org.bouncycastle.pqc.crypto.qtesla.*;
-import org.bouncycastle.pqc.crypto.rainbow.*;
-import org.bouncycastle.pqc.crypto.xmss.*;
-import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
-import org.checkerframework.checker.nullness.qual.Nullable;
-import org.bouncycastle.crypto.digests.SHA256Digest;
-import org.bouncycastle.crypto.digests.SHA512Digest;
-import org.junit.jupiter.api.Assertions;
-import org.reflections.Reflections;
-import org.reflections.scanners.ResourcesScanner;
-import org.reflections.util.ClasspathHelper;
-import org.reflections.util.ConfigurationBuilder;
-import org.reflections.util.FilterBuilder;
-
-import static org.reflections.util.Utils.findLogger;
+import java.io.ByteArrayOutputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.math.BigInteger;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.security.*;
+import java.util.*;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * System used for all kinds of encryption steps that the storage system and other components need
@@ -125,15 +114,17 @@ public class Encryptor implements Runnable
     private int c_AesPreGen512 = 100;
     
     // Public role that everyone has
-    private @MonotonicNonNull MessagePrivateKeyDto trustOfPublicRead;
-    private @MonotonicNonNull MessagePrivateKeyDto trustOfPublicWrite;
+    private @MonotonicNonNull PrivateKeyWithSeedDto trustOfPublicRead;
+    private @MonotonicNonNull PrivateKeyWithSeedDto trustOfPublicWrite;
 
     private final ConcurrentLinkedQueue<MessagePrivateKeyDto> genSign64Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<MessagePrivateKeyDto> genSign128Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<MessagePrivateKeyDto> genSign256Queue = new ConcurrentLinkedQueue<>();
-    private final ConcurrentLinkedQueue<SigningKeyWithSeedDto> genSignAndSeed64Queue = new ConcurrentLinkedQueue<>();
-    private final ConcurrentLinkedQueue<SigningKeyWithSeedDto> genSignAndSeed128Queue = new ConcurrentLinkedQueue<>();
-    private final ConcurrentLinkedQueue<SigningKeyWithSeedDto> genSignAndSeed256Queue = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<PrivateKeyWithSeedDto> genSignAndSeed64Queue = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<PrivateKeyWithSeedDto> genSignAndSeed128Queue = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<PrivateKeyWithSeedDto> genSignAndSeed256Queue = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<PrivateKeyWithSeedDto> genEncryptAndSeed128Queue = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<PrivateKeyWithSeedDto> genEncryptAndSeed256Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<MessagePrivateKeyDto> genEncrypt128Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<MessagePrivateKeyDto> genEncrypt256Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<@Secret String> genAes128Queue = new ConcurrentLinkedQueue<>();
@@ -142,6 +133,11 @@ public class Encryptor implements Runnable
     private final ConcurrentLinkedQueue<@Secret String> genSaltQueue = new ConcurrentLinkedQueue<>();
 
     private Set<Integer> validEncryptSizes = new HashSet<>(Lists.newArrayList(32, 64, 128, 192, 256, 512));
+
+    private static Cache<String, MessagePrivateKeyDto> seededKeyCache = CacheBuilder.newBuilder()
+            .maximumSize(10000)
+            .expireAfterWrite(60, TimeUnit.MINUTES)
+            .build();
 
     public class KeyPairBytes
     {
@@ -321,6 +317,8 @@ public class Encryptor implements Runnable
         int cntSignAndSeed64 = genSignAndSeed64Queue.size();
         int cntSignAndSeed128 = genSignAndSeed128Queue.size();
         int cntSignAndSeed256 = genSignAndSeed256Queue.size();
+        int cntEncryptAndSeed128 = genEncryptAndSeed128Queue.size();
+        int cntEncryptAndSeed256 = genEncryptAndSeed256Queue.size();
         int cntEncrypt128 = genEncrypt128Queue.size();
         int cntEncrypt256 = genEncrypt256Queue.size();
         int cntAes128 = genAes128Queue.size();
@@ -359,6 +357,16 @@ public class Encryptor implements Runnable
             if (cntSignAndSeed256 < c_KeyPreGen256 && cntSign256 < cap) {
                 genSignAndSeed256Queue.add(this.genSignKeyAndSeedNow(256, config.getDefaultSigningTypes()));
                 cntSignAndSeed256++;
+                didGen = true;
+            }
+            if (cntEncryptAndSeed128 < c_KeyPreGen128 && cntEncrypt128 < cap) {
+                genEncryptAndSeed128Queue.add(this.genEncryptKeyAndSeedNow(128, config.getDefaultEncryptTypes()));
+                cntEncryptAndSeed128++;
+                didGen = true;
+            }
+            if (cntEncryptAndSeed256 < c_KeyPreGen256 && cntEncrypt256 < cap) {
+                genEncryptAndSeed256Queue.add(this.genEncryptKeyAndSeedNow(256, config.getDefaultEncryptTypes()));
+                cntEncryptAndSeed256++;
                 didGen = true;
             }
             if (cntEncrypt128 < c_KeyPreGen128 && cntEncrypt128 < cap) {
@@ -636,30 +644,30 @@ public class Encryptor implements Runnable
         }
     }
 
-    public SigningKeyWithSeedDto genSignKeyAndSeed() {
-        return genSignKeyAndSeed(config.getDefaultSigningStrength(), config.getDefaultSigningTypes(), null);
+    public PrivateKeyWithSeedDto genSignKeyAndSeed() {
+        return genSignKeyAndSeed(d.bootstrapConfig.getDefaultSigningStrength(), d.bootstrapConfig.getDefaultSigningTypes(), null);
     }
 
-    public SigningKeyWithSeedDto genSignKeyAndSeed(int keysize, Iterable<KeyType> keyTypes, @Nullable @Alias String alias) {
+    public PrivateKeyWithSeedDto genSignKeyAndSeed(int keysize, List<KeyType> keyTypes, @Nullable @Alias String alias) {
         if (keysize == 64) {
-            SigningKeyWithSeedDto ret = this.genSignAndSeed64Queue.poll();
+            PrivateKeyWithSeedDto ret = this.genSignAndSeed64Queue.poll();
             if (ret != null) {
-                if (alias != null) ret.key.setAlias(alias);
+                if (alias != null) ret.setAlias(alias);
                 return ret;
             }
         }
         if (keysize == 128) {
-            SigningKeyWithSeedDto ret = this.genSignAndSeed128Queue.poll();
+            PrivateKeyWithSeedDto ret = this.genSignAndSeed128Queue.poll();
             this.moreKeys();
             if (ret != null) {
-                if (alias != null) ret.key.setAlias(alias);
+                if (alias != null) ret.setAlias(alias);
                 return ret;
             }
         }
         if (keysize == 256) {
-            SigningKeyWithSeedDto ret = this.genSignAndSeed256Queue.poll();
+            PrivateKeyWithSeedDto ret = this.genSignAndSeed256Queue.poll();
             if (ret != null) {
-                if (alias != null) ret.key.setAlias(alias);
+                if (alias != null) ret.setAlias(alias);
                 return ret;
             }
         }
@@ -667,36 +675,91 @@ public class Encryptor implements Runnable
         return genSignKeyAndSeedNow(keysize, keyTypes, retryAttempts, alias);
     }
 
-    public SigningKeyWithSeedDto genSignKeyAndSeedNow() {
-        return genSignKeyAndSeedNow(config.getDefaultSigningStrength(), config.getDefaultSigningTypes(), retryAttempts, null);
+    public PrivateKeyWithSeedDto genSignKeyAndSeedNow() {
+        return genSignKeyAndSeedNow(d.bootstrapConfig.getDefaultSigningStrength(), d.bootstrapConfig.getDefaultSigningTypes(), retryAttempts, null);
     }
 
-    public SigningKeyWithSeedDto genSignKeyAndSeedNow(@Nullable @Alias String alias) {
-        return genSignKeyAndSeedNow(config.getDefaultSigningStrength(), config.getDefaultSigningTypes(), retryAttempts, alias);
+    public PrivateKeyWithSeedDto genSignKeyAndSeedNow(@Nullable @Alias String alias) {
+        return genSignKeyAndSeedNow(d.bootstrapConfig.getDefaultSigningStrength(), d.bootstrapConfig.getDefaultSigningTypes(), retryAttempts, alias);
     }
 
-    public SigningKeyWithSeedDto genSignKeyAndSeedNow(int keysize, int attempts, @Nullable @Alias String alias) {
-        return genSignKeyAndSeedNow(keysize, config.getDefaultSigningTypes(), attempts, alias);
+    public PrivateKeyWithSeedDto genSignKeyAndSeedNow(int keysize, int attempts, @Nullable @Alias String alias) {
+        return genSignKeyAndSeedNow(keysize, d.bootstrapConfig.getDefaultSigningTypes(), attempts, alias);
     }
 
-    public SigningKeyWithSeedDto genSignKeyAndSeedNow(Iterable<KeyType> keyTypes, @Nullable @Alias String alias) {
-        return genSignKeyAndSeedNow(config.getDefaultSigningStrength(), keyTypes, retryAttempts, alias);
+    public PrivateKeyWithSeedDto genSignKeyAndSeedNow(List<KeyType> keyTypes, @Nullable @Alias String alias) {
+        return genSignKeyAndSeedNow(d.bootstrapConfig.getDefaultSigningStrength(), keyTypes, retryAttempts, alias);
     }
 
-    public SigningKeyWithSeedDto genSignKeyAndSeedNow(int keysize, Iterable<KeyType> keyTypes) {
+    public PrivateKeyWithSeedDto genSignKeyAndSeedNow(int keysize, List<KeyType> keyTypes) {
         return genSignKeyAndSeedNow(keysize, keyTypes, retryAttempts, null);
     }
 
-    public SigningKeyWithSeedDto genSignKeyAndSeedNow(int keysize, Iterable<KeyType> keyTypes, int attempts, @Nullable @Alias String alias) {
+    public PrivateKeyWithSeedDto genSignKeyAndSeedNow(int keysize, List<KeyType> keyTypes, int attempts, @Nullable @Alias String alias) {
         for (int n = 1; ; n++) {
             try {
-                String seed = this.generateSecret64(256);
-                MessagePrivateKeyDto key = this.genSignKeyFromSeed(keysize, keyTypes, seed);
-                if (alias != null) key.setAlias(alias);
-                return new SigningKeyWithSeedDto(seed, key);
+                String seed = this.generateSecret64(keysize);
+                return new PrivateKeyWithSeedDto(PrivateKeyType.write, seed, keysize, keyTypes, null, alias);
             } catch (KeyGenerationException ex) {
                 if (n >= attempts) {
                     throw new KeyGenerationException("Failed to signing keys with random seeds after " + n + " attempts -" + ex.getMessage() + ".", ex);
+                }
+            }
+        }
+    }
+
+    public PrivateKeyWithSeedDto genEncryptKeyAndSeed() {
+        return genEncryptKeyAndSeed(d.bootstrapConfig.getDefaultEncryptionStrength(), d.bootstrapConfig.getDefaultEncryptTypes(), null);
+    }
+
+    public PrivateKeyWithSeedDto genEncryptKeyAndSeed(int keysize, List<KeyType> keyTypes, @Nullable @Alias String alias) {
+        if (keysize == 128) {
+            PrivateKeyWithSeedDto ret = this.genEncryptAndSeed128Queue.poll();
+            this.moreKeys();
+            if (ret != null) {
+                if (alias != null) ret.setAlias(alias);
+                return ret;
+            }
+        }
+        if (keysize == 256) {
+            PrivateKeyWithSeedDto ret = this.genEncryptAndSeed256Queue.poll();
+            if (ret != null) {
+                if (alias != null) ret.setAlias(alias);
+                return ret;
+            }
+        }
+
+        return genEncryptKeyAndSeedNow(keysize, keyTypes, retryAttempts, alias);
+    }
+
+    public PrivateKeyWithSeedDto genEncryptKeyAndSeedNow() {
+        return genEncryptKeyAndSeedNow(d.bootstrapConfig.getDefaultEncryptionStrength(), d.bootstrapConfig.getDefaultSigningTypes(), retryAttempts, null);
+    }
+
+    public PrivateKeyWithSeedDto genEncryptKeyAndSeedNow(@Nullable @Alias String alias) {
+        return genEncryptKeyAndSeedNow(d.bootstrapConfig.getDefaultEncryptionStrength(), d.bootstrapConfig.getDefaultEncryptTypes(), retryAttempts, alias);
+    }
+
+    public PrivateKeyWithSeedDto genEncryptKeyAndSeedNow(int keysize, int attempts, @Nullable @Alias String alias) {
+        return genEncryptKeyAndSeedNow(keysize, d.bootstrapConfig.getDefaultEncryptTypes(), attempts, alias);
+    }
+
+    public PrivateKeyWithSeedDto genEncryptKeyAndSeedNow(List<KeyType> keyTypes, @Nullable @Alias String alias) {
+        return genEncryptKeyAndSeedNow(d.bootstrapConfig.getDefaultEncryptionStrength(), keyTypes, retryAttempts, alias);
+    }
+
+    public PrivateKeyWithSeedDto genEncryptKeyAndSeedNow(int keysize, List<KeyType> keyTypes) {
+        return genEncryptKeyAndSeedNow(keysize, keyTypes, retryAttempts, null);
+    }
+
+    public PrivateKeyWithSeedDto genEncryptKeyAndSeedNow(int keysize, List<KeyType> keyTypes, int attempts, @Nullable @Alias String alias) {
+        for (int n = 1; ; n++) {
+            try {
+                String seed = this.generateSecret64(keysize);
+                return new PrivateKeyWithSeedDto(PrivateKeyType.read, seed, keysize, keyTypes, null, alias);
+            } catch (KeyGenerationException ex) {
+                if (n >= attempts) {
+                    throw new KeyGenerationException("Failed to generate encryption keys with random seeds after " + n + " attempts -" + ex.getMessage() + ".", ex);
                 }
             }
         }
@@ -1343,7 +1406,7 @@ public class Encryptor implements Runnable
                     ret.add(signRainbow(keyBytes, digest));
                     break;
                 default:
-                    throw new RuntimeException("Unknown signing crypto algorithm: " + part.getType());
+                    throw new RuntimeException("Unknown signing crypto algorithm: " + part.getType() + " [key=" + privateKey.getAliasOrHash() + "]");
             }
         }
 
@@ -1397,7 +1460,7 @@ public class Encryptor implements Runnable
                     }
                     break;
                 default:
-                    throw new RuntimeException("Unknown signing crypto algorithm: " + part.getType());
+                    throw new RuntimeException("Unknown signing crypto algorithm: " + part.getType() + " [key=" + publicKey.getAliasOrHash() + "]");
             }
         }
 
@@ -1602,25 +1665,19 @@ public class Encryptor implements Runnable
         return new KeyPairBytes(extractKey(pair.getPrivate()), extractKey(pair.getPublic()));
     }
     
-    public MessagePrivateKeyDto getTrustOfPublicRead() {
-        MessagePrivateKeyDto ret = this.trustOfPublicRead;
+    public PrivateKeyWithSeedDto getTrustOfPublicRead() {
+        PrivateKeyWithSeedDto ret = this.trustOfPublicRead;
         if (ret == null) {
-            ret = genEncryptKeyFromSeed(128, config.getDefaultEncryptTypes(), "public");
-            //key = new MessagePrivateKeyDto("hCtNNY27gTrDwo2k1w_nm-28B_0u0Z8_lJYSqdmlRzpxb1Ke194tDZWyNEUR8uchT89qg_R1erx9CAyHFMYgAS2Gs5xfRy_37N2JmtR43HmEVDwcoytHjahdZGNYDIEzrSPhJuAb62unOwNjtS0LF9vkXR5akiyaxz7S21sKCitYwonYjGnODaf4axN6H6n_jhhHIHsGORK_o-Giq7FKZNJhoVfyEaNZPsHkG763cKKSKzkvHHVt7EONjW1OjFT6O5E0gNtiGDKQRquJBtWQUlsosDTaXCQWedj6HzBKsXQZjT_XL5QDSsUHIfTN4oiPqiNHREtjUuWMPa1GsOwhPSDRYpcsscBcD67gKRPeuk4_LfqwPk77ibEdbbP4g1FJhn8eaIGpXWTMFWG5Y_z8PfzS98K46Rj_dkHctVen3lHP_MiitAiUp4FtMdBl_FCHhpKFtoU0mriEUyjm1vLxxmgMuDVxb2Szo3Lm3Rgjq2ZSQBj9Sea-GuqBwc_7uBkqZY-vb72FqQ54jy0-CP73Ij4uJ_uH2g93pJDzSfxPtmsZOp7Rs5pYT03gWr018llG4D4Xtsm-2xP_IONLasoJHTrkkg9XPvmxZSQ8_AUSLZfoGRjWxKrYS1qZqCoZ9zYf_x1UtQEpDFjs__Zo9JONKMieTTskykXv-SwSIiyA6EUbvBTN4-VFVZNmc8zCkBDRRH2jZZUCMbYGkuMXEO_aIM2YwYpRROUj48p7zo8uYlnB82YHvhb6czGWew-RSfNeMeE1vX2Z9qoVQRPgj-5dKbnG2Xbkifmjj4h4Aw", "hCtNNY27gTrDwo2k1w_nm-28B_0u0Z8_lJYSqdmlRzpxb1Ke194tDZWyNEUR8uchT89qg_R1erx9CAyHFMYgAS2Gs5xfRy_37N2JmtR43HmEVDwcoytHjahdZGNYDIEzrSPhJuAb62unOwNjtS0LF9vkXR5akiyaxz7S21sKCitYwonYjGnODaf4axN6H6n_jhhHIHsGORK_o-Giq7FKZNJhoVfyEaNZPsHkG763cKKSKzkvHHVt7EONjW1OjFT6O5E0gNtiGDKQRquJBtWQUlsosDTaXCQWedj6HzBKsXQZjT_XL5QDSsUHIfTN4oiPqiNHREtjUuWMPa1GsOwhPSDRYpcsscBcD67gKRPeuk4_LfqwPk77ibEdbbP4g1FJhn8eaIGpXWTMFWG5Y_z8PfzS98K46Rj_dkHctVen3lHP_MiitAiUp4FtMdBl_FCHhpKFtoU0mriEUyjm1vLxxmgMuDVxb2Szo3Lm3Rgjq2ZSQBj9Sea-GuqBwc_7uBkqZY-vb72FqQ54jy0-CP73Ij4uJ_uH2g93pJDzSfxPtmsZOp7Rs5pYT03gWr018llG4D4Xtsm-2xP_IONLasoJHTrkkg9XPvmxZSQ8_AUSLZfoGRjWxKrYS1qZqCoZ9zYf_x1UtQEpDFjs__Zo9JONKMieTTskykXv-SwSIiyA6EUbvBTN4-VFVZNmc8zCkBDRRH2jZZUCMbYGkuMXEO_aIM2YwYpRROUj48p7zo8uYlnB82YHvhb6czGWew-RSfNeMeE1vX2Z9qoVQRPgj-5dKbnG2Xbkifmjj4h4A35nyKJ3ikeM8yUi_FlKfk_c3f8Tacpp7F8UZUunoUF2VDvYohoTyU6FrHBK-PqRIKU-4HBkrR2LF6Y2zyABrr3C5axkSVArak7ofFERtX0shq9aj4OmCg");
-            ret.setAlias("public");
-            ret.getPrivateParts().immutalize();
-            ret.getPublicParts().immutalize();
+            ret = new PrivateKeyWithSeedDto(PrivateKeyType.read, "public", 128, KeyType.ntru, null, "public");
             this.trustOfPublicRead = ret;
         }
         return ret;
     }
     
-    public MessagePrivateKeyDto getTrustOfPublicWrite() {
-        MessagePrivateKeyDto ret = this.trustOfPublicWrite;
+    public PrivateKeyWithSeedDto getTrustOfPublicWrite() {
+        PrivateKeyWithSeedDto ret = this.trustOfPublicWrite;
         if (ret == null) {
-            ret = genSignKeyFromSeed(64, config.getDefaultSigningTypes(), "public");
-            //key = new MessagePrivateKeyDto("rz39v_ev9aFHHJrhE0bn7RONg_RqfGNDXpARYuja8yHO2vf4npuodKpgMApzJW73V0-giMMXyweuYTP3fDtrrdQ_p-3hhAK91wqharZDf18PiU1HOzjFCAWSyQF6eDMzpAwoSUk1_sfL2nUTqF5s_oMlPkHcClBABvm0S3fKvJQC-HLPDpFFaCnsfStu-8ytyx_gjPnBSuGnL1qz5w", "AM232z_XLRsxcxJsNsjcDHJtj-Su62y7jTTn_QE4eFAA6ctcftImbHfTm04nfAmf5EhYcadcPzuwIdRZagyBOADleiEpAXtf4YqQnDX42scZvELRLoEjpofzo2Q5ncLKAOLkz9iZc3oS6PQpS8AZbEcrVq8qhSh_8MjpwYdDpG6vPf2_96_1oUccmuETRuftE42D9Gp8Y0NekBFi6NrzIc7a9_iem6h0qmAwCnMlbvdXT6CIwxfLB65hM_d8O2ut1D-n7eGEAr3XCqFqtkN_Xw-JTUc7OMUIBZLJAXp4MzOkDChJSTX-x8vadROoXmz-gyU-QdwKUEAG-bRLd8q8lAL4cs8OkUVoKex9K277zK3LH-CM-cFK4acvWrPnrz39v_ev9aFHHJrhE0bn7RONg_RqfGNDXpARYuja8yHO2vf4npuodKpgMApzJW73V0-giMMXyweuYTP3fDtrrdQ_p-3hhAK91wqharZDf18PiU1HOzjFCAWSyQF6eDMzpAwoSUk1_sfL2nUTqF5s_oMlPkHcClBABvm0S3fKvJQC-HLPDpFFaCnsfStu-8ytyx_gjPnBSuGnL1qz5w");
-            ret.setAlias("public");
+            ret = new PrivateKeyWithSeedDto(PrivateKeyType.write, "public", 64, KeyType.qtesla, null, "public");
             this.trustOfPublicWrite = ret;
         }
         return ret;
@@ -1784,6 +1841,11 @@ public class Encryptor implements Runnable
     }
 
     @SuppressWarnings("known.nonnull")
+    public @Hash String getPublicKeyHash(PrivateKeyWithSeedDto key) {
+        return key.publicHash();
+    }
+
+    @SuppressWarnings("known.nonnull")
     public @Alias String getAlias(MessagePrivateKey key)
     {
         MessagePublicKey publicKey = key.publicKey();
@@ -1798,6 +1860,13 @@ public class Encryptor implements Runnable
         @Alias String alias = key.alias();
         if (alias == null) return this.getPublicKeyHash(key);
         return alias;
+    }
+
+    public @Alias String getAlias(IPartitionKey partitionKey, PrivateKeyWithSeedDto key)
+    {
+        String ret = key.alias();
+        if (ret != null) return ret;
+        return getAlias(partitionKey, key.key());
     }
 
     public @Alias String getAlias(IPartitionKey partitionKey, MessagePublicKeyDto key)
@@ -1996,6 +2065,8 @@ public class Encryptor implements Runnable
         this.genSignAndSeed64Queue.addAll(config.signAndSeed64);
         this.genSignAndSeed128Queue.addAll(config.signAndSeed128);
         this.genSignAndSeed256Queue.addAll(config.signAndSeed256);
+        this.genEncryptAndSeed128Queue.addAll(config.encryptAndSeed128);
+        this.genEncryptAndSeed256Queue.addAll(config.encryptAndSeed256);
         this.genEncrypt128Queue.addAll(config.encrypt128);
         this.genEncrypt256Queue.addAll(config.encrypt256);
         this.genAes128Queue.addAll(config.aes128);
@@ -2008,6 +2079,36 @@ public class Encryptor implements Runnable
         List<KeysPreLoadConfig> configs = fileLoader.loadAll("preload-entropy-keys/", KeysPreLoadConfig.class);
         for (KeysPreLoadConfig config : configs) {
             preload(config);
+        }
+    }
+
+    public MessagePrivateKeyDto genKeyFromSeed(PrivateKeyWithSeedDto key) {
+        try {
+            return seededKeyCache.get(key.serialize(false), () -> {
+                MessagePrivateKeyDto ret;
+
+                switch (key.type()) {
+                    case read: {
+                        ret = d.encryptor.genEncryptKeyFromSeed(key.keySize(), key.algs(), key.seed());
+                        break;
+                    }
+                    case write: {
+                        ret = d.encryptor.genSignKeyFromSeed(key.keySize(), key.algs(), key.seed());
+                        break;
+                    }
+                    default: {
+                        throw new WebApplicationException("Unknown private key type: " + key.type(), Response.Status.INTERNAL_SERVER_ERROR);
+                    }
+                }
+
+                if (key.alias() != null) {
+                    ret.setAlias(key.alias());
+                }
+
+                return ret;
+            });
+        } catch (ExecutionException e) {
+            throw new WebApplicationException(e);
         }
     }
 }

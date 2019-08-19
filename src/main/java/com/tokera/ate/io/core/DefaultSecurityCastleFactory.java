@@ -1,7 +1,10 @@
 package com.tokera.ate.io.core;
 
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import com.tokera.ate.dto.msg.MessageSecurityCastleDto;
@@ -20,6 +23,8 @@ import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Represents the default key store which just stores the encryption keys in the distributed commit
@@ -28,8 +33,13 @@ import java.util.UUID;
 public class DefaultSecurityCastleFactory implements ISecurityCastleFactory {
     private AteDelegate d = AteDelegate.get();
 
+    private static Cache<String, byte[]> secretCache = CacheBuilder.newBuilder()
+            .maximumSize(20000)
+            .expireAfterWrite(5, TimeUnit.MINUTES)
+            .build();
+
     @Override
-    public @Nullable @Secret byte[] getSecret(IPartitionKey partitionKey, UUID id, Iterable<MessagePrivateKeyDto> accessKeys) {
+    public @Nullable @Secret byte[] getSecret(IPartitionKey partitionKey, UUID id, Iterable<PrivateKeyWithSeedDto> accessKeys) {
         DataPartitionChain chain = d.io.backend().getChain(partitionKey);
 
         // Loop through all the private toPutKeys that we own and try and find
@@ -37,14 +47,15 @@ public class DefaultSecurityCastleFactory implements ISecurityCastleFactory {
         MessageSecurityCastleDto castle = chain.getCastle(id);
         if (castle == null) return null;
 
-        for (MessagePrivateKeyDto accessKey : accessKeys) {
-            String encStr = MapTools.getOrNull(castle.getLookup(), accessKey.getPublicKeyHash());
+        for (PrivateKeyWithSeedDto accessKey : accessKeys) {
+            String encStr = MapTools.getOrNull(castle.getLookup(), accessKey.publicHash());
             if (encStr == null) continue;
-            byte[] enc = Base64.decodeBase64(encStr);
+
+            String lookup = accessKey.aliasOrHash() + encStr;
             try {
-                return d.encryptor.decrypt(accessKey, enc);
-            } catch (IOException | InvalidCipherTextException ex) {
-                throw new WebApplicationException("Failed to retrieve AES secret [castle=" + castle.getIdOrThrow() + ", key=" + accessKey.getPublicKeyHash() + "] while processing data object [id=" + partitionKey + ":" + id + "].", ex, Response.Status.UNAUTHORIZED);
+                return secretCache.get(lookup, () -> d.encryptor.decrypt(accessKey.key(), Base64.decodeBase64(encStr)));
+            } catch (ExecutionException e) {
+                throw new WebApplicationException("Failed to retrieve AES secret [castle=" + castle.getIdOrThrow() + ", key=" + accessKey.publicHash() + "] while processing data object [id=" + partitionKey + ":" + id + "].", e, Response.Status.UNAUTHORIZED);
             }
         }
         return null;

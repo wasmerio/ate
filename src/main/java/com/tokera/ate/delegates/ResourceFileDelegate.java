@@ -1,6 +1,5 @@
 package com.tokera.ate.delegates;
 
-import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import com.tokera.ate.scopes.Startup;
 import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.Assertions;
@@ -47,10 +46,7 @@ public class ResourceFileDelegate {
             if (file.startsWith(prefix) == false)
                 continue;
 
-            T obj = load(file, clazz);
-            if (obj != null) {
-                ret.add(obj);
-            }
+            ret.addAll(loadAllFromFile(file, clazz));
         }
 
         return ret;
@@ -58,6 +54,15 @@ public class ResourceFileDelegate {
 
     @SuppressWarnings("unchecked")
     public <T> T load(String file, Class<T> clazz) {
+        return loadAllFromFile(file, clazz).stream()
+                .findFirst()
+                .orElseThrow(() -> new WebApplicationException("Object of type [" + clazz + "] was not found in the file [" + file + "].", Response.Status.INTERNAL_SERVER_ERROR));
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T> List<T> loadAllFromFile(String file, Class<T> clazz) {
+        List<T> ret = new ArrayList<>();
+
         try {
             InputStream inputStream = ClassLoader.getSystemResourceAsStream(file);
             assert inputStream != null : "@AssumeAssertion(nullness): Must not be null";
@@ -71,20 +76,20 @@ public class ResourceFileDelegate {
 
                     Object obj = AteDelegate.get().yaml.deserializeObj(keyTxt);
                     if (obj != null && obj.getClass() == clazz) {
-                        return (T)obj;
+                        ret.add((T)obj);
                     }
                 }
             }
             if (file.endsWith("json")) {
                 Object obj = AteDelegate.get().json.deserialize(data, clazz);
                 if (obj != null && obj.getClass() == clazz) {
-                    return (T)obj;
+                    ret.add((T)obj);
                 }
             }
-
-            return null;
         } catch (IOException ex) {
             throw new WebApplicationException("Failed to load file", ex, Response.Status.INTERNAL_SERVER_ERROR);
         }
+
+        return ret;
     }
 }

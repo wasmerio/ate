@@ -17,6 +17,9 @@ package com.tokera.ate.test.encryptor;
 
 import com.google.common.collect.Lists;
 import com.tokera.ate.BootstrapConfig;
+import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.msg.MessageKeyPartDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.security.Encryptor;
@@ -266,6 +269,7 @@ public class CryptoTests {
         testEncrypt(512, "public");
     }
 
+    /*
     //@Test
     public void generateSignKeys() {
         for (int n = 0; n < 4; n++) {
@@ -279,6 +283,23 @@ public class CryptoTests {
         for (int n = 0; n < 32; n++) {
             MessagePrivateKeyDto key = encryptor.genEncryptKey(128);
             //System.out.println(yamlDelegate.serializeObj(key));
+        }
+    }
+    */
+
+    @Test
+    public void generateSignKeys() {
+        for (int n = 0; n < 20; n++) {
+            PrivateKeyWithSeedDto key = encryptor.genSignKeyAndSeed();
+            System.out.println(AteDelegate.get().yaml.serializeObj(key));
+        }
+    }
+
+    @Test
+    public void generateEncryptKeys() {
+        for (int n = 0; n < 20; n++) {
+            PrivateKeyWithSeedDto key = encryptor.genEncryptKeyAndSeed();
+            System.out.println(AteDelegate.get().yaml.serializeObj(key));
         }
     }
 }

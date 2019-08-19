@@ -1,8 +1,8 @@
 package com.tokera.ate.delegates;
 
-import com.google.common.collect.Sets;
 import com.tokera.ate.dao.IRights;
 import com.tokera.ate.dao.IRoles;
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import com.tokera.ate.events.NewAccessRightsEvent;
 import com.tokera.ate.events.RightsDiscoverEvent;
@@ -12,7 +12,6 @@ import com.tokera.ate.dto.TokenDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 
 import java.util.*;
-import java.util.stream.Collectors;
 import javax.enterprise.context.RequestScoped;
 import javax.enterprise.event.Observes;
 import javax.ws.rs.WebApplicationException;
@@ -27,10 +26,10 @@ public class CurrentRightsDelegate implements IRights {
 
     private AteDelegate d = AteDelegate.get();
     private RightsDiscoverEvent currentRights = new RightsDiscoverEvent();
-    private @Nullable Set<MessagePrivateKeyDto> rightsReadCache = null;
-    private @Nullable Set<MessagePrivateKeyDto> rightsWriteCache = null;
-    private final Set<MessagePrivateKeyDto> impersonateRead = new HashSet<>();
-    private final Set<MessagePrivateKeyDto> impersonateWrite = new HashSet<>();
+    private @Nullable Set<PrivateKeyWithSeedDto> rightsReadCache = null;
+    private @Nullable Set<PrivateKeyWithSeedDto> rightsWriteCache = null;
+    private final Set<PrivateKeyWithSeedDto> impersonateRead = new HashSet<>();
+    private final Set<PrivateKeyWithSeedDto> impersonateWrite = new HashSet<>();
     
     public CurrentRightsDelegate() {
     }
@@ -66,10 +65,10 @@ public class CurrentRightsDelegate implements IRights {
             d.authorization.getOrCreateImplicitRightToRead(rights);
             d.authorization.getOrCreateImplicitRightToWrite(rights);
 
-            for (MessagePrivateKeyDto right : rights.getRightsRead()) {
+            for (PrivateKeyWithSeedDto right : rights.getRightsRead()) {
                 this.impersonateRead.add(right);
             }
-            for (MessagePrivateKeyDto right : rights.getRightsWrite()) {
+            for (PrivateKeyWithSeedDto right : rights.getRightsWrite()) {
                 this.impersonateWrite.add(right);
             }
         } finally {
@@ -78,23 +77,23 @@ public class CurrentRightsDelegate implements IRights {
         clearRightsCache();
     }
 
-    public void impersonateRead(MessagePrivateKeyDto key) {
+    public void impersonateRead(PrivateKeyWithSeedDto key) {
         this.impersonateRead.add(key);
         clearRightsCache();
     }
 
-    public void impersonateWrite(MessagePrivateKeyDto key) {
+    public void impersonateWrite(PrivateKeyWithSeedDto key) {
         this.impersonateWrite.add(key);
         clearRightsCache();
     }
 
-    public boolean unimpersonateRead(MessagePrivateKeyDto key) {
+    public boolean unimpersonateRead(PrivateKeyWithSeedDto key) {
         boolean ret = this.impersonateRead.remove(key);
         clearRightsCache();
         return ret;
     }
 
-    public boolean unimpersonateWrite(MessagePrivateKeyDto key) {
+    public boolean unimpersonateWrite(PrivateKeyWithSeedDto key) {
         boolean ret = this.impersonateWrite.remove(key);
         clearRightsCache();
         return ret;
@@ -114,21 +113,21 @@ public class CurrentRightsDelegate implements IRights {
 
     @SuppressWarnings("known.nonnull")
     @Override
-    public Set<MessagePrivateKeyDto> getRightsRead() {
+    public Set<PrivateKeyWithSeedDto> getRightsRead() {
         if (this.rightsReadCache != null) {
             return this.rightsReadCache;
         }
 
         boolean shouldCache = true;
-        Set<MessagePrivateKeyDto> ret = new HashSet<>();
+        Set<PrivateKeyWithSeedDto> ret = new HashSet<>();
 
         if (d.currentToken.getWithinTokenScope() == true) {
             ret.addAll(this.d.tokenSecurity.getRightsRead());
         }
 
-        ret.addAll(currentRights.getRolesRead());
+        ret.addAll(currentRights.getRightsRead());
 
-        MessagePrivateKeyDto currentUserRead = currentRights.getCurrentUserTrustRead();
+        PrivateKeyWithSeedDto currentUserRead = currentRights.getCurrentUserTrustRead();
         if (currentUserRead != null) {
             ret.add(currentUserRead);
         } else {
@@ -141,7 +140,7 @@ public class CurrentRightsDelegate implements IRights {
             shouldCache = false;
         }
 
-        MessagePrivateKeyDto publicRead = new MessagePrivateKeyDto(d.encryptor.getTrustOfPublicRead());
+        PrivateKeyWithSeedDto publicRead = new PrivateKeyWithSeedDto(d.encryptor.getTrustOfPublicRead());
         ret.add(publicRead);
 
         if (shouldCache == true) {
@@ -152,21 +151,21 @@ public class CurrentRightsDelegate implements IRights {
 
     @SuppressWarnings("known.nonnull")
     @Override
-    public Set<MessagePrivateKeyDto> getRightsWrite() {
+    public Set<PrivateKeyWithSeedDto> getRightsWrite() {
         if (this.rightsWriteCache != null) {
             return this.rightsWriteCache;
         }
 
         boolean shouldCache = true;
-        Set<MessagePrivateKeyDto> ret = new HashSet<>();
+        Set<PrivateKeyWithSeedDto> ret = new HashSet<>();
 
         if (d.currentToken.getWithinTokenScope() == true) {
             ret.addAll(this.d.tokenSecurity.getRightsWrite());
         }
 
-        ret.addAll(this.currentRights.getRolesWrite());
+        ret.addAll(this.currentRights.getRightsWrite());
 
-        MessagePrivateKeyDto currentUserWrite = currentRights.getCurrentUserTrustWrite();
+        PrivateKeyWithSeedDto currentUserWrite = currentRights.getCurrentUserTrustWrite();
         if (currentUserWrite != null) {
             ret.add(currentUserWrite);
         } else {
@@ -179,7 +178,7 @@ public class CurrentRightsDelegate implements IRights {
             shouldCache = false;
         }
 
-        MessagePrivateKeyDto publicWrite = new MessagePrivateKeyDto(d.encryptor.getTrustOfPublicWrite());
+        PrivateKeyWithSeedDto publicWrite = new PrivateKeyWithSeedDto(d.encryptor.getTrustOfPublicWrite());
         ret.add(publicWrite);
 
         if (shouldCache == true) {
@@ -188,14 +187,20 @@ public class CurrentRightsDelegate implements IRights {
         return ret;
     }
 
-    public @Nullable MessagePrivateKeyDto findKey(String publicKeyHash) {
-        for (MessagePrivateKeyDto key : this.getRightsRead()) {
-            if (publicKeyHash.equals(key.getPublicKeyHash())) {
+    public @Nullable MessagePublicKeyDto findKeyAndConvertToPublic(String publicKeyHash) {
+        PrivateKeyWithSeedDto ret = findKey(publicKeyHash);
+        if (ret == null) return null;
+        return new MessagePublicKeyDto(ret);
+    }
+
+    public @Nullable PrivateKeyWithSeedDto findKey(String publicKeyHash) {
+        for (PrivateKeyWithSeedDto key : this.getRightsRead()) {
+            if (publicKeyHash.equals(key.publicHash())) {
                 return key;
             }
         }
-        for (MessagePrivateKeyDto key : this.getRightsWrite()) {
-            if (publicKeyHash.equals(key.getPublicKeyHash())) {
+        for (PrivateKeyWithSeedDto key : this.getRightsWrite()) {
+            if (publicKeyHash.equals(key.publicHash())) {
                 return key;
             }
         }
@@ -224,18 +229,18 @@ public class CurrentRightsDelegate implements IRights {
         return true;
     }
 
-    public @Nullable MessagePrivateKeyDto findReadKey(String publicKeyHash)
+    public @Nullable PrivateKeyWithSeedDto findReadKey(String publicKeyHash)
     {
         return this.getRightsRead().stream()
-                .filter(k -> publicKeyHash.equals(k.getPublicKeyHash()))
+                .filter(k -> publicKeyHash.equals(k.publicHash()))
                 .findFirst()
                 .orElse(null);
     }
 
-    public @Nullable MessagePrivateKeyDto findWriteKey(String publicKeyHash)
+    public @Nullable PrivateKeyWithSeedDto findWriteKey(String publicKeyHash)
     {
         return this.getRightsWrite().stream()
-                .filter(k -> publicKeyHash.equals(k.getPublicKeyHash()))
+                .filter(k -> publicKeyHash.equals(k.publicHash()))
                 .findFirst()
                 .orElse(null);
     }

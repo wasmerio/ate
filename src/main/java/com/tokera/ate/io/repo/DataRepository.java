@@ -244,38 +244,6 @@ public class DataRepository implements IAteIO {
         return true;
     }
 
-    boolean remove(PUUID id, Class<?> type) {
-
-        // Loiad the existing record
-        DataPartition kt = this.subscriber.getPartition(id.partition());
-        DataPartitionChain chain = kt.getChain();
-        DataContainer lastContainer = chain.getData(id.id(), LOG);
-        if (lastContainer == null) return false;
-        if (lastContainer.hasPayload() == false) {
-            return true;
-        }
-        MessageDataHeaderDto lastHeader = lastContainer.getMergedHeader();
-        MessageDataHeaderDto header = new MessageDataHeaderDto(lastHeader);
-
-        // Sign the data message
-        EffectivePermissions permissions = new EffectivePermissionBuilder(type.getName(), id)
-                .withPhase(PermissionPhase.DynamicStaging)
-                .build();
-
-        d.requestContext.currentTransaction().put(kt.partitionKey(), d.currentRights.getRightsWrite());
-
-        // Make sure we are actually writing something to Kafka
-        MessageDataDigestDto digest = d.dataSignatureBuilder.signDataMessage(id.partition(), header, null, permissions);
-        if (digest == null) return false;
-
-        // Clear it from cache and write the data to Kafka
-        MessageDataDto data = new MessageDataDto(header, digest, null);
-        kt.write(data, this.LOG);
-
-        d.debugLogging.logDelete(id.partition(), data);
-        return true;
-    }
-
     @Override
     public boolean exists(@Nullable PUUID _id) {
         PUUID id = _id;

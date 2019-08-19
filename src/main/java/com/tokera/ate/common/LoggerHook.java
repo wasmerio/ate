@@ -467,6 +467,7 @@ public class LoggerHook implements org.slf4j.Logger {
     }
 
     public void error(Throwable thrwbl) {
+        flagError = true;
         String msg = thrwbl.getMessage();
         if (msg == null) msg = thrwbl.toString();
         this.getForwarder().error(msg, thrwbl);

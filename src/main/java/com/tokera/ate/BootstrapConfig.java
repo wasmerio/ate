@@ -24,11 +24,6 @@ public class BootstrapConfig {
     private String implicitAuthorityAlias = "auth";
     private boolean pingCheckOnStart = false;
 
-    private String stsVaultFilename = "token.signing.jks";
-    private String stsVaultPassword = "7E264A281750DBEA5F15269D47AF1003877426D5EF7F99C4E739E0C9942C58470F15E678C32FB99B";
-    private String stsSigningKeyPassword = "F4257978B79904B78903AB62C3B9F7EBFF42FDC8ED1F66995584DCD4D9E27E1082563FE92D7078A4";
-    private String stsCertificateAliasName = "sts";
-
     private String dnsServer = "8.8.8.8";
 
     private List<String> arguments = new ArrayList<>();
@@ -36,6 +31,7 @@ public class BootstrapConfig {
     private String propertiesFileAte = "ate.properties";
     private String propertiesFileLog4j = "log4j.properties";
     private String propertiesFileKafka = "kafka.properties";
+    private String propertiesFileToken = "token.properties";
     private String propertiesFileZooKeeper = "zookeeper.properties";
     private String propertiesFileConsumer = "consumer.properties";
     private String propertiesFileProducer = "producer.properties";
@@ -114,38 +110,6 @@ public class BootstrapConfig {
 
     public void setPingCheckOnStart(boolean pingCheckOnStart) {
         this.pingCheckOnStart = pingCheckOnStart;
-    }
-
-    public String getStsVaultFilename() {
-        return stsVaultFilename;
-    }
-
-    public void setStsVaultFilename(String stsVaultFilename) {
-        this.stsVaultFilename = stsVaultFilename;
-    }
-
-    public String getStsVaultPassword() {
-        return stsVaultPassword;
-    }
-
-    public void setStsVaultPassword(String stsVaultPassword) {
-        this.stsVaultPassword = stsVaultPassword;
-    }
-
-    public String getStsSigningKeyPassword() {
-        return stsSigningKeyPassword;
-    }
-
-    public void setStsSigningKeyPassword(String stsSigningKeyPassword) {
-        this.stsSigningKeyPassword = stsSigningKeyPassword;
-    }
-
-    public String getStsCertificateAliasName() {
-        return stsCertificateAliasName;
-    }
-
-    public void setStsCertificateAliasName(String stsCertificateAliasName) {
-        this.stsCertificateAliasName = stsCertificateAliasName;
     }
 
     public String getPropertiesFileAte() {
@@ -289,6 +253,10 @@ public class BootstrapConfig {
         return props;
     }
 
+    public Properties propertiesForToken() {
+        return getPropertiesFile(this.getPropertiesFileToken(), "Token");
+    }
+
     public static String propertyOrThrow(Properties props, String name) {
         AteDelegate d = AteDelegate.get();
         if (props == d.bootstrapConfig.propertiesForAte()) {
@@ -317,11 +285,11 @@ public class BootstrapConfig {
         this.implicitAuthorityAlias = implicitAuthorityAlias;
     }
 
-    public Iterable<KeyType> getDefaultSigningTypes() {
+    public List<KeyType> getDefaultSigningTypes() {
         return securityLevel.signingTypes;
     }
 
-    public Iterable<KeyType> getDefaultEncryptTypes() {
+    public List<KeyType> getDefaultEncryptTypes() {
         return securityLevel.encryptTypes;
     }
 
@@ -514,5 +482,13 @@ public class BootstrapConfig {
 
     public void setSubscriberMaxPartitions(int subscriberMaxPartitions) {
         this.subscriberMaxPartitions = subscriberMaxPartitions;
+    }
+
+    public String getPropertiesFileToken() {
+        return propertiesFileToken;
+    }
+
+    public void setPropertiesFileToken(String propertiesFileToken) {
+        this.propertiesFileToken = propertiesFileToken;
     }
 }

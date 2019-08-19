@@ -1,5 +1,6 @@
 package com.tokera.ate.events;
 
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -14,41 +15,41 @@ import java.util.Set;
  */
 public class RightsDiscoverEvent
 {
-    private @Nullable MessagePrivateKeyDto currentUserTrustWrite = null;
-    private @Nullable MessagePrivateKeyDto currentUserTrustRead = null;
-    private Set<MessagePrivateKeyDto> rolesRead = new HashSet<>();
-    private Set<MessagePrivateKeyDto> rolesWrite = new HashSet<>();
+    private @Nullable PrivateKeyWithSeedDto currentUserTrustWrite = null;
+    private @Nullable PrivateKeyWithSeedDto currentUserTrustRead = null;
+    private Set<PrivateKeyWithSeedDto> rightsRead = new HashSet<>();
+    private Set<PrivateKeyWithSeedDto> rightsWrite = new HashSet<>();
 
-    public @Nullable MessagePrivateKeyDto getCurrentUserTrustWrite() {
+    public @Nullable PrivateKeyWithSeedDto getCurrentUserTrustWrite() {
         return currentUserTrustWrite;
     }
 
-    public void setCurrentUserTrustWrite(@Nullable MessagePrivateKeyDto currentUserTrustWrite) {
+    public void setCurrentUserTrustWrite(@Nullable PrivateKeyWithSeedDto currentUserTrustWrite) {
         this.currentUserTrustWrite = currentUserTrustWrite;
     }
 
-    public @Nullable MessagePrivateKeyDto getCurrentUserTrustRead() {
+    public @Nullable PrivateKeyWithSeedDto getCurrentUserTrustRead() {
         return currentUserTrustRead;
     }
 
-    public void setCurrentUserTrustRead(@Nullable MessagePrivateKeyDto currentUserTrustRead) {
+    public void setCurrentUserTrustRead(@Nullable PrivateKeyWithSeedDto currentUserTrustRead) {
         this.currentUserTrustRead = currentUserTrustRead;
     }
 
-    public Set<MessagePrivateKeyDto> getRolesRead() {
-        return rolesRead;
+    public Set<PrivateKeyWithSeedDto> getRightsRead() {
+        return rightsRead;
     }
 
-    public void setRolesRead(Set<MessagePrivateKeyDto> rolesRead) {
-        this.rolesRead = rolesRead;
+    public void setRightsRead(Set<PrivateKeyWithSeedDto> rightsRead) {
+        this.rightsRead = rightsRead;
     }
 
-    public Set<MessagePrivateKeyDto> getRolesWrite() {
-        return rolesWrite;
+    public Set<PrivateKeyWithSeedDto> getRightsWrite() {
+        return rightsWrite;
     }
 
-    public void setRolesWrite(Set<MessagePrivateKeyDto> rolesWrite) {
-        this.rolesWrite = rolesWrite;
+    public void setRightsWrite(Set<PrivateKeyWithSeedDto> rightsWrite) {
+        this.rightsWrite = rightsWrite;
     }
 }
 

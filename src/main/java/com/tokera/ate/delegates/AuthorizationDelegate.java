@@ -1,5 +1,6 @@
 package com.tokera.ate.delegates;
 
+import com.tokera.ate.common.ImmutalizableArrayList;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.dao.IRights;
 import com.tokera.ate.dao.IRoles;
@@ -7,11 +8,10 @@ import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.base.BaseDaoInternal;
 import com.tokera.ate.dao.enumerations.PermissionPhase;
-import com.tokera.ate.dto.EffectivePermissions;
-import com.tokera.ate.dto.RolesPairDto;
-import com.tokera.ate.dto.TokenDto;
+import com.tokera.ate.dto.*;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
+import com.tokera.ate.enumerations.PrivateKeyType;
 import com.tokera.ate.events.NewAccessRightsEvent;
 import com.tokera.ate.events.RightsValidationEvent;
 import com.tokera.ate.events.TokenScopeChangedEvent;
@@ -19,6 +19,7 @@ import com.tokera.ate.events.TokenStateChangedEvent;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.repo.DataContainer;
 import com.tokera.ate.providers.PartitionKeySerializer;
+import com.tokera.ate.providers.TokenSerializer;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.security.EffectivePermissionBuilder;
 import com.tokera.ate.units.Alias;
@@ -47,6 +48,8 @@ public class AuthorizationDelegate {
     @SuppressWarnings("initialization.fields.uninitialized")
     @Inject
     private LoggerHook LOG;
+
+    private TokenSerializer tokenSerializer = new TokenSerializer();
 
     public boolean canRead(@Nullable BaseDao obj)
     {
@@ -141,7 +144,9 @@ public class AuthorizationDelegate {
             MessagePublicKeyDto key = d.io.publicKeyOrNull(partitionKey, publicKeyHash);
             if (key != null) {
                 if (key.getAlias() != null) {
-                    sb.append(key.getAlias()).append(" - ").append(publicKeyHash).append("]");
+                    sb.append(key.getAlias()).append(" - ").append(publicKeyHash);
+                } else {
+                    sb.append(publicKeyHash);
                 }
             } else {
                 sb.append("[missing] - ").append(publicKeyHash);
@@ -155,8 +160,8 @@ public class AuthorizationDelegate {
         }
 
         boolean hasOwns = false;
-        Set<MessagePrivateKeyDto> rights = this.d.currentRights.getRightsWrite();
-        for (MessagePrivateKeyDto privateKey : rights) {
+        Set<PrivateKeyWithSeedDto> rights = this.d.currentRights.getRightsWrite();
+        for (PrivateKeyWithSeedDto privateKey : rights) {
             if (hasOwns == false) {
                 sb.append(" > roles: ");
             } else {
@@ -271,8 +276,8 @@ public class AuthorizationDelegate {
         }
 
         boolean hasOwns = false;
-        Set<MessagePrivateKeyDto> rights = this.d.currentRights.getRightsRead();
-        for (MessagePrivateKeyDto privateKey : rights) {
+        Set<PrivateKeyWithSeedDto> rights = this.d.currentRights.getRightsRead();
+        for (PrivateKeyWithSeedDto privateKey : rights) {
             if (hasOwns == false) {
                 sb.append(" > roles: ");
             } else {
@@ -353,13 +358,6 @@ public class AuthorizationDelegate {
         authorizeEntityWrite(entity, to);
     }
 
-    public void authorizeRead(MessagePublicKeyDto publicKey, IRoles to) {
-        ensureKeyIsThere(publicKey, to);
-        if (to.getTrustAllowRead().values().contains(publicKey.getPublicKeyHash()) == false) {
-            to.getTrustAllowRead().put(publicKey.getAliasOrHash(), publicKey.getPublicKeyHash());
-        }
-    }
-
     public void copy(IRoles from, IRoles to)
     {
         boolean save = false;
@@ -402,22 +400,22 @@ public class AuthorizationDelegate {
         }
     }
 
-    public @Nullable MessagePrivateKeyDto getImplicitRightToRead(IRights entity)
+    public @Nullable PrivateKeyWithSeedDto getImplicitRightToRead(IRights entity)
     {
         @Alias String alias = entity.getRightsAlias();
-        MessagePrivateKeyDto right = entity.getRightsRead().stream()
-                .filter(p -> alias.equals(p.getAliasOrHash()))
+        PrivateKeyWithSeedDto right = entity.getRightsRead().stream()
+                .filter(p -> alias.equals(p.aliasOrHash()))
                 .filter(p -> d.encryptor.getPublicKeyHash(p).equals(d.encryptor.getPublicKeyHash(d.encryptor.getTrustOfPublicRead())) == false)
                 .findFirst()
                 .orElse(null);
         return right;
     }
 
-    public MessagePrivateKeyDto getOrCreateImplicitRightToRead(IRights entity)
+    public PrivateKeyWithSeedDto getOrCreateImplicitRightToRead(IRights entity)
     {
         @Alias String alias = entity.getRightsAlias();
-        MessagePrivateKeyDto right = entity.getRightsRead().stream()
-                .filter(p -> alias.equals(p.getAliasOrHash()))
+        PrivateKeyWithSeedDto right = entity.getRightsRead().stream()
+                .filter(p -> alias.equals(p.aliasOrHash()))
                 .filter(p -> d.encryptor.getPublicKeyHash(p).equals(d.encryptor.getPublicKeyHash(d.encryptor.getTrustOfPublicRead())) == false)
                 .findFirst()
                 .orElse(null);
@@ -425,19 +423,19 @@ public class AuthorizationDelegate {
             if (entity.readOnly()) {
                 throw new WebApplicationException("Unable to create an implicit right to read for this entity as it is read only.", Response.Status.BAD_REQUEST);
             }
-            right = new MessagePrivateKeyDto(d.encryptor.genEncryptKeyWithAlias(128, alias));
+            right = new PrivateKeyWithSeedDto(PrivateKeyType.read, 128, alias);
 
             entity.getRightsRead().add(right);
-            ensureKeyIsThere(right, entity);
+            ensureKeyIsThere(right.key(), entity);
         }
         return right;
     }
 
     public void authorizeEntityRead(IRights entity, IRoles to) {
-        MessagePrivateKeyDto right = getOrCreateImplicitRightToRead(entity);
-        ensureKeyIsThere(right, to);
+        PrivateKeyWithSeedDto right = getOrCreateImplicitRightToRead(entity);
+        ensureKeyIsThere(right.key(), to);
 
-        authorizeEntityRead(right, to);
+        authorizeEntityRead(right.key(), to);
 
         TokenDto token = d.currentToken.getTokenOrNull();
         if (token != null && entity.getId().equals(token.getUserIdOrNull())) {
@@ -467,6 +465,10 @@ public class AuthorizationDelegate {
         }
     }
 
+    public void authorizeEntityRead(PrivateKeyWithSeedDto key, IRoles to) {
+        authorizeEntityRead(key.key(), to);
+    }
+
     public void authorizeEntityRead(MessagePublicKeyDto right, IRoles to) {
         String hash = d.encryptor.getPublicKeyHash(right);
 
@@ -484,10 +486,10 @@ public class AuthorizationDelegate {
     }
 
     public void authorizeEntityPublicRead(IRoles to) {
-        MessagePublicKeyDto key = d.encryptor.getTrustOfPublicRead();
-        ensureKeyIsThere(key, to);
+        PrivateKeyWithSeedDto publicRead = d.encryptor.getTrustOfPublicRead();
+        ensureKeyIsThere(publicRead.key(), to);
 
-        @Hash String hash = key.getPublicKeyHash();
+        @Hash String hash = publicRead.publicHash();
         assert hash != null : "@AssumeAssertion(nullness): Must not be null";
         to.getTrustAllowRead().put("public", hash);
     }
@@ -500,22 +502,22 @@ public class AuthorizationDelegate {
         }
     }
 
-    public @Nullable MessagePrivateKeyDto getImplicitRightToWrite(IRights entity)
+    public @Nullable PrivateKeyWithSeedDto getImplicitRightToWrite(IRights entity)
     {
         @Alias String alias = entity.getRightsAlias();
-        MessagePrivateKeyDto right = entity.getRightsWrite().stream()
-                .filter(p -> alias.equals(p.getAliasOrHash()))
+        PrivateKeyWithSeedDto right = entity.getRightsWrite().stream()
+                .filter(p -> alias.equals(p.aliasOrHash()))
                 .filter(p -> d.encryptor.getPublicKeyHash(p).equals(d.encryptor.getPublicKeyHash(d.encryptor.getTrustOfPublicWrite())) == false)
                 .findFirst()
                 .orElse(null);
         return right;
     }
 
-    public MessagePrivateKeyDto getOrCreateImplicitRightToWrite(IRights entity)
+    public PrivateKeyWithSeedDto getOrCreateImplicitRightToWrite(IRights entity)
     {
         @Alias String alias = entity.getRightsAlias();
-        MessagePrivateKeyDto right = entity.getRightsWrite().stream()
-                .filter(p -> alias.equals(p.getAliasOrHash()))
+        PrivateKeyWithSeedDto right = entity.getRightsWrite().stream()
+                .filter(p -> alias.equals(p.aliasOrHash()))
                 .filter(p -> d.encryptor.getPublicKeyHash(p).equals(d.encryptor.getPublicKeyHash(d.encryptor.getTrustOfPublicWrite())) == false)
                 .findFirst()
                 .orElse(null);
@@ -523,17 +525,17 @@ public class AuthorizationDelegate {
             if (entity.readOnly()) {
                 throw new WebApplicationException("Unable to create an implicit right to write for this entity as it is read only.", Response.Status.BAD_REQUEST);
             }
-            right = new MessagePrivateKeyDto(d.encryptor.genSignKeyWithAlias(alias));
+            right = new PrivateKeyWithSeedDto(PrivateKeyType.write, 128, alias);
             entity.getRightsWrite().add(right);
-            ensureKeyIsThere(right, entity);
+            ensureKeyIsThere(right.key(), entity);
         }
         return right;
     }
 
     public void authorizeEntityWrite(IRights entity, IRoles to) {
-        MessagePrivateKeyDto right = getOrCreateImplicitRightToWrite(entity);
-        authorizeEntityWrite(right, to);
-        ensureKeyIsThere(right, to);
+        PrivateKeyWithSeedDto right = getOrCreateImplicitRightToWrite(entity);
+        authorizeEntityWrite(right.key(), to);
+        ensureKeyIsThere(right.key(), to);
 
         TokenDto token = d.currentToken.getTokenOrNull();
         if (token != null && entity.getId().equals(token.getUserIdOrNull())) {
@@ -544,6 +546,10 @@ public class AuthorizationDelegate {
         }
 
         entity.onAddRight(to);
+    }
+
+    public void authorizeEntityWrite(PrivateKeyWithSeedDto key, IRoles to) {
+        authorizeEntityWrite(key.key(), to);
     }
 
     public void authorizeEntityWrite(MessagePublicKeyDto right, IRoles to) {
@@ -563,10 +569,10 @@ public class AuthorizationDelegate {
     }
 
     public void authorizeEntityPublicWrite(IRoles to) {
-        MessagePublicKeyDto key = d.encryptor.getTrustOfPublicWrite();
-        ensureKeyIsThere(key, to);
+        PrivateKeyWithSeedDto publicWrite = d.encryptor.getTrustOfPublicWrite();
+        ensureKeyIsThere(publicWrite.key(), to);
 
-        @Hash String hash = key.getPublicKeyHash();
+        @Hash String hash = publicWrite.publicHash();
         assert hash != null : "@AssumeAssertion(nullness): Must not be null";
         to.getTrustAllowWrite().put("public", hash);
     }
@@ -578,9 +584,9 @@ public class AuthorizationDelegate {
 
     public void unauthorizeEntityRead(IRights entity, IRoles from) {
 
-        List<MessagePrivateKeyDto> rights = entity.getRightsRead().stream().collect(Collectors.toList());
+        List<PrivateKeyWithSeedDto> rights = entity.getRightsRead().stream().collect(Collectors.toList());
 
-        for (MessagePrivateKeyDto right : rights) {
+        for (PrivateKeyWithSeedDto right : rights) {
             Map.Entry<String, String> publicKeyHash = from.getTrustAllowRead().entrySet().stream()
                     .filter(p -> p.getValue().equals(d.encryptor.getPublicKeyHash(right)) == true)
                     .findFirst()
@@ -595,9 +601,9 @@ public class AuthorizationDelegate {
 
     public void unauthorizeEntityWrite(IRights entity, IRoles from) {
 
-        List<MessagePrivateKeyDto> rights = entity.getRightsWrite().stream().collect(Collectors.toList());
+        List<PrivateKeyWithSeedDto> rights = entity.getRightsWrite().stream().collect(Collectors.toList());
 
-        for (MessagePrivateKeyDto right : rights) {
+        for (PrivateKeyWithSeedDto right : rights) {
             Map.Entry<String, String> publicKeyHash = from.getTrustAllowWrite().entrySet().stream()
                     .filter(p -> p.getValue().equals(d.encryptor.getPublicKeyHash(right)) == true)
                     .findFirst()
@@ -627,23 +633,23 @@ public class AuthorizationDelegate {
     }
 
     public void unauthorizeAliasRead(IRights rights, @Alias String alias) {
-        List<MessagePrivateKeyDto> rs = rights.getRightsRead()
+        List<PrivateKeyWithSeedDto> rs = rights.getRightsRead()
                 .stream()
                 .filter(p -> alias.equals(d.encryptor.getPublicKeyHash(p)) == true ||
-                        alias.equals(p.getPublicKeyHash()) == true)
+                        alias.equals(p.publicHash()) == true)
                 .collect(Collectors.toList());
-        for (MessagePrivateKeyDto r : rs) {
+        for (PrivateKeyWithSeedDto r : rs) {
             rights.getRightsRead().remove(r);
         }
     }
 
     public void unauthorizeAliasWrite(IRights rights, @Alias String alias) {
-        List<MessagePrivateKeyDto> rs = rights.getRightsWrite()
+        List<PrivateKeyWithSeedDto> rs = rights.getRightsWrite()
                 .stream()
                 .filter(p -> alias.equals(d.encryptor.getPublicKeyHash(p)) == true ||
-                        alias.equals(p.getPublicKeyHash()) == true)
+                        alias.equals(p.publicHash()) == true)
                 .collect(Collectors.toList());
-        for (MessagePrivateKeyDto r : rs) {
+        for (PrivateKeyWithSeedDto r : rs) {
             rights.getRightsWrite().remove(r);
         }
     }
@@ -713,5 +719,18 @@ public class AuthorizationDelegate {
         {
             d.io.write(partitionKey, publicKey);
         }
+    }
+
+    public String createToken(Map<@Alias String, List<String>> claims, int expiresMins) {
+        return tokenSerializer.createToken(claims, expiresMins).getBase64();
+    }
+
+    public void validateToken(String encToken) {
+        TokenDto token = new TokenDto(encToken);
+        tokenSerializer.validateToken(token);
+    }
+
+    public ImmutalizableArrayList<ClaimDto> extractTokenClaims(String encToken) {
+        return tokenSerializer.extractTokenClaims(new TokenDto(encToken));
     }
 }

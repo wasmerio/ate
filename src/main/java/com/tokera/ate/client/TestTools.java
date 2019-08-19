@@ -2,6 +2,7 @@ package com.tokera.ate.client;
 
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
+import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.providers.*;
 import org.apache.commons.io.IOUtils;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -23,6 +24,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class TestTools {
 
@@ -32,6 +34,8 @@ public class TestTools {
                 .register(new UuidSerializer())
                 .register(new PartitionKeySerializer())
                 .register(new PuuidSerializer())
+                .register(new TokenSerializer())
+                .register(new PrivateKeyWithSeedSerializer())
                 .register(new CountLongSerializer())
                 .register(new RangeLongSerializer())
                 .build();
@@ -112,9 +116,12 @@ public class TestTools {
     }
 
     public static Response restPut(@Nullable String token, String url, Entity<?> entity, @Nullable MultivaluedMap<String, Object> queryParams, @Nullable MultivaluedMap<String, Object> headers) {
-        Response resp;
-        ResteasyClient client = TestTools.buildResteasyClient();
-        try {
+        return restPut(token, url, entity, queryParams, headers, null);
+    }
+
+    public static Response restPut(@Nullable String token, String url, Entity<?> entity, @Nullable MultivaluedMap<String, Object> queryParams, @Nullable MultivaluedMap<String, Object> headers, @Nullable IPartitionKey partitionKey) {
+        return restRunner(() -> {
+            ResteasyClient client = TestTools.buildResteasyClient();
             ResteasyWebTarget target = client.target(url);
             if (queryParams != null) {
                 target = target.queryParams(queryParams);
@@ -123,19 +130,9 @@ public class TestTools {
             Invocation.Builder builder = target
                     .request()
                     .accept(MediaType.WILDCARD_TYPE);
-            builder = addHeaders(builder, token, headers);
-            resp = builder.put(entity);
-
-        } catch (ClientErrorException e) {
-            resp = e.getResponse();
-            resp.close();
-
-            validateResponse(resp, url);
-            throw new WebApplicationException(e);
-        }
-
-        validateResponse(resp, url);
-        return resp;
+            builder = addHeaders(builder, token, partitionKey, headers);
+            return builder.put(entity);
+        }, url);
     }
 
     @SuppressWarnings("known.nonnull")
@@ -161,10 +158,13 @@ public class TestTools {
         }
     }
 
-    private static Invocation.Builder addHeaders(Invocation.Builder builder, @Nullable String token, @Nullable MultivaluedMap<String, Object> headers)
+    private static Invocation.Builder addHeaders(Invocation.Builder builder, @Nullable String token, @Nullable IPartitionKey partitionKey, @Nullable MultivaluedMap<String, Object> headers)
     {
         if (token != null) {
             builder = builder.header("Authorization", token);
+        }
+        if (partitionKey != null) {
+            builder = builder.header("PartitionKey", PartitionKeySerializer.serialize(partitionKey));
         }
         if (headers != null) {
             for (Map.Entry<String, List<Object>> header : headers.entrySet()) {
@@ -176,24 +176,11 @@ public class TestTools {
         return builder;
     }
 
-    public static Response restPost(@Nullable String token, String url, Entity<?> entity) {
-        return restPost(token, url, entity, null, null);
-    }
-
-    public static Response restPost(@Nullable String token, String url, Entity<?> entity, @Nullable MultivaluedMap<String, Object> queryParams, @Nullable MultivaluedMap<String, Object> headers) {
+    public static Response restRunner(Supplier<Response> f, String url)
+    {
         Response resp;
-        ResteasyClient client = TestTools.buildResteasyClient();
         try {
-            ResteasyWebTarget target = client.target(url);
-            if (queryParams != null) {
-                target = target.queryParams(queryParams);
-            }
-
-            Invocation.Builder builder = target
-                    .request()
-                    .accept(MediaType.WILDCARD_TYPE);
-            builder = addHeaders(builder, token, headers);
-            resp = builder.post(entity);
+            resp = f.get();
 
         } catch (ClientErrorException e) {
             resp = e.getResponse();
@@ -205,6 +192,30 @@ public class TestTools {
 
         validateResponse(resp, url);
         return resp;
+    }
+
+    public static Response restPost(@Nullable String token, String url, Entity<?> entity) {
+        return restPost(token, url, entity, null, null);
+    }
+
+    public static Response restPost(@Nullable String token, String url, Entity<?> entity, @Nullable MultivaluedMap<String, Object> queryParams, @Nullable MultivaluedMap<String, Object> headers) {
+        return restPost(token, url, entity, queryParams, headers, null);
+    }
+
+    public static Response restPost(@Nullable String token, String url, Entity<?> entity, @Nullable MultivaluedMap<String, Object> queryParams, @Nullable MultivaluedMap<String, Object> headers, @Nullable IPartitionKey partitionKey) {
+        return restRunner(() -> {
+            ResteasyClient client = TestTools.buildResteasyClient();
+            ResteasyWebTarget target = client.target(url);
+            if (queryParams != null) {
+                target = target.queryParams(queryParams);
+            }
+
+            Invocation.Builder builder = target
+                    .request()
+                    .accept(MediaType.WILDCARD_TYPE);
+            builder = addHeaders(builder, token, partitionKey, headers);
+            return builder.post(entity);
+        }, url);
     }
 
     public static Response restGet(@Nullable String token, String url) {
@@ -212,9 +223,12 @@ public class TestTools {
     }
 
     public static Response restGet(@Nullable String token, String url, @Nullable MultivaluedMap<String, Object> queryParams, @Nullable MultivaluedMap<String, Object> headers) {
-        Response resp;
-        ResteasyClient client = TestTools.buildResteasyClient();
-        try {
+        return restGet(token, url, queryParams, headers, null);
+    }
+
+    public static Response restGet(@Nullable String token, String url, @Nullable MultivaluedMap<String, Object> queryParams, @Nullable MultivaluedMap<String, Object> headers, @Nullable IPartitionKey partitionKey) {
+        return restRunner(() -> {
+            ResteasyClient client = TestTools.buildResteasyClient();
             ResteasyWebTarget target = client.target(url);
             if (queryParams != null) {
                 target = target.queryParams(queryParams);
@@ -223,18 +237,9 @@ public class TestTools {
             Invocation.Builder builder = target
                     .request()
                     .accept(MediaType.WILDCARD_TYPE);
-            builder = addHeaders(builder, token, headers);
-            resp = builder.get();
-        } catch (ClientErrorException e) {
-            resp = e.getResponse();
-            resp.close();
-
-            validateResponse(resp, url);
-            throw new WebApplicationException(e);
-        }
-
-        validateResponse(resp, url);
-        return resp;
+            builder = addHeaders(builder, token, partitionKey, headers);
+            return builder.get();
+        }, url);
     }
 
     public static @Nullable Response restGetOrNull(@Nullable String token, String url) {
@@ -242,9 +247,12 @@ public class TestTools {
     }
 
     public static @Nullable Response restGetOrNull(@Nullable String token, String url, @Nullable MultivaluedMap<String, Object> queryParams, @Nullable MultivaluedMap<String, Object> headers) {
-        Response resp;
-        ResteasyClient client = TestTools.buildResteasyClient();
-        try {
+        return restGetOrNull(token, url, queryParams, headers, null);
+    }
+
+    public static @Nullable Response restGetOrNull(@Nullable String token, String url, @Nullable MultivaluedMap<String, Object> queryParams, @Nullable MultivaluedMap<String, Object> headers, @Nullable IPartitionKey partitionKey) {
+        return restRunner(() -> {
+            ResteasyClient client = TestTools.buildResteasyClient();
             ResteasyWebTarget target = client.target(url);
             if (queryParams != null) {
                 target = target.queryParams(queryParams);
@@ -253,18 +261,9 @@ public class TestTools {
             Invocation.Builder builder = target
                     .request()
                     .accept(MediaType.WILDCARD_TYPE);
-            builder = addHeaders(builder, token, headers);
-            resp = builder.get();
-        } catch (ClientErrorException e) {
-            resp = e.getResponse();
-            resp.close();
-            return null;
-        }
-
-        if (resp.getStatus() < 200 || resp.getStatus() >= 300) {
-            return null;
-        }
-        return resp;
+            builder = addHeaders(builder, token, partitionKey, headers);
+            return builder.get();
+        }, url);
     }
 
     public static <T> T restGetAndOutput(@Nullable String token, String url, Class<T> clazz) {
@@ -272,9 +271,13 @@ public class TestTools {
     }
 
     public static <T> T restGetAndOutput(@Nullable String token, String url, Class<T> clazz, @Nullable MultivaluedMap<String, Object> queryParams, @Nullable MultivaluedMap<String, Object> headers) {
+        return restGetAndOutput(token, url, clazz, queryParams, headers, null);
+    }
+
+    public static <T> T restGetAndOutput(@Nullable String token, String url, Class<T> clazz, @Nullable MultivaluedMap<String, Object> queryParams, @Nullable MultivaluedMap<String, Object> headers, @Nullable IPartitionKey partitionKey) {
         AteDelegate d = AteDelegate.get();
 
-        Response response = restGet(token, url, queryParams, headers);
+        Response response = restGet(token, url, queryParams, headers, partitionKey);
         T ret = response.readEntity(clazz);
         assert ret != null : "@AssumeAssertion(nullness): Must not be null";
         Assertions.assertNotNull(ret, clazz.toString() + " must not be null.");
@@ -288,9 +291,12 @@ public class TestTools {
     }
 
     public static void restDelete(@Nullable String token, String url, @Nullable MultivaluedMap<String, Object> queryParams, @Nullable MultivaluedMap<String, Object> headers) {
-        Response resp;
-        ResteasyClient client = TestTools.buildResteasyClient();
-        try {
+        restDelete(token, url, queryParams, headers, null);
+    }
+
+    public static void restDelete(@Nullable String token, String url, @Nullable MultivaluedMap<String, Object> queryParams, @Nullable MultivaluedMap<String, Object> headers, @Nullable IPartitionKey partitionKey) {
+        restRunner(() -> {
+            ResteasyClient client = TestTools.buildResteasyClient();
             ResteasyWebTarget target = client.target(url);
             if (queryParams != null) {
                 target = target.queryParams(queryParams);
@@ -299,16 +305,8 @@ public class TestTools {
             Invocation.Builder builder = target
                     .request()
                     .accept(MediaType.WILDCARD_TYPE);
-            builder = addHeaders(builder, token, headers);
-            resp = builder.delete();
-        } catch (ClientErrorException e) {
-            resp = e.getResponse();
-            resp.close();
-
-            validateResponse(resp, url);
-            throw new WebApplicationException(e);
-        }
-
-        validateResponse(resp, url);
+            builder = addHeaders(builder, token, partitionKey, headers);
+            return builder.delete();
+        }, url);
     }
 }

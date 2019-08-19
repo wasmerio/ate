@@ -4,6 +4,7 @@ import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.TokenDto;
+import com.tokera.ate.events.TokenDiscoveryEvent;
 import com.tokera.ate.events.TokenScopeChangedEvent;
 import com.tokera.ate.io.api.IPartitionKey;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -41,17 +42,9 @@ public class AuthorityInterceptor implements ContainerRequestFilter, ContainerRe
     private @Context @Nullable HttpServletRequest request;
     private @Context @Nullable HttpServletResponse response;
     private int inferredPartition = 0;
-    @SuppressWarnings("initialization.fields.uninitialized")
-    @Inject
-    private DefaultBootstrapInit interceptorInit;
     
     public static final String HEADER_AUTHORIZATION = "Authorization";
     public static boolean c_logVerbose = false;
-
-    @PostConstruct
-    public void init() {
-        interceptorInit.touch();
-    }
 
     @SuppressWarnings({"return.type.incompatible", "argument.type.incompatible"})       // Fixed an issue where the return type is actually nullable
     private static @Nullable String getHeaderString(ContainerRequestContext requestContext, String header) {
@@ -71,15 +64,15 @@ public class AuthorityInterceptor implements ContainerRequestFilter, ContainerRe
         d.requestContext.setContainerRequestContext(requestContext);
 
         // Extract the token (either from the authorization header)
-        String tokenHash = AuthorityInterceptor.getHeaderString(requestContext, HEADER_AUTHORIZATION);
-        if (tokenHash != null) {
+        String token = AuthorityInterceptor.getHeaderString(requestContext, HEADER_AUTHORIZATION);
+        if (token != null) {
             if (AuthorityInterceptor.c_logVerbose == true) {
                 this.LOG.info("found header(Authentication) cookie");
             }
         }
 
         // ...or from the query string
-        if (tokenHash == null) {
+        if (token == null) {
             HttpServletRequest request = this.request;
             if (request != null) {
                 String queryStr = AuthorityInterceptor.getRequestQueryString(request);
@@ -90,7 +83,7 @@ public class AuthorityInterceptor implements ContainerRequestFilter, ContainerRe
                             if (pair.getValue().length <= 0) continue;
                             if (pair.getKey().equalsIgnoreCase("token")) {
                                 this.LOG.info("found querystring cookie");
-                                tokenHash = pair.getValue()[0];
+                                token = pair.getValue()[0];
                             }
                         }
                     } catch (IllegalArgumentException e) {
@@ -101,7 +94,7 @@ public class AuthorityInterceptor implements ContainerRequestFilter, ContainerRe
         }
 
         // ... or maybe its in the query string of the original currentRights (in a redirect scenario)
-        if (tokenHash == null) {
+        if (token == null) {
             String origUri = AuthorityInterceptor.getHeaderString(requestContext, "X-Original-URI");
             if (origUri != null) {
                 if (origUri.contains("?")) {
@@ -116,7 +109,7 @@ public class AuthorityInterceptor implements ContainerRequestFilter, ContainerRe
                             if (AuthorityInterceptor.c_logVerbose == true) {
                                 this.LOG.info("found header(X-Original-URI) cookie");
                             }
-                            tokenHash = comps[1];
+                            token = comps[1];
                         }
                     }
                 }
@@ -124,28 +117,28 @@ public class AuthorityInterceptor implements ContainerRequestFilter, ContainerRe
         }
 
         // ...or from a cookie
-        if (tokenHash == null) {
+        if (token == null) {
             Cookie cookie = MapTools.getOrNull(requestContext.getCookies(), "token");
             if (cookie != null) {
                 if (AuthorityInterceptor.c_logVerbose == true) {
                     this.LOG.info("found token cookie");
                 }
-                tokenHash = cookie.getValue();
+                token = cookie.getValue();
             }
         }
 
         // If we are in a token scope
-        if (tokenHash != null)
+        if (token != null)
         {
             // Enter the token scope
-            d.currentToken.enterTokenScope(tokenHash);
+            d.currentToken.enterTokenScope(token);
         }
         
         // Now perform all the security checks
         d.currentToken.validate();
 
         // Finally complete any sync operations
-        if (tokenHash != null) {
+        if (token != null) {
             d.transaction.finish();
         }
     }
@@ -181,13 +174,13 @@ public class AuthorityInterceptor implements ContainerRequestFilter, ContainerRe
         if (token != null)
         {
             // Set the response headers
-            javax.servlet.http.Cookie cookieToken = new javax.servlet.http.Cookie("token", token.getHash());
+            javax.servlet.http.Cookie cookieToken = new javax.servlet.http.Cookie("token", token.getBase64());
             cookieToken.setSecure(true);
             cookieToken.setHttpOnly(true);
 
             HttpServletResponse response = this.response;
             if (response != null) {
-                response.addHeader("Authorization", token.getHash());
+                response.addHeader("Authorization", token.getBase64());
                 response.addCookie(cookieToken);
             }
         }    

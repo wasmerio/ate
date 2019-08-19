@@ -8,7 +8,7 @@ import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.repo.DataTransaction;
 import com.tokera.ate.providers.PartitionKeySerializer;
 import com.tokera.ate.scopes.Startup;
-import org.apache.commons.lang.exception.ExceptionUtils;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -38,7 +38,7 @@ public class DebugLoggingDelegate {
             sb.append("]");
 
             if (d.bootstrapConfig.isLoggingWithStackTrace()) {
-                String fullStackTrace = ExceptionUtils.getFullStackTrace(new Throwable());
+                String fullStackTrace = ExceptionUtils.getStackTrace(new Throwable());
                 sb.append("\n");
                 sb.append(fullStackTrace);
             }
@@ -56,7 +56,7 @@ public class DebugLoggingDelegate {
             sb.append("]");
 
             if (d.bootstrapConfig.isLoggingWithStackTrace()) {
-                String fullStackTrace = ExceptionUtils.getFullStackTrace(new Throwable());
+                String fullStackTrace = ExceptionUtils.getStackTrace(new Throwable());
                 sb.append("\n");
                 sb.append(fullStackTrace);
             }

@@ -309,7 +309,7 @@ public class EffectivePermissionBuilder {
         // data object does not yet have a root record stored on the chain-of-trust (first come, first serve).
         if (ret.type != null && d.io.readRawOrNull(PUUID.from(this.partitionKey, this.origId)) == null)  {
             if (d.daoParents.getAllowedParentClaimableSimple().contains(ret.type)) {
-                MessagePublicKeyDto publicKey = d.encryptor.getTrustOfPublicWrite();
+                MessagePublicKeyDto publicKey = new MessagePublicKeyDto(d.encryptor.getTrustOfPublicWrite());
                 ret.addWriteRole(publicKey);
             }
         }
