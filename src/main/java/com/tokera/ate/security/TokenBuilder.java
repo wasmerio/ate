@@ -106,7 +106,7 @@ public class TokenBuilder {
     }
 
     public TokenBuilder addReadKey(PrivateKeyWithSeedDto key) {
-        TokenSecurity.addClaim(this.claims, TokenDto.SECURITY_CLAIM_READ_KEY, key.serialize());
+        TokenSecurity.addClaim(this.claims, TokenDto.SECURITY_CLAIM_READ_KEY, key.serialize(false));
         return this;
     }
 
@@ -122,7 +122,7 @@ public class TokenBuilder {
     }
 
     public TokenBuilder addWriteKey(PrivateKeyWithSeedDto key) {
-        TokenSecurity.addClaim(this.claims, TokenDto.SECURITY_CLAIM_WRITE_KEY, key.serialize());
+        TokenSecurity.addClaim(this.claims, TokenDto.SECURITY_CLAIM_WRITE_KEY, key.serialize(false));
         return this;
     }
 

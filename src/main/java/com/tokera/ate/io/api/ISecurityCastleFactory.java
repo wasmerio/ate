@@ -1,11 +1,13 @@
 package com.tokera.ate.io.api;
 
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import com.tokera.ate.units.Hash;
 import com.tokera.ate.units.Secret;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -21,7 +23,7 @@ public interface ISecurityCastleFactory {
      * @param accessKeys Access keys that can be used to retrieve the secret
      * @return The secret key or null if it can not be found
      */
-    @Secret byte @Nullable [] getSecret(IPartitionKey partitionKey, UUID id, Iterable<MessagePrivateKeyDto> accessKeys);
+    @Secret byte @Nullable [] getSecret(IPartitionKey partitionKey, UUID id, Iterable<PrivateKeyWithSeedDto> accessKeys);
 
     /**
      * Adds a secret key into the repository

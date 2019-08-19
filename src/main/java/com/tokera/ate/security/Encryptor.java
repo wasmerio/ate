@@ -699,7 +699,7 @@ public class Encryptor implements Runnable
         for (int n = 1; ; n++) {
             try {
                 String seed = this.generateSecret64(keysize);
-                return new PrivateKeyWithSeedDto(PrivateKeyType.write, seed, keysize, keyTypes, alias);
+                return new PrivateKeyWithSeedDto(PrivateKeyType.write, seed, keysize, keyTypes, null, alias);
             } catch (KeyGenerationException ex) {
                 if (n >= attempts) {
                     throw new KeyGenerationException("Failed to signing keys with random seeds after " + n + " attempts -" + ex.getMessage() + ".", ex);
@@ -756,7 +756,7 @@ public class Encryptor implements Runnable
         for (int n = 1; ; n++) {
             try {
                 String seed = this.generateSecret64(keysize);
-                return new PrivateKeyWithSeedDto(PrivateKeyType.read, seed, keysize, keyTypes, alias);
+                return new PrivateKeyWithSeedDto(PrivateKeyType.read, seed, keysize, keyTypes, null, alias);
             } catch (KeyGenerationException ex) {
                 if (n >= attempts) {
                     throw new KeyGenerationException("Failed to generate encryption keys with random seeds after " + n + " attempts -" + ex.getMessage() + ".", ex);
@@ -1668,7 +1668,7 @@ public class Encryptor implements Runnable
     public PrivateKeyWithSeedDto getTrustOfPublicRead() {
         PrivateKeyWithSeedDto ret = this.trustOfPublicRead;
         if (ret == null) {
-            ret = new PrivateKeyWithSeedDto(PrivateKeyType.read, "public", 128, KeyType.ntru, "public");
+            ret = new PrivateKeyWithSeedDto(PrivateKeyType.read, "public", 128, KeyType.ntru, null, "public");
             this.trustOfPublicRead = ret;
         }
         return ret;
@@ -1677,7 +1677,7 @@ public class Encryptor implements Runnable
     public PrivateKeyWithSeedDto getTrustOfPublicWrite() {
         PrivateKeyWithSeedDto ret = this.trustOfPublicWrite;
         if (ret == null) {
-            ret = new PrivateKeyWithSeedDto(PrivateKeyType.write, "public", 64, KeyType.qtesla, "public");
+            ret = new PrivateKeyWithSeedDto(PrivateKeyType.write, "public", 64, KeyType.qtesla, null, "public");
             this.trustOfPublicWrite = ret;
         }
         return ret;

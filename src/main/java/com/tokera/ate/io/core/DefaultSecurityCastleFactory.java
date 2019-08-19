@@ -4,6 +4,7 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import com.tokera.ate.dto.msg.MessageSecurityCastleDto;
@@ -38,7 +39,7 @@ public class DefaultSecurityCastleFactory implements ISecurityCastleFactory {
             .build();
 
     @Override
-    public @Nullable @Secret byte[] getSecret(IPartitionKey partitionKey, UUID id, Iterable<MessagePrivateKeyDto> accessKeys) {
+    public @Nullable @Secret byte[] getSecret(IPartitionKey partitionKey, UUID id, Iterable<PrivateKeyWithSeedDto> accessKeys) {
         DataPartitionChain chain = d.io.backend().getChain(partitionKey);
 
         // Loop through all the private toPutKeys that we own and try and find
@@ -46,15 +47,15 @@ public class DefaultSecurityCastleFactory implements ISecurityCastleFactory {
         MessageSecurityCastleDto castle = chain.getCastle(id);
         if (castle == null) return null;
 
-        for (MessagePrivateKeyDto accessKey : accessKeys) {
-            String encStr = MapTools.getOrNull(castle.getLookup(), accessKey.getPublicKeyHash());
+        for (PrivateKeyWithSeedDto accessKey : accessKeys) {
+            String encStr = MapTools.getOrNull(castle.getLookup(), accessKey.publicHash());
             if (encStr == null) continue;
 
-            String lookup = accessKey.getPrivateKeyHash() + encStr;
+            String lookup = accessKey.aliasOrHash() + encStr;
             try {
-                return secretCache.get(lookup, () -> d.encryptor.decrypt(accessKey, Base64.decodeBase64(encStr)));
+                return secretCache.get(lookup, () -> d.encryptor.decrypt(accessKey.key(), Base64.decodeBase64(encStr)));
             } catch (ExecutionException e) {
-                throw new WebApplicationException("Failed to retrieve AES secret [castle=" + castle.getIdOrThrow() + ", key=" + accessKey.getPublicKeyHash() + "] while processing data object [id=" + partitionKey + ":" + id + "].", e, Response.Status.UNAUTHORIZED);
+                throw new WebApplicationException("Failed to retrieve AES secret [castle=" + castle.getIdOrThrow() + ", key=" + accessKey.publicHash() + "] while processing data object [id=" + partitionKey + ":" + id + "].", e, Response.Status.UNAUTHORIZED);
             }
         }
         return null;

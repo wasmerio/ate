@@ -50,6 +50,8 @@ public class PrivateKeyWithSeedDto {
     private int keySize;
     @JsonProperty
     private List<KeyType> algs;
+    @JsonProperty
+    private @Nullable String publicHash;
 
     @JsonIgnore
     private transient MessagePrivateKeyDto key;
@@ -84,7 +86,7 @@ public class PrivateKeyWithSeedDto {
     public PrivateKeyWithSeedDto(PrivateKeyType keyType, int keySize, @Nullable String alias) {
         this(keyType, AteDelegate.get().encryptor.generateSecret64(), keySize,
              (keyType == PrivateKeyType.write ? AteDelegate.get().bootstrapConfig.getDefaultSigningTypes() : AteDelegate.get().bootstrapConfig.getDefaultEncryptTypes()),
-             alias);
+             null, alias);
     }
 
     public PrivateKeyWithSeedDto(PrivateKeyType keyType, String seed) {
@@ -120,7 +122,7 @@ public class PrivateKeyWithSeedDto {
         assert seed == null || seed.contains(":") == false;
     }
 
-    public PrivateKeyWithSeedDto(PrivateKeyType keyType, String seed, int keySize, KeyType alg, @Nullable String alias) {
+    public PrivateKeyWithSeedDto(PrivateKeyType keyType, String seed, int keySize, KeyType alg, @Nullable String publicHash, @Nullable String alias) {
         this.seed = seed;
         this.key = null;
         if (alias != null && alias.length() > 0) {
@@ -132,11 +134,12 @@ public class PrivateKeyWithSeedDto {
         this.keySize = keySize;
         this.algs = new ArrayList<>();
         this.algs.add(alg);
+        this.publicHash = publicHash;
 
         assert seed == null || seed.contains(":") == false;
     }
 
-    public PrivateKeyWithSeedDto(PrivateKeyType keyType, String seed, int keySize, List<KeyType> algs, @Nullable String alias) {
+    public PrivateKeyWithSeedDto(PrivateKeyType keyType, String seed, int keySize, List<KeyType> algs, @Nullable String publicHash, @Nullable String alias) {
         this.seed = seed;
         this.key = null;
         if (alias != null && alias.length() > 0) {
@@ -147,6 +150,7 @@ public class PrivateKeyWithSeedDto {
         this.type = keyType;
         this.keySize = keySize;
         this.algs = algs;
+        this.publicHash = publicHash;
 
         assert seed == null || seed.contains(":") == false;
     }
@@ -155,16 +159,22 @@ public class PrivateKeyWithSeedDto {
     public MessagePrivateKeyDto key() {
         if (this.key != null) return this.key;
 
-        AteDelegate d = AteDelegate.get();
-        MessagePrivateKeyDto ret = d.encryptor.genKeyFromSeed(this);
+        synchronized (this) {
+            if (this.key != null) return this.key;
 
-        this.key = ret;
-        return ret;
+            AteDelegate d = AteDelegate.get();
+            MessagePrivateKeyDto ret = d.encryptor.genKeyFromSeed(this);
+            this.key = ret;
+            return ret;
+        }
     }
 
     @JsonIgnore
     public String publicHash() {
-        return key().getPublicKeyHash();
+        if (publicHash != null) return publicHash;
+        String ret = key().getPublicKeyHash();
+        publicHash = ret;
+        return ret;
     }
 
     @JsonIgnore
@@ -210,6 +220,11 @@ public class PrivateKeyWithSeedDto {
 
     @JsonIgnore
     public String serialize() {
+        return serialize(true);
+    }
+
+    @JsonIgnore
+    public String serialize(boolean includePublicHash) {
         StringBuilder sb = new StringBuilder();
         sb.append(this.type.shortName());
         sb.append(":");
@@ -226,8 +241,12 @@ public class PrivateKeyWithSeedDto {
         }
         sb.append(":");
         sb.append(this.seed);
+        sb.append(":");
+        if (includePublicHash && this.publicHash != null) {
+            sb.append(this.publicHash);
+        }
+        sb.append(":");
         if (this.alias != null) {
-            sb.append(":");
             try {
                 sb.append(URLEncoder.encode(this.alias, "UTF-8"));
             } catch (UnsupportedEncodingException e) {
@@ -242,8 +261,8 @@ public class PrivateKeyWithSeedDto {
         if (val == null) return null;
         if (val.length() <= 0) return null;
 
-        String[] comps = val.split(":");
-        if (comps.length >= 4) {
+        String[] comps = val.split(":", -1);
+        if (comps.length >= 6) {
             PrivateKeyType type = PrivateKeyType.parse(comps[0]);
             Integer size = Integer.parseInt(comps[1]);
             List<KeyType> algs = new ArrayList<>();
@@ -252,15 +271,19 @@ public class PrivateKeyWithSeedDto {
             }
             String seed = comps[3];
             String alias = null;
-            if (comps.length >= 5) {
+            String publicKey = null;
+            if (comps[4].length() > 0) {
+                publicKey = comps[4];
+            }
+            if (comps[5].length() > 0) {
                 try {
-                    alias = URLDecoder.decode(comps[4], "UTF-8");
+                    alias = URLDecoder.decode(comps[5], "UTF-8");
                 } catch (UnsupportedEncodingException e) {
                     throw new WebApplicationException(e);
                 }
             }
 
-            return new PrivateKeyWithSeedDto(type, seed, size, algs, alias);
+            return new PrivateKeyWithSeedDto(type, seed, size, algs, publicKey, alias);
         }
         throw new WebApplicationException("Failed to parse the string [" + val + "] into a PrivateKeyWithSeedDto.", Response.Status.INTERNAL_SERVER_ERROR);
     }
@@ -272,14 +295,14 @@ public class PrivateKeyWithSeedDto {
 
     @Override
     public int hashCode() {
-        return serialize().hashCode();
+        return serialize(false).hashCode();
     }
 
     @Override
     public boolean equals(Object other) {
         if (other == null) return false;
         if (other instanceof PrivateKeyWithSeedDto) {
-            if (serialize().equals(((PrivateKeyWithSeedDto) other).serialize()) == false) return false;
+            if (serialize(false).equals(((PrivateKeyWithSeedDto) other).serialize(false)) == false) return false;
             return true;
         }
         return false;

@@ -117,7 +117,7 @@ public class SecurityCastleManager {
      * @param accessKeys List of private access keys that can be used to enter the castle
      * @return Reference to castle context that allows the decryption of data previously saved
      */
-    public @Nullable SecurityCastleContext enterCastle(IPartitionKey partitionKey, UUID castleId, Iterable<MessagePrivateKeyDto> accessKeys)
+    public @Nullable SecurityCastleContext enterCastle(IPartitionKey partitionKey, UUID castleId, Set<PrivateKeyWithSeedDto> accessKeys)
     {
         SecurityCastleContext ret = MapTools.getOrNull(this.lookupCastles, castleId);
         if (ret != null) return ret;

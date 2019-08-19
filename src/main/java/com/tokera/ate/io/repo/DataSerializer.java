@@ -404,7 +404,7 @@ public class DataSerializer {
         SecurityCastleContext castle = d.securityCastleManager
                 .enterCastle(partitionKey,
                              header.getCastleId(),
-                             this.d.currentRights.getRightsRead().stream().map(k -> k.key()).collect(Collectors.toCollection(ArrayList::new)));
+                             this.d.currentRights.getRightsRead());
         if (castle == null) {
             if (shouldThrow == true) {
                 EffectivePermissions permissions = d.authorization.perms(header.getPayloadClazz(), partitionKey, header.getIdOrThrow(), PermissionPhase.BeforeMerge);
