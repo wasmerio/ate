@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.deser.std.StdScalarDeserializer;
 import com.fasterxml.jackson.databind.ser.std.StdScalarSerializer;
 import com.tokera.ate.common.StringTools;
 import com.tokera.ate.common.UUIDTools;
+import com.tokera.ate.dao.GenericPartitionKey;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.enumerations.DataPartitionType;
 import com.tokera.ate.io.api.IPartitionKey;
@@ -125,6 +126,7 @@ public class PartitionKeySerializer extends Serializer<IPartitionKey> implements
 
     @Override
     public boolean isReadable(Class<?> aClass, Type type, Annotation[] annotations, MediaType mediaType) {
+        if (GenericPartitionKey.class.isAssignableFrom(aClass)) return false;
         return IPartitionKey.class.isAssignableFrom(aClass);
     }
 
@@ -137,6 +139,7 @@ public class PartitionKeySerializer extends Serializer<IPartitionKey> implements
 
     @Override
     public boolean isWriteable(Class<?> aClass, Type type, Annotation[] annotations, MediaType mediaType) {
+        if (GenericPartitionKey.class.isAssignableFrom(aClass)) return false;
         return IPartitionKey.class.isAssignableFrom(aClass);
     }
 
