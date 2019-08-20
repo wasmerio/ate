@@ -1,24 +1,35 @@
 package com.tokera.ate.dao;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonTypeName;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.enumerations.DataPartitionType;
 import com.tokera.ate.io.api.IPartitionKey;
-import com.tokera.ate.providers.PartitionKeySerializer;
+import com.tokera.ate.providers.*;
 
 import javax.enterprise.context.Dependent;
 import java.io.Serializable;
 
 @Dependent
-@YamlTag("generic.partition.key")
-public class GenericPartitionKey implements IPartitionKey, Serializable {
+@YamlTag("gpkey")
+@JsonTypeName("gpkey")
+@JsonSerialize(using = GenericPartitionKeyJsonSerializer.class)
+@JsonDeserialize(using = GenericPartitionKeyJsonDeserializer.class)
+public final class GenericPartitionKey implements IPartitionKey, Serializable {
     private static final long serialVersionUID = -8032836543927736149L;
 
-    private final String topic;
-    private final int partition;
-    private final DataPartitionType type;
+    private String topic;
+    private int partition;
+    private DataPartitionType type;
     @JsonIgnore
     private transient String base64;
+
+    @SuppressWarnings("initialization.fields.uninitialized")
+    @Deprecated
+    public GenericPartitionKey() {
+    }
 
     public GenericPartitionKey(String topic, int partition, DataPartitionType type) {
         this.topic = topic;

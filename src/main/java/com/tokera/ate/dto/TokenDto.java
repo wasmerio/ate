@@ -2,6 +2,7 @@ package com.tokera.ate.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.tokera.ate.annotations.YamlTag;
@@ -20,6 +21,7 @@ import com.tokera.ate.units.EmailAddress;
 import com.tokera.ate.units.TextDocument;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import javax.enterprise.context.Dependent;
 import javax.validation.constraints.NotNull;
 import javax.validation.constraints.Size;
 import javax.ws.rs.WebApplicationException;
@@ -34,7 +36,9 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @author John
  * Note: This class must be multiple safe
  */
+@Dependent
 @YamlTag("token")
+@JsonTypeName("token")
 @JsonSerialize(using = TokenJsonSerializer.class)
 @JsonDeserialize(using = TokenJsonDeserializer.class)
 public class TokenDto {

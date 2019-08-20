@@ -7,6 +7,7 @@ package com.tokera.ate.dto;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.google.common.collect.Lists;
@@ -35,7 +36,8 @@ import java.util.stream.Collectors;
  * Represents a encrypt key with a seed that was used to generate it which makes it easier to share
  */
 @Dependent
-@YamlTag("dto.key.with.seed")
+@YamlTag("seededkey")
+@JsonTypeName("seededkey")
 @JsonSerialize(using = PrivateKeyWithSeedJsonSerializer.class)
 @JsonDeserialize(using = PrivateKeyWithSeedJsonDeserializer.class)
 public class PrivateKeyWithSeedDto {

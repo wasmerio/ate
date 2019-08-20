@@ -9,6 +9,7 @@ import com.esotericsoftware.kryo.serializers.DefaultSerializers;
 import com.esotericsoftware.kryo.serializers.EnumNameSerializer;
 import com.esotericsoftware.kryo.util.Pool;
 import com.tokera.ate.dao.CountLong;
+import com.tokera.ate.dao.GenericPartitionKey;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.RangeLong;
 import com.tokera.ate.dao.base.BaseDao;
@@ -90,6 +91,7 @@ public class KryoObjectSerializerDelegate implements IObjectSerializer {
         kryo.register( BitSet.class, new BitSetSerializer() );
         kryo.register( URI.class, new URISerializer() );
         kryo.register( UUID.class, new UUIDSerializer() );
+        kryo.register(GenericPartitionKey.class, new GenericPartitionKeySerializer() );
         kryo.register( IPartitionKey.class, new PartitionKeySerializer() );
         kryo.register( PUUID.class, new PuuidSerializer() );
         kryo.register( CountLong.class, new CountLongSerializer() );

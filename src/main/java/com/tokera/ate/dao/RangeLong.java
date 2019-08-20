@@ -2,15 +2,19 @@ package com.tokera.ate.dao;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.providers.RangeLongJsonDeserializer;
 import com.tokera.ate.providers.RangeLongJsonSerializer;
 
+import javax.enterprise.context.Dependent;
 import java.io.Serializable;
 
-@YamlTag("puuid")
+@Dependent
+@YamlTag("rangelong")
+@JsonTypeName("rangelong")
 @JsonSerialize(using = RangeLongJsonSerializer.class)
 @JsonDeserialize(using = RangeLongJsonDeserializer.class)
 public final class RangeLong implements Serializable, Comparable<RangeLong> {

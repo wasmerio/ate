@@ -1,15 +1,19 @@
 package com.tokera.ate.dao;
 
+import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.providers.CountLongJsonDeserializer;
 import com.tokera.ate.providers.CountLongJsonSerializer;
 
+import javax.enterprise.context.Dependent;
 import java.io.Serializable;
 import java.util.concurrent.atomic.AtomicLong;
 
+@Dependent
 @YamlTag("count.long")
+@JsonTypeName("count.long")
 @JsonSerialize(using = CountLongJsonSerializer.class)
 @JsonDeserialize(using = CountLongJsonDeserializer.class)
 public final class CountLong extends AtomicLong implements Serializable, Comparable<CountLong> {

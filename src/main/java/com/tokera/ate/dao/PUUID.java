@@ -1,6 +1,7 @@
 package com.tokera.ate.dao;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.tokera.ate.annotations.YamlTag;
@@ -15,6 +16,7 @@ import org.apache.commons.codec.binary.Base64;
 import org.apache.commons.io.output.ByteArrayOutputStream;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import javax.enterprise.context.Dependent;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.Serializable;
@@ -22,13 +24,20 @@ import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.UUID;
 
+@Dependent
 @YamlTag("puuid")
+@JsonTypeName("puuid")
 @JsonSerialize(using = PuuidJsonSerializer.class)
 @JsonDeserialize(using = PuuidJsonDeserializer.class)
 public final class PUUID implements Serializable, Comparable<PUUID> {
     private static final long serialVersionUID = -642512169720015696L;
     private Partition partition;
     private UUID id;
+
+    @SuppressWarnings("initialization.fields.uninitialized")
+    @Deprecated
+    public PUUID() {
+    }
 
     public PUUID(String value) {
         PUUID other = new PuuidSerializer().read(value);

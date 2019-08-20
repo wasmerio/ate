@@ -137,6 +137,7 @@ public class RawClientBuilder {
         ResteasyClient client = new ResteasyClientBuilder()
                 .register(new YamlProvider())
                 .register(new UuidSerializer())
+                .register(new GenericPartitionKeySerializer())
                 .register(new PartitionKeySerializer())
                 .register(new PuuidSerializer())
                 .register(new TokenSerializer())

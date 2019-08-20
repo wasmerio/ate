@@ -6,6 +6,7 @@
 package com.tokera.ate.dto.fs;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.units.Alias;
 

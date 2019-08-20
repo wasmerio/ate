@@ -50,7 +50,7 @@ public class PartitionKeySerializer extends Serializer<IPartitionKey> implements
     public PartitionKeySerializer() {
     }
 
-    public class PartitionKeyValue implements IPartitionKey {
+    public static class PartitionKeyValue implements IPartitionKey {
         private final String m_partitionTopic;
         private final int m_partitionIndex;
         private final DataPartitionType m_partitionType;
@@ -198,7 +198,7 @@ public class PartitionKeySerializer extends Serializer<IPartitionKey> implements
         return leftVal.compareTo(rightVal);
     }
 
-    public @Nullable IPartitionKey parse(@Nullable String _val) {
+    public static @Nullable IPartitionKey parse(@Nullable String _val) {
         String val = StringTools.makeOneLineOrNull(_val);
         val = StringTools.specialParse(val);
         if (val == null || val.length() <= 0) return null;
