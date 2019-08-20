@@ -91,7 +91,7 @@ public class GenericPartitionKeySerializer extends Serializer<GenericPartitionKe
     }
 
     public static String serialize(GenericPartitionKey key) {
-        return PartitionKeySerializer.toString(key);
+        return PartitionKeySerializer.serialize(key);
     }
 
     public static int hashCode(GenericPartitionKey key) {

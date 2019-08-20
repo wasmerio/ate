@@ -6,7 +6,9 @@ import com.google.common.collect.HashMultiset;
 import com.tokera.ate.common.CopyOnWrite;
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.CountLong;
+import com.tokera.ate.dao.GenericPartitionKey;
 import com.tokera.ate.dao.PUUID;
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.providers.PartitionKeySerializer;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -36,10 +38,9 @@ public class DataMerger {
         }
 
         if (clazz == PUUID.class ||
-            clazz == CountLong.class) {
-            return true;
-        }
-        if (clazz == PartitionKeySerializer.PartitionKeyValue.class) {
+            clazz == CountLong.class ||
+            clazz == GenericPartitionKey.class ||
+            clazz == PrivateKeyWithSeedDto.class) {
             return true;
         }
 

@@ -48,74 +48,39 @@ import java.util.UUID;
 @Consumes("text/plain")
 @Produces("text/plain")
 public class PartitionKeySerializer extends Serializer<IPartitionKey> implements ScalarSerializer<IPartitionKey>, MessageBodyReader<IPartitionKey>, MessageBodyWriter<IPartitionKey> {
+    private GenericPartitionKeySerializer genericSerializer = new GenericPartitionKeySerializer();
+
     public PartitionKeySerializer() {
-    }
-
-    public static class PartitionKeyValue implements IPartitionKey {
-        private final String m_partitionTopic;
-        private final int m_partitionIndex;
-        private final DataPartitionType m_partitionType;
-        @JsonIgnore
-        private transient String m_base64;
-
-        public PartitionKeyValue(String topic, int index, DataPartitionType type) {
-            this.m_partitionTopic = topic;
-            this.m_partitionIndex = index;
-            this.m_partitionType = type;
-        }
-
-        @Override
-        public String partitionTopic() {
-            return m_partitionTopic;
-        }
-
-        @Override
-        public int partitionIndex() {
-            return m_partitionIndex;
-        }
-
-        @Override
-        public DataPartitionType partitionType() { return m_partitionType; }
-
-        @Override
-        public String asBase64() {
-            if (m_base64 != null) return m_base64;
-            m_base64 = PartitionKeySerializer.serialize(this);
-            return m_base64;
-        }
-
-        @Override
-        public String toString() {
-            return PartitionKeySerializer.toString(this);
-        }
-
-        @Override
-        public int hashCode() {
-            return PartitionKeySerializer.hashCode(this);
-        }
-
-        @Override
-        public boolean equals(Object val) {
-            return PartitionKeySerializer.equals(this, val);
-        }
     }
 
     @Override
     public void write(Kryo kryo, Output output, IPartitionKey partitionKey) {
-        String val = this.write(partitionKey);
-        output.writeString(val);
+        if (partitionKey instanceof GenericPartitionKey) {
+            genericSerializer.write(kryo, output, (GenericPartitionKey)partitionKey);
+        } else {
+            String val = this.write(partitionKey);
+            output.writeString(val);
+        }
     }
 
     @Override
     public @Nullable IPartitionKey read(Kryo kryo, Input input, Class<? extends IPartitionKey> aClass) {
-        return this.read(input.readString());
+        if (GenericPartitionKey.class.isAssignableFrom(aClass)) {
+            return genericSerializer.read(kryo, input, GenericPartitionKey.class);
+        } else {
+            return this.read(input.readString());
+        }
     }
 
     @SuppressWarnings("override.return.invalid")
     @Override
     public @Nullable String write(@Nullable IPartitionKey t) {
-        if (t == null) return "null";
-        return t.asBase64();
+        if (t instanceof GenericPartitionKey) {
+            return genericSerializer.write((GenericPartitionKey)t);
+        } else {
+            if (t == null) return "null";
+            return t.asBase64();
+        }
     }
 
     @SuppressWarnings("override.return.invalid")
@@ -133,8 +98,12 @@ public class PartitionKeySerializer extends Serializer<IPartitionKey> implements
     @SuppressWarnings("return.type.incompatible")
     @Override
     public IPartitionKey readFrom(Class<IPartitionKey> aClass, Type type, Annotation[] annotations, MediaType mediaType, MultivaluedMap<String, String> multivaluedMap, InputStream inputStream) throws IOException, WebApplicationException {
-        String txt = IOUtils.toString(inputStream, com.google.common.base.Charsets.UTF_8);
-        return this.read(txt);
+        if (GenericPartitionKey.class.isAssignableFrom(aClass)) {
+            return genericSerializer.readFrom(GenericPartitionKey.class, type, annotations, mediaType, multivaluedMap, inputStream);
+        } else {
+            String txt = IOUtils.toString(inputStream, com.google.common.base.Charsets.UTF_8);
+            return this.read(txt);
+        }
     }
 
     @Override
@@ -145,10 +114,14 @@ public class PartitionKeySerializer extends Serializer<IPartitionKey> implements
 
     @Override
     public void writeTo(IPartitionKey key, Class<?> aClass, Type type, Annotation[] annotations, MediaType mediaType, MultivaluedMap<String, Object> multivaluedMap, OutputStream outputStream) throws IOException, WebApplicationException {
-        String txt = this.write(key);
-        if (txt == null) txt = "null";
-        OutputStreamWriter streamWriter = new OutputStreamWriter(outputStream);
-        streamWriter.write(txt);
+        if (GenericPartitionKey.class.isAssignableFrom(aClass)) {
+            genericSerializer.writeTo((GenericPartitionKey)key, GenericPartitionKey.class, type, annotations, mediaType, multivaluedMap, outputStream);
+        } else {
+            String txt = this.write(key);
+            if (txt == null) txt = "null";
+            OutputStreamWriter streamWriter = new OutputStreamWriter(outputStream);
+            streamWriter.write(txt);
+        }
     }
 
     public static String toString(IPartitionKey key) {
@@ -214,7 +187,7 @@ public class PartitionKeySerializer extends Serializer<IPartitionKey> implements
             String topic = comps[1];
             Integer index = Integer.parseInt(comps[2]);
 
-            return new PartitionKeyValue(
+            return new GenericPartitionKey(
                     topic,
                     index,
                     DataPartitionType.parse(type));
@@ -236,7 +209,7 @@ public class PartitionKeySerializer extends Serializer<IPartitionKey> implements
 
         int index = bb.getInt();
 
-        return new PartitionKeyValue(
+        return new GenericPartitionKey(
                 topic,
                 index,
                 type);
