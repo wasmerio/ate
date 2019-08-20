@@ -12,6 +12,7 @@ import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.google.common.collect.Lists;
 import com.tokera.ate.annotations.YamlTag;
+import com.tokera.ate.common.StringTools;
 import com.tokera.ate.dao.enumerations.KeyType;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
@@ -259,9 +260,10 @@ public class PrivateKeyWithSeedDto {
         return sb.toString();
     }
 
-    public static @Nullable PrivateKeyWithSeedDto deserialize(String val) {
-        if (val == null) return null;
-        if (val.length() <= 0) return null;
+    public static @Nullable PrivateKeyWithSeedDto deserialize(@Nullable String _val) {
+        String val = StringTools.makeOneLineOrNull(_val);
+        val = StringTools.specialParse(val);
+        if (val == null || val.length() <= 0) return null;
 
         String[] comps = val.split(":", -1);
         if (comps.length >= 6) {
@@ -280,10 +282,12 @@ public class PrivateKeyWithSeedDto {
             if (comps[5].length() > 0) {
                 try {
                     alias = URLDecoder.decode(comps[5], "UTF-8");
+                    alias = alias.trim();
                 } catch (UnsupportedEncodingException e) {
                     throw new WebApplicationException(e);
                 }
             }
+            if (alias.length() <= 0) alias = null;
 
             return new PrivateKeyWithSeedDto(type, seed, size, algs, publicKey, alias);
         }
