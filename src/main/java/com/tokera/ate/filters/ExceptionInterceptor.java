@@ -28,6 +28,7 @@ public class ExceptionInterceptor implements ExceptionMapper<Throwable> {
     @Inject
     private LoggerHook LOG;
 
+    public static boolean g_extraExtraLogging = false;
     public static boolean g_extraLogging = false;
     public static boolean g_includeStack = true;
 
@@ -44,7 +45,7 @@ public class ExceptionInterceptor implements ExceptionMapper<Throwable> {
             WebApplicationException exception = (WebApplicationException) ex;
             String msg = exception.getMessage();
             if (msg == null) msg = exception.getClass().getSimpleName();
-            if (ExceptionInterceptor.g_extraLogging) {
+            if (ExceptionInterceptor.g_extraExtraLogging) {
                 this.LOG.error(ex);
             }
             if (ExceptionInterceptor.g_includeStack) {
