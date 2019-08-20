@@ -287,7 +287,7 @@ public class PrivateKeyWithSeedDto {
                     throw new WebApplicationException(e);
                 }
             }
-            if (alias.length() <= 0) alias = null;
+            if (alias != null && alias.length() <= 0) alias = null;
 
             return new PrivateKeyWithSeedDto(type, seed, size, algs, publicKey, alias);
         }
