@@ -15,6 +15,7 @@ import com.esotericsoftware.kryo.io.Output;
 import com.esotericsoftware.yamlbeans.YamlException;
 import com.esotericsoftware.yamlbeans.scalar.ScalarSerializer;
 import com.tokera.ate.common.ImmutalizableArrayList;
+import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.ClaimDto;
 import com.tokera.ate.dto.PrivateKeyWithSeedDto;
@@ -47,10 +48,20 @@ import java.util.Properties;
 @Provider
 @Consumes("text/plain")
 @Produces("text/plain")
-public class PrivateKeyWithSeedSerializer implements ScalarSerializer<PrivateKeyWithSeedDto>, MessageBodyReader<PrivateKeyWithSeedDto>, MessageBodyWriter<PrivateKeyWithSeedDto> {
-    private AteDelegate d = AteDelegate.get();
+public class PrivateKeyWithSeedSerializer extends Serializer<PrivateKeyWithSeedDto> implements ScalarSerializer<PrivateKeyWithSeedDto>, MessageBodyReader<PrivateKeyWithSeedDto>, MessageBodyWriter<PrivateKeyWithSeedDto> {
 
     public PrivateKeyWithSeedSerializer() {
+    }
+
+    @Override
+    public void write(Kryo kryo, Output output, PrivateKeyWithSeedDto object) {
+        String val = object.serialize();
+        output.writeString(val);
+    }
+
+    @Override
+    public PrivateKeyWithSeedDto read(Kryo kryo, Input input, Class<? extends PrivateKeyWithSeedDto> type) {
+        return PrivateKeyWithSeedDto.deserialize(input.readString());
     }
 
     @Override
@@ -65,6 +76,7 @@ public class PrivateKeyWithSeedSerializer implements ScalarSerializer<PrivateKey
 
     @Override
     public boolean isReadable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+        if (type == PrivateKeyWithSeedDto.class) return true;
         return PrivateKeyWithSeedDto.class.isAssignableFrom(type);
     }
 
@@ -76,6 +88,7 @@ public class PrivateKeyWithSeedSerializer implements ScalarSerializer<PrivateKey
 
     @Override
     public boolean isWriteable(Class<?> type, Type genericType, Annotation[] annotations, MediaType mediaType) {
+        if (type == PrivateKeyWithSeedDto.class) return true;
         return PrivateKeyWithSeedDto.class.isAssignableFrom(type);
     }
 

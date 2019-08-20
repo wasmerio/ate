@@ -19,6 +19,7 @@ import com.fasterxml.jackson.databind.deser.std.StdScalarDeserializer;
 import com.fasterxml.jackson.databind.ser.std.StdScalarSerializer;
 import com.tokera.ate.common.StringTools;
 import com.tokera.ate.dao.PUUID;
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.io.api.IPartitionKey;
 import org.apache.commons.io.IOUtils;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -70,6 +71,7 @@ public class PuuidSerializer extends Serializer<PUUID> implements ScalarSerializ
 
     @Override
     public boolean isReadable(Class<?> aClass, Type type, Annotation[] annotations, MediaType mediaType) {
+        if (aClass == PUUID.class) return true;
         return PUUID.class.isAssignableFrom(aClass);
     }
 
@@ -82,6 +84,7 @@ public class PuuidSerializer extends Serializer<PUUID> implements ScalarSerializ
 
     @Override
     public boolean isWriteable(Class<?> aClass, Type type, Annotation[] annotations, MediaType mediaType) {
+        if (aClass == PUUID.class) return true;
         return PUUID.class.isAssignableFrom(aClass);
     }
 

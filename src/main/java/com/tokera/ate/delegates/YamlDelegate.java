@@ -138,6 +138,7 @@ public class YamlDelegate {
         cfg.setClassTag("key", IPartitionKey.class);
         cfg.setClassTag("puuid", PUUID.class);
         cfg.setClassTag("bigdecimal", java.math.BigDecimal.class);
+        cfg.setClassTag("seededkey", PrivateKeyWithSeedSerializer.class);
         
         //cfg.setScalarSerializer(Boolean.class, new BooleanSerializer());
         //cfg.setScalarSerializer(Long.class, new LongSerializer());

@@ -12,6 +12,7 @@ import com.tokera.ate.dao.CountLong;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.RangeLong;
 import com.tokera.ate.dao.base.BaseDao;
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.TokenDto;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.repo.IObjectSerializer;
@@ -95,6 +96,7 @@ public class KryoObjectSerializerDelegate implements IObjectSerializer {
         kryo.register( RangeLong.class, new RangeLongSerializer() );
         kryo.register( GregorianCalendar.class, new GregorianCalendarSerializer() );
         kryo.register( InvocationHandler.class, new JdkProxySerializer() );
+        kryo.register( PrivateKeyWithSeedDto.class, new PrivateKeyWithSeedSerializer() );
         UnmodifiableCollectionsSerializer.registerSerializers( kryo );
         SynchronizedCollectionsSerializer.registerSerializers( kryo );
 

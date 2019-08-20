@@ -69,6 +69,10 @@ public class ResourceFileDelegate {
             Assertions.assertNotNull(inputStream);
 
             String data = IOUtils.toString(inputStream, com.google.common.base.Charsets.UTF_8);
+            if (clazz == String.class) {
+                ret.add((T)data);
+                return ret;
+            }
 
             if (file.endsWith("yml") || file.endsWith("yaml")) {
                 for (String _keyTxt : data.split("\\.\\.\\.")) {
