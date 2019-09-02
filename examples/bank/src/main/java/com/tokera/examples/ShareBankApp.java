@@ -13,7 +13,7 @@ public class ShareBankApp extends BootstrapApp {
     public ShareBankApp() { }
 
     public static void main(String[] args) {
-        run(args, DefaultStorageSystem.KafkaWithCache);
+        run(args, DefaultStorageSystem.Kafka);
     }
 
     public static void run(String[] args, DefaultStorageSystem storage) {

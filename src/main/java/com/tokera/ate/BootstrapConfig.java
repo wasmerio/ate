@@ -40,7 +40,7 @@ public class BootstrapConfig {
     private String propertiesFileTopicPublic = "topic.publish.properties";
 
     private SecurityLevel securityLevel = SecurityLevel.HighlySecure;
-    private DefaultStorageSystem defaultStorageSystem = DefaultStorageSystem.KafkaWithCache;
+    private DefaultStorageSystem defaultStorageSystem = DefaultStorageSystem.Kafka;
 
     private boolean loggingChainOfTrust = false;
     private boolean loggingMessages = false;

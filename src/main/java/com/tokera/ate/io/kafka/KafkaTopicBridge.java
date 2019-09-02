@@ -44,6 +44,7 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /**
@@ -57,7 +58,8 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
     private final DataPartitionType m_type;
     private final String m_bootstrapServers;
     private @MonotonicNonNull Thread thread;
-    private volatile boolean isInit = false;
+    private AtomicInteger isInit = new AtomicInteger(0);
+    private volatile int initLevel = -1;
     private volatile boolean isRunning = false;
     private volatile boolean isCreated = false;
     private AtomicInteger pollTimeout = new AtomicInteger(10);
@@ -99,11 +101,9 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
         int oldKeyCnt;
         synchronized (this.partitionBridges) {
             oldKeyCnt = partitionBridges.keySet().size();
-            ret = partitionBridges.computeIfAbsent(key.partitionIndex(), i -> {
-                isInit = false;
-                return new GenericPartitionBridge(this, key, new DataPartitionChain(key));
-            });
+            ret = partitionBridges.computeIfAbsent(key.partitionIndex(), i -> new GenericPartitionBridge(this, key, new DataPartitionChain(key)));
         }
+        isInit.incrementAndGet();
         if (oldKeyCnt <= 0) {
             start();
         }
@@ -111,13 +111,17 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
     }
 
     public boolean removeKey(IPartitionKey key) {
+        if (this.topic.equals(key.partitionTopic()) == false) {
+            return false;
+        }
+
         int newKeyCnt;
         synchronized (this.partitionBridges) {
             boolean ret = partitionBridges.remove(key.partitionIndex()) != null;
             if (ret == false) return false;
             newKeyCnt = partitionBridges.size();
             isLoaded.remove(key.partitionIndex());
-            isInit = false;
+            isInit.incrementAndGet();
         }
         if (newKeyCnt <= 0) {
             stop();
@@ -176,12 +180,17 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
 
     private void initOrThrow()
     {
-        if (isInit == true) {
+        if (isInit.get() == initLevel) {
             return;
         }
 
         synchronized (this)
         {
+            int newLevel = isInit.get();
+            if (newLevel == initLevel) {
+                return;
+            }
+
             // Load the producer (we will need it after the topic is created)
             touchProducer();
 
@@ -208,12 +217,6 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
             KafkaProducer<String, MessageBase> p = this.producer;
             if (p == null) throw new WebApplicationException("Failed to initialize the Kafka producer.", Response.Status.INTERNAL_SERVER_ERROR);
 
-            // If we already have assigned partitions then we are done
-            if (c.assignment().size() == keys.size()) {
-                isInit = true;
-                return;
-            }
-
             // Determine the new partitions and existing partition
             Set<Integer> existing = c.assignment().stream().map(a -> a.partition()).collect(Collectors.toSet());
             List<TopicPartition> partitions = keys.stream().map(k -> new TopicPartition(k.partitionTopic(), k.partitionIndex())).collect(Collectors.toList());
@@ -221,26 +224,20 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
 
             // Assign the consumer to these partitions and go the start of newly assigned ones
             c.assign(partitions);
-            c.seekToBeginning(newPartitions);
+            if (newPartitions.size() != 0) {
+                c.seekToBeginning(newPartitions);
+            }
 
             // If we have the assigned partitions then we are done
             if (c.assignment().size() != keys.size()) {
                 throw new WebApplicationException("Failed to assign the partitions.", Response.Status.REQUEST_TIMEOUT);
             }
 
+            // Add the keys to the lookups that are waiting on the loaded event
+            keys.forEach(k -> isLoaded.putIfAbsent(k.partitionIndex(), Boolean.FALSE));
+
             // Success
-            isInit = true;
-        }
-    }
-
-    /**
-     * Send an empty sync message so that we are sure data will be returned (and thus we know when the partition
-     * has been properly loaded)
-     */
-    private void sendEmptyMessagesToNewTopic() {
-
-        for (Integer n = 0; n < maxPartitionsPerTopic; n++) {
-            this.send(new GenericPartitionKey(topic, n, m_type), new MessageSyncDto(0, 0), false);
+            initLevel = newLevel;
         }
     }
 
@@ -310,12 +307,12 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
                 try {
                     AdminUtils.createTopic(utils, this.topic, maxPartitionsPerTopic, numOfReplicas, topicProps, kafka.admin.RackAwareMode.Disabled$.MODULE$);
                     everCreated.add(this.topic);
-                    sendEmptyMessagesToNewTopic();
                     return true;
                 } catch (TopicExistsException ex) {
                     everCreated.add(this.topic);
                     return true;
                 } catch (Throwable ex) {
+                    LOG.warn(ex);
                     return false;
                 }
             }
@@ -339,8 +336,8 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
                 // Perform a poll of all the data for topics
                 int numRecords = poll();
                 
-                // When we've reached records the entry will be added to the isloaded map however once no
-                // more entries are found we mark it as loaded (effectively this is a state machine)
+                // When we've reached the end of the records then this is an indicator that everything has been
+                // loaded for these key sets
                 if (numRecords <= 0) {
                     for (Integer n : isLoaded.keySet()) {
                         if (isLoaded.get(n) == false) {
@@ -383,7 +380,7 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
             }
         }
 
-        isInit = false;
+        isInit.set(0);
         isLoaded.clear();
         synchronized (this.partitionBridges) {
             this.partitionBridges.clear();
@@ -427,10 +424,6 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
                 consumerRecords.forEach(record -> {
                     if (record.topic().equals(topic) == true)
                     {
-                        // When we've reached records the entry will be added to the isloaded map however once no
-                        // more entries are found we mark it as loaded (effectively this is a state machine)
-                        isLoaded.putIfAbsent(record.partition(), false);
-
                         // Now find the bridge and send the message to it
                         IDataPartitionBridge partitionBridge = MapTools.getOrNull(this.partitionBridges, record.partition());
                         if (partitionBridge != null) {
@@ -572,7 +565,7 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
                             sb.append(i);
                         });
                     }
-                    throw new RuntimeException("Busy loading data partition [topic=" + this.topic + ", partitions=" + sb.toString() + "]");
+                    throw new RuntimeException("Busy loading data partition [topic=" + this.topic + ", partitions=" + sb.toString() + ", isCreated=" + this.isCreated + "]");
                 }
                 try {
                     Thread.sleep(50);

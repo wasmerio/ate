@@ -169,10 +169,6 @@ public class ApiServer {
 
         // Build the default storage subsystem
         switch (apiConfig.getDefaultStorageSystem()) {
-            case KafkaWithCache:
-                d.storageFactory.buildKafkaBackend()
-                        .addAccessLoggerLayer();
-                break;
             case Kafka:
                 d.storageFactory.buildKafkaBackend()
                         .addAccessLoggerLayer();
