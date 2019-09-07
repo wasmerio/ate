@@ -39,6 +39,7 @@ public class ZooServer implements Runnable {
     private volatile boolean isLoaded = true;
     private boolean isForceRunning = false;
     private Properties props;
+    private boolean shouldRun = false;
 
     @PostConstruct
     public void init() {
@@ -54,7 +55,6 @@ public class ZooServer implements Runnable {
         init();
 
         isForceRunning = shouldForceRun;
-        boolean shouldRun;
 
         List<String> zkServers = new ArrayList<>();
 
@@ -203,4 +203,8 @@ public class ZooServer implements Runnable {
     }
 
     public void touch() { }
+
+    public boolean shouldRunLocal() {
+        return this.shouldRun;
+    }
 }

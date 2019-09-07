@@ -31,9 +31,9 @@ public class KafkaServer {
     private @MonotonicNonNull Seq<KafkaMetricsReporter> reporters;
     @SuppressWarnings("initialization.fields.uninitialized")
     private kafka.server.KafkaServer kafkaServer;
-    private boolean shouldRun = true;
+    private boolean shouldRun = false;
 
-    private static String getGenericBootstrap(String propName) {
+    private String getGenericBootstrap(String propName) {
         AteDelegate d = AteDelegate.get();
 
         // Load the list of servers (bootstrap)
@@ -58,11 +58,12 @@ public class KafkaServer {
 
     }
 
-    public static String getZooKeeperBootstrap() {
+    public String getZooKeeperBootstrap() {
+        if (d.zooKeeper.shouldRunLocal()) return "127.0.0.1:2181";
         return getGenericBootstrap("zookeeper.bootstrap");
     }
 
-    public static String getKafkaBootstrap() {
+    public String getKafkaBootstrap() {
         return getGenericBootstrap("kafka.bootstrap");
     }
 
@@ -95,7 +96,7 @@ public class KafkaServer {
         shouldRun = myAdvertisingIp != null;
 
         // Add the bootstrap
-        props.put("zookeeper.connect", KafkaServer.getZooKeeperBootstrap());
+        props.put("zookeeper.connect", getZooKeeperBootstrap());
 
         // Fix the advertised ports and IPs if we are on a real public IP
         if (myAdvertisingIp != null) {
@@ -197,4 +198,8 @@ public class KafkaServer {
     }
 
     public void touch() { }
+
+    public boolean shouldRunLocal() {
+        return this.shouldRun;
+    }
 }

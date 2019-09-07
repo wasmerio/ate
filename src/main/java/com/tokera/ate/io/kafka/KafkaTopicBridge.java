@@ -256,7 +256,7 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
             Properties props = d.bootstrapConfig.propertiesForKafka();
 
             // Add the bootstrap to the configuration file
-            String zookeeperHosts = KafkaServer.getZooKeeperBootstrap();
+            String zookeeperHosts = d.kafka.getZooKeeperBootstrap();
             props.put("zookeeper.connect", zookeeperHosts);
 
             int connectionTimeOutInMs = 10000;

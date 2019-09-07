@@ -36,8 +36,8 @@ public class KafkaBridgeBuilder {
     public void init()
     {
         try {
-            m_keeperServers = KafkaServer.getZooKeeperBootstrap();
-            m_bootstrapServers = KafkaServer.getKafkaBootstrap();
+            m_keeperServers = d.kafka.getZooKeeperBootstrap();
+            m_bootstrapServers = d.kafka.getKafkaBootstrap();
         } catch (RuntimeException ex) {
             exceptionOnUse = ex;
         }
