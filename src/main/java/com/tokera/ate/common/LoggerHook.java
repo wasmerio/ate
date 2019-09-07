@@ -48,8 +48,8 @@ public class LoggerHook implements org.slf4j.Logger {
     private static boolean forceStatic = true;
     private static @Nullable Boolean forceContextLogger = null;
 
-    private static ConcurrentStack<String> flagWarning = null;
-    private static ConcurrentStack<String> flagError = null;
+    private static volatile ConcurrentStack<String> flagWarning = null;
+    private static volatile ConcurrentStack<String> flagError = null;
     
     public LoggerHook() {
         logClazz = LoggerHook.class;
