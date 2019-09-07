@@ -52,7 +52,7 @@ public class RamPartitionBridge implements IDataPartitionBridge {
             if (timestamp == null) timestamp = 0L;
 
             try {
-                chain.rcv(msg, new MessageMetaDto(p.number, offset, timestamp), p.LOG);
+                chain.rcv(msg, new MessageMetaDto(p.number, offset, timestamp), false, p.LOG);
             } catch (IOException | InvalidCipherTextException e) {
                 p.LOG.warn(e);
             }
@@ -68,7 +68,7 @@ public class RamPartitionBridge implements IDataPartitionBridge {
         partition.messages.put(offset, msg);
         partition.timestamps.put(offset, timestamp);
         try {
-            this.chain.rcv(msg, new MessageMetaDto(partition.number, offset, timestamp), partition.LOG);
+            this.chain.rcv(msg, new MessageMetaDto(partition.number, offset, timestamp), true, partition.LOG);
         } catch (IOException | InvalidCipherTextException e) {
             partition.LOG.warn(e);
         }

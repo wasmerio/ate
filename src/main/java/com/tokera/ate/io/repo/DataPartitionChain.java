@@ -61,7 +61,7 @@ public class DataPartitionChain {
                 0L,
                 new Date().getTime());
 
-        this.addTrustData(data, meta, LOG);
+        this.addTrustData(data, meta, false, LOG);
     }
     
     public void addTrustKey(MessagePublicKeyDto trustedKey, @Nullable LoggerHook LOG) {
@@ -78,7 +78,7 @@ public class DataPartitionChain {
     }
 
     @SuppressWarnings({"known.nonnull"})
-    public void addTrustData(MessageDataDto data, MessageMetaDto meta, @Nullable LoggerHook LOG) {
+    public void addTrustData(MessageDataDto data, MessageMetaDto meta, boolean invokeCallbacks, @Nullable LoggerHook LOG) {
         d.debugLogging.logTrust(this.partitionKey(), data);
 
         // Add it to the chain of trust
@@ -89,8 +89,10 @@ public class DataPartitionChain {
         });
 
         // Invoke the task manager so anything waiting for events will trigger
-        d.taskManager.feed(this.partitionKey(), data, meta);
-        d.hookManager.feed(this.partitionKey(), data, meta);
+        if (invokeCallbacks) {
+            d.taskManager.feed(this.partitionKey(), data, meta);
+            d.hookManager.feed(this.partitionKey(), data, meta);
+        }
     }
     
     public void addTrustCastle(MessageSecurityCastleDto castle, @Nullable LoggerHook LOG) {
@@ -99,7 +101,7 @@ public class DataPartitionChain {
         this.castles.put(castle.getIdOrThrow(), castle);
     }
     
-    public boolean rcv(MessageBase raw, MessageMetaDto meta, @Nullable LoggerHook LOG) throws IOException, InvalidCipherTextException {
+    public boolean rcv(MessageBase raw, MessageMetaDto meta,  boolean invokeCallbacks, @Nullable LoggerHook LOG) throws IOException, InvalidCipherTextException {
         
         MessageBaseDto msg;
         switch (raw.msgType()) {
@@ -117,14 +119,14 @@ public class DataPartitionChain {
                 return false;
         }
         
-        return rcv(msg, meta, LOG);
+        return rcv(msg, meta, invokeCallbacks, LOG);
     }
     
-    public boolean rcv(MessageBaseDto msg, MessageMetaDto meta, @Nullable LoggerHook LOG) throws IOException, InvalidCipherTextException {
+    public boolean rcv(MessageBaseDto msg, MessageMetaDto meta, boolean invokeCallbacks, @Nullable LoggerHook LOG) throws IOException, InvalidCipherTextException {
         d.debugLogging.logReceive(msg);
 
         if (msg instanceof MessageDataDto) {
-            return processData((MessageDataDto)msg, meta, LOG);
+            return processData((MessageDataDto)msg, meta, invokeCallbacks, LOG);
         }
         if (msg instanceof MessagePublicKeyDto) {
             return processPublicKey((MessagePublicKeyDto)msg, LOG);
@@ -181,7 +183,7 @@ public class DataPartitionChain {
         }
     }
     
-    public boolean promoteChainEntry(MessageDataMetaDto msg, @Nullable LoggerHook LOG) {
+    public boolean promoteChainEntry(MessageDataMetaDto msg, boolean invokeCallbacks, @Nullable LoggerHook LOG) {
         MessageDataDto data = msg.getData();
 
         // Validate the data
@@ -190,7 +192,7 @@ public class DataPartitionChain {
         }
         
         // Add it to the trust tree and return success
-        addTrustData(data, msg.getMeta(), LOG);
+        addTrustData(data, msg.getMeta(), invokeCallbacks, LOG);
         return true;
     }
     
@@ -241,7 +243,7 @@ public class DataPartitionChain {
                 .validate(this.partitionKey(), data);
     }
     
-    private boolean processData(MessageDataDto data, MessageMetaDto meta, @Nullable LoggerHook LOG) throws IOException, InvalidCipherTextException
+    private boolean processData(MessageDataDto data, MessageMetaDto meta, boolean invokeCallbacks, @Nullable LoggerHook LOG) throws IOException, InvalidCipherTextException
     {
         if (d.bootstrapConfig.isExtraValidation()) {
             if (d.validationUtil.validateOrLog(data, LOG) == false) return false;
@@ -258,7 +260,7 @@ public class DataPartitionChain {
         }
 
         // Process it
-        this.promoteChainEntry(new MessageDataMetaDto(data, meta), LOG);
+        this.promoteChainEntry(new MessageDataMetaDto(data, meta), invokeCallbacks, LOG);
         return true;
     }
     

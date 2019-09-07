@@ -440,7 +440,8 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
                                 return;
                             }
                             try {
-                                partitionBridge.chain().rcv(record.value(), meta, LOG);
+                                boolean loaded = isLoaded.getOrDefault(meta.getPartition(), false);
+                                partitionBridge.chain().rcv(record.value(), meta, loaded, LOG);
                             } catch (IOException | InvalidCipherTextException ex) {
                                 LOG.warn(ex);
                             }

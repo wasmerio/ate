@@ -144,7 +144,7 @@ public class ChainOfTrustTests
         Assertions.assertTrue(digest != null);
 
         MessageDataDto data = new MessageDataDto(header, digest, bytes1);
-        boolean accepted = chain.rcv(data.createBaseFlatBuffer(), new MessageMetaDto(0, index++, 0), LOG);
+        boolean accepted = chain.rcv(data.createBaseFlatBuffer(), new MessageMetaDto(0, index++, 0), true, LOG);
         Assertions.assertTrue(accepted);
         
         // Should be no more 2 seconds for high performance
@@ -159,7 +159,7 @@ public class ChainOfTrustTests
             
             for (int x = 0; x < 100; x++) {
                 data = new MessageDataDto(header, digest, bytes1);
-                accepted = chain.rcv(data.createBaseFlatBuffer(), new MessageMetaDto(0, index++, 0), LOG);
+                accepted = chain.rcv(data.createBaseFlatBuffer(), new MessageMetaDto(0, index++, 0), true, LOG);
                 Assertions.assertTrue(accepted);
             }
         }
@@ -169,7 +169,7 @@ public class ChainOfTrustTests
         header.setId(UUID.randomUUID());
 
         data = new MessageDataDto(header, digest, bytes1);
-        chain.rcv(data.createBaseFlatBuffer(), new MessageMetaDto(0, index++, 0), LOG);
+        chain.rcv(data.createBaseFlatBuffer(), new MessageMetaDto(0, index++, 0), true, LOG);
 
         DataContainer rcvdata = chain.getData(data.getHeader().getIdOrThrow(), LOG);
         Assertions.assertTrue(rcvdata == null);
@@ -179,7 +179,7 @@ public class ChainOfTrustTests
         Assertions.assertTrue(digest != null);
 
         data = new MessageDataDto(header, digest, bytes1);
-        chain.rcv(data.createBaseFlatBuffer(), new MessageMetaDto(0, index++, 0), LOG);
+        chain.rcv(data.createBaseFlatBuffer(), new MessageMetaDto(0, index++, 0), true, LOG);
         
         // Attempt to read it (which will perform the validation)
         rcvdata = chain.getData(data.getHeader().getIdOrThrow(), LOG);
