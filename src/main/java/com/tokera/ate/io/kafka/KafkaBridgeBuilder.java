@@ -26,8 +26,6 @@ public class KafkaBridgeBuilder {
     private LoggerHook LOG;
     @SuppressWarnings("initialization.fields.uninitialized")
     private String m_bootstrapServers;
-    @SuppressWarnings("initialization.fields.uninitialized")
-    private String m_keeperServers;
 
     public KafkaBridgeBuilder() {
     }
@@ -36,8 +34,7 @@ public class KafkaBridgeBuilder {
     public void init()
     {
         try {
-            m_keeperServers = d.kafka.getZooKeeperBootstrap();
-            m_bootstrapServers = d.kafka.getKafkaBootstrap();
+            m_bootstrapServers = KafkaServer.getKafkaBootstrap();
         } catch (RuntimeException ex) {
             exceptionOnUse = ex;
         }

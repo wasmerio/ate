@@ -1,6 +1,7 @@
 package com.tokera.ate.delegates;
 
 import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
 import com.google.common.cache.RemovalNotification;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.common.MapTools;
@@ -163,7 +164,7 @@ public class ImplicitSecurityDelegate {
             });
         } catch (ExecutionException e) {
             throw new WebApplicationException(e);
-        } catch (ImplicitAuthorityMissingException e) {
+        } catch (ImplicitAuthorityMissingException | CacheLoader.InvalidCacheLoadException e) {
             if (handling.shouldThrowOnError() || handling == EnquireDomainKeyHandling.ThrowOnNull) throw e;
             return null;
         }

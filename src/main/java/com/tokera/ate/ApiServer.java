@@ -199,7 +199,6 @@ public class ApiServer {
         if ("true".equals(props.getOrDefault("kafka.server", "false").toString()) &&
                 preventKafka == false)
         {
-            CDI.current().select(KafkaBridgeBuilder.class).get().touch();
             d.kafka = kafkaServer = CDI.current().select(KafkaServer.class).get().start();
         }
         

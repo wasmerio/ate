@@ -4,7 +4,7 @@ rm -r -f bin-lib || true
 [ -e repo.zip ] && rm -f repo.zip || true
 [ -e target/libs.zip ] && rm -f target/libs.zip || true
 
-mvn -T 2C compile test package
+mvn -T 2C -Dmaven.test.skip=true compile package
 
 JAR=$(basename target/*-SNAPSHOT.jar)
 [ -z "$JAR" ] && echo "No JAR file exists" && exit 1
