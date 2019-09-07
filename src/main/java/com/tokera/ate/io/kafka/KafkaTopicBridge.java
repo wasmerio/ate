@@ -302,25 +302,39 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
                     break;
             }
             Properties topicProps = ApplicationConfigLoader.getInstance().getPropertiesByName(topicPropsName);
-            if (topicProps != null) {
-                // Create the topic
-                try {
-                    AdminUtils.createTopic(utils, this.topic, maxPartitionsPerTopic, numOfReplicas, topicProps, kafka.admin.RackAwareMode.Disabled$.MODULE$);
-                    for (int p = 0; p < maxPartitionsPerTopic; p++) {
-                        isLoaded.put((Integer)p, true);
+
+            // Enter a retry loop
+            int delayMs = 100;
+            for (int n = 0;; n++)
+            {
+                if (topicProps != null) {
+                    // Create the topic
+                    try {
+                        AdminUtils.createTopic(utils, this.topic, maxPartitionsPerTopic, numOfReplicas, topicProps, kafka.admin.RackAwareMode.Disabled$.MODULE$);
+                        for (int p = 0; p < maxPartitionsPerTopic; p++) {
+                            isLoaded.put((Integer) p, true);
+                        }
+                        everCreated.add(this.topic);
+                        return true;
+                    } catch (TopicExistsException ex) {
+                        everCreated.add(this.topic);
+                        return true;
+                    } catch (Throwable ex) {
+                        if (n >= 7) {
+                            LOG.warn(ex);
+                            return false;
+                        }
+                        try {
+                            Thread.sleep(delayMs);
+                        } catch (InterruptedException e) {
+                            LOG.warn(ex);
+                            return false;
+                        }
+                        delayMs *= 2;
+                        continue;
                     }
-                    everCreated.add(this.topic);
-                    return true;
-                } catch (TopicExistsException ex) {
-                    everCreated.add(this.topic);
-                    return true;
-                } catch (Throwable ex) {
-                    LOG.warn(ex);
-                    return false;
                 }
             }
-
-            return false;
         }
     }
     
