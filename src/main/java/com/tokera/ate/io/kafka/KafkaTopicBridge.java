@@ -306,6 +306,9 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
                 // Create the topic
                 try {
                     AdminUtils.createTopic(utils, this.topic, maxPartitionsPerTopic, numOfReplicas, topicProps, kafka.admin.RackAwareMode.Disabled$.MODULE$);
+                    for (int p = 0; p < maxPartitionsPerTopic; p++) {
+                        isLoaded.put(p, true);
+                    }
                     everCreated.add(this.topic);
                     return true;
                 } catch (TopicExistsException ex) {
