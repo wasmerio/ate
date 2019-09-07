@@ -261,7 +261,7 @@ public class EffectivePermissionBuilder {
         // Maybe its been pushed to the chain of trust already
         MessageDataDto data = d.requestContext.currentTransaction().findSavedData(partitionKey, this.origId);
         if (data != null) {
-            MessageDataHeaderDto header = container.getMergedHeader();
+            MessageDataHeaderDto header = data.getHeader();
             for (String implicitAuthority : header.getImplicitAuthority()) {
                 MessagePublicKeyDto implicitKey = d.implicitSecurity.enquireDomainKey(implicitAuthority, EnquireDomainKeyHandling.ThrowOnNull, container.partitionKey);
                 ret.addWriteRole(implicitKey);
