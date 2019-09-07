@@ -303,7 +303,7 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
             }
             Properties topicProps = ApplicationConfigLoader.getInstance().getPropertiesByName(topicPropsName);
 
-            // Enter a retry loop
+            // Enter a retry loop with exponential backoff
             int delayMs = 100;
             for (int n = 0;; n++)
             {
@@ -366,6 +366,7 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
                 errorWaitTime = 500L;
             } catch (Throwable ex) {
                 if (ex instanceof InterruptedException) {
+                    if (isRunning == false) break;
                     dispose();
                     throw ex;
                 }
@@ -373,8 +374,9 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
                 try {
                     Thread.sleep(errorWaitTime);
                 } catch (InterruptedException ex1) {
+                    if (isRunning == false) break;
                     LOG.warn(ex1);
-                    return;
+                    continue;
                 }
                 errorWaitTime *= 2L;
                 if (errorWaitTime > 4000L) {
