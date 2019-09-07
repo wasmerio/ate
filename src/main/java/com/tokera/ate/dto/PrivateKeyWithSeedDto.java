@@ -16,6 +16,7 @@ import com.tokera.ate.common.StringTools;
 import com.tokera.ate.dao.enumerations.KeyType;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
+import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import com.tokera.ate.enumerations.PrivateKeyType;
 import com.tokera.ate.providers.PrivateKeyWithSeedJsonDeserializer;
 import com.tokera.ate.providers.PrivateKeyWithSeedJsonSerializer;
@@ -170,6 +171,11 @@ public class PrivateKeyWithSeedDto {
             this.key = ret;
             return ret;
         }
+    }
+
+    @JsonIgnore
+    public MessagePublicKeyDto publicKey() {
+        return new MessagePublicKeyDto(key());
     }
 
     @JsonIgnore
