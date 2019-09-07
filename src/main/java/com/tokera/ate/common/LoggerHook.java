@@ -48,8 +48,8 @@ public class LoggerHook implements org.slf4j.Logger {
     private static boolean forceStatic = true;
     private static @Nullable Boolean forceContextLogger = null;
 
-    private static volatile boolean flagWarning = false;
-    private static volatile boolean flagError = false;
+    private static ConcurrentStack<String> flagWarning = null;
+    private static ConcurrentStack<String> flagError = null;
     
     public LoggerHook() {
         logClazz = LoggerHook.class;
@@ -360,36 +360,36 @@ public class LoggerHook implements org.slf4j.Logger {
 
     @Override
     public void warn(String string) {
-        flagWarning = true;
+        if (flagWarning != null) flagWarning.push(string);
         this.getForwarder().warn(string);
     }
 
     @Override
     public void warn(String string, Object o) {
-        flagWarning = true;
+        if (flagWarning != null) flagWarning.push(string);
         this.getForwarder().warn(string, o);
     }
 
     @Override
     public void warn(String string, Object[] os) {
-        flagWarning = true;
+        if (flagWarning != null) flagWarning.push(string);
         this.getForwarder().warn(string, os);
     }
 
     @Override
     public void warn(String string, Object o, Object o1) {
-        flagWarning = true;
+        if (flagWarning != null) flagWarning.push(string);
         this.getForwarder().warn(string, o, o1);
     }
 
     @Override
     public void warn(String string, Throwable thrwbl) {
-        flagWarning = true;
+        if (flagWarning != null) flagWarning.push(string);
         this.getForwarder().warn(string, thrwbl);
     }
 
     public void warn(Throwable thrwbl) {
-        flagWarning = true;
+        if (flagWarning != null) flagWarning.push(string);
 
         String msg = thrwbl.getMessage();
         if (msg == null) msg = thrwbl.toString();
@@ -403,13 +403,13 @@ public class LoggerHook implements org.slf4j.Logger {
 
     @Override
     public void warn(Marker marker, String string) {
-        flagWarning = true;
+        if (flagWarning != null) flagWarning.push(string);
         this.getForwarder().warn(marker, string);
     }
 
     @Override
     public void warn(Marker marker, String string, Object o) {
-        flagWarning = true;
+        if (flagWarning != null) flagWarning.push(string);
         this.getForwarder().warn(marker, string, o);
     }
 

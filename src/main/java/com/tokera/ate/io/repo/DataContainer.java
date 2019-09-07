@@ -214,6 +214,9 @@ public class DataContainer {
         }
         if (leaves.size() <= 0) return null;
 
+        // Set the partition key so that it doesnt attempt to transverse up the tree
+        BaseDaoInternal.setPartitionKey(ret, partitionKey);
+
         // Reconcile the parent version pointers
         if (leaves.size() == 1) {
             BaseDaoInternal.setPreviousVersion(ret, leaves.getLast().version);
