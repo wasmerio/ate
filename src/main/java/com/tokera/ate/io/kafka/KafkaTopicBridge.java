@@ -120,7 +120,7 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
             boolean ret = partitionBridges.remove(key.partitionIndex()) != null;
             if (ret == false) return false;
             newKeyCnt = partitionBridges.size();
-            isLoaded.remove(key.partitionIndex());
+            isLoaded.remove((Integer)key.partitionIndex());
             isInit.incrementAndGet();
         }
         if (newKeyCnt <= 0) {
@@ -234,7 +234,7 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
             }
 
             // Add the keys to the lookups that are waiting on the loaded event
-            keys.forEach(k -> isLoaded.putIfAbsent(k.partitionIndex(), Boolean.FALSE));
+            keys.forEach(k -> isLoaded.putIfAbsent((Integer)k.partitionIndex(), Boolean.FALSE));
 
             // Success
             initLevel = newLevel;
@@ -307,7 +307,7 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
                 try {
                     AdminUtils.createTopic(utils, this.topic, maxPartitionsPerTopic, numOfReplicas, topicProps, kafka.admin.RackAwareMode.Disabled$.MODULE$);
                     for (int p = 0; p < maxPartitionsPerTopic; p++) {
-                        isLoaded.put(p, true);
+                        isLoaded.put((Integer)p, true);
                     }
                     everCreated.add(this.topic);
                     return true;
@@ -443,7 +443,7 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
                                 return;
                             }
                             try {
-                                boolean loaded = isLoaded.getOrDefault(meta.getPartition(), false);
+                                boolean loaded = isLoaded.getOrDefault((Integer)record.partition(), false);
                                 partitionBridge.chain().rcv(record.value(), meta, loaded, LOG);
                             } catch (IOException | InvalidCipherTextException ex) {
                                 LOG.warn(ex);
@@ -551,10 +551,10 @@ public class KafkaTopicBridge implements Runnable, IDataTopicBridge {
 
     public void waitTillLoaded(IPartitionKey key)  {
         boolean sentSync = false;
-        if (isLoaded.getOrDefault(key.partitionIndex(), false) == false) {
+        if (isLoaded.getOrDefault((Integer)key.partitionIndex(), false) == false) {
             StopWatch waitTime = new StopWatch();
             waitTime.start();
-            while (isLoaded.getOrDefault(key.partitionIndex(), false) == false) {
+            while (isLoaded.getOrDefault((Integer)key.partitionIndex(), false) == false) {
                 if (waitTime.getTime() > 5000L) {
                     if (sentSync == false) {
                         this.send(key, new MessageSyncDto(0, 0), false);
