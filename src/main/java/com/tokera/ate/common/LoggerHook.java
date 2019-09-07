@@ -389,10 +389,9 @@ public class LoggerHook implements org.slf4j.Logger {
     }
 
     public void warn(Throwable thrwbl) {
-        if (flagWarning != null) flagWarning.push(string);
-
         String msg = thrwbl.getMessage();
         if (msg == null) msg = thrwbl.toString();
+        if (flagWarning != null) flagWarning.push(msg);
         this.getForwarder().warn(msg, thrwbl);
     }
 
@@ -415,19 +414,19 @@ public class LoggerHook implements org.slf4j.Logger {
 
     @Override
     public void warn(Marker marker, String string, Object o, Object o1) {
-        flagWarning = true;
+        if (flagWarning != null) flagWarning.push(string);
         this.getForwarder().warn(marker, string, o, o1);
     }
 
     @Override
     public void warn(Marker marker, String string, Object[] os) {
-        flagWarning = true;
+        if (flagWarning != null) flagWarning.push(string);
         this.getForwarder().warn(marker, string, os);
     }
 
     @Override
     public void warn(Marker marker, String string, Throwable thrwbl) {
-        flagWarning = true;
+        if (flagWarning != null) flagWarning.push(string);
         this.getForwarder().warn(marker, string, thrwbl);
     }
 
@@ -438,38 +437,38 @@ public class LoggerHook implements org.slf4j.Logger {
 
     @Override
     public void error(String string) {
-        flagError = true;
+        if (flagError != null) flagError.push(string);
         this.getForwarder().error(string);
     }
 
     @Override
     public void error(String string, Object o) {
-        flagError = true;
+        if (flagError != null) flagError.push(string);
         this.getForwarder().error(string, o);
     }
 
     @Override
     public void error(String string, Object o, Object o1) {
-        flagError = true;
+        if (flagError != null) flagError.push(string);
         this.getForwarder().error(string, o, o1);
     }
 
     @Override
     public void error(String string, Object[] os) {
-        flagError = true;
+        if (flagError != null) flagError.push(string);
         this.getForwarder().error(string, os);
     }
 
     @Override
     public void error(String string, Throwable thrwbl) {
-        flagError = true;
+        if (flagError != null) flagError.push(string);
         this.getForwarder().error(string, thrwbl);
     }
 
     public void error(Throwable thrwbl) {
-        flagError = true;
         String msg = thrwbl.getMessage();
         if (msg == null) msg = thrwbl.toString();
+        if (flagError != null) flagError.push(msg);
         this.getForwarder().error(msg, thrwbl);
     }
 
@@ -480,31 +479,31 @@ public class LoggerHook implements org.slf4j.Logger {
 
     @Override
     public void error(Marker marker, String string) {
-        flagError = true;
+        if (flagError != null) flagError.push(string);
         this.getForwarder().error(marker, string);
     }
 
     @Override
     public void error(Marker marker, String string, Object o) {
-        flagError = true;
+        if (flagError != null) flagError.push(string);
         this.getForwarder().error(marker, string, o);
     }
 
     @Override
     public void error(Marker marker, String string, Object o, Object o1) {
-        flagError = true;
+        if (flagError != null) flagError.push(string);
         this.getForwarder().error(marker, string, o, o1);
     }
 
     @Override
     public void error(Marker marker, String string, Object[] os) {
-        flagError = true;
+        if (flagError != null) flagError.push(string);
         this.getForwarder().error(marker, string, os);
     }
 
     @Override
     public void error(Marker marker, String string, Throwable thrwbl) {
-        flagError = true;
+        if (flagError != null) flagError.push(string);
         this.getForwarder().error(marker, string, thrwbl);
     }
 
@@ -524,39 +523,45 @@ public class LoggerHook implements org.slf4j.Logger {
         LoggerHook.forceContextLogger = forceContextLogger;
     }
 
-    public static boolean pollWarningFlag() {
-        if (flagWarning) {
-            flagWarning = false;
-            return true;
+    public static String pollWarningFlag() {
+        StringBuilder ret = new StringBuilder();
+        if (flagWarning != null) {
+            for (;;) {
+                String msg = flagWarning.pop();
+                if (msg == null) break;
+                ret.append(msg).append("\n");
+            }
         }
-        return false;
+        return ret.toString();
     }
 
-    public static boolean pollErrorFlag() {
-        if (flagError) {
-            flagError = false;
-            return true;
+    public static String pollErrorFlag() {
+        StringBuilder ret = new StringBuilder();
+        if (flagError != null) {
+            for (;;) {
+                String msg = flagError.pop();
+                if (msg == null) break;
+                ret.append(msg).append("\n");
+            }
         }
-        return false;
+        return ret.toString();
     }
 
-    public static boolean pollWarningOrErrorFlag() {
-        boolean ret = flagWarning | flagError;
-        if (ret) {
-            flagWarning = false;
-            flagError = false;
-            return true;
-        }
-        return false;
+    public static String pollWarningOrErrorFlag() {
+        StringBuilder ret = new StringBuilder();
+        ret.append(pollWarningFlag());
+        ret.append(pollErrorFlag());
+        return ret.toString();
     }
 
     public static void assertWarningOrErrorFlag() {
-        Assertions.assertFalse(pollWarningOrErrorFlag());
+        String msgs = pollWarningOrErrorFlag();
+        Assertions.assertFalse(msgs.length() > 0, msgs);
     }
 
     public static void resetWarningOrErrorFlag() {
-        flagWarning = false;
-        flagError = false;
+        flagWarning = new ConcurrentStack<>();
+        flagError = new ConcurrentStack<>();
     }
 
     public static void withNoWarningsOrErrors(Runnable f) {
