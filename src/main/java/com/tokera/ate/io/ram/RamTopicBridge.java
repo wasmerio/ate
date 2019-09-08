@@ -42,9 +42,8 @@ public class RamTopicBridge implements IDataTopicBridge {
         }
 
         GenericPartitionKey wrapKey = new GenericPartitionKey(key);
-        RamTopicPartition data = RamBridgeBuilder.allRamPartitions.computeIfAbsent(key, i -> new RamTopicPartition(wrapKey));
         DataPartitionChain chain = new DataPartitionChain(key);
-        RamPartitionBridge ret = new RamPartitionBridge(this, chain, type, data);
+        RamPartitionBridge ret = new RamPartitionBridge(this, chain, type);
 
         ret.feed(d.ramDataRepository.read(wrapKey));
         ret.idle();

@@ -23,8 +23,6 @@ public final class TopicAndPartition implements Serializable {
 
     private String topic;
     private int partition;
-    @JsonIgnore
-    private transient String base64;
 
     @SuppressWarnings("initialization.fields.uninitialized")
     @Deprecated

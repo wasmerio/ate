@@ -32,15 +32,13 @@ public class RamPartitionBridge implements IDataPartitionBridge {
     private final DataPartitionChain chain;
     private final DataPartitionType type;
     private final Random rand = new Random();
-    private final RamTopicPartition partition;
     private final TopicAndPartition where;
 
-    public RamPartitionBridge(RamTopicBridge topicBridge, DataPartitionChain chain, DataPartitionType type, RamTopicPartition p) {
+    public RamPartitionBridge(RamTopicBridge topicBridge, DataPartitionChain chain, DataPartitionType type) {
         this.topicBridge = topicBridge;
         this.chain = chain;
         this.type = type;
-        this.partition = p;
-        this.where = new TopicAndPartition(p.partitionKey.partitionTopic(), p.partitionKey.partitionIndex());
+        this.where = new TopicAndPartition(chain.partitionKey().partitionTopic(), chain.partitionKey().partitionIndex());
     }
 
     @Override
@@ -89,15 +87,7 @@ public class RamPartitionBridge implements IDataPartitionBridge {
 
     @Override
     public @Nullable MessageDataDto getVersion(UUID id, MessageMetaDto meta) {
-        long offset = meta.getOffset();
-        MessageBaseDto msg = MapTools.getOrNull(partition.messages, offset);
-        if (msg == null) return null;
-
-        if (msg instanceof MessageDataDto) {
-            return (MessageDataDto)msg;
-        }
-
-        return null;
+        return d.ramDataRepository.getVersion(where, meta);
     }
 
     @Override
@@ -119,11 +109,10 @@ public class RamPartitionBridge implements IDataPartitionBridge {
     public void feed(Iterable<MessageBundle> bundles) {
         for (MessageBundle bundle : bundles) {
             MessageBaseDto msg = MessageBaseDto.from(bundle.raw);
-            partition.messages.put(bundle.offset, msg);
             try {
-                this.chain.rcv(msg, new MessageMetaDto(partition.number, bundle.offset), true, partition.LOG);
+                this.chain.rcv(msg, new MessageMetaDto(this.where.partitionIndex(), bundle.offset), true, d.genericLogger);
             } catch (IOException | InvalidCipherTextException e) {
-                partition.LOG.warn(e);
+                d.genericLogger.warn(e);
             }
         }
     }
