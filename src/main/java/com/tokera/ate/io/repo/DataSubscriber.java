@@ -136,10 +136,8 @@ public class DataSubscriber {
     }
 
     public void destroyAll() {
+        this.bridges.clear();
         this.partitions.invalidateAll();
-        synchronized (bridges) {
-            bridges.clear();
-        }
     }
 
     public Set<TopicAndPartition> keys() {
