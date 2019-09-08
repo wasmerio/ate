@@ -79,19 +79,21 @@ public class KafkaInbox implements Runnable {
         DataSubscriber subscriber = AteDelegate.get().storageFactory.get().backend();
 
         Set<TopicAndPartition> keys = subscriber.keys();
-        List<TopicPartition> partitions = keys.stream()
+        List<TopicPartition> kafkaPartitions = keys.stream()
                 .map(k -> new TopicPartition(k.partitionTopic(), k.partitionIndex()))
                 .collect(Collectors.toList());
 
         KafkaConsumer<String, MessageBase> c = get();
 
-        Set<TopicPartition> existing = c.assignment().stream().collect(Collectors.toSet());
-        c.assign(partitions);
+        Set<TopicAndPartition> existing = c.assignment().stream()
+                .map(a -> new TopicAndPartition(a.topic(), a.partition()))
+                .collect(Collectors.toSet());
+        c.assign(kafkaPartitions);
 
         List<TopicPartition> restart = new ArrayList<>();
-        for (TopicPartition p : partitions) {
+        for (TopicAndPartition p : keys) {
             if (existing.contains(p)) continue;
-            restart.add(p);
+            restart.add(new TopicPartition(p.partitionTopic(), p.partitionIndex()));
         }
 
         c.seekToBeginning(restart);
