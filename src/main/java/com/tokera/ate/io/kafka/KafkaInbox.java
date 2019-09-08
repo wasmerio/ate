@@ -6,6 +6,7 @@ import com.tokera.ate.dao.MessageBundle;
 import com.tokera.ate.dao.TopicAndPartition;
 import com.tokera.ate.dao.msg.MessageBase;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.io.repo.DataSubscriber;
 import com.tokera.ate.scopes.Startup;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
@@ -75,7 +76,8 @@ public class KafkaInbox implements Runnable {
     }
 
     private void load() {
-        Set<TopicAndPartition> keys = d.dataRepository.keys();
+        DataSubscriber subscriber = AteDelegate.get().storageFactory.get().backend();
+        Set<TopicAndPartition> keys = subscriber.keys();
         List<TopicPartition> partitions = keys.stream()
                 .map(k -> new TopicPartition(k.partitionTopic(), k.partitionIndex()))
                 .collect(Collectors.toList());

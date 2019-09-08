@@ -555,10 +555,6 @@ public class DataRepository implements IAteIO {
         return data;
     }
 
-    public Set<TopicAndPartition> keys() {
-        return subscriber.keys();
-    }
-
     public void feed(TopicAndPartition where, Iterable<MessageBundle> msgs) {
         subscriber.feed(where, msgs);
     }
