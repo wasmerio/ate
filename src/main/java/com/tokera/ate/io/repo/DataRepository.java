@@ -554,12 +554,4 @@ public class DataRepository implements IAteIO {
 
         return data;
     }
-
-    public void feed(TopicAndPartition where, Iterable<MessageBundle> msgs) {
-        subscriber.feed(where, msgs);
-    }
-
-    public void feedIdle(TopicAndPartition where) {
-        subscriber.feedIdle(where);
-    }
 }

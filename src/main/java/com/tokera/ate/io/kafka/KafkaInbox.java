@@ -77,6 +77,7 @@ public class KafkaInbox implements Runnable {
 
     private void load() {
         DataSubscriber subscriber = AteDelegate.get().storageFactory.get().backend();
+
         Set<TopicAndPartition> keys = subscriber.keys();
         List<TopicPartition> partitions = keys.stream()
                 .map(k -> new TopicPartition(k.partitionTopic(), k.partitionIndex()))
@@ -150,15 +151,17 @@ public class KafkaInbox implements Runnable {
                 .add(new MessageBundle(record.partition(), record.offset(), record.value()));
         }
 
+        DataSubscriber subscriber = AteDelegate.get().storageFactory.get().backend();
+
         // Now in a parallel engine that increases throughput we stream all the data into the repositories
         msgs.entrySet()
             .parallelStream()
-            .forEach(e -> d.dataRepository.feed(e.getKey(), e.getValue()));
+            .forEach(e -> subscriber.feed(e.getKey(), e.getValue()));
 
         // Finally we let any topics that didnt receive anything that they are now idle and thus can consider
         // themselves at this exact point in time to be as update-to-date as possible
         idlePartitions
             .parallelStream()
-            .forEach(a -> d.dataRepository.feedIdle(a));
+            .forEach(a -> subscriber.feedIdle(a));
     }
 }
