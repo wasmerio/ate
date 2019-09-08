@@ -1,12 +1,14 @@
 package com.tokera.ate.io.ram;
 
 import com.tokera.ate.dao.GenericPartitionKey;
+import com.tokera.ate.dao.MessageBundle;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.enumerations.DataPartitionType;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.kafka.KafkaTopicBridge;
+import com.tokera.ate.io.kafka.KafkaTopicFactory;
 import com.tokera.ate.io.repo.DataPartitionChain;
 import com.tokera.ate.io.repo.IDataPartitionBridge;
 import com.tokera.ate.io.repo.IDataTopicBridge;
@@ -35,8 +37,8 @@ public class RamTopicBridge implements IDataTopicBridge {
         if (key.partitionTopic().equals(topic) ==false) {
             throw new WebApplicationException("Partition key does not match this topic.");
         }
-        if (key.partitionIndex() >= KafkaTopicBridge.maxPartitionsPerTopic) {
-            throw new WebApplicationException("Partition index can not exceed the maximum of " + KafkaTopicBridge.maxPartitionsPerTopic + " per topic.");
+        if (key.partitionIndex() >= KafkaTopicFactory.maxPartitionsPerTopic) {
+            throw new WebApplicationException("Partition index can not exceed the maximum of " + KafkaTopicFactory.maxPartitionsPerTopic + " per topic.");
         }
 
         GenericPartitionKey wrapKey = new GenericPartitionKey(key);
@@ -109,5 +111,13 @@ public class RamTopicBridge implements IDataTopicBridge {
     @Override
     public @Nullable MessageDataDto getVersion(PUUID id, MessageMetaDto meta) {
         return getOrCreateBridge(id.partition()).getVersion(id.id(), meta);
+    }
+
+    @Override
+    public void feed(Iterable<MessageBundle> msgs) {
+    }
+
+    @Override
+    public void feedIdle(Iterable<Integer> partitions) {
     }
 }

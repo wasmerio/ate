@@ -9,21 +9,33 @@ import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.RemovalNotification;
 import com.tokera.ate.common.LoggerHook;
+import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.GenericPartitionKey;
+import com.tokera.ate.dao.MessageBundle;
+import com.tokera.ate.dao.TopicAndPartition;
+import com.tokera.ate.dao.msg.MessageBase;
+import com.tokera.ate.dao.msg.MessageType;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.dto.msg.MessageMetaDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
+import com.tokera.ate.dto.msg.MessageSyncDto;
 import com.tokera.ate.enumerations.DataPartitionType;
 import com.tokera.ate.events.KeysDiscoverEvent;
 import com.tokera.ate.events.NewAccessRightsEvent;
 import com.tokera.ate.events.PartitionSeedingEvent;
 import com.tokera.ate.io.api.IPartitionKey;
+import org.bouncycastle.crypto.InvalidCipherTextException;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
+import java.io.IOException;
 import java.lang.ref.WeakReference;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import javax.enterprise.inject.spi.CDI;
 
 /**
@@ -33,7 +45,7 @@ public class DataSubscriber {
 
     private AteDelegate d = AteDelegate.get();
     private final LoggerHook LOG;
-    private final Cache<GenericPartitionKey, @NonNull DataPartition> partitionCache;
+    private final Cache<TopicAndPartition, @NonNull DataPartition> partitionCache;
     private final Map<String, @NonNull WeakReference<IDataTopicBridge>> topicCache;
     private final Mode mode;
 
@@ -48,7 +60,7 @@ public class DataSubscriber {
         this.partitionCache = CacheBuilder.newBuilder()
                 .maximumSize(d.bootstrapConfig.getSubscriberMaxPartitions())
                 .expireAfterAccess(d.bootstrapConfig.getSubscriberPartitionTimeout(), TimeUnit.MILLISECONDS)
-                .removalListener((RemovalNotification<GenericPartitionKey, DataPartition> notification) -> {
+                .removalListener((RemovalNotification<TopicAndPartition, DataPartition> notification) -> {
                     DataPartition t = notification.getValue();
                     if (t != null) t.getBridge().topicBridge().removeKey(t.partitionKey());
                 })
@@ -105,11 +117,13 @@ public class DataSubscriber {
         IDataPartitionBridge partitionBridge = topicBridge.addKey(key);
         DataPartition newTopic = new DataPartition(key, partitionBridge, d.daoParents);
         seedTopic(newTopic);
+
+        this.partitionCache.put(new TopicAndPartition(key.partitionTopic(), key.partitionIndex()), newTopic);
         return newTopic;
     }
 
     public DataPartition getPartition(IPartitionKey partition, boolean shouldWait) {
-        GenericPartitionKey keyWrap = new GenericPartitionKey(partition);
+        TopicAndPartition keyWrap = new TopicAndPartition(partition);
         DataPartition ret = this.partitionCache.getIfPresent(keyWrap);
         if (ret != null) {
             if (shouldWait == true) {
@@ -124,9 +138,9 @@ public class DataSubscriber {
                 {
                     synchronized(this)
                     {
-                        d.debugLogging.logLoadingPartition(keyWrap);
+                        d.debugLogging.logLoadingPartition(partition);
                         d.encryptor.touch(); // required as the kafka partition needs an instance reference
-                        return createPartition(keyWrap);
+                        return createPartition(partition);
                     }
                 });
         } catch (ExecutionException ex) {
@@ -152,6 +166,34 @@ public class DataSubscriber {
         partitionCache.invalidateAll();
         synchronized (topicCache) {
             topicCache.clear();
+        }
+    }
+
+    public Set<IPartitionKey> keys() {
+        return this.topicCache.values().stream()
+                .map(a -> a.get())
+                .filter(a -> a != null)
+                .flatMap(a -> a.keys().stream())
+                .collect(Collectors.toSet());
+    }
+
+    public void feed(String topic, Iterable<MessageBundle> msgs) {
+        WeakReference<IDataTopicBridge> weakBridge = MapTools.getOrNull(topicCache, topic);
+        if (weakBridge != null) {
+            IDataTopicBridge bridge = weakBridge.get();
+            if (bridge != null) {
+                bridge.feed(msgs);
+            }
+        }
+    }
+
+    public void feedIdle(String topic, Iterable<Integer> partitiosn) {
+        WeakReference<IDataTopicBridge> weakBridge = MapTools.getOrNull(topicCache, topic);
+        if (weakBridge != null) {
+            IDataTopicBridge bridge = weakBridge.get();
+            if (bridge != null) {
+                bridge.feedIdle(partitiosn);
+            }
         }
     }
 }

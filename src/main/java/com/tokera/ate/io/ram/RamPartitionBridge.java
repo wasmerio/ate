@@ -48,11 +48,8 @@ public class RamPartitionBridge implements IDataPartitionBridge {
             long offset = pair.getKey();
             MessageBaseDto msg = pair.getValue();
 
-            Long timestamp = MapTools.getOrNull(p.timestamps, offset);
-            if (timestamp == null) timestamp = 0L;
-
             try {
-                chain.rcv(msg, new MessageMetaDto(p.number, offset, timestamp), false, p.LOG);
+                chain.rcv(msg, new MessageMetaDto(p.number, offset), false, p.LOG);
             } catch (IOException | InvalidCipherTextException e) {
                 p.LOG.warn(e);
             }
@@ -63,12 +60,10 @@ public class RamPartitionBridge implements IDataPartitionBridge {
     @Override
     public void send(MessageBaseDto msg) {
         long offset = partition.offsetSeed.incrementAndGet();
-        long timestamp = new Date().getTime();
 
         partition.messages.put(offset, msg);
-        partition.timestamps.put(offset, timestamp);
         try {
-            this.chain.rcv(msg, new MessageMetaDto(partition.number, offset, timestamp), true, partition.LOG);
+            this.chain.rcv(msg, new MessageMetaDto(partition.number, offset), true, partition.LOG);
         } catch (IOException | InvalidCipherTextException e) {
             partition.LOG.warn(e);
         }

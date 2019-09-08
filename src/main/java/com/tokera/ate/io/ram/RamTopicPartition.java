@@ -15,14 +15,12 @@ public class RamTopicPartition
     public IPartitionKey partitionKey;
     public AtomicLong offsetSeed;
     public ConcurrentHashMap<Long, MessageBaseDto> messages;
-    public ConcurrentHashMap<Long, Long> timestamps;
 
     public RamTopicPartition(GenericPartitionKey key) {
         this.LOG = new LoggerHook(RamTopicPartition.class);
         this.number = 0;
         this.offsetSeed = new AtomicLong();
         this.messages = new ConcurrentHashMap<>();
-        this.timestamps = new ConcurrentHashMap<>();
         this.partitionKey = key;
     }
 }

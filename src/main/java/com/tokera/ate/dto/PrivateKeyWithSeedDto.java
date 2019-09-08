@@ -98,6 +98,12 @@ public class PrivateKeyWithSeedDto {
         assert seed == null || seed.contains(":") == false;
     }
 
+    public PrivateKeyWithSeedDto(PrivateKeyType keyType, String seed, int keySize) {
+        this(keyType, seed, keySize,
+            (keyType == PrivateKeyType.write ? AteDelegate.get().bootstrapConfig.getDefaultSigningTypes() : AteDelegate.get().bootstrapConfig.getDefaultEncryptTypes()),
+            null, null);
+    }
+
     public PrivateKeyWithSeedDto(PrivateKeyType keyType, String seed, @Nullable String alias) {
         this.seed = seed;
         this.key = null;

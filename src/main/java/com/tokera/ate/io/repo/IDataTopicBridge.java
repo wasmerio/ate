@@ -1,6 +1,8 @@
 package com.tokera.ate.io.repo;
 
+import com.tokera.ate.dao.MessageBundle;
 import com.tokera.ate.dao.PUUID;
+import com.tokera.ate.dao.msg.MessageBase;
 import com.tokera.ate.dao.msg.MessageSync;
 import com.tokera.ate.dto.msg.MessageBaseDto;
 import com.tokera.ate.dto.msg.MessageDataDto;
@@ -41,4 +43,8 @@ public interface IDataTopicBridge {
     boolean hasFinishSync(IPartitionKey key, MessageSyncDto sync);
 
     @Nullable MessageDataDto getVersion(PUUID id, MessageMetaDto meta);
+
+    void feed(Iterable<MessageBundle> msgs);
+
+    void feedIdle(Iterable<Integer> partitions);
 }

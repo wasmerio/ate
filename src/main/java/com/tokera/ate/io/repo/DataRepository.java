@@ -2,7 +2,9 @@ package com.tokera.ate.io.repo;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.IRoles;
+import com.tokera.ate.dao.MessageBundle;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
 
@@ -14,6 +16,8 @@ import javax.inject.Inject;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.dao.base.BaseDaoInternal;
 import com.tokera.ate.dao.enumerations.PermissionPhase;
+import com.tokera.ate.dao.msg.MessageBase;
+import com.tokera.ate.dao.msg.MessageType;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.io.api.IAteIO;
 import com.tokera.ate.io.api.IPartitionKey;
@@ -23,12 +27,14 @@ import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.dto.EffectivePermissions;
 import com.tokera.ate.enumerations.DataPartitionType;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import com.tokera.ate.units.DaoId;
 import com.tokera.ate.units.Hash;
+import org.bouncycastle.crypto.InvalidCipherTextException;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
@@ -546,5 +552,17 @@ public class DataRepository implements IAteIO {
         d.debugLogging.logMerge(data, entity, false);
 
         return data;
+    }
+
+    public Set<IPartitionKey> keys() {
+        return subscriber.keys();
+    }
+
+    public void feed(String topic, Iterable<MessageBundle> msgs) {
+        subscriber.feed(topic, msgs);
+    }
+
+    public void feedIdle(String topic, Iterable<Integer> partitions) {
+        subscriber.feedIdle(topic, partitions);
     }
 }

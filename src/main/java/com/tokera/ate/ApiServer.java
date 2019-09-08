@@ -302,6 +302,10 @@ public class ApiServer {
         if (props == null) throw new WebApplicationException("Properties for for the ATE system could not be found (" + apiConfig.getPropertiesFileAte() + ").");
         port = Integer.parseInt(props.getOrDefault("port", "8080").toString());
 
+        if (apiConfig.getRestPortOverride() != null) {
+            port = apiConfig.getRestPortOverride();
+        }
+
         Undertow.Builder serverBuilder = Undertow.builder()
                 .setServerOption(UndertowOptions.ENABLE_HTTP2, "true".equals(props.getOrDefault("http2", "true")))
                 .addHttpListener(port, props.getOrDefault("listen", "0.0.0.0").toString())

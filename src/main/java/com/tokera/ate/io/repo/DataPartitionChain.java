@@ -58,8 +58,7 @@ public class DataPartitionChain {
 
         MessageMetaDto meta = new MessageMetaDto(
                 0L,
-                0L,
-                new Date().getTime());
+                0L);
 
         this.addTrustData(data, meta, false, LOG);
     }

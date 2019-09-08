@@ -164,7 +164,10 @@ public class ImplicitSecurityDelegate {
             });
         } catch (ExecutionException e) {
             throw new WebApplicationException(e);
-        } catch (ImplicitAuthorityMissingException | CacheLoader.InvalidCacheLoadException e) {
+        } catch (CacheLoader.InvalidCacheLoadException e) {
+            if (handling == EnquireDomainKeyHandling.ThrowOnNull) throw e;
+            return null;
+        } catch (ImplicitAuthorityMissingException e) {
             if (handling.shouldThrowOnError() || handling == EnquireDomainKeyHandling.ThrowOnNull) throw e;
             return null;
         }

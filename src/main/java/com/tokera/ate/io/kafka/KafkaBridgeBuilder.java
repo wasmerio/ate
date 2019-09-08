@@ -42,7 +42,7 @@ public class KafkaBridgeBuilder {
 
     public IDataTopicBridge build(String topic, DataPartitionType type) {
         touch();
-        return new KafkaTopicBridge(topic, d.kafkaConfig, type, m_bootstrapServers);
+        return new KafkaTopicBridge(topic, type, d.kafkaInbox, d.kafkaOutbox);
     }
 
     public void touch()

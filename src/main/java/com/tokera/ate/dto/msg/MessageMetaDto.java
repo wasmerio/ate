@@ -29,9 +29,6 @@ public class MessageMetaDto implements Serializable {
     @JsonProperty
     @NotNull
     private long offset;
-    @JsonProperty
-    @NotNull
-    private long timestamp;
 
     @JsonIgnore
     private transient boolean _immutable = false;
@@ -41,10 +38,9 @@ public class MessageMetaDto implements Serializable {
     public MessageMetaDto() {
     }
 
-    public MessageMetaDto(long partition, long offset, long timestamp) {
+    public MessageMetaDto(long partition, long offset) {
         this.partition = partition;
         this.offset = offset;
-        this.timestamp = timestamp;
     }
     
     public long getPartition() {
@@ -63,15 +59,6 @@ public class MessageMetaDto implements Serializable {
     public void setOffset(long offset){
         assert this._immutable == false;
         this.offset = offset;
-    }
-
-    public long getTimestamp() {
-        return timestamp;
-    }
-
-    public void setTimestamp(long timestamp) {
-        assert this._immutable == false;
-        this.timestamp = timestamp;
     }
 
     public void immutalize() {

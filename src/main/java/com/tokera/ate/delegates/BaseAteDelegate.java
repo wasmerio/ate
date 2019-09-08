@@ -15,8 +15,7 @@ import com.tokera.ate.io.core.DaoHelper;
 import com.tokera.ate.io.core.RequestAccessLog;
 import com.tokera.ate.io.core.StorageSystemFactory;
 import com.tokera.ate.io.core.TransactionCoordinator;
-import com.tokera.ate.io.kafka.KafkaBridgeBuilder;
-import com.tokera.ate.io.kafka.KafkaConfigTools;
+import com.tokera.ate.io.kafka.*;
 import com.tokera.ate.io.layers.HeadIO;
 import com.tokera.ate.io.merge.DataMerger;
 import com.tokera.ate.io.ram.RamBridgeBuilder;
@@ -101,6 +100,9 @@ public abstract class BaseAteDelegate {
     public final ResourceFileDelegate resourceFile;
     public final LockingDelegate locking;
     public final ProducerDelegate producer;
+    public final KafkaInbox kafkaInbox;
+    public final KafkaOutbox kafkaOutbox;
+    public final KafkaTopicFactory kafkaTopicFactory;
 
     public ZooServer zooKeeper;
     public KafkaServer kafka;
@@ -197,5 +199,8 @@ public abstract class BaseAteDelegate {
         this.resourceFile = getBean(ResourceFileDelegate.class);
         this.locking = getBean(LockingDelegate.class);
         this.producer = getBean(ProducerDelegate.class);
+        this.kafkaInbox = getBean(KafkaInbox.class);
+        this.kafkaOutbox = getBean(KafkaOutbox.class);
+        this.kafkaTopicFactory = getBean(KafkaTopicFactory.class);
     }
 }

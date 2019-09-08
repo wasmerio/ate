@@ -34,7 +34,7 @@ public class DataContainerTests {
 
         MessageDataHeaderDto header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), null, MyAccount.class);
         MessageDataDto data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0,0));
+        container.add(data, new MessageMetaDto(0,0));
 
         assert container.getLastHeaderOrNull() != null;
         assert container.hasPayload() == false;
@@ -54,15 +54,15 @@ public class DataContainerTests {
 
         MessageDataHeaderDto header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version1, version0, MyAccount.class);
         MessageDataDto data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0,0));
+        container.add(data, new MessageMetaDto(0,0));
 
         header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version2, version1, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0,0));
+        container.add(data, new MessageMetaDto(0,0));
 
         header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version3, version2, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0,0));
+        container.add(data, new MessageMetaDto(0,0));
 
         LinkedList<DataGraphNode> scope = container.leaves;
         assert scope.size() == 1;
@@ -80,19 +80,19 @@ public class DataContainerTests {
 
         MessageDataHeaderDto header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version1, version0, MyAccount.class);
         MessageDataDto data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0,0));
+        container.add(data, new MessageMetaDto(0,0));
 
         header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version2, version1, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0,0));
+        container.add(data, new MessageMetaDto(0,0));
 
         header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version3a, version2,MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0,0));
+        container.add(data, new MessageMetaDto(0,0));
 
         header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version3b,version2, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0,0));
+        container.add(data, new MessageMetaDto(0,0));
 
         LinkedList<DataGraphNode> scope = container.leaves;
         assert scope.size() == 2;
@@ -112,23 +112,23 @@ public class DataContainerTests {
 
         MessageDataHeaderDto header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version1, version0, MyAccount.class);
         MessageDataDto data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0,0));
+        container.add(data, new MessageMetaDto(0,0));
 
         header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version2, version1, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0,0));
+        container.add(data, new MessageMetaDto(0,0));
 
         header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version3, version2, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0,0));
+        container.add(data, new MessageMetaDto(0,0));
 
         header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version4, version3, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0,0));
+        container.add(data, new MessageMetaDto(0,0));
 
         header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version4b, version2, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0,0));
+        container.add(data, new MessageMetaDto(0,0));
 
         LinkedList<DataGraphNode> scope = container.leaves;
         assert scope.size() == 2;
@@ -148,23 +148,23 @@ public class DataContainerTests {
 
         MessageDataHeaderDto header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version1, version0, MyAccount.class);
         MessageDataDto data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0,0));
+        container.add(data, new MessageMetaDto(0,0));
 
         header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version2, version1, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0,0));
+        container.add(data, new MessageMetaDto(0,0));
 
         header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version3, version2, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0,0));
+        container.add(data, new MessageMetaDto(0,0));
 
         header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version4, version2, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0,0));
+        container.add(data, new MessageMetaDto(0,0));
 
         header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version4b, version2, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0,0));
+        container.add(data, new MessageMetaDto(0,0));
 
         LinkedList<DataGraphNode> scope = container.leaves;
         assert scope.size() == 3;

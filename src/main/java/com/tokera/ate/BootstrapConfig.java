@@ -23,6 +23,7 @@ public class BootstrapConfig {
     private String pingCheckUrl = "login/ping";
     private String implicitAuthorityAlias = "auth";
     private boolean pingCheckOnStart = false;
+    private Integer restPortOverride = null;
 
     private String dnsServer = "8.8.8.8";
 
@@ -490,5 +491,13 @@ public class BootstrapConfig {
 
     public void setPropertiesFileToken(String propertiesFileToken) {
         this.propertiesFileToken = propertiesFileToken;
+    }
+
+    public Integer getRestPortOverride() {
+        return restPortOverride;
+    }
+
+    public void setRestPortOverride(Integer restPortOverride) {
+        this.restPortOverride = restPortOverride;
     }
 }
