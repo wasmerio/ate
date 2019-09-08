@@ -18,7 +18,7 @@ import java.io.Serializable;
 @Dependent
 @YamlTag("topicpart")
 @JsonTypeName("topicpart")
-public final class TopicAndPartition implements Serializable {
+public final class TopicAndPartition implements Serializable, Comparable<TopicAndPartition> {
     private static final long serialVersionUID = -4780665965525636535L;
 
     private String topic;
@@ -65,5 +65,13 @@ public final class TopicAndPartition implements Serializable {
                    this.topic.equals(other.topic());
         }
         return false;
+    }
+
+    @Override
+    public int compareTo(TopicAndPartition other) {
+        int diff = this.topic.compareTo(other.topic);
+        if (diff != 0) return diff;
+        diff = Integer.compare(this.partition, other.partition);
+        return diff;
     }
 }

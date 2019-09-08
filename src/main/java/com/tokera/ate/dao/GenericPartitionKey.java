@@ -17,7 +17,7 @@ import java.io.Serializable;
 @JsonTypeName("gpkey")
 @JsonSerialize(using = GenericPartitionKeyJsonSerializer.class)
 @JsonDeserialize(using = GenericPartitionKeyJsonDeserializer.class)
-public final class GenericPartitionKey implements IPartitionKey, Serializable {
+public final class GenericPartitionKey implements IPartitionKey, Serializable, Comparable<GenericPartitionKey> {
     private static final long serialVersionUID = -8032836543927736149L;
 
     private String topic;
@@ -76,5 +76,15 @@ public final class GenericPartitionKey implements IPartitionKey, Serializable {
         if (base64 != null) return base64;
         base64 = PartitionKeySerializer.serialize(this);
         return base64;
+    }
+
+    @Override
+    public int compareTo(GenericPartitionKey other) {
+        int diff = this.topic.compareTo(other.topic);
+        if (diff != 0) return diff;
+        diff = Integer.compare(this.partition, other.partition);
+        if (diff != 0) return diff;
+        diff = this.type.compareTo(other.type);
+        return diff;
     }
 }
