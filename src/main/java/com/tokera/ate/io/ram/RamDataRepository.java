@@ -24,7 +24,7 @@ public class RamDataRepository {
     }
 
     public MessageBundle write(TopicAndPartition where, MessageBase msg) {
-        long offset = offsets.computeIfAbsent(where, a -> new AtomicLong(1L)).incrementAndGet();
+        long offset = offsets.computeIfAbsent(where, a -> new AtomicLong(0L)).incrementAndGet();
         MessageBundle bundle = new MessageBundle(where.partitionIndex(), offset, msg);
         partition(where).add(bundle);
         return bundle;
