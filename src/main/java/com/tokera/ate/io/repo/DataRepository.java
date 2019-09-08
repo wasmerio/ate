@@ -3,10 +3,7 @@ package com.tokera.ate.io.repo;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.tokera.ate.common.MapTools;
-import com.tokera.ate.dao.IRoles;
-import com.tokera.ate.dao.MessageBundle;
-import com.tokera.ate.dao.PUUID;
-import com.tokera.ate.dao.TopicAndPartition;
+import com.tokera.ate.dao.*;
 import com.tokera.ate.dao.base.BaseDao;
 
 import javax.annotation.PostConstruct;
@@ -30,6 +27,8 @@ import com.tokera.ate.enumerations.DataPartitionType;
 
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.Future;
+import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -222,7 +221,10 @@ public class DataRepository implements IAteIO {
     void validateWritability(BaseDao entity) {
         EffectivePermissions perms = d.authorization.perms(entity, PermissionPhase.DynamicStaging);
         if (perms.rolesWrite.size() <= 0) {
-            throw d.authorization.buildWriteException("Failed to save this object as there are no valid write roles for this spot in the chain-of-trust or its not connected to a parent.", perms, false);
+            EffectivePermissions perms2 = d.authorization.perms(entity, PermissionPhase.DynamicStaging);
+            if (perms2.rolesWrite.size() <= 0) {
+                throw d.authorization.buildWriteException("Failed to save this object as there are no valid write roles for this spot in the chain-of-trust or its not connected to a parent.", perms, false);
+            }
         }
         if (this.immutable(entity.addressableId()) == true) {
             throw new RuntimeException("Unable to save [" + entity + "] as this object is immutable.");
@@ -487,6 +489,7 @@ public class DataRepository implements IAteIO {
     public void send(DataTransaction trans, boolean validation) {
         d.debugLogging.logFlush(trans);
 
+        Map<GenericPartitionKey, MessageSyncDto> syncs = new HashMap<>();
         for (IPartitionKey partitionKey : trans.keys().stream().collect(Collectors.toList())) {
             d.debugLogging.logFlush(trans, partitionKey);
 
@@ -530,11 +533,17 @@ public class DataRepository implements IAteIO {
                     if (d.currentToken.getWithinTokenScope()) {
                         d.transaction.add(partitionKey, bridge.startSync());
                     } else {
-                        bridge.sync();
+                        syncs.put(new GenericPartitionKey(partitionKey), bridge.startSync());
                     }
                 }
             } finally {
                 d.requestContext.popPartitionKey();
+            }
+        }
+
+        if (syncs.size() > 0) {
+            for (Map.Entry<GenericPartitionKey, MessageSyncDto> e : syncs.entrySet()) {
+                this.finishSync(e.getKey(), e.getValue());
             }
         }
     }
