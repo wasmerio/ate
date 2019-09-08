@@ -1,30 +1,19 @@
 package com.tokera.ate.io.kafka;
 
-import com.google.common.collect.HashMultimap;
-import com.google.common.collect.Multimap;
 import com.tokera.ate.KafkaServer;
 import com.tokera.ate.common.LoggerHook;
-import com.tokera.ate.common.MapTools;
-import com.tokera.ate.dao.GenericPartitionKey;
 import com.tokera.ate.dao.MessageBundle;
 import com.tokera.ate.dao.TopicAndPartition;
 import com.tokera.ate.dao.msg.MessageBase;
-import com.tokera.ate.dao.msg.MessageType;
 import com.tokera.ate.delegates.AteDelegate;
-import com.tokera.ate.dto.msg.MessageMetaDto;
-import com.tokera.ate.dto.msg.MessageSyncDto;
-import com.tokera.ate.io.api.IPartitionKey;
-import com.tokera.ate.io.repo.IDataPartitionBridge;
 import com.tokera.ate.scopes.Startup;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.TopicPartition;
-import org.bouncycastle.crypto.InvalidCipherTextException;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
-import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -41,14 +30,14 @@ public class KafkaInbox implements Runnable {
 
     private Thread thread;
     private int pollTimeout = 10;
-    private AtomicInteger isInit = new AtomicInteger(0);
+    private AtomicInteger targetInit = new AtomicInteger(0);
     private AtomicInteger initLevel = new AtomicInteger(-1);
     private AtomicBoolean isRunning = new AtomicBoolean(false);
 
     private AtomicReference<KafkaConsumer<String, MessageBase>> consumer = new AtomicReference<>();
 
     public void reload() {
-        isInit.incrementAndGet();
+        targetInit.incrementAndGet();
         if (isRunning.compareAndSet(false, true)) {
             this.thread = new Thread(this);
             this.thread.setDaemon(true);
@@ -76,8 +65,8 @@ public class KafkaInbox implements Runnable {
     }
 
     private void touchLoad() {
-        Integer curInitLevel = isInit.get();
-        Integer newInitLevel = initLevel.get();
+        Integer curInitLevel = initLevel.get();
+        Integer newInitLevel = targetInit.get();
         if (curInitLevel != newInitLevel) {
             if (initLevel.compareAndSet(curInitLevel, newInitLevel)) {
                 load();
@@ -134,7 +123,13 @@ public class KafkaInbox implements Runnable {
         final Set<TopicAndPartition> idlePartitions = c.assignment().stream()
                 .map(a -> new TopicAndPartition(a.topic(), a.partition()))
                 .collect(Collectors.toSet());
-        if (idlePartitions.size() <= 0) return;
+        if (idlePartitions.size() <= 0) {
+            try {
+                Thread.sleep(pollTimeout);
+            } catch (InterruptedException e) {
+            }
+            return;
+        }
 
         // Wait for data to arrive from Kafka
         final ConsumerRecords<String, MessageBase> consumerRecords =
