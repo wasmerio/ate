@@ -427,7 +427,7 @@ public class DataTransaction {
         }
 
         if (this.shouldSync) {
-            sync();
+            d.transaction.finish();
         }
 
         clear();
