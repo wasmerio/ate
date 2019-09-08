@@ -1,16 +1,8 @@
 package com.tokera.ate.dao;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonTypeName;
-import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
-import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.tokera.ate.annotations.YamlTag;
-import com.tokera.ate.enumerations.DataPartitionType;
 import com.tokera.ate.io.api.IPartitionKey;
-import com.tokera.ate.providers.GenericPartitionKeyJsonDeserializer;
-import com.tokera.ate.providers.GenericPartitionKeyJsonSerializer;
-import com.tokera.ate.providers.PartitionKeySerializer;
-import org.apache.kafka.common.TopicPartition;
 
 import javax.enterprise.context.Dependent;
 import java.io.Serializable;
@@ -59,10 +51,10 @@ public final class TopicAndPartition implements Serializable, Comparable<TopicAn
 
     @Override
     public boolean equals(Object val) {
-        if (val instanceof TopicPartition) {
-            TopicPartition other = (TopicPartition)val;
-            return this.partition == other.partition() &&
-                   this.topic.equals(other.topic());
+        if (val instanceof TopicAndPartition) {
+            TopicAndPartition other = (TopicAndPartition)val;
+            return this.partition == other.partition &&
+                   this.topic.equals(other.topic);
         }
         return false;
     }
