@@ -15,6 +15,7 @@ import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.repo.DataPartitionChain;
 import com.tokera.ate.io.repo.IDataPartitionBridge;
 import com.tokera.ate.io.repo.IDataTopicBridge;
+import java.util.Collections;
 import org.bouncycastle.crypto.InvalidCipherTextException;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -45,7 +46,7 @@ public class RamPartitionBridge implements IDataPartitionBridge {
     public void send(MessageBaseDto msg) {
         MessageBase flat = msg.createBaseFlatBuffer();
         MessageBundle bundle = d.ramDataRepository.write(where, flat);
-        feed(Lists.newArrayList(bundle));
+        feed(Collections.singletonList(bundle));
     }
 
     @Override

@@ -43,7 +43,7 @@ public class MoneyREST {
                 //LOG.info(d.yaml.serializeObj(assetShare));
 
                 String description = "Printing " + request.value + " coins of type [" + request.type + "]";
-                TransactionToken ret = new TransactionToken(Lists.newArrayList(new ShareToken(coin, coinShare, request.ownershipKey)), description);
+                TransactionToken ret = new TransactionToken(Collections.singletonList(new ShareToken(coin, coinShare, request.ownershipKey)), description);
                 return ret;
             });
         });

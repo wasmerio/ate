@@ -1,11 +1,11 @@
 package com.tokera.ate.test.msg;
 
 import com.google.common.base.Objects;
-import com.google.common.collect.Lists;
 import com.tokera.ate.dao.msg.MessageBase;
 import com.tokera.ate.dao.msg.MessageSecurityGate;
 import com.tokera.ate.dto.msg.MessageSecurityCastleDto;
 import com.tokera.ate.dto.msg.MessageSecurityGateDto;
+import java.util.Collections;
 import org.apache.commons.codec.binary.Base64;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -98,7 +98,7 @@ public class MessageSecurityCastleTests
 
         MessageSecurityCastleDto data = new MessageSecurityCastleDto(
                 id,
-                Lists.newArrayList(gate)
+                Collections.singletonList(gate)
         );
 
         MessageSecurityCastleDto data2 = new MessageSecurityCastleDto(data.createBaseFlatBuffer());
@@ -127,7 +127,7 @@ public class MessageSecurityCastleTests
 
         MessageSecurityCastleDto data = new MessageSecurityCastleDto(
                 id,
-                Lists.newArrayList(gate)
+                Collections.singletonList(gate)
         );
 
         ByteArrayOutputStream stream = new ByteArrayOutputStream();

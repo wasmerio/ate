@@ -5,6 +5,7 @@ import com.tokera.ate.dao.enumerations.KeyType;
 import com.tokera.ate.dto.msg.MessageKeyPartDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.client.TestTools;
+import java.util.Collections;
 import org.apache.commons.codec.binary.Base64;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -36,7 +37,7 @@ public class MessagePrivateKeyTests
 
         MessageKeyPartDto publicPart = new MessageKeyPartDto(KeyType.ntru, 128, Base64.encodeBase64URLSafeString(bytes3));
         MessageKeyPartDto privatePart = new MessageKeyPartDto(KeyType.ntru, 128, Base64.encodeBase64URLSafeString(bytes5));
-        MessagePrivateKeyDto data = new MessagePrivateKeyDto(Lists.newArrayList(publicPart), Lists.newArrayList(privatePart));
+        MessagePrivateKeyDto data = new MessagePrivateKeyDto(Collections.singletonList(publicPart), Lists.newArrayList(privatePart));
         data.setAlias("THEALIAS");
         data.setPublicKeyHash(Base64.encodeBase64URLSafeString(bytes2));
         data.setPrivateKeyHash(Base64.encodeBase64URLSafeString(bytes4));
@@ -85,7 +86,7 @@ public class MessagePrivateKeyTests
 
         MessageKeyPartDto publicPart = new MessageKeyPartDto(KeyType.ntru, 128, Base64.encodeBase64URLSafeString(bytes3));
         MessageKeyPartDto privatePart = new MessageKeyPartDto(KeyType.ntru, 128, Base64.encodeBase64URLSafeString(bytes5));
-        MessagePrivateKeyDto data = new MessagePrivateKeyDto(Lists.newArrayList(publicPart), Lists.newArrayList(privatePart));
+        MessagePrivateKeyDto data = new MessagePrivateKeyDto(Collections.singletonList(publicPart), Lists.newArrayList(privatePart));
         data.setAlias("THEALIAS");
         data.setPublicKeyHash(Base64.encodeBase64URLSafeString(bytes2));
         data.setPrivateKeyHash(Base64.encodeBase64URLSafeString(bytes4));

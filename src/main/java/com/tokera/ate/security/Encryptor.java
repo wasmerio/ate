@@ -1526,11 +1526,11 @@ public class Encryptor implements Runnable
     }
 
     public @Hash String hashShaAndEncode(@Salt String seed, Iterable<@PlainText String> datas) {
-        return hashShaAndEncode(Iterables.concat(Lists.newArrayList(seed), datas));
+        return hashShaAndEncode(Iterables.concat(Collections.singletonList(seed), datas));
     }
 
     public @Hash String hashShaAndEncode(@Salt String seed, Iterable<@PlainText String> datas1, Iterable<@PlainText String> datas2) {
-        return hashShaAndEncode(Iterables.concat(Lists.newArrayList(seed), Iterables.concat(datas1, datas2)));
+        return hashShaAndEncode(Iterables.concat(Collections.singletonList(seed), Iterables.concat(datas1, datas2)));
     }
 
     @SuppressWarnings("known.nonnull")

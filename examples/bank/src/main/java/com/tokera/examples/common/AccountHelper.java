@@ -24,7 +24,7 @@ public class AccountHelper {
         LinkedList<CoinShare> shares = new LinkedList<>();
         List<Coin> coins = d.io.read(acc.coins, Coin.class);
         for (Coin coin : coins) {
-            List<CoinShare> coinShares = coinHelper.findOwnedShares(Lists.newArrayList(coin));
+            List<CoinShare> coinShares = coinHelper.findOwnedShares(Collections.singletonList(coin));
             if (coinShares.size() < 0) {
                 // We have no more shares of this coin so forget about it
                 acc.coins.remove(coin.addressableId());

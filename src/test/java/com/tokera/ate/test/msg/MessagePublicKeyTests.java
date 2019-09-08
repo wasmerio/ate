@@ -7,6 +7,7 @@ import com.tokera.ate.dao.msg.MessagePublicKey;
 import com.tokera.ate.dto.msg.MessageKeyPartDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import com.tokera.ate.client.TestTools;
+import java.util.Collections;
 import org.apache.commons.codec.binary.Base64;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
@@ -35,7 +36,7 @@ public class MessagePublicKeyTests
         random.nextBytes(bytes4);
 
         MessageKeyPartDto publicPart = new MessageKeyPartDto(KeyType.ntru, 128, Base64.encodeBase64URLSafeString(bytes3));
-        MessagePublicKeyDto data = new MessagePublicKeyDto(Lists.newArrayList(publicPart));
+        MessagePublicKeyDto data = new MessagePublicKeyDto(Collections.singletonList(publicPart));
         data.setAlias("THEALIAS");
         data.setPublicKeyHash(Base64.encodeBase64URLSafeString(bytes2));
         
