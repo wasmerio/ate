@@ -20,31 +20,5 @@ import java.util.UUID;
  */
 public interface IDataTopicBridge {
 
-    void send(IPartitionKey key, MessageBaseDto msg);
-
-    void waitTillLoaded(IPartitionKey key);
-
-    IDataPartitionBridge addKey(IPartitionKey key);
-
-    boolean removeKey(IPartitionKey key);
-
-    Set<IPartitionKey> keys();
-
-    boolean sync(IPartitionKey key);
-
-    MessageSyncDto startSync(IPartitionKey key);
-
-    MessageSyncDto startSync(IPartitionKey key, MessageSyncDto sync);
-
-    boolean finishSync(IPartitionKey key, MessageSyncDto sync);
-
-    boolean finishSync(IPartitionKey key, MessageSyncDto sync, int timeout);
-
-    boolean hasFinishSync(IPartitionKey key, MessageSyncDto sync);
-
-    @Nullable MessageDataDto getVersion(PUUID id, MessageMetaDto meta);
-
-    void feed(Iterable<MessageBundle> msgs);
-
-    void feedIdle(Iterable<Integer> partitions);
+    IDataPartitionBridge createPartition(IPartitionKey key);
 }

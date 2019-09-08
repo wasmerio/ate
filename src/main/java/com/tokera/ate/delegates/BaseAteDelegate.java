@@ -19,6 +19,7 @@ import com.tokera.ate.io.kafka.*;
 import com.tokera.ate.io.layers.HeadIO;
 import com.tokera.ate.io.merge.DataMerger;
 import com.tokera.ate.io.ram.RamBridgeBuilder;
+import com.tokera.ate.io.ram.RamDataRepository;
 import com.tokera.ate.io.repo.*;
 import com.tokera.ate.io.task.HookManager;
 import com.tokera.ate.io.task.TaskManager;
@@ -103,6 +104,7 @@ public abstract class BaseAteDelegate {
     public final KafkaInbox kafkaInbox;
     public final KafkaOutbox kafkaOutbox;
     public final KafkaTopicFactory kafkaTopicFactory;
+    public final RamDataRepository ramDataRepository;
 
     public ZooServer zooKeeper;
     public KafkaServer kafka;
@@ -202,5 +204,6 @@ public abstract class BaseAteDelegate {
         this.kafkaInbox = getBean(KafkaInbox.class);
         this.kafkaOutbox = getBean(KafkaOutbox.class);
         this.kafkaTopicFactory = getBean(KafkaTopicFactory.class);
+        this.ramDataRepository = getBean(RamDataRepository.class);
     }
 }

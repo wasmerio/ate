@@ -1,6 +1,7 @@
 package com.tokera.ate.io.repo;
 
 import com.tokera.ate.common.LoggerHook;
+import com.tokera.ate.dao.MessageBundle;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.extensions.DaoParentDiscoveryExtension;
 import com.tokera.ate.dto.msg.MessageBaseDto;
@@ -61,5 +62,14 @@ public class DataPartition {
         //      instead of doing this. Further it doesnt work across multiple TokAPI instances anyway so its value
         //      was limited from the beginning and created false confidence
         //chain.addTrust(msg, null, LOG);
+    }
+
+    public void feed(Iterable<MessageBundle> msgs)
+    {
+        bridge.feed(msgs);
+    }
+
+    public void idle() {
+        bridge.idle();
     }
 }

@@ -1,5 +1,6 @@
 package com.tokera.ate.io.repo;
 
+import com.tokera.ate.dao.MessageBundle;
 import com.tokera.ate.dao.msg.MessageSync;
 import com.tokera.ate.dto.msg.MessageBaseDto;
 import com.tokera.ate.dto.msg.MessageDataDto;
@@ -38,4 +39,8 @@ public interface IDataPartitionBridge {
     IPartitionKey partitionKey();
 
     DataPartitionChain chain();
+
+    void feed(Iterable<MessageBundle> msgs);
+
+    void idle();
 }

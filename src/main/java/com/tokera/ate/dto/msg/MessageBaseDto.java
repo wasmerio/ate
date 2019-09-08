@@ -3,6 +3,7 @@ package com.tokera.ate.dto.msg;
 import com.google.flatbuffers.FlatBufferBuilder;
 import com.tokera.ate.dao.msg.MessageBase;
 import com.tokera.ate.dao.msg.MessageType;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.ws.rs.WebApplicationException;
 import java.io.Serializable;
@@ -15,6 +16,24 @@ public abstract class MessageBaseDto implements Serializable
     private static final long serialVersionUID = -5384759189505057786L;
 
     public abstract int flatBuffer(FlatBufferBuilder fbb);
+
+    public static @Nullable MessageBaseDto from(MessageBase raw) {
+        MessageBaseDto msg;
+        switch (raw.msgType()) {
+            case MessageType.MessageData:
+                msg = new MessageDataDto(raw);
+                break;
+            case MessageType.MessageSecurityCastle:
+                msg = new MessageSecurityCastleDto(raw);
+                break;
+            case MessageType.MessagePublicKey:
+                msg = new MessagePublicKeyDto(raw);
+                break;
+            default:
+                return null;
+        }
+        return msg;
+    }
     
     public MessageBase createBaseFlatBuffer()
     {

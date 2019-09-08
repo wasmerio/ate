@@ -6,6 +6,7 @@ import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.IRoles;
 import com.tokera.ate.dao.MessageBundle;
 import com.tokera.ate.dao.PUUID;
+import com.tokera.ate.dao.TopicAndPartition;
 import com.tokera.ate.dao.base.BaseDao;
 
 import javax.annotation.PostConstruct;
@@ -554,15 +555,15 @@ public class DataRepository implements IAteIO {
         return data;
     }
 
-    public Set<IPartitionKey> keys() {
+    public Set<TopicAndPartition> keys() {
         return subscriber.keys();
     }
 
-    public void feed(String topic, Iterable<MessageBundle> msgs) {
-        subscriber.feed(topic, msgs);
+    public void feed(TopicAndPartition where, Iterable<MessageBundle> msgs) {
+        subscriber.feed(where, msgs);
     }
 
-    public void feedIdle(String topic, Iterable<Integer> partitions) {
-        subscriber.feedIdle(topic, partitions);
+    public void feedIdle(TopicAndPartition where) {
+        subscriber.feedIdle(where);
     }
 }

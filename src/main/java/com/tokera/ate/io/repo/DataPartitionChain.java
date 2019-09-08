@@ -101,23 +101,11 @@ public class DataPartitionChain {
     }
     
     public boolean rcv(MessageBase raw, MessageMetaDto meta,  boolean invokeCallbacks, @Nullable LoggerHook LOG) throws IOException, InvalidCipherTextException {
-        
-        MessageBaseDto msg;
-        switch (raw.msgType()) {
-            case MessageType.MessageData:
-                msg = new MessageDataDto(raw);
-                break;
-            case MessageType.MessageSecurityCastle:
-                msg = new MessageSecurityCastleDto(raw);
-                break;
-            case MessageType.MessagePublicKey:
-                msg = new MessagePublicKeyDto(raw);
-                break;
-            default:
-                drop(LOG, null, null, "unhandled message type");
-                return false;
+        MessageBaseDto msg = MessageBaseDto.from(raw);
+        if (msg == null) {
+            drop(LOG, null, null, "unhandled message type");
+            return false;
         }
-        
         return rcv(msg, meta, invokeCallbacks, LOG);
     }
     

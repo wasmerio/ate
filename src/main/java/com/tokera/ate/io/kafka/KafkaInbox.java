@@ -86,7 +86,7 @@ public class KafkaInbox implements Runnable {
     }
 
     private void load() {
-        Set<IPartitionKey> keys = d.dataRepository.keys();
+        Set<TopicAndPartition> keys = d.dataRepository.keys();
         List<TopicPartition> partitions = keys.stream()
                 .map(k -> new TopicPartition(k.partitionTopic(), k.partitionIndex()))
                 .collect(Collectors.toList());
@@ -134,29 +134,24 @@ public class KafkaInbox implements Runnable {
         {
             // Build a list of all the topics and partitions we are interested in
             final KafkaConsumer<String, MessageBase> c = get();
-            final Map<String, ArrayList<Integer>> idleTopics = new HashMap<>();
-            c.assignment().stream()
+            final Set<TopicAndPartition> idlePartitions = c.assignment().stream()
                     .map(a -> new TopicAndPartition(a.topic(), a.partition()))
-                    .forEach(a -> {
-                        idleTopics.computeIfAbsent(a.partitionTopic(), k -> new ArrayList<>())
-                                .add(a.partitionIndex());
-                    });
+                    .collect(Collectors.toSet());
 
             // Wait for data to arrive from Kafka
             final ConsumerRecords<String, MessageBase> consumerRecords =
                     c.poll(pollTimeout);
 
             // Group all the messages into topics
-            final Map<String, ArrayList<MessageBundle>> msgs = new HashMap<>();
+            final Map<TopicAndPartition, ArrayList<MessageBundle>> msgs = new HashMap<>();
             for (ConsumerRecord<String, MessageBase> record : consumerRecords)
             {
                 // If we have a record for the topic and partition then its obviously not idle anymore
-                idleTopics.computeIfPresent(record.topic(), (a, b) -> {
-                    b.remove(record.partition());
-                    return b.size() > 0 ? b : null;
-                });
+                TopicAndPartition key = new TopicAndPartition(record.topic(), record.partition());
+                idlePartitions.remove(key);
 
-                msgs.computeIfAbsent(record.topic(), k -> new ArrayList<>())
+                // Add it to the bundle
+                msgs.computeIfAbsent(key, k -> new ArrayList<>())
                     .add(new MessageBundle(record.partition(), record.offset(), record.value()));
             }
 
@@ -167,10 +162,9 @@ public class KafkaInbox implements Runnable {
 
             // Finally we let any topics that didnt receive anything that they are now idle and thus can consider
             // themselves at this exact point in time to be as update-to-date as possible
-            idleTopics.entrySet()
+            idlePartitions
                 .parallelStream()
-                .filter(a -> a.getValue().size() > 0)
-                .forEach(e -> d.dataRepository.feedIdle(e.getKey(), e.getValue()));
+                .forEach(a -> d.dataRepository.feedIdle(a));
         }
     }
 }
