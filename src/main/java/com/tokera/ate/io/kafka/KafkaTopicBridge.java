@@ -99,7 +99,7 @@ public class KafkaTopicBridge implements IDataTopicBridge {
     }
 
     public boolean finishSync(IPartitionKey key, MessageSyncDto sync) {
-        return finishSync(key, sync, 60);
+        return finishSync(key, sync, 60000);
     }
 
     public boolean finishSync(IPartitionKey key, MessageSyncDto sync, int timeout) {
