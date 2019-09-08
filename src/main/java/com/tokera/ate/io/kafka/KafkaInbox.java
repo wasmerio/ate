@@ -25,10 +25,7 @@ import org.bouncycastle.crypto.InvalidCipherTextException;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -130,57 +127,50 @@ public class KafkaInbox implements Runnable {
         }
     }
 
-    private int poll()
+    private void poll()
     {
         // Process all the records using this polling timeout
-        int foundRecords = 0;
-        int emptyCount = 0;
         while (true)
         {
-            KafkaConsumer<String, MessageBase> c = get();
-            Multimap<String, Integer> idleTopics = HashMultimap.create();
+            // Build a list of all the topics and partitions we are interested in
+            final KafkaConsumer<String, MessageBase> c = get();
+            final Map<String, ArrayList<Integer>> idleTopics = new HashMap<>();
             c.assignment().stream()
-                .map(a -> new TopicAndPartition(a.topic(), a.partition()))
-                .forEach(a -> {
-                    idleTopics.put(a.partitionTopic(), (Integer)a.partitionIndex());
-                });
+                    .map(a -> new TopicAndPartition(a.topic(), a.partition()))
+                    .forEach(a -> {
+                        idleTopics.computeIfAbsent(a.partitionTopic(), k -> new ArrayList<>())
+                                .add(a.partitionIndex());
+                    });
 
+            // Wait for data to arrive from Kafka
             final ConsumerRecords<String, MessageBase> consumerRecords =
                     c.poll(pollTimeout);
 
-            if (consumerRecords.isEmpty() == true) {
-                emptyCount++;
-                if (emptyCount > 10) {
-                    break;
-                }
-            } else {
-                foundRecords += consumerRecords.count();
-                emptyCount = 0;
+            // Group all the messages into topics
+            final Map<String, ArrayList<MessageBundle>> msgs = new HashMap<>();
+            for (ConsumerRecord<String, MessageBase> record : consumerRecords)
+            {
+                // If we have a record for the topic and partition then its obviously not idle anymore
+                idleTopics.computeIfPresent(record.topic(), (a, b) -> {
+                    b.remove(record.partition());
+                    return b.size() > 0 ? b : null;
+                });
+
+                msgs.computeIfAbsent(record.topic(), k -> new ArrayList<>())
+                    .add(new MessageBundle(record.partition(), record.offset(), record.value()));
             }
 
-            String curTopic = null;
-            ArrayList<MessageBundle> msgs = new ArrayList<>();
+            // Now in a parallel engine that increases throughput we stream all the data into the repositories
+            msgs.entrySet()
+                .parallelStream()
+                .forEach(e -> d.dataRepository.feed(e.getKey(), e.getValue()));
 
-            for (ConsumerRecord<String, MessageBase> record : consumerRecords) {
-                idleTopics.remove(record.topic(), (Integer)record.partition());
-
-                if (curTopic != null && curTopic.equals(record.topic()) == false) {
-                    d.dataRepository.feed(curTopic, msgs);
-                    msgs.clear();
-                }
-
-                curTopic = record.topic();
-                msgs.add(new MessageBundle(record.partition(), record.offset(), record.value()));
-            }
-            if (curTopic != null) {
-                d.dataRepository.feed(curTopic, msgs);
-            }
-
-            for (String topic : idleTopics.keySet()) {
-                d.dataRepository.feedIdle(topic, idleTopics.get(topic));
-            }
+            // Finally we let any topics that didnt receive anything that they are now idle and thus can consider
+            // themselves at this exact point in time to be as update-to-date as possible
+            idleTopics.entrySet()
+                .parallelStream()
+                .filter(a -> a.getValue().size() > 0)
+                .forEach(e -> d.dataRepository.feedIdle(e.getKey(), e.getValue()));
         }
-
-        return foundRecords;
     }
 }
