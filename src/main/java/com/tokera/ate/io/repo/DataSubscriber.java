@@ -49,6 +49,9 @@ public class DataSubscriber {
         this.bridges = new ConcurrentHashMap<>();
         this.partitions = CacheBuilder.newBuilder()
                 .maximumSize(d.bootstrapConfig.getSubscriberMaxPartitions())
+                .removalListener(p -> {
+                    LOG.info("partition [" + p.getKey() + "]: unsubscribed");
+                })
                 .expireAfterAccess(d.bootstrapConfig.getSubscriberPartitionTimeout(), TimeUnit.MILLISECONDS)
                 .build();
     }
@@ -119,7 +122,9 @@ public class DataSubscriber {
                 {
                     d.debugLogging.logLoadingPartition(key);
                     d.encryptor.touch(); // required as the kafka partition needs an instance reference
-                    return createPartition(key);
+                    DataPartition p = createPartition(key);
+                    LOG.info("partition [" + p.partitionKey() + "]: subscribed");
+                    return p;
                 });
         } catch (ExecutionException ex) {
             throw new RuntimeException(ex);

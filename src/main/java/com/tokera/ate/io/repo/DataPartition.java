@@ -18,12 +18,10 @@ public class DataPartition {
     private final IPartitionKey key;
     private final DataPartitionChain chain;
     private final IDataPartitionBridge bridge;
-    private final DaoParentDiscoveryExtension parentDiscovery;
     
-    public DataPartition(IPartitionKey key, IDataPartitionBridge bridge, DaoParentDiscoveryExtension parentDiscovery)
+    public DataPartition(IPartitionKey key, IDataPartitionBridge bridge)
     {
         this.key = key;
-        this.parentDiscovery = parentDiscovery;
         this.chain = bridge.chain();
         this.bridge = bridge;
     }

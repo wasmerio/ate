@@ -64,7 +64,7 @@ public class BootstrapConfig {
     private String zookeeperDataDirOverride = null;
 
     private int subscriberPartitionTimeout = 60000;
-    private int subscriberMaxPartitions = 500;
+    private int subscriberMaxPartitions = 5000;
 
     private ConcurrentHashMap<String, Properties> propertiesCache = new ConcurrentHashMap<>();
 

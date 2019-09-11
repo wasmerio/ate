@@ -27,6 +27,7 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
     public final IPartitionKey key;
     public final DataPartitionChain chain;
     private volatile boolean isLoaded = false;
+    private volatile boolean isLoading = false;
 
     public KafkaPartitionBridge(KafkaTopicBridge bridge, IPartitionKey key, DataPartitionChain chain) {
         this.bridge = bridge;
@@ -89,6 +90,7 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
                 break;
             }
             case WasCreated: {
+                AteDelegate.get().genericLogger.info("partition [" + this.key + "]: loaded-created");
                 isLoaded = true;
                 break;
             }
@@ -169,10 +171,18 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
                 bridge.LOG.warn(ex);
             }
         }
+
+        // Set the loading flag
+        if (isLoading == false) {
+            isLoading = true;
+        }
     }
 
     @Override
     public void idle() {
-        isLoaded = true;
+        if (isLoaded == false && isLoading) {
+            isLoaded = true;
+            AteDelegate.get().genericLogger.info("partition [" + this.key + "]: loaded");
+        }
     }
 }
