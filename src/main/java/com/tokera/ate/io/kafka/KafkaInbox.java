@@ -40,29 +40,27 @@ public class KafkaInbox implements Runnable {
     private AtomicReference<KafkaConsumer<String, MessageBase>> consumer = new AtomicReference<>();
 
     public void addPartition(TopicAndPartition partition) {
-        synchronized (this) {
-            if (partitions.add(partition)) {
-                reload();
-            }
-
-            try {
-                this.wait(20000);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
+        if (partitions.add(partition)) {
+            synchronized (this) {
+                try {
+                    reload();
+                    this.wait(20000);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
             }
         }
     }
 
     public void removePartition(TopicAndPartition partition) {
-        synchronized (this) {
-            if (partitions.remove(partition)) {
-                reload();
-            }
-
-            try {
-                this.wait(20000);
-            } catch (InterruptedException e) {
-                throw new RuntimeException(e);
+        if (partitions.remove(partition)) {
+            synchronized (this) {
+                try {
+                    reload();
+                    this.wait(20000);
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
             }
         }
     }
@@ -168,44 +166,41 @@ public class KafkaInbox implements Runnable {
 
     private void poll()
     {
-        synchronized (this)
-        {
-            // Build a list of all the topics and partitions we are interested in
-            final KafkaConsumer<String, MessageBase> c = get();
-            final Set<TopicAndPartition> idlePartitions = c.assignment().stream()
-                    .map(a -> new TopicAndPartition(a.topic(), a.partition()))
-                    .collect(Collectors.toSet());
-            if (idlePartitions.size() <= 0) {
-                try {
-                    Thread.sleep(pollTimeout);
-                } catch (InterruptedException e) {
-                }
-                return;
+        // Build a list of all the topics and partitions we are interested in
+        final KafkaConsumer<String, MessageBase> c = get();
+        final Set<TopicAndPartition> idlePartitions = c.assignment().stream()
+                .map(a -> new TopicAndPartition(a.topic(), a.partition()))
+                .collect(Collectors.toSet());
+        if (idlePartitions.size() <= 0) {
+            try {
+                Thread.sleep(pollTimeout);
+            } catch (InterruptedException e) {
             }
-
-            // Wait for data to arrive from Kafka
-            final ConsumerRecords<String, MessageBase> consumerRecords =
-                    c.poll(pollTimeout);
-
-            // Group all the messages into topics
-            final Map<TopicAndPartition, ArrayList<MessageBundle>> msgs = new HashMap<>();
-            for (ConsumerRecord<String, MessageBase> record : consumerRecords)
-            {
-                // If we have a record for the topic and partition then its obviously not idle anymore
-                TopicAndPartition key = new TopicAndPartition(record.topic(), record.partition());
-                idlePartitions.remove(key);
-
-                // Add it to the bundle
-                msgs.computeIfAbsent(key, k -> new ArrayList<>())
-                    .add(new MessageBundle(record.partition(), record.offset(), record.value()));
-            }
-
-            DataSubscriber subscriber = AteDelegate.get().storageFactory.get().backend();
-
-            // Now in a parallel engine that increases throughput we stream all the data into the repositories
-            msgs.entrySet()
-                .parallelStream()
-                .forEach(e -> subscriber.feed(e.getKey(), e.getValue()));
+            return;
         }
+
+        // Wait for data to arrive from Kafka
+        final ConsumerRecords<String, MessageBase> consumerRecords =
+                c.poll(pollTimeout);
+
+        // Group all the messages into topics
+        final Map<TopicAndPartition, ArrayList<MessageBundle>> msgs = new HashMap<>();
+        for (ConsumerRecord<String, MessageBase> record : consumerRecords)
+        {
+            // If we have a record for the topic and partition then its obviously not idle anymore
+            TopicAndPartition key = new TopicAndPartition(record.topic(), record.partition());
+            idlePartitions.remove(key);
+
+            // Add it to the bundle
+            msgs.computeIfAbsent(key, k -> new ArrayList<>())
+                .add(new MessageBundle(record.partition(), record.offset(), record.value()));
+        }
+
+        DataSubscriber subscriber = AteDelegate.get().storageFactory.get().backend();
+
+        // Now in a parallel engine that increases throughput we stream all the data into the repositories
+        msgs.entrySet()
+            .parallelStream()
+            .forEach(e -> subscriber.feed(e.getKey(), e.getValue()));
     }
 }
