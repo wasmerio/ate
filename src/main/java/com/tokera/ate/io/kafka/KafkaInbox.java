@@ -58,7 +58,7 @@ public class KafkaInbox implements Runnable {
             if (partitions.remove(partition)) {
                 reload();
             }
-            
+
             try {
                 this.wait(20000);
             } catch (InterruptedException e) {
@@ -107,35 +107,40 @@ public class KafkaInbox implements Runnable {
 
     private void load()
     {
-        // Build a list of all the partitions that need to be assigned to
-        Set<TopicAndPartition> keys = partitions.stream().collect(Collectors.toSet());
-        Set<TopicPartition> kafkaPartitions = keys.stream()
-                .map(k -> new TopicPartition(k.partitionTopic(), k.partitionIndex()))
-                .collect(Collectors.toSet());
+        synchronized (this) {
+            // Build a list of all the partitions that need to be assigned to
+            Set<TopicAndPartition> keys = partitions.stream().collect(Collectors.toSet());
+            Set<TopicPartition> kafkaPartitions = keys.stream()
+                    .map(k -> new TopicPartition(k.partitionTopic(), k.partitionIndex()))
+                    .collect(Collectors.toSet());
 
-        // Get the list of the stuff already assigned
-        KafkaConsumer<String, MessageBase> c = get();
-        Set<TopicAndPartition> existing = c.assignment().stream()
-                .map(a -> new TopicAndPartition(a.topic(), a.partition()))
-                .collect(Collectors.toSet());
+            // Get the list of the stuff already assigned
+            KafkaConsumer<String, MessageBase> c = get();
+            Set<TopicAndPartition> existing = c.assignment().stream()
+                    .map(a -> new TopicAndPartition(a.topic(), a.partition()))
+                    .collect(Collectors.toSet());
 
-        // Check for fast exit
-        if (existing.size() == keys.size() &&
-            existing.stream().filter(a -> keys.contains(a)).count() == keys.size()) {
-            return;
-        }
+            // Check for fast exit
+            if (existing.size() == keys.size() &&
+                    existing.stream().filter(a -> keys.contains(a)).count() == keys.size()) {
+                return;
+            }
 
-        // Update the consumer
-        c.assign(kafkaPartitions);
+            // Update the consumer
+            c.assign(kafkaPartitions);
 
-        // Determine what partitions need to be reset and put them back to offset zero
-        List<TopicPartition> restart = new ArrayList<>();
-        for (TopicAndPartition p : keys) {
-            if (existing.contains(p)) continue;
-            restart.add(new TopicPartition(p.partitionTopic(), p.partitionIndex()));
-        }
-        if (restart.size() > 0) {
-            c.seekToBeginning(restart);
+            // Determine what partitions need to be reset and put them back to offset zero
+            List<TopicPartition> restart = new ArrayList<>();
+            for (TopicAndPartition p : keys) {
+                if (existing.contains(p)) continue;
+                restart.add(new TopicPartition(p.partitionTopic(), p.partitionIndex()));
+            }
+            if (restart.size() > 0) {
+                c.seekToBeginning(restart);
+            }
+
+            // Trigger anyone thats waiting
+            this.notifyAll();
         }
     }
 
@@ -201,9 +206,6 @@ public class KafkaInbox implements Runnable {
             msgs.entrySet()
                 .parallelStream()
                 .forEach(e -> subscriber.feed(e.getKey(), e.getValue()));
-
-            // Trigger anyone thats waiting
-            this.notifyAll();
         }
     }
 }
