@@ -21,34 +21,35 @@ public class KafkaSync {
     private final Random rand = new Random();
     private ConcurrentHashMap<MessageSyncDto, Object> syncs = new ConcurrentHashMap<>();
 
-    public MessageSyncDto startSync(IPartitionKey key) {
+    public MessageSyncDto startSync() {
         MessageSyncDto sync = new MessageSyncDto(
                 rand.nextLong(),
                 rand.nextLong());
-        startSync(key, sync, new Object());
+        startSync(sync, new Object());
         return sync;
     }
 
-    public MessageSyncDto startSync(IPartitionKey key, MessageSyncDto sync) {
+    public MessageSyncDto startSync(MessageSyncDto sync) {
         sync = new MessageSyncDto(sync);
-        startSync(key, sync, new Object());
+        startSync( sync, new Object());
         return sync;
     }
 
-    private void startSync(IPartitionKey key, MessageSyncDto sync, Object waitOn) {
+    private void startSync(MessageSyncDto sync, Object waitOn) {
         syncs.put(sync, waitOn);
         d.debugLogging.logSyncStart(sync);
     }
 
-    public boolean hasFinishSync(IPartitionKey key, MessageSyncDto sync) {
+    public boolean hasFinishSync(MessageSyncDto sync) {
+        if (sync == null) return true;
         return syncs.containsKey(sync) == false;
     }
 
-    public boolean finishSync(IPartitionKey key, MessageSyncDto sync) {
-        return finishSync(key, sync, 60000);
+    public boolean finishSync(MessageSyncDto sync) {
+        return finishSync(sync, 60000);
     }
 
-    public boolean finishSync(IPartitionKey key, MessageSyncDto sync, int timeout) {
+    public boolean finishSync(MessageSyncDto sync, int timeout) {
         Object wait = MapTools.getOrNull(this.syncs, sync);
         if (wait == null) return true;
 
@@ -59,7 +60,7 @@ public class KafkaSync {
 
             try {
                 wait.wait(timeout);
-                return hasFinishSync(key, sync);
+                return hasFinishSync(sync);
             } catch (InterruptedException e) {
                 return false;
             } finally {
@@ -68,11 +69,11 @@ public class KafkaSync {
         }
     }
 
-    public boolean sync(IPartitionKey key) {
-        return sync(key, 60000);
+    public boolean sync() {
+        return sync(60000);
     }
 
-    public boolean sync(IPartitionKey key, int timeout) {
+    public boolean sync(int timeout) {
 
         Object wait = new Object();
         synchronized (wait)
@@ -80,12 +81,12 @@ public class KafkaSync {
             MessageSyncDto sync = new MessageSyncDto(
                     rand.nextLong(),
                     rand.nextLong());
-            startSync(key, sync, wait);
+            startSync(sync, wait);
 
             try {
                 wait.wait(timeout);
                 d.debugLogging.logSyncWake(sync);
-                return hasFinishSync(key, sync);
+                return hasFinishSync(sync);
             } catch (InterruptedException e) {
                 return false;
             } finally {

@@ -89,7 +89,7 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
     }
 
     public void sendLoadSync() {
-        MessageSyncDto sync = d.kafkaSync.startSync(this.key);
+        MessageSyncDto sync = d.kafkaSync.startSync();
         this.send(sync);
         this.loadSync = sync;
     }
@@ -103,7 +103,7 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
         if (loadSync != null) {
             StopWatch waitTime = new StopWatch();
             waitTime.start();
-            while (d.kafkaSync.hasFinishSync(this.key, this.loadSync) == false) {
+            while (d.kafkaSync.hasFinishSync(this.loadSync) == false) {
                 if (waitTime.getTime() > 5000L) {
                     if (sentSync == false) {
                         sendLoadSync();
@@ -156,36 +156,36 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
 
     @Override
     public boolean sync() {
-        return d.kafkaSync.sync(key);
+        return d.kafkaSync.sync();
     }
 
     @Override
     public MessageSyncDto startSync(MessageSyncDto sync) {
-        d.kafkaSync.startSync(key, sync);
+        d.kafkaSync.startSync(sync);
         this.send(sync);
         return sync;
     }
 
     @Override
     public MessageSyncDto startSync() {
-        MessageSyncDto sync =  d.kafkaSync.startSync(key);
+        MessageSyncDto sync =  d.kafkaSync.startSync();
         this.send(sync);
         return sync;
     }
 
     @Override
     public boolean finishSync(MessageSyncDto sync) {
-        return d.kafkaSync.finishSync(key, sync);
+        return d.kafkaSync.finishSync(sync);
     }
 
     @Override
     public boolean finishSync(MessageSyncDto sync, int timeout) {
-        return d.kafkaSync.finishSync(key, sync, timeout);
+        return d.kafkaSync.finishSync(sync, timeout);
     }
 
     @Override
     public boolean hasFinishSync(MessageSyncDto sync) {
-        return d.kafkaSync.hasFinishSync(key, sync);
+        return d.kafkaSync.hasFinishSync(sync);
     }
 
     @Override
