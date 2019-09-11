@@ -40,11 +40,11 @@ public class KafkaInbox implements Runnable {
     private AtomicReference<KafkaConsumer<String, MessageBase>> consumer = new AtomicReference<>();
 
     public void addPartition(TopicAndPartition partition) {
-        if (partitions.add(partition)) {
-            reload();
-        }
-
         synchronized (this) {
+            if (partitions.add(partition)) {
+                reload();
+            }
+
             try {
                 this.wait(20000);
             } catch (InterruptedException e) {
@@ -54,11 +54,11 @@ public class KafkaInbox implements Runnable {
     }
 
     public void removePartition(TopicAndPartition partition) {
-        if (partitions.remove(partition)) {
-            reload();
-        }
-
         synchronized (this) {
+            if (partitions.remove(partition)) {
+                reload();
+            }
+            
             try {
                 this.wait(20000);
             } catch (InterruptedException e) {

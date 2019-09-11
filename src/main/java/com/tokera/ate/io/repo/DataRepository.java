@@ -54,11 +54,6 @@ public class DataRepository implements IAteIO {
         this.LOG.setLogClazz(DataRepository.class);
     }
 
-    private static Cache<String, BaseDao> decryptCache = CacheBuilder.newBuilder()
-            .maximumSize(10000)
-            .expireAfterWrite(10, TimeUnit.MINUTES)
-            .build();
-
     @Override
     public void warm(IPartitionKey partitionKey) {
         this.subscriber.getPartition(partitionKey, false);
