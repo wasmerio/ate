@@ -1,25 +1,32 @@
 package com.tokera.ate.io.ram;
 
-import com.tokera.ate.enumerations.DataPartitionType;
+import com.tokera.ate.dao.GenericPartitionKey;
+import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.io.api.IPartitionKey;
-import com.tokera.ate.io.repo.IDataTopicBridge;
+import com.tokera.ate.io.kafka.KafkaTopicFactory;
+import com.tokera.ate.io.repo.DataPartitionChain;
+import com.tokera.ate.io.repo.IDataPartitionBridge;
 
 import javax.enterprise.context.ApplicationScoped;
-import java.util.concurrent.ConcurrentHashMap;
+import javax.ws.rs.WebApplicationException;
 
 @ApplicationScoped
 public class RamBridgeBuilder {
-    private final ConcurrentHashMap<String, RamTopicBridge> ramTopics;
+    private final AteDelegate d = AteDelegate.get();
 
-    public RamBridgeBuilder() {
-        this.ramTopics = new ConcurrentHashMap<>();
+    public IDataPartitionBridge createPartition(IPartitionKey key) {
+        if (key.partitionIndex() >= KafkaTopicFactory.maxPartitionsPerTopic) {
+            throw new WebApplicationException("Partition index can not exceed the maximum of " + KafkaTopicFactory.maxPartitionsPerTopic + " per topic.");
+        }
+
+        GenericPartitionKey wrapKey = new GenericPartitionKey(key);
+        DataPartitionChain chain = new DataPartitionChain(key);
+        RamPartitionBridge ret = new RamPartitionBridge(chain, key.partitionType());
+
+        ret.feed(d.ramDataRepository.read(wrapKey));
+        return ret;
     }
 
-    public IDataTopicBridge build(String topic, DataPartitionType type) {
-        return new RamTopicBridge(topic, type);
-    }
-
-    public void destroyAll() {
-        this.ramTopics.clear();
+    public void removePartition(IPartitionKey key) {
     }
 }

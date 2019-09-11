@@ -3,12 +3,19 @@ package com.tokera.ate.io.kafka;
 import com.tokera.ate.common.ApplicationConfigLoader;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.common.MapTools;
+import com.tokera.ate.dao.GenericPartitionKey;
+import com.tokera.ate.dao.kafka.MessageSerializer;
+import com.tokera.ate.dao.msg.MessageBase;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.dto.msg.MessageBaseDto;
+import com.tokera.ate.dto.msg.MessageSyncDto;
 import com.tokera.ate.enumerations.DataPartitionType;
 import kafka.admin.AdminUtils;
 import kafka.utils.ZKStringSerializer$;
 import org.I0Itec.zkclient.ZkClient;
 import org.I0Itec.zkclient.ZkConnection;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.errors.TopicExistsException;
 
 import javax.enterprise.context.ApplicationScoped;
@@ -41,12 +48,13 @@ public class KafkaTopicFactory {
      */
     public Response create(String topic, DataPartitionType type)
     {
-        synchronized (this) {
-            // If the topic has ever been created by this TokAPI then we dont attempt it again
-            if (everCreated.contains(topic)) {
-                return Response.AlreadyExists;
-            }
+        // If the topic has ever been created by this TokAPI then we dont attempt it again
+        if (everCreated.contains(topic)) {
+            return Response.AlreadyExists;
+        }
 
+        synchronized (this)
+        {
             // Load the properties for the zookeeper instance
             Properties props = d.bootstrapConfig.propertiesForKafka();
 

@@ -32,7 +32,10 @@ public class DataPartition {
 
     public IPartitionKey partitionKey() { return this.key; }
 
-    public DataPartitionChain getChain() {
+    public DataPartitionChain getChain(boolean waitForLoad) {
+        if (waitForLoad) {
+            bridge.waitTillLoaded();
+        }
         return chain;
     }
 
@@ -65,9 +68,5 @@ public class DataPartition {
     public void feed(Iterable<MessageBundle> msgs)
     {
         bridge.feed(msgs);
-    }
-
-    public void idle() {
-        bridge.idle();
     }
 }

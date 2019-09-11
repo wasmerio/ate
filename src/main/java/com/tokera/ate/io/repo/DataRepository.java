@@ -2,7 +2,6 @@ package com.tokera.ate.io.repo;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.*;
 import com.tokera.ate.dao.base.BaseDao;
 
@@ -14,27 +13,19 @@ import javax.inject.Inject;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.dao.base.BaseDaoInternal;
 import com.tokera.ate.dao.enumerations.PermissionPhase;
-import com.tokera.ate.dao.msg.MessageBase;
-import com.tokera.ate.dao.msg.MessageType;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.io.api.IAteIO;
 import com.tokera.ate.io.api.IPartitionKey;
-import com.tokera.ate.security.EffectivePermissionBuilder;
 import com.tokera.ate.io.core.StorageSystemFactory;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.dto.EffectivePermissions;
-import com.tokera.ate.enumerations.DataPartitionType;
 
-import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.Future;
-import java.util.concurrent.RunnableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import com.tokera.ate.units.DaoId;
 import com.tokera.ate.units.Hash;
-import org.bouncycastle.crypto.InvalidCipherTextException;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 /**
@@ -85,7 +76,7 @@ public class DataRepository implements IAteIO {
     }
 
     public @Nullable MessagePublicKeyDto publicKeyOrNull(DataTransaction trans, IPartitionKey partitionKey, @Hash String hash) {
-        DataPartitionChain chain = this.subscriber.getChain(partitionKey);
+        DataPartitionChain chain = this.subscriber.getChain(partitionKey, true);
         MessagePublicKeyDto ret = chain.getPublicKey(hash);
         if (ret != null) return ret;
 
@@ -123,7 +114,7 @@ public class DataRepository implements IAteIO {
             }
 
             IPartitionKey partitionKey = entity.partitionKey(true);
-            DataPartitionChain chain = this.subscriber.getChain(partitionKey);
+            DataPartitionChain chain = this.subscriber.getChain(partitionKey, true);
             DataContainer parentContainer = chain.getData(entityParentId, LOG);
             if (parentContainer != null && d.daoParents.getAllowedParentsSimple().containsEntry(entityType, parentContainer.getPayloadClazz()) == false) {
                 if (type.getAnnotation(Dependent.class) == null) {
@@ -258,7 +249,7 @@ public class DataRepository implements IAteIO {
         PUUID id = _id;
         if (id == null) return false;
 
-        DataPartitionChain kt = this.subscriber.getChain(id.partition());
+        DataPartitionChain kt = this.subscriber.getChain(id.partition(), true);
         if (kt.exists(id.id(), LOG)) return true;
         return false;
     }
@@ -268,7 +259,7 @@ public class DataRepository implements IAteIO {
         PUUID id = _id;
         if (id == null) return false;
 
-        DataPartitionChain chain = this.subscriber.getChain(id.partition());
+        DataPartitionChain chain = this.subscriber.getChain(id.partition(), true);
         if (chain.everExisted(id.id(), LOG)) return true;
 
         return false;
@@ -276,14 +267,14 @@ public class DataRepository implements IAteIO {
 
     @Override
     public boolean immutable(PUUID id) {
-        DataPartitionChain chain = this.subscriber.getChain(id.partition());
+        DataPartitionChain chain = this.subscriber.getChain(id.partition(), true);
         if (chain.immutable(id.id(), LOG)) return true;
         return false;
     }
 
     @Override
     public @Nullable MessageDataHeaderDto readRootOfTrust(PUUID id) {
-        DataPartitionChain chain = this.subscriber.getChain(id.partition());
+        DataPartitionChain chain = this.subscriber.getChain(id.partition(), true);
         return chain.getRootOfTrust(id.id());
     }
 
@@ -293,7 +284,7 @@ public class DataRepository implements IAteIO {
         if (id == null) return null;
 
         // Attempt to find the data
-        DataPartitionChain chain = this.subscriber.getChain(id.partition());
+        DataPartitionChain chain = this.subscriber.getChain(id.partition(), true);
         DataContainer container = chain.getData(id.id(), LOG);
         if (container == null) return null;
 
@@ -302,7 +293,7 @@ public class DataRepository implements IAteIO {
 
     @Override
     public BaseDao readOrThrow(PUUID id) {
-        DataPartitionChain chain = this.subscriber.getChain(id.partition());
+        DataPartitionChain chain = this.subscriber.getChain(id.partition(), true);
         DataContainer container = chain.getData(id.id(), LOG);
         if (container == null) {
             throw new RuntimeException("Failed to find a data object of id [" + id + "]");
@@ -318,13 +309,13 @@ public class DataRepository implements IAteIO {
     @Override
     public @Nullable DataContainer readRawOrNull(@Nullable PUUID id) {
         if (id == null) return null;
-        DataPartitionChain chain = this.subscriber.getChain(id.partition());
+        DataPartitionChain chain = this.subscriber.getChain(id.partition(), true);
         return chain.getData(id.id(), LOG);
     }
 
     @Override
     public <T extends BaseDao> Iterable<MessageMetaDto> readHistory(PUUID id, Class<T> clazz) {
-        DataPartitionChain chain = this.subscriber.getChain(id.partition());
+        DataPartitionChain chain = this.subscriber.getChain(id.partition(), true);
         return chain.getHistory(id.id(), LOG);
     }
 
@@ -349,7 +340,7 @@ public class DataRepository implements IAteIO {
 
     @Override
     public List<BaseDao> readAll(IPartitionKey partitionKey) {
-        DataPartitionChain chain = this.subscriber.getChain(partitionKey);
+        DataPartitionChain chain = this.subscriber.getChain(partitionKey, true);
 
         List<BaseDao> ret = new ArrayList<>();
         for (DataContainer container : chain.getAllData(LOG)) {
@@ -366,7 +357,7 @@ public class DataRepository implements IAteIO {
     @Override
     public <T extends BaseDao> List<T> readAll(IPartitionKey partitionKey, Class<T> type)
     {
-        DataPartitionChain chain = this.subscriber.getChain(partitionKey);
+        DataPartitionChain chain = this.subscriber.getChain(partitionKey, true);
 
         List<T> ret = new ArrayList<>();
         for (DataContainer container : chain.getAllData(type, LOG)) {
@@ -382,14 +373,14 @@ public class DataRepository implements IAteIO {
     @Override
     public <T extends BaseDao> List<DataContainer> readAllRaw(IPartitionKey partitionKey)
     {
-        DataPartitionChain chain = this.subscriber.getChain(partitionKey);
+        DataPartitionChain chain = this.subscriber.getChain(partitionKey, true);
         return chain.getAllData(null, LOG);
     }
 
     @Override
     public <T extends BaseDao> List<DataContainer> readAllRaw(IPartitionKey partitionKey, @Nullable Class<T> type)
     {
-        DataPartitionChain chain = this.subscriber.getChain(partitionKey);
+        DataPartitionChain chain = this.subscriber.getChain(partitionKey, true);
 
         if (type != null) {
             return chain.getAllData(type, LOG);
@@ -416,31 +407,7 @@ public class DataRepository implements IAteIO {
     }
 
     public void destroyAll() {
-        d.ramBridgeBuilder.destroyAll();
         this.subscriber.destroyAll();
-    }
-
-    void mergeInternal(DataTransaction trans, IPartitionKey partitionKey, MessageBaseDto data, boolean performSync)
-    {
-        // Save the data to the bridge and synchronize it
-        DataPartition kt = this.subscriber.getPartition(partitionKey);
-        IDataPartitionBridge bridge = kt.getBridge();
-        bridge.send(data);
-
-        // Synchronize
-        if (performSync == true) {
-            bridge.sync();
-        }
-
-        // If its a public key then we should record that we already saved it
-        if (data instanceof MessagePrivateKeyDto) {
-            MessagePublicKeyDto key = new MessagePublicKeyDto((MessagePrivateKeyDto) data);
-            trans.put(partitionKey, key);
-        }
-        if (data instanceof MessagePublicKeyDto) {
-            MessagePublicKeyDto key = (MessagePublicKeyDto) data;
-            trans.put(partitionKey, key);
-        }
     }
 
     private void sendMissingKeys(DataTransaction trans, DataPartition kt)
@@ -463,7 +430,7 @@ public class DataRepository implements IAteIO {
 
     private void sendMissingKeys(DataTransaction trans, DataPartition kt, Collection<String> roles)
     {
-        DataPartitionChain chain = kt.getChain();
+        DataPartitionChain chain = kt.getChain(true);
         IDataPartitionBridge bridge = kt.getBridge();
 
         for (String role : roles) {
@@ -549,7 +516,7 @@ public class DataRepository implements IAteIO {
     }
 
     private MessageDataDto convert(DataTransaction trans, DataPartition kt, BaseDao entity) {
-        DataPartitionChain chain = kt.getChain();
+        DataPartitionChain chain = kt.getChain(true);
 
         d.dataRepository.validateTrustPublicKeys(trans, entity);
 

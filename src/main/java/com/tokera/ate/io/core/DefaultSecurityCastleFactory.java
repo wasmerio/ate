@@ -40,7 +40,7 @@ public class DefaultSecurityCastleFactory implements ISecurityCastleFactory {
 
     @Override
     public @Nullable @Secret byte[] getSecret(IPartitionKey partitionKey, UUID id, Iterable<PrivateKeyWithSeedDto> accessKeys) {
-        DataPartitionChain chain = d.io.backend().getChain(partitionKey);
+        DataPartitionChain chain = d.io.backend().getChain(partitionKey, true);
 
         // Loop through all the private toPutKeys that we own and try and find
         // an AES key that was encrypted for it
@@ -80,7 +80,7 @@ public class DefaultSecurityCastleFactory implements ISecurityCastleFactory {
 
     @Override
     public boolean exists(IPartitionKey partitionKey, UUID id, @Hash String publicKeyHash) {
-        DataPartitionChain chain = this.d.storageFactory.get().backend().getChain(partitionKey);
+        DataPartitionChain chain = this.d.storageFactory.get().backend().getChain(partitionKey, true);
         MessageSecurityCastleDto castle = chain.getCastle(id);
         if (castle == null) return false;
         return castle.getLookup().containsKey(publicKeyHash);
@@ -88,7 +88,7 @@ public class DefaultSecurityCastleFactory implements ISecurityCastleFactory {
 
     @Override
     public boolean exists(IPartitionKey partitionKey, UUID id) {
-        DataPartitionChain chain = this.d.storageFactory.get().backend().getChain(partitionKey);
+        DataPartitionChain chain = this.d.storageFactory.get().backend().getChain(partitionKey, true);
         return chain.getCastle(id) != null;
     }
 }

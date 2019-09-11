@@ -1,17 +1,18 @@
 package com.tokera.ate.io.kafka;
 
 import com.tokera.ate.KafkaServer;
+import com.tokera.ate.dao.TopicAndPartition;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.repo.DataPartitionChain;
-import com.tokera.ate.io.repo.IDataTopicBridge;
+import com.tokera.ate.io.repo.IDataPartitionBridge;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.delegates.AteDelegate;
-import com.tokera.ate.enumerations.DataPartitionType;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.annotation.PostConstruct;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
+import javax.ws.rs.WebApplicationException;
 
 /**
  * Bridge between the data tree in memory and the Kafka BUS that persists those messages
@@ -40,15 +41,30 @@ public class KafkaBridgeBuilder {
         }
     }
 
-    public IDataTopicBridge build(String topic, DataPartitionType type) {
-        touch();
-        return new KafkaTopicBridge(topic, type, d.kafkaInbox, d.kafkaOutbox);
-    }
-
     public void touch()
     {
         if (exceptionOnUse != null) {
             throw exceptionOnUse;
         }
+    }
+
+    public IDataPartitionBridge createPartition(IPartitionKey key) {
+        if (key.partitionIndex() >= KafkaTopicFactory.maxPartitionsPerTopic) {
+            throw new WebApplicationException("Partition index can not exceed the maximum of " + KafkaTopicFactory.maxPartitionsPerTopic + " per topic.");
+        }
+
+        // Create the partition bridge if it does not exist
+        KafkaPartitionBridge ret = new KafkaPartitionBridge(d, key, new DataPartitionChain(key));
+
+        // Create the topic if it doesnt exist
+        ret.createTopic();
+        d.kafkaInbox.addPartition(new TopicAndPartition(ret.key));
+
+        ret.sendLoadSync();
+        return ret;
+    }
+
+    public void removePartition(IPartitionKey key) {
+        d.kafkaInbox.removePartition(new TopicAndPartition(key));
     }
 }

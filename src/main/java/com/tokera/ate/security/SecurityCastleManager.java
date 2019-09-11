@@ -51,7 +51,7 @@ public class SecurityCastleManager {
      * @return Set of public keys that can be used for encrypting or signing data
      */
     public Set<MessagePublicKeyDto> findPublicKeys(IPartitionKey partitionKey, Iterable<String> hashes) {
-        DataPartitionChain chain = d.io.backend().getChain(partitionKey);
+        DataPartitionChain chain = d.io.backend().getChain(partitionKey, true);
         Set<MessagePublicKeyDto> ret = new HashSet<>();
         for (String publicKeyHash : hashes)
         {

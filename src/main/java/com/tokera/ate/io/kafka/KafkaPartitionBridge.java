@@ -1,7 +1,11 @@
 package com.tokera.ate.io.kafka;
 
+import com.tokera.ate.KafkaServer;
 import com.tokera.ate.dao.MessageBundle;
-import com.tokera.ate.dao.PUUID;
+import com.tokera.ate.dao.TopicAndPartition;
+import com.tokera.ate.dao.kafka.MessageSerializer;
+import com.tokera.ate.dao.msg.MessageBase;
+import com.tokera.ate.dao.msg.MessageData;
 import com.tokera.ate.dao.msg.MessageType;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessageBaseDto;
@@ -11,33 +15,83 @@ import com.tokera.ate.dto.msg.MessageSyncDto;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.repo.DataPartitionChain;
 import com.tokera.ate.io.repo.IDataPartitionBridge;
-import com.tokera.ate.io.repo.IDataTopicBridge;
 import com.tokera.ate.providers.PartitionKeySerializer;
 import org.apache.commons.lang3.time.StopWatch;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.TopicPartition;
 import org.bouncycastle.crypto.InvalidCipherTextException;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Random;
 import java.util.UUID;
 
 public class KafkaPartitionBridge implements IDataPartitionBridge {
-    public final KafkaTopicBridge bridge;
+    public final AteDelegate d;
     public final IPartitionKey key;
     public final DataPartitionChain chain;
-    private volatile boolean isLoaded = false;
-    private volatile boolean isLoading = false;
+    private volatile MessageSyncDto loadSync = null;
 
-    public KafkaPartitionBridge(KafkaTopicBridge bridge, IPartitionKey key, DataPartitionChain chain) {
-        this.bridge = bridge;
+    public KafkaPartitionBridge(AteDelegate d, IPartitionKey key, DataPartitionChain chain) {
+        this.d = d;
         this.key = key;
         this.chain = chain;
     }
 
     @Override
-    public void send(MessageBaseDto msg) {
-        bridge.send(key, msg);
+    public void send(MessageBaseDto msg)
+    {
+        // Send the message do Kafka
+        ProducerRecord<String, MessageBase> record = new ProducerRecord<>(key.partitionTopic(), key.partitionIndex(), MessageSerializer.getKey(msg), msg.createBaseFlatBuffer());
+
+        // Send the record to Kafka
+        KafkaProducer<String, MessageBase> p = d.kafkaOutbox.get();
+        if (p != null) p.send(record);
+
+        d.debugLogging.logKafkaSend(record, msg);
+    }
+
+    @Override
+    public @Nullable MessageDataDto getVersion(UUID id, MessageMetaDto meta) {
+        TopicPartition tp = new TopicPartition(key.partitionTopic(), key.partitionIndex());
+
+        List<TopicPartition> tps = new LinkedList<>();
+        tps.add(tp);
+
+        KafkaConsumer<String, MessageBase> onceConsumer = d.kafkaConfig.newConsumer(KafkaConfigTools.TopicRole.Consumer, KafkaConfigTools.TopicType.Dao, KafkaServer.getKafkaBootstrap());
+        onceConsumer.assign(tps);
+        onceConsumer.seek(tp, meta.getOffset());
+
+        final ConsumerRecords<String, MessageBase> consumerRecords = onceConsumer.poll(5000);
+        if (consumerRecords.isEmpty()) return null;
+
+        for (ConsumerRecord<String, MessageBase> msg : consumerRecords) {
+            if (msg.partition() == meta.getPartition() &&
+                    msg.offset() == meta.getOffset())
+            {
+                if (msg.value().msgType() == MessageType.MessageData) {
+                    MessageData data = (MessageData)msg.value().msg(new MessageData());
+                    if (data == null) return null;
+                    return new MessageDataDto(data);
+                }
+            }
+        }
+
+        return null;
+    }
+
+    public void sendLoadSync() {
+        MessageSyncDto sync = d.kafkaSync.startSync(this.key);
+        this.send(sync);
+        this.loadSync = sync;
     }
 
     @Override
@@ -46,26 +100,26 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
         boolean hasCreated = false;
         boolean startedReload = false;
 
-        if (isLoaded == false) {
+        if (loadSync != null) {
             StopWatch waitTime = new StopWatch();
             waitTime.start();
-            while (isLoaded == false) {
+            while (d.kafkaSync.hasFinishSync(this.key, this.loadSync) == false) {
                 if (waitTime.getTime() > 5000L) {
                     if (sentSync == false) {
-                        bridge.send(key, new MessageSyncDto(0, 0));
+                        sendLoadSync();
                         sentSync = true;
                     }
                 }
                 if (waitTime.getTime() > 8000L) {
                     if (startedReload == false) {
-                        bridge.inbox.reload();
+                        d.kafkaInbox.addPartition(new TopicAndPartition(key));
                         startedReload = true;
                     }
                 }
                 if (waitTime.getTime() > 15000L) {
                     if (hasCreated == false) {
                         createTopic();
-                        bridge.inbox.reload();
+                        d.kafkaInbox.addPartition(new TopicAndPartition(key));
                         hasCreated = true;
                     }
                 }
@@ -78,6 +132,7 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
                     break;
                 }
             }
+            this.loadSync = null;
         }
     }
 
@@ -91,7 +146,6 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
             }
             case WasCreated: {
                 AteDelegate.get().genericLogger.info("partition [" + this.key + "]: loaded-created");
-                isLoaded = true;
                 break;
             }
             case Failed: {
@@ -102,42 +156,36 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
 
     @Override
     public boolean sync() {
-        return bridge.sync(key);
+        return d.kafkaSync.sync(key);
     }
 
     @Override
     public MessageSyncDto startSync(MessageSyncDto sync) {
-        return bridge.startSync(key, sync);
+        d.kafkaSync.startSync(key, sync);
+        this.send(sync);
+        return sync;
     }
 
     @Override
     public MessageSyncDto startSync() {
-        return bridge.startSync(key);
+        MessageSyncDto sync =  d.kafkaSync.startSync(key);
+        this.send(sync);
+        return sync;
     }
 
     @Override
     public boolean finishSync(MessageSyncDto sync) {
-        return bridge.finishSync(key, sync);
+        return d.kafkaSync.finishSync(key, sync);
     }
 
     @Override
     public boolean finishSync(MessageSyncDto sync, int timeout) {
-        return bridge.finishSync(key, sync, timeout);
+        return d.kafkaSync.finishSync(key, sync, timeout);
     }
 
     @Override
     public boolean hasFinishSync(MessageSyncDto sync) {
-        return bridge.hasFinishSync(key, sync);
-    }
-
-    @Override
-    public @Nullable MessageDataDto getVersion(UUID id, MessageMetaDto meta) {
-        return bridge.getVersion(PUUID.from(key, id), meta);
-    }
-
-    @Override
-    public IDataTopicBridge topicBridge() {
-        return this.bridge;
+        return d.kafkaSync.hasFinishSync(key, sync);
     }
 
     @Override
@@ -162,27 +210,15 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
                     bundle.offset);
 
             if (bundle.raw.msgType() == MessageType.MessageSync) {
-                bridge.processSync(new MessageSyncDto(bundle.raw));
+                d.kafkaSync.processSync(new MessageSyncDto(bundle.raw));
                 return;
             }
             try {
-                chain.rcv(bundle.raw, meta, isLoaded, bridge.LOG);
+                boolean isLoaded = this.loadSync == null;
+                chain.rcv(bundle.raw, meta, isLoaded, d.genericLogger);
             } catch (IOException | InvalidCipherTextException ex) {
-                bridge.LOG.warn(ex);
+                d.genericLogger.warn(ex);
             }
-        }
-
-        // Set the loading flag
-        if (isLoading == false) {
-            isLoading = true;
-        }
-    }
-
-    @Override
-    public void idle() {
-        if (isLoaded == false && isLoading) {
-            isLoaded = true;
-            AteDelegate.get().genericLogger.info("partition [" + this.key + "]: loaded");
         }
     }
 }

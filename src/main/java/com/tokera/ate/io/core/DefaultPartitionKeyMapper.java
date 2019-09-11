@@ -4,7 +4,6 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.tokera.ate.enumerations.DataPartitionType;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.api.IPartitionKeyMapper;
-import com.tokera.ate.io.kafka.KafkaTopicBridge;
 import com.tokera.ate.io.kafka.KafkaTopicFactory;
 import com.tokera.ate.providers.PartitionKeySerializer;
 import org.apache.kafka.common.utils.Utils;

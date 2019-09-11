@@ -1,7 +1,5 @@
 package com.tokera.ate.io.ram;
 
-import com.google.common.collect.Lists;
-import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.MessageBundle;
 import com.tokera.ate.dao.TopicAndPartition;
 import com.tokera.ate.dao.msg.MessageBase;
@@ -14,7 +12,6 @@ import com.tokera.ate.enumerations.DataPartitionType;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.repo.DataPartitionChain;
 import com.tokera.ate.io.repo.IDataPartitionBridge;
-import com.tokera.ate.io.repo.IDataTopicBridge;
 import java.util.Collections;
 import org.bouncycastle.crypto.InvalidCipherTextException;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -29,14 +26,12 @@ import java.util.UUID;
 public class RamPartitionBridge implements IDataPartitionBridge {
 
     private final AteDelegate d = AteDelegate.get();
-    private final RamTopicBridge topicBridge;
     private final DataPartitionChain chain;
     private final DataPartitionType type;
     private final Random rand = new Random();
     private final TopicAndPartition where;
 
-    public RamPartitionBridge(RamTopicBridge topicBridge, DataPartitionChain chain, DataPartitionType type) {
-        this.topicBridge = topicBridge;
+    public RamPartitionBridge(DataPartitionChain chain, DataPartitionType type) {
         this.chain = chain;
         this.type = type;
         this.where = new TopicAndPartition(chain.partitionKey().partitionTopic(), chain.partitionKey().partitionIndex());
@@ -92,11 +87,6 @@ public class RamPartitionBridge implements IDataPartitionBridge {
     }
 
     @Override
-    public IDataTopicBridge topicBridge() {
-        return this.topicBridge;
-    }
-
-    @Override
     public IPartitionKey partitionKey() {
         return this.chain.partitionKey();
     }
@@ -116,9 +106,5 @@ public class RamPartitionBridge implements IDataPartitionBridge {
                 d.genericLogger.warn(e);
             }
         }
-    }
-
-    @Override
-    public void idle() {
     }
 }

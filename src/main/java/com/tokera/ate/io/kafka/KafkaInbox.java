@@ -16,6 +16,7 @@ import org.apache.kafka.common.TopicPartition;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 import java.util.*;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -34,10 +35,23 @@ public class KafkaInbox implements Runnable {
     private AtomicInteger targetInit = new AtomicInteger(0);
     private AtomicInteger initLevel = new AtomicInteger(-1);
     private AtomicBoolean isRunning = new AtomicBoolean(false);
+    private ConcurrentSkipListSet<TopicAndPartition> partitions = new ConcurrentSkipListSet<>();
 
     private AtomicReference<KafkaConsumer<String, MessageBase>> consumer = new AtomicReference<>();
 
-    public void reload() {
+    public void addPartition(TopicAndPartition partition) {
+        if (partitions.add(partition)) {
+            reload();
+        }
+    }
+
+    public void removePartition(TopicAndPartition partition) {
+        if (partitions.remove(partition)) {
+            reload();
+        }
+    }
+
+    private void reload() {
         targetInit.incrementAndGet();
         if (isRunning.compareAndSet(false, true)) {
             this.thread = new Thread(this);
@@ -75,11 +89,10 @@ public class KafkaInbox implements Runnable {
         }
     }
 
-    private void load() {
-        DataSubscriber subscriber = AteDelegate.get().storageFactory.get().backend();
-
+    private void load()
+    {
         // Build a list of all the partitions that need to be assigned to
-        Set<TopicAndPartition> keys = subscriber.keys();
+        Set<TopicAndPartition> keys = partitions.stream().collect(Collectors.toSet());
         Set<TopicPartition> kafkaPartitions = keys.stream()
                 .map(k -> new TopicPartition(k.partitionTopic(), k.partitionIndex()))
                 .collect(Collectors.toSet());
@@ -170,11 +183,5 @@ public class KafkaInbox implements Runnable {
         msgs.entrySet()
             .parallelStream()
             .forEach(e -> subscriber.feed(e.getKey(), e.getValue()));
-
-        // Finally we let any topics that didnt receive anything that they are now idle and thus can consider
-        // themselves at this exact point in time to be as update-to-date as possible
-        idlePartitions
-            .parallelStream()
-            .forEach(a -> subscriber.feedIdle(a));
     }
 }

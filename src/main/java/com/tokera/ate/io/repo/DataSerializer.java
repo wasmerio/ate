@@ -59,7 +59,7 @@ public class DataSerializer {
             .build();
 
     private void writeRightPublicKeysForDataObject(BaseDao obj, DataPartition kt) {
-        DataPartitionChain chain = kt.getChain();
+        DataPartitionChain chain = kt.getChain(true);
 
         // If the entity has rights then make sure they are held within the chain
         // and if they are not then generate messages that will insert them
@@ -85,7 +85,7 @@ public class DataSerializer {
     }
 
     private void writeRolePublicKeysForDataObject(BaseDao obj, DataPartition kt) {
-        DataPartitionChain chain = kt.getChain();
+        DataPartitionChain chain = kt.getChain(true);
 
         // If we are crossing from our request partition then we need to scan for
         // other public toPutKeys and import them into this partition
@@ -110,7 +110,7 @@ public class DataSerializer {
 
     @SuppressWarnings("known.nonnull")
     private void writePermissionPublicKeysForDataObject(DataPartition kt) {
-        DataPartitionChain chain = kt.getChain();
+        DataPartitionChain chain = kt.getChain(true);
 
         // Write any public keys that are missing in this chain
         for (MessagePrivateKeyDto key : d.requestContext.currentTransaction().findPrivateKeys(kt.partitionKey())) {

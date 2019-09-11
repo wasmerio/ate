@@ -82,6 +82,7 @@ public abstract class BaseAteDelegate {
     public final DataRepository dataRepository;
     public final RamBridgeBuilder ramBridgeBuilder;
     public final KafkaBridgeBuilder kafkaBridgeBuilder;
+    public final KafkaSync kafkaSync;
     public final XmlUtils xml;
     public final RequestAccessLog requestAccessLog;
     public final LoggingDelegate logging;
@@ -181,6 +182,7 @@ public abstract class BaseAteDelegate {
         this.dataRepository = getBean(DataRepository.class);
         this.ramBridgeBuilder = getBean(RamBridgeBuilder.class);
         this.kafkaBridgeBuilder = getBean(KafkaBridgeBuilder.class);
+        this.kafkaSync = getBean(KafkaSync.class);
         this.xml = getBean(XmlUtils.class);
         this.requestAccessLog = getBean(RequestAccessLog.class);
         this.logging = getBean(LoggingDelegate.class);

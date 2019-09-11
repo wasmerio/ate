@@ -34,13 +34,9 @@ public interface IDataPartitionBridge {
 
     @Nullable MessageDataDto getVersion(UUID id, MessageMetaDto meta);
 
-    IDataTopicBridge topicBridge();
-
     IPartitionKey partitionKey();
 
     DataPartitionChain chain();
 
     void feed(Iterable<MessageBundle> msgs);
-
-    void idle();
 }
