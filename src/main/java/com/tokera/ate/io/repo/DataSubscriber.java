@@ -89,7 +89,7 @@ public class DataSubscriber {
         }
 
         seedTopic(part);
-        LOG.info("partition [" + part.partitionKey() + "]: subscribed");
+        d.debugLogging.logSubscribed(part.partitionKey());
         return part;
     }
 
@@ -100,7 +100,7 @@ public class DataSubscriber {
         } else {
             d.kafkaBridgeBuilder.removePartition(key);
         }
-        LOG.info("partition [" + part.partitionKey() + "]: unsubscribed");
+        d.debugLogging.logUnsubscribed(part.partitionKey());
     }
 
     public DataPartition getPartition(IPartitionKey key, boolean shouldWait) {

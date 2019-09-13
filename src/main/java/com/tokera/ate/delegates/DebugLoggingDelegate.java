@@ -350,6 +350,18 @@ public class DebugLoggingDelegate {
         }
     }
 
+    public void logSubscribed(IPartitionKey key) {
+        if (d.bootstrapConfig.isLoggingChainOfTrust()) {
+            logInfo("partition [" + key + "]: subscribed");
+        }
+    }
+
+    public void logUnsubscribed(IPartitionKey key) {
+        if (d.bootstrapConfig.isLoggingChainOfTrust()) {
+            logInfo("partition [" + key + "]: unsubscribed");
+        }
+    }
+
     public void logSyncStart(MessageSyncDto sync)
     {
         if (d.bootstrapConfig.isLoggingSync()) {
