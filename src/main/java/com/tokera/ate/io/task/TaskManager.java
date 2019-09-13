@@ -122,6 +122,19 @@ public class TaskManager {
         return ret;
     }
 
+    public void unsubscribeAll() {
+        List<ITaskContext> contexts = lookup
+                .values()
+                .stream()
+                .flatMap(a -> a.values().stream())
+                .filter(a -> a != null)
+                .collect(Collectors.toList());
+        for (ITaskContext context : contexts) {
+            context.destroyAll();
+        }
+        lookup.clear();
+    }
+
     @SuppressWarnings("unchecked")
     private <T extends BaseDao> ITaskContext getContext(IPartitionKey partitionKey, Class<T> clazz) {
         ConcurrentHashMap<Class<? extends BaseDao>, ITaskContext> first = MapTools.getOrNull(lookup, partitionKey);

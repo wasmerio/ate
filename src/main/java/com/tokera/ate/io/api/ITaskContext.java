@@ -20,4 +20,6 @@ public interface ITaskContext
     boolean isEmpty();
 
     void clean();
+
+    void destroyAll();
 }
