@@ -81,6 +81,7 @@ public class DataPartition {
                     bundle.offset);
 
             MessageBaseDto msg = MessageBaseDto.from(bundle.raw);
+            if (msg == null) continue;
             d.debugLogging.logReceive(meta, msg);
 
             if (msg instanceof MessageSyncDto) {

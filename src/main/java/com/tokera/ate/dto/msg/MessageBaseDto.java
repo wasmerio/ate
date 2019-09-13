@@ -3,6 +3,7 @@ package com.tokera.ate.dto.msg;
 import com.google.flatbuffers.FlatBufferBuilder;
 import com.tokera.ate.dao.msg.MessageBase;
 import com.tokera.ate.dao.msg.MessageType;
+import com.tokera.ate.delegates.AteDelegate;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.ws.rs.WebApplicationException;
@@ -29,7 +30,11 @@ public abstract class MessageBaseDto implements Serializable
             case MessageType.MessagePublicKey:
                 msg = new MessagePublicKeyDto(raw);
                 break;
+            case MessageType.MessageSync:
+                msg = new MessageSyncDto(raw);
+                break;
             default:
+                AteDelegate.get().genericLogger.warn("unknown message type: " + raw.msgType());
                 return null;
         }
         return msg;
