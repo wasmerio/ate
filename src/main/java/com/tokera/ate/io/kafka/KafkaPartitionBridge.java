@@ -216,8 +216,8 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
             MessageBaseDto msg = MessageBaseDto.from(bundle.raw);
             d.debugLogging.logReceive(msg);
 
-            if (bundle.raw.msgType() == MessageType.MessageSync) {
-                d.kafkaSync.processSync(new MessageSyncDto(bundle.raw));
+            if (msg instanceof MessageSyncDto) {
+                d.kafkaSync.processSync((MessageSyncDto)msg);
                 return;
             }
             try {
