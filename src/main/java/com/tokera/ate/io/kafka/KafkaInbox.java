@@ -201,6 +201,6 @@ public class KafkaInbox implements Runnable {
         // Now in a parallel engine that increases throughput we stream all the data into the repositories
         msgs.entrySet()
             .parallelStream()
-            .forEach(e -> subscriber.feed(e.getKey(), e.getValue()));
+            .forEach(e -> subscriber.feed(e.getKey(), e.getValue(), false));
     }
 }

@@ -85,7 +85,7 @@ public class DataSubscriber {
 
         if (this.mode == Mode.Ram) {
             GenericPartitionKey wrapKey = new GenericPartitionKey(key);
-            part.feed(d.ramDataRepository.read(wrapKey));
+            part.feed(d.ramDataRepository.read(wrapKey), false);
         }
 
         seedTopic(part);
@@ -140,8 +140,8 @@ public class DataSubscriber {
         this.partitions.invalidateAll();
     }
 
-    public void feed(TopicAndPartition where, Iterable<MessageBundle> msgs) {
+    public void feed(TopicAndPartition where, Iterable<MessageBundle> msgs, boolean throwOnError) {
         DataPartition ret = this.partitions.getIfPresent(where);
-        if (ret != null) ret.feed(msgs);
+        if (ret != null) ret.feed(msgs, throwOnError);
     }
 }

@@ -44,7 +44,7 @@ public class RamPartitionBridge implements IDataPartitionBridge {
     public void send(MessageBaseDto msg) {
         MessageBase flat = msg.createBaseFlatBuffer();
         MessageBundle bundle = d.ramDataRepository.write(where, flat);
-        this.subscriber.feed(this.where, Collections.singletonList(bundle));
+        this.subscriber.feed(this.where, Collections.singletonList(bundle), true);
     }
 
     @Override

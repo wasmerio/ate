@@ -70,7 +70,7 @@ public class DataPartition {
         //chain.addTrust(msg, null, LOG);
     }
 
-    public void feed(Iterable<MessageBundle> msgs)
+    public void feed(Iterable<MessageBundle> msgs, boolean throwOnError)
     {
         // Now find the bridge and send the message to it
         for  (MessageBundle bundle : msgs)
@@ -96,6 +96,7 @@ public class DataPartition {
                     d.genericLogger.warn(ex);
                 }
             } catch (Throwable ex) {
+                if (throwOnError) throw ex;
                 d.genericLogger.warn(ex);
             }
         }
