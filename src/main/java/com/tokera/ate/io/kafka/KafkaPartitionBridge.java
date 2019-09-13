@@ -213,13 +213,16 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
                     bundle.partition,
                     bundle.offset);
 
+            MessageBaseDto msg = MessageBaseDto.from(bundle.raw);
+            d.debugLogging.logReceive(msg);
+
             if (bundle.raw.msgType() == MessageType.MessageSync) {
                 d.kafkaSync.processSync(new MessageSyncDto(bundle.raw));
                 return;
             }
             try {
                 boolean isLoaded = this.loadSync == null;
-                chain.rcv(bundle.raw, meta, isLoaded, d.genericLogger);
+                chain.rcv(msg, meta, isLoaded, d.genericLogger);
             } catch (IOException | InvalidCipherTextException ex) {
                 d.genericLogger.warn(ex);
             }

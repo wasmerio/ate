@@ -100,18 +100,11 @@ public class DataPartitionChain {
         this.castles.put(castle.getIdOrThrow(), castle);
     }
     
-    public boolean rcv(MessageBase raw, MessageMetaDto meta,  boolean invokeCallbacks, @Nullable LoggerHook LOG) throws IOException, InvalidCipherTextException {
-        MessageBaseDto msg = MessageBaseDto.from(raw);
+    public boolean rcv(MessageBaseDto msg, MessageMetaDto meta, boolean invokeCallbacks, @Nullable LoggerHook LOG) throws IOException, InvalidCipherTextException {
         if (msg == null) {
             drop(LOG, null, null, "unhandled message type");
             return false;
         }
-        return rcv(msg, meta, invokeCallbacks, LOG);
-    }
-    
-    public boolean rcv(MessageBaseDto msg, MessageMetaDto meta, boolean invokeCallbacks, @Nullable LoggerHook LOG) throws IOException, InvalidCipherTextException {
-        d.debugLogging.logReceive(msg);
-
         if (msg instanceof MessageDataDto) {
             return processData((MessageDataDto)msg, meta, invokeCallbacks, LOG);
         }

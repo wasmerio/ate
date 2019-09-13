@@ -107,8 +107,6 @@ public class KafkaSync {
 
     public void processSync(MessageSyncDto sync)
     {
-        d.debugLogging.logReceive(sync);
-
         Object wait = syncs.remove(sync);
         if (wait == null) {
             d.debugLogging.logSyncMiss(sync);

@@ -100,6 +100,8 @@ public class RamPartitionBridge implements IDataPartitionBridge {
     public void feed(Iterable<MessageBundle> bundles) {
         for (MessageBundle bundle : bundles) {
             MessageBaseDto msg = MessageBaseDto.from(bundle.raw);
+            d.debugLogging.logReceive(msg);
+
             try {
                 this.chain.rcv(msg, new MessageMetaDto(this.where.partitionIndex(), bundle.offset), true, d.genericLogger);
             } catch (IOException | InvalidCipherTextException e) {
