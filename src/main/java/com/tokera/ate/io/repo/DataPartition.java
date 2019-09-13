@@ -75,23 +75,27 @@ public class DataPartition {
         // Now find the bridge and send the message to it
         for  (MessageBundle bundle : msgs)
         {
-            // Now process the message itself
-            MessageMetaDto meta = new MessageMetaDto(
-                    bundle.partition,
-                    bundle.offset);
-
-            MessageBaseDto msg = MessageBaseDto.from(bundle.raw);
-            if (msg == null) continue;
-            d.debugLogging.logReceive(meta, msg);
-
-            if (msg instanceof MessageSyncDto) {
-                d.partitionSyncManager.processSync((MessageSyncDto)msg);
-                return;
-            }
             try {
-                boolean isLoaded = this.bridge.hasLoaded();
-                chain.rcv(msg, meta, isLoaded, d.genericLogger);
-            } catch (IOException | InvalidCipherTextException ex) {
+                // Now process the message itself
+                MessageMetaDto meta = new MessageMetaDto(
+                        bundle.partition,
+                        bundle.offset);
+
+                MessageBaseDto msg = MessageBaseDto.from(bundle.raw);
+                if (msg == null) continue;
+                d.debugLogging.logReceive(meta, msg);
+
+                if (msg instanceof MessageSyncDto) {
+                    d.partitionSyncManager.processSync((MessageSyncDto) msg);
+                    continue;
+                }
+                try {
+                    boolean isLoaded = this.bridge.hasLoaded();
+                    chain.rcv(msg, meta, isLoaded, d.genericLogger);
+                } catch (IOException | InvalidCipherTextException ex) {
+                    d.genericLogger.warn(ex);
+                }
+            } catch (Throwable ex) {
                 d.genericLogger.warn(ex);
             }
         }
