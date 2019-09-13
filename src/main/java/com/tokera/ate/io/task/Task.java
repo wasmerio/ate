@@ -106,6 +106,7 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
         while (isRunning && this.isActive()) {
             try {
                 if (doneExisting == false) {
+                    d.io.warmAndWait(context.partitionKey);
                     invokeSeedKeys(boundRequestContext);
                     invokeInit(boundRequestContext);
                     doneExisting = true;
