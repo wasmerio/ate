@@ -325,7 +325,7 @@ public class DebugLoggingDelegate {
         }
     }
 
-    public void logReceive(MessageBaseDto msg)
+    public void logReceive(MessageMetaDto meta, MessageBaseDto msg)
     {
         if (d.bootstrapConfig.isLoggingMessages()) {
             if (d.bootstrapConfig.isLoggingMessageData()) {
@@ -333,18 +333,18 @@ public class DebugLoggingDelegate {
             } else {
                 if (msg instanceof MessagePublicKeyDto) {
                     MessagePublicKeyDto a = (MessagePublicKeyDto)msg;
-                    logInfo("rcv: [type=public-key, hash=" + a.getPublicKeyHash() + "]");
+                    logInfo("rcv: [off=" + meta.getOffset() + ", type=public-key, hash=" + a.getPublicKeyHash() + "]");
                 } else if (msg instanceof MessageSecurityCastleDto) {
                     MessageSecurityCastleDto a = (MessageSecurityCastleDto)msg;
-                    logInfo("rcv: [type=castle, id=" + a.getIdOrThrow() + "]");
+                    logInfo("rcv: [off=" + meta.getOffset() + ", type=castle, id=" + a.getIdOrThrow() + "]");
                 } else if (msg instanceof MessageSyncDto) {
                     MessageSyncDto a = (MessageSyncDto)msg;
-                    logInfo("rcv: [type=sync, t1=" + a.getTicket1() + ", t2=" + a.getTicket2() + "]");
+                    logInfo("rcv: [off=" + meta.getOffset() + ", type=sync, t1=" + a.getTicket1() + ", t2=" + a.getTicket2() + "]");
                 } else if (msg instanceof MessageDataDto) {
                     MessageDataDto a = (MessageDataDto)msg;
-                    logInfo("rcv: [type=data, payload=" + a.getHeader().getPayloadClazz() + ", id=" + a.getHeader().getIdOrThrow() + "]");
+                    logInfo("rcv: [off=" + meta.getOffset() + ", type=data, payload=" + a.getHeader().getPayloadClazz() + ", id=" + a.getHeader().getIdOrThrow() + "]");
                 } else {
-                    logInfo("rcv: [type=" + msg.getClass().getSimpleName().toLowerCase() + "]");
+                    logInfo("rcv: [off=" + meta.getOffset() + ", type=" + msg.getClass().getSimpleName().toLowerCase() + "]");
                 }
             }
         }
