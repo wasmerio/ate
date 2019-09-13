@@ -169,6 +169,6 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
 
     @Override
     public boolean hasLoaded() {
-        return loadSync != null;
+        return loadSync == null;
     }
 }
