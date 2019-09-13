@@ -303,6 +303,28 @@ public class DebugLoggingDelegate {
         }
     }
 
+    public void logBeginLoad(IPartitionKey part)
+    {
+        if (d.bootstrapConfig.isLoggingChainOfTrust()) {
+            StringBuilder sb = new StringBuilder();
+            sb.append("begin_load: [->");
+            sb.append(part);
+            sb.append("]");
+            logInfo(sb.toString());
+        }
+    }
+
+    public void logFinishLoad(IPartitionKey part)
+    {
+        if (d.bootstrapConfig.isLoggingChainOfTrust()) {
+            StringBuilder sb = new StringBuilder();
+            sb.append("finish_load: [->");
+            sb.append(part);
+            sb.append("]");
+            logInfo(sb.toString());
+        }
+    }
+
     public void logReceive(MessageBaseDto msg)
     {
         if (d.bootstrapConfig.isLoggingMessages()) {

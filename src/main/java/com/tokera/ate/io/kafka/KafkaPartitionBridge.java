@@ -92,6 +92,8 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
         MessageSyncDto sync = d.kafkaSync.startSync();
         this.send(sync);
         this.loadSync = sync;
+
+        d.debugLogging.logBeginLoad(this.key);
     }
 
     @Override
@@ -129,9 +131,11 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
                 try {
                     Thread.sleep(50);
                 } catch (InterruptedException ex) {
-                    break;
+                    return;
                 }
             }
+
+            d.debugLogging.logFinishLoad(this.key);
             this.loadSync = null;
         }
     }
