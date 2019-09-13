@@ -699,7 +699,9 @@ public class Encryptor implements Runnable
         for (int n = 1; ; n++) {
             try {
                 String seed = this.generateSecret64(keysize);
-                return new PrivateKeyWithSeedDto(PrivateKeyType.write, seed, keysize, keyTypes, null, alias);
+                PrivateKeyWithSeedDto ret = new PrivateKeyWithSeedDto(PrivateKeyType.write, seed, keysize, keyTypes, null, alias);
+                ret.key();
+                return ret;
             } catch (KeyGenerationException ex) {
                 if (n >= attempts) {
                     throw new KeyGenerationException("Failed to signing keys with random seeds after " + n + " attempts -" + ex.getMessage() + ".", ex);
@@ -756,7 +758,9 @@ public class Encryptor implements Runnable
         for (int n = 1; ; n++) {
             try {
                 String seed = this.generateSecret64(keysize);
-                return new PrivateKeyWithSeedDto(PrivateKeyType.read, seed, keysize, keyTypes, null, alias);
+                PrivateKeyWithSeedDto ret = new PrivateKeyWithSeedDto(PrivateKeyType.read, seed, keysize, keyTypes, null, alias);
+                ret.key();
+                return ret;
             } catch (KeyGenerationException ex) {
                 if (n >= attempts) {
                     throw new KeyGenerationException("Failed to generate encryption keys with random seeds after " + n + " attempts -" + ex.getMessage() + ".", ex);
