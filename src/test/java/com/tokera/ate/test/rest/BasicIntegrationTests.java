@@ -41,6 +41,7 @@ public class BasicIntegrationTests {
         BootstrapConfig config = ApiServer.startWeld(null, BootstrapApp.class);
         config.setDefaultStorageSystem(DefaultStorageSystem.LocalRam);
         config.setPingCheckOnStart(false);
+        config.setRestPortOverride(8082);
 
         ApiServer.startApiServer(config);
 
@@ -52,7 +53,7 @@ public class BasicIntegrationTests {
     @Test
     @Order(1)
     public void testUuidSerializer() {
-        TestTools.restGet(null, "http://127.0.0.1:8080/rs/1-0/test/uuid").readEntity(UUID.class);
+        TestTools.restGet(null, "http://127.0.0.1:8082/rs/1-0/test/uuid").readEntity(UUID.class);
     }
 
     @Test
@@ -66,7 +67,7 @@ public class BasicIntegrationTests {
 
         this.session = new RawClientBuilder()
                 .server("127.0.0.1")
-                .port(8080)
+                .port(8082)
                 .prefixForRest("/rs/1-0")
                 .withLoginPost("/acc/adminToken/john", Entity.entity(key, MediaType.APPLICATION_JSON_TYPE))
                 .build();
