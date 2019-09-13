@@ -106,7 +106,6 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
         while (isRunning && this.isActive()) {
             try {
                 if (doneExisting == false) {
-                    d.io.warmAndWait(context.partitionKey);
                     invokeSeedKeys(boundRequestContext);
                     invokeInit(boundRequestContext);
                     doneExisting = true;
@@ -161,6 +160,8 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
         Task.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () ->
         {
             AteDelegate d = AteDelegate.get();
+            d.io.warmAndWait();
+
             ITaskCallback<T> callback = this.callback.get();
             if (callback != null) callback.onInit(this);
         });
@@ -170,6 +171,8 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
         Task.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () ->
         {
             AteDelegate d = AteDelegate.get();
+            d.io.warm();
+
             for (PrivateKeyWithSeedDto key : d.currentRights.getRightsRead()) {
                 d.io.write(this.partitionKey(), key.key());
             }
