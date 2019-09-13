@@ -45,6 +45,7 @@ public class BootstrapConfig {
 
     private boolean loggingChainOfTrust = false;
     private boolean loggingMessages = false;
+    private boolean loggingMessageData = false;
     private boolean loggingData = false;
     private boolean loggingSync = false;
     private boolean loggingWrites = false;
@@ -499,5 +500,13 @@ public class BootstrapConfig {
 
     public void setRestPortOverride(Integer restPortOverride) {
         this.restPortOverride = restPortOverride;
+    }
+
+    public boolean isLoggingMessageData() {
+        return loggingMessageData;
+    }
+
+    public void setLoggingMessageData(boolean loggingMessageData) {
+        this.loggingMessageData = loggingMessageData;
     }
 }

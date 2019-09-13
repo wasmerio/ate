@@ -161,7 +161,7 @@ public class DebugLoggingDelegate {
             sb.append(":");
             sb.append(data.getHeader().getId());
             sb.append("]");
-            if (d.bootstrapConfig.isLoggingMessages()) {
+            if (d.bootstrapConfig.isLoggingMessageData()) {
                 sb.append("\n");
                 sb.append(d.yaml.serializeObj(data));
             }
@@ -220,7 +220,7 @@ public class DebugLoggingDelegate {
                 sb.append(" parent=");
                 sb.append(parentId);
             }
-            if (d.bootstrapConfig.isLoggingMessages() && data != null) {
+            if (d.bootstrapConfig.isLoggingMessageData() && data != null) {
                 sb.append("\n");
                 sb.append(d.yaml.serializeObj(data));
             }
@@ -247,7 +247,7 @@ public class DebugLoggingDelegate {
                 sb.append("publicKey");
             }
 
-            if (d.bootstrapConfig.isLoggingMessages()) {
+            if (d.bootstrapConfig.isLoggingMessageData()) {
                 sb.append("\n");
                 sb.append(d.yaml.serializeObj(trustedKey));
             }
@@ -271,7 +271,7 @@ public class DebugLoggingDelegate {
             sb.append("] id: ");
             sb.append(castle.getIdOrThrow());
 
-            if (d.bootstrapConfig.isLoggingMessages()) {
+            if (d.bootstrapConfig.isLoggingMessageData()) {
                 sb.append("\n");
                 sb.append(d.yaml.serializeObj(castle));
             }
@@ -294,7 +294,7 @@ public class DebugLoggingDelegate {
             sb.append(" attached to ");
             sb.append(header.getParentId());
 
-            if (d.bootstrapConfig.isLoggingMessages()) {
+            if (d.bootstrapConfig.isLoggingMessageData()) {
                 sb.append("\n");
                 sb.append(d.yaml.serializeObj(header));
             }
@@ -328,7 +328,25 @@ public class DebugLoggingDelegate {
     public void logReceive(MessageBaseDto msg)
     {
         if (d.bootstrapConfig.isLoggingMessages()) {
-            logInfo("rcv:\n" + d.yaml.serializeObj(msg));
+            if (d.bootstrapConfig.isLoggingMessageData()) {
+                logInfo("rcv:\n" + d.yaml.serializeObj(msg));
+            } else {
+                if (msg instanceof MessagePublicKeyDto) {
+                    MessagePublicKeyDto a = (MessagePublicKeyDto)msg;
+                    logInfo("rcv: [type=public-key, hash=" + a.getPublicKeyHash() + "]");
+                } else if (msg instanceof MessageSecurityCastleDto) {
+                    MessageSecurityCastleDto a = (MessageSecurityCastleDto)msg;
+                    logInfo("rcv: [type=castle, id=" + a.getIdOrThrow() + "]");
+                } else if (msg instanceof MessageSyncDto) {
+                    MessageSyncDto a = (MessageSyncDto)msg;
+                    logInfo("rcv: [type=sync, t1=" + a.getTicket1() + ", t2=" + a.getTicket2() + "]");
+                } else if (msg instanceof MessageDataDto) {
+                    MessageDataDto a = (MessageDataDto)msg;
+                    logInfo("rcv: [type=data, payload=" + a.getHeader().getPayloadClazz() + ", id=" + a.getHeader().getIdOrThrow() + "]");
+                } else {
+                    logInfo("rcv: [type=" + msg.getClass().getSimpleName().toLowerCase() + "]");
+                }
+            }
         }
     }
 
