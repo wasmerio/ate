@@ -1,15 +1,17 @@
 package com.tokera.ate.io.kafka;
 
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessageSyncDto;
-import com.tokera.ate.io.api.IPartitionKey;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 @ApplicationScoped
 public class KafkaSync {
@@ -20,6 +22,13 @@ public class KafkaSync {
 
     private final Random rand = new Random();
     private ConcurrentHashMap<MessageSyncDto, Object> syncs = new ConcurrentHashMap<>();
+    private Cache<MessageSyncDto, Object> finished;
+
+    private KafkaSync() {
+        this.finished = CacheBuilder.newBuilder()
+                .expireAfterAccess(5, TimeUnit.MINUTES)
+                .build();
+    }
 
     public MessageSyncDto startSync() {
         MessageSyncDto sync = new MessageSyncDto(
@@ -42,7 +51,7 @@ public class KafkaSync {
 
     public boolean hasFinishSync(MessageSyncDto sync) {
         if (sync == null) return true;
-        return syncs.containsKey(sync) == false;
+        return finished.getIfPresent(sync) != null;
     }
 
     public boolean finishSync(MessageSyncDto sync) {
@@ -54,12 +63,13 @@ public class KafkaSync {
         if (wait == null) return true;
 
         synchronized (wait) {
-            if (syncs.containsKey(sync) == false) {
+            if (hasFinishSync(sync)) {
                 return true;
             }
 
             try {
                 wait.wait(timeout);
+                d.debugLogging.logSyncWake(sync);
                 return hasFinishSync(sync);
             } catch (InterruptedException e) {
                 return false;
@@ -106,6 +116,7 @@ public class KafkaSync {
         }
 
         synchronized (wait) {
+            this.finished.put(sync, wait);
             d.debugLogging.logSyncFinish(sync);
             wait.notifyAll();
         }
