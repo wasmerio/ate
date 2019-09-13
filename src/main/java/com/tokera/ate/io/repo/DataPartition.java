@@ -3,11 +3,16 @@ package com.tokera.ate.io.repo;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.dao.MessageBundle;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.dto.msg.MessageMetaDto;
+import com.tokera.ate.dto.msg.MessageSyncDto;
 import com.tokera.ate.extensions.DaoParentDiscoveryExtension;
 import com.tokera.ate.dto.msg.MessageBaseDto;
 import com.tokera.ate.enumerations.DataPartitionType;
 import com.tokera.ate.io.api.IPartitionKey;
+import org.bouncycastle.crypto.InvalidCipherTextException;
 import org.checkerframework.checker.nullness.qual.Nullable;
+
+import java.io.IOException;
 
 /**
  * Represents a partition of data held within the data repositories that make up the storage backend.
@@ -67,6 +72,27 @@ public class DataPartition {
 
     public void feed(Iterable<MessageBundle> msgs)
     {
-        bridge.feed(msgs);
+        // Now find the bridge and send the message to it
+        for  (MessageBundle bundle : msgs)
+        {
+            // Now process the message itself
+            MessageMetaDto meta = new MessageMetaDto(
+                    bundle.partition,
+                    bundle.offset);
+
+            MessageBaseDto msg = MessageBaseDto.from(bundle.raw);
+            d.debugLogging.logReceive(meta, msg);
+
+            if (msg instanceof MessageSyncDto) {
+                d.partitionSyncManager.processSync((MessageSyncDto)msg);
+                return;
+            }
+            try {
+                boolean isLoaded = this.bridge.hasLoaded();
+                chain.rcv(msg, meta, isLoaded, d.genericLogger);
+            } catch (IOException | InvalidCipherTextException ex) {
+                d.genericLogger.warn(ex);
+            }
+        }
     }
 }

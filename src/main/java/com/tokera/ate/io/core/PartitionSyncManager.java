@@ -1,4 +1,4 @@
-package com.tokera.ate.io.kafka;
+package com.tokera.ate.io.core;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
@@ -14,7 +14,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 @ApplicationScoped
-public class KafkaSync {
+public class PartitionSyncManager {
     protected AteDelegate d = AteDelegate.get();
     @SuppressWarnings("initialization.fields.uninitialized")
     @Inject
@@ -24,7 +24,7 @@ public class KafkaSync {
     private ConcurrentHashMap<MessageSyncDto, Object> syncs = new ConcurrentHashMap<>();
     private Cache<MessageSyncDto, Object> finished;
 
-    private KafkaSync() {
+    private PartitionSyncManager() {
         this.finished = CacheBuilder.newBuilder()
                 .expireAfterAccess(5, TimeUnit.MINUTES)
                 .build();

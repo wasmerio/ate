@@ -31,7 +31,6 @@ import javax.ws.rs.core.Response;
 import java.io.IOException;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Random;
 import java.util.UUID;
 
 public class KafkaPartitionBridge implements IDataPartitionBridge {
@@ -89,7 +88,7 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
     }
 
     public void sendLoadSync() {
-        MessageSyncDto sync = d.kafkaSync.startSync();
+        MessageSyncDto sync = d.partitionSyncManager.startSync();
         this.send(sync);
         this.loadSync = sync;
 
@@ -105,7 +104,7 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
         if (loadSync != null) {
             StopWatch waitTime = new StopWatch();
             waitTime.start();
-            while (d.kafkaSync.hasFinishSync(this.loadSync) == false) {
+            while (d.partitionSyncManager.hasFinishSync(this.loadSync) == false) {
                 if (waitTime.getTime() > 5000L) {
                     if (sentSync == false) {
                         sendLoadSync();
@@ -159,40 +158,6 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
     }
 
     @Override
-    public boolean sync() {
-        return d.kafkaSync.sync();
-    }
-
-    @Override
-    public MessageSyncDto startSync(MessageSyncDto sync) {
-        d.kafkaSync.startSync(sync);
-        this.send(sync);
-        return sync;
-    }
-
-    @Override
-    public MessageSyncDto startSync() {
-        MessageSyncDto sync =  d.kafkaSync.startSync();
-        this.send(sync);
-        return sync;
-    }
-
-    @Override
-    public boolean finishSync(MessageSyncDto sync) {
-        return d.kafkaSync.finishSync(sync);
-    }
-
-    @Override
-    public boolean finishSync(MessageSyncDto sync, int timeout) {
-        return d.kafkaSync.finishSync(sync, timeout);
-    }
-
-    @Override
-    public boolean hasFinishSync(MessageSyncDto sync) {
-        return d.kafkaSync.hasFinishSync(sync);
-    }
-
-    @Override
     public IPartitionKey partitionKey() {
         return this.key;
     }
@@ -203,29 +168,7 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
     }
 
     @Override
-    public void feed(Iterable<MessageBundle> msgs)
-    {
-        // Now find the bridge and send the message to it
-        for  (MessageBundle bundle : msgs)
-        {
-            // Now process the message itself
-            MessageMetaDto meta = new MessageMetaDto(
-                    bundle.partition,
-                    bundle.offset);
-
-            MessageBaseDto msg = MessageBaseDto.from(bundle.raw);
-            d.debugLogging.logReceive(meta, msg);
-
-            if (msg instanceof MessageSyncDto) {
-                d.kafkaSync.processSync((MessageSyncDto)msg);
-                return;
-            }
-            try {
-                boolean isLoaded = this.loadSync == null;
-                chain.rcv(msg, meta, isLoaded, d.genericLogger);
-            } catch (IOException | InvalidCipherTextException ex) {
-                d.genericLogger.warn(ex);
-            }
-        }
+    public boolean hasLoaded() {
+        return loadSync != null;
     }
 }

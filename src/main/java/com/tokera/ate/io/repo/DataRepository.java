@@ -43,6 +43,7 @@ public class DataRepository implements IAteIO {
     private StorageSystemFactory factory;
     @SuppressWarnings("initialization.fields.uninitialized")
     private DataSubscriber subscriber;
+    private Random rand = new Random();
 
     public DataRepository() {
 
@@ -386,14 +387,16 @@ public class DataRepository implements IAteIO {
 
     @Override
     public MessageSyncDto beginSync(IPartitionKey partitionKey, MessageSyncDto sync) {
-        return this.subscriber.getPartition(partitionKey).getBridge().startSync(sync);
+        DataPartition kt = this.subscriber.getPartition(partitionKey);
+        MessageSyncDto ret = d.partitionSyncManager.startSync(sync);
+        kt.write(ret, this.LOG);
+        return ret;
     }
 
     @Override
     public boolean finishSync(IPartitionKey partitionKey, MessageSyncDto sync)
     {
-        DataPartition kt = this.subscriber.getPartition(partitionKey);
-        return kt.getBridge().finishSync(sync);
+        return d.partitionSyncManager.finishSync(sync);
     }
 
     @Override
@@ -492,10 +495,11 @@ public class DataRepository implements IAteIO {
 
                 // Now we wait for the bridge to synchronize
                 if (shouldWait) {
+                    MessageSyncDto sync = new MessageSyncDto(rand.nextLong(), rand.nextLong());
                     if (d.currentToken.getWithinTokenScope()) {
-                        d.transaction.add(partitionKey, bridge.startSync());
+                        d.transaction.add(partitionKey, this.beginSync(partitionKey, sync));
                     } else {
-                        syncs.put(new GenericPartitionKey(partitionKey), bridge.startSync());
+                        syncs.put(new GenericPartitionKey(partitionKey), this.beginSync(partitionKey, sync));
                     }
                 }
             } finally {

@@ -20,23 +20,11 @@ public interface IDataPartitionBridge {
 
     void waitTillLoaded();
 
-    boolean sync();
-
-    MessageSyncDto startSync();
-
-    MessageSyncDto startSync(MessageSyncDto sync);
-
-    boolean finishSync(MessageSyncDto sync);
-
-    boolean finishSync(MessageSyncDto sync, int timeout);
-
-    boolean hasFinishSync(MessageSyncDto sync);
-
     @Nullable MessageDataDto getVersion(UUID id, MessageMetaDto meta);
 
     IPartitionKey partitionKey();
 
     DataPartitionChain chain();
 
-    void feed(Iterable<MessageBundle> msgs);
+    boolean hasLoaded();
 }

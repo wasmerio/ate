@@ -19,12 +19,8 @@ public class RamBridgeBuilder {
             throw new WebApplicationException("Partition index can not exceed the maximum of " + KafkaTopicFactory.maxPartitionsPerTopic + " per topic.");
         }
 
-        GenericPartitionKey wrapKey = new GenericPartitionKey(key);
         DataPartitionChain chain = new DataPartitionChain(key);
-        RamPartitionBridge ret = new RamPartitionBridge(chain, key.partitionType());
-
-        ret.feed(d.ramDataRepository.read(wrapKey));
-        return ret;
+        return new RamPartitionBridge(chain, key.partitionType());
     }
 
     public void removePartition(IPartitionKey key) {

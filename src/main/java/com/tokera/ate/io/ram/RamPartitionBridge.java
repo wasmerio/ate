@@ -11,6 +11,7 @@ import com.tokera.ate.dto.msg.MessageSyncDto;
 import com.tokera.ate.enumerations.DataPartitionType;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.repo.DataPartitionChain;
+import com.tokera.ate.io.repo.DataSubscriber;
 import com.tokera.ate.io.repo.IDataPartitionBridge;
 import java.util.Collections;
 import org.bouncycastle.crypto.InvalidCipherTextException;
@@ -28,6 +29,7 @@ public class RamPartitionBridge implements IDataPartitionBridge {
     private final AteDelegate d = AteDelegate.get();
     private final DataPartitionChain chain;
     private final DataPartitionType type;
+    private final DataSubscriber subscriber;
     private final Random rand = new Random();
     private final TopicAndPartition where;
 
@@ -35,50 +37,18 @@ public class RamPartitionBridge implements IDataPartitionBridge {
         this.chain = chain;
         this.type = type;
         this.where = new TopicAndPartition(chain.partitionKey().partitionTopic(), chain.partitionKey().partitionIndex());
+        this.subscriber = d.storageFactory.get().backend();
     }
 
     @Override
     public void send(MessageBaseDto msg) {
         MessageBase flat = msg.createBaseFlatBuffer();
         MessageBundle bundle = d.ramDataRepository.write(where, flat);
-        feed(Collections.singletonList(bundle));
+        this.subscriber.feed(this.where, Collections.singletonList(bundle));
     }
 
     @Override
     public void waitTillLoaded() {
-    }
-
-    @Override
-    public boolean sync() {
-        return true;
-    }
-
-    @Override
-    public MessageSyncDto startSync() {
-        MessageSyncDto sync = new MessageSyncDto(
-                rand.nextLong(),
-                rand.nextLong());
-        return sync;
-    }
-
-    @Override
-    public MessageSyncDto startSync(MessageSyncDto sync) {
-        return new MessageSyncDto(sync);
-    }
-
-    @Override
-    public boolean finishSync(MessageSyncDto sync) {
-        return true;
-    }
-
-    @Override
-    public boolean finishSync(MessageSyncDto sync, int timeout) {
-        return true;
-    }
-
-    @Override
-    public boolean hasFinishSync(MessageSyncDto sync) {
-        return true;
     }
 
     @Override
@@ -97,20 +67,5 @@ public class RamPartitionBridge implements IDataPartitionBridge {
     }
 
     @Override
-    public void feed(Iterable<MessageBundle> bundles) {
-        for (MessageBundle bundle : bundles) {
-            MessageMetaDto meta = new MessageMetaDto(
-                    bundle.partition,
-                    bundle.offset);
-
-            MessageBaseDto msg = MessageBaseDto.from(bundle.raw);
-            d.debugLogging.logReceive(meta, msg);
-
-            try {
-                this.chain.rcv(msg, meta, true, d.genericLogger);
-            } catch (IOException | InvalidCipherTextException e) {
-                d.genericLogger.warn(e);
-            }
-        }
-    }
+    public boolean hasLoaded() { return true; }
 }

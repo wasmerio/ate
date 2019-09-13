@@ -8,6 +8,7 @@ package com.tokera.ate.io.repo;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.tokera.ate.common.LoggerHook;
+import com.tokera.ate.dao.GenericPartitionKey;
 import com.tokera.ate.dao.MessageBundle;
 import com.tokera.ate.dao.TopicAndPartition;
 import com.tokera.ate.delegates.AteDelegate;
@@ -81,6 +82,12 @@ public class DataSubscriber {
             bridge = d.kafkaBridgeBuilder.createPartition(key);
         }
         DataPartition part = new DataPartition(key, bridge);
+
+        if (this.mode == Mode.Ram) {
+            GenericPartitionKey wrapKey = new GenericPartitionKey(key);
+            part.feed(d.ramDataRepository.read(wrapKey));
+        }
+
         seedTopic(part);
         LOG.info("partition [" + part.partitionKey() + "]: subscribed");
         return part;
