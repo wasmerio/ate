@@ -8,6 +8,9 @@ import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.repo.DataTransaction;
 import com.tokera.ate.providers.PartitionKeySerializer;
 import com.tokera.ate.scopes.Startup;
+import kafka.network.RequestChannel;
+import kafka.security.auth.Operation;
+import kafka.security.auth.Resource;
 import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -422,6 +425,30 @@ public class DebugLoggingDelegate {
                 sb.append(", type=");
                 sb.append(msg.getClass().getSimpleName());
             }
+            sb.append(")");
+
+            logInfo(sb.toString());
+        }
+    }
+
+    public void logKafkaAuthorize(RequestChannel.Session session, Operation operation, Resource resource, boolean result) {
+        if (d.bootstrapConfig.isLoggingKafka() || result == false) {
+            StringBuilder sb = new StringBuilder();
+
+            if (result) {
+                sb.append("kafka_authorized(");
+            } else {
+                sb.append("kafka_unauthorized(");
+            }
+            sb.append(result);
+            sb.append(", principle=");
+            sb.append(session.principal().getName());
+            sb.append(", operation=");
+            sb.append(operation.name());
+            sb.append(", resource_type=");
+            sb.append(resource.resourceType().toJava());
+            sb.append(", resource_name=");
+            sb.append(resource.name());
             sb.append(")");
 
             logInfo(sb.toString());

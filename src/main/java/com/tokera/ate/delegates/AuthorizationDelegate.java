@@ -9,7 +9,6 @@ import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.base.BaseDaoInternal;
 import com.tokera.ate.dao.enumerations.PermissionPhase;
 import com.tokera.ate.dto.*;
-import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import com.tokera.ate.enumerations.PrivateKeyType;
 import com.tokera.ate.events.NewAccessRightsEvent;

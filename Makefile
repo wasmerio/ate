@@ -9,3 +9,6 @@ clean:
 
 distclean: clean
 	rm -r -f .m2
+
+local:
+	./compile_local.sh
