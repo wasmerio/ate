@@ -700,7 +700,7 @@ public class Encryptor implements Runnable
             try {
                 String seed = this.generateSecret64(keysize);
                 PrivateKeyWithSeedDto ret = new PrivateKeyWithSeedDto(PrivateKeyType.write, seed, keysize, keyTypes, null, alias);
-                ret.key();
+                genSignKeyFromSeed(ret.keySize(), ret.algs(), ret.seed());
                 return ret;
             } catch (KeyGenerationException ex) {
                 if (n >= attempts) {
@@ -759,7 +759,7 @@ public class Encryptor implements Runnable
             try {
                 String seed = this.generateSecret64(keysize);
                 PrivateKeyWithSeedDto ret = new PrivateKeyWithSeedDto(PrivateKeyType.read, seed, keysize, keyTypes, null, alias);
-                ret.key();
+                genEncryptKeyFromSeed(ret.keySize(), ret.algs(), ret.seed());
                 return ret;
             } catch (KeyGenerationException ex) {
                 if (n >= attempts) {
@@ -2093,11 +2093,11 @@ public class Encryptor implements Runnable
 
                 switch (key.type()) {
                     case read: {
-                        ret = d.encryptor.genEncryptKeyFromSeed(key.keySize(), key.algs(), key.seed());
+                        ret = genEncryptKeyFromSeed(key.keySize(), key.algs(), key.seed());
                         break;
                     }
                     case write: {
-                        ret = d.encryptor.genSignKeyFromSeed(key.keySize(), key.algs(), key.seed());
+                        ret = genSignKeyFromSeed(key.keySize(), key.algs(), key.seed());
                         break;
                     }
                     default: {
