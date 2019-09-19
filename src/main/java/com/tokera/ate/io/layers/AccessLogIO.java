@@ -146,8 +146,20 @@ final public class AccessLogIO implements IAteIO {
     }
 
     @Override
+    public List<BaseDao> readAllAccessible(IPartitionKey partitionKey) {
+        return next.readAllAccessible(partitionKey);
+    }
+
+    @Override
     public <T extends BaseDao> List<T> readAll(IPartitionKey partitionKey, Class<T> type) {
         List<T> ret = next.readAll(partitionKey, type);
+        logger.recordRead(type);
+        return ret;
+    }
+
+    @Override
+    public <T extends BaseDao> List<T> readAllAccessible(IPartitionKey partitionKey, Class<T> type) {
+        List<T> ret = next.readAllAccessible(partitionKey, type);
         logger.recordRead(type);
         return ret;
     }

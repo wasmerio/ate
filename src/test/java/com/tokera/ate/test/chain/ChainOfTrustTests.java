@@ -90,7 +90,7 @@ public class ChainOfTrustTests
     {
         DataPartitionChain chain = createChain();
         MessagePublicKeyDto trustedKeyWrite = new MessagePublicKeyDto(encryptor.getTrustOfPublicWrite());
-        chain.addTrustKey(trustedKeyWrite, null);
+        chain.addTrustKey(trustedKeyWrite);
 
         @Hash String hash = trustedKeyWrite.getPublicKeyHash();
         assert hash != null : "@AssumeAssertion(nullness): Must not be null";
@@ -109,7 +109,7 @@ public class ChainOfTrustTests
         
         DataPartitionChain chain = createChain();
         MessagePrivateKeyDto trustedKeyWrite = encryptor.getTrustOfPublicWrite().key();
-        chain.addTrustKey(trustedKeyWrite, null);
+        chain.addTrustKey(trustedKeyWrite);
         
         UUID rootId = UUID.randomUUID();
         MessageDataHeaderDto header = new MessageDataHeaderDto(
@@ -125,7 +125,7 @@ public class ChainOfTrustTests
         Assertions.assertNotNull(hash);
 
         header.getAllowWrite().add(hash);
-        chain.addTrustDataHeader(header, LOG);
+        chain.addTrustDataHeader(header);
         
         EffectivePermissions permissions = new EffectivePermissions(header.getPayloadClazz(), chain.partitionKey(), rootId);
         permissions.rolesWrite.add(hash);
@@ -171,7 +171,7 @@ public class ChainOfTrustTests
         data = new MessageDataDto(header, digest, bytes1);
         chain.rcv(data, new MessageMetaDto(0, index++), true, LOG);
 
-        DataContainer rcvdata = chain.getData(data.getHeader().getIdOrThrow(), LOG);
+        DataContainer rcvdata = chain.getData(data.getHeader().getIdOrThrow());
         Assertions.assertTrue(rcvdata == null);
 
         // Now if we actually sign it then it will be accepted
@@ -182,7 +182,7 @@ public class ChainOfTrustTests
         chain.rcv(data, new MessageMetaDto(0, index++), true, LOG);
         
         // Attempt to read it (which will perform the validation)
-        rcvdata = chain.getData(data.getHeader().getIdOrThrow(), LOG);
+        rcvdata = chain.getData(data.getHeader().getIdOrThrow());
         Assertions.assertTrue(rcvdata != null);
     }
 }

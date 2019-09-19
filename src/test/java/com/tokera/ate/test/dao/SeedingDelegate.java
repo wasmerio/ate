@@ -37,7 +37,7 @@ public class SeedingDelegate {
 
         // Add the root key into the chain of trust
         assert rootkey != null : "@AssumeAssertion(nullness): Must not be null";
-        chain.addTrustKey(rootkey.key(), d.genericLogger);
+        chain.addTrustKey(rootkey.key());
 
         // Add a dummy record for the root account
         MessageDataHeaderDto header = new MessageDataHeaderDto(
@@ -51,6 +51,6 @@ public class SeedingDelegate {
         @Hash String hash = rootkey.publicHash();
         assert hash != null : "@AssumeAssertion(nullness): Must not be null";
         header.getAllowWrite().add(hash);
-        chain.addTrustDataHeader(header, d.genericLogger);
+        chain.addTrustDataHeader(header);
     }
 }

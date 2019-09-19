@@ -23,6 +23,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 public class DataContainer {
+    public final UUID id;
     private Long firstOffset = 0L;
     private Long lastOffset = 0L;
     public final IPartitionKey partitionKey;
@@ -31,7 +32,8 @@ public class DataContainer {
     public final LinkedList<DataGraphNode> leaves = new LinkedList<>();
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
-    public DataContainer(IPartitionKey partitionKey) {
+    public DataContainer(UUID id, IPartitionKey partitionKey) {
+        this.id = id;
         this.partitionKey = partitionKey;
     }
 

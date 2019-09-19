@@ -61,7 +61,7 @@ public class DataSubscriber {
         d.eventKeysDiscovery.fire(discovery);
 
         for (MessagePublicKeyDto key : discovery.getKeys()) {
-            chain.addTrustKey(key, this.LOG);
+            chain.addTrustKey(key);
         }
     }
     

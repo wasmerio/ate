@@ -111,7 +111,7 @@ public class DataRepository implements IAteIO {
 
             IPartitionKey partitionKey = entity.partitionKey(true);
             DataPartitionChain chain = this.subscriber.getChain(partitionKey, true);
-            DataContainer parentContainer = chain.getData(entityParentId, LOG);
+            DataContainer parentContainer = chain.getData(entityParentId);
             if (parentContainer != null && d.daoParents.getAllowedParentsSimple().containsEntry(entityType, parentContainer.getPayloadClazz()) == false) {
                 if (type.getAnnotation(Dependent.class) == null) {
                     throw new RuntimeException("This entity [" + type.getSimpleName() + "] has not been marked with the Dependent annotation.");
@@ -246,7 +246,7 @@ public class DataRepository implements IAteIO {
         if (id == null) return false;
 
         DataPartitionChain kt = this.subscriber.getChain(id.partition(), true);
-        if (kt.exists(id.id(), LOG)) return true;
+        if (kt.exists(id.id())) return true;
         return false;
     }
 
@@ -256,7 +256,7 @@ public class DataRepository implements IAteIO {
         if (id == null) return false;
 
         DataPartitionChain chain = this.subscriber.getChain(id.partition(), true);
-        if (chain.everExisted(id.id(), LOG)) return true;
+        if (chain.everExisted(id.id())) return true;
 
         return false;
     }
@@ -264,7 +264,7 @@ public class DataRepository implements IAteIO {
     @Override
     public boolean immutable(PUUID id) {
         DataPartitionChain chain = this.subscriber.getChain(id.partition(), true);
-        if (chain.immutable(id.id(), LOG)) return true;
+        if (chain.immutable(id.id())) return true;
         return false;
     }
 
@@ -281,7 +281,7 @@ public class DataRepository implements IAteIO {
 
         // Attempt to find the data
         DataPartitionChain chain = this.subscriber.getChain(id.partition(), true);
-        DataContainer container = chain.getData(id.id(), LOG);
+        DataContainer container = chain.getData(id.id());
         if (container == null) return null;
 
         return container.getMergedData(false, shouldSave);
@@ -290,7 +290,7 @@ public class DataRepository implements IAteIO {
     @Override
     public BaseDao readOrThrow(PUUID id) {
         DataPartitionChain chain = this.subscriber.getChain(id.partition(), true);
-        DataContainer container = chain.getData(id.id(), LOG);
+        DataContainer container = chain.getData(id.id());
         if (container == null) {
             throw new RuntimeException("Failed to find a data object of id [" + id + "]");
         }
@@ -306,13 +306,13 @@ public class DataRepository implements IAteIO {
     public @Nullable DataContainer readRawOrNull(@Nullable PUUID id) {
         if (id == null) return null;
         DataPartitionChain chain = this.subscriber.getChain(id.partition(), true);
-        return chain.getData(id.id(), LOG);
+        return chain.getData(id.id());
     }
 
     @Override
     public <T extends BaseDao> Iterable<MessageMetaDto> readHistory(PUUID id, Class<T> clazz) {
         DataPartitionChain chain = this.subscriber.getChain(id.partition(), true);
-        return chain.getHistory(id.id(), LOG);
+        return chain.getHistory(id.id());
     }
 
     @Override
@@ -339,10 +339,27 @@ public class DataRepository implements IAteIO {
         DataPartitionChain chain = this.subscriber.getChain(partitionKey, true);
 
         List<BaseDao> ret = new ArrayList<>();
-        for (DataContainer container : chain.getAllData(LOG)) {
+        for (DataContainer container : chain.getAllData()) {
             BaseDao entity = container.getMergedData();
             if (entity != null) {
                 ret.add(entity);
+            }
+        }
+
+        return ret;
+    }
+
+    @Override
+    public List<BaseDao> readAllAccessible(IPartitionKey partitionKey) {
+        DataPartitionChain chain = this.subscriber.getChain(partitionKey, true);
+
+        List<BaseDao> ret = new ArrayList<>();
+        for (DataContainer container : chain.getAllData()) {
+            if (d.authorization.canRead(partitionKey, container.id)) {
+                BaseDao entity = container.getMergedData();
+                if (entity != null) {
+                    ret.add(entity);
+                }
             }
         }
 
@@ -356,7 +373,7 @@ public class DataRepository implements IAteIO {
         DataPartitionChain chain = this.subscriber.getChain(partitionKey, true);
 
         List<T> ret = new ArrayList<>();
-        for (DataContainer container : chain.getAllData(type, LOG)) {
+        for (DataContainer container : chain.getAllData(type)) {
             T entity = (@Nullable T)container.getMergedData();
             if (entity != null) {
                 ret.add(entity);
@@ -366,11 +383,30 @@ public class DataRepository implements IAteIO {
         return ret;
     }
 
+    @SuppressWarnings({"unchecked"})
+    @Override
+    public <T extends BaseDao> List<T> readAllAccessible(IPartitionKey partitionKey, Class<T> type)
+    {
+        DataPartitionChain chain = this.subscriber.getChain(partitionKey, true);
+
+        List<T> ret = new ArrayList<>();
+        for (DataContainer container : chain.getAllData(type)) {
+            if (d.authorization.canRead(partitionKey, container.id)) {
+                T entity = (@Nullable T) container.getMergedData();
+                if (entity != null) {
+                    ret.add(entity);
+                }
+            }
+        }
+
+        return ret;
+    }
+
     @Override
     public <T extends BaseDao> List<DataContainer> readAllRaw(IPartitionKey partitionKey)
     {
         DataPartitionChain chain = this.subscriber.getChain(partitionKey, true);
-        return chain.getAllData(null, LOG);
+        return chain.getAllData();
     }
 
     @Override
@@ -379,9 +415,9 @@ public class DataRepository implements IAteIO {
         DataPartitionChain chain = this.subscriber.getChain(partitionKey, true);
 
         if (type != null) {
-            return chain.getAllData(type, LOG);
+            return chain.getAllData(type);
         } else {
-            return chain.getAllData(null, LOG);
+            return chain.getAllData();
         }
     }
 

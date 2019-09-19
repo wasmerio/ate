@@ -20,7 +20,7 @@ public class DataContainerTests {
     @Test
     public void emptyContainer() {
 
-        DataContainer container = new DataContainer(new PUUID("test", 0, 0, 0, DataPartitionType.Dao).partition());
+        DataContainer container = new DataContainer(UUID.randomUUID(), new PUUID("test", 0, 0, 0, DataPartitionType.Dao).partition());
         assert container.getLastHeaderOrNull() == null;
         assert container.hasPayload() == false;
         assert container.getLastOrNull() == null;
@@ -30,7 +30,7 @@ public class DataContainerTests {
 
     @Test
     public void soloContainer() {
-        DataContainer container = new DataContainer(new PUUID("test", 0, 0, 0, DataPartitionType.Dao).partition());
+        DataContainer container = new DataContainer(UUID.randomUUID(), new PUUID("test", 0, 0, 0, DataPartitionType.Dao).partition());
 
         MessageDataHeaderDto header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), null, MyAccount.class);
         MessageDataDto data = new MessageDataDto(header, null, null) ;
@@ -46,7 +46,7 @@ public class DataContainerTests {
 
     @Test
     public void linearContainer() {
-        DataContainer container = new DataContainer(new PUUID("test", 0, 0, 0, DataPartitionType.Dao).partition());
+        DataContainer container = new DataContainer(UUID.randomUUID(), new PUUID("test", 0, 0, 0, DataPartitionType.Dao).partition());
         UUID version0 = UUID.randomUUID();
         UUID version1 = UUID.randomUUID();
         UUID version2 = UUID.randomUUID();
@@ -71,7 +71,7 @@ public class DataContainerTests {
 
     @Test
     public void triMergeContainer() {
-        DataContainer container = new DataContainer(new PUUID("test", 0, 0, 0, DataPartitionType.Dao).partition());
+        DataContainer container = new DataContainer(UUID.randomUUID(), new PUUID("test", 0, 0, 0, DataPartitionType.Dao).partition());
         UUID version0 = UUID.randomUUID();
         UUID version1 = UUID.randomUUID();
         UUID version2 = UUID.randomUUID();
@@ -102,7 +102,7 @@ public class DataContainerTests {
 
     @Test
     public void quad1MergeContainer() {
-        DataContainer container = new DataContainer(new PUUID("test", 0, 0, 0, DataPartitionType.Dao).partition());
+        DataContainer container = new DataContainer(UUID.randomUUID(), new PUUID("test", 0, 0, 0, DataPartitionType.Dao).partition());
         UUID version0 = UUID.randomUUID();
         UUID version1 = UUID.randomUUID();
         UUID version2 = UUID.randomUUID();
@@ -138,7 +138,7 @@ public class DataContainerTests {
 
     @Test
     public void quad2MergeContainer() {
-        DataContainer container = new DataContainer(new PUUID("test", 0, 0, 0, DataPartitionType.Dao).partition());
+        DataContainer container = new DataContainer(UUID.randomUUID(), new PUUID("test", 0, 0, 0, DataPartitionType.Dao).partition());
         UUID version0 = UUID.randomUUID();
         UUID version1 = UUID.randomUUID();
         UUID version2 = UUID.randomUUID();

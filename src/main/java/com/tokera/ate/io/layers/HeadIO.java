@@ -674,13 +674,7 @@ public class HeadIO
     }
 
     public List<BaseDao> readAll() {
-        IPartitionKey partitionKey = d.requestContext.currentPartitionKey();
-
-        List<BaseDao> ret = back.readAll(partitionKey);
-        for (BaseDao entity : ret) {
-            currentTransaction().cache(partitionKey, entity);
-        }
-        return ret;
+        return readAll(d.requestContext.currentPartitionKey());
     }
 
     public List<BaseDao> readAll(IPartitionKey partitionKey) {
@@ -691,8 +685,23 @@ public class HeadIO
         return ret;
     }
 
+    public List<BaseDao> readAllAccessible() {
+        return readAllAccessible(d.requestContext.currentPartitionKey());
+    }
+
+    public List<BaseDao> readAllAccessible(IPartitionKey partitionKey) {
+        List<BaseDao> ret = back.readAllAccessible(partitionKey);
+        for (BaseDao entity : ret) {
+            currentTransaction().cache(partitionKey, entity);
+        }
+        return ret;
+    }
+
     public <T extends BaseDao> List<T> readAll(Class<T> type) {
-        IPartitionKey partitionKey = d.requestContext.currentPartitionKey();
+        return readAll(d.requestContext.currentPartitionKey(), type);
+    }
+
+    public <T extends BaseDao> List<T> readAll(IPartitionKey partitionKey, Class<T> type) {
         List<T> ret = back.readAll(partitionKey, type);
         for (BaseDao entity : ret) {
             currentTransaction().cache(partitionKey, entity);
@@ -700,8 +709,12 @@ public class HeadIO
         return ret;
     }
 
-    public <T extends BaseDao> List<T> readAll(IPartitionKey partitionKey, Class<T> type) {
-        List<T> ret = back.readAll(partitionKey, type);
+    public <T extends BaseDao> List<T> readAllAccessible(Class<T> type) {
+        return readAllAccessible(d.requestContext.currentPartitionKey(), type);
+    }
+
+    public <T extends BaseDao> List<T> readAllAccessible(IPartitionKey partitionKey, Class<T> type) {
+        List<T> ret = back.readAllAccessible(partitionKey, type);
         for (BaseDao entity : ret) {
             currentTransaction().cache(partitionKey, entity);
         }

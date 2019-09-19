@@ -29,6 +29,7 @@ public class DataPartitionChain {
     private final IPartitionKey key;
     private final ConcurrentMap<UUID, MessageDataHeaderDto> rootOfTrust;
     private final ConcurrentMap<UUID, DataContainer> chainOfTrust;
+    private final ConcurrentMap<String, HashSet<UUID>> byClazz;
     private final ConcurrentMap<UUID, MessageSecurityCastleDto> castles;
     private final ConcurrentMap<String, MessagePublicKeyDto> publicKeys;
     private final Encryptor encryptor;
@@ -39,15 +40,16 @@ public class DataPartitionChain {
         this.chainOfTrust = new ConcurrentHashMap<>();
         this.publicKeys = new ConcurrentHashMap<>();
         this.castles = new ConcurrentHashMap<>();
+        this.byClazz = new ConcurrentHashMap<>();
         this.encryptor = Encryptor.getInstance();
 
-        this.addTrustKey(d.encryptor.getTrustOfPublicRead().key(), null);
-        this.addTrustKey(d.encryptor.getTrustOfPublicWrite().key(), null);
+        this.addTrustKey(d.encryptor.getTrustOfPublicRead().key());
+        this.addTrustKey(d.encryptor.getTrustOfPublicWrite().key());
     }
 
     public IPartitionKey partitionKey() { return this.key; }
     
-    public void addTrustDataHeader(MessageDataHeaderDto trustedHeader, @Nullable LoggerHook LOG) {
+    public void addTrustDataHeader(MessageDataHeaderDto trustedHeader) {
 
         MessageDataDto data = new MessageDataDto(
                 trustedHeader,
@@ -60,10 +62,10 @@ public class DataPartitionChain {
                 0L,
                 0L);
 
-        this.addTrustData(data, meta, false, LOG);
+        this.addTrustData(data, meta, false);
     }
     
-    public void addTrustKey(MessagePublicKeyDto trustedKey, @Nullable LoggerHook LOG) {
+    public void addTrustKey(MessagePublicKeyDto trustedKey) {
         d.debugLogging.logTrust(this.partitionKey(), trustedKey);
 
         if (d.bootstrapConfig.isExtraValidation()) {
@@ -77,14 +79,20 @@ public class DataPartitionChain {
     }
 
     @SuppressWarnings({"known.nonnull"})
-    public void addTrustData(MessageDataDto data, MessageMetaDto meta, boolean invokeCallbacks, @Nullable LoggerHook LOG) {
+    public void addTrustData(MessageDataDto data, MessageMetaDto meta, boolean invokeCallbacks) {
         d.debugLogging.logTrust(this.partitionKey(), data);
 
         // Add it to the chain of trust
-        UUID id = data.getHeader().getIdOrThrow();
+        MessageDataHeaderDto header = data.getHeader();
+        UUID id = header.getIdOrThrow();
         this.chainOfTrust.compute(id, (i, c) -> {
-            if (c == null) c = new DataContainer(this.key);
+            if (c == null) c = new DataContainer(id, this.key);
             return c.add(data, meta);
+        });
+        this.byClazz.compute(header.getPayloadClazzOrThrow(), (a, b) -> {
+            if (b == null) b = new HashSet<>();
+            b.add(id);
+            return b;
         });
 
         // Invoke the task manager so anything waiting for events will trigger
@@ -172,7 +180,7 @@ public class DataPartitionChain {
         }
         
         // Add it to the trust tree and return success
-        addTrustData(data, msg.getMeta(), invokeCallbacks, LOG);
+        addTrustData(data, msg.getMeta(), invokeCallbacks);
         return true;
     }
     
@@ -190,7 +198,7 @@ public class DataPartitionChain {
                 .withLogger(LOG)
                 .withFailureCallback(f -> this.drop(f.LOG, f.data, f.why))
                 .withGetRootOfTrust(id -> this.getRootOfTrust(id))
-                .withGetDataCallback(id -> this.getData(id, LOG))
+                .withGetDataCallback(id -> this.getData(id))
                 .withGetPublicKeyCallback(hash -> this.getPublicKey(hash));
     }
 
@@ -244,48 +252,55 @@ public class DataPartitionChain {
         return true;
     }
     
-    public <T extends BaseDao> List<DataContainer> getAllData(@Nullable Class<T> _clazz, @Nullable LoggerHook LOG) {
-        Class<T> clazz = _clazz;
-        String clazzName = clazz != null ? clazz.getName() : null;
+    public <T extends BaseDao> List<DataContainer> getAllData(Class<T> clazz) {
+        String clazzName = clazz.getName();
+
+        List<UUID> ids = new ArrayList<>();
+        this.byClazz.computeIfPresent(clazzName, (a, b) -> {
+            ids.addAll(b);
+            return b;
+        });
 
         List<DataContainer> ret = new ArrayList<>();
-        this.chainOfTrust.forEach( (key, a) -> {
-            if (clazzName == null || clazzName.equals(a.getPayloadClazz())) {
-                ret.add(a);
-            }
-        });
+        for (UUID id : ids) {
+            DataContainer container = this.chainOfTrust.getOrDefault(id, null);
+            if (container != null) ret.add(container);
+        }
         ret.sort(Comparator.comparing(DataContainer::getFirstOffset));
         return ret;
     }
 
-    public List<DataContainer> getAllData(@Nullable LoggerHook LOG)
+    public List<DataContainer> getAllData()
     {
-        return getAllData(null, LOG);
+        List<DataContainer> ret = new ArrayList<>();
+        this.chainOfTrust.forEach( (key, a) -> ret.add(a));
+        ret.sort(Comparator.comparing(DataContainer::getFirstOffset));
+        return ret;
     }
     
-    public boolean exists(UUID id, @Nullable LoggerHook LOG)
+    public boolean exists(UUID id)
     {
-        DataContainer container = this.getData(id, LOG);
+        DataContainer container = this.getData(id);
         if (container == null) return false;
         return container.hasPayload();
     }
     
-    public boolean everExisted(UUID id, @Nullable LoggerHook LOG)
+    public boolean everExisted(UUID id)
     {
-        DataContainer container = this.getData(id, LOG);
+        DataContainer container = this.getData(id);
         if (container == null) return false;
         return true;
     }
     
-    public boolean immutable(UUID id, @Nullable LoggerHook LOG)
+    public boolean immutable(UUID id)
     {
-        DataContainer container = this.getData(id, LOG);
+        DataContainer container = this.getData(id);
         if (container == null) return false;
         return container.getImmutable();
     }
 
     @SuppressWarnings({"return.type.incompatible", "argument.type.incompatible"})       // We want to return a null if the data does not exist and it must be atomic
-    public @Nullable DataContainer getData(UUID id, @Nullable LoggerHook LOG)
+    public @Nullable DataContainer getData(UUID id)
     {
         return this.chainOfTrust.getOrDefault(id, null);
     }
@@ -296,8 +311,8 @@ public class DataPartitionChain {
         return rootOfTrust.getOrDefault(id, null);
     }
     
-    public Iterable<MessageMetaDto> getHistory(UUID id, @Nullable LoggerHook LOG) {
-        DataContainer container = this.getData(id, LOG);
+    public Iterable<MessageMetaDto> getHistory(UUID id) {
+        DataContainer container = this.getData(id);
         if (container == null) return new LinkedList<>();
         return container.getHistory();
     }

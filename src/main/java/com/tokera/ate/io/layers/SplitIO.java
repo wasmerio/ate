@@ -100,10 +100,32 @@ final public class SplitIO implements IAteIO {
     }
 
     @Override
+    final public List<BaseDao> readAllAccessible(IPartitionKey partitionKey) {
+        List<BaseDao> ret = lower.readAllAccessible(partitionKey);
+
+        for (BaseDao entity : upper.readAllAccessible(partitionKey)) {
+            ret.add(entity);
+        }
+
+        return ret;
+    }
+
+    @Override
     final public <T extends BaseDao> List<T> readAll(IPartitionKey partitionKey, Class<T> type) {
         List<T> ret = lower.readAll(partitionKey, type);
 
         for (T entity : upper.readAll(partitionKey, type)) {
+            ret.add(entity);
+        }
+
+        return ret;
+    }
+
+    @Override
+    final public <T extends BaseDao> List<T> readAllAccessible(IPartitionKey partitionKey, Class<T> type) {
+        List<T> ret = lower.readAllAccessible(partitionKey, type);
+
+        for (T entity : upper.readAllAccessible(partitionKey, type)) {
             ret.add(entity);
         }
 

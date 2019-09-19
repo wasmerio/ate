@@ -117,8 +117,18 @@ public class PassThroughIO implements IAteIO {
     }
 
     @Override
+    public List<BaseDao> readAllAccessible(IPartitionKey partitionKey) {
+        return next.readAllAccessible(partitionKey);
+    }
+
+    @Override
     public <T extends BaseDao> List<T> readAll(IPartitionKey partitionKey, Class<T> type) {
         return next.readAll(partitionKey, type);
+    }
+
+    @Override
+    public <T extends BaseDao> List<T> readAllAccessible(IPartitionKey partitionKey, Class<T> type) {
+        return next.readAllAccessible(partitionKey, type);
     }
 
     @Override
