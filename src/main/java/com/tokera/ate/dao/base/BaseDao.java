@@ -117,8 +117,12 @@ public abstract class BaseDao implements Serializable, Immutalizable, IPartition
     }
 
     void newVersion() {
-        UUID oldVerison = _version;
-        _version = UUID.randomUUID();
-        _previousVersion = oldVerison;
+        if (_version == null) {
+            _version = UUID.randomUUID();
+        } else {
+            UUID oldVerison = _version;
+            _version = UUID.randomUUID();
+            _previousVersion = oldVerison;
+        }
     }
 }
