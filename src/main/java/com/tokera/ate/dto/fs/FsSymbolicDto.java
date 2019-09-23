@@ -35,6 +35,9 @@ public class FsSymbolicDto {
     @JsonProperty
     @NotNull
     private SymbolicLinkType type;
+    @JsonProperty
+    @NotNull
+    private Boolean writeable = false;
 
     @SuppressWarnings("initialization.fields.uninitialized")
     @Deprecated
@@ -71,5 +74,14 @@ public class FsSymbolicDto {
 
     public void setType(SymbolicLinkType type) {
         this.type = type;
+    }
+
+    public Boolean getWriteable() {
+        return this.writeable;
+    }
+
+    public FsSymbolicDto setWriteable(Boolean value) {
+        this.writeable = value;
+        return this;
     }
 }
