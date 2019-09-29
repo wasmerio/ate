@@ -76,7 +76,7 @@ https://www.confluent.io/blog/okay-store-data-apache-kafka/
     <dependency>
         <groupId>com.tokera</groupId>
         <artifactId>ate</artifactId>
-        <version>0.2.6</version>
+        <version>0.2.12</version>
     </dependency>
 </dependencies>
 ```
