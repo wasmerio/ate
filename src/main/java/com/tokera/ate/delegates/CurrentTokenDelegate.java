@@ -303,7 +303,7 @@ public class CurrentTokenDelegate {
                         RuntimeException ex;
                         try {
                             EffectivePermissions permissions = d.authorization.perms(null, entityId, PermissionPhase.BeforeMerge);
-                            ex = d.authorization.buildWriteException(permissions, true);
+                            ex = d.authorization.buildWriteException(permissions.rolesWrite, permissions, true);
                         } catch (Throwable dump) {
                             ex = new WebApplicationException("Write access denied (Missing permitted entity). Path Param (" + name + "=" + entityId + ")",
                                     Response.Status.UNAUTHORIZED);

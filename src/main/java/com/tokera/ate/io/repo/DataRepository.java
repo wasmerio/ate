@@ -210,33 +210,29 @@ public class DataRepository implements IAteIO {
         if (perms.rolesWrite.size() <= 0) {
             EffectivePermissions perms2 = d.authorization.perms(entity, PermissionPhase.DynamicStaging);
             if (perms2.rolesWrite.size() <= 0) {
-                throw d.authorization.buildWriteException("Failed to save this object as there are no valid write roles for this spot in the chain-of-trust or its not connected to a parent.", perms, false);
+                throw d.authorization.buildWriteException("Failed to save this object as there are no valid write roles for this spot in the chain-of-trust or its not connected to a parent.", perms.rolesWrite, perms, false);
             }
         }
         if (this.immutable(entity.addressableId()) == true) {
             throw new RuntimeException("Unable to save [" + entity + "] as this object is immutable.");
         }
         if (perms.canWrite(d.currentRights) == false) {
-            throw d.authorization.buildWriteException(perms, true);
+            throw d.authorization.buildWriteException(perms.rolesWrite, perms, true);
         }
     }
 
-    boolean remove(IPartitionKey partitionKey, BaseDao entity) {
-
-        // Now create and write the data messages themselves
+    boolean remove(IPartitionKey partitionKey, UUID id) {
         DataPartition kt = this.subscriber.getPartition(partitionKey);
-
-        if (BaseDaoInternal.hasSaved(entity) == false) {
-            return true;
+        DataPartitionChain chain = this.subscriber.getChain(partitionKey, true);
+        DataContainer container = chain.getData(id);
+        if (container == null) {
+            throw new RuntimeException("Failed to find a data object of id [" + id + "]");
         }
 
-        //String encryptKey64 = d.daoHelper.getEncryptKey(entity, false, this.inMergeDeferred == false, false);
-        //if (encryptKey64 == null) return false;
-
-        MessageBaseDto msg = d.dataSerializer.toDataMessage(entity, kt, true);
+        MessageBaseDto msg = d.dataSerializer.toDataMessageDelete(container.getLastHeaderOrNull(), kt);
         kt.write(msg, this.LOG);
 
-        d.debugLogging.logDelete(entity);
+        d.debugLogging.logDelete(PUUID.from(partitionKey, id));
         return true;
     }
 
@@ -519,8 +515,8 @@ public class DataRepository implements IAteIO {
                 }
 
                 // Remove delete any entities that need to be removed
-                for (BaseDao entity : trans.deletes(partitionKey)) {
-                    remove(partitionKey, entity);
+                for (UUID entityId : trans.deletes(partitionKey)) {
+                    remove(partitionKey, entityId);
                     shouldWait = true;
                 }
 
@@ -555,7 +551,7 @@ public class DataRepository implements IAteIO {
 
         d.dataRepository.validateTrustPublicKeys(trans, entity);
 
-        MessageDataDto data = (MessageDataDto) d.dataSerializer.toDataMessage(entity, kt, false);
+        MessageDataDto data = (MessageDataDto) d.dataSerializer.toDataMessage(entity, kt);
 
         if (chain.validateTrustStructureAndWritabilityIncludingStaging(data, LOG) == false) {
             String what = "clazz=" + data.getHeader().getPayloadClazzOrThrow() + ", id=" + data.getHeader().getIdOrThrow();

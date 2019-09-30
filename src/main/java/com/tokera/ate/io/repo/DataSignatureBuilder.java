@@ -11,6 +11,8 @@ import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.security.Encryptor;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.Collection;
+import java.util.List;
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 
@@ -73,12 +75,12 @@ public class DataSignatureBuilder {
         return new MessageDataDigestDto(seed, sig, digest, keyHash);
     }
     
-    public @Nullable MessageDataDigestDto signDataMessage(IPartitionKey partitionKey, MessageDataHeaderDto header, byte @Nullable [] payloadBytes, EffectivePermissions permissions)
+    public @Nullable MessageDataDigestDto signDataMessage(IPartitionKey partitionKey, MessageDataHeaderDto header, byte @Nullable [] payloadBytes, Collection<String> rolesWrite)
     {
         // Loop through all the roles until we find a key that we can
         // use of writing a valid digest for this entity
         byte[] streamBytes = generateStreamBytes(header, payloadBytes);
-        for (String publicKeyHash : permissions.rolesWrite)
+        for (String publicKeyHash : rolesWrite)
         {
             // We can only sign if we have a private key for the pair
             MessagePrivateKeyDto privateKey = d.requestContext.currentTransaction().findPrivateKey(partitionKey, publicKeyHash);

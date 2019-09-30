@@ -34,7 +34,7 @@ public class DataTransaction {
         public final List<UUID> toPutOrder = new ArrayList<>();
         public final List<UUID> toDeleteOrder = new ArrayList<>();
         public final Map<UUID, BaseDao> toPut = new HashMap<>();
-        public final Map<UUID, BaseDao> toDelete = new HashMap<>();
+        public final HashSet<UUID> toDelete = new HashSet<>();
         public final Map<String, MessagePrivateKeyDto> savedWriteKeys = new HashMap<>();
         public final Map<String, MessagePublicKeyDto> savedPublicKeys = new HashMap<>();
         public final Map<UUID, MessageDataDto> savedDatas = new HashMap<>();
@@ -146,7 +146,7 @@ public class DataTransaction {
             context.toPut.put(id, obj);
             context.toPutOrder.add(id);
         }
-        if (context.toDelete.remove(id) != null) {
+        if (context.toDelete.remove(id)) {
             context.toDeleteOrder.remove(id);
         }
 
@@ -154,23 +154,33 @@ public class DataTransaction {
     }
 
     void delete(IPartitionKey partitionKey, BaseDao obj) {
-        UUID id = obj.getId();
+        delete(partitionKey, obj.getId());
+    }
+
+    public void delete(PUUID pid) {
+        delete(pid.partition(), pid.id());
+    }
+
+    void delete(IPartitionKey partitionKey, UUID id) {
+        d.requestContext.currentTransaction().put(partitionKey,
+                d.currentRights.getRightsWrite().stream().map(k -> k.key()).collect(Collectors.toSet()));
+
         PartitionContext context = getPartitionMergeContext(partitionKey, true);
-        if (context.toDelete.containsKey(id) == false) {
-            context.toDelete.put(id, obj);
+        if (context.toDelete.contains(id) == false) {
+            context.toDelete.add(id);
             context.toDeleteOrder.add(id);
         }
         if (context.toPut.remove(id) != null) {
             context.toPutOrder.remove(id);
         }
 
-        uncache(partitionKey, obj.getId());
+        uncache(partitionKey, id);
     }
 
     void undo(IPartitionKey partitionKey, BaseDao obj) {
         UUID id = obj.getId();
         PartitionContext context = getPartitionMergeContext(partitionKey, true);
-        if (context.toDelete.remove(id) != null) {
+        if (context.toDelete.remove(id)) {
             context.toDeleteOrder.remove(id);
         }
         if (context.toPut.remove(id) != null) {
@@ -231,9 +241,9 @@ public class DataTransaction {
         return context.toPutOrder.stream().map(id -> context.toPut.get(id)).collect(Collectors.toList());
     }
 
-    Iterable<BaseDao> deletes(IPartitionKey partitionKey) {
+    Iterable<UUID> deletes(IPartitionKey partitionKey) {
         PartitionContext context = getPartitionMergeContext(partitionKey, false);
-        return context.toDeleteOrder.stream().map(id -> context.toDelete.get(id)).collect(Collectors.toList());
+        return context.toDeleteOrder.stream().collect(Collectors.toList());
     }
 
     public boolean isWritten(PUUID id) {
@@ -254,7 +264,7 @@ public class DataTransaction {
     public boolean isDeleted(IPartitionKey partitionKey, UUID id) {
         PartitionContext context = getPartitionMergeContext(partitionKey, false);
         if (context == null) return false;
-        return context.toDelete.containsKey(id);
+        return context.toDelete.contains(id);
     }
 
     public boolean exists(PUUID id) {
@@ -359,8 +369,6 @@ public class DataTransaction {
             d.dataRepository.validateTrustStructure(entity);
             d.dataRepository.validateTrustPublicKeys(this, entity);
 
-            d.requestContext.currentTransaction().put(partitionKey,
-                    d.currentRights.getRightsWrite().stream().map(k -> k.key()).collect(Collectors.toSet()));;
             delete(partitionKey, entity);
         } else {
             undo(partitionKey, entity);

@@ -30,10 +30,7 @@ import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -92,7 +89,7 @@ public class AuthorizationDelegate {
     {
         if (canWrite(obj) == false) {
             EffectivePermissions permissions = d.authorization.perms(obj);
-            throw buildWriteException(permissions, true);
+            throw buildWriteException(permissions.rolesWrite, permissions, true);
         }
     }
 
@@ -102,12 +99,12 @@ public class AuthorizationDelegate {
         return perms.canWrite(d.currentRights);
     }
 
-    public RuntimeException buildWriteException(EffectivePermissions permissions, boolean showStack)
+    public RuntimeException buildWriteException(Collection<String> rolesWrite, EffectivePermissions permissions, boolean showStack)
     {
-        return buildWriteException("Access denied while attempting to write object", permissions, showStack);
+        return buildWriteException("Access denied while attempting to write object", rolesWrite, permissions, showStack);
     }
 
-    public RuntimeException buildWriteException(String msg, EffectivePermissions permissions, boolean showStack)
+    public RuntimeException buildWriteException(String msg, Collection<String> rolesWrite, EffectivePermissions permissions, boolean showStack)
     {
         IPartitionKey partitionKey = permissions.partitionKey;
         @DaoId UUID entityId = permissions.id;
@@ -132,7 +129,7 @@ public class AuthorizationDelegate {
         sb.append(" > where: ").append(PartitionKeySerializer.toString(permissions.partitionKey)).append("\n");
 
         boolean hasNeeds = false;
-        for (String publicKeyHash : permissions.rolesWrite) {
+        for (String publicKeyHash : rolesWrite) {
 
             if (hasNeeds == false) {
                 sb.append(" > needs: ");
@@ -206,7 +203,7 @@ public class AuthorizationDelegate {
     public void validateWriteOrThrow(IPartitionKey partitionKey, @DaoId UUID objId) {
         EffectivePermissions permissions = this.perms(null, partitionKey, objId, PermissionPhase.BeforeMerge);
         if (canWrite(partitionKey, objId) == false) {
-            throw buildWriteException(permissions, false);
+            throw buildWriteException(permissions.rolesWrite, permissions, false);
         }
     }
 

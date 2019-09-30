@@ -823,4 +823,12 @@ public class HeadIO
     public void delete(BaseDao entity) {
         d.requestContext.currentTransaction().delete(entity);
     }
+
+    public void delete(PUUID id) {
+        d.requestContext.currentTransaction().delete(id);
+    }
+
+    public void delete(IPartitionKey partitionKey, UUID id) {
+        d.requestContext.currentTransaction().delete(PUUID.from(partitionKey, id));
+    }
 }

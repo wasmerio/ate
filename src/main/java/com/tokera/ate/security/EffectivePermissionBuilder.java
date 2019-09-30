@@ -36,6 +36,7 @@ public class EffectivePermissionBuilder {
     private @DaoId UUID origId;
     private PermissionPhase origPhase = PermissionPhase.DynamicStaging;
     private final @Nullable Map<UUID, BaseDao> suppliedObjects = new HashMap<>();
+    private boolean avoidIoReads = false;
 
     public EffectivePermissionBuilder(@Nullable String type, PUUID id) {
         this.type = type;
@@ -51,6 +52,11 @@ public class EffectivePermissionBuilder {
 
     public EffectivePermissionBuilder withPhase(PermissionPhase phase) {
         this.origPhase = phase;
+        return this;
+    }
+
+    public EffectivePermissionBuilder withAvoidIoReads(boolean value) {
+        this.avoidIoReads = value;
         return this;
     }
 
@@ -123,6 +129,7 @@ public class EffectivePermissionBuilder {
      */
     public @Nullable BaseDao findDataObj(UUID id) {
         BaseDao obj = MapTools.getOrNull(this.suppliedObjects, id);
+        if (this.avoidIoReads) return obj;
         if (obj == null) obj = d.io.readOrNull(PUUID.from(this.partitionKey, id), false);
         return obj;
     }

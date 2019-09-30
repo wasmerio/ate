@@ -1,5 +1,6 @@
 package com.tokera.ate.delegates;
 
+import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.base.BaseDaoInternal;
 import com.tokera.ate.dao.msg.MessageBase;
@@ -172,16 +173,12 @@ public class DebugLoggingDelegate {
         }
     }
 
-    public void logDelete(BaseDao entity) {
+    public void logDelete(PUUID entityId) {
         if (d.bootstrapConfig.isLoggingDeletes()) {
             StringBuilder sb = new StringBuilder();
             sb.append("remove: [->");
-            sb.append(entity.addressableId());
+            sb.append(entityId.toString());
             sb.append("]");
-            if (d.bootstrapConfig.isLoggingData()) {
-                sb.append("\n");
-                sb.append(d.yaml.serializeObj(entity));
-            }
             logInfo(sb.toString());
         }
     }

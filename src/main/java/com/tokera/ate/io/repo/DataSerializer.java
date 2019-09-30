@@ -84,27 +84,25 @@ public class DataSerializer {
         }
     }
 
-    private void writeRolePublicKeysForDataObject(BaseDao obj, DataPartition kt) {
+    private void writeRolePublicKeys(Collection<String> roles, DataPartition kt) {
         DataPartitionChain chain = kt.getChain(true);
 
+        for (String publicKeyHash : roles) {
+            if (chain.hasPublicKey(publicKeyHash)) continue;
+            MessagePublicKeyDto publicKey = d.io.publicKeyOrNull(kt.partitionKey(), publicKeyHash);
+            if (publicKey == null) continue;
+            kt.write(publicKey, this.LOG);
+        }
+    }
+
+    private void writeRolePublicKeysForDataObject(BaseDao obj, DataPartition kt) {
         // If we are crossing from our request partition then we need to scan for
         // other public toPutKeys and import them into this partition
         if (obj instanceof IRoles) {
             IRoles roles = (IRoles)obj;
 
-            for (String publicKeyHash : roles.getTrustAllowRead().values()) {
-                if (chain.hasPublicKey(publicKeyHash)) continue;
-                MessagePublicKeyDto publicKey = d.io.publicKeyOrNull(kt.partitionKey(), publicKeyHash);
-                if (publicKey == null) continue;
-                kt.write(publicKey, this.LOG);
-            }
-
-            for (String publicKeyHash : roles.getTrustAllowWrite().values()) {
-                if (chain.hasPublicKey(publicKeyHash)) continue;
-                MessagePublicKeyDto publicKey = d.io.publicKeyOrNull(kt.partitionKey(), publicKeyHash);
-                if (publicKey == null) continue;
-                kt.write(publicKey, this.LOG);
-            }
+            writeRolePublicKeys(roles.getTrustAllowWrite().values(), kt);
+            writeRolePublicKeys(roles.getTrustAllowRead().values(), kt);
         }
     }
 
@@ -204,8 +202,35 @@ public class DataSerializer {
 
         return header;
     }
+
+    public MessageBaseDto toDataMessageDelete(MessageDataHeaderDto previousHeader, DataPartition kt)
+    {
+        // Build a header for a new version of the data object
+        IPartitionKey partitionKey = kt.partitionKey();
+
+        EffectivePermissions permissions = new EffectivePermissionBuilder(previousHeader.getPayloadClazzOrThrow(), partitionKey, previousHeader.getIdOrThrow())
+                .withAvoidIoReads(true)
+                .withPhase(PermissionPhase.BeforeMerge)
+                .build();
+
+        // Write the public keys
+        writeRolePublicKeys(permissions.rolesWrite, kt);
+
+        // Generate a new header and digest based off the old header
+        MessageDataHeaderDto header = new MessageDataHeaderDto(previousHeader);
+        MessageDataDigestDto digest = d.dataSignatureBuilder.signDataMessage(partitionKey, header, null, permissions.rolesWrite);
+        if (digest == null) {
+            throw d.authorization.buildWriteException(permissions.rolesWrite, permissions, false);
+        }
+
+        // Write all the public toPutKeys that the chain is unaware of
+        writePermissionPublicKeysForDataObject(kt);
+
+        // Create the message skeleton
+        return new MessageDataDto(header, digest, null);
+    }
     
-    public MessageBaseDto toDataMessage(BaseDao obj, DataPartition kt, boolean isDeleted)
+    public MessageBaseDto toDataMessage(BaseDao obj, DataPartition kt)
     {
         // Build a header for a new version of the data object
         IPartitionKey partitionKey = kt.partitionKey();
@@ -230,15 +255,9 @@ public class DataSerializer {
         permissions.castleId = castle.id;
         MessageDataHeaderDto header = buildHeaderForDataObject(obj, castle.id);
         
-        // Embed the payload if one exists
-        byte[] byteStream = null;
-        byte[] encPayload = null;
-        if (isDeleted == false)
-        {
-            // Encrypt the payload and add it to the data message
-            byteStream = d.os.serializeObj(obj);
-            encPayload = d.encryptor.encryptAes(castle.key, byteStream);
-        }
+        // Encrypt the payload and add it to the data message
+        byte[] byteStream = d.os.serializeObj(obj);
+        byte[] encPayload = d.encryptor.encryptAes(castle.key, byteStream);
 
         // Now get the permissions before we merge for the digest
         permissions = new EffectivePermissionBuilder(BaseDaoInternal.getType(obj), partitionKey, obj.getId())
@@ -248,25 +267,23 @@ public class DataSerializer {
 
         // Validate the permissions are acceptable
         if (permissions.rolesWrite.size() <= 0) {
-            throw d.authorization.buildWriteException("Failed to write the object as there are no valid roles for this data object or its not connected to a parent.", permissions, false);
+            throw d.authorization.buildWriteException("Failed to write the object as there are no valid roles for this data object or its not connected to a parent.", permissions.rolesWrite, permissions, false);
         }
 
         // Sign the data message
-        MessageDataDigestDto digest = d.dataSignatureBuilder.signDataMessage(partitionKey, header, encPayload, permissions);
+        MessageDataDigestDto digest = d.dataSignatureBuilder.signDataMessage(partitionKey, header, encPayload, permissions.rolesWrite);
+        if (digest == null) {
+            throw d.authorization.buildWriteException(permissions.rolesWrite, permissions, false);
+        }
 
         // Cache it for faster decryption
-        if (byteStream != null && digest != null) {
+        if (byteStream != null) {
             @Hash String cacheHash = d.encryptor.hashMd5AndEncode(castle.key, digest.getDigestBytesOrThrow());
             this.decryptCacheData.put(cacheHash, byteStream);
         }
 
         // Write all the public toPutKeys that the chain is unaware of
         writePermissionPublicKeysForDataObject(kt);
-        
-        // Make sure we are actually writing something to Kafka
-        if (digest == null) {
-            throw d.authorization.buildWriteException(permissions, false);
-        }
 
         // Create the message skeleton
         return new MessageDataDto(header, digest, encPayload);
