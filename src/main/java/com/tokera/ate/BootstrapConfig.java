@@ -56,6 +56,7 @@ public class BootstrapConfig {
     private boolean loggingValidationVerbose = false;
     private boolean loggingCallbacks = false;
     private boolean loggingCallbackData = false;
+    private boolean loggingMessageDrops = false;
 
     private boolean extraValidation = false;
 
@@ -508,5 +509,13 @@ public class BootstrapConfig {
 
     public void setLoggingMessageData(boolean loggingMessageData) {
         this.loggingMessageData = loggingMessageData;
+    }
+
+    public boolean isLoggingMessageDrops() {
+        return loggingMessageDrops;
+    }
+
+    public void setLoggingMessageDrops(boolean loggingMessageDrops) {
+        this.loggingMessageDrops = loggingMessageDrops;
     }
 }

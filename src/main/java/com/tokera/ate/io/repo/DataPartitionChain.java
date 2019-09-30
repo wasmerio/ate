@@ -132,42 +132,46 @@ public class DataPartitionChain {
     }
     
     public void drop(@Nullable LoggerHook LOG, @Nullable MessageBaseDto msg, @Nullable MessageMetaDto meta, String why, @Nullable MessageDataHeader parentHeader) {
-        String index;
-        if (meta != null) {
-            index = "partition=" + PartitionKeySerializer.toString(this.partitionKey()) + ", offset=" + meta.getOffset();
-        } else {
-            index = "partition=" + PartitionKeySerializer.toString(this.partitionKey());
-        }
+        if (d.bootstrapConfig.isLoggingMessageDrops()) {
+            String index;
+            if (meta != null) {
+                index = "partition=" + PartitionKeySerializer.toString(this.partitionKey()) + ", offset=" + meta.getOffset();
+            } else {
+                index = "partition=" + PartitionKeySerializer.toString(this.partitionKey());
+            }
 
-        String err;
-        if (msg instanceof MessageDataDto) {
-            MessageDataDto data = (MessageDataDto)msg;
-            drop(LOG, data, meta, why, parentHeader);
-            return;
-        } else if (msg != null) {
-            err = "Dropping message on [" + index + "] - " + why + " [type=" + msg.getClass().getSimpleName() + "]";
-        } else {
-            err = "Dropping message on [" + index + "] - " + why;
-        }
-        
-        if (LOG != null) {
-            LOG.error(err);
-        } else {
-            new LoggerHook(DataPartitionChain.class).warn(err);
+            String err;
+            if (msg instanceof MessageDataDto) {
+                MessageDataDto data = (MessageDataDto) msg;
+                drop(LOG, data, meta, why, parentHeader);
+                return;
+            } else if (msg != null) {
+                err = "Dropping message on [" + index + "] - " + why + " [type=" + msg.getClass().getSimpleName() + "]";
+            } else {
+                err = "Dropping message on [" + index + "] - " + why;
+            }
+
+            if (LOG != null) {
+                LOG.error(err);
+            } else {
+                new LoggerHook(DataPartitionChain.class).warn(err);
+            }
         }
     }
     
     public void drop(@Nullable LoggerHook LOG, MessageDataDto data, String why) {
-        String err;
-        
-        MessageDataHeaderDto header = data.getHeader();
-        UUID id = header.getIdOrThrow();
-        err = "Dropping data on [" + PartitionKeySerializer.toString(this.partitionKey()) + "] - " + why + " [clazz=" + header.getPayloadClazzOrThrow() + ", id=" + id + "]";
+        if (d.bootstrapConfig.isLoggingMessageDrops()) {
+            String err;
 
-        if (LOG != null) {
-            LOG.error(err);
-        } else {
-            new LoggerHook(DataPartitionChain.class).warn(err);
+            MessageDataHeaderDto header = data.getHeader();
+            UUID id = header.getIdOrThrow();
+            err = "Dropping data on [" + PartitionKeySerializer.toString(this.partitionKey()) + "] - " + why + " [clazz=" + header.getPayloadClazzOrThrow() + ", id=" + id + "]";
+
+            if (LOG != null) {
+                LOG.error(err);
+            } else {
+                new LoggerHook(DataPartitionChain.class).warn(err);
+            }
         }
     }
     
