@@ -1,6 +1,7 @@
 package com.tokera.ate.dao.base;
 
 import com.tokera.ate.io.api.IPartitionKey;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.Set;
@@ -20,12 +21,17 @@ public class BaseDaoInternal
         obj._partitionKey = partitionKey;
     }
 
-    public static UUID getVersion(BaseDao obj) {
-        return obj._version;
+    public static String getIoStackTrace(BaseDao obj) {
+        return obj._ioStackTrace;
     }
 
-    public static void setVersion(BaseDao obj, UUID version) {
-        obj._version = version;
+    public static void setIoStackTrace(BaseDao obj, String stackTrace) {
+        obj._ioStackTrace = stackTrace;
+    }
+
+    public static void setIoStackTraceHere(BaseDao obj) {
+        String fullStackTrace = ExceptionUtils.getStackTrace(new Throwable());
+        obj._ioStackTrace = fullStackTrace;
     }
 
     public static UUID getPreviousVersion(BaseDao obj) {
@@ -70,7 +76,7 @@ public class BaseDaoInternal
         entity.assertStillMutable();
     }
 
-    public static void newVersion(BaseDao obj) {
-        obj.newVersion();
+    public static void pushVersion(BaseDao obj, UUID version) {
+        obj.pushVersion(version);
     }
 }

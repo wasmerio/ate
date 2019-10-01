@@ -39,6 +39,7 @@ public class BasicIntegrationTests {
 		//AuditInterceptor.setPreventObscuring(true);
 
         BootstrapConfig config = ApiServer.startWeld(null, BootstrapApp.class);
+        config.setLoggingMessageDrops(true);
         config.setDefaultStorageSystem(DefaultStorageSystem.LocalRam);
         config.setPingCheckOnStart(false);
         config.setRestPortOverride(8082);
@@ -82,6 +83,12 @@ public class BasicIntegrationTests {
         MyAccount ret = session.restPut("/acc/register", Entity.entity(newDetails, MediaType.APPLICATION_JSON_TYPE), MyAccount.class);
         this.accountId = ret.id;
         session.setPartitionKey(ret.partitionKey());
+    }
+
+    @Test
+    @Order(11)
+    public void touchAccount() {
+        session.restGet("/acc/" + this.accountId + "/touch", MyAccount.class);
     }
 
     @RepeatedTest(100)

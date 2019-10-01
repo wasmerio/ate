@@ -8,6 +8,7 @@ package com.tokera.ate.dto.msg;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.flatbuffers.FlatBufferBuilder;
+import com.tokera.ate.annotations.Mergable;
 import com.tokera.ate.common.CopyOnWrite;
 import com.tokera.ate.common.Immutalizable;
 import com.tokera.ate.common.ImmutalizableHashSet;
@@ -36,6 +37,7 @@ import java.util.UUID;
 /**
  * Represents key properties of a data message before its placed on the distributed commit log
  */
+@Mergable
 @Dependent
 @YamlTag("msg.data.header")
 public class MessageDataHeaderDto extends MessageBaseDto implements Serializable, CopyOnWrite, Immutalizable {
@@ -257,6 +259,13 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
     }
 
     public void newVersion() {
+        assert this._immutable == false;
+        copyOnWrite();
+        this.version = UUID.randomUUID();
+    }
+
+    public void pushVersion() {
+        assert this._immutable == false;
         copyOnWrite();
         this.previousVersion = this.version;
         this.version = UUID.randomUUID();
@@ -279,7 +288,11 @@ public class MessageDataHeaderDto extends MessageBaseDto implements Serializable
     public void setMerges(ImmutalizableHashSet<UUID> mergeVersions) {
         assert this._immutable == false;
         copyOnWrite();
-        this.merges = new ImmutalizableHashSet<>(mergeVersions);
+        if (mergeVersions != null) {
+            this.merges = new ImmutalizableHashSet<>(mergeVersions);
+        } else {
+            this.merges = new ImmutalizableHashSet<>();
+        }
     }
 
     public @Nullable @DaoId UUID getParentId() {

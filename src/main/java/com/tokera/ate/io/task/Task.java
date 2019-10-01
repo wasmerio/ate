@@ -2,6 +2,7 @@ package com.tokera.ate.io.task;
 
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
+import com.tokera.ate.dao.base.BaseDaoInternal;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.delegates.DebugLoggingDelegate;
 import com.tokera.ate.dto.PrivateKeyWithSeedDto;
@@ -208,6 +209,9 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
 
                     BaseDao obj = d.dataSerializer.fromDataMessage(partitionKey(), msg, true);
                     if (obj == null || obj.getClass() != clazz) continue;
+                    BaseDaoInternal.setPartitionKey(obj, this.partitionKey());
+                    BaseDaoInternal.setPreviousVersion(obj, msg.getVersionOrThrow());
+                    BaseDaoInternal.setMergesVersions(obj, null);
 
                     try {
                         d.io.underTransaction(false, () -> {

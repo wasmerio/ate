@@ -175,9 +175,15 @@ public class DataContainer {
         LinkedList<DataGraphNode> leaves = computeCurrentLeaves();
         if (leaves == null || leaves.isEmpty()) throw new RuntimeException("Unable to getData the merged header(#1).");
 
+        MessageDataHeaderDto ret;
+
         // If there is only one item then we are done
         if (leaves.size() == 1) {
-            return leaves.get(0).msg.getData().getHeader();
+            ret = (MessageDataHeaderDto)d.merger.cloneObject(leaves.get(0).msg.getData().getHeader());
+            ret.setPreviousVersion(ret.getVersion());
+            ret.setVersion(UUID.randomUUID());
+            ret.setMerges(null);
+            return ret;
         }
 
         // Build a merge set of the headers for this
@@ -188,8 +194,20 @@ public class DataContainer {
             .forEach(a -> mergeSet.add(a));
 
         // Return the result of the merge
-        MessageDataHeaderDto ret = d.merger.merge(mergeSet);
-        if (ret == null) throw new RuntimeException("Unable to getData the merged header(#2).");
+        ret = d.merger.merge(mergeSet);
+        if (ret == null) {
+            throw new RuntimeException("Unable to getData the merged header(#2).");
+        }
+
+        // Determine the merge set that was used for this object
+        Set<UUID> mergeVersions = mergeSet
+                .stream()
+                .map(h -> h.what.getVersionOrThrow())
+                .collect(Collectors.toSet());
+
+        ret.setPreviousVersion(null);
+        ret.setVersion(UUID.randomUUID());
+        ret.getMerges().copyFrom(mergeVersions);
         return ret;
     }
 
@@ -216,7 +234,7 @@ public class DataContainer {
         }
         if (leaves.size() <= 0) return null;
 
-        // Set the partition key so that it doesnt attempt to transverse up the tree
+        // Set the partition key so that it does not attempt to transverse up the tree
         BaseDaoInternal.setPartitionKey(ret, partitionKey);
 
         // Reconcile the parent version pointers
@@ -224,7 +242,6 @@ public class DataContainer {
             BaseDaoInternal.setPreviousVersion(ret, leaves.getLast().version);
         } else {
             BaseDaoInternal.setPreviousVersion(ret, null);
-            BaseDaoInternal.setVersion(ret, UUID.randomUUID());
             BaseDaoInternal.setMergesVersions(ret, leaves.stream().map(n -> n.version).collect(Collectors.toSet()));
 
             // If a mergeThreeWay was performed and we have writability then we should save it down to reduce future merges and
@@ -252,9 +269,18 @@ public class DataContainer {
         LinkedList<DataGraphNode> leaves = computeCurrentLeaves();
         if (leaves == null || leaves.isEmpty()) return null;
 
+        // Remove any dead objects in the front
+        while (leaves.size() > 0) {
+            if (leaves.getFirst().msg.getData().hasPayload() == true) break;
+            leaves.removeFirst();
+        }
+        if (leaves.isEmpty()) return null;
+
         // If there is only one item then we are done
         if (leaves.size() == 1) {
-            return d.dataSerializer.fromDataMessage(this.partitionKey, leaves.get(0).msg, shouldThrow);
+            MessageDataMetaDto msg = leaves.get(0).msg;
+            ret = d.dataSerializer.fromDataMessage(this.partitionKey, msg, shouldThrow);
+            return reconcileMergedData(this.partitionKey, ret, leaves, shouldSave);
         }
 
         // Build a merge set of the headers for this

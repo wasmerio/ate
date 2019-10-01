@@ -1,6 +1,7 @@
 package com.tokera.ate.test.dao;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.tokera.ate.annotations.ClaimableAuthority;
 import com.tokera.ate.annotations.ImplicitAuthority;
 import com.tokera.ate.annotations.PermitParentFree;
 import com.tokera.ate.annotations.YamlTag;
@@ -24,6 +25,7 @@ import java.util.UUID;
 @Dependent
 @YamlTag("dao.myaccount")
 @PermitParentFree
+@ClaimableAuthority
 public class MyAccount extends MyBaseAccount {
     @JsonProperty
     public final ImmutalizableArrayList<@DaoId UUID> things = new ImmutalizableArrayList<>();

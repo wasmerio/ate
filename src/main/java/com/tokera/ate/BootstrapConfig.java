@@ -57,6 +57,7 @@ public class BootstrapConfig {
     private boolean loggingCallbacks = false;
     private boolean loggingCallbackData = false;
     private boolean loggingMessageDrops = false;
+    private boolean loggingIoStackTraces = false;
 
     private boolean extraValidation = false;
 
@@ -517,5 +518,13 @@ public class BootstrapConfig {
 
     public void setLoggingMessageDrops(boolean loggingMessageDrops) {
         this.loggingMessageDrops = loggingMessageDrops;
+    }
+
+    public boolean isLoggingIoStackTraces() {
+        return loggingIoStackTraces;
+    }
+
+    public void setLoggingIoStackTraces(boolean loggingIoStackTraces) {
+        this.loggingIoStackTraces = loggingIoStackTraces;
     }
 }

@@ -159,11 +159,10 @@ public class DataPartitionChain {
         }
     }
     
-    public void drop(@Nullable LoggerHook LOG, MessageDataDto data, String why) {
+    public void drop(@Nullable LoggerHook LOG, @Nullable MessageDataHeaderDto header, String why) {
         if (d.bootstrapConfig.isLoggingMessageDrops()) {
             String err;
 
-            MessageDataHeaderDto header = data.getHeader();
             UUID id = header.getIdOrThrow();
             err = "Dropping data on [" + PartitionKeySerializer.toString(this.partitionKey()) + "] - " + why + " [clazz=" + header.getPayloadClazzOrThrow() + ", id=" + id + "]";
 
@@ -200,7 +199,7 @@ public class DataPartitionChain {
     public TrustValidatorBuilder createTrustValidator(@Nullable LoggerHook LOG) {
         return new TrustValidatorBuilder()
                 .withLogger(LOG)
-                .withFailureCallback(f -> this.drop(f.LOG, f.data, f.why))
+                .withFailureCallback(f -> this.drop(f.LOG, f.header, f.why))
                 .withGetRootOfTrust(id -> this.getRootOfTrust(id))
                 .withGetDataCallback(id -> this.getData(id))
                 .withGetPublicKeyCallback(hash -> this.getPublicKey(hash));

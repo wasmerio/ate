@@ -71,6 +71,7 @@ public class AccountREST {
         acc.id = UUIDTools.generateUUID(StringTools.getDomain(email));
         acc.description = theDetails.getDescription();
         d.authorization.authorizeEntityPublicRead(acc);
+        d.authorization.authorizeEntityPublicWrite(acc);
         d.io.write(acc);
         return acc;
     }
@@ -82,5 +83,17 @@ public class AccountREST {
     @PermitRiskRole(RiskRole.MEDIUM)
     public MyAccount getAccount(@PathParam("id") UUID id) {
         return d.io.read(id, MyAccount.class);
+    }
+
+    @GET
+    @Path("/{id}/touch")
+    @Produces(MediaType.APPLICATION_JSON)
+    @PermitUserRole(UserRole.HUMAN)
+    @PermitRiskRole(RiskRole.MEDIUM)
+    public MyAccount touchAccount(@PathParam("id") UUID id) {
+        MyAccount ret = d.io.read(id, MyAccount.class);
+        ret.counter.increment();
+        d.io.write(ret);
+        return ret;
     }
 }

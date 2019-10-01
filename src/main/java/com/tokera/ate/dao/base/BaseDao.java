@@ -1,6 +1,7 @@
 package com.tokera.ate.dao.base;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.tokera.ate.annotations.Mergable;
 import com.tokera.ate.common.CopyOnWrite;
 import com.tokera.ate.common.Immutalizable;
 import com.tokera.ate.dao.PUUID;
@@ -17,13 +18,14 @@ import java.util.UUID;
 /**
  * Represents the common fields and methods of all data objects that are stored in the ATE data-store
  */
+@Mergable
 public abstract class BaseDao implements Serializable, Immutalizable, IPartitionKeyProvider {
 
     transient @JsonIgnore @Nullable Set<UUID> _mergesVersions = null;
     transient @JsonIgnore @Nullable UUID _previousVersion = null;
-    transient @JsonIgnore @Nullable UUID _version = null;
     transient @JsonIgnore boolean _immutable = false;
     transient @JsonIgnore @Nullable IPartitionKey _partitionKey = null;
+    transient @JsonIgnore @Nullable String _ioStackTrace = null;
 
     /**
      * @return Returns the unique primary key of this data entity within the
@@ -109,20 +111,17 @@ public abstract class BaseDao implements Serializable, Immutalizable, IPartition
     }
 
     boolean hasSaved() {
-        return this._version != null;
+        if (this._previousVersion != null) return true;
+        if (this._mergesVersions != null && this._mergesVersions.size() > 0) return true;
+        return false;
     }
 
     protected void assertStillMutable() {
         assert _immutable == false;
     }
 
-    void newVersion() {
-        if (_version == null) {
-            _version = UUID.randomUUID();
-        } else {
-            UUID oldVerison = _version;
-            _version = UUID.randomUUID();
-            _previousVersion = oldVerison;
-        }
+    void pushVersion(UUID previousVersion) {
+        _mergesVersions = null;
+        _previousVersion = previousVersion;
     }
 }

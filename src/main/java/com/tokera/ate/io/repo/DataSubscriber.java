@@ -13,14 +13,10 @@ import com.tokera.ate.dao.MessageBundle;
 import com.tokera.ate.dao.TopicAndPartition;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
-import com.tokera.ate.enumerations.DataPartitionType;
 import com.tokera.ate.events.KeysDiscoverEvent;
-import com.tokera.ate.events.PartitionSeedingEvent;
 import com.tokera.ate.io.api.IPartitionKey;
 import org.checkerframework.checker.nullness.qual.NonNull;
 
-import java.lang.ref.WeakReference;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import javax.enterprise.inject.spi.CDI;
@@ -55,7 +51,6 @@ public class DataSubscriber {
     private void seedTopic(DataPartition kt)
     {   
         DataPartitionChain chain = kt.getChain(false);
-        d.eventTopicSeeding.fire(new PartitionSeedingEvent(kt, chain));
 
         KeysDiscoverEvent discovery = new KeysDiscoverEvent(kt.partitionKey());
         d.eventKeysDiscovery.fire(discovery);

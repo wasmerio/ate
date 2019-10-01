@@ -172,14 +172,8 @@ public class DataSerializer {
     }
 
     @SuppressWarnings("known.nonnull")
-    private MessageDataHeaderDto buildHeaderForDataObject(BaseDao obj, UUID castleId)
+    public MessageDataHeaderDto buildHeaderForDataObject(BaseDao obj, UUID castleId, UUID version)
     {
-        UUID version = BaseDaoInternal.getVersion(obj);
-        if (version == null) {
-            version = UUID.randomUUID();
-            BaseDaoInternal.setVersion(obj, version);
-        }
-
         MessageDataHeaderDto header = new MessageDataHeaderDto(
                 obj.getId(),
                 castleId,
@@ -234,7 +228,7 @@ public class DataSerializer {
     {
         // Build a header for a new version of the data object
         IPartitionKey partitionKey = kt.partitionKey();
-        BaseDaoInternal.newVersion(obj);
+        UUID version = UUID.randomUUID();
 
         // Get the partition and declare a list of message that we will write to Kafka
         writePublicKeysForDataObject(obj, kt);
@@ -253,7 +247,7 @@ public class DataSerializer {
         // Generate an encryption key for this data object
         SecurityCastleContext castle = d.securityCastleManager.makeCastle(partitionKey, permissions.rolesRead);
         permissions.castleId = castle.id;
-        MessageDataHeaderDto header = buildHeaderForDataObject(obj, castle.id);
+        MessageDataHeaderDto header = buildHeaderForDataObject(obj, castle.id, version);
         
         // Encrypt the payload and add it to the data message
         byte[] byteStream = d.os.serializeObj(obj);
@@ -286,7 +280,9 @@ public class DataSerializer {
         writePermissionPublicKeysForDataObject(kt);
 
         // Create the message skeleton
-        return new MessageDataDto(header, digest, encPayload);
+        MessageDataDto ret = new MessageDataDto(header, digest, encPayload);
+        BaseDaoInternal.pushVersion(obj, version);
+        return ret;
     }
 
     public @Nullable BaseDao fromDataMessage(IPartitionKey partitionKey, @Nullable MessageDataMetaDto msg, boolean shouldThrow)
@@ -309,7 +305,7 @@ public class DataSerializer {
     }
 
     @SuppressWarnings({"unchecked"})
-    private <T extends BaseDao> @Nullable T lintDataObject(@Nullable T _orig, IPartitionKey partitionKey, MessageDataDto msg) {
+    private <T extends BaseDao> @Nullable T lintDataObject(@Nullable T _orig, MessageDataDto msg) {
         T orig = _orig;
         if (orig == null) return null;
 
@@ -318,10 +314,9 @@ public class DataSerializer {
         Object cloned = d.merger.cloneObject(orig);
         if (cloned == null) return null;
         T ret = (T)cloned;
-        BaseDaoInternal.setPartitionKey(ret, partitionKey);
-        BaseDaoInternal.setVersion(ret, header.getVersionOrThrow());
-        BaseDaoInternal.setPreviousVersion(ret, header.getPreviousVersion());
-        BaseDaoInternal.setMergesVersions(ret, header.getMerges());
+        BaseDaoInternal.setPartitionKey(ret, BaseDaoInternal.getPartitionKey(orig));
+        BaseDaoInternal.setPreviousVersion(ret, BaseDaoInternal.getPreviousVersion(orig));
+        BaseDaoInternal.setMergesVersions(ret, BaseDaoInternal.getMergesVersions(orig));
 
         Field implicitAuthorityField = MapTools.getOrNull(d.daoParents.getAllowedDynamicImplicitAuthoritySimple(), header.getPayloadClazzOrThrow());
         if (implicitAuthorityField != null) {
@@ -359,15 +354,15 @@ public class DataSerializer {
         @Hash String cacheKey = d.encryptor.hashMd5AndEncode(aesKey, hashBytes);
         try {
             BaseDao orig = this.decryptCacheObj.get(cacheKey, () -> {
-                BaseDao ret = readObjectFromDataMessageInternal(cacheKey, aesKey, msg);
+                BaseDao ret = readObjectFromDataMessageInternal(cacheKey, aesKey, msg, partitionKey);
                 if (ret == null) throw new RuntimeException("Failed to deserialize the data object.");
                 if (ret instanceof Immutalizable) ((Immutalizable)ret).immutalize();
                 return ret;
             });
-            return lintDataObject(orig, partitionKey, msg);
+            return lintDataObject(orig, msg);
         } catch (ExecutionException e) {
-            BaseDao orig = readObjectFromDataMessageInternal(cacheKey, aesKey, msg);
-            return lintDataObject(orig, partitionKey, msg);
+            BaseDao orig = readObjectFromDataMessageInternal(cacheKey, aesKey, msg, partitionKey);
+            return lintDataObject(orig, msg);
         }
     }
 
@@ -379,7 +374,7 @@ public class DataSerializer {
     }
 
     @SuppressWarnings({"unchecked"})
-    private @Nullable BaseDao readObjectFromDataMessageInternal(@Hash String cacheKey, byte[] aesKey, MessageDataDto msg)
+    private @Nullable BaseDao readObjectFromDataMessageInternal(@Hash String cacheKey, byte[] aesKey, MessageDataDto msg, IPartitionKey partitionKey)
     {
         byte[] payloadBytes;
         try {
@@ -398,7 +393,11 @@ public class DataSerializer {
         Class<BaseDao> clazz = d.serializableObjectsExtension.findClass(clazzName, BaseDao.class);
 
         // Decrypt the data entity back into its original form and return it
-        return d.os.deserializeObj(payloadBytes, clazz);
+        BaseDao ret = d.os.deserializeObj(payloadBytes, clazz);
+        BaseDaoInternal.setPartitionKey(ret, partitionKey);
+        BaseDaoInternal.setPreviousVersion(ret, msg.getHeader().getPreviousVersion());
+        BaseDaoInternal.setMergesVersions(ret, msg.getHeader().getMerges());
+        return ret;
     }
 
     private void validateObjectAfterRead(BaseDao ret, MessageDataDto msg)
@@ -413,6 +412,10 @@ public class DataSerializer {
         // Make sure the deserialized type matches the header
         if (header.getPayloadClazzOrThrow().equals(BaseDaoInternal.getType(ret)) == false) {
             throw new RuntimeException("Read access denied (payload types do not match) - ID=" + id);
+        }
+
+        if (Objects.equals(BaseDaoInternal.getPreviousVersion(ret), msg.getHeader().getPreviousVersion()) == false) {
+            throw new RuntimeException("Read access denied (previousVersion does not match)");
         }
     }
 

@@ -2,8 +2,12 @@ package com.tokera.ate.io.repo;
 
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.common.MapTools;
+import com.tokera.ate.dao.base.BaseDao;
+import com.tokera.ate.dao.base.BaseDaoInternal;
+import com.tokera.ate.dao.enumerations.PermissionPhase;
 import com.tokera.ate.dao.kafka.MessageSerializer;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.dto.EffectivePermissions;
 import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.msg.MessageDataDigestDto;
 import com.tokera.ate.dto.msg.MessageDataDto;
@@ -11,6 +15,8 @@ import com.tokera.ate.dto.msg.MessageDataHeaderDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import com.tokera.ate.enumerations.EnquireDomainKeyHandling;
 import com.tokera.ate.io.api.IPartitionKey;
+import com.tokera.ate.security.EffectivePermissionBuilder;
+import com.tokera.ate.security.SecurityCastleContext;
 import com.tokera.ate.units.DaoId;
 import org.bouncycastle.util.Arrays;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -97,8 +103,8 @@ final class TrustValidatorBuilder {
      * @return Returns true if the validator can be successfully instantiated and all the validation rules executed
      */
     public boolean validate(IPartitionKey partitionKey, MessageDataDto data) {
+        ValidatorBasic basic = build(partitionKey, data);
         try {
-            ValidatorBasic basic = build(partitionKey, data);
             if (basic.validateAll() == false) return false;
 
             ValidatorWithParentState withParentState = basic.upgradeWithParentChecks();
@@ -110,7 +116,7 @@ final class TrustValidatorBuilder {
             return true;
         } catch (Throwable ex) {
             d.debugLogging.logTrustValidationException(ex);
-            failure(data, ex.getMessage());
+            failure(basic.header, ex.getMessage());
             return false;
         }
     }
@@ -118,14 +124,14 @@ final class TrustValidatorBuilder {
     /**
      * Class returned when a failure occurs
      */
-    public final class Failure {
+    public final static class Failure {
         public final @Nullable LoggerHook LOG;
-        public final MessageDataDto data;
+        public final MessageDataHeaderDto header;
         public final String why;
 
-        protected Failure(@Nullable LoggerHook LOG, MessageDataDto data, String why) {
+        protected Failure(@Nullable LoggerHook LOG, MessageDataHeaderDto header, String why) {
             this.LOG = LOG;
-            this.data = data;
+            this.header = header;
             this.why = why;
         }
     }
@@ -166,8 +172,8 @@ final class TrustValidatorBuilder {
     /**
      * Callback thats invoked whenever a validation check fails ot pass
      */
-    protected void failure(MessageDataDto data, String why) {
-        Failure fail = new Failure(LOG, data, why);
+    protected void failure(MessageDataHeaderDto header, String why) {
+        Failure fail = new Failure(LOG, header, why);
         if (onFailure != null) {
             onFailure.accept(fail);
         } else {
@@ -184,6 +190,7 @@ final class TrustValidatorBuilder {
         protected final IPartitionKey partitionKey;
         protected final @Nullable UUID parentId;
         protected final @Nullable MessageDataDto existing;
+        protected final @Nullable DataContainer container;
         protected final MessageDataDto data;
         protected final MessageDataHeaderDto header;
         protected final MessageDataDigestDto digest;
@@ -192,6 +199,7 @@ final class TrustValidatorBuilder {
         private MessageDataDto _parent = null;
         private boolean validatedParent = false;
         private boolean validatedIsntReparenting = false;
+        private boolean validatedVersion = false;
 
         protected ValidatorBasic(IPartitionKey partitionKey, MessageDataDto data) {
             MessageDataHeaderDto header = data.getHeader();
@@ -207,12 +215,12 @@ final class TrustValidatorBuilder {
             this.header = header;
             this.digest = data.getDigest();
             this.entityType = header.getPayloadClazzOrThrow();
+            this.container = getData(id);
 
             if (savedDatas != null && savedDatas.containsKey(id)) {
                 this.existing = savedDatas.get(id);
             } else {
-                DataContainer existingMsg = getData(id);
-                this.existing = existingMsg != null ? existingMsg.getLastDataOrNull() : null;
+                this.existing = container != null ? container.getLastDataOrNull() : null;
             }
         }
 
@@ -225,7 +233,57 @@ final class TrustValidatorBuilder {
             this.digest = last.digest;
             this.existing = last.existing;
             this.entityType = last.entityType;
+            this.container = last.container;
             this.validatedParent = last.validatedParent;
+            this.validatedIsntReparenting = last.validatedIsntReparenting;
+            this.validatedVersion = last.validatedVersion;
+        }
+
+        /**
+         * Validate the previous version exists (otherwise dump it)
+         * @return True if the previous version exists
+         */
+        public boolean validatePreviousVersion() {
+            if (validatedVersion == true) return true;
+
+            if (header.getPreviousVersion() != null) {
+                if (container != null &&
+                    container.timeline.isEmpty() == false &&
+                    container.lookup.containsKey(header.getPreviousVersion()) == false) {
+                    fail("referenced previous version does not exist");
+                    return false;
+                }
+            }
+
+            if (header.getMerges() != null) {
+                for (UUID id : header.getMerges()) {
+                    if (container != null &&
+                        container.timeline.isEmpty() == false &&
+                        container.lookup.containsKey(id) == false) {
+                        fail("referenced previous version of merge does not exist");
+                        return false;
+                    }
+                }
+            }
+
+            // If no previous version is referenced
+            if (header.getPreviousVersion() == null &&
+                    (header.getMerges() == null || header.getMerges().size() <= 0))
+            {
+                // ...but we have records in the chain
+                if (container != null && container.timeline.isEmpty() == false)
+                {
+                    // ...and the last record is not deleted
+                    MessageDataDto data = container.getLastDataOrNull();
+                    if (data != null && data.hasPayload()) {
+                        fail("existing record exists but is not referenced");
+                        return false;
+                    }
+                }
+            }
+
+            this.validatedVersion = true;
+            return true;
         }
 
         /**
@@ -298,7 +356,8 @@ final class TrustValidatorBuilder {
 
         public boolean validateAll() {
             return validateParent() &&
-                   validateIsntReparenting();
+                   validateIsntReparenting() &&
+                   validatePreviousVersion();
         }
 
         /**
@@ -317,7 +376,7 @@ final class TrustValidatorBuilder {
          * Callback thats invoked whenever a validation check fails ot pass
          */
         protected void fail(String why) {
-            failure(data, why);
+            failure(this.header, why);
         }
     }
 
@@ -523,16 +582,18 @@ final class TrustValidatorBuilder {
                     }
                 }
 
-                sb.append("\n [digest: hash=").append(digest.getPublicKeyHash());
-                MessagePublicKeyDto digestKey = getPublicKey(digest.getPublicKeyHash());
-                if (digestKey != null) {
-                    if (digestKey.getAlias() != null) {
-                        sb.append(", alias=").append(digestKey.getAlias());
+                if (digest != null) {
+                    sb.append("\n [digest: hash=").append(digest.getPublicKeyHash());
+                    MessagePublicKeyDto digestKey = getPublicKey(digest.getPublicKeyHash());
+                    if (digestKey != null) {
+                        if (digestKey.getAlias() != null) {
+                            sb.append(", alias=").append(digestKey.getAlias());
+                        }
+                    } else {
+                        sb.append(", missing");
                     }
-                } else {
-                    sb.append(", missing");
+                    sb.append("]");
                 }
-                sb.append("]");
 
                 sb.append("\n from ");
                 fail(sb.toString());

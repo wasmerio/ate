@@ -3,18 +3,22 @@ package com.tokera.ate.io.merge;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.HashMultiset;
+import com.tokera.ate.annotations.Mergable;
 import com.tokera.ate.common.CopyOnWrite;
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.CountLong;
 import com.tokera.ate.dao.GenericPartitionKey;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dto.PrivateKeyWithSeedDto;
+import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.providers.PartitionKeySerializer;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.ApplicationScoped;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -29,20 +33,55 @@ import java.util.stream.Collectors;
 public class DataMerger {
 
     private static final ConcurrentMap<Class<?>, List<Field>> fieldDescriptorsMap = new ConcurrentHashMap<>();
+    private static final ConcurrentMap<Class<?>, Boolean> mergableLookup = new ConcurrentHashMap<>();
 
-    private boolean isInternal(Class<?> clazz) {
+    private boolean isPrimitive(Class<?> clazz) {
         if (clazz.isPrimitive() ||
             clazz.isSynthetic() ||
-            clazz.isEnum()) {
+            clazz.isEnum() ||
+            clazz == Boolean.class ||
+            clazz == Integer.class ||
+            clazz == Long.class ||
+            clazz == String.class ||
+            clazz == Number.class ||
+            clazz == Byte.class ||
+            clazz == Double.class ||
+            clazz == Float.class ||
+            clazz == Short.class ||
+            clazz == BigDecimal.class ||
+            clazz == BigInteger.class ||
+            clazz == UUID.class) {
             return true;
         }
 
+        return false;
+    }
+
+    private boolean isMergable(Class<?> clazz) {
+        return mergableLookup.computeIfAbsent(clazz, _c -> {
+            Class<?> c = _c;
+            while (c != null && c != Object.class) {
+                if (c.getAnnotation(Mergable.class) != null) return true;
+                c = c.getSuperclass();
+            }
+            return false;
+        });
+    }
+
+    private boolean isSpecial(Class<?> clazz) {
         if (clazz == PUUID.class ||
-            clazz == CountLong.class ||
-            clazz == GenericPartitionKey.class ||
-            clazz == PrivateKeyWithSeedDto.class) {
+                clazz == CountLong.class ||
+                clazz == GenericPartitionKey.class ||
+                clazz == PrivateKeyWithSeedDto.class) {
             return true;
         }
+
+        return false;
+    }
+
+    private boolean isInternal(Class<?> clazz) {
+        if (isPrimitive(clazz)) return true;
+        if (isSpecial(clazz)) return true;
 
         String name = clazz.getName();
         return name.startsWith("java.") ||
@@ -99,20 +138,34 @@ public class DataMerger {
         if (source == null) return null;
         Class<?> clazz = source.getClass();
 
-        if (isInternal(clazz)) {
+        if (isPrimitive(clazz)) {
+            return source;
+        }
+        if (isSpecial(clazz)) {
             if (clazz == CountLong.class) return CountLong.clone(source);
+            if (clazz == PUUID.class) return PUUID.clone(source);
+            if (clazz == GenericPartitionKey.class) return new GenericPartitionKey((IPartitionKey)source);
+            if (clazz == PrivateKeyWithSeedDto.class) return new PrivateKeyWithSeedDto((PrivateKeyWithSeedDto)source);
+            assert isSpecial(clazz) == false : "This special type needs special handling";
+            return source;
+        }
+
+        if (source instanceof CopyOnWrite) {
+            ((CopyOnWrite) source).copyOnWrite();
+        }
+
+        if (source instanceof Map) {
+            return cloneObjectMap((Map) source, (Map) newObject(clazz));
+        } else if (source instanceof Collection) {
+            return cloneObjectCollection((Collection) source, (Collection) newObject(clazz));
+        }
+
+        if (isInternal(clazz)) {
+            assert isSpecial(clazz) == false : "This internal type needs special handling";
             return source;
         }
 
         Object ret = newObject(clazz);
-        if (ret instanceof CopyOnWrite) {
-            ((CopyOnWrite) ret).copyOnWrite();
-        }
-        if (source instanceof Map) {
-            return cloneObjectMap((Map) source, (Map) ret);
-        } else if (source instanceof Collection) {
-            return cloneObjectCollection((Collection) source, (Collection) ret);
-        }
         cloneObjectFields(clazz, source, ret);
         return ret;
     }
@@ -560,6 +613,10 @@ public class DataMerger {
             return (T)ret;
         }
 
+        if (isMergable(clazzCommon) == false) {
+            return (T)cloneObject(right);
+        }
+
         List<Field> fields = this.getFieldDescriptors(clazzCommon);
         for (Field field : fields) {
             try {
@@ -649,6 +706,10 @@ public class DataMerger {
         if (ret instanceof Collection) {
             mergeCollectionApply((Collection) ret, (Collection) base, (Collection) what);
             return (T)ret;
+        }
+
+        if (isMergable(clazz) == false) {
+            return (T)cloneObject(what);
         }
 
         List<Field> fields = this.getFieldDescriptors(clazz);

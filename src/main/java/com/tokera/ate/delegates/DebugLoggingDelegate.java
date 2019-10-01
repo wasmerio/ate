@@ -191,6 +191,9 @@ public class DebugLoggingDelegate {
 
     public void logMerge(@Nullable MessageDataDto data, @Nullable BaseDao entity, boolean later)
     {
+        if (d.bootstrapConfig.isLoggingIoStackTraces() && entity != null) {
+            BaseDaoInternal.setIoStackTraceHere(entity);
+        }
         if (d.bootstrapConfig.isLoggingWrites()) {
             MessageDataHeaderDto header = data != null ? data.getHeader() : null;
 

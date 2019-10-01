@@ -5,7 +5,9 @@
  */
 package com.tokera.ate.dto.msg;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.tokera.ate.annotations.Mergable;
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.common.CopyOnWrite;
 
@@ -17,6 +19,7 @@ import java.util.UUID;
 /**
  * Represents a bundle of the data and its on commit log metadata
  */
+@Mergable
 @Dependent
 @YamlTag("msg.data.meta")
 public class MessageDataMetaDto implements Serializable {
@@ -58,5 +61,15 @@ public class MessageDataMetaDto implements Serializable {
         }
         this.data.immutalize();
         this.meta.immutalize();
+    }
+
+    @JsonIgnore
+    public MessageDataHeaderDto getHeader() {
+        return getData().getHeader();
+    }
+
+    @JsonIgnore
+    public UUID getVersionOrThrow() {
+        return getHeader().getVersionOrThrow();
     }
 }

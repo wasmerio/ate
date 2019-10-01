@@ -69,6 +69,14 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
         return new PUUID(partitionKey, id);
     }
 
+    public static PUUID clone(Object _from) {
+        if (_from instanceof PUUID) {
+            PUUID from = (PUUID)_from;
+            return from(from.partition, from.id);
+        }
+        throw new RuntimeException("The type is not a PUUID");
+    }
+
     public class Partition implements IPartitionKey {
         private final String partitionTopic;
         private final int partitionIndex;

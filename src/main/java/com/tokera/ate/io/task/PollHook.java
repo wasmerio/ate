@@ -3,6 +3,7 @@ package com.tokera.ate.io.task;
 import com.google.common.base.Stopwatch;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
+import com.tokera.ate.dao.base.BaseDaoInternal;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.delegates.DebugLoggingDelegate;
 import com.tokera.ate.dto.msg.MessageDataDto;
@@ -59,6 +60,9 @@ public class PollHook implements IHookCallback {
     {
         BaseDao ret = d.dataSerializer.fromDataMessage(this.partitionKey, msg, true);
         if (ret != null) {
+            BaseDaoInternal.setPartitionKey(ret, this.partitionKey);
+            BaseDaoInternal.setPreviousVersion(ret, msg.getVersionOrThrow());
+            BaseDaoInternal.setMergesVersions(ret, null);
             d.io.currentTransaction().cache(this.partitionKey, ret);
         }
         return ret;

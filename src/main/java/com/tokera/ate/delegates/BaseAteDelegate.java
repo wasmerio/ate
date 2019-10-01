@@ -48,7 +48,6 @@ public abstract class BaseAteDelegate {
     public final Event<TokenDiscoveryEvent> eventTokenDiscovery;
     public final Event<RightsDiscoverEvent> eventRightsDiscover;
     public final Event<RegisterPublicTopicEvent> eventRegisterPublicTopic;
-    public final Event<PartitionSeedingEvent> eventTopicSeeding;
     public final Event<KeysDiscoverEvent> eventKeysDiscovery;
 
     public final RequestContextDelegate requestContext;
@@ -149,7 +148,6 @@ public abstract class BaseAteDelegate {
         this.eventTokenDiscovery = getEventBean(TokenDiscoveryEvent.class);
         this.eventRightsDiscover = getEventBean(RightsDiscoverEvent.class);
         this.eventRegisterPublicTopic = getEventBean(RegisterPublicTopicEvent.class);
-        this.eventTopicSeeding = getEventBean(PartitionSeedingEvent.class);
         this.eventRightsValidation = getEventBean(RightsValidationEvent.class);
         this.eventKeysDiscovery = getEventBean(KeysDiscoverEvent.class);
 

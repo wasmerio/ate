@@ -208,8 +208,11 @@ public class DataRepository implements IAteIO {
     void validateWritability(BaseDao entity) {
         EffectivePermissions perms = d.authorization.perms(entity, PermissionPhase.DynamicStaging);
         if (perms.rolesWrite.size() <= 0) {
-            EffectivePermissions perms2 = d.authorization.perms(entity, PermissionPhase.DynamicStaging);
-            if (perms2.rolesWrite.size() <= 0) {
+            //DataPartition kt = this.subscriber.getPartition(perms.partitionKey);
+            //DataPartitionChain chain = this.subscriber.getChain(perms.partitionKey, true);
+            //DataContainer container = chain.getData(perms.id);
+            perms = d.authorization.perms(entity, PermissionPhase.DynamicStaging);
+            if (perms.rolesWrite.size() <= 0) {
                 throw d.authorization.buildWriteException("Failed to save this object as there are no valid write roles for this spot in the chain-of-trust or its not connected to a parent.", perms.rolesWrite, perms, false);
             }
         }
