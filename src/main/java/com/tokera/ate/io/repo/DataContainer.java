@@ -240,6 +240,7 @@ public class DataContainer {
         // Reconcile the parent version pointers
         if (leaves.size() == 1) {
             BaseDaoInternal.setPreviousVersion(ret, leaves.getLast().version);
+            BaseDaoInternal.setMergesVersions(ret, null);
         } else {
             BaseDaoInternal.setPreviousVersion(ret, null);
             BaseDaoInternal.setMergesVersions(ret, leaves.stream().map(n -> n.version).collect(Collectors.toSet()));
