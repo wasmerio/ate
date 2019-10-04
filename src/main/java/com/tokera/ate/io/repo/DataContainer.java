@@ -173,11 +173,11 @@ public class DataContainer {
         }
     }
 
-    public MessageDataHeaderDto getMergedHeader() {
+    public @Nullable MessageDataHeaderDto getMergedHeader() {
         AteDelegate d = AteDelegate.get();
 
         LinkedList<DataGraphNode> leaves = computeCurrentLeaves();
-        if (leaves == null || leaves.isEmpty()) throw new RuntimeException("Unable to getData the merged header(#1).");
+        if (leaves == null || leaves.isEmpty()) return null;
 
         MessageDataHeaderDto ret;
 
@@ -199,9 +199,7 @@ public class DataContainer {
 
         // Return the result of the merge
         ret = d.merger.merge(mergeSet);
-        if (ret == null) {
-            throw new RuntimeException("Unable to getData the merged header(#2).");
-        }
+        if (ret == null) return null;
 
         // Determine the merge set that was used for this object
         Set<UUID> mergeVersions = mergeSet

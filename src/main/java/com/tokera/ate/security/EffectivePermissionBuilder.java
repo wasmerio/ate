@@ -214,27 +214,28 @@ public class EffectivePermissionBuilder {
             DataContainer container = d.io.readRawOrNull(PUUID.from(this.partitionKey, id));
             if (container != null) {
                 MessageDataHeaderDto header = container.getMergedHeader();
+                if (header != null) {
+                    if (isFirst) {
+                        ret.castleId = header.getCastleId();
+                        isFirst = false;
+                    }
 
-                if (isFirst) {
-                    ret.castleId = header.getCastleId();
-                    isFirst = false;
-                }
+                    if (inheritRead == true) {
+                        addRolesRead(ret, header.getAllowRead());
+                    }
+                    if (inheritWrite == true) {
+                        addRolesWrite(ret, header.getAllowWrite());
+                    }
+                    if (header.getInheritRead() == false) {
+                        inheritRead = false;
+                    }
+                    if (header.getInheritWrite() == false) {
+                        inheritWrite = false;
+                    }
 
-                if (inheritRead == true) {
-                    addRolesRead(ret, header.getAllowRead());
+                    id = header.getParentId();
+                    continue;
                 }
-                if (inheritWrite == true) {
-                    addRolesWrite(ret, header.getAllowWrite());
-                }
-                if (header.getInheritRead() == false) {
-                    inheritRead = false;
-                }
-                if (header.getInheritWrite() == false) {
-                    inheritWrite = false;
-                }
-
-                id = header.getParentId();
-                continue;
             }
 
             MessageDataDto data = d.requestContext.currentTransaction().findSavedData(partitionKey, id);
@@ -258,11 +259,13 @@ public class EffectivePermissionBuilder {
         DataContainer container = d.io.readRawOrNull(PUUID.from(this.partitionKey, this.origId));
         if (container != null) {
             MessageDataHeaderDto header = container.getMergedHeader();
-            for (String implicitAuthority : header.getImplicitAuthority()) {
-                MessagePublicKeyDto implicitKey = d.implicitSecurity.enquireDomainKey(implicitAuthority, EnquireDomainKeyHandling.ThrowOnNull, container.partitionKey);
-                ret.addWriteRole(implicitKey);
+            if (header != null) {
+                for (String implicitAuthority : header.getImplicitAuthority()) {
+                    MessagePublicKeyDto implicitKey = d.implicitSecurity.enquireDomainKey(implicitAuthority, EnquireDomainKeyHandling.ThrowOnNull, container.partitionKey);
+                    ret.addWriteRole(implicitKey);
+                }
+                return;
             }
-            return;
         }
 
         // Maybe its been pushed to the chain of trust already
