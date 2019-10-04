@@ -14,6 +14,7 @@ import com.tokera.ate.dto.EffectivePermissions;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.merge.MergePair;
+import org.apache.commons.collections.iterators.ReverseListIterator;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -160,8 +161,11 @@ public class DataContainer {
             if (this.leaves.isEmpty()) return null;
 
             LinkedList<DataGraphNode> ret = new LinkedList<>();
-            for (DataGraphNode node : this.leaves) {
-                ret.add(node);
+            Iterator<DataGraphNode> lit = this.leaves.descendingIterator();
+            while (lit.hasNext()) {
+                DataGraphNode node = lit.next();
+                if (node.msg.getData().hasPayload() == false) break;
+                ret.addFirst(node);
             }
             return ret;
         } finally {
@@ -216,24 +220,6 @@ public class DataContainer {
         BaseDao ret = _ret;
         if (ret == null) return null;
 
-        // Validate we have something and then get the first and last
-        if (leaves.size() <= 0) return null;
-        DataGraphNode first = leaves.getFirst();
-        DataGraphNode last = leaves.getLast();
-
-        // If the last leave has an empty payload then we are done
-        if (last.msg.getData().hasPayload() == false) {
-            return null;
-        }
-
-        // Remove any leaves in the front that are empty as they will have no bearing on the final merged version
-        // and cause needless writes
-        while (first.msg.getData().hasPayload() == false) {
-            leaves.remove(first);
-            first = leaves.getFirst();
-        }
-        if (leaves.size() <= 0) return null;
-
         // Set the partition key so that it does not attempt to transverse up the tree
         BaseDaoInternal.setPartitionKey(ret, partitionKey);
 
@@ -269,13 +255,6 @@ public class DataContainer {
 
         LinkedList<DataGraphNode> leaves = computeCurrentLeaves();
         if (leaves == null || leaves.isEmpty()) return null;
-
-        // Remove any dead objects in the front
-        while (leaves.size() > 0) {
-            if (leaves.getFirst().msg.getData().hasPayload() == true) break;
-            leaves.removeFirst();
-        }
-        if (leaves.isEmpty()) return null;
 
         // If there is only one item then we are done
         if (leaves.size() == 1) {

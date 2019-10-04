@@ -243,6 +243,8 @@ final class TrustValidatorBuilder {
          * Validate the previous version exists (otherwise dump it)
          * @return True if the previous version exists
          */
+        //"The versioning system is a little to strict and results in lost data sometimes"
+        @Deprecated()
         public boolean validatePreviousVersion() {
             if (validatedVersion == true) return true;
 
@@ -355,9 +357,12 @@ final class TrustValidatorBuilder {
         }
 
         public boolean validateAll() {
+            //return validateParent() &&
+            //       validateIsntReparenting() &&
+            //       validatePreviousVersion();
+
             return validateParent() &&
-                   validateIsntReparenting() &&
-                   validatePreviousVersion();
+                    validateIsntReparenting();
         }
 
         /**
