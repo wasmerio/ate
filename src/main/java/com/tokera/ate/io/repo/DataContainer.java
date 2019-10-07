@@ -48,15 +48,11 @@ public class DataContainer {
         Lock w = this.lock.writeLock();
         w.lock();
         try {
-            DataGraphNode previous = MapTools.getOrNull(lookup, node.previousVersion);
-            if (previous != null) {
-                previous.attachHere(node);
-                leaves.remove(previous);
-            }
-            for (UUID mergesVersion : node.mergesVersions) {
-                DataGraphNode merges = MapTools.getOrNull(lookup, mergesVersion);
-                if (merges == null) continue;
-                leaves.remove(merges);
+            if (msg.hasPayload()) {
+                leaves.removeIf(n -> n.version.equals(node.previousVersion) ||
+                                node.mergesVersions.contains(n.version));
+            } else {
+                leaves.clear();
             }
             lookup.put(node.version, node);
             leaves.addLast(node);
@@ -160,11 +156,24 @@ public class DataContainer {
         try {
             if (this.leaves.isEmpty()) return null;
 
+            HashSet<UUID> ignoreThese = new HashSet<>();
+
             LinkedList<DataGraphNode> ret = new LinkedList<>();
             Iterator<DataGraphNode> lit = this.leaves.descendingIterator();
             while (lit.hasNext()) {
                 DataGraphNode node = lit.next();
                 if (node.msg.getData().hasPayload() == false) break;
+
+                if (node.previousVersion != null) {
+                    ignoreThese.add(node.previousVersion);
+                }
+                if (node.mergesVersions != null) {
+                    ignoreThese.addAll(node.mergesVersions);
+                }
+
+                if (ignoreThese.contains(node.version)) continue;
+                ignoreThese.add(node.version);
+
                 ret.addFirst(node);
             }
             return ret;

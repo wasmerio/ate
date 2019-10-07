@@ -72,4 +72,10 @@ public class MessageDataMetaDto implements Serializable {
     public UUID getVersionOrThrow() {
         return getHeader().getVersionOrThrow();
     }
+
+    @JsonIgnore
+    public boolean hasPayload() {
+        if (this.data == null) return false;
+        return this.data.hasPayload();
+    }
 }
