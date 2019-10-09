@@ -18,6 +18,8 @@ import org.apache.commons.collections.iterators.ReverseListIterator;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import javax.ws.rs.container.ContainerRequestContext;
+import javax.ws.rs.container.ContainerResponseContext;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -240,10 +242,16 @@ public class DataContainer {
 
             // If a mergeThreeWay was performed and we have writability then we should save it down to reduce future merges and
             // so that log compaction doesnt lose data (Kafka compacting)
-            if (leaves.size() > 1) {
-                EffectivePermissions perms = d.authorization.perms(BaseDaoInternal.getType(ret), partitionKey, ret.getId(), PermissionPhase.BeforeMerge);
-                if (shouldSave && perms.canWrite(d.currentRights)) {
-                    d.io.write(ret, false);
+            ContainerRequestContext context = d.requestContext.getContainerRequestContextOrNull();
+            if (leaves.size() > 1 && context != null) {
+                if (context.getMethod().equalsIgnoreCase("PUT") ||
+                    context.getMethod().equalsIgnoreCase("POST") ||
+                    context.getMethod().equalsIgnoreCase("DELETE"))
+                {
+                    EffectivePermissions perms = d.authorization.perms(BaseDaoInternal.getType(ret), partitionKey, ret.getId(), PermissionPhase.BeforeMerge);
+                    if (shouldSave && perms.canWrite(d.currentRights)) {
+                        d.io.write(ret, false);
+                    }
                 }
             }
         }
