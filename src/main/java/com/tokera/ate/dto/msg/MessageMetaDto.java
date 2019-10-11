@@ -25,6 +25,9 @@ public class MessageMetaDto implements Serializable {
 
     @JsonProperty
     @NotNull
+    private String key;
+    @JsonProperty
+    @NotNull
     private long partition;
     @JsonProperty
     @NotNull
@@ -38,7 +41,8 @@ public class MessageMetaDto implements Serializable {
     public MessageMetaDto() {
     }
 
-    public MessageMetaDto(long partition, long offset) {
+    public MessageMetaDto(String key, long partition, long offset) {
+        this.key = key;
         this.partition = partition;
         this.offset = offset;
     }
@@ -66,5 +70,13 @@ public class MessageMetaDto implements Serializable {
             ((CopyOnWrite)this).copyOnWrite();
         }
         this._immutable = true;
+    }
+
+    public String getKey() {
+        return key;
+    }
+
+    public void setKey(String key) {
+        this.key = key;
     }
 }

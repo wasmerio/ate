@@ -250,8 +250,8 @@ final class TrustValidatorBuilder {
 
             if (header.getPreviousVersion() != null) {
                 if (container != null &&
-                    container.timeline.isEmpty() == false &&
-                    container.lookup.containsKey(header.getPreviousVersion()) == false) {
+                    container.isEmpty() == false &&
+                    container.hasVersion(header.getPreviousVersion()) == false) {
                     fail("referenced previous version does not exist");
                     return false;
                 }
@@ -260,8 +260,8 @@ final class TrustValidatorBuilder {
             if (header.getMerges() != null) {
                 for (UUID id : header.getMerges()) {
                     if (container != null &&
-                        container.timeline.isEmpty() == false &&
-                        container.lookup.containsKey(id) == false) {
+                        container.isEmpty() == false &&
+                        container.hasVersion(id) == false) {
                         fail("referenced previous version of merge does not exist");
                         return false;
                     }
@@ -273,7 +273,7 @@ final class TrustValidatorBuilder {
                     (header.getMerges() == null || header.getMerges().size() <= 0))
             {
                 // ...but we have records in the chain
-                if (container != null && container.timeline.isEmpty() == false)
+                if (container != null && container.isEmpty() == false)
                 {
                     // ...and the last record is not deleted
                     MessageDataDto data = container.getLastDataOrNull();

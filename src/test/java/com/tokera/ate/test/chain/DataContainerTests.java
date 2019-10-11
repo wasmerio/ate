@@ -1,6 +1,7 @@
 package com.tokera.ate.test.chain;
 
 import com.tokera.ate.dao.PUUID;
+import com.tokera.ate.dao.kafka.MessageSerializer;
 import com.tokera.ate.dto.msg.MessageDataDto;
 import com.tokera.ate.dto.msg.MessageDataHeaderDto;
 import com.tokera.ate.dto.msg.MessageMetaDto;
@@ -12,6 +13,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 
 import java.util.LinkedList;
+import java.util.List;
 import java.util.UUID;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -34,14 +36,14 @@ public class DataContainerTests {
 
         MessageDataHeaderDto header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), null, MyAccount.class);
         MessageDataDto data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0));
+        container.add(data, new MessageMetaDto(UUID.randomUUID().toString(), 0,0));
 
         assert container.getLastHeaderOrNull() != null;
         assert container.hasPayload() == false;
         assert container.getLastOrNull() != null;
         assert container.getLastDataOrNull() != null;
         assert container.getLastOffsetOrNull() != null;
-        assert container.leaves.size() == 1;
+        assert container.isEmpty() == false;
     }
 
     @Test
@@ -54,17 +56,17 @@ public class DataContainerTests {
 
         MessageDataHeaderDto header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version1, version0, MyAccount.class);
         MessageDataDto data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0));
+        container.add(data, new MessageMetaDto(MessageSerializer.getKey(data), 0,0));
 
         header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version2, version1, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0));
+        container.add(data, new MessageMetaDto(UUID.randomUUID().toString(), 0,0));
 
         header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version3, version2, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0));
+        container.add(data, new MessageMetaDto(UUID.randomUUID().toString(), 0,0));
 
-        LinkedList<DataGraphNode> scope = container.leaves;
+        List<DataGraphNode> scope = container.timeline();
         assert scope.size() == 1;
         assert scope.get(0).version.compareTo(version3) == 0;
     }
@@ -81,21 +83,21 @@ public class DataContainerTests {
 
         MessageDataHeaderDto header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version1, version0, MyAccount.class);
         MessageDataDto data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0));
+        container.add(data, new MessageMetaDto(MessageSerializer.getKey(data), 0,0));
 
         header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version2, version1, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0));
+        container.add(data, new MessageMetaDto(MessageSerializer.getKey(data), 0,0));
 
         header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version3a, version2,MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0));
+        container.add(data, new MessageMetaDto(MessageSerializer.getKey(data), 0,0));
 
         header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version3b,version2, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0));
+        container.add(data, new MessageMetaDto(MessageSerializer.getKey(data), 0,0));
 
-        LinkedList<DataGraphNode> scope = container.leaves;
+        List<DataGraphNode> scope = container.timeline();
         assert scope.size() == 2;
         assert scope.get(0).version.compareTo(version3a) == 0;
         assert scope.get(1).version.compareTo(version3b) == 0;
@@ -114,25 +116,25 @@ public class DataContainerTests {
 
         MessageDataHeaderDto header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version1, version0, MyAccount.class);
         MessageDataDto data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0));
+        container.add(data, new MessageMetaDto(MessageSerializer.getKey(data), 0,0));
 
         header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version2, version1, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0));
+        container.add(data, new MessageMetaDto(MessageSerializer.getKey(data), 0,0));
 
         header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version3, version2, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0));
+        container.add(data, new MessageMetaDto(MessageSerializer.getKey(data), 0,0));
 
         header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version4, version3, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0));
+        container.add(data, new MessageMetaDto(MessageSerializer.getKey(data), 0,0));
 
         header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version4b, version2, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0));
+        container.add(data, new MessageMetaDto(MessageSerializer.getKey(data), 0,0));
 
-        LinkedList<DataGraphNode> scope = container.leaves;
+        List<DataGraphNode> scope = container.timeline();
         assert scope.size() == 2;
         assert scope.get(0).version.compareTo(version4) == 0;
         assert scope.get(1).version.compareTo(version4b) == 0;
@@ -151,25 +153,25 @@ public class DataContainerTests {
 
         MessageDataHeaderDto header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version1, version0, MyAccount.class);
         MessageDataDto data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0));
+        container.add(data, new MessageMetaDto(MessageSerializer.getKey(data), 0,0));
 
         header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version2, version1, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0));
+        container.add(data, new MessageMetaDto(MessageSerializer.getKey(data), 0,0));
 
         header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version3, version2, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0));
+        container.add(data, new MessageMetaDto(MessageSerializer.getKey(data), 0,0));
 
         header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version4, version2, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0));
+        container.add(data, new MessageMetaDto(MessageSerializer.getKey(data), 0,0));
 
         header = new MessageDataHeaderDto(UUID.randomUUID(), UUID.randomUUID(), version4b, version2, MyAccount.class);
         data = new MessageDataDto(header, null, null) ;
-        container.add(data, new MessageMetaDto(0,0));
+        container.add(data, new MessageMetaDto(MessageSerializer.getKey(data), 0,0));
 
-        LinkedList<DataGraphNode> scope = container.leaves;
+        List<DataGraphNode> scope = container.timeline();
         assert scope.size() == 3;
         assert scope.get(0).version.compareTo(version3) == 0;
         assert scope.get(1).version.compareTo(version4) == 0;

@@ -23,9 +23,9 @@ public class RamDataRepository {
         return data.computeIfAbsent(where, k -> new ArrayList<>());
     }
 
-    public MessageBundle write(TopicAndPartition where, MessageBase msg) {
+    public MessageBundle write(TopicAndPartition where, String key, MessageBase msg) {
         long offset = offsets.computeIfAbsent(where, a -> new AtomicLong(0L)).incrementAndGet();
-        MessageBundle bundle = new MessageBundle(where.partitionIndex(), offset, msg);
+        MessageBundle bundle = new MessageBundle(key, where.partitionIndex(), offset, msg);
         partition(where).add(bundle);
         return bundle;
     }
@@ -39,10 +39,10 @@ public class RamDataRepository {
         return data.getOrDefault(where, new ArrayList<>());
     }
 
-    public @Nullable MessageDataDto getVersion(TopicAndPartition where, MessageMetaDto meta) {
+    public @Nullable MessageDataDto getVersion(TopicAndPartition where, long offset) {
         return data.getOrDefault(where, new ArrayList<>())
                 .stream()
-                .filter(a -> a.offset == meta.getOffset())
+                .filter(a -> a.offset == offset)
                 .filter(a -> a.partition == where.partitionIndex())
                 .map(a -> MessageBaseDto.from(a.raw))
                 .filter(a -> a instanceof MessageDataDto)

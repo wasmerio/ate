@@ -15,6 +15,7 @@ import org.apache.kafka.common.TopicPartition;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -181,7 +182,8 @@ public class KafkaInbox implements Runnable {
 
         // Wait for data to arrive from Kafka
         final ConsumerRecords<String, MessageBase> consumerRecords =
-                c.poll(pollTimeout);
+                c.poll(Duration.ofMillis(pollTimeout));
+        if (consumerRecords.isEmpty()) return;
 
         // Group all the messages into topics
         final Map<TopicAndPartition, ArrayList<MessageBundle>> msgs = new HashMap<>();
@@ -193,7 +195,7 @@ public class KafkaInbox implements Runnable {
 
             // Add it to the bundle
             msgs.computeIfAbsent(key, k -> new ArrayList<>())
-                .add(new MessageBundle(record.partition(), record.offset(), record.value()));
+                .add(new MessageBundle(record.key(), record.partition(), record.offset(), record.value()));
         }
 
         DataSubscriber subscriber = AteDelegate.get().storageFactory.get().backend();

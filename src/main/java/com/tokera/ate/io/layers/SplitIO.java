@@ -75,17 +75,17 @@ final public class SplitIO implements IAteIO {
     }
 
     @Override
-    final public @Nullable BaseDao readVersionOrNull(PUUID id, MessageMetaDto meta) {
-        BaseDao ret = upper.readVersionOrNull(id, meta);
+    final public @Nullable BaseDao readVersionOrNull(PUUID id, long offset) {
+        BaseDao ret = upper.readVersionOrNull(id, offset);
         if (ret != null) return ret;
-        return lower.readVersionOrNull(id, meta);
+        return lower.readVersionOrNull(id, offset);
     }
 
     @Override
-    final public @Nullable MessageDataDto readVersionMsgOrNull(PUUID id, MessageMetaDto meta) {
-        MessageDataDto ret = upper.readVersionMsgOrNull(id, meta);
+    final public @Nullable MessageDataDto readVersionMsgOrNull(PUUID id, long offset) {
+        MessageDataDto ret = upper.readVersionMsgOrNull(id, offset);
         if (ret != null) return ret;
-        return lower.readVersionMsgOrNull(id, meta);
+        return lower.readVersionMsgOrNull(id, offset);
     }
 
     @Override

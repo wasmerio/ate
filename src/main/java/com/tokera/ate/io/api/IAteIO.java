@@ -32,9 +32,9 @@ public interface IAteIO {
     
     <T extends BaseDao> Iterable<MessageMetaDto> readHistory(PUUID id, Class<T> clazz);
     
-    @Nullable BaseDao readVersionOrNull(PUUID id, MessageMetaDto meta);
+    @Nullable BaseDao readVersionOrNull(PUUID id, long offset);
     
-    @Nullable MessageDataDto readVersionMsgOrNull(PUUID id, MessageMetaDto meta);
+    @Nullable MessageDataDto readVersionMsgOrNull(PUUID id, long offset);
 
     List<BaseDao> readAll(IPartitionKey partitionKey);
 

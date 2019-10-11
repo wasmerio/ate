@@ -315,10 +315,10 @@ public class DataRepository implements IAteIO {
     }
 
     @Override
-    public @Nullable BaseDao readVersionOrNull(PUUID id, MessageMetaDto meta) {
+    public @Nullable BaseDao readVersionOrNull(PUUID id, long offset) {
         DataPartition kt = this.subscriber.getPartition(id.partition());
 
-        MessageDataDto data = kt.getBridge().getVersion(id.id(), meta);
+        MessageDataDto data = kt.getBridge().getVersion(id.id(), offset);
         if (data != null) {
             return d.dataSerializer.fromDataMessage(id.partition(), data, false);
         } else {
@@ -328,9 +328,9 @@ public class DataRepository implements IAteIO {
     }
 
     @Override
-    public @Nullable MessageDataDto readVersionMsgOrNull(PUUID id, MessageMetaDto meta) {
+    public @Nullable MessageDataDto readVersionMsgOrNull(PUUID id, long offset) {
         DataPartition kt = this.subscriber.getPartition(id.partition());
-        return kt.getBridge().getVersion(id.id(), meta);
+        return kt.getBridge().getVersion(id.id(), offset);
     }
 
     @Override

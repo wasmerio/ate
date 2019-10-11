@@ -20,7 +20,7 @@ public interface IDataPartitionBridge {
 
     void waitTillLoaded();
 
-    @Nullable MessageDataDto getVersion(UUID id, MessageMetaDto meta);
+    @Nullable MessageDataDto getVersion(UUID id, long offset);
 
     IPartitionKey partitionKey();
 

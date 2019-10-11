@@ -1,5 +1,6 @@
 package com.tokera.ate.io.repo;
 
+import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.kafka.MessageSerializer;
 import com.tokera.ate.dao.msg.*;
@@ -14,6 +15,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 
 import com.tokera.ate.units.Hash;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -32,6 +34,7 @@ public class DataPartitionChain {
     private final ConcurrentMap<String, HashSet<UUID>> byClazz;
     private final ConcurrentMap<UUID, MessageSecurityCastleDto> castles;
     private final ConcurrentMap<String, MessagePublicKeyDto> publicKeys;
+    private final ConcurrentSkipListSet<String> tombstones;
     private final Encryptor encryptor;
     
     public DataPartitionChain(IPartitionKey key) {
@@ -41,6 +44,7 @@ public class DataPartitionChain {
         this.publicKeys = new ConcurrentHashMap<>();
         this.castles = new ConcurrentHashMap<>();
         this.byClazz = new ConcurrentHashMap<>();
+        this.tombstones = new ConcurrentSkipListSet<>();
         this.encryptor = Encryptor.getInstance();
 
         this.addTrustKey(d.encryptor.getTrustOfPublicRead().key());
@@ -48,7 +52,7 @@ public class DataPartitionChain {
     }
 
     public IPartitionKey partitionKey() { return this.key; }
-    
+
     public void addTrustDataHeader(MessageDataHeaderDto trustedHeader) {
 
         MessageDataDto data = new MessageDataDto(
@@ -59,6 +63,7 @@ public class DataPartitionChain {
         d.debugLogging.logTrust(this.partitionKey(), trustedHeader);
 
         MessageMetaDto meta = new MessageMetaDto(
+                UUID.randomUUID().toString(),
                 0L,
                 0L);
 
@@ -121,6 +126,9 @@ public class DataPartitionChain {
         }
         if (msg instanceof MessageSecurityCastleDto) {
             return processCastle((MessageSecurityCastleDto)msg, LOG);
+        }
+        if (msg instanceof MessageSyncDto) {
+            return processSync((MessageSyncDto)msg, LOG);
         }
         
         drop(LOG, msg, meta, "unhandled message type");
@@ -233,6 +241,25 @@ public class DataPartitionChain {
                 .withSavedDatas(d.requestContext.currentTransaction().getSavedDataMap(this.partitionKey()))
                 .validate(this.partitionKey(), data);
     }
+
+    private void tombstone(String key) {
+        this.tombstones.add(key);
+    }
+
+    private void untombstone(String key) {
+        this.tombstones.remove(key);
+    }
+
+    public List<String> pollTombstones() {
+        List<String> ret = new ArrayList<>();
+        for (String key : this.tombstones) {
+            ret.add(key);
+        }
+        for (String key : ret) {
+            this.tombstones.remove(key);
+        }
+        return ret;
+    }
     
     private boolean processData(MessageDataDto data, MessageMetaDto meta, boolean invokeCallbacks, @Nullable LoggerHook LOG) throws IOException, InvalidCipherTextException
     {
@@ -251,7 +278,30 @@ public class DataPartitionChain {
         }
 
         // Process it
-        this.promoteChainEntry(new MessageDataMetaDto(data, meta), invokeCallbacks, LOG);
+        boolean accepted = this.promoteChainEntry(new MessageDataMetaDto(data, meta), invokeCallbacks, LOG);
+
+        // If it was not accepted then tombstone it
+        if (accepted == false) {
+            tombstone(meta.getKey());
+        }
+
+        // Accepted entries that have no payload will cause the entire sub-tree to be tomb-stoned
+        else if (data.hasPayload() == false) {
+            DataContainer container = MapTools.getOrNull(this.chainOfTrust, header.getIdOrThrow());
+            if (container != null) {
+                for (DataGraphNode node : container.timeline()) {
+                    tombstone(node.msg.getMeta().getKey());
+                }
+                container.clear();
+            }
+        }
+
+        // Otherwise make sure no tombstone exists (we don't want things to get deleted before we have processed everything)
+        else {
+            untombstone(meta.getKey());
+        }
+
+        // Success
         return true;
     }
     
@@ -332,6 +382,16 @@ public class DataPartitionChain {
         }
 
         addTrustCastle(msg, LOG);
+        return true;
+    }
+
+    private boolean processSync(MessageSyncDto msg, @Nullable LoggerHook LOG)
+    {
+        // Process the message in the sync manager
+        d.partitionSyncManager.processSync(msg);
+
+        // All sync messages are instantly tomb-stoned
+        tombstone(MessageSerializer.getKey(msg));
         return true;
     }
 

@@ -30,9 +30,9 @@ public class DataContainer {
     private Long firstOffset = 0L;
     private Long lastOffset = 0L;
     public final IPartitionKey partitionKey;
-    public final Map<UUID, @NonNull DataGraphNode> lookup = new HashMap<>();
-    public final LinkedList<DataGraphNode> timeline = new LinkedList<>();
-    public final LinkedList<DataGraphNode> leaves = new LinkedList<>();
+    private final Map<UUID, @NonNull DataGraphNode> lookup = new HashMap<>();
+    private final LinkedList<DataGraphNode> timeline = new LinkedList<>();
+    private final LinkedList<DataGraphNode> leaves = new LinkedList<>();
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
     public DataContainer(UUID id, IPartitionKey partitionKey) {
@@ -64,6 +64,50 @@ public class DataContainer {
             w.unlock();
         }
         return this;
+    }
+
+    public void clear() {
+        Lock w = this.lock.writeLock();
+        w.lock();
+        try {
+            leaves.clear();;
+            timeline.clear();
+            lookup.clear();
+        } finally {
+            w.unlock();
+        }
+    }
+
+    public boolean isEmpty() {
+        Lock w = this.lock.readLock();
+        w.lock();
+        try {
+            return timeline.isEmpty();
+        } finally {
+            w.unlock();
+        }
+    }
+
+    public boolean hasVersion(UUID version) {
+        Lock w = this.lock.readLock();
+        w.lock();
+        try {
+            return this.lookup.containsKey(version);
+        } finally {
+            w.unlock();
+        }
+    }
+
+    public List<DataGraphNode> timeline() {
+        List<DataGraphNode> ret = new ArrayList<>();
+        Lock w = this.lock.readLock();
+        w.lock();
+        try {
+            ret.addAll(timeline);
+        } finally {
+            w.unlock();
+        }
+        return ret;
     }
 
     public DataContainer add(MessageDataDto data, MessageMetaDto meta) {

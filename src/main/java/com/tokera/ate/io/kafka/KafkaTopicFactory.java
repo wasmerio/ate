@@ -46,6 +46,7 @@ public class KafkaTopicFactory {
     /**
      * Initializes the partition by creating it
      */
+    @SuppressWarnings( "deprecation" )
     public Response create(String topic, DataPartitionType type)
     {
         // If the topic has ever been created by this TokAPI then we dont attempt it again

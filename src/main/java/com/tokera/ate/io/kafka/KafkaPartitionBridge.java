@@ -29,6 +29,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;
@@ -59,7 +60,7 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
     }
 
     @Override
-    public @Nullable MessageDataDto getVersion(UUID id, MessageMetaDto meta) {
+    public @Nullable MessageDataDto getVersion(UUID id, long offset) {
         TopicPartition tp = new TopicPartition(key.partitionTopic(), key.partitionIndex());
 
         List<TopicPartition> tps = new LinkedList<>();
@@ -67,14 +68,14 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
 
         KafkaConsumer<String, MessageBase> onceConsumer = d.kafkaConfig.newConsumer(KafkaConfigTools.TopicRole.Consumer, KafkaConfigTools.TopicType.Dao, KafkaServer.getKafkaBootstrap());
         onceConsumer.assign(tps);
-        onceConsumer.seek(tp, meta.getOffset());
+        onceConsumer.seek(tp, offset);
 
-        final ConsumerRecords<String, MessageBase> consumerRecords = onceConsumer.poll(5000);
+        final ConsumerRecords<String, MessageBase> consumerRecords = onceConsumer.poll(Duration.ofMillis(5000));
         if (consumerRecords.isEmpty()) return null;
 
         for (ConsumerRecord<String, MessageBase> msg : consumerRecords) {
-            if (msg.partition() == meta.getPartition() &&
-                    msg.offset() == meta.getOffset())
+            if (msg.partition() == this.partitionKey().partitionIndex() &&
+                    msg.offset() == offset)
             {
                 if (msg.value().msgType() == MessageType.MessageData) {
                     MessageData data = (MessageData)msg.value().msg(new MessageData());

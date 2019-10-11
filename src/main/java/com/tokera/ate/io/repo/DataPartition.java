@@ -78,6 +78,7 @@ public class DataPartition {
             try {
                 // Now process the message itself
                 MessageMetaDto meta = new MessageMetaDto(
+                        bundle.key,
                         bundle.partition,
                         bundle.offset);
 
@@ -85,10 +86,6 @@ public class DataPartition {
                 if (msg == null) continue;
                 d.debugLogging.logReceive(meta, msg);
 
-                if (msg instanceof MessageSyncDto) {
-                    d.partitionSyncManager.processSync((MessageSyncDto) msg);
-                    continue;
-                }
                 try {
                     boolean isLoaded = this.bridge.hasLoaded();
                     chain.rcv(msg, meta, isLoaded, d.genericLogger);

@@ -629,44 +629,44 @@ public class HeadIO
         return back.readHistory(id, clazz);
     }
 
-    public @Nullable BaseDao readVersionOrNull(@DaoId UUID id, MessageMetaDto meta) {
+    public @Nullable BaseDao readVersionOrNull(@DaoId UUID id, long offset) {
         IPartitionKey partitionKey = d.requestContext.currentPartitionKey();
-        return back.readVersionOrNull(PUUID.from(partitionKey, id), meta);
+        return back.readVersionOrNull(PUUID.from(partitionKey, id), offset);
     }
 
-    public @Nullable BaseDao readVersionOrNull(PUUID id, MessageMetaDto meta) {
-        return back.readVersionOrNull(id, meta);
+    public @Nullable BaseDao readVersionOrNull(PUUID id, long offset) {
+        return back.readVersionOrNull(id, offset);
     }
 
-    public @Nullable MessageDataDto readVersionMsgOrNull(@DaoId UUID id, MessageMetaDto meta) {
+    public @Nullable MessageDataDto readVersionMsgOrNull(@DaoId UUID id, long offset) {
         IPartitionKey partitionKey = d.requestContext.currentPartitionKey();
-        return back.readVersionMsgOrNull(PUUID.from(partitionKey, id), meta);
+        return back.readVersionMsgOrNull(PUUID.from(partitionKey, id), offset);
     }
 
-    public @Nullable MessageDataDto readVersionMsgOrNull(PUUID id, MessageMetaDto meta) {
-        return back.readVersionMsgOrNull(id, meta);
+    public @Nullable MessageDataDto readVersionMsgOrNull(PUUID id, long offset) {
+        return back.readVersionMsgOrNull(id, offset);
     }
 
-    public BaseDao readVersion(@DaoId UUID id, MessageMetaDto meta) {
+    public BaseDao readVersion(@DaoId UUID id, long offset) {
         IPartitionKey partitionKey = d.requestContext.currentPartitionKey();
-        return this.readVersion(PUUID.from(partitionKey, id), meta);
+        return this.readVersion(PUUID.from(partitionKey, id), offset);
     }
 
-    public BaseDao readVersion(PUUID id, MessageMetaDto meta) {
-        BaseDao ret = back.readVersionOrNull(id, meta);
+    public BaseDao readVersion(PUUID id, long offset) {
+        BaseDao ret = back.readVersionOrNull(id, offset);
         if (ret == null) {
             throw new RuntimeException("Object version data (id=" + id.print() + ") not found");
         }
         return ret;
     }
 
-    public MessageDataDto readVersionMsg(@DaoId UUID id, MessageMetaDto meta) {
+    public MessageDataDto readVersionMsg(@DaoId UUID id, long offset) {
         IPartitionKey partitionKey = d.requestContext.currentPartitionKey();
-        return this.readVersionMsg(PUUID.from(partitionKey, id), meta);
+        return this.readVersionMsg(PUUID.from(partitionKey, id), offset);
     }
 
-    public MessageDataDto readVersionMsg(PUUID id, MessageMetaDto meta) {
-        MessageDataDto ret = back.readVersionMsgOrNull(id, meta);
+    public MessageDataDto readVersionMsg(PUUID id, long offset) {
+        MessageDataDto ret = back.readVersionMsgOrNull(id, offset);
         if (ret == null) {
             throw new RuntimeException("Object version message (id=" + id.print() + ") not found");
         }

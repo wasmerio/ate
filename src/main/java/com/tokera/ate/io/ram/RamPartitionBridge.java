@@ -2,6 +2,7 @@ package com.tokera.ate.io.ram;
 
 import com.tokera.ate.dao.MessageBundle;
 import com.tokera.ate.dao.TopicAndPartition;
+import com.tokera.ate.dao.kafka.MessageSerializer;
 import com.tokera.ate.dao.msg.MessageBase;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessageBaseDto;
@@ -30,7 +31,6 @@ public class RamPartitionBridge implements IDataPartitionBridge {
     private final DataPartitionChain chain;
     private final DataPartitionType type;
     private final DataSubscriber subscriber;
-    private final Random rand = new Random();
     private final TopicAndPartition where;
 
     public RamPartitionBridge(DataPartitionChain chain, DataPartitionType type) {
@@ -43,7 +43,9 @@ public class RamPartitionBridge implements IDataPartitionBridge {
     @Override
     public void send(MessageBaseDto msg) {
         MessageBase flat = msg.createBaseFlatBuffer();
-        MessageBundle bundle = d.ramDataRepository.write(where, flat);
+
+        String key = MessageSerializer.getKey(msg);
+        MessageBundle bundle = d.ramDataRepository.write(where, key, flat);
         this.subscriber.feed(this.where, Collections.singletonList(bundle), true);
     }
 
@@ -52,8 +54,8 @@ public class RamPartitionBridge implements IDataPartitionBridge {
     }
 
     @Override
-    public @Nullable MessageDataDto getVersion(UUID id, MessageMetaDto meta) {
-        return d.ramDataRepository.getVersion(where, meta);
+    public @Nullable MessageDataDto getVersion(UUID id, long offset) {
+        return d.ramDataRepository.getVersion(where, offset);
     }
 
     @Override
