@@ -13,6 +13,7 @@ import javax.enterprise.context.ApplicationScoped;
 import java.util.ArrayList;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.Set;
 
 @ApplicationScoped
 public class RamDataRepository {
@@ -49,5 +50,10 @@ public class RamDataRepository {
                 .map(a -> (MessageDataDto)a)
                 .findFirst()
                 .orElse(null);
+    }
+
+    public void deleteMany(TopicAndPartition where, Set<String> keys) {
+        data.getOrDefault(where, new ArrayList<>())
+                .removeIf(m -> keys.contains(m.key));
     }
 }

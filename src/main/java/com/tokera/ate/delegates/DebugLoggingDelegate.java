@@ -431,6 +431,22 @@ public class DebugLoggingDelegate {
         }
     }
 
+    public void logKafkaDelete(ProducerRecord<String, MessageBase> record) {
+        if (d.bootstrapConfig.isLoggingKafka()) {
+            StringBuilder sb = new StringBuilder();
+
+            sb.append("kafka_delete(topic=");
+            sb.append(record.topic());
+            sb.append(", partition=");
+            sb.append(record.partition());
+            sb.append(", id=");
+            sb.append(record.key());
+            sb.append(")");
+
+            logInfo(sb.toString());
+        }
+    }
+
     public void logKafkaAuthorize(RequestChannel.Session session, Operation operation, Resource resource, boolean result) {
         if (d.bootstrapConfig.isLoggingKafka() || result == false) {
             StringBuilder sb = new StringBuilder();

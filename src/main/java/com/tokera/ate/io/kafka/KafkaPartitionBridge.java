@@ -1,7 +1,6 @@
 package com.tokera.ate.io.kafka;
 
 import com.tokera.ate.KafkaServer;
-import com.tokera.ate.dao.MessageBundle;
 import com.tokera.ate.dao.TopicAndPartition;
 import com.tokera.ate.dao.kafka.MessageSerializer;
 import com.tokera.ate.dao.msg.MessageBase;
@@ -10,7 +9,6 @@ import com.tokera.ate.dao.msg.MessageType;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessageBaseDto;
 import com.tokera.ate.dto.msg.MessageDataDto;
-import com.tokera.ate.dto.msg.MessageMetaDto;
 import com.tokera.ate.dto.msg.MessageSyncDto;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.repo.DataPartitionChain;
@@ -23,26 +21,25 @@ import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.TopicPartition;
-import org.bouncycastle.crypto.InvalidCipherTextException;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
-import java.io.IOException;
 import java.time.Duration;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.UUID;
+import java.util.Set;
 
 public class KafkaPartitionBridge implements IDataPartitionBridge {
     public final AteDelegate d;
-    public final IPartitionKey key;
+    public final IPartitionKey where;
     public final DataPartitionChain chain;
     private volatile MessageSyncDto loadSync = null;
 
-    public KafkaPartitionBridge(AteDelegate d, IPartitionKey key, DataPartitionChain chain) {
+    public KafkaPartitionBridge(AteDelegate d, IPartitionKey where, DataPartitionChain chain) {
         this.d = d;
-        this.key = key;
+        this.where = where;
         this.chain = chain;
     }
 
@@ -50,7 +47,7 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
     public void send(MessageBaseDto msg)
     {
         // Send the message do Kafka
-        ProducerRecord<String, MessageBase> record = new ProducerRecord<>(key.partitionTopic(), key.partitionIndex(), MessageSerializer.getKey(msg), msg.createBaseFlatBuffer());
+        ProducerRecord<String, MessageBase> record = new ProducerRecord<>(where.partitionTopic(), where.partitionIndex(), MessageSerializer.getKey(msg), msg.createBaseFlatBuffer());
 
         // Send the record to Kafka
         KafkaProducer<String, MessageBase> p = d.kafkaOutbox.get();
@@ -60,8 +57,23 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
     }
 
     @Override
+    public void deleteMany(Set<String> keys)
+    {
+        // Send the message do Kafka
+        for (String key : keys) {
+            ProducerRecord<String, MessageBase> record = new ProducerRecord<>(where.partitionTopic(), where.partitionIndex(), key, null);
+
+            // Send the record to Kafka
+            KafkaProducer<String, MessageBase> p = d.kafkaOutbox.get();
+            if (p != null) p.send(record);
+
+            d.debugLogging.logKafkaDelete(record);
+        }
+    }
+
+    @Override
     public @Nullable MessageDataDto getVersion(UUID id, long offset) {
-        TopicPartition tp = new TopicPartition(key.partitionTopic(), key.partitionIndex());
+        TopicPartition tp = new TopicPartition(where.partitionTopic(), where.partitionIndex());
 
         List<TopicPartition> tps = new LinkedList<>();
         tps.add(tp);
@@ -93,7 +105,7 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
         this.send(sync);
         this.loadSync = sync;
 
-        d.debugLogging.logBeginLoad(this.key);
+        d.debugLogging.logBeginLoad(this.where);
     }
 
     @Override
@@ -114,19 +126,19 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
                 }
                 if (waitTime.getTime() > 8000L) {
                     if (startedReload == false) {
-                        d.kafkaInbox.addPartition(new TopicAndPartition(key));
+                        d.kafkaInbox.addPartition(new TopicAndPartition(where));
                         startedReload = true;
                     }
                 }
                 if (waitTime.getTime() > 15000L) {
                     if (hasCreated == false) {
                         createTopic();
-                        d.kafkaInbox.addPartition(new TopicAndPartition(key));
+                        d.kafkaInbox.addPartition(new TopicAndPartition(where));
                         hasCreated = true;
                     }
                 }
                 if (waitTime.getTime() > 25000L) {
-                    throw new RuntimeException("Busy loading data partition [" + PartitionKeySerializer.toString(key) + "]");
+                    throw new RuntimeException("Busy loading data partition [" + PartitionKeySerializer.toString(where) + "]");
                 }
                 try {
                     Thread.sleep(50);
@@ -135,7 +147,7 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
                 }
             }
 
-            d.debugLogging.logFinishLoad(this.key);
+            d.debugLogging.logFinishLoad(this.where);
             this.loadSync = null;
         }
     }
@@ -143,13 +155,13 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
     public void createTopic()
     {
         // Make sure the topic is actually created
-        KafkaTopicFactory.Response response = AteDelegate.get().kafkaTopicFactory.create(key.partitionTopic(), key.partitionType());
+        KafkaTopicFactory.Response response = AteDelegate.get().kafkaTopicFactory.create(where.partitionTopic(), where.partitionType());
         switch (response) {
             case AlreadyExists: {
                 break;
             }
             case WasCreated: {
-                AteDelegate.get().genericLogger.info("partition [" + this.key + "]: loaded-created");
+                AteDelegate.get().genericLogger.info("partition [" + this.where + "]: loaded-created");
                 break;
             }
             case Failed: {
@@ -160,7 +172,7 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
 
     @Override
     public IPartitionKey partitionKey() {
-        return this.key;
+        return this.where;
     }
 
     @Override

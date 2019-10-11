@@ -165,6 +165,12 @@ public class KafkaInbox implements Runnable {
         }
     }
 
+    // Called when the main thread is idle
+    private void idle()
+    {
+
+    }
+
     private void poll()
     {
         // Build a list of all the topics and partitions we are interested in
@@ -183,7 +189,10 @@ public class KafkaInbox implements Runnable {
         // Wait for data to arrive from Kafka
         final ConsumerRecords<String, MessageBase> consumerRecords =
                 c.poll(Duration.ofMillis(pollTimeout));
-        if (consumerRecords.isEmpty()) return;
+        if (consumerRecords.isEmpty()) {
+            idle();
+            return;
+        }
 
         // Group all the messages into topics
         final Map<TopicAndPartition, ArrayList<MessageBundle>> msgs = new HashMap<>();

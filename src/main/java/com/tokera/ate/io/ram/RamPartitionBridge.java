@@ -21,6 +21,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import java.io.IOException;
 import java.util.Random;
 import java.util.UUID;
+import java.util.Set;
 
 /**
  * Represents a bridge of a particular partition with an in memory RAM copy of the data
@@ -47,6 +48,11 @@ public class RamPartitionBridge implements IDataPartitionBridge {
         String key = MessageSerializer.getKey(msg);
         MessageBundle bundle = d.ramDataRepository.write(where, key, flat);
         this.subscriber.feed(this.where, Collections.singletonList(bundle), true);
+    }
+
+    @Override
+    public void deleteMany(Set<String> keys) {
+        d.ramDataRepository.deleteMany(where, keys);
     }
 
     @Override

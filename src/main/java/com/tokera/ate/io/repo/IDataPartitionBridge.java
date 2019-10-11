@@ -10,6 +10,7 @@ import com.tokera.ate.io.api.IPartitionKey;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.UUID;
+import java.util.Set;
 
 /**
  * Represents an interface that will stream data messages to and from a persistent storage (e.g. Kafka BUS or Local Data File)
@@ -17,6 +18,8 @@ import java.util.UUID;
 public interface IDataPartitionBridge {
 
     void send(MessageBaseDto msg);
+
+    void deleteMany(Set<String> keys);
 
     void waitTillLoaded();
 

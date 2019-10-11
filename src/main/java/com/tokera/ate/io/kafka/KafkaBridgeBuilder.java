@@ -58,7 +58,7 @@ public class KafkaBridgeBuilder {
 
         // Create the topic if it doesnt exist
         ret.createTopic();
-        d.kafkaInbox.addPartition(new TopicAndPartition(ret.key));
+        d.kafkaInbox.addPartition(new TopicAndPartition(ret.where));
 
         ret.sendLoadSync();
         return ret;

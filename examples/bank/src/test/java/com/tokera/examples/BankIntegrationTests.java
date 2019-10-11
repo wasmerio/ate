@@ -89,7 +89,7 @@ public class BankIntegrationTests {
 
     @Test
     @Order(3)
-    @DisplayName("...generating company key")
+    @DisplayName("...generating company where")
     public void generateCompanyKey() {
         AteDelegate d = AteDelegate.get();
         this.companyKey = new PrivateKeyWithSeedDto(PrivateKeyType.write, "not_so_secret_secret", companyDomain);
@@ -98,7 +98,7 @@ public class BankIntegrationTests {
 
     @Test
     @Order(4)
-    @DisplayName("...generating coining key")
+    @DisplayName("...generating coining where")
     public void generateCoiningKey() {
         AteDelegate d = AteDelegate.get();
         this.coiningKey = new PrivateKeyWithSeedDto(PrivateKeyType.write, "unobtainium", coiningDomain);
@@ -107,7 +107,7 @@ public class BankIntegrationTests {
 
     @Test
     @Order(5)
-    @DisplayName("...root login with key")
+    @DisplayName("...root login with where")
     public void rootLogin() {
         RootLoginRequest request = new RootLoginRequest();
         request.getWriteRights().add(this.companyKey);
@@ -164,7 +164,7 @@ public class BankIntegrationTests {
 
     @Test
     @Order(9)
-    @DisplayName("...coining login with key")
+    @DisplayName("...coining login with where")
     public void coiningLogin() {
         RootLoginRequest request = new RootLoginRequest();
         request.getWriteRights().add(this.coiningKey);
