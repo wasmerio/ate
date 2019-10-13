@@ -8,8 +8,10 @@ import com.tokera.ate.client.RawClientBuilder;
 import com.tokera.ate.client.TestTools;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.PrivateKeyWithSeedDto;
+import com.tokera.ate.dto.fs.FsFolderDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.enumerations.DefaultStorageSystem;
+import com.tokera.ate.enumerations.LinuxErrors;
 import com.tokera.ate.test.dao.MyAccount;
 import com.tokera.ate.test.dao.SeedingDelegate;
 import com.tokera.ate.test.dto.NewAccountDto;
@@ -21,7 +23,10 @@ import javax.validation.constraints.NotNull;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.MediaType;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -41,6 +46,7 @@ public class BasicIntegrationTests {
         BootstrapConfig config = ApiServer.startWeld(null, BootstrapApp.class);
         config.setLoggingMessageDrops(true);
         config.setDefaultStorageSystem(DefaultStorageSystem.LocalRam);
+        //config.setDefaultStorageSystem(DefaultStorageSystem.Kafka);
         config.setPingCheckOnStart(false);
         config.setRestPortOverride(8082);
 
@@ -89,6 +95,27 @@ public class BasicIntegrationTests {
     @Order(11)
     public void touchAccount() {
         session.restGet("/acc/" + this.accountId + "/touch", MyAccount.class);
+    }
+
+    @Test
+    @Order(12)
+    public void parallismMerge() {
+
+        int testSize = 200;
+        List<UUID> testSet = new ArrayList<>();
+        for (Integer n = 0; n < testSize; n++) {
+            testSet.add(UUID.randomUUID());
+        }
+
+        testSet.parallelStream().forEach(descVal -> {
+            session.restPost("/acc/" + this.accountId + "/addThing", Entity.json(descVal), MyAccount.class);
+        });
+
+        MyAccount acc = session.restGet("/acc/" + this.accountId, MyAccount.class);
+        Assertions.assertEquals(testSet.size(), acc.things.size());
+        for (UUID descVal : testSet) {
+            Assertions.assertTrue(acc.things.contains(descVal));
+        }
     }
 
     @RepeatedTest(100)

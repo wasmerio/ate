@@ -1,7 +1,5 @@
 package com.tokera.ate.io.repo;
 
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
 import com.tokera.ate.dao.*;
 import com.tokera.ate.dao.base.BaseDao;
 
@@ -21,7 +19,6 @@ import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.dto.EffectivePermissions;
 
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import com.tokera.ate.units.DaoId;
@@ -57,12 +54,12 @@ public class DataRepository implements IAteIO {
 
     @Override
     public void warm(IPartitionKey partitionKey) {
-        this.subscriber.getPartition(partitionKey, false);
+        this.subscriber.getOrCreatePartition(partitionKey, false);
     }
 
     @Override
     public void warmAndWait(IPartitionKey partitionKey) {
-        DataPartition partition = this.subscriber.getPartition(partitionKey, false);
+        DataPartition partition = this.subscriber.getOrCreatePartition(partitionKey, false);
         partition.getBridge().waitTillLoaded();
     }
 
@@ -225,7 +222,7 @@ public class DataRepository implements IAteIO {
     }
 
     boolean remove(IPartitionKey partitionKey, UUID id) {
-        DataPartition kt = this.subscriber.getPartition(partitionKey);
+        DataPartition kt = this.subscriber.getOrCreatePartition(partitionKey);
         DataPartitionChain chain = this.subscriber.getChain(partitionKey, true);
         DataContainer container = chain.getData(id);
         if (container == null) {
@@ -316,7 +313,7 @@ public class DataRepository implements IAteIO {
 
     @Override
     public @Nullable BaseDao readVersionOrNull(PUUID id, long offset) {
-        DataPartition kt = this.subscriber.getPartition(id.partition());
+        DataPartition kt = this.subscriber.getOrCreatePartition(id.partition());
 
         MessageDataDto data = kt.getBridge().getVersion(id.id(), offset);
         if (data != null) {
@@ -329,7 +326,7 @@ public class DataRepository implements IAteIO {
 
     @Override
     public @Nullable MessageDataDto readVersionMsgOrNull(PUUID id, long offset) {
-        DataPartition kt = this.subscriber.getPartition(id.partition());
+        DataPartition kt = this.subscriber.getOrCreatePartition(id.partition());
         return kt.getBridge().getVersion(id.id(), offset);
     }
 
@@ -422,7 +419,7 @@ public class DataRepository implements IAteIO {
 
     @Override
     public MessageSyncDto beginSync(IPartitionKey partitionKey, MessageSyncDto sync) {
-        DataPartition kt = this.subscriber.getPartition(partitionKey);
+        DataPartition kt = this.subscriber.getOrCreatePartition(partitionKey);
         MessageSyncDto ret = d.partitionSyncManager.startSync(sync);
         kt.write(ret, this.LOG);
         return ret;
@@ -493,10 +490,12 @@ public class DataRepository implements IAteIO {
         for (IPartitionKey partitionKey : trans.keys().stream().collect(Collectors.toList())) {
             d.debugLogging.logFlush(trans, partitionKey);
 
+            d.dataMaintenance.lend_rights(partitionKey, d.currentRights);
+
             d.requestContext.pushPartitionKey(partitionKey);
             try {
                 // Get the partition
-                DataPartition kt = this.subscriber.getPartition(partitionKey);
+                DataPartition kt = this.subscriber.getOrCreatePartition(partitionKey);
                 IDataPartitionBridge bridge = kt.getBridge();
 
                 // Push all the public keys that are in the cache but not known to this partition

@@ -9,6 +9,7 @@ import com.tokera.ate.dto.msg.MessageSyncDto;
 import com.tokera.ate.io.api.IPartitionKey;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import java.util.Collection;
 import java.util.UUID;
 import java.util.Set;
 
@@ -19,7 +20,7 @@ public interface IDataPartitionBridge {
 
     void send(MessageBaseDto msg);
 
-    void deleteMany(Set<String> keys);
+    void deleteMany(Collection<String> keys);
 
     void waitTillLoaded();
 

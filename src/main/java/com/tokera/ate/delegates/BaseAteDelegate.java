@@ -100,6 +100,7 @@ public abstract class BaseAteDelegate {
     public final ProducerDelegate producer;
     public final KafkaInbox kafkaInbox;
     public final KafkaOutbox kafkaOutbox;
+    public final DataMaintenance dataMaintenance;
     public final KafkaTopicFactory kafkaTopicFactory;
     public final RamDataRepository ramDataRepository;
 
@@ -200,6 +201,7 @@ public abstract class BaseAteDelegate {
         this.producer = getBean(ProducerDelegate.class);
         this.kafkaInbox = getBean(KafkaInbox.class);
         this.kafkaOutbox = getBean(KafkaOutbox.class);
+        this.dataMaintenance = getBean(DataMaintenance.class);
         this.kafkaTopicFactory = getBean(KafkaTopicFactory.class);
         this.ramDataRepository = getBean(RamDataRepository.class);
     }

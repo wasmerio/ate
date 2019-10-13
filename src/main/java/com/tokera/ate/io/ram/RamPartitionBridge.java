@@ -14,14 +14,13 @@ import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.repo.DataPartitionChain;
 import com.tokera.ate.io.repo.DataSubscriber;
 import com.tokera.ate.io.repo.IDataPartitionBridge;
-import java.util.Collections;
+
+import java.util.*;
+
 import org.bouncycastle.crypto.InvalidCipherTextException;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.io.IOException;
-import java.util.Random;
-import java.util.UUID;
-import java.util.Set;
 
 /**
  * Represents a bridge of a particular partition with an in memory RAM copy of the data
@@ -51,7 +50,7 @@ public class RamPartitionBridge implements IDataPartitionBridge {
     }
 
     @Override
-    public void deleteMany(Set<String> keys) {
+    public void deleteMany(Collection<String> keys) {
         d.ramDataRepository.deleteMany(where, keys);
     }
 

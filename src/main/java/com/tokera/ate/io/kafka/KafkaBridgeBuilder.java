@@ -59,6 +59,7 @@ public class KafkaBridgeBuilder {
         // Create the topic if it doesnt exist
         ret.createTopic();
         d.kafkaInbox.addPartition(new TopicAndPartition(ret.where));
+        d.dataMaintenance.addPartition(new TopicAndPartition(ret.where));
 
         ret.sendLoadSync();
         return ret;
@@ -66,5 +67,6 @@ public class KafkaBridgeBuilder {
 
     public void removePartition(IPartitionKey key) {
         d.kafkaInbox.removePartition(new TopicAndPartition(key));
+        d.dataMaintenance.removePartition(new TopicAndPartition(key));
     }
 }

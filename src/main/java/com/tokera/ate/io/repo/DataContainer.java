@@ -66,6 +66,16 @@ public class DataContainer {
         return this;
     }
 
+    public boolean requiresMerge() {
+        Lock w = this.lock.readLock();
+        w.lock();
+        try {
+            return leaves.size() > 1;
+        } finally {
+            w.unlock();
+        }
+    }
+
     public void clear() {
         Lock w = this.lock.writeLock();
         w.lock();
@@ -283,21 +293,6 @@ public class DataContainer {
         } else {
             BaseDaoInternal.setPreviousVersion(ret, null);
             BaseDaoInternal.setMergesVersions(ret, leaves.stream().map(n -> n.version).collect(Collectors.toSet()));
-
-            // If a mergeThreeWay was performed and we have writability then we should save it down to reduce future merges and
-            // so that log compaction doesnt lose data (Kafka compacting)
-            ContainerRequestContext context = d.requestContext.getContainerRequestContextOrNull();
-            if (leaves.size() > 1 && context != null) {
-                if (context.getMethod().equalsIgnoreCase("PUT") ||
-                    context.getMethod().equalsIgnoreCase("POST") ||
-                    context.getMethod().equalsIgnoreCase("DELETE"))
-                {
-                    EffectivePermissions perms = d.authorization.perms(BaseDaoInternal.getType(ret), partitionKey, ret.getId(), PermissionPhase.BeforeMerge);
-                    if (shouldSave && perms.canWrite(d.currentRights)) {
-                        d.io.write(ret, false);
-                    }
-                }
-            }
         }
 
         return ret;

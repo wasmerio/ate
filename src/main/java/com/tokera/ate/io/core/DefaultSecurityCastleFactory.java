@@ -5,7 +5,6 @@ import com.google.common.cache.CacheBuilder;
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.PrivateKeyWithSeedDto;
-import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import com.tokera.ate.dto.msg.MessageSecurityCastleDto;
 import com.tokera.ate.dto.msg.MessageSecurityGateDto;
@@ -17,11 +16,9 @@ import com.tokera.ate.units.Hash;
 import com.tokera.ate.units.Secret;
 import org.apache.commons.codec.binary.Base64;
 import org.checkerframework.checker.nullness.qual.Nullable;
-import org.bouncycastle.crypto.InvalidCipherTextException;
 
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
-import java.io.IOException;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -63,7 +60,7 @@ public class DefaultSecurityCastleFactory implements ISecurityCastleFactory {
 
     @Override
     public void putSecret(IPartitionKey partitionKey, UUID id, @Secret byte[] secret, Iterable<MessagePublicKeyDto> accessKeys) {
-        DataPartition kt = d.io.backend().getPartition(partitionKey);
+        DataPartition kt = d.io.backend().getOrCreatePartition(partitionKey);
 
         // Create a new castle
         MessageSecurityCastleDto castle = new MessageSecurityCastleDto(id);

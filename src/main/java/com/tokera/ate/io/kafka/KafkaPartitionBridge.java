@@ -26,10 +26,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 import java.time.Duration;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.UUID;
-import java.util.Set;
+import java.util.*;
 
 public class KafkaPartitionBridge implements IDataPartitionBridge {
     public final AteDelegate d;
@@ -57,7 +54,7 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
     }
 
     @Override
-    public void deleteMany(Set<String> keys)
+    public void deleteMany(Collection<String> keys)
     {
         // Send the message do Kafka
         for (String key : keys) {
@@ -127,6 +124,7 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
                 if (waitTime.getTime() > 8000L) {
                     if (startedReload == false) {
                         d.kafkaInbox.addPartition(new TopicAndPartition(where));
+                        d.dataMaintenance.addPartition(new TopicAndPartition(where));
                         startedReload = true;
                     }
                 }
@@ -134,6 +132,7 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
                     if (hasCreated == false) {
                         createTopic();
                         d.kafkaInbox.addPartition(new TopicAndPartition(where));
+                        d.dataMaintenance.addPartition(new TopicAndPartition(where));
                         hasCreated = true;
                     }
                 }

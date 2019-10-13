@@ -9,6 +9,7 @@ import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.CountLong;
 import com.tokera.ate.dao.GenericPartitionKey;
 import com.tokera.ate.dao.PUUID;
+import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.providers.PartitionKeySerializer;
@@ -483,7 +484,7 @@ public class DataMerger {
             for (int n = 0; n < what.size(); n++) {
                 Object val = what.get(n);
                 if (existingRet.remove(val) == false) {
-                    if (n + 1 == what.size()) {
+                    if (n + 1 >= what.size()) {
                         ret.add(cloneObject(val));
                     } else if (n == 0) {
                         ret.add(0, cloneObject(val));
@@ -509,7 +510,7 @@ public class DataMerger {
             for (int n = 0; n < what.size(); n++) {
                 Object val = what.get(n);
                 if (existingBase.remove(val) == false) {
-                    if (n + 1 == what.size()) {
+                    if (n + 1 >= what.size()) {
                         ret.add(cloneObject(val));
                     } else if (n == 0) {
                         ret.add(0, cloneObject(val));

@@ -24,12 +24,14 @@ import javax.validation.Valid;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import java.io.IOException;
+import java.util.Random;
 import java.util.UUID;
 
 @ApplicationScoped
 @Path("/acc")
 public class AccountREST {
-    protected AteDelegate d = AteDelegate.get();
+    protected final AteDelegate d = AteDelegate.get();
+    private final Random rand = new Random();
 
     @POST
     @Path("adminToken/{username}")
@@ -93,6 +95,20 @@ public class AccountREST {
     public MyAccount touchAccount(@PathParam("id") UUID id) {
         MyAccount ret = d.io.read(id, MyAccount.class);
         ret.counter.increment();
+        d.io.write(ret);
+        return ret;
+    }
+
+    @POST
+    @Path("/{id}/addThing")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @PermitUserRole(UserRole.HUMAN)
+    @PermitRiskRole(RiskRole.MEDIUM)
+    public MyAccount addThing(@PathParam("id") UUID id, UUID val) throws InterruptedException {
+        MyAccount ret = d.io.read(id, MyAccount.class);
+        ret.things.add(val);
+        Thread.sleep(5 + rand.nextInt(5));
         d.io.write(ret);
         return ret;
     }

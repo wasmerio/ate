@@ -16,10 +16,12 @@ import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import com.tokera.ate.events.KeysDiscoverEvent;
 import com.tokera.ate.io.api.IPartitionKey;
 import org.checkerframework.checker.nullness.qual.NonNull;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import javax.enterprise.inject.spi.CDI;
+import javax.validation.constraints.Null;
 
 /**
  * Class used to build subscriptions to particular partitions and feed basic raw IO commands to it
@@ -59,13 +61,17 @@ public class DataSubscriber {
             chain.addTrustKey(key);
         }
     }
-    
-    public DataPartition getPartition(IPartitionKey partition) {
+
+    public DataPartition getPartition(TopicAndPartition partition) {
         return getPartition(partition, true);
     }
     
+    public DataPartition getOrCreatePartition(IPartitionKey partition) {
+        return getOrCreatePartition(partition, true);
+    }
+    
     public DataPartitionChain getChain(IPartitionKey partitionKey, boolean waitForLoad) {
-        DataPartition partition = getPartition(partitionKey);
+        DataPartition partition = getOrCreatePartition(partitionKey);
         return partition.getChain(waitForLoad);
     }
 
@@ -98,7 +104,18 @@ public class DataSubscriber {
         d.debugLogging.logUnsubscribed(part.partitionKey());
     }
 
-    public DataPartition getPartition(IPartitionKey key, boolean shouldWait) {
+    public @Nullable DataPartition getPartition(TopicAndPartition key, boolean shouldWait) {
+        DataPartition ret = this.partitions.getIfPresent(key);
+        if (ret != null) {
+            if (shouldWait == true) {
+                ret.waitTillLoaded();
+            }
+            return ret;
+        }
+        return ret;
+    }
+
+    public DataPartition getOrCreatePartition(IPartitionKey key, boolean shouldWait) {
         TopicAndPartition keyWrap = new TopicAndPartition(key);
         DataPartition ret = this.partitions.getIfPresent(keyWrap);
         if (ret != null) {

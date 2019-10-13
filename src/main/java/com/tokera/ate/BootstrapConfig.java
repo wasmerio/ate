@@ -66,8 +66,9 @@ public class BootstrapConfig {
     private String kafkaLogDirOverride = null;
     private String zookeeperDataDirOverride = null;
 
-    private int subscriberPartitionTimeout = 60000;
+    private int subscriberPartitionTimeout = 120000;
     private int subscriberMaxPartitions = 5000;
+    private int dataMaintenanceWindow = 30000;
 
     private ConcurrentHashMap<String, Properties> propertiesCache = new ConcurrentHashMap<>();
 
@@ -526,5 +527,13 @@ public class BootstrapConfig {
 
     public void setLoggingIoStackTraces(boolean loggingIoStackTraces) {
         this.loggingIoStackTraces = loggingIoStackTraces;
+    }
+
+    public int getDataMaintenanceWindow() {
+        return dataMaintenanceWindow;
+    }
+
+    public void setDataMaintenanceWindow(int dataMaintenanceWindow) {
+        this.dataMaintenanceWindow = dataMaintenanceWindow;
     }
 }

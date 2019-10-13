@@ -11,6 +11,8 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.ApplicationScoped;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.Set;
@@ -52,8 +54,9 @@ public class RamDataRepository {
                 .orElse(null);
     }
 
-    public void deleteMany(TopicAndPartition where, Set<String> keys) {
+    public void deleteMany(TopicAndPartition where, Collection<String> keys) {
+        HashSet<String> exists = new HashSet<>(keys);
         data.getOrDefault(where, new ArrayList<>())
-                .removeIf(m -> keys.contains(m.key));
+                .removeIf(m -> exists.contains(m.key));
     }
 }

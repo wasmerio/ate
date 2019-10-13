@@ -14,6 +14,7 @@ import com.tokera.ate.dto.msg.MessagePublicKeyDto;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.api.ITask;
 import com.tokera.ate.io.api.ITaskCallback;
+import com.tokera.ate.io.layers.HeadIO;
 import org.apache.commons.lang3.time.DateUtils;
 import org.apache.commons.lang3.time.StopWatch;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
@@ -255,6 +256,8 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
         });
     }
 
+
+
     /**
      * Enters a fake request scope and brings the token online so that the callback will
      * @param token
@@ -272,9 +275,11 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
             boundRequestContext.activate();
             try {
                 // Publish the token but skip the validation as we already trust the token
-                d.currentToken.setSkipValidation(true);
-                d.currentToken.setPerformedValidation(true);
-                d.currentToken.publishToken(token);
+                if (token != null) {
+                    d.currentToken.setSkipValidation(true);
+                    d.currentToken.setPerformedValidation(true);
+                    d.currentToken.publishToken(token);
+                }
 
                 // Run the stuff under this scope context
                 d.requestContext.pushPartitionKey(partitionKey);
@@ -292,6 +297,7 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
             }
         } catch (Throwable ex) {
             d.genericLogger.warn(ex);
+            if (ex instanceof InterruptedException) throw ex;
         } finally {
             boundRequestContext.dissociate(requestDataStore);
         }

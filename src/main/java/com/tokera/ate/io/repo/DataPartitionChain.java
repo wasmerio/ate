@@ -1,6 +1,6 @@
 package com.tokera.ate.io.repo;
 
-import com.tokera.ate.common.MapTools;
+import com.tokera.ate.dao.TopicAndPartition;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.kafka.MessageSerializer;
 import com.tokera.ate.dao.msg.*;
@@ -15,7 +15,6 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ConcurrentSkipListSet;
 
 import com.tokera.ate.units.Hash;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -29,22 +28,24 @@ public class DataPartitionChain {
     private final AteDelegate d = AteDelegate.get();
     
     private final IPartitionKey key;
+    private final TopicAndPartition what;
+    private final DataMaintenance.State maintenanceState;
     private final ConcurrentMap<UUID, MessageDataHeaderDto> rootOfTrust;
     private final ConcurrentMap<UUID, DataContainer> chainOfTrust;
     private final ConcurrentMap<String, HashSet<UUID>> byClazz;
     private final ConcurrentMap<UUID, MessageSecurityCastleDto> castles;
     private final ConcurrentMap<String, MessagePublicKeyDto> publicKeys;
-    private final ConcurrentSkipListSet<String> tombstones;
     private final Encryptor encryptor;
     
     public DataPartitionChain(IPartitionKey key) {
         this.key = key;
+        this.what = new TopicAndPartition(key);
+        this.maintenanceState = d.dataMaintenance.getOrCreateState(key);
         this.rootOfTrust = new ConcurrentHashMap<>();
         this.chainOfTrust = new ConcurrentHashMap<>();
         this.publicKeys = new ConcurrentHashMap<>();
         this.castles = new ConcurrentHashMap<>();
         this.byClazz = new ConcurrentHashMap<>();
-        this.tombstones = new ConcurrentSkipListSet<>();
         this.encryptor = Encryptor.getInstance();
 
         this.addTrustKey(d.encryptor.getTrustOfPublicRead().key());
@@ -87,10 +88,27 @@ public class DataPartitionChain {
     public void addTrustData(MessageDataDto data, MessageMetaDto meta, boolean invokeCallbacks) {
         d.debugLogging.logTrust(this.partitionKey(), data);
 
-        // Add it to the chain of trust
+        // Get the ID
         MessageDataHeaderDto header = data.getHeader();
         UUID id = header.getIdOrThrow();
-        this.chainOfTrust.compute(id, (i, c) -> {
+
+        // If it has no payload then strip it from the chain of trust
+        if (data.hasPayload() == false) {
+            this.chainOfTrust.remove(id);
+            this.byClazz.compute(header.getPayloadClazzOrThrow(), (a, b) -> {
+                if (b != null) b.remove(id);
+                return b;
+            });
+            this.maintenanceState.dont_merge(id);
+            this.maintenanceState.tombstone(meta.getKey());
+            return;
+
+        } else {
+            this.maintenanceState.dont_tombstone(meta.getKey());
+        }
+
+        // Add it to the chain of trust
+        DataContainer container = this.chainOfTrust.compute(id, (i, c) -> {
             if (c == null) c = new DataContainer(id, this.key);
             return c.add(data, meta);
         });
@@ -99,6 +117,13 @@ public class DataPartitionChain {
             b.add(id);
             return b;
         });
+
+        // If the container requires a merge then notify the maintenance thread
+        if (container.requiresMerge()) {
+            this.maintenanceState.merge(container.id);
+        } else {
+            this.maintenanceState.dont_merge(container.id);
+        }
 
         // Invoke the task manager so anything waiting for events will trigger
         if (invokeCallbacks) {
@@ -241,25 +266,6 @@ public class DataPartitionChain {
                 .withSavedDatas(d.requestContext.currentTransaction().getSavedDataMap(this.partitionKey()))
                 .validate(this.partitionKey(), data);
     }
-
-    private void tombstone(String key) {
-        this.tombstones.add(key);
-    }
-
-    private void untombstone(String key) {
-        this.tombstones.remove(key);
-    }
-
-    public List<String> pollTombstones() {
-        List<String> ret = new ArrayList<>();
-        for (String key : this.tombstones) {
-            ret.add(key);
-        }
-        for (String key : ret) {
-            this.tombstones.remove(key);
-        }
-        return ret;
-    }
     
     private boolean processData(MessageDataDto data, MessageMetaDto meta, boolean invokeCallbacks, @Nullable LoggerHook LOG) throws IOException, InvalidCipherTextException
     {
@@ -278,31 +284,7 @@ public class DataPartitionChain {
         }
 
         // Process it
-        boolean accepted = this.promoteChainEntry(new MessageDataMetaDto(data, meta), invokeCallbacks, LOG);
-
-        // If it was not accepted then tombstone it
-        if (accepted == false) {
-            tombstone(meta.getKey());
-        }
-
-        // Accepted entries that have no payload will cause the entire sub-tree to be tomb-stoned
-        else if (data.hasPayload() == false) {
-            DataContainer container = MapTools.getOrNull(this.chainOfTrust, header.getIdOrThrow());
-            if (container != null) {
-                for (DataGraphNode node : container.timeline()) {
-                    tombstone(node.msg.getMeta().getKey());
-                }
-                container.clear();
-            }
-        }
-
-        // Otherwise make sure no tombstone exists (we don't want things to get deleted before we have processed everything)
-        else {
-            untombstone(meta.getKey());
-        }
-
-        // Success
-        return true;
+        return this.promoteChainEntry(new MessageDataMetaDto(data, meta), invokeCallbacks, LOG);
     }
     
     public <T extends BaseDao> List<DataContainer> getAllData(Class<T> clazz) {
@@ -391,7 +373,7 @@ public class DataPartitionChain {
         d.partitionSyncManager.processSync(msg);
 
         // All sync messages are instantly tomb-stoned
-        tombstone(MessageSerializer.getKey(msg));
+        this.maintenanceState.tombstone(MessageSerializer.getKey(msg));
         return true;
     }
 
