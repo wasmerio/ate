@@ -36,6 +36,9 @@ public class TransactionCoordinator  {
 
     public void finish()
     {
+        if (d.resourceInfo.isNoSyncWait()) {
+            return;
+        }
         while (true) {
             QueuedSync sync = syncs.poll();
             if (sync == null) return;

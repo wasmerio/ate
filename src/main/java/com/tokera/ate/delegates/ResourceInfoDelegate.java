@@ -8,6 +8,7 @@ import com.tokera.ate.scopes.ResourceScoped;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.container.ResourceInfo;
 import javax.ws.rs.core.Response;
+import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -24,6 +25,7 @@ public class ResourceInfoDelegate
     private final Method resourceMethod;
     private final Class<?> resourceClazz;
     private final boolean permitMissingToken;
+    private final boolean noSyncWait;
     private final Iterable<RiskRole> permitRiskRoles;
     private final Iterable<UserRole> permitUserRoles;
     private final Iterable<PermitReadEntity> permitReadParams;
@@ -43,6 +45,14 @@ public class ResourceInfoDelegate
         this.permitUserRoles = ResourceInfoDelegate.computeUserRoles(this.resourceClazz, method);
         this.permitReadParams = ResourceInfoDelegate.computePermitReadParam(this.resourceClazz, method);
         this.permitWriteParams = ResourceInfoDelegate.computePermitWriteParam(this.resourceClazz, method);
+        this.noSyncWait = ResourceInfoDelegate.hasMethodAnnotation(this.resourceClazz, method, NoSyncWait.class);
+    }
+
+    private static boolean hasMethodAnnotation(Class<?> clazz, Method method, Class<? extends Annotation> annotationClazz) {
+        Annotation att = method.getAnnotation(annotationClazz);
+        for (Class<?> search = clazz; att == null && search != null; search = search.getSuperclass())
+            att = method.getAnnotation(annotationClazz);
+        return att != null;
     }
 
     private static boolean computeAllowMissingToken(Class<?> clazz, Method method) {
@@ -148,5 +158,9 @@ public class ResourceInfoDelegate
      */
     public Iterable<PermitWriteEntity> getPermitWriteParams() {
         return permitWriteParams;
+    }
+
+    public boolean isNoSyncWait() {
+        return noSyncWait;
     }
 }

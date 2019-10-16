@@ -6,6 +6,7 @@ import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.base.BaseDaoInternal;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.io.api.IPartitionKey;
+import com.tokera.ate.io.api.IPartitionKeyProvider;
 import com.tokera.ate.io.api.IPartitionResolver;
 import com.tokera.ate.units.DaoId;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -94,6 +95,9 @@ public class DefaultPartitionResolver implements IPartitionResolver {
     public IPartitionKey resolveOrThrow(IRights obj) {
         if (obj instanceof BaseDao) {
             return ((BaseDao) obj).partitionKey(true);
+        }
+        if (obj instanceof IPartitionKeyProvider) {
+            return ((IPartitionKeyProvider) obj).partitionKey(true);
         }
         throw new RuntimeException("Unable to determine the partition key for this access rights object as it is not of the type BaseDao.");
     }

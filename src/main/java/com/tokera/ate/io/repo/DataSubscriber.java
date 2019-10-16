@@ -82,6 +82,7 @@ public class DataSubscriber {
         } else {
             bridge = d.kafkaBridgeBuilder.createPartition(key);
         }
+        d.dataMaintenance.addPartition(new TopicAndPartition(key));
         DataPartition part = new DataPartition(key, bridge);
 
         if (this.mode == Mode.Ram) {
@@ -101,6 +102,7 @@ public class DataSubscriber {
         } else {
             d.kafkaBridgeBuilder.removePartition(key);
         }
+        d.dataMaintenance.removePartition(new TopicAndPartition(key));
         d.debugLogging.logUnsubscribed(part.partitionKey());
     }
 

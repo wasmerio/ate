@@ -17,6 +17,7 @@ import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Future;
 
 public class RawClient {
 
@@ -210,6 +211,13 @@ public class RawClient {
         return TestTools.restRunner(() -> target(url, null, MediaType.WILDCARD_TYPE, MediaType.WILDCARD_TYPE)
                 .post(entity), url)
                 .readEntity(clazz);
+    }
+
+    public <T> Future<T> restPostAsync(String path, Entity<?> entity, Class<T> clazz) {
+        String url = buildUrl(path);
+        return target(url, null, MediaType.WILDCARD_TYPE, MediaType.WILDCARD_TYPE)
+                .async()
+                .post(entity, clazz);
     }
 
     public <T> T restPost(String path, Entity<?> entity, Class<T> clazz, MultivaluedMap<String, Object> queryParams) {

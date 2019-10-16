@@ -1,5 +1,6 @@
 package com.tokera.ate.test.rest.api;
 
+import com.tokera.ate.annotations.NoSyncWait;
 import com.tokera.ate.annotations.PermitRiskRole;
 import com.tokera.ate.annotations.PermitUserRole;
 import com.tokera.ate.common.StringTools;
@@ -105,10 +106,11 @@ public class AccountREST {
     @Produces(MediaType.APPLICATION_JSON)
     @PermitUserRole(UserRole.HUMAN)
     @PermitRiskRole(RiskRole.MEDIUM)
+    @NoSyncWait
     public MyAccount addThing(@PathParam("id") UUID id, UUID val) throws InterruptedException {
         MyAccount ret = d.io.read(id, MyAccount.class);
         ret.things.add(val);
-        Thread.sleep(5 + rand.nextInt(5));
+        //Thread.sleep(5 + rand.nextInt(5));
         d.io.write(ret);
         return ret;
     }

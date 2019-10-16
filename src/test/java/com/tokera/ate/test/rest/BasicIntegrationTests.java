@@ -6,27 +6,24 @@ import com.tokera.ate.BootstrapConfig;
 import com.tokera.ate.client.RawClient;
 import com.tokera.ate.client.RawClientBuilder;
 import com.tokera.ate.client.TestTools;
+import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.PrivateKeyWithSeedDto;
-import com.tokera.ate.dto.fs.FsFolderDto;
-import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.enumerations.DefaultStorageSystem;
-import com.tokera.ate.enumerations.LinuxErrors;
 import com.tokera.ate.test.dao.MyAccount;
 import com.tokera.ate.test.dao.SeedingDelegate;
 import com.tokera.ate.test.dto.NewAccountDto;
 import org.junit.jupiter.api.*;
 
 import javax.enterprise.inject.spi.CDI;
-import javax.inject.Inject;
 import javax.validation.constraints.NotNull;
-import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.MediaType;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
@@ -36,6 +33,14 @@ public class BasicIntegrationTests {
     private @NotNull RawClient session;
 
     private UUID accountId;
+    private List<UUID> testSet = new ArrayList<>();
+
+    public BasicIntegrationTests() {
+        int testSize = 200;
+        for (Integer n = 0; n < testSize; n++) {
+            this.testSet.add(UUID.randomUUID());
+        }
+    }
 
     @BeforeAll
 	public static void init() {
@@ -100,15 +105,33 @@ public class BasicIntegrationTests {
     @Test
     @Order(12)
     public void parallismMerge() {
+        LoggerHook.withNoWarningsOrErrors(() -> {
+            List<Future<MyAccount>> waitFor = new ArrayList<>();
+            testSet.stream().forEach(descVal -> {
+                waitFor.add(session.restPostAsync("/acc/" + this.accountId + "/addThing", Entity.json(descVal), MyAccount.class));
+            });
 
-        int testSize = 200;
-        List<UUID> testSet = new ArrayList<>();
-        for (Integer n = 0; n < testSize; n++) {
-            testSet.add(UUID.randomUUID());
-        }
+            for (Future<MyAccount> future : waitFor) {
+                try {
+                    future.get();
+                } catch (InterruptedException | ExecutionException e) {
+                    throw new RuntimeException(e);
+                }
+            }
 
-        testSet.parallelStream().forEach(descVal -> {
-            session.restPost("/acc/" + this.accountId + "/addThing", Entity.json(descVal), MyAccount.class);
+            MyAccount acc = session.restGet("/acc/" + this.accountId, MyAccount.class);
+            Assertions.assertEquals(testSet.size(), acc.things.size());
+            for (UUID descVal : testSet) {
+                Assertions.assertTrue(acc.things.contains(descVal));
+            }
+        });
+    }
+
+    @Test
+    @Order(13)
+    public void forceMaintenance() {
+        LoggerHook.withNoWarningsOrErrors(() -> {
+            AteDelegate.get().dataMaintenance.forceMaintenanceNow();
         });
 
         MyAccount acc = session.restGet("/acc/" + this.accountId, MyAccount.class);

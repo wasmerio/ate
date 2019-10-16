@@ -1,4 +1,4 @@
-package com.tokera.ate.io.repo;
+package com.tokera.ate.io.core;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
@@ -17,8 +17,10 @@ import com.tokera.ate.dto.EffectivePermissions;
 import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.io.api.IPartitionKey;
+import com.tokera.ate.io.api.IPartitionKeyProvider;
 import com.tokera.ate.io.core.DataPartitionDaemon;
 import com.tokera.ate.io.layers.HeadIO;
+import com.tokera.ate.io.repo.*;
 import com.tokera.ate.io.task.Task;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.units.Alias;
@@ -30,10 +32,8 @@ import javax.enterprise.context.ApplicationScoped;
 import javax.enterprise.inject.spi.CDI;
 import javax.ws.rs.container.ContainerRequestContext;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentSkipListSet;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 @Startup
@@ -41,6 +41,7 @@ import java.util.stream.Collectors;
 public class DataMaintenance extends DataPartitionDaemon {
     private final ConcurrentHashMap<TopicAndPartition, State> states;
     private final Random rand = new Random();
+    private final AtomicInteger ticks = new AtomicInteger(0);
 
     public DataMaintenance() {
         this.states = new ConcurrentHashMap<>();
@@ -52,14 +53,12 @@ public class DataMaintenance extends DataPartitionDaemon {
         states.remove(partition);
     }
 
-    public class State implements IRights {
+    public class State implements IRights, IPartitionKeyProvider {
         protected final UUID id;
         protected final IPartitionKey key;
         protected final TopicAndPartition what;
-        protected final ConcurrentSkipListSet<String> tombstones;
-        protected final Cache<String, Boolean> pendingTombstones;
-        protected final ConcurrentSkipListSet<UUID> merges;
-        protected final Cache<UUID, Boolean> pendingMerges;
+        protected final ConcurrentMap<String, Date> tombstones;
+        protected final ConcurrentMap<UUID, Date> merges;
         protected final Cache<String, PrivateKeyWithSeedDto> borrowedReadKeys;
         protected final Cache<String, PrivateKeyWithSeedDto> borrowedWriteKeys;
 
@@ -67,26 +66,9 @@ public class DataMaintenance extends DataPartitionDaemon {
             this.id = UUID.randomUUID();
             this.key = key;
             this.what = new TopicAndPartition(key);
-            this.tombstones = new ConcurrentSkipListSet<>();
-            this.pendingTombstones = CacheBuilder.newBuilder()
-                    .expireAfterWrite(d.bootstrapConfig.getDataMaintenanceWindow(), TimeUnit.MILLISECONDS)
-                    .removalListener(p -> new RemovalListener<String, Boolean>() {
-                        @Override
-                        public void onRemoval(RemovalNotification<String, Boolean> n) {
-                            if (n.getValue() == Boolean.TRUE) tombstones.add(n.getKey());
-                        }
-                    })
-                    .build();
-            this.merges = new ConcurrentSkipListSet<>();
-            this.pendingMerges = CacheBuilder.newBuilder()
-                    .expireAfterWrite(d.bootstrapConfig.getDataMaintenanceWindow(), TimeUnit.MILLISECONDS)
-                    .removalListener(p -> new RemovalListener<UUID, Boolean>() {
-                        @Override
-                        public void onRemoval(RemovalNotification<UUID, Boolean> n) {
-                            if (n.getValue() == Boolean.TRUE) merges.add(n.getKey());
-                        }
-                    })
-                    .build();
+            this.tombstones = new ConcurrentHashMap<>();
+
+            this.merges = new ConcurrentHashMap<>();
             this.borrowedReadKeys = CacheBuilder.newBuilder()
                     .expireAfterWrite(d.bootstrapConfig.getDataMaintenanceWindow() * 2, TimeUnit.MILLISECONDS)
                     .build();
@@ -96,23 +78,21 @@ public class DataMaintenance extends DataPartitionDaemon {
         }
 
         public void tombstone(String key) {
-            this.pendingTombstones.put(key, Boolean.TRUE);
+            int maintenanceWindow = d.bootstrapConfig.getDataMaintenanceWindow();
+            this.tombstones.putIfAbsent(key, DateUtils.addMilliseconds(new Date(), maintenanceWindow));
         }
 
         public void dont_tombstone(String key) {
-            if (this.pendingTombstones.getIfPresent(key) == Boolean.TRUE) {
-                this.pendingTombstones.put(key, Boolean.FALSE);
-            }
+            this.tombstones.remove(key);
         }
 
         public void merge(UUID key) {
-            this.pendingMerges.put(key, Boolean.TRUE);
+            int maintenanceWindow = d.bootstrapConfig.getDataMaintenanceWindow();
+            this.merges.putIfAbsent(key, DateUtils.addMilliseconds(new Date(), maintenanceWindow));
         }
 
         public void dont_merge(UUID key) {
-            if (this.pendingMerges.getIfPresent(key) == Boolean.TRUE) {
-                this.pendingMerges.put(key, Boolean.FALSE);
-            }
+            this.merges.remove(key);
         }
 
         public void lend_rights(IRights rights) {
@@ -126,22 +106,26 @@ public class DataMaintenance extends DataPartitionDaemon {
 
         protected List<String> pollTombstones() {
             List<String> ret = new ArrayList<>();
-            for (String key : tombstones) {
-                ret.add(key);
-            }
-            for (String key : ret) {
-                tombstones.remove(key);
+
+            Date now = new Date();
+            for (Map.Entry<String, Date> pair : tombstones.entrySet().stream().collect(Collectors.toSet())) {
+                if (now.after(pair.getValue())) {
+                    ret.add(pair.getKey());
+                    tombstones.remove(pair.getKey());
+                }
             }
             return ret;
         }
 
         protected List<UUID> pollMerges() {
             List<UUID> ret = new ArrayList<>();
-            for (UUID key : merges) {
-                ret.add(key);
-            }
-            for (UUID key : ret) {
-                merges.remove(key);
+
+            Date now = new Date();
+            for (Map.Entry<UUID, Date> pair : merges.entrySet().stream().collect(Collectors.toSet())) {
+                if (now.after(pair.getValue())) {
+                    ret.add(pair.getKey());
+                    tombstones.remove(pair.getKey());
+                }
             }
             return ret;
         }
@@ -164,6 +148,11 @@ public class DataMaintenance extends DataPartitionDaemon {
         @Override
         public @Alias String getRightsAlias() {
             return "maintenance:" + key.toString();
+        }
+
+        @Override
+        public IPartitionKey partitionKey(boolean shouldThrow) {
+            return this.key;
         }
     }
 
@@ -197,7 +186,10 @@ public class DataMaintenance extends DataPartitionDaemon {
                 if (bridge.hasLoaded() == false) continue;
 
                 // Delete anything that should be tomb-stoned
-                bridge.deleteMany(state.pollTombstones());
+                List<String> tombstones = state.pollTombstones();
+                if (tombstones.size() > 0) {
+                    bridge.deleteMany(tombstones);
+                }
 
                 // Merge everything that needs merging
                 List<UUID> toMerge = state.pollMerges();
@@ -219,6 +211,9 @@ public class DataMaintenance extends DataPartitionDaemon {
             }
         }
 
+        // Increment the tick count
+        ticks.incrementAndGet();
+
         // Wait a second (or more) - the random wait time helps reduce merge thrashing
         int waitTime = 1000 + rand.nextInt(4000);
         Thread.sleep(waitTime);
@@ -237,6 +232,30 @@ public class DataMaintenance extends DataPartitionDaemon {
         // Only if we have the ability to write the object should we attempt to merge it
         if (d.authorization.canWrite(partition.partitionKey(), id)) {
             d.io.write(container.getMergedData());
+        }
+    }
+
+    public void forceMaintenanceNow()
+    {
+        Date milesInThePast = DateUtils.addYears(new Date(), -1);
+
+        for (TopicAndPartition what : listPartitions()) {
+            State state = states.getOrDefault(what, null);
+            if (state == null) continue;
+
+            state.tombstones.replaceAll((k, v) -> milesInThePast);
+            state.merges.replaceAll((k, v) -> milesInThePast);
+        }
+
+        int curTick = ticks.get();
+
+        // Wait until the next tick happens
+        while (ticks.get() <= curTick) {
+            try {
+                Thread.sleep(100);
+            } catch (InterruptedException e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 }
