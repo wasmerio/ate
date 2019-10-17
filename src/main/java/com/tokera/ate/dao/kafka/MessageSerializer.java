@@ -40,6 +40,7 @@ public class MessageSerializer implements Serializer<MessageBase> {
 
     @Override
     public byte[] serialize(String topic, MessageBase obj) {
+        if (obj == null) return null;
         ByteBuffer bb = obj.getByteBuffer().duplicate();
         byte[] ret = new byte[bb.remaining()];
         bb.get(ret);

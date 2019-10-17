@@ -98,7 +98,9 @@ public class KafkaInbox extends DataPartitionDaemon {
         }
 
         // Trigger anyone thats waiting
-        this.notifyAll();
+        synchronized (this) {
+            this.notifyAll();
+        }
     }
 
     @Override

@@ -1,6 +1,5 @@
 package com.tokera.ate.test.rest.api;
 
-import com.tokera.ate.annotations.NoSyncWait;
 import com.tokera.ate.annotations.PermitRiskRole;
 import com.tokera.ate.annotations.PermitUserRole;
 import com.tokera.ate.common.StringTools;
@@ -9,17 +8,14 @@ import com.tokera.ate.dao.enumerations.RiskRole;
 import com.tokera.ate.dao.enumerations.UserRole;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.PrivateKeyWithSeedDto;
-import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.security.TokenBuilder;
 import com.tokera.ate.test.dao.MyAccount;
-import com.tokera.ate.test.dao.SeedingDelegate;
 import com.tokera.ate.test.dto.NewAccountDto;
 import com.tokera.ate.units.EmailAddress;
 import org.junit.jupiter.api.Assertions;
 
 import javax.annotation.security.PermitAll;
 import javax.enterprise.context.ApplicationScoped;
-import javax.enterprise.inject.spi.CDI;
 import javax.mail.MessagingException;
 import javax.validation.Valid;
 import javax.ws.rs.*;
@@ -106,7 +102,6 @@ public class AccountREST {
     @Produces(MediaType.APPLICATION_JSON)
     @PermitUserRole(UserRole.HUMAN)
     @PermitRiskRole(RiskRole.MEDIUM)
-    @NoSyncWait
     public MyAccount addThing(@PathParam("id") UUID id, UUID val) throws InterruptedException {
         MyAccount ret = d.io.read(id, MyAccount.class);
         ret.things.add(val);

@@ -76,6 +76,8 @@ public class DataPartition {
         for  (MessageBundle bundle : msgs)
         {
             try {
+                if (bundle.raw == null) continue;
+
                 // Now process the message itself
                 MessageMetaDto meta = new MessageMetaDto(
                         bundle.key,

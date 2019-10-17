@@ -25,7 +25,6 @@ public class ResourceInfoDelegate
     private final Method resourceMethod;
     private final Class<?> resourceClazz;
     private final boolean permitMissingToken;
-    private final boolean noSyncWait;
     private final Iterable<RiskRole> permitRiskRoles;
     private final Iterable<UserRole> permitUserRoles;
     private final Iterable<PermitReadEntity> permitReadParams;
@@ -45,7 +44,6 @@ public class ResourceInfoDelegate
         this.permitUserRoles = ResourceInfoDelegate.computeUserRoles(this.resourceClazz, method);
         this.permitReadParams = ResourceInfoDelegate.computePermitReadParam(this.resourceClazz, method);
         this.permitWriteParams = ResourceInfoDelegate.computePermitWriteParam(this.resourceClazz, method);
-        this.noSyncWait = ResourceInfoDelegate.hasMethodAnnotation(this.resourceClazz, method, NoSyncWait.class);
     }
 
     private static boolean hasMethodAnnotation(Class<?> clazz, Method method, Class<? extends Annotation> annotationClazz) {
@@ -158,9 +156,5 @@ public class ResourceInfoDelegate
      */
     public Iterable<PermitWriteEntity> getPermitWriteParams() {
         return permitWriteParams;
-    }
-
-    public boolean isNoSyncWait() {
-        return noSyncWait;
     }
 }
