@@ -225,7 +225,7 @@ public class ImplicitSecurityDelegate {
                 if (handling == EnquireDomainKeyHandling.ThrowOnNull) {
                     throw new ImplicitAuthorityMissingException("No domain TXT record found at [" + domain + "].");
                 } else {
-                    return new ArrayList<>();
+                    return Collections.emptyList();
                 }
             }
 
@@ -255,7 +255,7 @@ public class ImplicitSecurityDelegate {
             if (handling == EnquireDomainKeyHandling.ThrowOnNull) {
                 throw new ImplicitAuthorityMissingException("No domain TXT record found at [" + domain + "].");
             } else {
-                return new ArrayList<>();
+                return Collections.emptyList();
             }
         }
     }

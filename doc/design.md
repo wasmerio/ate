@@ -13,16 +13,17 @@ ATE Technical Design
 1. [Immutable Data](#immutable-data)
 2. [Eventually Consistent Caching](#eventually-consistent-caching)
 3. [Caching API Responses](#caching-api-responses)
-3. [Distributed Computing Architecture](#distributed-computing-architecture)
-4. [Shared Nothing](#shared-nothing)
+4. [Materialized Views](#materialized-views)
+5. [Distributed Computing Architecture](#distributed-computing-architecture)
+6. [Shared Nothing](#shared-nothing)
    1. [Stateful Mode](#stateful-mode)
    2. [Stateless Mode](#stateless-mode)
-5. [Absolute Portability](#absolute-portability)
-6. [Chain of Trust](#chain-of-trust)
-7. [Implicit Authority](#implicit-authority)
-8. [Fine Grained Security](#fine-grained-security)
-9. [Quantum Resistent](#quantum-resistent)
-10. [Native REST Integrated](#native-rest-integrated)
+7. [Absolute Portability](#absolute-portability)
+8. [Chain of Trust](#chain-of-trust)
+9. [Implicit Authority](#implicit-authority)
+10. [Fine Grained Security](#fine-grained-security)
+11. [Quantum Resistent](#quantum-resistent)
+12. [Native REST Integrated](#native-rest-integrated)
 
 ## Immutable Data
 
@@ -206,6 +207,25 @@ If one were to follow this caching architecture then one can ensure:
 * All API calls made by other callers will 'eventually' invalide cached data
   that would now return a different answer, where the delay is the time it
   takes for Kafka to ship the event to your clients.  
+ 
+## Materialized Views
+
+ATE deploys Materialized Views inside the library using lambdas and an
+automatically updated cache. This allows for complex relational data
+structures and models to a coded on top of a stable data stream.
+
+Create your views using a set of helper classes optimized for high performance.
+
+More details are in the code just follow this starting point below:
+
+```java
+public abstract class BaseDao implements Serializable, Immutalizable, IPartitionKeyProvider {
+    public <T extends BaseDao> List<T> innerJoinAsList(Class<T> clazz, Function<T, UUID> joiningField) {
+        UUID id = getId();
+        return AteDelegate.get().io.viewAsList(this.partitionKey(), clazz, a -> id.equals(joiningField.apply(a)));
+    }
+}
+``` 
    
 ## Distributed Computing Architecture
 

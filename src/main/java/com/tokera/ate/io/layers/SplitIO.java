@@ -11,6 +11,7 @@ import com.tokera.ate.io.repo.DataContainer;
 import com.tokera.ate.io.repo.DataSubscriber;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import java.util.*;
+import java.util.function.Predicate;
 
 /**
  * IO system that chains two IO subsystems together where the upper data takes preference over the lower
@@ -49,15 +50,15 @@ final public class SplitIO implements IAteIO {
     }
 
     @Override
-    final public @Nullable BaseDao readOrNull(PUUID id, boolean shouldSave) {
-        BaseDao ret = this.upper.readOrNull(id, shouldSave);
+    final public @Nullable BaseDao readOrNull(PUUID id) {
+        BaseDao ret = this.upper.readOrNull(id);
         if (ret != null) return ret;
-        return lower.readOrNull(id, shouldSave);
+        return lower.readOrNull(id);
     }
 
     @Override
     final public BaseDao readOrThrow(PUUID id) {
-        BaseDao ret = this.upper.readOrNull(id, true);
+        BaseDao ret = this.upper.readOrNull(id);
         if (ret != null) return ret;
         return lower.readOrThrow(id);
     }
@@ -89,10 +90,10 @@ final public class SplitIO implements IAteIO {
     }
 
     @Override
-    final public List<BaseDao> readAll(IPartitionKey partitionKey) {
-        List<BaseDao> ret = lower.readAll(partitionKey);
+    final public List<BaseDao> view(IPartitionKey partitionKey, Predicate<BaseDao> predicate) {
+        List<BaseDao> ret = lower.view(partitionKey, predicate);
 
-        for (BaseDao entity : upper.readAll(partitionKey)) {
+        for (BaseDao entity : upper.view(partitionKey, predicate)) {
             ret.add(entity);
         }
 
@@ -100,32 +101,10 @@ final public class SplitIO implements IAteIO {
     }
 
     @Override
-    final public List<BaseDao> readAllAccessible(IPartitionKey partitionKey) {
-        List<BaseDao> ret = lower.readAllAccessible(partitionKey);
+    final public <T extends BaseDao> List<T> view(IPartitionKey partitionKey, Class<T> type, Predicate<T> predicate) {
+        List<T> ret = lower.view(partitionKey, type, predicate);
 
-        for (BaseDao entity : upper.readAllAccessible(partitionKey)) {
-            ret.add(entity);
-        }
-
-        return ret;
-    }
-
-    @Override
-    final public <T extends BaseDao> List<T> readAll(IPartitionKey partitionKey, Class<T> type) {
-        List<T> ret = lower.readAll(partitionKey, type);
-
-        for (T entity : upper.readAll(partitionKey, type)) {
-            ret.add(entity);
-        }
-
-        return ret;
-    }
-
-    @Override
-    final public <T extends BaseDao> List<T> readAllAccessible(IPartitionKey partitionKey, Class<T> type) {
-        List<T> ret = lower.readAllAccessible(partitionKey, type);
-
-        for (T entity : upper.readAllAccessible(partitionKey, type)) {
+        for (T entity : upper.view(partitionKey, type, predicate)) {
             ret.add(entity);
         }
 

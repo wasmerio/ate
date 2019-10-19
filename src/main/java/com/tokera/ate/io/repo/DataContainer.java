@@ -5,35 +5,42 @@
  */
 package com.tokera.ate.io.repo;
 
-import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.base.BaseDaoInternal;
-import com.tokera.ate.dao.enumerations.PermissionPhase;
 import com.tokera.ate.delegates.AteDelegate;
-import com.tokera.ate.dto.EffectivePermissions;
-import com.tokera.ate.dto.msg.*;
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
+import com.tokera.ate.dto.msg.MessageDataDto;
+import com.tokera.ate.dto.msg.MessageDataHeaderDto;
+import com.tokera.ate.dto.msg.MessageDataMetaDto;
+import com.tokera.ate.dto.msg.MessageMetaDto;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.merge.MergePair;
-import org.apache.commons.collections.iterators.ReverseListIterator;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
-import javax.ws.rs.container.ContainerRequestContext;
-import javax.ws.rs.container.ContainerResponseContext;
 import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class DataContainer {
+    private final AteDelegate d = AteDelegate.get();
+
     public final UUID id;
+    public final IPartitionKey partitionKey;
+
     private Long firstOffset = 0L;
     private Long lastOffset = 0L;
-    public final IPartitionKey partitionKey;
+
     private final Map<UUID, @NonNull DataGraphNode> lookup = new HashMap<>();
     private final LinkedList<DataGraphNode> timeline = new LinkedList<>();
     private final LinkedList<DataGraphNode> leaves = new LinkedList<>();
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+
+    // These objects allow for much faster access of the data
+    private BaseDao cacheObj;
+    private HashSet<String> cacheOwners = new HashSet<>();
 
     public DataContainer(UUID id, IPartitionKey partitionKey) {
         this.id = id;
@@ -60,6 +67,9 @@ public class DataContainer {
             leaves.addLast(node);
             timeline.addLast(node);
             msg.immutalize();
+
+            cacheObj = null;
+            cacheOwners.clear();
         } finally {
             w.unlock();
         }
@@ -83,6 +93,8 @@ public class DataContainer {
             leaves.clear();;
             timeline.clear();
             lookup.clear();
+            cacheObj = null;
+            cacheOwners.clear();
         } finally {
             w.unlock();
         }
@@ -239,8 +251,6 @@ public class DataContainer {
     }
 
     public @Nullable MessageDataHeaderDto getMergedHeader() {
-        AteDelegate d = AteDelegate.get();
-
         LinkedList<DataGraphNode> leaves = computeCurrentLeaves();
         if (leaves == null || leaves.isEmpty()) return null;
 
@@ -278,8 +288,7 @@ public class DataContainer {
         return ret;
     }
 
-    private static @Nullable BaseDao reconcileMergedData(IPartitionKey partitionKey, @Nullable BaseDao _ret, LinkedList<DataGraphNode> leaves, boolean shouldSave) {
-        AteDelegate d = AteDelegate.get();
+    private static @Nullable BaseDao reconcileMergedData(IPartitionKey partitionKey, @Nullable BaseDao _ret, LinkedList<DataGraphNode> leaves) {
         BaseDao ret = _ret;
         if (ret == null) return null;
 
@@ -298,23 +307,94 @@ public class DataContainer {
         return ret;
     }
 
-    public @Nullable BaseDao getMergedData() {
-        return getMergedData(true, true);
+    @SuppressWarnings("unchecked")
+    public <T extends BaseDao> boolean test(Predicate<T> predicate, boolean shouldThrow) {
+        BaseDao orig = fetchData(shouldThrow);
+        if (orig == null) return false;
+        return predicate.test((T)orig);
+    }
+
+    private @Nullable BaseDao cloneDataUnderLock(BaseDao orig) {
+        Object cloned = d.merger.cloneObject(orig);
+        if (cloned == null) return null;
+        BaseDao ret = (BaseDao)cloned;
+        BaseDaoInternal.setPartitionKey(ret, BaseDaoInternal.getPartitionKey(orig));
+        BaseDaoInternal.setPreviousVersion(ret, BaseDaoInternal.getPreviousVersion(orig));
+        BaseDaoInternal.setMergesVersions(ret, BaseDaoInternal.getMergesVersions(orig));
+
+        return reconcileMergedData(this.partitionKey, ret, leaves);
+    }
+
+    public @Nullable BaseDao fetchData() {
+        return this.fetchData(true);
+    }
+
+    public @Nullable BaseDao fetchData(boolean shouldThrow) {
+        Lock r = this.lock.readLock();
+        r.lock();
+        try {
+            if (this.cacheObj != null) {
+                for (PrivateKeyWithSeedDto key : d.currentRights.getRightsRead()) {
+                    if (cacheOwners.contains(key.privateHash())) {
+                        return cloneDataUnderLock(this.cacheObj);
+                    }
+                }
+            }
+
+            if (timeline.size() <= 0) return null;
+            if (timeline.getLast().msg.hasPayload() == false) return null;
+        } finally {
+            r.unlock();
+        }
+
+        Lock w = this.lock.writeLock();
+        w.lock();
+        try {
+            if (this.cacheObj != null) {
+                for (PrivateKeyWithSeedDto key : d.currentRights.getRightsRead()) {
+                    if (cacheOwners.contains(key.privateHash())) {
+                        return cloneDataUnderLock(this.cacheObj);
+                    }
+                }
+            }
+
+            if (timeline.size() <= 0) return null;
+            if (timeline.getLast().msg.hasPayload() == false) return null;
+
+            BaseDao ret = createData(shouldThrow);
+            if (ret == null) return null;
+
+            MessageDataMetaDto meta = timeline.getLast().msg;
+            MessageDataHeaderDto header = meta.getHeader();
+
+            for (PrivateKeyWithSeedDto key : d.currentRights.getRightsRead()) {
+                for (String hash : header.getAllowRead()) {
+                    if (hash.equals(key.publicHash())) {
+                        cacheOwners.add(key.privateHash());
+                    }
+                }
+            }
+
+            ret.immutalize();
+            if (this.cacheObj == null) {
+                this.cacheObj = ret;
+            }
+
+            return cloneDataUnderLock(ret);
+        } finally {
+            w.unlock();
+        }
     }
 
     @SuppressWarnings("return.type.incompatible")
-    public @Nullable BaseDao getMergedData(boolean shouldThrow, boolean shouldSave) {
-        AteDelegate d = AteDelegate.get();
-        BaseDao ret;
-
+    private @Nullable BaseDao createData(boolean shouldThrow) {
         LinkedList<DataGraphNode> leaves = computeCurrentLeaves();
         if (leaves == null || leaves.isEmpty()) return null;
 
         // If there is only one item then we are done
         if (leaves.size() == 1) {
             MessageDataMetaDto msg = leaves.get(0).msg;
-            ret = d.dataSerializer.fromDataMessage(this.partitionKey, msg, shouldThrow);
-            return reconcileMergedData(this.partitionKey, ret, leaves, shouldSave);
+            return d.dataSerializer.fromDataMessage(this.partitionKey, msg, shouldThrow);
         }
 
         // Build a merge set of the headers for this
@@ -326,7 +406,6 @@ public class DataContainer {
                 .collect(Collectors.toList());
 
         // Merge the actual merge of the data object
-        ret = d.merger.merge(mergeSet);
-        return reconcileMergedData(this.partitionKey, ret, leaves, shouldSave);
+        return d.merger.merge(mergeSet);
     }
 }

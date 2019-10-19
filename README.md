@@ -69,6 +69,9 @@ This library is a way of working with data in modern distributed computing.
 Its okay to store data in Kafka...  
 https://www.confluent.io/blog/okay-store-data-apache-kafka/
 
+Turning the databse inside-out with Apache Samza - Martin Kleppmann's blog  
+https://martin.kleppmann.com/2015/03/04/turning-the-database-inside-out.html
+
 ## Maven Central
 
 ```xml
@@ -76,7 +79,7 @@ https://www.confluent.io/blog/okay-store-data-apache-kafka/
     <dependency>
         <groupId>com.tokera</groupId>
         <artifactId>ate</artifactId>
-        <version>0.2.15</version>
+        <version>0.2.16</version>
     </dependency>
 </dependencies>
 ```

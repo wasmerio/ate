@@ -1,5 +1,6 @@
 package com.tokera.ate.io.repo;
 
+import com.google.common.collect.Multimap;
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
@@ -10,6 +11,7 @@ import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.core.PartitionKeyComparator;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import org.checkerframework.com.google.common.collect.HashMultimap;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -32,6 +34,7 @@ public class DataTransaction {
      */
     protected class PartitionContext {
         public final List<UUID> toPutOrder = new ArrayList<>();
+        public final HashMap<String, LinkedHashSet<UUID>> toPutByType = new HashMap<>();
         public final List<UUID> toDeleteOrder = new ArrayList<>();
         public final Map<UUID, BaseDao> toPut = new HashMap<>();
         public final HashSet<UUID> toDelete = new HashSet<>();
@@ -63,8 +66,14 @@ public class DataTransaction {
             myContext.savedDeletes.addAll(otherContext.savedDeletes);
 
             for (UUID id : otherContext.savedDatas.keySet()) {
-                myContext.toPut.remove(id);
-                myContext.toPutOrder.remove(id);
+                BaseDao obj = myContext.toPut.remove(id);
+                if (obj != null) {
+                    myContext.toPutOrder.remove(id);
+                    myContext.toPutByType.computeIfPresent(BaseDaoInternal.getType(obj), (k, s) -> {
+                        s.remove(id);
+                        return s.size() > 0 ? s : null;
+                    });
+                }
                 myContext.toDelete.remove(id);
                 myContext.toDeleteOrder.remove(id);
             }
@@ -145,6 +154,7 @@ public class DataTransaction {
         if (context.toPut.containsKey(id) == false) {
             context.toPut.put(id, obj);
             context.toPutOrder.add(id);
+            context.toPutByType.computeIfAbsent(BaseDaoInternal.getType(obj), k -> new LinkedHashSet<>()).add(id);
         }
         if (context.toDelete.remove(id)) {
             context.toDeleteOrder.remove(id);
@@ -170,8 +180,13 @@ public class DataTransaction {
             context.toDelete.add(id);
             context.toDeleteOrder.add(id);
         }
-        if (context.toPut.remove(id) != null) {
+        BaseDao obj = context.toPut.remove(id);
+        if (obj != null) {
             context.toPutOrder.remove(id);
+            context.toPutByType.computeIfPresent(BaseDaoInternal.getType(obj), (k, s) -> {
+                s.remove(id);
+                return s.size() > 0 ? s : null;
+            });
         }
 
         uncache(partitionKey, id);
@@ -183,9 +198,10 @@ public class DataTransaction {
         if (context.toDelete.remove(id)) {
             context.toDeleteOrder.remove(id);
         }
-        if (context.toPut.remove(id) != null) {
-            context.toPutOrder.remove(id);
-        }
+
+        context.toPut.remove(id);
+        context.toPutOrder.remove(id);
+        context.toPutByType.computeIfAbsent(BaseDaoInternal.getType(obj), k -> new LinkedHashSet<>()).add(id);
 
         uncache(partitionKey, obj.getId());
     }
@@ -238,7 +254,29 @@ public class DataTransaction {
 
     Iterable<BaseDao> puts(IPartitionKey partitionKey) {
         PartitionContext context = getPartitionMergeContext(partitionKey, false);
+        if (context == null) return Collections.emptyList();
         return context.toPutOrder.stream().map(id -> context.toPut.get(id)).collect(Collectors.toList());
+    }
+
+    @SuppressWarnings("unchecked")
+    <T extends BaseDao> Iterable<T> putsByType(IPartitionKey partitionKey, Class<T> clazz) {
+        PartitionContext context = getPartitionMergeContext(partitionKey, false);
+        if (context == null) return Collections.emptyList();
+        LinkedHashSet<UUID> list = MapTools.getOrNull(context.toPutByType, clazz.getName());
+        if (list == null) return Collections.emptyList();
+        return list.stream()
+                .map(id -> (T)context.toPut.get(id))
+                .collect(Collectors.toList());
+    }
+
+    Iterable<BaseDao> putsByType(IPartitionKey partitionKey, String clazz) {
+        PartitionContext context = getPartitionMergeContext(partitionKey, false);
+        if (context == null) return Collections.emptyList();
+        LinkedHashSet<UUID> list = MapTools.getOrNull(context.toPutByType, clazz);
+        if (list == null) return Collections.emptyList();
+        return list.stream()
+                .map(id -> context.toPut.get(id))
+                .collect(Collectors.toList());
     }
 
     Iterable<UUID> deletes(IPartitionKey partitionKey) {
@@ -322,7 +360,7 @@ public class DataTransaction {
             return cache.publicKeys.values();
         }
 
-        return new LinkedList<>();
+        return Collections.emptyList();
     }
 
     public @Nullable MessagePrivateKeyDto findPrivateKey(IPartitionKey partitionKey, String publicKeyHash) {
@@ -333,7 +371,7 @@ public class DataTransaction {
 
     Collection<MessagePrivateKeyDto> findPrivateKeys(IPartitionKey partitionKey) {
         PartitionContext context = getPartitionMergeContext(partitionKey, false);
-        if (context == null) return new LinkedList<>();
+        if (context == null) return Collections.emptyList();
         return context.savedWriteKeys.values();
     }
 

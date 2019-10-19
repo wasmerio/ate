@@ -68,7 +68,7 @@ public class ResourceInfoDelegate
         if (permitRiskRoleAtt != null) {
             return Arrays.stream(permitRiskRoleAtt.value()).collect(Collectors.toList());
         } else {
-            return new ArrayList<>();
+            return Collections.emptyList();
         }
     }
 
@@ -80,7 +80,7 @@ public class ResourceInfoDelegate
         if (permitUserRoleAtt != null) {
             return Arrays.stream(permitUserRoleAtt.value()).collect(Collectors.toList());
         } else {
-            return new ArrayList<>();
+            return Collections.emptyList();
         }
     }
 
@@ -92,7 +92,7 @@ public class ResourceInfoDelegate
         if (permitReadsAtt != null) {
             return Arrays.stream(permitReadsAtt.value()).collect(Collectors.toList());
         } else {
-            return new ArrayList<>();
+            return Collections.emptyList();
         }
     }
 
@@ -104,7 +104,7 @@ public class ResourceInfoDelegate
         if (permitWritesAtt != null) {
             return Arrays.stream(permitWritesAtt.value()).collect(Collectors.toList());
         } else {
-            return new ArrayList<>();
+            return Collections.emptyList();
         }
     }
 

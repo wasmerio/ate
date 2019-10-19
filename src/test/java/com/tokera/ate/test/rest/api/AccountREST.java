@@ -8,10 +8,15 @@ import com.tokera.ate.dao.enumerations.RiskRole;
 import com.tokera.ate.dao.enumerations.UserRole;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.PrivateKeyWithSeedDto;
+import com.tokera.ate.enumerations.LinuxErrors;
 import com.tokera.ate.security.TokenBuilder;
 import com.tokera.ate.test.dao.MyAccount;
+import com.tokera.ate.test.dao.MyThing;
 import com.tokera.ate.test.dto.NewAccountDto;
+import com.tokera.ate.test.dto.ThingsDto;
 import com.tokera.ate.units.EmailAddress;
+import com.tokera.ate.units.LinuxCmd;
+import com.tokera.ate.units.LinuxError;
 import org.junit.jupiter.api.Assertions;
 
 import javax.annotation.security.PermitAll;
@@ -21,6 +26,7 @@ import javax.validation.Valid;
 import javax.ws.rs.*;
 import javax.ws.rs.core.MediaType;
 import java.io.IOException;
+import java.util.List;
 import java.util.Random;
 import java.util.UUID;
 
@@ -85,6 +91,19 @@ public class AccountREST {
     }
 
     @GET
+    @Path("/{id}/things")
+    @Produces(MediaType.APPLICATION_JSON)
+    @PermitUserRole(UserRole.HUMAN)
+    @PermitRiskRole(RiskRole.MEDIUM)
+    public ThingsDto getThings(@PathParam("id") UUID id) {
+        MyAccount acc = d.io.read(id, MyAccount.class);
+
+        ThingsDto ret = new ThingsDto();
+        ret.things = acc.things();
+        return ret;
+    }
+
+    @GET
     @Path("/{id}/touch")
     @Produces(MediaType.APPLICATION_JSON)
     @PermitUserRole(UserRole.HUMAN)
@@ -103,10 +122,20 @@ public class AccountREST {
     @PermitUserRole(UserRole.HUMAN)
     @PermitRiskRole(RiskRole.MEDIUM)
     public MyAccount addThing(@PathParam("id") UUID id, UUID val) throws InterruptedException {
-        MyAccount ret = d.io.read(id, MyAccount.class);
-        ret.things.add(val);
-        //Thread.sleep(5 + rand.nextInt(5));
-        d.io.write(ret);
-        return ret;
+        try {
+            return d.io.underTransaction(true, () -> {
+                MyAccount acc = d.io.read(id, MyAccount.class);
+
+                MyThing thing = new MyThing(acc);
+                d.io.write(thing);
+
+                acc.strongThings.add(val);
+                d.io.write(acc);
+                return acc;
+            });
+        } catch (Throwable ex) {
+            System.out.println(StringTools.toString(ex));
+            throw ex;
+        }
     }
 }

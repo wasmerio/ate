@@ -13,7 +13,7 @@ import com.tokera.ate.extensions.YamlTagDiscoveryExtension;
 import com.tokera.ate.filters.*;
 import com.tokera.ate.io.core.*;
 import com.tokera.ate.io.kafka.*;
-import com.tokera.ate.io.layers.HeadIO;
+import com.tokera.ate.io.HeadIO;
 import com.tokera.ate.io.merge.DataMerger;
 import com.tokera.ate.io.ram.RamBridgeBuilder;
 import com.tokera.ate.io.ram.RamDataRepository;
@@ -103,6 +103,7 @@ public abstract class BaseAteDelegate {
     public final DataMaintenance dataMaintenance;
     public final KafkaTopicFactory kafkaTopicFactory;
     public final RamDataRepository ramDataRepository;
+    public final PermissionCacheDelegate permissionCache;
 
     public ZooServer zooKeeper;
     public KafkaServer kafka;
@@ -204,5 +205,6 @@ public abstract class BaseAteDelegate {
         this.dataMaintenance = getBean(DataMaintenance.class);
         this.kafkaTopicFactory = getBean(KafkaTopicFactory.class);
         this.ramDataRepository = getBean(RamDataRepository.class);
+        this.permissionCache = getBean(PermissionCacheDelegate.class);
     }
 }

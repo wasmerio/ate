@@ -1,8 +1,8 @@
 package com.tokera.ate.test.dao;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tokera.ate.annotations.ClaimableAuthority;
-import com.tokera.ate.annotations.ImplicitAuthority;
 import com.tokera.ate.annotations.PermitParentFree;
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.common.ImmutalizableArrayList;
@@ -20,7 +20,9 @@ import javax.validation.constraints.Pattern;
 import javax.validation.constraints.Size;
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Dependent
 @YamlTag("dao.myaccount")
@@ -28,7 +30,7 @@ import java.util.UUID;
 @ClaimableAuthority
 public class MyAccount extends MyBaseAccount {
     @JsonProperty
-    public final ImmutalizableArrayList<@DaoId UUID> things = new ImmutalizableArrayList<>();
+    public final ImmutalizableArrayList<@DaoId UUID> strongThings = new ImmutalizableArrayList<>();
     @JsonProperty
     public boolean isPublic = false;
     @JsonProperty
@@ -53,6 +55,9 @@ public class MyAccount extends MyBaseAccount {
     @JsonProperty
     public CountLong counter = new CountLong(0L);
 
+    @JsonIgnore
+    public List<MyThing> things() { return innerJoinAsList(MyThing.class, t -> t.accountId); }
+
     public MyAccount() {
         this.email = "test@test.org";
     }
@@ -62,4 +67,10 @@ public class MyAccount extends MyBaseAccount {
         this.email = email;
         this.passwordHash = passwordHash;
     }
+
+    public List<MyThing> myThings() {
+        return innerJoinAsList(MyThing.class, t -> t.accountId);
+    }
+
+
 }

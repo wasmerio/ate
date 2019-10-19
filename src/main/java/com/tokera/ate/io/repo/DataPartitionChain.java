@@ -111,12 +111,14 @@ public class DataPartitionChain {
         // Add it to the chain of trust
         DataContainer container = this.chainOfTrust.compute(id, (i, c) -> {
             if (c == null) c = new DataContainer(id, this.key);
-            return c.add(data, meta);
-        });
-        this.byClazz.compute(header.getPayloadClazzOrThrow(), (a, b) -> {
-            if (b == null) b = new HashSet<>();
-            b.add(id);
-            return b;
+            c.add(data, meta);
+            this.byClazz.compute(header.getPayloadClazzOrThrow(), (a, b) -> {
+                if (b == null) b = new HashSet<>();
+                b.add(id);
+                d.permissionCache.invalidate(header.getPayloadClazzOrThrow(), this.partitionKey(), id);
+                return b;
+            });
+            return c;
         });
 
         // If the container requires a merge then notify the maintenance thread
@@ -287,8 +289,9 @@ public class DataPartitionChain {
         // Process it
         return this.promoteChainEntry(new MessageDataMetaDto(data, meta), invokeCallbacks, LOG);
     }
-    
-    public <T extends BaseDao> List<DataContainer> getAllData(Class<T> clazz) {
+
+
+    public <T extends BaseDao> List<UUID> getAllDataIds(Class<T> clazz) {
         String clazzName = clazz.getName();
 
         List<UUID> ids = new ArrayList<>();
@@ -296,9 +299,12 @@ public class DataPartitionChain {
             ids.addAll(b);
             return b;
         });
-
+        return ids;
+    }
+    
+    public <T extends BaseDao> List<DataContainer> getAllData(Class<T> clazz) {
         List<DataContainer> ret = new ArrayList<>();
-        for (UUID id : ids) {
+        for (UUID id : getAllDataIds(clazz)) {
             DataContainer container = this.chainOfTrust.getOrDefault(id, null);
             if (container != null) ret.add(container);
         }
@@ -349,7 +355,7 @@ public class DataPartitionChain {
     
     public Iterable<MessageMetaDto> getHistory(UUID id) {
         DataContainer container = this.getData(id);
-        if (container == null) return new LinkedList<>();
+        if (container == null) return Collections.emptyList();
         return container.getHistory();
     }
     

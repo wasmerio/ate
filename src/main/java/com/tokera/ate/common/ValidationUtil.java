@@ -6,10 +6,7 @@ import com.tokera.ate.scopes.Startup;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import javax.annotation.Nullable;
 import javax.annotation.PostConstruct;
 import javax.enterprise.context.ApplicationScoped;
@@ -45,7 +42,7 @@ public class ValidationUtil {
     public List<ErrorDetail> validate(Object obj) {
         Set<ConstraintViolation<Object>> constraintViolations = validator.validate(obj);
         if (constraintViolations.isEmpty()) {
-            return new LinkedList<>();
+            return Collections.emptyList();
         }
         return getValidationErrorMessage(constraintViolations);
     }

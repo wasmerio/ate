@@ -40,14 +40,6 @@ public class DataSerializer {
     @Inject
     private LoggerHook LOG;
 
-    public DataSerializer() {
-    }
-
-    @PostConstruct
-    public void init() {
-        this.LOG.setLogClazz(DataSerializer.class);
-    }
-
     private static Cache<String, BaseDao> decryptCacheObj = CacheBuilder.newBuilder()
             .maximumSize(1000)
             .expireAfterWrite(10, TimeUnit.MINUTES)
@@ -57,6 +49,14 @@ public class DataSerializer {
             .maximumSize(10000)
             .expireAfterWrite(10, TimeUnit.MINUTES)
             .build();
+
+    public DataSerializer() {
+    }
+
+    @PostConstruct
+    public void init() {
+        this.LOG.setLogClazz(DataSerializer.class);
+    }
 
     private void writeRightPublicKeysForDataObject(BaseDao obj, DataPartition kt) {
         DataPartitionChain chain = kt.getChain(true);
@@ -297,19 +297,12 @@ public class DataSerializer {
             return null;
         }
 
-        BaseDao ret = readObjectFromDataMessage(partitionKey, msg, shouldThrow);
-        if (ret == null) return null;
-
-        validateObjectAfterRead(ret, msg);
-        return ret;
+        return readObjectFromDataMessage(partitionKey, msg, shouldThrow);
     }
 
     @SuppressWarnings({"unchecked"})
-    private <T extends BaseDao> @Nullable T lintDataObject(@Nullable T _orig, MessageDataDto msg) {
-        T orig = _orig;
+    private <T extends BaseDao> @Nullable T cloneDataObject(@Nullable T orig) {
         if (orig == null) return null;
-
-        MessageDataHeaderDto header = msg.getHeader();
 
         Object cloned = d.merger.cloneObject(orig);
         if (cloned == null) return null;
@@ -317,6 +310,14 @@ public class DataSerializer {
         BaseDaoInternal.setPartitionKey(ret, BaseDaoInternal.getPartitionKey(orig));
         BaseDaoInternal.setPreviousVersion(ret, BaseDaoInternal.getPreviousVersion(orig));
         BaseDaoInternal.setMergesVersions(ret, BaseDaoInternal.getMergesVersions(orig));
+        return ret;
+    }
+
+    @SuppressWarnings({"unchecked"})
+    private <T extends BaseDao> @Nullable T lintDataObject(@Nullable T ret, MessageDataDto msg) {
+        if (ret == null) return null;
+
+        MessageDataHeaderDto header = msg.getHeader();
 
         Field implicitAuthorityField = MapTools.getOrNull(d.daoParents.getAllowedDynamicImplicitAuthoritySimple(), header.getPayloadClazzOrThrow());
         if (implicitAuthorityField != null) {
@@ -359,10 +360,15 @@ public class DataSerializer {
                 if (ret instanceof Immutalizable) ((Immutalizable)ret).immutalize();
                 return ret;
             });
-            return lintDataObject(orig, msg);
+            BaseDao ret = cloneDataObject(orig);
+            ret = lintDataObject(ret, msg);
+            validateObjectAfterRead(ret, msg);
+            return ret;
         } catch (ExecutionException e) {
             BaseDao orig = readObjectFromDataMessageInternal(cacheKey, aesKey, msg, partitionKey);
-            return lintDataObject(orig, msg);
+            BaseDao ret = lintDataObject(orig, msg);
+            validateObjectAfterRead(ret, msg);
+            return ret;
         }
     }
 

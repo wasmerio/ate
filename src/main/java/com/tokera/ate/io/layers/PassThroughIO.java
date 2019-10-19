@@ -13,6 +13,7 @@ import com.tokera.ate.io.repo.DataSubscriber;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.*;
+import java.util.function.Predicate;
 
 /**
  * IO implementation that simple passes through IO commands to the next IO module with built in callbacks
@@ -82,8 +83,8 @@ public class PassThroughIO implements IAteIO {
     }
 
     @Override
-    public @Nullable BaseDao readOrNull(PUUID id, boolean shouldSave) {
-        return next.readOrNull(id, shouldSave);
+    public @Nullable BaseDao readOrNull(PUUID id) {
+        return next.readOrNull(id);
     }
 
     @Override
@@ -112,23 +113,13 @@ public class PassThroughIO implements IAteIO {
     }
 
     @Override
-    public List<BaseDao> readAll(IPartitionKey partitionKey) {
-        return next.readAll(partitionKey);
+    public List<BaseDao> view(IPartitionKey partitionKey, Predicate<BaseDao> predicate) {
+        return next.view(partitionKey, predicate);
     }
 
     @Override
-    public List<BaseDao> readAllAccessible(IPartitionKey partitionKey) {
-        return next.readAllAccessible(partitionKey);
-    }
-
-    @Override
-    public <T extends BaseDao> List<T> readAll(IPartitionKey partitionKey, Class<T> type) {
-        return next.readAll(partitionKey, type);
-    }
-
-    @Override
-    public <T extends BaseDao> List<T> readAllAccessible(IPartitionKey partitionKey, Class<T> type) {
-        return next.readAllAccessible(partitionKey, type);
+    public <T extends BaseDao> List<T> view(IPartitionKey partitionKey, Class<T> type, Predicate<T> predicate) {
+        return next.view(partitionKey, type, predicate);
     }
 
     @Override

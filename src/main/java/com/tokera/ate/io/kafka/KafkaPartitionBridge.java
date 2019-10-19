@@ -56,13 +56,13 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
     @Override
     public void deleteMany(Collection<String> keys)
     {
-        // Send the message do Kafka
+        KafkaProducer<String, MessageBase> p = d.kafkaOutbox.get();
+        if (p == null) return;
+
+        // Send the message(s) do Kafka
         for (String key : keys) {
             ProducerRecord<String, MessageBase> record = new ProducerRecord<>(where.partitionTopic(), where.partitionIndex(), key, null);
-
-            // Send the record to Kafka
-            KafkaProducer<String, MessageBase> p = d.kafkaOutbox.get();
-            if (p != null) p.send(record);
+            p.send(record);
 
             d.debugLogging.logKafkaDelete(record);
         }

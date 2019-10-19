@@ -119,7 +119,7 @@ public class RequestContextDelegate {
      * @return Returns a list of other partition keys in the stack that are not the current partition key itself
      */
     public Iterable<IPartitionKey> getOtherPartitionKeys() {
-        if (this.partitionKeyStack.empty()) return new LinkedList<>();
+        if (this.partitionKeyStack.empty()) return Collections.emptyList();
         IPartitionKey curKey = this.partitionKeyStack.peek();
         if (curKey == null) return this.partitionKeyStack;
         return this.partitionKeyStack

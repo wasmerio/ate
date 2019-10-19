@@ -11,8 +11,10 @@ import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.enumerations.DefaultStorageSystem;
 import com.tokera.ate.test.dao.MyAccount;
+import com.tokera.ate.test.dao.MyThing;
 import com.tokera.ate.test.dao.SeedingDelegate;
 import com.tokera.ate.test.dto.NewAccountDto;
+import com.tokera.ate.test.dto.ThingsDto;
 import org.junit.jupiter.api.*;
 
 import javax.enterprise.inject.spi.CDI;
@@ -118,26 +120,33 @@ public class BasicIntegrationTests {
                     throw new RuntimeException(e);
                 }
             }
-
-            MyAccount acc = session.restGet("/acc/" + this.accountId, MyAccount.class);
-            Assertions.assertEquals(testSet.size(), acc.things.size());
-            for (UUID descVal : testSet) {
-                Assertions.assertTrue(acc.things.contains(descVal));
-            }
         });
     }
 
     @Test
     @Order(13)
+    public void getThings() {
+        MyAccount acc = session.restGet("/acc/" + this.accountId, MyAccount.class);
+        Assertions.assertEquals(testSet.size(), acc.strongThings.size());
+        for (UUID descVal : testSet) {
+            Assertions.assertTrue(acc.strongThings.contains(descVal));
+        }
+
+        ThingsDto things = session.restGet("/acc/" + this.accountId + "/things", ThingsDto.class);
+        Assertions.assertEquals(testSet.size(), things.things.size());
+    }
+
+    @Test
+    @Order(14)
     public void forceMaintenance() {
         LoggerHook.withNoWarningsOrErrors(() -> {
             AteDelegate.get().dataMaintenance.forceMaintenanceNow();
         });
 
         MyAccount acc = session.restGet("/acc/" + this.accountId, MyAccount.class);
-        Assertions.assertEquals(testSet.size(), acc.things.size());
+        Assertions.assertEquals(testSet.size(), acc.strongThings.size());
         for (UUID descVal : testSet) {
-            Assertions.assertTrue(acc.things.contains(descVal));
+            Assertions.assertTrue(acc.strongThings.contains(descVal));
         }
     }
 

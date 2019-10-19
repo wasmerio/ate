@@ -58,6 +58,8 @@ public class PrivateKeyWithSeedDto {
     private @Nullable String publicHash;
 
     @JsonIgnore
+    private transient @Nullable String privateHash;
+    @JsonIgnore
     private transient MessagePrivateKeyDto key;
 
     @SuppressWarnings("initialization.fields.uninitialized")
@@ -189,6 +191,14 @@ public class PrivateKeyWithSeedDto {
         if (publicHash != null) return publicHash;
         String ret = key().getPublicKeyHash();
         publicHash = ret;
+        return ret;
+    }
+
+    @JsonIgnore
+    public String privateHash() {
+        if (privateHash != null) return privateHash;
+        String ret = key().getPrivateKeyHash();
+        privateHash = ret;
         return ret;
     }
 

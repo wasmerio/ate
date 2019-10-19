@@ -10,6 +10,7 @@ import com.tokera.ate.units.Hash;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.List;
+import java.util.function.Predicate;
 
 /**
  * Interface used for generic input output operations on data entities
@@ -24,7 +25,7 @@ public interface IAteIO {
 
     @Nullable MessageDataHeaderDto readRootOfTrust(PUUID id);
 
-    @Nullable BaseDao readOrNull(PUUID id, boolean shouldSave);
+    @Nullable BaseDao readOrNull(PUUID id);
 
     BaseDao readOrThrow(PUUID id);
 
@@ -36,13 +37,9 @@ public interface IAteIO {
     
     @Nullable MessageDataDto readVersionMsgOrNull(PUUID id, long offset);
 
-    List<BaseDao> readAll(IPartitionKey partitionKey);
-
-    List<BaseDao> readAllAccessible(IPartitionKey partitionKey);
+    List<BaseDao> view(IPartitionKey partitionKey, Predicate<BaseDao> predicate);
     
-    <T extends BaseDao> List<T> readAll(IPartitionKey partitionKey, Class<T> type);
-
-    <T extends BaseDao> List<T> readAllAccessible(IPartitionKey partitionKey, Class<T> type);
+    <T extends BaseDao> List<T> view(IPartitionKey partitionKey, Class<T> type, Predicate<T> predicate);
 
     <T extends BaseDao> List<DataContainer> readAllRaw(IPartitionKey partitionKey);
 

@@ -130,7 +130,7 @@ public class EffectivePermissionBuilder {
     public @Nullable BaseDao findDataObj(UUID id) {
         BaseDao obj = MapTools.getOrNull(this.suppliedObjects, id);
         if (this.avoidIoReads) return obj;
-        if (obj == null) obj = d.io.readOrNull(PUUID.from(this.partitionKey, id), false);
+        if (obj == null) obj = d.io.readOrNull(PUUID.from(this.partitionKey, id));
         return obj;
     }
 

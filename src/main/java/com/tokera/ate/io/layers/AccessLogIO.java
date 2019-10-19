@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Predicate;
 
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
@@ -97,8 +98,8 @@ final public class AccessLogIO implements IAteIO {
     }
 
     @Override
-    public @Nullable BaseDao readOrNull(PUUID id, boolean shouldSave) {
-        BaseDao ret = next.readOrNull(id, shouldSave);
+    public @Nullable BaseDao readOrNull(PUUID id) {
+        BaseDao ret = next.readOrNull(id);
         if (ret != null) {
             logger.recordRead(id.id(), ret.getClass());
         }
@@ -141,25 +142,13 @@ final public class AccessLogIO implements IAteIO {
     }
 
     @Override
-    public List<BaseDao> readAll(IPartitionKey partitionKey) {
-        return next.readAll(partitionKey);
+    public List<BaseDao> view(IPartitionKey partitionKey, Predicate<BaseDao> predicate) {
+        return next.view(partitionKey, predicate);
     }
 
     @Override
-    public List<BaseDao> readAllAccessible(IPartitionKey partitionKey) {
-        return next.readAllAccessible(partitionKey);
-    }
-
-    @Override
-    public <T extends BaseDao> List<T> readAll(IPartitionKey partitionKey, Class<T> type) {
-        List<T> ret = next.readAll(partitionKey, type);
-        logger.recordRead(type);
-        return ret;
-    }
-
-    @Override
-    public <T extends BaseDao> List<T> readAllAccessible(IPartitionKey partitionKey, Class<T> type) {
-        List<T> ret = next.readAllAccessible(partitionKey, type);
+    public <T extends BaseDao> List<T> view(IPartitionKey partitionKey, Class<T> type, Predicate<T> predicate) {
+        List<T> ret = next.view(partitionKey, type, predicate);
         logger.recordRead(type);
         return ret;
     }

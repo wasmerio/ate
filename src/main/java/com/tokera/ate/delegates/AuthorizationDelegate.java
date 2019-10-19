@@ -1,5 +1,7 @@
 package com.tokera.ate.delegates;
 
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.tokera.ate.common.ImmutalizableArrayList;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.dao.IRights;
@@ -16,7 +18,9 @@ import com.tokera.ate.events.RightsValidationEvent;
 import com.tokera.ate.events.TokenScopeChangedEvent;
 import com.tokera.ate.events.TokenStateChangedEvent;
 import com.tokera.ate.io.api.IPartitionKey;
+import com.tokera.ate.io.core.PartitionKeyComparator;
 import com.tokera.ate.io.repo.DataContainer;
+import com.tokera.ate.io.repo.DataPartition;
 import com.tokera.ate.providers.PartitionKeySerializer;
 import com.tokera.ate.providers.TokenSerializer;
 import com.tokera.ate.scopes.Startup;
@@ -31,6 +35,8 @@ import javax.inject.Inject;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.core.Response;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -39,7 +45,7 @@ import java.util.stream.Collectors;
 @Startup
 @ApplicationScoped
 public class AuthorizationDelegate {
-    private AteDelegate d = AteDelegate.get();
+    private final AteDelegate d = AteDelegate.get();
 
     @SuppressWarnings("initialization.fields.uninitialized")
     @Inject
@@ -330,23 +336,19 @@ public class AuthorizationDelegate {
     }
 
     public EffectivePermissions perms(String type, PUUID id) {
-        return perms(type, id, PermissionPhase.BeforeMerge);
+        return d.permissionCache.perms(type, id.partition(), id.id(), PermissionPhase.BeforeMerge);
     }
 
     public EffectivePermissions perms(String type, PUUID id, PermissionPhase phase) {
-        return new EffectivePermissionBuilder(type, id.partition(), id.id())
-                .withPhase(phase)
-                .build();
+        return d.permissionCache.perms(type, id.partition(), id.id(), phase);
     }
 
     public EffectivePermissions perms(String type, IPartitionKey partitionKey, @DaoId UUID id) {
-        return perms(type, partitionKey, id, PermissionPhase.BeforeMerge);
+        return d.permissionCache.perms(type, partitionKey, id, PermissionPhase.BeforeMerge);
     }
 
     public EffectivePermissions perms(String type, IPartitionKey partitionKey, @DaoId UUID id, PermissionPhase phase) {
-        return new EffectivePermissionBuilder(type, partitionKey, id)
-                .withPhase(phase)
-                .build();
+        return d.permissionCache.perms(type, partitionKey, id, phase);
     }
 
     public void authorizeEntity(IRights entity, IRoles to) {

@@ -2,24 +2,12 @@ package com.tokera.ate.io.core;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.RemovalListener;
-import com.google.common.cache.RemovalNotification;
-import com.google.common.collect.ImmutableSet;
 import com.tokera.ate.dao.IRights;
-import com.tokera.ate.dao.IRoles;
 import com.tokera.ate.dao.TopicAndPartition;
-import com.tokera.ate.dao.base.BaseDao;
-import com.tokera.ate.dao.base.BaseDaoInternal;
-import com.tokera.ate.dao.enumerations.PermissionPhase;
-import com.tokera.ate.dao.msg.MessagePrivateKey;
 import com.tokera.ate.delegates.AteDelegate;
-import com.tokera.ate.dto.EffectivePermissions;
 import com.tokera.ate.dto.PrivateKeyWithSeedDto;
-import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.api.IPartitionKeyProvider;
-import com.tokera.ate.io.core.DataPartitionDaemon;
-import com.tokera.ate.io.layers.HeadIO;
 import com.tokera.ate.io.repo.*;
 import com.tokera.ate.io.task.Task;
 import com.tokera.ate.scopes.Startup;
@@ -30,7 +18,6 @@ import org.jboss.weld.context.bound.BoundRequestContext;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.enterprise.inject.spi.CDI;
-import javax.ws.rs.container.ContainerRequestContext;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -231,7 +218,7 @@ public class DataMaintenance extends DataPartitionDaemon {
 
         // Only if we have the ability to write the object should we attempt to merge it
         if (d.authorization.canWrite(partition.partitionKey(), id)) {
-            d.io.write(container.getMergedData());
+            d.io.write(container.fetchData());
         }
     }
 

@@ -12,8 +12,14 @@ import com.tokera.ate.units.DaoId;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.io.Serializable;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Represents the common fields and methods of all data objects that are stored in the ATE data-store
@@ -123,5 +129,25 @@ public abstract class BaseDao implements Serializable, Immutalizable, IPartition
     void pushVersion(UUID previousVersion) {
         _mergesVersions = null;
         _previousVersion = previousVersion;
+    }
+
+    public <T extends BaseDao> Stream<T> innerJoin(Class<T> clazz, Function<T, UUID> joiningField) {
+        UUID id = getId();
+        return AteDelegate.get().io.view(this.partitionKey(), clazz, a -> id.equals(joiningField.apply(a)));
+    }
+
+    public <T extends BaseDao> List<T> innerJoinAsList(Class<T> clazz, Function<T, UUID> joiningField) {
+        UUID id = getId();
+        return AteDelegate.get().io.viewAsList(this.partitionKey(), clazz, a -> id.equals(joiningField.apply(a)));
+    }
+
+    public <T extends BaseDao> Set<T> innerJoinAsSet(Class<T> clazz, Function<T, UUID> joiningField) {
+        UUID id = getId();
+        return AteDelegate.get().io.viewAsSet(this.partitionKey(), clazz, a -> id.equals(joiningField.apply(a)));
+    }
+
+    public <T extends BaseDao, K, V> Map<K, V> innerJoinAsMap(Class<T> clazz, Function<T, UUID> joiningField, Function<T, K> mapKey, Function<T, V> mapVal) {
+        UUID id = getId();
+        return AteDelegate.get().io.viewAsMap(this.partitionKey(), clazz, a -> id.equals(joiningField.apply(a)), mapKey, mapVal);
     }
 }

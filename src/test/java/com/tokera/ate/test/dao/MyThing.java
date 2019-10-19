@@ -18,6 +18,8 @@ public class MyThing extends BaseDao {
     public @DaoId UUID id = UUID.randomUUID();
     @JsonProperty
     public @DaoId UUID accountId;
+    @JsonProperty
+    public String description;
 
     @SuppressWarnings("initialization.fields.uninitialized")
     @Deprecated
@@ -35,6 +37,6 @@ public class MyThing extends BaseDao {
 
     @Override
     public @Nullable @DaoId UUID getParentId() {
-        return null;
+        return accountId;
     }
 }

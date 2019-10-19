@@ -22,14 +22,15 @@ public class RamDataRepository {
     private final ConcurrentHashMap<TopicAndPartition, AtomicLong> offsets = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<TopicAndPartition, ArrayList<MessageBundle>> data = new ConcurrentHashMap<>();
 
-    private ArrayList<MessageBundle> partition(TopicAndPartition where) {
-        return data.computeIfAbsent(where, k -> new ArrayList<>());
-    }
-
     public MessageBundle write(TopicAndPartition where, String key, MessageBase msg) {
         long offset = offsets.computeIfAbsent(where, a -> new AtomicLong(0L)).incrementAndGet();
+
         MessageBundle bundle = new MessageBundle(key, where.partitionIndex(), offset, msg);
-        partition(where).add(bundle);
+        data.compute(where, (k, l) -> {
+            if (l == null) l = new ArrayList<>();
+            l.add(bundle);
+            return l;
+        });
         return bundle;
     }
 

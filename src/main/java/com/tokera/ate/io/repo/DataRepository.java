@@ -19,6 +19,7 @@ import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.dto.EffectivePermissions;
 
 import java.util.*;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import com.tokera.ate.units.DaoId;
@@ -271,7 +272,7 @@ public class DataRepository implements IAteIO {
     }
 
     @Override
-    public @Nullable BaseDao readOrNull(@Nullable PUUID _id, boolean shouldSave) {
+    public @Nullable BaseDao readOrNull(@Nullable PUUID _id) {
         PUUID id = _id;
         if (id == null) return null;
 
@@ -280,7 +281,7 @@ public class DataRepository implements IAteIO {
         DataContainer container = chain.getData(id.id());
         if (container == null) return null;
 
-        return container.getMergedData(false, shouldSave);
+        return container.fetchData(false);
     }
 
     @Override
@@ -291,7 +292,7 @@ public class DataRepository implements IAteIO {
             throw new RuntimeException("Failed to find a data object of id [" + id + "]");
         }
 
-        BaseDao ret = container.getMergedData(true, true);
+        BaseDao ret = container.fetchData(true);
         if (ret == null) {
             throw new RuntimeException("This object has been removed according to evidence we found that matches data object of id [" + id + "].");
         }
@@ -331,31 +332,31 @@ public class DataRepository implements IAteIO {
     }
 
     @Override
-    public List<BaseDao> readAll(IPartitionKey partitionKey) {
+    public List<BaseDao> view(IPartitionKey partitionKey, Predicate<BaseDao> predicate) {
         DataPartitionChain chain = this.subscriber.getChain(partitionKey, true);
+        DataTransaction trans = d.requestContext.currentTransaction();
 
+        HashSet<UUID> already = new HashSet<>();
         List<BaseDao> ret = new ArrayList<>();
+
         for (DataContainer container : chain.getAllData()) {
-            BaseDao entity = container.getMergedData();
-            if (entity != null) {
-                ret.add(entity);
+            EffectivePermissions perms = d.permissionCache.perms(container.getPayloadClazz(), partitionKey, container.id, PermissionPhase.BeforeMerge);
+            if (perms.canRead(d.currentRights)) {
+                BaseDao entity = container.fetchData();
+                if (entity != null) {
+                    if (predicate.test(entity)) {
+                        ret.add(entity);
+                        already.add(container.id);
+                    }
+                }
             }
         }
 
-        return ret;
-    }
+        for (BaseDao obj : trans.puts(partitionKey)) {
+            if (already.contains(obj.getId())) continue;
 
-    @Override
-    public List<BaseDao> readAllAccessible(IPartitionKey partitionKey) {
-        DataPartitionChain chain = this.subscriber.getChain(partitionKey, true);
-
-        List<BaseDao> ret = new ArrayList<>();
-        for (DataContainer container : chain.getAllData()) {
-            if (d.authorization.canRead(partitionKey, container.id)) {
-                BaseDao entity = container.getMergedData();
-                if (entity != null) {
-                    ret.add(entity);
-                }
+            if (predicate.test(obj)) {
+                ret.add(obj);
             }
         }
 
@@ -364,34 +365,53 @@ public class DataRepository implements IAteIO {
 
     @SuppressWarnings({"unchecked"})
     @Override
-    public <T extends BaseDao> List<T> readAll(IPartitionKey partitionKey, Class<T> type)
-    {
+    public <T extends BaseDao> List<T> view(IPartitionKey partitionKey, Class<T> type, Predicate<T> predicate) {
         DataPartitionChain chain = this.subscriber.getChain(partitionKey, true);
+        DataTransaction trans = d.requestContext.currentTransaction();
 
+        HashSet<UUID> already = new HashSet<>();
         List<T> ret = new ArrayList<>();
-        for (DataContainer container : chain.getAllData(type)) {
-            T entity = (@Nullable T)container.getMergedData();
+
+        // Loop through all the data objects that match this type and that have been saved in the past
+        for (UUID id : chain.getAllDataIds(type))
+        {
+            // First search the transaction cache in-case we have an object that we are already
+            // working on that was saved to local memory
+            BaseDao entity = trans.find(partitionKey, id);
             if (entity != null) {
-                ret.add(entity);
+                if (predicate.test((T)entity)) {
+                    ret.add((T) entity);
+                    already.add(id);
+                    continue;
+                }
+            }
+
+            // We should only try and test objects that we actually have rights too
+            EffectivePermissions perms = d.permissionCache.perms(type.getName(), partitionKey, id, PermissionPhase.BeforeMerge);
+            if (perms.canRead(d.currentRights))
+            {
+                // We have nothing in the transaction so grab it from the chain-of-trust
+                // run the predicate through it (faster than cloning objects) then clone it
+                DataContainer container = chain.getData(id);
+                if (container == null) continue;
+                if (container.test(predicate, false)) {
+                    entity = container.fetchData();
+                    if (entity != null) {
+                        ret.add((T) entity);
+                        already.add(id);
+                        continue;
+                    }
+                }
             }
         }
-        
-        return ret;
-    }
 
-    @SuppressWarnings({"unchecked"})
-    @Override
-    public <T extends BaseDao> List<T> readAllAccessible(IPartitionKey partitionKey, Class<T> type)
-    {
-        DataPartitionChain chain = this.subscriber.getChain(partitionKey, true);
+        // Finally we need to check for objects that have never been saved to the chain-of-trust
+        // but are in the local transaction memory (as these will count)
+        for (T obj : trans.putsByType(partitionKey, type)) {
+            if (already.contains(obj.getId())) continue;
 
-        List<T> ret = new ArrayList<>();
-        for (DataContainer container : chain.getAllData(type)) {
-            if (d.authorization.canRead(partitionKey, container.id)) {
-                T entity = (@Nullable T) container.getMergedData();
-                if (entity != null) {
-                    ret.add(entity);
-                }
+            if (predicate.test(obj)) {
+                ret.add(obj);
             }
         }
 

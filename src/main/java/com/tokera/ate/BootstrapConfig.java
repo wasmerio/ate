@@ -69,6 +69,7 @@ public class BootstrapConfig {
     private int subscriberPartitionTimeout = 120000;
     private int subscriberMaxPartitions = 5000;
     private int dataMaintenanceWindow = 30000;
+    private int permissionsCacheLimit = 100000;
 
     private ConcurrentHashMap<String, Properties> propertiesCache = new ConcurrentHashMap<>();
 
@@ -535,5 +536,13 @@ public class BootstrapConfig {
 
     public void setDataMaintenanceWindow(int dataMaintenanceWindow) {
         this.dataMaintenanceWindow = dataMaintenanceWindow;
+    }
+
+    public int getPermissionsCacheLimit() {
+        return permissionsCacheLimit;
+    }
+
+    public void setPermissionsCacheLimit(int permissionsCacheLimit) {
+        this.permissionsCacheLimit = permissionsCacheLimit;
     }
 }
