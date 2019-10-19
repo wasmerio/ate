@@ -1,6 +1,7 @@
 package com.tokera.ate.delegates;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.smile.SmileFactory;
 import com.fasterxml.jackson.module.afterburner.AfterburnerModule;
@@ -23,6 +24,10 @@ public class JsonObjectSerializerDelegate implements IObjectSerializer {
         mappers = ThreadLocal.withInitial(() ->
         {
             ObjectMapper mapper = new ObjectMapper(new SmileFactory());
+            mapper.configure(DeserializationFeature.FAIL_ON_MISSING_CREATOR_PROPERTIES, false);
+            mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+            mapper.configure(DeserializationFeature.FAIL_ON_IGNORED_PROPERTIES, false);
+            mapper.configure(DeserializationFeature.READ_UNKNOWN_ENUM_VALUES_USING_DEFAULT_VALUE, true);
             mapper.registerModule(new AfterburnerModule());
             return mapper;
         });
