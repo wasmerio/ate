@@ -850,4 +850,19 @@ public class HeadIO
     public void delete(IPartitionKey partitionKey, UUID id) {
         d.requestContext.currentTransaction().delete(PUUID.from(partitionKey, id));
     }
+
+    @SuppressWarnings("unchecked")
+    public <T extends BaseDao> T clone(T orig) {
+        T cloned = (T) d.merger.cloneObject(orig);
+        BaseDaoInternal.setPartitionKey(cloned, BaseDaoInternal.getPartitionKey(orig));
+        BaseDaoInternal.setPreviousVersion(cloned, BaseDaoInternal.getPreviousVersion(orig));
+        BaseDaoInternal.setMergesVersions(cloned, BaseDaoInternal.getMergesVersions(orig));
+        return cloned;
+    }
+
+    public <T extends BaseDao> T cloneAndCache(T orig) {
+        T cloned = clone(orig);
+        currentTransaction().cache(orig.partitionKey(), cloned);
+        return cloned;
+    }
 }

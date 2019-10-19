@@ -70,6 +70,9 @@ public class BootstrapConfig {
     private int subscriberMaxPartitions = 5000;
     private int dataMaintenanceWindow = 30000;
     private int permissionsCacheLimit = 100000;
+    private int indexingMaximumViewsPerTable = 500;
+    private int indexingExpireDelay = 120000;
+    private boolean enableAutomaticIndexing = true;
 
     private ConcurrentHashMap<String, Properties> propertiesCache = new ConcurrentHashMap<>();
 
@@ -544,5 +547,29 @@ public class BootstrapConfig {
 
     public void setPermissionsCacheLimit(int permissionsCacheLimit) {
         this.permissionsCacheLimit = permissionsCacheLimit;
+    }
+
+    public int getIndexingMaximumViewsPerTable() {
+        return indexingMaximumViewsPerTable;
+    }
+
+    public void setIndexingMaximumViewsPerTable(int indexingMaximumViewsPerTable) {
+        this.indexingMaximumViewsPerTable = indexingMaximumViewsPerTable;
+    }
+
+    public int getIndexingExpireDelay() {
+        return indexingExpireDelay;
+    }
+
+    public void setIndexingExpireDelay(int indexingExpireDelay) {
+        this.indexingExpireDelay = indexingExpireDelay;
+    }
+
+    public boolean isEnableAutomaticIndexing() {
+        return enableAutomaticIndexing;
+    }
+
+    public void setEnableAutomaticIndexing(boolean enableAutomaticIndexing) {
+        this.enableAutomaticIndexing = enableAutomaticIndexing;
     }
 }

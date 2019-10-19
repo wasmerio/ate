@@ -13,7 +13,7 @@ ATE Technical Design
 1. [Immutable Data](#immutable-data)
 2. [Eventually Consistent Caching](#eventually-consistent-caching)
 3. [Caching API Responses](#caching-api-responses)
-4. [Materialized Views](#materialized-views)
+4. [Materialized Views and Secondary Indexes](#materialized-views-and-secondary-indexes)
 5. [Distributed Computing Architecture](#distributed-computing-architecture)
 6. [Shared Nothing](#shared-nothing)
    1. [Stateful Mode](#stateful-mode)
@@ -208,7 +208,7 @@ If one were to follow this caching architecture then one can ensure:
   that would now return a different answer, where the delay is the time it
   takes for Kafka to ship the event to your clients.  
  
-## Materialized Views
+## Materialized Views and Secondary Indexes
 
 ATE deploys Materialized Views inside the library using lambdas and an
 automatically updated cache. This allows for complex relational data
@@ -216,13 +216,23 @@ structures and models to a coded on top of a stable data stream.
 
 Create your views using a set of helper classes optimized for high performance.
 
+Along with Materialized Views that are dynamically created via table scans
+ATE also supports automatic secondary indexes when you use the innerJoin
+syntax - this functionality is enabled by default and can be disabled via the
+bootstrap configuration.
+
+Note: Secondary indexes are automatically updated whenever data objects within
+      the index are added, removed or updated, there is minimal performance
+      impact of this background indexing capability as it takes advantage of
+      the data streaming capabilities of Kafka and some clever programming to
+      keep useful indexes in memory when needed
+
 More details are in the code just follow this starting point below:
 
 ```java
 public abstract class BaseDao implements Serializable, Immutalizable, IPartitionKeyProvider {
     public <T extends BaseDao> List<T> innerJoinAsList(Class<T> clazz, Function<T, UUID> joiningField) {
-        UUID id = getId();
-        return AteDelegate.get().io.viewAsList(this.partitionKey(), clazz, a -> id.equals(joiningField.apply(a)));
+        return AteDelegate.get().indexingDelegate.innerJoin(this, clazz, joiningField);
     }
 }
 

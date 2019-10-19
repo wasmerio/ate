@@ -17,7 +17,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -132,22 +131,18 @@ public abstract class BaseDao implements Serializable, Immutalizable, IPartition
     }
 
     public <T extends BaseDao> Stream<T> innerJoin(Class<T> clazz, Function<T, UUID> joiningField) {
-        UUID id = getId();
-        return AteDelegate.get().io.view(this.partitionKey(), clazz, a -> id.equals(joiningField.apply(a)));
+        return innerJoinAsList(clazz, joiningField).stream();
     }
 
     public <T extends BaseDao> List<T> innerJoinAsList(Class<T> clazz, Function<T, UUID> joiningField) {
-        UUID id = getId();
-        return AteDelegate.get().io.viewAsList(this.partitionKey(), clazz, a -> id.equals(joiningField.apply(a)));
+        return AteDelegate.get().indexingDelegate.innerJoin(this, clazz, joiningField);
     }
 
     public <T extends BaseDao> Set<T> innerJoinAsSet(Class<T> clazz, Function<T, UUID> joiningField) {
-        UUID id = getId();
-        return AteDelegate.get().io.viewAsSet(this.partitionKey(), clazz, a -> id.equals(joiningField.apply(a)));
+        return innerJoin(clazz, joiningField).collect(Collectors.toSet());
     }
 
     public <T extends BaseDao, K, V> Map<K, V> innerJoinAsMap(Class<T> clazz, Function<T, UUID> joiningField, Function<T, K> mapKey, Function<T, V> mapVal) {
-        UUID id = getId();
-        return AteDelegate.get().io.viewAsMap(this.partitionKey(), clazz, a -> id.equals(joiningField.apply(a)), mapKey, mapVal);
+        return innerJoin(clazz, joiningField).collect(Collectors.toMap(mapKey, mapVal));
     }
 }

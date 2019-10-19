@@ -19,7 +19,7 @@ import java.util.concurrent.ConcurrentMap;
 
 /**
  * Represents the Token loaded into a token scope
- * NOTE: This delegate must be multithread safe
+ * NOTE: This delegate must be multi-thread safe
  */
 @TokenScoped
 public class TokenSecurity

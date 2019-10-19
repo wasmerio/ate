@@ -116,6 +116,7 @@ public class DataPartitionChain {
                 if (b == null) b = new HashSet<>();
                 b.add(id);
                 d.permissionCache.invalidate(header.getPayloadClazzOrThrow(), this.partitionKey(), id);
+                d.indexingDelegate.invalidate(this.partitionKey(), header.getPayloadClazzOrThrow());
                 return b;
             });
             return c;

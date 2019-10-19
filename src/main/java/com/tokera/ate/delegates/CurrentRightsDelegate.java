@@ -9,9 +9,9 @@ import com.tokera.ate.events.RightsDiscoverEvent;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.units.*;
 import com.tokera.ate.dto.TokenDto;
-import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 
 import java.util.*;
+import java.util.stream.Collectors;
 import javax.enterprise.context.RequestScoped;
 import javax.enterprise.event.Observes;
 import javax.ws.rs.WebApplicationException;
@@ -30,6 +30,7 @@ public class CurrentRightsDelegate implements IRights {
     private @Nullable Set<PrivateKeyWithSeedDto> rightsWriteCache = null;
     private final Set<PrivateKeyWithSeedDto> impersonateRead = new HashSet<>();
     private final Set<PrivateKeyWithSeedDto> impersonateWrite = new HashSet<>();
+    private String readRightsHash = null;
     
     public CurrentRightsDelegate() {
     }
@@ -51,6 +52,7 @@ public class CurrentRightsDelegate implements IRights {
     public void clearRightsCache() {
         this.rightsReadCache = null;
         this.rightsWriteCache = null;
+        this.readRightsHash = null;
     }
 
     public void clearImpersonation() {
@@ -185,6 +187,17 @@ public class CurrentRightsDelegate implements IRights {
             this.rightsWriteCache = ret;
         }
         return ret;
+    }
+
+    public String computeReadRightsHash() {
+        if (readRightsHash != null) {
+            return readRightsHash;
+        }
+
+        readRightsHash = d.encryptor.hashMd5AndEncode(this.getRightsRead().stream()
+                .map(r -> r.seed().getBytes())
+                .collect(Collectors.toList()));
+        return readRightsHash;
     }
 
     public @Nullable MessagePublicKeyDto findKeyAndConvertToPublic(String publicKeyHash) {

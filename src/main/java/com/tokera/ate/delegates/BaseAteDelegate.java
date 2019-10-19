@@ -104,6 +104,7 @@ public abstract class BaseAteDelegate {
     public final KafkaTopicFactory kafkaTopicFactory;
     public final RamDataRepository ramDataRepository;
     public final PermissionCacheDelegate permissionCache;
+    public final IndexingDelegate indexingDelegate;
 
     public ZooServer zooKeeper;
     public KafkaServer kafka;
@@ -206,5 +207,6 @@ public abstract class BaseAteDelegate {
         this.kafkaTopicFactory = getBean(KafkaTopicFactory.class);
         this.ramDataRepository = getBean(RamDataRepository.class);
         this.permissionCache = getBean(PermissionCacheDelegate.class);
+        this.indexingDelegate = getBean(IndexingDelegate.class);
     }
 }

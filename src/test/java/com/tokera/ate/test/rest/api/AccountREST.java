@@ -100,6 +100,8 @@ public class AccountREST {
 
         ThingsDto ret = new ThingsDto();
         ret.things = acc.things();
+        ret.things = acc.things();
+        ret.things = acc.things();
         return ret;
     }
 

@@ -301,19 +301,6 @@ public class DataSerializer {
     }
 
     @SuppressWarnings({"unchecked"})
-    private <T extends BaseDao> @Nullable T cloneDataObject(@Nullable T orig) {
-        if (orig == null) return null;
-
-        Object cloned = d.merger.cloneObject(orig);
-        if (cloned == null) return null;
-        T ret = (T)cloned;
-        BaseDaoInternal.setPartitionKey(ret, BaseDaoInternal.getPartitionKey(orig));
-        BaseDaoInternal.setPreviousVersion(ret, BaseDaoInternal.getPreviousVersion(orig));
-        BaseDaoInternal.setMergesVersions(ret, BaseDaoInternal.getMergesVersions(orig));
-        return ret;
-    }
-
-    @SuppressWarnings({"unchecked"})
     private <T extends BaseDao> @Nullable T lintDataObject(@Nullable T ret, MessageDataDto msg) {
         if (ret == null) return null;
 
@@ -360,7 +347,7 @@ public class DataSerializer {
                 if (ret instanceof Immutalizable) ((Immutalizable)ret).immutalize();
                 return ret;
             });
-            BaseDao ret = cloneDataObject(orig);
+            BaseDao ret = d.io.clone(orig);
             ret = lintDataObject(ret, msg);
             validateObjectAfterRead(ret, msg);
             return ret;

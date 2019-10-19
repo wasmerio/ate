@@ -4,7 +4,7 @@
 
     <groupId>com.tokera</groupId>
     <artifactId>ate</artifactId>
-    <version>0.2.16</version>
+    <version>0.2.16-SNAPSHOT</version>
     <name>ate</name>
     <description>Distributed immutable data store with strong encryption and authentication</description>
     <developers>

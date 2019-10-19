@@ -1514,6 +1514,23 @@ public class Encryptor implements Runnable
             throw new RuntimeException(ex);
         }
     }
+
+    public @Hash byte[] hashMd5(Iterable<byte[]> datas) {
+        return hashMd5(null, datas);
+    }
+
+    public @Hash byte[] hashMd5(@Salt byte @Nullable [] seed, Iterable<byte[]> datas) {
+        try {
+            MessageDigest digest = (MessageDigest)this.md5digest.clone();
+            if (seed != null) digest.update(seed);
+            for (byte[] data : datas) {
+                digest.update(data);
+            }
+            return digest.digest();
+        } catch (CloneNotSupportedException ex) {
+            throw new RuntimeException(ex);
+        }
+    }
     
     public static @Hash byte[] hashShaStatic(@Salt byte @Nullable [] seed, @PlainText byte[] data) {
         try {
@@ -1566,6 +1583,10 @@ public class Encryptor implements Runnable
 
     public @Hash String hashMd5AndEncode(@PlainText byte[] data) {
         return Base64.encodeBase64URLSafeString(hashMd5(data));
+    }
+
+    public @Hash String hashMd5AndEncode(Iterable<byte[]> datas) {
+        return Base64.encodeBase64URLSafeString(hashMd5(datas));
     }
     
     public byte[] extractKey(CipherParameters key) {

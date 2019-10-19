@@ -315,14 +315,7 @@ public class DataContainer {
     }
 
     private @Nullable BaseDao cloneDataUnderLock(BaseDao orig) {
-        Object cloned = d.merger.cloneObject(orig);
-        if (cloned == null) return null;
-        BaseDao ret = (BaseDao)cloned;
-        BaseDaoInternal.setPartitionKey(ret, BaseDaoInternal.getPartitionKey(orig));
-        BaseDaoInternal.setPreviousVersion(ret, BaseDaoInternal.getPreviousVersion(orig));
-        BaseDaoInternal.setMergesVersions(ret, BaseDaoInternal.getMergesVersions(orig));
-
-        return reconcileMergedData(this.partitionKey, ret, leaves);
+        return reconcileMergedData(this.partitionKey, d.io.clone(orig), leaves);
     }
 
     public @Nullable BaseDao fetchData() {

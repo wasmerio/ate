@@ -230,7 +230,8 @@ public class DataTransaction {
     public boolean uncache(IPartitionKey partitionKey, UUID id)
     {
         PartitionCache c = this.getPartitionCache(partitionKey);
-        return c.entries.remove(id) != null;
+        BaseDao obj = c.entries.remove(id);
+        return obj != null;
     }
 
     public Collection<IPartitionKey> keys() {
@@ -413,6 +414,8 @@ public class DataTransaction {
         }
 
         uncache(partitionKey, entity.getId());
+
+        d.indexingDelegate.invalidate(partitionKey, BaseDaoInternal.getType(entity));
     }
 
     /**
@@ -445,6 +448,8 @@ public class DataTransaction {
 
         put(partitionKey, d.currentRights.getRightsWrite().stream().map(k -> k.key()).collect(Collectors.toSet()));
         put(partitionKey, entity);
+
+        d.indexingDelegate.invalidate(partitionKey, BaseDaoInternal.getType(entity));
     }
 
     /**

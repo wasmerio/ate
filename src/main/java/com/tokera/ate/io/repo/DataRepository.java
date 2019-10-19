@@ -398,6 +398,7 @@ public class DataRepository implements IAteIO {
                     entity = container.fetchData();
                     if (entity != null) {
                         ret.add((T) entity);
+                        trans.cache(container.partitionKey, entity);
                         already.add(id);
                         continue;
                     }
