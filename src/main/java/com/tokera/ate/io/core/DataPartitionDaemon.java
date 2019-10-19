@@ -37,7 +37,7 @@ public abstract class DataPartitionDaemon implements Runnable {
         synchronized (partitionsLock) {
             if (partitions.remove(partition)) {
                 if (partitions.isEmpty()) {
-                    stop();
+                    //stop();
                 } else {
                     start();
                 }
