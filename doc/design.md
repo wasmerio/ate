@@ -225,6 +225,20 @@ public abstract class BaseDao implements Serializable, Immutalizable, IPartition
         return AteDelegate.get().io.viewAsList(this.partitionKey(), clazz, a -> id.equals(joiningField.apply(a)));
     }
 }
+
+public class MyAccount extends BaseDao {
+    @JsonProperty
+    public @DaoId UUID id = UUID.randomUUID();
+    @JsonIgnore
+    public List<MyThing> things() { return innerJoinAsList(MyThing.class, t -> t.accountId); }
+}
+
+public class MyThing extends BaseDao {
+    @JsonProperty
+    public @DaoId UUID id = UUID.randomUUID();
+    @JsonProperty
+    public @DaoId UUID accountId;
+}
 ``` 
    
 ## Distributed Computing Architecture
