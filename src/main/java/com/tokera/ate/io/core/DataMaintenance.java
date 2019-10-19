@@ -188,7 +188,12 @@ public class DataMaintenance extends DataPartitionDaemon {
                         d.currentRights.impersonate(state);
 
                         for (UUID id : toMerge) {
-                            performMerge(partition, id);
+                            try {
+                                performMerge(partition, id);
+                            } catch (Throwable ex) {
+                                if (ex instanceof InterruptedException) throw ex;
+                                this.LOG.warn(ex);
+                            }
                         }
                     });
                 }
