@@ -95,11 +95,13 @@ public class DataPartitionChain {
 
         // If it has no payload then strip it from the chain of trust
         if (data.hasPayload() == false) {
-            this.chainOfTrust.remove(id);
             this.byClazz.compute(header.getPayloadClazzOrThrow(), (a, b) -> {
                 if (b != null) b.remove(id);
                 return b;
             });
+            this.chainOfTrust.remove(id);
+            d.permissionCache.invalidate(header.getPayloadClazzOrThrow(), this.partitionKey(), id);
+            d.indexingDelegate.invalidate(this.partitionKey(), header.getPayloadClazzOrThrow());
             this.maintenanceState.dont_merge(id);
             this.maintenanceState.tombstone(meta.getKey());
             return;

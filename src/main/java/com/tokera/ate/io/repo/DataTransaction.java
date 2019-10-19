@@ -7,6 +7,7 @@ import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.base.BaseDaoInternal;
 import com.tokera.ate.dao.kafka.MessageSerializer;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.delegates.PermissionCacheDelegate;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.core.PartitionKeyComparator;
@@ -150,17 +151,22 @@ public class DataTransaction {
 
     void put(IPartitionKey partitionKey, BaseDao obj) {
         UUID id = obj.getId();
+        String clazzName = BaseDaoInternal.getType(obj);
+
         PartitionContext context = getPartitionMergeContext(partitionKey, true);
         if (context.toPut.containsKey(id) == false) {
             context.toPut.put(id, obj);
             context.toPutOrder.add(id);
-            context.toPutByType.computeIfAbsent(BaseDaoInternal.getType(obj), k -> new LinkedHashSet<>()).add(id);
+            context.toPutByType.computeIfAbsent(clazzName, k -> new LinkedHashSet<>()).add(id);
         }
         if (context.toDelete.remove(id)) {
             context.toDeleteOrder.remove(id);
         }
 
         cache(partitionKey, obj);
+
+        d.permissionCache.invalidate(clazzName, partitionKey, id);
+        d.indexingDelegate.invalidate(partitionKey, clazzName);
     }
 
     void delete(IPartitionKey partitionKey, BaseDao obj) {
@@ -187,6 +193,10 @@ public class DataTransaction {
                 s.remove(id);
                 return s.size() > 0 ? s : null;
             });
+
+            String clazzName = BaseDaoInternal.getType(obj);
+            d.permissionCache.invalidate(clazzName, partitionKey, id);
+            d.indexingDelegate.invalidate(partitionKey, clazzName);
         }
 
         uncache(partitionKey, id);
@@ -416,6 +426,7 @@ public class DataTransaction {
         uncache(partitionKey, entity.getId());
 
         d.indexingDelegate.invalidate(partitionKey, BaseDaoInternal.getType(entity));
+        d.permissionCache.invalidate(BaseDaoInternal.getType(entity), partitionKey, entity.getId());
     }
 
     /**
@@ -448,8 +459,6 @@ public class DataTransaction {
 
         put(partitionKey, d.currentRights.getRightsWrite().stream().map(k -> k.key()).collect(Collectors.toSet()));
         put(partitionKey, entity);
-
-        d.indexingDelegate.invalidate(partitionKey, BaseDaoInternal.getType(entity));
     }
 
     /**

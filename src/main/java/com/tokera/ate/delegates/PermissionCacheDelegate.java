@@ -33,7 +33,7 @@ public class PermissionCacheDelegate {
     private class CacheKey implements Comparable<CacheKey> {
         public final UUID id;
         public final IPartitionKey partKey;
-        public final @Nullable String clazz;
+        public final String clazz;
 
         public CacheKey(IPartitionKey partKey, @Nullable String clazz, UUID id) {
             this.partKey = partKey;
@@ -47,22 +47,15 @@ public class PermissionCacheDelegate {
             if (diff != 0) return diff;
             diff = partitionKeyComparator.compare(partKey, other.partKey);
             if (diff != 0) return diff;
-            if (clazz != null) {
-                if (other.clazz == null) return -1;
-                diff = clazz.compareTo(other.clazz);
-                if (diff != 0) return diff;
-            } else {
-                if (other.clazz != null) return -1;
-            }
+            diff = clazz.compareTo(other.clazz);
+            if (diff != 0) return diff;
             return 0;
         }
 
         @Override
         public int hashCode() {
             int hashCode = this.partKey.hashCode();
-            if (this.clazz != null) {
-                hashCode = 37 * hashCode + this.clazz.hashCode();
-            }
+            hashCode = 37 * hashCode + this.clazz.hashCode();
             hashCode = 37 * hashCode + this.id.hashCode();
             return hashCode;
         }
@@ -81,8 +74,7 @@ public class PermissionCacheDelegate {
             .build();
 
     public void invalidate(String type, IPartitionKey partitionKey, @DaoId UUID id) {
-        CacheKey cacheKey = new CacheKey(partitionKey, type, id);
-        permissionsCache.invalidate(cacheKey);
+        this.permissionsCache.invalidate(new CacheKey(partitionKey, type, id));
     }
 
     private EffectivePermissions computePerms(String type, IPartitionKey partitionKey, @DaoId UUID id, PermissionPhase phase)
@@ -94,6 +86,7 @@ public class PermissionCacheDelegate {
 
     public EffectivePermissions perms(String type, IPartitionKey partitionKey, @DaoId UUID id, PermissionPhase phase)
     {
+        if (type == null) return computePerms(type, partitionKey, id, phase);
         if (phase != PermissionPhase.BeforeMerge) return computePerms(type, partitionKey, id, phase);
 
         CacheKey cacheKey = new CacheKey(partitionKey, type, id);
