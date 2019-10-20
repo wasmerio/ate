@@ -29,25 +29,21 @@ public class DataPartitionChain {
     private final AteDelegate d = AteDelegate.get();
     
     private final IPartitionKey key;
-    private final TopicAndPartition what;
     private final DataMaintenance.State maintenanceState;
     private final ConcurrentMap<UUID, MessageDataHeaderDto> rootOfTrust;
     private final ConcurrentMap<UUID, DataContainer> chainOfTrust;
     private final ConcurrentMap<String, HashSet<UUID>> byClazz;
     private final ConcurrentMap<UUID, MessageSecurityCastleDto> castles;
     private final ConcurrentMap<String, MessagePublicKeyDto> publicKeys;
-    private final Encryptor encryptor;
     
     public DataPartitionChain(IPartitionKey key) {
         this.key = key;
-        this.what = new TopicAndPartition(key);
         this.maintenanceState = d.dataMaintenance.getOrCreateState(key);
         this.rootOfTrust = new ConcurrentHashMap<>();
         this.chainOfTrust = new ConcurrentHashMap<>();
         this.publicKeys = new ConcurrentHashMap<>();
         this.castles = new ConcurrentHashMap<>();
         this.byClazz = new ConcurrentHashMap<>();
-        this.encryptor = Encryptor.getInstance();
 
         this.addTrustKey(d.encryptor.getTrustOfPublicRead().key());
         this.addTrustKey(d.encryptor.getTrustOfPublicWrite().key());
@@ -100,8 +96,6 @@ public class DataPartitionChain {
                 return b;
             });
             this.chainOfTrust.remove(id);
-            d.permissionCache.invalidate(header.getPayloadClazzOrThrow(), this.partitionKey(), id);
-            d.indexingDelegate.invalidate(this.partitionKey(), header.getPayloadClazzOrThrow());
             this.maintenanceState.dont_merge(id);
             this.maintenanceState.tombstone(meta.getKey());
             return;
@@ -117,8 +111,7 @@ public class DataPartitionChain {
             this.byClazz.compute(header.getPayloadClazzOrThrow(), (a, b) -> {
                 if (b == null) b = new HashSet<>();
                 b.add(id);
-                d.permissionCache.invalidate(header.getPayloadClazzOrThrow(), this.partitionKey(), id);
-                d.indexingDelegate.invalidate(this.partitionKey(), header.getPayloadClazzOrThrow());
+                d.invalidation.invalidate(header.getPayloadClazzOrThrow(), this.partitionKey(), id);
                 return b;
             });
             return c;

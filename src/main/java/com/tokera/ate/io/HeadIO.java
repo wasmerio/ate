@@ -4,8 +4,9 @@ import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.base.BaseDaoInternal;
+import com.tokera.ate.dao.enumerations.PermissionPhase;
 import com.tokera.ate.delegates.AteDelegate;
-import com.tokera.ate.dto.TokenDto;
+import com.tokera.ate.dto.EffectivePermissions;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.exceptions.TransactionAbortedException;
 import com.tokera.ate.io.api.*;
@@ -18,7 +19,6 @@ import com.tokera.ate.units.*;
 import com.tokera.ate.io.repo.DataContainer;
 import org.checkerframework.checker.nullness.qual.EnsuresNonNullIf;
 import org.checkerframework.checker.nullness.qual.Nullable;
-import org.jboss.weld.context.bound.BoundRequestContext;
 
 import javax.enterprise.context.ApplicationScoped;
 import javax.inject.Inject;
@@ -668,9 +668,22 @@ public class HeadIO
         return ret;
     }
 
+    @SuppressWarnings("unchecked")
+    public <T extends BaseDao> boolean test(PUUID key, Class<T> type, Predicate<T> predicate) {
+        EffectivePermissions perms = d.permissionCache.perms(type.getName(), key.partition(), key.id(), PermissionPhase.BeforeMerge);
+        if (perms.canRead(d.currentRights)) {
+            BaseDao obj = this.readOrNull(key);
+            if (obj != null) {
+                return predicate.test((T)obj);
+            }
+        }
+        return false;
+    }
+
     /**
      * Produces a materialized view of the data objects visible by this context
      */
+
     public <T extends BaseDao> Stream<T> view(IPartitionKey key, Class<T> type, Predicate<T> predicate) {
         return back.view(key, type, predicate).stream();
     }
@@ -719,11 +732,31 @@ public class HeadIO
         return keys.stream().flatMap(k -> view(k, type, predicate)).collect(Collectors.toMap(mapKey, mapVal));
     }
 
-    public List<BaseDao> readAll() {
-        return readAll(d.requestContext.currentPartitionKey());
+    /** Inner joins **/
+
+    public <T extends BaseDao> Stream<T> join(PUUID key, Class<T> clazz, Function<T, UUID> joiningField) {
+        return d.indexing.join(key, clazz, joiningField).stream();
     }
 
-    public List<BaseDao> readAll(IPartitionKey partitionKey) {
+    public <T extends BaseDao> List<T> joinAsList(PUUID key, Class<T> clazz, Function<T, UUID> joiningField) {
+        return d.indexing.join(key, clazz, joiningField);
+    }
+
+    public <T extends BaseDao> Set<T> joinAsSet(PUUID key, Class<T> clazz, Function<T, UUID> joiningField) {
+        return d.indexing.join(key, clazz, joiningField).stream().collect(Collectors.toSet());
+    }
+
+    public <T extends BaseDao, K, V> Map<K, V> joinAsMap(PUUID key, Class<T> clazz, Function<T, UUID> joiningField, Function<T, K> mapKey, Function<T, V> mapVal) {
+        return d.indexing.join(key, clazz, joiningField).stream().collect(Collectors.toMap(mapKey, mapVal));
+    }
+
+    /** Full table scans **/
+
+    public List<BaseDao> all() {
+        return all(d.requestContext.currentPartitionKey());
+    }
+
+    public List<BaseDao> all(IPartitionKey partitionKey) {
         List<BaseDao> ret = back.view(partitionKey, a -> true);
         for (BaseDao entity : ret) {
             currentTransaction().cache(partitionKey, entity);
@@ -731,15 +764,15 @@ public class HeadIO
         return ret;
     }
 
-    public <T extends BaseDao> List<T> readAll(Collection<IPartitionKey> keys, Class<T> type) {
-        return keys.stream().flatMap(k -> readAll(k, type).stream()).collect(Collectors.toList());
+    public <T extends BaseDao> List<T> all(Collection<IPartitionKey> keys, Class<T> type) {
+        return keys.stream().flatMap(k -> all(k, type).stream()).collect(Collectors.toList());
     }
 
-    public <T extends BaseDao> List<T> readAll(Class<T> type) {
-        return readAll(d.requestContext.currentPartitionKey(), type);
+    public <T extends BaseDao> List<T> all(Class<T> type) {
+        return all(d.requestContext.currentPartitionKey(), type);
     }
 
-    public <T extends BaseDao> List<T> readAll(IPartitionKey partitionKey, Class<T> type) {
+    public <T extends BaseDao> List<T> all(IPartitionKey partitionKey, Class<T> type) {
         List<T> ret = back.view(partitionKey, type, a -> true);
         for (BaseDao entity : ret) {
             currentTransaction().cache(partitionKey, entity);

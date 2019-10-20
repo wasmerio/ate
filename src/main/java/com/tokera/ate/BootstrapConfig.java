@@ -71,7 +71,7 @@ public class BootstrapConfig {
     private int dataMaintenanceWindow = 30000;
     private int permissionsCacheLimit = 100000;
     private int indexingMaximumViewsPerTable = 500;
-    private int indexingExpireDelay = 120000;
+    private int indexingExpireDelay = 300000;
     private boolean enableAutomaticIndexing = true;
 
     private ConcurrentHashMap<String, Properties> propertiesCache = new ConcurrentHashMap<>();

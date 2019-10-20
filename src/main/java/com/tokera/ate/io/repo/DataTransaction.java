@@ -1,18 +1,15 @@
 package com.tokera.ate.io.repo;
 
-import com.google.common.collect.Multimap;
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.base.BaseDaoInternal;
 import com.tokera.ate.dao.kafka.MessageSerializer;
 import com.tokera.ate.delegates.AteDelegate;
-import com.tokera.ate.delegates.PermissionCacheDelegate;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.core.PartitionKeyComparator;
 import org.checkerframework.checker.nullness.qual.Nullable;
-import org.checkerframework.com.google.common.collect.HashMultimap;
 
 import java.util.*;
 import java.util.stream.Collectors;
@@ -164,9 +161,6 @@ public class DataTransaction {
         }
 
         cache(partitionKey, obj);
-
-        d.permissionCache.invalidate(clazzName, partitionKey, id);
-        d.indexingDelegate.invalidate(partitionKey, clazzName);
     }
 
     void delete(IPartitionKey partitionKey, BaseDao obj) {
@@ -195,8 +189,6 @@ public class DataTransaction {
             });
 
             String clazzName = BaseDaoInternal.getType(obj);
-            d.permissionCache.invalidate(clazzName, partitionKey, id);
-            d.indexingDelegate.invalidate(partitionKey, clazzName);
         }
 
         uncache(partitionKey, id);
@@ -270,7 +262,7 @@ public class DataTransaction {
     }
 
     @SuppressWarnings("unchecked")
-    <T extends BaseDao> Iterable<T> putsByType(IPartitionKey partitionKey, Class<T> clazz) {
+    public <T extends BaseDao> Iterable<T> putsByType(IPartitionKey partitionKey, Class<T> clazz) {
         PartitionContext context = getPartitionMergeContext(partitionKey, false);
         if (context == null) return Collections.emptyList();
         LinkedHashSet<UUID> list = MapTools.getOrNull(context.toPutByType, clazz.getName());
@@ -280,7 +272,7 @@ public class DataTransaction {
                 .collect(Collectors.toList());
     }
 
-    Iterable<BaseDao> putsByType(IPartitionKey partitionKey, String clazz) {
+    public Iterable<BaseDao> putsByType(IPartitionKey partitionKey, String clazz) {
         PartitionContext context = getPartitionMergeContext(partitionKey, false);
         if (context == null) return Collections.emptyList();
         LinkedHashSet<UUID> list = MapTools.getOrNull(context.toPutByType, clazz);
@@ -290,13 +282,14 @@ public class DataTransaction {
                 .collect(Collectors.toList());
     }
 
-    Iterable<UUID> deletes(IPartitionKey partitionKey) {
+    public Iterable<UUID> deletes(IPartitionKey partitionKey) {
         PartitionContext context = getPartitionMergeContext(partitionKey, false);
+        if (context == null) return Collections.emptyList();
         return context.toDeleteOrder.stream().collect(Collectors.toList());
     }
 
     public boolean isWritten(PUUID id) {
-        return this.exists(id.partition(), id.id());
+        return this.isWritten(id.partition(), id.id());
     }
 
     public boolean isWritten(IPartitionKey partitionKey, UUID id)
@@ -304,6 +297,17 @@ public class DataTransaction {
         PartitionContext context = getPartitionMergeContext(partitionKey, false);
         if (context == null) return false;
         return context.toPut.containsKey(id);
+    }
+
+    public boolean isWrittenOrSaved(PUUID id) {
+        return this.isWrittenOrSaved(id.partition(), id.id());
+    }
+
+    public boolean isWrittenOrSaved(IPartitionKey partitionKey, UUID id)
+    {
+        PartitionContext context = getPartitionMergeContext(partitionKey, false);
+        if (context == null) return false;
+        return context.toPut.containsKey(id) || context.savedDatas.containsKey(id);
     }
 
     public boolean isDeleted(PUUID id) {
@@ -424,9 +428,6 @@ public class DataTransaction {
         }
 
         uncache(partitionKey, entity.getId());
-
-        d.indexingDelegate.invalidate(partitionKey, BaseDaoInternal.getType(entity));
-        d.permissionCache.invalidate(BaseDaoInternal.getType(entity), partitionKey, entity.getId());
     }
 
     /**

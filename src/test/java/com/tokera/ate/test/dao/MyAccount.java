@@ -22,7 +22,6 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Dependent
 @YamlTag("dao.myaccount")
@@ -56,7 +55,7 @@ public class MyAccount extends MyBaseAccount {
     public CountLong counter = new CountLong(0L);
 
     @JsonIgnore
-    public List<MyThing> things() { return innerJoinAsList(MyThing.class, t -> t.accountId); }
+    public List<MyThing> things() { return joinAsList(MyThing.class, t -> t.accountId); }
 
     public MyAccount() {
         this.email = "test@test.org";
@@ -69,7 +68,7 @@ public class MyAccount extends MyBaseAccount {
     }
 
     public List<MyThing> myThings() {
-        return innerJoinAsList(MyThing.class, t -> t.accountId);
+        return joinAsList(MyThing.class, t -> t.accountId);
     }
 
 

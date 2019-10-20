@@ -130,19 +130,19 @@ public abstract class BaseDao implements Serializable, Immutalizable, IPartition
         _previousVersion = previousVersion;
     }
 
-    public <T extends BaseDao> Stream<T> innerJoin(Class<T> clazz, Function<T, UUID> joiningField) {
-        return innerJoinAsList(clazz, joiningField).stream();
+    public <T extends BaseDao> Stream<T> join(Class<T> clazz, Function<T, UUID> joiningField) {
+        return AteDelegate.get().io.join(this.addressableId(), clazz, joiningField);
     }
 
-    public <T extends BaseDao> List<T> innerJoinAsList(Class<T> clazz, Function<T, UUID> joiningField) {
-        return AteDelegate.get().indexingDelegate.innerJoin(this, clazz, joiningField);
+    public <T extends BaseDao> List<T> joinAsList(Class<T> clazz, Function<T, UUID> joiningField) {
+        return AteDelegate.get().io.joinAsList(this.addressableId(), clazz, joiningField);
     }
 
-    public <T extends BaseDao> Set<T> innerJoinAsSet(Class<T> clazz, Function<T, UUID> joiningField) {
-        return innerJoin(clazz, joiningField).collect(Collectors.toSet());
+    public <T extends BaseDao> Set<T> joinAsSet(Class<T> clazz, Function<T, UUID> joiningField) {
+        return AteDelegate.get().io.joinAsSet(this.addressableId(), clazz, joiningField);
     }
 
-    public <T extends BaseDao, K, V> Map<K, V> innerJoinAsMap(Class<T> clazz, Function<T, UUID> joiningField, Function<T, K> mapKey, Function<T, V> mapVal) {
-        return innerJoin(clazz, joiningField).collect(Collectors.toMap(mapKey, mapVal));
+    public <T extends BaseDao, K, V> Map<K, V> joinAsMap(Class<T> clazz, Function<T, UUID> joiningField, Function<T, K> mapKey, Function<T, V> mapVal) {
+        return AteDelegate.get().io.joinAsMap(this.addressableId(), clazz, joiningField, mapKey, mapVal);
     }
 }

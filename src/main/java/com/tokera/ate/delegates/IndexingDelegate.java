@@ -2,45 +2,34 @@ package com.tokera.ate.delegates;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
+import com.tokera.ate.dao.enumerations.PermissionPhase;
 import com.tokera.ate.io.api.IPartitionKey;
-import com.tokera.ate.io.core.PartitionKeyComparator;
+import com.tokera.ate.io.repo.DataTransaction;
 
 import javax.enterprise.context.ApplicationScoped;
-import java.lang.ref.WeakReference;
-import java.util.Collections;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @ApplicationScoped
 public class IndexingDelegate {
     private final AteDelegate d = AteDelegate.get();
-    private final PartitionKeyComparator partitionKeyComparator = new PartitionKeyComparator();
-    private final Cache<TypeKey, Context> contexts;
+    private final ConcurrentHashMap<TypeKey, Context> contexts = new ConcurrentHashMap<>();
 
-    public IndexingDelegate() {
-        contexts = CacheBuilder.newBuilder()
-                .build();
-    }
-
-    private class TypeKey implements Comparable<TypeKey> {
+    private class TypeKey{
         private final IPartitionKey partKey;
         private final String otherClazzName;
 
         private TypeKey(IPartitionKey partKey, String otherClazzName) {
             this.partKey = partKey;
             this.otherClazzName = otherClazzName;
-        }
-
-        @Override
-        public int compareTo(TypeKey other) {
-            int diff = partitionKeyComparator.compare(partKey, other.partKey);
-            if (diff != 0) return diff;
-            return otherClazzName.compareTo(other.otherClazzName);
         }
 
         @Override
@@ -51,9 +40,12 @@ public class IndexingDelegate {
         }
 
         @Override
-        public boolean equals(Object other) {
-            if (other instanceof TypeKey) {
-                return compareTo((TypeKey)other) == 0;
+        public boolean equals(Object _other) {
+            if (_other instanceof TypeKey) {
+                TypeKey other = (TypeKey)_other;
+                if (partKey.equals(other.partKey) == false) return false;
+                if (otherClazzName.equals(other.otherClazzName) == false) return false;
+                return true;
             }
             return false;
         }
@@ -71,7 +63,7 @@ public class IndexingDelegate {
                     .build();
         }
 
-        private class IndexKey<T extends BaseDao> implements Comparable<IndexKey> {
+        private class IndexKey<T extends BaseDao> {
             private final UUID joiningVal;
             private final Function<T, UUID> joiningKeyMap;
             private final String joiningKeyMapClass;
@@ -87,15 +79,6 @@ public class IndexingDelegate {
             }
 
             @Override
-            public int compareTo(IndexKey other) {
-                int diff = this.joiningVal.compareTo(other.joiningVal);
-                if (diff != 0) return diff;
-                diff = joiningKeyMapClass.compareTo(other.joiningKeyMapClass);
-                if (diff != 0) return diff;
-                return rightsHash.compareTo(other.rightsHash);
-            }
-
-            @Override
             public int hashCode() {
                 int hashCode = this.joiningVal.hashCode();
                 hashCode = 37 * hashCode + this.joiningKeyMapClass.hashCode();
@@ -104,41 +87,81 @@ public class IndexingDelegate {
             }
 
             @Override
-            public boolean equals(Object other) {
-                if (other instanceof IndexKey) {
-                    return compareTo((IndexKey)other) == 0;
+            public boolean equals(Object _other) {
+                if (_other instanceof IndexKey) {
+                    IndexKey other = (IndexKey)_other;
+                    if (this.joiningVal.equals(other.joiningVal) == false) return false;
+                    if (this.joiningKeyMapClass.equals(other.joiningKeyMapClass) == false) return false;
+                    if (this.rightsHash.equals(other.rightsHash) == false) return false;
+                    return true;
                 }
                 return false;
             }
 
             private class Table {
-                private volatile WeakReference<List<UUID>> weakJoins;
+                private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+                private final LinkedHashSet<UUID> values;
+                private final LinkedHashSet<UUID> invalidateList;
 
                 private Table() {
-                    this.weakJoins = new WeakReference<>(build());
-                }
-
-                private List<UUID> build() {
-                    return Collections.unmodifiableList(
+                    values = new LinkedHashSet<>(Collections.unmodifiableList(
                             d.io.view(typeKey.partKey, otherClazz, a -> joiningVal.equals(joiningKeyMap.apply(a)))
-                            .map(d -> d.getId())
-                            .collect(Collectors.toList())
-                        );
+                                    .map(d -> d.getId())
+                                    .collect(Collectors.toList())
+                        ));
+                    invalidateList = new LinkedHashSet<>();
                 }
 
                 @SuppressWarnings("unchecked")
-                private List<T> fetch() {
-                    List<UUID> joins = this.weakJoins.get();
-                    if (joins == null) {
-                        joins = build();
-                        this.weakJoins = new WeakReference<>(joins);
+                private List<UUID> fetch() {
+                    Lock r = lock.readLock();
+                    r.lock();
+                    try {
+                        if (invalidateList.isEmpty()) {
+                            return new ArrayList<>(values);
+                        }
+                    } finally {
+                        r.unlock();
                     }
-                    return d.io.read(typeKey.partKey, joins, otherClazz);
+
+                    Lock w = lock.readLock();
+                    w.lock();
+                    try {
+                        for (UUID id : invalidateList) {
+                            if (d.io.test(PUUID.from(typeKey.partKey, id), otherClazz, a -> joiningVal.equals(joiningKeyMap.apply(a)))) {
+                                if (values.contains(id) == false) {
+                                    values.add(id);
+                                }
+                            } else {
+                                values.remove(id);
+                            }
+                        }
+                        invalidateList.clear();
+                        return new ArrayList<>(values);
+                    } finally {
+                        w.unlock();
+                    }
+                }
+
+                public void invalidate(UUID id) {
+                    Lock l = lock.writeLock();
+                    l.lock();
+                    try {
+                        invalidateList.add(id);
+                    } finally {
+                        l.unlock();
+                    }
                 }
             }
 
             private Table createTable() {
                 return new Table();
+            }
+        }
+
+        public void invalidate(UUID id) {
+            for (IndexKey.Table table : tables.asMap().values()) {
+                table.invalidate(id);
             }
         }
 
@@ -152,23 +175,39 @@ public class IndexingDelegate {
         }
     }
 
-    public void invalidate(IPartitionKey partKey, String clazzName) {
-        contexts.invalidate(new TypeKey(partKey, clazzName));
+    public void invalidate(String clazzName, IPartitionKey partKey, UUID id) {
+        contexts.compute(new TypeKey(partKey, clazzName), (k, c) -> {
+            if (c != null) c.invalidate(id);
+            return c;
+        });
+    }
+
+    private <T extends BaseDao> List<UUID> joinFromTransaction(PUUID id, Class<T> otherClazz, Function<T, UUID> joiningKeyMap, List<UUID> ret) {
+        DataTransaction trans = d.io.currentTransaction();
+        for (T obj : trans.putsByType(id.partition(), otherClazz)) {
+            if (id.id().equals(joiningKeyMap.apply(obj))) {
+                ret.add(obj.getId());
+            }
+        }
+        trans.deletes(id.partition()).forEach(a -> ret.remove(a));
+        return ret;
     }
 
     @SuppressWarnings("unchecked")
-    public <T extends BaseDao> List<T> innerJoin(BaseDao obj, Class<T> otherClazz, Function<T, UUID> joiningKeyMap) {
+    public <T extends BaseDao> List<T> join(PUUID id, Class<T> otherClazz, Function<T, UUID> joiningKeyMap) {
         if (d.bootstrapConfig.isEnableAutomaticIndexing()) {
             try {
-                TypeKey masterKey = new TypeKey(obj.partitionKey(), otherClazz.getName());
-                Context context = contexts.get(masterKey, () -> new Context(masterKey));
-                return context.computeTable(context.createIndexKey(otherClazz, obj.getId(), joiningKeyMap)).fetch();
+                TypeKey masterKey = new TypeKey(id.partition(), otherClazz.getName());
+                Context context = contexts.computeIfAbsent(masterKey, k -> new Context(masterKey));
+                List<UUID> ret = context.computeTable(context.createIndexKey(otherClazz, id.id(), joiningKeyMap)).fetch();
+                ret = joinFromTransaction(id, otherClazz, joiningKeyMap, ret);
+                return d.io.read(id.partition(), ret, otherClazz);
             } catch (ExecutionException e) {
                 throw new RuntimeException(e);
             }
         }
 
         // Otherwise we fall back to table scans
-        return d.io.viewAsList(obj.partitionKey(), otherClazz, a -> obj.getId().equals(joiningKeyMap.apply(a)));
+        return d.io.viewAsList(id.partition(), otherClazz, a -> id.id().equals(joiningKeyMap.apply(a)));
     }
 }
