@@ -195,6 +195,7 @@ public class IndexingDelegate {
 
     @SuppressWarnings("unchecked")
     public <T extends BaseDao> List<T> join(PUUID id, Class<T> otherClazz, Function<T, UUID> joiningKeyMap) {
+        d.requestAccessLog.recordRead(otherClazz);
         if (d.bootstrapConfig.isEnableAutomaticIndexing()) {
             try {
                 TypeKey masterKey = new TypeKey(id.partition(), otherClazz.getName());
