@@ -124,7 +124,7 @@ public class IndexingDelegate {
                         r.unlock();
                     }
 
-                    Lock w = lock.readLock();
+                    Lock w = lock.writeLock();
                     w.lock();
                     try {
                         for (UUID id : invalidateList) {
