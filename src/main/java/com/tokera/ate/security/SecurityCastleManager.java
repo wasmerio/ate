@@ -34,27 +34,6 @@ public class SecurityCastleManager {
     private final Map<UUID, SecurityCastleContext> lookupCastles = new HashMap<>();
 
     /**
-     * @return Hash that represents a unique set of read permissions
-     */
-    public String computePermissionsHash(EffectivePermissions permissions) {
-        String seed = new PartitionKeySerializer().write(permissions.partitionKey);
-        return d.encryptor.hashShaAndEncode(seed, permissions.rolesRead);
-    }
-
-    /**
-     * @return Hash that represents a unique set of read permissions
-     */
-    public String computePermissionsHash(IPartitionKey key, Iterable<String> roles) {
-        String seed = new PartitionKeySerializer().write(key);
-        return d.encryptor.hashShaAndEncode(seed, roles);
-    }
-
-    public String computePermissionsHash(IPartitionKey key, MessageSecurityCastleDto castle) {
-        String seed = new PartitionKeySerializer().write(key);
-        return d.encryptor.hashShaAndEncode(seed, castle.getGates().stream().map(g -> g.getPublicKeyHash())::iterator);
-    }
-
-    /**
      * @param partitionKey Partition key that the public keys exist within
      * @param hashes List of public key hashes that will be looked up in the partition
      * @return Set of public keys that can be used for encrypting or signing data
@@ -93,7 +72,7 @@ public class SecurityCastleManager {
      */
     public SecurityCastleContext makeCastle(IPartitionKey partitionKey, List<String> roles)
     {
-        String compositeHash = computePermissionsHash(partitionKey, roles);
+        String compositeHash = d.encryptor.computePermissionsHash(partitionKey, roles);
         ISecurityCastleFactory factory = d.io.securityCastleFactory();
 
         // Perhaps we can reuse a context that already exists in memory

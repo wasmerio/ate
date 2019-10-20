@@ -47,6 +47,7 @@ public class RamPartitionBridge implements IDataPartitionBridge {
         String key = MessageSerializer.getKey(msg);
         MessageBundle bundle = d.ramDataRepository.write(where, key, flat);
         this.subscriber.feed(this.where, Collections.singletonList(bundle), true);
+        this.subscriber.idle(this.where);
     }
 
     @Override

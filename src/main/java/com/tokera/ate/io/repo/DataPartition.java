@@ -100,4 +100,8 @@ public class DataPartition {
             }
         }
     }
+
+    public void idle() {
+        chain.idle();
+    }
 }

@@ -42,7 +42,7 @@ public interface ISecurityCastleFactory {
      * Finds an existing castle context that matches the roles we require
      * @param partitionKey The partition that this key is related to
      * @param compositeHash The composite key that describes the public keys that this castle represents
-     * @param key Decryption key used to read the castle AES key
+     * @param decryptKey Decryption key used to read the castle AES key
      * @return Security context of the found castle (or null if none is found)
      */
     @Nullable SecurityCastleContext findContext(IPartitionKey partitionKey, String compositeHash, PrivateKeyWithSeedDto decryptKey);

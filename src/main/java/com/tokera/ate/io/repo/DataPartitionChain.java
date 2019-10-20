@@ -1,5 +1,8 @@
 package com.tokera.ate.io.repo;
 
+import com.google.common.collect.ConcurrentHashMultiset;
+import com.tokera.ate.common.ConcurrentQueue;
+import com.tokera.ate.common.ConcurrentStack;
 import com.tokera.ate.dao.TopicAndPartition;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.kafka.MessageSerializer;
@@ -18,6 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
 import com.tokera.ate.units.Hash;
+import edu.emory.mathcs.backport.java.util.concurrent.ConcurrentSkipListMap;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.bouncycastle.crypto.InvalidCipherTextException;
 
@@ -36,6 +40,7 @@ public class DataPartitionChain {
     private final ConcurrentMap<UUID, MessageSecurityCastleDto> castles;
     private final ConcurrentMap<String, MessageSecurityCastleDto> castleByHash;
     private final ConcurrentMap<String, MessagePublicKeyDto> publicKeys;
+    private final ConcurrentMap<UUID, ConcurrentStack<MessageDataMetaDto>> deferredLoad;
     
     public DataPartitionChain(IPartitionKey key) {
         this.key = key;
@@ -46,6 +51,7 @@ public class DataPartitionChain {
         this.castles = new ConcurrentHashMap<>();
         this.castleByHash = new ConcurrentHashMap<>();
         this.byClazz = new ConcurrentHashMap<>();
+        this.deferredLoad = new ConcurrentHashMap<>();
 
         this.addTrustKey(d.encryptor.getTrustOfPublicRead().key());
         this.addTrustKey(d.encryptor.getTrustOfPublicWrite().key());
@@ -138,7 +144,7 @@ public class DataPartitionChain {
 
         this.castles.put(castle.getIdOrThrow(), castle);
 
-        String hash = d.securityCastleManager.computePermissionsHash(partitionKey(), castle);
+        String hash = d.encryptor.computePermissionsHash(partitionKey(), castle);
         this.castleByHash.put(hash, castle);
     }
     
@@ -211,18 +217,51 @@ public class DataPartitionChain {
         }
     }
     
-    public boolean promoteChainEntry(MessageDataMetaDto msg, boolean invokeCallbacks, @Nullable LoggerHook LOG) {
+    public boolean promoteChainEntry(MessageDataMetaDto msg, boolean invokeCallbacks, boolean allowDefer, @Nullable LoggerHook LOG) {
         MessageDataDto data = msg.getData();
+        MessageDataHeaderDto header = data.getHeader();
+
+        // If the parent does not yet exist then defer it
+        UUID parent = header.getParentId();
+        if (parent != null && allowDefer) {
+            if (this.chainOfTrust.containsKey(parent) == false) {
+                this.deferredLoad.compute(parent, (a, b) -> {
+                    if (b == null) b = new ConcurrentStack<>();
+                    b.push(msg);
+                    return b;
+                });
+                return true;
+            }
+        }
 
         // Validate the data
+        UUID id = header.getIdOrThrow();
         if (validateTrustStructureAndWritabilityWithoutSavedData(data, LOG) == false) {
-            this.maintenanceState.merge(msg.getHeader().getIdOrThrow(), true);
+            if (this.chainOfTrust.containsKey(id)) {
+                this.maintenanceState.merge(id, true);
+            }
             return false;
         }
         
         // Add it to the trust tree and return success
         addTrustData(data, msg.getMeta(), invokeCallbacks);
+
+        // If there is anything deferred then process it now
+        ConcurrentStack<MessageDataMetaDto> queue = this.deferredLoad.remove(id);
+        if (queue != null) {
+            for (;;) {
+                MessageDataMetaDto deferred = queue.pop();
+                if (deferred == null) break;
+                promoteChainEntry(deferred, invokeCallbacks, false, LOG);
+            }
+        }
+
+        // Success
         return true;
+    }
+
+    public void idle() {
+        this.deferredLoad.clear();
     }
     
     public boolean validate(MessageBaseDto msg, @Nullable LoggerHook LOG)
@@ -289,7 +328,7 @@ public class DataPartitionChain {
         }
 
         // Process it
-        return this.promoteChainEntry(new MessageDataMetaDto(data, meta), invokeCallbacks, LOG);
+        return this.promoteChainEntry(new MessageDataMetaDto(data, meta), invokeCallbacks, true, LOG);
     }
 
 

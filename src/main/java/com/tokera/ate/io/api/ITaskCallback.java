@@ -14,7 +14,7 @@ public interface ITaskCallback<T extends BaseDao> {
 
     /**
      * Unique ID of this callback
-     * @return
+     * @return Unique ID of the hook which is used for the locking system
      */
     UUID id();
 

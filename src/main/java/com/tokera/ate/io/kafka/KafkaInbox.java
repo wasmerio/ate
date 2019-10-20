@@ -112,7 +112,10 @@ public class KafkaInbox extends DataPartitionDaemon {
     // Called when the main thread is idle
     private void idle()
     {
-
+        DataSubscriber subscriber = AteDelegate.get().storageFactory.get().backend();
+        this.listPartitions().forEach(where -> {
+            subscriber.idle(where);
+        });
     }
 
     private void poll()
@@ -151,9 +154,8 @@ public class KafkaInbox extends DataPartitionDaemon {
                 .add(new MessageBundle(record.key(), record.partition(), record.offset(), record.value()));
         }
 
-        DataSubscriber subscriber = AteDelegate.get().storageFactory.get().backend();
-
         // Now in a parallel engine that increases throughput we stream all the data into the repositories
+        DataSubscriber subscriber = AteDelegate.get().storageFactory.get().backend();
         msgs.entrySet()
             .parallelStream()
             .forEach(e -> subscriber.feed(e.getKey(), e.getValue(), false));

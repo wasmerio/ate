@@ -1,19 +1,14 @@
 package com.tokera.ate.io.task;
 
 import com.tokera.ate.dao.base.BaseDao;
-import com.tokera.ate.delegates.AteDelegate;
-import com.tokera.ate.dto.TokenDto;
 import com.tokera.ate.dto.msg.MessageDataMetaDto;
 import com.tokera.ate.io.api.IHook;
 import com.tokera.ate.io.api.IHookCallback;
 import com.tokera.ate.io.api.IPartitionKey;
-import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.lang.ref.WeakReference;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 public class Hook<T extends BaseDao> implements IHook
 {

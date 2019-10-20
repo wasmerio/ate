@@ -158,4 +158,9 @@ public class DataSubscriber {
         DataPartition ret = this.partitions.getIfPresent(where);
         if (ret != null) ret.feed(msgs, throwOnError);
     }
+
+    public void idle(TopicAndPartition where) {
+        DataPartition ret = this.partitions.getIfPresent(where);
+        if (ret != null) ret.idle();
+    }
 }

@@ -13,15 +13,18 @@ import com.tokera.ate.dao.msg.MessagePrivateKey;
 import com.tokera.ate.dao.msg.MessagePublicKey;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.delegates.ResourceFileDelegate;
+import com.tokera.ate.dto.EffectivePermissions;
 import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.KeysPreLoadConfig;
 import com.tokera.ate.dto.msg.MessageKeyPartDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
+import com.tokera.ate.dto.msg.MessageSecurityCastleDto;
 import com.tokera.ate.enumerations.PrivateKeyType;
 import com.tokera.ate.exceptions.KeyGenerationException;
 import com.tokera.ate.io.api.IAteIO;
 import com.tokera.ate.io.api.IPartitionKey;
+import com.tokera.ate.providers.PartitionKeySerializer;
 import com.tokera.ate.qualifiers.BackendStorageSystem;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.security.core.*;
@@ -1552,6 +1555,27 @@ public class Encryptor implements Runnable
 
     public @Hash String hashShaAndEncode(@Salt String seed, Iterable<@PlainText String> datas1, Iterable<@PlainText String> datas2) {
         return hashShaAndEncode(Iterables.concat(Collections.singletonList(seed), Iterables.concat(datas1, datas2)));
+    }
+
+    /**
+     * @return Hash that represents a unique set of read permissions
+     */
+    public @Hash String computePermissionsHash(EffectivePermissions permissions) {
+        String seed = new PartitionKeySerializer().write(permissions.partitionKey);
+        return d.encryptor.hashShaAndEncode(seed, permissions.rolesRead);
+    }
+
+    /**
+     * @return Hash that represents a unique set of read permissions
+     */
+    public @Hash String computePermissionsHash(IPartitionKey key, Iterable<String> roles) {
+        String seed = new PartitionKeySerializer().write(key);
+        return d.encryptor.hashShaAndEncode(seed, roles);
+    }
+
+    public @Hash String computePermissionsHash(IPartitionKey key, MessageSecurityCastleDto castle) {
+        String seed = new PartitionKeySerializer().write(key);
+        return hashShaAndEncode(seed, castle.getGates().stream().map(g -> g.getPublicKeyHash())::iterator);
     }
 
     @SuppressWarnings("known.nonnull")
