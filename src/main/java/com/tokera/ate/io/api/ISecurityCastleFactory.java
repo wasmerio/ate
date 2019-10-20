@@ -3,12 +3,16 @@ package com.tokera.ate.io.api;
 import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
+import com.tokera.ate.security.SecurityCastleContext;
 import com.tokera.ate.units.Hash;
 import com.tokera.ate.units.Secret;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
+import java.util.Collection;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 /**
  * Interface used to getData and set the encryption keys under a particular metadata context
@@ -33,6 +37,15 @@ public interface ISecurityCastleFactory {
      * @param accessKeys List of the access keys that will be able to getData the secret
      */
     void putSecret(IPartitionKey partitionKey, UUID id, @Secret byte[] secret, Iterable<MessagePublicKeyDto> accessKeys);
+
+    /**
+     * Finds an existing castle context that matches the roles we require
+     * @param partitionKey The partition that this key is related to
+     * @param compositeHash The composite key that describes the public keys that this castle represents
+     * @param key Decryption key used to read the castle AES key
+     * @return Security context of the found castle (or null if none is found)
+     */
+    @Nullable SecurityCastleContext findContext(IPartitionKey partitionKey, String compositeHash, PrivateKeyWithSeedDto decryptKey);
 
     /**
      * @param partitionKey The partition that this secure key is related to

@@ -1,15 +1,19 @@
 package com.tokera.ate.security;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.tokera.ate.common.MapTools;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.EffectivePermissions;
 import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
+import com.tokera.ate.dto.msg.MessageSecurityCastleDto;
 import com.tokera.ate.io.api.IPartitionKey;
+import com.tokera.ate.io.api.ISecurityCastleFactory;
 import com.tokera.ate.io.repo.DataPartitionChain;
 
 import java.util.*;
+import java.util.stream.Collectors;
 import javax.enterprise.context.RequestScoped;
 
 import com.tokera.ate.io.repo.DataTransaction;
@@ -40,9 +44,14 @@ public class SecurityCastleManager {
     /**
      * @return Hash that represents a unique set of read permissions
      */
-    public String computePermissionsHash(IPartitionKey key, List<String> roles) {
+    public String computePermissionsHash(IPartitionKey key, Iterable<String> roles) {
         String seed = new PartitionKeySerializer().write(key);
         return d.encryptor.hashShaAndEncode(seed, roles);
+    }
+
+    public String computePermissionsHash(IPartitionKey key, MessageSecurityCastleDto castle) {
+        String seed = new PartitionKeySerializer().write(key);
+        return d.encryptor.hashShaAndEncode(seed, castle.getGates().stream().map(g -> g.getPublicKeyHash())::iterator);
     }
 
     /**
@@ -50,9 +59,9 @@ public class SecurityCastleManager {
      * @param hashes List of public key hashes that will be looked up in the partition
      * @return Set of public keys that can be used for encrypting or signing data
      */
-    public Set<MessagePublicKeyDto> findPublicKeys(IPartitionKey partitionKey, Iterable<String> hashes) {
+    public Collection<MessagePublicKeyDto> findPublicKeys(IPartitionKey partitionKey, Collection<String> hashes) {
         DataPartitionChain chain = d.io.backend().getChain(partitionKey, true);
-        Set<MessagePublicKeyDto> ret = new HashSet<>();
+        LinkedHashSet<MessagePublicKeyDto> ret = new LinkedHashSet<>();
         for (String publicKeyHash : hashes)
         {
             MessagePublicKeyDto publicKey = d.requestContext.currentTransaction().findPublicKey(partitionKey, publicKeyHash);
@@ -84,25 +93,42 @@ public class SecurityCastleManager {
      */
     public SecurityCastleContext makeCastle(IPartitionKey partitionKey, List<String> roles)
     {
-        String hash = computePermissionsHash(partitionKey, roles);
+        String compositeHash = computePermissionsHash(partitionKey, roles);
+        ISecurityCastleFactory factory = d.io.securityCastleFactory();
 
         // Perhaps we can reuse a context that already exists in memory
         if (d.bootstrapConfig.getDefaultAutomaticKeyRotation() == false) {
-            SecurityCastleContext ret = MapTools.getOrNull(localCastles, hash);
+            SecurityCastleContext ret = MapTools.getOrNull(localCastles, compositeHash);
             if (ret != null) return ret;
+
+            // Get our private keys, if we have one that matches the role then we can use this to decode
+            // an existing castle and reuse it (otherwise we'll end up with lots of castles!)
+            for (PrivateKeyWithSeedDto key : d.currentRights.getRightsRead()) {
+                if (roles.contains(key.publicHash()))
+                {
+                    // Now search the factor
+                    ret = factory.findContext(partitionKey, compositeHash, key);
+                    if (ret != null) {
+                        localCastles.put(compositeHash, ret);
+                        return ret;
+                    }
+
+                    // We couldnt find one so fall back to creating a new one
+                    break;
+                }
+            }
         }
 
         // Lets create a new castle for the request context (or reuse one if one is already started in this request)
-        return localCastles.computeIfAbsent(hash,
+        return localCastles.computeIfAbsent(compositeHash,
                 h ->
                 {
                     UUID castleId = UUID.randomUUID();
                     @Secret byte[] key = Base64.decodeBase64(d.encryptor.generateSecret64());
-                    d.io.securityCastleFactory()
-                            .putSecret( partitionKey,
-                                        castleId,
-                                        key,
-                                        findPublicKeys(partitionKey, roles));
+                    factory.putSecret( partitionKey,
+                                       castleId,
+                                       key,
+                                       findPublicKeys(partitionKey, roles));
 
                     SecurityCastleContext ret = new SecurityCastleContext(castleId, key);
                     lookupCastles.put(castleId, ret);
@@ -117,7 +143,7 @@ public class SecurityCastleManager {
      * @param accessKeys List of private access keys that can be used to enter the castle
      * @return Reference to castle context that allows the decryption of data previously saved
      */
-    public @Nullable SecurityCastleContext enterCastle(IPartitionKey partitionKey, UUID castleId, Set<PrivateKeyWithSeedDto> accessKeys)
+    public @Nullable SecurityCastleContext enterCastle(IPartitionKey partitionKey, UUID castleId, Collection<PrivateKeyWithSeedDto> accessKeys)
     {
         SecurityCastleContext ret = MapTools.getOrNull(this.lookupCastles, castleId);
         if (ret != null) return ret;

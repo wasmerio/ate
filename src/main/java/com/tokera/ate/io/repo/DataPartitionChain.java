@@ -34,6 +34,7 @@ public class DataPartitionChain {
     private final ConcurrentMap<UUID, DataContainer> chainOfTrust;
     private final ConcurrentMap<String, HashSet<UUID>> byClazz;
     private final ConcurrentMap<UUID, MessageSecurityCastleDto> castles;
+    private final ConcurrentMap<String, MessageSecurityCastleDto> castleByHash;
     private final ConcurrentMap<String, MessagePublicKeyDto> publicKeys;
     
     public DataPartitionChain(IPartitionKey key) {
@@ -43,6 +44,7 @@ public class DataPartitionChain {
         this.chainOfTrust = new ConcurrentHashMap<>();
         this.publicKeys = new ConcurrentHashMap<>();
         this.castles = new ConcurrentHashMap<>();
+        this.castleByHash = new ConcurrentHashMap<>();
         this.byClazz = new ConcurrentHashMap<>();
 
         this.addTrustKey(d.encryptor.getTrustOfPublicRead().key());
@@ -135,6 +137,9 @@ public class DataPartitionChain {
         d.debugLogging.logCastle(this.partitionKey(), castle);
 
         this.castles.put(castle.getIdOrThrow(), castle);
+
+        String hash = d.securityCastleManager.computePermissionsHash(partitionKey(), castle);
+        this.castleByHash.put(hash, castle);
     }
     
     public boolean rcv(MessageBaseDto msg, MessageMetaDto meta, boolean invokeCallbacks, @Nullable LoggerHook LOG) throws IOException, InvalidCipherTextException {
@@ -384,6 +389,11 @@ public class DataPartitionChain {
     @SuppressWarnings({"return.type.incompatible", "argument.type.incompatible"})       // We want to return a null if the data does not exist and it must be atomic
     public @Nullable MessageSecurityCastleDto getCastle(UUID id) {
         return castles.getOrDefault(id, null);
+    }
+
+    @SuppressWarnings({"return.type.incompatible", "argument.type.incompatible"})       // We want to return a null if the data does not exist and it must be atomic
+    public @Nullable MessageSecurityCastleDto getCastleByHash(String hash) {
+        return this.castleByHash.getOrDefault(hash, null);
     }
     
     private boolean processPublicKey(MessagePublicKeyDto msg, @Nullable LoggerHook LOG) {
