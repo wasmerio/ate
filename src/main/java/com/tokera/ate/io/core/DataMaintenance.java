@@ -118,7 +118,7 @@ public class DataMaintenance extends DataPartitionDaemon {
             for (Map.Entry<UUID, Date> pair : mergesIfNeeded.entrySet().stream().collect(Collectors.toSet())) {
                 if (now.after(pair.getValue())) {
                     ret.add(pair.getKey());
-                    tombstones.remove(pair.getKey());
+                    mergesIfNeeded.remove(pair.getKey());
                 }
             }
             return ret;
@@ -131,7 +131,7 @@ public class DataMaintenance extends DataPartitionDaemon {
             for (Map.Entry<UUID, Date> pair : mergesForced.entrySet().stream().collect(Collectors.toSet())) {
                 if (now.after(pair.getValue())) {
                     ret.add(pair.getKey());
-                    tombstones.remove(pair.getKey());
+                    mergesForced.remove(pair.getKey());
                 }
             }
             return ret;
