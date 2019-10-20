@@ -257,9 +257,11 @@ public class DataMaintenance extends DataPartitionDaemon {
         IDataPartitionBridge bridge = partition.getBridge();
         if (bridge.hasLoaded() == false) return;
         DataPartitionChain chain = partition.getChain(false);
+        if (chain == null) return;
 
         // First get the container and check if it still actually needs a merge
         DataContainer container = chain.getData(id);
+        if (container == null) return;
         if (container.requiresMerge() == false && forced == false) return;
 
         // Only if we have the ability to write the object should we attempt to merge it
