@@ -386,6 +386,9 @@ public class DataRepository implements IAteIO {
                 }
             }
 
+            // Make sure its not deleted
+            if (trans.isDeleted(partitionKey, id)) continue;
+
             // We should only try and test objects that we actually have rights too
             EffectivePermissions perms = d.permissionCache.perms(type.getName(), partitionKey, id, PermissionPhase.BeforeMerge);
             if (perms.canRead(d.currentRights))
