@@ -119,7 +119,7 @@ public class DataPartitionChain {
 
         // If the container requires a merge then notify the maintenance thread
         if (container.requiresMerge()) {
-            this.maintenanceState.merge(this.partitionKey(), container.id, false);
+            this.maintenanceState.merge(container.id, false);
         } else {
             this.maintenanceState.dont_merge(container.id);
         }
