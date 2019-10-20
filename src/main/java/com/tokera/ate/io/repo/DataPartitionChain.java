@@ -119,7 +119,7 @@ public class DataPartitionChain {
 
         // If the container requires a merge then notify the maintenance thread
         if (container.requiresMerge()) {
-            this.maintenanceState.merge(container.id);
+            this.maintenanceState.merge(this.partitionKey(), container.id, false);
         } else {
             this.maintenanceState.dont_merge(container.id);
         }
@@ -211,6 +211,7 @@ public class DataPartitionChain {
 
         // Validate the data
         if (validateTrustStructureAndWritabilityWithoutSavedData(data, LOG) == false) {
+            this.maintenanceState.merge(msg.getHeader().getIdOrThrow(), true);
             return false;
         }
         
