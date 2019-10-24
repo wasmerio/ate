@@ -128,7 +128,8 @@ public class IndexingDelegate {
                     w.lock();
                     try {
                         for (UUID id : invalidateList) {
-                            if (d.io.test(PUUID.from(typeKey.partKey, id), otherClazz, a -> joiningVal.equals(joiningKeyMap.apply(a)))) {
+                            PUUID pid = PUUID.from(typeKey.partKey, id);
+                            if (d.io.exists(pid) && d.io.test(pid, otherClazz, a -> joiningVal.equals(joiningKeyMap.apply(a)))) {
                                 if (values.contains(id) == false) {
                                     values.add(id);
                                 }
@@ -202,7 +203,7 @@ public class IndexingDelegate {
                 Context context = contexts.computeIfAbsent(masterKey, k -> new Context(masterKey));
                 List<UUID> ret = context.computeTable(context.createIndexKey(otherClazz, id.id(), joiningKeyMap)).fetch();
                 ret = joinFromTransaction(id, otherClazz, joiningKeyMap, ret);
-                return d.io.read(id.partition(), ret, otherClazz);
+                return d.io.readAccessible(id.partition(), ret, otherClazz);
             } catch (ExecutionException e) {
                 throw new RuntimeException(e);
             }

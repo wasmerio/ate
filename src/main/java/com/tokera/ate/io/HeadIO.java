@@ -834,6 +834,15 @@ public class HeadIO
         return ret;
     }
 
+    public <T extends BaseDao> List<T> readAccessible(IPartitionKey partitionKey, Iterable<UUID> ids, Class<T> type) {
+        ArrayList<T> ret = new ArrayList<>();
+        for (UUID id : ids) {
+            if (this.exists(partitionKey, id) == false) continue;
+            ret.add(this.read(PUUID.from(partitionKey, id), type));
+        }
+        return ret;
+    }
+
     public <T extends BaseDao> List<T> read(Collection<PUUID> ids, Class<T> type) {
         ids.stream().forEach(id -> this.warm(id.partition()));
 
