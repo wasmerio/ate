@@ -234,6 +234,7 @@ public class DataRepository implements IAteIO {
         kt.write(msg, this.LOG);
 
         d.debugLogging.logDelete(PUUID.from(partitionKey, id));
+        d.requestAccessLog.recordWrote(id, container.getPayloadClazzShort());
         return true;
     }
 
@@ -549,6 +550,7 @@ public class DataRepository implements IAteIO {
                 // Cache all the results so they flow between transactions
                 for (BaseDao entity : trans.puts(partitionKey)) {
                     trans.cache(partitionKey, entity);
+                    d.requestAccessLog.recordWrote(entity.getId(), entity.getClass());
                 }
 
                 // Now we wait for the bridge to synchronize
