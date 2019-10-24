@@ -167,11 +167,11 @@ public class StringTools
 
     public static @Nullable String makeOneLineOrNull(@Nullable String value) {
         if (value == null) return null;
-        return value.replace("\r", "").replace("\n", "");
+        return value.replace("\r", "").replace("\n", "").replace("\0", "");
     }
 
     public static String makeOneLine(String value) {
-        return value.replace("\r", "").replace("\n", "");
+        return value.replace("\r", "").replace("\n", "").replace("\0", "");
     }
 
     public static @Nullable String specialParse(@Nullable String value)
