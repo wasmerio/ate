@@ -134,15 +134,17 @@ public class FsFolderDto {
         return cacheResults;
     }
 
-    public void setCacheResults(Boolean cacheResults) {
+    public FsFolderDto setCacheResults(Boolean cacheResults) {
         this.cacheResults = cacheResults;
+        return this;
     }
     
     public Boolean getWriteable() {
         return writeable;
     }
 
-    public void setWriteable(Boolean writeable) {
+    public FsFolderDto setWriteable(Boolean writeable) {
         this.writeable = writeable;
+        return this;
     }
 }

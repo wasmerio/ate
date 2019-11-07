@@ -72,8 +72,9 @@ public class FsSymbolicDto {
         return type;
     }
 
-    public void setType(SymbolicLinkType type) {
+    public FsSymbolicDto setType(SymbolicLinkType type) {
         this.type = type;
+        return this;
     }
 
     public Boolean getWriteable() {
