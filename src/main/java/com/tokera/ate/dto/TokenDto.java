@@ -238,6 +238,10 @@ public class TokenDto {
         return this.base64;
     }
 
+    public String computeHash() {
+        return AteDelegate.get().encryptor.hashShaAndEncode(this.base64);
+    }
+
     /**
      * Sets the validated flag
      */
