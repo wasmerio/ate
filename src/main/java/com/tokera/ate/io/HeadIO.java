@@ -697,7 +697,7 @@ public class HeadIO
     }
 
     public <T extends BaseDao, K, V> Map<K, V> viewAsMap(IPartitionKey key, Class<T> type, Predicate<T> predicate, Function<T, K> mapKey, Function<T, V> mapVal) {
-        return back.view(key, type, predicate).stream().collect(Collectors.toMap(mapKey, mapVal));
+        return back.view(key, type, predicate).stream().collect(Collectors.toMap(mapKey, mapVal, (a, b) -> b));
     }
 
     public <T extends BaseDao> Stream<T> view(Class<T> type, Predicate<T> predicate) {
@@ -713,7 +713,7 @@ public class HeadIO
     }
 
     public <T extends BaseDao, K, V> Map<K, V> viewAsMap(Class<T> type, Predicate<T> predicate, Function<T, K> mapKey, Function<T, V> mapVal) {
-        return back.view(this.currentPartitionKey(), type, predicate).stream().collect(Collectors.toMap(mapKey, mapVal));
+        return back.view(this.currentPartitionKey(), type, predicate).stream().collect(Collectors.toMap(mapKey, mapVal, (a, b) -> b));
     }
 
     public <T extends BaseDao> Stream<T> view(Collection<IPartitionKey> keys, Class<T> type, Predicate<T> predicate) {
@@ -729,7 +729,7 @@ public class HeadIO
     }
 
     public <T extends BaseDao, K, V> Map<K, V> viewAsMap(Collection<IPartitionKey> keys, Class<T> type, Predicate<T> predicate, Function<T, K> mapKey, Function<T, V> mapVal) {
-        return keys.stream().flatMap(k -> view(k, type, predicate)).collect(Collectors.toMap(mapKey, mapVal));
+        return keys.stream().flatMap(k -> view(k, type, predicate)).collect(Collectors.toMap(mapKey, mapVal, (a, b) -> b));
     }
 
     /** Inner joins **/
