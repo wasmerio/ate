@@ -63,6 +63,10 @@ public class RawClient {
         this.headers.add(header, val);
     }
 
+    public void setHeader(String header, Object val) {
+        this.headers.putSingle(header, val);
+    }
+
     public String getSession() {
         return this.session;
     }
