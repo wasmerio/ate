@@ -151,13 +151,13 @@ public class LoggerHook implements org.slf4j.Logger {
     
     public void prefixIndent() {
         if (RequestContextDelegate.isWithinRequestContext() == false) return;
-        loggingDelegate.setLogPrefix(loggingDelegate.getLogPrefix() + "...");
+        loggingDelegate.setLogPrefix(loggingDelegate.getLogPrefix() + "..");
     }
     
     public void prefixDeindent() {
         if (RequestContextDelegate.isWithinRequestContext() == false) return;
-        if (loggingDelegate.getLogPrefix().length() > 3) {
-            loggingDelegate.setLogPrefix(loggingDelegate.getLogPrefix().substring(0, loggingDelegate.getLogPrefix().length() - 3));
+        if (loggingDelegate.getLogPrefix().length() > 2) {
+            loggingDelegate.setLogPrefix(loggingDelegate.getLogPrefix().substring(0, loggingDelegate.getLogPrefix().length() - 2));
         } else {
             loggingDelegate.setLogPrefix("");
         }

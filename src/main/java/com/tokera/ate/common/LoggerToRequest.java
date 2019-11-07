@@ -67,7 +67,7 @@ public class LoggerToRequest implements org.slf4j.Logger {
                 if (ctxSB.length() <= 0 || StringTools.endsWithNewline(ctxSB)) {
                     ctxSB.append(prefix);
                 }
-                ctxSB.append(prefix).append(value);
+                ctxSB.append(value);
 
                 logable.setLog(ctxSB.toString());
             }
@@ -87,7 +87,7 @@ public class LoggerToRequest implements org.slf4j.Logger {
                 if (ctxSB.length() <= 0 || StringTools.endsWithNewline(ctxSB)) {
                     ctxSB.append(prefix);
                 }
-                ctxSB.append(prefix).append(value);
+                ctxSB.append(value);
 
                 logable.setError(ctxSB.toString());
             }
