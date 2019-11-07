@@ -747,7 +747,8 @@ public class HeadIO
     }
 
     public <T extends BaseDao, K, V> Map<K, V> joinAsMap(PUUID key, Class<T> clazz, Function<T, UUID> joiningField, Function<T, K> mapKey, Function<T, V> mapVal) {
-        return d.indexing.join(key, clazz, joiningField).stream().collect(Collectors.toMap(mapKey, mapVal));
+        return d.indexing.join(key, clazz, joiningField).stream()
+                .collect(Collectors.toMap(mapKey, mapVal, (a, b) -> b));
     }
 
     /** Full table scans **/
