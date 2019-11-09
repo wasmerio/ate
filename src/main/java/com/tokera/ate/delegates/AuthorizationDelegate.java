@@ -281,9 +281,7 @@ public class AuthorizationDelegate {
                 sb.append(" [castle unknown]");
             } else if (this.d.securityCastleManager.hasCastle(partitionKey, castleId) == false) {
                 sb.append(" [castle missing]");
-            } else if (this.d.securityCastleManager.hasEncryptKey(partitionKey, castleId, publicKeyHash)) {
-                sb.append(" [castle key found]");
-            } else {
+            } else if (this.d.securityCastleManager.hasEncryptKey(partitionKey, castleId, publicKeyHash) == false) {
                 sb.append(" [castle key missing!!]");
             }
             sb.append("\n");
@@ -308,17 +306,11 @@ public class AuthorizationDelegate {
                 sb.append(" [no castle]");
             } else if (this.d.securityCastleManager.hasCastle(partitionKey, castleId) == false) {
                 sb.append(" [castle missing]");
-            } else if (this.d.securityCastleManager.hasEncryptKey(partitionKey, castleId, privateKeyPublicHash)) {
+            } else if (this.d.securityCastleManager.hasEncryptKey(partitionKey, castleId, privateKeyPublicHash) == false) {
                 if (permissions.rolesRead.contains(privateKeyPublicHash)) {
-                    sb.append(" [record found]");
+                    sb.append(" [aes-key missing]");
                 } else {
-                    sb.append(" [irrelevant record found]");
-                }
-            } else {
-                if (permissions.rolesRead.contains(privateKeyPublicHash)) {
-                    sb.append(" [record missing]");
-                } else {
-                    sb.append(" [irrelevant record missing]");
+                    sb.append(" [irrelevant]");
                 }
             }
             sb.append("\n");
