@@ -283,6 +283,8 @@ public class AuthorizationDelegate {
                 sb.append(" [castle missing]");
             } else if (this.d.securityCastleManager.hasEncryptKey(partitionKey, castleId, publicKeyHash) == false) {
                 sb.append(" [castle key missing!!]");
+            } else {
+                sb.append(" [ok]");
             }
             sb.append("\n");
             hasNeeds = true;
@@ -311,6 +313,10 @@ public class AuthorizationDelegate {
                     sb.append(" [aes-key missing]");
                 } else {
                     sb.append(" [irrelevant]");
+                }
+            } else {
+                if (permissions.rolesRead.contains(privateKeyPublicHash)) {
+                    sb.append(" [match!]");
                 }
             }
             sb.append("\n");
@@ -357,6 +363,10 @@ public class AuthorizationDelegate {
 
     public EffectivePermissions perms(String type, IPartitionKey partitionKey, @DaoId UUID id, PermissionPhase phase) {
         return d.permissionCache.perms(type, partitionKey, id, phase);
+    }
+
+    public EffectivePermissions perms(String type, IPartitionKey partitionKey, @DaoId UUID id, UUID castleId, PermissionPhase phase) {
+        return d.permissionCache.perms(type, partitionKey, id, castleId, phase);
     }
 
     public void authorizeEntity(IRights entity, IRoles to) {

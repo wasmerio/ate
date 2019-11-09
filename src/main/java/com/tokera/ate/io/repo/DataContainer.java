@@ -37,6 +37,7 @@ public class DataContainer {
     private final LinkedList<DataGraphNode> timeline = new LinkedList<>();
     private final LinkedList<DataGraphNode> leafs = new LinkedList<>();
     private @Nullable String leafHash = null;
+    private @Nullable UUID leafCastleId = null;
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
     // These objects allow for much faster access of the data
@@ -53,6 +54,7 @@ public class DataContainer {
             firstOffset = msg.getMeta().getOffset();
         }
         lastOffset = msg.getMeta().getOffset();
+        UUID castleId = msg.getHeader().getCastleId();
 
         DataGraphNode node = new DataGraphNode(msg);
         Lock w = this.lock.writeLock();
@@ -70,13 +72,18 @@ public class DataContainer {
             // thus we just fallback to using the last one
             String readHash = d.encryptor.hashShaAndEncode(msg.getHeader().getAllowRead());
             if (leafs.size() > 0) {
-                if (readHash.equals(leafHash) == false) {
+                if (readHash.equals(leafHash) == false ||
+                    castleId.equals(leafCastleId) == false)
+                {
                     leafs.clear();
                 }
             }
 
-            // Add the node to the merge list and immutalize it
+            // Set the leaf values
             leafHash = readHash;
+            leafCastleId = castleId;
+
+            // Add the node to the merge list and immutalize it
             lookup.put(node.version, node);
             leafs.addLast(node);
             timeline.addLast(node);

@@ -96,4 +96,22 @@ public class PermissionCacheDelegate {
             throw new RuntimeException(e);
         }
     }
+
+    public EffectivePermissions perms(String type, IPartitionKey partitionKey, @DaoId UUID id, UUID castleId, PermissionPhase phase)
+    {
+        if (type == null) return computePerms(type, partitionKey, id, phase);
+        if (phase != PermissionPhase.BeforeMerge) return computePerms(type, partitionKey, id, phase);
+
+        CacheKey cacheKey = new CacheKey(partitionKey, type, id);
+        try {
+            EffectivePermissions ret = permissionsCache.get(cacheKey, () -> computePerms(type, partitionKey, id, phase));
+            if (castleId.equals(ret.castleId) == false) {
+                permissionsCache.invalidate(cacheKey);
+                return computePerms(type, partitionKey, id, phase);
+            }
+            return ret;
+        } catch (ExecutionException e) {
+            throw new RuntimeException(e);
+        }
+    }
 }

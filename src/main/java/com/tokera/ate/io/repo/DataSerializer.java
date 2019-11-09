@@ -420,7 +420,7 @@ public class DataSerializer {
                              this.d.currentRights.getRightsRead());
         if (castle == null) {
             if (shouldThrow == true) {
-                EffectivePermissions permissions = d.authorization.perms(header.getPayloadClazz(), partitionKey, header.getIdOrThrow(), PermissionPhase.BeforeMerge);
+                EffectivePermissions permissions = d.authorization.perms(header.getPayloadClazz(), partitionKey, header.getIdOrThrow(), header.getCastleId(), PermissionPhase.BeforeMerge);
                 throw d.authorization.buildReadException(permissions, true);
             }
             return null;
