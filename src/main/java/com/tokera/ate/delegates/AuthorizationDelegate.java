@@ -474,11 +474,11 @@ public class AuthorizationDelegate {
         }
     }
 
-    public void authorizeEntityRead(PrivateKeyWithSeedDto key, IRoles to) {
-        authorizeEntityRead(key.key(), to);
+    public boolean authorizeEntityRead(PrivateKeyWithSeedDto key, IRoles to) {
+        return authorizeEntityRead(key.key(), to);
     }
 
-    public void authorizeEntityRead(MessagePublicKeyDto right, IRoles to) {
+    public boolean authorizeEntityRead(MessagePublicKeyDto right, IRoles to) {
         String hash = d.encryptor.getPublicKeyHash(right);
 
         ensureKeyIsThere(right, to);
@@ -488,10 +488,11 @@ public class AuthorizationDelegate {
         if (to.getTrustAllowRead().containsKey(alias)) {
             String rightHash = to.getTrustAllowRead().get(alias);
             if (hash.equals(rightHash)) {
-                return;
+                return false;
             }
         }
         to.getTrustAllowRead().put(alias, hash);
+        return true;
     }
 
     public void authorizeEntityPublicRead(IRoles to) {
@@ -557,11 +558,11 @@ public class AuthorizationDelegate {
         entity.onAddRight(to);
     }
 
-    public void authorizeEntityWrite(PrivateKeyWithSeedDto key, IRoles to) {
-        authorizeEntityWrite(key.key(), to);
+    public boolean authorizeEntityWrite(PrivateKeyWithSeedDto key, IRoles to) {
+        return authorizeEntityWrite(key.key(), to);
     }
 
-    public void authorizeEntityWrite(MessagePublicKeyDto right, IRoles to) {
+    public boolean authorizeEntityWrite(MessagePublicKeyDto right, IRoles to) {
         String hash = d.encryptor.getPublicKeyHash(right);
 
         ensureKeyIsThere(right, to);
@@ -571,10 +572,11 @@ public class AuthorizationDelegate {
         if (to.getTrustAllowWrite().containsKey(alias)) {
             String rightHash = to.getTrustAllowWrite().get(alias);
             if (hash.equals(rightHash)) {
-                return;
+                return false;
             }
         }
         to.getTrustAllowWrite().put(alias, d.encryptor.getPublicKeyHash(right));
+        return true;
     }
 
     public void authorizeEntityPublicWrite(IRoles to) {
