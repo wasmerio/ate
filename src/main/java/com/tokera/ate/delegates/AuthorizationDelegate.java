@@ -232,11 +232,11 @@ public class AuthorizationDelegate {
         }
         sb.append(objId).append("]\n");
 
+        sb.append(" > id: ").append(PartitionKeySerializer.toString(partitionKey)).append(":").append(permissions.id).append("\n");
         if (permissions.type != null) {
             sb.append(" >  type: ").append(permissions.type).append("\n");
         }
-        sb.append(" > where: ").append(PartitionKeySerializer.toString(partitionKey)).append("\n");
-
+        
         sb.append(" > castle: ");
         UUID castleId = permissions.castleId;
         if (castleId != null) {
