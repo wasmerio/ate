@@ -446,7 +446,7 @@ public class AuthorizationDelegate {
         entity.onAddRight(to);
     }
 
-    public void authorizeEntity(@Nullable RolesPairDto pair, IRoles to) {
+    public void authorizeEntityWithPair(@Nullable RolesPairDto pair, IRoles to) {
         if (pair == null) return;
 
         if (pair.read != null) {
