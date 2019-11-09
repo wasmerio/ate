@@ -234,9 +234,9 @@ public class AuthorizationDelegate {
 
         sb.append(" > id: ").append(PartitionKeySerializer.toString(partitionKey)).append(":").append(permissions.id).append("\n");
         if (permissions.type != null) {
-            sb.append(" >  type: ").append(permissions.type).append("\n");
+            sb.append(" > type: ").append(permissions.type).append("\n");
         }
-        
+
         sb.append(" > castle: ");
         UUID castleId = permissions.castleId;
         if (castleId != null) {
