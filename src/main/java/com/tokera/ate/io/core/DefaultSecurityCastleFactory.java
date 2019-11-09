@@ -104,6 +104,6 @@ public class DefaultSecurityCastleFactory implements ISecurityCastleFactory {
     @Override
     public boolean exists(IPartitionKey partitionKey, UUID id) {
         DataPartitionChain chain = this.d.storageFactory.get().backend().getChain(partitionKey, true);
-        return chain.getCastle(id) != null;
+        return chain.hasCastle(id);
     }
 }

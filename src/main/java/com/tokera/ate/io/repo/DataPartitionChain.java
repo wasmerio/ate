@@ -284,7 +284,6 @@ public class DataPartitionChain {
 
     public TrustValidatorBuilder createTrustValidatorIncludingStaging(@Nullable LoggerHook LOG) {
         return createTrustValidator(LOG)
-                .withoutCastleCheck()
                 .withGetPublicKeyCallback(hash -> {
                     MessagePublicKeyDto ret = d.requestContext.currentTransaction().findPublicKey(this.key, hash);
                     if (ret != null) return ret;
@@ -295,6 +294,7 @@ public class DataPartitionChain {
     public boolean validateTrustStructureAndWritabilityWithoutSavedData(MessageDataDto data, @Nullable LoggerHook LOG)
     {
         return createTrustValidator(LOG)
+                .withChainOfTrust(this)
                 .validate(this.partitionKey(), data);
     }
     
@@ -308,7 +308,6 @@ public class DataPartitionChain {
     public boolean validateTrustStructureAndWritabilityIncludingStaging(MessageDataDto data, @Nullable LoggerHook LOG)
     {
         return createTrustValidatorIncludingStaging(LOG)
-                .withoutCastleCheck()
                 .withSavedDatas(d.requestContext.currentTransaction().getSavedDataMap(this.partitionKey()))
                 .validate(this.partitionKey(), data);
     }
@@ -430,6 +429,11 @@ public class DataPartitionChain {
     @SuppressWarnings({"return.type.incompatible", "argument.type.incompatible"})       // We want to return a null if the data does not exist and it must be atomic
     public @Nullable MessageSecurityCastleDto getCastle(UUID id) {
         return castles.getOrDefault(id, null);
+    }
+
+    @SuppressWarnings({"return.type.incompatible", "argument.type.incompatible"})       // We want to return a null if the data does not exist and it must be atomic
+    public @Nullable boolean hasCastle(UUID id) {
+        return castles.containsKey(id);
     }
 
     @SuppressWarnings({"return.type.incompatible", "argument.type.incompatible"})       // We want to return a null if the data does not exist and it must be atomic

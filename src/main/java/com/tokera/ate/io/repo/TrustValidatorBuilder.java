@@ -36,6 +36,7 @@ final class TrustValidatorBuilder {
 
     private LoggerHook LOG;
     private boolean skipCastleCheck = false;
+    private @Nullable DataPartitionChain chain;
     private @Nullable Map<UUID, @Nullable MessageDataDto> savedDatas;
     private Consumer<Failure> onFailure = null;
     private Function<UUID, DataContainer> onGetData = null;
@@ -94,10 +95,10 @@ final class TrustValidatorBuilder {
     }
 
     /**
-     * Skips the castle check
+     * Validates with a particular chain of trust
      */
-    public TrustValidatorBuilder withoutCastleCheck() {
-        this.skipCastleCheck = true;
+    public TrustValidatorBuilder withChainOfTrust(DataPartitionChain chain) {
+        this.chain = chain;
         return this;
     }
 
@@ -379,9 +380,9 @@ final class TrustValidatorBuilder {
                 return false;
             }
 
-            if (skipCastleCheck == false) {
-                if (d.io.securityCastleFactory().exists(partitionKey, castleId) == false) {
-                    fail("castle [" + castleId + "] is missing from partition [" + partitionKey + "]");
+            if (chain != null) {
+                if (chain.hasCastle(castleId) == false) {
+                    fail("castle [" + castleId + "] is missing from chain-of-trust");
                     return false;
                 }
             }
