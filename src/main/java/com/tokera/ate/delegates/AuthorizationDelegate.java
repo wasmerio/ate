@@ -53,22 +53,19 @@ public class AuthorizationDelegate {
 
     private TokenSerializer tokenSerializer = new TokenSerializer();
 
-    public boolean canRead(@Nullable BaseDao obj)
-    {
+    public boolean canRead(@Nullable BaseDao obj) {
         if (obj == null) return false;
         EffectivePermissions perms = d.authorization.perms(obj);
         return perms.canRead(d.currentRights);
     }
 
-    public boolean canRead(@Nullable PUUID _id)
-    {
+    public boolean canRead(@Nullable PUUID _id) {
         PUUID id = _id;
         if (id == null) return false;
         return canRead(id.partition(), id.id());
     }
 
-    public boolean canRead(IPartitionKey partitionKey, @DaoId UUID id)
-    {
+    public boolean canRead(IPartitionKey partitionKey, @DaoId UUID id) {
         // If its in the cache then we can obviously read it
         if (d.requestContext.currentTransaction().exists(PUUID.from(partitionKey, id)) == true) return true;
 
@@ -77,32 +74,49 @@ public class AuthorizationDelegate {
         return perms.canRead(d.currentRights);
     }
 
-    public boolean canWrite(@Nullable BaseDao obj)
-    {
+    public boolean canWrite(@Nullable BaseDao obj) {
         if (obj == null) return false;
         EffectivePermissions perms = d.authorization.perms(obj);
         return perms.canWrite(d.currentRights);
     }
 
-    public boolean canWrite(@Nullable PUUID _id)
-    {
+    public boolean canWrite(@Nullable PUUID _id) {
         PUUID id = _id;
         if (id == null) return false;
         return canWrite(id.partition(), id.id());
     }
 
-    public void ensureCanWrite(BaseDao obj)
-    {
+    public void ensureCanWrite(BaseDao obj) {
         if (canWrite(obj) == false) {
             EffectivePermissions permissions = d.authorization.perms(obj);
             throw buildWriteException(permissions.rolesWrite, permissions, true);
         }
     }
 
-    public boolean canWrite(IPartitionKey partitionKey, @DaoId UUID id)
-    {
+    public boolean canWrite(IPartitionKey partitionKey, @DaoId UUID id) {
         EffectivePermissions perms = d.authorization.perms(null, partitionKey, id, PermissionPhase.BeforeMerge);
         return perms.canWrite(d.currentRights);
+    }
+
+    public boolean canReadAndWrite(@Nullable BaseDao obj) {
+        if (obj == null) return false;
+        EffectivePermissions perms = d.authorization.perms(obj);
+        return perms.canRead(d.currentRights) && perms.canWrite(d.currentRights);
+    }
+
+    public boolean canReadAndWrite(@Nullable PUUID _id) {
+        PUUID id = _id;
+        if (id == null) return false;
+        return canReadAndWrite(id.partition(), id.id());
+    }
+
+    public boolean canReadAndWrite(IPartitionKey partitionKey, @DaoId UUID id) {
+        // If its in the cache then we can obviously read it
+        if (d.requestContext.currentTransaction().exists(PUUID.from(partitionKey, id)) == true) return true;
+
+        // Otherwise we need to compute some permissions for it
+        EffectivePermissions perms = d.authorization.perms(null, partitionKey, id, PermissionPhase.BeforeMerge);
+        return perms.canRead(d.currentRights) && perms.canWrite(d.currentRights);
     }
 
     public RuntimeException buildWriteException(Collection<String> rolesWrite, EffectivePermissions permissions, boolean showStack)
