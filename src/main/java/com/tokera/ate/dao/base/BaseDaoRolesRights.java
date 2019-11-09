@@ -5,6 +5,7 @@
  */
 package com.tokera.ate.dao.base;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.tokera.ate.common.Immutalizable;
 import com.tokera.ate.common.ImmutalizableHashSet;
@@ -40,8 +41,9 @@ public abstract class BaseDaoRolesRights extends BaseDaoRoles implements IRights
     }
 
     @Override
+    @JsonIgnore
     public @Alias String getRightsAlias() {
-        return this.getId().toString();
+        return getClass().getSimpleName().toLowerCase() + ":" + this.getId();
     }
 
     @Override
