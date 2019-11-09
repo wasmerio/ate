@@ -198,6 +198,7 @@ final class TrustValidatorBuilder {
 
         private MessageDataDto _parent = null;
         private boolean validatedParent = false;
+        private boolean validatedCastle = false;
         private boolean validatedIsntReparenting = false;
         private boolean validatedVersion = false;
 
@@ -356,13 +357,36 @@ final class TrustValidatorBuilder {
             return true;
         }
 
+        /**
+         * Validate that a castle exists for this record
+         * @return True if a castle exists for this record
+         */
+        public boolean validateCastle() {
+            if (this.validatedCastle == true) return true;
+
+            UUID castleId = data.getHeader().getCastleId();
+            if (castleId == null) {
+                fail("castle id is missing");
+                return false;
+            }
+
+            if (d.securityCastleManager.hasCastle(partitionKey, castleId) == false) {
+                fail("castle [" + castleId + "] is missing from partition [" + partitionKey + "]");
+                return false;
+            }
+
+            this.validatedCastle = true;
+            return true;
+        }
+
         public boolean validateAll() {
             //return validateParent() &&
             //       validateIsntReparenting() &&
             //       validatePreviousVersion();
 
             return validateParent() &&
-                    validateIsntReparenting();
+                   validateCastle() &&
+                   validateIsntReparenting();
         }
 
         /**
