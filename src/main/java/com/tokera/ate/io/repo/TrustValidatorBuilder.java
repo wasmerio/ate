@@ -380,7 +380,7 @@ final class TrustValidatorBuilder {
             }
 
             if (skipCastleCheck == false) {
-                if (d.securityCastleManager.hasCastle(partitionKey, castleId) == false) {
+                if (d.io.securityCastleFactory().exists(partitionKey, castleId) == false) {
                     fail("castle [" + castleId + "] is missing from partition [" + partitionKey + "]");
                     return false;
                 }
