@@ -273,7 +273,7 @@ public class DataPartitionChain {
         }
     }
 
-    public TrustValidatorBuilder createTrustValidator(@Nullable LoggerHook LOG) {
+    private TrustValidatorBuilder createTrustValidator(@Nullable LoggerHook LOG) {
         return new TrustValidatorBuilder()
                 .withLogger(LOG)
                 .withFailureCallback(f -> this.drop(f.LOG, f.header, f.why))
@@ -284,6 +284,7 @@ public class DataPartitionChain {
 
     public TrustValidatorBuilder createTrustValidatorIncludingStaging(@Nullable LoggerHook LOG) {
         return createTrustValidator(LOG)
+                .withoutCastleCheck()
                 .withGetPublicKeyCallback(hash -> {
                     MessagePublicKeyDto ret = d.requestContext.currentTransaction().findPublicKey(this.key, hash);
                     if (ret != null) return ret;
@@ -307,6 +308,7 @@ public class DataPartitionChain {
     public boolean validateTrustStructureAndWritabilityIncludingStaging(MessageDataDto data, @Nullable LoggerHook LOG)
     {
         return createTrustValidatorIncludingStaging(LOG)
+                .withoutCastleCheck()
                 .withSavedDatas(d.requestContext.currentTransaction().getSavedDataMap(this.partitionKey()))
                 .validate(this.partitionKey(), data);
     }

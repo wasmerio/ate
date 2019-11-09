@@ -35,6 +35,7 @@ final class TrustValidatorBuilder {
     private final AteDelegate d = AteDelegate.get();
 
     private LoggerHook LOG;
+    private boolean skipCastleCheck = false;
     private @Nullable Map<UUID, @Nullable MessageDataDto> savedDatas;
     private Consumer<Failure> onFailure = null;
     private Function<UUID, DataContainer> onGetData = null;
@@ -89,6 +90,14 @@ final class TrustValidatorBuilder {
      */
     public TrustValidatorBuilder withGetPublicKeyCallback(Function<String, MessagePublicKeyDto> callback) {
         this.onGetPublicKey = callback;
+        return this;
+    }
+
+    /**
+     * Skips the castle check
+     */
+    public TrustValidatorBuilder withoutCastleCheck() {
+        this.skipCastleCheck = true;
         return this;
     }
 
@@ -370,9 +379,11 @@ final class TrustValidatorBuilder {
                 return false;
             }
 
-            if (d.securityCastleManager.hasCastle(partitionKey, castleId) == false) {
-                fail("castle [" + castleId + "] is missing from partition [" + partitionKey + "]");
-                return false;
+            if (skipCastleCheck == false) {
+                if (d.securityCastleManager.hasCastle(partitionKey, castleId) == false) {
+                    fail("castle [" + castleId + "] is missing from partition [" + partitionKey + "]");
+                    return false;
+                }
             }
 
             this.validatedCastle = true;
