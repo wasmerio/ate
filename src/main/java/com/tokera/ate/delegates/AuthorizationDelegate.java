@@ -257,7 +257,7 @@ public class AuthorizationDelegate {
         UUID castleId = permissions.castleId;
         if (castleId != null) {
             sb.append(castleId);
-            if (this.d.securityCastleManager.hasCastle(partitionKey, castleId)) {
+            if (this.d.securityCastleManager.hasCastle(partitionKey, castleId) == false) {
                 sb.append(" [missing!!]");
             }
             sb.append("\n");
@@ -279,7 +279,7 @@ public class AuthorizationDelegate {
             sb.append(roleKeyAlias).append(" - ").append(publicKeyHash);
             if (castleId == null) {
                 sb.append(" [castle unknown]");
-            } else if (this.d.securityCastleManager.hasCastle(partitionKey, castleId)) {
+            } else if (this.d.securityCastleManager.hasCastle(partitionKey, castleId) == false) {
                 sb.append(" [castle missing]");
             } else if (this.d.securityCastleManager.hasEncryptKey(partitionKey, castleId, publicKeyHash)) {
                 sb.append(" [castle key found]");
@@ -306,7 +306,7 @@ public class AuthorizationDelegate {
             sb.append(d.encryptor.getAlias(partitionKey, privateKey)).append(" - ").append(privateKeyPublicHash);
             if (castleId == null) {
                 sb.append(" [no castle]");
-            } else if (this.d.securityCastleManager.hasCastle(partitionKey, castleId)) {
+            } else if (this.d.securityCastleManager.hasCastle(partitionKey, castleId) == false) {
                 sb.append(" [castle missing]");
             } else if (this.d.securityCastleManager.hasEncryptKey(partitionKey, castleId, privateKeyPublicHash)) {
                 if (permissions.rolesRead.contains(privateKeyPublicHash)) {
