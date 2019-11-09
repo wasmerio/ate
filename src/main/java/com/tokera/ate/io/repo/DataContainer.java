@@ -35,7 +35,8 @@ public class DataContainer {
 
     private final Map<UUID, @NonNull DataGraphNode> lookup = new HashMap<>();
     private final LinkedList<DataGraphNode> timeline = new LinkedList<>();
-    private final LinkedList<DataGraphNode> leaves = new LinkedList<>();
+    private final LinkedList<DataGraphNode> leafs = new LinkedList<>();
+    private @Nullable String leafHash = null;
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
     // These objects allow for much faster access of the data
@@ -57,17 +58,31 @@ public class DataContainer {
         Lock w = this.lock.writeLock();
         w.lock();
         try {
+            // Empty payloads should not attempt a merge
             if (msg.hasPayload()) {
-                leaves.removeIf(n -> n.version.equals(node.previousVersion) ||
+                leafs.removeIf(n -> n.version.equals(node.previousVersion) ||
                                 node.mergesVersions.contains(n.version));
             } else {
-                leaves.clear();
+                leafs.clear();
             }
+
+            // If the read permissions have changed then its no longer possible to merge them
+            // thus we just fallback to using the last one
+            String readHash = d.encryptor.hashShaAndEncode(msg.getHeader().getAllowRead());
+            if (leafs.size() > 0) {
+                if (readHash.equals(leafHash) == false) {
+                    leafs.clear();
+                }
+            }
+
+            // Add the node to the merge list and immutalize it
+            leafHash = readHash;
             lookup.put(node.version, node);
-            leaves.addLast(node);
+            leafs.addLast(node);
             timeline.addLast(node);
             msg.immutalize();
 
+            // Clear the cache and leave the lock
             cacheObj = null;
             cacheOwners.clear();
         } finally {
@@ -80,7 +95,7 @@ public class DataContainer {
         Lock w = this.lock.readLock();
         w.lock();
         try {
-            return leaves.size() > 1;
+            return leafs.size() > 1;
         } finally {
             w.unlock();
         }
@@ -90,7 +105,7 @@ public class DataContainer {
         Lock w = this.lock.writeLock();
         w.lock();
         try {
-            leaves.clear();;
+            leafs.clear();;
             timeline.clear();
             lookup.clear();
             cacheObj = null;
@@ -222,12 +237,12 @@ public class DataContainer {
         Lock r = this.lock.readLock();
         r.lock();
         try {
-            if (this.leaves.isEmpty()) return null;
+            if (this.leafs.isEmpty()) return null;
 
             HashSet<UUID> ignoreThese = new HashSet<>();
 
             LinkedList<DataGraphNode> ret = new LinkedList<>();
-            Iterator<DataGraphNode> lit = this.leaves.descendingIterator();
+            Iterator<DataGraphNode> lit = this.leafs.descendingIterator();
             while (lit.hasNext()) {
                 DataGraphNode node = lit.next();
                 if (node.msg.getData().hasPayload() == false) break;
@@ -315,7 +330,7 @@ public class DataContainer {
     }
 
     private @Nullable BaseDao cloneDataUnderLock(BaseDao orig) {
-        return reconcileMergedData(this.partitionKey, d.io.clone(orig), leaves);
+        return reconcileMergedData(this.partitionKey, d.io.clone(orig), leafs);
     }
 
     public @Nullable BaseDao fetchData() {
@@ -393,9 +408,14 @@ public class DataContainer {
         // Build a merge set of the headers for this
         Map<DataGraphNode, BaseDao> deserializeCache = new HashMap<>();
         List<MergePair<BaseDao>> mergeSet = leaves
-                .stream().map(n -> new MergePair<>(
-                        n.parentNode != null ? deserializeCache.computeIfAbsent(n.parentNode, v -> d.dataSerializer.fromDataMessage(this.partitionKey, v.msg, shouldThrow)) : null,
-                        deserializeCache.computeIfAbsent(n, v -> d.dataSerializer.fromDataMessage(this.partitionKey, n.msg, shouldThrow))))
+                .stream().map(n -> {
+                    BaseDao a = null;
+                    if (n.parentNode != null) {
+                        a = deserializeCache.computeIfAbsent(n.parentNode, v -> d.dataSerializer.fromDataMessage(this.partitionKey, v.msg, shouldThrow));
+                    }
+                    BaseDao b = deserializeCache.computeIfAbsent(n, v -> d.dataSerializer.fromDataMessage(this.partitionKey, n.msg, shouldThrow));
+                    return new MergePair<>(a, b);
+                })
                 .collect(Collectors.toList());
 
         // Merge the actual merge of the data object

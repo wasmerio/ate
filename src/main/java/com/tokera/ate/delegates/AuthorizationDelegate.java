@@ -251,6 +251,9 @@ public class AuthorizationDelegate {
             sb.append(" > type: ").append(permissions.type).append("\n");
         }
 
+        sb.append(" > canRead: ").append(permissions.canRead(d.currentRights)).append("\n");
+        sb.append(" > canWrite: ").append(permissions.canWrite(d.currentRights)).append("\n");
+
         sb.append(" > castle: ");
         UUID castleId = permissions.castleId;
         if (castleId != null) {
