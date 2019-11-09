@@ -447,6 +447,11 @@ public class AuthorizationDelegate {
     }
 
     public void authorizeEntityWithPair(@Nullable RolesPairDto pair, IRoles to) {
+        authorizeEntityReadWithPair(pair, to);
+        authorizeEntityWriteWithPair(pair, to);
+    }
+
+    public void authorizeEntityReadWithPair(@Nullable RolesPairDto pair, IRoles to) {
         if (pair == null) return;
 
         if (pair.read != null) {
@@ -455,6 +460,12 @@ public class AuthorizationDelegate {
                 d.io.write(((BaseDao)to));
             }
         }
+    }
+
+    public void authorizeEntityWriteWithPair(@Nullable RolesPairDto pair, IRoles to) {
+        if (pair == null) return;
+
+
         if (pair.write != null) {
             authorizeEntityWrite(pair.write, to);
             if (to instanceof BaseDao) {
