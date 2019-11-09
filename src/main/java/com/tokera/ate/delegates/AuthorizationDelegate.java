@@ -446,31 +446,30 @@ public class AuthorizationDelegate {
         entity.onAddRight(to);
     }
 
-    public void authorizeEntityWithPair(@Nullable RolesPairDto pair, IRoles to) {
-        authorizeEntityReadWithPair(pair, to);
-        authorizeEntityWriteWithPair(pair, to);
+    public boolean authorizeEntityWithPair(@Nullable RolesPairDto pair, IRoles to) {
+        boolean ret = false;
+        ret |= authorizeEntityReadWithPair(pair, to);
+        ret |= authorizeEntityWriteWithPair(pair, to);
+        return ret;
     }
 
-    public void authorizeEntityReadWithPair(@Nullable RolesPairDto pair, IRoles to) {
-        if (pair == null) return;
+    public boolean authorizeEntityReadWithPair(@Nullable RolesPairDto pair, IRoles to) {
+        if (pair == null) return false;
 
         if (pair.read != null) {
-            authorizeEntityRead(pair.read, to);
-            if (to instanceof BaseDao) {
-                d.io.write(((BaseDao)to));
-            }
+            return authorizeEntityRead(pair.read, to);
+        } else {
+            return false;
         }
     }
 
-    public void authorizeEntityWriteWithPair(@Nullable RolesPairDto pair, IRoles to) {
-        if (pair == null) return;
-
+    public boolean authorizeEntityWriteWithPair(@Nullable RolesPairDto pair, IRoles to) {
+        if (pair == null) return false;
 
         if (pair.write != null) {
-            authorizeEntityWrite(pair.write, to);
-            if (to instanceof BaseDao) {
-                d.io.write(((BaseDao)to));
-            }
+            return authorizeEntityWrite(pair.write, to);
+        } else {
+            return false;
         }
     }
 
