@@ -52,6 +52,9 @@ public class FsFolderDto {
     @JsonProperty
     @NotNull
     private List<FsMountDto> mounts = new ArrayList<>();
+    @JsonProperty
+    @NotNull
+    private List<FsBinaryDto> binaries = new ArrayList<>();
 
     @SuppressWarnings("initialization.fields.uninitialized")
     @Deprecated
@@ -146,5 +149,13 @@ public class FsFolderDto {
     public FsFolderDto setWriteable(Boolean writeable) {
         this.writeable = writeable;
         return this;
+    }
+
+    public List<FsBinaryDto> getBinaries() {
+        return binaries;
+    }
+
+    public void setBinaries(List<FsBinaryDto> binaries) {
+        this.binaries = binaries;
     }
 }
