@@ -3,6 +3,7 @@ package com.tokera.ate.delegates;
 import com.tokera.ate.dao.ILogable;
 import com.tokera.ate.units.DaoId;
 import javax.enterprise.context.RequestScoped;
+import java.io.OutputStream;
 import java.util.*;
 
 /**
@@ -17,6 +18,7 @@ public class LoggingDelegate  {
     private final Map<ILogable, StringBuilder> logBuilderStderr = new HashMap<>();
     private String logPrefix = "";
     private StringBuilder loggingBuffer = new StringBuilder();
+    private OutputStream streamRedirect = null;
 
     public LoggingDelegate() {
     }
@@ -61,5 +63,17 @@ public class LoggingDelegate  {
      */
     public StringBuilder getLoggingBuffer() {
         return loggingBuffer;
+    }
+
+    /**
+     * @return Returns a reference to the redirect stream
+     */
+    public OutputStream getRedirectStream() { return this.streamRedirect; }
+
+    /**
+     * Redirects the logs to an output stream
+     */
+    public void redirect(OutputStream stream) {
+        this.streamRedirect = stream;
     }
 }

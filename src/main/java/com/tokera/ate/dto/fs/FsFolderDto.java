@@ -48,6 +48,9 @@ public class FsFolderDto {
     private List<FsFileDto> files = new ArrayList<>();
     @JsonProperty
     @NotNull
+    private List<FsStaticFileDto> staticFiles = new ArrayList<>();
+    @JsonProperty
+    @NotNull
     private List<FsSymbolicDto> symbolics = new ArrayList<>();
     @JsonProperty
     @NotNull

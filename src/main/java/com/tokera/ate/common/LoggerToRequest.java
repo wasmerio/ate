@@ -8,6 +8,9 @@ import javax.ws.rs.container.ContainerRequestContext;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.slf4j.Marker;
 
+import java.io.IOException;
+import java.io.OutputStream;
+
 /**
  * Custom logger that will batch the log results into a string builder attached to the currentRights currentRights rather
  * than directly to the log appender
@@ -17,6 +20,7 @@ public class LoggerToRequest implements org.slf4j.Logger {
     private final org.slf4j.Logger baseLogger;
     private final LoggingDelegate logingDelegate;
     private final StringBuilder builder;
+    private int stream_line_size = 0;
 
     @SuppressWarnings({"return.type.incompatible", "argument.type.incompatible"})       // We want to return a null if the data does not exist and it must be atomic
     private static @Nullable Object getPropertyOrNull(ContainerRequestContext context, String s) {
@@ -94,6 +98,42 @@ public class LoggerToRequest implements org.slf4j.Logger {
         }
     }
 
+    private void writeStream(Object value) {
+        if (value == null) return;
+
+        LoggingDelegate requestDelegate = this.logingDelegate;
+        OutputStream stream = requestDelegate.getRedirectStream();
+        if (stream != null) {
+            try {
+                if (stream_line_size > 0) {
+                    stream.write(" ".getBytes());
+                } else {
+                    stream.write(requestDelegate.getLogPrefix().getBytes());
+                }
+
+                byte[] bytes = value.toString().getBytes();
+                stream.write(bytes);
+                stream_line_size += bytes.length;
+            } catch (IOException e) {
+            }
+        }
+    }
+
+    private void flushStream() {
+        LoggingDelegate requestDelegate = this.logingDelegate;
+        OutputStream stream = requestDelegate.getRedirectStream();
+        if (stream != null) {
+            try {
+                if (stream_line_size > 0) {
+                    writeStream("\n");
+                }
+                stream.flush();
+            } catch (IOException e) {
+            }
+        }
+        stream_line_size = 0;
+    }
+
     @Override
     public String getName() {
         return this.baseLogger.getName();
@@ -109,6 +149,9 @@ public class LoggerToRequest implements org.slf4j.Logger {
         write("trace: ");
         write(string);
         write("\n");
+
+        writeStream(string);
+        flushStream();
     }
 
     @Override
@@ -119,6 +162,10 @@ public class LoggerToRequest implements org.slf4j.Logger {
         write(o);
         write("]");
         write("\n");
+
+        writeStream(string);
+        writeStream(o);
+        flushStream();
     }
 
     @Override
@@ -132,18 +179,30 @@ public class LoggerToRequest implements org.slf4j.Logger {
         write(o1);
         write("]");
         write("\n");
+
+        writeStream(string);
+        writeStream(o);
+        writeStream(o1);
+        flushStream();
     }
 
     @Override
     public void trace(String string, Object[] os) {
         write("trace: ");
         write(string);
+
+        writeStream(string);
+
         for (Object o : os) {
             write(" [");
             write(o);
             write("]");
+
+            writeStream(o);
         }
         write("\n");
+
+        flushStream();
     }
 
     @Override
@@ -154,6 +213,10 @@ public class LoggerToRequest implements org.slf4j.Logger {
         write(thrwbl);
         write("]");
         write("\n");
+
+        writeStream(string);
+        writeStream(thrwbl);
+        flushStream();
     }
 
     @Override
@@ -168,6 +231,10 @@ public class LoggerToRequest implements org.slf4j.Logger {
         write(" marker=");
         write(marker.toString());
         write("\n");
+
+        writeStream(string);
+        writeStream(marker);
+        flushStream();
     }
 
     @Override
@@ -180,6 +247,11 @@ public class LoggerToRequest implements org.slf4j.Logger {
         write(o);
         write("]");
         write("\n");
+
+        writeStream(string);
+        writeStream(marker);
+        writeStream(o);
+        flushStream();
     }
 
     @Override
@@ -195,6 +267,12 @@ public class LoggerToRequest implements org.slf4j.Logger {
         write(o1);
         write("]");
         write("\n");
+
+        writeStream(string);
+        writeStream(marker);
+        writeStream(o);
+        writeStream(o1);
+        flushStream();
     }
 
     @Override
@@ -203,12 +281,20 @@ public class LoggerToRequest implements org.slf4j.Logger {
         write(string);
         write(" marker=");
         write(marker.toString());
+
+        writeStream(string);
+        writeStream(marker);
+
         for (Object o : os) {
             write(" [");
             write(o);
             write("]");
+
+            writeStream(o);
         }
         write("\n");
+
+        flushStream();
     }
 
     @Override
@@ -221,6 +307,11 @@ public class LoggerToRequest implements org.slf4j.Logger {
         write(thrwbl);
         write("]");
         write("\n");
+
+        writeStream(string);
+        writeStream(marker);
+        writeStream(thrwbl);
+        flushStream();
     }
 
     @Override
@@ -233,6 +324,9 @@ public class LoggerToRequest implements org.slf4j.Logger {
         write("debug: ");
         write(string);
         write("\n");
+
+        writeStream(string);
+        flushStream();
     }
 
     @Override
@@ -243,6 +337,10 @@ public class LoggerToRequest implements org.slf4j.Logger {
         write(o);
         write("]");
         write("\n");
+
+        writeStream(string);
+        writeStream(o);
+        flushStream();
     }
 
     @Override
@@ -256,18 +354,30 @@ public class LoggerToRequest implements org.slf4j.Logger {
         write(o1);
         write("]");
         write("\n");
+
+        writeStream(string);
+        writeStream(o);
+        writeStream(o1);
+        flushStream();
     }
 
     @Override
     public void debug(String string, Object[] os) {
         write("debug: ");
         write(string);
+
+        writeStream(string);
+
         for (Object o : os) {
             write(" [");
             write(o);
             write("]");
+
+            writeStream(o);
         }
         write("\n");
+
+        flushStream();
     }
 
     @Override
@@ -278,6 +388,10 @@ public class LoggerToRequest implements org.slf4j.Logger {
         write(thrwbl);
         write("]");
         write("\n");
+
+        writeStream(string);
+        writeStream(thrwbl);
+        flushStream();
     }
 
     @Override
@@ -292,6 +406,10 @@ public class LoggerToRequest implements org.slf4j.Logger {
         write(" marker=");
         write(marker.toString());
         write("\n");
+
+        writeStream(string);
+        writeStream(marker);
+        flushStream();
     }
 
     @Override
@@ -304,6 +422,11 @@ public class LoggerToRequest implements org.slf4j.Logger {
         write(o);
         write("]");
         write("\n");
+
+        writeStream(string);
+        writeStream(marker);
+        writeStream(o);
+        flushStream();
     }
 
     @Override
@@ -319,6 +442,12 @@ public class LoggerToRequest implements org.slf4j.Logger {
         write(o1);
         write("]");
         write("\n");
+
+        writeStream(string);
+        writeStream(marker);
+        writeStream(o);
+        writeStream(o1);
+        flushStream();
     }
 
     @Override
@@ -327,12 +456,20 @@ public class LoggerToRequest implements org.slf4j.Logger {
         write(string);
         write(" marker=");
         write(marker.toString());
+
+        writeStream(string);
+        writeStream(marker);
+
         for (Object o : os) {
             write(" [");
             write(o);
             write("]");
+
+            writeStream(o);
         }
         write("\n");
+
+        flushStream();
     }
 
     @Override
@@ -345,6 +482,11 @@ public class LoggerToRequest implements org.slf4j.Logger {
         write(thrwbl);
         write("]");
         write("\n");
+
+        writeStream(string);
+        writeStream(marker);
+        writeStream(thrwbl);
+        flushStream();
     }
 
     @Override
@@ -359,6 +501,9 @@ public class LoggerToRequest implements org.slf4j.Logger {
         if (StringTools.endsWithNewline(string) == false) {
             writeStdout("\n");
         }
+
+        writeStream(string);
+        flushStream();
     }
 
     @Override
@@ -369,6 +514,10 @@ public class LoggerToRequest implements org.slf4j.Logger {
         writeStdout(o);
         writeStdout("]");
         writeStdout("\n");
+
+        writeStream(string);
+        writeStream(o);
+        flushStream();
     }
 
     @Override
@@ -382,18 +531,30 @@ public class LoggerToRequest implements org.slf4j.Logger {
         writeStdout(o1);
         writeStdout("]");
         writeStdout("\n");
+
+        writeStream(string);
+        writeStream(o);
+        writeStream(o1);
+        flushStream();
     }
 
     @Override
     public void info(String string, Object[] os) {
         write("info: ");
         writeStdout(string);
+
+        writeStream(string);
+
         for (Object o : os) {
             writeStdout(" [");
             writeStdout(o);
             writeStdout("]");
+
+            writeStream(o);
         }
         writeStdout("\n");
+
+        flushStream();
     }
 
     @Override
@@ -404,6 +565,10 @@ public class LoggerToRequest implements org.slf4j.Logger {
         writeStdout(thrwbl);
         writeStdout("]");
         writeStdout("\n");
+
+        writeStream(string);
+        writeStream(thrwbl);
+        flushStream();
     }
 
     @Override
@@ -418,6 +583,10 @@ public class LoggerToRequest implements org.slf4j.Logger {
         writeStdout(" marker=");
         writeStdout(marker.toString());
         writeStdout("\n");
+
+        writeStream(string);
+        writeStream(marker);
+        flushStream();
     }
 
     @Override
@@ -430,6 +599,11 @@ public class LoggerToRequest implements org.slf4j.Logger {
         writeStdout(o);
         writeStdout("]");
         writeStdout("\n");
+
+        writeStream(string);
+        writeStream(marker);
+        writeStream(o);
+        flushStream();
     }
 
     @Override
@@ -445,6 +619,12 @@ public class LoggerToRequest implements org.slf4j.Logger {
         writeStdout(o1);
         writeStdout("]");
         writeStdout("\n");
+
+        writeStream(string);
+        writeStream(marker);
+        writeStream(o);
+        writeStream(o1);
+        flushStream();
     }
 
     @Override
@@ -453,12 +633,20 @@ public class LoggerToRequest implements org.slf4j.Logger {
         writeStdout(string);
         writeStdout(" marker=");
         writeStdout(marker.toString());
+
+        writeStream(string);
+        writeStream(marker);
+
         for (Object o : os) {
             writeStdout(" [");
             writeStdout(o);
             writeStdout("]");
+
+            writeStream(o);
         }
         writeStdout("\n");
+
+        flushStream();
     }
 
     @Override
@@ -471,6 +659,11 @@ public class LoggerToRequest implements org.slf4j.Logger {
         writeStdout(thrwbl);
         writeStdout("]");
         writeStdout("\n");
+
+        writeStream(string);
+        writeStream(marker);
+        writeStream(thrwbl);
+        flushStream();
     }
 
     @Override
@@ -485,6 +678,9 @@ public class LoggerToRequest implements org.slf4j.Logger {
         if (StringTools.endsWithNewline(string) == false) {
             writeStdwarn("\n");
         }
+
+        writeStream(string);
+        flushStream();
     }
 
     @Override
@@ -495,6 +691,10 @@ public class LoggerToRequest implements org.slf4j.Logger {
         writeStdwarn(o);
         writeStdwarn("]");
         writeStdwarn("\n");
+
+        writeStream(string);
+        writeStream(o);
+        flushStream();
     }
 
     @Override
@@ -508,18 +708,30 @@ public class LoggerToRequest implements org.slf4j.Logger {
         writeStdwarn(o1);
         writeStdwarn("]");
         writeStdwarn("\n");
+
+        writeStream(string);
+        writeStream(o);
+        writeStream(o1);
+        flushStream();
     }
 
     @Override
     public void warn(String string, Object[] os) {
         write("warn: ");
         writeStdwarn(string);
+
+        writeStream(string);
+
         for (Object o : os) {
             writeStdwarn(" [");
             writeStdwarn(o);
             writeStdwarn("]");
+
+            writeStream(o);
         }
         writeStdwarn("\n");
+
+        flushStream();
     }
 
     @Override
@@ -530,6 +742,10 @@ public class LoggerToRequest implements org.slf4j.Logger {
         writeStdwarn(thrwbl);
         writeStdwarn("]");
         writeStdwarn("\n");
+
+        writeStream(string);
+        writeStream(thrwbl);
+        flushStream();
     }
 
     @Override
@@ -544,6 +760,10 @@ public class LoggerToRequest implements org.slf4j.Logger {
         writeStdwarn(" marker=");
         writeStdwarn(marker.toString());
         writeStdwarn("\n");
+
+        writeStream(string);
+        writeStream(marker);
+        flushStream();
     }
 
     @Override
@@ -556,6 +776,11 @@ public class LoggerToRequest implements org.slf4j.Logger {
         writeStdwarn(o);
         writeStdwarn("]");
         writeStdwarn("\n");
+
+        writeStream(string);
+        writeStream(marker);
+        writeStream(o);
+        flushStream();
     }
 
     @Override
@@ -571,6 +796,12 @@ public class LoggerToRequest implements org.slf4j.Logger {
         writeStdwarn(o1);
         writeStdwarn("]");
         writeStdwarn("\n");
+
+        writeStream(string);
+        writeStream(marker);
+        writeStream(o);
+        writeStream(o1);
+        flushStream();
     }
 
     @Override
@@ -579,12 +810,20 @@ public class LoggerToRequest implements org.slf4j.Logger {
         writeStdwarn(string);
         writeStdwarn(" marker=");
         writeStdwarn(marker.toString());
+
+        writeStream(string);
+        writeStream(marker);
+
         for (Object o : os) {
             writeStdwarn(" [");
             writeStdwarn(o);
             writeStdwarn("]");
+
+            writeStream(o);
         }
         writeStdwarn("\n");
+
+        flushStream();
     }
 
     @Override
@@ -597,6 +836,11 @@ public class LoggerToRequest implements org.slf4j.Logger {
         writeStdwarn(thrwbl);
         writeStdwarn("]");
         writeStdwarn("\n");
+
+        writeStream(string);
+        writeStream(marker);
+        writeStream(thrwbl);
+        flushStream();
     }
 
     @Override
@@ -611,6 +855,9 @@ public class LoggerToRequest implements org.slf4j.Logger {
         if (StringTools.endsWithNewline(string) == false) {
             writeStderr("\n");
         }
+
+        writeStream(string);
+        flushStream();
     }
 
     @Override
@@ -621,6 +868,10 @@ public class LoggerToRequest implements org.slf4j.Logger {
         writeStderr(o);
         writeStderr("]");
         writeStderr("\n");
+
+        writeStream(string);
+        writeStream(o);
+        flushStream();
     }
 
     @Override
@@ -634,18 +885,30 @@ public class LoggerToRequest implements org.slf4j.Logger {
         writeStderr(o1);
         writeStderr("]");
         writeStderr("\n");
+
+        writeStream(string);
+        writeStream(o);
+        writeStream(o1);
+        flushStream();
     }
 
     @Override
     public void error(String string, Object[] os) {
         write("error: ");
         writeStderr(string);
+
+        writeStream(string);
+
         for (Object o : os) {
             writeStderr(" [");
             writeStderr(o);
             writeStderr("]");
+
+            writeStream(o);
         }
         writeStderr("\n");
+
+        flushStream();
     }
 
     @Override
@@ -656,6 +919,10 @@ public class LoggerToRequest implements org.slf4j.Logger {
         writeStderr(thrwbl);
         writeStderr("]");
         writeStderr("\n");
+
+        writeStream(string);
+        writeStream(thrwbl);
+        flushStream();
     }
 
     @Override
@@ -670,6 +937,10 @@ public class LoggerToRequest implements org.slf4j.Logger {
         writeStderr(" marker=");
         writeStderr(marker.toString());
         writeStderr("\n");
+
+        writeStream(string);
+        writeStream(marker);
+        flushStream();
     }
 
     @Override
@@ -682,6 +953,11 @@ public class LoggerToRequest implements org.slf4j.Logger {
         writeStderr(o);
         writeStderr("]");
         writeStderr("\n");
+
+        writeStream(string);
+        writeStream(marker);
+        writeStream(o);
+        flushStream();
     }
 
     @Override
@@ -697,6 +973,12 @@ public class LoggerToRequest implements org.slf4j.Logger {
         writeStderr(o1);
         writeStderr("]");
         writeStderr("\n");
+
+        writeStream(string);
+        writeStream(marker);
+        writeStream(o);
+        writeStream(o1);
+        flushStream();
     }
 
     @Override
@@ -705,12 +987,20 @@ public class LoggerToRequest implements org.slf4j.Logger {
         writeStderr(string);
         writeStderr(" marker=");
         writeStderr(marker.toString());
+
+        writeStream(string);
+        writeStream(marker);
+
         for (Object o : os) {
             writeStderr(" [");
             writeStderr(o);
             writeStderr("]");
+
+            writeStream(o);
         }
         writeStderr("\n");
+
+        flushStream();
     }
 
     @Override
@@ -723,5 +1013,10 @@ public class LoggerToRequest implements org.slf4j.Logger {
         writeStderr(thrwbl);
         writeStderr("]");
         writeStderr("\n");
+
+        writeStream(string);
+        writeStream(marker);
+        writeStream(thrwbl);
+        flushStream();
     }
 }

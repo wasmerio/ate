@@ -8,6 +8,8 @@ package com.tokera.ate.common;
 import com.tokera.ate.dao.ILogable;
 import com.tokera.ate.delegates.LoggingDelegate;
 
+import java.io.IOException;
+import java.io.OutputStream;
 import java.lang.reflect.Member;
 import java.util.Date;
 import java.util.function.BiConsumer;
@@ -20,11 +22,10 @@ import org.slf4j.Marker;
 
 import javax.annotation.PostConstruct;
 import javax.enterprise.context.Dependent;
-import javax.enterprise.context.RequestScoped;
-import javax.enterprise.context.spi.Context;
 import javax.enterprise.inject.spi.BeanManager;
 import javax.enterprise.inject.spi.InjectionPoint;
 import javax.inject.Inject;
+import javax.servlet.http.HttpServletResponse;
 
 /**
  * Custom logger that will direct log commands either to the currentRights logger or to the static logger depending on
@@ -98,32 +99,34 @@ public class LoggerHook implements org.slf4j.Logger {
         loggingDelegate.getLogStack().pop();
     }
     
-    protected org.slf4j.Logger getStaticForwader() {
+    protected org.slf4j.Logger getStaticForwarder() {
         return org.slf4j.LoggerFactory.getLogger(logClazz);
     }
 
     protected org.slf4j.Logger getForwarder() {
-        
+
+        org.slf4j.Logger ret;
         if (RequestContextDelegate.isWithinRequestContext() == true &&
             LoggerHook.getForceStatic() == false)
         {
             Boolean forceContextLogger = LoggerHook.getForceContextLogger();
             if (forceContextLogger == null) {
-                if (loggingDelegate != null && loggingDelegate.getLogStack() != null && loggingDelegate.getLogStack().empty() == false) {
-                    return new LoggerToRequest(getStaticForwader(), loggingDelegate);
+                if (loggingDelegate != null && (loggingDelegate.getLogStack().empty() == false || loggingDelegate.getRedirectStream() != null)) {
+                    ret = new LoggerToRequest(getStaticForwarder(), loggingDelegate);
                 } else {
-                    return getStaticForwader();
+                    ret = getStaticForwarder();
                 }
             } else {
                 if (forceContextLogger == true && loggingDelegate != null) {
-                    return new LoggerToRequest(getStaticForwader(), loggingDelegate);
+                    ret = new LoggerToRequest(getStaticForwarder(), loggingDelegate);
                 } else {
-                    return getStaticForwader();
+                    ret = getStaticForwarder();
                 }
             }
         } else {
-            return getStaticForwader();
+            ret = getStaticForwarder();
         }
+        return ret;
     }
 
     public boolean getIsStatic() {
@@ -580,5 +583,19 @@ public class LoggerHook implements org.slf4j.Logger {
 
     public static <A, B> void withNoWarningsOrErrors(BiConsumer<A, B> f, A a, B b) {
         withNoWarningsOrErrors(() -> f.accept(a, b));
+    }
+
+    public void redirect(HttpServletResponse response) {
+        try {
+            redirect(response.getOutputStream());
+        } catch (IOException e) {
+            error(e);
+        }
+    }
+
+    public void redirect(OutputStream outputStream) {
+        if (this.loggingDelegate != null) {
+            this.loggingDelegate.redirect(outputStream);
+        }
     }
 }
