@@ -161,4 +161,12 @@ public class FsFolderDto {
     public void setBinaries(List<FsBinaryDto> binaries) {
         this.binaries = binaries;
     }
+
+    public List<FsStaticFileDto> getStaticFiles() {
+        return staticFiles;
+    }
+
+    public void setStaticFiles(List<FsStaticFileDto> staticFiles) {
+        this.staticFiles = staticFiles;
+    }
 }
