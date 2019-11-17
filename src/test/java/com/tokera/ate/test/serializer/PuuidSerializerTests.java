@@ -11,16 +11,11 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 
+import java.math.BigInteger;
 import java.util.UUID;
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class PuuidSerializerTests {
-    private final static YamlTagDiscoveryExtension discovery = new YamlTagDiscoveryExtension();
-    private final static YamlDelegate yamlDelegate = new YamlDelegate();
-
-    static {
-        yamlDelegate.init(discovery);
-    }
 
     public class FakePartitionKey implements IPartitionKey {
         private String partitionTopic;
@@ -69,14 +64,51 @@ public class PuuidSerializerTests {
         }
     }
 
-    //@Test
-    public void yamlTest() {
-        Test1Dto test = new Test1Dto();
-        test.setShare(PUUID.from(new FakePartitionKey("testdomain.com", 1), UUID.randomUUID()));
+    @Test
+    public void base16Test() {
+        PUUID pid = PUUID.from(new FakePartitionKey("testdomain.com", 1), UUID.randomUUID());
+        String val = pid.toBase16();
+        PUUID pid2 = PUUID.fromBase16(val);
+        Assertions.assertEquals(pid, pid2);
+    }
 
-        String yaml = yamlDelegate.serializeObj(test);
-        Test1Dto test2 = (Test1Dto)yamlDelegate.deserializeObj(yaml);
+    @Test
+    public void base26Test() {
+        PUUID pid = PUUID.from(new FakePartitionKey("testdomain.com", 1), UUID.randomUUID());
+        String val = pid.toBase26();
+        PUUID pid2 = PUUID.fromBase26(val);
+        Assertions.assertEquals(pid, pid2);
+    }
 
-        Assertions.assertEquals(test.getShare(), test2.getShare());
+    @Test
+    public void base36Test() {
+        PUUID pid = PUUID.from(new FakePartitionKey("testdomain.com", 1), UUID.randomUUID());
+        String val = pid.toBase36();
+        PUUID pid2 = PUUID.fromBase36(val);
+        Assertions.assertEquals(pid, pid2);
+    }
+
+    @Test
+    public void base64Test() {
+        PUUID pid = PUUID.from(new FakePartitionKey("testdomain.com", 1), UUID.randomUUID());
+        String val = pid.toBase64();
+        PUUID pid2 = PUUID.fromBase64(val);
+        Assertions.assertEquals(pid, pid2);
+    }
+
+    @Test
+    public void bigIntegerTest() {
+        PUUID pid = PUUID.from(new FakePartitionKey("testdomain.com", 1), UUID.randomUUID());
+        BigInteger val = pid.toBigInteger();
+        PUUID pid2 = PUUID.fromBigInteger(val);
+        Assertions.assertEquals(pid, pid2);
+    }
+
+    @Test
+    public void bytesTest() {
+        PUUID pid = PUUID.from(new FakePartitionKey("testdomain.com", 1), UUID.randomUUID());
+        byte[] val = pid.toBytes();
+        PUUID pid2 = PUUID.fromBytes(val);
+        Assertions.assertEquals(pid, pid2);
     }
 }

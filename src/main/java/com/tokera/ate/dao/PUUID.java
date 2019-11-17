@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonTypeName;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.tokera.ate.annotations.YamlTag;
+import com.tokera.ate.common.BaseX;
 import com.tokera.ate.common.StringTools;
 import com.tokera.ate.enumerations.DataPartitionType;
 import com.tokera.ate.io.api.IPartitionKey;
@@ -17,10 +18,13 @@ import org.apache.commons.io.output.ByteArrayOutputStream;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.Dependent;
+import javax.xml.bind.DatatypeConverter;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.io.Serializable;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -185,7 +189,7 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
     }
 
     @SuppressWarnings("known.nonnull")
-    public String serialize() {
+    public byte[] toBytes() {
         try {
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
             DataOutputStream dos = new DataOutputStream(stream);
@@ -206,10 +210,36 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
                 dos.writeLong(0);
                 dos.writeLong(0);
             }
-            return Base64.encodeBase64URLSafeString(stream.toByteArray());
+            return stream.toByteArray();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public String serialize() {
+        return toBase64();
+    }
+
+    public String toBase64() {
+        return Base64.encodeBase64URLSafeString(toBytes());
+    }
+
+    public String toBase26() {
+        BaseX basex = new BaseX(BaseX.DICTIONARY_26);
+        return basex.encode(toBigInteger());
+    }
+
+    public String toBase36() {
+        BaseX basex = new BaseX(BaseX.DICTIONARY_36);
+        return basex.encode(toBigInteger());
+    }
+
+    public String toBase16() {
+        return DatatypeConverter.printHexBinary(toBytes());
+    }
+
+    public BigInteger toBigInteger() {
+        return new BigInteger("1" + toBase16(), 16);
     }
 
     public String print() {
@@ -226,12 +256,72 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
         return pid.serialize();
     }
 
+    public static PUUID fromBase64(String val) {
+        byte[] bytes = Base64.decodeBase64(val);
+        return fromBytes(bytes);
+    }
+
+    public static PUUID fromBase26(String hex) {
+        BaseX basex = new BaseX(BaseX.DICTIONARY_26);
+        return fromBigInteger(basex.decode(hex));
+    }
+
+    public static PUUID fromBase36(String hex) {
+        BaseX basex = new BaseX(BaseX.DICTIONARY_36);
+        return fromBigInteger(basex.decode(hex));
+    }
+
+    public static PUUID fromBase16(String hex) {
+        byte[] bytes = DatatypeConverter.parseHexBinary(hex);
+        return fromBytes(bytes);
+    }
+
+    public static PUUID fromBigInteger(BigInteger val) {
+        String hex = val.toString(16);
+        if (hex.length() > 0) hex = hex.substring(1);
+        return fromBase16(hex);
+    }
+
     public static PUUID parse(@Nullable String val) {
         PUUID ret = parseOrNull(val, true);
         if (ret == null) {
             throw new RuntimeException("Failed to parse string [" + val + "] into PUUID as the id was missing or incomplete");
         }
         return ret;
+    }
+
+    public static @Nullable PUUID fromBytes(byte[] bytes) {
+        ByteBuffer bb = ByteBuffer.wrap(bytes);
+
+        int typeCode = bb.getShort();
+        DataPartitionType type = DataPartitionType.fromCode(typeCode);
+
+        String topic;
+        int topicLen = bb.getShort();
+        if (topicLen > 0) {
+            byte[] topicBytes = new byte[topicLen];
+            bb.get(topicBytes);
+            topic = new String(topicBytes);
+        } else {
+            return null;
+        }
+
+        int index = bb.getInt();
+
+        long mostSigBits = bb.getLong();
+        long leastSigBits = bb.getLong();
+        UUID id;
+        if (mostSigBits != 0 && leastSigBits != 0) {
+            id = new UUID(mostSigBits, leastSigBits);
+        } else {
+            return null;
+        }
+
+        return new PUUID(
+                topic,
+                index,
+                id,
+                type);
     }
 
     public static @Nullable PUUID parseOrNull(@Nullable String val) {
@@ -255,37 +345,7 @@ public final class PUUID implements Serializable, Comparable<PUUID> {
             }
 
             byte[] data = Base64.decodeBase64(val);
-            ByteBuffer bb = ByteBuffer.wrap(data);
-
-            int typeCode = bb.getShort();
-            DataPartitionType type = DataPartitionType.fromCode(typeCode);
-
-            String topic;
-            int topicLen = bb.getShort();
-            if (topicLen > 0) {
-                byte[] topicBytes = new byte[topicLen];
-                bb.get(topicBytes);
-                topic = new String(topicBytes);
-            } else {
-                return null;
-            }
-
-            int index = bb.getInt();
-
-            long mostSigBits = bb.getLong();
-            long leastSigBits = bb.getLong();
-            UUID id;
-            if (mostSigBits != 0 && leastSigBits != 0) {
-                id = new UUID(mostSigBits, leastSigBits);
-            } else {
-                return null;
-            }
-
-            return new PUUID(
-                    topic,
-                    index,
-                    id,
-                    type);
+            return fromBytes(data);
         } catch (Throwable ex) {
             if (shouldThrow) {
                 throw new RuntimeException("Failed to parse string [" + _val + "] into PUUID as the id was missing or incomplete", ex);
