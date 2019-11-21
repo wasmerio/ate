@@ -36,7 +36,7 @@ public class DataContainer {
     private final Map<UUID, @NonNull DataGraphNode> lookup = new HashMap<>();
     private final LinkedList<DataGraphNode> timeline = new LinkedList<>();
     private final LinkedList<DataGraphNode> leafs = new LinkedList<>();
-    private @Nullable String leafHash = null;
+    private @Nullable String leafKey = null;
     private @Nullable UUID leafCastleId = null;
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
 
@@ -55,6 +55,7 @@ public class DataContainer {
         }
         lastOffset = msg.getMeta().getOffset();
         UUID castleId = msg.getHeader().getCastleId();
+        String key = msg.getMeta().getKey();
 
         DataGraphNode node = new DataGraphNode(msg);
         Lock w = this.lock.writeLock();
@@ -76,7 +77,7 @@ public class DataContainer {
             if (msg.hasPayload()) {
                 if (allPreviousVersionsExist) {
                     leafs.removeIf(n -> n.version.equals(node.previousVersion) ||
-                                       node.mergesVersions.contains(n.version));
+                            node.mergesVersions.contains(n.version));
                 } else {
                     leafs.clear();
                 }
@@ -86,18 +87,14 @@ public class DataContainer {
 
             // If the read permissions have changed then its no longer possible to merge them
             // thus we just fallback to using the last one
-            String readHash = d.encryptor.hashShaAndEncode(msg.getHeader().getAllowRead());
-            if (leafs.size() > 0) {
-                if (readHash.equals(leafHash) == false ||
-                    castleId.equals(leafCastleId) == false)
-                {
-                    leafs.clear();
-                }
-            }
+            if (key.equals(leafKey) == false ||
+                castleId.equals(leafCastleId) == false)
+            {
+                leafs.clear();
 
-            // Set the leaf values
-            leafHash = readHash;
-            leafCastleId = castleId;
+                leafKey = key;
+                leafCastleId = castleId;
+            }
 
             // Add the node to the merge list and immutalize it
             lookup.put(node.version, node);
