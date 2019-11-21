@@ -28,6 +28,18 @@ public class SecurityLevel {
         this.tokenExpiresMins = 5;
     }
 
+    public SecurityLevel(SecurityLevel other) {
+        this.signingTypes = other.signingTypes;
+        this.encryptTypes = other.encryptTypes;
+        this.aesStrength = other.aesStrength;
+        this.signingStrength = other.signingStrength;
+        this.encryptionStrength = other.encryptionStrength;
+        this.automaticKeyRotation = other.automaticKeyRotation;
+        this.encryptToken = other.encryptToken;
+        this.signToken = other.signToken;
+        this.tokenExpiresMins = other.tokenExpiresMins;
+    }
+
     public SecurityLevel(int aesStrength, int signingStrength, int encryptionStrength, boolean automaticKeyRotation, List<KeyType> signingTypes, List<KeyType> encryptTypes, boolean encryptToken, boolean signToken, int tokenExpiresMins) {
         this.automaticKeyRotation = automaticKeyRotation;
         this.signingTypes = signingTypes;
@@ -45,4 +57,112 @@ public class SecurityLevel {
     public static SecurityLevel HighlySecure = new SecurityLevel(192, 192, 192, false, Lists.newArrayList(KeyType.qtesla), Lists.newArrayList(KeyType.ntru), true, true, 20);
     public static SecurityLevel ModeratelySecure = new SecurityLevel(128, 128, 128, false, Lists.newArrayList(KeyType.qtesla), Lists.newArrayList(KeyType.ntru), false, true, 0);
     public static SecurityLevel PoorlySecure = new SecurityLevel(128, 64, 128, false, Lists.newArrayList(KeyType.qtesla), Lists.newArrayList(KeyType.ntru), false, false, 0);
+
+    public SecurityLevel withAesStrength(int aesStrength) {
+        return new SecurityLevel(aesStrength,
+                signingStrength,
+                encryptionStrength,
+                automaticKeyRotation,
+                signingTypes,
+                encryptTypes,
+                encryptToken,
+                signToken,
+                tokenExpiresMins);
+    }
+
+    public SecurityLevel withSigningStrength(int signingStrength) {
+        return new SecurityLevel(aesStrength,
+                signingStrength,
+                encryptionStrength,
+                automaticKeyRotation,
+                signingTypes,
+                encryptTypes,
+                encryptToken,
+                signToken,
+                tokenExpiresMins);
+    }
+
+    public SecurityLevel withEncryptionStrength(int encryptionStrength) {
+        return new SecurityLevel(aesStrength,
+                signingStrength,
+                encryptionStrength,
+                automaticKeyRotation,
+                signingTypes,
+                encryptTypes,
+                encryptToken,
+                signToken,
+                tokenExpiresMins);
+    }
+
+    public SecurityLevel withAutomaticKeyRotation(boolean automaticKeyRotation) {
+        return new SecurityLevel(aesStrength,
+                signingStrength,
+                encryptionStrength,
+                automaticKeyRotation,
+                signingTypes,
+                encryptTypes,
+                encryptToken,
+                signToken,
+                tokenExpiresMins);
+    }
+
+    public SecurityLevel withSigningTypes(List<KeyType> signingTypes) {
+        return new SecurityLevel(aesStrength,
+                signingStrength,
+                encryptionStrength,
+                automaticKeyRotation,
+                signingTypes,
+                encryptTypes,
+                encryptToken,
+                signToken,
+                tokenExpiresMins);
+    }
+
+    public SecurityLevel withEncryptTypes(List<KeyType> encryptTypes) {
+        return new SecurityLevel(aesStrength,
+                signingStrength,
+                encryptionStrength,
+                automaticKeyRotation,
+                signingTypes,
+                encryptTypes,
+                encryptToken,
+                signToken,
+                tokenExpiresMins);
+    }
+
+    public SecurityLevel withEncryptToken(boolean encryptToken) {
+        return new SecurityLevel(aesStrength,
+                signingStrength,
+                encryptionStrength,
+                automaticKeyRotation,
+                signingTypes,
+                encryptTypes,
+                encryptToken,
+                signToken,
+                tokenExpiresMins);
+    }
+
+    public SecurityLevel withSignToken(boolean signToken) {
+        return new SecurityLevel(aesStrength,
+                signingStrength,
+                encryptionStrength,
+                automaticKeyRotation,
+                signingTypes,
+                encryptTypes,
+                encryptToken,
+                signToken,
+                tokenExpiresMins);
+    }
+
+    public SecurityLevel withTokenExpiresMins(int tokenExpiresMins) {
+        return new SecurityLevel(aesStrength,
+                signingStrength,
+                encryptionStrength,
+                automaticKeyRotation,
+                signingTypes,
+                encryptTypes,
+                encryptToken,
+                signToken,
+                tokenExpiresMins);
+    }
 }

@@ -210,7 +210,6 @@ final class TrustValidatorBuilder {
         private boolean validatedParent = false;
         private boolean validatedCastle = false;
         private boolean validatedIsntReparenting = false;
-        private boolean validatedVersion = false;
 
         protected ValidatorBasic(IPartitionKey partitionKey, MessageDataDto data) {
             MessageDataHeaderDto header = data.getHeader();
@@ -247,56 +246,6 @@ final class TrustValidatorBuilder {
             this.container = last.container;
             this.validatedParent = last.validatedParent;
             this.validatedIsntReparenting = last.validatedIsntReparenting;
-            this.validatedVersion = last.validatedVersion;
-        }
-
-        /**
-         * Validate the previous version exists (otherwise dump it)
-         * @return True if the previous version exists
-         */
-        //"The versioning system is a little to strict and results in lost data sometimes"
-        @Deprecated()
-        public boolean validatePreviousVersion() {
-            if (validatedVersion == true) return true;
-
-            if (header.getPreviousVersion() != null) {
-                if (container != null &&
-                    container.isEmpty() == false &&
-                    container.hasVersion(header.getPreviousVersion()) == false) {
-                    fail("referenced previous version does not exist");
-                    return false;
-                }
-            }
-
-            if (header.getMerges() != null) {
-                for (UUID id : header.getMerges()) {
-                    if (container != null &&
-                        container.isEmpty() == false &&
-                        container.hasVersion(id) == false) {
-                        fail("referenced previous version of merge does not exist");
-                        return false;
-                    }
-                }
-            }
-
-            // If no previous version is referenced
-            if (header.getPreviousVersion() == null &&
-                    (header.getMerges() == null || header.getMerges().size() <= 0))
-            {
-                // ...but we have records in the chain
-                if (container != null && container.isEmpty() == false)
-                {
-                    // ...and the last record is not deleted
-                    MessageDataDto data = container.getLastDataOrNull();
-                    if (data != null && data.hasPayload()) {
-                        fail("existing record exists but is not referenced");
-                        return false;
-                    }
-                }
-            }
-
-            this.validatedVersion = true;
-            return true;
         }
 
         /**
