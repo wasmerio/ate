@@ -2,10 +2,7 @@ package com.tokera.ate.io.repo;
 
 import com.tokera.ate.dao.MessageBundle;
 import com.tokera.ate.dao.msg.MessageSync;
-import com.tokera.ate.dto.msg.MessageBaseDto;
-import com.tokera.ate.dto.msg.MessageDataDto;
-import com.tokera.ate.dto.msg.MessageMetaDto;
-import com.tokera.ate.dto.msg.MessageSyncDto;
+import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.io.api.IPartitionKey;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
@@ -24,7 +21,7 @@ public interface IDataPartitionBridge {
 
     void waitTillLoaded();
 
-    @Nullable MessageDataDto getVersion(UUID id, long offset);
+    @Nullable MessageDataMetaDto getVersion(UUID id, long offset);
 
     IPartitionKey partitionKey();
 

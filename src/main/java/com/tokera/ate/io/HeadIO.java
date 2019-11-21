@@ -633,12 +633,12 @@ public class HeadIO
         return back.readVersionOrNull(id, offset);
     }
 
-    public @Nullable MessageDataDto readVersionMsgOrNull(@DaoId UUID id, long offset) {
+    public @Nullable MessageDataMetaDto readVersionMsgOrNull(@DaoId UUID id, long offset) {
         IPartitionKey partitionKey = d.requestContext.currentPartitionKey();
         return back.readVersionMsgOrNull(PUUID.from(partitionKey, id), offset);
     }
 
-    public @Nullable MessageDataDto readVersionMsgOrNull(PUUID id, long offset) {
+    public @Nullable MessageDataMetaDto readVersionMsgOrNull(PUUID id, long offset) {
         return back.readVersionMsgOrNull(id, offset);
     }
 
@@ -655,13 +655,13 @@ public class HeadIO
         return ret;
     }
 
-    public MessageDataDto readVersionMsg(@DaoId UUID id, long offset) {
+    public MessageDataMetaDto readVersionMsg(@DaoId UUID id, long offset) {
         IPartitionKey partitionKey = d.requestContext.currentPartitionKey();
         return this.readVersionMsg(PUUID.from(partitionKey, id), offset);
     }
 
-    public MessageDataDto readVersionMsg(PUUID id, long offset) {
-        MessageDataDto ret = back.readVersionMsgOrNull(id, offset);
+    public MessageDataMetaDto readVersionMsg(PUUID id, long offset) {
+        MessageDataMetaDto ret = back.readVersionMsgOrNull(id, offset);
         if (ret == null) {
             throw new RuntimeException("Object version message (id=" + id.print() + ") not found");
         }

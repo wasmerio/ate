@@ -7,9 +7,7 @@ import com.tokera.ate.dao.msg.MessageBase;
 import com.tokera.ate.dao.msg.MessageData;
 import com.tokera.ate.dao.msg.MessageType;
 import com.tokera.ate.delegates.AteDelegate;
-import com.tokera.ate.dto.msg.MessageBaseDto;
-import com.tokera.ate.dto.msg.MessageDataDto;
-import com.tokera.ate.dto.msg.MessageSyncDto;
+import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.repo.DataPartitionChain;
 import com.tokera.ate.io.repo.IDataPartitionBridge;
@@ -69,7 +67,7 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
     }
 
     @Override
-    public @Nullable MessageDataDto getVersion(UUID id, long offset) {
+    public @Nullable MessageDataMetaDto getVersion(UUID id, long offset) {
         TopicPartition tp = new TopicPartition(where.partitionTopic(), where.partitionIndex());
 
         List<TopicPartition> tps = new LinkedList<>();
@@ -89,7 +87,8 @@ public class KafkaPartitionBridge implements IDataPartitionBridge {
                 if (msg.value().msgType() == MessageType.MessageData) {
                     MessageData data = (MessageData)msg.value().msg(new MessageData());
                     if (data == null) return null;
-                    return new MessageDataDto(data);
+                    MessageMetaDto meta = new MessageMetaDto(msg.key(), msg.partition(), msg.offset());
+                    return new MessageDataMetaDto(new MessageDataDto(data), meta);
                 }
             }
         }

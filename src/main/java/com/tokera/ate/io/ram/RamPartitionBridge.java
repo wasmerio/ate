@@ -5,10 +5,7 @@ import com.tokera.ate.dao.TopicAndPartition;
 import com.tokera.ate.dao.kafka.MessageSerializer;
 import com.tokera.ate.dao.msg.MessageBase;
 import com.tokera.ate.delegates.AteDelegate;
-import com.tokera.ate.dto.msg.MessageBaseDto;
-import com.tokera.ate.dto.msg.MessageDataDto;
-import com.tokera.ate.dto.msg.MessageMetaDto;
-import com.tokera.ate.dto.msg.MessageSyncDto;
+import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.enumerations.DataPartitionType;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.repo.DataPartitionChain;
@@ -60,7 +57,7 @@ public class RamPartitionBridge implements IDataPartitionBridge {
     }
 
     @Override
-    public @Nullable MessageDataDto getVersion(UUID id, long offset) {
+    public @Nullable MessageDataMetaDto getVersion(UUID id, long offset) {
         return d.ramDataRepository.getVersion(where, offset);
     }
 

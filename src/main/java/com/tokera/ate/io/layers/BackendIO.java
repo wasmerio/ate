@@ -98,7 +98,7 @@ final public class BackendIO implements IAteIO {
     }
     
     @Override
-    public @Nullable MessageDataDto readVersionMsgOrNull(PUUID id, long offset) {
+    public @Nullable MessageDataMetaDto readVersionMsgOrNull(PUUID id, long offset) {
         return next.readVersionMsgOrNull(id, offset);
     }
     

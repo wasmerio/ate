@@ -35,7 +35,7 @@ public interface IAteIO {
     
     @Nullable BaseDao readVersionOrNull(PUUID id, long offset);
     
-    @Nullable MessageDataDto readVersionMsgOrNull(PUUID id, long offset);
+    @Nullable MessageDataMetaDto readVersionMsgOrNull(PUUID id, long offset);
 
     List<BaseDao> view(IPartitionKey partitionKey, Predicate<BaseDao> predicate);
     

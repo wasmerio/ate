@@ -179,6 +179,11 @@
             <artifactId>javassist</artifactId>
             <version>3.25.0-GA</version>
         </dependency>
+        <dependency>
+            <groupId>org.javatuples</groupId>
+            <artifactId>javatuples</artifactId>
+            <version>1.2</version>
+        </dependency>
 
         <!-- Kafka (which sucks in Scala and ZooKeeper) -->
         <dependency>

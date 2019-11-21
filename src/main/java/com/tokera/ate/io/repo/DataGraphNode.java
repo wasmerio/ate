@@ -7,6 +7,7 @@ import java.util.*;
 public class DataGraphNode {
 
     public final MessageDataMetaDto     msg;
+    public final String                 key;
     public final UUID                   version;
     public final @Nullable UUID         previousVersion;
     public @Nullable DataGraphNode      parentNode;
@@ -16,6 +17,7 @@ public class DataGraphNode {
     public DataGraphNode(MessageDataMetaDto msg) {
         this.msg = msg;
         this.version = msg.version();
+        this.key = msg.getMeta().getKey();
         this.previousVersion =  msg.getData().getHeader().getPreviousVersion();
         this.mergesVersions = msg.getData().getHeader().getMerges();
     }

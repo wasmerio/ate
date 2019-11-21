@@ -60,10 +60,26 @@ public class DataContainer {
         Lock w = this.lock.writeLock();
         w.lock();
         try {
+            // Determine if the previous versions are all present (if not then its likely they were
+            // compacted away)
+            boolean allPreviousVersionsExist = true;
+            if (node.previousVersion != null) {
+                if (hasVersion(node.previousVersion) == false) allPreviousVersionsExist = false;
+                if (node.mergesVersions != null) {
+                    for (UUID previousVersion : node.mergesVersions) {
+                        if (hasVersion(previousVersion) == false) allPreviousVersionsExist = false;
+                    }
+                }
+            }
+
             // Empty payloads should not attempt a merge
             if (msg.hasPayload()) {
-                leafs.removeIf(n -> n.version.equals(node.previousVersion) ||
-                                node.mergesVersions.contains(n.version));
+                if (allPreviousVersionsExist) {
+                    leafs.removeIf(n -> n.version.equals(node.previousVersion) ||
+                                       node.mergesVersions.contains(n.version));
+                } else {
+                    leafs.clear();
+                }
             } else {
                 leafs.clear();
             }
