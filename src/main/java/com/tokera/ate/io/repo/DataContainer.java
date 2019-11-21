@@ -61,8 +61,8 @@ public class DataContainer {
         Lock w = this.lock.writeLock();
         w.lock();
         try {
-            // If the read permissions have changed then its no longer possible to merge them
-            // thus we just fallback to using the last one
+            // If the compacted topic key changes then the chain-of-versions needs to be reset
+            // as otherwise previous compacted keys will get merged into the last key
             if (key.equals(leafKey) == false ||
                 castleId.equals(leafCastleId) == false)
             {
