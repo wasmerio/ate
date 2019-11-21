@@ -61,30 +61,6 @@ public class DataContainer {
         Lock w = this.lock.writeLock();
         w.lock();
         try {
-            // Determine if the previous versions are all present (if not then its likely they were
-            // compacted away)
-            boolean allPreviousVersionsExist = true;
-            if (node.previousVersion != null) {
-                if (hasVersion(node.previousVersion) == false) allPreviousVersionsExist = false;
-                if (node.mergesVersions != null) {
-                    for (UUID previousVersion : node.mergesVersions) {
-                        if (hasVersion(previousVersion) == false) allPreviousVersionsExist = false;
-                    }
-                }
-            }
-
-            // Empty payloads should not attempt a merge
-            if (msg.hasPayload()) {
-                if (allPreviousVersionsExist) {
-                    leafs.removeIf(n -> n.version.equals(node.previousVersion) ||
-                            node.mergesVersions.contains(n.version));
-                } else {
-                    leafs.clear();
-                }
-            } else {
-                leafs.clear();
-            }
-
             // If the read permissions have changed then its no longer possible to merge them
             // thus we just fallback to using the last one
             if (key.equals(leafKey) == false ||
@@ -94,6 +70,14 @@ public class DataContainer {
 
                 leafKey = key;
                 leafCastleId = castleId;
+            }
+
+            // Empty payloads should not attempt a merge
+            if (msg.hasPayload()) {
+                leafs.removeIf(n -> n.version.equals(node.previousVersion) ||
+                                    node.mergesVersions.contains(n.version));
+            } else {
+                leafs.clear();
             }
 
             // Add the node to the merge list and immutalize it
