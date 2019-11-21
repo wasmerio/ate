@@ -9,6 +9,7 @@ import com.tokera.ate.dto.msg.MessageDataMetaDto;
 import com.tokera.ate.dto.msg.MessageMetaDto;
 import com.tokera.ate.io.api.IPartitionKey;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import org.javatuples.Pair;
 
 import javax.enterprise.context.ApplicationScoped;
 import java.util.ArrayList;
@@ -50,8 +51,8 @@ public class RamDataRepository {
                 .filter(a -> a.offset == offset)
                 .filter(a -> a.partition == where.partitionIndex())
                 .map(a -> new Pair<>(MessageBaseDto.from(a.raw), new MessageMetaDto(a.key, a.partition, a.offset)))
-                .filter(a -> a.getData() instanceof MessageDataDto)
-                .map(a -> (MessageDataDto)a)
+                .filter(a -> a.getValue0() instanceof MessageDataDto)
+                .map(a -> new MessageDataMetaDto((MessageDataDto)a.getValue0(), a.getValue1()))
                 .findFirst()
                 .orElse(null);
     }
