@@ -37,6 +37,7 @@ import javax.ws.rs.core.Response;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.function.*;
 import java.util.stream.Collectors;
 
 /**
@@ -760,5 +761,45 @@ public class AuthorizationDelegate {
 
     public ImmutalizableArrayList<ClaimDto> extractTokenClaims(String encToken) {
         return tokenSerializer.extractTokenClaims(new TokenDto(encToken));
+    }
+
+
+
+    public void withRights(IRights rights, Runnable funct) {
+        d.currentRights.impersonateRead(d.authorization.getOrCreateImplicitRightToRead(rights));
+        d.currentRights.impersonateWrite(d.authorization.getOrCreateImplicitRightToWrite(rights));
+        try {
+            funct.run();
+        } finally {
+            d.currentRights.unimpersonateRead(d.authorization.getOrCreateImplicitRightToRead(rights));
+            d.currentRights.unimpersonateWrite(d.authorization.getOrCreateImplicitRightToWrite(rights));
+        }
+    }
+
+    public <A> void withRights(IRights rights, Consumer<A> f, A a) {
+        this.withRights(rights, () -> f.accept(a));
+    }
+
+    public <A, B> void withRights(IRights rights, BiConsumer<A, B> f, A a, B b) {
+        this.withRights(rights, () -> f.accept(a, b));
+    }
+
+    public <T> T withRights(IRights rights, Supplier<T> f) {
+        d.currentRights.impersonateRead(d.authorization.getOrCreateImplicitRightToRead(rights));
+        d.currentRights.impersonateWrite(d.authorization.getOrCreateImplicitRightToWrite(rights));
+        try {
+            return f.get();
+        } finally {
+            d.currentRights.unimpersonateRead(d.authorization.getOrCreateImplicitRightToRead(rights));
+            d.currentRights.unimpersonateWrite(d.authorization.getOrCreateImplicitRightToWrite(rights));
+        }
+    }
+
+    public <A, R> R withRights(IRights rights, Function<A, R> f, A a) {
+        return this.withRights(rights, () -> f.apply(a));
+    }
+
+    public <A, B, R> R withRights(IRights rights, BiFunction<A, B, R> f, A a, B b) {
+        return this.withRights(rights, () -> f.apply(a, b));
     }
 }
