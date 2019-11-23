@@ -123,6 +123,7 @@ public class BasicIntegrationTests {
         });
     }
 
+    /*
     @Test
     @Order(13)
     public void getThings() {
@@ -135,6 +136,7 @@ public class BasicIntegrationTests {
         ThingsDto things = session.restGet("/acc/" + this.accountId + "/things", ThingsDto.class);
         Assertions.assertEquals(testSet.size(), things.things.size());
     }
+    */
 
     @Test
     @Order(14)
