@@ -1,7 +1,6 @@
 package com.tokera.ate.client;
 
 import com.tokera.ate.delegates.AteDelegate;
-import com.tokera.ate.dto.fs.FsFolderDto;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.providers.*;
 import org.checkerframework.checker.nullness.qual.Nullable;
@@ -134,10 +133,10 @@ public class RawClient {
         return builder;
     }
 
-    public FsFolderDto fsList(String path) {
+    public <T> T fsList(String path, Class<T> folderClazz) {
         Response response = targetRelative(prefixForFs, path, MediaType.APPLICATION_JSON_TYPE).get();
         TestTools.validateResponse(response, path);
-        return response.readEntity(FsFolderDto.class);
+        return response.readEntity(folderClazz);
     }
 
     public String fsGet(String path) {
