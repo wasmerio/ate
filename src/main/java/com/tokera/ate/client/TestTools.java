@@ -39,6 +39,7 @@ public class TestTools {
                 .register(new PrivateKeyWithSeedSerializer())
                 .register(new CountLongSerializer())
                 .register(new RangeLongSerializer())
+                .register(new TimespecSerializer())
                 .build();
         return client;
     }

@@ -12,6 +12,7 @@ import com.tokera.ate.dao.GenericPartitionKey;
 import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.RangeLong;
 import com.tokera.ate.dto.PrivateKeyWithSeedDto;
+import com.tokera.ate.dto.Timespec;
 import com.tokera.ate.dto.TokenDto;
 import com.tokera.ate.extensions.YamlTagDiscoveryExtension;
 import com.tokera.ate.io.api.IPartitionKey;
@@ -136,6 +137,7 @@ public class YamlDelegate {
         cfg.setClassTag("timestamp", java.util.Date.class);
         cfg.setClassTag("uuid", java.util.UUID.class);
         cfg.setClassTag("longrange", RangeLong.class);
+        cfg.setClassTag("timespec", Timespec.class);
         cfg.setClassTag("gpkey", GenericPartitionKey.class);
         cfg.setClassTag("ipkey", IPartitionKey.class);
         cfg.setClassTag("puuid", PUUID.class);
@@ -152,6 +154,7 @@ public class YamlDelegate {
         cfg.setScalarSerializer(PrivateKeyWithSeedDto.class, new PrivateKeyWithSeedSerializer());
         cfg.setScalarSerializer(CountLong.class, new CountLongSerializer());
         cfg.setScalarSerializer(RangeLong.class, new RangeLongSerializer());
+        cfg.setScalarSerializer(Timespec.class, new TimespecSerializer());
         cfg.setScalarSerializer(GenericPartitionKey.class, new GenericPartitionKeySerializer());
         cfg.setScalarSerializer(IPartitionKey.class, new PartitionKeySerializer());
         cfg.setScalarSerializer(java.math.BigDecimal.class, new BigDecimalSerializer());

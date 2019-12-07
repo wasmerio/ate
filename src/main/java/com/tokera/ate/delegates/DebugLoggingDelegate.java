@@ -459,6 +459,8 @@ public class DebugLoggingDelegate {
             sb.append(result);
             sb.append(", principle=");
             sb.append(session.principal().getName());
+            sb.append(", client_address=");
+            sb.append(session.clientAddress().getHostAddress().toLowerCase());
             sb.append(", operation=");
             sb.append(operation.name());
             sb.append(", resource_type=");
