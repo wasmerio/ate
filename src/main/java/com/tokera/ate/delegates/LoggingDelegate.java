@@ -83,11 +83,11 @@ public class LoggingDelegate  {
     }
 
     public boolean getForceStatic() {
-        return forceStatic;
+        return this.forceStatic;
     }
 
     public void setForceStatic(boolean forceStatic) {
-        forceStatic = forceStatic;
+        this.forceStatic = forceStatic;
     }
 
     public @Nullable Boolean getForceContextLogger() {
@@ -95,6 +95,6 @@ public class LoggingDelegate  {
     }
 
     public void setForceContextLogger(boolean forceContextLogger) {
-        forceContextLogger = forceContextLogger;
+        this.forceContextLogger = forceContextLogger;
     }
 }
