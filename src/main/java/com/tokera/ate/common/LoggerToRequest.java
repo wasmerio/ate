@@ -215,7 +215,11 @@ public class LoggerToRequest implements org.slf4j.Logger {
         write("\n");
 
         writeStream(string);
-        writeStream(thrwbl);
+        if (string.equals(thrwbl.getMessage())) {
+            writeStream(StringTools.toStringStack(thrwbl));
+        } else {
+            writeStream(StringTools.toString(thrwbl));
+        }
         flushStream();
     }
 
@@ -310,7 +314,11 @@ public class LoggerToRequest implements org.slf4j.Logger {
 
         writeStream(string);
         writeStream(marker);
-        writeStream(thrwbl);
+        if (string.equals(thrwbl.getMessage())) {
+            writeStream(StringTools.toStringStack(thrwbl));
+        } else {
+            writeStream(StringTools.toString(thrwbl));
+        }
         flushStream();
     }
 
@@ -390,7 +398,11 @@ public class LoggerToRequest implements org.slf4j.Logger {
         write("\n");
 
         writeStream(string);
-        writeStream(thrwbl);
+        if (string.equals(thrwbl.getMessage())) {
+            writeStream(StringTools.toStringStack(thrwbl));
+        } else {
+            writeStream(StringTools.toString(thrwbl));
+        }
         flushStream();
     }
 
@@ -485,7 +497,11 @@ public class LoggerToRequest implements org.slf4j.Logger {
 
         writeStream(string);
         writeStream(marker);
-        writeStream(thrwbl);
+        if (string.equals(thrwbl.getMessage())) {
+            writeStream(StringTools.toStringStack(thrwbl));
+        } else {
+            writeStream(StringTools.toString(thrwbl));
+        }
         flushStream();
     }
 
@@ -567,7 +583,11 @@ public class LoggerToRequest implements org.slf4j.Logger {
         writeStdout("\n");
 
         writeStream(string);
-        writeStream(thrwbl);
+        if (string.equals(thrwbl.getMessage())) {
+            writeStream(StringTools.toStringStack(thrwbl));
+        } else {
+            writeStream(StringTools.toString(thrwbl));
+        }
         flushStream();
     }
 
@@ -662,7 +682,11 @@ public class LoggerToRequest implements org.slf4j.Logger {
 
         writeStream(string);
         writeStream(marker);
-        writeStream(thrwbl);
+        if (string.equals(thrwbl.getMessage())) {
+            writeStream(StringTools.toStringStack(thrwbl));
+        } else {
+            writeStream(StringTools.toString(thrwbl));
+        }
         flushStream();
     }
 
@@ -744,7 +768,11 @@ public class LoggerToRequest implements org.slf4j.Logger {
         writeStdwarn("\n");
 
         writeStream(string);
-        writeStream(thrwbl);
+        if (string.equals(thrwbl.getMessage())) {
+            writeStream(StringTools.toStringStack(thrwbl));
+        } else {
+            writeStream(StringTools.toString(thrwbl));
+        }
         flushStream();
     }
 
@@ -839,7 +867,11 @@ public class LoggerToRequest implements org.slf4j.Logger {
 
         writeStream(string);
         writeStream(marker);
-        writeStream(thrwbl);
+        if (string.equals(thrwbl.getMessage())) {
+            writeStream(StringTools.toStringStack(thrwbl));
+        } else {
+            writeStream(StringTools.toString(thrwbl));
+        }
         flushStream();
     }
 
@@ -921,7 +953,11 @@ public class LoggerToRequest implements org.slf4j.Logger {
         writeStderr("\n");
 
         writeStream(string);
-        writeStream(thrwbl);
+        if (string.equals(thrwbl.getMessage())) {
+            writeStream(StringTools.toStringStack(thrwbl));
+        } else {
+            writeStream(StringTools.toString(thrwbl));
+        }
         flushStream();
     }
 
@@ -1016,7 +1052,11 @@ public class LoggerToRequest implements org.slf4j.Logger {
 
         writeStream(string);
         writeStream(marker);
-        writeStream(thrwbl);
+        if (string.equals(thrwbl.getMessage())) {
+            writeStream(StringTools.toStringStack(thrwbl));
+        } else {
+            writeStream(StringTools.toString(thrwbl));
+        }
         flushStream();
     }
 }

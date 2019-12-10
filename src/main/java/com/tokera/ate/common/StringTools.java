@@ -74,9 +74,14 @@ public class StringTools
 
     public static @LogText String toString(Throwable ex)
     {
+        return ex.getMessage() != null ? ex.getMessage() + "\n" + toStringStack(ex) : toStringStack(ex);
+    }
+
+    public static @LogText String toStringStack(Throwable ex)
+    {
         StringWriter stack = new StringWriter();
         ex.printStackTrace(new PrintWriter(stack));
-        return ex.getMessage() != null ? ex.getMessage() + "\n" + stack.toString() : stack.toString();
+        return stack.toString();
     }
 
     public static @DomainName String getDomain(@EmailAddress String email)
