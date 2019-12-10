@@ -19,6 +19,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Predicate;
@@ -36,6 +37,7 @@ public class DataContainer {
     private final Map<UUID, @NonNull DataGraphNode> lookup = new HashMap<>();
     private final LinkedList<DataGraphNode> timeline = new LinkedList<>();
     private final LinkedList<DataGraphNode> leafs = new LinkedList<>();
+    private final ConcurrentSkipListSet<String> keys = new ConcurrentSkipListSet<>();
     private @Nullable String leafKey = null;
     private @Nullable UUID leafCastleId = null;
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
@@ -84,6 +86,7 @@ public class DataContainer {
             lookup.put(node.version, node);
             leafs.addLast(node);
             timeline.addLast(node);
+            keys.add(node.key);
             msg.immutalize();
 
             // Clear the cache and leave the lock
@@ -149,6 +152,10 @@ public class DataContainer {
             w.unlock();
         }
         return ret;
+    }
+
+    public Set<String> keys() {
+        return this.keys;
     }
 
     public DataContainer add(MessageDataDto data, MessageMetaDto meta) {

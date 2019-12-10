@@ -103,13 +103,25 @@ public class DataPartitionChain {
                 if (b != null) b.remove(id);
                 return b;
             });
-            this.chainOfTrust.remove(id);
+            DataContainer container = this.chainOfTrust.remove(id);
+
             this.maintenanceState.dont_merge(id);
             this.maintenanceState.tombstone(meta.getKey());
+            if (container != null) {
+                for (String key : container.keys()) {
+                    this.maintenanceState.tombstone(key);
+                }
+            }
             return;
 
         } else {
+            DataContainer container = this.chainOfTrust.getOrDefault(id, null);
             this.maintenanceState.dont_tombstone(meta.getKey());
+            if (container != null) {
+                for (String key : container.keys()) {
+                    this.maintenanceState.dont_tombstone(key);
+                }
+            }
         }
 
         // Add it to the chain of trust
