@@ -1,7 +1,10 @@
 package com.tokera.ate.delegates;
 
+import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.dao.ILogable;
 import com.tokera.ate.units.DaoId;
+import org.checkerframework.checker.nullness.qual.Nullable;
+
 import javax.enterprise.context.RequestScoped;
 import java.io.OutputStream;
 import java.util.*;
@@ -19,6 +22,8 @@ public class LoggingDelegate  {
     private String logPrefix = "";
     private StringBuilder loggingBuffer = new StringBuilder();
     private OutputStream streamRedirect = null;
+    private boolean forceStatic = true;
+    private @Nullable Boolean forceContextLogger = null;
 
     public LoggingDelegate() {
     }
@@ -75,5 +80,21 @@ public class LoggingDelegate  {
      */
     public void redirect(OutputStream stream) {
         this.streamRedirect = stream;
+    }
+
+    public boolean getForceStatic() {
+        return forceStatic;
+    }
+
+    public void setForceStatic(boolean forceStatic) {
+        forceStatic = forceStatic;
+    }
+
+    public @Nullable Boolean getForceContextLogger() {
+        return forceContextLogger;
+    }
+
+    public void setForceContextLogger(boolean forceContextLogger) {
+        forceContextLogger = forceContextLogger;
     }
 }

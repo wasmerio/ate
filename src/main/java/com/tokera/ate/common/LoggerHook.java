@@ -46,9 +46,6 @@ public class LoggerHook implements org.slf4j.Logger {
     @Inject
     public LoggingDelegate loggingDelegate;
 
-    private static boolean forceStatic = true;
-    private static @Nullable Boolean forceContextLogger = null;
-
     private static volatile ConcurrentStack<String> flagWarning = null;
     private static volatile ConcurrentStack<String> flagError = null;
     
@@ -107,9 +104,9 @@ public class LoggerHook implements org.slf4j.Logger {
 
         org.slf4j.Logger ret;
         if (RequestContextDelegate.isWithinRequestContext() == true &&
-            LoggerHook.getForceStatic() == false)
+            loggingDelegate.getForceStatic() == false)
         {
-            Boolean forceContextLogger = LoggerHook.getForceContextLogger();
+            Boolean forceContextLogger = loggingDelegate.getForceContextLogger();
             if (forceContextLogger == null) {
                 if (loggingDelegate != null && (loggingDelegate.getLogStack().empty() == false || loggingDelegate.getRedirectStream() != null)) {
                     ret = new LoggerToRequest(getStaticForwarder(), loggingDelegate);
@@ -131,9 +128,9 @@ public class LoggerHook implements org.slf4j.Logger {
 
     public boolean getIsStatic() {
         if (RequestContextDelegate.isWithinRequestContext() == true &&
-            LoggerHook.getForceStatic() == false)
+            loggingDelegate.getForceStatic() == false)
         {
-            Boolean forceContextLogger = LoggerHook.getForceContextLogger();
+            Boolean forceContextLogger = loggingDelegate.getForceContextLogger();
             if (forceContextLogger == null) {
                 if (loggingDelegate.getLogStack().empty() == false) {
                     return false;
@@ -508,22 +505,6 @@ public class LoggerHook implements org.slf4j.Logger {
     public void error(Marker marker, String string, Throwable thrwbl) {
         if (flagError != null) flagError.push(string);
         this.getForwarder().error(marker, string, thrwbl);
-    }
-
-    public static boolean getForceStatic() {
-        return LoggerHook.forceStatic;
-    }
-
-    public static void setForceStatic(boolean forceStatic) {
-        LoggerHook.forceStatic = forceStatic;
-    }
-
-    public static @Nullable Boolean getForceContextLogger() {
-        return LoggerHook.forceContextLogger;
-    }
-
-    public static void setForceContextLogger(boolean forceContextLogger) {
-        LoggerHook.forceContextLogger = forceContextLogger;
     }
 
     public static String pollWarningFlag() {

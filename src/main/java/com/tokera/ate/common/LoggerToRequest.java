@@ -119,15 +119,15 @@ public class LoggerToRequest implements org.slf4j.Logger {
         }
     }
 
-    private void flushStream() {
+    public void flushStream() {
         LoggingDelegate requestDelegate = this.logingDelegate;
         OutputStream stream = requestDelegate.getRedirectStream();
         if (stream != null) {
             try {
                 if (stream_line_size > 0) {
                     writeStream("\n");
+                    stream.flush();
                 }
-                stream.flush();
             } catch (IOException e) {
             }
         }
