@@ -37,11 +37,13 @@ public class FlushStreamInterceptor implements ContainerResponseFilter {
 
     @Override
     public void filter(ContainerRequestContext requestContext, ContainerResponseContext responseContext) throws IOException {
-        OutputStream stream = d.logging.getRedirectStream();
-        if (stream != null) {
-            stream.flush();
-            stream.close();
-            d.logging.redirect(null);
+        if (responseContext.getStatus() >= 200 && responseContext.getStatus() < 400) {
+            OutputStream stream = d.logging.getRedirectStream();
+            if (stream != null) {
+                stream.flush();
+                stream.close();
+                d.logging.redirect(null);
+            }
         }
     }
 }

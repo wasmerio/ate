@@ -88,6 +88,7 @@ public abstract class BaseAteDelegate {
     public final FixResteasyBug fixResteasyBug;
     public final PartitionKeyInterceptor partitionKeyInterceptor;
     public final TransactionInterceptor transactionInterceptor;
+    public final FlushStreamInterceptor flushStreamInterceptor;
     public final LoggerHook genericLogger;
     public final BootstrapConfig bootstrapConfig;
     public final DebugLoggingDelegate debugLogging;
@@ -191,6 +192,7 @@ public abstract class BaseAteDelegate {
         this.fixResteasyBug = getBean(FixResteasyBug.class);
         this.partitionKeyInterceptor = getBean(PartitionKeyInterceptor.class);
         this.transactionInterceptor = getBean(TransactionInterceptor.class);
+        this.flushStreamInterceptor = getBean(FlushStreamInterceptor.class);
         this.genericLogger = getBean(LoggerHook.class);
         this.serializableObjectsExtension = getBean(SerializableObjectsExtension.class);
         this.bootstrapConfig = getBean(BootstrapConfig.class);
