@@ -280,6 +280,7 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
                 }
 
                 // Run the stuff under this scope context
+                d.logging.setForceStatic(false);
                 d.requestContext.pushPartitionKey(partitionKey);
                 try {
                     callback.run();
