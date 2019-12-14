@@ -223,7 +223,7 @@ public class ImplicitSecurityDelegate {
                 }
                 this.LOG.debug("dns(" + domain + ")::" + lookup.getErrorString());
                 if (handling == EnquireDomainKeyHandling.ThrowOnNull) {
-                    throw new ImplicitAuthorityMissingException("No domain TXT record found at [" + domain + "].");
+                    throw new ImplicitAuthorityMissingException("No domain TXT record found at [" + domain + "] - " + lookup.getErrorString());
                 } else {
                     return Collections.emptyList();
                 }

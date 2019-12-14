@@ -22,7 +22,7 @@ import java.util.UUID;
  */
 @ApplicationScoped
 @Provider
-@Priority(Priorities.AUTHENTICATION)
+@Priority(Priorities.AUTHORIZATION + 1)
 public class PartitionKeyInterceptor implements ContainerRequestFilter {
 
     protected AteDelegate d = AteDelegate.get();
