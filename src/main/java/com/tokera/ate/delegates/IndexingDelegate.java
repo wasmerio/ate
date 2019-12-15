@@ -113,12 +113,12 @@ public class IndexingDelegate {
                 }
 
                 @SuppressWarnings("unchecked")
-                private List<UUID> fetch() {
+                private LinkedHashSet<UUID> fetch() {
                     Lock r = lock.readLock();
                     r.lock();
                     try {
                         if (invalidateList.isEmpty()) {
-                            return new ArrayList<>(values);
+                            return new LinkedHashSet<>(values);
                         }
                     } finally {
                         r.unlock();
@@ -138,7 +138,7 @@ public class IndexingDelegate {
                             }
                         }
                         invalidateList.clear();
-                        return new ArrayList<>(values);
+                        return new LinkedHashSet<>(values);
                     } finally {
                         w.unlock();
                     }
@@ -183,11 +183,15 @@ public class IndexingDelegate {
         });
     }
 
-    private <T extends BaseDao> List<UUID> joinFromTransaction(PUUID id, Class<T> otherClazz, Function<T, UUID> joiningKeyMap, List<UUID> ret) {
+    private <T extends BaseDao> LinkedHashSet<UUID> joinFromTransaction(PUUID id, Class<T> otherClazz, Function<T, UUID> joiningKeyMap, LinkedHashSet<UUID> ret) {
         DataTransaction trans = d.io.currentTransaction();
         for (T obj : trans.putsByType(id.partition(), otherClazz)) {
-            if (id.id().equals(joiningKeyMap.apply(obj))) {
-                ret.add(obj.getId());
+            if (id.id().equals(joiningKeyMap.apply(obj)))
+            {
+                UUID objId = obj.getId();
+                if (ret.contains(objId) == false) {
+                    ret.add(objId);
+                }
             }
         }
         trans.deletes(id.partition()).forEach(a -> ret.remove(a));
@@ -201,7 +205,7 @@ public class IndexingDelegate {
             try {
                 TypeKey masterKey = new TypeKey(id.partition(), otherClazz.getName());
                 Context context = contexts.computeIfAbsent(masterKey, k -> new Context(masterKey));
-                List<UUID> ret = context.computeTable(context.createIndexKey(otherClazz, id.id(), joiningKeyMap)).fetch();
+                LinkedHashSet<UUID> ret = context.computeTable(context.createIndexKey(otherClazz, id.id(), joiningKeyMap)).fetch();
                 ret = joinFromTransaction(id, otherClazz, joiningKeyMap, ret);
                 return d.io.readAccessible(id.partition(), ret, otherClazz);
             } catch (ExecutionException e) {
