@@ -40,7 +40,7 @@ public class DataPartitionChain {
     private final ConcurrentMap<UUID, MessageSecurityCastleDto> castles;
     private final ConcurrentMap<String, MessageSecurityCastleDto> castleByHash;
     private final ConcurrentMap<String, MessagePublicKeyDto> publicKeys;
-    private final ConcurrentMap<UUID, ConcurrentStack<MessageDataMetaDto>> deferredLoad;
+    private final ConcurrentMap<UUID, ConcurrentQueue<MessageDataMetaDto>> deferredLoad;
     
     public DataPartitionChain(IPartitionKey key) {
         this.key = key;
@@ -238,8 +238,8 @@ public class DataPartitionChain {
         if (parent != null && allowDefer) {
             if (this.chainOfTrust.containsKey(parent) == false) {
                 this.deferredLoad.compute(parent, (a, b) -> {
-                    if (b == null) b = new ConcurrentStack<>();
-                    b.push(msg);
+                    if (b == null) b = new ConcurrentQueue<>();
+                    b.add(msg);
                     return b;
                 });
                 return true;
@@ -259,10 +259,10 @@ public class DataPartitionChain {
         addTrustData(data, msg.getMeta(), invokeCallbacks);
 
         // If there is anything deferred then process it now
-        ConcurrentStack<MessageDataMetaDto> queue = this.deferredLoad.remove(id);
+        ConcurrentQueue<MessageDataMetaDto> queue = this.deferredLoad.remove(id);
         if (queue != null) {
-            for (;;) {
-                MessageDataMetaDto deferred = queue.pop();
+            for (;queue.isEmpty() == false;) {
+                MessageDataMetaDto deferred = queue.remove();
                 if (deferred == null) break;
                 promoteChainEntry(deferred, invokeCallbacks, false, LOG);
             }
