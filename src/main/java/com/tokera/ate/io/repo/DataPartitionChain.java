@@ -40,7 +40,7 @@ public class DataPartitionChain {
     private final ConcurrentMap<UUID, MessageSecurityCastleDto> castles;
     private final ConcurrentMap<String, MessageSecurityCastleDto> castleByHash;
     private final ConcurrentMap<String, MessagePublicKeyDto> publicKeys;
-    private final ConcurrentMap<UUID, ConcurrentQueue<MessageDataMetaDto>> deferredLoad;
+    private final ConcurrentQueue<MessageDataMetaDto> deferredLoad;
     
     public DataPartitionChain(IPartitionKey key) {
         this.key = key;
@@ -51,7 +51,7 @@ public class DataPartitionChain {
         this.castles = new ConcurrentHashMap<>();
         this.castleByHash = new ConcurrentHashMap<>();
         this.byClazz = new ConcurrentHashMap<>();
-        this.deferredLoad = new ConcurrentHashMap<>();
+        this.deferredLoad = new ConcurrentQueue<>();
 
         this.addTrustKey(d.encryptor.getTrustOfPublicRead().key());
         this.addTrustKey(d.encryptor.getTrustOfPublicWrite().key());
@@ -233,47 +233,30 @@ public class DataPartitionChain {
         MessageDataDto data = msg.getData();
         MessageDataHeaderDto header = data.getHeader();
 
-        // If the parent does not yet exist then defer it
-        UUID parent = header.getParentId();
-        if (parent != null && allowDefer) {
-            if (this.chainOfTrust.containsKey(parent) == false) {
-                this.deferredLoad.compute(parent, (a, b) -> {
-                    if (b == null) b = new ConcurrentQueue<>();
-                    b.add(msg);
-                    return b;
-                });
+        // Validate the data
+        if (validateTrustStructureAndWritabilityWithoutSavedData(data, LOG) == false)
+        {
+            // If deferred loading is allowed then we will process it again later
+            // when everything is loaded into memory (this this caters for scenarios where things are processed
+            // out of order)
+            if (allowDefer) {
+                this.deferredLoad.add(msg);
                 return true;
             }
-        }
 
-        // Validate the data
-        UUID id = header.getIdOrThrow();
-        if (validateTrustStructureAndWritabilityWithoutSavedData(data, LOG) == false) {
-            if (this.chainOfTrust.containsKey(id)) {
-                this.maintenanceState.merge(id, true);
-            }
+            // Otherwise we have failed and its time to dump the row
             return false;
         }
         
         // Add it to the trust tree and return success
         addTrustData(data, msg.getMeta(), invokeCallbacks);
 
-        // If there is anything deferred then process it now
-        ConcurrentQueue<MessageDataMetaDto> queue = this.deferredLoad.remove(id);
-        if (queue != null) {
-            for (;queue.isEmpty() == false;) {
-                MessageDataMetaDto deferred = queue.remove();
-                if (deferred == null) break;
-                promoteChainEntry(deferred, invokeCallbacks, false, LOG);
-            }
-        }
-
         // Success
         return true;
     }
 
     public void idle() {
-        this.deferredLoad.clear();
+        processDeferred();
     }
     
     public boolean validate(MessageBaseDto msg, @Nullable LoggerHook LOG)
@@ -436,6 +419,28 @@ public class DataPartitionChain {
         // All sync messages are instantly tomb-stoned
         this.maintenanceState.tombstone(MessageSerializer.getKey(msg));
         return true;
+    }
+
+    private void processDeferred()
+    {
+        LinkedList<MessageDataMetaDto> tryAgain = new LinkedList<>();
+        this.deferredLoad.drainTo(tryAgain);
+
+        for (boolean somethingProcessed = true; somethingProcessed == true;)
+        {
+            somethingProcessed = false;
+            for (MessageDataMetaDto next = tryAgain.pollFirst(); next != null; next = tryAgain.pollFirst())
+            {
+                // Attempt to process the row (if it fails we will try again but only if the state
+                // of the chain-of-trust has made progress in other areas - otherwise we will give
+                // up after we break out of this processing loop)
+                if (promoteChainEntry(next, true, false, d.genericLogger)) {
+                    somethingProcessed = true;
+                } else {
+                    tryAgain.add(next);
+                }
+            }
+        }
     }
 
     @SuppressWarnings({"return.type.incompatible", "argument.type.incompatible"})       // We want to return a null if the data does not exist and it must be atomic
