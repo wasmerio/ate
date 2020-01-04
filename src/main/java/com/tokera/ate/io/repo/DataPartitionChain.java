@@ -16,6 +16,7 @@ import com.tokera.ate.providers.PartitionKeySerializer;
 import com.tokera.ate.security.Encryptor;
 
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -426,10 +427,11 @@ public class DataPartitionChain {
         LinkedList<MessageDataMetaDto> tryAgain = new LinkedList<>();
         this.deferredLoad.drainTo(tryAgain);
 
-        for (boolean somethingProcessed = true; somethingProcessed == true;)
-        {
+        for (boolean somethingProcessed = true; somethingProcessed == true;) {
+            LinkedList<MessageDataMetaDto> toProcess = new LinkedList<>(tryAgain);
+
             somethingProcessed = false;
-            for (MessageDataMetaDto next = tryAgain.pollFirst(); next != null; next = tryAgain.pollFirst())
+            for (MessageDataMetaDto next : toProcess)
             {
                 // Attempt to process the row (if it fails we will try again but only if the state
                 // of the chain-of-trust has made progress in other areas - otherwise we will give
