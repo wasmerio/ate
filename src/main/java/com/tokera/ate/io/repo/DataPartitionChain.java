@@ -424,11 +424,12 @@ public class DataPartitionChain {
 
     private void processDeferred()
     {
-        LinkedList<MessageDataMetaDto> tryAgain = new LinkedList<>();
+        ArrayList<MessageDataMetaDto> tryAgain = new ArrayList<>(this.deferredLoad.size());
         this.deferredLoad.drainTo(tryAgain);
 
-        for (boolean somethingProcessed = true; somethingProcessed == true;) {
-            LinkedList<MessageDataMetaDto> toProcess = new LinkedList<>(tryAgain);
+        for (boolean somethingProcessed = true; tryAgain.size() > 0 && somethingProcessed == true;) {
+            ArrayList<MessageDataMetaDto> toProcess = new ArrayList<>(tryAgain);
+            tryAgain.clear();
 
             somethingProcessed = false;
             for (MessageDataMetaDto next : toProcess)
