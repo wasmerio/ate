@@ -18,8 +18,10 @@ import com.tokera.ate.units.EmailAddress;
 import com.tokera.ate.units.LinuxCmd;
 import com.tokera.ate.units.LinuxError;
 import org.junit.jupiter.api.Assertions;
+import org.eclipse.microprofile.faulttolerance.Timeout;
 
 import javax.annotation.security.PermitAll;
+import javax.ejb.Timeout;
 import javax.enterprise.context.ApplicationScoped;
 import javax.mail.MessagingException;
 import javax.validation.Valid;
@@ -35,6 +37,12 @@ import java.util.UUID;
 public class AccountREST {
     protected final AteDelegate d = AteDelegate.get();
     private final Random rand = new Random();
+
+    @POST
+    @PermitAll
+    public String ping() {
+        return "pong";
+    }
 
     @POST
     @Path("adminToken/{username}")
