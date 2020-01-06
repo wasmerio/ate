@@ -52,7 +52,6 @@ public abstract class BaseAteDelegate {
     public final Event<KeysDiscoverEvent> eventKeysDiscovery;
 
     public final RequestContextDelegate requestContext;
-    public final ResourceStatsDelegate resourceStats;
     public final ResourceInfoDelegate resourceInfo;
     public final DaoHelper daoHelper;
     public final Encryptor encryptor;
@@ -108,6 +107,7 @@ public abstract class BaseAteDelegate {
     public final PermissionCacheDelegate permissionCache;
     public final IndexingDelegate indexing;
     public final InvalidationDelegate invalidation;
+    public final ScopeContextDelegate scopeContext;
 
     public ZooServer zooKeeper;
     public KafkaServer kafka;
@@ -158,7 +158,6 @@ public abstract class BaseAteDelegate {
         this.eventKeysDiscovery = getEventBean(KeysDiscoverEvent.class);
 
         this.requestContext = getBean(RequestContextDelegate.class);
-        this.resourceStats = getBean(ResourceStatsDelegate.class);
         this.resourceInfo = getBean(ResourceInfoDelegate.class);
         this.storageFactory = getBean(StorageSystemFactory.class);
         this.daoHelper = getBean(DaoHelper.class);
@@ -213,5 +212,6 @@ public abstract class BaseAteDelegate {
         this.permissionCache = getBean(PermissionCacheDelegate.class);
         this.indexing = getBean(IndexingDelegate.class);
         this.invalidation = getBean(InvalidationDelegate.class);
+        this.scopeContext = getBean(ScopeContextDelegate.class);
     }
 }

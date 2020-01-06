@@ -18,6 +18,9 @@ package com.tokera.ate.scopes;
 
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
+import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.delegates.ScopeContextDelegate;
+import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.enterprise.context.spi.Context;
 import javax.enterprise.context.spi.Contextual;
@@ -29,7 +32,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 @SuppressWarnings({"argument.type.incompatible", "return.type.incompatible", "dereference.of.nullable", "iterating.over.nullable", "method.invocation.invalid", "override.return.invalid", "unnecessary.equals", "known.nonnull", "flowexpr.parse.error.postcondition", "unboxing.of.nullable", "accessing.nullable", "type.invalid.annotations.on.use", "switching.nullable", "initialization.fields.uninitialized", "bound.type.incompatible", "methodref.receiver.bound.invalid", "override.receiver.invalid", "override.param.invalid"})
-public class ScopeContext<Key> implements Context {
+public class ScopeContext<Key> implements IScopeContext {
 
     private final Cache<Key, Scope<Key>> scopes;
 
@@ -60,6 +63,7 @@ public class ScopeContext<Key> implements Context {
         this.scopes = builder
                 .build();
 
+        ScopeContextDelegate.registerScopeContext(this);
     }
 
     /**
@@ -134,6 +138,23 @@ public class ScopeContext<Key> implements Context {
     @Override
     public <T> T get(Contextual<T> contextual) {
         return scope().get().get(contextual);
+    }
+
+    @Override
+    public @Nullable IScope getLocal() {
+        final AtomicReference<Scope<Key>> reference = scope();
+        if (reference == null) return null;
+
+        Scope<Key> ret = reference.get();
+        if (ret == inactiveScope) return null;
+        return ret;
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    public void setLocal(@Nullable IScope scope) {
+        if (scope == null) scope = inactiveScope;
+        scope().set((Scope<Key>)scope);
     }
 
     private AtomicReference<Scope<Key>> scope() {

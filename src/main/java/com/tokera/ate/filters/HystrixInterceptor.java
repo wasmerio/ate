@@ -5,6 +5,8 @@ import com.netflix.hystrix.strategy.concurrency.HystrixRequestVariableDefault;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.delegates.CurrentTokenDelegate;
+import com.tokera.ate.scopes.IScope;
+import com.tokera.ate.scopes.IScopeContext;
 import io.smallrye.faulttolerance.CommandListener;
 import io.smallrye.faulttolerance.config.FaultToleranceOperation;
 import org.jboss.resteasy.spi.ResteasyProviderFactory;
@@ -40,7 +42,7 @@ import java.util.stream.Collectors;
  */
 @ApplicationScoped
 @Provider
-@Priority(1)
+@Priority(Integer.MAX_VALUE)
 public class HystrixInterceptor implements ContainerRequestFilter, ContainerResponseFilter, CommandListener {
     protected AteDelegate d = AteDelegate.get();
 
@@ -71,6 +73,7 @@ public class HystrixInterceptor implements ContainerRequestFilter, ContainerResp
         public HystrixRequestContext hystrixRequestContext;
         public HttpServletRequest httpServletRequest;
         public BoundBeanStore beanStore;
+        public Map<IScopeContext, IScope> otherScopes = new HashMap<>();
     }
 
     @SuppressWarnings({"unchecked"})
@@ -96,6 +99,11 @@ public class HystrixInterceptor implements ContainerRequestFilter, ContainerResp
         }
 
         d.requestContext.setHystrixContext(myContext);
+
+        for (IScopeContext scopeContext : d.scopeContext.getScopeContexts()) {
+            IScope scope = scopeContext.getLocal();
+            if (scope != null) myContext.otherScopes.put(scopeContext, scope);
+        }
     }
 
     @Override
@@ -121,10 +129,20 @@ public class HystrixInterceptor implements ContainerRequestFilter, ContainerResp
                 LOG.warn(e);
             }
         }
+
+        for (Map.Entry<IScopeContext, IScope> pair : myContext.otherScopes.entrySet()) {
+            IScopeContext scopeContext = pair.getKey();
+            IScope scope = pair.getValue();
+            scopeContext.setLocal(scope);
+        }
     }
 
     @Override
     public void afterExecution(FaultToleranceOperation operation) {
+        for (IScopeContext scopeContext : d.scopeContext.getScopeContexts()) {
+            scopeContext.setLocal(null);
+        }
+
         HystrixContext myContext = hystrixContext.get();
         try {
             this.httpRequestContext.invalidate();

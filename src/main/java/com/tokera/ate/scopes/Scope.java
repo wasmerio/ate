@@ -26,7 +26,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @DefaultQualifier(Nullable.class)
 @SuppressWarnings({"argument.type.incompatible", "return.type.incompatible", "dereference.of.nullable", "iterating.over.nullable", "method.invocation.invalid", "override.return.invalid", "unnecessary.equals", "known.nonnull", "flowexpr.parse.error.postcondition", "unboxing.of.nullable", "accessing.nullable", "type.invalid.annotations.on.use", "switching.nullable", "initialization.fields.uninitialized"})
-class Scope<Key> {
+class Scope<Key> implements IScope {
 
     private final Instance<?> NOTHING = new Instance<>(null, null, null);
 
@@ -69,6 +69,7 @@ class Scope<Key> {
     /**
      * Destroy all the instances in this scope
      */
+    @Override
     public void destroy() {
         // TODO We really should ensure no more instances can be added during or after this
         instances.values().stream().forEach(Instance::destroy);
