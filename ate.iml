@@ -49,7 +49,6 @@
     <orderEntry type="library" name="Maven: org.jboss.weld.module:weld-jta:3.0.5.Final" level="project" />
     <orderEntry type="library" name="Maven: org.eclipse.microprofile.config:microprofile-config-api:1.3" level="project" />
     <orderEntry type="library" name="Maven: org.osgi:org.osgi.annotation.versioning:1.0.0" level="project" />
-    <orderEntry type="library" name="Maven: org.eclipse.microprofile.metrics:microprofile-metrics-api:2.2.1" level="project" />
     <orderEntry type="library" name="Maven: org.eclipse.microprofile.fault-tolerance:microprofile-fault-tolerance-api:2.0.2" level="project" />
     <orderEntry type="library" name="Maven: org.eclipse.microprofile.fault-tolerance:microprofile-fault-tolerance-tck:2.0.2" level="project" />
     <orderEntry type="library" name="Maven: org.testng:testng:6.9.9" level="project" />
@@ -92,16 +91,12 @@
     <orderEntry type="library" name="Maven: commons-lang:commons-lang:2.6" level="project" />
     <orderEntry type="library" name="Maven: io.reactivex:rxjava:1.2.0" level="project" />
     <orderEntry type="library" name="Maven: org.hdrhistogram:HdrHistogram:2.1.9" level="project" />
-    <orderEntry type="library" name="Maven: io.opentracing:opentracing-api:0.31.0" level="project" />
-    <orderEntry type="library" name="Maven: io.opentracing:opentracing-util:0.31.0" level="project" />
-    <orderEntry type="library" name="Maven: io.opentracing:opentracing-noop:0.31.0" level="project" />
-    <orderEntry type="library" name="Maven: io.opentracing:opentracing-mock:0.31.0" level="project" />
     <orderEntry type="library" name="Maven: io.smallrye.config:smallrye-config:1.5.0" level="project" />
     <orderEntry type="library" name="Maven: io.smallrye.config:smallrye-config-common:1.5.0" level="project" />
-    <orderEntry type="library" name="Maven: io.smallrye:smallrye-metrics:2.3.2" level="project" />
     <orderEntry type="library" name="Maven: io.smallrye:smallrye-fault-tolerance:2.1.4" level="project" />
     <orderEntry type="library" name="Maven: javax.enterprise.concurrent:javax.enterprise.concurrent-api:1.0" level="project" />
     <orderEntry type="library" name="Maven: javax.annotation:javax.annotation-api:1.3.2" level="project" />
+    <orderEntry type="library" name="Maven: org.eclipse.microprofile.metrics:microprofile-metrics-api:2.2.1" level="project" />
     <orderEntry type="library" name="Maven: org.glassfish:javax.el:3.0.1-b11" level="project" />
     <orderEntry type="library" name="Maven: org.hibernate.validator:hibernate-validator:6.0.16.Final" level="project" />
     <orderEntry type="library" name="Maven: com.fasterxml:classmate:1.3.4" level="project" />
