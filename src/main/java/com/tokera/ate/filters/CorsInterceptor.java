@@ -1,5 +1,6 @@
 package com.tokera.ate.filters;
 
+import com.tokera.ate.scopes.Startup;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.annotation.Priority;
@@ -15,6 +16,7 @@ import javax.ws.rs.ext.Provider;
  * Adds Cors headers so that APIs play nice with browsers
  * @author jonhanlee
  */
+@Startup
 @ApplicationScoped
 @Provider
 @Priority(Priorities.HEADER_DECORATOR)

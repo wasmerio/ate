@@ -1,6 +1,7 @@
 package com.tokera.ate.filters;
 
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.scopes.Startup;
 
 import java.io.IOException;
 import javax.annotation.Priority;
@@ -15,6 +16,7 @@ import javax.ws.rs.ext.Provider;
 /**
  * Intercepter will merge all the data objects that were created during the call before it returns the response
  */
+@Startup
 @ApplicationScoped
 @Provider
 @Priority(6000)

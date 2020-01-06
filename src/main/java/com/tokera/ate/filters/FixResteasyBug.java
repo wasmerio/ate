@@ -1,6 +1,8 @@
 package com.tokera.ate.filters;
 
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.scopes.Startup;
+
 import java.io.IOException;
 import javax.annotation.Priority;
 import javax.enterprise.context.ApplicationScoped;
@@ -16,6 +18,7 @@ import javax.ws.rs.ext.Provider;
  * This filter fixes a nasty bug with resteasy where parameter maps would not load properly for certina media types
  * @author jonhanlee
  */
+@Startup
 @ApplicationScoped
 @Provider
 @Priority(5020)

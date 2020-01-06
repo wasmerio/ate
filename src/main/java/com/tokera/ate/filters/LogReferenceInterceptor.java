@@ -1,5 +1,6 @@
 package com.tokera.ate.filters;
 
+import com.tokera.ate.scopes.Startup;
 import org.apache.log4j.MDC;
 
 import javax.annotation.Nullable;
@@ -12,6 +13,7 @@ import javax.ws.rs.ext.Provider;
 import java.util.Iterator;
 import java.util.UUID;
 
+@Startup
 @ApplicationScoped
 @Provider
 @Priority(5010)

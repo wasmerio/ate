@@ -1,6 +1,7 @@
 package com.tokera.ate.filters;
 
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.scopes.Startup;
 
 import javax.annotation.Priority;
 import javax.enterprise.context.ApplicationScoped;
@@ -12,6 +13,7 @@ import javax.ws.rs.ext.Provider;
  * This interceptor provides updates the method statistics
  * @author John Sharratt (johnathan.sharratt@gmail.com)
  */
+@Startup
 @ApplicationScoped
 @Provider
 @Priority(5100)

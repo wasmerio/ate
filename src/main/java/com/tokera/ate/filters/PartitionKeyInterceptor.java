@@ -5,6 +5,7 @@ import com.tokera.ate.common.UUIDTools;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.providers.PartitionKeySerializer;
+import com.tokera.ate.scopes.Startup;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.annotation.PostConstruct;
@@ -20,6 +21,7 @@ import java.util.UUID;
 /**
  * Filter that reads the Topic header from the request and uses this to build a topic scope.
  */
+@Startup
 @ApplicationScoped
 @Provider
 @Priority(Priorities.AUTHORIZATION + 1)

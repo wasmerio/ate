@@ -31,6 +31,7 @@ public class RequestContextDelegate {
     private @Context @Nullable ContainerRequestContext requestContext;
     private @MonotonicNonNull UriInfo requestUriInfo;
     private Stack<@TopicName IPartitionKey> partitionKeyStack = new Stack<>();
+    private Object customData = null;
 
     private final DataTransaction rootTransaction = new DataTransaction(false);
     private final LinkedList<DataTransaction> transactionStack = new LinkedList<>();
@@ -215,5 +216,13 @@ public class RequestContextDelegate {
     public DataTransaction popTransaction()
     {
         return this.transactionStack.pop();
+    }
+
+    public Object getCustomData() {
+        return customData;
+    }
+
+    public void setCustomData(Object customData) {
+        this.customData = customData;
     }
 }

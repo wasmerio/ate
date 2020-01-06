@@ -82,6 +82,14 @@ public class BasicIntegrationTests {
     }
 
     @Test
+    @Order(3)
+    public void testCustomData() {
+        String customData = TestTools.restGet(null, "http://127.0.0.1:8082/rs/1-0/test/custom-data").readEntity(String.class);
+
+        Assertions.assertEquals(customData, "my-data");
+    }
+
+    @Test
     @Order(10)
     public void getAdminKey() {
         AteDelegate d = AteDelegate.get();

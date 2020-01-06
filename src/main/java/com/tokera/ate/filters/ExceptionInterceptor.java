@@ -3,6 +3,7 @@ package com.tokera.ate.filters;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.io.repo.DataTransaction;
+import com.tokera.ate.scopes.Startup;
 
 import javax.annotation.Priority;
 import javax.enterprise.context.ApplicationScoped;
@@ -18,6 +19,7 @@ import java.io.StringWriter;
  * Controls the way API exceptions are logged *
  * @author jonhanlee
  */
+@Startup
 @ApplicationScoped
 @Provider
 @Priority(6100)

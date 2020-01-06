@@ -1,5 +1,6 @@
 package com.tokera.ate.filters;
 
+import com.tokera.ate.scopes.Startup;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import javax.annotation.Priority;
@@ -11,6 +12,7 @@ import javax.ws.rs.container.ContainerResponseFilter;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.ext.Provider;
 
+@Startup
 @ApplicationScoped
 @Provider
 @Priority(Priorities.HEADER_DECORATOR)

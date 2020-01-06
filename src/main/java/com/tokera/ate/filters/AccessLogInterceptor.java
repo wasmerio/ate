@@ -1,6 +1,7 @@
 package com.tokera.ate.filters;
 
 import com.tokera.ate.io.core.RequestAccessLog;
+import com.tokera.ate.scopes.Startup;
 
 import javax.annotation.Priority;
 import javax.enterprise.context.ApplicationScoped;
@@ -16,6 +17,7 @@ import javax.ws.rs.ext.Provider;
  * Filter that will ensure Track and Invalidate headers are added to the response for any objects that are modified.
  * This tracking allows clients to build a local client-side cache that is eventually consistent within low latencies.
  */
+@Startup
 @ApplicationScoped
 @Provider
 @Priority(Priorities.HEADER_DECORATOR)

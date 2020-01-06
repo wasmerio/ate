@@ -20,10 +20,19 @@ public class TestREST {
     private RequestWork requestWork;
 
     @GET
+    @Path("custom-data")
+    @Produces(MediaType.TEXT_PLAIN)
+    @PermitAll
+    public Object testCustomData() {
+        return d.requestContext.getCustomData();
+    }
+
+    @GET
     @Path("uuid")
     @Produces(MediaType.TEXT_PLAIN)
     @PermitAll
     public UUID testUuidSerializer() {
+        requestWork.doWork();
         return UUID.randomUUID();
     }
 
