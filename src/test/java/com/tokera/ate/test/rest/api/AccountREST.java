@@ -17,11 +17,10 @@ import com.tokera.ate.test.dto.ThingsDto;
 import com.tokera.ate.units.EmailAddress;
 import com.tokera.ate.units.LinuxCmd;
 import com.tokera.ate.units.LinuxError;
-import org.junit.jupiter.api.Assertions;
 import org.eclipse.microprofile.faulttolerance.Timeout;
+import org.junit.jupiter.api.Assertions;
 
 import javax.annotation.security.PermitAll;
-import javax.ejb.Timeout;
 import javax.enterprise.context.ApplicationScoped;
 import javax.mail.MessagingException;
 import javax.validation.Valid;

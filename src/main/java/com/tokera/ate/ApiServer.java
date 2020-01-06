@@ -140,6 +140,7 @@ public class ApiServer {
         weld.addExtension(new ResourceScopedExtension());
         weld.addExtension(new TokenScopeExtension());
         weld.addExtension(new SerializableObjectsExtension());
+        weld.addExtension(new io.smallrye.faulttolerance.HystrixExtension());
         weld.addPackages(   true,
                 ResteasyJackson2Provider.class,
                 YamlReader.class,

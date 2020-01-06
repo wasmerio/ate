@@ -19,6 +19,7 @@ import org.junit.jupiter.api.*;
 
 import javax.enterprise.inject.spi.CDI;
 import javax.validation.constraints.NotNull;
+import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.MediaType;
 import java.util.ArrayList;
@@ -68,6 +69,16 @@ public class BasicIntegrationTests {
     @Order(1)
     public void testUuidSerializer() {
         TestTools.restGet(null, "http://127.0.0.1:8082/rs/1-0/test/uuid").readEntity(UUID.class);
+    }
+
+    @Test
+    @Order(2)
+    public void testTimeout() {
+        Assertions.assertThrows(WebApplicationException.class, () -> {
+            TestTools.restGet(null, "http://127.0.0.1:8082/rs/1-0/test/timeout").readEntity(String.class);
+        });
+
+        TestTools.restGet(null, "http://127.0.0.1:8082/rs/1-0/test/no-timeout").readEntity(String.class);
     }
 
     @Test
