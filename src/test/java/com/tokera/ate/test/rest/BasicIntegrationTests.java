@@ -165,6 +165,12 @@ public class BasicIntegrationTests {
 
     @RepeatedTest(100)
     @Order(20)
+    public void megaPing() {
+        session.restGet("/test/ping", String.class);
+    }
+
+    @RepeatedTest(100)
+    @Order(20)
     public void getAccount() {
         session.restGet("/acc/" + this.accountId, MyAccount.class);
     }

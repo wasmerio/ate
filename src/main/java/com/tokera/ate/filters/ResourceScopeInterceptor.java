@@ -1,5 +1,6 @@
 package com.tokera.ate.filters;
 
+import com.netflix.hystrix.strategy.concurrency.HystrixRequestContext;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.scopes.ResourceScoped;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;

@@ -1,5 +1,6 @@
 package com.tokera.ate.delegates;
 
+import com.netflix.hystrix.strategy.executionhook.HystrixCommandExecutionHook;
 import com.tokera.ate.BootstrapConfig;
 import com.tokera.ate.KafkaServer;
 import com.tokera.ate.ZooServer;
