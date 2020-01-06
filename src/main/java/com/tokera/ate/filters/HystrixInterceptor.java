@@ -74,6 +74,7 @@ public class HystrixInterceptor implements ContainerRequestFilter, ContainerResp
         public HttpServletRequest httpServletRequest;
         public BoundBeanStore beanStore;
         public Map<IScopeContext, IScope> otherScopes = new HashMap<>();
+        public boolean scopedUpdated = false;
     }
 
     @SuppressWarnings({"unchecked"})
@@ -107,7 +108,15 @@ public class HystrixInterceptor implements ContainerRequestFilter, ContainerResp
     }
 
     @Override
-    public void filter(ContainerRequestContext containerRequestContext, ContainerResponseContext containerResponseContext) {
+    public void filter(ContainerRequestContext containerRequestContext, ContainerResponseContext containerResponseContext)
+    {
+        HystrixContext myContext = d.requestContext.getHystrixContext();
+        if (myContext != null) {
+            if (myContext.scopedUpdated) {
+                myContext.otherScopes.forEach((c, s) -> c.setLocal(s));
+            }
+        }
+
         if (HystrixRequestContext.isCurrentThreadInitialized()) {
             HystrixRequestContext hystrixRequestContext = HystrixRequestContext.getContextForCurrentThread();
             hystrixRequestContext.shutdown();
@@ -136,6 +145,15 @@ public class HystrixInterceptor implements ContainerRequestFilter, ContainerResp
     @Override
     public void afterExecution(FaultToleranceOperation operation) {
         HystrixContext myContext = hystrixContext.get();
+
+        if (myContext != null) {
+            for (IScopeContext scopeContext : d.scopeContext.getScopeContexts()) {
+                IScope scope = scopeContext.getLocalWithInactive();
+                myContext.otherScopes.put(scopeContext, scope);
+            }
+            myContext.scopedUpdated = true;
+        }
+
         try {
             this.httpRequestContext.invalidate();
             this.httpRequestContext.deactivate();
