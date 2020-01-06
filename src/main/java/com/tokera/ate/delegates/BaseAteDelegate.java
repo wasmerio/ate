@@ -108,6 +108,7 @@ public abstract class BaseAteDelegate {
     public final IndexingDelegate indexing;
     public final InvalidationDelegate invalidation;
     public final ScopeContextDelegate scopeContext;
+    public final HystrixInterceptor hystrixInterceptor;
 
     public ZooServer zooKeeper;
     public KafkaServer kafka;
@@ -213,5 +214,6 @@ public abstract class BaseAteDelegate {
         this.indexing = getBean(IndexingDelegate.class);
         this.invalidation = getBean(InvalidationDelegate.class);
         this.scopeContext = getBean(ScopeContextDelegate.class);
+        this.hystrixInterceptor = getBean(HystrixInterceptor.class);
     }
 }

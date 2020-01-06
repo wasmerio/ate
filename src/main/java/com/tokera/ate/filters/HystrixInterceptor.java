@@ -101,8 +101,8 @@ public class HystrixInterceptor implements ContainerRequestFilter, ContainerResp
         d.requestContext.setHystrixContext(myContext);
 
         for (IScopeContext scopeContext : d.scopeContext.getScopeContexts()) {
-            IScope scope = scopeContext.getLocal();
-            if (scope != null) myContext.otherScopes.put(scopeContext, scope);
+            IScope scope = scopeContext.getLocalWithInactive();
+            myContext.otherScopes.put(scopeContext, scope);
         }
     }
 
@@ -130,19 +130,11 @@ public class HystrixInterceptor implements ContainerRequestFilter, ContainerResp
             }
         }
 
-        for (Map.Entry<IScopeContext, IScope> pair : myContext.otherScopes.entrySet()) {
-            IScopeContext scopeContext = pair.getKey();
-            IScope scope = pair.getValue();
-            scopeContext.setLocal(scope);
-        }
+        myContext.otherScopes.forEach((c, s) -> c.setLocal(s));
     }
 
     @Override
     public void afterExecution(FaultToleranceOperation operation) {
-        for (IScopeContext scopeContext : d.scopeContext.getScopeContexts()) {
-            scopeContext.setLocal(null);
-        }
-
         HystrixContext myContext = hystrixContext.get();
         try {
             this.httpRequestContext.invalidate();

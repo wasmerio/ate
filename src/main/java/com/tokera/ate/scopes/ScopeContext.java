@@ -150,6 +150,13 @@ public class ScopeContext<Key> implements IScopeContext {
         return ret;
     }
 
+    @Override
+    public IScope getLocalWithInactive() {
+        final AtomicReference<Scope<Key>> reference = scope();
+        if (reference == null) return inactiveScope;
+        return reference.get();
+    }
+
     @SuppressWarnings("unchecked")
     @Override
     public void setLocal(@Nullable IScope scope) {

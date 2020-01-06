@@ -7,5 +7,7 @@ public interface IScopeContext extends Context {
 
     IScope getLocal();
 
+    IScope getLocalWithInactive();
+
     void setLocal(IScope scope);
 }
