@@ -40,7 +40,7 @@ import java.util.stream.Collectors;
  */
 @ApplicationScoped
 @Provider
-@Priority(8000)
+@Priority(1)
 public class HystrixInterceptor implements ContainerRequestFilter, ContainerResponseFilter, CommandListener {
     protected AteDelegate d = AteDelegate.get();
 
@@ -50,6 +50,7 @@ public class HystrixInterceptor implements ContainerRequestFilter, ContainerResp
     @Inject
     @SuppressWarnings("initialization.fields.uninitialized")
     private HttpRequestContext httpRequestContext;
+
     private Method methodGetBeanStore;
     private Method methodSetBeanStore;
     private HystrixRequestVariableDefault<HystrixContext> hystrixContext = new HystrixRequestVariableDefault<>();
@@ -93,14 +94,15 @@ public class HystrixInterceptor implements ContainerRequestFilter, ContainerResp
             LOG.warn(e);
             myContext.beanStore = null;
         }
+
+        d.requestContext.setHystrixContext(myContext);
     }
 
     @Override
     public void filter(ContainerRequestContext containerRequestContext, ContainerResponseContext containerResponseContext) {
-        HystrixContext myContext = hystrixContext.get();
-        if (myContext != null) {
-            hystrixContext.remove();
-            myContext.hystrixRequestContext.shutdown();
+        if (HystrixRequestContext.isCurrentThreadInitialized()) {
+            HystrixRequestContext hystrixRequestContext = HystrixRequestContext.getContextForCurrentThread();
+            hystrixRequestContext.shutdown();
         }
     }
 

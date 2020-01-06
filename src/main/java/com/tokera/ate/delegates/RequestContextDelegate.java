@@ -5,6 +5,7 @@
  */
 package com.tokera.ate.delegates;
 
+import com.tokera.ate.filters.HystrixInterceptor;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.repo.DataTransaction;
 import com.tokera.ate.units.TopicName;
@@ -32,6 +33,7 @@ public class RequestContextDelegate {
     private @MonotonicNonNull UriInfo requestUriInfo;
     private Stack<@TopicName IPartitionKey> partitionKeyStack = new Stack<>();
     private Object customData = null;
+    private HystrixInterceptor.HystrixContext hystrixContext = null;
 
     private final DataTransaction rootTransaction = new DataTransaction(false);
     private final LinkedList<DataTransaction> transactionStack = new LinkedList<>();
@@ -224,5 +226,13 @@ public class RequestContextDelegate {
 
     public void setCustomData(Object customData) {
         this.customData = customData;
+    }
+
+    public HystrixInterceptor.HystrixContext getHystrixContext() {
+        return hystrixContext;
+    }
+
+    public void setHystrixContext(HystrixInterceptor.HystrixContext hystrixContext) {
+        this.hystrixContext = hystrixContext;
     }
 }
