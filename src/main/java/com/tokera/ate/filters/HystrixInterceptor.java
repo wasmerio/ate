@@ -26,6 +26,7 @@ import javax.enterprise.inject.spi.BeanManager;
 import javax.enterprise.inject.spi.CDI;
 import javax.inject.Inject;
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.container.ContainerRequestContext;
 import javax.ws.rs.container.ContainerRequestFilter;
 import javax.ws.rs.container.ContainerResponseContext;
@@ -73,6 +74,7 @@ public class HystrixInterceptor implements ContainerRequestFilter, ContainerResp
         public HystrixRequestContext hystrixRequestContext;
         public HttpServletRequest httpServletRequest;
         public BoundBeanStore beanStore;
+        public Map<Class<?>, Object> contextDataMap;
         public Map<IScopeContext, IScope> otherScopes = new HashMap<>();
         public boolean scopedUpdated = false;
     }
@@ -92,6 +94,7 @@ public class HystrixInterceptor implements ContainerRequestFilter, ContainerResp
 
         myContext.hystrixRequestContext = hystrixRequestContext;
         myContext.httpServletRequest = ResteasyProviderFactory.getContextData(HttpServletRequest.class);
+        myContext.contextDataMap = ResteasyProviderFactory.getContextDataMap();
         try {
             myContext.beanStore = (BoundBeanStore)methodGetBeanStore.invoke(httpRequestContext);
         } catch (IllegalAccessException | InvocationTargetException e) {
@@ -140,6 +143,8 @@ public class HystrixInterceptor implements ContainerRequestFilter, ContainerResp
         }
 
         myContext.otherScopes.forEach((c, s) -> c.setLocal(s));
+
+        ResteasyProviderFactory.pushContextDataMap(myContext.contextDataMap);
     }
 
     @Override
