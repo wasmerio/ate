@@ -15,6 +15,7 @@ import com.tokera.ate.test.dao.MyThing;
 import com.tokera.ate.test.dao.SeedingDelegate;
 import com.tokera.ate.test.dto.NewAccountDto;
 import com.tokera.ate.test.dto.ThingsDto;
+import org.eclipse.microprofile.faulttolerance.Bulkhead;
 import org.junit.jupiter.api.*;
 
 import javax.enterprise.inject.spi.CDI;
@@ -179,6 +180,7 @@ public class BasicIntegrationTests {
 
     @RepeatedTest(100)
     @Order(20)
+    @Bulkhead(value=1, waitingTaskQueue = 1)
     public void getAccount() {
         session.restGet("/acc/" + this.accountId, MyAccount.class);
     }

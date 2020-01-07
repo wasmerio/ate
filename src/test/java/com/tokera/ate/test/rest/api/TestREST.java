@@ -1,6 +1,7 @@
 package com.tokera.ate.test.rest.api;
 
 import com.tokera.ate.delegates.AteDelegate;
+import org.eclipse.microprofile.faulttolerance.Bulkhead;
 import org.eclipse.microprofile.faulttolerance.Timeout;
 
 import javax.annotation.security.PermitAll;
@@ -12,7 +13,6 @@ import java.util.UUID;
 
 @ApplicationScoped
 @Path("/test")
-@Timeout(20000)
 public class TestREST {
     protected AteDelegate d = AteDelegate.get();
 
@@ -40,6 +40,7 @@ public class TestREST {
     @Path("ping")
     @Produces(MediaType.TEXT_PLAIN)
     @PermitAll
+    @Bulkhead(value=1, waitingTaskQueue = 1)
     public String ping() {
         return "pong";
     }

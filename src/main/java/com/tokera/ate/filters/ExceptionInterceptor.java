@@ -2,6 +2,7 @@ package com.tokera.ate.filters;
 
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.delegates.RequestContextDelegate;
 import com.tokera.ate.io.repo.DataTransaction;
 import com.tokera.ate.scopes.Startup;
 
@@ -38,7 +39,9 @@ public class ExceptionInterceptor implements ExceptionMapper<Throwable> {
     public Response toResponse(Throwable ex) {
         
         try {
-            d.io.clearAll();
+            if (RequestContextDelegate.isWithinRequestContext()) {
+                d.io.clearAll();
+            }
         } catch (Throwable ex1) {
             this.LOG.warn(ex1);
         }

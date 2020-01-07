@@ -34,6 +34,7 @@
         <version>1.13-SNAPSHOT</version>
     </parent>
 
+
     <scm>
         <connection>scm:git:git://github.com/john-sharratt/ate.git</connection>
         <developerConnection>scm:git:git@github.com:john-sharratt/ate.git</developerConnection>

@@ -1,6 +1,7 @@
 package com.tokera.ate.filters;
 
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.delegates.RequestContextDelegate;
 import com.tokera.ate.scopes.Startup;
 
 import java.io.IOException;
@@ -26,7 +27,7 @@ public class TransactionInterceptor implements ContainerResponseFilter {
 
     @Override
     public void filter(ContainerRequestContext requestContext, ContainerResponseContext responseContext) {
-        
+
         // Send all the data to the Kafka
         // (but only if we are not encountering an error of some kind)
         if (responseContext.getStatus() >= 200 && responseContext.getStatus() < 400) {

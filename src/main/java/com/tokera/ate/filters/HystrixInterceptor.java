@@ -5,6 +5,7 @@ import com.netflix.hystrix.strategy.concurrency.HystrixRequestVariableDefault;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.delegates.CurrentTokenDelegate;
+import com.tokera.ate.delegates.RequestContextDelegate;
 import com.tokera.ate.scopes.IScope;
 import com.tokera.ate.scopes.IScopeContext;
 import io.smallrye.faulttolerance.CommandListener;
@@ -92,6 +93,8 @@ public class HystrixInterceptor implements ContainerRequestFilter, ContainerResp
         HystrixContext myContext = new HystrixContext();
         this.hystrixContext.set(myContext);
 
+        containerRequestContext.setProperty("ate.hystrixContext", myContext);
+
         myContext.hystrixRequestContext = hystrixRequestContext;
         myContext.httpServletRequest = ResteasyProviderFactory.getContextData(HttpServletRequest.class);
         myContext.contextDataMap = ResteasyProviderFactory.getContextDataMap();
@@ -113,7 +116,17 @@ public class HystrixInterceptor implements ContainerRequestFilter, ContainerResp
     @Override
     public void filter(ContainerRequestContext containerRequestContext, ContainerResponseContext containerResponseContext)
     {
-        HystrixContext myContext = d.requestContext.getHystrixContext();
+        HystrixContext myContext = null;
+        if (RequestContextDelegate.isWithinRequestContext()) {
+            myContext = d.requestContext.getHystrixContext();
+        } else {
+            myContext = (HystrixContext)containerRequestContext.getProperty("ate.hystrixContext");
+
+            if (myContext != null) {
+                this.httpRequestContext.associate(myContext.httpServletRequest);
+                this.httpRequestContext.activate();
+            }
+        }
         if (myContext != null) {
             if (myContext.scopedUpdated) {
                 myContext.otherScopes.forEach((c, s) -> c.setLocal(s));
