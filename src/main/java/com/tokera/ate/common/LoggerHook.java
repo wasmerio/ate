@@ -96,7 +96,7 @@ public class LoggerHook implements org.slf4j.Logger {
         loggingDelegate.getLogStack().pop();
     }
     
-    protected org.slf4j.Logger getStaticForwarder() {
+    public org.slf4j.Logger getStaticForwarder() {
         return org.slf4j.LoggerFactory.getLogger(logClazz);
     }
 

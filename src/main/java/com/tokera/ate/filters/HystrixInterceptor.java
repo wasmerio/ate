@@ -93,8 +93,6 @@ public class HystrixInterceptor implements ContainerRequestFilter, ContainerResp
         HystrixContext myContext = new HystrixContext();
         this.hystrixContext.set(myContext);
 
-        containerRequestContext.setProperty("ate.hystrixContext", myContext);
-
         myContext.hystrixRequestContext = hystrixRequestContext;
         myContext.httpServletRequest = ResteasyProviderFactory.getContextData(HttpServletRequest.class);
         myContext.contextDataMap = ResteasyProviderFactory.getContextDataMap();
@@ -119,13 +117,6 @@ public class HystrixInterceptor implements ContainerRequestFilter, ContainerResp
         HystrixContext myContext = null;
         if (RequestContextDelegate.isWithinRequestContext()) {
             myContext = d.requestContext.getHystrixContext();
-        } else {
-            myContext = (HystrixContext)containerRequestContext.getProperty("ate.hystrixContext");
-
-            if (myContext != null) {
-                this.httpRequestContext.associate(myContext.httpServletRequest);
-                this.httpRequestContext.activate();
-            }
         }
         if (myContext != null) {
             if (myContext.scopedUpdated) {
@@ -172,6 +163,7 @@ public class HystrixInterceptor implements ContainerRequestFilter, ContainerResp
             myContext.scopedUpdated = true;
         }
 
+        /*
         try {
             this.httpRequestContext.invalidate();
             this.httpRequestContext.deactivate();
@@ -181,5 +173,6 @@ public class HystrixInterceptor implements ContainerRequestFilter, ContainerResp
                 this.httpRequestContext.dissociate(myContext.httpServletRequest);
             }
         }
+        */
     }
 }

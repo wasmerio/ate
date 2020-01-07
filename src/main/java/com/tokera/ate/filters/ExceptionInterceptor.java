@@ -43,7 +43,7 @@ public class ExceptionInterceptor implements ExceptionMapper<Throwable> {
                 d.io.clearAll();
             }
         } catch (Throwable ex1) {
-            this.LOG.warn(ex1);
+            this.LOG.getStaticForwarder().warn(ex.getMessage(), ex1);
         }
         
         if (ex instanceof WebApplicationException) {
