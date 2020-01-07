@@ -78,6 +78,7 @@ public class HystrixInterceptor implements ContainerRequestFilter, ContainerResp
         public Map<Class<?>, Object> contextDataMap;
         public Map<IScopeContext, IScope> otherScopes = new HashMap<>();
         public boolean scopedUpdated = false;
+        public Thread callingThread;
     }
 
     @SuppressWarnings({"unchecked"})
@@ -93,6 +94,7 @@ public class HystrixInterceptor implements ContainerRequestFilter, ContainerResp
         HystrixContext myContext = new HystrixContext();
         this.hystrixContext.set(myContext);
 
+        myContext.callingThread = Thread.currentThread();
         myContext.hystrixRequestContext = hystrixRequestContext;
         myContext.httpServletRequest = ResteasyProviderFactory.getContextData(HttpServletRequest.class);
         myContext.contextDataMap = ResteasyProviderFactory.getContextDataMap();
@@ -128,6 +130,8 @@ public class HystrixInterceptor implements ContainerRequestFilter, ContainerResp
             HystrixRequestContext hystrixRequestContext = HystrixRequestContext.getContextForCurrentThread();
             hystrixRequestContext.shutdown();
         }
+
+        hystrixContext.remove();
     }
 
     @Override
@@ -135,44 +139,45 @@ public class HystrixInterceptor implements ContainerRequestFilter, ContainerResp
         HystrixContext myContext = hystrixContext.get();
         if (myContext == null) return;
 
-        this.httpRequestContext.associate(myContext.httpServletRequest);
-        this.httpRequestContext.activate();
+        if (Thread.currentThread() != myContext.callingThread) {
+            this.httpRequestContext.associate(myContext.httpServletRequest);
+            this.httpRequestContext.activate();
 
-        if (myContext.beanStore != null) {
-            try {
-                methodSetBeanStore.invoke(httpRequestContext, myContext.beanStore);
-            } catch (Throwable e) {
-                LOG.warn(e);
+            if (myContext.beanStore != null) {
+                try {
+                    methodSetBeanStore.invoke(httpRequestContext, myContext.beanStore);
+                } catch (Throwable e) {
+                    LOG.warn(e);
+                }
             }
+
+            myContext.otherScopes.forEach((c, s) -> c.setLocal(s));
+
+            ResteasyProviderFactory.pushContextDataMap(myContext.contextDataMap);
         }
-
-        myContext.otherScopes.forEach((c, s) -> c.setLocal(s));
-
-        ResteasyProviderFactory.pushContextDataMap(myContext.contextDataMap);
     }
 
     @Override
     public void afterExecution(FaultToleranceOperation operation) {
         HystrixContext myContext = hystrixContext.get();
 
-        if (myContext != null) {
-            for (IScopeContext scopeContext : d.scopeContext.getScopeContexts()) {
-                IScope scope = scopeContext.getLocalWithInactive();
-                myContext.otherScopes.put(scopeContext, scope);
-            }
-            myContext.scopedUpdated = true;
-        }
-
-        /*
-        try {
-            this.httpRequestContext.invalidate();
-            this.httpRequestContext.deactivate();
-        }
-        finally {
+        if (Thread.currentThread() != myContext.callingThread) {
             if (myContext != null) {
-                this.httpRequestContext.dissociate(myContext.httpServletRequest);
+                for (IScopeContext scopeContext : d.scopeContext.getScopeContexts()) {
+                    IScope scope = scopeContext.getLocalWithInactive();
+                    myContext.otherScopes.put(scopeContext, scope);
+                }
+                myContext.scopedUpdated = true;
+            }
+
+            try {
+                this.httpRequestContext.invalidate();
+                this.httpRequestContext.deactivate();
+            } finally {
+                if (myContext != null) {
+                    this.httpRequestContext.dissociate(myContext.httpServletRequest);
+                }
             }
         }
-        */
     }
 }
