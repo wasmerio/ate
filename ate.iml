@@ -12,6 +12,66 @@
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
+    <orderEntry type="library" name="Maven: org.jboss.weld:weld-osgi-bundle:3.0.5.Final" level="project" />
+    <orderEntry type="library" name="Maven: org.jboss.weld.module:weld-ejb:3.0.5.Final" level="project" />
+    <orderEntry type="library" name="Maven: org.jboss.spec.javax.transaction:jboss-transaction-api_1.2_spec:1.0.0.Final" level="project" />
+    <orderEntry type="library" name="Maven: org.jboss.spec.javax.ejb:jboss-ejb-api_3.2_spec:1.0.0.Final" level="project" />
+    <orderEntry type="library" name="Maven: org.jboss.weld.module:weld-jta:3.0.5.Final" level="project" />
+    <orderEntry type="library" name="Maven: org.eclipse.microprofile.config:microprofile-config-api:1.3" level="project" />
+    <orderEntry type="library" name="Maven: org.osgi:org.osgi.annotation.versioning:1.0.0" level="project" />
+    <orderEntry type="library" name="Maven: org.eclipse.microprofile.metrics:microprofile-metrics-api:2.2.1" level="project" />
+    <orderEntry type="library" name="Maven: org.eclipse.microprofile.fault-tolerance:microprofile-fault-tolerance-api:2.0.2" level="project" />
+    <orderEntry type="library" name="Maven: org.eclipse.microprofile.fault-tolerance:microprofile-fault-tolerance-tck:2.0.2" level="project" />
+    <orderEntry type="library" name="Maven: org.testng:testng:6.9.9" level="project" />
+    <orderEntry type="library" name="Maven: junit:junit:4.10" level="project" />
+    <orderEntry type="library" name="Maven: com.beust:jcommander:1.48" level="project" />
+    <orderEntry type="library" name="Maven: org.apache.ant:ant:1.7.0" level="project" />
+    <orderEntry type="library" name="Maven: org.apache.ant:ant-launcher:1.7.0" level="project" />
+    <orderEntry type="library" name="Maven: org.yaml:snakeyaml:1.15" level="project" />
+    <orderEntry type="library" name="Maven: org.beanshell:bsh:2.0b4" level="project" />
+    <orderEntry type="library" name="Maven: org.jboss.arquillian.testng:arquillian-testng-container:1.1.14.Final" level="project" />
+    <orderEntry type="library" name="Maven: org.jboss.arquillian.testng:arquillian-testng-core:1.1.14.Final" level="project" />
+    <orderEntry type="library" name="Maven: org.jboss.arquillian.test:arquillian-test-api:1.1.14.Final" level="project" />
+    <orderEntry type="library" name="Maven: org.jboss.arquillian.core:arquillian-core-api:1.1.14.Final" level="project" />
+    <orderEntry type="library" name="Maven: org.jboss.arquillian.test:arquillian-test-spi:1.1.14.Final" level="project" />
+    <orderEntry type="library" name="Maven: org.jboss.arquillian.core:arquillian-core-spi:1.1.14.Final" level="project" />
+    <orderEntry type="library" name="Maven: org.jboss.arquillian.container:arquillian-container-test-api:1.1.14.Final" level="project" />
+    <orderEntry type="library" name="Maven: org.jboss.arquillian.container:arquillian-container-test-spi:1.1.14.Final" level="project" />
+    <orderEntry type="library" name="Maven: org.jboss.arquillian.container:arquillian-container-spi:1.1.14.Final" level="project" />
+    <orderEntry type="library" name="Maven: org.jboss.arquillian.core:arquillian-core-impl-base:1.1.14.Final" level="project" />
+    <orderEntry type="library" name="Maven: org.jboss.arquillian.test:arquillian-test-impl-base:1.1.14.Final" level="project" />
+    <orderEntry type="library" name="Maven: org.jboss.arquillian.container:arquillian-container-impl-base:1.1.14.Final" level="project" />
+    <orderEntry type="library" name="Maven: org.jboss.arquillian.config:arquillian-config-api:1.1.14.Final" level="project" />
+    <orderEntry type="library" name="Maven: org.jboss.arquillian.config:arquillian-config-impl-base:1.1.14.Final" level="project" />
+    <orderEntry type="library" name="Maven: org.jboss.shrinkwrap.descriptors:shrinkwrap-descriptors-spi:2.0.0" level="project" />
+    <orderEntry type="library" name="Maven: org.jboss.arquillian.container:arquillian-container-test-impl-base:1.1.14.Final" level="project" />
+    <orderEntry type="library" name="Maven: org.jboss.shrinkwrap:shrinkwrap-impl-base:1.2.6" level="project" />
+    <orderEntry type="library" name="Maven: org.jboss.shrinkwrap:shrinkwrap-spi:1.2.6" level="project" />
+    <orderEntry type="library" name="Maven: org.hamcrest:hamcrest-all:1.3" level="project" />
+    <orderEntry type="library" name="Maven: org.jboss.shrinkwrap:shrinkwrap-api:1.2.6" level="project" />
+    <orderEntry type="library" name="Maven: org.jboss.shrinkwrap.descriptors:shrinkwrap-descriptors-impl-javaee:2.0.0" level="project" />
+    <orderEntry type="library" name="Maven: org.jboss.shrinkwrap.descriptors:shrinkwrap-descriptors-api-javaee:2.0.0" level="project" />
+    <orderEntry type="library" name="Maven: org.jboss.shrinkwrap.descriptors:shrinkwrap-descriptors-api-base:2.0.0" level="project" />
+    <orderEntry type="library" name="Maven: org.jboss.shrinkwrap.descriptors:shrinkwrap-descriptors-impl-base:2.0.0" level="project" />
+    <orderEntry type="library" name="Maven: org.awaitility:awaitility:3.1.6" level="project" />
+    <orderEntry type="library" name="Maven: org.hamcrest:hamcrest-library:1.3" level="project" />
+    <orderEntry type="library" name="Maven: org.hamcrest:hamcrest-core:1.3" level="project" />
+    <orderEntry type="library" name="Maven: com.netflix.hystrix:hystrix-core:1.5.12" level="project" />
+    <orderEntry type="library" name="Maven: com.netflix.archaius:archaius-core:0.4.1" level="project" />
+    <orderEntry type="library" name="Maven: commons-configuration:commons-configuration:1.8" level="project" />
+    <orderEntry type="library" name="Maven: commons-lang:commons-lang:2.6" level="project" />
+    <orderEntry type="library" name="Maven: io.reactivex:rxjava:1.2.0" level="project" />
+    <orderEntry type="library" name="Maven: org.hdrhistogram:HdrHistogram:2.1.9" level="project" />
+    <orderEntry type="library" name="Maven: io.opentracing:opentracing-api:0.31.0" level="project" />
+    <orderEntry type="library" name="Maven: io.opentracing:opentracing-util:0.31.0" level="project" />
+    <orderEntry type="library" name="Maven: io.opentracing:opentracing-noop:0.31.0" level="project" />
+    <orderEntry type="library" name="Maven: io.opentracing:opentracing-mock:0.31.0" level="project" />
+    <orderEntry type="library" name="Maven: io.smallrye.config:smallrye-config:1.5.0" level="project" />
+    <orderEntry type="library" name="Maven: io.smallrye.config:smallrye-config-common:1.5.0" level="project" />
+    <orderEntry type="library" name="Maven: io.smallrye:smallrye-metrics:2.3.2" level="project" />
+    <orderEntry type="library" name="Maven: io.smallrye:smallrye-fault-tolerance:2.1.4" level="project" />
+    <orderEntry type="library" name="Maven: javax.enterprise.concurrent:javax.enterprise.concurrent-api:1.0" level="project" />
+    <orderEntry type="library" name="Maven: javax.annotation:javax.annotation-api:1.3.2" level="project" />
     <orderEntry type="library" name="Maven: org.apache.httpcomponents:httpclient:4.5.9" level="project" />
     <orderEntry type="library" name="Maven: org.apache.httpcomponents:httpcore:4.4.11" level="project" />
     <orderEntry type="library" name="Maven: commons-logging:commons-logging:1.2" level="project" />
