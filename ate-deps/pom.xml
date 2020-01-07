@@ -4,7 +4,7 @@
 
     <groupId>com.tokera</groupId>
     <artifactId>ate-deps</artifactId>
-    <version>1.14-SNAPSHOT</version>
+    <version>1.14</version>
     <packaging>pom</packaging>
 
     <name>ate-deps</name>
@@ -36,7 +36,7 @@
         <connection>scm:git:git://github.com/john-sharratt/ate.git</connection>
         <developerConnection>scm:git:git@github.com:john-sharratt/ate.git</developerConnection>
         <url>https://github.com/john-sharratt/ate</url>
-        <tag>HEAD</tag>
+        <tag>ate-deps-1.14</tag>
     </scm>
 
     <properties>
