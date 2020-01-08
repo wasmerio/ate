@@ -176,8 +176,9 @@ public class TaskHandler<T extends BaseDao> implements Runnable, ITaskHandler {
      */
     private void callbackWithTimeout(BoundRequestContext boundRequestContext, Consumer<ITaskCallback<T>> funct)
     {
+        Future<?> future = null;
         try {
-            executorService.submit(() ->
+            future = executorService.submit(() ->
             {
                 ITaskCallback<T> callback = this.callback.get();
                 if (callback != null) {
@@ -185,8 +186,17 @@ public class TaskHandler<T extends BaseDao> implements Runnable, ITaskHandler {
                         funct.accept(callback);
                     });
                 }
-            }).get(this.callbackTimeout, TimeUnit.MILLISECONDS);
+            });
+
+            future.get(this.callbackTimeout, TimeUnit.MILLISECONDS);
+
         } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            try {
+                if (future != null) {
+                    future.cancel(true);
+                }
+            } catch (Throwable ex) {
+            }
             throw new RuntimeException(e);
         }
     }
