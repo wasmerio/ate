@@ -31,6 +31,7 @@ public class TaskManager {
             = new ConcurrentHashMap<>();
 
     public static int DEFAULT_IDLE_TIME = 1000;
+    public static int DEFAULT_CALLBACK_TIMEOUT = 1000;
 
     /**
      * Cleans up any dead hooks
@@ -60,24 +61,16 @@ public class TaskManager {
         });
     }
 
-    public <T extends BaseDao> ITask subscribe(IPartitionKey partitionKey, Class<T> clazz, ITaskCallback<T> callback) {
-        return subscribe(partitionKey, clazz, callback, DEFAULT_IDLE_TIME);
-    }
-
-    public <T extends BaseDao> ITask subscribe(IPartitionKey partitionKey, Class<T> clazz, ITaskCallback<T> callback, int idleTime) {
+    public <T extends BaseDao> ITaskHandler subscribe(IPartitionKey partitionKey, Class<T> clazz, ITaskCallback<T> callback, int idleTime, int callbackTimeout) {
         TokenDto token = d.currentToken.getTokenOrNull();
-        return subscribe(partitionKey, clazz, callback, idleTime, token);
-    }
-
-    public <T extends BaseDao> ITask subscribe(IPartitionKey partitionKey, Class<T> clazz, ITaskCallback<T> callback, @Nullable TokenDto token) {
-        return subscribe(partitionKey, clazz, callback, DEFAULT_IDLE_TIME, token);
+        return subscribe(partitionKey, clazz, callback, idleTime, callbackTimeout, token);
     }
 
     @SuppressWarnings("unchecked")
-    public <T extends BaseDao> ITask subscribe(IPartitionKey partitionKey, Class<T> clazz, ITaskCallback<T> callback, int idleTIme, @Nullable TokenDto token) {
+    public <T extends BaseDao> ITaskHandler subscribe(IPartitionKey partitionKey, Class<T> clazz, ITaskCallback<T> callback, int idleTIme, int callbackTimeout, @Nullable TokenDto token) {
         clean();
 
-        AtomicReference<ITask> ret = new AtomicReference<>();
+        AtomicReference<ITaskHandler> ret = new AtomicReference<>();
         lookup.compute(partitionKey, (k, map) ->
         {
             if (map == null) map = new ConcurrentHashMap<>();
@@ -85,7 +78,7 @@ public class TaskManager {
             {
                 if (ctx == null) ctx = new TaskContext(partitionKey, clazz);
 
-                ITask task = ctx.addTask(callback, clazz, idleTIme, token);
+                ITaskHandler task = ctx.addTask(callback, clazz, idleTIme, callbackTimeout, token);
                 ret.set(task);
                 return ctx;
             });

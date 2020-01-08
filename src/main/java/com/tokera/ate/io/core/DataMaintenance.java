@@ -3,14 +3,13 @@ package com.tokera.ate.io.core;
 import com.google.common.cache.Cache;
 import com.google.common.cache.CacheBuilder;
 import com.tokera.ate.dao.IRights;
-import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.TopicAndPartition;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.api.IPartitionKeyProvider;
 import com.tokera.ate.io.repo.*;
-import com.tokera.ate.io.task.Task;
+import com.tokera.ate.io.task.TaskHandler;
 import com.tokera.ate.scopes.Startup;
 import com.tokera.ate.units.Alias;
 import com.tokera.ate.units.DaoId;
@@ -237,7 +236,7 @@ public class DataMaintenance extends DataPartitionDaemon {
         {
             // Create the bounded request context
             BoundRequestContext boundRequestContext = CDI.current().select(BoundRequestContext.class).get();
-            Task.enterRequestScopeAndInvoke(state.key, boundRequestContext, null, () -> {
+            TaskHandler.enterRequestScopeAndInvoke(state.key, boundRequestContext, null, () -> {
                 d.currentRights.impersonate(state);
 
                 for (UUID id : toMerge) {

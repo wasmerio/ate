@@ -7,7 +7,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.UUID;
 
-public interface ITask {
+public interface ITaskHandler {
 
     UUID id();
 

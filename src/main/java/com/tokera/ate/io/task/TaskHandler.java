@@ -11,7 +11,7 @@ import com.tokera.ate.dto.msg.MessageDataDto;
 import com.tokera.ate.dto.msg.MessageDataHeaderDto;
 import com.tokera.ate.dto.msg.MessageDataMetaDto;
 import com.tokera.ate.io.api.IPartitionKey;
-import com.tokera.ate.io.api.ITask;
+import com.tokera.ate.io.api.ITaskHandler;
 import com.tokera.ate.io.api.ITaskCallback;
 import org.apache.commons.lang3.time.DateUtils;
 import org.apache.commons.lang3.time.StopWatch;
@@ -22,32 +22,50 @@ import org.jboss.weld.context.bound.BoundRequestContext;
 import javax.enterprise.inject.spi.CDI;
 import java.lang.ref.WeakReference;
 import java.util.*;
-import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.*;
+import java.util.function.Consumer;
 
 /**
  * Represents the context of a processor to be invoked on callbacks, this object can be used to unsubscribe
  */
-public class Task<T extends BaseDao> implements Runnable, ITask {
+public class TaskHandler<T extends BaseDao> implements Runnable, ITaskHandler {
     public final UUID id;
     public final TaskContext<T> context;
     public final WeakReference<ITaskCallback<T>> callback;
-    public final @Nullable TokenDto token;
     public final ConcurrentLinkedQueue<MessageDataMetaDto> toProcess;
     public final Class<T> clazz;
-    public final int idleTime;
+    public final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
+    private @Nullable TokenDto token = null;
+    private int idleTime = 60000;
+    private int callbackTimeout = 10000;
     private @MonotonicNonNull Thread thread;
     private volatile boolean isRunning = true;
     private Date lastIdle = new Date();
 
-    public Task(TaskContext<T> context, Class<T> clazz, ITaskCallback<T> callback, int idleTime, @Nullable TokenDto token) {
+    public TaskHandler(TaskContext<T> context, Class<T> clazz, ITaskCallback<T> callback) {
         this.id = callback.id();
         this.context = context;
         this.clazz = clazz;
         this.callback = new WeakReference<>(callback);
         this.token = token;
         this.toProcess = new ConcurrentLinkedQueue<>();
-        this.idleTime = idleTime;
+    }
+
+    public TaskHandler<T> withToken(TokenDto token)
+    {
+        this.token = token;
+        return this;
+    }
+
+    public TaskHandler<T> withIdleTime(int val) {
+        this.idleTime = val;
+        return this;
+    }
+
+    public TaskHandler<T> withCallbackTimeout(int val) {
+        this.callbackTimeout = val;
+        return this;
     }
 
     @Override
@@ -154,21 +172,39 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
     }
 
     /**
+     * Invokes a callback under a request scope context and with a specific fixed timeout
+     */
+    private void callbackWithTimeout(BoundRequestContext boundRequestContext, Consumer<ITaskCallback<T>> funct)
+    {
+        try {
+            executorService.submit(() ->
+            {
+                ITaskCallback<T> callback = this.callback.get();
+                if (callback != null) {
+                    TaskHandler.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () -> {
+                        funct.accept(callback);
+                    });
+                }
+            }).get(this.callbackTimeout, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
      * Gathers all the objects in the tree of this particular type and invokes a processor for them
      */
     public void invokeInit(BoundRequestContext boundRequestContext) {
-        Task.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () ->
-        {
+        callbackWithTimeout(boundRequestContext, c -> {
             AteDelegate d = AteDelegate.get();
             d.io.warmAndWait();
 
-            ITaskCallback<T> callback = this.callback.get();
-            if (callback != null) callback.onInit(this);
+            c.onInit(this);
         });
     }
 
     public void invokeSeedKeys(BoundRequestContext boundRequestContext) {
-        Task.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () ->
+        TaskHandler.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () ->
         {
             AteDelegate d = AteDelegate.get();
             d.io.warm();
@@ -184,30 +220,27 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
 
     @SuppressWarnings("unchecked")
     public void invokeMessages(BoundRequestContext boundRequestContext, Iterable<MessageDataMetaDto> msgs) {
-        Task.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () ->
-        {
-            AteDelegate d = AteDelegate.get();
-            for (MessageDataMetaDto msg : msgs) {
-                try {
+        AteDelegate d = AteDelegate.get();
+        for (MessageDataMetaDto msg : msgs) {
+            try {
+                callbackWithTimeout(boundRequestContext, c ->
+                {
                     MessageDataDto data = msg.getData();
                     MessageDataHeaderDto header = data.getHeader();
-
-                    ITaskCallback<T> callback = this.callback.get();
-                    if (callback == null) continue;
 
                     PUUID id = PUUID.from(partitionKey(), header.getIdOrThrow());
                     if (data.hasPayload() == false) {
                         d.debugLogging.logCallbackData("feed-task", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Removed, callback.getClass(), null);
-                        callback.onRemove(id, this);
-                        continue;
+                        c.onRemove(id, this);
+                        return;
                     }
 
                     if (d.authorization.canRead(id.partition(), id.id()) == false) {
-                        continue;
+                        return;
                     }
 
                     BaseDao obj = d.dataSerializer.fromDataMessage(partitionKey(), msg, true);
-                    if (obj == null || obj.getClass() != clazz) continue;
+                    if (obj == null || obj.getClass() != clazz) return;
                     BaseDaoInternal.setPartitionKey(obj, this.partitionKey());
                     BaseDaoInternal.setPreviousVersion(obj, msg.getVersionOrThrow());
                     BaseDaoInternal.setMergesVersions(obj, null);
@@ -218,42 +251,37 @@ public class Task<T extends BaseDao> implements Runnable, ITask {
 
                             if (header.getPreviousVersion() == null) {
                                 d.debugLogging.logCallbackData("feed-task", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Created, callback.getClass(), obj);
-                                callback.onCreate((T) obj, this);
+                                c.onCreate((T)obj, this);
                             } else {
                                 d.debugLogging.logCallbackData("feed-task", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Update, callback.getClass(), obj);
-                                callback.onUpdate((T) obj, this);
+                                c.onUpdate((T)obj, this);
                             }
                         });
                     } catch (Throwable ex) {
                         d.io.underTransaction(false, () -> {
-                            callback.onException((T)obj, this, ex);
+                            c.onException((T)obj, this, ex);
                         });
                     } finally {
                         d.io.currentTransaction().clear();
                     }
-                } catch (Throwable ex) {
-                    d.genericLogger.warn(ex);
-                }
+                });
+            } catch (Throwable ex) {
+                d.genericLogger.warn(ex);
             }
-        });
+        }
     }
 
     public void invokeTick(BoundRequestContext boundRequestContext) {
-        Task.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () -> {
-            ITaskCallback<T> callback = this.callback.get();
-            if (callback != null) callback.onTick(this);
-        });
+        callbackWithTimeout(boundRequestContext, c -> c.onTick(this));
     }
 
     public void invokeWarmAndIdle(BoundRequestContext boundRequestContext) {
         AteDelegate d = AteDelegate.get();
-        Task.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () -> {
+        callbackWithTimeout(boundRequestContext, c -> {
             d.io.warm(partitionKey());
-            ITaskCallback<T> callback = this.callback.get();
-            if (callback != null) callback.onIdle(this);
+            c.onIdle(this);
         });
     }
-
 
 
     /**

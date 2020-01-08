@@ -4,7 +4,6 @@ import com.tokera.ate.dao.PUUID;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.delegates.AteDelegate;
 
-import java.util.Collection;
 import java.util.UUID;
 
 /**
@@ -22,43 +21,43 @@ public interface ITaskCallback<T extends BaseDao> {
      * Callback invoked for every object of this type that is discovered when the task processor first starts up, after
      * its in an operational state the onCreate callback will be called for all newly created objects
      */
-    default void onInit(ITask task) {
+    default void onInit(ITaskHandler task) {
     }
 
     /**
      * Callback invoked when an object is encountered for the first time
      */
-    default void onCreate(T obj, ITask task) {
+    default void onCreate(T obj, ITaskHandler task) {
     }
 
     /**
      * Callback invoked whenever a data object is created or updated
      */
-    default void onUpdate(T obj, ITask task) {
+    default void onUpdate(T obj, ITaskHandler task) {
     }
 
     /**
      * Callback invoked whenever a data object is removed
      */
-    default void onRemove(PUUID id, ITask task) {
+    default void onRemove(PUUID id, ITaskHandler task) {
     }
 
     /**
      * Callback invoked every tick of time that passes (defaults to 10 seconds)
      */
-    default void onTick(ITask task) {
+    default void onTick(ITaskHandler task) {
     }
 
     /**
      * Callback invoked every tick of time that passes and its been idle (defaults to 10 seconds)
      */
-    default void onIdle(ITask task) {
+    default void onIdle(ITaskHandler task) {
     }
 
     /**
      * Callback invoked when an exception occurs
      */
-    default void onException(T obj, ITask task, Throwable ex) {
+    default void onException(T obj, ITaskHandler task, Throwable ex) {
         AteDelegate.get().genericLogger.warn(ex);
     }
 }
