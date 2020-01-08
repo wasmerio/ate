@@ -37,12 +37,6 @@ public interface ITaskCallback<T extends BaseDao> {
     }
 
     /**
-     * Callback invoked whenever a data object is removed
-     */
-    default void onRemove(PUUID id, ITaskHandler task) {
-    }
-
-    /**
      * Callback invoked every tick of time that passes (defaults to 10 seconds)
      */
     default void onTick(ITaskHandler task) {
@@ -52,6 +46,12 @@ public interface ITaskCallback<T extends BaseDao> {
      * Callback invoked every tick of time that passes and its been idle (defaults to 10 seconds)
      */
     default void onIdle(ITaskHandler task) {
+    }
+
+    /**
+     * Callback invoked if a process times out before it completes (except for the scenario where the callback was a timeout in itself)
+     */
+    default void onTimeout(T obj, ITaskHandler task) {
     }
 
     /**

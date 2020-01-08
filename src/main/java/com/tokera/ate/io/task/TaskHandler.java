@@ -48,7 +48,6 @@ public class TaskHandler<T extends BaseDao> implements Runnable, ITaskHandler {
         this.context = context;
         this.clazz = clazz;
         this.callback = new WeakReference<>(callback);
-        this.token = token;
         this.toProcess = new ConcurrentLinkedQueue<>();
     }
 
@@ -174,8 +173,7 @@ public class TaskHandler<T extends BaseDao> implements Runnable, ITaskHandler {
     /**
      * Invokes a callback under a request scope context and with a specific fixed timeout
      */
-    private void callbackWithTimeout(BoundRequestContext boundRequestContext, Consumer<ITaskCallback<T>> funct)
-    {
+    private void callbackWithTimeout(BoundRequestContext boundRequestContext, Consumer<ITaskCallback<T>> funct, @Nullable Consumer<ITaskCallback<T>> onTimeout) throws TimeoutException {
         Future<?> future = null;
         try {
             future = executorService.submit(() ->
@@ -190,13 +188,20 @@ public class TaskHandler<T extends BaseDao> implements Runnable, ITaskHandler {
 
             future.get(this.callbackTimeout, TimeUnit.MILLISECONDS);
 
-        } catch (InterruptedException | ExecutionException | TimeoutException e) {
+        } catch (TimeoutException e) {
             try {
                 if (future != null) {
                     future.cancel(true);
                 }
             } catch (Throwable ex) {
             }
+
+            if (onTimeout != null) {
+                callbackWithTimeout(boundRequestContext, onTimeout, null);
+            }
+
+            throw e;
+        } catch (InterruptedException | ExecutionException  e) {
             throw new RuntimeException(e);
         }
     }
@@ -204,13 +209,13 @@ public class TaskHandler<T extends BaseDao> implements Runnable, ITaskHandler {
     /**
      * Gathers all the objects in the tree of this particular type and invokes a processor for them
      */
-    public void invokeInit(BoundRequestContext boundRequestContext) {
+    public void invokeInit(BoundRequestContext boundRequestContext) throws TimeoutException {
         callbackWithTimeout(boundRequestContext, c -> {
             AteDelegate d = AteDelegate.get();
             d.io.warmAndWait();
 
             c.onInit(this);
-        });
+        }, null);
     }
 
     public void invokeSeedKeys(BoundRequestContext boundRequestContext) {
@@ -228,6 +233,32 @@ public class TaskHandler<T extends BaseDao> implements Runnable, ITaskHandler {
         });
     }
 
+    private @Nullable BaseDao messageToDataObject(MessageDataMetaDto msg)
+    {
+        AteDelegate d = AteDelegate.get();
+
+        MessageDataDto data = msg.getData();
+        MessageDataHeaderDto header = data.getHeader();
+
+        PUUID id = PUUID.from(partitionKey(), header.getIdOrThrow());
+        if (data.hasPayload() == false) {
+            d.debugLogging.logCallbackData("feed-task", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Removed, callback.getClass(), null);
+            return null;
+        }
+
+        if (d.authorization.canRead(id.partition(), id.id()) == false) {
+            return null;
+        }
+
+        BaseDao obj = d.dataSerializer.fromDataMessage(partitionKey(), msg, true);
+        if (obj == null || obj.getClass() != clazz) return null;
+        BaseDaoInternal.setPartitionKey(obj, this.partitionKey());
+        BaseDaoInternal.setPreviousVersion(obj, msg.getVersionOrThrow());
+        BaseDaoInternal.setMergesVersions(obj, null);
+
+        return obj;
+    }
+
     @SuppressWarnings("unchecked")
     public void invokeMessages(BoundRequestContext boundRequestContext, Iterable<MessageDataMetaDto> msgs) {
         AteDelegate d = AteDelegate.get();
@@ -235,37 +266,33 @@ public class TaskHandler<T extends BaseDao> implements Runnable, ITaskHandler {
             try {
                 callbackWithTimeout(boundRequestContext, c ->
                 {
-                    MessageDataDto data = msg.getData();
-                    MessageDataHeaderDto header = data.getHeader();
-
-                    PUUID id = PUUID.from(partitionKey(), header.getIdOrThrow());
-                    if (data.hasPayload() == false) {
-                        d.debugLogging.logCallbackData("feed-task", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Removed, callback.getClass(), null);
-                        c.onRemove(id, this);
-                        return;
-                    }
-
-                    if (d.authorization.canRead(id.partition(), id.id()) == false) {
-                        return;
-                    }
-
-                    BaseDao obj = d.dataSerializer.fromDataMessage(partitionKey(), msg, true);
-                    if (obj == null || obj.getClass() != clazz) return;
-                    BaseDaoInternal.setPartitionKey(obj, this.partitionKey());
-                    BaseDaoInternal.setPreviousVersion(obj, msg.getVersionOrThrow());
-                    BaseDaoInternal.setMergesVersions(obj, null);
-
+                    BaseDao obj = messageToDataObject(msg);
                     try {
                         d.io.underTransaction(false, () -> {
-                            d.io.currentTransaction().cache(id.partition(), obj);
+                            d.io.currentTransaction().cache(partitionKey(), obj);
 
-                            if (header.getPreviousVersion() == null) {
-                                d.debugLogging.logCallbackData("feed-task", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Created, callback.getClass(), obj);
+                            if (msg.getHeader().getPreviousVersion() == null) {
+                                d.debugLogging.logCallbackData("feed-task", partitionKey(), obj.getId(), DebugLoggingDelegate.CallbackDataType.Created, callback.getClass(), obj);
                                 c.onCreate((T)obj, this);
                             } else {
-                                d.debugLogging.logCallbackData("feed-task", id.partition(), id.id(), DebugLoggingDelegate.CallbackDataType.Update, callback.getClass(), obj);
+                                d.debugLogging.logCallbackData("feed-task", partitionKey(), obj.getId(), DebugLoggingDelegate.CallbackDataType.Update, callback.getClass(), obj);
                                 c.onUpdate((T)obj, this);
                             }
+                        });
+                    } catch (Throwable ex) {
+                        d.io.underTransaction(false, () -> {
+                            c.onException((T)obj, this, ex);
+                        });
+                    } finally {
+                        d.io.currentTransaction().clear();
+                    }
+                }, c ->
+                {
+                    BaseDao obj = messageToDataObject(msg);
+                    try {
+                        d.io.underTransaction(false, () -> {
+                            d.io.currentTransaction().cache(partitionKey(), obj);
+                            c.onTimeout((T) obj, this);
                         });
                     } catch (Throwable ex) {
                         d.io.underTransaction(false, () -> {
@@ -281,16 +308,16 @@ public class TaskHandler<T extends BaseDao> implements Runnable, ITaskHandler {
         }
     }
 
-    public void invokeTick(BoundRequestContext boundRequestContext) {
-        callbackWithTimeout(boundRequestContext, c -> c.onTick(this));
+    public void invokeTick(BoundRequestContext boundRequestContext) throws TimeoutException {
+        callbackWithTimeout(boundRequestContext, c -> c.onTick(this), null);
     }
 
-    public void invokeWarmAndIdle(BoundRequestContext boundRequestContext) {
+    public void invokeWarmAndIdle(BoundRequestContext boundRequestContext) throws TimeoutException {
         AteDelegate d = AteDelegate.get();
         callbackWithTimeout(boundRequestContext, c -> {
             d.io.warm(partitionKey());
             c.onIdle(this);
-        });
+        }, null);
     }
 
 
