@@ -13,6 +13,7 @@ import com.tokera.ate.dto.msg.MessageDataMetaDto;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.api.ITaskHandler;
 import com.tokera.ate.io.api.ITaskCallback;
+import org.apache.commons.lang3.exception.ExceptionUtils;
 import org.apache.commons.lang3.time.DateUtils;
 import org.apache.commons.lang3.time.StopWatch;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
@@ -20,6 +21,8 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import org.jboss.weld.context.bound.BoundRequestContext;
 
 import javax.enterprise.inject.spi.CDI;
+import java.io.PrintWriter;
+import java.io.StringWriter;
 import java.lang.ref.WeakReference;
 import java.util.*;
 import java.util.concurrent.*;
@@ -34,7 +37,6 @@ public class TaskHandler<T extends BaseDao> implements Runnable, ITaskHandler {
     public final WeakReference<ITaskCallback<T>> callback;
     public final ConcurrentLinkedQueue<MessageDataMetaDto> toProcess;
     public final Class<T> clazz;
-    public final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     private @Nullable TokenDto token = null;
     private int idleTime = 60000;
@@ -170,39 +172,66 @@ public class TaskHandler<T extends BaseDao> implements Runnable, ITaskHandler {
         }
     }
 
+    public class TaskCallable implements Runnable {
+        private boolean workDone = false;
+        private Throwable timedOut = null;
+        private final BoundRequestContext boundRequestContext;
+        private final Consumer<ITaskCallback<T>> funct;
+
+        public TaskCallable(BoundRequestContext boundRequestContext, Consumer<ITaskCallback<T>> funct) {
+            this.boundRequestContext = boundRequestContext;
+            this.funct = funct;
+        }
+
+        @Override
+        public void run() {
+            try {
+                Thread thread = Thread.currentThread();
+
+                Timer timeout = new Timer();
+                timeout.schedule(new TimerTask() {
+                    @Override
+                    public void run() {
+                        thread.interrupt();
+                    }
+                }, callbackTimeout);
+
+                ITaskCallback<T> c = callback.get();
+                if (c != null) {
+                    TaskHandler.enterRequestScopeAndInvoke(partitionKey(), boundRequestContext, token, () -> {
+                        funct.accept(c);
+                    });
+                }
+                workDone = true;
+
+                // Prevent the timeout from triggering as we already have completed all the work
+                timeout.cancel();
+
+                // This is to stop the in incorrect syntax error
+                if (1 == 0) throw new InterruptedException();
+
+            } catch (InterruptedException ex) {
+                if (workDone == false) {
+                    this.timedOut = ex;
+                }
+            }
+        }
+    }
+
     /**
      * Invokes a callback under a request scope context and with a specific fixed timeout
      */
-    private void callbackWithTimeout(BoundRequestContext boundRequestContext, Consumer<ITaskCallback<T>> funct, @Nullable Consumer<ITaskCallback<T>> onTimeout) throws TimeoutException {
-        Future<?> future = null;
-        try {
-            future = executorService.submit(() ->
-            {
-                ITaskCallback<T> callback = this.callback.get();
-                if (callback != null) {
-                    TaskHandler.enterRequestScopeAndInvoke(this.partitionKey(), boundRequestContext, token, () -> {
-                        funct.accept(callback);
-                    });
-                }
-            });
+    private void callbackWithTimeout(BoundRequestContext boundRequestContext, Consumer<ITaskCallback<T>> funct, @Nullable Consumer<ITaskCallback<T>> onTimeout) {
+        TaskCallable taskCallable = new TaskCallable(boundRequestContext, funct);
 
-            future.get(this.callbackTimeout, TimeUnit.MILLISECONDS);
+        taskCallable.run();
 
-        } catch (TimeoutException e) {
-            try {
-                if (future != null) {
-                    future.cancel(true);
-                }
-            } catch (Throwable ex) {
-            }
-
+        if (taskCallable.timedOut != null) {
             if (onTimeout != null) {
                 callbackWithTimeout(boundRequestContext, onTimeout, null);
             }
 
-            throw e;
-        } catch (InterruptedException | ExecutionException  e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Timeout while processing the callback for task.", taskCallable.timedOut);
         }
     }
 
