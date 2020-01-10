@@ -23,8 +23,11 @@ public class BootstrapConfig {
     private String pingCheckUrl = "login/ping";
     private String implicitAuthorityAlias = "auth";
     private boolean pingCheckOnStart = false;
-    private boolean storeLostMessages = false;
     private Integer restPortOverride = null;
+
+    private int deferredMinCount = 10;
+    private int deferredMinTime = 30000;
+    private boolean storeLostMessages = false;
 
     private String dnsServer = "8.8.8.8";
 
@@ -580,5 +583,21 @@ public class BootstrapConfig {
 
     public void setStoreLostMessages(boolean storeLostMessages) {
         this.storeLostMessages = storeLostMessages;
+    }
+
+    public int getDeferredMinCount() {
+        return deferredMinCount;
+    }
+
+    public void setDeferredMinCount(int deferredMinCount) {
+        this.deferredMinCount = deferredMinCount;
+    }
+
+    public int getDeferredMinTime() {
+        return deferredMinTime;
+    }
+
+    public void setDeferredMinTime(int deferredMinTime) {
+        this.deferredMinTime = deferredMinTime;
     }
 }

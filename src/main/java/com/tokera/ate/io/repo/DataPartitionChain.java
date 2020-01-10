@@ -24,6 +24,7 @@ import java.util.stream.Collectors;
 
 import com.tokera.ate.units.Hash;
 import edu.emory.mathcs.backport.java.util.concurrent.ConcurrentSkipListMap;
+import org.apache.commons.lang3.time.DateUtils;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.bouncycastle.crypto.InvalidCipherTextException;
 
@@ -42,7 +43,7 @@ public class DataPartitionChain {
     private final ConcurrentMap<UUID, MessageSecurityCastleDto> castles;
     private final ConcurrentMap<String, MessageSecurityCastleDto> castleByHash;
     private final ConcurrentMap<String, MessagePublicKeyDto> publicKeys;
-    private final ConcurrentQueue<MessageDataMetaDto> deferredLoad;
+    private final ConcurrentQueue<DeferredDataDto> deferredLoad;
     private final ConcurrentQueue<LostDataDto> lost;
     
     public DataPartitionChain(IPartitionKey key) {
@@ -243,18 +244,11 @@ public class DataPartitionChain {
             // when everything is loaded into memory (this this caters for scenarios where things are processed
             // out of order)
             if (allowDefer) {
-                this.deferredLoad.add(msg);
+                DeferredDataDto deferredData = new DeferredDataDto();
+                deferredData.msg = msg;
+                deferredData.reasons = reasons;
+                this.deferredLoad.add(deferredData);
                 return true;
-            }
-
-            // If we are stored failed data then store it
-            if (d.bootstrapConfig.getStoreLostMessages())
-            {
-                LostDataDto lostData = new LostDataDto();
-                lostData.data = msg.getData();
-                lostData.meta = msg.getMeta();
-                lostData.reasons = reasons;
-                lost.add(lostData);
             }
 
             // Otherwise we have failed and its time to dump the row
@@ -437,24 +431,45 @@ public class DataPartitionChain {
 
     private void processDeferred()
     {
-        ArrayList<MessageDataMetaDto> tryAgain = new ArrayList<>(this.deferredLoad.size());
+        ArrayList<DeferredDataDto> tryAgain = new ArrayList<>(this.deferredLoad.size());
         this.deferredLoad.drainTo(tryAgain);
 
         for (boolean somethingProcessed = true; tryAgain.size() > 0 && somethingProcessed == true;) {
-            ArrayList<MessageDataMetaDto> toProcess = new ArrayList<>(tryAgain);
+            ArrayList<DeferredDataDto> toProcess = new ArrayList<>(tryAgain);
             tryAgain.clear();
 
             somethingProcessed = false;
-            for (MessageDataMetaDto next : toProcess)
+            for (DeferredDataDto next : toProcess)
             {
                 // Attempt to process the row (if it fails we will try again but only if the state
                 // of the chain-of-trust has made progress in other areas - otherwise we will give
                 // up after we break out of this processing loop)
-                if (promoteChainEntry(next, true, false, d.genericLogger)) {
+                if (promoteChainEntry(next.msg, true, false, d.genericLogger)) {
                     somethingProcessed = true;
                 } else {
                     tryAgain.add(next);
                 }
+            }
+        }
+
+        // Recycle the deferred records until we are satisified that they are dead, then we record them as lost instead
+        if (tryAgain.size() > 0) {
+            Date now = new Date();
+            for (DeferredDataDto deferredData : tryAgain) {
+                if (deferredData.deferCount > d.bootstrapConfig.getDeferredMinCount() &&
+                        DateUtils.addMilliseconds(deferredData.deferStart, d.bootstrapConfig.getDeferredMinTime()).before(now)) {
+                    if (d.bootstrapConfig.getStoreLostMessages()) {
+                        LostDataDto lostData = new LostDataDto();
+                        lostData.data = deferredData.msg.getData();
+                        lostData.meta = deferredData.msg.getMeta();
+                        lostData.reasons = deferredData.reasons;
+                        lost.add(lostData);
+                    }
+                    continue;
+                }
+
+                deferredData.deferCount++;
+                this.deferredLoad.add(deferredData);
             }
         }
     }
