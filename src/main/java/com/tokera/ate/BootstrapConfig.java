@@ -23,6 +23,7 @@ public class BootstrapConfig {
     private String pingCheckUrl = "login/ping";
     private String implicitAuthorityAlias = "auth";
     private boolean pingCheckOnStart = false;
+    private boolean storeLostMessages = false;
     private Integer restPortOverride = null;
 
     private String dnsServer = "8.8.8.8";
@@ -571,5 +572,13 @@ public class BootstrapConfig {
 
     public void setEnableAutomaticIndexing(boolean enableAutomaticIndexing) {
         this.enableAutomaticIndexing = enableAutomaticIndexing;
+    }
+
+    public boolean getStoreLostMessages() {
+        return storeLostMessages;
+    }
+
+    public void setStoreLostMessages(boolean storeLostMessages) {
+        this.storeLostMessages = storeLostMessages;
     }
 }

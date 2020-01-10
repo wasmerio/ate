@@ -20,6 +20,7 @@ import java.lang.reflect.Array;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
+import java.util.stream.Collectors;
 
 import com.tokera.ate.units.Hash;
 import edu.emory.mathcs.backport.java.util.concurrent.ConcurrentSkipListMap;
@@ -42,6 +43,7 @@ public class DataPartitionChain {
     private final ConcurrentMap<String, MessageSecurityCastleDto> castleByHash;
     private final ConcurrentMap<String, MessagePublicKeyDto> publicKeys;
     private final ConcurrentQueue<MessageDataMetaDto> deferredLoad;
+    private final ConcurrentQueue<LostDataDto> lost;
     
     public DataPartitionChain(IPartitionKey key) {
         this.key = key;
@@ -53,6 +55,7 @@ public class DataPartitionChain {
         this.castleByHash = new ConcurrentHashMap<>();
         this.byClazz = new ConcurrentHashMap<>();
         this.deferredLoad = new ConcurrentQueue<>();
+        this.lost = new ConcurrentQueue<>();
 
         this.addTrustKey(d.encryptor.getTrustOfPublicRead().key());
         this.addTrustKey(d.encryptor.getTrustOfPublicWrite().key());
@@ -232,17 +235,26 @@ public class DataPartitionChain {
     
     public boolean promoteChainEntry(MessageDataMetaDto msg, boolean invokeCallbacks, boolean allowDefer, @Nullable LoggerHook LOG) {
         MessageDataDto data = msg.getData();
-        MessageDataHeaderDto header = data.getHeader();
 
         // Validate the data
-        if (validateTrustStructureAndWritabilityWithoutSavedData(data, LOG) == false)
-        {
+        ArrayList<String> reasons = new ArrayList<>(1);
+        if (validateTrustStructureAndWritabilityWithoutSavedData(data, reasons, LOG) == false) {
             // If deferred loading is allowed then we will process it again later
             // when everything is loaded into memory (this this caters for scenarios where things are processed
             // out of order)
             if (allowDefer) {
                 this.deferredLoad.add(msg);
                 return true;
+            }
+
+            // If we are stored failed data then store it
+            if (d.bootstrapConfig.getStoreLostMessages())
+            {
+                LostDataDto lostData = new LostDataDto();
+                lostData.data = msg.getData();
+                lostData.meta = msg.getMeta();
+                lostData.reasons = reasons;
+                lost.add(lostData);
             }
 
             // Otherwise we have failed and its time to dump the row
@@ -287,10 +299,11 @@ public class DataPartitionChain {
                 });
     }
 
-    public boolean validateTrustStructureAndWritabilityWithoutSavedData(MessageDataDto data, @Nullable LoggerHook LOG)
+    public boolean validateTrustStructureAndWritabilityWithoutSavedData(MessageDataDto data, List<String> reasons, @Nullable LoggerHook LOG)
     {
         return createTrustValidator(LOG)
                 .withChainOfTrust(this)
+                .withFailureCallback(f -> reasons.add(f.why))
                 .validate(this.partitionKey(), data);
     }
     
@@ -480,5 +493,10 @@ public class DataPartitionChain {
         @Hash String publicKeyHash = _publicKeyHash;
         if (publicKeyHash == null) return false;
         return publicKeys.containsKey(publicKeyHash);
+    }
+
+    public List<LostDataDto> getLostMessages() {
+        return this.lost.stream()
+                .collect(Collectors.toList());
     }
 }

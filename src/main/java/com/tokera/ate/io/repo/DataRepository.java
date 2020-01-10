@@ -589,4 +589,9 @@ public class DataRepository implements IAteIO {
 
         return data;
     }
+
+    public List<LostDataDto> getLostMessages(IPartitionKey partitionKey) {
+        DataPartitionChain chain = this.subscriber.getChain(partitionKey, true);
+        return chain.getLostMessages();
+    }
 }
