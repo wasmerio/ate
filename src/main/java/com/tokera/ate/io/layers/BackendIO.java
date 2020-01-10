@@ -131,4 +131,9 @@ final public class BackendIO implements IAteIO {
     public DataSubscriber backend() {
         return this.backend;
     }
+
+    @Override
+    public List<LostDataDto> getLostMessages(IPartitionKey partitionKey) {
+        return next.getLostMessages(partitionKey);
+    }
 }

@@ -908,4 +908,8 @@ public class HeadIO
         currentTransaction().cache(orig.partitionKey(), cloned);
         return cloned;
     }
+
+    public List<LostDataDto> getLostMessages(IPartitionKey partitionKey) {
+        return back.getLostMessages(partitionKey);
+    }
 }

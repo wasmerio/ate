@@ -163,4 +163,9 @@ final public class SplitIO implements IAteIO {
     public DataSubscriber backend() {
         return lower.backend();
     }
+
+    @Override
+    public List<LostDataDto> getLostMessages(IPartitionKey partitionKey) {
+        return lower.getLostMessages(partitionKey);
+    }
 }

@@ -58,4 +58,6 @@ public interface IAteIO {
     MessageSyncDto beginSync(IPartitionKey partitionKey, MessageSyncDto sync);
 
     boolean finishSync(IPartitionKey partitionKey, MessageSyncDto sync);
+
+    List<LostDataDto> getLostMessages(IPartitionKey partitionKey);
 }

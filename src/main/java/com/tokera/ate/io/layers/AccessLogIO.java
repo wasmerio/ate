@@ -56,6 +56,11 @@ final public class AccessLogIO implements IAteIO {
     public boolean finishSync(IPartitionKey partitionKey, MessageSyncDto sync) { return next.finishSync(partitionKey, sync); }
 
     @Override
+    public List<LostDataDto> getLostMessages(IPartitionKey partitionKey) {
+        return next.getLostMessages(partitionKey);
+    }
+
+    @Override
     public DataSubscriber backend() {
         return next.backend();
     }

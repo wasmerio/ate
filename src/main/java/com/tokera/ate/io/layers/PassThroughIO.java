@@ -131,4 +131,9 @@ public class PassThroughIO implements IAteIO {
     public <T extends BaseDao> List<DataContainer> readAllRaw(IPartitionKey partitionKey, Class<T> type) {
         return next.readAllRaw(partitionKey, type);
     }
+
+    @Override
+    public List<LostDataDto> getLostMessages(IPartitionKey partitionKey) {
+        return next.getLostMessages(partitionKey);
+    }
 }
