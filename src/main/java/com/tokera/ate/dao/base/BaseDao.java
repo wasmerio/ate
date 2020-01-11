@@ -145,4 +145,12 @@ public abstract class BaseDao implements Serializable, Immutalizable, IPartition
     public <T extends BaseDao, K, V> Map<K, V> joinAsMap(Class<T> clazz, Function<T, UUID> joiningField, Function<T, K> mapKey, Function<T, V> mapVal) {
         return AteDelegate.get().io.joinAsMap(this.addressableId(), clazz, joiningField, mapKey, mapVal);
     }
+
+    public List<BaseDao> children() {
+        return AteDelegate.get().io.children(this);
+    }
+
+    public <T extends BaseDao> List<T> children(PUUID id, Class<T> clazz) {
+        return AteDelegate.get().io.children(this, clazz);
+    }
 }

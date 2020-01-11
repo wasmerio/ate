@@ -10,6 +10,7 @@ import com.tokera.ate.dto.EffectivePermissions;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.exceptions.TransactionAbortedException;
 import com.tokera.ate.io.api.*;
+import com.tokera.ate.io.repo.DataPartitionChain;
 import com.tokera.ate.io.repo.DataSubscriber;
 import com.tokera.ate.io.repo.DataTransaction;
 import com.tokera.ate.io.task.PollHook;
@@ -911,5 +912,21 @@ public class HeadIO
 
     public List<LostDataDto> getLostMessages(IPartitionKey partitionKey) {
         return back.getLostMessages(partitionKey);
+    }
+
+    public List<BaseDao> children(PUUID id) {
+        return back.children(id);
+    }
+
+    public <T extends BaseDao> List<T> children(PUUID id, Class<T> clazz) {
+        return back.children(id, clazz);
+    }
+
+    public List<BaseDao> children(BaseDao obj) {
+        return children(obj.addressableId());
+    }
+
+    public <T extends BaseDao> List<T> children(BaseDao obj, Class<T> clazz) {
+        return children(obj.addressableId(), clazz);
     }
 }
