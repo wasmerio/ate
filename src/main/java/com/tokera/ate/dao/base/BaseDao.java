@@ -150,7 +150,7 @@ public abstract class BaseDao implements Serializable, Immutalizable, IPartition
         return AteDelegate.get().io.children(this);
     }
 
-    public <T extends BaseDao> List<T> children(PUUID id, Class<T> clazz) {
+    public <T extends BaseDao> List<T> children(Class<T> clazz) {
         return AteDelegate.get().io.children(this, clazz);
     }
 }
