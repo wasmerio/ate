@@ -915,11 +915,35 @@ public class HeadIO
     }
 
     public List<BaseDao> children(PUUID id) {
-        return back.children(id);
+        LinkedHashMap<UUID, BaseDao> ret = new LinkedHashMap<>();
+
+        back.children(id)
+                .forEach(obj -> ret.put(obj.getId(), obj));
+
+        DataTransaction trans = d.io.currentTransaction();
+        trans.putsByPartition(id.partition()).forEach(obj -> {
+            if (obj.getParentId().equals(id.id())) {
+                ret.put(obj.getId(), obj);
+            }
+        });
+        trans.deletes(id.partition()).forEach(i -> ret.remove(i));
+        return ret.values().stream().collect(Collectors.toList());
     }
 
     public <T extends BaseDao> List<T> children(PUUID id, Class<T> clazz) {
-        return back.children(id, clazz);
+        LinkedHashMap<UUID, T> ret = new LinkedHashMap<>();
+
+        back.children(id, clazz)
+                .forEach(obj -> ret.put(obj.getId(), obj));
+
+        DataTransaction trans = d.io.currentTransaction();
+        trans.putsByType(id.partition(), clazz).forEach(obj -> {
+            if (obj.getParentId().equals(id.id())) {
+                ret.put(obj.getId(), obj);
+            }
+        });
+        trans.deletes(id.partition()).forEach(i -> ret.remove(i));
+        return ret.values().stream().collect(Collectors.toList());
     }
 
     public List<BaseDao> children(BaseDao obj) {

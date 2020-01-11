@@ -282,6 +282,13 @@ public class DataTransaction {
                 .collect(Collectors.toList());
     }
 
+    public Iterable<BaseDao> putsByPartition(IPartitionKey partitionKey) {
+        PartitionContext context = getPartitionMergeContext(partitionKey, false);
+        if (context == null) return Collections.emptyList();
+        return context.toPut.values().stream()
+                .collect(Collectors.toList());
+    }
+
     public Iterable<UUID> deletes(IPartitionKey partitionKey) {
         PartitionContext context = getPartitionMergeContext(partitionKey, false);
         if (context == null) return Collections.emptyList();
