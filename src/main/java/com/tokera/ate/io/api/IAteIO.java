@@ -37,6 +37,10 @@ public interface IAteIO {
     
     @Nullable MessageDataMetaDto readVersionMsgOrNull(PUUID id, long offset);
 
+    List<BaseDao> children(PUUID id);
+
+    <T extends BaseDao> List<T> children(PUUID id, Class<T> clazz);
+
     List<BaseDao> view(IPartitionKey partitionKey, Predicate<BaseDao> predicate);
     
     <T extends BaseDao> List<T> view(IPartitionKey partitionKey, Class<T> type, Predicate<T> predicate);

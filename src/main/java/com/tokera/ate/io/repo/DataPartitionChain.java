@@ -1,9 +1,6 @@
 package com.tokera.ate.io.repo;
 
-import com.google.common.collect.ConcurrentHashMultiset;
 import com.tokera.ate.common.ConcurrentQueue;
-import com.tokera.ate.common.ConcurrentStack;
-import com.tokera.ate.dao.TopicAndPartition;
 import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.kafka.MessageSerializer;
 import com.tokera.ate.dao.msg.*;
@@ -13,17 +10,14 @@ import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.core.DataMaintenance;
 import com.tokera.ate.providers.PartitionKeySerializer;
-import com.tokera.ate.security.Encryptor;
 
 import java.io.IOException;
-import java.lang.reflect.Array;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 
 import com.tokera.ate.units.Hash;
-import edu.emory.mathcs.backport.java.util.concurrent.ConcurrentSkipListMap;
 import org.apache.commons.lang3.time.DateUtils;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import org.bouncycastle.crypto.InvalidCipherTextException;
@@ -78,7 +72,7 @@ public class DataPartitionChain {
                 0L,
                 0L);
 
-        this.addTrustData(data, meta, false);
+        this.processTrustData(data, meta, false);
     }
     
     public void addTrustKey(MessagePublicKeyDto trustedKey) {
@@ -95,6 +89,23 @@ public class DataPartitionChain {
     }
 
     @SuppressWarnings({"known.nonnull"})
+    public void processTrustData(MessageDataDto data, MessageMetaDto meta, boolean invokeCallbacks) {
+        d.debugLogging.logTrust(this.partitionKey(), data);
+
+        // If it has no payload then strip it from the chain of trust
+        if (data.hasPayload())
+        {
+            // Add it to the chain of trust
+            addTrustData(data, meta, invokeCallbacks);
+        }
+        else
+        {
+            // Remove it from the chain of trust
+            deleteTrustData(data, meta);
+        }
+    }
+
+    @SuppressWarnings({"known.nonnull"})
     public void addTrustData(MessageDataDto data, MessageMetaDto meta, boolean invokeCallbacks) {
         d.debugLogging.logTrust(this.partitionKey(), data);
 
@@ -102,36 +113,9 @@ public class DataPartitionChain {
         MessageDataHeaderDto header = data.getHeader();
         UUID id = header.getIdOrThrow();
 
-        // If it has no payload then strip it from the chain of trust
-        if (data.hasPayload() == false) {
-            this.byClazz.compute(header.getPayloadClazzOrThrow(), (a, b) -> {
-                if (b != null) b.remove(id);
-                return b;
-            });
-            DataContainer container = this.chainOfTrust.remove(id);
-
-            this.maintenanceState.dont_merge(id);
-            this.maintenanceState.tombstone(meta.getKey());
-            if (container != null) {
-                for (String key : container.keys()) {
-                    this.maintenanceState.tombstone(key);
-                }
-            }
-            return;
-
-        } else {
-            DataContainer container = this.chainOfTrust.getOrDefault(id, null);
-            this.maintenanceState.dont_tombstone(meta.getKey());
-            if (container != null) {
-                for (String key : container.keys()) {
-                    this.maintenanceState.dont_tombstone(key);
-                }
-            }
-        }
-
         // Add it to the chain of trust
         DataContainer container = this.chainOfTrust.compute(id, (i, c) -> {
-            if (c == null) c = new DataContainer(id, this.key);
+            if (c == null) c = new DataContainer(i, this.key);
             c.add(data, meta);
             this.byClazz.compute(header.getPayloadClazzOrThrow(), (a, b) -> {
                 if (b == null) b = new HashSet<>();
@@ -141,6 +125,22 @@ public class DataPartitionChain {
             });
             return c;
         });
+
+        // Clear any tombstones
+        this.maintenanceState.dont_tombstone(meta.getKey());
+        for (String key : container.keys()) {
+            this.maintenanceState.dont_tombstone(key);
+        }
+
+        // Add the container to its parent
+        if (header.getParentId() != null) {
+            DataContainer parentContainer = this.chainOfTrust.compute(header.getParentId(), (i, c) -> {
+                if (c == null) c = new DataContainer(i, this.key);
+                return c;
+            });
+            parentContainer.addChildContainer(container);
+            container.setParentContainer(parentContainer);
+        }
 
         // If the container requires a merge then notify the maintenance thread
         if (container.requiresMerge()) {
@@ -153,6 +153,41 @@ public class DataPartitionChain {
         if (invokeCallbacks) {
             d.taskManager.feed(this.partitionKey(), data, meta);
             d.hookManager.feed(this.partitionKey(), data, meta);
+        }
+    }
+
+    @SuppressWarnings({"known.nonnull"})
+    public void deleteTrustData(MessageDataDto data, MessageMetaDto meta) {
+        d.debugLogging.logTrust(this.partitionKey(), data);
+
+        // Get the ID
+        MessageDataHeaderDto header = data.getHeader();
+        UUID id = header.getIdOrThrow();
+
+        // Remove the byClazz reference
+        this.byClazz.compute(header.getPayloadClazzOrThrow(), (a, b) -> {
+            if (b != null) b.remove(id);
+            return b;
+        });
+
+        // Destroy the container
+        DataContainer container = this.chainOfTrust.remove(id);
+        if (container != null)
+        {
+            // Remove it from its parent container
+            DataContainer parentContainer = container.getParentContainer();
+            if (parentContainer != null) {
+                parentContainer.removeChildContainer(container);
+            }
+        }
+
+        // We will need to delete it from the redo logs
+        this.maintenanceState.dont_merge(id);
+        this.maintenanceState.tombstone(meta.getKey());
+        if (container != null) {
+            for (String key : container.keys()) {
+                this.maintenanceState.tombstone(key);
+            }
         }
     }
     
@@ -256,7 +291,7 @@ public class DataPartitionChain {
         }
         
         // Add it to the trust tree and return success
-        addTrustData(data, msg.getMeta(), invokeCallbacks);
+        processTrustData(data, msg.getMeta(), invokeCallbacks);
 
         // Success
         return true;

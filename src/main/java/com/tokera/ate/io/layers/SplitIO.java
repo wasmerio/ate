@@ -12,6 +12,7 @@ import com.tokera.ate.io.repo.DataSubscriber;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import java.util.*;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * IO system that chains two IO subsystems together where the upper data takes preference over the lower
@@ -91,24 +92,18 @@ final public class SplitIO implements IAteIO {
 
     @Override
     final public List<BaseDao> view(IPartitionKey partitionKey, Predicate<BaseDao> predicate) {
-        List<BaseDao> ret = lower.view(partitionKey, predicate);
-
-        for (BaseDao entity : upper.view(partitionKey, predicate)) {
-            ret.add(entity);
-        }
-
-        return ret;
+        LinkedHashMap<UUID, BaseDao> ret = new LinkedHashMap<>();
+        lower.view(partitionKey, predicate).forEach(c -> ret.put(c.getId(), c));
+        upper.view(partitionKey, predicate).forEach(c -> ret.put(c.getId(), c));
+        return ret.values().stream().collect(Collectors.toList());
     }
 
     @Override
     final public <T extends BaseDao> List<T> view(IPartitionKey partitionKey, Class<T> type, Predicate<T> predicate) {
-        List<T> ret = lower.view(partitionKey, type, predicate);
-
-        for (T entity : upper.view(partitionKey, type, predicate)) {
-            ret.add(entity);
-        }
-
-        return ret;
+        LinkedHashMap<UUID, T> ret = new LinkedHashMap<>();
+        lower.view(partitionKey, type, predicate).forEach(c -> ret.put(c.getId(), c));
+        upper.view(partitionKey, type, predicate).forEach(c -> ret.put(c.getId(), c));
+        return ret.values().stream().collect(Collectors.toList());
     }
 
     @Override
@@ -167,5 +162,21 @@ final public class SplitIO implements IAteIO {
     @Override
     public List<LostDataDto> getLostMessages(IPartitionKey partitionKey) {
         return lower.getLostMessages(partitionKey);
+    }
+
+    @Override
+    public List<BaseDao> children(PUUID id) {
+        LinkedHashMap<UUID, BaseDao> ret = new LinkedHashMap<>();
+        lower.children(id).forEach(c -> ret.put(c.getId(), c));
+        upper.children(id).forEach(c -> ret.put(c.getId(), c));
+        return ret.values().stream().collect(Collectors.toList());
+    }
+
+    @Override
+    public <T extends BaseDao> List<T> children(PUUID id, Class<T> clazz) {
+        LinkedHashMap<UUID, T> ret = new LinkedHashMap<>();
+        lower.children(id, clazz).forEach(c -> ret.put(c.getId(), c));
+        upper.children(id, clazz).forEach(c -> ret.put(c.getId(), c));
+        return ret.values().stream().collect(Collectors.toList());
     }
 }

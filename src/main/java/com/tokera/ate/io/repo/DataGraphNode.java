@@ -11,7 +11,6 @@ public class DataGraphNode {
     public final UUID                   version;
     public final @Nullable UUID         previousVersion;
     public @Nullable DataGraphNode      parentNode;
-    public LinkedList<DataGraphNode>    children = new LinkedList<>();
     public final Set<UUID>              mergesVersions;
 
     public DataGraphNode(MessageDataMetaDto msg) {
@@ -20,13 +19,5 @@ public class DataGraphNode {
         this.key = msg.getMeta().getKey();
         this.previousVersion =  msg.getData().getHeader().getPreviousVersion();
         this.mergesVersions = msg.getData().getHeader().getMerges();
-    }
-
-    public void attachHere(DataGraphNode node) {
-        if (this.children.contains(node)) {
-            return;
-        }
-        this.children.addLast(node);
-        this.parentNode = this;
     }
 }

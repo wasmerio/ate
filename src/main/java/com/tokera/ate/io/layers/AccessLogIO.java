@@ -169,4 +169,14 @@ final public class AccessLogIO implements IAteIO {
         logger.recordRead(type);
         return ret;
     }
+
+    @Override
+    public List<BaseDao> children(PUUID id) {
+        return next.children(id);
+    }
+
+    @Override
+    public <T extends BaseDao> List<T> children(PUUID id, Class<T> clazz) {
+        return next.children(id, clazz);
+    }
 }

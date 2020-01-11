@@ -222,9 +222,31 @@ public class DataRepository implements IAteIO {
         }
     }
 
-    boolean remove(IPartitionKey partitionKey, UUID id) {
+    private boolean remove(IPartitionKey partitionKey, UUID id)
+    {
+        Set<UUID> already = new HashSet<>();
+        return removeInternal(partitionKey, id, already);
+    }
+
+    private boolean removeInternal(IPartitionKey partitionKey, UUID id, Set<UUID> already)
+    {
+        // Check the already list
+        if (already.contains(id)) return false;
+        already.add(id);
+
+        // Get the main chain
         DataPartition kt = this.subscriber.getOrCreatePartition(partitionKey);
         DataPartitionChain chain = this.subscriber.getChain(partitionKey, true);
+
+        // Process children
+        for (UUID childId : this.childrenById(PUUID.from(partitionKey, id))) {
+            if (chain.getData(childId) == null) continue;
+
+            // Remove the child
+            removeInternal(partitionKey, childId, already);
+        }
+
+        // Now process the actual row
         DataContainer container = chain.getData(id);
         if (container == null) {
             throw new RuntimeException("Failed to find a data object of id [" + id + "]");
@@ -590,8 +612,44 @@ public class DataRepository implements IAteIO {
         return data;
     }
 
+    @Override
     public List<LostDataDto> getLostMessages(IPartitionKey partitionKey) {
         DataPartitionChain chain = this.subscriber.getChain(partitionKey, true);
         return chain.getLostMessages();
+    }
+
+    public List<UUID> childrenById(PUUID id) {
+        DataPartitionChain chain = this.subscriber.getChain(id.partition(), true);
+        DataContainer container = chain.getData(id.id());
+        if (container == null) return Collections.emptyList();
+        return container.getChildContainers().stream()
+                .map(c -> c.id)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<BaseDao> children(PUUID id) {
+        DataPartitionChain chain = this.subscriber.getChain(id.partition(), true);
+        DataContainer container = chain.getData(id.id());
+        if (container == null) return Collections.emptyList();
+        return container.getChildContainers().stream()
+                .map(c -> c.fetchData(false))
+                .filter(d -> d != null)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public <T extends BaseDao> List<T> children(PUUID id, Class<T> clazz) {
+        String clazzName = clazz.getName();
+        DataPartitionChain chain = this.subscriber.getChain(id.partition(), true);
+        DataContainer container = chain.getData(id.id());
+        if (container == null) return Collections.emptyList();
+        return container.getChildContainers().stream()
+                .filter(c -> clazzName.equals(c.getPayloadClazz()))
+                .map(c -> c.fetchData(false))
+                .filter(d -> d != null)
+                .map(d -> (T)d)
+                .collect(Collectors.toList());
     }
 }

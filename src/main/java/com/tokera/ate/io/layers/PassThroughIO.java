@@ -136,4 +136,14 @@ public class PassThroughIO implements IAteIO {
     public List<LostDataDto> getLostMessages(IPartitionKey partitionKey) {
         return next.getLostMessages(partitionKey);
     }
+
+    @Override
+    public List<BaseDao> children(PUUID id) {
+        return next.children(id);
+    }
+
+    @Override
+    public <T extends BaseDao> List<T> children(PUUID id, Class<T> clazz) {
+        return next.children(id, clazz);
+    }
 }

@@ -19,6 +19,7 @@ import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -41,6 +42,9 @@ public class DataContainer {
     private @Nullable String leafKey = null;
     private @Nullable UUID leafCastleId = null;
     private final ReentrantReadWriteLock lock = new ReentrantReadWriteLock();
+
+    private volatile @Nullable DataContainer parent = null;
+    private final LinkedHashMap<UUID, DataContainer> children = new LinkedHashMap<>();
 
     // These objects allow for much faster access of the data
     private BaseDao cacheObj;
@@ -431,5 +435,46 @@ public class DataContainer {
 
         // Merge the actual merge of the data object
         return d.merger.merge(mergeSet);
+    }
+
+    public void addChildContainer(DataContainer childContainer)
+    {
+        Lock w = this.lock.writeLock();
+        w.lock();
+        try {
+            this.children.put(childContainer.id, childContainer);
+        } finally {
+            w.unlock();
+        }
+    }
+
+    public void removeChildContainer(DataContainer childContainer)
+    {
+        Lock w = this.lock.writeLock();
+        w.lock();
+        try {
+            this.children.remove(childContainer.id, childContainer);
+        } finally {
+            w.unlock();
+        }
+    }
+
+    public List<DataContainer> getChildContainers() {
+        Lock w = this.lock.readLock();
+        w.lock();
+        try {
+            return this.children.values().stream()
+                    .collect(Collectors.toList());
+        } finally {
+            w.unlock();
+        }
+    }
+
+    public void setParentContainer(DataContainer parentContainer) {
+        this.parent = parentContainer;
+    }
+
+    public DataContainer getParentContainer() {
+        return this.parent;
     }
 }
