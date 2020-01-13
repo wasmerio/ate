@@ -79,7 +79,7 @@ https://martin.kleppmann.com/2015/03/04/turning-the-database-inside-out.html
     <dependency>
         <groupId>com.tokera</groupId>
         <artifactId>ate</artifactId>
-        <version>1.0.1</version>
+        <version>1.0.3</version>
     </dependency>
 </dependencies>
 ```
