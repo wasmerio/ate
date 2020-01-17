@@ -17,6 +17,7 @@ import com.tokera.ate.io.api.IPartitionKey;
 import com.tokera.ate.io.merge.MergePair;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import sun.reflect.generics.tree.Tree;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -36,8 +37,8 @@ public class DataContainer {
     private Long lastOffset = 0L;
 
     private final Map<UUID, @NonNull DataGraphNode> lookup = new HashMap<>();
-    private final LinkedList<DataGraphNode> timeline = new LinkedList<>();
-    private final LinkedList<DataGraphNode> leafs = new LinkedList<>();
+    private final TreeMap<Long, DataGraphNode> timeline = new TreeMap<>();
+    private final TreeMap<Long, DataGraphNode> leafs = new TreeMap<>();
     private final ConcurrentSkipListSet<String> keys = new ConcurrentSkipListSet<>();
     private @Nullable String leafKey = null;
     private @Nullable UUID leafCastleId = null;
@@ -56,10 +57,6 @@ public class DataContainer {
     }
 
     private DataContainer add(MessageDataMetaDto msg) {
-        if (firstOffset == 0L) {
-            firstOffset = msg.getMeta().getOffset();
-        }
-        lastOffset = msg.getMeta().getOffset();
         UUID castleId = msg.getHeader().getCastleId();
         String key = msg.getMeta().getKey();
 
@@ -67,29 +64,55 @@ public class DataContainer {
         Lock w = this.lock.writeLock();
         w.lock();
         try {
+            // Update the offset range
+            long offset = msg.getMeta().getOffset();
+            if (firstOffset == 0L || offset < firstOffset) {
+                firstOffset = offset;
+            }
+            if (offset > lastOffset) {
+                lastOffset = offset;
+            }
+
             // If the compacted topic key changes then the chain-of-versions needs to be reset
             // as otherwise previous compacted keys will get merged into the last key
+            boolean addToLeaf = true;
             if (key.equals(leafKey) == false ||
                 castleId.equals(leafCastleId) == false)
             {
-                leafs.clear();
-
-                leafKey = key;
-                leafCastleId = castleId;
+                // Only rows that relate to the future impact the timeline
+                if (offset > leafs.keySet().stream().max(Long::compare).orElse(0L)) {
+                    leafs.clear();
+                    leafKey = key;
+                    leafCastleId = castleId;
+                }
+                // Otherwise we need to ignore this row as its on the wrong key and in the past
+                else {
+                    addToLeaf = false;
+                }
             }
 
             // Empty payloads should not attempt a merge
             if (msg.hasPayload()) {
-                leafs.removeIf(n -> n.version.equals(node.previousVersion) ||
-                                    node.mergesVersions.contains(n.version));
+                DataGraphNode removeNode = leafs.values().stream()
+                        .filter(n -> n.version.equals(node.previousVersion) ||
+                                     node.mergesVersions.contains(n.version))
+                        .findFirst()
+                        .orElse(null);
+                if (removeNode != null) {
+                    leafs.remove(removeNode.msg.getMeta().getOffset(), removeNode);
+                }
             } else {
                 leafs.clear();
             }
 
+            // Only if this is a relavent row do we add it to the leaf
+            if (addToLeaf == true) {
+                leafs.put(offset, node);
+            }
+
             // Add the node to the merge list and immutalize it
             lookup.put(node.version, node);
-            leafs.addLast(node);
-            timeline.addLast(node);
+            timeline.put(offset, node);
             keys.add(node.key);
             msg.immutalize();
 
@@ -151,7 +174,7 @@ public class DataContainer {
         Lock w = this.lock.readLock();
         w.lock();
         try {
-            ret.addAll(timeline);
+            ret.addAll(timeline.values());
         } finally {
             w.unlock();
         }
@@ -174,7 +197,7 @@ public class DataContainer {
         r.lock();
         try {
             if (timeline.size() <= 0) return null;
-            return timeline.getLast().msg;
+            return timeline.lastEntry().getValue().msg;
         } finally {
             r.unlock();
         }
@@ -217,11 +240,23 @@ public class DataContainer {
     }
 
     public Long getFirstOffset() {
-        return this.firstOffset;
+        Lock r = this.lock.readLock();
+        r.lock();
+        try {
+            return this.firstOffset;
+        } finally {
+            r.unlock();
+        }
     }
 
     public Long getLastOffset() {
-        return this.lastOffset;
+        Lock r = this.lock.readLock();
+        r.lock();
+        try {
+            return this.lastOffset;
+        } finally {
+            r.unlock();
+        }
     }
 
     public boolean getImmutable() {
@@ -240,7 +275,7 @@ public class DataContainer {
         Lock r = this.lock.readLock();
         r.lock();
         try {
-            return this.timeline.stream()
+            return this.timeline.values().stream()
                     .map(a -> a.msg.getMeta())
                     .collect(Collectors.toList());
         } finally {
@@ -257,9 +292,8 @@ public class DataContainer {
             HashSet<UUID> ignoreThese = new HashSet<>();
 
             LinkedList<DataGraphNode> ret = new LinkedList<>();
-            Iterator<DataGraphNode> lit = this.leafs.descendingIterator();
-            while (lit.hasNext()) {
-                DataGraphNode node = lit.next();
+            for (Map.Entry<Long, DataGraphNode> entry : this.leafs.descendingMap().entrySet()) {
+                DataGraphNode node = entry.getValue();
                 if (node.msg.getData().hasPayload() == false) break;
 
                 if (node.previousVersion != null) {
@@ -318,7 +352,7 @@ public class DataContainer {
         return ret;
     }
 
-    private static @Nullable BaseDao reconcileMergedData(IPartitionKey partitionKey, @Nullable BaseDao _ret, LinkedList<DataGraphNode> leaves) {
+    private static @Nullable BaseDao reconcileMergedData(IPartitionKey partitionKey, @Nullable BaseDao _ret, TreeMap<Long, DataGraphNode> leaves) {
         BaseDao ret = _ret;
         if (ret == null) return null;
 
@@ -327,11 +361,11 @@ public class DataContainer {
 
         // Reconcile the parent version pointers
         if (leaves.size() == 1) {
-            BaseDaoInternal.setPreviousVersion(ret, leaves.getLast().version);
+            BaseDaoInternal.setPreviousVersion(ret, leaves.lastEntry().getValue().version);
             BaseDaoInternal.setMergesVersions(ret, null);
         } else {
             BaseDaoInternal.setPreviousVersion(ret, null);
-            BaseDaoInternal.setMergesVersions(ret, leaves.stream().map(n -> n.version).collect(Collectors.toSet()));
+            BaseDaoInternal.setMergesVersions(ret, leaves.values().stream().map(n -> n.version).collect(Collectors.toSet()));
         }
 
         return ret;
@@ -365,7 +399,7 @@ public class DataContainer {
             }
 
             if (timeline.size() <= 0) return null;
-            if (timeline.getLast().msg.hasPayload() == false) return null;
+            if (timeline.lastEntry().getValue().msg.hasPayload() == false) return null;
         } finally {
             r.unlock();
         }
@@ -382,12 +416,12 @@ public class DataContainer {
             }
 
             if (timeline.size() <= 0) return null;
-            if (timeline.getLast().msg.hasPayload() == false) return null;
+            if (timeline.lastEntry().getValue().msg.hasPayload() == false) return null;
 
             BaseDao ret = createData(shouldThrow);
             if (ret == null) return null;
 
-            MessageDataMetaDto meta = timeline.getLast().msg;
+            MessageDataMetaDto meta = timeline.lastEntry().getValue().msg;
             MessageDataHeaderDto header = meta.getHeader();
 
             for (PrivateKeyWithSeedDto key : d.currentRights.getRightsRead()) {
