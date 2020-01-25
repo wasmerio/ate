@@ -914,8 +914,10 @@ public class HeadIO
         return back.getLostMessages(partitionKey);
     }
 
-    public List<BaseDao> children(PUUID id) {
+    public List<BaseDao> children(PUUID id, Class<? extends BaseDao> parentClazz) {
         LinkedHashMap<UUID, BaseDao> ret = new LinkedHashMap<>();
+
+        d.requestAccessLog.recordRead(id.id(), parentClazz);
 
         back.children(id)
                 .forEach(obj -> ret.put(obj.getId(), obj));
@@ -930,11 +932,13 @@ public class HeadIO
         return ret.values().stream().collect(Collectors.toList());
     }
 
-    public <T extends BaseDao> List<T> children(PUUID id, Class<T> clazz) {
+    public <T extends BaseDao> List<T> children(PUUID id, Class<? extends BaseDao> parentClazz, Class<T> clazz) {
         LinkedHashMap<UUID, T> ret = new LinkedHashMap<>();
 
         back.children(id, clazz)
                 .forEach(obj -> ret.put(obj.getId(), obj));
+
+        d.requestAccessLog.recordRead(id.id(), parentClazz);
 
         DataTransaction trans = d.io.currentTransaction();
         trans.putsByType(id.partition(), clazz).forEach(obj -> {
@@ -947,10 +951,10 @@ public class HeadIO
     }
 
     public List<BaseDao> children(BaseDao obj) {
-        return children(obj.addressableId());
+        return children(obj.addressableId(), obj.getClass());
     }
 
     public <T extends BaseDao> List<T> children(BaseDao obj, Class<T> clazz) {
-        return children(obj.addressableId(), clazz);
+        return children(obj.addressableId(), obj.getClass(), clazz);
     }
 }

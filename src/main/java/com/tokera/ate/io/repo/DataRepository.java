@@ -257,6 +257,12 @@ public class DataRepository implements IAteIO {
 
         d.debugLogging.logDelete(PUUID.from(partitionKey, id));
         d.requestAccessLog.recordWrote(id, container.getPayloadClazzShort());
+
+        DataContainer parentContainer = container.getParentContainer();
+        if (parentContainer != null) {
+            d.requestAccessLog.recordWrote(parentContainer.id, parentContainer.getPayloadClazzShort());
+        }
+
         return true;
     }
 
@@ -573,6 +579,13 @@ public class DataRepository implements IAteIO {
                 for (BaseDao entity : trans.puts(partitionKey)) {
                     trans.cache(partitionKey, entity);
                     d.requestAccessLog.recordWrote(entity.getId(), entity.getClass());
+
+                    if (entity.getParentId() != null) {
+                        BaseDao parentEntity = d.io.readOrNull(PUUID.from(partitionKey, entity.getParentId()));
+                        if (parentEntity != null) {
+                            d.requestAccessLog.recordWrote(parentEntity.getId(), parentEntity.getClass());
+                        }
+                    }
                 }
 
                 // Now we wait for the bridge to synchronize

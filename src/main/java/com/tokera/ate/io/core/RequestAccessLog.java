@@ -59,7 +59,7 @@ public class RequestAccessLog {
         wroteClazzCnts.put(clazzName, Integer.MAX_VALUE);
     }
 
-    public void recordRead(@DaoId UUID id, Class<?> clazz) {
+    public void recordRead(@DaoId UUID id, Class<? extends BaseDao> clazz) {
         if (pauseStack.get() > 0) return;
         recordRead(id, clazz.getSimpleName());
     }
