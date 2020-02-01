@@ -2,6 +2,7 @@ package com.tokera.ate.delegates;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.tokera.ate.providers.TokeraResteasyJackson2Provider;
 import com.tokera.ate.scopes.Startup;
 
 import javax.enterprise.context.ApplicationScoped;
@@ -18,6 +19,7 @@ public class JsonDelegate {
         mappers = ThreadLocal.withInitial(() ->
         {
             ObjectMapper mapper = new ObjectMapper();
+            TokeraResteasyJackson2Provider.configureMapper(mapper);
             return mapper;
         });
     }

@@ -7,6 +7,7 @@ import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.extensions.*;
 import com.tokera.ate.providers.ProcessBodyReader;
 import com.tokera.ate.providers.ProcessBodyWriter;
+import com.tokera.ate.providers.TokeraResteasyJackson2Provider;
 import com.tokera.ate.providers.YamlProvider;
 import io.undertow.Undertow;
 import io.undertow.UndertowOptions;
@@ -80,7 +81,7 @@ public class ApiServer {
         List<Class> check = Arrays.asList(
                 HtmlRenderableWriter.class,
                 StringTextStar.class,
-                ResteasyJackson2Provider.class,
+                TokeraResteasyJackson2Provider.class,
                 YamlProvider.class,
                 ProcessBodyReader.class,
                 ProcessBodyWriter.class,
@@ -130,7 +131,7 @@ public class ApiServer {
         weld.addBeanClass(YamlProvider.class);
         weld.addBeanClass(ProcessBodyReader.class);
         weld.addBeanClass(ProcessBodyWriter.class);
-        weld.addBeanClass(ResteasyJackson2Provider.class);
+        weld.addBeanClass(TokeraResteasyJackson2Provider.class);
         weld.addBeanClass(ZooServer.class);
         weld.addBeanClass(KafkaServer.class);
         weld.addExtension(new ResteasyCdiExtension());
@@ -142,7 +143,7 @@ public class ApiServer {
         weld.addExtension(new SerializableObjectsExtension());
         weld.addExtension(new io.smallrye.faulttolerance.HystrixExtension());
         weld.addPackages(   true,
-                ResteasyJackson2Provider.class,
+                TokeraResteasyJackson2Provider.class,
                 YamlReader.class,
                 HtmlRenderableWriter.class,
                 StringTextStar.class,
