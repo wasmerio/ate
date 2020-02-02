@@ -433,7 +433,7 @@ public class AuthorizationDelegate {
         @Alias String alias = entity.getRightsAlias();
         PrivateKeyWithSeedDto right = entity.getRightsRead().stream()
                 .filter(p -> alias.equals(p.aliasOrHash()))
-                .filter(p -> d.encryptor.getPublicKeyHash(p).equals(d.encryptor.getPublicKeyHash(d.encryptor.getTrustOfPublicRead())) == false)
+                .filter(p -> d.encryptor.getTrustOfPublicReadAll().stream().anyMatch(k -> d.encryptor.getPublicKeyHash(p).equals(d.encryptor.getPublicKeyHash(k)))  == false)
                 .findFirst()
                 .orElse(null);
         if (right == null) {

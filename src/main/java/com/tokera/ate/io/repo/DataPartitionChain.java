@@ -5,6 +5,7 @@ import com.tokera.ate.dao.base.BaseDao;
 import com.tokera.ate.dao.kafka.MessageSerializer;
 import com.tokera.ate.dao.msg.*;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.msg.*;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.io.api.IPartitionKey;
@@ -52,7 +53,9 @@ public class DataPartitionChain {
         this.deferredLoad = new ConcurrentQueue<>();
         this.lost = new ConcurrentQueue<>();
 
-        this.addTrustKey(d.encryptor.getTrustOfPublicRead().key());
+        for (PrivateKeyWithSeedDto k : d.encryptor.getTrustOfPublicReadAll()) {
+            this.addTrustKey(k.key());
+        }
         this.addTrustKey(d.encryptor.getTrustOfPublicWrite().key());
     }
 

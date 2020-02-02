@@ -142,8 +142,10 @@ public class CurrentRightsDelegate implements IRights {
             shouldCache = false;
         }
 
-        PrivateKeyWithSeedDto publicRead = new PrivateKeyWithSeedDto(d.encryptor.getTrustOfPublicRead());
-        ret.add(publicRead);
+        for (PrivateKeyWithSeedDto pub : d.encryptor.getTrustOfPublicReadAll()) {
+            PrivateKeyWithSeedDto publicRead = new PrivateKeyWithSeedDto(pub);
+            ret.add(publicRead);
+        }
 
         if (shouldCache == true) {
             this.rightsReadCache = ret;

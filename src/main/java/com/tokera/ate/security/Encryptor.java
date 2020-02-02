@@ -119,6 +119,9 @@ public class Encryptor implements Runnable
     
     // Public role that everyone has
     private @MonotonicNonNull PrivateKeyWithSeedDto trustOfPublicRead;
+    private List<PrivateKeyWithSeedDto> trustOfPublicReadOld;
+    private List<PrivateKeyWithSeedDto> trustOfPublicReadAll;
+
     private @MonotonicNonNull PrivateKeyWithSeedDto trustOfPublicWrite;
 
     private final ConcurrentLinkedQueue<MessagePrivateKeyDto> genSign64Queue = new ConcurrentLinkedQueue<>();
@@ -1783,6 +1786,27 @@ public class Encryptor implements Runnable
             //ret = new PrivateKeyWithSeedDto(PrivateKeyType.read, "public", 128, KeyType.ntru, null, "public");
             ret = new PrivateKeyWithSeedDto(PrivateKeyType.read, "public", 128, KeyType.aes, null, "public");
             this.trustOfPublicRead = ret;
+        }
+        return ret;
+    }
+
+    public List<PrivateKeyWithSeedDto> getTrustOfPublicReadOld() {
+        List<PrivateKeyWithSeedDto> ret = this.trustOfPublicReadOld;
+        if (ret == null) {
+            ret = new ArrayList<>();
+            ret.add(new PrivateKeyWithSeedDto(PrivateKeyType.read, "public", 128, KeyType.ntru, null, "public"));
+            this.trustOfPublicReadOld = ret;
+        }
+        return ret;
+    }
+
+    public List<PrivateKeyWithSeedDto> getTrustOfPublicReadAll() {
+        List<PrivateKeyWithSeedDto> ret = this.trustOfPublicReadAll;
+        if (ret == null) {
+            ret = new ArrayList<>();
+            ret.add(getTrustOfPublicRead());
+            ret.addAll(getTrustOfPublicReadOld());
+            this.trustOfPublicReadAll = ret;
         }
         return ret;
     }
