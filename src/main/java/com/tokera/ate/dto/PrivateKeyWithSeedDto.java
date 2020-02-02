@@ -16,6 +16,7 @@ import com.google.common.collect.Lists;
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.common.StringTools;
 import com.tokera.ate.dao.enumerations.KeyType;
+import com.tokera.ate.dao.msg.MessagePublicKey;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.msg.MessagePrivateKeyDto;
 import com.tokera.ate.dto.msg.MessagePublicKeyDto;
@@ -270,8 +271,11 @@ public class PrivateKeyWithSeedDto {
         sb.append(":");
         sb.append(this.seed);
         sb.append(":");
-        if (includePublicHash && this.publicHash != null) {
-            sb.append(this.publicHash);
+        if (includePublicHash) {
+            String pubHash = this.publicHash();
+            if (pubHash != null) {
+                sb.append(pubHash);
+            }
         }
         sb.append(":");
         if (this.alias != null) {
