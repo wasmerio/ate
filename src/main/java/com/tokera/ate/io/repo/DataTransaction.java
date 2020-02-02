@@ -494,7 +494,7 @@ public class DataTransaction {
             copyTo.copyCacheFrom(this);
         }
 
-        if (this.shouldSync) {
+        if (this.shouldSync && d.currentToken.getWithinTokenScope()) {
             d.transaction.finish();
         }
 

@@ -295,7 +295,13 @@ public class EffectivePermissionBuilder {
                     }
                     MessagePublicKeyDto implicitKey = d.implicitSecurity.enquireDomainKey(domainObj.toString(), EnquireDomainKeyHandling.ThrowOnError, key);
                     if (implicitKey == null) {
-                        throw new WebApplicationException("No implicit authority found at domain name (missing TXT record)[" + d.bootstrapConfig.getImplicitAuthorityAlias() + "." + domainObj + "].", Response.Status.UNAUTHORIZED);
+                        String authDomain = d.bootstrapConfig.getImplicitAuthorityAlias() + "." + domainObj;
+                        String txtRecord = d.implicitSecurity.enquireDomainString(authDomain, EnquireDomainKeyHandling.SilentIgnore);
+                        if (txtRecord != null) {
+                            throw new WebApplicationException("No implicit authority found at domain name [" + authDomain + "] - TXT record exists [" + txtRecord + "] however the public key is not known to this chain-of-trust.", Response.Status.UNAUTHORIZED);
+                        } else {
+                            throw new WebApplicationException("No implicit authority found at domain name [" + authDomain + "] - missing TXT record.", Response.Status.UNAUTHORIZED);
+                        }
                     }
                     ret.addWriteRole(implicitKey);
                 } catch (IllegalAccessException e) {
