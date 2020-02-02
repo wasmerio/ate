@@ -12,6 +12,7 @@ public enum KeyType {
     ntru_sign(2, KeyUse.sign),
     qtesla(3, KeyUse.sign),
     newhope(4, KeyUse.encrypt),
+    aes(4, KeyUse.encrypt),
     xmss(5, KeyUse.sign),
     xmssmt(6, KeyUse.sign),
     rainbow(7, KeyUse.sign);

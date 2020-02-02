@@ -113,6 +113,7 @@ public class Encryptor implements Runnable
     private int c_KeyPreGen128 = 80;
     private int c_KeyPreGen256 = 20;
     private int c_AesPreGen128 = 800;
+    private int c_AesPreGen192 = 400;
     private int c_AesPreGen256 = 200;
     private int c_AesPreGen512 = 100;
     
@@ -131,6 +132,7 @@ public class Encryptor implements Runnable
     private final ConcurrentLinkedQueue<MessagePrivateKeyDto> genEncrypt128Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<MessagePrivateKeyDto> genEncrypt256Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<@Secret String> genAes128Queue = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<@Secret String> genAes192Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<@Secret String> genAes256Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<@Secret String> genAes512Queue = new ConcurrentLinkedQueue<>();
     private final ConcurrentLinkedQueue<@Secret String> genSaltQueue = new ConcurrentLinkedQueue<>();
@@ -230,6 +232,10 @@ public class Encryptor implements Runnable
         this.c_AesPreGen128 = val;
     }
 
+    public void setAesPreGen192(int val) {
+        this.c_AesPreGen192 = val;
+    }
+
     public void setAesPreGen256(int val) {
         this.c_AesPreGen256 = val;
     }
@@ -325,6 +331,7 @@ public class Encryptor implements Runnable
         int cntEncrypt128 = genEncrypt128Queue.size();
         int cntEncrypt256 = genEncrypt256Queue.size();
         int cntAes128 = genAes128Queue.size();
+        int cntAes192 = genAes192Queue.size();
         int cntAes256 = genAes256Queue.size();
         int cntAes512 = genAes512Queue.size();
         int cntSalt = genSaltQueue.size();
@@ -390,6 +397,11 @@ public class Encryptor implements Runnable
             if (cntAes128 < c_AesPreGen128 && cntAes128 < cap) {
                 genAes128Queue.add(this.generateSecret64Now(128));
                 cntAes128++;
+                didGen = true;
+            }
+            if (cntAes192 < c_AesPreGen192 && cntAes192 < cap) {
+                genAes192Queue.add(this.generateSecret64Now(192));
+                cntAes192++;
                 didGen = true;
             }
             if (cntAes256 < c_AesPreGen256 && cntAes256 < cap) {
@@ -828,7 +840,7 @@ public class Encryptor implements Runnable
                             pair = genSignKeyRainbowNow(keySize, randomFactory);
                             break;
                         default:
-                            throw new KeyGenerationException("The key type [" + keyType + "] is not supported as an asymmetric encryption key.");
+                            throw new KeyGenerationException("The key type [" + keyType + "] is not supported as an asymmetric signing key.");
                     }
                     publicParts.add(new MessageKeyPartDto(keyType, keySize, pair.publicKey));
                     privateParts.add(new MessageKeyPartDto(keyType, keySize, pair.privateKey));
@@ -922,6 +934,9 @@ public class Encryptor implements Runnable
                         case ntru:
                             pair = genEncryptKeyNtruNow(keySize);
                             break;
+                        case aes:
+                            pair = genEncryptKeyAesNow(keySize);
+                            break;
                         case newhope:
                             pair = genEncryptKeyNewHopeNow(keySize);
                             break;
@@ -986,6 +1001,9 @@ public class Encryptor implements Runnable
                         case ntru:
                             pair = genEncryptKeyNtruNow(keySize, randomFactory);
                             break;
+                        case aes:
+                            pair = genEncryptKeyAesNow(keySize, randomFactory);
+                            break;
                         case newhope:
                             pair = genEncryptKeyNewHopeNow(keySize, randomFactory);
                             break;
@@ -1019,6 +1037,25 @@ public class Encryptor implements Runnable
     public KeyPairBytes genEncryptKeyNtruNow(int keysize)
     {
         return genEncryptKeyNtruNow(keysize, new SecureRandomFactory(srandom));
+    }
+
+    public KeyPairBytes genEncryptKeyAesNow(int keysize)
+    {
+        byte[] syncBytes;
+        switch (keysize) {
+            case 128:
+            case 192:
+            case 256:
+            case 512: {
+                syncBytes = Base64.decodeBase64(this.generateSecret64(keysize));
+                break;
+            }
+            default: {
+                throw new RuntimeException("Key size [" + keysize + "] for AES is not supported");
+            }
+        }
+
+        return new KeyPairBytes(syncBytes, syncBytes);
     }
 
     private NTRUEncryptionKeyGenerationParameters getNtruEncryptParamtersForKeySize(int keySize) {
@@ -1077,6 +1114,26 @@ public class Encryptor implements Runnable
             return extractKey(pair);
         }
         throw new RuntimeException("Failed to generate encryption key");
+    }
+
+    public KeyPairBytes genEncryptKeyAesNow(int keySize, IRandomFactory randomFactory)
+    {
+        byte[] syncBytes;
+        switch (keySize) {
+            case 128:
+            case 192:
+            case 256:
+            case 512: {
+                syncBytes = new byte[keySize/8];
+                randomFactory.getRandom().nextBytes(syncBytes);
+                break;
+            }
+            default: {
+                throw new RuntimeException("Key size [" + keySize + "] for AES is not supported");
+            }
+        }
+
+        return new KeyPairBytes(syncBytes, syncBytes);
     }
 
     public @Secret byte[] encryptNtruWithPublic(@Secret byte[] key, @PlainText byte[] data, int keySize)
@@ -1218,6 +1275,9 @@ public class Encryptor implements Runnable
                 case ntru:
                     ret = encryptNtruWithPublic(keyBytes, ret, part.getSize());
                     break;
+                case aes:
+                    ret = encryptAes(keyBytes, ret);
+                    break;
                 case newhope:
                     ret = encryptNewHopeWithPublic(keyBytes, ret, part.getSize());
                     break;
@@ -1248,6 +1308,9 @@ public class Encryptor implements Runnable
             switch (part.getType()) {
                 case ntru:
                     ret = decryptNtruWithPrivate(keyBytes, ret, part.getSize());
+                    break;
+                case aes:
+                    ret = decryptAes(keyBytes, data);
                     break;
                 case newhope:
                     ret = decryptNewHopeWithPrivate(keyBytes, ret, part.getSize());
@@ -1717,7 +1780,8 @@ public class Encryptor implements Runnable
     public PrivateKeyWithSeedDto getTrustOfPublicRead() {
         PrivateKeyWithSeedDto ret = this.trustOfPublicRead;
         if (ret == null) {
-            ret = new PrivateKeyWithSeedDto(PrivateKeyType.read, "public", 128, KeyType.ntru, null, "public");
+            //ret = new PrivateKeyWithSeedDto(PrivateKeyType.read, "public", 128, KeyType.ntru, null, "public");
+            ret = new PrivateKeyWithSeedDto(PrivateKeyType.read, "public", 128, KeyType.aes, null, "public");
             this.trustOfPublicRead = ret;
         }
         return ret;
@@ -1772,6 +1836,10 @@ public class Encryptor implements Runnable
     public @Secret String generateSecret64(int numBits) {
         if (numBits == 128) {
             String ret = this.genAes128Queue.poll();
+            this.moreKeys();
+            if (ret != null) return ret;
+        } else if (numBits == 192) {
+            String ret = this.genAes192Queue.poll();
             this.moreKeys();
             if (ret != null) return ret;
         } else if (numBits == 256) {
@@ -2050,6 +2118,7 @@ public class Encryptor implements Runnable
         int cntEncrypt128 = 0;
         int cntEncrypt256 = 0;
         int cntAes128 = 0;
+        int cntAes192 = 0;
         int cntAes256 = 0;
         int cntAes512 = 0;
         int cntSalt = 0;
@@ -2094,6 +2163,10 @@ public class Encryptor implements Runnable
             ret.aes128.add(this.generateSecret64Now(128));
             cntAes128++;
         }
+        for (;cntAes192 < c_AesPreGen192 && cntAes192 < cap;) {
+            ret.aes192.add(this.generateSecret64Now(92));
+            cntAes192++;
+        }
         for (;cntAes256 < c_AesPreGen256 && cntAes256 < cap;) {
             ret.aes256.add(this.generateSecret64Now(256));
             cntAes256++;
@@ -2119,6 +2192,7 @@ public class Encryptor implements Runnable
         this.genEncrypt128Queue.addAll(config.encrypt128);
         this.genEncrypt256Queue.addAll(config.encrypt256);
         this.genAes128Queue.addAll(config.aes128);
+        this.genAes192Queue.addAll(config.aes192);
         this.genAes256Queue.addAll(config.aes256);
         this.genAes512Queue.addAll(config.aes512);
     }

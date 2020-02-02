@@ -35,6 +35,8 @@ public class KeysPreLoadConfig {
     @JsonProperty
     public final ArrayList<@Secret String> aes128 = new ArrayList<>();
     @JsonProperty
+    public final ArrayList<@Secret String> aes192 = new ArrayList<>();
+    @JsonProperty
     public final ArrayList<@Secret String> aes256 = new ArrayList<>();
     @JsonProperty
     public final ArrayList<@Secret String> aes512 = new ArrayList<>();
