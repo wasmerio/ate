@@ -61,9 +61,9 @@ public class AesTests {
         byte[] plainBytes = plain.getBytes();
         
         byte[] encryptKey = Base64.decodeBase64(encryptor.generateSecret64Now(128));
-        byte[] encPayload = encryptor.encryptAes(encryptKey, plainBytes);
+        byte[] encPayload = encryptor.encryptAes(encryptKey, plainBytes, true);
         
-        byte[] decryptedPayload = encryptor.decryptAes(encryptKey, ByteBuffer.wrap(encPayload));
+        byte[] decryptedPayload = encryptor.decryptAes(encryptKey, ByteBuffer.wrap(encPayload), true);
         Assertions.assertArrayEquals(plainBytes, decryptedPayload);
         
         String decryptedString = new String(decryptedPayload);

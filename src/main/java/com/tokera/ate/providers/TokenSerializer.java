@@ -82,7 +82,7 @@ public class TokenSerializer implements ScalarSerializer<TokenDto>, MessageBodyR
         String base64;
         String plain = builder.sign(algorithm);
         if (d.bootstrapConfig.getSecurityLevel().encryptToken) {
-            byte[] enc = d.encryptor.encryptAes(jwtEncrypt, plain.getBytes());
+            byte[] enc = d.encryptor.encryptAes(jwtEncrypt, plain.getBytes(), true);
             base64 = Base64.encodeBase64URLSafeString(enc);
         } else {
             base64 = plain;
@@ -96,7 +96,10 @@ public class TokenSerializer implements ScalarSerializer<TokenDto>, MessageBodyR
         if (d.bootstrapConfig.getSecurityLevel().encryptToken) {
             String encToken = token.getBase64();
             byte[] bytes = Base64.decodeBase64(encToken);
-            plain = new String(d.encryptor.decryptAes(jwtEncrypt, bytes));
+            plain = new String(d.encryptor.decryptAes(jwtEncrypt, bytes, false));
+            if (plain == null) {
+                throw new WebApplicationException("JWT token failed decrypt", Response.Status.UNAUTHORIZED);
+            }
         } else {
             plain = token.getBase64();
         }
@@ -123,7 +126,10 @@ public class TokenSerializer implements ScalarSerializer<TokenDto>, MessageBodyR
         if (d.bootstrapConfig.getSecurityLevel().encryptToken) {
             String encToken = token.getBase64();
             byte[] bytes = Base64.decodeBase64(encToken);
-            plain = new String(d.encryptor.decryptAes(jwtEncrypt, bytes));
+            plain = new String(d.encryptor.decryptAes(jwtEncrypt, bytes, false));
+            if (plain == null) {
+                return new ImmutalizableArrayList<>();
+            }
         } else {
             plain = token.getBase64();
         }

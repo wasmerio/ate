@@ -251,7 +251,7 @@ public class DataSerializer {
         
         // Encrypt the payload and add it to the data message
         byte[] byteStream = d.os.serializeObj(obj);
-        byte[] encPayload = d.encryptor.encryptAes(castle.key, byteStream);
+        byte[] encPayload = d.encryptor.encryptAes(castle.key, byteStream, true);
 
         // Now get the permissions before we merge for the digest
         permissions = new EffectivePermissionBuilder(BaseDaoInternal.getType(obj), partitionKey, obj.getId())
@@ -353,6 +353,7 @@ public class DataSerializer {
             return ret;
         } catch (ExecutionException e) {
             BaseDao orig = readObjectFromDataMessageInternal(cacheKey, aesKey, msg, partitionKey);
+            if (orig == null) return null;
             BaseDao ret = lintDataObject(orig, msg);
             validateObjectAfterRead(ret, msg);
             return ret;
@@ -363,7 +364,7 @@ public class DataSerializer {
     {
         byte[] encPayloadBytes = msg.getPayloadBytes();
         if (encPayloadBytes == null) return null;
-        return d.encryptor.decryptAes(aesKey, encPayloadBytes);
+        return d.encryptor.decryptAes(aesKey, encPayloadBytes, false);
     }
 
     @SuppressWarnings({"unchecked"})

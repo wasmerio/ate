@@ -518,23 +518,23 @@ public class Encryptor implements Runnable
         }
     }
     
-    public @Secret byte[] encryptAes(@Secret byte[] key, @PlainText byte[] value) {
-        return cipherAes(key, ByteBuffer.wrap(value), Cipher.ENCRYPT_MODE);
+    public @Secret byte[] encryptAes(@Secret byte[] key, @PlainText byte[] value, boolean throwOnError) {
+        return cipherAes(key, ByteBuffer.wrap(value), Cipher.ENCRYPT_MODE, throwOnError);
     }
     
-    public @Secret byte[] encryptAes(@Secret byte[] key, @PlainText ByteBuffer value) {
-        return cipherAes(key, value, Cipher.ENCRYPT_MODE);
+    public @Secret byte[] encryptAes(@Secret byte[] key, @PlainText ByteBuffer value, boolean throwOnError) {
+        return cipherAes(key, value, Cipher.ENCRYPT_MODE, throwOnError);
     }
     
-    public @PlainText byte[] decryptAes(@Secret byte[] key, @Secret byte[] value) {
-        return cipherAes(key, ByteBuffer.wrap(value), Cipher.DECRYPT_MODE);
+    public @PlainText byte[] decryptAes(@Secret byte[] key, @Secret byte[] value, boolean throwOnError) {
+        return cipherAes(key, ByteBuffer.wrap(value), Cipher.DECRYPT_MODE, throwOnError);
     }
     
-    public @PlainText byte[] decryptAes(@Secret byte[] key, @Secret ByteBuffer value) {
-        return cipherAes(key, value, Cipher.DECRYPT_MODE);
+    public @PlainText byte[] decryptAes(@Secret byte[] key, @Secret ByteBuffer value, boolean throwOnError) {
+        return cipherAes(key, value, Cipher.DECRYPT_MODE, throwOnError);
     }
     
-    private @Secret byte[] cipherAes(@Secret byte[] key, @PlainText ByteBuffer value, int mode)
+    private @Nullable@Secret byte[] cipherAes(@Secret byte[] key, @PlainText ByteBuffer value, int mode, boolean throwOnError)
     {
         try
         {
@@ -557,7 +557,11 @@ public class Encryptor implements Runnable
             return ret;
             
         } catch (InvalidKeyException | BadPaddingException | IllegalBlockSizeException | ShortBufferException ex) {
-            throw new RuntimeException(ex);
+            if (throwOnError) {
+                throw new RuntimeException(ex);
+            } else {
+                return null;
+            }
         }
     }
 
@@ -1215,7 +1219,7 @@ public class Encryptor implements Runnable
 
         NHPublicKeyParameters keyExchangePublic = (NHPublicKeyParameters) (exchangeSecret.getPublicKey());
         byte[] pubData = keyExchangePublic.getPubData();
-        byte[] encData = encryptAes(encKey, data);
+        byte[] encData = encryptAes(encKey, data, true);
 
         ByteBuffer bb = ByteBuffer.allocate(4 + pubData.length + encData.length);
         bb.putInt(pubData.length);
@@ -1243,7 +1247,7 @@ public class Encryptor implements Runnable
         nhAgreement.init(new NHPrivateKeyParameters(secData));
         byte[] encKey = nhAgreement.calculateAgreement(new NHPublicKeyParameters(pubData));
 
-        return this.decryptAes(encKey, encData);
+        return this.decryptAes(encKey, encData, true);
     }
 
     @SuppressWarnings({"deprecation", "known.nonnull"})
@@ -1279,7 +1283,7 @@ public class Encryptor implements Runnable
                     ret = encryptNtruWithPublic(keyBytes, ret, part.getSize());
                     break;
                 case aes:
-                    ret = encryptAes(keyBytes, ret);
+                    ret = encryptAes(keyBytes, ret, true);
                     break;
                 case newhope:
                     ret = encryptNewHopeWithPublic(keyBytes, ret, part.getSize());
@@ -1313,7 +1317,7 @@ public class Encryptor implements Runnable
                     ret = decryptNtruWithPrivate(keyBytes, ret, part.getSize());
                     break;
                 case aes:
-                    ret = decryptAes(keyBytes, data);
+                    ret = decryptAes(keyBytes, data, true);
                     break;
                 case newhope:
                     ret = decryptNewHopeWithPrivate(keyBytes, ret, part.getSize());
