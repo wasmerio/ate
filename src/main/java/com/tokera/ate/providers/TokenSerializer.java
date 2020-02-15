@@ -96,10 +96,11 @@ public class TokenSerializer implements ScalarSerializer<TokenDto>, MessageBodyR
         if (d.bootstrapConfig.getSecurityLevel().encryptToken) {
             String encToken = token.getBase64();
             byte[] bytes = Base64.decodeBase64(encToken);
-            plain = new String(d.encryptor.decryptAes(jwtEncrypt, bytes, false));
-            if (plain == null) {
+            bytes = d.encryptor.decryptAes(jwtEncrypt, bytes, false);
+            if (bytes == null) {
                 throw new WebApplicationException("JWT token failed decrypt", Response.Status.UNAUTHORIZED);
             }
+            plain = new String(bytes);
         } else {
             plain = token.getBase64();
         }
