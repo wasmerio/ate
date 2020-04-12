@@ -93,12 +93,11 @@ public class DataContainer {
 
             // Empty payloads should not attempt a merge
             if (msg.hasPayload()) {
-                DataGraphNode removeNode = leafs.values().stream()
+                for (DataGraphNode removeNode : leafs.values().stream()
                         .filter(n -> n.version.equals(node.previousVersion) ||
                                      node.mergesVersions.contains(n.version))
-                        .findFirst()
-                        .orElse(null);
-                if (removeNode != null) {
+                        .collect(Collectors.toList()))
+                {
                     leafs.remove(removeNode.msg.getMeta().getOffset(), removeNode);
                 }
             } else {
