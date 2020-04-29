@@ -17,46 +17,44 @@ import java.util.stream.Collectors;
 @RequestScoped
 public class RequestAccessLog {
 
-    private final Map<@ClassName String, Integer> readClazzCnts = new HashMap<>();
-    private final Map<@ClassName String, Integer> wroteClazzCnts = new HashMap<>();
-    private final Set<String> readRecords = new HashSet<>();
-    private final Set<String> wroteRecords = new HashSet<>();
+    private final LinkedHashSet<String> readRecords = new LinkedHashSet<>();
+    private final LinkedHashSet<String> wroteRecords = new LinkedHashSet<>();
     private AtomicInteger pauseStack = new AtomicInteger(0);
 
     public static boolean enablePausing = false;
 
-    private final int max_items_per_clazz = 10;
+    private final int max_items = 50;
+
+    public boolean shouldClip() {
+        return readRecords.size() + wroteRecords.size() > max_items;
+    }
     
     public <T extends BaseDao> void recordRead(Class<T> clazz) {
         if (pauseStack.get() > 0) return;
         String clazzName = clazz.getSimpleName();
         String clazzNameSep = clazzName + ":";
-        
-        Integer cnt = readClazzCnts.getOrDefault(clazzName, 0);
-        if (cnt > 0 && cnt < Integer.MAX_VALUE) {
+
+        if (shouldClip()) {
             readRecords.removeAll(readRecords.stream()
                     .filter(r -> r.startsWith(clazzNameSep))
                     .collect(Collectors.toSet()));
         }
         
         readRecords.add(clazzNameSep + "*");
-        readClazzCnts.put(clazzName, Integer.MAX_VALUE);
     }
 
     public <T extends BaseDao> void recordWrote(Class<T> clazz) {
         if (pauseStack.get() > 0) return;
         String clazzName = clazz.getSimpleName();
         String clazzNameSep = clazzName + ":";
-        
-        Integer cnt = wroteClazzCnts.getOrDefault(clazzName, 0);
-        if (cnt > 0 && cnt < Integer.MAX_VALUE) {
+
+        if (shouldClip()) {
             wroteRecords.removeAll(wroteRecords.stream()
                     .filter(r -> r.startsWith(clazzNameSep))
                     .collect(Collectors.toSet()));
         }
         
         wroteRecords.add(clazzNameSep + "*");
-        wroteClazzCnts.put(clazzName, Integer.MAX_VALUE);
     }
 
     public void recordRead(@DaoId UUID id, Class<? extends BaseDao> clazz) {
@@ -67,20 +65,16 @@ public class RequestAccessLog {
     public void recordRead(@DaoId UUID id, String clazzName) {
         if (pauseStack.get() > 0) return;
         String clazzNameSep = clazzName + ":";
-        
-        Integer cnt = readClazzCnts.getOrDefault(clazzName, 0);
-        if (cnt >= max_items_per_clazz && cnt < Integer.MAX_VALUE) {
+
+        if (shouldClip()) {
             readRecords.removeAll(readRecords.stream()
                     .filter(r -> r.startsWith(clazzNameSep))
                     .collect(Collectors.toSet()));
-            
             readRecords.add(clazzNameSep + "*");
-            readClazzCnts.put(clazzName, Integer.MAX_VALUE);
+            return;
         }
         
-        if (readRecords.add(clazzName + ":" + id) == true) {
-            readClazzCnts.put(clazzName, cnt + 1);
-        }
+        readRecords.add(clazzName + ":" + id);
     }
 
     public void recordWrote(@DaoId UUID id, Class<?> clazz) {
@@ -92,19 +86,16 @@ public class RequestAccessLog {
         if (pauseStack.get() > 0) return;
         String clazzNameSep = clazzName + ":";
 
-        Integer cnt = wroteClazzCnts.getOrDefault(clazzName, 0);
-        if (cnt >= max_items_per_clazz && cnt < Integer.MAX_VALUE) {
+        if (shouldClip()) {
             wroteRecords.removeAll(wroteRecords.stream()
                     .filter(r -> r.startsWith(clazzNameSep))
                     .collect(Collectors.toSet()));
 
             wroteRecords.add(clazzNameSep + "*");
-            wroteClazzCnts.put(clazzName, Integer.MAX_VALUE);
+            return;
         }
 
-        if (wroteRecords.add(clazzName + ":" + id) == true) {
-            wroteClazzCnts.put(clazzName, cnt + 1);
-        }
+        wroteRecords.add(clazzName + ":" + id);
     }
     
     public Set<@Hash String> getReadRecords() {
