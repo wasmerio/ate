@@ -182,7 +182,7 @@ public class CurrentTokenDelegate {
     public void missingToken() {
         ContainerRequestContext request = this.d.requestContext.getContainerRequestContextOrNull();
 
-        if (d.resourceInfo.isPermitMissingToken() == false) {
+        if (d.resourceScopeInterceptor.isActive() == false || d.resourceInfo.isPermitMissingToken() == false) {
             if (this.withinTokenScope)
             {
                 // If we are in a token scope but dont have a token
@@ -217,6 +217,7 @@ public class CurrentTokenDelegate {
     private void validateRiskRole(@Nullable TokenDto token)
     {
         // Make sure we have the risk role
+        if (d.resourceScopeInterceptor.isActive() == false) return;
         for (RiskRole role : d.resourceInfo.getPermitRiskRoles()) {
             if (token == null) {
                 missingToken();
@@ -228,6 +229,8 @@ public class CurrentTokenDelegate {
 
     private void validateUserRole(@Nullable TokenDto token)
     {
+        if (d.resourceScopeInterceptor.isActive() == false) return;
+
         // Check if we allow any user roles for this operation
         for (UserRole role : d.resourceInfo.getPermitUserRoles()) {
             if (UserRole.ANYTHING.equals(role)) {
@@ -266,7 +269,10 @@ public class CurrentTokenDelegate {
 
     }
 
-    private void validateReadRoles(@Nullable TokenDto token) {
+    private void validateReadRoles(@Nullable TokenDto token)
+    {
+        if (d.resourceScopeInterceptor.isActive() == false) return;
+
         // Check all the read permissions
         for (PermitReadEntity paramRead : d.resourceInfo.getPermitReadParams()) {
             if (token == null) {
@@ -291,7 +297,10 @@ public class CurrentTokenDelegate {
         }
     }
 
-    private void validateWriteRoles(@Nullable TokenDto token) {
+    private void validateWriteRoles(@Nullable TokenDto token)
+    {
+        if (d.resourceScopeInterceptor.isActive() == false) return;
+
         for (PermitWriteEntity paramWrite : d.resourceInfo.getPermitWriteParams()) {
             if (token == null) {
                 missingToken();
