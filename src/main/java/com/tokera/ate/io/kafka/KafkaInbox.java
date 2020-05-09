@@ -33,6 +33,7 @@ public class KafkaInbox extends DataPartitionDaemon {
     public void addPartition(TopicAndPartition what) {
         targetInit.incrementAndGet();
         super.addPartition(what);
+        targetInit.incrementAndGet();
     }
 
     private KafkaConsumer<String, MessageBase> get() {
