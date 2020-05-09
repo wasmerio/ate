@@ -5,11 +5,9 @@ import com.tokera.ate.dto.msg.MessageDataMetaDto;
 
 import java.util.List;
 
-public interface IHookContext {
+public interface IHookContext extends IHookFeed {
 
     IPartitionKey partitionKey();
-
-    void feed(MessageDataMetaDto msg);
 
     <T extends BaseDao> void addHook(IHookCallback<T> callback, Class<T> clazz);
 

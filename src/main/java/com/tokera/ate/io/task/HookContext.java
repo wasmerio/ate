@@ -67,7 +67,9 @@ public class HookContext<T extends BaseDao> implements IHookContext {
     }
 
     @Override
-    public void feed(MessageDataMetaDto msg) {
+    public void feed(IPartitionKey partitionKey, MessageDataMetaDto msg) {
+        if (partitionKey.equals(this.partitionKey) == false) return;
+        
         synchronized (hooks) {
             for (Hook<T> hook : this.hooks) {
                 hook.feed(msg);

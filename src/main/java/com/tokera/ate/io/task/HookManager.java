@@ -15,6 +15,7 @@ import com.tokera.ate.scopes.Startup;
 import javax.enterprise.context.ApplicationScoped;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -26,6 +27,7 @@ import java.util.stream.Collectors;
 @ApplicationScoped
 public class HookManager {
     AteDelegate d = AteDelegate.get();
+    ConcurrentSkipListSet<IHookFeed> all = new ConcurrentSkipListSet<>();
     ConcurrentHashMap<IPartitionKey, ConcurrentHashMap<String, IHookContext>> lookup
             = new ConcurrentHashMap<>();
 
@@ -95,9 +97,31 @@ public class HookManager {
     }
 
     /**
+     * Hooks all data notifications for all partitions
+     * @param feed callback that will be invoked
+     */
+    public void hookAll(IHookFeed feed) {
+        this.all.add(feed);
+    }
+
+    /**
+     * Unhooks data notifications for a particular callback function
+     * @param feed callback that is already hooked
+     */
+    public void unhookAll(IHookFeed feed) {
+        this.all.remove(feed);
+    }
+
+    /**
      * Callback invoked whenever a data object changes or is created in this context
      */
-    public void feed(IPartitionKey partitionKey, MessageDataDto data, MessageMetaDto meta) {
+    public void feed(IPartitionKey partitionKey, MessageDataDto data, MessageMetaDto meta)
+    {
+        MessageDataMetaDto msg = new MessageDataMetaDto(data, meta);
+        for (IHookFeed feed : this.all) {
+            feed.feed(partitionKey, msg);
+        }
+
         if (lookup.containsKey(partitionKey) == false) return;
 
         // Get the clazz name and search for a context thats interested in it
@@ -108,8 +132,7 @@ public class HookManager {
         IHookContext context = getContext(partitionKey, clazzName);
         if (context == null) return;
 
-        MessageDataMetaDto msg = new MessageDataMetaDto(data, meta);
-        context.feed(msg);
+        context.feed(partitionKey, msg);
     }
 
     @SuppressWarnings("unchecked")
