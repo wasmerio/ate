@@ -13,10 +13,12 @@ import com.tokera.ate.io.api.*;
 import com.tokera.ate.scopes.Startup;
 
 import javax.enterprise.context.ApplicationScoped;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.stream.Collectors;
 
 /**
@@ -26,9 +28,12 @@ import java.util.stream.Collectors;
 @Startup
 @ApplicationScoped
 public class HookManager {
-    AteDelegate d = AteDelegate.get();
-    ConcurrentSkipListSet<IHookFeed> all = new ConcurrentSkipListSet<>();
-    ConcurrentHashMap<IPartitionKey, ConcurrentHashMap<String, IHookContext>> lookup
+    private final AteDelegate d = AteDelegate.get();
+
+    private final ReentrantReadWriteLock allLock = new ReentrantReadWriteLock();
+    private final LinkedList<IHookFeed> all = new LinkedList<>();
+
+    private final ConcurrentHashMap<IPartitionKey, ConcurrentHashMap<String, IHookContext>> lookup
             = new ConcurrentHashMap<>();
 
     /**
@@ -101,7 +106,13 @@ public class HookManager {
      * @param feed callback that will be invoked
      */
     public void hookAll(IHookFeed feed) {
-        this.all.add(feed);
+        ReentrantReadWriteLock.WriteLock lockScope = allLock.writeLock();
+        lockScope.lock();
+        try {
+            this.all.add(feed);
+        } finally {
+            lockScope.unlock();
+        }
     }
 
     /**
@@ -109,7 +120,13 @@ public class HookManager {
      * @param feed callback that is already hooked
      */
     public void unhookAll(IHookFeed feed) {
-        this.all.remove(feed);
+        ReentrantReadWriteLock.WriteLock lockScope = allLock.writeLock();
+        lockScope.lock();
+        try {
+            this.all.remove(feed);
+        } finally {
+            lockScope.unlock();
+        }
     }
 
     /**
@@ -118,8 +135,15 @@ public class HookManager {
     public void feed(IPartitionKey partitionKey, MessageDataDto data, MessageMetaDto meta)
     {
         MessageDataMetaDto msg = new MessageDataMetaDto(data, meta);
-        for (IHookFeed feed : this.all) {
-            feed.feed(partitionKey, msg);
+
+        ReentrantReadWriteLock.ReadLock lockScope = allLock.readLock();
+        lockScope.lock();
+        try {
+            for (IHookFeed feed : this.all) {
+                feed.feed(partitionKey, msg);
+            }
+        } finally {
+            lockScope.unlock();;
         }
 
         if (lookup.containsKey(partitionKey) == false) return;
