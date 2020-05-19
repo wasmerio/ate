@@ -91,10 +91,14 @@ public class KafkaInbox extends DataPartitionDaemon {
         // Determine what partitions need to be reset and put them back to offset zero
         List<TopicPartition> restart = new ArrayList<>();
         for (TopicAndPartition p : keys) {
-            if (existing.contains(p)) continue;
+            if (hasResetParitition(p) == false &&
+                existing.contains(p)) {
+                continue;
+            }
             restart.add(new TopicPartition(p.partitionTopic(), p.partitionIndex()));
         }
         if (restart.size() > 0) {
+            restart.forEach(p -> clearResetPartition(new TopicAndPartition(p.topic(), p.partition())));
             c.seekToBeginning(restart);
         }
 

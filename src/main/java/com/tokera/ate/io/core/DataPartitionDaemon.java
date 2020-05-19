@@ -20,6 +20,7 @@ public abstract class DataPartitionDaemon implements Runnable {
     private Object threadLock = new Object();
 
     private Set<TopicAndPartition> partitions = new HashSet<>();
+    private Set<TopicAndPartition> resetPartitions = new HashSet<>();
     private Object partitionsLock = new Object();
 
     private volatile int shouldRun = 1;
@@ -28,6 +29,7 @@ public abstract class DataPartitionDaemon implements Runnable {
     public void addPartition(TopicAndPartition partition) {
         synchronized (partitionsLock) {
             if (partitions.add(partition)) {
+                resetPartitions.add(partition);
                 start();
             }
         }
@@ -42,12 +44,28 @@ public abstract class DataPartitionDaemon implements Runnable {
                     start();
                 }
             }
+            resetPartitions.add(partition);
         }
     }
 
     public Set<TopicAndPartition> listPartitions() {
         synchronized (partitionsLock) {
             return ImmutableSet.copyOf(partitions);
+        }
+    }
+
+    public boolean hasResetParitition(TopicAndPartition partition) {
+        synchronized (partitionsLock) {
+            if (resetPartitions.contains(partition)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public void clearResetPartition(TopicAndPartition partition) {
+        synchronized (partitionsLock) {
+            resetPartitions.remove(partition);
         }
     }
 
