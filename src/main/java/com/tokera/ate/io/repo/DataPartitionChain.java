@@ -104,7 +104,7 @@ public class DataPartitionChain {
         else
         {
             // Remove it from the chain of trust
-            deleteTrustData(data, meta);
+            deleteTrustData(data, meta, invokeCallbacks);
         }
     }
 
@@ -160,7 +160,7 @@ public class DataPartitionChain {
     }
 
     @SuppressWarnings({"known.nonnull"})
-    public void deleteTrustData(MessageDataDto data, MessageMetaDto meta) {
+    public void deleteTrustData(MessageDataDto data, MessageMetaDto meta, boolean invokeCallbacks) {
         d.debugLogging.logTrust(this.partitionKey(), data);
 
         // Get the ID
@@ -191,6 +191,12 @@ public class DataPartitionChain {
             for (String key : container.keys()) {
                 this.maintenanceState.tombstone(key);
             }
+        }
+
+        // Invoke the task manager so anything waiting for events will trigger
+        if (invokeCallbacks) {
+            d.taskManager.feed(this.partitionKey(), data, meta);
+            d.hookManager.feed(this.partitionKey(), data, meta);
         }
     }
     
