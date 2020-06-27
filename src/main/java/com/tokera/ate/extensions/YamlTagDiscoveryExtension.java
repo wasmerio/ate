@@ -1,5 +1,6 @@
 package com.tokera.ate.extensions;
 
+import com.tokera.ate.annotations.PermitParentFree;
 import com.tokera.ate.annotations.YamlTag;
 import com.tokera.ate.dao.msg.MessageSecurityGate;
 import com.tokera.ate.dto.*;
@@ -43,6 +44,10 @@ public class YamlTagDiscoveryExtension implements Extension {
     
     public void watchForYamlTag(@Observes @WithAnnotations(YamlTag.class) ProcessAnnotatedType processAnnotatedType) {
         Class<?> resource = processAnnotatedType.getAnnotatedType().getJavaClass();
+        if (resource.getAnnotation(YamlTag.class) == null)  {
+            return;
+        }
+
         watchForYamlTag(resource);
     }
     

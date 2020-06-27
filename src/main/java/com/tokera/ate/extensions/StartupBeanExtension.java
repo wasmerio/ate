@@ -1,5 +1,6 @@
 package com.tokera.ate.extensions;
 
+import com.tokera.ate.annotations.PermitParentType;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.scopes.ResourceScoped;
 import com.tokera.ate.scopes.Startup;
@@ -38,8 +39,11 @@ public class StartupBeanExtension implements Extension
         }
     }
 
-    <X> void processAnnotatedType(@Observes ProcessAnnotatedType<X> pat) {
+    <X> void processAnnotatedType(@Observes @WithAnnotations(Startup.class) ProcessAnnotatedType<X> pat) {
         Class<?> clazz = pat.getAnnotatedType().getJavaClass();
+        if (clazz.getAnnotation(Startup.class) == null)  {
+            return;
+        }
         if (already.contains(clazz)) {
             pat.veto();
             return;
@@ -49,7 +53,6 @@ public class StartupBeanExtension implements Extension
 
     <X> void processBean(@Observes ProcessBean<X> event)
     {
-
         if (event.getAnnotated().isAnnotationPresent(Startup.class))
         {
             if (event.getAnnotated().isAnnotationPresent(ApplicationScoped.class) == false) {

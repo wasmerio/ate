@@ -24,6 +24,11 @@ public class SerializableObjectsExtension implements Extension {
     @SuppressWarnings({"unchecked"})
     public void watchForDto(@Observes @WithAnnotations({PermitParentType.class, PermitParentFree.class, YamlTag.class}) ProcessAnnotatedType processAnnotatedType) {
         Class<?> resource = processAnnotatedType.getAnnotatedType().getJavaClass();
+        if (resource.getAnnotation(PermitParentType.class) == null &&
+            resource.getAnnotation(PermitParentFree.class) == null &&
+            resource.getAnnotation(YamlTag.class) == null)  {
+            return;
+        }
 
         lookup.put(resource.getName(), resource);
     }

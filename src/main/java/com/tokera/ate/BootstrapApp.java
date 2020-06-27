@@ -1,5 +1,6 @@
 package com.tokera.ate;
 
+import com.tokera.ate.annotations.PermitParentFree;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,12 +41,20 @@ public class BootstrapApp extends Application implements Extension {
     
     public void watchForResources(@Observes @WithAnnotations(Path.class) ProcessAnnotatedType processAnnotatedType) {
         Class<?> resource = processAnnotatedType.getAnnotatedType().getJavaClass();
+        if (resource.getAnnotation(Path.class) == null)  {
+            return;
+        }
+
         LOG.info("BootstrapApp: Found Resource - " + resource.getName());
         restEndpointClasses.add(resource);
     }
 
     public void watchForProviders(@Observes @WithAnnotations(Provider.class) ProcessAnnotatedType processAnnotatedType) {
         Class<?> provider = processAnnotatedType.getAnnotatedType().getJavaClass();
+        if (provider.getAnnotation(Provider.class) == null)  {
+            return;
+        }
+
         LOG.info("BootstrapApp: Found Provider - " + provider.getName());
         providerClasses.add(provider);
     }

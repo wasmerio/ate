@@ -61,6 +61,10 @@ public class DaoParentDiscoveryExtension implements Extension {
     
     public void watchForPermitParentType(@Observes @WithAnnotations(PermitParentType.class) ProcessAnnotatedType processAnnotatedType) {
         Class<?> resource = processAnnotatedType.getAnnotatedType().getJavaClass();
+        if (resource.getAnnotation(PermitParentType.class) == null)  {
+            return;
+        }
+
         validateDaoObject(resource, false);
         watchForPermitParentType(resource);
         watchForImplicitAuthority(resource);
@@ -69,6 +73,10 @@ public class DaoParentDiscoveryExtension implements Extension {
 
     public void watchForPermitParentFree(@Observes @WithAnnotations(PermitParentFree.class) ProcessAnnotatedType processAnnotatedType) {
         Class<?> resource = processAnnotatedType.getAnnotatedType().getJavaClass();
+        if (resource.getAnnotation(PermitParentFree.class) == null)  {
+            return;
+        }
+
         validateDaoObject(resource, true);
         watchForPermitParentFree(resource);
         watchForImplicitAuthority(resource);
