@@ -4,7 +4,7 @@
 
     <groupId>com.tokera</groupId>
     <artifactId>ate</artifactId>
-    <version>1.0.19-SNAPSHOT</version>
+    <version>1.0.19</version>
     <name>ate</name>
     <description>Distributed immutable data store with strong encryption and authentication</description>
     <developers>
@@ -39,7 +39,7 @@
         <connection>scm:git:git://github.com/john-sharratt/ate.git</connection>
         <developerConnection>scm:git:git@github.com:john-sharratt/ate.git</developerConnection>
         <url>https://github.com/john-sharratt/ate</url>
-        <tag>ate-0.2.16</tag>
+        <tag>ate-1.0.19</tag>
     </scm>
 
     <properties>
