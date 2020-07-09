@@ -231,10 +231,12 @@ public class CryptoTests {
         testEncrypt(256, null);
     }
 
+    /*
     @Test
     public void testEncrypt512() throws IOException, InvalidCipherTextException {
         testEncrypt(512, null);
     }
+    */
 
     @Test
     public void testSign64Public() {
@@ -266,12 +268,12 @@ public class CryptoTests {
         testEncrypt(256, "public");
     }
 
+    /*
     @Test
     public void testEncrypt512Public() throws IOException, InvalidCipherTextException {
         testEncrypt(512, "public");
     }
 
-    /*
     //@Test
     public void generateSignKeys() {
         for (int n = 0; n < 4; n++) {

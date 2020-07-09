@@ -80,7 +80,7 @@ public class MessagePublicKeyTests
         random.nextBytes(bytes4);
 
         MessageKeyPartDto publicPartA = new MessageKeyPartDto(KeyType.ntru, 128, Base64.encodeBase64URLSafeString(bytes3));
-        MessageKeyPartDto publicPartB = new MessageKeyPartDto(KeyType.newhope, 128, Base64.encodeBase64URLSafeString(bytes4));
+        MessageKeyPartDto publicPartB = new MessageKeyPartDto(KeyType.aes, 128, Base64.encodeBase64URLSafeString(bytes4));
         MessagePublicKeyDto data = new MessagePublicKeyDto(Lists.newArrayList(publicPartA, publicPartB));
         data.setAlias("THEALIAS");
         data.setPublicKeyHash(Base64.encodeBase64URLSafeString(bytes2));

@@ -1,6 +1,7 @@
 package com.tokera.ate.test.storage;
 
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.delegates.RequestContextDelegate;
 import com.tokera.ate.test.dao.MyAccount;
 import com.tokera.ate.test.dao.MyThing;
 import org.jboss.weld.bootstrap.spi.BeanDiscoveryMode;

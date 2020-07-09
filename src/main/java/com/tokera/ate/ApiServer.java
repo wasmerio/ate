@@ -142,12 +142,14 @@ public class ApiServer {
         weld.addExtension(new TokenScopeExtension());
         weld.addExtension(new SerializableObjectsExtension());
         weld.addExtension(new io.smallrye.faulttolerance.HystrixExtension());
+        /*
         weld.addPackages(   true,
-                TokeraResteasyJackson2Provider.class,
                 YamlReader.class,
                 HtmlRenderableWriter.class,
                 StringTextStar.class,
+                TokeraResteasyJackson2Provider.class,
                 AteDelegate.class);
+        */
         WeldContainer cdi = weld.initialize();
 
         BootstrapConfig bootstrapConfig = cdi.select(BootstrapConfig.class).get();

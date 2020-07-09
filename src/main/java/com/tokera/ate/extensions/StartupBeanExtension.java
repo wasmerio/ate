@@ -13,6 +13,7 @@ import javax.enterprise.context.RequestScoped;
 import javax.enterprise.context.spi.CreationalContext;
 import javax.enterprise.event.Observes;
 import javax.enterprise.inject.spi.*;
+import javax.inject.Inject;
 import java.lang.reflect.Field;
 import java.util.HashSet;
 import java.util.Map;
@@ -34,7 +35,7 @@ public class StartupBeanExtension implements Extension
                 clazz.isAnnotationPresent(ResourceScoped.class) ||
                 clazz.isAnnotationPresent(Dependent.class))
             {
-                discovery.addAnnotatedType(manager.createAnnotatedType(clazz), clazz.getName());
+                //discovery.addAnnotatedType(manager.createAnnotatedType(clazz), clazz.getName());
             }
         }
     }

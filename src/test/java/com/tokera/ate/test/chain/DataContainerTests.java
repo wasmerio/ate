@@ -67,8 +67,8 @@ public class DataContainerTests {
         container.add(data, new MessageMetaDto(UUID.randomUUID().toString(), 0,0));
 
         List<DataGraphNode> scope = container.timeline();
-        assert scope.size() == 3;
-        assert scope.get(2).version.compareTo(version3) == 0;
+        assert scope.size() == 1;
+        assert scope.get(0).version.compareTo(version3) == 0;
     }
 
     // This test is no longer valid after the optimizations to the container leaves
