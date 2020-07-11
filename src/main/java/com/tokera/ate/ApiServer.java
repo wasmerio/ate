@@ -4,6 +4,7 @@ import com.esotericsoftware.yamlbeans.YamlReader;
 import com.google.common.base.Stopwatch;
 import com.tokera.ate.common.ApplicationConfigLoader;
 import com.tokera.ate.delegates.AteDelegate;
+import com.tokera.ate.dto.WeldInitializationConfig;
 import com.tokera.ate.extensions.*;
 import com.tokera.ate.providers.ProcessBodyReader;
 import com.tokera.ate.providers.ProcessBodyWriter;
@@ -32,6 +33,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.enterprise.inject.spi.CDI;
+import javax.enterprise.inject.spi.Extension;
 import javax.validation.*;
 import javax.ws.rs.ApplicationPath;
 import javax.ws.rs.WebApplicationException;
@@ -115,7 +117,7 @@ public class ApiServer {
         return providers;
     }
 
-    public static <T extends BootstrapApp> BootstrapConfig startWeld(String @Nullable [] _args, Class<T> clazz) {
+    public static <T extends BootstrapApp> BootstrapConfig startWeld(WeldInitializationConfig<T> weldConfig) {
         ValidatorFactory validatorFactory = Validation.byProvider( HibernateValidator.class )
                 .configure()
                 .buildValidatorFactory();
@@ -127,37 +129,28 @@ public class ApiServer {
         // Load the CDI extension
         Weld weld = new Weld();
         weld.setBeanDiscoveryMode(BeanDiscoveryMode.ANNOTATED);
-        weld.enableDiscovery();
-        weld.addBeanClass(YamlProvider.class);
-        weld.addBeanClass(ProcessBodyReader.class);
-        weld.addBeanClass(ProcessBodyWriter.class);
-        weld.addBeanClass(TokeraResteasyJackson2Provider.class);
-        weld.addBeanClass(ZooServer.class);
-        weld.addBeanClass(KafkaServer.class);
-        weld.addExtension(new ResteasyCdiExtension());
-        weld.addExtension(new YamlTagDiscoveryExtension());
-        weld.addExtension(new DaoParentDiscoveryExtension());
-        weld.addExtension(new StartupBeanExtension());
-        weld.addExtension(new ResourceScopedExtension());
-        weld.addExtension(new TokenScopeExtension());
-        weld.addExtension(new SerializableObjectsExtension());
-        weld.addExtension(new io.smallrye.faulttolerance.HystrixExtension());
-        /*
-        weld.addPackages(   true,
-                YamlReader.class,
-                HtmlRenderableWriter.class,
-                StringTextStar.class,
-                TokeraResteasyJackson2Provider.class,
-                AteDelegate.class);
-        */
+        if (weldConfig.enableDiscovery) {
+            weld.enableDiscovery();
+        } else {
+            weld.disableDiscovery();
+        }
+        for (Class<?> beanClazz : weldConfig.beanClasses) {
+            weld.addBeanClass(beanClazz);
+        }
+        for (Extension ext : weldConfig.extensions) {
+            weld.addExtension(ext);
+        }
+        for (Class<?> packageClazz : weldConfig.packages) {
+            weld.addPackage(true, packageClazz);
+        }
         WeldContainer cdi = weld.initialize();
 
         BootstrapConfig bootstrapConfig = cdi.select(BootstrapConfig.class).get();
-        String[] args = _args;
+        String[] args = weldConfig.args;
         if (args != null && args.length >= 1) {
             bootstrapConfig.setArguments(Arrays.asList(args));
         }
-        bootstrapConfig.setApplicationClass(clazz);
+        bootstrapConfig.setApplicationClass(weldConfig.clazz);
         return bootstrapConfig;
     }
 

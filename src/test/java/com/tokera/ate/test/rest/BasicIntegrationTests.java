@@ -9,6 +9,7 @@ import com.tokera.ate.client.TestTools;
 import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.dto.PrivateKeyWithSeedDto;
+import com.tokera.ate.dto.WeldInitializationConfig;
 import com.tokera.ate.enumerations.DefaultStorageSystem;
 import com.tokera.ate.test.dao.MyAccount;
 import com.tokera.ate.test.dao.MyThing;
@@ -52,7 +53,7 @@ public class BasicIntegrationTests {
 		ApiServer.setPreventKafka(true);
 		//AuditInterceptor.setPreventObscuring(true);
 
-        BootstrapConfig config = ApiServer.startWeld(null, BootstrapApp.class);
+        BootstrapConfig config = ApiServer.startWeld(new WeldInitializationConfig<>(null, BootstrapApp.class).clearPackages());
         config.setLoggingMessageDrops(true);
         config.setDefaultStorageSystem(DefaultStorageSystem.LocalRam);
         //config.setDefaultStorageSystem(DefaultStorageSystem.Kafka);
