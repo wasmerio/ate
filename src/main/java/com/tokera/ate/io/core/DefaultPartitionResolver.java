@@ -81,6 +81,15 @@ public class DefaultPartitionResolver implements IPartitionResolver {
             }
         }
 
+        // Lastly we try any partition key even if its not saved yet
+        partitionKey = d.requestContext.getPartitionKeyScopeOrNull();
+        if (partitionKey != null) {
+            return partitionKey;
+        }
+        for (IPartitionKey otherPartitionKey : d.requestContext.getOtherPartitionKeys()) {
+            return otherPartitionKey;
+        }
+
         // This object isn't known to the current context so we really can't do much with it
         if (shouldThrow == false) return null;
         throw new RuntimeException("Unable to transverse up the tree high enough to determine the topic and partition for this data object [" + obj + "].");
