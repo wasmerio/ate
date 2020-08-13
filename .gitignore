@@ -27,6 +27,7 @@ build
 gradle
 gradlew
 gradlew.bat
+release
 
 repo.zip
 
