@@ -81,6 +81,15 @@ public class ApiServer {
 
         // Add the other providers (if they are not added already)
         List<Class> check = Arrays.asList(
+                TokeraResteasyJackson2Provider.class,
+                YamlProvider.class,
+                ProcessBodyReader.class,
+                ProcessBodyWriter.class
+        );
+
+        /*
+        // Add the other providers (if they are not added already)
+        List<Class> check = Arrays.asList(
                 HtmlRenderableWriter.class,
                 StringTextStar.class,
                 TokeraResteasyJackson2Provider.class,
@@ -109,6 +118,8 @@ public class ApiServer {
                 SseEventOutputProvider.class
 
         );
+        */
+
         for (Class clazz : check) {
             if (providers.contains(clazz) == false) {
                 providers.add(clazz);
@@ -128,7 +139,7 @@ public class ApiServer {
 
         // Load the CDI extension
         Weld weld = new Weld();
-        weld.setBeanDiscoveryMode(BeanDiscoveryMode.ANNOTATED);
+        weld.setBeanDiscoveryMode(weldConfig.discoveryMode);
         if (weldConfig.enableDiscovery) {
             weld.enableDiscovery();
         } else {

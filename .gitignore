@@ -23,6 +23,10 @@
 hs_err_pid*
 
 target
+build
+gradle
+gradlew
+gradlew.bat
 
 repo.zip
 

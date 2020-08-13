@@ -4,6 +4,7 @@ import com.esotericsoftware.yamlbeans.YamlReader;
 import com.tokera.ate.BootstrapApp;
 import com.tokera.ate.KafkaServer;
 import com.tokera.ate.ZooServer;
+import com.tokera.ate.common.LoggerHook;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.extensions.*;
 import com.tokera.ate.providers.ProcessBodyReader;
@@ -14,6 +15,7 @@ import org.checkerframework.checker.nullness.qual.Nullable;
 import org.jboss.resteasy.cdi.ResteasyCdiExtension;
 import org.jboss.resteasy.plugins.providers.StringTextStar;
 import org.jboss.resteasy.plugins.providers.html.HtmlRenderableWriter;
+import org.jboss.weld.bootstrap.spi.BeanDiscoveryMode;
 
 import javax.enterprise.inject.spi.Extension;
 import java.util.LinkedHashSet;
@@ -22,6 +24,7 @@ import java.util.LinkedList;
 public class WeldInitializationConfig<T extends BootstrapApp> {
 
     public boolean enableDiscovery = true;
+    public BeanDiscoveryMode discoveryMode = BeanDiscoveryMode.ANNOTATED;
     public final String @Nullable [] args;
     public final Class<T> clazz;
     public final LinkedHashSet<Class<?>> packages = new LinkedHashSet<>();
@@ -33,6 +36,7 @@ public class WeldInitializationConfig<T extends BootstrapApp> {
         this.args = _args;
         this.clazz = clazz;
 
+        /*
         this.packages.add(YamlReader.class);
         this.packages.add(HtmlRenderableWriter.class);
         this.packages.add(StringTextStar.class);
@@ -54,6 +58,8 @@ public class WeldInitializationConfig<T extends BootstrapApp> {
         this.beanClasses.add(TokeraResteasyJackson2Provider.class);
         this.beanClasses.add(ZooServer.class);
         this.beanClasses.add(KafkaServer.class);
+        this.beanClasses.add(LoggerHook.class);
+        */
     }
 
     public WeldInitializationConfig<T> clearPackages() {
@@ -68,6 +74,11 @@ public class WeldInitializationConfig<T extends BootstrapApp> {
 
     public WeldInitializationConfig<T> clearBeanClasses() {
         this.beanClasses.clear();
+        return this;
+    }
+
+    public WeldInitializationConfig<T> addBeanClass(Class<?> clazz) {
+        this.beanClasses.add(clazz);
         return this;
     }
 

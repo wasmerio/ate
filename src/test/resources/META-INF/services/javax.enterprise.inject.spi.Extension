@@ -1,6 +1,0 @@
-com.tokera.ate.extensions.TokenScopeExtension
-com.tokera.ate.extensions.ResourceScopedExtension
-com.tokera.ate.extensions.DaoParentDiscoveryExtension
-com.tokera.ate.extensions.YamlTagDiscoveryExtension
-com.tokera.ate.extensions.StartupBeanExtension
-com.tokera.ate.extensions.SerializableObjectsExtension

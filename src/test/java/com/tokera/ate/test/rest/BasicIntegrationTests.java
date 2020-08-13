@@ -12,10 +12,12 @@ import com.tokera.ate.dto.PrivateKeyWithSeedDto;
 import com.tokera.ate.dto.WeldInitializationConfig;
 import com.tokera.ate.enumerations.DefaultStorageSystem;
 import com.tokera.ate.test.dao.MyAccount;
-import com.tokera.ate.test.dao.MyThing;
 import com.tokera.ate.test.dao.SeedingDelegate;
 import com.tokera.ate.test.dto.NewAccountDto;
-import com.tokera.ate.test.dto.ThingsDto;
+import com.tokera.ate.test.rest.api.AccountREST;
+import com.tokera.ate.test.rest.api.MySpecialRequestDelegate;
+import com.tokera.ate.test.rest.api.RequestWork;
+import com.tokera.ate.test.rest.api.TestREST;
 import org.eclipse.microprofile.faulttolerance.Bulkhead;
 import org.junit.jupiter.api.*;
 
@@ -24,6 +26,7 @@ import javax.validation.constraints.NotNull;
 import javax.ws.rs.WebApplicationException;
 import javax.ws.rs.client.Entity;
 import javax.ws.rs.core.MediaType;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -48,12 +51,13 @@ public class BasicIntegrationTests {
     }
 
     @BeforeAll
-	public static void init() {
+	public static void init() throws IOException {
 		ApiServer.setPreventZooKeeper(true);
 		ApiServer.setPreventKafka(true);
 		//AuditInterceptor.setPreventObscuring(true);
 
-        BootstrapConfig config = ApiServer.startWeld(new WeldInitializationConfig<>(null, BootstrapApp.class).clearPackages());
+        BootstrapConfig config = ApiServer.startWeld(new WeldInitializationConfig<>(null, BootstrapApp.class));
+
         config.setLoggingMessageDrops(true);
         config.setDefaultStorageSystem(DefaultStorageSystem.LocalRam);
         //config.setDefaultStorageSystem(DefaultStorageSystem.Kafka);
