@@ -1,4 +1,4 @@
-build:
+all:
 	./build.sh
 
 inside:
