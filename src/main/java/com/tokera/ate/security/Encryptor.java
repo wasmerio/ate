@@ -79,7 +79,6 @@ import java.util.stream.Collectors;
 @ApplicationScoped
 public class Encryptor implements Runnable
 {
-    AteDelegate d = AteDelegate.get();
     @SuppressWarnings("initialization.fields.uninitialized")
     @Inject
     private LoggerHook LOG;
@@ -569,6 +568,7 @@ public class Encryptor implements Runnable
     {
         MessagePrivateKeyDto ret = genSignKey(config.getDefaultSigningStrength());
         if (this.config.isExtraValidation()) {
+            AteDelegate d = AteDelegate.get();
             d.validationUtil.validateOrThrow(ret);
         }
         return ret;
@@ -871,6 +871,7 @@ public class Encryptor implements Runnable
     public MessagePrivateKeyDto genEncryptKey() {
         MessagePrivateKeyDto ret = this.genEncryptKey(config.getDefaultEncryptionStrength());
         if (this.config.isExtraValidation()) {
+            AteDelegate d = AteDelegate.get();
             d.validationUtil.validateOrThrow(ret);
         }
         return ret;
@@ -1632,7 +1633,7 @@ public class Encryptor implements Runnable
      */
     public @Hash String computePermissionsHash(EffectivePermissions permissions) {
         String seed = new PartitionKeySerializer().write(permissions.partitionKey);
-        return d.encryptor.hashShaAndEncode(seed, permissions.rolesRead);
+        return hashShaAndEncode(seed, permissions.rolesRead);
     }
 
     /**
@@ -1640,7 +1641,7 @@ public class Encryptor implements Runnable
      */
     public @Hash String computePermissionsHash(IPartitionKey key, Iterable<String> roles) {
         String seed = new PartitionKeySerializer().write(key);
-        return d.encryptor.hashShaAndEncode(seed, roles);
+        return hashShaAndEncode(seed, roles);
     }
 
     public @Hash String computePermissionsHash(IPartitionKey key, MessageSecurityCastleDto castle) {

@@ -173,10 +173,12 @@ public class ApiServer {
         loadEncryptorSettings(apiConfig);
 
         // Build the default storage subsystem
+        boolean storageOnKafka = false;
         switch (apiConfig.getDefaultStorageSystem()) {
             case Kafka:
                 d.storageFactory.buildKafkaBackend()
                         .addAccessLoggerLayer();
+                storageOnKafka = true;
                 break;
             case LocalRam:
                 d.storageFactory.buildRamBackend()
@@ -195,16 +197,16 @@ public class ApiServer {
         apiServer.start(apiConfig);
 
         // Start zookeeper and kafka
-        if ("true".equals(props.getOrDefault("zookeeper.server", "false").toString()) &&
-                preventZooKeeper == false)
-        {
-            boolean shouldForce = "true".equals(props.getOrDefault("zookeeper.force", "false").toString());
-            d.zooKeeper = zooServer = CDI.current().select(ZooServer.class).get().start(shouldForce);
-        }
-        if ("true".equals(props.getOrDefault("kafka.server", "false").toString()) &&
-                preventKafka == false)
-        {
-            d.kafka = kafkaServer = CDI.current().select(KafkaServer.class).get().start();
+        if (storageOnKafka) {
+            if ("true".equals(props.getOrDefault("zookeeper.server", "false").toString()) &&
+                    preventZooKeeper == false) {
+                boolean shouldForce = "true".equals(props.getOrDefault("zookeeper.force", "false").toString());
+                d.zooKeeper = zooServer = CDI.current().select(ZooServer.class).get().start(shouldForce);
+            }
+            if ("true".equals(props.getOrDefault("kafka.server", "false").toString()) &&
+                    preventKafka == false) {
+                d.kafka = kafkaServer = CDI.current().select(KafkaServer.class).get().start();
+            }
         }
         
         try {

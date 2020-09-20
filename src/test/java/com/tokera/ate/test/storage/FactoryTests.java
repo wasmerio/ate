@@ -1,7 +1,13 @@
 package com.tokera.ate.test.storage;
 
+import com.tokera.ate.ApiServer;
+import com.tokera.ate.BootstrapApp;
+import com.tokera.ate.BootstrapConfig;
 import com.tokera.ate.delegates.AteDelegate;
 import com.tokera.ate.delegates.RequestContextDelegate;
+import com.tokera.ate.dto.WeldInitializationConfig;
+import com.tokera.ate.enumerations.DefaultStorageSystem;
+import com.tokera.ate.io.task.TaskHandler;
 import com.tokera.ate.test.dao.MyAccount;
 import com.tokera.ate.test.dao.MyThing;
 import org.jboss.weld.bootstrap.spi.BeanDiscoveryMode;
@@ -16,22 +22,18 @@ import org.junit.jupiter.api.extension.ExtendWith;
 
 import javax.enterprise.context.RequestScoped;
 
-@ExtendWith(WeldJunit5Extension.class)
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 public class FactoryTests {
 
-    @WeldSetup
-    public WeldInitiator weld = WeldInitiator
-            .from(new Weld()
-                    .setBeanDiscoveryMode(BeanDiscoveryMode.ANNOTATED)
-                    .enableDiscovery()
-                    .addBeanClass(MyAccount.class)
-                    .addBeanClass(MyThing.class))
-            .activate(RequestScoped.class)
-            .build();
-
     @BeforeAll
     public void init() {
+        BootstrapConfig config = ApiServer.startWeld(new WeldInitializationConfig<>(null, BootstrapApp.class));
+        config.setLoggingMessageDrops(true);
+        config.setDefaultStorageSystem(DefaultStorageSystem.LocalRam);
+        config.setPingCheckOnStart(false);
+
+        ApiServer.startApiServer(config);
+
         AteDelegate d = AteDelegate.get();
 
         // Build the default storage subsystem
@@ -42,6 +44,8 @@ public class FactoryTests {
     @Test
     public void testBackend() {
         AteDelegate d = AteDelegate.get();
-        d.dataRepository.backend().touch();
+        TaskHandler.enterRequestScopeAndInvoke(() -> {
+            d.dataRepository.backend().touch();
+        });
     }
 }

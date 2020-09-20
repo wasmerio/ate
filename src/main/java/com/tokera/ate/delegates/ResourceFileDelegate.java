@@ -23,8 +23,6 @@ import static org.reflections.util.Utils.findLogger;
 @Startup
 @ApplicationScoped
 public class ResourceFileDelegate {
-    AteDelegate d = AteDelegate.get();
-
     private Reflections resReflection;
 
     public ResourceFileDelegate() {

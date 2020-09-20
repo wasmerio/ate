@@ -349,13 +349,22 @@ public class TaskHandler<T extends BaseDao> implements Runnable, ITaskHandler {
         }, null);
     }
 
+    /**
+     * Enters a fake request scope and brings the token online so that the callback will
+     * @param callback
+     */
+    public static void enterRequestScopeAndInvoke(Runnable callback)
+    {
+        BoundRequestContext boundRequestContext = CDI.current().select(BoundRequestContext.class).get();
+        enterRequestScopeAndInvoke(null, boundRequestContext, null, callback);
+    }
 
     /**
      * Enters a fake request scope and brings the token online so that the callback will
      * @param token
      * @param callback
      */
-    public static void enterRequestScopeAndInvoke(IPartitionKey partitionKey, BoundRequestContext boundRequestContext, @Nullable TokenDto token, Runnable callback) {
+    public static void enterRequestScopeAndInvoke(@Nullable IPartitionKey partitionKey, BoundRequestContext boundRequestContext, @Nullable TokenDto token, Runnable callback) {
         AteDelegate d = AteDelegate.get();
         if (boundRequestContext.isActive()) {
             throw new RuntimeException("Nested request context are not currently supported.");
@@ -375,11 +384,15 @@ public class TaskHandler<T extends BaseDao> implements Runnable, ITaskHandler {
 
                 // Run the stuff under this scope context
                 d.logging.setForceStatic(false);
-                d.requestContext.pushPartitionKey(partitionKey);
+                if (partitionKey != null) {
+                    d.requestContext.pushPartitionKey(partitionKey);
+                }
                 try {
                     callback.run();
                 } finally {
-                    d.requestContext.popPartitionKey();
+                    if (partitionKey != null) {
+                        d.requestContext.popPartitionKey();
+                    }
                 }
 
                 // Invoke the merge
