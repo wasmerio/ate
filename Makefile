@@ -1,5 +1,6 @@
 all:
-	./build.sh
+	gradle build
+	gradle jar
 
 inside:
 	./compile.sh

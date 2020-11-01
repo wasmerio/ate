@@ -5,7 +5,7 @@ plugins {
 }
 
 group 'com.tokera'
-version '1.0.22-SNAPSHOT'
+version '1.0.24-SNAPSHOT'
 
 sourceCompatibility = 1.8
 

@@ -14,6 +14,8 @@ import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.MultivaluedHashMap;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.ws.rs.core.Response;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Future;
@@ -75,6 +77,10 @@ public class RawClient {
     public IPartitionKey getPartitionKey() { return this.partitionKey; }
 
     public void setPartitionKey(IPartitionKey val) { this.partitionKey = val; }
+
+    public ResteasyClient getResteasyClient() {
+        return this.client;
+    }
 
     public static ResteasyClient createResteasyClient() {
         ResteasyClient client = new ResteasyClientBuilder()
@@ -140,14 +146,24 @@ public class RawClient {
         return response.readEntity(folderClazz);
     }
 
+    public Invocation.Builder fsGetTarget(String path) {
+        return targetRelative(prefixForFs, path, MediaType.WILDCARD_TYPE);
+    }
+
     public String fsGet(String path) {
-        Response response = targetRelative(prefixForFs, path, MediaType.WILDCARD_TYPE).get();
+        Response response = fsGetTarget(path).get();
         TestTools.validateResponse(response, path);
         return response.readEntity(String.class);
     }
 
+    public InputStream fsGetBinary(String path) {
+        Response response = fsGetTarget(path).get();
+        TestTools.validateResponse(response, path);
+        return response.readEntity(InputStream.class);
+    }
+
     public @Nullable String fsGetOrNull(String path) {
-        Response response = targetRelative(prefixForFs, path, MediaType.WILDCARD_TYPE).get();
+        Response response = fsGetTarget(path).get();
         if (response.getStatus() < 200 || response.getStatus() >= 300) {
             return null;
         }
@@ -158,20 +174,48 @@ public class RawClient {
         return fsPost(path, Entity.text(data), mediaType);
     }
 
+    public Invocation.Builder fsPostTarget(String path, MediaType mediaType) {
+        return targetRelative(prefixForFs, path, MediaType.WILDCARD_TYPE, mediaType);
+    }
+
     public String fsPost(String path, Entity<?> data, MediaType mediaType) {
-        Response response = targetRelative(prefixForFs, path, MediaType.WILDCARD_TYPE, mediaType).post(data);
+        Response response = fsPostTarget(path, mediaType).post(data);
         TestTools.validateResponse(response, path);
         return response.readEntity(String.class);
+    }
+
+    public InputStream fsPostBinary(String path, byte[] data) {
+        return fsPostBinary(path, Entity.entity(data, MediaType.APPLICATION_OCTET_STREAM_TYPE));
+    }
+
+    public InputStream fsPostBinary(String path, Entity<?> data) {
+        Response response = fsPostTarget(path, MediaType.APPLICATION_OCTET_STREAM_TYPE).post(data);
+        TestTools.validateResponse(response, path);
+        return response.readEntity(InputStream.class);
     }
 
     public String fsPut(String path, String data, MediaType mediaType) {
         return fsPut(path, Entity.entity(data, mediaType), mediaType);
     }
 
+    public Invocation.Builder fsPutTarget(String path, MediaType mediaType) {
+        return targetRelative(prefixForFs, path, MediaType.WILDCARD_TYPE, mediaType);
+    }
+
     public String fsPut(String path, Entity<?> data, MediaType mediaType) {
-        Response response = targetRelative(prefixForFs, path, MediaType.WILDCARD_TYPE, mediaType).put(data);
+        Response response = fsPutTarget(path, mediaType).put(data);
         TestTools.validateResponse(response, path);
         return response.readEntity(String.class);
+    }
+
+    public InputStream fsPutBinary(String path, byte[] data) {
+        return fsPutBinary(path, Entity.entity(data, MediaType.APPLICATION_OCTET_STREAM_TYPE));
+    }
+
+    public InputStream fsPutBinary(String path, Entity<?> data) {
+        Response response = fsPutTarget(path, MediaType.APPLICATION_OCTET_STREAM_TYPE).put(data);
+        TestTools.validateResponse(response, path);
+        return response.readEntity(InputStream.class);
     }
 
     private String buildUrl(String path) {
