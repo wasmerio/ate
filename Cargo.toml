@@ -1,0 +1,15 @@
+[package]
+name = "ate"
+version = "2.0.0"
+authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+uuid = { version = "*", features = ["serde", "v4"] }
+tokio = { version = "*", features = ["full"] }
+serde = { version = "*", features = ["derive"] }
+bincode = { version = "*" }
+derive-new = { version = "*" }
+
+[dev-dependencies]
+ctor = { version = "*" }
