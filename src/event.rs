@@ -1,12 +1,16 @@
 use serde::{Serialize, Deserialize};
 
 use super::header::Header;
+use super::header::Digest;
 use super::header::EmptyMeta;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Event<M> {
-    pub header: Header<M>,
+pub struct Event<M>
+    where M: Serialize + Deserialize<'static> + Clone
+{
+    pub header: Header,
+    pub meta: M,
     pub body: Vec<u8>,
+    pub dig: Digest,
 }
 
 #[allow(dead_code)]

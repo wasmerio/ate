@@ -1,3 +1,5 @@
+use serde::{Serialize, Deserialize};
+
 #[allow(unused_imports)]
 use std::io::Write;
 #[allow(unused_imports)]
@@ -13,7 +15,9 @@ pub trait ChainKey {
 }
 
 #[allow(dead_code)]
-pub struct ChainOfTrust<M> {
+pub struct ChainOfTrust<M>
+    where M: Serialize + Deserialize<'static> + Clone
+{
     pub events: Vec<Event<M>>,
 }
 

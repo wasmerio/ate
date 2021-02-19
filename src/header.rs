@@ -16,8 +16,14 @@ pub struct Digest {
 }
 
 #[allow(dead_code)]
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Header<M> {
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct Header
+{
+    pub off_data: u64,
+    pub size_data: u64,
+    pub off_digest: u64,
+    pub size_digest: u64,
+
     pub key: String,
     pub castle_id: Uuid,
     pub inherit_read: bool,
@@ -25,11 +31,7 @@ pub struct Header<M> {
     pub allow_read: Vec<String>,
     pub allow_write: Vec<String>,
     pub implicit_authority: String,
+    
     pub version: Uuid,
     pub previous_version: Uuid,
-    pub digest: Digest,
-    pub meta: M,
 }
-
-#[allow(dead_code)]
-pub type DefaultHeader = Header<EmptyMeta>;
