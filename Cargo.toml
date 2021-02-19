@@ -13,6 +13,7 @@ tokio = { version = "*", features = ["full"] }
 serde = { version = "*", features = ["derive"] }
 bincode = "*"
 derive-new = "*"
+bytes = "*"
 
 [dev-dependencies]
 ctor = "*"

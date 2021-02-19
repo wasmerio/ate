@@ -10,6 +10,8 @@ use std::sync::Arc;
 use tokio::{fs::File, fs::OpenOptions, io::{AsyncReadExt, AsyncWriteExt, AsyncSeekExt}};
 use tokio::sync::Mutex;
 use tokio::io::Result;
+use bytes::BytesMut;
+use bytes::Bytes;
 
 #[cfg(test)]
 use tokio::runtime::Runtime;
@@ -29,8 +31,8 @@ pub struct SplitLogFile
 pub struct EventData
 {
     pub header: Header,
-    pub data: Vec<u8>,
-    pub digest: Vec<u8>,
+    pub data: Bytes,
+    pub digest: Bytes,
 }
 
 impl SplitLogFile {
@@ -73,10 +75,11 @@ impl SplitLogFile {
     async fn read_once(&mut self) -> Option<Header>
     {
         let size_head = self.head_file.read_u64().await.ok()?;
-        let mut buff_head = Vec::with_capacity(size_head as usize);
-        self.head_file.read(buff_head.as_mut_slice()).await.ok()?;
+        let mut buff_head = BytesMut::with_capacity(size_head as usize);
+        self.head_file.read_buf(&mut buff_head).await.ok()?;
+        let buff_head = buff_head.freeze();
 
-        let ret: Header = bincode::deserialize(buff_head.as_slice()).ok()?;
+        let ret: Header = bincode::deserialize(&buff_head).ok()?;
 
         self.off_head = self.off_head + size_head;
         self.off_data = self.off_data + ret.size_data + ret.size_digest;
@@ -97,9 +100,10 @@ impl SplitLogFile {
         self.data_file.write_all(data).await?;
         self.data_file.seek(SeekFrom::Start(header.off_digest)).await?;
         self.data_file.write_all(digest).await?;
+        
         self.head_file.write_u64(buff_header.len() as u64).await?;
         self.head_file.write_all(buff_header.as_slice()).await?;
-
+        
         self.off_head = self.off_head + buff_header.len() as u64;
         self.off_data = self.off_data + header.size_data + header.size_digest;
 
@@ -108,19 +112,19 @@ impl SplitLogFile {
 
     #[allow(dead_code)]
     pub async fn load(&mut self, header: &Header) -> Result<EventData> {
-        let mut buff_data = Vec::with_capacity(header.size_data as usize);
-        let mut buff_digest = Vec::with_capacity(header.size_digest as usize);
+        let mut buff_data = BytesMut::with_capacity(header.size_data as usize);
+        let mut buff_digest = BytesMut::with_capacity(header.size_digest as usize);
 
         self.data_file.seek(SeekFrom::Start(header.off_data)).await?;
-        self.data_file.read(buff_data.as_mut_slice()).await?;
+        self.data_file.read_buf(&mut buff_data).await?;
         self.data_file.seek(SeekFrom::Start(header.off_digest)).await?;
-        self.data_file.read(buff_digest.as_mut_slice()).await?;
+        self.data_file.read_buf(&mut buff_digest).await?;
 
         Ok(
             EventData {
                 header: header.clone(),
-                data: buff_data,
-                digest: buff_digest,
+                data: buff_data.freeze(),
+                digest: buff_digest.freeze(),
             }
         )
     }
