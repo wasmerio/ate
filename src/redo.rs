@@ -5,170 +5,157 @@ use super::conf::*;
 use super::chain::*;
 use super::header::*;
 
-use std::io::SeekFrom;
+use std::{collections::VecDeque, io::SeekFrom};
 use std::sync::Arc;
-use tokio::{fs::File, io::{AsyncReadExt, AsyncWriteExt, AsyncSeekExt}};
+use tokio::{fs::File, fs::OpenOptions, io::{AsyncReadExt, AsyncWriteExt, AsyncSeekExt}};
 use tokio::sync::Mutex;
 use tokio::io::Result;
-use tokio::io::Error;
 
 #[cfg(test)]
 use tokio::runtime::Runtime;
 
 pub struct SplitLogFile
 {
-    pub head: File,
-    pub data: File,
-    pub entries: Vec<Header>,
+    pub head_path: String,
+    pub data_path: String,
+
+    pub head_file: File,
+    pub data_file: File,
+    
+    pub off_head: u64,
+    pub off_data: u64,
+}
+#[allow(dead_code)]
+pub struct EventData
+{
+    pub header: Header,
+    pub data: Vec<u8>,
+    pub digest: Vec<u8>,
 }
 
 impl SplitLogFile {
+    async fn open_file(cfg: &impl ConfigStorage, path: &String) -> File {
+        match cfg.log_temp() {
+            true => OpenOptions::new().read(true).write(true).create_new(true).create(true).open(path.clone()).await.unwrap(),
+               _ => OpenOptions::new().read(true).write(true).append(true).create(true).open(path.clone()).await.unwrap(),
+        }
+    }
+
     async fn new(cfg: &impl ConfigStorage, key: &impl ChainKey) -> SplitLogFile {
         let path_head = format!("{}/{}.head", cfg.log_path(), key.to_key_str());
         let path_data = format!("{}/{}.data", cfg.log_path(), key.to_key_str());
 
-        let mut ret = SplitLogFile {
-            head: tokio::fs::File::create(path_head).await.unwrap(),
-            data: tokio::fs::File::create(path_data).await.unwrap(),
-            entries: Vec::new()
+        let ret = SplitLogFile {
+            head_path: path_head.clone(),
+            data_path: path_data.clone(),
+
+            head_file: SplitLogFile::open_file(cfg, &path_head).await,
+            data_file: SplitLogFile::open_file(cfg, &path_data).await,
+            
+            off_head: 0,
+            off_data: 0,
         };
 
-        while let Some(next) = ret.read_once().await {
-            ret.entries.push(next);
+        if cfg.log_temp() {
+            std::fs::remove_file(path_head).ok();
+            std::fs::remove_file(path_data).ok();
         }
-        
+
         ret
     }
 
-    #[allow(dead_code)]
-    pub async fn read_all_entries(&mut self, ret: &mut Vec<Header>) -> Result<u64> {
-        let mut cnt = 0;
-        while let Some(next) = self.read_once().await {
-            ret.push(next);
-            cnt = cnt + 1;
+    async fn read_all(&mut self, to: &mut VecDeque<Header>) {
+        while let Some(head) = self.read_once().await {
+            to.push_back(head);
         }
-        Ok(cnt)
     }
 
-    pub async fn read_once(&mut self) -> Option<Header> {
-        let size_head = self.head.read_u64().await.ok()?;
+    async fn read_once(&mut self) -> Option<Header>
+    {
+        let size_head = self.head_file.read_u64().await.ok()?;
         let mut buff_head = Vec::with_capacity(size_head as usize);
-        self.head.read(buff_head.as_mut_slice()).await.ok()?;
+        self.head_file.read(buff_head.as_mut_slice()).await.ok()?;
 
-        let ret = bincode::deserialize(buff_head.as_slice()).ok()?;
+        let ret: Header = bincode::deserialize(buff_head.as_slice()).ok()?;
+
+        self.off_head = self.off_head + size_head;
+        self.off_data = self.off_data + ret.size_data + ret.size_digest;
+
         Some(ret)
     }
 
-    pub async fn truncate(&mut self) -> Result<()> {
-        self.reset().await?;
-        self.head.set_len(0).await?;
-        self.data.set_len(0).await?;
-        Ok(())
-    }
-
-    pub async fn reset(&mut self) -> Result<()> {
-        self.head.seek(SeekFrom::Start(0)).await?;
-        self.data.seek(SeekFrom::Start(0)).await?;
-        Ok(())
-    }
-
-    async fn reset_at(&mut self, pos_head: u64, pos_data: u64, err: Option<Error>) -> Result<()> {
-        self.head.seek(SeekFrom::Start(pos_head)).await?;
-        self.data.seek(SeekFrom::Start(pos_data)).await?;
-        match err {
-            Some(a) => Result::Err(a),
-            None => Ok(()),
-        }
-    }
-
-    pub async fn write(&mut self, header: &mut Header, data: &[u8], digest: &[u8]) -> Result<()>
+    pub async fn write(&mut self, header: &mut Header, data: &[u8], digest: &[u8]) -> Result<usize>
     {
-        let restore_head = self.head.seek(SeekFrom::Current(0)).await.unwrap();
-        let restore_data = self.data.seek(SeekFrom::Current(0)).await.unwrap();
-
         header.size_data = data.len() as u64;
-        header.off_data = restore_data;
+        header.off_data = self.off_data;
         header.size_digest = digest.len() as u64;
-        header.off_digest = restore_data + data.len() as u64;
+        header.off_digest = self.off_data + data.len() as u64;
 
         let buff_header = bincode::serialize(&header).unwrap();
-
-        match self.data.write(data).await {
-            Err(a) => { return self.reset_at(restore_head, restore_data, Some(a)).await; },
-            _ => {}
-        }
-
-        match self.data.write(digest).await {
-            Err(a) => { return self.reset_at(restore_head, restore_data, Some(a)).await; },
-            _ => {}
-        }
-
-        match self.head.write_u64(buff_header.len() as u64).await {
-            Err(a) => { return self.reset_at(restore_head, restore_data, Some(a)).await; },
-            _ => {}
-        }
         
-        match self.head.write(buff_header.as_slice()).await {
-            Err(a) => { return self.reset_at(restore_head, restore_data, Some(a)).await; },
-            _ => {}
-        }
-        
-        Ok(())
+        self.data_file.seek(SeekFrom::Start(header.off_data)).await?;
+        self.data_file.write_all(data).await?;
+        self.data_file.seek(SeekFrom::Start(header.off_digest)).await?;
+        self.data_file.write_all(digest).await?;
+        self.head_file.write_u64(buff_header.len() as u64).await?;
+        self.head_file.write_all(buff_header.as_slice()).await?;
+
+        self.off_head = self.off_head + buff_header.len() as u64;
+        self.off_data = self.off_data + header.size_data + header.size_digest;
+
+        Ok(((std::mem::size_of::<u64>() as u64) + (buff_header.len() as u64) + header.size_data + header.size_digest) as usize)
     }
 
     #[allow(dead_code)]
-    pub async fn read(&mut self) -> Option<Header> {
-        let size_head = self.head.read_u64().await.unwrap_or_default();
-        let mut buff_head: Vec<u8> = Vec::with_capacity(size_head as usize);
-        
-        match self.head.read(buff_head.as_mut_slice()).await {
-            Ok(a) if a == size_head as usize => { },
-            _ => return None,
-        }
+    pub async fn load(&mut self, header: &Header) -> Result<EventData> {
+        let mut buff_data = Vec::with_capacity(header.size_data as usize);
+        let mut buff_digest = Vec::with_capacity(header.size_digest as usize);
 
-        return bincode::deserialize(buff_head.as_slice()).ok();
+        self.data_file.seek(SeekFrom::Start(header.off_data)).await?;
+        self.data_file.read(buff_data.as_mut_slice()).await?;
+        self.data_file.seek(SeekFrom::Start(header.off_digest)).await?;
+        self.data_file.read(buff_digest.as_mut_slice()).await?;
+
+        Ok(
+            EventData {
+                header: header.clone(),
+                data: buff_data,
+                digest: buff_digest,
+            }
+        )
     }
-}
-#[allow(dead_code)]
-pub enum LoggingMode {
-    FrontOnly,
-    BothBuffers
 }
 
 pub struct RedoLogProtected {
-    front: SplitLogFile,
-    back: SplitLogFile,
-    mode: LoggingMode,
+    file: SplitLogFile,
+    entries: VecDeque<Header>,
 }
 
 impl RedoLogProtected
 {
-    async fn truncate(&mut self) -> Result<()> {
-        self.front.truncate().await?;
-        self.back.truncate().await?;
-        Ok(())
+    async fn new(cfg: &impl ConfigStorage, key: &impl ChainKey) -> Result<RedoLogProtected> {
+        let mut ret = RedoLogProtected {
+            file: SplitLogFile::new(cfg, key).await,
+            entries: VecDeque::new(),
+        };
+
+        ret.file.read_all(&mut ret.entries).await;
+
+        Ok(ret)
     }
 
-    async fn reset(&mut self) -> Result<()> {
-        self.front.reset().await?;
-        self.back.reset().await?;
-        Ok(())
+    async fn write(&mut self, header: &mut Header, data: &[u8], digest: &[u8]) -> Result<usize> {
+        let ret = self.file.write(header, data, digest).await;
+        self.entries.push_back(header.clone());
+        ret
     }
 
-    async fn write(&mut self, header: &mut Header, data: &[u8], digest: &[u8]) -> Result<()> {
-        match self.mode {
-            LoggingMode::FrontOnly => {
-                self.front.write(header, data, digest).await
-            }
-            LoggingMode::BothBuffers => {
-                let _ = self.front.write(header, data, digest).await?;
-                self.back.write(header, data, digest).await
-            }
-        }
+    async fn load(&mut self, header: &Header) -> Result<EventData> {
+        self.file.load(header).await
     }
 
-    async fn read(&mut self) -> Option<Header> {
-        self.front.read().await
+    fn pop(&mut self) -> Option<Header> {
+        self.entries.pop_front()
     }
 }
 
@@ -180,40 +167,30 @@ pub struct RedoLog {
 impl RedoLog
 {
     #[allow(dead_code)]
-    pub async fn new(cfg: &impl ConfigStorage, key: &impl ChainKey) -> RedoLog {
-        RedoLog {
-            inside: Arc::new(Mutex::new(
-                RedoLogProtected {
-                    front: SplitLogFile::new(cfg, key).await,
-                    back: SplitLogFile::new(cfg, key).await,
-                    mode: LoggingMode::FrontOnly,
-                }
-            ))
-        }
+    pub async fn new(cfg: &impl ConfigStorage, key: &impl ChainKey) -> Result<RedoLog> {
+        Result::Ok(
+            RedoLog {
+                inside: Arc::new(Mutex::new(RedoLogProtected::new(cfg, key).await?))
+            }
+        )
     }
 
     #[allow(dead_code)]
-    pub async fn truncate(&mut self) -> Result<()> {
-        let mut lock = self.inside.lock().await;
-        lock.truncate().await
-    }
-
-    #[allow(dead_code)]
-    pub async fn reset(&mut self) -> Result<()> {
-        let mut lock = self.inside.lock().await;
-        lock.reset().await
-    }
-
-    #[allow(dead_code)]
-    pub async fn write(&mut self, header: &mut Header, data: &[u8], digest: &[u8]) -> Result<()> {
+    pub async fn write(&mut self, header: &mut Header, data: &[u8], digest: &[u8]) -> Result<usize> {
         let mut lock = self.inside.lock().await;
         lock.write(header, data, digest).await
     }
 
     #[allow(dead_code)]
-    pub async fn read(&mut self) -> Option<Header> {
+    pub async fn pop(&mut self) -> Option<Header> {
         let mut lock = self.inside.lock().await;
-        lock.read().await
+        lock.pop()
+    }
+
+    #[allow(dead_code)]
+    pub async fn load(&mut self, header: &Header) -> Result<EventData> {
+        let mut lock = self.inside.lock().await;
+        lock.load(&header).await
     }
 }
 
@@ -222,13 +199,20 @@ fn test_redo_log() {
     let rt = Runtime::new().unwrap();
 
     rt.block_on(async {    
-        let mut rl = RedoLog::new(&mock_test_config(), &mock_test_chain_key()).await;
-        rl.truncate().await.expect("Failed to truncate the redo log");
-
+        let mut rl = RedoLog::new(&mock_test_config(), &mock_test_chain_key()).await.expect("Failed to load the redo log");
+        
         let mut mock_head = Header::default();
-        let mock_digest = Vec::with_capacity(100);
-        let mock_data = Vec::with_capacity(1000);
+        mock_head.key = "blah".to_string();
+
+        let mock_digest = vec![0; 100];
+        let mock_data = vec![1; 10];
 
         rl.write(&mut mock_head, mock_data.as_slice(), mock_digest.as_slice()).await.expect("Failed to write the object");
+
+        let read_header = rl.pop().await.expect("Failed to read mocked data");
+        assert_eq!(read_header.key, mock_head.key);
+
+        let evt = rl.load(&read_header).await.expect("Failed to load the event record");
+        assert_eq!(vec![1; 10], evt.data);
     });
 }

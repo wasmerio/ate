@@ -5,6 +5,7 @@ pub trait ConfigMaster {
 
 pub trait ConfigStorage {
     fn log_path(&self) -> String;
+    fn log_temp(&self) -> bool;
 }
 pub trait Config: ConfigMaster + ConfigStorage {
 }
@@ -20,6 +21,7 @@ pub fn mock_test_config() -> impl Config {
 
     impl ConfigStorage for MockConfig {
         fn log_path(&self) -> String { "/tmp".to_string() }
+        fn log_temp(&self) -> bool { true }
     }
 
     impl Config for MockConfig {}
@@ -30,6 +32,5 @@ pub fn mock_test_config() -> impl Config {
 #[test]
 fn test_config_mocking() {
     let cfg = mock_test_config();
-
     assert_eq!(cfg.master_addr(), "127.0.0.1");
 }
