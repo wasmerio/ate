@@ -35,3 +35,15 @@ pub struct Header
     pub version: Uuid,
     pub previous_version: Uuid,
 }
+
+#[allow(dead_code)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct HeaderWithOffsets
+{
+    pub off_data: u64,
+    pub size_data: u64,
+    pub off_digest: u64,
+    pub size_digest: u64,
+
+    pub header: Header
+}

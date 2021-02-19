@@ -30,7 +30,7 @@ pub struct SplitLogFile
 #[allow(dead_code)]
 pub struct EventData
 {
-    pub header: Header,
+    pub header: HeaderWithOffsets,
     pub data: Bytes,
     pub digest: Bytes,
 }
@@ -66,20 +66,20 @@ impl SplitLogFile {
         ret
     }
 
-    async fn read_all(&mut self, to: &mut VecDeque<Header>) {
+    async fn read_all(&mut self, to: &mut VecDeque<HeaderWithOffsets>) {
         while let Some(head) = self.read_once().await {
             to.push_back(head);
         }
     }
 
-    async fn read_once(&mut self) -> Option<Header>
+    async fn read_once(&mut self) -> Option<HeaderWithOffsets>
     {
         let size_head = self.head_file.read_u64().await.ok()?;
         let mut buff_head = BytesMut::with_capacity(size_head as usize);
         self.head_file.read_buf(&mut buff_head).await.ok()?;
         let buff_head = buff_head.freeze();
 
-        let ret: Header = bincode::deserialize(&buff_head).ok()?;
+        let ret: HeaderWithOffsets = bincode::deserialize(&buff_head).ok()?;
 
         self.off_head = self.off_head + size_head;
         self.off_data = self.off_data + ret.size_data + ret.size_digest;
@@ -87,7 +87,7 @@ impl SplitLogFile {
         Some(ret)
     }
 
-    pub async fn write(&mut self, header: &mut Header, data: &[u8], digest: &[u8]) -> Result<usize>
+    pub async fn write(&mut self, header: &mut HeaderWithOffsets, data: &[u8], digest: &[u8]) -> Result<usize>
     {
         header.size_data = data.len() as u64;
         header.off_data = self.off_data;
@@ -111,7 +111,7 @@ impl SplitLogFile {
     }
 
     #[allow(dead_code)]
-    pub async fn load(&mut self, header: &Header) -> Result<EventData> {
+    pub async fn load(&mut self, header: &HeaderWithOffsets) -> Result<EventData> {
         let mut buff_data = BytesMut::with_capacity(header.size_data as usize);
         let mut buff_digest = BytesMut::with_capacity(header.size_digest as usize);
 
@@ -132,7 +132,7 @@ impl SplitLogFile {
 
 pub struct RedoLogProtected {
     file: SplitLogFile,
-    entries: VecDeque<Header>,
+    entries: VecDeque<HeaderWithOffsets>,
 }
 
 impl RedoLogProtected
@@ -148,17 +148,17 @@ impl RedoLogProtected
         Ok(ret)
     }
 
-    async fn write(&mut self, header: &mut Header, data: &[u8], digest: &[u8]) -> Result<usize> {
+    async fn write(&mut self, header: &mut HeaderWithOffsets, data: &[u8], digest: &[u8]) -> Result<usize> {
         let ret = self.file.write(header, data, digest).await;
         self.entries.push_back(header.clone());
         ret
     }
 
-    async fn load(&mut self, header: &Header) -> Result<EventData> {
+    async fn load(&mut self, header: &HeaderWithOffsets) -> Result<EventData> {
         self.file.load(header).await
     }
 
-    fn pop(&mut self) -> Option<Header> {
+    fn pop(&mut self) -> Option<HeaderWithOffsets> {
         self.entries.pop_front()
     }
 }
@@ -180,19 +180,19 @@ impl RedoLog
     }
 
     #[allow(dead_code)]
-    pub async fn write(&mut self, header: &mut Header, data: &[u8], digest: &[u8]) -> Result<usize> {
+    pub async fn write(&mut self, header: &mut HeaderWithOffsets, data: &[u8], digest: &[u8]) -> Result<usize> {
         let mut lock = self.inside.lock().await;
         lock.write(header, data, digest).await
     }
 
     #[allow(dead_code)]
-    pub async fn pop(&mut self) -> Option<Header> {
+    pub async fn pop(&mut self) -> Option<HeaderWithOffsets> {
         let mut lock = self.inside.lock().await;
         lock.pop()
     }
 
     #[allow(dead_code)]
-    pub async fn load(&mut self, header: &Header) -> Result<EventData> {
+    pub async fn load(&mut self, header: &HeaderWithOffsets) -> Result<EventData> {
         let mut lock = self.inside.lock().await;
         lock.load(&header).await
     }
@@ -205,8 +205,8 @@ fn test_redo_log() {
     rt.block_on(async {    
         let mut rl = RedoLog::new(&mock_test_config(), &mock_test_chain_key()).await.expect("Failed to load the redo log");
         
-        let mut mock_head = Header::default();
-        mock_head.key = "blah".to_string();
+        let mut mock_head = HeaderWithOffsets::default();
+        mock_head.header.key = "blah".to_string();
 
         let mock_digest = vec![0; 100];
         let mock_data = vec![1; 10];
@@ -214,7 +214,7 @@ fn test_redo_log() {
         rl.write(&mut mock_head, mock_data.as_slice(), mock_digest.as_slice()).await.expect("Failed to write the object");
 
         let read_header = rl.pop().await.expect("Failed to read mocked data");
-        assert_eq!(read_header.key, mock_head.key);
+        assert_eq!(read_header.header.key, mock_head.header.key);
 
         let evt = rl.load(&read_header).await.expect("Failed to load the event record");
         assert_eq!(vec![1; 10], evt.data);
