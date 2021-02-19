@@ -7,9 +7,6 @@ mod redo;
 mod chain;
 mod historian;
 
-pub use self::conf::*;
-pub use self::historian::*;
-
 #[cfg(test)]
 mod tests {
     #[test]

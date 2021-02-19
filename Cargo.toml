@@ -4,12 +4,15 @@ version = "2.0.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 
+[lib]
+proc-macro = true
+
 [dependencies]
 uuid = { version = "*", features = ["serde", "v4"] }
 tokio = { version = "*", features = ["full"] }
 serde = { version = "*", features = ["derive"] }
-bincode = { version = "*" }
-derive-new = { version = "*" }
+bincode = "*"
+derive-new = "*"
 
 [dev-dependencies]
-ctor = { version = "*" }
+ctor = "*"

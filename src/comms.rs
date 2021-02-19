@@ -3,6 +3,8 @@ extern crate tokio;
 use std::{net::SocketAddr};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
+use super::conf::*;
+
 #[allow(unused_imports)]
 use tokio::runtime::Runtime;
 
@@ -17,8 +19,8 @@ impl Server {
         }
     }
 
-    pub async fn run(&self, conf: super::Config) -> io::Result<()> {
-        let addr = format!("{}:{}", conf.master_addr, conf.port);
+    pub async fn run(&self, conf: &impl ConfigMaster) -> io::Result<()> {
+        let addr = format!("{}:{}", conf.master_addr(), conf.master_port());
         let listener = TcpListener::bind(addr).await.unwrap();
         loop {
             let (stream, sock_addr) = listener.accept().await.unwrap();
@@ -58,8 +60,8 @@ impl Client {
         }
     }
 
-    pub async fn run(&self, conf: super::Config) -> io::Result<()> {
-        let addr = format!("{}:{}", conf.master_addr, conf.port);
+    pub async fn run(&self, conf: &impl ConfigMaster) -> io::Result<()> {
+        let addr = format!("{}:{}", conf.master_addr(), conf.master_port());
         
         let mut stream = TcpStream::connect(addr).await.unwrap();
         setup_tcp_stream(&stream)?;
@@ -75,7 +77,8 @@ impl Client {
         }
         println!("GOT {:?}", &buf[..n]);
         
-        //panic!("GOT {:?}", str::from_utf8(&buf[..n]));
+        assert_eq!(std::str::from_utf8(&buf[..n]).unwrap(), "nice to meet you\n");
+
         Ok(())
     }
 }
@@ -88,17 +91,16 @@ fn setup_tcp_stream(stream: &TcpStream) -> io::Result<()> {
 #[test]
 fn test_server_client() {
     let rt = Runtime::new().unwrap();
-    let conf = super::Config::new("127.0.0.1", 4002);
-    
-    let conf_server = conf.clone();
+
+    let cfg = super::conf::mock_test_config();
     rt.spawn(async move {
         let server = Server::new();
-        server.run(conf_server).await.expect("The networking server has panicked");
+        server.run(&cfg).await.expect("The networking server has panicked");
     });
 
-    let conf_client = conf.clone();
+    let cfg = super::conf::mock_test_config();
     rt.block_on(async move {
         let client = Client::new();
-        client.run(conf_client).await.expect("The networking client has panicked");
+        client.run(&cfg).await.expect("The networking client has panicked");
     });
 }
