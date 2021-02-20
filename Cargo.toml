@@ -18,6 +18,7 @@ futures = "*"
 futures-util = "*"
 hash = "*"
 fxhash = "*"
+async-trait = "*"
 
 [dev-dependencies]
 ctor = "*"

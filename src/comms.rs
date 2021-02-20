@@ -5,7 +5,7 @@ use tokio::net::{TcpListener, TcpStream};
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use super::conf::*;
 
-#[allow(unused_imports)]
+#[cfg(test)]
 use tokio::runtime::Runtime;
 
 pub struct Server {

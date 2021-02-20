@@ -6,9 +6,12 @@ use super::conf::*;
 use super::chain::*;
 use super::header::*;
 
-use std::{collections::VecDeque, io::SeekFrom};
+use async_trait::async_trait;
+#[allow(unused_imports)]
+use std::{collections::VecDeque, io::SeekFrom, ops::DerefMut};
 use std::sync::Arc;
-use tokio::{fs::File, fs::OpenOptions, io::{AsyncReadExt, AsyncWriteExt, AsyncSeekExt}};
+#[allow(unused_imports)]
+use tokio::{fs::File, fs::OpenOptions, io::{AsyncReadExt, AsyncWriteExt, AsyncSeekExt}, time::sleep, time::Duration};
 use tokio::sync::Mutex;
 use tokio::io::Result;
 use bytes::BytesMut;
@@ -18,9 +21,10 @@ use fxhash::{FxHashMap};
 #[cfg(test)]
 use tokio::runtime::Runtime;
 
+#[derive(Clone, Debug)]
 pub struct EventData
 {
-    pub header: Header,
+    pub index: HeaderIndex,
     pub data: Bytes,
     pub digest: Bytes,
 }
@@ -30,6 +34,7 @@ struct LogFile
     pub log_path: String,
     pub log_file: File,    
     pub log_off: u64,
+    pub log_temp: bool,
     pub index: FxHashMap<HeaderIndex, u64>,
 }
 
@@ -46,6 +51,7 @@ impl LogFile {
                 log_path: self.log_path.clone(),
                 log_file: self.log_file.try_clone().await?,
                 log_off: self.log_off,
+                log_temp: self.log_temp,
                 index: copy_of_index,
             }
         )
@@ -61,6 +67,7 @@ impl LogFile {
             log_path: path_log.clone(),
             log_file: log_file,
             log_off: 0,
+            log_temp: temp_file,
             index: FxHashMap::default(),
         };
 
@@ -97,7 +104,7 @@ impl LogFile {
         
         self.index.insert(header.index(), self.log_off);
 
-        self.log_off = self.log_off + (size_head + size_data + size_digest) as u64;
+        self.log_off = self.log_file.seek(SeekFrom::Current(0)).await.ok()?;
         Some(header)
     }
 
@@ -118,13 +125,13 @@ impl LogFile {
 
         self.index.insert(header.index(), self.log_off);
 
-        self.log_off = self.log_off + (buff_header_len + data_len + digest_len) as u64;
+        self.log_off = self.log_file.seek(SeekFrom::Current(0)).await?;
 
         Ok(())
     }
 
-    async fn load(&mut self, header: &Header) -> Option<EventData> {
-        let off_entry = self.index.get(&header.index())?.clone();
+    async fn load(&mut self, idx: &HeaderIndex) -> Option<EventData> {
+        let off_entry = self.index.get(idx)?.clone();
 
         // Skip the header
         self.log_file.seek(SeekFrom::Start(off_entry)).await.ok()?;
@@ -143,7 +150,7 @@ impl LogFile {
 
         Some(
             EventData {
-                header: header.clone(),
+                index: idx.clone(),
                 data: buff_data.freeze(),
                 digest: buff_digest.freeze(),
             }
@@ -151,7 +158,9 @@ impl LogFile {
     }
 
     fn move_log_file(&mut self, new_path: &String) -> Result<()> {
-        std::fs::rename(self.log_path.clone(), new_path)?;
+        if self.log_temp == false {
+            std::fs::rename(self.log_path.clone(), new_path)?;
+        }
         self.log_path = new_path.clone();
         Ok(())
     }
@@ -186,15 +195,22 @@ impl DeferredWrite {
     }
 }
 
-struct FlippedLogFile {
-    log_file: LogFile,
-    deferred: VecDeque<DeferredWrite>,
+#[async_trait]
+pub trait LogWritable {
+    async fn write(&mut self, header: Header, data: Bytes, digest: Bytes) -> Result<()>;
+    async fn flush(&mut self) -> Result<()>;
 }
 
-impl FlippedLogFile
+struct FlippedLogFileProtected {
+    log_file: LogFile,
+}
+
+
+#[async_trait]
+impl LogWritable for FlippedLogFileProtected
 {
     #[allow(dead_code)]
-    pub async fn write(&mut self, header: Header, data: Bytes, digest: Bytes) -> Result<()> {
+    async fn write(&mut self, header: Header, data: Bytes, digest: Bytes) -> Result<()> {
         let _ = self.log_file.write(&header, data, digest).await?;
         Ok(())
     }
@@ -202,20 +218,65 @@ impl FlippedLogFile
     async fn flush(&mut self) -> Result<()> {
         self.log_file.flush().await
     }
+}
 
+impl FlippedLogFileProtected
+{
     async fn truncate(&mut self) -> Result<()> {
         self.log_file.truncate().await?;
-        self.deferred.clear();
         Ok(())
     }
+
+    async fn copy_log_file(&mut self) -> Result<LogFile> {
+        let new_log_file = self.log_file.copy().await?;
+        Ok(new_log_file)
+    }
+}
+
+struct FlippedLogFile {
+    inside: Arc<Mutex<FlippedLogFileProtected>>,
+}
+
+impl FlippedLogFile
+{
+    #[allow(dead_code)]
+    async fn truncate(&mut self) -> Result<()> {
+        let mut lock = self.inside.lock().await;
+        lock.truncate().await
+    }
+
+    async fn copy_log_file(&self) -> Result<LogFile> {
+        let mut lock = self.inside.lock().await;
+        lock.copy_log_file().await
+    }
+}
+
+#[async_trait]
+impl LogWritable for FlippedLogFile
+{
+    #[allow(dead_code)]
+    async fn write(&mut self, header: Header, data: Bytes, digest: Bytes) -> Result<()> {
+        let mut lock = self.inside.lock().await;
+        lock.write(header, data, digest).await
+    }
+
+    async fn flush(&mut self) -> Result<()> {
+        let mut lock = self.inside.lock().await;
+        lock.flush().await
+    }
+}
+
+struct RedoLogFlipProtected {
+    deferred: Vec<DeferredWrite>,
 }
 
 struct RedoLogProtected {
     log_temp: bool,
     log_path: String,
     log_file: LogFile,
-    flip: Option<Arc<Mutex<FlippedLogFile>>>,
+    flip: Option<RedoLogFlipProtected>,
     entries: VecDeque<Header>,
+    orphans: FxHashMap<HeaderIndex, EventData>
 }
 
 impl RedoLogProtected
@@ -227,6 +288,7 @@ impl RedoLogProtected
             log_file: LogFile::new(cfg.log_temp(), path_log.clone()).await,
             flip: None,
             entries: VecDeque::new(),
+            orphans: FxHashMap::default(),
         };
 
         ret.log_file.read_all(&mut ret.entries).await;
@@ -249,8 +311,7 @@ impl RedoLogProtected
             Some(itm) => {
                 if let Some(flip) = &mut self.flip
                 {
-                    let mut lock = flip.lock().await;
-                    lock.deferred.push_back(itm);
+                    flip.deferred.push(itm);
                 }
             },
             _ => {}
@@ -259,19 +320,32 @@ impl RedoLogProtected
         Ok(())
     }
 
-    async fn begin_flip(&mut self) -> Option<Arc<Mutex<FlippedLogFile>>> {
+    async fn begin_flip(&mut self) -> Option<FlippedLogFile> {
         match self.flip
         {
             None => {
                 let path_flip = format!("{}.flip", self.log_path);
 
-                let flip = FlippedLogFile {
-                    log_file: LogFile::new(self.log_temp, path_flip).await,
-                    deferred: VecDeque::new(),
+                let mut flip = FlippedLogFile {
+                    inside: Arc::new(Mutex::new(FlippedLogFileProtected {
+                        log_file: LogFile::new(self.log_temp, path_flip).await,
+                    })),
                 };
-                let flip = Arc::new(Mutex::new(flip));
+                flip.truncate().await.ok()?;
                 
-                self.flip = Some(flip.clone());
+                self.flip = Some(RedoLogFlipProtected {
+                    deferred: Vec::new(),
+                });
+
+                let mut new_orphans = Vec::new();
+                for head in &self.entries {
+                    new_orphans.push(head.index());
+                }
+                for idx in new_orphans {
+                    if let Some(evt) = self.load(&idx).await {
+                        self.orphans.insert(idx, evt);
+                    }
+                }
 
                 Some(flip)
             },
@@ -279,19 +353,16 @@ impl RedoLogProtected
         }
     }
 
-    async fn end_flip(&mut self, flip: &mut FlippedLogFile) -> Result<()> {
+    async fn end_flip(&mut self, flip: FlippedLogFile) -> Result<()> {
         match &self.flip
         {
-            Some(_) =>
+            Some(inside) =>
             {
-                let mut new_log_file = flip.log_file.copy().await?;
-
-                while let Some(d) = flip.deferred.pop_front() {
-                    new_log_file.write(&d.header, d.data, d.digest).await?;
+                let mut new_log_file = flip.copy_log_file().await?;
+                for d in &inside.deferred {
+                    new_log_file.write(&d.header, d.data.clone(), d.digest.clone()).await?;
                 }
-                if self.log_temp == false {
-                    new_log_file.move_log_file(&self.log_path)?;
-                }
+                new_log_file.move_log_file(&self.log_path)?;
                 self.log_file = new_log_file;
                 self.flip = None;
                 Ok(())
@@ -303,8 +374,17 @@ impl RedoLogProtected
         }
     }
 
-    async fn load(&mut self, header: &Header) -> Option<EventData> {
-        self.log_file.load(header).await
+    async fn load(&mut self, idx: &HeaderIndex) -> Option<EventData> {
+        match self.log_file.load(idx).await {
+            Some(data) => {
+                self.orphans.remove(idx);
+                Some(data)
+            },
+            None => {
+                let data = self.orphans.get(idx)?;
+                Some(data.clone())
+            }
+        }
     }
 
     fn pop(&mut self) -> Option<Header> {
@@ -313,21 +393,12 @@ impl RedoLogProtected
 
     async fn flush(&mut self) -> Result<()> {
         self.log_file.flush().await?;
-        if let Some(flip) = &mut self.flip
-        {
-            let mut lock = flip.lock().await;
-            let _ = lock.flush().await?;
-        }
         Ok(())
     }
 
     async fn truncate(&mut self) -> Result<()> {
         self.log_file.truncate().await?;
-        if let Some(flip) = &mut self.flip
-        {
-            let mut lock = flip.lock().await;
-            lock.truncate().await?;
-        }
+        self.flip = None;
         self.entries.clear();
         Ok(())
     }
@@ -355,21 +426,15 @@ impl RedoLog
     }
 
     #[allow(dead_code)]
-    pub async fn write(&mut self, header: Header, data: Bytes, digest: Bytes) -> Result<()> {
-        let mut lock = self.inside.lock().await;
-        lock.write(header, data, digest).await
-    }
-
-    #[allow(dead_code)]
     pub async fn pop(&mut self) -> Option<Header> {
         let mut lock = self.inside.lock().await;
         lock.pop()
     }
 
     #[allow(dead_code)]
-    pub async fn load(&mut self, header: &Header) -> Option<EventData> {
+    pub async fn load(&mut self, idx: &HeaderIndex) -> Option<EventData> {
         let mut lock = self.inside.lock().await;
-        lock.load(&header).await
+        lock.load(idx).await
     }
 
     #[allow(dead_code)]
@@ -379,19 +444,13 @@ impl RedoLog
     }
 
     #[allow(dead_code)]
-    pub async fn flush(&mut self) -> Result<()> {
-        let mut lock = self.inside.lock().await;
-        lock.flush().await
-    }
-
-    #[allow(dead_code)]
-    async fn begin_flip(&mut self) -> Option<Arc<Mutex<FlippedLogFile>>> {
+    async fn begin_flip(&mut self) -> Option<FlippedLogFile> {
         let mut lock = self.inside.lock().await;
         lock.begin_flip().await
     }
     
     #[allow(dead_code)]
-    async fn end_flip(&mut self, flip: &mut FlippedLogFile) -> Result<()> {
+    async fn end_flip(&mut self, flip: FlippedLogFile) -> Result<()> {
         let mut lock = self.inside.lock().await;
         lock.end_flip(flip).await
     }
@@ -402,27 +461,109 @@ impl RedoLog
     }
 }
 
+#[async_trait]
+impl LogWritable for RedoLog
+{
+    #[allow(dead_code)]
+    async fn write(&mut self, header: Header, data: Bytes, digest: Bytes) -> Result<()> {
+        let mut lock = self.inside.lock().await;
+        lock.write(header, data, digest).await
+    }
+
+    #[allow(dead_code)]
+    async fn flush(&mut self) -> Result<()> {
+        let mut lock = self.inside.lock().await;
+        lock.flush().await
+    }
+}
+
+#[cfg(test)]
+async fn test_write_data(log: &mut dyn LogWritable, key: &'static str, data: Vec<u8>)
+{
+    // Write some data to the flipped buffer
+    let mut mock_head = Header::default();
+    mock_head.key = key.to_string();
+    let mock_digest = Bytes::from(vec![0; 100]);
+    let mock_data = Bytes::from(data);
+
+    log.write(mock_head, mock_data, mock_digest).await.expect("Failed to write the object");
+}
+
+#[cfg(test)]
+async fn test_read_data(log: &mut RedoLog, key: &'static str, test_data: Vec<u8>)
+{
+    let read_header = log.pop().await.expect("Failed to read mocked data");
+    assert_eq!(read_header.key, key.to_string());
+    let evt = log.load(&read_header.index()).await.expect(format!("Failed to load the event record for {}", key).as_str());
+    assert_eq!(test_data, evt.data);
+}
+
+#[cfg(test)]
+async fn test_no_read(log: &mut RedoLog)
+{
+    match log.pop().await {
+        Some(_) => panic!("Should not have been anymore data!"),
+        _ => {}
+    }
+}
+
 #[test]
 fn test_redo_log_intra() {
     let rt = Runtime::new().unwrap();
 
     rt.block_on(async {
+        // Create the redo log
+        println!("test_redo_log_intra - creating the redo log");
         let mock_key = DiscreteChainKey::default().with_name("test_obj".to_string());
         let mut rl = RedoLog::new(&mock_test_config(), &mock_key).await.expect("Failed to load the redo log");
+        let _ = rl.truncate().await;
+
+        // Test that its empty
+        println!("test_redo_log_intra - confirming its empty");
+        test_no_read(&mut rl).await;
         
-        let mut mock_head = Header::default();
-        mock_head.key = "blah".to_string();
+        // Push some mocked data to it
+        println!("test_redo_log_intra - writing test data to log - blah1");
+        let _ = test_write_data(&mut rl, "blah1", vec![1; 10]).await;
 
-        let mock_digest = Bytes::from(vec![0; 100]);
-        let mock_data = Bytes::from(vec![1; 10]);
+        // Begin an operation to flip the redo log
+        println!("test_redo_log_intra - beginning the flip operation");
+        let mut flip = rl.begin_flip().await.unwrap();
+        
+        // Write some data to the redo log and the backing redo log
+        println!("test_redo_log_intra - writing test data to flip - blah2");
+        let _ = test_write_data(&mut flip, "blah2", vec![2; 10]).await;
+        println!("test_redo_log_intra - writing test data to log - blah3");
+        let _ = test_write_data(&mut rl, "blah3", vec![3; 10]).await;
+        println!("test_redo_log_intra - writing test data to log - blah4");
+        let _ = test_write_data(&mut rl, "blah4", vec![4; 10]).await;
+        
+        // Check that the correct data is read
+        println!("test_redo_log_intra - testing read result of blah1");
+        let _ = test_read_data(&mut rl, "blah1", vec![1; 10]).await;
+        println!("test_redo_log_intra - testing read result of blah3");
+        let _ = test_read_data(&mut rl, "blah3", vec![3; 10]).await;
+        
+        // End the flip operation
+        println!("test_redo_log_intra - finishing the flip operation");
+        rl.end_flip(flip).await.expect("Failed to end the flip operation");
 
-        rl.write(mock_head.clone(), mock_data, mock_digest).await.expect("Failed to write the object");
+        // Check that the correct data is read (blah2 should not be returned as its a part of the earlier redo log after the flip - compacting)
+        println!("test_redo_log_intra - testing read result of blah4");
+        let _ = test_read_data(&mut rl, "blah4", vec![4; 10]).await;
+        test_no_read(&mut rl).await;
 
-        let read_header = rl.pop().await.expect("Failed to read mocked data");
-        assert_eq!(read_header.key, mock_head.key);
+        // Write some data to the redo log and the backing redo log
+        println!("test_redo_log_intra - confirming no more data");
+        test_no_read(&mut rl).await;
+        println!("test_redo_log_intra - writing test data to log - blah4");
+        let _ = test_write_data(&mut rl, "blah5", vec![5; 10]).await;
 
-        let evt = rl.load(&read_header).await.expect("Failed to load the event record");
-        assert_eq!(vec![1; 10], evt.data);
+        // Read the test data again
+        println!("test_redo_log_intra - testing read result of blah4");
+        let _ = test_read_data(&mut rl, "blah5", vec![5; 10]).await;
+        println!("test_redo_log_intra - confirming no more data");
+        test_no_read(&mut rl).await;
     });
 }
 
@@ -437,28 +578,69 @@ fn test_redo_log_inter() {
         let mock_chain_key = DiscreteChainKey::default()
             .with_name("test_inter".to_string());
             
-        let mut mock_head = Header::default();
-        mock_head.key = "blah".to_string();
-
         {
+            // Open the log once for writing
+            println!("test_redo_log_inter - creating the redo log");
             let mut rl = RedoLog::new(&mock_cfg, &mock_chain_key).await.expect("Failed to load the redo log");
             let _ = rl.truncate().await;
 
-            let mock_digest = Bytes::from(vec![0; 100]);
-            let mock_data = Bytes::from(vec![1; 10]);
+            // Test that its empty
+            println!("test_redo_log_inter - confirming no more data");
+            test_no_read(&mut rl).await;
 
-            rl.write(mock_head.clone(), mock_data, mock_digest).await.expect("Failed to write the object");
+            // Push some mocked data to it
+            println!("test_redo_log_inter - writing test data to log - blah1");
+            let _ = test_write_data(&mut rl, "blah1", vec![1; 10]).await;
+
+            // Begin an operation to flip the redo log
+            println!("test_redo_log_inter - beginning the flip operation");
+            let mut flip = rl.begin_flip().await.unwrap();
+
+            // Write some data to the redo log and the backing redo log
+            println!("test_redo_log_inter - writing test data to flip - blah2");
+            let _ = test_write_data(&mut flip, "blah2", vec![2; 10]).await;
+            println!("test_redo_log_inter - writing test data to log - blah3");
+            let _ = test_write_data(&mut rl, "blah3", vec![3; 10]).await;
+            
+            // End the flip operation
+            println!("test_redo_log_inter - finishing the flip operation");
+            rl.end_flip(flip).await.expect("Failed to end the flip operation");
+
+            // Write some more data
+            println!("test_redo_log_inter - writing test data to log - blah4");
+            let _ = test_write_data(&mut rl, "blah4", vec![4; 10]).await;
+
+            // Test reading all the data to the end (excluding the new records)
+            println!("test_redo_log_inter - testing read result of blah1");
+            let _ = test_read_data(&mut rl, "blah1", vec![1; 10]).await;
+            println!("test_redo_log_inter - testing read result of blah3");
+
+            let _ = test_read_data(&mut rl, "blah3", vec![3; 10]).await;
+            println!("test_redo_log_inter - testing read result of blah4");
+            let _ = test_read_data(&mut rl, "blah4", vec![4; 10]).await;
+            println!("test_redo_log_inter - confirming no more data");
+            test_no_read(&mut rl).await;
+
+            println!("test_redo_log_inter - closing redo log");
         }
 
         {
+            // Open it up again which should check that it loads data properly
+            println!("test_redo_log_intra - reopening the redo log");
             let mut rl = RedoLog::new(&mock_cfg, &mock_chain_key).await.expect("Failed to load the redo log");
 
-            let read_header = rl.pop().await.expect("Failed to read mocked data");
-            assert_eq!(read_header.key, mock_head.key);
+            // Check that the correct data is read
+            println!("test_redo_log_inter - testing read result of blah2");
+            let _ = test_read_data(&mut rl, "blah2", vec![2; 10]).await;
+            println!("test_redo_log_inter - testing read result of blah3");
+            let _ = test_read_data(&mut rl, "blah3", vec![3; 10]).await;
+            println!("test_redo_log_inter - testing read result of blah4");
+            let _ = test_read_data(&mut rl, "blah4", vec![4; 10]).await;
+            println!("test_redo_log_inter - confirming no more data");
+            test_no_read(&mut rl).await;
 
-            let evt = rl.load(&read_header).await.expect("Failed to load the event record");
-            assert_eq!(vec![1; 10], evt.data);
-
+            // Do some final cleanup
+            println!("test_redo_log_inter - removing test files");
             let _ = std::fs::remove_file(rl.log_path());
         }
     });
