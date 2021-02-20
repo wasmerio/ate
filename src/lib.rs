@@ -5,6 +5,7 @@ mod event;
 mod conf;
 mod comms;
 mod redo;
+mod validator;
 mod chain;
 mod historian;
 
