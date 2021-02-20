@@ -24,10 +24,9 @@ use tokio::runtime::Runtime;
 #[derive(Clone, Debug)]
 pub struct EventData
 {
-    pub index: HeaderIndex,
+    pub header: Header,
     pub meta: Bytes,
     pub data: Bytes,
-    pub digest: Bytes,
 }
 
 #[derive(Clone, Debug)]
@@ -43,13 +42,13 @@ struct LogFile
     pub log_file: File,    
     pub log_off: u64,
     pub log_temp: bool,
-    pub index: FxHashMap<HeaderIndex, u64>,
+    pub index: FxHashMap<Header, u64>,
 }
 
 impl LogFile {
     async fn copy(&self) -> Result<LogFile>
     {
-        let mut copy_of_index: FxHashMap<HeaderIndex, u64> = FxHashMap::default();
+        let mut copy_of_index: FxHashMap<Header, u64> = FxHashMap::default();
         for (key, value) in &self.index {
             copy_of_index.insert(key.clone(), value.clone());
         }
@@ -110,13 +109,9 @@ impl LogFile {
         let size_data = self.log_file.read_u32().await.ok()?;
         self.log_file.seek(SeekFrom::Current(size_data as i64)).await.ok()?;
 
-        // Skip the digest
-        let size_digest = self.log_file.read_u32().await.ok()?;
-        self.log_file.seek(SeekFrom::Current(size_digest as i64)).await.ok();
-
         let header: Header = bincode::deserialize(&buff_head).ok()?;
         
-        self.index.insert(header.index(), self.log_off);
+        self.index.insert(header.clone(), self.log_off);
 
         self.log_off = self.log_file.seek(SeekFrom::Current(0)).await.ok()?;
 
@@ -126,11 +121,10 @@ impl LogFile {
         })
     }
 
-    async fn write(&mut self, header: &Header, meta: Bytes, data: Bytes, digest: Bytes) -> Result<()>
+    async fn write(&mut self, header: &Header, meta: Bytes, data: Bytes) -> Result<()>
     {
         let meta_len = meta.len() as u32;
         let data_len = data.len() as u32;
-        let digest_len = digest.len() as u32;
         let buff_header = bincode::serialize(header).unwrap();
         let buff_header_len = buff_header.len() as u32;
         
@@ -141,18 +135,16 @@ impl LogFile {
         self.log_file.write_all(&meta[..]).await?;
         self.log_file.write_u32(data_len).await?;
         self.log_file.write_all(&data[..]).await?;
-        self.log_file.write_u32(digest_len).await?;
-        self.log_file.write_all(&digest[..]).await?;
 
-        self.index.insert(header.index(), self.log_off);
+        self.index.insert(header.clone(), self.log_off);
 
         self.log_off = self.log_file.seek(SeekFrom::Current(0)).await?;
 
         Ok(())
     }
 
-    async fn load(&mut self, idx: &HeaderIndex) -> Option<EventData> {
-        let off_entry = self.index.get(idx)?.clone();
+    async fn load(&mut self, header: &Header) -> Option<EventData> {
+        let off_entry = self.index.get(header)?.clone();
 
         // Skip the header
         self.log_file.seek(SeekFrom::Start(off_entry)).await.ok()?;
@@ -169,17 +161,11 @@ impl LogFile {
         let mut buff_data = BytesMut::with_capacity(size_data as usize);
         self.log_file.read_buf(&mut buff_data).await.ok()?;
 
-        // Read the digest
-        let size_digest = self.log_file.read_u32().await.ok()?;
-        let mut buff_digest = BytesMut::with_capacity(size_digest as usize);
-        self.log_file.read_buf(&mut buff_digest).await.ok()?;
-
         Some(
             EventData {
-                index: idx.clone(),
+                header: header.clone(),
                 meta: buff_meta.freeze(),
                 data: buff_data.freeze(),
-                digest: buff_digest.freeze(),
             }
         )
     }
@@ -210,23 +196,21 @@ struct DeferredWrite {
     pub header: Header,
     pub meta: Bytes,
     pub data: Bytes,
-    pub digest: Bytes,
 }
 
 impl DeferredWrite {
-    pub fn new(header: Header, meta: Bytes, data: Bytes, digest: Bytes) -> DeferredWrite {
+    pub fn new(header: Header, meta: Bytes, data: Bytes) -> DeferredWrite {
         DeferredWrite {
             header: header,
             meta: meta,
             data: data,
-            digest: digest,
         }
     }
 }
 
 #[async_trait]
 pub trait LogWritable {
-    async fn write(&mut self, header: Header, meta: Bytes, data: Bytes, digest: Bytes) -> Result<()>;
+    async fn write(&mut self, header: Header, meta: Bytes, data: Bytes) -> Result<()>;
     async fn flush(&mut self) -> Result<()>;
 }
 
@@ -239,8 +223,8 @@ struct FlippedLogFileProtected {
 impl LogWritable for FlippedLogFileProtected
 {
     #[allow(dead_code)]
-    async fn write(&mut self, header: Header, meta: Bytes, data: Bytes, digest: Bytes) -> Result<()> {
-        let _ = self.log_file.write(&header, meta, data, digest).await?;
+    async fn write(&mut self, header: Header, meta: Bytes, data: Bytes) -> Result<()> {
+        let _ = self.log_file.write(&header, meta, data).await?;
         Ok(())
     }
 
@@ -284,9 +268,9 @@ impl FlippedLogFile
 impl LogWritable for FlippedLogFile
 {
     #[allow(dead_code)]
-    async fn write(&mut self, header: Header, meta: Bytes, data: Bytes, digest: Bytes) -> Result<()> {
+    async fn write(&mut self, header: Header, meta: Bytes, data: Bytes) -> Result<()> {
         let mut lock = self.inside.lock().await;
-        lock.write(header, meta, data, digest).await
+        lock.write(header, meta, data).await
     }
 
     async fn flush(&mut self) -> Result<()> {
@@ -305,7 +289,7 @@ struct RedoLogProtected {
     log_file: LogFile,
     flip: Option<RedoLogFlipProtected>,
     entries: VecDeque<HeaderMeta>,
-    orphans: FxHashMap<HeaderIndex, EventData>
+    orphans: FxHashMap<Header, EventData>
 }
 
 impl RedoLogProtected
@@ -325,15 +309,15 @@ impl RedoLogProtected
         Ok(ret)
     }
 
-    async fn write(&mut self, header: Header, meta: Bytes, data: Bytes, digest: Bytes) -> Result<()> {
+    async fn write(&mut self, header: Header, meta: Bytes, data: Bytes) -> Result<()> {
         let deferred_write: Option<DeferredWrite> = match &self.flip {
             Some(_) => Some(
-                DeferredWrite::new(header.clone(), meta.clone(), data.clone(), digest.clone())
+                DeferredWrite::new(header.clone(), meta.clone(), data.clone())
             ),
             _ => None,
         };
 
-        let _ = self.log_file.write(&header, meta.clone(), data, digest).await?;
+        let _ = self.log_file.write(&header, meta.clone(), data).await?;
         self.entries.push_back(
             HeaderMeta {
                 header: header,
@@ -373,7 +357,7 @@ impl RedoLogProtected
 
                 let mut new_orphans = Vec::new();
                 for head in &self.entries {
-                    new_orphans.push(head.header.index());
+                    new_orphans.push(head.header.clone());
                 }
                 for idx in new_orphans {
                     if let Some(evt) = self.load(&idx).await {
@@ -394,7 +378,7 @@ impl RedoLogProtected
             {
                 let mut new_log_file = flip.copy_log_file().await?;
                 for d in &inside.deferred {
-                    new_log_file.write(&d.header, d.meta.clone(), d.data.clone(), d.digest.clone()).await?;
+                    new_log_file.write(&d.header, d.meta.clone(), d.data.clone()).await?;
                 }
                 new_log_file.move_log_file(&self.log_path)?;
                 self.log_file = new_log_file;
@@ -408,14 +392,14 @@ impl RedoLogProtected
         }
     }
 
-    async fn load(&mut self, idx: &HeaderIndex) -> Option<EventData> {
-        match self.log_file.load(idx).await {
+    async fn load(&mut self, header: &Header) -> Option<EventData> {
+        match self.log_file.load(header).await {
             Some(data) => {
-                self.orphans.remove(idx);
+                self.orphans.remove(header);
                 Some(data)
             },
             None => {
-                let data = self.orphans.get(idx)?;
+                let data = self.orphans.get(header)?;
                 Some(data.clone())
             }
         }
@@ -446,10 +430,10 @@ pub struct RedoLog {
 impl RedoLog
 {
     #[allow(dead_code)]
-    pub async fn new(cfg: &impl ConfigStorage, key: &impl ChainKey) -> Result<RedoLog> {
+    pub async fn new(cfg: &impl ConfigStorage, key: &ChainKey) -> Result<RedoLog> {
         let _ = std::fs::create_dir_all(cfg.log_path());
 
-        let path_log = format!("{}/{}.log", cfg.log_path(), key.to_key_str());
+        let path_log = format!("{}/{}.log", cfg.log_path(), key.name);
 
         Result::Ok(
             RedoLog {
@@ -466,7 +450,7 @@ impl RedoLog
     }
 
     #[allow(dead_code)]
-    pub async fn load(&mut self, idx: &HeaderIndex) -> Option<EventData> {
+    pub async fn load(&mut self, idx: &Header) -> Option<EventData> {
         let mut lock = self.inside.lock().await;
         lock.load(idx).await
     }
@@ -499,9 +483,9 @@ impl RedoLog
 impl LogWritable for RedoLog
 {
     #[allow(dead_code)]
-    async fn write(&mut self, header: Header, meta: Bytes, data: Bytes, digest: Bytes) -> Result<()> {
+    async fn write(&mut self, header: Header, meta: Bytes, data: Bytes) -> Result<()> {
         let mut lock = self.inside.lock().await;
-        lock.write(header, meta, data, digest).await
+        lock.write(header, meta, data).await
     }
 
     #[allow(dead_code)]
@@ -522,10 +506,9 @@ async fn test_write_data(log: &mut dyn LogWritable, key: &'static str, data: Vec
     let mut mock_head = Header::default();
     mock_head.key = key.to_string();
     let mock_meta = Bytes::from(vec![255; 50]);
-    let mock_digest = Bytes::from(vec![0; 100]);
     let mock_data = Bytes::from(data);
 
-    log.write(mock_head, mock_meta, mock_data, mock_digest).await.expect("Failed to write the object");
+    log.write(mock_head, mock_meta, mock_data).await.expect("Failed to write the object");
 }
 
 #[cfg(test)]
@@ -533,7 +516,7 @@ async fn test_read_data(log: &mut RedoLog, key: &'static str, test_data: Vec<u8>
 {
     let read_header = log.pop().await.expect("Failed to read mocked data");
     assert_eq!(read_header.header.key, key.to_string());
-    let evt = log.load(&read_header.header.index()).await.expect(format!("Failed to load the event record for {}", key).as_str());
+    let evt = log.load(&read_header.header).await.expect(format!("Failed to load the event record for {}", key).as_str());
     assert_eq!(test_data, evt.data);
 }
 
@@ -553,7 +536,7 @@ fn test_redo_log_intra() {
     rt.block_on(async {
         // Create the redo log
         println!("test_redo_log_intra - creating the redo log");
-        let mock_key = DiscreteChainKey::default().with_name("test_obj".to_string());
+        let mock_key = ChainKey::default().with_name("test_obj");
         let mut rl = RedoLog::new(&mock_test_config(), &mock_key).await.expect("Failed to load the redo log");
         let _ = rl.truncate().await;
 
@@ -614,8 +597,8 @@ fn test_redo_log_inter() {
         let mock_cfg = mock_test_config()
             .with_log_temp(false);
 
-        let mock_chain_key = DiscreteChainKey::default()
-            .with_name("test_inter".to_string());
+        let mock_chain_key = ChainKey::default()
+            .with_name("test_inter");
             
         {
             // Open the log once for writing

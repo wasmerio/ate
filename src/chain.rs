@@ -1,15 +1,34 @@
 use serde::{Serialize, Deserialize};
 
+#[cfg(test)]
+use tokio::runtime::Runtime;
+#[allow(unused_imports)]
+use super::conf::*;
+
 #[allow(unused_imports)]
 use std::io::Write;
+use super::redo::RedoLog;
+use super::conf::ConfigStorage;
+use tokio::io::Result;
+
 #[allow(unused_imports)]
 use super::event::Event;
+#[allow(unused_imports)]
+use super::meta::*;
 
-pub trait ChainKey {
-    fn name(&self) -> &String;
+#[allow(dead_code)]
+#[derive(Default, Clone)]
+pub struct ChainKey {
+    pub name: String,
+}
 
-    fn to_key_str(&self) -> String {
-        format!("{}", self.name())
+impl ChainKey {
+    #[allow(dead_code)]
+    pub fn with_name(&self, val: &str) -> ChainKey
+    {
+        let mut ret = self.clone();
+        ret.name = val.to_string();
+        ret
     }
 }
 
@@ -17,31 +36,33 @@ pub trait ChainKey {
 pub struct ChainOfTrust<M>
     where M: Serialize + Deserialize<'static> + Clone
 {
-    pub events: Vec<Event<M>>,
+    key: ChainKey,
+    redo: RedoLog,
+    events: Vec<Event<M>>,
 }
 
-#[allow(dead_code)]
-#[derive(Default)]
-pub struct DiscreteChainKey {
-    pub name: String,
-}
-
-impl DiscreteChainKey
+impl<M> ChainOfTrust<M>
+    where M: Serialize + Deserialize<'static> + Clone
 {
     #[allow(dead_code)]
-    pub fn with_name(mut self, name: String) -> DiscreteChainKey {
-        self.name = name;
-        self
+    pub async fn new(cfg: &impl ConfigStorage, key: &ChainKey) -> Result<ChainOfTrust<M>> {
+        Ok(
+            ChainOfTrust {
+            key: key.clone(),
+            redo: RedoLog::new(cfg, key).await?,
+            events: Vec::new(),
+        })
     }
 }
 
-impl ChainKey for DiscreteChainKey {
-    fn name(&self) -> &String { &self.name }
-}
-
 #[test]
-pub fn test_chain_key_mocking() {
-    let cfg = DiscreteChainKey::default()
-        .with_name("test_obj".to_string());
-    assert_eq!(cfg.name(), "test_obj");
+pub fn test_chain() {
+
+    let rt = Runtime::new().unwrap();
+
+    rt.block_on(async {
+        let mock_cfg = mock_test_config();
+        let mock_chain_key = ChainKey::default().with_name("test_chain");
+        let _: ChainOfTrust<DefaultMeta> = ChainOfTrust::new(&mock_cfg, &mock_chain_key).await.expect("Failed to create the chain of trust");
+    });
 }

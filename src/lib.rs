@@ -1,5 +1,6 @@
 mod test;
 mod header;
+mod meta;
 mod event;
 mod conf;
 mod comms;
