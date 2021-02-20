@@ -2,6 +2,7 @@ extern crate uuid;
 
 use serde::{Serialize, Deserialize};
 use uuid::Uuid;
+use std::hash::{Hash};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct EmptyMeta {
@@ -16,14 +17,9 @@ pub struct Digest {
 }
 
 #[allow(dead_code)]
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, Hash)]
 pub struct Header
 {
-    pub off_data: u64,
-    pub size_data: u64,
-    pub off_digest: u64,
-    pub size_digest: u64,
-
     pub key: String,
     pub castle_id: Uuid,
     pub inherit_read: bool,
@@ -36,14 +32,20 @@ pub struct Header
     pub previous_version: Uuid,
 }
 
-#[allow(dead_code)]
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct HeaderWithOffsets
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub struct HeaderIndex
 {
-    pub off_data: u64,
-    pub size_data: u64,
-    pub off_digest: u64,
-    pub size_digest: u64,
+    pub key: String,
+    pub version: Uuid,
+}
 
-    pub header: Header
+impl Header
+{
+    pub fn index(&self) -> HeaderIndex
+    {
+        HeaderIndex {
+            key: self.key.clone(),
+            version: self.version
+        }
+    }
 }

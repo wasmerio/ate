@@ -7,7 +7,7 @@ use super::event::Event;
 use super::header::EmptyMeta;
 
 pub trait ChainKey {
-    fn name(&self) -> String;
+    fn name(&self) -> &String;
 
     fn to_key_str(&self) -> String {
         format!("{}", self.name())
@@ -24,19 +24,32 @@ pub struct ChainOfTrust<M>
 #[allow(dead_code)]
 pub type DefaultChainOfTrust = ChainOfTrust<EmptyMeta>;
 
-#[cfg(test)]
-pub fn mock_test_chain_key() -> impl ChainKey {
-    struct MockChainKey {}
+#[allow(dead_code)]
+#[derive(Default)]
+pub struct DiscreteChainKey {
+    pub name: String,
+}
 
-    impl ChainKey for MockChainKey {
-        fn name(&self) -> String { "test_obj".to_string() }
+impl DiscreteChainKey
+{
+    #[allow(dead_code)]
+    pub fn with_name(mut self, name: String) -> DiscreteChainKey {
+        self.name = name;
+        self
     }
+}
 
-    MockChainKey {}
+impl ChainKey for DiscreteChainKey {
+    fn name(&self) -> &String { &self.name }
+}
+#[allow(dead_code)]
+pub struct Chain {
+
 }
 
 #[test]
 pub fn test_chain_key_mocking() {
-    let cfg = mock_test_chain_key();
+    let cfg = DiscreteChainKey::default()
+        .with_name("test_obj".to_string());
     assert_eq!(cfg.name(), "test_obj");
 }
