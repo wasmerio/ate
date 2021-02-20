@@ -4,7 +4,6 @@ use serde::{Serialize, Deserialize};
 use std::io::Write;
 #[allow(unused_imports)]
 use super::event::Event;
-use super::header::EmptyMeta;
 
 pub trait ChainKey {
     fn name(&self) -> &String;
@@ -20,9 +19,6 @@ pub struct ChainOfTrust<M>
 {
     pub events: Vec<Event<M>>,
 }
-
-#[allow(dead_code)]
-pub type DefaultChainOfTrust = ChainOfTrust<EmptyMeta>;
 
 #[allow(dead_code)]
 #[derive(Default)]
@@ -41,10 +37,6 @@ impl DiscreteChainKey
 
 impl ChainKey for DiscreteChainKey {
     fn name(&self) -> &String { &self.name }
-}
-#[allow(dead_code)]
-pub struct Chain {
-
 }
 
 #[test]
