@@ -1,6 +1,6 @@
 mod test;
+mod crypto;
 mod header;
-mod meta;
 mod event;
 mod conf;
 mod comms;

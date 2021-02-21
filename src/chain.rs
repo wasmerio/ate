@@ -6,24 +6,22 @@ use tokio::io::Error;
 use tokio::io::ErrorKind;
 use tokio::io::Result;
 
-use crate::{redo::EventData};
-
 #[allow(unused_imports)]
 use super::conf::*;
 #[allow(unused_imports)]
 use super::header::*;
 use super::validator::*;
+use super::event::*;
 
 #[allow(unused_imports)]
 use std::io::Write;
 use super::redo::RedoLog;
 use super::conf::ConfigStorage;
-
+#[allow(unused_imports)]
+use bytes::Bytes;
 
 #[allow(unused_imports)]
 use super::event::Event;
-#[allow(unused_imports)]
-use super::meta::*;
 
 #[allow(dead_code)]
 #[derive(Default, Clone)]
@@ -42,36 +40,33 @@ impl ChainKey {
 }
 
 #[allow(dead_code)]
-pub struct ChainOfTrust<M>
-    where M: Serialize + DeserializeOwned + Clone
+pub struct ChainOfTrust
 {
     key: ChainKey,
     redo: RedoLog,
-    events: Vec<Event<M>>,
 }
 
-impl<M> ChainOfTrust<M>
-    where M: Serialize + DeserializeOwned + Clone
+impl ChainOfTrust
 {
     #[allow(dead_code)]
-    pub async fn new(cfg: &impl ConfigStorage, key: &ChainKey) -> Result<ChainOfTrust<M>> {
+    pub async fn new(cfg: &impl ConfigStorage, key: &ChainKey) -> Result<ChainOfTrust> {
         Ok(
             ChainOfTrust {
                 key: key.clone(),
                 redo: RedoLog::new(cfg, key).await?,
-                events: Vec::new(),
             }
         )
     }
 
     #[allow(dead_code)]
-    pub async fn process(&mut self, evt_data: EventData, validator: impl EventValidator) -> Result<()> {
+    pub async fn process<M: Serialize + DeserializeOwned + Clone>(&mut self, evt_data: EventData, validator: impl EventValidator) -> Result<Event<M>>
+    {
         let evt: Option<Event<M>> = Event::from_event_data(&evt_data);
         match evt {
             Some(evt) => {
-                validator.validate(&evt, &self.events)?;
+                validator.validate(&evt)?;
                 self.redo.write(evt_data).await?;
-                Ok(())
+                Ok(evt)
             },
             _ => {
                 Result::Err(
@@ -80,6 +75,23 @@ impl<M> ChainOfTrust<M>
             }
         }
     }
+
+    /*
+    pub async fn compact(&mut self) -> Result<()>
+    {
+        // first we need to trim any events that should no longer be there
+        trim();
+
+        // now we need to rebuild the redo log
+        let flip = self.redo.begin_flip().await?;
+        for evt in self.events {
+            let evt = evt.to_event_data();
+            let _ = flip.write(evt).await;
+        }
+        self.redo.end_flip(flip);
+
+        Ok(())
+    }*/
 }
 
 #[test]
@@ -90,6 +102,10 @@ pub fn test_chain() {
     rt.block_on(async {
         let mock_cfg = mock_test_config();
         let mock_chain_key = ChainKey::default().with_name("test_chain");
-        let _: ChainOfTrust<DefaultMeta> = ChainOfTrust::new(&mock_cfg, &mock_chain_key).await.expect("Failed to create the chain of trust");
+        let mut chain: ChainOfTrust = ChainOfTrust::new(&mock_cfg, &mock_chain_key).await.expect("Failed to create the chain of trust");
+
+        let validator = RubberStampValidator::default();
+        let evt_data = Event::new(PrimaryKey::generate(), DefaultMeta::default(), Bytes::default()).to_event_data();
+        let _: Event<DefaultMeta> = chain.process(evt_data, validator).await.unwrap();
     });
 }

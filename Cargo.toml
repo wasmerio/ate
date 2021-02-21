@@ -1,3 +1,9 @@
+[alias]
+b = "build"
+c = "check"
+t = "test"
+r = "run"
+
 [package]
 name = "ate"
 version = "2.0.0"
@@ -19,6 +25,9 @@ futures-util = "*"
 hash = "*"
 fxhash = "*"
 async-trait = "*"
+fastrand = "*"
+rust-crypto = "*"
+rand = "*"
 
 [dev-dependencies]
 ctor = "*"

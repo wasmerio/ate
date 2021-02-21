@@ -4,6 +4,10 @@ use std::{net::SocketAddr};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use super::conf::*;
+#[allow(unused_imports)]
+use tokio::time::sleep;
+#[allow(unused_imports)]
+use tokio::time::Duration;
 
 #[cfg(test)]
 use tokio::runtime::Runtime;
@@ -99,7 +103,10 @@ fn test_server_client() {
     });
 
     let cfg = super::conf::mock_test_config();
-    rt.block_on(async move {
+    rt.block_on(async move
+    {
+        sleep(Duration::from_millis(100)).await;
+
         let client = Client::new();
         client.run(&cfg).await.expect("The networking client has panicked");
     });
