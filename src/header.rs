@@ -1,4 +1,4 @@
-use serde::{Serialize, Deserialize};
+use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use super::crypto::*;
 
 #[allow(unused_imports)]
@@ -9,12 +9,18 @@ use std::{hash::{Hash}, mem::size_of};
 use tokio::io::Result;
 use tokio::{io::{AsyncReadExt, AsyncWriteExt}};
 use tokio::{io::{BufStream}};
+use super::redo::LogFilePointer;
+use buffered_offset_reader::{BufOffsetReader, OffsetReadMut};
+
+pub trait MetadataTrait: Serialize + DeserializeOwned + Clone {
+}
 
 #[allow(dead_code)]
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq)]
+#[repr(packed(1))]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct PrimaryKey
 {
-    pub key: u64,
+    key: u64,
 }
 
 impl Default for PrimaryKey
@@ -32,22 +38,53 @@ impl PrimaryKey {
         }
     }
 
-    pub async fn read(reader: &mut BufStream<File>) -> Result<PrimaryKey> {
+    pub async fn read(reader: &mut BufStream<File>) -> Result<Option<PrimaryKey>> {
+        let mut buf = [0 as u8; std::mem::size_of::<PrimaryKey>()];
+
+        let read = reader.read(&mut buf).await?;
+        if read == 0 { return Ok(None); }
+        if read != buf.len() {
+            return Result::Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the right number of bytes for PrimaryKey ({:?} vs {:?})", read, buf.len())));
+        }
+
+        Ok(
+            Some(
+                PrimaryKey {
+                    key: u64::from_be_bytes(buf)
+                }
+            )
+        )
+    }
+
+    pub fn read_at(reader: &mut BufOffsetReader<std::fs::File>, at: u64) -> Result<PrimaryKey> {
+        let mut buf = [0 as u8; std::mem::size_of::<PrimaryKey>()];
+        
+        let read = reader.read_at(&mut buf, at)?;
+        if read != buf.len() {
+            return Result::Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to load event data from log file at offset {:?})", at)));
+        }
+
         Ok(
             PrimaryKey {
-                key: reader.read_u64().await?
+                key: u64::from_be_bytes(buf)
             }
         )
     }
 
     pub async fn write(&self, writer: &mut BufStream<File>) -> Result<()> {
-        writer.write_u64(self.key).await?;
+        writer.write(&self.key.to_be_bytes()).await?;
         Ok(())
     }
 
     #[allow(dead_code)]
     pub fn sizeof() -> u64 {
         size_of::<u64>() as u64
+    }
+
+    pub fn as_hex_string(&self) -> String {
+        unsafe {
+            format!("{:X?}", self.key).to_string()
+        }
     }
 }
 #[allow(dead_code)]
@@ -56,6 +93,7 @@ pub struct MetaCastle
 {
     pub key: EncryptKey,
 }
+impl MetadataTrait for MetaCastle {}
 
 #[allow(dead_code)]
 #[derive(Serialize, Deserialize, Debug, Clone, Default, Hash)]
@@ -63,6 +101,7 @@ pub struct MetaConfidentiality
 {
     pub castle_id: PrimaryKey,
 }
+impl MetadataTrait for MetaConfidentiality {}
 
 #[allow(dead_code)]
 #[derive(Serialize, Deserialize, Debug, Clone, Default, Hash)]
@@ -72,6 +111,7 @@ pub struct MetaAuthorization
     pub allow_write: Vec<String>,
     pub implicit_authority: String,
 }
+impl MetadataTrait for MetaAuthorization {}
 
 #[allow(dead_code)]
 #[derive(Serialize, Deserialize, Debug, Clone, Default, Hash)]
@@ -81,18 +121,27 @@ pub struct MetaTree
     pub inherit_read: bool,
     pub inherit_write: bool,
 }
+impl MetadataTrait for MetaTree {}
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default, Hash)]
 pub struct MetaDigest {
     pub seed: Vec<u8>,
     pub digest: Vec<u8>,
 }
+impl MetadataTrait for MetaDigest {}
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default, Hash)]
 pub struct MetaSignature {
     pub signature: Vec<u8>,
     pub public_key_hash: String,
 }
+impl MetadataTrait for MetaSignature {}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default, Hash)]
+pub struct MetaAuthor {
+    pub email: String,
+}
+impl MetadataTrait for MetaAuthor {}
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default, Hash)]
 pub struct DefaultMeta {
@@ -102,7 +151,9 @@ pub struct DefaultMeta {
     pub auth: Option<MetaAuthorization>,
     pub digest: Option<MetaDigest>,
     pub signature: Option<MetaSignature>,
+    pub author: Option<MetaAuthor>,
 }
+impl MetadataTrait for DefaultMeta {}
 
 #[derive(Debug, Clone)]
 pub struct Header<M> {
@@ -113,5 +164,6 @@ pub struct Header<M> {
 pub struct HeaderData
 {
     pub key: PrimaryKey,
-    pub meta: Bytes
+    pub meta: Bytes,
+    pub data: LogFilePointer,
 }

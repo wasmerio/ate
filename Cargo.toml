@@ -28,6 +28,8 @@ async-trait = "*"
 fastrand = "*"
 rust-crypto = "*"
 rand = "*"
+buffered_offset_reader = "*"
+async-drop = "*"
 
 [dev-dependencies]
 ctor = "*"
