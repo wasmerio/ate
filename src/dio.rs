@@ -14,26 +14,23 @@ use std::rc::Rc;
 
 use super::header::*;
 use super::chain::*;
-use super::validator::*;
-use super::index::*;
-use super::compact::*;
 use super::event::*;
 
 #[derive(Debug, Clone)]
 pub struct Dao<M, D>
-where M: MetadataTrait,
+where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone
 {
     pub key: PrimaryKey,
-    pub meta: M,
+    pub meta: Metadata<M>,
     pub data: D,
 }
 
 impl<M, D> Dao<M, D>
-where M: MetadataTrait,
+where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone
 {
-    pub fn new(key: PrimaryKey, meta: M, data: D) -> Dao<M, D>
+    pub fn new(key: PrimaryKey, meta: Metadata<M>, data: D) -> Dao<M, D>
     {
         Dao {
             key: key,
@@ -45,7 +42,7 @@ where M: MetadataTrait,
 
 #[derive(Debug)]
 pub struct DaoRef<M, D>
-where M: MetadataTrait,
+where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone,
 {
     hard_copy: Option<Dao<M, D>>,
@@ -54,7 +51,7 @@ where M: MetadataTrait,
 }
 
 impl<M, D> DaoRef<M, D>
-where M: MetadataTrait,
+where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone,
 {
     fn new<>(what: &Rc<Dao<M, D>>, state: &Rc<RefCell<DioState<M, D>>>) -> DaoRef<M, D> {
@@ -90,22 +87,34 @@ where M: MetadataTrait,
     }
 
     #[allow(dead_code)]
-    pub fn metadata(&self) -> &M {
+    pub fn metadata(&self) -> &Metadata<M> {
         &self.soft_copy.meta
     }
 
     #[allow(dead_code)]
-    pub fn metadata_mut(&mut self) -> &mut M {
+    pub fn metadata_mut(&mut self) -> &mut Metadata<M> {
         self.fork();
         &mut self.hard_copy
             .as_mut()
             .expect("Something strange happened, we just set a variable then tried to read it, major bug!")
             .meta
     }
+
+    #[allow(dead_code)]
+    pub fn delete(self) {
+        let mut state = self.state.borrow_mut();
+        if state.lock(&self.soft_copy.key) == false {
+            eprintln!("Detected concurrent write while deleting a data object ({:?}) - the delete operation will override everything else", self.soft_copy.key);
+        }
+        let key = self.key().clone();
+        state.dirty.remove(&key);
+        state.cache.remove(&key);
+        state.deleted.insert(key);
+    }
 }
 
 impl<M, D> Deref for DaoRef<M, D>
-where M: MetadataTrait,
+where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone,
 {
     type Target = D;
@@ -119,7 +128,7 @@ where M: MetadataTrait,
 }
 
 impl<M, D> DerefMut for DaoRef<M, D>
-where M: MetadataTrait,
+where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
@@ -132,7 +141,7 @@ where M: MetadataTrait,
 }
 
 impl<M, D> Drop for DaoRef<M, D>
-where M: MetadataTrait,
+where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone,
 {
     fn drop(&mut self) {
@@ -142,16 +151,17 @@ where M: MetadataTrait,
 
 #[derive(Debug)]
 struct DioState<M, D>
-where M: MetadataTrait,
+where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone,
 {
     dirty: LinkedHashMap<PrimaryKey, Rc<Dao<M, D>>>,
     cache: FxHashMap<PrimaryKey, Rc<Dao<M, D>>>,
     locked: FxHashSet<PrimaryKey>,
+    deleted: FxHashSet<PrimaryKey>,
 }
 
 impl<M, D> DioState<M, D>
-where M: MetadataTrait,
+where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone,
 {
     fn dirty(&mut self, dao: Dao<M, D>) {
@@ -173,7 +183,7 @@ where M: MetadataTrait,
 }
 
 impl<M, D> DioState<M, D>
-where M: MetadataTrait,
+where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone,
 {
     fn new() -> DioState<M, D> {
@@ -181,31 +191,26 @@ where M: MetadataTrait,
             dirty: LinkedHashMap::new(),
             cache: FxHashMap::default(),
             locked: FxHashSet::default(),
+            deleted: FxHashSet::default(),
         }
     }
 }
 
-pub struct Dio<'a, M, D, I, V, C>
-where M: MetadataTrait,
+pub struct Dio<'a, M, D>
+where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone,
-      I: EventIndexer<M>,
-      V: EventValidator<M, Index=I>,
-      C: EventCompactor<M, Index=I>,
 {
-    accessor: ChainAccessor<M, I, V, C>,
-    multi: Option<ChainMultiUser<'a, M, I, V, C>>,
+    accessor: ChainAccessor<M>,
+    multi: Option<ChainMultiUser<'a, M>>,
     state: Rc<RefCell<DioState<M, D>>>,
 }
 
-impl<'a, M, D, I, V, C> Dio<'a, M, D, I, V, C>
-where M: MetadataTrait,
+impl<'a, M, D> Dio<'a, M, D>
+where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone,
-      I: EventIndexer<M>,
-      V: EventValidator<M, Index=I>,
-      C: EventCompactor<M, Index=I>,
 {
     #[allow(dead_code)]
-    pub fn create(&mut self, metadata: M, data: D) -> Result<DaoRef<M, D>> {
+    pub fn store(&mut self, metadata: Metadata<M>, data: D) -> Result<DaoRef<M, D>> {
         let key = PrimaryKey::generate();
         let dao = Rc::new(Dao::new(key.clone(), metadata, data));
         self.state.borrow_mut().dirty.insert(key, dao.clone());
@@ -214,7 +219,7 @@ where M: MetadataTrait,
 
     #[allow(dead_code)]
     pub fn load(&mut self, key: &PrimaryKey) -> Result<DaoRef<M, D>> {
-        let state = self.state.borrow_mut();
+        let mut state = self.state.borrow_mut();
         if state.is_locked(key) {
             return Result::Err(Error::new(ErrorKind::Other, format!("The record is locked as it has a dirty record already in scope for this call stack {:?}", key)));
         }
@@ -224,40 +229,49 @@ where M: MetadataTrait,
         if let Some(dao) = state.cache.get(key) {
             return Ok(DaoRef::new(dao, &self.state));
         }
+        if state.deleted.contains(key) {
+            return Result::Err(Error::new(ErrorKind::NotFound, format!("Record with this key has already been deleted {}", key.as_hex_string())))
+        }
 
         let multi = self.multi.as_ref().ok_or(Error::new(ErrorKind::Other, "Dio is not properly initialized (missing multiuser chain handle)"))?;
 
         let entry = match multi.search(key) {
             Some(a) => a,
-            None => return Result::Err(Error::new(ErrorKind::Other, format!("Failed to find a record for {:?}", key))),
+            None => return Result::Err(Error::new(ErrorKind::NotFound, format!("Failed to find a record for {}", key.as_hex_string()))),
         };
+        if entry.header.meta.has_tombstone() {
+            return Result::Err(Error::new(ErrorKind::NotFound, format!("Found a record but its been tombstoned for {}", key.as_hex_string())));
+        }
 
         let evt = multi.load(&entry)?;
 
-        match bincode::deserialize(&evt.body) {
-            std::result::Result::Ok(a) => {
-                let dao = Rc::new(Dao::new(key.clone(), evt.header.meta, a));
-                self.state.borrow_mut().cache.insert(key.clone(), dao.clone());
-                Ok(DaoRef::new(&dao, &self.state))
-            },
-            std::result::Result::Err(err) => Result::Err(Error::new(ErrorKind::Other, format!("{}", err))),
+        match evt.body.as_ref() {
+            Some(data) => {
+                match bincode::deserialize(data) {
+                    std::result::Result::Ok(a) => {
+                        let dao = Rc::new(Dao::new(key.clone(), evt.header.meta, a));
+                        state.cache.insert(key.clone(), dao.clone());
+                        Ok(DaoRef::new(&dao, &self.state))
+                    },
+                    std::result::Result::Err(err) => Result::Err(Error::new(ErrorKind::Other, format!("{}", err))),
+                }
+            }
+            None => return Result::Err(Error::new(ErrorKind::NotFound, format!("Found a record but it has no data to load for {}", key.as_hex_string()))),
         }
     }
 
     #[allow(dead_code)]
-    #[allow(unused_variables)]
-    pub fn delete(&'a mut self, key: &PrimaryKey) -> Result<bool> {
-        Result::Err(Error::new(ErrorKind::Other, "Not implemented yet"))
+    pub fn erase(&mut self, key: &PrimaryKey) -> Result<()> {
+        let dao = self.load(key)?;
+        dao.delete();
+        Ok(())
     }
 }
 
-impl<'a, M, D, I, V, C> Drop
-for Dio<'a, M, D, I, V, C>
-where M: MetadataTrait,
+impl<'a, M, D> Drop
+for Dio<'a, M, D>
+where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone,
-      I: EventIndexer<M>,
-      V: EventValidator<M, Index=I>,
-      C: EventCompactor<M, Index=I>,
 {
     fn drop(&mut self)
     {
@@ -266,19 +280,32 @@ where M: MetadataTrait,
 
         // If we have dirty records
         let state = self.state.borrow_mut();
-        if state.dirty.is_empty() == false
+        if state.dirty.is_empty() == false || state.deleted.is_empty() == false
         {
-            // Convert all the events into serialize data
+            // Convert all the events that we are storing into serialize data
             let mut evts = Vec::new();
             for (_, dao) in &state.dirty {
                 let dao = dao.deref();
                 let evt = Event {
                     header: Header {
                         key: dao.key,
-                        meta: dao.meta.clone(),
+                        meta: Metadata::default(),
                     },
-                    body: Bytes::from(bincode::serialize(&dao.data).unwrap()),
+                    body: Some(Bytes::from(bincode::serialize(&dao.data).unwrap())),
                 };
+                evts.push(evt);
+            }
+
+            // Build events that will represent tombstones on all these records (they will be sent after the writes)
+            for key in &state.deleted {
+                let mut evt = Event {
+                    header: Header {
+                        key: key.clone(),
+                        meta: Metadata::default(),
+                    },
+                    body: None,
+                };
+                evt.header.meta.add_tombstone();
                 evts.push(evt);
             }
 
@@ -289,33 +316,25 @@ where M: MetadataTrait,
     }
 }
 
-pub trait DioFactory<'a, M, D, I, V, C>
-where M: MetadataTrait,
+pub trait DioFactory<'a, M, D>
+where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone,
-      I: EventIndexer<M>,
-      V: EventValidator<M, Index=I>,
-      C: EventCompactor<M, Index=I>,
 {
-    fn dio(&'a mut self) -> Dio<'a, M, D, I, V, C>;
+    fn dio(&'a mut self) -> Dio<'a, M, D>;
 }
 
-impl<'a, M, D, I, V, C> DioFactory<'a, M, D, I, V, C>
-for ChainAccessor<M, I, V, C>
-where M: MetadataTrait,
+impl<'a, M, D> DioFactory<'a, M, D>
+for ChainAccessor<M>
+where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone,
-      I: EventIndexer<M>,
-      V: EventValidator<M, Index=I>,
-      C: EventCompactor<M, Index=I>,
 {
-    fn dio(&'a mut self) -> Dio<'a, M, D, I, V, C> {
+    fn dio(&'a mut self) -> Dio<'a, M, D> {
         let accessor = ChainAccessor::from_accessor(self); 
         let multi = self.multi();
         Dio {
             accessor: accessor,
-            //gc: Rc::new(Arena::new()),
             state: Rc::new(RefCell::new(DioState::new())),
-            multi: Some(multi),
-            //cache: FxHashMap::default(),            
+            multi: Some(multi),          
         }
     }
 }
@@ -327,48 +346,73 @@ pub enum TestDao
     Blah1,
     Blah2(u32),
     Blah3(String),
+    Blah4,
 }
 
 #[test]
 fn test_dio()
 {
     let mut chain = create_test_chain("test_dio".to_string());
+
+    let key1;
+    let key2;
     {
         let mut dio = chain.dio();
 
         // Write a value immediately from chain (this data will remain in the transaction)
-        let key;
         {
-            let mut dao = dio.create(DefaultMeta::default(), TestDao::Blah1).unwrap();
-            key = dao.key().clone();
+            let mut dao1 = dio.store(Metadata::default(), TestDao::Blah1).unwrap();
+            key1 = dao1.key().clone();
 
             // Attempting to load the data object while it is still in scope and not flushed will fail
-            match dio.load(&key).expect("The data object should have been read").deref() {
+            match dio.load(&key1).expect("The data object should have been read").deref() {
                 TestDao::Blah1 => {},
                 _ => panic!("Data is not saved correctly")
             }
 
             // When we update this value it will become dirty and hence should block future loads until its flushed or goes out of scope
-            *dao = TestDao::Blah2(2);
-            dio.load(&key).expect_err("This load is meant to fail due to a lock being triggered");
+            *dao1 = TestDao::Blah2(2);
+            dio.load(&key1).expect_err("This load is meant to fail due to a lock being triggered");
 
             // Flush the data and attempt to read it again (this should succeed)
-            dao.flush();
-            match dio.load(&key).expect("The dirty data object should have been read after it was flushed").deref() {
+            dao1.flush();
+            match dio.load(&key1).expect("The dirty data object should have been read after it was flushed").deref() {
                 TestDao::Blah2(a) => assert_eq!(a.clone(), 2 as u32),
                 _ => panic!("Data is not saved correctly")
             }
 
             // Again after changing the data reads should fail
-            *dao = TestDao::Blah3("testblah".to_string());
-            dio.load(&key).expect_err("This load is meant to fail due to a lock being triggered");
+            *dao1 = TestDao::Blah3("testblah".to_string());
+            dio.load(&key1).expect_err("This load is meant to fail due to a lock being triggered");
+
+            // Write a record to the chain that we will delete again later
+            let dao2 = dio.store(Metadata::default(), TestDao::Blah4).unwrap();
+            key2 = dao2.key().clone();
         }
 
         // Now its out of scope it should be loadable again
-        match dio.load(&key).expect("The dirty data object should have been read after it was flushed").deref() {
+        match dio.load(&key1).expect("The dirty data object should have been read after it was flushed").deref() {
             TestDao::Blah3(a) => assert_eq!(a.clone(), "testblah".to_string()),
             _ => panic!("Data is not saved correctly")
         }
+    }
+
+    {
+        let mut dio: Dio<EmptyMetadata, TestDao> = chain.dio();
+
+        // First attempt to read the record then delete it
+        let dao2 = dio.load(&key2).expect("The record should load before we delete it in this session");
+        dao2.delete();
+
+        // It should no longer load now that we deleted it
+        dio.load(&key2).expect_err("This load should fail as we deleted the record");
+    }
+
+    {
+        let mut dio: Dio<EmptyMetadata, TestDao> = chain.dio();
+
+        // After going out of scope then back again we should still no longer see the record we deleted
+        dio.load(&key2).expect_err("This load should fail as we deleted the record");
     }
 
     chain.single().destroy().unwrap();

@@ -1,16 +1,19 @@
-use crate::index::{BinaryTreeIndex, EventIndexer};
-
 use super::event::*;
 use super::header::*;
 use tokio::io::Result;
 
-pub trait EventValidator<M>
-where Self: Default,
-      M: MetadataTrait
-{
-    type Index: EventIndexer<M>;
+pub enum ValidationResult {
+    Allow,
+    #[allow(dead_code)]
+    Abstain,
+    #[allow(dead_code)]
+    Deny,
+}
 
-    fn validate(&self, evt: &Event<M>, index: &Self::Index) -> Result<()>;
+pub trait EventValidator<M>
+where M: OtherMetadata
+{
+    fn validate(&self, evt: &Event<M>) -> Result<ValidationResult>;
 }
 
 #[derive(Default)]
@@ -20,13 +23,11 @@ pub struct RubberStampValidator
 
 impl<M> EventValidator<M>
 for RubberStampValidator
-where M: MetadataTrait
+where M: OtherMetadata
 {
-    type Index = BinaryTreeIndex<M>;
-
     #[allow(unused_variables)]
-    fn validate(&self, evt: &Event<M>, index: &Self::Index) -> Result<()>
+    fn validate(&self, evt: &Event<M>) -> Result<ValidationResult>
     {
-        Ok(())
+        Ok(ValidationResult::Allow)
     }
 }

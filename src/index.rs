@@ -7,8 +7,7 @@ use super::event::*;
 use super::header::*;
 
 pub trait EventIndexer<M>
-where Self: Default,
-         M: MetadataTrait
+where M: OtherMetadata
 {
     fn feed(&mut self, evt: &EventEntry<M>);
 
@@ -17,18 +16,21 @@ where Self: Default,
     fn search(&self, key: &PrimaryKey) -> Option<EventEntry<M>>;
 
     fn refactor(&mut self, transform: &FxHashMap<LogFilePointer, LogFilePointer>);
+    
+    fn clone_empty(&self) -> Box<dyn EventIndexer<M>>;
 }
 
 #[derive(Default)]
-pub struct BinaryTreeIndex<M>
-where M: MetadataTrait
+pub struct BinaryTreeIndexer<M>
+where M: OtherMetadata
 {
     events: BTreeMap<PrimaryKey, EventEntry<M>>,
 }
 
-impl<M> BinaryTreeIndex<M>
-where M: MetadataTrait
+impl<M> BinaryTreeIndexer<M>
+where M: OtherMetadata
 {
+    #[allow(dead_code)]
     pub fn contains_key(&self, key: &PrimaryKey) -> bool {
         self.events.contains_key(key)
     }
@@ -40,11 +42,14 @@ where M: MetadataTrait
 }
 
 impl<M> EventIndexer<M>
-for BinaryTreeIndex<M>
-where M: MetadataTrait
+for BinaryTreeIndexer<M>
+where M: OtherMetadata + 'static
 {
     fn feed(&mut self, entry: &EventEntry<M>) {
-        self.events.insert(entry.header.key.clone(), entry.clone());
+        match entry.header.meta.has_tombstone() {
+            true => { self.events.remove(&entry.header.key); },
+            false => { self.events.insert(entry.header.key.clone(), entry.clone()); },
+        }
     }
 
     fn purge(&mut self, entry: &EventEntry<M>) {
@@ -64,5 +69,9 @@ where M: MetadataTrait
                 val.pointer = next.clone();
             }
         }
+    }
+
+    fn clone_empty(&self) -> Box<dyn EventIndexer<M>> {
+        Box::new(BinaryTreeIndexer::default())
     }
 }

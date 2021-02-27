@@ -2,7 +2,6 @@ mod test;
 mod crypto;
 mod header;
 mod event;
-mod dio;
 mod conf;
 mod comms;
 mod redo;
@@ -10,7 +9,7 @@ mod validator;
 mod compact;
 mod index;
 mod chain;
-mod historian;
+mod dio;
 
 #[cfg(test)]
 mod tests {

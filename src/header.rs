@@ -11,9 +11,6 @@ use tokio::{io::{AsyncReadExt, AsyncWriteExt}};
 use tokio::{io::{BufStream}};
 use super::redo::LogFilePointer;
 
-pub trait MetadataTrait: Serialize + DeserializeOwned + Clone + Default {
-}
-
 #[allow(dead_code)]
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct PrimaryKey
@@ -74,83 +71,86 @@ impl PrimaryKey {
         format!("{:X?}", self.key).to_string()
     }
 }
-#[allow(dead_code)]
-#[derive(Serialize, Deserialize, Debug, Clone, Default, Hash)]
-pub struct MetaCastle
+
+pub trait OtherMetadata
+where Self: Serialize + DeserializeOwned + Default + Clone + Sized
 {
-    pub key: EncryptKey,
 }
-impl MetadataTrait for MetaCastle {}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum CoreMetadata
+{
+    None,
+    Encrypted(EncryptKey),
+    EncryptedWith(PrimaryKey),
+    Tombstone,
+    Authorization {
+        allow_read: Vec<String>,
+        allow_write: Vec<String>,
+        implicit_authority: String,    
+    },
+    Tree {
+        parent: PrimaryKey,
+        inherit_read: bool,
+        inherit_write: bool,
+    },
+    Digest {
+        seed: Vec<u8>,
+        digest: Vec<u8>,
+    },
+    Signature {
+        signature: Vec<u8>,
+        public_key_hash: String,
+    },
+    Author(String),
+}
+
+impl Default for CoreMetadata {
+    fn default() -> Self {
+        CoreMetadata::None
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+pub struct EmptyMetadata { }
+impl OtherMetadata for EmptyMetadata { }
+
+#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+pub struct Metadata<M>
+{
+    pub core: Vec<CoreMetadata>,
+    pub other: M,
+}
+
+impl<M> Metadata<M>
+where M: OtherMetadata
+{
+    pub fn has_tombstone(&self) -> bool {
+        self.core.iter().any(|m| match m { CoreMetadata::Tombstone => true, _ => false })
+    }
+
+    #[allow(dead_code)]
+    pub fn add_tombstone(&mut self) {
+        if self.has_tombstone() == true { return; }
+        self.core.push(CoreMetadata::Tombstone);
+    }
+}
 
 #[allow(dead_code)]
-#[derive(Serialize, Deserialize, Debug, Clone, Default, Hash)]
-pub struct MetaConfidentiality
-{
-    pub castle_id: PrimaryKey,
-}
-impl MetadataTrait for MetaConfidentiality {}
-
-#[allow(dead_code)]
-#[derive(Serialize, Deserialize, Debug, Clone, Default, Hash)]
-pub struct MetaAuthorization
-{
-    pub allow_read: Vec<String>,
-    pub allow_write: Vec<String>,
-    pub implicit_authority: String,
-}
-impl MetadataTrait for MetaAuthorization {}
-
-#[allow(dead_code)]
-#[derive(Serialize, Deserialize, Debug, Clone, Default, Hash)]
-pub struct MetaTree
-{
-    pub parent: PrimaryKey,
-    pub inherit_read: bool,
-    pub inherit_write: bool,
-}
-impl MetadataTrait for MetaTree {}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Default, Hash)]
-pub struct MetaDigest {
-    pub seed: Vec<u8>,
-    pub digest: Vec<u8>,
-}
-impl MetadataTrait for MetaDigest {}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Default, Hash)]
-pub struct MetaSignature {
-    pub signature: Vec<u8>,
-    pub public_key_hash: String,
-}
-impl MetadataTrait for MetaSignature {}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Default, Hash)]
-pub struct MetaAuthor {
-    pub email: String,
-}
-impl MetadataTrait for MetaAuthor {}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Default, Hash)]
-pub struct DefaultMeta {
-    pub tree: Option<MetaTree>,
-    pub castle: Option<MetaCastle>,
-    pub confidentiality: Option<MetaConfidentiality>,
-    pub auth: Option<MetaAuthorization>,
-    pub digest: Option<MetaDigest>,
-    pub signature: Option<MetaSignature>,
-    pub author: Option<MetaAuthor>,
-}
-impl MetadataTrait for DefaultMeta {}
+pub type DefaultMetadata = Metadata<EmptyMetadata>;
 
 #[derive(Debug, Clone)]
-pub struct Header<M> {
+pub struct Header<M>
+where M: OtherMetadata
+{
     pub key: PrimaryKey,
-    pub meta: M,
+    pub meta: Metadata<M>
+    
 }
 #[derive(Debug, Clone)]
 pub struct HeaderData
 {
     pub key: PrimaryKey,
     pub meta: Bytes,
-    pub data: LogFilePointer,
+    pub pointer: LogFilePointer,
 }

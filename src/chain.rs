@@ -23,7 +23,6 @@ use std::rc::Rc;
 use tokio::sync::RwLock;
 use tokio::runtime::Runtime;
 
-use std::collections::LinkedList;
 #[allow(unused_imports)]
 use std::io::Write;
 use super::redo::*;
@@ -58,36 +57,98 @@ impl ChainKey {
     }
 }
 
-#[allow(dead_code)]
-pub struct ChainOfTrust<M, I, V, C>
-where M: MetadataTrait,
-      I: EventIndexer<M>,
-      V: EventValidator<M, Index=I>,
-      C: EventCompactor<M, Index=I>,
+pub struct ChainOfTrustBuilder<M>
+where M: OtherMetadata,
 {
-    pub key: ChainKey,
-    pub redo: RedoLog,
-    pub chain: Vec<EventEntry<M>>,
-    pub validator: V,
-    pub indexer: I,
-    pub compactor: C,
+    validators: Vec<Box<dyn EventValidator<M>>>,
+    indexers: Vec<Box<dyn EventIndexer<M>>>,
+    compactors: Vec<Box<dyn EventCompactor<M>>>,
 }
 
-impl<'a, M, I, V, C> ChainOfTrust<M, I, V, C>
-where M: MetadataTrait,
-      I: EventIndexer<M>,
-      V: EventValidator<M, Index=I>,
-      C: EventCompactor<M, Index=I>,
+impl<M> ChainOfTrustBuilder<M>
+where M: OtherMetadata + 'static,
 {
     #[allow(dead_code)]
-    pub fn new(
+    pub fn new() -> ChainOfTrustBuilder<M> {
+        ChainOfTrustBuilder {
+            validators: Vec::new(),
+            indexers: Vec::new(),
+            compactors: Vec::new(),
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn with_defaults(mut self) -> Self {
+        self.validators.clear();
+        self.validators.push(Box::new(RubberStampValidator::default()));
+        self.indexers.clear();
+        self.indexers.push(Box::new(BinaryTreeIndexer::default()));
+        self.compactors.clear();
+        self.compactors.push(Box::new(RemoveDuplicatesCompactor::default()));
+        self.compactors.push(Box::new(TombstoneCompactor::default()));
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn without_defaults(mut self) -> Self {
+        self.validators.clear();
+        self.indexers.clear();
+        self.compactors.clear();
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn add_compactor(mut self, compactor: Box<dyn EventCompactor<M>>) -> Self {
+        self.compactors.push(compactor);
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn add_validator(mut self, validator: Box<dyn EventValidator<M>>) -> Self {
+        self.validators.push(validator);
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn add_indexer(mut self, indexer: Box<dyn EventIndexer<M>>) -> Self {
+        self.indexers.push(indexer);
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn build<I, V>
+    (
+        self,
         cfg: &impl ConfigStorage,
         key: &ChainKey,
-        validator: V,
-        indexer: I,
-        compactor: C,
         truncate: bool
-    ) -> Result<ChainOfTrust<M, I, V, C>>
+    ) -> Result<ChainOfTrust<M>>
+    {
+        ChainOfTrust::new(self, cfg, key, truncate)
+    }
+}
+
+#[allow(dead_code)]
+pub struct ChainOfTrust<M>
+where M: OtherMetadata
+{
+    key: ChainKey,
+    redo: RedoLog,
+    chain: Vec<EventEntry<M>>,
+    validators: Vec<Box<dyn EventValidator<M>>>,
+    indexers: Vec<Box<dyn EventIndexer<M>>>,
+    compactors: Vec<Box<dyn EventCompactor<M>>>,
+}
+
+impl<'a, M> ChainOfTrust<M>
+where M: OtherMetadata
+{
+    #[allow(dead_code)]
+    pub fn new(builder: ChainOfTrustBuilder<M>,
+        cfg: &impl ConfigStorage,
+        key: &ChainKey,
+        truncate: bool
+    ) -> Result<ChainOfTrust<M>>
     {
         let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
         runtime.block_on(async {
@@ -95,7 +156,7 @@ where M: MetadataTrait,
 
             let mut entries: Vec<Event<M>> = Vec::new();
             while let Some(header) = redo_loader.pop() {
-                if let Some(evt_data) = redo_log.load(&header.key, &header.data).await? {
+                if let Some(evt_data) = redo_log.load(&header.key, &header.pointer).await? {
                     entries.push(Event::from_event_data(&evt_data)?);
                 }
             }
@@ -104,9 +165,9 @@ where M: MetadataTrait,
                 key: key.clone(),
                 redo: redo_log,
                 chain: Vec::new(),
-                validator: validator,
-                indexer: indexer,
-                compactor: compactor,
+                validators: builder.validators,
+                indexers: builder.indexers,
+                compactors: builder.compactors,
             };
 
             ret.process(entries).await?;
@@ -118,8 +179,22 @@ where M: MetadataTrait,
     #[allow(dead_code)]
     async fn process(&mut self, evts: Vec<Event<M>>) -> Result<()>
     {
-        for evt in evts {
-            self.validator.validate(&evt, &self.indexer)?;
+        for evt in evts
+        {
+            let mut is_allow = false;
+            let mut is_deny = false;
+            for validator in self.validators.iter() {
+                match validator.validate(&evt)? {
+                    ValidationResult::Allow => is_allow = true,
+                    ValidationResult::Deny => is_deny = true,
+                    _ => {}
+                }
+            }
+
+            if is_deny == true || is_allow == false {
+                continue;
+            }
+
             let pointer = self.redo.write(evt.to_event_data()).await?;
 
             let entry = EventEntry {
@@ -129,7 +204,9 @@ where M: MetadataTrait,
                 },
                 pointer: pointer,
             };
-            self.indexer.feed(&entry);
+            for indexer in self.indexers.iter_mut() {
+                indexer.feed(&entry);
+            }
             self.chain.push(entry);
         }
         Ok(())
@@ -155,7 +232,13 @@ where M: MetadataTrait,
     #[allow(dead_code)]
     fn search(&self, key: &PrimaryKey) -> Option<EventEntry<M>>
     {
-        self.indexer.search(key)
+        for indexer in self.indexers.iter() {
+            match indexer.search(key) {
+                Some(a) => return Some(a),
+                None => { }
+            }
+        }
+        None
     }
 
     async fn flush(&mut self) -> Result<()> {
@@ -172,24 +255,18 @@ where M: MetadataTrait,
     }
 }
 
-pub struct ChainSingleUser<'a, M, I, V, C>
-where M: MetadataTrait,
-      I: EventIndexer<M>,
-      V: EventValidator<M, Index=I>,
-      C: EventCompactor<M, Index=I>,
+pub struct ChainSingleUser<'a, M>
+where M: OtherMetadata,
 {
     runtime: Rc<tokio::runtime::Runtime>,
-    lock: RwLockWriteGuard<'a, ChainOfTrust<M, I, V, C>>,
+    lock: RwLockWriteGuard<'a, ChainOfTrust<M>>,
     auto_flush: bool,
 }
 
-impl<'a, M, I, V, C> ChainSingleUser<'a, M, I, V, C>
-where M: MetadataTrait,
-      I: EventIndexer<M>,
-      V: EventValidator<M, Index=I>,
-      C: EventCompactor<M, Index=I>,
+impl<'a, M> ChainSingleUser<'a, M>
+where M: OtherMetadata,
 {
-    pub async fn new(chain: &'a ChainAccessor<M, I, V, C>, runtime: Rc<Runtime>, auto_flush: bool) -> ChainSingleUser<'a, M, I, V, C>
+    pub async fn new(chain: &'a ChainAccessor<M>, runtime: Rc<Runtime>, auto_flush: bool) -> ChainSingleUser<'a, M>
     {
         ChainSingleUser {
             runtime: runtime.clone(),
@@ -212,64 +289,6 @@ where M: MetadataTrait,
     #[allow(dead_code)]
     fn redo_count(&self) -> usize {
         self.lock.redo.count()
-    }
-
-    #[allow(dead_code)]
-    pub fn compact(&mut self) -> Result<()> {
-        let runtime = self.runtime.clone();
-        runtime.block_on(self.compact_async())
-    }
-
-    pub async fn compact_async(&mut self) -> Result<()>
-    {
-        // flush
-        self.lock.flush().await?;
-
-        // we start a transaction on the redo log
-        let mut flip = self.lock.redo.begin_flip().await?;
-
-        // create a new index
-        let mut new_index = I::default();
-
-        // prepare
-        let mut keepers = LinkedList::new();
-        let mut new_chain = Vec::new();
-
-        {
-            // build a list of the events that are actually relevant to a compacted log
-            for entry in self.lock.chain.iter().rev()
-            {
-                let relevance = self.lock.compactor.relevance(&entry.header, &new_index);
-                match relevance {
-                    EventRelevance::Fact => {
-                        keepers.push_front(entry);
-                        new_index.feed(&entry);
-                    },
-                    _ => ()
-                }
-            }
-
-            // write the events out only loading the ones that are actually needed
-            let mut refactor = FxHashMap::default();
-            for entry in keepers.iter().rev() {
-                let new_entry = EventEntry {
-                    header: entry.header.clone(),
-                    pointer: flip.copy_event(&self.lock.redo, &entry.pointer).await?,
-                };
-                refactor.insert(entry.pointer, new_entry.pointer.clone());
-                new_chain.push(new_entry);
-            }
-
-            // Refactor the index
-            new_index.refactor(&refactor);
-        }
-
-        // complete the transaction
-        self.lock.redo.end_flip(flip).await?;
-        self.lock.indexer = new_index;
-        self.lock.chain = new_chain;
-        
-        Ok(())
     }
 
     fn flush(&mut self) -> Result<()> {
@@ -297,12 +316,9 @@ where M: MetadataTrait,
     }
 }
 
-impl<'a, M, I, V, C> Drop
-for ChainSingleUser<'a, M, I, V, C>
-where M: MetadataTrait,
-      I: EventIndexer<M>,
-      V: EventValidator<M, Index=I>,
-      C: EventCompactor<M, Index=I>,
+impl<'a, M> Drop
+for ChainSingleUser<'a, M>
+where M: OtherMetadata,
 {
     fn drop(&mut self) {
         if self.auto_flush == true && self.is_open() {
@@ -313,32 +329,24 @@ where M: MetadataTrait,
 
 #[allow(dead_code)]
 #[derive(Clone)]
-pub struct ChainAccessor<M, I, V, C>
-where M: MetadataTrait,
-      I: EventIndexer<M>,
-      V: EventValidator<M, Index=I>,
-      C: EventCompactor<M, Index=I>,
+pub struct ChainAccessor<M>
+where M: OtherMetadata,
 {
-    inner: Arc<RwLock<ChainOfTrust<M, I, V, C>>>,
+    inner: Arc<RwLock<ChainOfTrust<M>>>,
 }
 
-impl<'a, M, I, V, C> ChainAccessor<M, I, V, C>
-where M: MetadataTrait,
-      I: EventIndexer<M>,
-      V: EventValidator<M, Index=I>,
-      C: EventCompactor<M, Index=I>,
+impl<'a, M> ChainAccessor<M>
+where M: OtherMetadata,
 {
     #[allow(dead_code)]
     pub fn new(
+        builder: ChainOfTrustBuilder<M>,
         cfg: &impl ConfigStorage,
         key: &ChainKey,
-        validator: V,
-        indexer: I,
-        compactor: C,
         truncate: bool
-    ) -> Result<ChainAccessor<M, I, V, C>>
+    ) -> Result<ChainAccessor<M>>
     {
-        let chain = ChainOfTrust::new(cfg, key, validator, indexer, compactor, truncate)?;
+        let chain = ChainOfTrust::new(builder, cfg, key, truncate)?;
         Ok(
             ChainAccessor {
                 inner: Arc::new(RwLock::new(chain))
@@ -350,38 +358,38 @@ where M: MetadataTrait,
         Rc::new(tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap())
     }
 
-    pub fn from_accessor(accessor: &mut ChainAccessor<M, I, V, C>) -> ChainAccessor<M, I, V, C> {
+    pub fn from_accessor(accessor: &mut ChainAccessor<M>) -> ChainAccessor<M> {
         ChainAccessor {
             inner: Arc::clone(&accessor.inner),
         }
     }
 
     #[allow(dead_code)]
-    pub fn from_chain(chain: ChainOfTrust<M, I, V, C>) -> ChainAccessor<M, I, V, C> {
+    pub fn from_chain(chain: ChainOfTrust<M>) -> ChainAccessor<M> {
         ChainAccessor {
             inner: Arc::new(RwLock::new(chain)),
         }
     }
 
     #[allow(dead_code)]
-    pub fn single(&'a mut self) -> ChainSingleUser<'a, M, I, V, C> {
+    pub fn single(&'a mut self) -> ChainSingleUser<'a, M> {
         let runtime = Self::create_runtime();
         runtime.block_on(self.single_async(runtime.clone(), true))
     }
 
     #[allow(dead_code)]
-    pub async fn single_async(&'a mut self, runtime: Rc<Runtime>, auto_flush: bool) -> ChainSingleUser<'a, M, I, V, C> {
+    pub async fn single_async(&'a mut self, runtime: Rc<Runtime>, auto_flush: bool) -> ChainSingleUser<'a, M> {
         ChainSingleUser::new(self, runtime, auto_flush).await
     }
 
     #[allow(dead_code)]
-    pub fn multi(&'a mut self) -> ChainMultiUser<'a, M, I, V, C> {
+    pub fn multi(&'a mut self) -> ChainMultiUser<'a, M> {
         let runtime = Self::create_runtime();
         runtime.block_on(self.multi_async(runtime.clone()))
     }
 
     #[allow(dead_code)]
-    pub async fn multi_async(&'a mut self, runtime: Rc<Runtime>) -> ChainMultiUser<'a, M, I, V, C> {
+    pub async fn multi_async(&'a mut self, runtime: Rc<Runtime>) -> ChainMultiUser<'a, M> {
         ChainMultiUser::new(self, runtime).await
     }
 
@@ -395,7 +403,7 @@ where M: MetadataTrait,
     pub async fn compact_async(&mut self, runtime: Rc<Runtime>) -> Result<()>
     {
         // prepare
-        let mut new_index = I::default();
+        let mut new_indexers = Vec::new();
         let mut keepers = Vec::new();
         let mut new_chain = Vec::new();
         
@@ -411,16 +419,52 @@ where M: MetadataTrait,
             let multi = self.multi_async(runtime.clone()).await;
 
             {
+                // step0 - reset all the indexers
+                for indexer in &multi.lock.indexers {
+                    new_indexers.push(indexer.clone_empty());
+                }
+
+                // step1 - reset all the compactors
+                let mut compactors = Vec::new();
+                for compactor in &multi.lock.compactors {
+                    compactors.push(compactor.step1_clone_empty());
+                }
+
+                // step2 - prepare all the compactors with the events
+                for entry in multi.lock.chain.iter() {
+                    for compactor in compactors.iter_mut() {
+                        compactor.step2_prepare_forward(&entry.header);
+                    }
+                }
+
                 // build a list of the events that are actually relevant to a compacted log
                 for entry in multi.lock.chain.iter().rev()
                 {
-                    let relevance = multi.lock.compactor.relevance(&entry.header, &new_index);
-                    match relevance {
-                        EventRelevance::Fact => {
-                            keepers.push(entry);
-                            new_index.feed(&entry);
-                        },
-                        _ => ()
+                    let mut is_force_keep = false;
+                    let mut is_keep = false;
+                    let mut is_drop = false;
+                    let mut is_force_drop = false;
+                    for compactor in compactors.iter_mut() {
+                        match compactor.step3_relevance_backward(&entry.header) {
+                            EventRelevance::ForceKeep => is_force_keep = true,
+                            EventRelevance::Keep => is_keep = true,
+                            EventRelevance::Drop => is_drop = true,
+                            EventRelevance::ForceDrop => is_force_drop = true,
+                            EventRelevance::Abstain => { }
+                        }
+                    }
+                    let keep = match is_force_keep {
+                        true => true,
+                        false if is_force_drop == true => false,
+                        _ if is_keep == true => true,
+                        _ if is_drop == false => true,
+                        _ => false
+                    };
+                    if keep == true {
+                        keepers.push(entry);
+                        for new_indexer in new_indexers.iter_mut() {
+                            new_indexer.feed(entry);
+                        }
                     }
                 }
 
@@ -436,7 +480,9 @@ where M: MetadataTrait,
                 }
 
                 // Refactor the index
-                new_index.refactor(&refactor);
+                for new_indexer in new_indexers.iter_mut() {
+                    new_indexer.refactor(&refactor);
+                }
             }
         }
 
@@ -445,7 +491,7 @@ where M: MetadataTrait,
 
             // complete the transaction
             single.lock.redo.end_flip(flip).await?;
-            single.lock.indexer = new_index;
+            single.lock.indexers = new_indexers;
             single.lock.chain = new_chain;
 
             single.flush_async(runtime.clone()).await?;
@@ -456,23 +502,17 @@ where M: MetadataTrait,
     }
 }
 
-pub struct ChainMultiUser<'a, M, I, V, C>
-where M: MetadataTrait,
-      I: EventIndexer<M>,
-      V: EventValidator<M, Index=I>,
-      C: EventCompactor<M, Index=I>,
+pub struct ChainMultiUser<'a, M>
+where M: OtherMetadata,
 {
     runtime: Rc<tokio::runtime::Runtime>,
-    lock: RwLockReadGuard<'a, ChainOfTrust<M, I, V, C>>,
+    lock: RwLockReadGuard<'a, ChainOfTrust<M>>,
 }
 
-impl<'a, M, I, V, C> ChainMultiUser<'a, M, I, V, C>
-where M: MetadataTrait,
-      I: EventIndexer<M>,
-      V: EventValidator<M, Index=I>,
-      C: EventCompactor<M, Index=I>,
+impl<'a, M> ChainMultiUser<'a, M>
+where M: OtherMetadata,
 {
-    pub async fn new(chain: &'a ChainAccessor<M, I, V, C>, runtime: Rc<Runtime>) -> ChainMultiUser<'a, M, I, V, C>
+    pub async fn new(chain: &'a ChainAccessor<M>, runtime: Rc<Runtime>) -> ChainMultiUser<'a, M>
     {
         ChainMultiUser {
             runtime: runtime,
@@ -500,29 +540,22 @@ where M: MetadataTrait,
 #[cfg(test)]
 pub fn create_test_chain(chain_name: String) ->
     ChainAccessor<
-        DefaultMeta,
-        BinaryTreeIndex<DefaultMeta>,
-        RubberStampValidator,
-        RemoveDuplicatesCompactor
+        EmptyMetadata,
     >
 {
-    // Add a standard compactor, validator and indexer
-    let index: BinaryTreeIndex<DefaultMeta> = BinaryTreeIndex::default();
-    let compactor = RemoveDuplicatesCompactor::default();
-    let validator = RubberStampValidator::default();
-
     // Create the chain-of-trust and a validator
     let mut mock_cfg = mock_test_config();
     mock_cfg.log_temp = false;
 
     let mock_chain_key = ChainKey::default().with_temp_name(chain_name);
+
+    let builder = ChainOfTrustBuilder::new()
+        .with_defaults();
     
     ChainAccessor::new(
+        builder,
         &mock_cfg,
         &mock_chain_key,
-        validator,
-        index,
-        compactor,
         true)
         .unwrap()
 }
@@ -531,55 +564,85 @@ pub fn create_test_chain(chain_name: String) ->
 pub fn test_chain() {
     let mut chain = create_test_chain("test_chain".to_string());
 
-    let key = PrimaryKey::generate();
-    let mut evt = Event::new(key.clone(), DefaultMeta::default(), Bytes::from(vec!(1; 1)));
+    let key1 = PrimaryKey::generate();
+    let key2 = PrimaryKey::generate();
+    let mut evt1 = Event::new(key1.clone(), Bytes::from(vec!(1; 1)));
+    let mut evt2 = Event::new(key2.clone(), Bytes::from(vec!(2; 1)));
 
     {
         let mut lock = chain.single();
         assert_eq!(0, lock.redo_count());
         
-        // Push the first event into the chain-of-trust
+        // Push the first events into the chain-of-trust
         let mut evts = Vec::new();
-        evts.push(evt.clone());
+        evts.push(evt1.clone());
+        evts.push(evt2.clone());
         lock.process(evts).expect("The event failed to be accepted");
-        assert_eq!(1, lock.redo_count());
+        assert_eq!(2, lock.redo_count());
     }
 
     {
         let lock = chain.multi();
 
         // Make sure its there in the chain
-        let test_data = lock.search(&key).expect("Failed to find the entry after the flip");
+        let test_data = lock.search(&key1).expect("Failed to find the entry after the flip");
         let test_data = lock.load(&test_data).expect("Could not load the data for the entry");
-        assert_eq!(test_data.body, Bytes::from(vec!(1; 1)));
+        assert_eq!(test_data.body, Some(Bytes::from(vec!(1; 1))));
     }
         
     {
         let mut lock = chain.single();
 
-        // Duplicate the event so the compactor has something to clean
-        evt.body = Bytes::from(vec!(2; 1));
+        // Duplicate one of the event so the compactor has something to clean
+        evt1.body = Some(Bytes::from(vec!(10; 1)));
         
         let mut evts = Vec::new();
-        evts.push(evt.clone());
+        evts.push(evt1.clone());
         lock.process(evts).expect("The event failed to be accepted");
-        assert_eq!(2, lock.redo_count());
+        assert_eq!(3, lock.redo_count());
     }
 
-    // Now compact the chain-of-trust
+    // Now compact the chain-of-trust which should reduce the duplicate event
     chain.compact().expect("Failed to compact the log");
-
-    // Make sure that it is actually compacted
-    assert_eq!(1, chain.single().redo_count());
+    assert_eq!(2, chain.single().redo_count());
 
     {
         let lock = chain.multi();
 
         // Read the event and make sure its the second one that results after compaction
-        let test_data = lock.search(&key).expect("Failed to find the entry after the flip");
+        let test_data = lock.search(&key1).expect("Failed to find the entry after the flip");
         let test_data = lock.load(&test_data).unwrap();
-        assert_eq!(test_data.body, Bytes::from(vec!(2; 1)));
+        assert_eq!(test_data.body, Some(Bytes::from(vec!(10; 1))));
+
+        // The other event we added should also still be there
+        let test_data = lock.search(&key2).expect("Failed to find the entry after the flip");
+        let test_data = lock.load(&test_data).unwrap();
+        assert_eq!(test_data.body, Some(Bytes::from(vec!(2; 1))));
     }
+
+    {
+        let mut lock = chain.single();
+
+        // Now lets tombstone the second event
+        evt2.header.meta.add_tombstone();
+        
+        let mut evts = Vec::new();
+        evts.push(evt2.clone());
+        lock.process(evts).expect("The event failed to be accepted");
+        
+        // Number of events should have gone up by one even though there should be one less item
+        assert_eq!(3, lock.redo_count());
+    }
+
+    // Searching for the item we should not find it
+    match chain.multi().search(&key2) {
+        Some(_) => panic!("The item should not be visible anymore"),
+        None => {}
+    }
+    
+    // Now compact the chain-of-trust which should remove one of the events and its tombstone
+    chain.compact().expect("Failed to compact the log");
+    assert_eq!(1, chain.single().redo_count());
 
     // Destroy the chain
     chain.single().destroy().unwrap();

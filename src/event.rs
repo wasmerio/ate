@@ -1,5 +1,4 @@
 use bytes::Bytes;
-use serde::{Serialize, de::DeserializeOwned};
 use tokio::io::Result;
 use tokio::io::Error;
 use tokio::io::ErrorKind;
@@ -9,38 +8,51 @@ use super::redo::LogFilePointer;
 
 #[derive(Debug, Clone)]
 pub struct Event<M>
+where M: OtherMetadata
 {
     pub header: Header<M>,
-    pub body: Bytes,
+    pub body: Option<Bytes>,
 }
 #[derive(Debug, Clone, Default)]
 pub struct EventData
 {
     pub key: PrimaryKey,
     pub meta: Bytes,
-    pub body: Bytes,
+    pub body: Option<Bytes>,
 }
 
 #[derive(Debug, Clone)]
 pub struct EventEntry<M>
-where M: MetadataTrait
+where M: OtherMetadata
 {
     pub header: Header<M>,
     pub pointer: LogFilePointer,
 }
 
-impl<'de, M> Event<M>
-where M: Serialize + DeserializeOwned + Clone
+impl<M> Event<M>
+where M: OtherMetadata
 {
     #[allow(dead_code)]
-    pub fn new(key: PrimaryKey, meta: M, body: Bytes) -> Event<M> {
+    pub fn new(key: PrimaryKey, body: Bytes) -> Event<M> {
         Event {
             header: Header {
                 key: key,
-                meta: meta,
+                meta: Metadata::default(),
             },
-            body: body,
+            body: Some(body),
         }
+    }
+
+    #[allow(dead_code)]
+    pub fn with_core_metadata(mut self, core: CoreMetadata) -> Self {
+        self.header.meta.core.push(core);
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn with_other_metadata(mut self, other: M) -> Self {
+        self.header.meta.other = other;
+        self
     }
 
     #[allow(dead_code)]
