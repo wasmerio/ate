@@ -30,6 +30,8 @@ rust-crypto = "*"
 rand = "*"
 buffered_offset_reader = "*"
 async-drop = "*"
+linked-hash-map = "*"
+typed-arena = "*"
 
 [dev-dependencies]
 ctor = "*"

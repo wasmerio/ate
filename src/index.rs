@@ -7,7 +7,8 @@ use super::event::*;
 use super::header::*;
 
 pub trait EventIndexer<M>
-    where M: MetadataTrait
+where Self: Default,
+         M: MetadataTrait
 {
     fn feed(&mut self, evt: &EventEntry<M>);
 
@@ -20,13 +21,13 @@ pub trait EventIndexer<M>
 
 #[derive(Default)]
 pub struct BinaryTreeIndex<M>
-    where M: MetadataTrait
+where M: MetadataTrait
 {
     events: BTreeMap<PrimaryKey, EventEntry<M>>,
 }
 
 impl<M> BinaryTreeIndex<M>
-    where M: MetadataTrait
+where M: MetadataTrait
 {
     pub fn contains_key(&self, key: &PrimaryKey) -> bool {
         self.events.contains_key(key)
@@ -38,8 +39,9 @@ impl<M> BinaryTreeIndex<M>
     }
 }
 
-impl<M> EventIndexer<M> for BinaryTreeIndex<M>
-    where M: MetadataTrait
+impl<M> EventIndexer<M>
+for BinaryTreeIndex<M>
+where M: MetadataTrait
 {
     fn feed(&mut self, entry: &EventEntry<M>) {
         self.events.insert(entry.header.key.clone(), entry.clone());

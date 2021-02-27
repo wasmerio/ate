@@ -7,19 +7,22 @@ pub enum EventRelevance
     Fact,           // Event is a fact that is relevant to the present
 }
 pub trait EventCompactor<M>
-    where M: MetadataTrait
+where Self: Default,
+      M: MetadataTrait
 {
-    type Index: Sized + Default;
+    type Index: EventIndexer<M>;
 
     fn relevance(&self, evt: &Header<M>, index: &Self::Index) -> EventRelevance;
 }
 
 #[derive(Default)]
-pub struct RemoveDuplicatesCompactor {
+pub struct RemoveDuplicatesCompactor
+{
 }
 
-impl<'a, M> EventCompactor<M> for RemoveDuplicatesCompactor
-    where M: MetadataTrait + Default
+impl<'a, M> EventCompactor<M>
+for RemoveDuplicatesCompactor
+where M: MetadataTrait + Default
 {
     type Index = BinaryTreeIndex<M>;
 

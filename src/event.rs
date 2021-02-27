@@ -23,14 +23,14 @@ pub struct EventData
 
 #[derive(Debug, Clone)]
 pub struct EventEntry<M>
-    where M: MetadataTrait
+where M: MetadataTrait
 {
     pub header: Header<M>,
     pub pointer: LogFilePointer,
 }
 
 impl<'de, M> Event<M>
-    where M: Serialize + DeserializeOwned + Clone
+where M: Serialize + DeserializeOwned + Clone
 {
     #[allow(dead_code)]
     pub fn new(key: PrimaryKey, meta: M, body: Bytes) -> Event<M> {

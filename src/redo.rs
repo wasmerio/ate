@@ -18,8 +18,9 @@ use tokio::io::Error;
 use tokio::io::ErrorKind;
 use bytes::BytesMut;
 use bytes::Bytes;
+use bytes::{Buf};
 use std::mem::size_of;
-use buffered_offset_reader::{BufOffsetReader, OffsetReadMut};
+use tokio::sync::Mutex;
 
 #[cfg(test)]
 use tokio::runtime::Runtime;
@@ -37,8 +38,8 @@ struct LogFile
 {
     pub version: u32,
     pub log_path: String,
-    pub log_back: tokio::fs::File,
-    pub log_random_access: std::fs::File,
+    pub log_back: Option<tokio::fs::File>,
+    pub log_random_access: Mutex<tokio::fs::File>,
     pub log_stream: BufStream<tokio::fs::File>,
     pub log_off: u64,
     pub log_temp: bool,
@@ -46,22 +47,30 @@ struct LogFile
 }
 
 impl LogFile {
+    pub fn check_open(&self) -> Result<()> {
+        match self.log_back.as_ref() {
+            Some(_) => Ok(()),
+            None => return Result::Err(Error::new(ErrorKind::NotConnected, "The log file has already been closed.")),
+        }
+    }
+
     async fn copy(&mut self) -> Result<LogFile>
     {
         // We have to flush the stream in-case there is outstanding IO that is not yet written to the backing disk
         self.log_stream.flush().await?;
 
         // Copy the file handles
-        let log_back = self.log_back.try_clone().await?;
-        let log_random_access = self.log_random_access.try_clone()?;
+        self.check_open()?;
+        let log_back = self.log_back.as_ref().unwrap().try_clone().await?;
+        let log_random_access = self.log_random_access.lock().await.try_clone().await?;
 
         Ok(
             LogFile {
                 version: self.version,
                 log_path: self.log_path.clone(),
                 log_stream: BufStream::new(log_back.try_clone().await?),
-                log_back: log_back,
-                log_random_access: log_random_access,
+                log_back: Some(log_back),
+                log_random_access: Mutex::new(log_random_access),
                 log_off: self.log_off,
                 log_temp: self.log_temp,
                 log_count: self.log_count,
@@ -87,14 +96,14 @@ impl LogFile {
             Err(err) => return Result::Err(err)
         };
         
-        let log_random_access = std::fs::OpenOptions::new().read(true).open(path_log.clone())?;
+        let log_random_access = tokio::fs::OpenOptions::new().read(true).open(path_log.clone()).await?;
 
         let ret = LogFile {
             version: version,
             log_path: path_log.clone(),
             log_stream: log_stream,
-            log_back: log_back,
-            log_random_access: log_random_access,
+            log_back: Some(log_back),
+            log_random_access: Mutex::new(log_random_access),
             log_off: std::mem::size_of::<u32>() as u64,
             log_temp: temp_file,
             log_count: 0,
@@ -108,41 +117,39 @@ impl LogFile {
     }
 
     async fn read_all(&mut self, to: &mut VecDeque<HeaderData>) -> Result<()> {
-        while let Some(head) = self.read_once().await? {
+        self.check_open()?;
+
+        while let Some(head) = self.read_once_internal().await? {
             to.push_back(head);
         }
         Ok(())
     }
 
-    async fn read_once(&mut self) -> Result<Option<HeaderData>>
+    async fn read_once_internal(&mut self) -> Result<Option<HeaderData>>
     {
         // Read the header
-        let key: PrimaryKey = match PrimaryKey::read(&mut self.log_stream).await? {
+        let key: PrimaryKey = match PrimaryKey::read_from_stream(&mut self.log_stream).await? {
             Some(key) => key,
             None => return Ok(None),
         };
 
         // Read the metadata
         let size_meta = self.log_stream.read_u32().await? as usize;
-        
         let mut buff_meta = BytesMut::with_capacity(size_meta);
-        unsafe {
-            buff_meta.set_len(size_meta);
-            let read = self.log_stream.read(&mut buff_meta[..]).await?;
-            buff_meta.set_len(read);
+        let read = self.log_stream.read_buf(&mut buff_meta).await?;
+        if read != size_meta {
+            return Result::Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the metadata of the event from the log file ({} bytes vs {} bytes)", read, size_meta)));
         }
         let buff_meta = buff_meta.freeze();
 
         // Skip the body
         let size_body = self.log_stream.read_u32().await? as usize;
-        
         let mut buff_body = BytesMut::with_capacity(size_body);
-        unsafe {
-            buff_body.set_len(size_body);
-            let read = self.log_stream.read(&mut buff_body[..]).await?;
-            buff_body.set_len(read);
+        let read = self.log_stream.read_buf(&mut buff_body).await?;
+        if read != size_body {
+            return Result::Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the main body of the event from the log file ({} bytes vs {} bytes)", read, size_body)));
         }
-
+        
         // Insert it into the log index
         let size = size_of::<PrimaryKey>() as u64 + size_of::<u32>() as u64 + size_meta as u64 + size_of::<u32>() as u64 + size_body as u64;
         let pointer = LogFilePointer { version: self.version, offset: self.log_off, size: size as u32 };
@@ -162,6 +169,8 @@ impl LogFile {
 
     async fn write(&mut self, key: PrimaryKey, meta: Bytes, body: Bytes) -> Result<LogFilePointer>
     {
+        self.check_open()?;
+
         let meta_len = meta.len() as u32;
         let body_len = body.len() as u32;
 
@@ -181,17 +190,18 @@ impl LogFile {
 
     async fn copy_event(&mut self, from_log: &LogFile, from_pointer: &LogFilePointer) -> Result<LogFilePointer>
     {
-        let mut stream = BufOffsetReader::with_capacity(from_pointer.size as usize, from_log.log_random_access.try_clone()?);
+        self.check_open()?;
+        from_log.check_open()?;
+
         let mut buff = BytesMut::with_capacity(from_pointer.size as usize);
         
-        unsafe {
-            buff.set_len(from_pointer.size as usize);
-            let read = stream.read_at(&mut buff[..], from_pointer.offset)?;
-            buff.set_len(read);
-
-            if read != from_pointer.size as usize {
-                return Result::Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, "Failed to copy the event from another log file"));
-            }
+        let read = {
+            let mut lock = from_log.log_random_access.lock().await;
+            lock.seek(SeekFrom::Start(from_pointer.offset)).await?;
+            lock.read_buf(&mut buff).await?
+        };        
+        if read != from_pointer.size as usize {
+            return Result::Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, "Failed to copy the event from another log file"));
         }
 
         self.log_stream.write_all(&buff[..]).await?;
@@ -203,71 +213,56 @@ impl LogFile {
         Ok(pointer)
     }
 
-    fn load(&self, pointer: &LogFilePointer) -> Result<Option<EventData>> {
+    async fn load(&self, key: &PrimaryKey, pointer: LogFilePointer) -> Result<Option<EventData>> {
+        self.check_open()?;
+
         if pointer.version != self.version {
             return Result::Err(Error::new(ErrorKind::Other, format!("Could not find data object as it is from a different redo log (pointer.version=0x{:X?}, log.version=0x{:X?})", pointer.version, self.version)));
         }
 
-        // Read all the data using a buffer
-        let mut stream = BufOffsetReader::with_capacity(pointer.size as usize, self.log_random_access.try_clone()?);
+        // First read all the data into a buffer
+        let mut buff = BytesMut::with_capacity(pointer.size as usize);
+        let read = {
+            let mut lock = self.log_random_access.lock().await;
+            lock.seek(SeekFrom::Start(pointer.offset as u64)).await?;
+            lock.read_buf(&mut buff).await?
+        };
+        if read != pointer.size as usize {
+            return Result::Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the data object event slice from the redo log ({} bytes vs {} bytes)", read, pointer.size)));
+        }
         
-        // Read the primary key
-        let key: PrimaryKey = PrimaryKey::read_at(&mut stream, pointer.offset)?;
-        let offset = pointer.offset + std::mem::size_of::<PrimaryKey>() as u64;
-
-        // Read the size of the metadata
-        let mut buff_sub_size = [0 as u8; std::mem::size_of::<u32>()];
-        let read = stream.read_at(&mut buff_sub_size, offset)?;
-        if read != buff_sub_size.len() {
-            return Result::Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, "Failed to read the metadata size"));
+        // Read all the data
+        let check_key: PrimaryKey = PrimaryKey::new(buff.get_u64());
+        if *key != check_key {
+            return Result::Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the data object from the redo log as the primary keys do not match (expected {} but found {})", check_key.as_hex_string(), key.as_hex_string())));
         }
-        let size_meta = u32::from_be_bytes(buff_sub_size) as usize;
-        let offset = offset + std::mem::size_of::<u32>() as u64;
+
+        let size_meta = buff.get_u32();
+        if size_meta > buff.remaining() as u32 {
+            return Result::Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the data object metadata from the redo log as the header exceeds the event slice ({} bytes exceeds remaining event slice {})", size_meta, buff.remaining())));
+        }
+        let buff_meta = buff.copy_to_bytes(size_meta as usize);
         
-        // Read the metadata
-        let mut buff_meta = BytesMut::with_capacity(size_meta);
-        unsafe {
-            buff_meta.set_len(size_meta);
-            let read = stream.read_at(&mut buff_meta[..], offset)?;
-            buff_meta.set_len(read);
-            if read != size_meta {
-                return Result::Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, "Failed to read the metadata"));
-            }
+        let size_body = buff.get_u32();
+        if size_body > buff.remaining() as u32 {
+            return Result::Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the data object data from the redo log as the header exceeds the event slice ({} bytes exceeds remaining event slice {})", size_body, buff.remaining())));
         }
-        let offset = offset + size_meta as u64;
-
-        // Read the size of the body
-        let mut buff_sub_size = [0 as u8; std::mem::size_of::<u32>()];
-        let read = stream.read_at(&mut buff_sub_size, offset)?;
-        if read != buff_sub_size.len() {
-            return Result::Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, "Failed to read the body size"));
-        }
-        let size_body = u32::from_be_bytes(buff_sub_size) as usize;
-        let offset = offset + std::mem::size_of::<u32>() as u64;
-
-        // Read the body
-        let mut buff_body = BytesMut::with_capacity(size_body as usize);
-        unsafe {
-            buff_body.set_len(size_body);
-            let read = stream.read_at(&mut buff_body[..], offset)?;
-            buff_body.set_len(read);
-            if read != size_body {
-                return Result::Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, "Failed to read the body"));
-            }
-        }
+        let buff_body = buff.copy_to_bytes(size_body as usize);
 
         Ok(
             Some(
                 EventData {
-                    key: key,
-                    meta: buff_meta.freeze(),
-                    body: buff_body.freeze(),
+                    key: key.clone(),
+                    meta: buff_meta,
+                    body: buff_body,
                 }
             )
         )
     }
 
     fn move_log_file(&mut self, new_path: &String) -> Result<()> {
+        self.check_open()?;
+
         if self.log_temp == false {
             std::fs::rename(self.log_path.clone(), new_path)?;
         }
@@ -277,14 +272,31 @@ impl LogFile {
 
     async fn flush(&mut self) -> Result<()>
     {
+        self.check_open()?;
+
         self.log_stream.flush().await?;
-        self.log_back.sync_all().await?;
+        self.log_back.as_ref().unwrap().sync_all().await?;
         Ok(())
     }
 
     #[allow(dead_code)]
     fn count(&self) -> usize {
         self.log_count as usize
+    }
+
+    fn destroy(&mut self) -> Result<()> {
+        self.check_open()?;
+
+        std::fs::remove_file(self.log_path.clone())?;
+        self.log_back = None;
+        Ok(())
+    }
+
+    fn is_open(&self) -> bool {
+        match self.log_back {
+            Some(_) => true,
+            _ => false,
+        }
     }
 }
 
@@ -436,8 +448,8 @@ impl RedoLog
         }
     }
 
-    pub fn load(&self, pointer: &LogFilePointer) -> Result<Option<EventData>> {
-        Ok(self.log_file.load(&pointer)?)
+    pub async fn load(&self, key: &PrimaryKey, pointer: &LogFilePointer) -> Result<Option<EventData>> {
+        Ok(self.log_file.load(key, pointer.clone()).await?)
     }
 
     #[allow(dead_code)]
@@ -473,14 +485,14 @@ impl RedoLog
             )
         )
     }
-}
 
-impl Drop for RedoLog
-{
-    fn drop(&mut self) {
-        tokio::task::block_in_place(move || {
-            futures::executor::block_on(self.log_file.flush()).unwrap();
-        });
+    #[allow(dead_code)]
+    pub fn destroy(&mut self) -> Result<()> {
+        self.log_file.destroy()
+    }
+
+    pub fn is_open(&self) -> bool {
+        self.log_file.is_open()
     }
 }
 
@@ -537,7 +549,8 @@ async fn test_write_data(log: &mut dyn LogWritable, key: PrimaryKey, body: Vec<u
 #[cfg(test)]
 async fn test_read_data(log: &mut RedoLog, read_header: LogFilePointer, test_key: PrimaryKey, test_body: Vec<u8>)
 {
-    let evt = log.load(&read_header)
+    let evt = log.load(&test_key, &read_header)
+        .await
         .expect(&format!("Failed to read the entry {:?}", read_header))
         .expect(&format!("Entry not found {:?}", read_header));
     assert_eq!(evt.key, test_key);
@@ -569,7 +582,7 @@ fn test_redo_log() {
             .with_log_temp(false);
 
         let mock_chain_key = ChainKey::default()
-            .with_name("test_redo");
+            .with_temp_name("test_redo".to_string());
             
         {
             // Open the log once for writing
@@ -631,10 +644,16 @@ fn test_redo_log() {
 
             // The old log file pointer should now be invalid
             println!("test_redo_log - make sure old pointers are now invalid");
-            rl.load(&halb5).expect_err("The old log file entry should not work anymore");
+            rl.load(&blah5, &halb5).await.expect_err("The old log file entry should not work anymore");
 
             // Attempt to read blah 6 before its flushed should result in an error
-            rl.load(&halb6).expect_err("This entry was not fushed so it meant to fail");
+            rl.load(&blah6, &halb6).await.expect_err("This entry was not fushed so it meant to fail");
+
+            // We now flush it before and try again
+            rl.flush().await.unwrap();
+
+            // Attempt to read blah 6 before its flushed should result in an error
+            rl.load(&blah6, &halb6).await.expect("The log file should ahve worked now");
 
             println!("test_redo_log - closing redo log");
         }
@@ -667,6 +686,8 @@ fn test_redo_log() {
             test_read_data(&mut rl, halb7, blah7, vec![7; 10]).await;
             println!("test_redo_log - confirming no more data");
             assert_eq!(5, rl.count());
+
+            rl.destroy().unwrap();
         }
     });
 }

@@ -10,13 +10,11 @@ use tokio::io::Result;
 use tokio::{io::{AsyncReadExt, AsyncWriteExt}};
 use tokio::{io::{BufStream}};
 use super::redo::LogFilePointer;
-use buffered_offset_reader::{BufOffsetReader, OffsetReadMut};
 
-pub trait MetadataTrait: Serialize + DeserializeOwned + Clone {
+pub trait MetadataTrait: Serialize + DeserializeOwned + Clone + Default {
 }
 
 #[allow(dead_code)]
-#[repr(packed(1))]
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct PrimaryKey
 {
@@ -38,7 +36,7 @@ impl PrimaryKey {
         }
     }
 
-    pub async fn read(reader: &mut BufStream<File>) -> Result<Option<PrimaryKey>> {
+    pub async fn read_from_stream(reader: &mut BufStream<File>) -> Result<Option<PrimaryKey>> {
         let mut buf = [0 as u8; std::mem::size_of::<PrimaryKey>()];
 
         let read = reader.read(&mut buf).await?;
@@ -56,19 +54,10 @@ impl PrimaryKey {
         )
     }
 
-    pub fn read_at(reader: &mut BufOffsetReader<std::fs::File>, at: u64) -> Result<PrimaryKey> {
-        let mut buf = [0 as u8; std::mem::size_of::<PrimaryKey>()];
-        
-        let read = reader.read_at(&mut buf, at)?;
-        if read != buf.len() {
-            return Result::Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to load event data from log file at offset {:?})", at)));
+    pub fn new(key: u64) -> PrimaryKey {
+        PrimaryKey {
+            key: key
         }
-
-        Ok(
-            PrimaryKey {
-                key: u64::from_be_bytes(buf)
-            }
-        )
     }
 
     pub async fn write(&self, writer: &mut BufStream<File>) -> Result<()> {
@@ -82,9 +71,7 @@ impl PrimaryKey {
     }
 
     pub fn as_hex_string(&self) -> String {
-        unsafe {
-            format!("{:X?}", self.key).to_string()
-        }
+        format!("{:X?}", self.key).to_string()
     }
 }
 #[allow(dead_code)]
