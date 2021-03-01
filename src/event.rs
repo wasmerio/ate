@@ -29,6 +29,38 @@ where M: OtherMetadata
     pub pointer: LogFilePointer,
 }
 
+impl<M> EventEntry<M>
+where M: OtherMetadata
+{
+    #[allow(dead_code)]
+    pub fn from_header_data(header: &HeaderData) -> Result<EventEntry<M>> {
+        match bincode::deserialize(&header.meta) {
+            Ok(meta) => {
+                Ok(
+                    EventEntry {
+                        header: Header {
+                            key: header.key,
+                            meta: meta,
+                        },
+                        pointer: header.pointer,
+                    }
+                )
+            },
+            Err(err) => Result::Err(Error::new(ErrorKind::Other, format!("Failed to deserialize the event header - {:?}", err)))
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn to_header_data(&self) -> HeaderData {
+        let meta_bytes = Bytes::from(bincode::serialize(&self.header.meta).unwrap());
+        HeaderData {
+            key: self.header.key,
+            meta: meta_bytes,
+            pointer: self.pointer,
+        }
+    }
+}
+
 impl<M> Event<M>
 where M: OtherMetadata
 {

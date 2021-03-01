@@ -1,3 +1,6 @@
+extern crate rand;
+extern crate rand_chacha;
+
 mod test;
 mod crypto;
 mod header;
@@ -8,6 +11,9 @@ mod redo;
 mod validator;
 mod compact;
 mod index;
+mod lint;
+mod transform;
+mod plugin;
 mod chain;
 mod dio;
 

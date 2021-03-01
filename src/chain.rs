@@ -6,7 +6,11 @@ use tokio::io::ErrorKind;
 use tokio::{io::Result, sync::RwLockReadGuard, sync::RwLockWriteGuard};
 
 #[allow(unused_imports)]
+use super::crypto::*;
 use super::compact::*;
+use super::lint::*;
+use super::transform::*;
+use super::plugin::*;
 
 #[allow(unused_imports)]
 use super::conf::*;
@@ -63,6 +67,9 @@ where M: OtherMetadata,
     validators: Vec<Box<dyn EventValidator<M>>>,
     indexers: Vec<Box<dyn EventIndexer<M>>>,
     compactors: Vec<Box<dyn EventCompactor<M>>>,
+    linters: Vec<Box<dyn EventMetadataLinter<M>>>,
+    transformers: Vec<Box<dyn EventDataTransformer<M>>>,
+    plugins: Vec<Box<dyn EventPlugin<M>>>,
 }
 
 impl<M> ChainOfTrustBuilder<M>
@@ -74,18 +81,25 @@ where M: OtherMetadata + 'static,
             validators: Vec::new(),
             indexers: Vec::new(),
             compactors: Vec::new(),
+            linters: Vec::new(),
+            transformers: Vec::new(),
+            plugins: Vec::new(),
         }
+        .with_defaults()
     }
 
     #[allow(dead_code)]
     pub fn with_defaults(mut self) -> Self {
         self.validators.clear();
-        self.validators.push(Box::new(RubberStampValidator::default()));
         self.indexers.clear();
         self.indexers.push(Box::new(BinaryTreeIndexer::default()));
         self.compactors.clear();
         self.compactors.push(Box::new(RemoveDuplicatesCompactor::default()));
         self.compactors.push(Box::new(TombstoneCompactor::default()));
+        self.linters.clear();
+        self.transformers.clear();
+        self.transformers.push(Box::new(CompressorWithSnap::default()));
+        self.plugins.clear();
         self
     }
 
@@ -94,6 +108,9 @@ where M: OtherMetadata + 'static,
         self.validators.clear();
         self.indexers.clear();
         self.compactors.clear();
+        self.linters.clear();
+        self.transformers.clear();
+        self.plugins.clear();
         self
     }
 
@@ -112,6 +129,24 @@ where M: OtherMetadata + 'static,
     #[allow(dead_code)]
     pub fn add_indexer(mut self, indexer: Box<dyn EventIndexer<M>>) -> Self {
         self.indexers.push(indexer);
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn add_metadata_linter(mut self, linter: Box<dyn EventMetadataLinter<M>>) -> Self {
+        self.linters.push(linter);
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn add_data_transformer(mut self, transformer: Box<dyn EventDataTransformer<M>>) -> Self {
+        self.transformers.push(transformer);
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn add_plugin(mut self, plugin: Box<dyn EventPlugin<M>>) -> Self {
+        self.plugins.push(plugin);
         self
     }
 
@@ -138,6 +173,9 @@ where M: OtherMetadata
     validators: Vec<Box<dyn EventValidator<M>>>,
     indexers: Vec<Box<dyn EventIndexer<M>>>,
     compactors: Vec<Box<dyn EventCompactor<M>>>,
+    linters: Vec<Box<dyn EventMetadataLinter<M>>>,
+    transformers: Vec<Box<dyn EventDataTransformer<M>>>,
+    plugins: Vec<Box<dyn EventPlugin<M>>>,
 }
 
 impl<'a, M> ChainOfTrust<M>
@@ -154,11 +192,9 @@ where M: OtherMetadata
         runtime.block_on(async {
             let (redo_log, mut redo_loader) = RedoLog::open(cfg, key, truncate).await?;
 
-            let mut entries: Vec<Event<M>> = Vec::new();
+            let mut entries: Vec<EventEntry<M>> = Vec::new();
             while let Some(header) = redo_loader.pop() {
-                if let Some(evt_data) = redo_log.load(&header.key, &header.pointer).await? {
-                    entries.push(Event::from_event_data(&evt_data)?);
-                }
+                entries.push(EventEntry::from_header_data(&header)?);
             }
 
             let mut ret = ChainOfTrust {
@@ -168,36 +204,99 @@ where M: OtherMetadata
                 validators: builder.validators,
                 indexers: builder.indexers,
                 compactors: builder.compactors,
+                linters: builder.linters,
+                transformers: builder.transformers,
+                plugins: builder.plugins,
             };
 
-            ret.process(entries).await?;
+            ret.process(entries)?;
 
             Ok(ret)
         })
     }
 
     #[allow(dead_code)]
-    async fn process(&mut self, evts: Vec<Event<M>>) -> Result<()>
-    {
-        for evt in evts
-        {
-            let mut is_allow = false;
-            let mut is_deny = false;
-            for validator in self.validators.iter() {
-                match validator.validate(&evt)? {
-                    ValidationResult::Allow => is_allow = true,
-                    ValidationResult::Deny => is_deny = true,
-                    _ => {}
-                }
-            }
+    fn metadata_trim(&self, meta: &mut Metadata<M>) -> Result<()> {
+        for plugin in self.plugins.iter().rev() {
+            plugin.metadata_trim(meta)?;
+        }
+        for linter in self.linters.iter().rev() {
+            linter.metadata_trim(meta)?;
+        }
+        Ok(()) 
+    }
 
-            if is_deny == true || is_allow == false {
-                continue;
+    #[allow(dead_code)]
+    fn metadata_lint(&self, meta: &mut Metadata<M>) -> Result<()> {
+        for linter in self.linters.iter() {
+            linter.metadata_lint(meta)?;
+        }
+        for plugin in self.plugins.iter() {
+            plugin.metadata_lint(meta)?;
+        }
+        Ok(())
+    }
+
+    #[allow(dead_code)]
+    fn data_as_overlay(&self, meta: &mut Metadata<M>, data: Bytes) -> Result<Bytes> {
+        let mut ret = data;
+        for plugin in self.plugins.iter().rev() {
+            ret = plugin.data_as_overlay(meta, ret)?;
+        }
+        for transformer in self.transformers.iter().rev() {
+            ret = transformer.data_as_overlay(meta, ret)?;
+        }
+        Ok(ret) 
+    }
+
+    #[allow(dead_code)]
+    fn data_as_underlay(&self, meta: &mut Metadata<M>, data: Bytes) -> Result<Bytes> {
+        let mut ret = data;
+        for transformer in self.transformers.iter() {
+            ret = transformer.data_as_underlay(meta, ret)?;
+        }
+        for plugin in self.plugins.iter() {
+            ret = plugin.data_as_underlay(meta, ret)?;
+        }
+        Ok(ret)
+    }
+
+    fn validate_event(&self, header: &Header<M>) -> Result<bool>
+    {
+        let mut is_allow = false;
+        let mut is_deny = false;
+        for validator in self.validators.iter() {
+            match validator.validate(header)? {
+                ValidationResult::Allow => is_allow = true,
+                ValidationResult::Deny => is_deny = true,
+                _ => {}
             }
+        }
+        for plugin in self.plugins.iter() {
+            match plugin.validate(header)? {
+                ValidationResult::Allow => is_allow = true,
+                ValidationResult::Deny => is_deny = true,
+                _ => {}
+            }
+        }
+
+        if is_deny == true || is_allow == false {
+            return Ok(false);
+        }
+        Ok(true)
+    }
+
+    #[allow(dead_code)]
+    async fn feed(&mut self, evts: Vec<Event<M>>) -> Result<()>
+    {
+        for mut evt in evts {
+            self.metadata_lint(&mut evt.header.meta)?;
+
+            if self.validate_event(&evt.header)? == false { continue; }
 
             let pointer = self.redo.write(evt.to_event_data()).await?;
 
-            let entry = EventEntry {
+            let mut entry = EventEntry {
                 header: Header {
                     key: evt.header.key,
                     meta: evt.header.meta,
@@ -207,6 +306,26 @@ where M: OtherMetadata
             for indexer in self.indexers.iter_mut() {
                 indexer.feed(&entry);
             }
+
+            self.metadata_trim(&mut entry.header.meta)?;
+
+            self.chain.push(entry);
+        }
+        Ok(())
+    }
+
+    #[allow(dead_code)]
+    fn process(&mut self, evts: Vec<EventEntry<M>>) -> Result<()>
+    {
+        for mut entry in evts {
+            if self.validate_event(&entry.header)? == false { continue; }
+
+            for indexer in self.indexers.iter_mut() {
+                indexer.feed(&entry);
+            }
+
+            self.metadata_trim(&mut entry.header.meta)?;
+
             self.chain.push(entry);
         }
         Ok(())
@@ -215,14 +334,14 @@ where M: OtherMetadata
     async fn load(&self, entry: &EventEntry<M>) -> Result<Event<M>> {
         match self.redo.load(&entry.header.key, &entry.pointer).await? {
             None => Result::Err(Error::new(ErrorKind::Other, format!("Could not find data object with key 0x{}", entry.header.key.as_hex_string()))),
-            Some(data) => {
+            Some(evt) => {
                 Ok(
                     Event {
                         header: Header {
-                            key: entry.header.key,
+                            key: evt.key,
                             meta: entry.header.meta.clone(),
                         },
-                        body: data.body
+                        body: evt.body.clone(),
                     }
                 )
             }
@@ -276,14 +395,14 @@ where M: OtherMetadata,
     }
 
     #[allow(dead_code)]
-    pub fn process(&mut self, evts: Vec<Event<M>>) -> Result<()> {
+    pub fn feed(&mut self, evts: Vec<Event<M>>) -> Result<()> {
         let runtime = self.runtime.clone();
-        runtime.block_on(self.lock.process(evts))
+        runtime.block_on(self.lock.feed(evts))
     }
 
     #[allow(dead_code)]
-    pub async fn process_async(&mut self, evts: Vec<Event<M>>) -> Result<()> {
-        self.lock.process(evts).await
+    pub async fn feed_async(&mut self, evts: Vec<Event<M>>) -> Result<()> {
+        self.lock.feed(evts).await
     }
 
     #[allow(dead_code)]
@@ -404,6 +523,7 @@ where M: OtherMetadata,
     {
         // prepare
         let mut new_indexers = Vec::new();
+        let mut new_plugins = Vec::new();
         let mut keepers = Vec::new();
         let mut new_chain = Vec::new();
         
@@ -423,18 +543,17 @@ where M: OtherMetadata,
                 for indexer in &multi.lock.indexers {
                     new_indexers.push(indexer.clone_empty());
                 }
+                for plugin in &multi.lock.plugins {
+                    new_plugins.push(plugin.clone_empty());
+                }
 
                 // step1 - reset all the compactors
                 let mut compactors = Vec::new();
                 for compactor in &multi.lock.compactors {
-                    compactors.push(compactor.step1_clone_empty());
+                    compactors.push(compactor.clone_prepare());
                 }
-
-                // step2 - prepare all the compactors with the events
-                for entry in multi.lock.chain.iter() {
-                    for compactor in compactors.iter_mut() {
-                        compactor.step2_prepare_forward(&entry.header);
-                    }
+                for plugin in &multi.lock.plugins {
+                    compactors.push(plugin.clone_prepare());
                 }
 
                 // build a list of the events that are actually relevant to a compacted log
@@ -445,7 +564,7 @@ where M: OtherMetadata,
                     let mut is_drop = false;
                     let mut is_force_drop = false;
                     for compactor in compactors.iter_mut() {
-                        match compactor.step3_relevance_backward(&entry.header) {
+                        match compactor.relevance(&entry.header) {
                             EventRelevance::ForceKeep => is_force_keep = true,
                             EventRelevance::Keep => is_keep = true,
                             EventRelevance::Drop => is_drop = true,
@@ -465,6 +584,9 @@ where M: OtherMetadata,
                         for new_indexer in new_indexers.iter_mut() {
                             new_indexer.feed(entry);
                         }
+                        for new_plugin in new_plugins.iter_mut() {
+                            new_plugin.feed(entry);
+                        }
                     }
                 }
 
@@ -483,6 +605,9 @@ where M: OtherMetadata,
                 for new_indexer in new_indexers.iter_mut() {
                     new_indexer.refactor(&refactor);
                 }
+                for new_plugin in new_plugins.iter_mut() {
+                    new_plugin.refactor(&refactor);
+                }
             }
         }
 
@@ -492,6 +617,7 @@ where M: OtherMetadata,
             // complete the transaction
             single.lock.redo.end_flip(flip).await?;
             single.lock.indexers = new_indexers;
+            single.lock.plugins = new_plugins;
             single.lock.chain = new_chain;
 
             single.flush_async(runtime.clone()).await?;
@@ -535,6 +661,26 @@ where M: OtherMetadata,
     pub fn search(&self, key: &PrimaryKey) -> Option<EventEntry<M>> {
         self.lock.search(key)
     }
+
+    #[allow(dead_code)]
+    pub fn metadata_trim(&self, meta: &mut Metadata<M>) -> Result<()> {
+        self.lock.metadata_trim(meta)
+    }
+
+    #[allow(dead_code)]
+    pub fn metadata_lint(&self, meta: &mut Metadata<M>) -> Result<()> {
+        self.lock.metadata_lint(meta)
+    }
+
+    #[allow(dead_code)]
+    pub fn data_as_overlay(&self, meta: &mut Metadata<M>, data: Bytes) -> Result<Bytes> {
+        self.lock.data_as_overlay(meta, data)
+    }
+
+    #[allow(dead_code)]
+    pub fn data_as_underlay(&self, meta: &mut Metadata<M>, data: Bytes) -> Result<Bytes> {
+        self.lock.data_as_underlay(meta, data)
+    }
 }
 
 #[cfg(test)]
@@ -550,7 +696,8 @@ pub fn create_test_chain(chain_name: String) ->
     let mock_chain_key = ChainKey::default().with_temp_name(chain_name);
 
     let builder = ChainOfTrustBuilder::new()
-        .with_defaults();
+        .add_validator(Box::new(RubberStampValidator::default()))
+        .add_data_transformer(Box::new(StaticEncryption::new(&EncryptKey::from_string("test".to_string(), KeySize::Bit192))));
     
     ChainAccessor::new(
         builder,
@@ -577,7 +724,7 @@ pub fn test_chain() {
         let mut evts = Vec::new();
         evts.push(evt1.clone());
         evts.push(evt2.clone());
-        lock.process(evts).expect("The event failed to be accepted");
+        lock.feed(evts).expect("The event failed to be accepted");
         assert_eq!(2, lock.redo_count());
     }
 
@@ -598,7 +745,7 @@ pub fn test_chain() {
         
         let mut evts = Vec::new();
         evts.push(evt1.clone());
-        lock.process(evts).expect("The event failed to be accepted");
+        lock.feed(evts).expect("The event failed to be accepted");
         assert_eq!(3, lock.redo_count());
     }
 
@@ -628,7 +775,7 @@ pub fn test_chain() {
         
         let mut evts = Vec::new();
         evts.push(evt2.clone());
-        lock.process(evts).expect("The event failed to be accepted");
+        lock.feed(evts).expect("The event failed to be accepted");
         
         // Number of events should have gone up by one even though there should be one less item
         assert_eq!(3, lock.redo_count());

@@ -243,11 +243,12 @@ where M: OtherMetadata,
             return Result::Err(Error::new(ErrorKind::NotFound, format!("Found a record but its been tombstoned for {}", key.as_hex_string())));
         }
 
-        let evt = multi.load(&entry)?;
+        let mut evt = multi.load(&entry)?;
 
-        match evt.body.as_ref() {
+        match evt.body {
             Some(data) => {
-                match bincode::deserialize(data) {
+                let transformed_data = multi.data_as_overlay(&mut evt.header.meta, data)?;
+                match bincode::deserialize(&transformed_data) {
                     std::result::Result::Ok(a) => {
                         let dao = Rc::new(Dao::new(key.clone(), evt.header.meta, a));
                         state.cache.insert(key.clone(), dao.clone());
@@ -275,25 +276,39 @@ where M: OtherMetadata,
 {
     fn drop(&mut self)
     {
-        // We need to release the multi-user mode lock
-        self.multi = None;        
-
         // If we have dirty records
         let state = self.state.borrow_mut();
         if state.dirty.is_empty() == false || state.deleted.is_empty() == false
         {
-            // Convert all the events that we are storing into serialize data
             let mut evts = Vec::new();
-            for (_, dao) in &state.dirty {
-                let dao = dao.deref();
-                let evt = Event {
-                    header: Header {
-                        key: dao.key,
-                        meta: Metadata::default(),
-                    },
-                    body: Some(Bytes::from(bincode::serialize(&dao.data).unwrap())),
-                };
-                evts.push(evt);
+            {
+                // Take the reference to the multi for a limited amount of time then destruct it and release the lock
+                let multi = self.multi.take().expect("The multilock was released before the drop call was triggered by the Dio going out of scope.");
+
+                // Convert all the events that we are storing into serialize data
+                for (_, dao) in &state.dirty {
+                    let dao = dao.deref();
+                    let mut meta = Metadata::default();
+
+                    let linted_data = Bytes::from(bincode::serialize(&dao.data).unwrap());
+                    let data = match multi.data_as_underlay(&mut meta, linted_data) {
+                        Ok(a) => a,
+                        Err(err) => {
+                            debug_assert!(false, err.to_string());
+                            eprintln!("{}", err.to_string());
+                            continue;
+                        },
+                    };
+
+                    let evt = Event {
+                        header: Header {
+                            key: dao.key,
+                            meta: meta,
+                        },
+                        body: Some(data),
+                    };
+                    evts.push(evt);
+                }
             }
 
             // Build events that will represent tombstones on all these records (they will be sent after the writes)
@@ -311,8 +326,18 @@ where M: OtherMetadata,
 
             // Process it in the chain of trust
             let mut single = self.accessor.single();
-            single.process(evts).unwrap();
+            single.feed(evts).unwrap();
         }
+    }
+}
+
+impl<M> Metadata<M>
+where M: OtherMetadata
+{
+    #[allow(dead_code)]
+    pub fn add_tombstone(&mut self) {
+        if self.has_tombstone() == true { return; }
+        self.core.push(CoreMetadata::Tombstone);
     }
 }
 
@@ -415,5 +440,5 @@ fn test_dio()
         dio.load(&key2).expect_err("This load should fail as we deleted the record");
     }
 
-    chain.single().destroy().unwrap();
+    //chain.single().destroy().unwrap();
 }

@@ -28,10 +28,14 @@ async-trait = "*"
 fastrand = "*"
 rust-crypto = "*"
 rand = "*"
+rand_chacha = "*"
 buffered_offset_reader = "*"
 async-drop = "*"
 linked-hash-map = "*"
 typed-arena = "*"
+snap = "*"
+openssl = { version = "*", features = ["vendored"] }
+once_cell = "*"
 
 [dev-dependencies]
 ctor = "*"

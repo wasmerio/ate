@@ -73,7 +73,7 @@ impl PrimaryKey {
 }
 
 pub trait OtherMetadata
-where Self: Serialize + DeserializeOwned + Default + Clone + Sized
+where Self: Serialize + DeserializeOwned + std::fmt::Debug + Default + Clone + Sized
 {
 }
 
@@ -84,10 +84,11 @@ pub enum CoreMetadata
     Encrypted(EncryptKey),
     EncryptedWith(PrimaryKey),
     Tombstone,
+    InitializationVector([u8; 16]),
     Authorization {
         allow_read: Vec<String>,
         allow_write: Vec<String>,
-        implicit_authority: String,    
+        implicit_authority: String,
     },
     Tree {
         parent: PrimaryKey,
@@ -120,20 +121,6 @@ pub struct Metadata<M>
 {
     pub core: Vec<CoreMetadata>,
     pub other: M,
-}
-
-impl<M> Metadata<M>
-where M: OtherMetadata
-{
-    pub fn has_tombstone(&self) -> bool {
-        self.core.iter().any(|m| match m { CoreMetadata::Tombstone => true, _ => false })
-    }
-
-    #[allow(dead_code)]
-    pub fn add_tombstone(&mut self) {
-        if self.has_tombstone() == true { return; }
-        self.core.push(CoreMetadata::Tombstone);
-    }
 }
 
 #[allow(dead_code)]

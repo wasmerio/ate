@@ -6,17 +6,22 @@ use crate::redo::LogFilePointer;
 use super::event::*;
 use super::header::*;
 
-pub trait EventIndexer<M>
+pub trait EventIndexerCore<M>
 where M: OtherMetadata
 {
     fn feed(&mut self, evt: &EventEntry<M>);
 
     fn purge(&mut self, evt: &EventEntry<M>);
 
+    fn refactor(&mut self, transform: &FxHashMap<LogFilePointer, LogFilePointer>);
+}
+
+pub trait EventIndexer<M>
+where Self: EventIndexerCore<M>,
+      M: OtherMetadata
+{
     fn search(&self, key: &PrimaryKey) -> Option<EventEntry<M>>;
 
-    fn refactor(&mut self, transform: &FxHashMap<LogFilePointer, LogFilePointer>);
-    
     fn clone_empty(&self) -> Box<dyn EventIndexer<M>>;
 }
 
@@ -41,7 +46,7 @@ where M: OtherMetadata
     }
 }
 
-impl<M> EventIndexer<M>
+impl<M> EventIndexerCore<M>
 for BinaryTreeIndexer<M>
 where M: OtherMetadata + 'static
 {
@@ -56,18 +61,23 @@ where M: OtherMetadata + 'static
         self.events.remove(&entry.header.key);
     }
 
-    fn search(&self, key: &PrimaryKey) -> Option<EventEntry<M>> {
-        match self.events.get(key) {
-            None => None,
-            Some(a) => Some(a.clone())
-        }
-    }
-
     fn refactor(&mut self, transform: &FxHashMap<LogFilePointer, LogFilePointer>) {
         for (_, val) in self.events.iter_mut() {
             if let Some(next) = transform.get(&val.pointer) {
                 val.pointer = next.clone();
             }
+        }
+    }
+}
+
+impl<M> EventIndexer<M>
+for BinaryTreeIndexer<M>
+where M: OtherMetadata + 'static
+{
+    fn search(&self, key: &PrimaryKey) -> Option<EventEntry<M>> {
+        match self.events.get(key) {
+            None => None,
+            Some(a) => Some(a.clone())
         }
     }
 

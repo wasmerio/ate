@@ -11,17 +11,15 @@ pub enum EventRelevance
     Drop,           // The event should be dropped
     ForceDrop,      // Force the event to drop
 }
+
 pub trait EventCompactor<M>
 where M: OtherMetadata
 {
-    /// Resets the compactor so that it can run another round
-    fn step1_clone_empty(&self) -> Box<dyn EventCompactor<M>>;
-
-    // All events are first pushed through the compactor in order of oldest to newest
-    fn step2_prepare_forward(&mut self, evt: &Header<M>);
+    // Clones the compactor and prepares it for a compaction operation
+    fn clone_prepare(&self) -> Box<dyn EventCompactor<M>>;
 
     // Decision making time - in order of back to front we now decide if we keep or drop an event
-    fn step3_relevance_backward(&mut self, evt: &Header<M>) -> EventRelevance;
+    fn relevance(&mut self, evt: &Header<M>) -> EventRelevance;
 }
 
 #[derive(Default)]
@@ -34,14 +32,11 @@ impl<M> EventCompactor<M>
 for RemoveDuplicatesCompactor
 where M: OtherMetadata
 {
-    fn step1_clone_empty(&self) -> Box<dyn EventCompactor<M>> {
+    fn clone_prepare(&self) -> Box<dyn EventCompactor<M>> {
         Box::new(RemoveDuplicatesCompactor::default())
     }
-
-    fn step2_prepare_forward(&mut self, _: &Header<M>) {
-    }
     
-    fn step3_relevance_backward(&mut self, header: &Header<M>) -> EventRelevance
+    fn relevance(&mut self, header: &Header<M>) -> EventRelevance
     {
         match self.already.contains(&header.key) {
             true => EventRelevance::Drop,
@@ -63,14 +58,11 @@ impl<M> EventCompactor<M>
 for TombstoneCompactor
 where M: OtherMetadata
 {
-    fn step1_clone_empty(&self) -> Box<dyn EventCompactor<M>> {
+    fn clone_prepare(&self) -> Box<dyn EventCompactor<M>> {
         Box::new(TombstoneCompactor::default())
     }
-
-    fn step2_prepare_forward(&mut self, _: &Header<M>) {
-    }
     
-    fn step3_relevance_backward(&mut self, header: &Header<M>) -> EventRelevance
+    fn relevance(&mut self, header: &Header<M>) -> EventRelevance
     {
         if header.meta.has_tombstone() == true {
             self.tombstoned.insert(header.key.clone());
@@ -81,5 +73,13 @@ where M: OtherMetadata
             true => EventRelevance::ForceDrop,
             false => EventRelevance::Abstain,
         }
+    }
+}
+
+impl<M> Metadata<M>
+where M: OtherMetadata
+{
+    pub fn has_tombstone(&self) -> bool {
+        self.core.iter().any(|m| match m { CoreMetadata::Tombstone => true, _ => false })
     }
 }
