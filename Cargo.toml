@@ -36,6 +36,7 @@ typed-arena = "*"
 snap = "*"
 openssl = { version = "*", features = ["vendored"] }
 once_cell = "*"
+pqcrypto = "*"
 
 [dev-dependencies]
 ctor = "*"

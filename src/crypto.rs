@@ -6,6 +6,8 @@ use std::{cell::RefCell};
 use std::sync::{Mutex, MutexGuard};
 use once_cell::sync::Lazy;
 use std::result::Result;
+#[allow(unused_imports)]
+use pqcrypto::sign::falcon512::{keypair, sign, open};
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq)]
 pub enum EncryptKey {
@@ -253,4 +255,13 @@ fn test_encrypt_key_seeding() {
     let provided = EncryptKey::from_string("test2".to_string(), KeySize::Bit256);
     let expected = EncryptKey::Aes256([230, 248, 163, 17, 228, 69, 199, 43, 44, 106, 137, 243, 229, 187, 80, 173, 250, 183, 169, 165, 247, 153, 250, 8, 248, 187, 48, 83, 165, 91, 255, 180]);
     assert_eq!(provided, expected);
+}
+
+#[test]
+fn test_asym_crypto() {
+    let (pk, sk) = keypair();
+    let plain = b"test";
+    let sm = sign(plain, &sk);
+    let verifiedmsg = open(&sm, &pk).unwrap();
+    assert!(verifiedmsg == plain);
 }

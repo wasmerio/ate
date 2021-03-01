@@ -8,6 +8,7 @@ mod event;
 mod conf;
 mod comms;
 mod redo;
+mod session;
 mod validator;
 mod compact;
 mod index;
