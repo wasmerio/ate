@@ -7,7 +7,7 @@ use std::sync::{Mutex, MutexGuard};
 use once_cell::sync::Lazy;
 use std::result::Result;
 #[allow(unused_imports)]
-use pqcrypto::sign::falcon512::{keypair, sign, open};
+use pqcrypto_falcon::falcon512;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq)]
 pub enum EncryptKey {
@@ -259,9 +259,9 @@ fn test_encrypt_key_seeding() {
 
 #[test]
 fn test_asym_crypto() {
-    let (pk, sk) = keypair();
     let plain = b"test";
-    let sm = sign(plain, &sk);
-    let verifiedmsg = open(&sm, &pk).unwrap();
-    assert!(verifiedmsg == plain);
+
+    let (pk, sk) = falcon512::keypair();
+    let sig = falcon512::detached_sign(plain, &sk);
+    assert!(falcon512::verify_detached_signature(&sig, plain, &pk).is_ok());
 }
