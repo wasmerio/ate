@@ -5,7 +5,7 @@ use super::meta::*;
 use super::error::*;
 use rand::{RngCore, SeedableRng, rngs::adapter::ReseedingRng};
 use rand_chacha::{ChaCha20Core, ChaCha20Rng};
-use std::{cell::RefCell};
+use std::{cell::RefCell, io::ErrorKind};
 use std::sync::{Mutex, MutexGuard};
 use once_cell::sync::Lazy;
 use std::result::Result;
@@ -13,7 +13,7 @@ use std::result::Result;
 use pqcrypto_falcon::falcon512;
 #[allow(unused_imports)]
 use pqcrypto_falcon::falcon1024;
-use pqcrypto_traits::sign::PublicKey as PQCryptoPublicKey;
+use pqcrypto_traits::sign::{DetachedSignature, PublicKey as PQCryptoPublicKey};
 use pqcrypto_traits::sign::SecretKey as PQCryptoSecretKey;
 #[allow(unused_imports)]
 use openssl::symm::{Cipher};
@@ -354,6 +354,30 @@ impl PrivateKey
             PrivateKey::Falcon1024 { id: _, pk: _, sk } => sk.clone(),
         }
     }
+
+    #[allow(dead_code)]
+    pub fn sign(&self, data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
+        let ret = match &self {
+            PrivateKey::Falcon512 { id: _, pk: _, sk} => {
+                let sk = match falcon512::SecretKey::from_bytes(&sk[..]) {
+                    Ok(sk) => sk,
+                    Err(err) => { return Result::Err(std::io::Error::new(ErrorKind::Other, format!("Failed to decode the secret key ({}).", err))); },
+                };
+                let sig = falcon512::detached_sign(data, &sk);
+                Vec::from(sig.as_bytes())
+            },
+            PrivateKey::Falcon1024 { id: _, pk: _, sk} => {
+                let sk = match falcon1024::SecretKey::from_bytes(&sk[..]) {
+                    Ok(sk) => sk,
+                    Err(err) => { return Result::Err(std::io::Error::new(ErrorKind::Other, format!("Failed to decode the secret key ({}).", err))); },
+                };
+                let sig = falcon1024::detached_sign(data, &sk);
+                Vec::from(sig.as_bytes())
+            },
+        };
+        
+        Ok(ret)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
@@ -385,6 +409,36 @@ impl PublicKey
             PublicKey::Falcon1024 { id, pk: _ } => id.clone(),
         }
     }
+    
+    #[allow(dead_code)]
+    pub fn verify(&self, data: &[u8], sig: &[u8]) -> Result<bool, std::io::Error> {
+        let ret = match &self {
+            PublicKey::Falcon512 { id: _, pk } => {
+                let pk = match falcon512::PublicKey::from_bytes(&pk[..]) {
+                    Ok(pk) => pk,
+                    Err(err) => { return Result::Err(std::io::Error::new(ErrorKind::Other, format!("Failed to decode the public key ({}).", err))); },
+                };
+                let sig = match falcon512::DetachedSignature::from_bytes(sig) {
+                    Ok(sig) => sig,
+                    Err(err) => { return Result::Err(std::io::Error::new(ErrorKind::Other, format!("Failed to verify the signature on data ({}).", err))); },
+                };
+                falcon512::verify_detached_signature(&sig, data, &pk).is_ok()
+            },
+            PublicKey::Falcon1024 { id: _, pk } => {
+                let pk = match falcon1024::PublicKey::from_bytes(&pk[..]) {
+                    Ok(pk) => pk,
+                    Err(err) => { return Result::Err(std::io::Error::new(ErrorKind::Other, format!("Failed to decode the public key ({}).", err))); },
+                };
+                let sig = match falcon1024::DetachedSignature::from_bytes(sig) {
+                    Ok(sig) => sig,
+                    Err(err) => { return Result::Err(std::io::Error::new(ErrorKind::Other, format!("Failed to verify the signature on data ({}).", err))); },
+                };
+                falcon1024::verify_detached_signature(&sig, data, &pk).is_ok()
+            }
+        };
+        
+        Ok(ret)
+    }
 }
 
 pub struct EncryptedPrivateKey {
@@ -396,7 +450,7 @@ pub struct EncryptedPrivateKey {
 impl EncryptedPrivateKey
 {
     #[allow(dead_code)]
-    pub fn generate(encrypt_key: EncryptKey) -> Result<EncryptedPrivateKey, std::io::Error> {
+    pub fn generate(encrypt_key: &EncryptKey) -> Result<EncryptedPrivateKey, std::io::Error> {
         let k = PrivateKey::generate(encrypt_key.size());
         let sk = k.sk();
         let sk = encrypt_key.encrypt(&sk[..])?;
@@ -467,9 +521,31 @@ fn test_encrypt_key_seeding() {
 }
 
 #[test]
-fn test_asym_crypto() {
+fn test_asym_crypto_128()
+{
+    let key = EncryptKey::generate(KeySize::Bit128);
+    let private = EncryptedPrivateKey::generate(&key).unwrap();
+    let public = private.as_public_key();
+
     let plain = b"test";
-    let (pk, sk) = falcon512::keypair();
-    let sig = falcon512::detached_sign(plain, &sk);
-    assert!(falcon512::verify_detached_signature(&sig, plain, &pk).is_ok());
+    let sig = private.as_private_key(&key).unwrap().sign(plain).unwrap();
+    assert!(public.verify(plain, &sig[..]).unwrap(), "Signature verificaton failed");
+
+    let negative = b"blahtest";
+    assert!(public.verify(negative, &sig[..]).unwrap() == false, "Signature verificaton passes when it should not");
+}
+
+#[test]
+fn test_asym_crypto_256()
+{
+    let key = EncryptKey::generate(KeySize::Bit256);
+    let private = EncryptedPrivateKey::generate(&key).unwrap();
+    let public = private.as_public_key();
+
+    let plain = b"test";
+    let sig = private.as_private_key(&key).unwrap().sign(plain).unwrap();
+    assert!(public.verify(plain, &sig[..]).unwrap(), "Signature verificaton failed");
+
+    let negative = b"blahtest";
+    assert!(public.verify(negative, &sig[..]).unwrap() == false, "Signature verificaton passes when it should not");
 }
