@@ -260,7 +260,6 @@ fn test_encrypt_key_seeding() {
 #[test]
 fn test_asym_crypto() {
     let plain = b"test";
-
     let (pk, sk) = falcon512::keypair();
     let sig = falcon512::detached_sign(plain, &sk);
     assert!(falcon512::verify_detached_signature(&sig, plain, &pk).is_ok());

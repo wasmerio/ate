@@ -16,8 +16,13 @@ use super::header::*;
 use super::chain::*;
 use super::event::*;
 
+#[allow(dead_code)]
+type Dio<'a, D> = DioExt<'a, EmptyMetadata, D>;
+#[allow(dead_code)]
+type Dao<D> = DaoExt<EmptyMetadata, D>;
+
 #[derive(Debug, Clone)]
-pub struct Dao<M, D>
+pub struct Row<M, D>
 where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone
 {
@@ -26,13 +31,13 @@ where M: OtherMetadata,
     pub data: D,
 }
 
-impl<M, D> Dao<M, D>
+impl<M, D> Row<M, D>
 where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone
 {
-    pub fn new(key: PrimaryKey, meta: Metadata<M>, data: D) -> Dao<M, D>
+    pub fn new(key: PrimaryKey, meta: Metadata<M>, data: D) -> Row<M, D>
     {
-        Dao {
+        Row {
             key: key,
             meta: meta,
             data: data
@@ -41,21 +46,21 @@ where M: OtherMetadata,
 }
 
 #[derive(Debug)]
-pub struct DaoRef<M, D>
+pub struct DaoExt<M, D>
 where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone,
 {
-    hard_copy: Option<Dao<M, D>>,
-    soft_copy: Rc<Dao<M, D>>,
+    hard_copy: Option<Row<M, D>>,
+    soft_copy: Rc<Row<M, D>>,
     state: Rc<RefCell<DioState<M, D>>>
 }
 
-impl<M, D> DaoRef<M, D>
+impl<M, D> DaoExt<M, D>
 where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone,
 {
-    fn new<>(what: &Rc<Dao<M, D>>, state: &Rc<RefCell<DioState<M, D>>>) -> DaoRef<M, D> {
-        DaoRef {
+    fn new<>(what: &Rc<Row<M, D>>, state: &Rc<RefCell<DioState<M, D>>>) -> DaoExt<M, D> {
+        DaoExt {
             hard_copy: None,
             soft_copy: Rc::clone(what),
             state: Rc::clone(state),
@@ -113,7 +118,7 @@ where M: OtherMetadata,
     }
 }
 
-impl<M, D> Deref for DaoRef<M, D>
+impl<M, D> Deref for DaoExt<M, D>
 where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone,
 {
@@ -127,7 +132,7 @@ where M: OtherMetadata,
     }
 }
 
-impl<M, D> DerefMut for DaoRef<M, D>
+impl<M, D> DerefMut for DaoExt<M, D>
 where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone,
 {
@@ -140,7 +145,7 @@ where M: OtherMetadata,
     }
 }
 
-impl<M, D> Drop for DaoRef<M, D>
+impl<M, D> Drop for DaoExt<M, D>
 where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone,
 {
@@ -154,8 +159,8 @@ struct DioState<M, D>
 where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone,
 {
-    dirty: LinkedHashMap<PrimaryKey, Rc<Dao<M, D>>>,
-    cache: FxHashMap<PrimaryKey, Rc<Dao<M, D>>>,
+    dirty: LinkedHashMap<PrimaryKey, Rc<Row<M, D>>>,
+    cache: FxHashMap<PrimaryKey, Rc<Row<M, D>>>,
     locked: FxHashSet<PrimaryKey>,
     deleted: FxHashSet<PrimaryKey>,
 }
@@ -164,7 +169,7 @@ impl<M, D> DioState<M, D>
 where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone,
 {
-    fn dirty(&mut self, dao: Dao<M, D>) {
+    fn dirty(&mut self, dao: Row<M, D>) {
         self.cache.remove(&dao.key);
         self.dirty.insert(dao.key, Rc::new(dao));
     }
@@ -196,38 +201,38 @@ where M: OtherMetadata,
     }
 }
 
-pub struct Dio<'a, M, D>
+pub struct DioExt<'a, M, D>
 where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone,
 {
-    accessor: ChainAccessor<M>,
-    multi: Option<ChainMultiUser<'a, M>>,
+    accessor: ChainAccessorExt<M>,
+    multi: Option<ChainMultiUserExt<'a, M>>,
     state: Rc<RefCell<DioState<M, D>>>,
 }
 
-impl<'a, M, D> Dio<'a, M, D>
+impl<'a, M, D> DioExt<'a, M, D>
 where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone,
 {
     #[allow(dead_code)]
-    pub fn store(&mut self, metadata: Metadata<M>, data: D) -> Result<DaoRef<M, D>> {
+    pub fn store(&mut self, metadata: Metadata<M>, data: D) -> Result<DaoExt<M, D>> {
         let key = PrimaryKey::generate();
-        let dao = Rc::new(Dao::new(key.clone(), metadata, data));
+        let dao = Rc::new(Row::new(key.clone(), metadata, data));
         self.state.borrow_mut().dirty.insert(key, dao.clone());
-        Ok(DaoRef::new(&dao, &self.state))
+        Ok(DaoExt::new(&dao, &self.state))
     }
 
     #[allow(dead_code)]
-    pub fn load(&mut self, key: &PrimaryKey) -> Result<DaoRef<M, D>> {
+    pub fn load(&mut self, key: &PrimaryKey) -> Result<DaoExt<M, D>> {
         let mut state = self.state.borrow_mut();
         if state.is_locked(key) {
             return Result::Err(Error::new(ErrorKind::Other, format!("The record is locked as it has a dirty record already in scope for this call stack {:?}", key)));
         }
         if let Some(dao) = state.dirty.get(key) {
-            return Ok(DaoRef::new(dao, &self.state));
+            return Ok(DaoExt::new(dao, &self.state));
         }
         if let Some(dao) = state.cache.get(key) {
-            return Ok(DaoRef::new(dao, &self.state));
+            return Ok(DaoExt::new(dao, &self.state));
         }
         if state.deleted.contains(key) {
             return Result::Err(Error::new(ErrorKind::NotFound, format!("Record with this key has already been deleted {}", key.as_hex_string())))
@@ -250,9 +255,9 @@ where M: OtherMetadata,
                 let transformed_data = multi.data_as_overlay(&mut evt.header.meta, data)?;
                 match bincode::deserialize(&transformed_data) {
                     std::result::Result::Ok(a) => {
-                        let dao = Rc::new(Dao::new(key.clone(), evt.header.meta, a));
+                        let dao = Rc::new(Row::new(key.clone(), evt.header.meta, a));
                         state.cache.insert(key.clone(), dao.clone());
-                        Ok(DaoRef::new(&dao, &self.state))
+                        Ok(DaoExt::new(&dao, &self.state))
                     },
                     std::result::Result::Err(err) => Result::Err(Error::new(ErrorKind::Other, format!("{}", err))),
                 }
@@ -270,7 +275,7 @@ where M: OtherMetadata,
 }
 
 impl<'a, M, D> Drop
-for Dio<'a, M, D>
+for DioExt<'a, M, D>
 where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone,
 {
@@ -341,22 +346,22 @@ where M: OtherMetadata
     }
 }
 
-pub trait DioFactory<'a, M, D>
+pub trait DioFactoryExt<'a, M, D>
 where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone,
 {
-    fn dio(&'a mut self) -> Dio<'a, M, D>;
+    fn dio(&'a mut self) -> DioExt<'a, M, D>;
 }
 
-impl<'a, M, D> DioFactory<'a, M, D>
-for ChainAccessor<M>
+impl<'a, M, D> DioFactoryExt<'a, M, D>
+for ChainAccessorExt<M>
 where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone,
 {
-    fn dio(&'a mut self) -> Dio<'a, M, D> {
-        let accessor = ChainAccessor::from_accessor(self); 
+    fn dio(&'a mut self) -> DioExt<'a, M, D> {
+        let accessor = ChainAccessorExt::from_accessor(self); 
         let multi = self.multi();
-        Dio {
+        DioExt {
             accessor: accessor,
             state: Rc::new(RefCell::new(DioState::new())),
             multi: Some(multi),          
@@ -423,10 +428,10 @@ fn test_dio()
     }
 
     {
-        let mut dio: Dio<EmptyMetadata, TestDao> = chain.dio();
+        let mut dio = chain.dio();
 
         // First attempt to read the record then delete it
-        let dao2 = dio.load(&key2).expect("The record should load before we delete it in this session");
+        let dao2: Dao<TestDao> = dio.load(&key2).expect("The record should load before we delete it in this session");
         dao2.delete();
 
         // It should no longer load now that we deleted it
@@ -434,7 +439,7 @@ fn test_dio()
     }
 
     {
-        let mut dio: Dio<EmptyMetadata, TestDao> = chain.dio();
+        let mut dio: Dio<TestDao> = chain.dio();
 
         // After going out of scope then back again we should still no longer see the record we deleted
         dio.load(&key2).expect_err("This load should fail as we deleted the record");

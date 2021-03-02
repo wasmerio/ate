@@ -1,3 +1,19 @@
+use super::chain::ChainOfTrustExt;
+use super::header::OtherMetadata;
+use super::validator::EventValidator;
+use super::compact::EventCompactor;
+use super::index::EventIndexer;
+use super::lint::EventMetadataLinter;
+use super::transform::EventDataTransformer;
+use super::plugin::EventPlugin;
+use super::index::BinaryTreeIndexer;
+use super::compact::RemoveDuplicatesCompactor;
+use super::compact::TombstoneCompactor;
+use super::validator::RubberStampValidator;
+use super::transform::CompressorWithSnap;
+use super::chain::ChainKey;
+use tokio::io::Result;
+
 pub trait ConfigMaster {
     fn master_addr(&self) -> String;
     fn master_port(&self) -> u32;
@@ -67,6 +83,158 @@ pub fn mock_test_config() -> DiscreteConfig {
         .with_master_port(4001)
         .with_log_path("/tmp/ate".to_string())
         .with_log_temp(true)
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Clone, PartialEq)]
+pub enum ConfiguredFor
+{
+    Raw,
+    Barebone,
+    SmallestSize,
+    BestPerformance,
+    Balanced,
+    BestSecurity,
+}
+
+impl Default
+for ConfiguredFor
+{
+    fn default() -> ConfiguredFor {
+        ConfiguredFor::Balanced
+    }
+}
+
+
+
+pub struct ChainOfTrustBuilderExt<M>
+where M: OtherMetadata,
+{
+    pub(super) configured_for: ConfiguredFor,
+    pub(super) validators: Vec<Box<dyn EventValidator<M>>>,
+    pub(super) indexers: Vec<Box<dyn EventIndexer<M>>>,
+    pub(super) compactors: Vec<Box<dyn EventCompactor<M>>>,
+    pub(super) linters: Vec<Box<dyn EventMetadataLinter<M>>>,
+    pub(super) transformers: Vec<Box<dyn EventDataTransformer<M>>>,
+    pub(super) plugins: Vec<Box<dyn EventPlugin<M>>>,
+}
+
+impl<M> ChainOfTrustBuilderExt<M>
+where M: OtherMetadata + 'static,
+{
+    #[allow(dead_code)]
+    pub fn new(flavour: ConfiguredFor) -> ChainOfTrustBuilderExt<M> {
+        ChainOfTrustBuilderExt {
+            configured_for: flavour.clone(),
+            validators: Vec::new(),
+            indexers: Vec::new(),
+            compactors: Vec::new(),
+            linters: Vec::new(),
+            transformers: Vec::new(),
+            plugins: Vec::new(),
+        }
+        .with_defaults(flavour)
+    }
+
+    #[allow(dead_code)]
+    pub fn with_defaults(mut self, flavour: ConfiguredFor) -> Self {
+        self.validators.clear();
+        self.indexers.clear();
+        self.linters.clear();
+        self.transformers.clear();
+        self.plugins.clear();
+        self.compactors.clear();
+
+        if flavour == ConfiguredFor::Raw {
+            return self;
+        }
+
+        self.indexers.push(Box::new(BinaryTreeIndexer::default()));
+        self.compactors.push(Box::new(RemoveDuplicatesCompactor::default()));
+        self.compactors.push(Box::new(TombstoneCompactor::default()));
+
+        if flavour == ConfiguredFor::Barebone {
+            self.validators.push(Box::new(RubberStampValidator::default()));
+            return self;
+        }
+
+        match flavour {
+            ConfiguredFor::SmallestSize | ConfiguredFor::Balanced => {
+                self.transformers.insert(0, Box::new(CompressorWithSnap::default()));
+            }
+            _ => {}
+        }
+
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn without_defaults(mut self) -> Self {
+        self.validators.clear();
+        self.indexers.clear();
+        self.compactors.clear();
+        self.linters.clear();
+        self.transformers.clear();
+        self.plugins.clear();
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn add_compactor(mut self, compactor: Box<dyn EventCompactor<M>>) -> Self {
+        self.compactors.push(compactor);
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn add_validator(mut self, validator: Box<dyn EventValidator<M>>) -> Self {
+        self.validators.push(validator);
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn add_indexer(mut self, indexer: Box<dyn EventIndexer<M>>) -> Self {
+        self.indexers.push(indexer);
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn add_metadata_linter(mut self, linter: Box<dyn EventMetadataLinter<M>>) -> Self {
+        self.linters.push(linter);
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn add_data_transformer(mut self, transformer: Box<dyn EventDataTransformer<M>>) -> Self {
+        self.transformers.push(transformer);
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn add_plugin(mut self, plugin: Box<dyn EventPlugin<M>>) -> Self {
+        self.plugins.push(plugin);
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn build<I, V>
+    (
+        self,
+        cfg: &impl ConfigStorage,
+        key: &ChainKey,
+        truncate: bool
+    ) -> Result<ChainOfTrustExt<M>>
+    {
+        ChainOfTrustExt::new(self, cfg, key, truncate)
+    }
+}
+
+impl<M> Default
+for ChainOfTrustBuilderExt<M>
+where M: OtherMetadata + 'static,
+{
+    fn default() -> ChainOfTrustBuilderExt<M> {
+        ChainOfTrustBuilderExt::new(ConfiguredFor::default())
+    }
 }
 
 #[test]

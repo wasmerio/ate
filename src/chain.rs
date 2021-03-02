@@ -38,6 +38,13 @@ use bytes::Bytes;
 use super::event::Event;
 
 #[allow(dead_code)]
+type ChainOfTrust = ChainOfTrustExt<EmptyMetadata>;
+#[allow(dead_code)]
+type ChainAccessor = ChainAccessorExt<EmptyMetadata>;
+#[allow(dead_code)]
+type ChainOfTrustBuilder = ChainOfTrustBuilderExt<EmptyMetadata>;
+
+#[allow(dead_code)]
 #[derive(Default, Clone)]
 pub struct ChainKey {
     pub name: String,
@@ -61,114 +68,13 @@ impl ChainKey {
     }
 }
 
-pub struct ChainOfTrustBuilder<M>
-where M: OtherMetadata,
-{
-    validators: Vec<Box<dyn EventValidator<M>>>,
-    indexers: Vec<Box<dyn EventIndexer<M>>>,
-    compactors: Vec<Box<dyn EventCompactor<M>>>,
-    linters: Vec<Box<dyn EventMetadataLinter<M>>>,
-    transformers: Vec<Box<dyn EventDataTransformer<M>>>,
-    plugins: Vec<Box<dyn EventPlugin<M>>>,
-}
-
-impl<M> ChainOfTrustBuilder<M>
-where M: OtherMetadata + 'static,
-{
-    #[allow(dead_code)]
-    pub fn new() -> ChainOfTrustBuilder<M> {
-        ChainOfTrustBuilder {
-            validators: Vec::new(),
-            indexers: Vec::new(),
-            compactors: Vec::new(),
-            linters: Vec::new(),
-            transformers: Vec::new(),
-            plugins: Vec::new(),
-        }
-        .with_defaults()
-    }
-
-    #[allow(dead_code)]
-    pub fn with_defaults(mut self) -> Self {
-        self.validators.clear();
-        self.indexers.clear();
-        self.indexers.push(Box::new(BinaryTreeIndexer::default()));
-        self.compactors.clear();
-        self.compactors.push(Box::new(RemoveDuplicatesCompactor::default()));
-        self.compactors.push(Box::new(TombstoneCompactor::default()));
-        self.linters.clear();
-        self.transformers.clear();
-        self.transformers.push(Box::new(CompressorWithSnap::default()));
-        self.plugins.clear();
-        self
-    }
-
-    #[allow(dead_code)]
-    pub fn without_defaults(mut self) -> Self {
-        self.validators.clear();
-        self.indexers.clear();
-        self.compactors.clear();
-        self.linters.clear();
-        self.transformers.clear();
-        self.plugins.clear();
-        self
-    }
-
-    #[allow(dead_code)]
-    pub fn add_compactor(mut self, compactor: Box<dyn EventCompactor<M>>) -> Self {
-        self.compactors.push(compactor);
-        self
-    }
-
-    #[allow(dead_code)]
-    pub fn add_validator(mut self, validator: Box<dyn EventValidator<M>>) -> Self {
-        self.validators.push(validator);
-        self
-    }
-
-    #[allow(dead_code)]
-    pub fn add_indexer(mut self, indexer: Box<dyn EventIndexer<M>>) -> Self {
-        self.indexers.push(indexer);
-        self
-    }
-
-    #[allow(dead_code)]
-    pub fn add_metadata_linter(mut self, linter: Box<dyn EventMetadataLinter<M>>) -> Self {
-        self.linters.push(linter);
-        self
-    }
-
-    #[allow(dead_code)]
-    pub fn add_data_transformer(mut self, transformer: Box<dyn EventDataTransformer<M>>) -> Self {
-        self.transformers.push(transformer);
-        self
-    }
-
-    #[allow(dead_code)]
-    pub fn add_plugin(mut self, plugin: Box<dyn EventPlugin<M>>) -> Self {
-        self.plugins.push(plugin);
-        self
-    }
-
-    #[allow(dead_code)]
-    pub fn build<I, V>
-    (
-        self,
-        cfg: &impl ConfigStorage,
-        key: &ChainKey,
-        truncate: bool
-    ) -> Result<ChainOfTrust<M>>
-    {
-        ChainOfTrust::new(self, cfg, key, truncate)
-    }
-}
-
 #[allow(dead_code)]
-pub struct ChainOfTrust<M>
+pub struct ChainOfTrustExt<M>
 where M: OtherMetadata
 {
     key: ChainKey,
     redo: RedoLog,
+    configured_for: ConfiguredFor,
     chain: Vec<EventEntry<M>>,
     validators: Vec<Box<dyn EventValidator<M>>>,
     indexers: Vec<Box<dyn EventIndexer<M>>>,
@@ -178,15 +84,16 @@ where M: OtherMetadata
     plugins: Vec<Box<dyn EventPlugin<M>>>,
 }
 
-impl<'a, M> ChainOfTrust<M>
+impl<'a, M> ChainOfTrustExt<M>
 where M: OtherMetadata
 {
     #[allow(dead_code)]
-    pub fn new(builder: ChainOfTrustBuilder<M>,
+    pub fn new(
+        builder: ChainOfTrustBuilderExt<M>,
         cfg: &impl ConfigStorage,
         key: &ChainKey,
         truncate: bool
-    ) -> Result<ChainOfTrust<M>>
+    ) -> Result<ChainOfTrustExt<M>>
     {
         let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
         runtime.block_on(async {
@@ -197,9 +104,10 @@ where M: OtherMetadata
                 entries.push(EventEntry::from_header_data(&header)?);
             }
 
-            let mut ret = ChainOfTrust {
+            let mut ret = ChainOfTrustExt {
                 key: key.clone(),
                 redo: redo_log,
+                configured_for: builder.configured_for,
                 chain: Vec::new(),
                 validators: builder.validators,
                 indexers: builder.indexers,
@@ -374,20 +282,20 @@ where M: OtherMetadata
     }
 }
 
-pub struct ChainSingleUser<'a, M>
+pub struct ChainSingleUserExt<'a, M>
 where M: OtherMetadata,
 {
     runtime: Rc<tokio::runtime::Runtime>,
-    lock: RwLockWriteGuard<'a, ChainOfTrust<M>>,
+    lock: RwLockWriteGuard<'a, ChainOfTrustExt<M>>,
     auto_flush: bool,
 }
 
-impl<'a, M> ChainSingleUser<'a, M>
+impl<'a, M> ChainSingleUserExt<'a, M>
 where M: OtherMetadata,
 {
-    pub async fn new(chain: &'a ChainAccessor<M>, runtime: Rc<Runtime>, auto_flush: bool) -> ChainSingleUser<'a, M>
+    pub async fn new(chain: &'a ChainAccessorExt<M>, runtime: Rc<Runtime>, auto_flush: bool) -> ChainSingleUserExt<'a, M>
     {
-        ChainSingleUser {
+        ChainSingleUserExt {
             runtime: runtime.clone(),
             lock: chain.inner.write().await,
             auto_flush: auto_flush,
@@ -436,7 +344,7 @@ where M: OtherMetadata,
 }
 
 impl<'a, M> Drop
-for ChainSingleUser<'a, M>
+for ChainSingleUserExt<'a, M>
 where M: OtherMetadata,
 {
     fn drop(&mut self) {
@@ -448,26 +356,26 @@ where M: OtherMetadata,
 
 #[allow(dead_code)]
 #[derive(Clone)]
-pub struct ChainAccessor<M>
+pub struct ChainAccessorExt<M>
 where M: OtherMetadata,
 {
-    inner: Arc<RwLock<ChainOfTrust<M>>>,
+    inner: Arc<RwLock<ChainOfTrustExt<M>>>,
 }
 
-impl<'a, M> ChainAccessor<M>
+impl<'a, M> ChainAccessorExt<M>
 where M: OtherMetadata,
 {
     #[allow(dead_code)]
     pub fn new(
-        builder: ChainOfTrustBuilder<M>,
+        builder: ChainOfTrustBuilderExt<M>,
         cfg: &impl ConfigStorage,
         key: &ChainKey,
         truncate: bool
-    ) -> Result<ChainAccessor<M>>
+    ) -> Result<ChainAccessorExt<M>>
     {
-        let chain = ChainOfTrust::new(builder, cfg, key, truncate)?;
+        let chain = ChainOfTrustExt::new(builder, cfg, key, truncate)?;
         Ok(
-            ChainAccessor {
+            ChainAccessorExt {
                 inner: Arc::new(RwLock::new(chain))
             }
         )
@@ -477,39 +385,39 @@ where M: OtherMetadata,
         Rc::new(tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap())
     }
 
-    pub fn from_accessor(accessor: &mut ChainAccessor<M>) -> ChainAccessor<M> {
-        ChainAccessor {
+    pub fn from_accessor(accessor: &mut ChainAccessorExt<M>) -> ChainAccessorExt<M> {
+        ChainAccessorExt {
             inner: Arc::clone(&accessor.inner),
         }
     }
 
     #[allow(dead_code)]
-    pub fn from_chain(chain: ChainOfTrust<M>) -> ChainAccessor<M> {
-        ChainAccessor {
+    pub fn from_chain(chain: ChainOfTrustExt<M>) -> ChainAccessorExt<M> {
+        ChainAccessorExt {
             inner: Arc::new(RwLock::new(chain)),
         }
     }
 
     #[allow(dead_code)]
-    pub fn single(&'a mut self) -> ChainSingleUser<'a, M> {
+    pub fn single(&'a mut self) -> ChainSingleUserExt<'a, M> {
         let runtime = Self::create_runtime();
         runtime.block_on(self.single_async(runtime.clone(), true))
     }
 
     #[allow(dead_code)]
-    pub async fn single_async(&'a mut self, runtime: Rc<Runtime>, auto_flush: bool) -> ChainSingleUser<'a, M> {
-        ChainSingleUser::new(self, runtime, auto_flush).await
+    pub async fn single_async(&'a mut self, runtime: Rc<Runtime>, auto_flush: bool) -> ChainSingleUserExt<'a, M> {
+        ChainSingleUserExt::new(self, runtime, auto_flush).await
     }
 
     #[allow(dead_code)]
-    pub fn multi(&'a mut self) -> ChainMultiUser<'a, M> {
+    pub fn multi(&'a mut self) -> ChainMultiUserExt<'a, M> {
         let runtime = Self::create_runtime();
         runtime.block_on(self.multi_async(runtime.clone()))
     }
 
     #[allow(dead_code)]
-    pub async fn multi_async(&'a mut self, runtime: Rc<Runtime>) -> ChainMultiUser<'a, M> {
-        ChainMultiUser::new(self, runtime).await
+    pub async fn multi_async(&'a mut self, runtime: Rc<Runtime>) -> ChainMultiUserExt<'a, M> {
+        ChainMultiUserExt::new(self, runtime).await
     }
 
     #[allow(dead_code)]
@@ -628,19 +536,19 @@ where M: OtherMetadata,
     }
 }
 
-pub struct ChainMultiUser<'a, M>
+pub struct ChainMultiUserExt<'a, M>
 where M: OtherMetadata,
 {
     runtime: Rc<tokio::runtime::Runtime>,
-    lock: RwLockReadGuard<'a, ChainOfTrust<M>>,
+    lock: RwLockReadGuard<'a, ChainOfTrustExt<M>>,
 }
 
-impl<'a, M> ChainMultiUser<'a, M>
+impl<'a, M> ChainMultiUserExt<'a, M>
 where M: OtherMetadata,
 {
-    pub async fn new(chain: &'a ChainAccessor<M>, runtime: Rc<Runtime>) -> ChainMultiUser<'a, M>
+    pub async fn new(chain: &'a ChainAccessorExt<M>, runtime: Rc<Runtime>) -> ChainMultiUserExt<'a, M>
     {
-        ChainMultiUser {
+        ChainMultiUserExt {
             runtime: runtime,
             lock: chain.inner.read().await,
         }
@@ -685,9 +593,7 @@ where M: OtherMetadata,
 
 #[cfg(test)]
 pub fn create_test_chain(chain_name: String) ->
-    ChainAccessor<
-        EmptyMetadata,
-    >
+    ChainAccessor
 {
     // Create the chain-of-trust and a validator
     let mut mock_cfg = mock_test_config();
@@ -695,7 +601,7 @@ pub fn create_test_chain(chain_name: String) ->
 
     let mock_chain_key = ChainKey::default().with_temp_name(chain_name);
 
-    let builder = ChainOfTrustBuilder::new()
+    let builder = ChainOfTrustBuilder::default()
         .add_validator(Box::new(RubberStampValidator::default()))
         .add_data_transformer(Box::new(StaticEncryption::new(&EncryptKey::from_string("test".to_string(), KeySize::Bit192))));
     
