@@ -20,7 +20,7 @@ pub trait EventIndexer<M>
 where Self: EventIndexerCore<M>,
       M: OtherMetadata
 {
-    fn search(&self, key: &PrimaryKey) -> Option<EventEntry<M>>;
+    fn lookup(&self, key: &PrimaryKey) -> Option<EventEntry<M>>;
 
     fn clone_empty(&self) -> Box<dyn EventIndexer<M>>;
 }
@@ -74,7 +74,7 @@ impl<M> EventIndexer<M>
 for BinaryTreeIndexer<M>
 where M: OtherMetadata + 'static
 {
-    fn search(&self, key: &PrimaryKey) -> Option<EventEntry<M>> {
+    fn lookup(&self, key: &PrimaryKey) -> Option<EventEntry<M>> {
         match self.events.get(key) {
             None => None,
             Some(a) => Some(a.clone())

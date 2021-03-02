@@ -257,10 +257,10 @@ where M: OtherMetadata
     }
 
     #[allow(dead_code)]
-    fn search(&self, key: &PrimaryKey) -> Option<EventEntry<M>>
+    fn lookup(&self, key: &PrimaryKey) -> Option<EventEntry<M>>
     {
         for indexer in self.indexers.iter() {
-            match indexer.search(key) {
+            match indexer.lookup(key) {
                 Some(a) => return Some(a),
                 None => { }
             }
@@ -567,7 +567,7 @@ where M: OtherMetadata,
 
     #[allow(dead_code)]
     pub fn search(&self, key: &PrimaryKey) -> Option<EventEntry<M>> {
-        self.lock.search(key)
+        self.lock.lookup(key)
     }
 
     #[allow(dead_code)]

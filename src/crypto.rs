@@ -1,5 +1,6 @@
 use serde::{Serialize, Deserialize};
 use super::header::*;
+use super::error::*;
 use rand::{RngCore, SeedableRng, rngs::adapter::ReseedingRng};
 use rand_chacha::{ChaCha20Core, ChaCha20Rng};
 use std::{cell::RefCell};
@@ -185,20 +186,6 @@ for RandomGeneratorAccessor
 impl Default for EncryptKey {
     fn default() -> EncryptKey {
         EncryptKey::generate(KeySize::Bit192)
-    }
-}
-
-#[derive(PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
-pub enum CryptoError {
-    NoIvPresent,    
-}
-
-impl From<CryptoError>
-for std::io::Error {
-    fn from(error: CryptoError) -> Self {
-        match error {
-            CryptoError::NoIvPresent => std::io::Error::new(std::io::ErrorKind::Other, "The metadata does not have IV component present")
-        }
     }
 }
 
