@@ -1,5 +1,5 @@
 use super::chain::ChainOfTrustExt;
-use super::header::OtherMetadata;
+use super::meta::OtherMetadata;
 use super::validator::EventValidator;
 use super::compact::EventCompactor;
 use super::index::EventIndexer;

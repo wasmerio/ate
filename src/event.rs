@@ -4,6 +4,7 @@ use tokio::io::Error;
 use tokio::io::ErrorKind;
 
 use super::header::*;
+use super::meta::*;
 use super::redo::LogFilePointer;
 
 #[derive(Debug, Clone)]

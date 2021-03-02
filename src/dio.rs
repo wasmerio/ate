@@ -15,6 +15,7 @@ use std::rc::Rc;
 use super::header::*;
 use super::chain::*;
 use super::event::*;
+use super::meta::*;
 
 #[allow(dead_code)]
 type Dio<'a> = DioExt<'a, EmptyMetadata>;

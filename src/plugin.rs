@@ -1,6 +1,6 @@
 use crate::{compact::EventCompactor, lint::EventMetadataLinter, transform::EventDataTransformer};
 
-use super::header::*;
+use super::meta::*;
 #[allow(unused_imports)]
 use super::crypto::*;
 use super::index::*;

@@ -11,6 +11,7 @@ use super::compact::*;
 use super::lint::*;
 use super::transform::*;
 use super::plugin::*;
+use super::meta::*;
 
 #[allow(unused_imports)]
 use super::conf::*;
@@ -126,10 +127,10 @@ where M: OtherMetadata
     #[allow(dead_code)]
     fn metadata_trim(&self, meta: &mut Metadata<M>) -> Result<()> {
         for plugin in self.plugins.iter().rev() {
-            plugin.metadata_trim(meta)?;
+            plugin.metadata_trim(meta);
         }
         for linter in self.linters.iter().rev() {
-            linter.metadata_trim(meta)?;
+            linter.metadata_trim(meta);
         }
         Ok(()) 
     }
@@ -137,10 +138,10 @@ where M: OtherMetadata
     #[allow(dead_code)]
     fn metadata_lint(&self, meta: &mut Metadata<M>) -> Result<()> {
         for linter in self.linters.iter() {
-            linter.metadata_lint(meta)?;
+            linter.metadata_lint(meta);
         }
         for plugin in self.plugins.iter() {
-            plugin.metadata_lint(meta)?;
+            plugin.metadata_lint(meta);
         }
         Ok(())
     }

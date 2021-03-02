@@ -1,4 +1,4 @@
-use super::header::*;
+use super::meta::*;
 use super::crypto::*;
 use tokio::io::Result;
 use snap::read::FrameDecoder;
@@ -11,10 +11,14 @@ pub trait EventDataTransformer<M>
 where M: OtherMetadata
 {
     /// Callback when data is stored in the event 
-    fn data_as_underlay(&self, meta: &mut Metadata<M>, with: Bytes) -> Result<Bytes>;
+    fn data_as_underlay(&self, _meta: &mut Metadata<M>, with: Bytes) -> Result<Bytes> {
+        Ok(with)
+    }
 
     /// Callback before data in an event is actually used by an actual user
-    fn data_as_overlay(&self, meta: &mut Metadata<M>, with: Bytes) -> Result<Bytes>;
+    fn data_as_overlay(&self, _meta: &mut Metadata<M>, with: Bytes) -> Result<Bytes> {
+        Ok(with)
+    }
 }
 
 #[derive(Debug, Default, Clone)]
@@ -47,45 +51,16 @@ where M: OtherMetadata,
 pub struct StaticEncryption
 {
     key: EncryptKey,
-    key_size: KeySize,
-    cipher: Cipher,
 }
 
 impl StaticEncryption
 {
     #[allow(dead_code)]
     pub fn new(key: &EncryptKey) -> StaticEncryption {
-        let cipher = match key.size() {
-            KeySize::Bit128 => Cipher::aes_128_ctr(),
-            KeySize::Bit192 => Cipher::aes_192_ctr(),
-            KeySize::Bit256 => Cipher::aes_256_ctr(),
-        };
         StaticEncryption {
             key: key.clone(),
-            key_size: key.size(),
-            cipher: cipher,
         }
     }
-}
-
-#[test]
-fn test_compressor()
-{
-    let compressor = CompressorWithSnap::default();
-
-    let test_bytes = Bytes::from("test".as_bytes());
-    let mut meta = DefaultMetadata::default();
-    let compressed = compressor.data_as_underlay(&mut meta, test_bytes.clone()).unwrap();
-
-    println!("metadata: {:?}", meta);
-    println!("data_test: {:X}", &test_bytes);
-    println!("data_compressed: {:X}", &compressed);
-    assert_ne!(&test_bytes, &compressed);
-    
-    let decompressed = compressor.data_as_overlay(&mut meta, compressed).unwrap();
-
-    println!("data_decompressed: {:X}", &decompressed);
-    assert_eq!(&test_bytes, &decompressed);
 }
 
 impl<M> EventDataTransformer<M>
@@ -96,7 +71,7 @@ where M: OtherMetadata,
     fn data_as_underlay(&self, meta: &mut Metadata<M>, with: Bytes) -> Result<Bytes>
     {
         let iv = meta.generate_iv();
-        let encrypted = encrypt(self.cipher, self.key.value(), Some(&iv), &with[..])?;
+        let encrypted = self.key.encrypt_with_iv(&iv[..], &with[..])?;
         Ok(Bytes::from(encrypted))
     }
 
@@ -104,7 +79,7 @@ where M: OtherMetadata,
     fn data_as_overlay(&self, meta: &mut Metadata<M>, with: Bytes) -> Result<Bytes>
     {
         let iv = meta.get_iv()?;
-        let decrypted = decrypt(self.cipher, self.key.value(), Some(&iv), &with[..])?;
+        let decrypted = self.key.decrypt(&iv[..], &with[..])?;
         Ok(Bytes::from(decrypted))
     }
 }
@@ -128,6 +103,26 @@ fn test_encrypter()
 
     println!("data_decrypted: {:X}", &decrypted);
     assert_eq!(&test_bytes, &decrypted);
+}
+
+#[test]
+fn test_compressor()
+{
+    let compressor = CompressorWithSnap::default();
+
+    let test_bytes = Bytes::from("test".as_bytes());
+    let mut meta = DefaultMetadata::default();
+    let compressed = compressor.data_as_underlay(&mut meta, test_bytes.clone()).unwrap();
+
+    println!("metadata: {:?}", meta);
+    println!("data_test: {:X}", &test_bytes);
+    println!("data_compressed: {:X}", &compressed);
+    assert_ne!(&test_bytes, &compressed);
+    
+    let decompressed = compressor.data_as_overlay(&mut meta, compressed).unwrap();
+
+    println!("data_decompressed: {:X}", &decompressed);
+    assert_eq!(&test_bytes, &decompressed);
 }
 
 #[test]

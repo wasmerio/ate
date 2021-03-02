@@ -1,4 +1,4 @@
-use super::header::*;
+use super::meta::*;
 use tokio::io::Result;
 
 #[derive(Debug)]
@@ -13,12 +13,13 @@ pub enum ValidationResult {
 pub trait EventValidator<M>
 where M: OtherMetadata
 {
-    fn validate(&self, evt: &Header<M>) -> Result<ValidationResult>;
+    fn validate(&self, _evt: &Header<M>) -> Result<ValidationResult> {
+        Ok(ValidationResult::Abstain)
+    }
 }
 
 #[derive(Default)]
-pub struct RubberStampValidator
-{   
+pub struct RubberStampValidator {   
 }
 
 impl<M> EventValidator<M>
@@ -26,7 +27,7 @@ for RubberStampValidator
 where M: OtherMetadata
 {
     #[allow(unused_variables)]
-    fn validate(&self, evt: &Header<M>) -> Result<ValidationResult>
+    fn validate(&self, _evt: &Header<M>) -> Result<ValidationResult>
     {
         Ok(ValidationResult::Allow)
     }

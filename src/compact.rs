@@ -1,5 +1,6 @@
 use fxhash::FxHashSet;
 use super::header::*;
+use super::meta::*;
 
 pub enum EventRelevance
 {
@@ -16,10 +17,14 @@ pub trait EventCompactor<M>
 where M: OtherMetadata
 {
     // Clones the compactor and prepares it for a compaction operation
-    fn clone_prepare(&self) -> Box<dyn EventCompactor<M>>;
+    fn clone_prepare(&self) -> Box<dyn EventCompactor<M>> {
+        Box::new(IndecisiveCompactor::default())
+    }
 
     // Decision making time - in order of back to front we now decide if we keep or drop an event
-    fn relevance(&mut self, evt: &Header<M>) -> EventRelevance;
+    fn relevance(&mut self, _evt: &Header<M>) -> EventRelevance {
+        EventRelevance::Abstain
+    }
 }
 
 #[derive(Default)]
@@ -81,5 +86,24 @@ where M: OtherMetadata
 {
     pub fn has_tombstone(&self) -> bool {
         self.core.iter().any(|m| match m { CoreMetadata::Tombstone => true, _ => false })
+    }
+}
+
+#[derive(Default)]
+pub struct IndecisiveCompactor
+{
+}
+
+impl<M> EventCompactor<M>
+for IndecisiveCompactor
+where M: OtherMetadata
+{
+    fn clone_prepare(&self) -> Box<dyn EventCompactor<M>> {
+        Box::new(IndecisiveCompactor::default())
+    }
+    
+    fn relevance(&mut self, _: &Header<M>) -> EventRelevance
+    {
+        EventRelevance::Abstain
     }
 }

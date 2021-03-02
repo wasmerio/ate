@@ -5,24 +5,32 @@ use crate::redo::LogFilePointer;
 
 use super::event::*;
 use super::header::*;
+use super::meta::*;
 
 pub trait EventIndexerCore<M>
 where M: OtherMetadata
 {
-    fn feed(&mut self, evt: &EventEntry<M>);
+    fn feed(&mut self, _evt: &EventEntry<M>) {        
+    }
 
-    fn purge(&mut self, evt: &EventEntry<M>);
+    fn purge(&mut self, _evt: &EventEntry<M>) {        
+    }
 
-    fn refactor(&mut self, transform: &FxHashMap<LogFilePointer, LogFilePointer>);
+    fn refactor(&mut self, _transform: &FxHashMap<LogFilePointer, LogFilePointer>) {        
+    }
 }
 
 pub trait EventIndexer<M>
 where Self: EventIndexerCore<M>,
       M: OtherMetadata
 {
-    fn lookup(&self, key: &PrimaryKey) -> Option<EventEntry<M>>;
+    fn lookup(&self, _key: &PrimaryKey) -> Option<EventEntry<M>> {
+        None
+    }
 
-    fn clone_empty(&self) -> Box<dyn EventIndexer<M>>;
+    fn clone_empty(&self) -> Box<dyn EventIndexer<M>> {
+        Box::new(UselessIndexer::default())
+    }
 }
 
 #[derive(Default)]
@@ -83,5 +91,29 @@ where M: OtherMetadata + 'static
 
     fn clone_empty(&self) -> Box<dyn EventIndexer<M>> {
         Box::new(BinaryTreeIndexer::default())
+    }
+}
+
+#[derive(Default)]
+pub struct UselessIndexer
+{
+}
+
+impl<'a, M> EventIndexerCore<M>
+for UselessIndexer
+where M: OtherMetadata + 'a
+{
+}
+
+impl<'a, M> EventIndexer<M>
+for UselessIndexer
+where M: OtherMetadata + 'a
+{
+    fn lookup(&self, _key: &PrimaryKey) -> Option<EventEntry<M>> {
+        None
+    }
+
+    fn clone_empty(&self) -> Box<dyn EventIndexer<M>> {
+        Box::new(UselessIndexer::default())
     }
 }

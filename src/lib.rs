@@ -5,6 +5,7 @@ mod error;
 mod test;
 mod crypto;
 mod header;
+mod meta;
 mod event;
 mod conf;
 mod comms;
@@ -16,6 +17,7 @@ mod index;
 mod lint;
 mod transform;
 mod plugin;
+mod signature;
 mod chain;
 mod dio;
 
