@@ -6,7 +6,6 @@ use super::index::EventIndexer;
 use super::lint::EventMetadataLinter;
 use super::transform::EventDataTransformer;
 use super::plugin::EventPlugin;
-use super::index::BinaryTreeIndexer;
 use super::compact::RemoveDuplicatesCompactor;
 use super::compact::TombstoneCompactor;
 use super::validator::RubberStampValidator;
@@ -149,7 +148,6 @@ where M: OtherMetadata + 'static,
             return self;
         }
 
-        self.indexers.push(Box::new(BinaryTreeIndexer::default()));
         self.compactors.push(Box::new(RemoveDuplicatesCompactor::default()));
         self.compactors.push(Box::new(TombstoneCompactor::default()));
 

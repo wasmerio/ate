@@ -320,7 +320,7 @@ where M: OtherMetadata,
 
         let multi = self.multi.as_ref().ok_or(Error::new(ErrorKind::Other, "Dio is not properly initialized (missing multiuser chain handle)"))?;
 
-        let entry = match multi.search(key) {
+        let entry = match multi.lookup(key) {
             Some(a) => a,
             None => return Result::Err(Error::new(ErrorKind::NotFound, format!("Failed to find a record for {}", key.as_hex_string()))),
         };

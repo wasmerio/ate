@@ -281,10 +281,12 @@ where M: OtherMetadata
             .collect::<Vec<_>>();
         
         let mut rng = RandomGeneratorAccessor::default();
-        let mut iv = [0 as u8; 16];
-        rng.fill_bytes(&mut iv);
+        let mut iv = MetaInitializationVector {
+            iv: [0 as u8; 16]
+        };
+        rng.fill_bytes(&mut iv.iv);
         core.push(CoreMetadata::InitializationVector(iv.clone()));
-        let ret = Vec::from(iv);
+        let ret = Vec::from(iv.iv);
 
         self.core = core;
         return ret;
@@ -294,7 +296,7 @@ where M: OtherMetadata
     pub fn get_iv(&self) -> Result<Vec<u8>, CryptoError> {
         for m in self.core.iter() {
             match m {
-                CoreMetadata::InitializationVector(iv) => return Result::Ok(iv.to_vec()),
+                CoreMetadata::InitializationVector(iv) => return Result::Ok(iv.iv.to_vec()),
                 _ => { }
             }
         }

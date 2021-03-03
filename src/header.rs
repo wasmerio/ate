@@ -4,6 +4,8 @@ use serde::{Serialize, Deserialize};
 use fastrand::u64;
 use bytes::Bytes;
 use std::{hash::{Hash}, mem::size_of};
+#[allow(unused_imports)]
+use super::meta::*;
 
 use super::redo::LogFilePointer;
 
@@ -43,6 +45,46 @@ impl PrimaryKey {
 
     pub fn as_hex_string(&self) -> String {
         format!("{:X?}", self.key).to_string()
+    }
+}
+
+
+
+impl<M> Metadata<M>
+where M: Default
+{
+    pub fn for_data(key: PrimaryKey) -> Metadata<M> {
+        let mut ret = Metadata::default();
+        ret.core.push(CoreMetadata::Data(key));
+        return ret;
+    }
+    
+    pub fn get_data_key(&self) -> Option<PrimaryKey> {
+        self.core.iter().filter_map(
+            |m| {
+                match m
+                {
+                    CoreMetadata::Data(k) => Some(k.clone()),
+                     _ => None
+                }
+            }
+        )
+        .next()
+    }
+
+    #[allow(dead_code)]
+    pub fn set_data_key(&mut self, key: PrimaryKey) {
+        for core in self.core.iter_mut() {
+            match core {
+                CoreMetadata::Data(k) => {
+                    if *k == key { return; }
+                    *k = key;
+                    return;
+                },
+                _ => {}
+            }
+        }
+        self.core.push(CoreMetadata::Data(key));
     }
 }
 

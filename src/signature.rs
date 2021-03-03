@@ -1,8 +1,8 @@
-use super::index::EventIndexerCore;
 use super::validator::EventValidator;
 use super::compact::EventCompactor;
 use super::lint::EventMetadataLinter;
 use super::transform::EventDataTransformer;
+use super::sink::EventSink;
 
 use super::plugin::*;
 use super::meta::*;
@@ -11,13 +11,13 @@ pub struct SignaturePlugin
 {
 }
 
-impl<M> EventValidator<M>
+impl<M> EventSink<M>
 for SignaturePlugin
 where M: OtherMetadata
 {
 }
 
-impl<M> EventIndexerCore<M>
+impl<M> EventValidator<M>
 for SignaturePlugin
 where M: OtherMetadata
 {

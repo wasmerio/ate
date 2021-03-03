@@ -45,6 +45,12 @@ pub struct MetaSignature
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MetaInitializationVector
+{
+    pub iv: [u8; 16],
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum CoreMetadata
 {
     None,
@@ -52,7 +58,7 @@ pub enum CoreMetadata
     Encrypted(EncryptKey),
     EncryptedWith(PrimaryKey),
     Tombstone(PrimaryKey),
-    InitializationVector([u8; 16]),
+    InitializationVector(MetaInitializationVector),
     Authorization(MetaAuthorization),
     PublicKey(MetaPublicKey),
     Tree(MetaTree),
@@ -76,44 +82,6 @@ pub struct Metadata<M>
 {
     pub core: Vec<CoreMetadata>,
     pub other: M,
-}
-
-impl<M> Metadata<M>
-where M: Default
-{
-    pub fn for_data(key: PrimaryKey) -> Metadata<M> {
-        let mut ret = Metadata::default();
-        ret.core.push(CoreMetadata::Data(key));
-        return ret;
-    }
-    
-    pub fn get_data_key(&self) -> Option<PrimaryKey> {
-        self.core.iter().filter_map(
-            |m| {
-                match m
-                {
-                    CoreMetadata::Data(k) => Some(k.clone()),
-                     _ => None
-                }
-            }
-        )
-        .next()
-    }
-
-    #[allow(dead_code)]
-    pub fn set_data_key(&mut self, key: PrimaryKey) {
-        for core in self.core.iter_mut() {
-            match core {
-                CoreMetadata::Data(k) => {
-                    if *k == key { return; }
-                    *k = key;
-                    return;
-                },
-                _ => {}
-            }
-        }
-        self.core.push(CoreMetadata::Data(key));
-    }
 }
 
 #[allow(dead_code)]

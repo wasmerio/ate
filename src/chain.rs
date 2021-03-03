@@ -77,6 +77,7 @@ where M: OtherMetadata
     redo: RedoLog,
     configured_for: ConfiguredFor,
     chain: Vec<EventEntry<M>>,
+    pointers: BinaryTreeIndexer<M>,
     validators: Vec<Box<dyn EventValidator<M>>>,
     indexers: Vec<Box<dyn EventIndexer<M>>>,
     compactors: Vec<Box<dyn EventCompactor<M>>>,
@@ -110,6 +111,7 @@ where M: OtherMetadata
                 redo: redo_log,
                 configured_for: builder.configured_for,
                 chain: Vec::new(),
+                pointers: BinaryTreeIndexer::default(),
                 validators: builder.validators,
                 indexers: builder.indexers,
                 compactors: builder.compactors,
@@ -136,14 +138,13 @@ where M: OtherMetadata
     }
 
     #[allow(dead_code)]
-    fn metadata_lint(&self, meta: &mut Metadata<M>) -> Result<()> {
+    fn metadata_lint(&self, meta: &mut Metadata<M>) {
         for linter in self.linters.iter() {
             linter.metadata_lint(meta);
         }
         for plugin in self.plugins.iter() {
             plugin.metadata_lint(meta);
         }
-        Ok(())
     }
 
     #[allow(dead_code)]
@@ -198,9 +199,11 @@ where M: OtherMetadata
     #[allow(dead_code)]
     async fn feed(&mut self, evts: Vec<Event<M>>) -> Result<()>
     {
-        for mut evt in evts {
-            self.metadata_lint(&mut evt.meta)?;
+        for evt in evts.iter() {
+            self.metadata_feed(&evt.meta);
+        }
 
+        for evt in evts {
             let validation_data = ValidationData::from_event(&evt);
             if self.validate_event(&validation_data)? == false { continue; }
 
@@ -212,8 +215,10 @@ where M: OtherMetadata
                 data_hash: evt.body_hash,
                 pointer: pointer,
             };
+            
+            self.pointers.feed(&entry);
             for indexer in self.indexers.iter_mut() {
-                indexer.feed(&entry);
+                indexer.feed(&entry.meta);
             }
 
             self.metadata_trim(&mut entry.meta)?;
@@ -224,15 +229,28 @@ where M: OtherMetadata
     }
 
     #[allow(dead_code)]
-    fn process(&mut self, evts: Vec<EventEntry<M>>) -> Result<()>
+    fn metadata_feed(&mut self, meta: &Metadata<M>)
     {
-        for mut entry in evts
+        for indexer in self.indexers.iter_mut() {
+            indexer.feed(meta);
+        }
+    }
+
+    #[allow(dead_code)]
+    fn process(&mut self, entries: Vec<EventEntry<M>>) -> Result<()>
+    {
+        for entry in entries.iter() {
+            self.metadata_feed(&entry.meta);
+        }
+
+        for mut entry in entries
         {
             let validation_data = ValidationData::from_event_entry(&entry);
             if self.validate_event(&validation_data)? == false { continue; }
 
+            self.pointers.feed(&entry);
             for indexer in self.indexers.iter_mut() {
-                indexer.feed(&entry);
+                indexer.feed(&entry.meta);
             }
 
             self.metadata_trim(&mut entry.meta)?;
@@ -260,13 +278,7 @@ where M: OtherMetadata
     #[allow(dead_code)]
     fn lookup(&self, key: &PrimaryKey) -> Option<EventEntry<M>>
     {
-        for indexer in self.indexers.iter() {
-            match indexer.lookup(key) {
-                Some(a) => return Some(a),
-                None => { }
-            }
-        }
-        None
+        self.pointers.lookup(key)
     }
 
     async fn flush(&mut self) -> Result<()> {
@@ -431,6 +443,7 @@ where M: OtherMetadata,
     pub async fn compact_async(&mut self, runtime: Rc<Runtime>) -> Result<()>
     {
         // prepare
+        let mut new_pointers = BinaryTreeIndexer::default();
         let mut new_indexers = Vec::new();
         let mut new_plugins = Vec::new();
         let mut keepers = Vec::new();
@@ -490,11 +503,12 @@ where M: OtherMetadata,
                     };
                     if keep == true {
                         keepers.push(entry);
+                        new_pointers.feed(entry);
                         for new_indexer in new_indexers.iter_mut() {
-                            new_indexer.feed(entry);
+                            new_indexer.feed(&entry.meta);
                         }
                         for new_plugin in new_plugins.iter_mut() {
-                            new_plugin.feed(entry);
+                            new_plugin.feed(&entry.meta);
                         }
                     }
                 }
@@ -512,12 +526,7 @@ where M: OtherMetadata,
                 }
 
                 // Refactor the index
-                for new_indexer in new_indexers.iter_mut() {
-                    new_indexer.refactor(&refactor);
-                }
-                for new_plugin in new_plugins.iter_mut() {
-                    new_plugin.refactor(&refactor);
-                }
+                new_pointers.refactor(&refactor);
             }
         }
 
@@ -526,6 +535,7 @@ where M: OtherMetadata,
 
             // complete the transaction
             single.lock.redo.end_flip(flip).await?;
+            single.lock.pointers = new_pointers;
             single.lock.indexers = new_indexers;
             single.lock.plugins = new_plugins;
             single.lock.chain = new_chain;
@@ -568,7 +578,7 @@ where M: OtherMetadata,
     }
 
     #[allow(dead_code)]
-    pub fn search(&self, key: &PrimaryKey) -> Option<EventEntry<M>> {
+    pub fn lookup(&self, key: &PrimaryKey) -> Option<EventEntry<M>> {
         self.lock.lookup(key)
     }
 
@@ -578,7 +588,7 @@ where M: OtherMetadata,
     }
 
     #[allow(dead_code)]
-    pub fn metadata_lint(&self, meta: &mut Metadata<M>) -> Result<()> {
+    pub fn metadata_lint(&self, meta: &mut Metadata<M>) {
         self.lock.metadata_lint(meta)
     }
 
@@ -640,7 +650,7 @@ pub fn test_chain() {
         let lock = chain.multi();
 
         // Make sure its there in the chain
-        let test_data = lock.search(&key1).expect("Failed to find the entry after the flip");
+        let test_data = lock.lookup(&key1).expect("Failed to find the entry after the flip");
         let test_data = lock.load(&test_data).expect("Could not load the data for the entry");
         assert_eq!(test_data.body, Some(Bytes::from(vec!(1; 1))));
     }
@@ -665,12 +675,12 @@ pub fn test_chain() {
         let lock = chain.multi();
 
         // Read the event and make sure its the second one that results after compaction
-        let test_data = lock.search(&key1).expect("Failed to find the entry after the flip");
+        let test_data = lock.lookup(&key1).expect("Failed to find the entry after the flip");
         let test_data = lock.load(&test_data).unwrap();
         assert_eq!(test_data.body, Some(Bytes::from(vec!(10; 1))));
 
         // The other event we added should also still be there
-        let test_data = lock.search(&key2).expect("Failed to find the entry after the flip");
+        let test_data = lock.lookup(&key2).expect("Failed to find the entry after the flip");
         let test_data = lock.load(&test_data).unwrap();
         assert_eq!(test_data.body, Some(Bytes::from(vec!(2; 1))));
     }
@@ -690,7 +700,7 @@ pub fn test_chain() {
     }
 
     // Searching for the item we should not find it
-    match chain.multi().search(&key2) {
+    match chain.multi().lookup(&key2) {
         Some(_) => panic!("The item should not be visible anymore"),
         None => {}
     }

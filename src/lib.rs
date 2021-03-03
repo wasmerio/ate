@@ -11,6 +11,7 @@ mod event;
 mod conf;
 mod comms;
 mod redo;
+mod sink;
 mod session;
 mod validator;
 mod compact;
