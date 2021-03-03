@@ -639,7 +639,7 @@ pub fn create_test_chain(chain_name: String, temp: bool) ->
         builder,
         &mock_cfg,
         &mock_chain_key,
-        true)
+        temp)
         .unwrap()
 }
 

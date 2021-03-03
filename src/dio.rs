@@ -501,5 +501,5 @@ fn test_dio()
         dio.load::<TestDao>(&key2).expect_err("This load should fail as we deleted the record");
     }
 
-    //chain.single().destroy().unwrap();
+    chain.single().destroy().unwrap();
 }
