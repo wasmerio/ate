@@ -1,6 +1,7 @@
 use fxhash::FxHashSet;
 use super::header::*;
 use super::meta::*;
+use super::event::*;
 
 pub enum EventRelevance
 {
@@ -22,7 +23,7 @@ where M: OtherMetadata
     }
 
     // Decision making time - in order of back to front we now decide if we keep or drop an event
-    fn relevance(&mut self, _evt: &Header<M>) -> EventRelevance {
+    fn relevance(&mut self, _evt: &EventEntry<M>) -> EventRelevance {
         EventRelevance::Abstain
     }
 }
@@ -41,12 +42,16 @@ where M: OtherMetadata
         Box::new(RemoveDuplicatesCompactor::default())
     }
     
-    fn relevance(&mut self, header: &Header<M>) -> EventRelevance
+    fn relevance(&mut self, header: &EventEntry<M>) -> EventRelevance
     {
-        match self.already.contains(&header.key) {
+        let key = match header.meta.get_data_key() {
+            Some(key) => key,
+            None => { return EventRelevance::Abstain; }
+        };
+        match self.already.contains(&key) {
             true => EventRelevance::Drop,
             false => {
-                self.already.insert(header.key.clone());
+                self.already.insert(key.clone());
                 EventRelevance::Keep
             }
         }
@@ -67,25 +72,57 @@ where M: OtherMetadata
         Box::new(TombstoneCompactor::default())
     }
     
-    fn relevance(&mut self, header: &Header<M>) -> EventRelevance
+    fn relevance(&mut self, header: &EventEntry<M>) -> EventRelevance
     {
-        if header.meta.has_tombstone() == true {
-            self.tombstoned.insert(header.key.clone());
-            return EventRelevance::ForceDrop;
-        }
+        match header.meta.get_tombstone() {
+            Some(key) => {
+                self.tombstoned.insert(key.clone());
+                return EventRelevance::ForceDrop;
+            },
+            None =>
+            {
+                let key = match header.meta.get_data_key() {
+                    Some(key) => key,
+                    None => { return EventRelevance::Abstain; }
+                };
 
-        match self.tombstoned.contains(&header.key) {
-            true => EventRelevance::ForceDrop,
-            false => EventRelevance::Abstain,
-        }
+                match self.tombstoned.contains(&key) {
+                    true => EventRelevance::ForceDrop,
+                    false => EventRelevance::Abstain,
+                }
+            }
+        }        
     }
 }
 
 impl<M> Metadata<M>
 where M: OtherMetadata
 {
-    pub fn has_tombstone(&self) -> bool {
-        self.core.iter().any(|m| match m { CoreMetadata::Tombstone => true, _ => false })
+    pub fn get_tombstone(&self) -> Option<PrimaryKey> {
+        self.core.iter().filter_map(
+            |m| {
+                match m
+                {
+                    CoreMetadata::Tombstone(k) => Some(k.clone()),
+                     _ => None
+                }
+            }
+        )
+        .next()
+    }
+
+    #[allow(dead_code)]
+    pub fn add_tombstone(&mut self, key: PrimaryKey) {
+        let has = self.core.iter().any(
+            |m| {
+                match m {
+                    CoreMetadata::Tombstone(k) => *k == key,
+                     _ => false
+                }
+            }
+        );
+        if has == true { return; }
+        self.core.push(CoreMetadata::Tombstone(key));
     }
 }
 
@@ -102,7 +139,7 @@ where M: OtherMetadata
         Box::new(IndecisiveCompactor::default())
     }
     
-    fn relevance(&mut self, _: &Header<M>) -> EventRelevance
+    fn relevance(&mut self, _: &EventEntry<M>) -> EventRelevance
     {
         EventRelevance::Abstain
     }

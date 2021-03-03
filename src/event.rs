@@ -11,14 +11,16 @@ use super::redo::LogFilePointer;
 pub struct Event<M>
 where M: OtherMetadata
 {
-    pub header: Header<M>,
+    pub meta: Metadata<M>,
+    pub body_hash: Option<super::crypto::Hash>,
     pub body: Option<Bytes>,
 }
+
 #[derive(Debug, Clone, Default)]
 pub struct EventData
 {
-    pub key: PrimaryKey,
     pub meta: Bytes,
+    pub body_hash: Option<super::crypto::Hash>,
     pub body: Option<Bytes>,
 }
 
@@ -26,7 +28,8 @@ pub struct EventData
 pub struct EventEntry<M>
 where M: OtherMetadata
 {
-    pub header: Header<M>,
+    pub meta: Metadata<M>,
+    pub data_hash: Option<super::crypto::Hash>,
     pub pointer: LogFilePointer,
 }
 
@@ -34,16 +37,14 @@ impl<M> EventEntry<M>
 where M: OtherMetadata
 {
     #[allow(dead_code)]
-    pub fn from_header_data(header: &HeaderData) -> Result<EventEntry<M>> {
-        match bincode::deserialize(&header.meta) {
+    pub fn from_header_data(metadata: &EventRaw) -> Result<EventEntry<M>> {
+        match bincode::deserialize(&metadata.meta) {
             Ok(meta) => {
                 Ok(
                     EventEntry {
-                        header: Header {
-                            key: header.key,
-                            meta: meta,
-                        },
-                        pointer: header.pointer,
+                        meta: meta,
+                        data_hash: metadata.data_hash,
+                        pointer: metadata.pointer,
                     }
                 )
             },
@@ -52,11 +53,11 @@ where M: OtherMetadata
     }
 
     #[allow(dead_code)]
-    pub fn to_header_data(&self) -> HeaderData {
-        let meta_bytes = Bytes::from(bincode::serialize(&self.header.meta).unwrap());
-        HeaderData {
-            key: self.header.key,
+    pub fn to_event_pointer(&self) -> EventRaw {
+        let meta_bytes = Bytes::from(bincode::serialize(&self.meta).unwrap());
+        EventRaw {
             meta: meta_bytes,
+            data_hash: self.data_hash,
             pointer: self.pointer,
         }
     }
@@ -67,24 +68,23 @@ where M: OtherMetadata
 {
     #[allow(dead_code)]
     pub fn new(key: PrimaryKey, body: Bytes) -> Event<M> {
+        
         Event {
-            header: Header {
-                key: key,
-                meta: Metadata::default(),
-            },
+            meta: Metadata::for_data(key),
+            body_hash: Some(super::crypto::Hash::from_bytes(&body[..])),
             body: Some(body),
         }
     }
 
     #[allow(dead_code)]
     pub fn with_core_metadata(mut self, core: CoreMetadata) -> Self {
-        self.header.meta.core.push(core);
+        self.meta.core.push(core);
         self
     }
 
     #[allow(dead_code)]
     pub fn with_other_metadata(mut self, other: M) -> Self {
-        self.header.meta.other = other;
+        self.meta.other = other;
         self
     }
 
@@ -94,10 +94,8 @@ where M: OtherMetadata
             Ok(meta) => {
                 Ok(
                     Event {
-                        header: Header {
-                            key: evt.key,
-                            meta: meta,
-                        },
+                        meta: meta,
+                        body_hash: evt.body_hash.clone(),
                         body: evt.body.clone(),
                     }
                 )
@@ -108,10 +106,10 @@ where M: OtherMetadata
 
     #[allow(dead_code)]
     pub fn to_event_data(&self) -> EventData {
-        let meta_bytes = Bytes::from(bincode::serialize(&self.header.meta).unwrap());
+        let meta_bytes = Bytes::from(bincode::serialize(&self.meta).unwrap());
         EventData {
-            key: self.header.key,
             meta: meta_bytes,
+            body_hash: self.body_hash.clone(),
             body: self.body.clone(),
         }
     }

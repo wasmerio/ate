@@ -170,19 +170,19 @@ where M: OtherMetadata
         Ok(ret)
     }
 
-    fn validate_event(&self, header: &Header<M>) -> Result<bool>
+    fn validate_event(&self, data: &ValidationData<M>) -> Result<bool>
     {
         let mut is_allow = false;
         let mut is_deny = false;
         for validator in self.validators.iter() {
-            match validator.validate(header)? {
+            match validator.validate(data)? {
                 ValidationResult::Allow => is_allow = true,
                 ValidationResult::Deny => is_deny = true,
                 _ => {}
             }
         }
         for plugin in self.plugins.iter() {
-            match plugin.validate(header)? {
+            match plugin.validate(data)? {
                 ValidationResult::Allow => is_allow = true,
                 ValidationResult::Deny => is_deny = true,
                 _ => {}
@@ -199,24 +199,24 @@ where M: OtherMetadata
     async fn feed(&mut self, evts: Vec<Event<M>>) -> Result<()>
     {
         for mut evt in evts {
-            self.metadata_lint(&mut evt.header.meta)?;
+            self.metadata_lint(&mut evt.meta)?;
 
-            if self.validate_event(&evt.header)? == false { continue; }
+            let validation_data = ValidationData::from_event(&evt);
+            if self.validate_event(&validation_data)? == false { continue; }
 
-            let pointer = self.redo.write(evt.to_event_data()).await?;
+            let evt_data = evt.to_event_data();
+            let pointer = self.redo.write(evt_data.meta, evt_data.body).await?;
 
             let mut entry = EventEntry {
-                header: Header {
-                    key: evt.header.key,
-                    meta: evt.header.meta,
-                },
+                meta: evt.meta,
+                data_hash: evt.body_hash,
                 pointer: pointer,
             };
             for indexer in self.indexers.iter_mut() {
                 indexer.feed(&entry);
             }
 
-            self.metadata_trim(&mut entry.header.meta)?;
+            self.metadata_trim(&mut entry.meta)?;
 
             self.chain.push(entry);
         }
@@ -226,14 +226,16 @@ where M: OtherMetadata
     #[allow(dead_code)]
     fn process(&mut self, evts: Vec<EventEntry<M>>) -> Result<()>
     {
-        for mut entry in evts {
-            if self.validate_event(&entry.header)? == false { continue; }
+        for mut entry in evts
+        {
+            let validation_data = ValidationData::from_event_entry(&entry);
+            if self.validate_event(&validation_data)? == false { continue; }
 
             for indexer in self.indexers.iter_mut() {
                 indexer.feed(&entry);
             }
 
-            self.metadata_trim(&mut entry.header.meta)?;
+            self.metadata_trim(&mut entry.meta)?;
 
             self.chain.push(entry);
         }
@@ -241,15 +243,13 @@ where M: OtherMetadata
     }
 
     async fn load(&self, entry: &EventEntry<M>) -> Result<Event<M>> {
-        match self.redo.load(&entry.header.key, &entry.pointer).await? {
-            None => Result::Err(Error::new(ErrorKind::Other, format!("Could not find data object with key 0x{}", entry.header.key.as_hex_string()))),
+        match self.redo.load(&entry.pointer).await? {
+            None => Result::Err(Error::new(ErrorKind::Other, format!("Could not find data object at location {:?}", entry.pointer))),
             Some(evt) => {
                 Ok(
                     Event {
-                        header: Header {
-                            key: evt.key,
-                            meta: entry.header.meta.clone(),
-                        },
+                        meta: entry.meta.clone(),
+                        body_hash: evt.body_hash,
                         body: evt.body.clone(),
                     }
                 )
@@ -473,7 +473,7 @@ where M: OtherMetadata,
                     let mut is_drop = false;
                     let mut is_force_drop = false;
                     for compactor in compactors.iter_mut() {
-                        match compactor.relevance(&entry.header) {
+                        match compactor.relevance(&entry) {
                             EventRelevance::ForceKeep => is_force_keep = true,
                             EventRelevance::Keep => is_keep = true,
                             EventRelevance::Drop => is_drop = true,
@@ -503,7 +503,8 @@ where M: OtherMetadata,
                 let mut refactor = FxHashMap::default();
                 for entry in keepers.iter().rev() {
                     let new_entry = EventEntry {
-                        header: entry.header.clone(),
+                        meta: entry.meta.clone(),
+                        data_hash: entry.data_hash.clone(),
                         pointer: flip.copy_event(&multi.lock.redo, &entry.pointer).await?,
                     };
                     refactor.insert(entry.pointer, new_entry.pointer.clone());
@@ -604,7 +605,7 @@ pub fn create_test_chain(chain_name: String) ->
 
     let builder = ChainOfTrustBuilder::default()
         .add_validator(Box::new(RubberStampValidator::default()))
-        .add_data_transformer(Box::new(StaticEncryption::new(&EncryptKey::from_string("test".to_string(), KeySize::Bit192))));
+        .add_data_transformer(Box::new(StaticEncryptionTransformer::new(&EncryptKey::from_string("test".to_string(), KeySize::Bit192))));
     
     ChainAccessor::new(
         builder,
@@ -678,7 +679,7 @@ pub fn test_chain() {
         let mut lock = chain.single();
 
         // Now lets tombstone the second event
-        evt2.header.meta.add_tombstone();
+        evt2.meta.add_tombstone(key2);
         
         let mut evts = Vec::new();
         evts.push(evt2.clone());

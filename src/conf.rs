@@ -10,7 +10,7 @@ use super::index::BinaryTreeIndexer;
 use super::compact::RemoveDuplicatesCompactor;
 use super::compact::TombstoneCompactor;
 use super::validator::RubberStampValidator;
-use super::transform::CompressorWithSnap;
+use super::transform::CompressorWithSnapTransformer;
 use super::chain::ChainKey;
 use tokio::io::Result;
 
@@ -160,7 +160,7 @@ where M: OtherMetadata + 'static,
 
         match flavour {
             ConfiguredFor::SmallestSize | ConfiguredFor::Balanced => {
-                self.transformers.insert(0, Box::new(CompressorWithSnap::default()));
+                self.transformers.insert(0, Box::new(CompressorWithSnapTransformer::default()));
             }
             _ => {}
         }

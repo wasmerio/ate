@@ -59,14 +59,31 @@ for BinaryTreeIndexer<M>
 where M: OtherMetadata + 'static
 {
     fn feed(&mut self, entry: &EventEntry<M>) {
-        match entry.header.meta.has_tombstone() {
-            true => { self.events.remove(&entry.header.key); },
-            false => { self.events.insert(entry.header.key.clone(), entry.clone()); },
+        for core in entry.meta.core.iter() {
+            match core {
+                CoreMetadata::Tombstone(key) => {
+                    self.events.remove(&key);
+                },
+                CoreMetadata::Data(key) => {
+                    if entry.data_hash.is_none() {
+                        continue;
+                    }
+                    self.events.insert(key.clone(), entry.clone());
+                },
+                _ => { },
+            }
         }
     }
 
     fn purge(&mut self, entry: &EventEntry<M>) {
-        self.events.remove(&entry.header.key);
+        for core in entry.meta.core.iter() {
+            match core {
+                CoreMetadata::Data(key) => {
+                    self.events.remove(&key);
+                },
+                _ => { },
+            }
+        }
     }
 
     fn refactor(&mut self, transform: &FxHashMap<LogFilePointer, LogFilePointer>) {

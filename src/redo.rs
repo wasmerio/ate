@@ -118,7 +118,7 @@ impl LogFile {
         Ok(ret)
     }
 
-    async fn read_all(&mut self, to: &mut VecDeque<HeaderData>) -> Result<()> {
+    async fn read_all(&mut self, to: &mut VecDeque<EventRaw>) -> Result<()> {
         self.check_open()?;
 
         while let Some(head) = self.read_once_internal().await? {
@@ -127,16 +127,19 @@ impl LogFile {
         Ok(())
     }
 
-    async fn read_once_internal(&mut self) -> Result<Option<HeaderData>>
+    async fn read_once_internal(&mut self) -> Result<Option<EventRaw>>
     {
-        // Read the header
-        let key: PrimaryKey = match PrimaryKey::read_from_stream(&mut self.log_stream).await? {
-            Some(key) => key,
-            None => return Ok(None),
-        };
-
         // Read the metadata
-        let size_meta = self.log_stream.read_u32().await? as usize;
+        let size_meta = match self.log_stream.read_u32().await {
+            Result::Ok(s) => s,
+            Result::Err(err) => {
+                if err.kind() == ErrorKind::UnexpectedEof {
+                    return Ok(None);
+                }
+                return Result::Err(err)
+            }
+        } as usize;
+
         let mut buff_meta = BytesMut::with_capacity(size_meta);
         let read = self.log_stream.read_buf(&mut buff_meta).await?;
         if read != size_meta {
@@ -144,18 +147,23 @@ impl LogFile {
         }
         let buff_meta = buff_meta.freeze();
 
-        // Skip the body
+        // Read the body and hash the data
         let size_body = self.log_stream.read_u32().await? as usize;
-        if size_body > 0 {
-            let mut buff_body = BytesMut::with_capacity(size_body);
-            let read = self.log_stream.read_buf(&mut buff_body).await?;
-            if read != size_body {
-                return Result::Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the main body of the event from the log file ({} bytes vs {} bytes)", read, size_body)));
-            }
-        }
+        let body_hash = match size_body {
+            _ if size_body > 0 => {
+                let mut buff_body = BytesMut::with_capacity(size_body);
+                let read = self.log_stream.read_buf(&mut buff_body).await?;
+                if read != size_body {
+                    return Result::Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the main body of the event from the log file ({} bytes vs {} bytes)", read, size_body)));
+                }
+
+                Some(super::crypto::Hash::from_bytes(&buff_body[..]))
+            },
+            _ => None
+        };
         
         // Insert it into the log index
-        let size = size_of::<PrimaryKey>() as u64 + size_of::<u32>() as u64 + size_meta as u64 + size_of::<u32>() as u64 + size_body as u64;
+        let size = size_of::<u32>() as u64 + size_meta as u64 + size_of::<u32>() as u64 + size_body as u64;
         let pointer = LogFilePointer { version: self.version, offset: self.log_off, size: size as u32 };
         self.log_count = self.log_count + 1;
 
@@ -163,15 +171,15 @@ impl LogFile {
         self.log_off = self.log_off + size;
 
         Ok(
-            Some(HeaderData {
-                key: key,
+            Some(EventRaw {
                 meta: buff_meta,
+                data_hash: body_hash,
                 pointer: pointer,
             })
         )
     }
 
-    async fn write(&mut self, key: PrimaryKey, meta: Bytes, body: Option<Bytes>) -> Result<LogFilePointer>
+    async fn write(&mut self, meta: Bytes, body: Option<Bytes>) -> Result<LogFilePointer>
     {
         self.check_open()?;
 
@@ -181,7 +189,6 @@ impl LogFile {
             None => 0 as u32,
         };
 
-        key.write(&mut self.log_stream).await?;
         self.log_stream.write(&meta_len.to_be_bytes()).await?;
         self.log_stream.write_all(&meta[..]).await?;
         self.log_stream.write(&body_len.to_be_bytes()).await?;
@@ -192,7 +199,7 @@ impl LogFile {
             _ => {}
         }
 
-        let size = size_of::<PrimaryKey>() as u64 + size_of::<u32>() as u64 + meta.len() as u64 + size_of::<u32>() as u64 + body_len as u64;
+        let size = size_of::<u32>() as u64 + meta.len() as u64 + size_of::<u32>() as u64 + body_len as u64;
         let pointer = LogFilePointer { version: self.version, offset: self.log_off, size: size as u32 };
         self.log_count = self.log_count + 1;
         self.log_off = self.log_off + size;
@@ -225,7 +232,7 @@ impl LogFile {
         Ok(pointer)
     }
 
-    async fn load(&self, key: &PrimaryKey, pointer: LogFilePointer) -> Result<Option<EventData>> {
+    async fn load(&self, pointer: LogFilePointer) -> Result<Option<EventData>> {
         self.check_open()?;
 
         if pointer.version != self.version {
@@ -244,11 +251,6 @@ impl LogFile {
         }
         
         // Read all the data
-        let check_key: PrimaryKey = PrimaryKey::new(buff.get_u64());
-        if *key != check_key {
-            return Result::Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the data object from the redo log as the primary keys do not match (expected {} but found {})", check_key.as_hex_string(), key.as_hex_string())));
-        }
-
         let size_meta = buff.get_u32();
         if size_meta > buff.remaining() as u32 {
             return Result::Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the data object metadata from the redo log as the header exceeds the event slice ({} bytes exceeds remaining event slice {})", size_meta, buff.remaining())));
@@ -264,12 +266,20 @@ impl LogFile {
             n => Some(buff.copy_to_bytes(n as usize)),
         };
 
+        // Hash body
+        let body_hash = match &buff_body {
+            Some(data) => {
+                Some(super::crypto::Hash::from_bytes(&data[..]))
+            },
+            None => None,
+        };
+
         Ok(
             Some(
                 EventData {
-                    key: key.clone(),
                     meta: buff_meta,
                     body: buff_body,
+                    body_hash: body_hash,
                 }
             )
         )
@@ -316,16 +326,14 @@ impl LogFile {
 }
 
 struct DeferredWrite {
-    pub key: PrimaryKey,
     pub meta: Bytes,
     pub body: Option<Bytes>,
     pub orphan: LogFilePointer,
 }
 
 impl DeferredWrite {
-    pub fn new(key: PrimaryKey, meta: Bytes, body: Option<Bytes>, orphan: LogFilePointer) -> DeferredWrite {
+    pub fn new(meta: Bytes, body: Option<Bytes>, orphan: LogFilePointer) -> DeferredWrite {
         DeferredWrite {
-            key: key,
             meta: meta,
             body: body,
             orphan: orphan,
@@ -335,7 +343,7 @@ impl DeferredWrite {
 
 #[async_trait]
 pub trait LogWritable {
-    async fn write(&mut self, evt: EventData) -> Result<LogFilePointer>;
+    async fn write(&mut self, meta: Bytes, data: Option<Bytes>) -> Result<LogFilePointer>;
     async fn flush(&mut self) -> Result<()>;
     async fn copy_event(&mut self, from_log: &RedoLog, from_pointer: &LogFilePointer) -> Result<LogFilePointer>;
 }
@@ -348,8 +356,8 @@ pub struct FlippedLogFile {
 impl LogWritable for FlippedLogFile
 {
     #[allow(dead_code)]
-    async fn write(&mut self, evt: EventData) -> Result<LogFilePointer> {
-        let ret = self.log_file.write(evt.key, evt.meta, evt.body).await?;
+    async fn write(&mut self, meta: Bytes, data: Option<Bytes>) -> Result<LogFilePointer> {
+        let ret = self.log_file.write(meta, data).await?;
         Ok(ret)
     }
 
@@ -382,12 +390,12 @@ struct RedoLogFlip {
 
 #[derive(Default)]
 pub struct RedoLogLoader {
-    entries: VecDeque<HeaderData>
+    entries: VecDeque<EventRaw>
 }
 
 impl RedoLogLoader {
     #[allow(dead_code)]
-    pub fn pop(&mut self) -> Option<HeaderData> {
+    pub fn pop(&mut self) -> Option<EventRaw> {
         self.entries.pop_front()   
     }
 }
@@ -449,7 +457,7 @@ impl RedoLog
                         Some(a) => Some(a.clone()),
                         None => None,
                     };
-                    new_log_file.write(d.key, d.meta.clone(), body_clone).await?;
+                    new_log_file.write(d.meta.clone(), body_clone).await?;
                 }
                 
                 new_log_file.flush().await?;
@@ -467,8 +475,8 @@ impl RedoLog
         }
     }
 
-    pub async fn load(&self, key: &PrimaryKey, pointer: &LogFilePointer) -> Result<Option<EventData>> {
-        Ok(self.log_file.load(key, pointer.clone()).await?)
+    pub async fn load(&self, pointer: &LogFilePointer) -> Result<Option<EventData>> {
+        Ok(self.log_file.load(pointer.clone()).await?)
     }
 
     #[allow(dead_code)]
@@ -518,10 +526,10 @@ impl RedoLog
 #[async_trait]
 impl LogWritable for RedoLog
 {
-    async fn write(&mut self, evt: EventData) -> Result<LogFilePointer> {
-        let pointer = self.log_file.write(evt.key, evt.meta.clone(), evt.body.clone()).await?;   
+    async fn write(&mut self, meta: Bytes, body: Option<Bytes>) -> Result<LogFilePointer> {
+        let pointer = self.log_file.write(meta.clone(), body.clone()).await?;   
         if let Some(flip) = &mut self.flip {
-            flip.deferred.push(DeferredWrite::new(evt.key, evt.meta.clone(), evt.body, pointer));
+            flip.deferred.push(DeferredWrite::new(meta, body, pointer));
         }
 
         Ok(pointer)
@@ -544,7 +552,7 @@ TESTS
 #[cfg(test)]
 async fn test_write_data(log: &mut dyn LogWritable, key: PrimaryKey, body: Option<Vec<u8>>, flush: bool) -> LogFilePointer
 {
-    let mut meta = DefaultMetadata::default();
+    let mut meta = DefaultMetadata::for_data(key);
     meta.core.push(CoreMetadata::Author("test@nowhere.com".to_string()));
     let meta_bytes = Bytes::from(bincode::serialize(&meta).unwrap());
 
@@ -553,11 +561,8 @@ async fn test_write_data(log: &mut dyn LogWritable, key: PrimaryKey, body: Optio
         Some(a) => Some(Bytes::from(a)),
         None => None,  
     };
-    let ret = log.write(EventData {
-        key: key,
-        meta: meta_bytes,
-        body: mock_body,
-        }).await.expect("Failed to write the object");
+    let ret = log.write(meta_bytes, mock_body)
+        .await.expect("Failed to write the object");
 
     if flush == true {
         let _ = log.flush().await;
@@ -569,13 +574,12 @@ async fn test_write_data(log: &mut dyn LogWritable, key: PrimaryKey, body: Optio
 #[cfg(test)]
 async fn test_read_data(log: &mut RedoLog, read_header: LogFilePointer, test_key: PrimaryKey, test_body: Option<Vec<u8>>)
 {
-    let evt = log.load(&test_key, &read_header)
+    let evt = log.load(&read_header)
         .await
         .expect(&format!("Failed to read the entry {:?}", read_header))
         .expect(&format!("Entry not found {:?}", read_header));
-    assert_eq!(evt.key, test_key);
-
-    let mut meta = DefaultMetadata::default();
+    
+    let mut meta = DefaultMetadata::for_data(test_key);
     meta.core.push(CoreMetadata::Author("test@nowhere.com".to_string()));
     let meta_bytes = Bytes::from(bincode::serialize(&meta).unwrap());
 
@@ -667,16 +671,16 @@ fn test_redo_log() {
 
             // The old log file pointer should now be invalid
             println!("test_redo_log - make sure old pointers are now invalid");
-            rl.load(&blah5, &halb5).await.expect_err("The old log file entry should not work anymore");
+            rl.load(&halb5).await.expect_err("The old log file entry should not work anymore");
 
             // Attempt to read blah 6 before its flushed should result in an error
-            rl.load(&blah6, &halb6).await.expect_err("This entry was not fushed so it meant to fail");
+            rl.load(&halb6).await.expect_err("This entry was not fushed so it meant to fail");
 
             // We now flush it before and try again
             rl.flush().await.unwrap();
 
             // Attempt to read blah 6 before its flushed should result in an error
-            rl.load(&blah6, &halb6).await.expect("The log file should ahve worked now");
+            rl.load(&halb6).await.expect("The log file should ahve worked now");
 
             println!("test_redo_log - closing redo log");
         }

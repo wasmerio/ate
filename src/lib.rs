@@ -1,5 +1,6 @@
 extern crate rand;
 extern crate rand_chacha;
+extern crate sha3;
 
 mod error;
 mod test;

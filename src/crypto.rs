@@ -19,6 +19,11 @@ use pqcrypto_traits::sign::SecretKey as PQCryptoSecretKey;
 use openssl::symm::{Cipher};
 #[allow(unused_imports)]
 use openssl::error::{Error, ErrorStack};
+#[allow(unused_imports)]
+use sha3::Keccak256;
+#[allow(unused_imports)]
+use sha3::Digest;
+use std::convert::TryInto;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq)]
 pub enum EncryptKey {
@@ -146,6 +151,29 @@ impl EncryptKey {
 pub struct EncryptResult {
     pub iv: Vec<u8>,
     pub data: Vec<u8>
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq)]
+pub struct Hash {
+    pub val: [u8; 16]
+}
+
+impl Hash {
+    pub fn from_bytes(input: &[u8]) -> Hash {
+        let mut hasher = sha3::Keccak384::new();
+        hasher.update(input);
+        let result = hasher.finalize();
+        let result: Vec<u8> = result.into_iter()
+            .take(16)
+            .collect();
+        let result: [u8; 16] = result
+            .try_into()
+            .expect("The hash should hit into 16 bytes!");
+
+        Hash {
+            val: result,
+        }
+    }
 }
 
 static GLOBAL_SECURE_AND_FAST_RANDOM: Lazy<Mutex<ChaCha20Rng>> = Lazy::new(|| {
@@ -277,14 +305,14 @@ where M: OtherMetadata
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub enum PrivateKey {
     Falcon512 {
-        id: u64,
         pk: Vec<u8>,
         sk: Vec<u8>,
+        hash: Hash,
     },
     Falcon1024 {
-        id: u64,
         pk: Vec<u8>,
         sk: Vec<u8>,
+        hash: Hash,
     },
 }
 
@@ -292,22 +320,23 @@ impl PrivateKey
 {
     #[allow(dead_code)]
     pub fn generate(size: KeySize) -> PrivateKey {
-        let mut rng = RandomGeneratorAccessor::default();
         match size {
             KeySize::Bit128 | KeySize::Bit192 => {
                 let (pk, sk) = falcon512::keypair();
+                let hash = Hash::from_bytes(pk.as_bytes());
                 PrivateKey::Falcon512 {
-                    id: rng.next_u64(),
                     pk: Vec::from(pk.as_bytes()),
                     sk: Vec::from(sk.as_bytes()),
+                    hash: hash,
                 }
             },
             KeySize::Bit256 => {
                 let (pk, sk) = falcon1024::keypair();
+                let hash = Hash::from_bytes(pk.as_bytes());
                 PrivateKey::Falcon1024 {
-                    id: rng.next_u64(),
                     pk: Vec::from(pk.as_bytes()),
                     sk: Vec::from(sk.as_bytes()),
+                    hash: hash,
                 }
             }
         }
@@ -316,49 +345,49 @@ impl PrivateKey
     #[allow(dead_code)]
     pub fn as_public_key(&self) -> PublicKey {
         match &self {
-            PrivateKey::Falcon512 { id, pk, sk: _ } => {
+            PrivateKey::Falcon512 { sk: _, pk, hash } => {
                 PublicKey::Falcon512 {
-                    id: id.clone(),
                     pk: pk.clone(),
+                    hash: hash.clone(),
                 }
             },
-            PrivateKey::Falcon1024 { id, pk, sk: _ } => {
+            PrivateKey::Falcon1024 { sk: _, pk, hash } => {
                 PublicKey::Falcon1024 {
-                    id: id.clone(),
                     pk: pk.clone(),
+                    hash: hash.clone(),
                 }
             },
         }
     }
 
     #[allow(dead_code)]
-    pub fn id(&self) -> u64 {
+    pub fn hash(&self) -> Hash {
         match &self {
-            PrivateKey::Falcon512 { id, pk: _, sk: _ } => id.clone(),
-            PrivateKey::Falcon1024 { id, pk: _, sk: _ } => id.clone(),
+            PrivateKey::Falcon512 { pk: _, sk: _, hash } => hash.clone(),
+            PrivateKey::Falcon1024 { pk: _, sk: _, hash } => hash.clone(),
         }
     }
 
     #[allow(dead_code)]
     pub fn pk(&self) -> Vec<u8> { 
         match &self {
-            PrivateKey::Falcon512 { id: _, pk, sk: _ } => pk.clone(),
-            PrivateKey::Falcon1024 { id: _, pk, sk: _ } => pk.clone(),
+            PrivateKey::Falcon512 { pk, sk: _, hash: _ } => pk.clone(),
+            PrivateKey::Falcon1024 { pk, sk: _, hash: _ } => pk.clone(),
         }
     }
 
     #[allow(dead_code)]
     pub fn sk(&self) -> Vec<u8> { 
         match &self {
-            PrivateKey::Falcon512 { id: _, pk: _, sk } => sk.clone(),
-            PrivateKey::Falcon1024 { id: _, pk: _, sk } => sk.clone(),
+            PrivateKey::Falcon512 { pk: _, sk, hash: _ } => sk.clone(),
+            PrivateKey::Falcon1024 { pk: _, sk, hash: _ } => sk.clone(),
         }
     }
 
     #[allow(dead_code)]
     pub fn sign(&self, data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
         let ret = match &self {
-            PrivateKey::Falcon512 { id: _, pk: _, sk} => {
+            PrivateKey::Falcon512 { pk: _, sk, hash: _} => {
                 let sk = match falcon512::SecretKey::from_bytes(&sk[..]) {
                     Ok(sk) => sk,
                     Err(err) => { return Result::Err(std::io::Error::new(ErrorKind::Other, format!("Failed to decode the secret key ({}).", err))); },
@@ -366,7 +395,7 @@ impl PrivateKey
                 let sig = falcon512::detached_sign(data, &sk);
                 Vec::from(sig.as_bytes())
             },
-            PrivateKey::Falcon1024 { id: _, pk: _, sk} => {
+            PrivateKey::Falcon1024 { pk: _, sk, hash: _} => {
                 let sk = match falcon1024::SecretKey::from_bytes(&sk[..]) {
                     Ok(sk) => sk,
                     Err(err) => { return Result::Err(std::io::Error::new(ErrorKind::Other, format!("Failed to decode the secret key ({}).", err))); },
@@ -383,12 +412,12 @@ impl PrivateKey
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub enum PublicKey {
     Falcon512 {
-        id: u64,
-        pk: Vec<u8>
+        pk: Vec<u8>,
+        hash: Hash,
     },
     Falcon1024 {
-        id: u64,
-        pk: Vec<u8>
+        pk: Vec<u8>,
+        hash: Hash,
     }
 }
 
@@ -397,23 +426,23 @@ impl PublicKey
     #[allow(dead_code)]
     pub fn pk(&self) -> Vec<u8> { 
         match &self {
-            PublicKey::Falcon512 { id: _, pk } => pk.clone(),
-            PublicKey::Falcon1024 { id: _, pk } => pk.clone(),
+            PublicKey::Falcon512 { pk, hash: _ } => pk.clone(),
+            PublicKey::Falcon1024 { pk, hash: _ } => pk.clone(),
         }
     }
 
     #[allow(dead_code)]
-    pub fn id(&self) -> u64 {
+    pub fn hash(&self) -> Hash {
         match &self {
-            PublicKey::Falcon512 { id, pk: _ } => id.clone(),
-            PublicKey::Falcon1024 { id, pk: _ } => id.clone(),
+            PublicKey::Falcon512 { pk: _, hash } => hash.clone(),
+            PublicKey::Falcon1024 { pk: _, hash } => hash.clone(),
         }
     }
     
     #[allow(dead_code)]
     pub fn verify(&self, data: &[u8], sig: &[u8]) -> Result<bool, std::io::Error> {
         let ret = match &self {
-            PublicKey::Falcon512 { id: _, pk } => {
+            PublicKey::Falcon512 { pk, hash: _ } => {
                 let pk = match falcon512::PublicKey::from_bytes(&pk[..]) {
                     Ok(pk) => pk,
                     Err(err) => { return Result::Err(std::io::Error::new(ErrorKind::Other, format!("Failed to decode the public key ({}).", err))); },
@@ -424,7 +453,7 @@ impl PublicKey
                 };
                 falcon512::verify_detached_signature(&sig, data, &pk).is_ok()
             },
-            PublicKey::Falcon1024 { id: _, pk } => {
+            PublicKey::Falcon1024 { pk, hash: _ } => {
                 let pk = match falcon1024::PublicKey::from_bytes(&pk[..]) {
                     Ok(pk) => pk,
                     Err(err) => { return Result::Err(std::io::Error::new(ErrorKind::Other, format!("Failed to decode the public key ({}).", err))); },
@@ -468,21 +497,21 @@ impl EncryptedPrivateKey
     pub fn as_private_key(&self, key: &EncryptKey) -> Result<PrivateKey, std::io::Error> {
         let data = key.decrypt(&self.sk_iv[..], &self.sk_encrypted[..])?;
         match &self.pk {
-            PublicKey::Falcon512 { id, pk } => {
+            PublicKey::Falcon512 { pk, hash } => {
                 Ok(
                     PrivateKey::Falcon512 {
-                        id: id.clone(),
                         pk: pk.clone(),
-                        sk: data
+                        sk: data,
+                        hash: hash.clone(),
                     }
                 )
             },
-            PublicKey::Falcon1024{ id, pk } => {
+            PublicKey::Falcon1024{ pk, hash } => {
                 Ok(
                     PrivateKey::Falcon1024 {
-                        id: id.clone(),
                         pk: pk.clone(),
-                        sk: data
+                        sk: data,
+                        hash: hash.clone(),
                     }
                 )
             },
@@ -495,8 +524,8 @@ impl EncryptedPrivateKey
     }
 
     #[allow(dead_code)]
-    pub fn id(&self) -> u64 {
-        self.pk.id()
+    pub fn hash(&self) -> Hash {
+        self.pk.hash()
     }
 }
 

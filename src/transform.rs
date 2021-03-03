@@ -22,12 +22,12 @@ where M: OtherMetadata
 }
 
 #[derive(Debug, Default, Clone)]
-pub struct CompressorWithSnap
+pub struct CompressorWithSnapTransformer
 {
 }
 
 impl<M> EventDataTransformer<M>
-for CompressorWithSnap
+for CompressorWithSnapTransformer
 where M: OtherMetadata,
 {
     #[allow(unused_variables)]
@@ -48,23 +48,23 @@ where M: OtherMetadata,
 }
 
 #[derive(Clone)]
-pub struct StaticEncryption
+pub struct StaticEncryptionTransformer
 {
     key: EncryptKey,
 }
 
-impl StaticEncryption
+impl StaticEncryptionTransformer
 {
     #[allow(dead_code)]
-    pub fn new(key: &EncryptKey) -> StaticEncryption {
-        StaticEncryption {
+    pub fn new(key: &EncryptKey) -> StaticEncryptionTransformer {
+        StaticEncryptionTransformer {
             key: key.clone(),
         }
     }
 }
 
 impl<M> EventDataTransformer<M>
-for StaticEncryption
+for StaticEncryptionTransformer
 where M: OtherMetadata,
 {
     #[allow(unused_variables)]
@@ -88,7 +88,7 @@ where M: OtherMetadata,
 fn test_encrypter()
 {
     let key = EncryptKey::from_string("test".to_string(), KeySize::Bit256);
-    let encrypter = StaticEncryption::new(&key);
+    let encrypter = StaticEncryptionTransformer::new(&key);
 
     let test_bytes = Bytes::from_static(b"Some Crypto Text");
     let mut meta = DefaultMetadata::default();
@@ -108,7 +108,7 @@ fn test_encrypter()
 #[test]
 fn test_compressor()
 {
-    let compressor = CompressorWithSnap::default();
+    let compressor = CompressorWithSnapTransformer::default();
 
     let test_bytes = Bytes::from("test".as_bytes());
     let mut meta = DefaultMetadata::default();
