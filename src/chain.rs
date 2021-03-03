@@ -290,6 +290,11 @@ where M: OtherMetadata
         self.redo.destroy()
     }
 
+    #[allow(dead_code)]
+    pub fn name(&self) -> String {
+        self.key.name.clone()
+    }
+
     fn is_open(&self) -> bool {
         self.redo.is_open()
     }
@@ -351,7 +356,12 @@ where M: OtherMetadata,
         self.lock.destroy().await
     }
 
-    fn is_open(&self) -> bool {
+    #[allow(dead_code)]
+    pub fn name(&self) -> String {
+        self.lock.name()
+    }
+
+    pub fn is_open(&self) -> bool {
         self.lock.is_open()
     }
 }
@@ -437,6 +447,11 @@ where M: OtherMetadata,
     pub fn compact(&mut self) -> Result<()> {
         let runtime = Self::create_runtime();
         runtime.block_on(self.compact_async(runtime.clone()))
+    }
+
+    #[allow(dead_code)]
+    pub fn name(&mut self) -> String {
+        self.single().name()
     }
 
     #[allow(dead_code)]
@@ -604,14 +619,17 @@ where M: OtherMetadata,
 }
 
 #[cfg(test)]
-pub fn create_test_chain(chain_name: String) ->
+pub fn create_test_chain(chain_name: String, temp: bool) ->
     ChainAccessor
 {
     // Create the chain-of-trust and a validator
     let mut mock_cfg = mock_test_config();
     mock_cfg.log_temp = false;
 
-    let mock_chain_key = ChainKey::default().with_temp_name(chain_name);
+    let mock_chain_key = match temp {
+        true => ChainKey::default().with_temp_name(chain_name),
+        false => ChainKey::default().with_name(chain_name),
+    };
 
     let builder = ChainOfTrustBuilder::default()
         .add_validator(Box::new(RubberStampValidator::default()))
@@ -627,88 +645,109 @@ pub fn create_test_chain(chain_name: String) ->
 
 #[test]
 pub fn test_chain() {
-    let mut chain = create_test_chain("test_chain".to_string());
 
     let key1 = PrimaryKey::generate();
     let key2 = PrimaryKey::generate();
-    let mut evt1 = Event::new(key1.clone(), Bytes::from(vec!(1; 1)));
-    let mut evt2 = Event::new(key2.clone(), Bytes::from(vec!(2; 1)));
+    let chain_name;
 
     {
-        let mut lock = chain.single();
-        assert_eq!(0, lock.redo_count());
+        let mut chain = create_test_chain("test_chain".to_string(), true);
+        chain_name = chain.name();
+
+        let mut evt1 = Event::new(key1.clone(), Bytes::from(vec!(1; 1)));
+        let mut evt2 = Event::new(key2.clone(), Bytes::from(vec!(2; 1)));
+
+        {
+            let mut lock = chain.single();
+            assert_eq!(0, lock.redo_count());
+            
+            // Push the first events into the chain-of-trust
+            let mut evts = Vec::new();
+            evts.push(evt1.clone());
+            evts.push(evt2.clone());
+            lock.feed(evts).expect("The event failed to be accepted");
+            assert_eq!(2, lock.redo_count());
+        }
+
+        {
+            let lock = chain.multi();
+
+            // Make sure its there in the chain
+            let test_data = lock.lookup(&key1).expect("Failed to find the entry after the flip");
+            let test_data = lock.load(&test_data).expect("Could not load the data for the entry");
+            assert_eq!(test_data.body, Some(Bytes::from(vec!(1; 1))));
+        }
+            
+        {
+            let mut lock = chain.single();
+
+            // Duplicate one of the event so the compactor has something to clean
+            evt1.body = Some(Bytes::from(vec!(10; 1)));
+            
+            let mut evts = Vec::new();
+            evts.push(evt1.clone());
+            lock.feed(evts).expect("The event failed to be accepted");
+            assert_eq!(3, lock.redo_count());
+        }
+
+        // Now compact the chain-of-trust which should reduce the duplicate event
+        chain.compact().expect("Failed to compact the log");
+        assert_eq!(2, chain.single().redo_count());
+
+        {
+            let lock = chain.multi();
+
+            // Read the event and make sure its the second one that results after compaction
+            let test_data = lock.lookup(&key1).expect("Failed to find the entry after the flip");
+            let test_data = lock.load(&test_data).unwrap();
+            assert_eq!(test_data.body, Some(Bytes::from(vec!(10; 1))));
+
+            // The other event we added should also still be there
+            let test_data = lock.lookup(&key2).expect("Failed to find the entry after the flip");
+            let test_data = lock.load(&test_data).unwrap();
+            assert_eq!(test_data.body, Some(Bytes::from(vec!(2; 1))));
+        }
+
+        {
+            let mut lock = chain.single();
+
+            // Now lets tombstone the second event
+            evt2.meta.add_tombstone(key2);
+            
+            let mut evts = Vec::new();
+            evts.push(evt2.clone());
+            lock.feed(evts).expect("The event failed to be accepted");
+            
+            // Number of events should have gone up by one even though there should be one less item
+            assert_eq!(3, lock.redo_count());
+        }
+
+        // Searching for the item we should not find it
+        match chain.multi().lookup(&key2) {
+            Some(_) => panic!("The item should not be visible anymore"),
+            None => {}
+        }
         
-        // Push the first events into the chain-of-trust
-        let mut evts = Vec::new();
-        evts.push(evt1.clone());
-        evts.push(evt2.clone());
-        lock.feed(evts).expect("The event failed to be accepted");
-        assert_eq!(2, lock.redo_count());
+        // Now compact the chain-of-trust which should remove one of the events and its tombstone
+        chain.compact().expect("Failed to compact the log");
+        assert_eq!(1, chain.single().redo_count());
     }
+
+    // Reload the chain from disk and check its integrity
 
     {
-        let lock = chain.multi();
+        let mut chain = create_test_chain(chain_name, false);
 
-        // Make sure its there in the chain
-        let test_data = lock.lookup(&key1).expect("Failed to find the entry after the flip");
-        let test_data = lock.load(&test_data).expect("Could not load the data for the entry");
-        assert_eq!(test_data.body, Some(Bytes::from(vec!(1; 1))));
+        {
+            let lock = chain.multi();
+
+            // Read the event and make sure its the second one that results after compaction
+            let test_data = lock.lookup(&key1).expect("Failed to find the entry after we reloaded the chain");
+            let test_data = lock.load(&test_data).unwrap();
+            assert_eq!(test_data.body, Some(Bytes::from(vec!(10; 1))));
+        }
+
+        // Destroy the chain
+        chain.single().destroy().unwrap();
     }
-        
-    {
-        let mut lock = chain.single();
-
-        // Duplicate one of the event so the compactor has something to clean
-        evt1.body = Some(Bytes::from(vec!(10; 1)));
-        
-        let mut evts = Vec::new();
-        evts.push(evt1.clone());
-        lock.feed(evts).expect("The event failed to be accepted");
-        assert_eq!(3, lock.redo_count());
-    }
-
-    // Now compact the chain-of-trust which should reduce the duplicate event
-    chain.compact().expect("Failed to compact the log");
-    assert_eq!(2, chain.single().redo_count());
-
-    {
-        let lock = chain.multi();
-
-        // Read the event and make sure its the second one that results after compaction
-        let test_data = lock.lookup(&key1).expect("Failed to find the entry after the flip");
-        let test_data = lock.load(&test_data).unwrap();
-        assert_eq!(test_data.body, Some(Bytes::from(vec!(10; 1))));
-
-        // The other event we added should also still be there
-        let test_data = lock.lookup(&key2).expect("Failed to find the entry after the flip");
-        let test_data = lock.load(&test_data).unwrap();
-        assert_eq!(test_data.body, Some(Bytes::from(vec!(2; 1))));
-    }
-
-    {
-        let mut lock = chain.single();
-
-        // Now lets tombstone the second event
-        evt2.meta.add_tombstone(key2);
-        
-        let mut evts = Vec::new();
-        evts.push(evt2.clone());
-        lock.feed(evts).expect("The event failed to be accepted");
-        
-        // Number of events should have gone up by one even though there should be one less item
-        assert_eq!(3, lock.redo_count());
-    }
-
-    // Searching for the item we should not find it
-    match chain.multi().lookup(&key2) {
-        Some(_) => panic!("The item should not be visible anymore"),
-        None => {}
-    }
-    
-    // Now compact the chain-of-trust which should remove one of the events and its tombstone
-    chain.compact().expect("Failed to compact the log");
-    assert_eq!(1, chain.single().redo_count());
-
-    // Destroy the chain
-    chain.single().destroy().unwrap();
 }

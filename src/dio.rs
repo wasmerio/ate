@@ -432,7 +432,7 @@ pub enum TestDao
 #[test]
 fn test_dio()
 {
-    let mut chain = create_test_chain("test_dio".to_string());
+    let mut chain = create_test_chain("test_dio".to_string(), true);
 
     let key1;
     let key2;
