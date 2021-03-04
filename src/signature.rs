@@ -40,6 +40,18 @@ pub struct SignaturePlugin
     lookup: MultiMap<PrimaryKey, Hash>,
 }
 
+impl SignaturePlugin
+{
+    #[allow(dead_code)]
+    pub fn get_verified_signatures(&self, key: &PrimaryKey) -> Vec<Hash>
+    {
+        match self.lookup.get_vec(key) {
+            Some(a) => a.clone(),
+            None => Vec::new()
+        }
+    }
+}
+
 impl<M> EventSink<M>
 for SignaturePlugin
 where M: OtherMetadata
