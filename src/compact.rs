@@ -95,7 +95,7 @@ where M: OtherMetadata
     }
 }
 
-impl<M> Metadata<M>
+impl<M> MetadataExt<M>
 where M: OtherMetadata
 {
     pub fn get_tombstone(&self) -> Option<PrimaryKey> {

@@ -4,23 +4,26 @@ use fxhash::{FxHashMap, FxHashSet};
 #[cfg(test)]
 use serde::{Deserialize};
 use serde::{Serialize, de::DeserializeOwned};
-use std::io::Result;
-use std::io::Error;
-use std::io::ErrorKind;
 use bytes::Bytes;
 use std::cell::{RefCell};
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
+#[allow(unused_imports)]
+use crate::crypto::{EncryptedPrivateKey, PrivateKey};
+#[allow(unused_imports)]
+use crate::{crypto::EncryptKey, session::{Session, SessionProperty}};
+
 use super::header::*;
 use super::chain::*;
 use super::event::*;
 use super::meta::*;
+use super::error::*;
 
 #[allow(dead_code)]
-type Dio<'a> = DioExt<'a, EmptyMetadata>;
+type Dio<'a> = DioExt<'a, NoAdditionalMetadata>;
 #[allow(dead_code)]
-type Dao<D> = DaoExt<EmptyMetadata, D>;
+type Dao<D> = DaoExt<NoAdditionalMetadata, D>;
 
 #[derive(Debug, Clone)]
 struct Row<M, D>
@@ -45,48 +48,36 @@ where M: OtherMetadata,
         }
     }
 
-    pub fn from_event(evt: &Event<M>) -> Result<Row<M, D>> {
+    pub fn from_event(evt: &Event<M>) -> Result<Row<M, D>, EventSerializationError> {
         let key = match evt.meta.get_data_key() {
             Some(key) => key,
-            None => {
-                return Result::Err(Error::new(ErrorKind::NotFound, format!("The record does not have a primary key in its metadata")))
-            }
+            None => { return Result::Err(EventSerializationError::NoPrimarykey) }
         };
         match &evt.body {
             Some(data) => {
-                match bincode::deserialize(&data) {
-                    std::result::Result::Ok(a) => {
-                        Ok(
-                            Row {
-                                key: key,
-                                meta: evt.meta.other.clone(),
-                                data: a,
-                            }
-                        )
-                    },
-                    std::result::Result::Err(err) => Result::Err(Error::new(ErrorKind::Other, format!("{}", err))),
-                }
-            }
-            None => return Result::Err(Error::new(ErrorKind::NotFound, format!("Found a record but it has no data to load for {}", key.as_hex_string()))),
-        }
-    }
-
-    pub fn from_row_data(row: &RowData<M>) -> Result<Row<M, D>> {
-        match bincode::deserialize(&row.data) {
-            std::result::Result::Ok(a) => {
                 Ok(
                     Row {
-                        key: row.key,
-                        meta: row.meta.clone(),
-                        data: a,
+                        key: key,
+                        meta: evt.meta.other.clone(),
+                        data: bincode::deserialize(&data)?,
                     }
                 )
-            },
-            std::result::Result::Err(err) => Result::Err(Error::new(ErrorKind::Other, format!("{}", err))),
+            }
+            None => return Result::Err(EventSerializationError::NoData),
         }
     }
 
-    pub fn as_row_data(&self) -> std::result::Result<RowData<M>, bincode::Error> {
+    pub fn from_row_data(row: &RowData<M>) -> Result<Row<M, D>, EventSerializationError> {
+        Ok(
+            Row {
+                key: row.key,
+                meta: row.meta.clone(),
+                data: bincode::deserialize(&row.data)?,
+            }
+        )
+    }
+
+    pub fn as_row_data(&self) -> std::result::Result<RowData<M>, EventSerializationError> {
         let data = Bytes::from(bincode::serialize(&self.data)?);
         let data_hash = super::crypto::Hash::from_bytes(&data[..]);
         Ok
@@ -144,7 +135,7 @@ where M: OtherMetadata,
         true
     }
 
-    pub fn flush(&mut self) -> std::result::Result<(), bincode::Error> {
+    pub fn flush(&mut self) -> std::result::Result<(), EventSerializationError> {
         if self.dirty == true
         {            
             let mut state = self.state.borrow_mut();
@@ -267,10 +258,12 @@ where M: OtherMetadata,
     accessor: ChainAccessorExt<M>,
     multi: Option<ChainMultiUserExt<'a, M>>,
     state: Rc<RefCell<DioState<M>>>,
+    #[allow(dead_code)]
+    session: &'a Session,
 }
 
 impl<'a, M> DioExt<'a, M>
-where M: OtherMetadata,      
+where M: OtherMetadata,
 {
     #[allow(dead_code)]
     pub fn store<D>(&mut self, data: D) -> DaoExt<M, D>
@@ -299,12 +292,12 @@ where M: OtherMetadata,
     }
 
     #[allow(dead_code)]
-    pub fn load<D>(&mut self, key: &PrimaryKey) -> Result<DaoExt<M, D>>
+    pub fn load<D>(&mut self, key: &PrimaryKey) -> Result<DaoExt<M, D>, LoadError>
     where D: Serialize + DeserializeOwned + Clone,
     {
         let mut state = self.state.borrow_mut();
         if state.is_locked(key) {
-            return Result::Err(Error::new(ErrorKind::Other, format!("The record is locked as it has a dirty record already in scope for this call stack {:?}", key)));
+            return Result::Err(LoadError::Locked);
         }
         if let Some(dao) = state.dirty.get(key) {
             let row = Row::from_row_data(dao.deref())?;
@@ -315,17 +308,17 @@ where M: OtherMetadata,
             return Ok(DaoExt::new(row, &self.state));
         }
         if state.deleted.contains(key) {
-            return Result::Err(Error::new(ErrorKind::NotFound, format!("Record with this key has already been deleted {}", key.as_hex_string())))
+            return Result::Err(LoadError::AlreadyDeleted);
         }
 
-        let multi = self.multi.as_ref().ok_or(Error::new(ErrorKind::Other, "Dio is not properly initialized (missing multiuser chain handle)"))?;
+        let multi = self.multi.as_ref().ok_or(LoadError::InternalError("Dio is not properly initialized (missing multiuser chain handle)".to_string()))?;
 
         let entry = match multi.lookup(key) {
             Some(a) => a,
-            None => return Result::Err(Error::new(ErrorKind::NotFound, format!("Failed to find a record for {}", key.as_hex_string()))),
+            None => return Result::Err(LoadError::NotFound)
         };
         if entry.meta.get_tombstone().is_some() {
-            return Result::Err(Error::new(ErrorKind::NotFound, format!("Found a record but its been tombstoned for {}", key.as_hex_string())));
+            return Result::Err(LoadError::Tombstoned);
         }
 
         let mut evt = multi.load(&entry)?;
@@ -356,8 +349,9 @@ where M: OtherMetadata,
                 let multi = self.multi.take().expect("The multilock was released before the drop call was triggered by the Dio going out of scope.");
 
                 // Convert all the events that we are storing into serialize data
+                let mut data_hashes = Vec::new();
                 for (_, dao) in state.dirty.iter() {
-                    let mut meta = Metadata::for_data(dao.key);
+                    let mut meta = MetadataExt::for_data(dao.key);
                     meta.other = dao.meta.clone();
                     
                     let data = match multi.data_as_underlay(&mut meta, dao.data.clone()) {
@@ -369,6 +363,9 @@ where M: OtherMetadata,
                         },
                     };
                     let data_hash = super::crypto::Hash::from_bytes(&data[..]);
+                    data_hashes.push(data_hash);
+
+                    multi.metadata_lint_event(&Some(data_hash), &mut meta, &self.session);
                     
                     let evt = Event {
                         meta: meta,
@@ -377,11 +374,33 @@ where M: OtherMetadata,
                     };
                     evts.push(evt);
                 }
+
+                // Lint the data
+                let meta = match multi.metadata_lint_many(&data_hashes, &self.session) {
+                    Ok(a) => a,
+                    Err(err) => {
+                        debug_assert!(false, err.to_string());
+                        eprintln!("{}", err.to_string());
+                        Vec::new()
+                    },
+                };
+
+                // If it has data then insert it at the front of these events
+                if meta.len() > 0 {
+                    evts.insert(0, Event {
+                        meta: MetadataExt {
+                            core: meta,
+                            other: M::default(),
+                        },
+                        body_hash: None,
+                        body: None,
+                    });
+                }
             }
 
             // Build events that will represent tombstones on all these records (they will be sent after the writes)
             for key in &state.deleted {
-                let mut meta = Metadata::default();
+                let mut meta = MetadataExt::default();
                 meta.add_tombstone(key.clone());
                 let evt = Event {
                     meta: meta,
@@ -401,20 +420,21 @@ where M: OtherMetadata,
 pub trait DioFactoryExt<'a, M>
 where M: OtherMetadata,
 {
-    fn dio(&'a mut self) -> DioExt<'a, M>;
+    fn dio(&'a mut self, session: &'a Session) -> DioExt<'a, M>;
 }
 
 impl<'a, M> DioFactoryExt<'a, M>
 for ChainAccessorExt<M>
 where M: OtherMetadata,
 {
-    fn dio(&'a mut self) -> DioExt<'a, M> {
+    fn dio(&'a mut self, session: &'a Session) -> DioExt<'a, M> {
         let accessor = ChainAccessorExt::from_accessor(self); 
         let multi = self.multi();
         DioExt {
             accessor: accessor,
             state: Rc::new(RefCell::new(DioState::new())),
             multi: Some(multi),          
+            session: session,
         }
     }
 }
@@ -432,12 +452,20 @@ pub enum TestDao
 #[test]
 fn test_dio()
 {
+    let mut session = Session::default();
     let mut chain = create_test_chain("test_dio".to_string(), true);
+
+    let write_key = EncryptKey::generate(crate::crypto::KeySize::Bit192);
+    let read_key = EncryptKey::generate(crate::crypto::KeySize::Bit192);
+    session.properties.push(SessionProperty::WriteKey(write_key));
+    session.properties.push(SessionProperty::ReadKey(read_key));
+    session.properties.push(SessionProperty::Identity("author@here.com".to_string()));
 
     let key1;
     let key2;
+
     {
-        let mut dio = chain.dio();
+        let mut dio = chain.dio(&session);
 
         // Write a value immediately from chain (this data will remain in the transaction)
         {
@@ -478,7 +506,7 @@ fn test_dio()
     }
 
     {
-        let mut dio = chain.dio();
+        let mut dio = chain.dio(&session);
 
         // The data we saved earlier should be accessible accross DIO scope boundaries
         match &*dio.load(&key1).expect("The data object should have been read") {
@@ -495,11 +523,11 @@ fn test_dio()
     }
 
     {
-        let mut dio = chain.dio();
+        let mut dio = chain.dio(&session);
 
         // After going out of scope then back again we should still no longer see the record we deleted
         dio.load::<TestDao>(&key2).expect_err("This load should fail as we deleted the record");
     }
 
-    chain.single().destroy().unwrap();
+    //chain.single().destroy().unwrap();
 }

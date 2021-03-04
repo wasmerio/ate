@@ -1,3 +1,5 @@
+use crate::signature::SignaturePlugin;
+
 use super::chain::ChainOfTrustExt;
 use super::meta::OtherMetadata;
 use super::validator::EventValidator;
@@ -11,7 +13,7 @@ use super::compact::TombstoneCompactor;
 use super::validator::RubberStampValidator;
 use super::transform::CompressorWithSnapTransformer;
 use super::chain::ChainKey;
-use tokio::io::Result;
+use super::error::*;
 
 pub trait ConfigMaster {
     fn master_addr(&self) -> String;
@@ -156,6 +158,8 @@ where M: OtherMetadata + 'static,
             return self;
         }
 
+        self.plugins.push(Box::new(SignaturePlugin::default()));
+
         match flavour {
             ConfiguredFor::SmallestSize | ConfiguredFor::Balanced => {
                 self.transformers.insert(0, Box::new(CompressorWithSnapTransformer::default()));
@@ -220,7 +224,7 @@ where M: OtherMetadata + 'static,
         cfg: &impl ConfigStorage,
         key: &ChainKey,
         truncate: bool
-    ) -> Result<ChainOfTrustExt<M>>
+    ) -> Result<ChainOfTrustExt<M>, ChainCreationError>
     {
         ChainOfTrustExt::new(self, cfg, key, truncate)
     }

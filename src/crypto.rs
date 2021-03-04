@@ -120,18 +120,14 @@ impl EncryptKey {
         }
     }
 
-    pub fn encrypt_with_iv(&self, iv: &[u8], data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
+    pub fn encrypt_with_iv(&self, iv: &InitializationVector, data: &[u8]) -> Result<Vec<u8>, openssl::error::ErrorStack> {
         Ok(
-            openssl::symm::encrypt(self.cipher(), self.value(), Some(iv), data)?
+            openssl::symm::encrypt(self.cipher(), self.value(), Some(&iv.bytes[..]), data)?
         )
     }
 
     pub fn encrypt(&self, data: &[u8]) -> Result<EncryptResult, std::io::Error> {
-        let mut rng = RandomGeneratorAccessor::default();
-        let mut iv = [0 as u8; 16];
-        rng.fill_bytes(&mut iv);
-        let iv = Vec::from(iv);
-
+        let iv = InitializationVector::generate();
         let data = self.encrypt_with_iv(&iv, data)?;
         Ok(
             EncryptResult {
@@ -141,15 +137,38 @@ impl EncryptKey {
         )
     }
     
-    pub fn decrypt(&self, iv: &[u8], data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
+    pub fn decrypt(&self, iv: &InitializationVector, data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
         Ok(
-            openssl::symm::decrypt(self.cipher(), self.value(), Some(iv), data)?
+            openssl::symm::decrypt(self.cipher(), self.value(), Some(&iv.bytes[..]), data)?
         )
+    }
+
+    pub fn as_bytes(&self) -> Vec<u8> {
+        Vec::from(self.value())
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<EncryptKey, std::io::Error> {
+        let bytes: Vec<u8> = Vec::from(bytes);
+        match bytes.len() {
+            16 => Ok(EncryptKey::Aes128(bytes.try_into().expect("Internal error while deserializing the Encryption Key"))),
+            24 => Ok(EncryptKey::Aes192(bytes.try_into().expect("Internal error while deserializing the Encryption Key"))),
+            32 => Ok(EncryptKey::Aes256(bytes.try_into().expect("Internal error while deserializing the Encryption Key"))),
+            _ => Result::Err(std::io::Error::new(ErrorKind::Other, format!("The encryption key bytes are the incorrect length ({}).", bytes.len())))
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn hash(&self) -> Hash {
+        match &self {
+            EncryptKey::Aes128(a) => Hash::from_bytes(a),
+            EncryptKey::Aes192(a) => Hash::from_bytes(a),
+            EncryptKey::Aes256(a) => Hash::from_bytes(a),
+        }
     }
 }
 
 pub struct EncryptResult {
-    pub iv: Vec<u8>,
+    pub iv: InitializationVector,
     pub data: Vec<u8>
 }
 
@@ -172,6 +191,26 @@ impl Hash {
 
         Hash {
             val: result,
+        }
+    }
+
+    pub fn to_string(&self) -> String {
+        hex::encode(self.val)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq)]
+pub struct DoubleHash {
+    hash1: Hash,
+    hash2: Hash,
+}
+
+impl DoubleHash {
+    #[allow(dead_code)]
+    pub fn from_hashes(hash1: &Hash, hash2: &Hash) -> DoubleHash {
+        DoubleHash {
+            hash1: hash1.clone(),
+            hash2: hash2.clone(),
         }
     }
 }
@@ -267,11 +306,28 @@ impl Default for EncryptKey {
     }
 }
 
-impl<M> Metadata<M>
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
+pub struct InitializationVector
+{
+    pub bytes: [u8; 16],
+}
+
+impl InitializationVector {
+    pub fn generate() -> InitializationVector {
+        let mut rng = RandomGeneratorAccessor::default();
+        let mut iv = InitializationVector {
+            bytes: [0 as u8; 16]
+        };
+        rng.fill_bytes(&mut iv.bytes);
+        iv
+    }
+}
+
+impl<M> MetadataExt<M>
 where M: OtherMetadata
 {
     #[allow(dead_code)]
-    pub fn generate_iv(&mut self) -> Vec<u8> {
+    pub fn generate_iv(&mut self) -> InitializationVector {
         let mut core = self.core.clone()
             .into_iter()
             .filter(|m|  match m {
@@ -280,23 +336,17 @@ where M: OtherMetadata
             })
             .collect::<Vec<_>>();
         
-        let mut rng = RandomGeneratorAccessor::default();
-        let mut iv = MetaInitializationVector {
-            iv: [0 as u8; 16]
-        };
-        rng.fill_bytes(&mut iv.iv);
+        let iv = InitializationVector::generate();
         core.push(CoreMetadata::InitializationVector(iv.clone()));
-        let ret = Vec::from(iv.iv);
-
         self.core = core;
-        return ret;
+        return iv;
     }
 
     #[allow(dead_code)]
-    pub fn get_iv(&self) -> Result<Vec<u8>, CryptoError> {
+    pub fn get_iv(&self) -> Result<InitializationVector, CryptoError> {
         for m in self.core.iter() {
             match m {
-                CoreMetadata::InitializationVector(iv) => return Result::Ok(iv.iv.to_vec()),
+                CoreMetadata::InitializationVector(iv) => return Result::Ok(iv.clone()),
                 _ => { }
             }
         }
@@ -309,12 +359,10 @@ pub enum PrivateKey {
     Falcon512 {
         pk: Vec<u8>,
         sk: Vec<u8>,
-        hash: Hash,
     },
     Falcon1024 {
         pk: Vec<u8>,
         sk: Vec<u8>,
-        hash: Hash,
     },
 }
 
@@ -325,20 +373,16 @@ impl PrivateKey
         match size {
             KeySize::Bit128 | KeySize::Bit192 => {
                 let (pk, sk) = falcon512::keypair();
-                let hash = Hash::from_bytes(pk.as_bytes());
                 PrivateKey::Falcon512 {
                     pk: Vec::from(pk.as_bytes()),
                     sk: Vec::from(sk.as_bytes()),
-                    hash: hash,
                 }
             },
             KeySize::Bit256 => {
                 let (pk, sk) = falcon1024::keypair();
-                let hash = Hash::from_bytes(pk.as_bytes());
                 PrivateKey::Falcon1024 {
                     pk: Vec::from(pk.as_bytes()),
                     sk: Vec::from(sk.as_bytes()),
-                    hash: hash,
                 }
             }
         }
@@ -347,16 +391,14 @@ impl PrivateKey
     #[allow(dead_code)]
     pub fn as_public_key(&self) -> PublicKey {
         match &self {
-            PrivateKey::Falcon512 { sk: _, pk, hash } => {
+            PrivateKey::Falcon512 { sk: _, pk } => {
                 PublicKey::Falcon512 {
                     pk: pk.clone(),
-                    hash: hash.clone(),
                 }
             },
-            PrivateKey::Falcon1024 { sk: _, pk, hash } => {
+            PrivateKey::Falcon1024 { sk: _, pk } => {
                 PublicKey::Falcon1024 {
                     pk: pk.clone(),
-                    hash: hash.clone(),
                 }
             },
         }
@@ -365,31 +407,31 @@ impl PrivateKey
     #[allow(dead_code)]
     pub fn hash(&self) -> Hash {
         match &self {
-            PrivateKey::Falcon512 { pk: _, sk: _, hash } => hash.clone(),
-            PrivateKey::Falcon1024 { pk: _, sk: _, hash } => hash.clone(),
+            PrivateKey::Falcon512 { pk, sk: _ } => Hash::from_bytes(&pk[..]),
+            PrivateKey::Falcon1024 { pk, sk: _ } => Hash::from_bytes(&pk[..]),
         }
     }
 
     #[allow(dead_code)]
     pub fn pk(&self) -> Vec<u8> { 
         match &self {
-            PrivateKey::Falcon512 { pk, sk: _, hash: _ } => pk.clone(),
-            PrivateKey::Falcon1024 { pk, sk: _, hash: _ } => pk.clone(),
+            PrivateKey::Falcon512 { pk, sk: _ } => pk.clone(),
+            PrivateKey::Falcon1024 { pk, sk: _ } => pk.clone(),
         }
     }
 
     #[allow(dead_code)]
     pub fn sk(&self) -> Vec<u8> { 
         match &self {
-            PrivateKey::Falcon512 { pk: _, sk, hash: _ } => sk.clone(),
-            PrivateKey::Falcon1024 { pk: _, sk, hash: _ } => sk.clone(),
+            PrivateKey::Falcon512 { pk: _, sk } => sk.clone(),
+            PrivateKey::Falcon1024 { pk: _, sk } => sk.clone(),
         }
     }
 
     #[allow(dead_code)]
     pub fn sign(&self, data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
         let ret = match &self {
-            PrivateKey::Falcon512 { pk: _, sk, hash: _} => {
+            PrivateKey::Falcon512 { pk: _, sk } => {
                 let sk = match falcon512::SecretKey::from_bytes(&sk[..]) {
                     Ok(sk) => sk,
                     Err(err) => { return Result::Err(std::io::Error::new(ErrorKind::Other, format!("Failed to decode the secret key ({}).", err))); },
@@ -397,7 +439,7 @@ impl PrivateKey
                 let sig = falcon512::detached_sign(data, &sk);
                 Vec::from(sig.as_bytes())
             },
-            PrivateKey::Falcon1024 { pk: _, sk, hash: _} => {
+            PrivateKey::Falcon1024 { pk: _, sk } => {
                 let sk = match falcon1024::SecretKey::from_bytes(&sk[..]) {
                     Ok(sk) => sk,
                     Err(err) => { return Result::Err(std::io::Error::new(ErrorKind::Other, format!("Failed to decode the secret key ({}).", err))); },
@@ -415,11 +457,9 @@ impl PrivateKey
 pub enum PublicKey {
     Falcon512 {
         pk: Vec<u8>,
-        hash: Hash,
     },
     Falcon1024 {
         pk: Vec<u8>,
-        hash: Hash,
     }
 }
 
@@ -428,42 +468,30 @@ impl PublicKey
     #[allow(dead_code)]
     pub fn pk(&self) -> Vec<u8> { 
         match &self {
-            PublicKey::Falcon512 { pk, hash: _ } => pk.clone(),
-            PublicKey::Falcon1024 { pk, hash: _ } => pk.clone(),
+            PublicKey::Falcon512 { pk } => pk.clone(),
+            PublicKey::Falcon1024 { pk } => pk.clone(),
         }
     }
 
     #[allow(dead_code)]
     pub fn hash(&self) -> Hash {
         match &self {
-            PublicKey::Falcon512 { pk: _, hash } => hash.clone(),
-            PublicKey::Falcon1024 { pk: _, hash } => hash.clone(),
+            PublicKey::Falcon512 { pk } => Hash::from_bytes(&pk[..]),
+            PublicKey::Falcon1024 { pk } => Hash::from_bytes(&pk[..]),
         }
     }
     
     #[allow(dead_code)]
-    pub fn verify(&self, data: &[u8], sig: &[u8]) -> Result<bool, std::io::Error> {
+    pub fn verify(&self, data: &[u8], sig: &[u8]) -> Result<bool, pqcrypto_traits::Error> {
         let ret = match &self {
-            PublicKey::Falcon512 { pk, hash: _ } => {
-                let pk = match falcon512::PublicKey::from_bytes(&pk[..]) {
-                    Ok(pk) => pk,
-                    Err(err) => { return Result::Err(std::io::Error::new(ErrorKind::Other, format!("Failed to decode the public key ({}).", err))); },
-                };
-                let sig = match falcon512::DetachedSignature::from_bytes(sig) {
-                    Ok(sig) => sig,
-                    Err(err) => { return Result::Err(std::io::Error::new(ErrorKind::Other, format!("Failed to verify the signature on data ({}).", err))); },
-                };
+            PublicKey::Falcon512 { pk } => {
+                let pk = falcon512::PublicKey::from_bytes(&pk[..])?;
+                let sig = falcon512::DetachedSignature::from_bytes(sig)?;
                 falcon512::verify_detached_signature(&sig, data, &pk).is_ok()
             },
-            PublicKey::Falcon1024 { pk, hash: _ } => {
-                let pk = match falcon1024::PublicKey::from_bytes(&pk[..]) {
-                    Ok(pk) => pk,
-                    Err(err) => { return Result::Err(std::io::Error::new(ErrorKind::Other, format!("Failed to decode the public key ({}).", err))); },
-                };
-                let sig = match falcon1024::DetachedSignature::from_bytes(sig) {
-                    Ok(sig) => sig,
-                    Err(err) => { return Result::Err(std::io::Error::new(ErrorKind::Other, format!("Failed to verify the signature on data ({}).", err))); },
-                };
+            PublicKey::Falcon1024 { pk } => {
+                let pk = falcon1024::PublicKey::from_bytes(&pk[..])?;
+                let sig = falcon1024::DetachedSignature::from_bytes(sig)?;
                 falcon1024::verify_detached_signature(&sig, data, &pk).is_ok()
             }
         };
@@ -472,9 +500,10 @@ impl PublicKey
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub struct EncryptedPrivateKey {
     pk: PublicKey,
-    sk_iv: Vec<u8>,
+    sk_iv: InitializationVector,
     sk_encrypted: Vec<u8>
 }
 
@@ -482,13 +511,13 @@ impl EncryptedPrivateKey
 {
     #[allow(dead_code)]
     pub fn generate(encrypt_key: &EncryptKey) -> Result<EncryptedPrivateKey, std::io::Error> {
-        let k = PrivateKey::generate(encrypt_key.size());
-        let sk = k.sk();
+        let pair = PrivateKey::generate(encrypt_key.size());
+        let sk = pair.sk();
         let sk = encrypt_key.encrypt(&sk[..])?;
-
+        
         Ok(
             EncryptedPrivateKey {
-                pk: k.as_public_key(),
+                pk: pair.as_public_key(),
                 sk_iv: sk.iv,
                 sk_encrypted: sk.data,
             }
@@ -497,23 +526,21 @@ impl EncryptedPrivateKey
 
     #[allow(dead_code)]
     pub fn as_private_key(&self, key: &EncryptKey) -> Result<PrivateKey, std::io::Error> {
-        let data = key.decrypt(&self.sk_iv[..], &self.sk_encrypted[..])?;
+        let data = key.decrypt(&self.sk_iv, &self.sk_encrypted[..])?;
         match &self.pk {
-            PublicKey::Falcon512 { pk, hash } => {
+            PublicKey::Falcon512 { pk } => {
                 Ok(
                     PrivateKey::Falcon512 {
                         pk: pk.clone(),
                         sk: data,
-                        hash: hash.clone(),
                     }
                 )
             },
-            PublicKey::Falcon1024{ pk, hash } => {
+            PublicKey::Falcon1024{ pk } => {
                 Ok(
                     PrivateKey::Falcon1024 {
                         pk: pk.clone(),
                         sk: data,
-                        hash: hash.clone(),
                     }
                 )
             },
@@ -526,8 +553,44 @@ impl EncryptedPrivateKey
     }
 
     #[allow(dead_code)]
-    pub fn hash(&self) -> Hash {
+    pub fn pk_hash(&self) -> Hash {
         self.pk.hash()
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
+pub struct EncryptedEncryptKey {
+    ek_hash: Hash,
+    ek_iv: InitializationVector,
+    ek_encrypted: Vec<u8>,
+}
+
+impl EncryptedEncryptKey
+{
+    #[allow(dead_code)]
+    pub fn generate(encrypt_key: &EncryptKey) -> Result<EncryptedEncryptKey, std::io::Error> {
+        let ek = EncryptKey::generate(encrypt_key.size());
+        let ek_hash = ek.hash();
+        let ek_encrypted = encrypt_key.encrypt(&ek.as_bytes()[..])?;
+
+        Ok(
+            EncryptedEncryptKey {
+                ek_hash: ek_hash,
+                ek_iv: ek_encrypted.iv,
+                ek_encrypted: ek_encrypted.data,
+            }
+        )
+    }
+
+    #[allow(dead_code)]
+    pub fn inner(&self, key: &EncryptKey) -> Result<EncryptKey, std::io::Error> {
+        let data = key.decrypt(&self.ek_iv, &self.ek_encrypted[..])?;
+        EncryptKey::from_bytes(&data[..])
+    }
+
+    #[allow(dead_code)]
+    pub fn hash(&self) -> Hash {
+        self.ek_hash
     }
 }
 

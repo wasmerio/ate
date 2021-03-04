@@ -5,26 +5,23 @@ use super::crypto::*;
 
 #[allow(dead_code)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
-enum CoreSession
+pub enum SessionProperty
 {
     None,
-    Secret
-    {
-        id: u64,
-        key: EncryptKey,
-    }
+    ReadKey(EncryptKey),
+    WriteKey(EncryptKey),
+    Identity(String),
 }
 
-impl Default for CoreSession {
+impl Default for SessionProperty {
     fn default() -> Self {
-        CoreSession::None
+        SessionProperty::None
     }
 }
 
 #[allow(dead_code)]
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
-struct Session<S>
+pub struct Session
 {
-    pub core: Vec<CoreSession>,
-    pub other: S,
+    pub properties: Vec<SessionProperty>,
 }

@@ -1,7 +1,8 @@
 use super::meta::*;
 use super::crypto::*;
 use super::event::*;
-use tokio::io::Result;
+use super::signature::MetaSignature;
+use super::crypto::Hash;
 
 #[derive(Debug)]
 pub enum ValidationResult {
@@ -15,8 +16,8 @@ pub enum ValidationResult {
 pub struct ValidationData<'a, M>
 where M: OtherMetadata
 {
-    pub meta: &'a Metadata<M>,
-    pub data_hash: Option<super::crypto::Hash>,
+    pub meta: &'a MetadataExt<M>,
+    pub data_hash: Option<Hash>,
 }
 
 impl<'a, M> ValidationData<'a, M>
@@ -40,8 +41,8 @@ where M: OtherMetadata
 pub trait EventValidator<M>
 where M: OtherMetadata
 {
-    fn validate(&self, _evt: &ValidationData<M>) -> Result<ValidationResult> {
-        Ok(ValidationResult::Abstain)
+    fn validate(&self, _validation_data: &ValidationData<M>) -> ValidationResult {
+        ValidationResult::Abstain
     }
 }
 
@@ -54,9 +55,9 @@ for RubberStampValidator
 where M: OtherMetadata
 {
     #[allow(unused_variables)]
-    fn validate(&self, _evt: &ValidationData<M>) -> Result<ValidationResult>
+    fn validate(&self, _validation_data: &ValidationData<M>) -> ValidationResult
     {
-        Ok(ValidationResult::Allow)
+        ValidationResult::Allow
     }
 }
 
@@ -80,13 +81,13 @@ for StaticSignatureValidator
 where M: OtherMetadata
 {
     #[allow(unused_variables)]
-    fn validate(&self, _evt: &ValidationData<M>) -> Result<ValidationResult>
+    fn validate(&self, _validation_data: &ValidationData<M>) -> ValidationResult
     {
-        Ok(ValidationResult::Allow)
+        ValidationResult::Allow
     }
 }
 
-impl<M> Metadata<M>
+impl<M> MetadataExt<M>
 where M: OtherMetadata
 {
     #[allow(dead_code)]

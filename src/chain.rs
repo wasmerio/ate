@@ -1,9 +1,8 @@
 use fxhash::FxHashMap;
+use tokio::{sync::RwLockReadGuard, sync::RwLockWriteGuard};
+
 #[allow(unused_imports)]
-use tokio::io::Error;
-#[allow(unused_imports)]
-use tokio::io::ErrorKind;
-use tokio::{io::Result, sync::RwLockReadGuard, sync::RwLockWriteGuard};
+use crate::session::{Session, SessionProperty};
 
 #[allow(unused_imports)]
 use super::crypto::*;
@@ -12,6 +11,7 @@ use super::lint::*;
 use super::transform::*;
 use super::plugin::*;
 use super::meta::*;
+use super::error::*;
 
 #[allow(unused_imports)]
 use super::conf::*;
@@ -21,6 +21,8 @@ use super::validator::*;
 #[allow(unused_imports)]
 use super::event::*;
 use super::index::*;
+#[allow(unused_imports)]
+use super::lint::*;
 #[allow(unused_imports)]
 use std::sync::Arc;
 #[allow(unused_imports)]
@@ -37,13 +39,15 @@ use bytes::Bytes;
 
 #[allow(unused_imports)]
 use super::event::Event;
+#[allow(unused_imports)]
+use super::crypto::Hash;
 
 #[allow(dead_code)]
-type ChainOfTrust = ChainOfTrustExt<EmptyMetadata>;
+type ChainOfTrust = ChainOfTrustExt<NoAdditionalMetadata>;
 #[allow(dead_code)]
-type ChainAccessor = ChainAccessorExt<EmptyMetadata>;
+type ChainAccessor = ChainAccessorExt<NoAdditionalMetadata>;
 #[allow(dead_code)]
-type ChainOfTrustBuilder = ChainOfTrustBuilderExt<EmptyMetadata>;
+type ChainOfTrustBuilder = ChainOfTrustBuilderExt<NoAdditionalMetadata>;
 
 #[allow(dead_code)]
 #[derive(Default, Clone)]
@@ -71,7 +75,7 @@ impl ChainKey {
 
 #[allow(dead_code)]
 pub struct ChainOfTrustExt<M>
-where M: OtherMetadata
+where M: OtherMetadata,
 {
     key: ChainKey,
     redo: RedoLog,
@@ -87,7 +91,7 @@ where M: OtherMetadata
 }
 
 impl<'a, M> ChainOfTrustExt<M>
-where M: OtherMetadata
+where M: OtherMetadata,
 {
     #[allow(dead_code)]
     pub fn new(
@@ -95,7 +99,7 @@ where M: OtherMetadata
         cfg: &impl ConfigStorage,
         key: &ChainKey,
         truncate: bool
-    ) -> Result<ChainOfTrustExt<M>>
+    ) -> Result<ChainOfTrustExt<M>, ChainCreationError>
     {
         let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
         runtime.block_on(async {
@@ -127,28 +131,39 @@ where M: OtherMetadata
     }
 
     #[allow(dead_code)]
-    fn metadata_trim(&self, meta: &mut Metadata<M>) -> Result<()> {
+    fn metadata_trim(&self, meta: &mut MetadataExt<M>) {
         for plugin in self.plugins.iter().rev() {
             plugin.metadata_trim(meta);
         }
         for linter in self.linters.iter().rev() {
             linter.metadata_trim(meta);
         }
-        Ok(()) 
     }
 
     #[allow(dead_code)]
-    fn metadata_lint(&self, meta: &mut Metadata<M>) {
+    fn metadata_lint_many(&self, data_hashes: &Vec<Hash>, session: &Session) -> Result<Vec<CoreMetadata>, std::io::Error> {
+        let mut ret = Vec::new();
         for linter in self.linters.iter() {
-            linter.metadata_lint(meta);
+            ret.extend(linter.metadata_lint_many(data_hashes, session)?);
         }
         for plugin in self.plugins.iter() {
-            plugin.metadata_lint(meta);
+            ret.extend(plugin.metadata_lint_many(data_hashes, session)?);
+        }
+        Ok(ret)
+    }
+
+    #[allow(dead_code)]
+    fn metadata_lint_event(&self, data_hash: &Option<Hash>, meta: &mut MetadataExt<M>, session: &Session) {
+        for linter in self.linters.iter() {
+            linter.metadata_lint_event(data_hash, meta, session);
+        }
+        for plugin in self.plugins.iter() {
+            plugin.metadata_lint_event(data_hash, meta, session);
         }
     }
 
     #[allow(dead_code)]
-    fn data_as_overlay(&self, meta: &mut Metadata<M>, data: Bytes) -> Result<Bytes> {
+    fn data_as_overlay(&self, meta: &mut MetadataExt<M>, data: Bytes) -> Result<Bytes, TransformError> {
         let mut ret = data;
         for plugin in self.plugins.iter().rev() {
             ret = plugin.data_as_overlay(meta, ret)?;
@@ -156,11 +171,11 @@ where M: OtherMetadata
         for transformer in self.transformers.iter().rev() {
             ret = transformer.data_as_overlay(meta, ret)?;
         }
-        Ok(ret) 
+        Ok(ret)
     }
 
     #[allow(dead_code)]
-    fn data_as_underlay(&self, meta: &mut Metadata<M>, data: Bytes) -> Result<Bytes> {
+    fn data_as_underlay(&self, meta: &mut MetadataExt<M>, data: Bytes) -> Result<Bytes, TransformError> {
         let mut ret = data;
         for transformer in self.transformers.iter() {
             ret = transformer.data_as_underlay(meta, ret)?;
@@ -171,19 +186,19 @@ where M: OtherMetadata
         Ok(ret)
     }
 
-    fn validate_event(&self, data: &ValidationData<M>) -> Result<bool>
+    fn validate_event(&self, data: &ValidationData<M>) -> bool
     {
         let mut is_allow = false;
         let mut is_deny = false;
         for validator in self.validators.iter() {
-            match validator.validate(data)? {
+            match validator.validate(data) {
                 ValidationResult::Allow => is_allow = true,
                 ValidationResult::Deny => is_deny = true,
                 _ => {}
             }
         }
         for plugin in self.plugins.iter() {
-            match plugin.validate(data)? {
+            match plugin.validate(data) {
                 ValidationResult::Allow => is_allow = true,
                 ValidationResult::Deny => is_deny = true,
                 _ => {}
@@ -191,21 +206,21 @@ where M: OtherMetadata
         }
 
         if is_deny == true || is_allow == false {
-            return Ok(false);
+            return false;
         }
-        Ok(true)
+        true
     }
 
     #[allow(dead_code)]
-    async fn feed(&mut self, evts: Vec<Event<M>>) -> Result<()>
+    async fn feed(&mut self, evts: Vec<Event<M>>) -> Result<(), FeedError>
     {
         for evt in evts.iter() {
-            self.metadata_feed(&evt.meta);
+            self.metadata_feed(&evt.body_hash, &evt.meta)?;
         }
 
         for evt in evts {
             let validation_data = ValidationData::from_event(&evt);
-            if self.validate_event(&validation_data)? == false { continue; }
+            if self.validate_event(&validation_data) == false { continue; }
 
             let evt_data = evt.to_event_data();
             let pointer = self.redo.write(evt_data.meta, evt_data.body).await?;
@@ -218,10 +233,10 @@ where M: OtherMetadata
             
             self.pointers.feed(&entry);
             for indexer in self.indexers.iter_mut() {
-                indexer.feed(&entry.meta);
+                indexer.feed(&evt.body_hash, &entry.meta)?;
             }
 
-            self.metadata_trim(&mut entry.meta)?;
+            self.metadata_trim(&mut entry.meta);
 
             self.chain.push(entry);
         }
@@ -229,40 +244,51 @@ where M: OtherMetadata
     }
 
     #[allow(dead_code)]
-    fn metadata_feed(&mut self, meta: &Metadata<M>)
+    fn metadata_feed(&mut self, data_hash: &Option<Hash>, meta: &MetadataExt<M>) -> Result<(), SinkError>
     {
         for indexer in self.indexers.iter_mut() {
-            indexer.feed(meta);
+            indexer.feed(data_hash, meta)?;
         }
+        Ok(())
     }
 
     #[allow(dead_code)]
-    fn process(&mut self, entries: Vec<EventEntry<M>>) -> Result<()>
+    fn process(&mut self, entries: Vec<EventEntry<M>>) -> Result<(), ProcessError>
     {
+        let mut ret = ProcessError::default();
+
         for entry in entries.iter() {
-            self.metadata_feed(&entry.meta);
+            match self.metadata_feed(&entry.data_hash, &entry.meta) {
+                Err(err) => ret.sink_errors.push(err),
+                _ => {}
+            }
         }
 
         for mut entry in entries
         {
             let validation_data = ValidationData::from_event_entry(&entry);
-            if self.validate_event(&validation_data)? == false { continue; }
+            if self.validate_event(&validation_data) == false { continue; }
 
             self.pointers.feed(&entry);
-            for indexer in self.indexers.iter_mut() {
-                indexer.feed(&entry.meta);
+            for indexer in self.indexers.iter_mut()
+            {
+                match indexer.feed(&entry.data_hash, &entry.meta) {
+                    Err(err) => ret.sink_errors.push(err),
+                    _ => {}
+                }
             }
 
-            self.metadata_trim(&mut entry.meta)?;
+            self.metadata_trim(&mut entry.meta);
 
             self.chain.push(entry);
         }
-        Ok(())
+
+        ret.as_result()
     }
 
-    async fn load(&self, entry: &EventEntry<M>) -> Result<Event<M>> {
+    async fn load(&self, entry: &EventEntry<M>) -> Result<Event<M>, LoadError> {
         match self.redo.load(&entry.pointer).await? {
-            None => Result::Err(Error::new(ErrorKind::Other, format!("Could not find data object at location {:?}", entry.pointer))),
+            None => Result::Err(LoadError::NotFound),
             Some(evt) => {
                 Ok(
                     Event {
@@ -281,12 +307,12 @@ where M: OtherMetadata
         self.pointers.lookup(key)
     }
 
-    async fn flush(&mut self) -> Result<()> {
+    async fn flush(&mut self) -> Result<(), tokio::io::Error> {
         self.redo.flush().await
     }
 
     #[allow(dead_code)]
-    async fn destroy(&mut self) -> Result<()> {
+    async fn destroy(&mut self) -> Result<(), tokio::io::Error> {
         self.redo.destroy()
     }
 
@@ -321,13 +347,14 @@ where M: OtherMetadata,
     }
 
     #[allow(dead_code)]
-    pub fn feed(&mut self, evts: Vec<Event<M>>) -> Result<()> {
+    pub fn feed(&mut self, evts: Vec<Event<M>>) -> Result<(), FeedError> {
         let runtime = self.runtime.clone();
-        runtime.block_on(self.lock.feed(evts))
+        runtime.block_on(self.lock.feed(evts))?;
+        Ok(())
     }
 
     #[allow(dead_code)]
-    pub async fn feed_async(&mut self, evts: Vec<Event<M>>) -> Result<()> {
+    pub async fn feed_async(&mut self, evts: Vec<Event<M>>) -> Result<(), FeedError> {
         self.lock.feed(evts).await
     }
 
@@ -336,23 +363,23 @@ where M: OtherMetadata,
         self.lock.redo.count()
     }
 
-    fn flush(&mut self) -> Result<()> {
+    fn flush(&mut self) -> Result<(), tokio::io::Error> {
         let runtime = self.runtime.clone();
         runtime.block_on(self.flush_async(runtime.clone()))
     }
 
-    async fn flush_async(&mut self, _runtime: Rc<Runtime>) -> Result<()> {
+    async fn flush_async(&mut self, _runtime: Rc<Runtime>) -> Result<(), tokio::io::Error> {
         self.lock.flush().await
     }
 
     #[allow(dead_code)]
-    pub fn destroy(&mut self) -> Result<()> {
+    pub fn destroy(&mut self) -> Result<(), tokio::io::Error> {
         let runtime = self.runtime.clone();
         runtime.block_on(self.destroy_async())
     }
 
     #[allow(dead_code)]
-    async fn destroy_async(&mut self) -> Result<()> {
+    async fn destroy_async(&mut self) -> Result<(), tokio::io::Error> {
         self.lock.destroy().await
     }
 
@@ -394,7 +421,7 @@ where M: OtherMetadata,
         cfg: &impl ConfigStorage,
         key: &ChainKey,
         truncate: bool
-    ) -> Result<ChainAccessorExt<M>>
+    ) -> Result<ChainAccessorExt<M>, ChainCreationError>
     {
         let chain = ChainOfTrustExt::new(builder, cfg, key, truncate)?;
         Ok(
@@ -444,7 +471,7 @@ where M: OtherMetadata,
     }
 
     #[allow(dead_code)]
-    pub fn compact(&mut self) -> Result<()> {
+    pub fn compact(&mut self) -> Result<(), CompactError> {
         let runtime = Self::create_runtime();
         runtime.block_on(self.compact_async(runtime.clone()))
     }
@@ -455,7 +482,7 @@ where M: OtherMetadata,
     }
 
     #[allow(dead_code)]
-    pub async fn compact_async(&mut self, runtime: Rc<Runtime>) -> Result<()>
+    pub async fn compact_async(&mut self, runtime: Rc<Runtime>) -> Result<(), CompactError>
     {
         // prepare
         let mut new_pointers = BinaryTreeIndexer::default();
@@ -520,10 +547,10 @@ where M: OtherMetadata,
                         keepers.push(entry);
                         new_pointers.feed(entry);
                         for new_indexer in new_indexers.iter_mut() {
-                            new_indexer.feed(&entry.meta);
+                            new_indexer.feed(&entry.data_hash, &entry.meta)?;
                         }
                         for new_plugin in new_plugins.iter_mut() {
-                            new_plugin.feed(&entry.meta);
+                            new_plugin.feed(&entry.data_hash, &entry.meta)?;
                         }
                     }
                 }
@@ -582,13 +609,13 @@ where M: OtherMetadata,
     }
  
     #[allow(dead_code)]
-    pub fn load(&self, entry: &EventEntry<M>) -> Result<Event<M>> {
+    pub fn load(&self, entry: &EventEntry<M>) -> Result<Event<M>, LoadError> {
         let runtime = self.runtime.clone();
         runtime.block_on(self.lock.load(entry))
     }
  
     #[allow(dead_code)]
-    pub async fn load_async(&self, entry: &EventEntry<M>) -> Result<Event<M>> {
+    pub async fn load_async(&self, entry: &EventEntry<M>) -> Result<Event<M>, LoadError> {
         self.lock.load(entry).await
     }
 
@@ -598,22 +625,27 @@ where M: OtherMetadata,
     }
 
     #[allow(dead_code)]
-    pub fn metadata_trim(&self, meta: &mut Metadata<M>) -> Result<()> {
+    pub fn metadata_trim(&self, meta: &mut MetadataExt<M>) {
         self.lock.metadata_trim(meta)
     }
 
     #[allow(dead_code)]
-    pub fn metadata_lint(&self, meta: &mut Metadata<M>) {
-        self.lock.metadata_lint(meta)
+    pub fn metadata_lint_many(&self, data_hashes: &Vec<Hash>, session: &Session) -> Result<Vec<CoreMetadata>, std::io::Error> {
+        self.lock.metadata_lint_many(data_hashes, session)
     }
 
     #[allow(dead_code)]
-    pub fn data_as_overlay(&self, meta: &mut Metadata<M>, data: Bytes) -> Result<Bytes> {
+    pub fn metadata_lint_event(&self, data_hash: &Option<Hash>, meta: &mut MetadataExt<M>, session: &Session) {
+        self.lock.metadata_lint_event(data_hash, meta, session)
+    }
+
+    #[allow(dead_code)]
+    pub fn data_as_overlay(&self, meta: &mut MetadataExt<M>, data: Bytes) -> Result<Bytes, TransformError> {
         self.lock.data_as_overlay(meta, data)
     }
 
     #[allow(dead_code)]
-    pub fn data_as_underlay(&self, meta: &mut Metadata<M>, data: Bytes) -> Result<Bytes> {
+    pub fn data_as_underlay(&self, meta: &mut MetadataExt<M>, data: Bytes) -> Result<Bytes, TransformError> {
         self.lock.data_as_underlay(meta, data)
     }
 }
@@ -633,7 +665,8 @@ pub fn create_test_chain(chain_name: String, temp: bool) ->
 
     let builder = ChainOfTrustBuilder::default()
         .add_validator(Box::new(RubberStampValidator::default()))
-        .add_data_transformer(Box::new(StaticEncryptionTransformer::new(&EncryptKey::from_string("test".to_string(), KeySize::Bit192))));
+        .add_data_transformer(Box::new(StaticEncryptionTransformer::new(&EncryptKey::from_string("test".to_string(), KeySize::Bit192))))
+        .add_metadata_linter(Box::new(EventAuthorLinter::default()));
     
     ChainAccessor::new(
         builder,
@@ -733,9 +766,8 @@ pub fn test_chain() {
         assert_eq!(1, chain.single().redo_count());
     }
 
-    // Reload the chain from disk and check its integrity
-
     {
+        // Reload the chain from disk and check its integrity
         let mut chain = create_test_chain(chain_name, false);
 
         {

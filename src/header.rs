@@ -48,13 +48,11 @@ impl PrimaryKey {
     }
 }
 
-
-
-impl<M> Metadata<M>
+impl<M> MetadataExt<M>
 where M: Default
 {
-    pub fn for_data(key: PrimaryKey) -> Metadata<M> {
-        let mut ret = Metadata::default();
+    pub fn for_data(key: PrimaryKey) -> MetadataExt<M> {
+        let mut ret = MetadataExt::default();
         ret.core.push(CoreMetadata::Data(key));
         return ret;
     }

@@ -11,7 +11,7 @@ use super::redo::LogFilePointer;
 pub struct Event<M>
 where M: OtherMetadata
 {
-    pub meta: Metadata<M>,
+    pub meta: MetadataExt<M>,
     pub body_hash: Option<super::crypto::Hash>,
     pub body: Option<Bytes>,
 }
@@ -28,7 +28,7 @@ pub struct EventData
 pub struct EventEntry<M>
 where M: OtherMetadata
 {
-    pub meta: Metadata<M>,
+    pub meta: MetadataExt<M>,
     pub data_hash: Option<super::crypto::Hash>,
     pub pointer: LogFilePointer,
 }
@@ -70,7 +70,7 @@ where M: OtherMetadata
     pub fn new(key: PrimaryKey, body: Bytes) -> Event<M> {
         
         Event {
-            meta: Metadata::for_data(key),
+            meta: MetadataExt::for_data(key),
             body_hash: Some(super::crypto::Hash::from_bytes(&body[..])),
             body: Some(body),
         }

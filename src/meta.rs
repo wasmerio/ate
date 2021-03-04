@@ -1,6 +1,7 @@
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use super::crypto::*;
 use super::header::*;
+use super::signature::MetaSignature;
 
 pub trait OtherMetadata
 where Self: Serialize + DeserializeOwned + std::fmt::Debug + Default + Clone + Sized
@@ -24,45 +25,17 @@ pub struct MetaTree
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct MetaDigest
-{
-    pub seed: Vec<u8>,
-    pub digest: Hash,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct MetaPublicKey
-{
-    pub public_key: PublicKey,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct MetaSignature
-{
-    pub digests: Vec<Hash>,
-    pub signature: Vec<u8>,
-    pub public_key_hash: Hash,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct MetaInitializationVector
-{
-    pub iv: [u8; 16],
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum CoreMetadata
 {
     None,
     Data(PrimaryKey),
-    Encrypted(EncryptKey),
-    EncryptedWith(PrimaryKey),
     Tombstone(PrimaryKey),
-    InitializationVector(MetaInitializationVector),
     Authorization(MetaAuthorization),
-    PublicKey(MetaPublicKey),
+    InitializationVector(InitializationVector),
+    PublicKey(PublicKey),
+    EncryptedPrivateKey(EncryptedPrivateKey),
+    EncyptedEncryptionKey(EncryptKey),
     Tree(MetaTree),
-    Digest(MetaDigest),
     Signature(MetaSignature),
     Author(String),
 }
@@ -74,15 +47,15 @@ impl Default for CoreMetadata {
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
-pub struct EmptyMetadata { }
-impl OtherMetadata for EmptyMetadata { }
+pub struct NoAdditionalMetadata { }
+impl OtherMetadata for NoAdditionalMetadata { }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
-pub struct Metadata<M>
+pub struct MetadataExt<M>
 {
     pub core: Vec<CoreMetadata>,
     pub other: M,
 }
 
 #[allow(dead_code)]
-pub type DefaultMetadata = Metadata<EmptyMetadata>;
+pub type DefaultMetadata = MetadataExt<NoAdditionalMetadata>;

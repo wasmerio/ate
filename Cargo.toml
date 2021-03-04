@@ -40,6 +40,8 @@ once_cell = "*"
 pqcrypto-falcon = "*"
 pqcrypto-traits = "*"
 sha3 = "*"
+multimap = "*"
+hex = "*"
 
 [dev-dependencies]
 ctor = "*"

@@ -1,6 +1,6 @@
+use super::error::*;
 use super::meta::*;
 use super::crypto::*;
-use tokio::io::Result;
 use snap::read::FrameDecoder;
 use snap::read::FrameEncoder;
 use bytes::{Bytes, Buf};
@@ -11,12 +11,12 @@ pub trait EventDataTransformer<M>
 where M: OtherMetadata
 {
     /// Callback when data is stored in the event 
-    fn data_as_underlay(&self, _meta: &mut Metadata<M>, with: Bytes) -> Result<Bytes> {
+    fn data_as_underlay(&self, _meta: &mut MetadataExt<M>, with: Bytes) -> Result<Bytes, TransformError> {
         Ok(with)
     }
 
     /// Callback before data in an event is actually used by an actual user
-    fn data_as_overlay(&self, _meta: &mut Metadata<M>, with: Bytes) -> Result<Bytes> {
+    fn data_as_overlay(&self, _meta: &mut MetadataExt<M>, with: Bytes) -> Result<Bytes, TransformError> {
         Ok(with)
     }
 }
@@ -31,7 +31,7 @@ for CompressorWithSnapTransformer
 where M: OtherMetadata,
 {
     #[allow(unused_variables)]
-    fn data_as_underlay(&self, meta: &mut Metadata<M>, with: Bytes) -> Result<Bytes> {
+    fn data_as_underlay(&self, meta: &mut MetadataExt<M>, with: Bytes) -> Result<Bytes, TransformError> {
         let mut reader = FrameEncoder::new(with.reader());
         let mut compressed = Vec::new();
         std::io::copy(&mut reader, &mut compressed)?;
@@ -39,7 +39,7 @@ where M: OtherMetadata,
     }
 
     #[allow(unused_variables)]
-    fn data_as_overlay(&self, meta: &mut Metadata<M>, with: Bytes) -> Result<Bytes> {
+    fn data_as_overlay(&self, meta: &mut MetadataExt<M>, with: Bytes) -> Result<Bytes, TransformError> {
         let mut reader = FrameDecoder::new(with.reader());
         let mut decompressed = Vec::new();
         std::io::copy(&mut reader, &mut decompressed)?;
@@ -68,18 +68,18 @@ for StaticEncryptionTransformer
 where M: OtherMetadata,
 {
     #[allow(unused_variables)]
-    fn data_as_underlay(&self, meta: &mut Metadata<M>, with: Bytes) -> Result<Bytes>
+    fn data_as_underlay(&self, meta: &mut MetadataExt<M>, with: Bytes) -> Result<Bytes, TransformError>
     {
         let iv = meta.generate_iv();
-        let encrypted = self.key.encrypt_with_iv(&iv[..], &with[..])?;
+        let encrypted = self.key.encrypt_with_iv(&iv, &with[..])?;
         Ok(Bytes::from(encrypted))
     }
 
     #[allow(unused_variables)]
-    fn data_as_overlay(&self, meta: &mut Metadata<M>, with: Bytes) -> Result<Bytes>
+    fn data_as_overlay(&self, meta: &mut MetadataExt<M>, with: Bytes) -> Result<Bytes, TransformError>
     {
         let iv = meta.get_iv()?;
-        let decrypted = self.key.decrypt(&iv[..], &with[..])?;
+        let decrypted = self.key.decrypt(&iv, &with[..])?;
         Ok(Bytes::from(decrypted))
     }
 }
