@@ -23,7 +23,7 @@ where M: OtherMetadata
     }
 
     // Decision making time - in order of back to front we now decide if we keep or drop an event
-    fn relevance(&mut self, _evt: &EventEntry<M>) -> EventRelevance {
+    fn relevance(&mut self, _evt: &EventEntryExt<M>) -> EventRelevance {
         EventRelevance::Abstain
     }
 }
@@ -42,7 +42,7 @@ where M: OtherMetadata
         Box::new(RemoveDuplicatesCompactor::default())
     }
     
-    fn relevance(&mut self, header: &EventEntry<M>) -> EventRelevance
+    fn relevance(&mut self, header: &EventEntryExt<M>) -> EventRelevance
     {
         let key = match header.meta.get_data_key() {
             Some(key) => key,
@@ -72,7 +72,7 @@ where M: OtherMetadata
         Box::new(TombstoneCompactor::default())
     }
     
-    fn relevance(&mut self, header: &EventEntry<M>) -> EventRelevance
+    fn relevance(&mut self, header: &EventEntryExt<M>) -> EventRelevance
     {
         match header.meta.get_tombstone() {
             Some(key) => {
@@ -139,7 +139,7 @@ where M: OtherMetadata
         Box::new(IndecisiveCompactor::default())
     }
     
-    fn relevance(&mut self, _: &EventEntry<M>) -> EventRelevance
+    fn relevance(&mut self, _: &EventEntryExt<M>) -> EventRelevance
     {
         EventRelevance::Abstain
     }

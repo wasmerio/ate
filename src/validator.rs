@@ -23,17 +23,17 @@ where M: OtherMetadata
 impl<'a, M> ValidationData<'a, M>
 where M: OtherMetadata
 {
-    pub fn from_event_entry(evt: &'a EventEntry<M>) -> ValidationData<'a, M> {
+    pub fn from_event_entry(evt: &'a EventEntryExt<M>) -> ValidationData<'a, M> {
         ValidationData {
             meta: &evt.meta,
             data_hash: evt.data_hash.clone(),
         }
     }
 
-    pub fn from_event(evt: &'a Event<M>) -> ValidationData<'a, M> {
+    pub fn from_event(evt: &'a EventRaw<M>) -> ValidationData<'a, M> {
         ValidationData {
             meta: &evt.meta,
-            data_hash: evt.body_hash.clone(),
+            data_hash: evt.data_hash.clone(),
         }
     }
 }

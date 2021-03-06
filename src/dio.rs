@@ -48,17 +48,17 @@ where M: OtherMetadata,
         }
     }
 
-    pub fn from_event(evt: &Event<M>) -> Result<Row<M, D>, EventSerializationError> {
-        let key = match evt.meta.get_data_key() {
+    pub fn from_event(evt: &EventExt<M>) -> Result<Row<M, D>, EventSerializationError> {
+        let key = match evt.raw.meta.get_data_key() {
             Some(key) => key,
             None => { return Result::Err(EventSerializationError::NoPrimarykey) }
         };
-        match &evt.body {
+        match &evt.raw.data {
             Some(data) => {
                 Ok(
                     Row {
                         key: key,
-                        meta: evt.meta.other.clone(),
+                        meta: evt.raw.meta.other.clone(),
                         data: bincode::deserialize(&data)?,
                     }
                 )
@@ -213,7 +213,7 @@ struct DioState<M>
 where M: OtherMetadata,
 {
     dirty: LinkedHashMap<PrimaryKey, Rc<RowData<M>>>,
-    cache: FxHashMap<PrimaryKey, Rc<Event<M>>>,
+    cache: FxHashMap<PrimaryKey, Rc<EventExt<M>>>,
     locked: FxHashSet<PrimaryKey>,
     deleted: FxHashSet<PrimaryKey>,
 }
@@ -322,8 +322,8 @@ where M: OtherMetadata,
         }
 
         let mut evt = multi.load(&entry)?;
-        evt.body = match evt.body {
-            Some(data) => Some(multi.data_as_overlay(&mut evt.meta, data)?),
+        evt.raw.data = match evt.raw.data {
+            Some(data) => Some(multi.data_as_overlay(&mut evt.raw.meta, data)?),
             None => None,
         };
 
@@ -367,10 +367,10 @@ where M: OtherMetadata,
 
                     multi.metadata_lint_event(&Some(data_hash), &mut meta, &self.session);
                     
-                    let evt = Event {
+                    let evt = EventRaw {
                         meta: meta,
-                        body_hash: Some(data_hash),
-                        body: Some(data),
+                        data_hash: Some(data_hash),
+                        data: Some(data),
                     };
                     evts.push(evt);
                 }
@@ -387,13 +387,13 @@ where M: OtherMetadata,
 
                 // If it has data then insert it at the front of these events
                 if meta.len() > 0 {
-                    evts.insert(0, Event {
+                    evts.insert(0, EventRaw {
                         meta: MetadataExt {
                             core: meta,
                             other: M::default(),
                         },
-                        body_hash: None,
-                        body: None,
+                        data_hash: None,
+                        data: None,
                     });
                 }
             }
@@ -402,17 +402,17 @@ where M: OtherMetadata,
             for key in &state.deleted {
                 let mut meta = MetadataExt::default();
                 meta.add_tombstone(key.clone());
-                let evt = Event {
+                let evt = EventRaw {
                     meta: meta,
-                    body_hash: None,
-                    body: None,
+                    data_hash: None,
+                    data: None,
                 };
                 evts.push(evt);
             }
 
             // Process it in the chain of trust
             let mut single = self.accessor.single();
-            single.feed(evts).unwrap();
+            single.event_feed(evts).unwrap();
         }
     }
 }

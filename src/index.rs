@@ -1,27 +1,26 @@
 use std::collections::BTreeMap;
 use fxhash::FxHashMap;
-use super::sink::EventSink;
 
 use crate::redo::LogFilePointer;
 
 use super::event::*;
 use super::header::*;
 use super::meta::*;
+use super::sink::*;
+use super::error::*;
 
 pub trait EventIndexer<M>
 where Self: EventSink<M>,
       M: OtherMetadata
 {
-    fn clone_empty(&self) -> Box<dyn EventIndexer<M>> {
-        Box::new(UselessIndexer::default())
-    }
+    fn rebuild(&mut self, data: &Vec<EventEntryExt<M>>) -> Result<(), SinkError>;
 }
 
 #[derive(Default)]
 pub struct BinaryTreeIndexer<M>
 where M: OtherMetadata
 {
-    events: BTreeMap<PrimaryKey, EventEntry<M>>,
+    events: BTreeMap<PrimaryKey, EventEntryExt<M>>,
 }
 
 impl<M> BinaryTreeIndexer<M>
@@ -38,7 +37,7 @@ where M: OtherMetadata
     }
 
     #[allow(dead_code)]
-    pub fn feed(&mut self, entry: &EventEntry<M>) {
+    pub fn feed(&mut self, entry: &EventEntryExt<M>) {
         for core in entry.meta.core.iter() {
             match core {
                 CoreMetadata::Tombstone(key) => {
@@ -63,7 +62,7 @@ where M: OtherMetadata
         }
     }
 
-    pub fn lookup(&self, key: &PrimaryKey) -> Option<EventEntry<M>> {
+    pub fn lookup(&self, key: &PrimaryKey) -> Option<EventEntryExt<M>> {
         match self.events.get(key) {
             None => None,
             Some(a) => Some(a.clone())
@@ -86,7 +85,8 @@ impl<'a, M> EventIndexer<M>
 for UselessIndexer
 where M: OtherMetadata + 'a
 {
-    fn clone_empty(&self) -> Box<dyn EventIndexer<M>> {
-        Box::new(UselessIndexer::default())
+    fn rebuild<'b>(&mut self, _data: &Vec<EventEntryExt<M>>) -> Result<(), SinkError>
+    {
+        Ok(())
     }
 }

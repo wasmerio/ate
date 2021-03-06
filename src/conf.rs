@@ -1,6 +1,7 @@
-use crate::signature::SignaturePlugin;
+use crate::{chain::ChainAccessorExt, signature::SignaturePlugin};
+use std::sync::Arc;
+use std::sync::RwLock;
 
-use super::chain::ChainOfTrustExt;
 use super::meta::OtherMetadata;
 use super::validator::EventValidator;
 use super::compact::EventCompactor;
@@ -113,11 +114,11 @@ where M: OtherMetadata,
 {
     pub(super) configured_for: ConfiguredFor,
     pub(super) validators: Vec<Box<dyn EventValidator<M>>>,
-    pub(super) indexers: Vec<Box<dyn EventIndexer<M>>>,
     pub(super) compactors: Vec<Box<dyn EventCompactor<M>>>,
     pub(super) linters: Vec<Box<dyn EventMetadataLinter<M>>>,
     pub(super) transformers: Vec<Box<dyn EventDataTransformer<M>>>,
-    pub(super) plugins: Vec<Box<dyn EventPlugin<M>>>,
+    pub(super) indexers: Vec<Arc<RwLock<dyn EventIndexer<M>>>>,
+    pub(super) plugins: Vec<Arc<RwLock<dyn EventPlugin<M>>>>,
 }
 
 impl<M> ChainOfTrustBuilderExt<M>
@@ -158,7 +159,7 @@ where M: OtherMetadata + 'static,
             return self;
         }
 
-        self.plugins.push(Box::new(SignaturePlugin::default()));
+        self.plugins.push(Arc::new(RwLock::new(SignaturePlugin::default())));
 
         match flavour {
             ConfiguredFor::SmallestSize | ConfiguredFor::Balanced => {
@@ -192,13 +193,6 @@ where M: OtherMetadata + 'static,
         self.validators.push(validator);
         self
     }
-
-    #[allow(dead_code)]
-    pub fn add_indexer(mut self, indexer: Box<dyn EventIndexer<M>>) -> Self {
-        self.indexers.push(indexer);
-        self
-    }
-
     #[allow(dead_code)]
     pub fn add_metadata_linter(mut self, linter: Box<dyn EventMetadataLinter<M>>) -> Self {
         self.linters.push(linter);
@@ -212,8 +206,15 @@ where M: OtherMetadata + 'static,
     }
 
     #[allow(dead_code)]
-    pub fn add_plugin(mut self, plugin: Box<dyn EventPlugin<M>>) -> Self {
-        self.plugins.push(plugin);
+    pub fn add_indexer(mut self, indexer: &Arc<RwLock<dyn EventIndexer<M>>>) -> Self {
+        self.indexers.push(indexer.clone());
+        self
+    }
+
+
+    #[allow(dead_code)]
+    pub fn add_plugin(mut self, plugin: &Arc<RwLock<dyn EventPlugin<M>>>) -> Self {
+        self.plugins.push(plugin.clone());
         self
     }
 
@@ -224,9 +225,9 @@ where M: OtherMetadata + 'static,
         cfg: &impl ConfigStorage,
         key: &ChainKey,
         truncate: bool
-    ) -> Result<ChainOfTrustExt<M>, ChainCreationError>
+    ) -> Result<ChainAccessorExt<M>, ChainCreationError>
     {
-        ChainOfTrustExt::new(self, cfg, key, truncate)
+        ChainAccessorExt::new(self, cfg, key, truncate)
     }
 }
 

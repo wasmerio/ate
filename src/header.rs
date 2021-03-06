@@ -2,12 +2,9 @@ use serde::{Serialize, Deserialize};
 
 #[allow(unused_imports)]
 use fastrand::u64;
-use bytes::Bytes;
 use std::{hash::{Hash}, mem::size_of};
 #[allow(unused_imports)]
 use super::meta::*;
-
-use super::redo::LogFilePointer;
 
 #[allow(dead_code)]
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
@@ -84,12 +81,4 @@ where M: Default
         }
         self.core.push(CoreMetadata::Data(key));
     }
-}
-
-#[derive(Debug, Clone)]
-pub struct EventRaw
-{
-    pub meta: Bytes,
-    pub data_hash: Option<super::crypto::Hash>,
-    pub pointer: LogFilePointer,
 }

@@ -1,5 +1,8 @@
 use fxhash::FxHashMap;
 use tokio::{sync::RwLockReadGuard, sync::RwLockWriteGuard};
+use std::sync::RwLock as StdRwLock;
+use std::sync::RwLockReadGuard as StdRwLockReadGuard;
+use std::sync::RwLockWriteGuard as StdRwLockWriteGuard;
 
 #[allow(unused_imports)]
 use crate::session::{Session, SessionProperty};
@@ -38,7 +41,7 @@ use super::conf::ConfigStorage;
 use bytes::Bytes;
 
 #[allow(unused_imports)]
-use super::event::Event;
+use super::event::EventExt;
 #[allow(unused_imports)]
 use super::crypto::Hash;
 
@@ -80,221 +83,36 @@ where M: OtherMetadata,
     key: ChainKey,
     redo: RedoLog,
     configured_for: ConfiguredFor,
-    chain: Vec<EventEntry<M>>,
+    chain: Vec<EventEntryExt<M>>,
     pointers: BinaryTreeIndexer<M>,
     validators: Vec<Box<dyn EventValidator<M>>>,
-    indexers: Vec<Box<dyn EventIndexer<M>>>,
     compactors: Vec<Box<dyn EventCompactor<M>>>,
     linters: Vec<Box<dyn EventMetadataLinter<M>>>,
     transformers: Vec<Box<dyn EventDataTransformer<M>>>,
-    plugins: Vec<Box<dyn EventPlugin<M>>>,
 }
 
 impl<'a, M> ChainOfTrustExt<M>
 where M: OtherMetadata,
 {
     #[allow(dead_code)]
-    pub fn new(
-        builder: ChainOfTrustBuilderExt<M>,
-        cfg: &impl ConfigStorage,
-        key: &ChainKey,
-        truncate: bool
-    ) -> Result<ChainOfTrustExt<M>, ChainCreationError>
-    {
-        let runtime = tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap();
-        runtime.block_on(async {
-            let (redo_log, mut redo_loader) = RedoLog::open(cfg, key, truncate).await?;
-
-            let mut entries: Vec<EventEntry<M>> = Vec::new();
-            while let Some(header) = redo_loader.pop() {
-                entries.push(EventEntry::from_header_data(&header)?);
-            }
-
-            let mut ret = ChainOfTrustExt {
-                key: key.clone(),
-                redo: redo_log,
-                configured_for: builder.configured_for,
-                chain: Vec::new(),
-                pointers: BinaryTreeIndexer::default(),
-                validators: builder.validators,
-                indexers: builder.indexers,
-                compactors: builder.compactors,
-                linters: builder.linters,
-                transformers: builder.transformers,
-                plugins: builder.plugins,
-            };
-
-            ret.process(entries)?;
-
-            Ok(ret)
-        })
-    }
-
-    #[allow(dead_code)]
     fn metadata_trim(&self, meta: &mut MetadataExt<M>) {
-        for plugin in self.plugins.iter().rev() {
-            plugin.metadata_trim(meta);
-        }
         for linter in self.linters.iter().rev() {
             linter.metadata_trim(meta);
         }
     }
 
-    #[allow(dead_code)]
-    fn metadata_lint_many(&self, data_hashes: &Vec<Hash>, session: &Session) -> Result<Vec<CoreMetadata>, std::io::Error> {
-        let mut ret = Vec::new();
-        for linter in self.linters.iter() {
-            ret.extend(linter.metadata_lint_many(data_hashes, session)?);
-        }
-        for plugin in self.plugins.iter() {
-            ret.extend(plugin.metadata_lint_many(data_hashes, session)?);
-        }
-        Ok(ret)
-    }
-
-    #[allow(dead_code)]
-    fn metadata_lint_event(&self, data_hash: &Option<Hash>, meta: &mut MetadataExt<M>, session: &Session) {
-        for linter in self.linters.iter() {
-            linter.metadata_lint_event(data_hash, meta, session);
-        }
-        for plugin in self.plugins.iter() {
-            plugin.metadata_lint_event(data_hash, meta, session);
-        }
-    }
-
-    #[allow(dead_code)]
-    fn data_as_overlay(&self, meta: &mut MetadataExt<M>, data: Bytes) -> Result<Bytes, TransformError> {
-        let mut ret = data;
-        for plugin in self.plugins.iter().rev() {
-            ret = plugin.data_as_overlay(meta, ret)?;
-        }
-        for transformer in self.transformers.iter().rev() {
-            ret = transformer.data_as_overlay(meta, ret)?;
-        }
-        Ok(ret)
-    }
-
-    #[allow(dead_code)]
-    fn data_as_underlay(&self, meta: &mut MetadataExt<M>, data: Bytes) -> Result<Bytes, TransformError> {
-        let mut ret = data;
-        for transformer in self.transformers.iter() {
-            ret = transformer.data_as_underlay(meta, ret)?;
-        }
-        for plugin in self.plugins.iter() {
-            ret = plugin.data_as_underlay(meta, ret)?;
-        }
-        Ok(ret)
-    }
-
-    fn validate_event(&self, data: &ValidationData<M>) -> bool
-    {
-        let mut is_allow = false;
-        let mut is_deny = false;
-        for validator in self.validators.iter() {
-            match validator.validate(data) {
-                ValidationResult::Allow => is_allow = true,
-                ValidationResult::Deny => is_deny = true,
-                _ => {}
-            }
-        }
-        for plugin in self.plugins.iter() {
-            match plugin.validate(data) {
-                ValidationResult::Allow => is_allow = true,
-                ValidationResult::Deny => is_deny = true,
-                _ => {}
-            }
-        }
-
-        if is_deny == true || is_allow == false {
-            return false;
-        }
-        true
-    }
-
-    #[allow(dead_code)]
-    async fn feed(&mut self, evts: Vec<Event<M>>) -> Result<(), FeedError>
-    {
-        for evt in evts.iter() {
-            self.metadata_feed(&evt.body_hash, &evt.meta)?;
-        }
-
-        for evt in evts {
-            let validation_data = ValidationData::from_event(&evt);
-            if self.validate_event(&validation_data) == false { continue; }
-
-            let evt_data = evt.to_event_data();
-            let pointer = self.redo.write(evt_data.meta, evt_data.body).await?;
-
-            let mut entry = EventEntry {
-                meta: evt.meta,
-                data_hash: evt.body_hash,
-                pointer: pointer,
-            };
-            
-            self.pointers.feed(&entry);
-            for indexer in self.indexers.iter_mut() {
-                indexer.feed(&evt.body_hash, &entry.meta)?;
-            }
-
-            self.metadata_trim(&mut entry.meta);
-
-            self.chain.push(entry);
-        }
-        Ok(())
-    }
-
-    #[allow(dead_code)]
-    fn metadata_feed(&mut self, data_hash: &Option<Hash>, meta: &MetadataExt<M>) -> Result<(), SinkError>
-    {
-        for indexer in self.indexers.iter_mut() {
-            indexer.feed(data_hash, meta)?;
-        }
-        Ok(())
-    }
-
-    #[allow(dead_code)]
-    fn process(&mut self, entries: Vec<EventEntry<M>>) -> Result<(), ProcessError>
-    {
-        let mut ret = ProcessError::default();
-
-        for entry in entries.iter() {
-            match self.metadata_feed(&entry.data_hash, &entry.meta) {
-                Err(err) => ret.sink_errors.push(err),
-                _ => {}
-            }
-        }
-
-        for mut entry in entries
-        {
-            let validation_data = ValidationData::from_event_entry(&entry);
-            if self.validate_event(&validation_data) == false { continue; }
-
-            self.pointers.feed(&entry);
-            for indexer in self.indexers.iter_mut()
-            {
-                match indexer.feed(&entry.data_hash, &entry.meta) {
-                    Err(err) => ret.sink_errors.push(err),
-                    _ => {}
-                }
-            }
-
-            self.metadata_trim(&mut entry.meta);
-
-            self.chain.push(entry);
-        }
-
-        ret.as_result()
-    }
-
-    async fn load(&self, entry: &EventEntry<M>) -> Result<Event<M>, LoadError> {
+    async fn load(&self, entry: &EventEntryExt<M>) -> Result<EventExt<M>, LoadError> {
         match self.redo.load(&entry.pointer).await? {
             None => Result::Err(LoadError::NotFound),
             Some(evt) => {
                 Ok(
-                    Event {
-                        meta: entry.meta.clone(),
-                        body_hash: evt.body_hash,
-                        body: evt.body.clone(),
+                    EventExt {
+                        raw: EventRaw {
+                            meta: entry.meta.clone(),
+                            data_hash: evt.data_hash,
+                            data: evt.data.clone(),
+                        },
+                        pointer: entry.pointer.clone(),
                     }
                 )
             }
@@ -302,7 +120,7 @@ where M: OtherMetadata,
     }
 
     #[allow(dead_code)]
-    fn lookup(&self, key: &PrimaryKey) -> Option<EventEntry<M>>
+    fn lookup(&self, key: &PrimaryKey) -> Option<EventEntryExt<M>>
     {
         self.pointers.lookup(key)
     }
@@ -326,90 +144,14 @@ where M: OtherMetadata,
     }
 }
 
-pub struct ChainSingleUserExt<'a, M>
-where M: OtherMetadata,
-{
-    runtime: Rc<tokio::runtime::Runtime>,
-    lock: RwLockWriteGuard<'a, ChainOfTrustExt<M>>,
-    auto_flush: bool,
-}
-
-impl<'a, M> ChainSingleUserExt<'a, M>
-where M: OtherMetadata,
-{
-    pub async fn new(chain: &'a ChainAccessorExt<M>, runtime: Rc<Runtime>, auto_flush: bool) -> ChainSingleUserExt<'a, M>
-    {
-        ChainSingleUserExt {
-            runtime: runtime.clone(),
-            lock: chain.inner.write().await,
-            auto_flush: auto_flush,
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn feed(&mut self, evts: Vec<Event<M>>) -> Result<(), FeedError> {
-        let runtime = self.runtime.clone();
-        runtime.block_on(self.lock.feed(evts))?;
-        Ok(())
-    }
-
-    #[allow(dead_code)]
-    pub async fn feed_async(&mut self, evts: Vec<Event<M>>) -> Result<(), FeedError> {
-        self.lock.feed(evts).await
-    }
-
-    #[allow(dead_code)]
-    fn redo_count(&self) -> usize {
-        self.lock.redo.count()
-    }
-
-    fn flush(&mut self) -> Result<(), tokio::io::Error> {
-        let runtime = self.runtime.clone();
-        runtime.block_on(self.flush_async(runtime.clone()))
-    }
-
-    async fn flush_async(&mut self, _runtime: Rc<Runtime>) -> Result<(), tokio::io::Error> {
-        self.lock.flush().await
-    }
-
-    #[allow(dead_code)]
-    pub fn destroy(&mut self) -> Result<(), tokio::io::Error> {
-        let runtime = self.runtime.clone();
-        runtime.block_on(self.destroy_async())
-    }
-
-    #[allow(dead_code)]
-    async fn destroy_async(&mut self) -> Result<(), tokio::io::Error> {
-        self.lock.destroy().await
-    }
-
-    #[allow(dead_code)]
-    pub fn name(&self) -> String {
-        self.lock.name()
-    }
-
-    pub fn is_open(&self) -> bool {
-        self.lock.is_open()
-    }
-}
-
-impl<'a, M> Drop
-for ChainSingleUserExt<'a, M>
-where M: OtherMetadata,
-{
-    fn drop(&mut self) {
-        if self.auto_flush == true && self.is_open() {
-            self.flush().unwrap();
-        }
-    }
-}
-
 #[allow(dead_code)]
 #[derive(Clone)]
 pub struct ChainAccessorExt<M>
 where M: OtherMetadata,
 {
     inner: Arc<RwLock<ChainOfTrustExt<M>>>,
+    indexers: Vec<Arc<StdRwLock<dyn EventIndexer<M>>>>,
+    plugins: Vec<Arc<StdRwLock<dyn EventPlugin<M>>>>,
 }
 
 impl<'a, M> ChainAccessorExt<M>
@@ -423,12 +165,54 @@ where M: OtherMetadata,
         truncate: bool
     ) -> Result<ChainAccessorExt<M>, ChainCreationError>
     {
-        let chain = ChainOfTrustExt::new(builder, cfg, key, truncate)?;
-        Ok(
-            ChainAccessorExt {
-                inner: Arc::new(RwLock::new(chain))
+        let runtime = Self::create_runtime();
+
+        let ret: Result<(ChainAccessorExt<M>, Vec<EventEntryExt<M>>), ChainCreationError> = runtime.block_on(async {
+            let (
+                redo_log,
+                mut redo_loader
+            ) = RedoLog::open(cfg, key, truncate).await?;
+
+            let mut entries: Vec<EventEntryExt<M>> = Vec::new();
+            while let Some(header) = redo_loader.pop() {
+                entries.push(EventEntryExt::from_generic(&header)?);
             }
-        )
+
+            let chain = ChainOfTrustExt {
+                key: key.clone(),
+                redo: redo_log,
+                configured_for: builder.configured_for,
+                chain: Vec::new(),
+                pointers: BinaryTreeIndexer::default(),
+                validators: builder.validators,
+                compactors: builder.compactors,
+                linters: builder.linters,
+                transformers: builder.transformers,
+            };
+
+            Ok(
+                (
+                    ChainAccessorExt {
+                        inner: Arc::new(RwLock::new(chain)),
+                        indexers: builder.indexers,
+                        plugins: builder.plugins,
+                    },
+                    entries
+                )
+            )
+        });
+
+        let (
+            mut ret,
+            entries
+        ) = ret?;
+
+        {
+            let mut single = ret.single();
+            single.process(entries)?;
+        }
+
+        Ok(ret)
     }
 
     pub fn create_runtime() -> Rc<Runtime> {
@@ -438,13 +222,8 @@ where M: OtherMetadata,
     pub fn from_accessor(accessor: &mut ChainAccessorExt<M>) -> ChainAccessorExt<M> {
         ChainAccessorExt {
             inner: Arc::clone(&accessor.inner),
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn from_chain(chain: ChainOfTrustExt<M>) -> ChainAccessorExt<M> {
-        ChainAccessorExt {
-            inner: Arc::new(RwLock::new(chain)),
+            indexers: accessor.indexers.clone(),
+            plugins: accessor.plugins.clone(),
         }
     }
 
@@ -486,15 +265,13 @@ where M: OtherMetadata,
     {
         // prepare
         let mut new_pointers = BinaryTreeIndexer::default();
-        let mut new_indexers = Vec::new();
-        let mut new_plugins = Vec::new();
         let mut keepers = Vec::new();
         let mut new_chain = Vec::new();
         
         // create the flip
         let mut flip = {
             let mut single = self.single_async(runtime.clone(), false).await;
-            let ret = single.lock.redo.begin_flip().await?;
+            let ret = single.lock_inner.redo.begin_flip().await?;
             single.flush_async(runtime.clone()).await?;
             ret
         };
@@ -503,25 +280,17 @@ where M: OtherMetadata,
             let multi = self.multi_async(runtime.clone()).await;
 
             {
-                // step0 - reset all the indexers
-                for indexer in &multi.lock.indexers {
-                    new_indexers.push(indexer.clone_empty());
-                }
-                for plugin in &multi.lock.plugins {
-                    new_plugins.push(plugin.clone_empty());
-                }
-
                 // step1 - reset all the compactors
                 let mut compactors = Vec::new();
-                for compactor in &multi.lock.compactors {
+                for compactor in &multi.lock_inner.compactors {
                     compactors.push(compactor.clone_prepare());
                 }
-                for plugin in &multi.lock.plugins {
+                for plugin in &multi.lock_plugins {
                     compactors.push(plugin.clone_prepare());
                 }
 
                 // build a list of the events that are actually relevant to a compacted log
-                for entry in multi.lock.chain.iter().rev()
+                for entry in multi.lock_inner.chain.iter().rev()
                 {
                     let mut is_force_keep = false;
                     let mut is_keep = false;
@@ -546,22 +315,16 @@ where M: OtherMetadata,
                     if keep == true {
                         keepers.push(entry);
                         new_pointers.feed(entry);
-                        for new_indexer in new_indexers.iter_mut() {
-                            new_indexer.feed(&entry.data_hash, &entry.meta)?;
-                        }
-                        for new_plugin in new_plugins.iter_mut() {
-                            new_plugin.feed(&entry.data_hash, &entry.meta)?;
-                        }
                     }
                 }
 
                 // write the events out only loading the ones that are actually needed
                 let mut refactor = FxHashMap::default();
                 for entry in keepers.iter().rev() {
-                    let new_entry = EventEntry {
+                    let new_entry = EventEntryExt {
                         meta: entry.meta.clone(),
                         data_hash: entry.data_hash.clone(),
-                        pointer: flip.copy_event(&multi.lock.redo, &entry.pointer).await?,
+                        pointer: flip.copy_event(&multi.lock_inner.redo, &entry.pointer).await?,
                     };
                     refactor.insert(entry.pointer, new_entry.pointer.clone());
                     new_chain.push(new_entry);
@@ -572,21 +335,202 @@ where M: OtherMetadata,
             }
         }
 
-        {
-            let mut single = self.single_async(runtime.clone(), false).await;
+        let mut single = self.single_async(runtime.clone(), false).await;
 
-            // complete the transaction
-            single.lock.redo.end_flip(flip).await?;
-            single.lock.pointers = new_pointers;
-            single.lock.indexers = new_indexers;
-            single.lock.plugins = new_plugins;
-            single.lock.chain = new_chain;
+        // finish the flips
+        let new_events = single.lock_inner.redo.finish_flip(flip).await?;
+        let new_events= new_events
+            .into_iter()
+            .map(|e| EventEntryExt::from_generic(&e))
+            .collect::<Result<Vec<_>,_>>()?;
+                        
+        // complete the transaction
+        single.lock_inner.pointers = new_pointers;
+        single.lock_inner.chain = new_chain;
 
-            single.flush_async(runtime.clone()).await?;
+        for indexer in single.lock_indexers.iter_mut() {
+            indexer.rebuild(&new_events)?;
         }
-        
+        for plugin in single.lock_plugins.iter_mut() {
+            plugin.rebuild(&new_events)?;
+        }
+
+        single.flush_async(runtime.clone()).await?;
+
         // success
         Ok(())
+    }
+}
+
+pub struct ChainSingleUserExt<'a, M>
+where M: OtherMetadata,
+{
+    runtime: Rc<tokio::runtime::Runtime>,
+    lock_inner: RwLockWriteGuard<'a, ChainOfTrustExt<M>>,
+    lock_indexers: Vec<StdRwLockWriteGuard<'a, dyn EventIndexer<M> + 'static>>,
+    lock_plugins: Vec<StdRwLockWriteGuard<'a, dyn EventPlugin<M> + 'static>>,
+    auto_flush: bool,
+}
+
+impl<'a, M> ChainSingleUserExt<'a, M>
+where M: OtherMetadata,
+{
+    pub async fn new(chain: &'a ChainAccessorExt<M>, runtime: Rc<Runtime>, auto_flush: bool) -> ChainSingleUserExt<'a, M>
+    {
+        let mut ret = ChainSingleUserExt {
+            runtime: runtime.clone(),
+            lock_inner: chain.inner.write().await,
+            lock_indexers: Vec::new(),
+            lock_plugins: Vec::new(),
+            auto_flush: auto_flush,
+        };
+
+        for indexer in chain.indexers.iter() {
+            ret.lock_indexers.push(indexer.write().unwrap());
+        }
+        for plugin in chain.plugins.iter() {
+            ret.lock_plugins.push(plugin.write().unwrap());
+        }
+
+        ret
+    }
+
+    #[allow(dead_code)]
+    fn process(&mut self, entries: Vec<EventEntryExt<M>>) -> Result<(), ProcessError>
+    {
+        let mut ret = ProcessError::default();
+
+        for mut entry in entries.into_iter()
+        {
+            let validation_data = ValidationData::from_event_entry(&entry);
+            if self.validate_event(&validation_data) == false { continue; }
+
+            for indexer in self.lock_indexers.iter_mut() {
+                match indexer.feed(&entry.meta, &entry.data_hash) {
+                    Err(err) => ret.sink_errors.push(err),
+                    _ => {}
+                }
+            }
+
+            self.lock_inner.pointers.feed(&entry);
+
+            self.lock_inner.metadata_trim(&mut entry.meta);
+            self.lock_inner.chain.push(entry);
+        }
+
+        ret.as_result()
+    }
+
+    #[allow(dead_code)]
+    pub fn event_feed(&mut self, evts: Vec<EventRaw<M>>) -> Result<(), FeedError> {
+        let runtime = self.runtime.clone();
+        runtime.block_on(self.event_feed_async(evts))?;
+        Ok(())
+    }
+
+    #[allow(dead_code)]
+    pub async fn event_feed_async(&mut self, evts: Vec<EventRaw<M>>) -> Result<(), FeedError> {
+        let mut validated_evts = Vec::new();
+        {
+            for evt in evts.into_iter() {
+                let validation_data = ValidationData::from_event(&evt);
+                if self.validate_event(&validation_data) == false { continue; }
+
+                for indexer in self.lock_indexers.iter_mut() {
+                    indexer.feed(&evt.meta, &evt.data_hash)?;
+                }
+
+                validated_evts.push(evt);
+            }
+        }
+
+        for evt in validated_evts.into_iter() {
+            let meta_bytes = evt.get_meta_bytes();
+            let pointer = self.lock_inner.redo.write(meta_bytes, evt.data).await?;
+
+            let mut entry = EventEntryExt {
+                meta: evt.meta,
+                data_hash: evt.data_hash,
+                pointer: pointer,
+            };
+
+            self.lock_inner.pointers.feed(&entry);
+
+            self.lock_inner.metadata_trim(&mut entry.meta);
+            self.lock_inner.chain.push(entry);
+        }
+        Ok(())
+    }
+
+    #[allow(dead_code)]
+    fn validate_event(&self, data: &ValidationData<M>) -> bool
+    {
+        let mut is_allow = false;
+        let mut is_deny = false;
+        for validator in self.lock_inner.validators.iter() {
+            match validator.validate(data) {
+                ValidationResult::Allow => is_allow = true,
+                ValidationResult::Deny => is_deny = true,
+                _ => {}
+            }
+        }
+        for plugin in self.lock_plugins.iter() {
+            match plugin.validate(data) {
+                ValidationResult::Allow => is_allow = true,
+                ValidationResult::Deny => is_deny = true,
+                _ => {}
+            }
+        }
+
+        if is_deny == true || is_allow == false {
+            return false;
+        }
+        true
+    }
+
+    #[allow(dead_code)]
+    fn redo_count(&self) -> usize {
+        self.lock_inner.redo.count()
+    }
+
+    fn flush(&mut self) -> Result<(), tokio::io::Error> {
+        let runtime = self.runtime.clone();
+        runtime.block_on(self.flush_async(runtime.clone()))
+    }
+
+    async fn flush_async(&mut self, _runtime: Rc<Runtime>) -> Result<(), tokio::io::Error> {
+        self.lock_inner.flush().await
+    }
+
+    #[allow(dead_code)]
+    pub fn destroy(&mut self) -> Result<(), tokio::io::Error> {
+        let runtime = self.runtime.clone();
+        runtime.block_on(self.destroy_async())
+    }
+
+    #[allow(dead_code)]
+    async fn destroy_async(&mut self) -> Result<(), tokio::io::Error> {
+        self.lock_inner.destroy().await
+    }
+
+    #[allow(dead_code)]
+    pub fn name(&self) -> String {
+        self.lock_inner.name()
+    }
+
+    pub fn is_open(&self) -> bool {
+        self.lock_inner.is_open()
+    }
+}
+
+impl<'a, M> Drop
+for ChainSingleUserExt<'a, M>
+where M: OtherMetadata,
+{
+    fn drop(&mut self) {
+        if self.auto_flush == true && self.is_open() {
+            self.flush().unwrap();
+        }
     }
 }
 
@@ -594,7 +538,9 @@ pub struct ChainMultiUserExt<'a, M>
 where M: OtherMetadata,
 {
     runtime: Rc<tokio::runtime::Runtime>,
-    lock: RwLockReadGuard<'a, ChainOfTrustExt<M>>,
+    lock_inner: RwLockReadGuard<'a, ChainOfTrustExt<M>>,
+    lock_indexers: Vec<StdRwLockReadGuard<'a, dyn EventIndexer<M> + 'static>>,
+    lock_plugins: Vec<StdRwLockReadGuard<'a, dyn EventPlugin<M> + 'static>>,
 }
 
 impl<'a, M> ChainMultiUserExt<'a, M>
@@ -602,51 +548,91 @@ where M: OtherMetadata,
 {
     pub async fn new(chain: &'a ChainAccessorExt<M>, runtime: Rc<Runtime>) -> ChainMultiUserExt<'a, M>
     {
-        ChainMultiUserExt {
+        let mut ret = ChainMultiUserExt {
             runtime: runtime,
-            lock: chain.inner.read().await,
+            lock_inner: chain.inner.read().await,
+            lock_indexers: Vec::new(),
+            lock_plugins: Vec::new(),
+        };
+
+        for indexer in chain.indexers.iter() {
+            ret.lock_indexers.push(indexer.read().unwrap());
         }
+        for plugin in chain.plugins.iter() {
+            ret.lock_plugins.push(plugin.read().unwrap());
+        }
+
+        ret
     }
  
     #[allow(dead_code)]
-    pub fn load(&self, entry: &EventEntry<M>) -> Result<Event<M>, LoadError> {
+    pub fn load(&self, entry: &EventEntryExt<M>) -> Result<EventExt<M>, LoadError> {
         let runtime = self.runtime.clone();
-        runtime.block_on(self.lock.load(entry))
+        runtime.block_on(self.lock_inner.load(entry))
     }
  
     #[allow(dead_code)]
-    pub async fn load_async(&self, entry: &EventEntry<M>) -> Result<Event<M>, LoadError> {
-        self.lock.load(entry).await
+    pub async fn load_async(&self, entry: &EventEntryExt<M>) -> Result<EventExt<M>, LoadError> {
+        self.lock_inner.load(entry).await
     }
 
     #[allow(dead_code)]
-    pub fn lookup(&self, key: &PrimaryKey) -> Option<EventEntry<M>> {
-        self.lock.lookup(key)
+    pub fn lookup(&self, key: &PrimaryKey) -> Option<EventEntryExt<M>> {
+        self.lock_inner.lookup(key)
     }
 
     #[allow(dead_code)]
     pub fn metadata_trim(&self, meta: &mut MetadataExt<M>) {
-        self.lock.metadata_trim(meta)
+        for plugin in self.lock_plugins.iter().rev() {
+            plugin.metadata_trim(meta);
+        }
+        self.lock_inner.metadata_trim(meta)
     }
 
     #[allow(dead_code)]
     pub fn metadata_lint_many(&self, data_hashes: &Vec<Hash>, session: &Session) -> Result<Vec<CoreMetadata>, std::io::Error> {
-        self.lock.metadata_lint_many(data_hashes, session)
+        let mut ret = Vec::new();
+        for linter in self.lock_inner.linters.iter() {
+            ret.extend(linter.metadata_lint_many(data_hashes, session)?);
+        }
+        for plugin in self.lock_plugins.iter() {
+            ret.extend(plugin.metadata_lint_many(data_hashes, session)?);
+        }
+        Ok(ret)
     }
 
     #[allow(dead_code)]
     pub fn metadata_lint_event(&self, data_hash: &Option<Hash>, meta: &mut MetadataExt<M>, session: &Session) {
-        self.lock.metadata_lint_event(data_hash, meta, session)
+        for linter in self.lock_inner.linters.iter() {
+            linter.metadata_lint_event(data_hash, meta, session);
+        }
+        for plugin in self.lock_plugins.iter() {
+            plugin.metadata_lint_event(data_hash, meta, session);
+        }
     }
 
     #[allow(dead_code)]
     pub fn data_as_overlay(&self, meta: &mut MetadataExt<M>, data: Bytes) -> Result<Bytes, TransformError> {
-        self.lock.data_as_overlay(meta, data)
+        let mut ret = data;
+        for plugin in self.lock_plugins.iter().rev() {
+            ret = plugin.data_as_overlay(meta, ret)?;
+        }
+        for transformer in self.lock_inner.transformers.iter().rev() {
+            ret = transformer.data_as_overlay(meta, ret)?;
+        }
+        Ok(ret)
     }
 
     #[allow(dead_code)]
     pub fn data_as_underlay(&self, meta: &mut MetadataExt<M>, data: Bytes) -> Result<Bytes, TransformError> {
-        self.lock.data_as_underlay(meta, data)
+        let mut ret = data;
+        for transformer in self.lock_inner.transformers.iter() {
+            ret = transformer.data_as_underlay(meta, ret)?;
+        }
+        for plugin in self.lock_plugins.iter() {
+            ret = plugin.data_as_underlay(meta, ret)?;
+        }
+        Ok(ret)
     }
 }
 
@@ -687,8 +673,8 @@ pub fn test_chain() {
         let mut chain = create_test_chain("test_chain".to_string(), true);
         chain_name = chain.name();
 
-        let mut evt1 = Event::new(key1.clone(), Bytes::from(vec!(1; 1)));
-        let mut evt2 = Event::new(key2.clone(), Bytes::from(vec!(2; 1)));
+        let mut evt1 = EventRaw::new(key1.clone(), Bytes::from(vec!(1; 1)));
+        let mut evt2 = EventRaw::new(key2.clone(), Bytes::from(vec!(2; 1)));
 
         {
             let mut lock = chain.single();
@@ -698,7 +684,7 @@ pub fn test_chain() {
             let mut evts = Vec::new();
             evts.push(evt1.clone());
             evts.push(evt2.clone());
-            lock.feed(evts).expect("The event failed to be accepted");
+            lock.event_feed(evts).expect("The event failed to be accepted");
             assert_eq!(2, lock.redo_count());
         }
 
@@ -708,18 +694,18 @@ pub fn test_chain() {
             // Make sure its there in the chain
             let test_data = lock.lookup(&key1).expect("Failed to find the entry after the flip");
             let test_data = lock.load(&test_data).expect("Could not load the data for the entry");
-            assert_eq!(test_data.body, Some(Bytes::from(vec!(1; 1))));
+            assert_eq!(test_data.raw.data, Some(Bytes::from(vec!(1; 1))));
         }
             
         {
             let mut lock = chain.single();
 
             // Duplicate one of the event so the compactor has something to clean
-            evt1.body = Some(Bytes::from(vec!(10; 1)));
+            evt1.data = Some(Bytes::from(vec!(10; 1)));
             
             let mut evts = Vec::new();
             evts.push(evt1.clone());
-            lock.feed(evts).expect("The event failed to be accepted");
+            lock.event_feed(evts).expect("The event failed to be accepted");
             assert_eq!(3, lock.redo_count());
         }
 
@@ -733,12 +719,12 @@ pub fn test_chain() {
             // Read the event and make sure its the second one that results after compaction
             let test_data = lock.lookup(&key1).expect("Failed to find the entry after the flip");
             let test_data = lock.load(&test_data).unwrap();
-            assert_eq!(test_data.body, Some(Bytes::from(vec!(10; 1))));
+            assert_eq!(test_data.raw.data, Some(Bytes::from(vec!(10; 1))));
 
             // The other event we added should also still be there
             let test_data = lock.lookup(&key2).expect("Failed to find the entry after the flip");
             let test_data = lock.load(&test_data).unwrap();
-            assert_eq!(test_data.body, Some(Bytes::from(vec!(2; 1))));
+            assert_eq!(test_data.raw.data, Some(Bytes::from(vec!(2; 1))));
         }
 
         {
@@ -749,7 +735,7 @@ pub fn test_chain() {
             
             let mut evts = Vec::new();
             evts.push(evt2.clone());
-            lock.feed(evts).expect("The event failed to be accepted");
+            lock.event_feed(evts).expect("The event failed to be accepted");
             
             // Number of events should have gone up by one even though there should be one less item
             assert_eq!(3, lock.redo_count());
@@ -776,7 +762,7 @@ pub fn test_chain() {
             // Read the event and make sure its the second one that results after compaction
             let test_data = lock.lookup(&key1).expect("Failed to find the entry after we reloaded the chain");
             let test_data = lock.load(&test_data).unwrap();
-            assert_eq!(test_data.body, Some(Bytes::from(vec!(10; 1))));
+            assert_eq!(test_data.raw.data, Some(Bytes::from(vec!(10; 1))));
         }
 
         // Destroy the chain

@@ -12,8 +12,9 @@ use super::compact::EventCompactor;
 use super::lint::EventMetadataLinter;
 use super::transform::EventDataTransformer;
 #[allow(unused_imports)]
-use super::sink::EventSink;
+use super::sink::{EventSink};
 
+use super::event::*;
 use super::error::*;
 use super::header::PrimaryKey;
 use super::plugin::*;
@@ -56,7 +57,7 @@ impl<M> EventSink<M>
 for SignaturePlugin
 where M: OtherMetadata
 {
-    fn feed(&mut self, data_hash: &Option<Hash>, meta: &MetadataExt<M>) -> Result<(), SinkError>
+    fn feed(&mut self, meta: &MetadataExt<M>, data_hash: &Option<Hash>) -> Result<(), SinkError>
     {
         // Store the public key and encrypt private keys into the index
         for m in meta.core.iter() {
@@ -106,7 +107,7 @@ where M: OtherMetadata
         // Now we need to process the data object itself (but only if it actually has data)
         if let Some(data_hash) = data_hash {
             if let Some(key) = meta.get_data_key() {
-                if let Some(parent_hashes) = self.sigs.get_vec(data_hash) {
+                if let Some(parent_hashes) = self.sigs.get_vec(&data_hash) {
                     for parent_hash in parent_hashes {
                         self.lookup.insert(key, parent_hash.clone());
                     }
@@ -192,8 +193,17 @@ impl<M> EventPlugin<M>
 for SignaturePlugin
 where M: OtherMetadata,
 {
-    fn clone_empty(&self) -> Box<dyn EventPlugin<M>> {
-        let ret = SignaturePlugin::default();
-        Box::new(ret)
+    fn rebuild(&mut self, data: &Vec<EventEntryExt<M>>) -> Result<(), SinkError>
+    {
+        self.pk.clear();
+        self.epk.clear();
+        self.sigs.clear();
+        self.lookup.clear();
+
+        for data in data.iter() {
+            self.feed(&data.meta, &data.data_hash)?;
+        }
+
+        Ok(())
     }
 }

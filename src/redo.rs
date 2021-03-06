@@ -4,6 +4,7 @@ extern crate fxhash;
 
 use super::conf::*;
 use super::chain::*;
+#[allow(unused_imports)]
 use super::header::*;
 use super::event::*;
 #[allow(unused_imports)]
@@ -118,7 +119,7 @@ impl LogFile {
         Ok(ret)
     }
 
-    async fn read_all(&mut self, to: &mut VecDeque<EventRaw>) -> Result<()> {
+    async fn read_all(&mut self, to: &mut VecDeque<EventEntry>) -> Result<()> {
         self.check_open()?;
 
         while let Some(head) = self.read_once_internal().await? {
@@ -127,7 +128,7 @@ impl LogFile {
         Ok(())
     }
 
-    async fn read_once_internal(&mut self) -> Result<Option<EventRaw>>
+    async fn read_once_internal(&mut self) -> Result<Option<EventEntry>>
     {
         // Read the metadata
         let size_meta = match self.log_stream.read_u32().await {
@@ -171,7 +172,7 @@ impl LogFile {
         self.log_off = self.log_off + size;
 
         Ok(
-            Some(EventRaw {
+            Some(EventEntry {
                 meta: buff_meta,
                 data_hash: body_hash,
                 pointer: pointer,
@@ -278,8 +279,9 @@ impl LogFile {
             Some(
                 EventData {
                     meta: buff_meta,
-                    body: buff_body,
-                    body_hash: body_hash,
+                    data: buff_body,
+                    data_hash: body_hash,
+                    pointer: pointer,
                 }
             )
         )
@@ -327,15 +329,15 @@ impl LogFile {
 
 struct DeferredWrite {
     pub meta: Bytes,
-    pub body: Option<Bytes>,
+    pub data: Option<Bytes>,
     pub orphan: LogFilePointer,
 }
 
 impl DeferredWrite {
-    pub fn new(meta: Bytes, body: Option<Bytes>, orphan: LogFilePointer) -> DeferredWrite {
+    pub fn new(meta: Bytes, data: Option<Bytes>, orphan: LogFilePointer) -> DeferredWrite {
         DeferredWrite {
             meta: meta,
-            body: body,
+            data: data,
             orphan: orphan,
         }
     }
@@ -350,6 +352,7 @@ pub trait LogWritable {
 
 pub struct FlippedLogFile {
     log_file: LogFile,
+    event_summary: Vec<EventEntry>,
 }
 
 #[async_trait]
@@ -357,7 +360,18 @@ impl LogWritable for FlippedLogFile
 {
     #[allow(dead_code)]
     async fn write(&mut self, meta: Bytes, data: Option<Bytes>) -> Result<LogFilePointer> {
-        let ret = self.log_file.write(meta, data).await?;
+        let data_hash = match &data {
+            Some(data) => Some(super::crypto::Hash::from_bytes(&data[..])),
+            None => None,
+        };
+        let ret = self.log_file.write(meta.clone(), data).await?;
+
+        let summary = EventEntry {
+            meta: meta,
+            data_hash: data_hash,
+            pointer: ret.clone(),
+        };
+        self.event_summary.push(summary);
         Ok(ret)
     }
 
@@ -382,6 +396,15 @@ impl FlippedLogFile
     fn count(&self) -> usize {
         self.log_file.count()
     }
+
+    fn drain_events(&mut self) -> Vec<EventEntry>
+    {
+        let mut ret = Vec::new();
+        for evt in self.event_summary.drain(..) {
+            ret.push(evt);
+        }
+        ret
+    }
 }
 
 struct RedoLogFlip {
@@ -390,12 +413,12 @@ struct RedoLogFlip {
 
 #[derive(Default)]
 pub struct RedoLogLoader {
-    entries: VecDeque<EventRaw>
+    entries: VecDeque<EventEntry>
 }
 
 impl RedoLogLoader {
     #[allow(dead_code)]
-    pub fn pop(&mut self) -> Option<EventRaw> {
+    pub fn pop(&mut self) -> Option<EventEntry> {
         self.entries.pop_front()   
     }
 }
@@ -431,6 +454,7 @@ impl RedoLog
 
                 let flip = FlippedLogFile {
                     log_file: LogFile::new(self.log_temp, path_flip, true).await?,
+                    event_summary: Vec::new(),
                 };
                 
                 self.flip = Some(RedoLogFlip {
@@ -445,19 +469,28 @@ impl RedoLog
         }
     }
 
-    pub async fn end_flip(&mut self, mut flip: FlippedLogFile) -> Result<()> {
-        match &self.flip
+    pub async fn finish_flip(&mut self, mut flip: FlippedLogFile) -> Result<Vec<EventEntry>>
+    {
+        match &mut self.flip
         {
             Some(inside) =>
             {
+                let mut event_summary = flip.drain_events();
                 let mut new_log_file = flip.copy_log_file().await?;
 
-                for d in &inside.deferred {
-                    let body_clone = match &d.body {
-                        Some(a) => Some(a.clone()),
+                for d in inside.deferred.drain(..) {
+                    let data_hash = match &d.data {
+                        Some(data) => Some(super::crypto::Hash::from_bytes(&data[..])),
                         None => None,
                     };
-                    new_log_file.write(d.meta.clone(), body_clone).await?;
+                    let pointer = new_log_file.write(d.meta.clone(), d.data).await?;
+
+                    let summary = EventEntry {
+                        meta: d.meta,
+                        data_hash: data_hash,
+                        pointer: pointer,
+                    };
+                    event_summary.push(summary);
                 }
                 
                 new_log_file.flush().await?;
@@ -466,7 +499,7 @@ impl RedoLog
                 self.log_file = new_log_file;
                 self.flip = None;
 
-                Ok(())
+                Ok(event_summary)
             },
             None =>
             {
@@ -589,7 +622,7 @@ async fn test_read_data(log: &mut RedoLog, read_header: LogFilePointer, test_key
     };
 
     assert_eq!(meta_bytes, evt.meta);
-    assert_eq!(test_body, evt.body);
+    assert_eq!(test_body, evt.data);
 }
 
 #[test]
@@ -661,7 +694,7 @@ fn test_redo_log() {
             
             // End the flip operation
             println!("test_redo_log - finishing the flip operation");
-            rl.end_flip(flip).await.expect("Failed to end the flip operation");
+            rl.finish_flip(flip).await.expect("Failed to end the flip operation");
             assert_eq!(3, rl.count());
 
             // Write some more data

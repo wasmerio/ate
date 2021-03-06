@@ -77,6 +77,7 @@ for TransformError {
 pub enum CompactError {
     SinkError(SinkError),
     IO(tokio::io::Error),
+    SerializationError(EventSerializationError),
 }
 
 impl From<tokio::io::Error>
@@ -90,6 +91,13 @@ impl From<SinkError>
 for CompactError {
     fn from(err: SinkError) -> CompactError {
         CompactError::SinkError(err)
+    }
+}
+
+impl From<EventSerializationError>
+for CompactError {
+    fn from(err: EventSerializationError) -> CompactError {
+        CompactError::SerializationError(err)
     }
 }
 
@@ -230,6 +238,7 @@ impl ProcessError {
 pub enum ChainCreationError {
     ProcessError(ProcessError),
     IO(tokio::io::Error),
+    SerializationError(EventSerializationError),
 }
 
 impl From<ProcessError>
@@ -237,6 +246,14 @@ for ChainCreationError
 {
     fn from(err: ProcessError) -> ChainCreationError {
         ChainCreationError::ProcessError(err)
+    }   
+}
+
+impl From<EventSerializationError>
+for ChainCreationError
+{
+    fn from(err: EventSerializationError) -> ChainCreationError {
+        ChainCreationError::SerializationError(err)
     }   
 }
 
