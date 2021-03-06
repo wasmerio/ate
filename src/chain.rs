@@ -94,16 +94,9 @@ where M: OtherMetadata,
 impl<'a, M> ChainOfTrustExt<M>
 where M: OtherMetadata,
 {
-    #[allow(dead_code)]
-    fn metadata_trim(&self, meta: &mut MetadataExt<M>) {
-        for linter in self.linters.iter().rev() {
-            linter.metadata_trim(meta);
-        }
-    }
-
     async fn load(&self, entry: &EventEntryExt<M>) -> Result<EventExt<M>, LoadError> {
         match self.redo.load(&entry.pointer).await? {
-            None => Result::Err(LoadError::NotFound),
+            None => Result::Err(LoadError::MissingLogFileData(entry.pointer.clone())),
             Some(evt) => {
                 Ok(
                     EventExt {
@@ -162,7 +155,7 @@ where M: OtherMetadata,
         builder: ChainOfTrustBuilderExt<M>,
         cfg: &impl ConfigStorage,
         key: &ChainKey,
-        truncate: bool
+        truncate: bool,
     ) -> Result<ChainAccessorExt<M>, ChainCreationError>
     {
         let runtime = Self::create_runtime();
@@ -400,7 +393,7 @@ where M: OtherMetadata,
     {
         let mut ret = ProcessError::default();
 
-        for mut entry in entries.into_iter()
+        for entry in entries.into_iter()
         {
             let validation_data = ValidationData::from_event_entry(&entry);
             if let Result::Err(err) = self.validate_event(&validation_data) {
@@ -408,15 +401,17 @@ where M: OtherMetadata,
             }
 
             for indexer in self.lock_indexers.iter_mut() {
-                match indexer.feed(&entry.meta, &entry.data_hash) {
-                    Err(err) => ret.sink_errors.push(err),
-                    _ => {}
+                if let Err(err) = indexer.feed(&entry.meta, &entry.data_hash) {
+                    ret.sink_errors.push(err);
+                }
+            }
+            for plugin in self.lock_plugins.iter_mut() {
+                if let Err(err) = plugin.feed(&entry.meta, &entry.data_hash) {
+                    ret.sink_errors.push(err);
                 }
             }
 
             self.lock_inner.pointers.feed(&entry);
-
-            self.lock_inner.metadata_trim(&mut entry.meta);
             self.lock_inner.chain.push(entry);
         }
 
@@ -434,12 +429,16 @@ where M: OtherMetadata,
     pub async fn event_feed_async(&mut self, evts: Vec<EventRaw<M>>) -> Result<(), FeedError> {
         let mut validated_evts = Vec::new();
         {
-            for evt in evts.into_iter() {
+            for evt in evts.into_iter()
+            {
                 let validation_data = ValidationData::from_event(&evt);
                 self.validate_event(&validation_data)?;
 
                 for indexer in self.lock_indexers.iter_mut() {
                     indexer.feed(&evt.meta, &evt.data_hash)?;
+                }
+                for plugin in self.lock_plugins.iter_mut() {
+                    plugin.feed(&evt.meta, &evt.data_hash)?;
                 }
 
                 validated_evts.push(evt);
@@ -450,15 +449,13 @@ where M: OtherMetadata,
             let meta_bytes = evt.get_meta_bytes()?;
             let pointer = self.lock_inner.redo.write(meta_bytes, evt.data).await?;
 
-            let mut entry = EventEntryExt {
+            let entry = EventEntryExt {
                 meta: evt.meta,
                 data_hash: evt.data_hash,
                 pointer: pointer,
             };
 
             self.lock_inner.pointers.feed(&entry);
-
-            self.lock_inner.metadata_trim(&mut entry.meta);
             self.lock_inner.chain.push(entry);
         }
         Ok(())
@@ -581,14 +578,6 @@ where M: OtherMetadata,
     }
 
     #[allow(dead_code)]
-    pub fn metadata_trim(&self, meta: &mut MetadataExt<M>) {
-        for plugin in self.lock_plugins.iter().rev() {
-            plugin.metadata_trim(meta);
-        }
-        self.lock_inner.metadata_trim(meta)
-    }
-
-    #[allow(dead_code)]
     pub fn metadata_lint_many(&self, data_hashes: &Vec<Hash>, session: &Session) -> Result<Vec<CoreMetadata>, LintError> {
         let mut ret = Vec::new();
         for linter in self.lock_inner.linters.iter() {
@@ -638,7 +627,7 @@ where M: OtherMetadata,
 }
 
 #[cfg(test)]
-pub fn create_test_chain(chain_name: String, temp: bool, barebone: bool) ->
+pub fn create_test_chain(chain_name: String, temp: bool, barebone: bool, root_public_key: Option<PublicKey>) ->
     ChainAccessor
 {
     // Create the chain-of-trust and a validator
@@ -654,10 +643,14 @@ pub fn create_test_chain(chain_name: String, temp: bool, barebone: bool) ->
         true => ChainOfTrustBuilder::new(ConfiguredFor::Barebone),
         false => ChainOfTrustBuilder::default()
     };
-    let builder = builder            
+    let mut builder = builder            
         .add_validator(Box::new(RubberStampValidator::default()))
         .add_data_transformer(Box::new(StaticEncryptionTransformer::new(&EncryptKey::from_string("test".to_string(), KeySize::Bit192))))
         .add_metadata_linter(Box::new(EventAuthorLinter::default()));
+
+    if let Some(key) = root_public_key {
+        builder = builder.add_root_public_key(&key);
+    }
     
     ChainAccessor::new(
         builder,
@@ -675,7 +668,7 @@ pub fn test_chain() {
     let chain_name;
 
     {
-        let mut chain = create_test_chain("test_chain".to_string(), true, true);
+        let mut chain = create_test_chain("test_chain".to_string(), true, true, None);
         chain_name = chain.name();
 
         let mut evt1 = EventRaw::new(key1.clone(), Bytes::from(vec!(1; 1)));
@@ -759,7 +752,7 @@ pub fn test_chain() {
 
     {
         // Reload the chain from disk and check its integrity
-        let mut chain = create_test_chain(chain_name, false, true);
+        let mut chain = create_test_chain(chain_name, false, true, None);
 
         {
             let lock = chain.multi();

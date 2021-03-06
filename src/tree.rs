@@ -53,8 +53,28 @@ impl<M> EventValidator<M>
 for TreeAuthorityPlugin<M>
 where M: OtherMetadata
 {
-    fn validate(&self, validation_data: &ValidationData<M>) -> Result<ValidationResult, ValidationError> {
+    fn validate(&self, validation_data: &ValidationData<M>) -> Result<ValidationResult, ValidationError>
+    {
+        // We need to check all the signatures are valid
         self.signature_plugin.validate(validation_data)?;
+
+        // If it has data then we need to check it - otherwise we ignore it
+        let data_hash = match validation_data.data_hash {
+            Some(a) => a,
+            None => { return Ok(ValidationResult::Abstain); },
+        };
+        
+        let verified_signatures = match self.signature_plugin.get_verified_signatures(&data_hash) {
+            Some(a) => a,
+            None => { return Err(ValidationError::NoSignatures); },
+        };
+        
+        // If its got a root key attached to it then we are all good
+        for hash in verified_signatures.iter() {
+            if self.root_keys.contains_key(hash) {
+                return Ok(ValidationResult::Allow);
+            }
+        }
         
         // If we get this far then any data events must be denied
         // as all the other possible routes for it to be excepted have already passed
@@ -97,10 +117,12 @@ where M: OtherMetadata,
     {
         let mut ret = Vec::new();
 
+        let mut no_auth_metadata = true;
         let mut no_auth = true;
         if let Some(auth) = meta.get_authorization() {
-            no_auth = false;
+            no_auth_metadata = false;
             for write_hash in auth.allow_write.iter() {
+                no_auth = false;
                 if self.signature_plugin.has_public_key(&write_hash) == false
                 {                    
                     // Make sure we actually own the key that it wants to write with
@@ -130,7 +152,17 @@ where M: OtherMetadata,
         if data_hash.is_some() && no_auth == true
         {
             // This record has no authorization
-            return Err(LintError::NoAuthorization);
+            if no_auth_metadata {
+                return match meta.get_data_key() {
+                    Some(key) => Err(LintError::MissingAuthorizationMetadata(key)),
+                    None => Err(LintError::MissingAuthorizationMetadataOrphan)
+                };
+            } else {
+                return match meta.get_data_key() {
+                    Some(key) => Err(LintError::NoAuthorization(key)),
+                    None => Err(LintError::NoAuthorizationOrphan)
+                };
+            }
         }
         
         // Now run the signature plugin
@@ -138,11 +170,6 @@ where M: OtherMetadata,
 
         // We are done
         Ok(ret)
-    }
-
-    fn metadata_trim(&self, meta: &mut MetadataExt<M>)
-    {
-        self.signature_plugin.metadata_trim(meta);
     }
 }
 

@@ -18,7 +18,6 @@ use super::sink::{EventSink};
 
 use super::event::*;
 use super::error::*;
-use super::header::PrimaryKey;
 use super::plugin::*;
 use super::meta::*;
 #[allow(unused_imports)]
@@ -39,7 +38,6 @@ pub struct SignaturePlugin<M>
 {
     pk: FxHashMap<Hash, PublicKey>,
     sigs: MultiMap<Hash, Hash>,
-    lookup: MultiMap<PrimaryKey, Hash>,
     _marker: PhantomData<M>,
 }
 
@@ -50,17 +48,16 @@ impl<M> SignaturePlugin<M>
         SignaturePlugin {
             pk: FxHashMap::default(),
             sigs: MultiMap::default(),
-            lookup: MultiMap::default(),
             _marker: PhantomData,
         }
     }
 
     #[allow(dead_code)]
-    pub fn get_verified_signatures(&self, key: &PrimaryKey) -> Vec<Hash>
+    pub fn get_verified_signatures(&self, data_hash: &Hash) -> Option<&Vec<Hash>>
     {
-        match self.lookup.get_vec(key) {
-            Some(a) => a.clone(),
-            None => Vec::new()
+        match self.sigs.get_vec(data_hash) {
+            Some(a) => Some(a),
+            None => None
         }
     }
 
@@ -74,7 +71,7 @@ impl<M> EventSink<M>
 for SignaturePlugin<M>
 where M: OtherMetadata
 {
-    fn feed(&mut self, meta: &MetadataExt<M>, data_hash: &Option<Hash>) -> Result<(), SinkError>
+    fn feed(&mut self, meta: &MetadataExt<M>, _data_hash: &Option<Hash>) -> Result<(), SinkError>
     {
         // Store the public key and encrypt private keys into the index
         for m in meta.core.iter() {
@@ -112,17 +109,6 @@ where M: OtherMetadata
                     }
                 }
                 _ => { }
-            }
-        }
-
-        // Now we need to process the data object itself (but only if it actually has data)
-        if let Some(data_hash) = data_hash {
-            if let Some(key) = meta.get_data_key() {
-                if let Some(parent_hashes) = self.sigs.get_vec(&data_hash) {
-                    for parent_hash in parent_hashes {
-                        self.lookup.insert(key, parent_hash.clone());
-                    }
-                }
             }
         }
 
@@ -203,7 +189,6 @@ where M: OtherMetadata,
     {
         self.pk.clear();
         self.sigs.clear();
-        self.lookup.clear();
 
         for data in data.iter() {
             self.feed(&data.meta, &data.data_hash)?;

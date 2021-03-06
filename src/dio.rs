@@ -1,4 +1,3 @@
-use linked_hash_map::LinkedHashMap;
 use fxhash::{FxHashMap, FxHashSet};
 
 #[cfg(test)]
@@ -158,6 +157,15 @@ where M: OtherMetadata,
         Ok(())
     }
 
+    pub fn validate(&self) -> Result<(), FlushError>
+    {
+        // If it has no authorizations then we can't write it anywhere
+        if self.auth().allow_write.len() <= 0 {
+            return Err(FlushError::LintError(LintError::NoAuthorization(self.row.key.clone())));
+        }
+        Ok(())
+    }
+
     #[allow(dead_code)]
     pub fn key(&self) -> &PrimaryKey {
         &self.row.key
@@ -192,8 +200,8 @@ where M: OtherMetadata,
             eprintln!("Detected concurrent write while deleting a data object ({:?}) - the delete operation will override everything else", self.row.key);
         }
         let key = self.key().clone();
-        state.dirty.remove(&key);
-        state.cache.remove(&key);
+        state.cache_store.remove(&key);
+        state.cache_load.remove(&key);
         state.deleted.insert(key);
     }
 }
@@ -223,8 +231,17 @@ impl<M, D> Drop for DaoExt<M, D>
 where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone,
 {
-    fn drop(&mut self) {
-        let _ = self.flush();
+    fn drop(&mut self)
+    {
+        // Do some basic checks
+        if let Err(err) = self.validate() {
+            debug_assert!(false, "dao-validation-error {}", err.to_string());
+        }
+
+        // Now attempt to flush it
+        if let Err(err) = self.flush() {
+            debug_assert!(false, "dao-flush-error {}", err.to_string());
+        }
     }
 }
 
@@ -232,8 +249,9 @@ where M: OtherMetadata,
 struct DioState<M>
 where M: OtherMetadata,
 {
-    dirty: LinkedHashMap<PrimaryKey, Rc<RowData<M>>>,
-    cache: FxHashMap<PrimaryKey, Rc<EventExt<M>>>,
+    store: Vec<Rc<RowData<M>>>,
+    cache_store: FxHashMap<PrimaryKey, Rc<RowData<M>>>,
+    cache_load: FxHashMap<PrimaryKey, Rc<EventExt<M>>>,
     locked: FxHashSet<PrimaryKey>,
     deleted: FxHashSet<PrimaryKey>,
 }
@@ -242,8 +260,10 @@ impl<M> DioState<M>
 where M: OtherMetadata,
 {
     fn dirty(&mut self, key: &PrimaryKey, row: RowData<M>) {
-        self.cache.remove(key);
-        self.dirty.insert(key.clone(), Rc::new(row));
+        let row = Rc::new(row);
+        self.store.push(row.clone());
+        self.cache_store.insert(key.clone(), row);
+        self.cache_load.remove(key);
     }
 
     fn lock(&mut self, key: &PrimaryKey) -> bool {
@@ -264,8 +284,9 @@ where M: OtherMetadata,
 {
     fn new() -> DioState<M> {
         DioState {
-            dirty: LinkedHashMap::new(),
-            cache: FxHashMap::default(),
+            store: Vec::new(),
+            cache_store: FxHashMap::default(),
+            cache_load: FxHashMap::default(),
             locked: FxHashSet::default(),
             deleted: FxHashSet::default(),
         }
@@ -289,30 +310,17 @@ where M: OtherMetadata,
     pub fn store<D>(&mut self, data: D) -> Result<DaoExt<M, D>, SerializationError>
     where D: Serialize + DeserializeOwned + Clone,
     {
-        let key = PrimaryKey::generate();
-        let body = Bytes::from(serde_json::to_vec(&data)?);
-        let body_hash = super::crypto::Hash::from_bytes(&body[..]);
-        let meta = M::default();
-
-        let row = RowData {
-            key: key,
-            meta: meta.clone(),
-            data_hash: body_hash,
-            data: body,
-            auth: MetaAuthorization::default(),
-        };
-
-        self.state.borrow_mut().dirty.insert(key.clone(), Rc::new(row));
-
         let row = Row {
-            key: key,
-            meta: meta,
+            key: PrimaryKey::generate(),
+            meta: M::default(),
             data: data,
             auth: MetaAuthorization::default(),
         };
-        Ok(
-            DaoExt::new(row, &self.state)
-        )
+
+        let mut ret = DaoExt::new(row, &self.state);
+        ret.fork();
+        
+        Ok(ret)
     }
 
     #[allow(dead_code)]
@@ -321,28 +329,35 @@ where M: OtherMetadata,
     {
         let mut state = self.state.borrow_mut();
         if state.is_locked(key) {
-            return Result::Err(LoadError::Locked);
+            return Result::Err(LoadError::ObjectStillLocked(key.clone()));
         }
-        if let Some(dao) = state.dirty.get(key) {
+        if let Some(dao) = state.cache_store.get(key) {
             let row = Row::from_row_data(dao.deref())?;
             return Ok(DaoExt::new(row, &self.state));
         }
-        if let Some(dao) = state.cache.get(key) {
+        if let Some(dao) = state.cache_load.get(key) {
             let row = Row::from_event(dao.deref())?;
             return Ok(DaoExt::new(row, &self.state));
         }
         if state.deleted.contains(key) {
-            return Result::Err(LoadError::AlreadyDeleted);
+            return Result::Err(LoadError::AlreadyDeleted(key.clone()));
         }
 
-        let multi = self.multi.as_ref().ok_or(LoadError::InternalError("Dio is not properly initialized (missing multiuser chain handle)".to_string()))?;
+        let multi_store;
+        let multi = match self.multi.as_ref() {
+            Some(a) => a,
+            None => {
+                multi_store = self.accessor.multi();
+                &multi_store
+            }
+        };
 
         let entry = match multi.lookup(key) {
             Some(a) => a,
-            None => return Result::Err(LoadError::NotFound)
+            None => return Result::Err(LoadError::NotFound(key.clone()))
         };
         if entry.meta.get_tombstone().is_some() {
-            return Result::Err(LoadError::Tombstoned);
+            return Result::Err(LoadError::Tombstoned(key.clone()));
         }
 
         let mut evt = multi.load(&entry)?;
@@ -352,52 +367,40 @@ where M: OtherMetadata,
         };
 
         let row = Row::from_event(&evt)?;
-        state.cache.insert(key.clone(), Rc::new(evt));
+        state.cache_load.insert(key.clone(), Rc::new(evt));
         Ok(DaoExt::new(row, &self.state))
     }
-}
 
-impl<'a, M> Drop
-for DioExt<'a, M>
-where M: OtherMetadata,
-{
-    fn drop(&mut self)
+    fn flush(&mut self) -> Result<(), FlushError>
     {
         // If we have dirty records
-        let state = self.state.borrow_mut();
-        if state.dirty.is_empty() == false || state.deleted.is_empty() == false
+        let mut state = self.state.borrow_mut();
+        if state.store.is_empty() == false || state.deleted.is_empty() == false
         {
             let mut evts = Vec::new();
             {
                 // Take the reference to the multi for a limited amount of time then destruct it and release the lock
-                let multi = self.multi.take().expect("The multilock was released before the drop call was triggered by the Dio going out of scope.");
+                let multi = match self.multi.take() {
+                    Some(a) => a,
+                    None => self.accessor.multi()
+                };
 
                 // Convert all the events that we are storing into serialize data
                 let mut data_hashes = Vec::new();
-                for (_, dao) in state.dirty.iter() {
-                    let mut meta = MetadataExt::for_data(dao.key);
-                    meta.other = dao.meta.clone();
+                for row in state.store.drain(..)
+                {
+                    // Build a new clean metadata header
+                    let mut meta = MetadataExt::for_data(row.key);
+                    meta.other = row.meta.clone();
+                    meta.core.push(CoreMetadata::Authorization(row.auth.clone()));
                     
-                    let data = match multi.data_as_underlay(&mut meta, dao.data.clone()) {
-                        Ok(a) => a,
-                        Err(err) => {
-                            debug_assert!(false, err.to_string());
-                            eprintln!("{}", err.to_string());
-                            continue;
-                        },
-                    };
+                    // Perform any transformation (e.g. data encryption)
+                    let data = multi.data_as_underlay(&mut meta, row.data.clone())?;
                     let data_hash = super::crypto::Hash::from_bytes(&data[..]);
                     data_hashes.push(data_hash);
 
                     // Compute all the extra metadata for an event
-                    let extra_meta = match multi.metadata_lint_event(&Some(data_hash), &mut meta, &self.session) {
-                        Ok(a) => a,
-                        Err(err) => {
-                            debug_assert!(false, err.to_string());
-                            eprintln!("{}", err.to_string());
-                            continue;
-                        },
-                    };
+                    let extra_meta = multi.metadata_lint_event(&Some(data_hash), &mut meta, &self.session)?;
                     meta.core.extend(extra_meta);
                     
                     let evt = EventRaw {
@@ -409,14 +412,7 @@ where M: OtherMetadata,
                 }
 
                 // Lint the data
-                let meta = match multi.metadata_lint_many(&data_hashes, &self.session) {
-                    Ok(a) => a,
-                    Err(err) => {
-                        debug_assert!(false, err.to_string());
-                        eprintln!("{}", err.to_string());
-                        Vec::new()
-                    },
-                };
+                let meta = multi.metadata_lint_many(&data_hashes, &self.session)?;
 
                 // If it has data then insert it at the front of these events
                 if meta.len() > 0 {
@@ -445,7 +441,21 @@ where M: OtherMetadata,
 
             // Process it in the chain of trust
             let mut single = self.accessor.single();
-            single.event_feed(evts).unwrap();
+            single.event_feed(evts)?;
+        }
+
+        Ok(())
+    }
+}
+
+impl<'a, M> Drop
+for DioExt<'a, M>
+where M: OtherMetadata,
+{
+    fn drop(&mut self)
+    {
+        if let Err(err) = self.flush() {
+            debug_assert!(false, "dio-flush-error {}", err.to_string());
         }
     }
 }
@@ -485,11 +495,13 @@ pub enum TestDao
 #[test]
 fn test_dio()
 {
-    let mut session = Session::default();
-    let mut chain = create_test_chain("test_dio".to_string(), true, false);
-
     let write_key = PrivateKey::generate(crate::crypto::KeySize::Bit192);
     let read_key = EncryptKey::generate(crate::crypto::KeySize::Bit192);
+    let root_public_key = write_key.as_public_key();
+    
+    let mut session = Session::default();
+    let mut chain = create_test_chain("test_dio".to_string(), true, false, Some(root_public_key));
+
     session.properties.push(SessionProperty::WriteKey(write_key.clone()));
     session.properties.push(SessionProperty::ReadKey(read_key.clone()));
     session.properties.push(SessionProperty::Identity("author@here.com".to_string()));
@@ -502,35 +514,50 @@ fn test_dio()
 
         // Write a value immediately from chain (this data will remain in the transaction)
         {
-            let mut dao1 = dio.store(TestDao::Blah1).unwrap();
-            key1 = dao1.key().clone();
+            {
+                let mut dao1 = dio.store(TestDao::Blah1).unwrap();
+                key1 = dao1.key().clone();
+                println!("key1: {}", key1.as_hex_string());
+                
+                dio.load::<TestDao>(&key1).expect_err("This load is meant to fail as we are still editing the object");
 
-            dao1.auth_mut().allow_read.push(write_key.hash());
-
-            // Attempting to load the data object while it is still in scope and not flushed will fail
-            match *dio.load(&key1).expect("The data object should have been read") {
-                TestDao::Blah1 => {},
-                _ => panic!("Data is not saved correctly")
+                dao1.auth_mut().allow_write.push(write_key.hash());
             }
 
-            // When we update this value it will become dirty and hence should block future loads until its flushed or goes out of scope
-            *dao1 = TestDao::Blah2(2);
-            dio.load::<TestDao>(&key1).expect_err("This load is meant to fail due to a lock being triggered");
+            dio.flush().unwrap();
 
-            // Flush the data and attempt to read it again (this should succeed)
-            dao1.flush().expect("Flush failed");
-            match *dio.load(&key1).expect("The dirty data object should have been read after it was flushed") {
-                TestDao::Blah2(a) => assert_eq!(a.clone(), 2 as u32),
-                _ => panic!("Data is not saved correctly")
+            {
+                // Load the object again which should load it from the cache
+                let mut dao1: Dao<TestDao> = dio.load(&key1).unwrap();
+
+                // When we update this value it will become dirty and hence should block future loads until its flushed or goes out of scope
+                *dao1 = TestDao::Blah2(2);
+                dio.load::<TestDao>(&key1).expect_err("This load is meant to fail due to a lock being triggered");
+
+                // Flush the data and attempt to read it again (this should succeed)
+                dao1.flush().expect("Flush failed");
+                match *dio.load(&key1).expect("The dirty data object should have been read after it was flushed") {
+                    TestDao::Blah2(a) => assert_eq!(a.clone(), 2 as u32),
+                    _ => panic!("Data is not saved correctly")
+                }
             }
 
-            // Again after changing the data reads should fail
-            *dao1 = TestDao::Blah3("testblah".to_string());
-            dio.load::<TestDao>(&key1).expect_err("This load is meant to fail due to a lock being triggered");
+            {
+                // Load the object again which should load it from the cache
+                let mut dao1: Dao<TestDao> = dio.load(&key1).unwrap();
+            
+                // Again after changing the data reads should fail
+                *dao1 = TestDao::Blah3("testblah".to_string());
+                dio.load::<TestDao>(&key1).expect_err("This load is meant to fail due to a lock being triggered");
+            }
 
-            // Write a record to the chain that we will delete again later
-            let dao2 = dio.store(TestDao::Blah4).unwrap();
-            key2 = dao2.key().clone();
+            {
+                // Write a record to the chain that we will delete again later
+                let mut dao2 = dio.store(TestDao::Blah4).unwrap();
+                dao2.auth_mut().allow_write.push(write_key.hash());
+                key2 = dao2.key().clone();
+                println!("key2: {}", key2.as_hex_string());
+            }
         }
 
         // Now its out of scope it should be loadable again

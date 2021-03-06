@@ -34,7 +34,6 @@ rand = "*"
 rand_chacha = "*"
 buffered_offset_reader = "*"
 async-drop = "*"
-linked-hash-map = "*"
 typed-arena = "*"
 snap = "*"
 openssl = { version = "*", features = ["vendored"] }

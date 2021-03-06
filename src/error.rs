@@ -1,4 +1,8 @@
+use crate::redo::LogFilePointer;
+
 use super::crypto::Hash;
+use super::header::PrimaryKey;
+
 extern crate rmp_serde as rmps;
 
 use rmp_serde::encode::Error as RmpEncodeError;
@@ -188,11 +192,11 @@ for SerializationError {
 
 #[derive(Debug)]
 pub enum LoadError {
-    NotFound,
-    Locked,
-    AlreadyDeleted,
-    InternalError(String),
-    Tombstoned,
+    NotFound(PrimaryKey),
+    ObjectStillLocked(PrimaryKey),
+    AlreadyDeleted(PrimaryKey),
+    Tombstoned(PrimaryKey),
+    MissingLogFileData(LogFilePointer),
     SerializationError(SerializationError),
     TransformationError(TransformError),
     IO(tokio::io::Error),
@@ -220,6 +224,38 @@ for LoadError
     fn from(err: TransformError) -> LoadError {
         LoadError::TransformationError(err)
     }   
+}
+
+impl std::fmt::Display
+for LoadError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            LoadError::NotFound(key) => {
+                write!(f, "Data object with key ({}) could not be found", key.as_hex_string())
+            },
+            LoadError::ObjectStillLocked(key) => {
+                write!(f, "Data object with key ({}) is still being edited in the current scope", key.as_hex_string())
+            },
+            LoadError::AlreadyDeleted(key) => {
+                write!(f, "Data object with key ({}) has already been deleted", key.as_hex_string())
+            },
+            LoadError::Tombstoned(key) => {
+                write!(f, "Data object with key ({}) has already been tombstoned", key.as_hex_string())
+            },
+            LoadError::MissingLogFileData(pointer) => {
+                write!(f, "Data object could not be found in the log file of version ({}) at ({})", pointer.version, pointer.offset)
+            },
+            LoadError::SerializationError(err) => {
+                write!(f, "Serialization error while attempting to load data object - {}", err)
+            },
+            LoadError::TransformationError(err) => {
+                write!(f, "Transformation error while attempting to load data object - {}", err)
+            },
+            LoadError::IO(err) => {
+                write!(f, "IO error while attempting to load data object - {}", err)
+            },
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -267,16 +303,16 @@ for FeedError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             FeedError::SinkError(err) => {
-                write!(f, "Event sink error while processing a stream of events- {}", err)
+                write!(f, "Event sink error while processing a stream of events - {}", err)
             },
             FeedError::IO(err) => {
-                write!(f, "IO sink error while processing a stream of events- {}", err)
+                write!(f, "IO sink error while processing a stream of events - {}", err)
             },
             FeedError::ValidationError(err) => {
-                write!(f, "Validation error while processing a stream of events- {}", err)
+                write!(f, "Validation error while processing a stream of events - {}", err)
             },
             FeedError::SerializationError(err) => {
-                write!(f, "Serialization error while processing a stream of events- {}", err)
+                write!(f, "Serialization error while processing a stream of events - {}", err)
             },
         }
     }
@@ -339,7 +375,10 @@ for ChainCreationError
 pub enum LintError {
     IO(std::io::Error),
     MissingWriteKey(Hash),
-    NoAuthorization,
+    MissingAuthorizationMetadata(PrimaryKey),
+    MissingAuthorizationMetadataOrphan,
+    NoAuthorization(PrimaryKey),
+    NoAuthorizationOrphan,
 }
 
 impl From<std::io::Error>
@@ -360,8 +399,17 @@ for LintError {
             LintError::MissingWriteKey(hash) => {
                 write!(f, "Could not find the write public key ({}) in the seesion", hash.to_string())
             },
-            LintError::NoAuthorization => {
-                write!(f, "Event has no authorization metadata")
+            LintError::MissingAuthorizationMetadata(key) => {
+                write!(f, "Data object with key ({}) has no write authorization metadata attached to it", key.as_hex_string())
+            },
+            LintError::MissingAuthorizationMetadataOrphan => {
+                write!(f, "Data object without a primary has no write authorization metadata attached to it")
+            },
+            LintError::NoAuthorization(key) => {
+                write!(f, "Data object with key ({}) has no write authorization in its metadata", key.as_hex_string())
+            },
+            LintError::NoAuthorizationOrphan => {
+                write!(f, "Data objects without a primary key has no write authorization")
             },
         }
     }
@@ -371,6 +419,7 @@ for LintError {
 pub enum ValidationError {
     AllAbstained,
     Detached,
+    NoSignatures,
 }
 
 impl std::fmt::Display
@@ -378,10 +427,61 @@ for ValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             ValidationError::AllAbstained => {
-                write!(f, "None of the validators approved this event")
+                write!(f, "None of the validators approved this data object event")
             },
             ValidationError::Detached => {
-                write!(f, "The event is detached from the chain of trust")
+                write!(f, "The data object event is detached from the chain of trust")
+            },
+            ValidationError::NoSignatures => {
+                write!(f, "The data object event has no signatures")
+            },
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum FlushError {
+    FeedError(FeedError),
+    TransformError(TransformError),
+    LintError(LintError),
+}
+
+impl From<FeedError>
+for FlushError
+{
+    fn from(err: FeedError) -> FlushError {
+        FlushError::FeedError(err)
+    }   
+}
+
+impl From<TransformError>
+for FlushError
+{
+    fn from(err: TransformError) -> FlushError {
+        FlushError::TransformError(err)
+    }   
+}
+
+impl From<LintError>
+for FlushError
+{
+    fn from(err: LintError) -> FlushError {
+        FlushError::LintError(err)
+    }   
+}
+
+impl std::fmt::Display
+for FlushError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            FlushError::FeedError(err) => {
+                write!(f, "Failed to flush the data due to an error feeding events into the chain of trust - {}", err.to_string())
+            },
+            FlushError::TransformError(err) => {
+                write!(f, "Failed to flush the data due to an error transforming the data object into events - {}", err.to_string())
+            },
+            FlushError::LintError(err) => {
+                write!(f, "Failed to flush the data due to an error linting the data object events - {}", err.to_string())
             },
         }
     }

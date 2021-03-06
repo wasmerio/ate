@@ -20,11 +20,6 @@ where M: OtherMetadata,
     {
         Ok(Vec::new())
     }
-
-    /// Callback when metadata is used by an actual user
-    fn metadata_trim(&self, _meta: &mut MetadataExt<M>)
-    {
-    }
 }
 
 #[derive(Default)]

@@ -14,6 +14,7 @@ use super::compact::TombstoneCompactor;
 use super::validator::RubberStampValidator;
 use super::transform::CompressorWithSnapTransformer;
 use super::chain::ChainKey;
+use super::crypto::PublicKey;
 use super::error::*;
 
 pub trait ConfigMaster {
@@ -223,6 +224,14 @@ where M: OtherMetadata + 'static,
     #[allow(dead_code)]
     pub fn add_plugin(mut self, plugin: &Arc<RwLock<dyn EventPlugin<M>>>) -> Self {
         self.plugins.push(plugin.clone());
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn add_root_public_key(self, key: &PublicKey) -> Self {
+        if let Some(tree) = &self.tree {
+            tree.write().unwrap().add_root_public_key(key);
+        }
         self
     }
 
