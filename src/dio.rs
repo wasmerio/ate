@@ -18,6 +18,8 @@ use super::chain::*;
 use super::event::*;
 use super::meta::*;
 use super::error::*;
+#[allow(unused_imports)]
+use super::crypto::*;
 
 #[allow(dead_code)]
 type Dio<'a> = DioExt<'a, NoAdditionalMetadata>;
@@ -386,7 +388,6 @@ where M: OtherMetadata,
                 };
 
                 // Convert all the events that we are storing into serialize data
-                let mut data_hashes = Vec::new();
                 for row in state.store.drain(..)
                 {
                     // Build a new clean metadata header
@@ -397,7 +398,6 @@ where M: OtherMetadata,
                     // Perform any transformation (e.g. data encryption)
                     let data = multi.data_as_underlay(&mut meta, row.data.clone())?;
                     let data_hash = super::crypto::Hash::from_bytes(&data[..]);
-                    data_hashes.push(data_hash);
 
                     // Compute all the extra metadata for an event
                     let extra_meta = multi.metadata_lint_event(&Some(data_hash), &mut meta, &self.session)?;
@@ -412,7 +412,7 @@ where M: OtherMetadata,
                 }
 
                 // Lint the data
-                let meta = multi.metadata_lint_many(&data_hashes, &self.session)?;
+                let meta = multi.metadata_lint_many(&evts, &self.session)?;
 
                 // If it has data then insert it at the front of these events
                 if meta.len() > 0 {
@@ -490,12 +490,14 @@ pub enum TestDao
     Blah2(u32),
     Blah3(String),
     Blah4,
+    Blah5,
 }
 
 #[test]
 fn test_dio()
 {
     let write_key = PrivateKey::generate(crate::crypto::KeySize::Bit192);
+    let write_key2 = PrivateKey::generate(KeySize::Bit256);
     let read_key = EncryptKey::generate(crate::crypto::KeySize::Bit192);
     let root_public_key = write_key.as_public_key();
     
@@ -503,6 +505,7 @@ fn test_dio()
     let mut chain = create_test_chain("test_dio".to_string(), true, false, Some(root_public_key));
 
     session.properties.push(SessionProperty::WriteKey(write_key.clone()));
+    session.properties.push(SessionProperty::WriteKey(write_key2.clone()));
     session.properties.push(SessionProperty::ReadKey(read_key.clone()));
     session.properties.push(SessionProperty::Identity("author@here.com".to_string()));
 
@@ -554,7 +557,11 @@ fn test_dio()
             {
                 // Write a record to the chain that we will delete again later
                 let mut dao2 = dio.store(TestDao::Blah4).unwrap();
-                dao2.auth_mut().allow_write.push(write_key.hash());
+                
+                // We create a new private key for this data
+                //dao2.auth_mut().allow_write.push(write_key2.as_public_key().hash());
+                dao2.auth_mut().allow_write.push(write_key2.as_public_key().hash());
+                
                 key2 = dao2.key().clone();
                 println!("key2: {}", key2.as_hex_string());
             }
@@ -571,10 +578,12 @@ fn test_dio()
         let mut dio = chain.dio(&session);
 
         // The data we saved earlier should be accessible accross DIO scope boundaries
-        match &*dio.load(&key1).expect("The data object should have been read") {
+        let mut dao1 = dio.load(&key1).expect("The data object should have been read");
+        match &*dao1 {
             TestDao::Blah3(a) => assert_eq!(a.clone(), "testblah".to_string()),
             _ => panic!("Data is not saved correctly")
         }
+        *dao1 = TestDao::Blah4;
 
         // First attempt to read the record then delete it
         let dao2 = dio.load::<TestDao>(&key2).expect("The record should load before we delete it in this session");

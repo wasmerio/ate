@@ -578,7 +578,7 @@ where M: OtherMetadata,
     }
 
     #[allow(dead_code)]
-    pub fn metadata_lint_many(&self, data_hashes: &Vec<Hash>, session: &Session) -> Result<Vec<CoreMetadata>, LintError> {
+    pub fn metadata_lint_many(&self, data_hashes: &Vec<EventRaw<M>>, session: &Session) -> Result<Vec<CoreMetadata>, LintError> {
         let mut ret = Vec::new();
         for linter in self.lock_inner.linters.iter() {
             ret.extend(linter.metadata_lint_many(data_hashes, session)?);

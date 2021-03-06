@@ -2,6 +2,7 @@ use crate::session::{Session, SessionProperty};
 
 use super::error::*;
 use super::meta::*;
+use super::event::*;
 #[allow(unused_imports)]
 use openssl::symm::{encrypt, Cipher};
 use super::crypto::Hash;
@@ -10,7 +11,7 @@ pub trait EventMetadataLinter<M>
 where M: OtherMetadata,
 {
     /// Called just before the metadata is pushed into the redo log
-    fn metadata_lint_many(&self, _data_hashes: &Vec<Hash>, _session: &Session) -> Result<Vec<CoreMetadata>, LintError>
+    fn metadata_lint_many(&self, _data_hashes: &Vec<EventRaw<M>>, _session: &Session) -> Result<Vec<CoreMetadata>, LintError>
     {
         Ok(Vec::new())
     }

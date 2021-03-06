@@ -172,7 +172,7 @@ pub struct EncryptResult {
     pub data: Vec<u8>
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Hash {
     pub val: [u8; 16]
 }

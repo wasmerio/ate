@@ -132,42 +132,76 @@ impl<M> EventMetadataLinter<M>
 for SignaturePlugin<M>
 where M: OtherMetadata,
 {
-    fn metadata_lint_many(&self, data_hashes: &Vec<Hash>, session: &Session) -> Result<Vec<CoreMetadata>, LintError>
+    fn metadata_lint_many(&self, raw: &Vec<EventRaw<M>>, session: &Session) -> Result<Vec<CoreMetadata>, LintError>
     {
         // If there is no data then we are already done
-        if data_hashes.len() <= 0 {
+        if raw.len() <= 0 {
             return Ok(Vec::new());
         }
 
         let mut ret = Vec::new();
 
-        // Compute a hash of the hashes
-        let hashes_bytes: Vec<u8> = data_hashes.into_iter().flat_map(|h| { Vec::from(h.val).into_iter() }).collect();
-        let hash_of_hashes = Hash::from_bytes(&hashes_bytes[..]);
-        
-        // We should sign the data using all the known signature keys in the session
-        for prop in &session.properties {
-            match prop {
-                SessionProperty::WriteKey(auth) =>
-                {
-                    // Add the public key side into the chain-of-trust if it is not present yet
-                    if let None = self.pk.get(&auth.hash()) {
-                        ret.push(CoreMetadata::PublicKey(auth.as_public_key()));
-                     };
+        // Build a list of all the authorizations we need to write
+        let mut auths = raw
+            .iter()
+            .filter_map(|e| e.meta.get_authorization())
+            .flat_map(|a| a.allow_write.iter())
+            .collect::<Vec<_>>();
+        auths.sort();
+        auths.dedup();
 
-                    // Next we need to decrypt the private key and use it to sign the hashes
-                    let sig = auth.sign(&hash_of_hashes.val[..])?;
-                    let sig = MetaSignature {
-                        hashes: data_hashes.clone(),
-                        signature: sig,
-                        public_key_hash: auth.hash(),
-                    };
+        // Loop through each unique write key that we need to write with
+        for auth in auths.into_iter()
+        {
+            // Find the session key for it (if one does not exist we have a problem!)
+            let sk = match session.properties
+                .iter()
+                .filter_map(|p| {
+                    match p {
+                        SessionProperty::WriteKey(key) => Some(key),
+                        _ => None,
+                    }
+                })
+                .filter(|k| k.hash() == *auth)
+                .next()
+            {
+                Some(sk) => sk,
+                None => return Err(LintError::MissingWriteKey(auth.clone())),
+            };
 
-                    // Push the signature
-                    ret.push(CoreMetadata::Signature(sig));
-                },
-                _ => {}
-            }
+            // Compute a hash of the hashes
+            let data_hashes = raw
+                .iter()
+                .filter_map(|e| {
+                    match e.meta.get_authorization() {
+                        Some(a) => {
+                            match a.allow_write.contains(&auth) {
+                                true => e.data_hash,
+                                false => None,
+                            }
+                        },
+                        None => None,
+                    }
+                })
+                .collect::<Vec<_>>();
+            let hashes_bytes: Vec<u8> = data_hashes.iter().flat_map(|h| { Vec::from(h.val).into_iter() }).collect();
+            let hash_of_hashes = Hash::from_bytes(&hashes_bytes[..]);
+            
+            // Add the public key side into the chain-of-trust if it is not present yet
+            if let None = self.pk.get(&auth) {
+                ret.push(CoreMetadata::PublicKey(sk.as_public_key()));
+            };
+
+            // Next we need to decrypt the private key and use it to sign the hashes
+            let sig = sk.sign(&hash_of_hashes.val[..])?;
+            let sig = MetaSignature {
+                hashes: data_hashes,
+                signature: sig,
+                public_key_hash: auth.clone(),
+            };
+
+            // Push the signature
+            ret.push(CoreMetadata::Signature(sig));
         }
 
         // All ok

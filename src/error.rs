@@ -397,7 +397,7 @@ for LintError {
                 write!(f, "IO error while linting an event - {}", err)
             },
             LintError::MissingWriteKey(hash) => {
-                write!(f, "Could not find the write public key ({}) in the seesion", hash.to_string())
+                write!(f, "Could not find the write public key ({}) in the session", hash.to_string())
             },
             LintError::MissingAuthorizationMetadata(key) => {
                 write!(f, "Data object with key ({}) has no write authorization metadata attached to it", key.as_hex_string())

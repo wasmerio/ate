@@ -103,7 +103,7 @@ impl<M> EventMetadataLinter<M>
 for TreeAuthorityPlugin<M>
 where M: OtherMetadata,
 {
-    fn metadata_lint_many(&self, data_hashes: &Vec<Hash>, session: &Session) -> Result<Vec<CoreMetadata>, LintError>
+    fn metadata_lint_many(&self, data_hashes: &Vec<EventRaw<M>>, session: &Session) -> Result<Vec<CoreMetadata>, LintError>
     {
         let mut ret = Vec::new();
 
