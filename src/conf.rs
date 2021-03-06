@@ -1,4 +1,4 @@
-use crate::{chain::ChainAccessorExt, signature::SignaturePlugin};
+use crate::{chain::ChainAccessorExt, tree::TreeAuthorityPlugin};
 use std::sync::Arc;
 use std::sync::RwLock;
 
@@ -119,6 +119,7 @@ where M: OtherMetadata,
     pub(super) transformers: Vec<Box<dyn EventDataTransformer<M>>>,
     pub(super) indexers: Vec<Arc<RwLock<dyn EventIndexer<M>>>>,
     pub(super) plugins: Vec<Arc<RwLock<dyn EventPlugin<M>>>>,
+    pub(super) tree: Option<Arc<RwLock<TreeAuthorityPlugin<M>>>>,
 }
 
 impl<M> ChainOfTrustBuilderExt<M>
@@ -134,6 +135,7 @@ where M: OtherMetadata + 'static,
             linters: Vec::new(),
             transformers: Vec::new(),
             plugins: Vec::new(),
+            tree: None,
         }
         .with_defaults(flavour)
     }
@@ -146,6 +148,7 @@ where M: OtherMetadata + 'static,
         self.transformers.clear();
         self.plugins.clear();
         self.compactors.clear();
+        self.tree = None;
 
         if flavour == ConfiguredFor::Raw {
             return self;
@@ -158,8 +161,12 @@ where M: OtherMetadata + 'static,
             self.validators.push(Box::new(RubberStampValidator::default()));
             return self;
         }
-
-        self.plugins.push(Arc::new(RwLock::new(SignaturePlugin::default())));
+        else
+        {
+            let tree = Arc::new(RwLock::new(super::tree::TreeAuthorityPlugin::new()));
+            self.tree = Some(tree.clone());
+            self.plugins.push(tree);
+        }
 
         match flavour {
             ConfiguredFor::SmallestSize | ConfiguredFor::Balanced => {
@@ -179,6 +186,7 @@ where M: OtherMetadata + 'static,
         self.linters.clear();
         self.transformers.clear();
         self.plugins.clear();
+        self.tree = None;
         self
     }
 

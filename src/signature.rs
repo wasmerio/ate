@@ -1,3 +1,5 @@
+use std::marker::PhantomData;
+
 use multimap::MultiMap;
 #[allow(unused_imports)]
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
@@ -32,17 +34,29 @@ pub struct MetaSignature
     pub public_key_hash: Hash,
 }
 
-#[derive(Debug, Default)]
-pub struct SignaturePlugin
+#[derive(Debug)]
+pub struct SignaturePlugin<M>
 {
     pk: FxHashMap<Hash, PublicKey>,
     epk: FxHashMap<Hash, EncryptedPrivateKey>,
     sigs: MultiMap<Hash, Hash>,
     lookup: MultiMap<PrimaryKey, Hash>,
+    _marker: PhantomData<M>,
 }
 
-impl SignaturePlugin
+impl<M> SignaturePlugin<M>
 {
+    pub fn new() -> SignaturePlugin<M>
+    {
+        SignaturePlugin {
+            pk: FxHashMap::default(),
+            epk: FxHashMap::default(),
+            sigs: MultiMap::default(),
+            lookup: MultiMap::default(),
+            _marker: PhantomData,
+        }
+    }
+
     #[allow(dead_code)]
     pub fn get_verified_signatures(&self, key: &PrimaryKey) -> Vec<Hash>
     {
@@ -54,7 +68,7 @@ impl SignaturePlugin
 }
 
 impl<M> EventSink<M>
-for SignaturePlugin
+for SignaturePlugin<M>
 where M: OtherMetadata
 {
     fn feed(&mut self, meta: &MetadataExt<M>, data_hash: &Option<Hash>) -> Result<(), SinkError>
@@ -120,19 +134,19 @@ where M: OtherMetadata
 }
 
 impl<M> EventValidator<M>
-for SignaturePlugin
+for SignaturePlugin<M>
 where M: OtherMetadata
 {
 }
 
 impl<M> EventCompactor<M>
-for SignaturePlugin
+for SignaturePlugin<M>
 where M: OtherMetadata
 {
 }
 
 impl<M> EventMetadataLinter<M>
-for SignaturePlugin
+for SignaturePlugin<M>
 where M: OtherMetadata,
 {
     fn metadata_lint_many(&self, data_hashes: &Vec<Hash>, session: &Session) -> Result<Vec<CoreMetadata>, std::io::Error>
@@ -184,13 +198,13 @@ where M: OtherMetadata,
 }
 
 impl<M> EventDataTransformer<M>
-for SignaturePlugin
+for SignaturePlugin<M>
 where M: OtherMetadata
 {
 }
 
 impl<M> EventPlugin<M>
-for SignaturePlugin
+for SignaturePlugin<M>
 where M: OtherMetadata,
 {
     fn rebuild(&mut self, data: &Vec<EventEntryExt<M>>) -> Result<(), SinkError>
