@@ -34,7 +34,7 @@ pub enum CoreMetadata
     InitializationVector(InitializationVector),
     PublicKey(PublicKey),
     EncryptedPrivateKey(EncryptedPrivateKey),
-    EncyptedEncryptionKey(EncryptKey),
+    EncryptedEncryptionKey(EncryptKey),
     Tree(MetaTree),
     Signature(MetaSignature),
     Author(String),
@@ -74,5 +74,20 @@ impl<M> MetadataExt<M>
         }
         
         None
+    }
+
+    pub fn needs_signature(&self) -> bool
+    {
+        for core in &self.core {
+            match core {
+                CoreMetadata::PublicKey(_) => {},
+                CoreMetadata::Signature(_) => {},
+                CoreMetadata::EncryptedPrivateKey(_) => {},
+                CoreMetadata::EncryptedEncryptionKey(_) => {},                
+                _ => { return true; }
+            }
+        }
+
+        false
     }
 }

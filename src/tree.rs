@@ -59,12 +59,17 @@ where M: OtherMetadata
         self.signature_plugin.validate(validation_data)?;
 
         // If it has data then we need to check it - otherwise we ignore it
-        let data_hash = match validation_data.data_hash {
-            Some(a) => a,
-            None => { return Ok(ValidationResult::Abstain); },
+        let hash = match validation_data.data_hash {
+            Some(a) => DoubleHash::from_hashes(&validation_data.meta_hash, &a).hash(),
+            None => {
+                if validation_data.meta.needs_signature() == false && validation_data.data_hash.is_none() {
+                    return Ok(ValidationResult::Abstain);
+                }
+                validation_data.meta_hash.clone()
+            },
         };
         
-        let verified_signatures = match self.signature_plugin.get_verified_signatures(&data_hash) {
+        let verified_signatures = match self.signature_plugin.get_verified_signatures(&hash) {
             Some(a) => a,
             None => { return Err(ValidationError::NoSignatures); },
         };
@@ -103,11 +108,11 @@ impl<M> EventMetadataLinter<M>
 for TreeAuthorityPlugin<M>
 where M: OtherMetadata,
 {
-    fn metadata_lint_many(&self, data_hashes: &Vec<EventRaw<M>>, session: &Session) -> Result<Vec<CoreMetadata>, LintError>
+    fn metadata_lint_many(&self, raws: &Vec<EventRawPlus<M>>, session: &Session) -> Result<Vec<CoreMetadata>, LintError>
     {
         let mut ret = Vec::new();
 
-        let mut other = self.signature_plugin.metadata_lint_many(data_hashes, session)?;
+        let mut other = self.signature_plugin.metadata_lint_many(raws, session)?;
         ret.append(&mut other);
 
         Ok(ret)

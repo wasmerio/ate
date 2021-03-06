@@ -1,5 +1,7 @@
 use bytes::Bytes;
 
+use crate::crypto::Hash;
+
 use super::header::*;
 use super::meta::*;
 use super::error::*;
@@ -16,10 +18,42 @@ where M: OtherMetadata
     pub data: Option<Bytes>,
 }
 
+impl<M> EventRaw<M>
+where M: OtherMetadata
+{
+    pub fn as_plus(self) -> Result<EventRawPlus<M>, SerializationError>
+    {
+        let meta_bytes = Bytes::from(rmps::to_vec(&self.meta)?);
+        let meta_hash = Hash::from_bytes(&meta_bytes[..]);
+        Ok(
+            EventRawPlus {
+                meta_hash: meta_hash,
+                meta_bytes: meta_bytes,
+                meta: self.meta,
+                data_hash: self.data_hash,
+                data: self.data,
+            }
+        )
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct EventRawPlus<M>
+where M: OtherMetadata
+{
+    pub meta_hash: super::crypto::Hash,
+    pub meta_bytes: Bytes,
+    pub meta: MetadataExt<M>,
+    pub data_hash: Option<super::crypto::Hash>,
+    pub data: Option<Bytes>,
+}
+
 #[derive(Debug, Clone)]
 pub struct EventExt<M>
 where M: OtherMetadata
 {
+    pub meta_hash: super::crypto::Hash,
+    pub meta_bytes: Bytes,
     pub raw: EventRaw<M>,
     pub pointer: LogFilePointer,
 }
@@ -27,6 +61,7 @@ where M: OtherMetadata
 #[derive(Debug, Clone)]
 pub struct EventData
 {
+    pub meta_hash: super::crypto::Hash,
     pub meta: Bytes,
     pub data_hash: Option<super::crypto::Hash>,
     pub data: Option<Bytes>,
@@ -36,6 +71,7 @@ pub struct EventData
 #[derive(Debug, Clone)]
 pub struct EventEntry
 {
+    pub meta_hash: super::crypto::Hash,
     pub meta: Bytes,
     pub data_hash: Option<super::crypto::Hash>,
     pub pointer: LogFilePointer,
@@ -45,6 +81,8 @@ pub struct EventEntry
 pub struct EventEntryExt<M>
 where M: OtherMetadata
 {
+    pub meta_hash: super::crypto::Hash,
+    pub meta_bytes: Bytes,
     pub meta: MetadataExt<M>,
     pub data_hash: Option<super::crypto::Hash>,
     pub pointer: LogFilePointer,
@@ -57,6 +95,8 @@ where M: OtherMetadata
     pub fn from_generic(metadata: &EventEntry) -> Result<EventEntryExt<M>, SerializationError> {
         Ok(
             EventEntryExt {
+                meta_hash: metadata.meta_hash,
+                meta_bytes: metadata.meta.clone(),
                 meta: rmps::from_read_ref(&metadata.meta)?,
                 data_hash: metadata.data_hash,
                 pointer: metadata.pointer,
@@ -67,8 +107,10 @@ where M: OtherMetadata
     #[allow(dead_code)]
     pub fn to_generic(&self) -> Result<EventEntry, SerializationError> {
         let meta_bytes = Bytes::from(rmps::to_vec(&self.meta)?);
+        let meta_hash = super::crypto::Hash::from_bytes(&meta_bytes[..]);
         Ok(
             EventEntry {
+                meta_hash: meta_hash,
                 meta: meta_bytes,
                 data_hash: self.data_hash,
                 pointer: self.pointer,
@@ -105,6 +147,8 @@ where M: OtherMetadata
     pub fn from_event_data(evt: &EventData) -> Result<EventExt<M>, SerializationError> {
         Ok(
             EventExt {
+                meta_hash: evt.meta_hash,
+                meta_bytes: evt.meta.clone(),
                 raw: EventRaw {
                     meta: rmps::from_read_ref(&evt.meta)?,
                     data_hash: evt.data_hash.clone(),
@@ -126,9 +170,12 @@ where M: OtherMetadata
 {
     #[allow(dead_code)]
     pub fn to_event_data(&self) -> Result<EventData, SerializationError> {
+        let meta_bytes = self.raw.get_meta_bytes()?;
+        let meta_hash = super::crypto::Hash::from_bytes(&meta_bytes[..]);
         Ok(
             EventData {
-                meta: self.raw.get_meta_bytes()?,
+                meta_hash: meta_hash,
+                meta: meta_bytes,
                 data_hash: self.raw.data_hash.clone(),
                 data: self.raw.data.clone(),
                 pointer: self.pointer.clone(),
@@ -139,6 +186,8 @@ where M: OtherMetadata
     #[allow(dead_code)]
     pub fn to_event_entry(self) -> EventEntryExt<M> {
         EventEntryExt {
+            meta_hash: self.meta_hash,
+            meta_bytes: self.meta_bytes.clone(),
             meta: self.raw.meta,
             data_hash: self.raw.data_hash,
             pointer: self.pointer,

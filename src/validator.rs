@@ -15,6 +15,7 @@ pub enum ValidationResult {
 pub struct ValidationData<'a, M>
 where M: OtherMetadata
 {
+    pub meta_hash: Hash,
     pub meta: &'a MetadataExt<M>,
     pub data_hash: Option<Hash>,
 }
@@ -24,13 +25,15 @@ where M: OtherMetadata
 {
     pub fn from_event_entry(evt: &'a EventEntryExt<M>) -> ValidationData<'a, M> {
         ValidationData {
+            meta_hash: evt.meta_hash,
             meta: &evt.meta,
             data_hash: evt.data_hash.clone(),
         }
     }
 
-    pub fn from_event(evt: &'a EventRaw<M>) -> ValidationData<'a, M> {
+    pub fn from_event(evt: &'a EventRawPlus<M>) -> ValidationData<'a, M> {
         ValidationData {
+            meta_hash: evt.meta_hash.clone(),
             meta: &evt.meta,
             data_hash: evt.data_hash.clone(),
         }

@@ -11,7 +11,7 @@ pub trait EventMetadataLinter<M>
 where M: OtherMetadata,
 {
     /// Called just before the metadata is pushed into the redo log
-    fn metadata_lint_many(&self, _data_hashes: &Vec<EventRaw<M>>, _session: &Session) -> Result<Vec<CoreMetadata>, LintError>
+    fn metadata_lint_many(&self, _data_hashes: &Vec<EventRawPlus<M>>, _session: &Session) -> Result<Vec<CoreMetadata>, LintError>
     {
         Ok(Vec::new())
     }

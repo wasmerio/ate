@@ -379,6 +379,7 @@ pub enum LintError {
     MissingAuthorizationMetadataOrphan,
     NoAuthorization(PrimaryKey),
     NoAuthorizationOrphan,
+    SerializationError(SerializationError),
 }
 
 impl From<std::io::Error>
@@ -386,6 +387,14 @@ for LintError
 {
     fn from(err: std::io::Error) -> LintError {
         LintError::IO(err)
+    }   
+}
+
+impl From<SerializationError>
+for LintError
+{
+    fn from(err: SerializationError) -> LintError {
+        LintError::SerializationError(err)
     }   
 }
 
@@ -410,6 +419,9 @@ for LintError {
             },
             LintError::NoAuthorizationOrphan => {
                 write!(f, "Data objects without a primary key has no write authorization")
+            },
+            LintError::SerializationError(err) => {
+                write!(f, "Serialization error while linting data object - {}", err)
             },
         }
     }
@@ -444,6 +456,7 @@ pub enum FlushError {
     FeedError(FeedError),
     TransformError(TransformError),
     LintError(LintError),
+    SerializationError(SerializationError),
 }
 
 impl From<FeedError>
@@ -470,6 +483,14 @@ for FlushError
     }   
 }
 
+impl From<SerializationError>
+for FlushError
+{
+    fn from(err: SerializationError) -> FlushError {
+        FlushError::SerializationError(err)
+    }   
+}
+
 impl std::fmt::Display
 for FlushError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -482,6 +503,9 @@ for FlushError {
             },
             FlushError::LintError(err) => {
                 write!(f, "Failed to flush the data due to an error linting the data object events - {}", err.to_string())
+            },
+            FlushError::SerializationError(err) => {
+                write!(f, "Failed to flush the data due to an serialization error - {}", err.to_string())
             },
         }
     }

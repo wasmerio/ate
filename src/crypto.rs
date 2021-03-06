@@ -193,6 +193,22 @@ impl Hash {
             val: result,
         }
     }
+    pub fn from_bytes_twice(input1: &[u8], input2: &[u8]) -> Hash {
+        let mut hasher = sha3::Keccak384::new();
+        hasher.update(input1);
+        hasher.update(input2);
+        let result = hasher.finalize();
+        let result: Vec<u8> = result.into_iter()
+            .take(16)
+            .collect();
+        let result: [u8; 16] = result
+            .try_into()
+            .expect("The hash should hit into 16 bytes!");
+
+        Hash {
+            val: result,
+        }
+    }
 
     pub fn to_string(&self) -> String {
         hex::encode(self.val)
@@ -212,6 +228,10 @@ impl DoubleHash {
             hash1: hash1.clone(),
             hash2: hash2.clone(),
         }
+    }
+
+    pub fn hash(&self) -> Hash {
+        Hash::from_bytes_twice(&self.hash1.val[..], &self.hash2.val[..])
     }
 }
 

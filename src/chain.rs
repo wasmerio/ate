@@ -100,6 +100,8 @@ where M: OtherMetadata,
             Some(evt) => {
                 Ok(
                     EventExt {
+                        meta_hash: evt.meta_hash,
+                        meta_bytes: evt.meta.clone(),
                         raw: EventRaw {
                             meta: entry.meta.clone(),
                             data_hash: evt.data_hash,
@@ -315,6 +317,8 @@ where M: OtherMetadata,
                 let mut refactor = FxHashMap::default();
                 for entry in keepers.iter().rev() {
                     let new_entry = EventEntryExt {
+                        meta_hash: entry.meta_hash,
+                        meta_bytes: entry.meta_bytes.clone(),
                         meta: entry.meta.clone(),
                         data_hash: entry.data_hash.clone(),
                         pointer: flip.copy_event(&multi.lock_inner.redo, &entry.pointer).await?,
@@ -419,14 +423,14 @@ where M: OtherMetadata,
     }
 
     #[allow(dead_code)]
-    pub fn event_feed(&mut self, evts: Vec<EventRaw<M>>) -> Result<(), FeedError> {
+    pub fn event_feed(&mut self, evts: Vec<EventRawPlus<M>>) -> Result<(), FeedError> {
         let runtime = self.runtime.clone();
         runtime.block_on(self.event_feed_async(evts))?;
         Ok(())
     }
 
     #[allow(dead_code)]
-    pub async fn event_feed_async(&mut self, evts: Vec<EventRaw<M>>) -> Result<(), FeedError> {
+    pub async fn event_feed_async(&mut self, evts: Vec<EventRawPlus<M>>) -> Result<(), FeedError> {
         let mut validated_evts = Vec::new();
         {
             for evt in evts.into_iter()
@@ -446,10 +450,11 @@ where M: OtherMetadata,
         }
 
         for evt in validated_evts.into_iter() {
-            let meta_bytes = evt.get_meta_bytes()?;
-            let pointer = self.lock_inner.redo.write(meta_bytes, evt.data).await?;
+            let pointer = self.lock_inner.redo.write(evt.meta_bytes.clone(), evt.data).await?;
 
             let entry = EventEntryExt {
+                meta_hash: evt.meta_hash,
+                meta_bytes: evt.meta_bytes,
                 meta: evt.meta,
                 data_hash: evt.data_hash,
                 pointer: pointer,
@@ -578,7 +583,7 @@ where M: OtherMetadata,
     }
 
     #[allow(dead_code)]
-    pub fn metadata_lint_many(&self, data_hashes: &Vec<EventRaw<M>>, session: &Session) -> Result<Vec<CoreMetadata>, LintError> {
+    pub fn metadata_lint_many(&self, data_hashes: &Vec<EventRawPlus<M>>, session: &Session) -> Result<Vec<CoreMetadata>, LintError> {
         let mut ret = Vec::new();
         for linter in self.lock_inner.linters.iter() {
             ret.extend(linter.metadata_lint_many(data_hashes, session)?);
@@ -671,8 +676,8 @@ pub fn test_chain() {
         let mut chain = create_test_chain("test_chain".to_string(), true, true, None);
         chain_name = chain.name();
 
-        let mut evt1 = EventRaw::new(key1.clone(), Bytes::from(vec!(1; 1)));
-        let mut evt2 = EventRaw::new(key2.clone(), Bytes::from(vec!(2; 1)));
+        let mut evt1 = EventRaw::new(key1.clone(), Bytes::from(vec!(1; 1))).as_plus().unwrap();
+        let mut evt2 = EventRaw::new(key2.clone(), Bytes::from(vec!(2; 1))).as_plus().unwrap();
 
         {
             let mut lock = chain.single();

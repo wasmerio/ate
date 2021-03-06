@@ -132,7 +132,7 @@ impl<M> EventMetadataLinter<M>
 for SignaturePlugin<M>
 where M: OtherMetadata,
 {
-    fn metadata_lint_many(&self, raw: &Vec<EventRaw<M>>, session: &Session) -> Result<Vec<CoreMetadata>, LintError>
+    fn metadata_lint_many(&self, raw: &Vec<EventRawPlus<M>>, session: &Session) -> Result<Vec<CoreMetadata>, LintError>
     {
         // If there is no data then we are already done
         if raw.len() <= 0 {
@@ -170,21 +170,19 @@ where M: OtherMetadata,
             };
 
             // Compute a hash of the hashes
-            let data_hashes = raw
-                .iter()
-                .filter_map(|e| {
-                    match e.meta.get_authorization() {
-                        Some(a) => {
-                            match a.allow_write.contains(&auth) {
-                                true => e.data_hash,
-                                false => None,
-                            }
-                        },
-                        None => None,
+            let mut data_hashes = Vec::new();
+            for e in raw.iter() {
+                if let Some(a) = e.meta.get_authorization() {
+                    if a.allow_write.contains(&auth) == true {
+                        let hash = match &e.data_hash {
+                            Some(d) => DoubleHash::from_hashes(&e.meta_hash, d).hash(),
+                            None => e.meta_hash
+                        };
+                        data_hashes.push(hash);
                     }
-                })
-                .collect::<Vec<_>>();
-            let hashes_bytes: Vec<u8> = data_hashes.iter().flat_map(|h| { Vec::from(h.val).into_iter() }).collect();
+                }
+            }
+            let hashes_bytes: Vec<u8> = data_hashes.iter().flat_map(|h| { Vec::from(h.clone().val).into_iter() }).collect();
             let hash_of_hashes = Hash::from_bytes(&hashes_bytes[..]);
             
             // Add the public key side into the chain-of-trust if it is not present yet

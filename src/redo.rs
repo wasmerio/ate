@@ -1,6 +1,8 @@
 extern crate tokio;
 extern crate fxhash;
 
+use crate::crypto::Hash;
+
 use super::conf::*;
 use super::chain::*;
 #[allow(unused_imports)]
@@ -174,6 +176,7 @@ impl LogFile {
 
         Ok(
             Some(EventEntry {
+                meta_hash: Hash::from_bytes(&buff_meta[..]),
                 meta: buff_meta,
                 data_hash: body_hash,
                 pointer: pointer,
@@ -279,6 +282,7 @@ impl LogFile {
         Ok(
             Some(
                 EventData {
+                    meta_hash: super::crypto::Hash::from_bytes(&buff_meta[..]),
                     meta: buff_meta,
                     data: buff_body,
                     data_hash: body_hash,
@@ -361,6 +365,7 @@ impl LogWritable for FlippedLogFile
 {
     #[allow(dead_code)]
     async fn write(&mut self, meta: Bytes, data: Option<Bytes>) -> Result<LogFilePointer> {
+        let meta_hash = Hash::from_bytes(&meta[..]);
         let data_hash = match &data {
             Some(data) => Some(super::crypto::Hash::from_bytes(&data[..])),
             None => None,
@@ -368,6 +373,7 @@ impl LogWritable for FlippedLogFile
         let ret = self.log_file.write(meta.clone(), data).await?;
 
         let summary = EventEntry {
+            meta_hash: meta_hash,
             meta: meta,
             data_hash: data_hash,
             pointer: ret.clone(),
@@ -486,7 +492,9 @@ impl RedoLog
                     };
                     let pointer = new_log_file.write(d.meta.clone(), d.data).await?;
 
+                    let meta_hash = Hash::from_bytes(&d.meta[..]);
                     let summary = EventEntry {
+                        meta_hash: meta_hash,
                         meta: d.meta,
                         data_hash: data_hash,
                         pointer: pointer,

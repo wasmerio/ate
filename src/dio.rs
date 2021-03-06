@@ -204,7 +204,7 @@ where M: OtherMetadata,
         let key = self.key().clone();
         state.cache_store.remove(&key);
         state.cache_load.remove(&key);
-        state.deleted.insert(key);
+        state.deleted.insert(key, self.auth().clone());
     }
 }
 
@@ -255,7 +255,7 @@ where M: OtherMetadata,
     cache_store: FxHashMap<PrimaryKey, Rc<RowData<M>>>,
     cache_load: FxHashMap<PrimaryKey, Rc<EventExt<M>>>,
     locked: FxHashSet<PrimaryKey>,
-    deleted: FxHashSet<PrimaryKey>,
+    deleted: FxHashMap<PrimaryKey, MetaAuthorization>,
 }
 
 impl<M> DioState<M>
@@ -290,7 +290,7 @@ where M: OtherMetadata,
             cache_store: FxHashMap::default(),
             cache_load: FxHashMap::default(),
             locked: FxHashSet::default(),
-            deleted: FxHashSet::default(),
+            deleted: FxHashMap::default(),
         }
     }
 }
@@ -341,7 +341,7 @@ where M: OtherMetadata,
             let row = Row::from_event(dao.deref())?;
             return Ok(DaoExt::new(row, &self.state));
         }
-        if state.deleted.contains(key) {
+        if state.deleted.contains_key(key) {
             return Result::Err(LoadError::AlreadyDeleted(key.clone()));
         }
 
@@ -407,7 +407,21 @@ where M: OtherMetadata,
                         meta: meta,
                         data_hash: Some(data_hash),
                         data: Some(data),
-                    };
+                    }.as_plus()?;
+                    evts.push(evt);
+                }
+
+                // Build events that will represent tombstones on all these records (they will be sent after the writes)
+                for (key, auth) in &state.deleted {
+                    let mut meta = MetadataExt::default();
+                    meta.core.push(CoreMetadata::Authorization(auth.clone()));
+
+                    meta.add_tombstone(key.clone());
+                    let evt = EventRaw {
+                        meta: meta,
+                        data_hash: None,
+                        data: None,
+                    }.as_plus()?;
                     evts.push(evt);
                 }
 
@@ -423,20 +437,8 @@ where M: OtherMetadata,
                         },
                         data_hash: None,
                         data: None,
-                    });
+                    }.as_plus()?);
                 }
-            }
-
-            // Build events that will represent tombstones on all these records (they will be sent after the writes)
-            for key in &state.deleted {
-                let mut meta = MetadataExt::default();
-                meta.add_tombstone(key.clone());
-                let evt = EventRaw {
-                    meta: meta,
-                    data_hash: None,
-                    data: None,
-                };
-                evts.push(evt);
             }
 
             // Process it in the chain of trust
@@ -559,8 +561,8 @@ fn test_dio()
                 let mut dao2 = dio.store(TestDao::Blah4).unwrap();
                 
                 // We create a new private key for this data
+                dao2.auth_mut().allow_write.push(write_key.as_public_key().hash());
                 //dao2.auth_mut().allow_write.push(write_key2.as_public_key().hash());
-                dao2.auth_mut().allow_write.push(write_key2.as_public_key().hash());
                 
                 key2 = dao2.key().clone();
                 println!("key2: {}", key2.as_hex_string());
