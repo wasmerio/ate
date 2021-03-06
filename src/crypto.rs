@@ -503,6 +503,7 @@ impl PublicKey
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub struct EncryptedPrivateKey {
     pk: PublicKey,
+    ek_hash: Hash,
     sk_iv: InitializationVector,
     sk_encrypted: Vec<u8>
 }
@@ -512,12 +513,18 @@ impl EncryptedPrivateKey
     #[allow(dead_code)]
     pub fn generate(encrypt_key: &EncryptKey) -> Result<EncryptedPrivateKey, std::io::Error> {
         let pair = PrivateKey::generate(encrypt_key.size());
+        EncryptedPrivateKey::from_pair(&pair, encrypt_key)
+    }
+
+    #[allow(dead_code)]
+    pub fn from_pair(pair: &PrivateKey, encrypt_key: &EncryptKey) -> Result<EncryptedPrivateKey, std::io::Error> {
         let sk = pair.sk();
         let sk = encrypt_key.encrypt(&sk[..])?;
         
         Ok(
             EncryptedPrivateKey {
                 pk: pair.as_public_key(),
+                ek_hash: encrypt_key.hash(),
                 sk_iv: sk.iv,
                 sk_encrypted: sk.data,
             }
@@ -555,6 +562,11 @@ impl EncryptedPrivateKey
     #[allow(dead_code)]
     pub fn pk_hash(&self) -> Hash {
         self.pk.hash()
+    }
+
+    #[allow(dead_code)]
+    pub fn double_hash(&self) -> DoubleHash {
+        DoubleHash::from_hashes(&self.pk_hash(), &self.ek_hash)
     }
 }
 

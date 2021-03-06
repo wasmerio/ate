@@ -11,12 +11,13 @@ use super::transform::*;
 use super::plugin::*;
 use super::event::*;
 use bytes::Bytes;
+use fxhash::FxHashMap;
 
 #[derive(Debug)]
 pub struct TreeAuthorityPlugin<M>
 where M: OtherMetadata
 {
-    root_keys: Vec<Hash>,
+    root_keys: FxHashMap<Hash, PublicKey>,
     signature_plugin: SignaturePlugin<M>,
 }
 
@@ -25,7 +26,7 @@ where M: OtherMetadata
 {
     pub fn new() -> TreeAuthorityPlugin<M> {
         TreeAuthorityPlugin {
-            root_keys: Vec::new(),
+            root_keys: FxHashMap::default(),
             signature_plugin: SignaturePlugin::new(),
         }
     }
@@ -33,7 +34,7 @@ where M: OtherMetadata
     #[allow(dead_code)]
     pub fn add_root_public_key(&mut self, key: &PublicKey)
     {
-        self.root_keys.push(key.hash());
+        self.root_keys.insert(key.hash(), key.clone());
     }
 }
 
@@ -52,17 +53,12 @@ impl<M> EventValidator<M>
 for TreeAuthorityPlugin<M>
 where M: OtherMetadata
 {
-    fn validate(&self, validation_data: &ValidationData<M>) -> ValidationResult {
-        let sig_val = match self.signature_plugin.validate(validation_data) {
-            ValidationResult::Deny => { return ValidationResult::Deny; },
-            r => r,
-        };
+    fn validate(&self, validation_data: &ValidationData<M>) -> Result<ValidationResult, ValidationError> {
+        self.signature_plugin.validate(validation_data)?;
         
         // If we get this far then any data events must be denied
-        match validation_data.data_hash {
-            Some(_) => ValidationResult::Deny,
-            None => sig_val,
-        }
+        // as all the other possible routes for it to be excepted have already passed
+        Err(ValidationError::Detached)
     }
 }
 
@@ -87,17 +83,61 @@ impl<M> EventMetadataLinter<M>
 for TreeAuthorityPlugin<M>
 where M: OtherMetadata,
 {
-    fn metadata_lint_many(&self, data_hashes: &Vec<Hash>, session: &Session) -> Result<Vec<CoreMetadata>, std::io::Error>
+    fn metadata_lint_many(&self, data_hashes: &Vec<Hash>, session: &Session) -> Result<Vec<CoreMetadata>, LintError>
     {
         let mut ret = Vec::new();
+
         let mut other = self.signature_plugin.metadata_lint_many(data_hashes, session)?;
         ret.append(&mut other);
+
         Ok(ret)
     }
 
-    fn metadata_lint_event(&self, data_hash: &Option<Hash>, meta: &mut MetadataExt<M>, session: &Session)
+    fn metadata_lint_event(&self, data_hash: &Option<Hash>, meta: &MetadataExt<M>, session: &Session) -> Result<Vec<CoreMetadata>, LintError>
     {
-        self.signature_plugin.metadata_lint_event(data_hash, meta, session);
+        let mut ret = Vec::new();
+
+        let mut no_auth = true;
+        if let Some(auth) = meta.get_authorization() {
+            no_auth = false;
+            for write_hash in auth.allow_write.iter() {
+                if self.signature_plugin.has_public_key(&write_hash) == false
+                {                    
+                    // Make sure we actually own the key that it wants to write with
+                    if let None = session.properties
+                        .iter()
+                        .filter_map(|p| {
+                            match p {
+                                SessionProperty::WriteKey(w) => {
+                                    if w.hash() == *write_hash {
+                                        Some(w)
+                                    } else {
+                                        None
+                                    }
+                                }
+                                _ => None,
+                            }
+                        })
+                        .next()
+                    {
+                        // We could not find the write key!
+                        return Err(LintError::MissingWriteKey(write_hash.clone()));
+                    }
+                }
+            }
+        }
+
+        if data_hash.is_some() && no_auth == true
+        {
+            // This record has no authorization
+            return Err(LintError::NoAuthorization);
+        }
+        
+        // Now run the signature plugin
+        ret.extend(self.signature_plugin.metadata_lint_event(data_hash, meta, session)?);
+
+        // We are done
+        Ok(ret)
     }
 
     fn metadata_trim(&self, meta: &mut MetadataExt<M>)

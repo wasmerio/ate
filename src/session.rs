@@ -9,7 +9,7 @@ pub enum SessionProperty
 {
     None,
     ReadKey(EncryptKey),
-    WriteKey(EncryptKey),
+    WriteKey(PrivateKey),
     Identity(String),
 }
 

@@ -33,6 +33,7 @@ where M: OtherMetadata,
     pub key: PrimaryKey,
     pub meta: M,
     pub data: D,
+    pub auth: MetaAuthorization,
 }
 
 impl<D, M> Row<M, D>
@@ -40,18 +41,19 @@ where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone,
 {
     #[allow(dead_code)]
-    pub fn new(key: PrimaryKey, meta: M, data: D) -> Row<M, D> {
+    pub fn new(key: PrimaryKey, meta: M, data: D, auth: MetaAuthorization) -> Row<M, D> {
         Row {
             key: key,
             meta: meta,
             data: data,
+            auth: auth,
         }
     }
 
-    pub fn from_event(evt: &EventExt<M>) -> Result<Row<M, D>, EventSerializationError> {
+    pub fn from_event(evt: &EventExt<M>) -> Result<Row<M, D>, SerializationError> {
         let key = match evt.raw.meta.get_data_key() {
             Some(key) => key,
-            None => { return Result::Err(EventSerializationError::NoPrimarykey) }
+            None => { return Result::Err(SerializationError::NoPrimarykey) }
         };
         match &evt.raw.data {
             Some(data) => {
@@ -59,26 +61,31 @@ where M: OtherMetadata,
                     Row {
                         key: key,
                         meta: evt.raw.meta.other.clone(),
-                        data: bincode::deserialize(&data)?,
+                        data: serde_json::from_slice(&data)?,
+                        auth: match evt.raw.meta.get_authorization() {
+                            Some(a) => a.clone(),
+                            None => MetaAuthorization::default(),
+                        }
                     }
                 )
             }
-            None => return Result::Err(EventSerializationError::NoData),
+            None => return Result::Err(SerializationError::NoData),
         }
     }
 
-    pub fn from_row_data(row: &RowData<M>) -> Result<Row<M, D>, EventSerializationError> {
+    pub fn from_row_data(row: &RowData<M>) -> Result<Row<M, D>, SerializationError> {
         Ok(
             Row {
                 key: row.key,
                 meta: row.meta.clone(),
-                data: bincode::deserialize(&row.data)?,
+                data: serde_json::from_slice(&row.data)?,
+                auth: row.auth.clone(),
             }
         )
     }
 
-    pub fn as_row_data(&self) -> std::result::Result<RowData<M>, EventSerializationError> {
-        let data = Bytes::from(bincode::serialize(&self.data)?);
+    pub fn as_row_data(&self) -> std::result::Result<RowData<M>, SerializationError> {
+        let data = Bytes::from(serde_json::to_vec(&self.data)?);
         let data_hash = super::crypto::Hash::from_bytes(&data[..]);
         Ok
         (
@@ -87,6 +94,7 @@ where M: OtherMetadata,
                 meta: self.meta.clone(),
                 data_hash: data_hash,
                 data: data,
+                auth: self.auth.clone(),
             }
         )
     }
@@ -100,6 +108,7 @@ where M: OtherMetadata
     pub meta: M,
     pub data_hash: super::crypto::Hash,
     pub data: Bytes,
+    pub auth: MetaAuthorization,
 }
 
 #[derive(Debug)]
@@ -109,7 +118,7 @@ where M: OtherMetadata,
 {
     dirty: bool,
     row: Row<M, D>,
-    state: Rc<RefCell<DioState<M>>>
+    state: Rc<RefCell<DioState<M>>>,
 }
 
 impl<M, D> DaoExt<M, D>
@@ -135,7 +144,7 @@ where M: OtherMetadata,
         true
     }
 
-    pub fn flush(&mut self) -> std::result::Result<(), EventSerializationError> {
+    pub fn flush(&mut self) -> std::result::Result<(), SerializationError> {
         if self.dirty == true
         {            
             let mut state = self.state.borrow_mut();
@@ -163,6 +172,17 @@ where M: OtherMetadata,
     pub fn metadata_mut(&mut self) -> &mut M {
         self.fork();
         &mut self.row.meta
+    }
+
+    #[allow(dead_code)]
+    pub fn auth(&self) -> &MetaAuthorization {
+        &self.row.auth
+    }
+
+    #[allow(dead_code)]
+    pub fn auth_mut(&mut self) -> &mut MetaAuthorization {
+        self.fork();
+        &mut self.row.auth
     }
 
     #[allow(dead_code)]
@@ -266,11 +286,11 @@ impl<'a, M> DioExt<'a, M>
 where M: OtherMetadata,
 {
     #[allow(dead_code)]
-    pub fn store<D>(&mut self, data: D) -> DaoExt<M, D>
+    pub fn store<D>(&mut self, data: D) -> Result<DaoExt<M, D>, SerializationError>
     where D: Serialize + DeserializeOwned + Clone,
     {
         let key = PrimaryKey::generate();
-        let body = Bytes::from(bincode::serialize(&data).unwrap());
+        let body = Bytes::from(serde_json::to_vec(&data)?);
         let body_hash = super::crypto::Hash::from_bytes(&body[..]);
         let meta = M::default();
 
@@ -279,6 +299,7 @@ where M: OtherMetadata,
             meta: meta.clone(),
             data_hash: body_hash,
             data: body,
+            auth: MetaAuthorization::default(),
         };
 
         self.state.borrow_mut().dirty.insert(key.clone(), Rc::new(row));
@@ -287,8 +308,11 @@ where M: OtherMetadata,
             key: key,
             meta: meta,
             data: data,
+            auth: MetaAuthorization::default(),
         };
-        DaoExt::new(row, &self.state)
+        Ok(
+            DaoExt::new(row, &self.state)
+        )
     }
 
     #[allow(dead_code)]
@@ -365,7 +389,16 @@ where M: OtherMetadata,
                     let data_hash = super::crypto::Hash::from_bytes(&data[..]);
                     data_hashes.push(data_hash);
 
-                    multi.metadata_lint_event(&Some(data_hash), &mut meta, &self.session);
+                    // Compute all the extra metadata for an event
+                    let extra_meta = match multi.metadata_lint_event(&Some(data_hash), &mut meta, &self.session) {
+                        Ok(a) => a,
+                        Err(err) => {
+                            debug_assert!(false, err.to_string());
+                            eprintln!("{}", err.to_string());
+                            continue;
+                        },
+                    };
+                    meta.core.extend(extra_meta);
                     
                     let evt = EventRaw {
                         meta: meta,
@@ -453,12 +486,12 @@ pub enum TestDao
 fn test_dio()
 {
     let mut session = Session::default();
-    let mut chain = create_test_chain("test_dio".to_string(), true);
+    let mut chain = create_test_chain("test_dio".to_string(), true, false);
 
-    let write_key = EncryptKey::generate(crate::crypto::KeySize::Bit192);
+    let write_key = PrivateKey::generate(crate::crypto::KeySize::Bit192);
     let read_key = EncryptKey::generate(crate::crypto::KeySize::Bit192);
-    session.properties.push(SessionProperty::WriteKey(write_key));
-    session.properties.push(SessionProperty::ReadKey(read_key));
+    session.properties.push(SessionProperty::WriteKey(write_key.clone()));
+    session.properties.push(SessionProperty::ReadKey(read_key.clone()));
     session.properties.push(SessionProperty::Identity("author@here.com".to_string()));
 
     let key1;
@@ -469,8 +502,10 @@ fn test_dio()
 
         // Write a value immediately from chain (this data will remain in the transaction)
         {
-            let mut dao1 = dio.store(TestDao::Blah1);
+            let mut dao1 = dio.store(TestDao::Blah1).unwrap();
             key1 = dao1.key().clone();
+
+            dao1.auth_mut().allow_read.push(write_key.hash());
 
             // Attempting to load the data object while it is still in scope and not flushed will fail
             match *dio.load(&key1).expect("The data object should have been read") {
@@ -494,7 +529,7 @@ fn test_dio()
             dio.load::<TestDao>(&key1).expect_err("This load is meant to fail due to a lock being triggered");
 
             // Write a record to the chain that we will delete again later
-            let dao2 = dio.store(TestDao::Blah4);
+            let dao2 = dio.store(TestDao::Blah4).unwrap();
             key2 = dao2.key().clone();
         }
 

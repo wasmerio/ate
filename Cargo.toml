@@ -18,7 +18,9 @@ uuid = { version = "*", features = ["serde", "v4"] }
 tokio = { version = "*", features = ["full"] }
 serde = { version = "*", features = ["derive"] }
 serde-big-array = "*"
-bincode = "*"
+serde_json = "*"
+rmp = "*"
+rmp-serde = "*"
 derive-new = "*"
 bytes = "*"
 futures = "*"

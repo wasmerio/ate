@@ -1,4 +1,9 @@
 use super::crypto::Hash;
+extern crate rmp_serde as rmps;
+
+use rmp_serde::encode::Error as RmpEncodeError;
+use rmp_serde::decode::Error as RmpDecodeError;
+use serde_json::Error as JsonError;
 
 #[derive(Debug)]
 pub enum CryptoError {
@@ -77,7 +82,7 @@ for TransformError {
 pub enum CompactError {
     SinkError(SinkError),
     IO(tokio::io::Error),
-    SerializationError(EventSerializationError),
+    SerializationError(SerializationError),
 }
 
 impl From<tokio::io::Error>
@@ -94,9 +99,9 @@ for CompactError {
     }
 }
 
-impl From<EventSerializationError>
+impl From<SerializationError>
 for CompactError {
-    fn from(err: EventSerializationError) -> CompactError {
+    fn from(err: SerializationError) -> CompactError {
         CompactError::SerializationError(err)
     }
 }
@@ -128,17 +133,56 @@ for SinkError {
 }
 
 #[derive(Debug)]
-pub enum EventSerializationError
+pub enum SerializationError
 {
     NoPrimarykey,
     NoData,
-    BincodeError(bincode::Error),
+    EncodeError(RmpEncodeError),
+    DecodeError(RmpDecodeError),
+    JsonError(JsonError),
 }
 
-impl From<bincode::Error>
-for EventSerializationError {
-    fn from(err: bincode::Error) -> EventSerializationError {
-        EventSerializationError::BincodeError(err)
+impl From<RmpEncodeError>
+for SerializationError {
+    fn from(err: RmpEncodeError) -> SerializationError {
+        SerializationError::EncodeError(err)
+    }
+}
+
+impl From<RmpDecodeError>
+for SerializationError {
+    fn from(err: RmpDecodeError) -> SerializationError {
+        SerializationError::DecodeError(err)
+    }
+}
+
+impl From<JsonError>
+for SerializationError {
+    fn from(err: JsonError) -> SerializationError {
+        SerializationError::JsonError(err)
+    }
+}
+
+impl std::fmt::Display
+for SerializationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            SerializationError::NoPrimarykey => {
+                write!(f, "Data object does not have a primary key")
+            },
+            SerializationError::NoData => {
+                write!(f, "Data object has no actual data")
+            },
+            SerializationError::EncodeError(err) => {
+                write!(f, "MessagePack encoding error - {}", err)
+            },
+            SerializationError::DecodeError(err) => {
+                write!(f, "MessagePack decoding error - {}", err)
+            },
+            SerializationError::JsonError(err) => {
+                write!(f, "JSON serialization error - {}", err)
+            },
+        }
     }
 }
 
@@ -149,7 +193,7 @@ pub enum LoadError {
     AlreadyDeleted,
     InternalError(String),
     Tombstoned,
-    SerializationError(EventSerializationError),
+    SerializationError(SerializationError),
     TransformationError(TransformError),
     IO(tokio::io::Error),
 }
@@ -162,10 +206,10 @@ for LoadError
     }   
 }
 
-impl From<EventSerializationError>
+impl From<SerializationError>
 for LoadError
 {
-    fn from(err: EventSerializationError) -> LoadError {
+    fn from(err: SerializationError) -> LoadError {
         LoadError::SerializationError(err)
     }   
 }
@@ -182,6 +226,8 @@ for LoadError
 pub enum FeedError {
     SinkError(SinkError),
     IO(tokio::io::Error),
+    ValidationError(ValidationError),
+    SerializationError(SerializationError),
 }
 
 impl From<SinkError>
@@ -192,11 +238,27 @@ for FeedError
     }   
 }
 
+impl From<ValidationError>
+for FeedError
+{
+    fn from(err: ValidationError) -> FeedError {
+        FeedError::ValidationError(err)
+    }   
+}
+
 impl From<tokio::io::Error>
 for FeedError
 {
     fn from(err: tokio::io::Error) -> FeedError {
         FeedError::IO(err)
+    }   
+}
+
+impl From<SerializationError>
+for FeedError
+{
+    fn from(err: SerializationError) -> FeedError {
+        FeedError::SerializationError(err)
     }   
 }
 
@@ -210,6 +272,12 @@ for FeedError {
             FeedError::IO(err) => {
                 write!(f, "IO sink error while processing a stream of events- {}", err)
             },
+            FeedError::ValidationError(err) => {
+                write!(f, "Validation error while processing a stream of events- {}", err)
+            },
+            FeedError::SerializationError(err) => {
+                write!(f, "Serialization error while processing a stream of events- {}", err)
+            },
         }
     }
 }
@@ -218,11 +286,13 @@ for FeedError {
 pub struct ProcessError
 {
     pub sink_errors: Vec<SinkError>,
+    pub validation_errors: Vec<ValidationError>,
 }
 
 impl ProcessError {
     pub fn has_errors(&self) -> bool {
         if self.sink_errors.is_empty() == false { return true; }
+        if self.validation_errors.is_empty() == false { return true; }
         false
     }
 
@@ -238,7 +308,7 @@ impl ProcessError {
 pub enum ChainCreationError {
     ProcessError(ProcessError),
     IO(tokio::io::Error),
-    SerializationError(EventSerializationError),
+    SerializationError(SerializationError),
 }
 
 impl From<ProcessError>
@@ -249,10 +319,10 @@ for ChainCreationError
     }   
 }
 
-impl From<EventSerializationError>
+impl From<SerializationError>
 for ChainCreationError
 {
-    fn from(err: EventSerializationError) -> ChainCreationError {
+    fn from(err: SerializationError) -> ChainCreationError {
         ChainCreationError::SerializationError(err)
     }   
 }
@@ -263,4 +333,56 @@ for ChainCreationError
     fn from(err: tokio::io::Error) -> ChainCreationError {
         ChainCreationError::IO(err)
     }   
+}
+
+#[derive(Debug)]
+pub enum LintError {
+    IO(std::io::Error),
+    MissingWriteKey(Hash),
+    NoAuthorization,
+}
+
+impl From<std::io::Error>
+for LintError
+{
+    fn from(err: std::io::Error) -> LintError {
+        LintError::IO(err)
+    }   
+}
+
+impl std::fmt::Display
+for LintError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            LintError::IO(err) => {
+                write!(f, "IO error while linting an event - {}", err)
+            },
+            LintError::MissingWriteKey(hash) => {
+                write!(f, "Could not find the write public key ({}) in the seesion", hash.to_string())
+            },
+            LintError::NoAuthorization => {
+                write!(f, "Event has no authorization metadata")
+            },
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum ValidationError {
+    AllAbstained,
+    Detached,
+}
+
+impl std::fmt::Display
+for ValidationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            ValidationError::AllAbstained => {
+                write!(f, "None of the validators approved this event")
+            },
+            ValidationError::Detached => {
+                write!(f, "The event is detached from the chain of trust")
+            },
+        }
+    }
 }

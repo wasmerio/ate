@@ -5,6 +5,8 @@ use super::meta::*;
 use super::error::*;
 use super::redo::LogFilePointer;
 
+extern crate rmp_serde as rmps;
+
 #[derive(Debug, Clone)]
 pub struct EventRaw<M>
 where M: OtherMetadata
@@ -52,10 +54,10 @@ impl<M> EventEntryExt<M>
 where M: OtherMetadata
 {
     #[allow(dead_code)]
-    pub fn from_generic(metadata: &EventEntry) -> Result<EventEntryExt<M>, EventSerializationError> {
+    pub fn from_generic(metadata: &EventEntry) -> Result<EventEntryExt<M>, SerializationError> {
         Ok(
             EventEntryExt {
-                meta: bincode::deserialize(&metadata.meta)?,
+                meta: rmps::from_read_ref(&metadata.meta)?,
                 data_hash: metadata.data_hash,
                 pointer: metadata.pointer,
             }
@@ -63,13 +65,15 @@ where M: OtherMetadata
     }
 
     #[allow(dead_code)]
-    pub fn to_generic(&self) -> EventEntry {
-        let meta_bytes = Bytes::from(bincode::serialize(&self.meta).unwrap());
-        EventEntry {
-            meta: meta_bytes,
-            data_hash: self.data_hash,
-            pointer: self.pointer,
-        }
+    pub fn to_generic(&self) -> Result<EventEntry, SerializationError> {
+        let meta_bytes = Bytes::from(rmps::to_vec(&self.meta)?);
+        Ok(
+            EventEntry {
+                meta: meta_bytes,
+                data_hash: self.data_hash,
+                pointer: self.pointer,
+            }
+        )
     }
 }
 
@@ -98,11 +102,11 @@ where M: OtherMetadata
     }
 
     #[allow(dead_code)]
-    pub fn from_event_data(evt: &EventData) -> Result<EventExt<M>, EventSerializationError> {
+    pub fn from_event_data(evt: &EventData) -> Result<EventExt<M>, SerializationError> {
         Ok(
             EventExt {
                 raw: EventRaw {
-                    meta: bincode::deserialize(&evt.meta)?,
+                    meta: rmps::from_read_ref(&evt.meta)?,
                     data_hash: evt.data_hash.clone(),
                     data: evt.data.clone(),
                 },
@@ -112,8 +116,8 @@ where M: OtherMetadata
     }
 
     #[allow(dead_code)]
-    pub fn get_meta_bytes(&self) -> Bytes {
-        Bytes::from(bincode::serialize(&self.meta).unwrap())
+    pub fn get_meta_bytes(&self) -> Result<Bytes, SerializationError> {
+        Ok(Bytes::from(rmps::to_vec(&self.meta)?))
     }
 }
 
@@ -121,13 +125,15 @@ impl<M> EventExt<M>
 where M: OtherMetadata
 {
     #[allow(dead_code)]
-    pub fn to_event_data(&self) -> EventData {
-        EventData {
-            meta: self.raw.get_meta_bytes(),
-            data_hash: self.raw.data_hash.clone(),
-            data: self.raw.data.clone(),
-            pointer: self.pointer.clone(),
-        }
+    pub fn to_event_data(&self) -> Result<EventData, SerializationError> {
+        Ok(
+            EventData {
+                meta: self.raw.get_meta_bytes()?,
+                data_hash: self.raw.data_hash.clone(),
+                data: self.raw.data.clone(),
+                pointer: self.pointer.clone(),
+            }
+        )
     }
 
     #[allow(dead_code)]

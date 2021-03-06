@@ -1,5 +1,4 @@
 extern crate tokio;
-extern crate bincode;
 extern crate fxhash;
 
 use super::conf::*;
@@ -9,6 +8,8 @@ use super::header::*;
 use super::event::*;
 #[allow(unused_imports)]
 use super::meta::*;
+
+extern crate rmp_serde as rmps;
 
 use async_trait::async_trait;
 #[allow(unused_imports)]
@@ -587,7 +588,7 @@ async fn test_write_data(log: &mut dyn LogWritable, key: PrimaryKey, body: Optio
 {
     let mut meta = DefaultMetadata::for_data(key);
     meta.core.push(CoreMetadata::Author("test@nowhere.com".to_string()));
-    let meta_bytes = Bytes::from(bincode::serialize(&meta).unwrap());
+    let meta_bytes = Bytes::from(rmps::to_vec(&meta).unwrap());
 
     // Write some data to the flipped buffer
     let mock_body = match body {
@@ -614,7 +615,7 @@ async fn test_read_data(log: &mut RedoLog, read_header: LogFilePointer, test_key
     
     let mut meta = DefaultMetadata::for_data(test_key);
     meta.core.push(CoreMetadata::Author("test@nowhere.com".to_string()));
-    let meta_bytes = Bytes::from(bincode::serialize(&meta).unwrap());
+    let meta_bytes = Bytes::from(rmps::to_vec(&meta).unwrap());
 
     let test_body = match test_body {
         Some(a) => Some(Bytes::from(a)),

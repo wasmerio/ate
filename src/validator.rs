@@ -3,14 +3,13 @@ use super::crypto::*;
 use super::event::*;
 use super::signature::MetaSignature;
 use super::crypto::Hash;
+use super::error::*;
 
 #[derive(Debug)]
 pub enum ValidationResult {
     Allow,
     #[allow(dead_code)]
     Abstain,
-    #[allow(dead_code)]
-    Deny,
 }
 
 pub struct ValidationData<'a, M>
@@ -41,8 +40,8 @@ where M: OtherMetadata
 pub trait EventValidator<M>
 where M: OtherMetadata
 {
-    fn validate(&self, _validation_data: &ValidationData<M>) -> ValidationResult {
-        ValidationResult::Abstain
+    fn validate(&self, _validation_data: &ValidationData<M>) -> Result<ValidationResult, ValidationError> {
+        Ok(ValidationResult::Abstain)
     }
 }
 
@@ -55,9 +54,9 @@ for RubberStampValidator
 where M: OtherMetadata
 {
     #[allow(unused_variables)]
-    fn validate(&self, _validation_data: &ValidationData<M>) -> ValidationResult
+    fn validate(&self, _validation_data: &ValidationData<M>) -> Result<ValidationResult, ValidationError>
     {
-        ValidationResult::Allow
+        Ok(ValidationResult::Allow)
     }
 }
 
@@ -81,9 +80,9 @@ for StaticSignatureValidator
 where M: OtherMetadata
 {
     #[allow(unused_variables)]
-    fn validate(&self, _validation_data: &ValidationData<M>) -> ValidationResult
+    fn validate(&self, _validation_data: &ValidationData<M>) -> Result<ValidationResult, ValidationError>
     {
-        ValidationResult::Allow
+        Ok(ValidationResult::Allow)
     }
 }
 

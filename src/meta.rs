@@ -8,12 +8,12 @@ where Self: Serialize + DeserializeOwned + std::fmt::Debug + Default + Clone + S
 {
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct MetaAuthorization
 {
-    allow_read: Vec<Hash>,
-    allow_write: Vec<Hash>,
-    implicit_authority: String,
+    pub allow_read: Vec<Hash>,
+    pub allow_write: Vec<Hash>,
+    pub implicit_authority: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -59,3 +59,20 @@ pub struct MetadataExt<M>
 
 #[allow(dead_code)]
 pub type DefaultMetadata = MetadataExt<NoAdditionalMetadata>;
+
+impl<M> MetadataExt<M>
+{
+    pub fn get_authorization(&self) -> Option<&MetaAuthorization>
+    {
+        for core in &self.core {
+            match core {
+                CoreMetadata::Authorization(a) => {
+                    return Some(a);
+                },
+                _ => {}
+            }
+        }
+        
+        None
+    }
+}

@@ -5,7 +5,7 @@ use multimap::MultiMap;
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use fxhash::FxHashMap;
 #[allow(unused_imports)]
-use crate::crypto::{EncryptedPrivateKey, Hash, PublicKey};
+use crate::crypto::{EncryptedPrivateKey, Hash, DoubleHash, PublicKey};
 #[allow(unused_imports)]
 use crate::session::{Session, SessionProperty};
 
@@ -38,7 +38,6 @@ pub struct MetaSignature
 pub struct SignaturePlugin<M>
 {
     pk: FxHashMap<Hash, PublicKey>,
-    epk: FxHashMap<Hash, EncryptedPrivateKey>,
     sigs: MultiMap<Hash, Hash>,
     lookup: MultiMap<PrimaryKey, Hash>,
     _marker: PhantomData<M>,
@@ -50,7 +49,6 @@ impl<M> SignaturePlugin<M>
     {
         SignaturePlugin {
             pk: FxHashMap::default(),
-            epk: FxHashMap::default(),
             sigs: MultiMap::default(),
             lookup: MultiMap::default(),
             _marker: PhantomData,
@@ -65,6 +63,11 @@ impl<M> SignaturePlugin<M>
             None => Vec::new()
         }
     }
+
+    pub fn has_public_key(&self, key_hash: &Hash) -> bool
+    {
+        self.pk.contains_key(&key_hash)
+    }
 }
 
 impl<M> EventSink<M>
@@ -76,12 +79,6 @@ where M: OtherMetadata
         // Store the public key and encrypt private keys into the index
         for m in meta.core.iter() {
             match m {
-                CoreMetadata::EncryptedPrivateKey(epk) => {
-                    self.epk.insert(epk.pk_hash(), epk.clone());
-
-                    let pk = epk.as_public_key();
-                    self.pk.insert(pk.hash(), pk.clone());
-                },
                 CoreMetadata::PublicKey(pk) => {
                     self.pk.insert(pk.hash(), pk.clone());
                 },
@@ -149,7 +146,7 @@ impl<M> EventMetadataLinter<M>
 for SignaturePlugin<M>
 where M: OtherMetadata,
 {
-    fn metadata_lint_many(&self, data_hashes: &Vec<Hash>, session: &Session) -> Result<Vec<CoreMetadata>, std::io::Error>
+    fn metadata_lint_many(&self, data_hashes: &Vec<Hash>, session: &Session) -> Result<Vec<CoreMetadata>, LintError>
     {
         // If there is no data then we are already done
         if data_hashes.len() <= 0 {
@@ -161,31 +158,26 @@ where M: OtherMetadata,
         // Compute a hash of the hashes
         let hashes_bytes: Vec<u8> = data_hashes.into_iter().flat_map(|h| { Vec::from(h.val).into_iter() }).collect();
         let hash_of_hashes = Hash::from_bytes(&hashes_bytes[..]);
-
+        
         // We should sign the data using all the known signature keys in the session
         for prop in &session.properties {
             match prop {
                 SessionProperty::WriteKey(auth) =>
                 {
-                    // If the key is not already in the chain of trust then we should add it
-                    // we a newly generate private key
-                    let epk_store;
-                    let epk = match self.epk.get(&auth.hash()) {
-                        Some(epk) => epk,
-                        None => {
-                            epk_store = EncryptedPrivateKey::generate(auth)?;
-                            &epk_store
-                        }
-                    };                    
+                    // Add the public key side into the chain-of-trust if it is not present yet
+                    if let None = self.pk.get(&auth.hash()) {
+                        ret.push(CoreMetadata::PublicKey(auth.as_public_key()));
+                     };
 
                     // Next we need to decrypt the private key and use it to sign the hashes
-                    let pk = epk.as_private_key(auth)?;
-                    let sig = pk.sign(&hash_of_hashes.val[..])?;
+                    let sig = auth.sign(&hash_of_hashes.val[..])?;
                     let sig = MetaSignature {
                         hashes: data_hashes.clone(),
                         signature: sig,
-                        public_key_hash: epk.pk_hash(),
+                        public_key_hash: auth.hash(),
                     };
+
+                    // Push the signature
                     ret.push(CoreMetadata::Signature(sig));
                 },
                 _ => {}
@@ -210,7 +202,6 @@ where M: OtherMetadata,
     fn rebuild(&mut self, data: &Vec<EventEntryExt<M>>) -> Result<(), SinkError>
     {
         self.pk.clear();
-        self.epk.clear();
         self.sigs.clear();
         self.lookup.clear();
 

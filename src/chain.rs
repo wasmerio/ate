@@ -403,7 +403,9 @@ where M: OtherMetadata,
         for mut entry in entries.into_iter()
         {
             let validation_data = ValidationData::from_event_entry(&entry);
-            if self.validate_event(&validation_data) == false { continue; }
+            if let Result::Err(err) = self.validate_event(&validation_data) {
+                ret.validation_errors.push(err);
+            }
 
             for indexer in self.lock_indexers.iter_mut() {
                 match indexer.feed(&entry.meta, &entry.data_hash) {
@@ -434,7 +436,7 @@ where M: OtherMetadata,
         {
             for evt in evts.into_iter() {
                 let validation_data = ValidationData::from_event(&evt);
-                if self.validate_event(&validation_data) == false { continue; }
+                self.validate_event(&validation_data)?;
 
                 for indexer in self.lock_indexers.iter_mut() {
                     indexer.feed(&evt.meta, &evt.data_hash)?;
@@ -445,7 +447,7 @@ where M: OtherMetadata,
         }
 
         for evt in validated_evts.into_iter() {
-            let meta_bytes = evt.get_meta_bytes();
+            let meta_bytes = evt.get_meta_bytes()?;
             let pointer = self.lock_inner.redo.write(meta_bytes, evt.data).await?;
 
             let mut entry = EventEntryExt {
@@ -463,29 +465,26 @@ where M: OtherMetadata,
     }
 
     #[allow(dead_code)]
-    fn validate_event(&self, data: &ValidationData<M>) -> bool
+    fn validate_event(&self, data: &ValidationData<M>) -> Result<ValidationResult, ValidationError>
     {
         let mut is_allow = false;
-        let mut is_deny = false;
         for validator in self.lock_inner.validators.iter() {
-            match validator.validate(data) {
+            match validator.validate(data)? {
                 ValidationResult::Allow => is_allow = true,
-                ValidationResult::Deny => is_deny = true,
-                _ => {}
+                _ => {},
             }
         }
         for plugin in self.lock_plugins.iter() {
-            match plugin.validate(data) {
+            match plugin.validate(data)? {
                 ValidationResult::Allow => is_allow = true,
-                ValidationResult::Deny => is_deny = true,
                 _ => {}
             }
         }
 
-        if is_deny == true || is_allow == false {
-            return false;
+        if is_allow == false {
+            return Err(ValidationError::AllAbstained);
         }
-        true
+        Ok(ValidationResult::Allow)
     }
 
     #[allow(dead_code)]
@@ -590,7 +589,7 @@ where M: OtherMetadata,
     }
 
     #[allow(dead_code)]
-    pub fn metadata_lint_many(&self, data_hashes: &Vec<Hash>, session: &Session) -> Result<Vec<CoreMetadata>, std::io::Error> {
+    pub fn metadata_lint_many(&self, data_hashes: &Vec<Hash>, session: &Session) -> Result<Vec<CoreMetadata>, LintError> {
         let mut ret = Vec::new();
         for linter in self.lock_inner.linters.iter() {
             ret.extend(linter.metadata_lint_many(data_hashes, session)?);
@@ -602,13 +601,15 @@ where M: OtherMetadata,
     }
 
     #[allow(dead_code)]
-    pub fn metadata_lint_event(&self, data_hash: &Option<Hash>, meta: &mut MetadataExt<M>, session: &Session) {
+    pub fn metadata_lint_event(&self, data_hash: &Option<Hash>, meta: &mut MetadataExt<M>, session: &Session) -> Result<Vec<CoreMetadata>, LintError> {
+        let mut ret = Vec::new();
         for linter in self.lock_inner.linters.iter() {
-            linter.metadata_lint_event(data_hash, meta, session);
+            ret.extend(linter.metadata_lint_event(data_hash, meta, session)?);
         }
         for plugin in self.lock_plugins.iter() {
-            plugin.metadata_lint_event(data_hash, meta, session);
+            ret.extend(plugin.metadata_lint_event(data_hash, meta, session)?);
         }
+        Ok(ret)
     }
 
     #[allow(dead_code)]
@@ -637,7 +638,7 @@ where M: OtherMetadata,
 }
 
 #[cfg(test)]
-pub fn create_test_chain(chain_name: String, temp: bool) ->
+pub fn create_test_chain(chain_name: String, temp: bool, barebone: bool) ->
     ChainAccessor
 {
     // Create the chain-of-trust and a validator
@@ -649,7 +650,11 @@ pub fn create_test_chain(chain_name: String, temp: bool) ->
         false => ChainKey::default().with_name(chain_name),
     };
 
-    let builder = ChainOfTrustBuilder::default()
+    let builder = match barebone {
+        true => ChainOfTrustBuilder::new(ConfiguredFor::Barebone),
+        false => ChainOfTrustBuilder::default()
+    };
+    let builder = builder            
         .add_validator(Box::new(RubberStampValidator::default()))
         .add_data_transformer(Box::new(StaticEncryptionTransformer::new(&EncryptKey::from_string("test".to_string(), KeySize::Bit192))))
         .add_metadata_linter(Box::new(EventAuthorLinter::default()));
@@ -670,7 +675,7 @@ pub fn test_chain() {
     let chain_name;
 
     {
-        let mut chain = create_test_chain("test_chain".to_string(), true);
+        let mut chain = create_test_chain("test_chain".to_string(), true, true);
         chain_name = chain.name();
 
         let mut evt1 = EventRaw::new(key1.clone(), Bytes::from(vec!(1; 1)));
@@ -754,7 +759,7 @@ pub fn test_chain() {
 
     {
         // Reload the chain from disk and check its integrity
-        let mut chain = create_test_chain(chain_name, false);
+        let mut chain = create_test_chain(chain_name, false, true);
 
         {
             let lock = chain.multi();
