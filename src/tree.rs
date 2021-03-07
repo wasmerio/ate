@@ -47,10 +47,15 @@ where M: OtherMetadata
         let mut write = FxHashSet::default();
         let mut implicit = None;
 
+        // Root keys are there until inheritance is disabled then they
+        // can no longer be used but this means that the top level data objects
+        // can always be overridden by the root keys
         for a in self.root_keys.keys() {
             write.insert(a.clone());
         }
 
+        // When the data object is attached to a parent then as long as
+        // it has one of the authorizations then it can be saved against it
         if let Some(tree) = meta.get_tree() {
             if tree.inherit_read && tree.inherit_write {
                 if let Some(auth) = self.auth.get(&tree.parent_id) {
@@ -72,6 +77,8 @@ where M: OtherMetadata
             }
         }
 
+        // If there are previously accepted authorizations for this row
+        // then they carry over into the next version of it
         if let Some(key) = meta.get_data_key()
         {
             if let Some(auth) = self.auth.get(&key) {
