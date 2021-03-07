@@ -27,7 +27,7 @@ pub struct MetaTree
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MetaTimestamp
 {
-    pub time_since_epoch_ns: u64,
+    pub time_since_epoch_ms: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

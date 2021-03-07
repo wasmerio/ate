@@ -22,6 +22,7 @@ mod ntp;
 use ntp::NtpResult;
 
 pub struct TimestampEnforcer {
+    pub cursor: Duration,
     pub tolerance: Duration,
     pub ntp_pool: Arc<String>,
     pub ntp_port: u32,
@@ -80,10 +81,12 @@ impl TimestampEnforcer
             }
         });
 
+        let tolerance = Duration::from_millis(tolerance_ms as u64);
         Ok(
             TimestampEnforcer
             {
-                tolerance: Duration::from_millis(tolerance_ms as u64),
+                cursor: tolerance,
+                tolerance: tolerance,
                 ntp_pool: pool,
                 ntp_port: port,
                 ntp_result: ntp_result,
@@ -157,7 +160,7 @@ where M: OtherMetadata,
 
         ret.push(CoreMetadata::Timestamp(
             MetaTimestamp {
-                time_since_epoch_ns: self.current_timestamp()?.as_nanos() as u64,
+                time_since_epoch_ms: self.current_timestamp()?.as_millis() as u64,
             }
         ));
 
@@ -169,6 +172,16 @@ impl<M> EventSink<M>
 for TimestampEnforcer
 where M: OtherMetadata,
 {
+    fn feed(&mut self, meta: &MetadataExt<M>, _data_hash: &Option<Hash>) -> Result<(), SinkError>
+    {
+        if let Some(time) = TimestampEnforcer::get_timestamp(meta) {
+            let time = Duration::from_millis(time.time_since_epoch_ms);
+            if time > self.cursor {
+                self.cursor = time;
+            }
+        }
+        Ok(())
+    }   
 }
 
 impl<M> EventIndexer<M>
@@ -207,9 +220,13 @@ where M: OtherMetadata,
         };
 
         // Check its within the time range
-        let timestamp = Duration::from_nanos(time.time_since_epoch_ns);
+        let timestamp = Duration::from_millis(time.time_since_epoch_ms);
+        let min_timestamp = self.cursor - self.tolerance;
         let max_timestamp = self.current_timestamp()? + self.tolerance;
-        if timestamp > max_timestamp {
+        
+        if timestamp < min_timestamp ||
+           timestamp > max_timestamp
+        {
             return Err(ValidationError::Time(TimeError::OutOfBounds(timestamp)));
         }
 
