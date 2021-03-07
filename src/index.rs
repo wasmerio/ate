@@ -13,7 +13,9 @@ pub trait EventIndexer<M>
 where Self: EventSink<M>,
       M: OtherMetadata
 {
-    fn rebuild(&mut self, data: &Vec<EventEntryExt<M>>) -> Result<(), SinkError>;
+    fn rebuild(&mut self, _data: &Vec<EventEntryExt<M>>) -> Result<(), SinkError> {
+        Ok(())
+    }
 }
 
 #[derive(Default)]

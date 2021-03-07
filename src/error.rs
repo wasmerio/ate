@@ -445,6 +445,15 @@ pub enum ValidationError {
     AllAbstained,
     Detached,
     NoSignatures,
+    Time(TimeError),
+}
+
+impl From<TimeError>
+for ValidationError
+{
+    fn from(err: TimeError) -> ValidationError {
+        ValidationError::Time(err)
+    }   
 }
 
 impl std::fmt::Display
@@ -459,6 +468,9 @@ for ValidationError {
             },
             ValidationError::NoSignatures => {
                 write!(f, "The data object event has no signatures")
+            },
+            ValidationError::Time(err) => {
+                write!(f, "The data object event has an issue with time - {}", err)
             },
         }
     }
@@ -524,12 +536,13 @@ for FlushError {
     }
 }
 
-#[derive(Debug)]
 pub enum TimeError
 {
     IO(std::io::Error),
     SystemTimeError(SystemTimeError),
-    BeyondTolerance(u32)
+    BeyondTolerance(u32),
+    NoTimestamp,
+    OutOfBounds(std::time::Duration),
 }
 
 impl From<std::io::Error>
@@ -560,6 +573,39 @@ for TimeError {
             },
             TimeError::BeyondTolerance(err) => {
                 write!(f, "The network latency is beyond tolerance to synchronize the clocks - {}", err.to_string())
+            },
+            TimeError::NoTimestamp => {
+                write!(f, "The data object has no timestamp metadata attached to it")
+            },
+            TimeError::OutOfBounds(dur) => {
+                let time = std::time::UNIX_EPOCH + *dur;
+                let datetime: chrono::DateTime<chrono::Utc> = time.into();
+                write!(f, "The network latency is beyond tolerance to synchronize the clocks - {}", datetime.format("%d/%m/%Y %T"))
+            },
+        }
+    }
+}
+
+impl std::fmt::Debug
+for TimeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            TimeError::IO(err) => {
+                write!(f, "TimeError::IO - {}", err.to_string())
+            },
+            TimeError::SystemTimeError(err) => {
+                write!(f, "TimeError::SystemTimeError - {}", err.to_string())
+            },
+            TimeError::BeyondTolerance(err) => {
+                write!(f, "TimeError::BeyondTolerance - {}", err.to_string())
+            },
+            TimeError::NoTimestamp => {
+                write!(f, "TimeError::NoTimestamp")
+            },
+            TimeError::OutOfBounds(dur) => {
+                let time = std::time::UNIX_EPOCH + *dur;
+                let datetime: chrono::DateTime<chrono::Utc> = time.into();
+                write!(f, "TimeError::OutOfBounds({})", datetime.format("%d/%m/%Y %T"))
             },
         }
     }

@@ -43,6 +43,7 @@ pqcrypto-traits = "*"
 sha3 = "*"
 multimap = "*"
 hex = "*"
+chrono = "*"
 
 [dev-dependencies]
 ctor = "*"

@@ -416,6 +416,10 @@ where M: OtherMetadata,
                     let mut meta = MetadataExt::default();
                     meta.core.push(CoreMetadata::Authorization(auth.clone()));
 
+                    // Compute all the extra metadata for an event
+                    let extra_meta = multi.metadata_lint_event(&None, &mut meta, &self.session)?;
+                    meta.core.extend(extra_meta);
+
                     meta.add_tombstone(key.clone());
                     let evt = EventRaw {
                         meta: meta,
