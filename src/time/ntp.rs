@@ -6,6 +6,8 @@ use std::net;
 use std::net::{SocketAddr, ToSocketAddrs, UdpSocket};
 use std::str;
 use std::time;
+use std::time::Duration;
+use super::TimeError;
 
 const MODE_MASK: u8 = 0b0000_0111;
 const MODE_SHIFT: u8 = 0;
@@ -211,23 +213,6 @@ impl From<&NtpPacket> for RawNtpPacket {
     }
 }
 
-/// Send request to a NTP server with the given address
-/// and process the response
-///
-/// * `pool` - Server's name or IP address as a string
-/// * `port` - Server's port as an int
-///
-/// # Example
-///
-/// ```rust
-/// use sntpc;
-///
-/// let result = sntpc::request("time.google.com", 123);
-/// // OR
-/// let result = sntpc::request("83.168.200.199", 123);
-///
-/// // .. process the result
-/// ```
 pub fn request(pool: &str, port: u32, timeout: time::Duration) -> io::Result<NtpResult> {
     let socket = net::UdpSocket::bind("0.0.0.0:0")
         .expect("Unable to create a UDP socket");
@@ -384,4 +369,59 @@ fn get_ntp_timestamp() -> u64 {
         + u64::from(now_since_unix.subsec_micros());
 
     timestamp
+}
+
+pub fn query_ntp(pool: &String, port: u32, tolerance_ms: u32) -> Result<NtpResult, TimeError>
+{
+    let timeout =  Duration::from_millis(tolerance_ms as u64) + Duration::from_millis(50);
+    let ret = request(pool.as_str(), port, timeout)?;
+    let ping = Duration::from_micros(ret.roundtrip()).as_millis() as u32;
+    if ping > tolerance_ms {
+        return Err(TimeError::BeyondTolerance(ping as u32));
+    }
+    Ok(ret)
+}
+
+pub fn query_ntp_retry(pool: &String, port: u32, tolerance_ms: u32, samples: u32) -> Result<NtpResult, TimeError>
+{
+    let mut best: Option<NtpResult> = None;
+    let mut positives = 0;
+    let mut wait_time = 50;
+
+    for _ in 0..samples
+    {
+        let timeout = match &best {
+            Some(b) => Duration::from_micros(b.roundtrip()) + Duration::from_millis(50),
+            None => Duration::from_millis(tolerance_ms as u64),
+        };
+
+        if let Ok(ret) = request(pool.as_str(), port, timeout) {
+            let current_ping = match &best {
+                Some(b) => b.roundtrip(),
+                None => u64::max_value(),
+            };
+            if ret.roundtrip() < current_ping {
+                best = Some(ret);
+            }
+            positives = positives + 1;
+            if positives >= samples {
+                break;
+            }
+        }
+        else
+        {
+            std::thread::sleep(Duration::from_millis(wait_time));
+            wait_time = (wait_time * 120) / 100;
+             wait_time = wait_time + 50;
+        }
+    }
+
+    if let Some(ret) = best {
+        let ping = Duration::from_micros(ret.roundtrip()).as_millis() as u32;
+        if ping <= tolerance_ms {
+            return Ok(ret);
+        }
+    }
+
+    query_ntp(pool, port, tolerance_ms)
 }
