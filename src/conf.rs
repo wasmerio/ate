@@ -1,4 +1,4 @@
-use crate::{chain::ChainAccessorExt, tree::TreeAuthorityPlugin};
+use crate::{chain::ChainAccessorExt, time::EventTimestampLinter, tree::TreeAuthorityPlugin};
 use std::sync::Arc;
 use std::sync::RwLock;
 
@@ -157,6 +157,7 @@ where M: OtherMetadata + 'static,
 
         self.compactors.push(Box::new(RemoveDuplicatesCompactor::default()));
         self.compactors.push(Box::new(TombstoneCompactor::default()));
+        self.linters.push(Box::new(EventTimestampLinter::default()));
 
         if flavour == ConfiguredFor::Barebone {
             self.validators.push(Box::new(RubberStampValidator::default()));

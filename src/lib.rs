@@ -20,6 +20,7 @@ mod lint;
 mod transform;
 mod plugin;
 mod signature;
+mod time;
 mod tree;
 mod chain;
 mod dio;

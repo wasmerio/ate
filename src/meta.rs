@@ -25,6 +25,12 @@ pub struct MetaTree
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MetaTimestamp
+{
+    pub time_since_epoch_ns: u64,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum CoreMetadata
 {
     None,
@@ -36,6 +42,7 @@ pub enum CoreMetadata
     EncryptedPrivateKey(EncryptedPrivateKey),
     EncryptedEncryptionKey(EncryptKey),
     Tree(MetaTree),
+    Timestamp(MetaTimestamp),
     Signature(MetaSignature),
     Author(String),
 }

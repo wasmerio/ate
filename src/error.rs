@@ -8,6 +8,7 @@ extern crate rmp_serde as rmps;
 use rmp_serde::encode::Error as RmpEncodeError;
 use rmp_serde::decode::Error as RmpDecodeError;
 use serde_json::Error as JsonError;
+use std::time::SystemTimeError;
 
 #[derive(Debug)]
 pub enum CryptoError {
@@ -380,6 +381,7 @@ pub enum LintError {
     NoAuthorization(PrimaryKey),
     NoAuthorizationOrphan,
     SerializationError(SerializationError),
+    TimeError(TimeError),
 }
 
 impl From<std::io::Error>
@@ -395,6 +397,14 @@ for LintError
 {
     fn from(err: SerializationError) -> LintError {
         LintError::SerializationError(err)
+    }   
+}
+
+impl From<TimeError>
+for LintError
+{
+    fn from(err: TimeError) -> LintError {
+        LintError::TimeError(err)
     }   
 }
 
@@ -422,6 +432,9 @@ for LintError {
             },
             LintError::SerializationError(err) => {
                 write!(f, "Serialization error while linting data object - {}", err)
+            },
+            LintError::TimeError(err) => {
+                write!(f, "Timing error while linting data object - {}", err)
             },
         }
     }
@@ -506,6 +519,47 @@ for FlushError {
             },
             FlushError::SerializationError(err) => {
                 write!(f, "Failed to flush the data due to an serialization error - {}", err.to_string())
+            },
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum TimeError
+{
+    IO(std::io::Error),
+    SystemTimeError(SystemTimeError),
+    BeyondTolerance(u32)
+}
+
+impl From<std::io::Error>
+for TimeError
+{
+    fn from(err: std::io::Error) -> TimeError {
+        TimeError::IO(err)
+    }   
+}
+
+impl From<SystemTimeError>
+for TimeError
+{
+    fn from(err: SystemTimeError) -> TimeError {
+        TimeError::SystemTimeError(err)
+    }   
+}
+
+impl std::fmt::Display
+for TimeError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            TimeError::IO(err) => {
+                write!(f, "IO error while computing the current time - {}", err.to_string())
+            },
+            TimeError::SystemTimeError(err) => {
+                write!(f, "System clock error while computing the current time - {}", err.to_string())
+            },
+            TimeError::BeyondTolerance(err) => {
+                write!(f, "The network latency is beyond tolerance to synchronize the clocks - {}", err.to_string())
             },
         }
     }
