@@ -54,8 +54,10 @@ where M: OtherMetadata,
         ret.fork();
         ret.row.tree = Some(
             MetaTree {
-                parent_id: parent.key().clone(),
-                collection_id: self.vec_id.clone(),
+                vec: MetaCollection {
+                    parent_id: parent.key().clone(),
+                    collection_id: self.vec_id.clone(),
+                },
                 inherit_read: true,
                 inherit_write: true,
             }

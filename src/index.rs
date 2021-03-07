@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 use fxhash::FxHashMap;
+use multimap::MultiMap;
 
 use crate::redo::LogFilePointer;
 
@@ -22,7 +23,8 @@ where Self: EventSink<M>,
 pub struct BinaryTreeIndexer<M>
 where M: OtherMetadata
 {
-    events: BTreeMap<PrimaryKey, EventEntryExt<M>>,
+    primary: BTreeMap<PrimaryKey, EventEntryExt<M>>,
+    secondary: MultiMap<MetaCollection, EventEntryExt<M>>,
 }
 
 impl<M> BinaryTreeIndexer<M>
@@ -30,26 +32,43 @@ where M: OtherMetadata
 {
     #[allow(dead_code)]
     pub fn contains_key(&self, key: &PrimaryKey) -> bool {
-        self.events.contains_key(key)
+        self.primary.contains_key(key)
     }
 
     #[allow(dead_code)]
     pub fn count(&self) -> usize {
-        self.events.iter().count()
+        self.primary.iter().count()
     }
 
     #[allow(dead_code)]
     pub fn feed(&mut self, entry: &EventEntryExt<M>) {
+        let mut entry_tree = None;
         for core in entry.meta.core.iter() {
             match core {
-                CoreMetadata::Tombstone(key) => {
-                    self.events.remove(&key);
-                },
                 CoreMetadata::Data(key) => {
                     if entry.data_hash.is_none() {
                         continue;
                     }
-                    self.events.insert(key.clone(), entry.clone());
+                    self.primary.insert(key.clone(), entry.clone());
+                },
+                CoreMetadata::Tree(tree) => {
+                    entry_tree =  Some(&tree.vec);
+                    self.secondary.insert(tree.vec.clone(), entry.clone());
+                }
+                _ => { },
+            }
+        }
+
+        for core in entry.meta.core.iter() {
+            match core {
+                CoreMetadata::Tombstone(key) => {
+                    self.primary.remove(&key);
+                    if let Some(tree) = entry_tree {
+                        let test = Some(key.clone());
+                        if let Some(vec) = self.secondary.get_vec_mut(tree) {
+                            vec.retain(|x| x.meta.get_data_key() != test);
+                        }
+                    }
                 },
                 _ => { },
             }
@@ -57,18 +76,22 @@ where M: OtherMetadata
     }
 
     pub fn refactor(&mut self, transform: &FxHashMap<LogFilePointer, LogFilePointer>) {
-        for (_, val) in self.events.iter_mut() {
+        for (_, val) in self.primary.iter_mut() {
             if let Some(next) = transform.get(&val.pointer) {
                 val.pointer = next.clone();
             }
         }
     }
 
-    pub fn lookup(&self, key: &PrimaryKey) -> Option<EventEntryExt<M>> {
-        match self.events.get(key) {
+    pub fn lookup_primary(&self, key: &PrimaryKey) -> Option<EventEntryExt<M>> {
+        match self.primary.get(key) {
             None => None,
             Some(a) => Some(a.clone())
         }
+    }
+
+    pub fn lookup_secondary(&self, key: &MetaCollection) -> Option<&Vec<EventEntryExt<M>>> {
+        self.secondary.get_vec(key)
     }
 }
 

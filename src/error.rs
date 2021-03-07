@@ -1,5 +1,3 @@
-use crate::redo::LogFilePointer;
-
 use super::crypto::Hash;
 use super::header::PrimaryKey;
 
@@ -202,7 +200,6 @@ pub enum LoadError {
     ObjectStillLocked(PrimaryKey),
     AlreadyDeleted(PrimaryKey),
     Tombstoned(PrimaryKey),
-    MissingLogFileData(LogFilePointer),
     SerializationError(SerializationError),
     TransformationError(TransformError),
     IO(tokio::io::Error),
@@ -249,9 +246,6 @@ for LoadError {
             },
             LoadError::Tombstoned(key) => {
                 write!(f, "Data object with key ({}) has already been tombstoned", key.as_hex_string())
-            },
-            LoadError::MissingLogFileData(pointer) => {
-                write!(f, "Data object could not be found in the log file of version ({}) at ({})", pointer.version, pointer.offset)
             },
             LoadError::SerializationError(err) => {
                 write!(f, "Serialization error while attempting to load data object - {}", err)

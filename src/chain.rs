@@ -1,4 +1,5 @@
 use fxhash::FxHashMap;
+use futures::future::join_all;
 use tokio::{sync::RwLockReadGuard, sync::RwLockWriteGuard};
 use std::sync::RwLock as StdRwLock;
 use std::sync::RwLockReadGuard as StdRwLockReadGuard;
@@ -95,29 +96,64 @@ impl<'a, M> ChainOfTrustExt<M>
 where M: OtherMetadata,
 {
     async fn load(&self, entry: &EventEntryExt<M>) -> Result<EventExt<M>, LoadError> {
-        match self.redo.load(&entry.pointer).await? {
-            None => Result::Err(LoadError::MissingLogFileData(entry.pointer.clone())),
-            Some(evt) => {
-                Ok(
-                    EventExt {
-                        meta_hash: evt.meta_hash,
-                        meta_bytes: evt.meta.clone(),
-                        raw: EventRaw {
-                            meta: entry.meta.clone(),
-                            data_hash: evt.data_hash,
-                            data: evt.data.clone(),
-                        },
-                        pointer: entry.pointer.clone(),
-                    }
-                )
-            }
+        let result = self.redo.load(entry.pointer.clone(), ()).await?;
+        let evt = result.evt;
+        {
+            Ok(
+                EventExt {
+                    meta_hash: evt.meta_hash,
+                    meta_bytes: evt.meta.clone(),
+                    raw: EventRaw {
+                        meta: entry.meta.clone(),
+                        data_hash: evt.data_hash,
+                        data: evt.data.clone(),
+                    },
+                    pointer: entry.pointer.clone(),
+                }
+            )
         }
     }
 
-    #[allow(dead_code)]
-    fn lookup(&self, key: &PrimaryKey) -> Option<EventEntryExt<M>>
+    async fn load_many(&self, entries: Vec<&EventEntryExt<M>>) -> Result<Vec<EventExt<M>>, LoadError>
     {
-        self.pointers.lookup(key)
+        let mut ret = Vec::new();
+
+        let mut futures = Vec::new();
+        for entry in entries {
+            let pointer = entry.pointer.clone();
+            futures.push(self.redo.load(pointer, entry.meta.clone()));
+        }
+
+        for loaded in join_all(futures).await {
+            let loaded = loaded?;
+            let evt = loaded.evt;
+            ret.push(
+                EventExt {
+                    meta_hash: evt.meta_hash,
+                    meta_bytes: evt.meta.clone(),
+                    raw: EventRaw {
+                        meta: loaded.custom,
+                        data_hash: evt.data_hash,
+                        data: evt.data.clone(),
+                    },
+                    pointer: loaded.pointer.clone(),
+                }
+            );
+        }
+
+        Ok(ret)
+    }
+
+    #[allow(dead_code)]
+    fn lookup_primary(&self, key: &PrimaryKey) -> Option<EventEntryExt<M>>
+    {
+        self.pointers.lookup_primary(key)
+    }
+
+    #[allow(dead_code)]
+    fn lookup_secondary(&self, key: &MetaCollection) -> Option<&Vec<EventEntryExt<M>>>
+    {
+        self.pointers.lookup_secondary(key)
     }
 
     async fn flush(&mut self) -> Result<(), tokio::io::Error> {
@@ -571,15 +607,31 @@ where M: OtherMetadata,
         let runtime = self.runtime.clone();
         runtime.block_on(self.lock_inner.load(entry))
     }
+
+    #[allow(dead_code)]
+    pub fn load_many(&self, entries: Vec<&EventEntryExt<M>>) -> Result<Vec<EventExt<M>>, LoadError> {
+        let runtime = self.runtime.clone();
+        runtime.block_on(self.lock_inner.load_many(entries))
+    }
  
     #[allow(dead_code)]
     pub async fn load_async(&self, entry: &EventEntryExt<M>) -> Result<EventExt<M>, LoadError> {
         self.lock_inner.load(entry).await
     }
+ 
+    #[allow(dead_code)]
+    pub async fn load_many_async(&self, entry: Vec<&EventEntryExt<M>>) -> Result<Vec<EventExt<M>>, LoadError> {
+        self.lock_inner.load_many(entry).await
+    }
 
     #[allow(dead_code)]
-    pub fn lookup(&self, key: &PrimaryKey) -> Option<EventEntryExt<M>> {
-        self.lock_inner.lookup(key)
+    pub fn lookup_primary(&self, key: &PrimaryKey) -> Option<EventEntryExt<M>> {
+        self.lock_inner.lookup_primary(key)
+    }
+
+    #[allow(dead_code)]
+    pub fn lookup_secondary(&self, key: &MetaCollection) -> Option<&Vec<EventEntryExt<M>>> {
+        self.lock_inner.lookup_secondary(key)
     }
 
     #[allow(dead_code)]
@@ -695,7 +747,7 @@ pub fn test_chain() {
             let lock = chain.multi();
 
             // Make sure its there in the chain
-            let test_data = lock.lookup(&key1).expect("Failed to find the entry after the flip");
+            let test_data = lock.lookup_primary(&key1).expect("Failed to find the entry after the flip");
             let test_data = lock.load(&test_data).expect("Could not load the data for the entry");
             assert_eq!(test_data.raw.data, Some(Bytes::from(vec!(1; 1))));
         }
@@ -720,12 +772,12 @@ pub fn test_chain() {
             let lock = chain.multi();
 
             // Read the event and make sure its the second one that results after compaction
-            let test_data = lock.lookup(&key1).expect("Failed to find the entry after the flip");
+            let test_data = lock.lookup_primary(&key1).expect("Failed to find the entry after the flip");
             let test_data = lock.load(&test_data).unwrap();
             assert_eq!(test_data.raw.data, Some(Bytes::from(vec!(10; 1))));
 
             // The other event we added should also still be there
-            let test_data = lock.lookup(&key2).expect("Failed to find the entry after the flip");
+            let test_data = lock.lookup_primary(&key2).expect("Failed to find the entry after the flip");
             let test_data = lock.load(&test_data).unwrap();
             assert_eq!(test_data.raw.data, Some(Bytes::from(vec!(2; 1))));
         }
@@ -745,7 +797,7 @@ pub fn test_chain() {
         }
 
         // Searching for the item we should not find it
-        match chain.multi().lookup(&key2) {
+        match chain.multi().lookup_primary(&key2) {
             Some(_) => panic!("The item should not be visible anymore"),
             None => {}
         }
@@ -763,7 +815,7 @@ pub fn test_chain() {
             let lock = chain.multi();
 
             // Read the event and make sure its the second one that results after compaction
-            let test_data = lock.lookup(&key1).expect("Failed to find the entry after we reloaded the chain");
+            let test_data = lock.lookup_primary(&key1).expect("Failed to find the entry after we reloaded the chain");
             let test_data = lock.load(&test_data).unwrap();
             assert_eq!(test_data.raw.data, Some(Bytes::from(vec!(10; 1))));
         }

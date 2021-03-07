@@ -237,7 +237,7 @@ impl LogFile {
         Ok(pointer)
     }
 
-    async fn load(&self, pointer: LogFilePointer) -> Result<Option<EventData>> {
+    async fn load<C>(&self, pointer: LogFilePointer, custom: C) -> Result<LoadResult<C>> {
         self.check_open()?;
 
         if pointer.version != self.version {
@@ -280,15 +280,17 @@ impl LogFile {
         };
 
         Ok(
-            Some(
-                EventData {
+            LoadResult {
+                evt: EventData {
                     meta_hash: super::crypto::Hash::from_bytes(&buff_meta[..]),
                     meta: buff_meta,
                     data: buff_body,
                     data_hash: body_hash,
                     pointer: pointer,
-                }
-            )
+                },
+                pointer,
+                custom,
+            }            
         )
     }
 
@@ -430,6 +432,14 @@ impl RedoLogLoader {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct LoadResult<C>
+{
+    pub pointer: LogFilePointer,
+    pub evt: EventData,
+    pub custom: C,
+}
+
 pub struct RedoLog {
     log_temp: bool,
     log_path: String,
@@ -517,8 +527,8 @@ impl RedoLog
         }
     }
 
-    pub async fn load(&self, pointer: &LogFilePointer) -> Result<Option<EventData>> {
-        Ok(self.log_file.load(pointer.clone()).await?)
+    pub async fn load<C>(&self, pointer: LogFilePointer, custom: C) -> Result<LoadResult<C>> {
+        Ok(self.log_file.load(pointer, custom).await?)
     }
 
     #[allow(dead_code)]
@@ -616,10 +626,9 @@ async fn test_write_data(log: &mut dyn LogWritable, key: PrimaryKey, body: Optio
 #[cfg(test)]
 async fn test_read_data(log: &mut RedoLog, read_header: LogFilePointer, test_key: PrimaryKey, test_body: Option<Vec<u8>>)
 {
-    let evt = log.load(&read_header)
+    let result = log.load(read_header.clone(), ())
         .await
-        .expect(&format!("Failed to read the entry {:?}", read_header))
-        .expect(&format!("Entry not found {:?}", read_header));
+        .expect(&format!("Failed to read the entry {:?}", read_header));
     
     let mut meta = DefaultMetadata::for_data(test_key);
     meta.core.push(CoreMetadata::Author("test@nowhere.com".to_string()));
@@ -630,8 +639,8 @@ async fn test_read_data(log: &mut RedoLog, read_header: LogFilePointer, test_key
         None => None,  
     };
 
-    assert_eq!(meta_bytes, evt.meta);
-    assert_eq!(test_body, evt.data);
+    assert_eq!(meta_bytes, result.evt.meta);
+    assert_eq!(test_body, result.evt.data);
 }
 
 #[test]
@@ -713,16 +722,16 @@ fn test_redo_log() {
 
             // The old log file pointer should now be invalid
             println!("test_redo_log - make sure old pointers are now invalid");
-            rl.load(&halb5).await.expect_err("The old log file entry should not work anymore");
+            rl.load(halb5.clone(), ()).await.expect_err("The old log file entry should not work anymore");
 
             // Attempt to read blah 6 before its flushed should result in an error
-            rl.load(&halb6).await.expect_err("This entry was not fushed so it meant to fail");
+            rl.load(halb6.clone(), ()).await.expect_err("This entry was not fushed so it meant to fail");
 
             // We now flush it before and try again
             rl.flush().await.unwrap();
 
             // Attempt to read blah 6 before its flushed should result in an error
-            rl.load(&halb6).await.expect("The log file should ahve worked now");
+            rl.load(halb6.clone(), ()).await.expect("The log file should ahve worked now");
 
             println!("test_redo_log - closing redo log");
         }

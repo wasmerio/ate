@@ -18,7 +18,7 @@ pub struct MetaAuthorization
     pub implicit_authority: Option<String>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
 pub struct MetaCollection
 {
     pub parent_id: PrimaryKey,
@@ -28,8 +28,7 @@ pub struct MetaCollection
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MetaTree
 {
-    pub parent_id: PrimaryKey,
-    pub collection_id: u64,
+    pub vec: MetaCollection,
     pub inherit_read: bool,
     pub inherit_write: bool,
 }

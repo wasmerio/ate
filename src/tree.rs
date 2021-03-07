@@ -58,7 +58,7 @@ where M: OtherMetadata
         // it has one of the authorizations then it can be saved against it
         if let Some(tree) = meta.get_tree() {
             if tree.inherit_read && tree.inherit_write {
-                if let Some(auth) = self.auth.get(&tree.parent_id) {
+                if let Some(auth) = self.auth.get(&tree.vec.parent_id) {
                     if tree.inherit_read {
                         for a in auth.allow_read.iter() {
                             read.insert(a.clone());

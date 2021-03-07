@@ -1,5 +1,6 @@
 use fxhash::{FxHashMap, FxHashSet};
 
+use multimap::MultiMap;
 #[cfg(test)]
 use serde::{Deserialize};
 use serde::{Serialize, de::DeserializeOwned};
@@ -193,7 +194,11 @@ where M: OtherMetadata,
             self.dirty = false;
 
             let row_data = self.row.as_row_data()?;
-            state.dirty(&self.row.key, row_data);
+            let row_tree = match &self.row.tree {
+                Some(a) => Some(a),
+                None => None,
+            };
+            state.dirty(&self.row.key, row_tree, row_data);
         }
         Ok(())
     }
@@ -238,7 +243,12 @@ where M: OtherMetadata,
             eprintln!("Detected concurrent write while deleting a data object ({:?}) - the delete operation will override everything else", self.row.key);
         }
         let key = self.key().clone();
-        state.cache_store.remove(&key);
+        state.cache_store_primary.remove(&key);
+        if let Some(tree) = &self.row.tree {
+            if let Some(y) = state.cache_store_secondary.get_vec_mut(&tree.vec) {
+                y.retain(|x| *x == key);
+            }
+        }
         state.cache_load.remove(&key);
 
         let row_data = self.row.as_row_data()?;
@@ -286,7 +296,8 @@ struct DioState<M>
 where M: OtherMetadata,
 {
     store: Vec<Rc<RowData<M>>>,
-    cache_store: FxHashMap<PrimaryKey, Rc<RowData<M>>>,
+    cache_store_primary: FxHashMap<PrimaryKey, Rc<RowData<M>>>,
+    cache_store_secondary: MultiMap<MetaCollection, PrimaryKey>,
     cache_load: FxHashMap<PrimaryKey, Rc<EventExt<M>>>,
     locked: FxHashSet<PrimaryKey>,
     deleted: FxHashMap<PrimaryKey, Rc<RowData<M>>>,
@@ -295,10 +306,13 @@ where M: OtherMetadata,
 impl<M> DioState<M>
 where M: OtherMetadata,
 {
-    fn dirty(&mut self, key: &PrimaryKey, row: RowData<M>) {
+    fn dirty(&mut self, key: &PrimaryKey, tree: Option<&MetaTree>, row: RowData<M>) {
         let row = Rc::new(row);
         self.store.push(row.clone());
-        self.cache_store.insert(key.clone(), row);
+        self.cache_store_primary.insert(key.clone(), row);
+        if let Some(tree) = tree {
+            self.cache_store_secondary.insert(tree.vec.clone(), key.clone());
+        }
         self.cache_load.remove(key);
     }
 
@@ -321,7 +335,8 @@ where M: OtherMetadata,
     fn new() -> DioState<M> {
         DioState {
             store: Vec::new(),
-            cache_store: FxHashMap::default(),
+            cache_store_primary: FxHashMap::default(),
+            cache_store_secondary: MultiMap::new(),
             cache_load: FxHashMap::default(),
             locked: FxHashSet::default(),
             deleted: FxHashMap::default(),
@@ -369,7 +384,7 @@ where M: OtherMetadata,
         if state.is_locked(key) {
             return Result::Err(LoadError::ObjectStillLocked(key.clone()));
         }
-        if let Some(dao) = state.cache_store.get(key) {
+        if let Some(dao) = state.cache_store_primary.get(key) {
             let row = Row::from_row_data(dao.deref())?;
             return Ok(DaoExt::new(row, &self.state));
         }
@@ -390,7 +405,7 @@ where M: OtherMetadata,
             }
         };
 
-        let entry = match multi.lookup(key) {
+        let entry = match multi.lookup_primary(key) {
             Some(a) => a,
             None => return Result::Err(LoadError::NotFound(key.clone()))
         };
@@ -409,10 +424,109 @@ where M: OtherMetadata,
         Ok(DaoExt::new(row, &self.state))
     }
 
-    pub fn children<D>(&mut self, _parent_id: PrimaryKey, _collection_id: u64) -> Result<Vec<DaoExt<M, D>>, LoadError>
+    pub fn children<D>(&mut self, parent_id: PrimaryKey, collection_id: u64) -> Result<Vec<DaoExt<M, D>>, LoadError>
     where D: Serialize + DeserializeOwned + Clone,
     {
-        Ok(Vec::new())
+        let mut state = self.state.borrow_mut();
+        
+        // Build the secondary index key
+        let key = MetaCollection {
+            parent_id,
+            collection_id,
+        };
+
+        // We need a multi-user access object so we can load objects later
+        let multi_store;
+        let multi = match self.multi.as_ref() {
+            Some(a) => a,
+            None => {
+                multi_store = self.accessor.multi();
+                &multi_store
+            }
+        };
+
+        // This is the main return list
+        let mut already = FxHashSet::default();
+        let mut ret = Vec::new();
+
+        // We either find existing objects in the cache or build a list of objects to load
+        let mut to_load = Vec::new();
+        for entry in match multi.lookup_secondary(&key) {
+            Some(a) => a,
+            None => return Ok(Vec::new())
+        } {
+            // Obviously if its tombstoned then we are done
+            if entry.meta.get_tombstone().is_some() {
+                continue;
+            }
+
+            let key = match entry.meta.get_data_key() {
+                Some(k) => k,
+                None => { continue; }
+            };
+            if state.is_locked(&key) {
+                return Result::Err(LoadError::ObjectStillLocked(key.clone()));
+            }
+
+            if let Some(dao) = state.cache_store_primary.get(&key) {
+                let row = Row::from_row_data(dao.deref())?;
+
+                already.insert(row.key.clone());
+                ret.push(DaoExt::new(row, &self.state));
+                continue;
+            }
+            if let Some(dao) = state.cache_load.get(&key) {
+                let row = Row::from_event(dao.deref())?;
+
+                already.insert(row.key.clone());
+                ret.push(DaoExt::new(row, &self.state));
+            }
+            if state.deleted.contains_key(&key) {
+                continue;
+            }
+    
+            to_load.push(entry);
+        }
+
+        // Load all the objects that have not yet been loaded
+        for mut evt in multi.load_many(to_load)? {
+            evt.raw.data = match evt.raw.data {
+                Some(data) => Some(multi.data_as_overlay(&mut evt.raw.meta, data)?),
+                None => { continue; },
+            };
+
+            let row = Row::from_event(&evt)?;
+            state.cache_load.insert(row.key.clone(), Rc::new(evt));
+
+            already.insert(row.key.clone());
+            ret.push(DaoExt::new(row, &self.state));
+        }
+
+        // Now we search the secondary local index so any objects we have
+        // added in this transaction scope are returned
+        if let Some(vec) = state.cache_store_secondary.get_vec(&key) {
+            for a in vec {
+                // This is an OR of two lists so its likely that the object
+                // may already be in the return list
+                if already.contains(a) {
+                    continue;
+                }
+
+                // If its still locked then that is a problem
+                if state.is_locked(a) {
+                    return Result::Err(LoadError::ObjectStillLocked(a.clone()));
+                }
+
+                if let Some(dao) = state.cache_store_primary.get(a) {
+                    let row = Row::from_row_data(dao.deref())?;
+    
+                    already.insert(row.key.clone());
+                    ret.push(DaoExt::new(row, &self.state));
+                }
+            }
+        }
+
+        Ok(ret)
     }
 
     fn flush(&mut self) -> Result<(), FlushError>
@@ -583,6 +697,7 @@ fn test_dio()
 
     let key1;
     let key2;
+    let key3;
 
     {
         let mut dio = chain.dio(&session);
@@ -594,10 +709,13 @@ fn test_dio()
                 mock_dao.val = 1;
                 
                 let mut dao1 = dio.store(mock_dao).unwrap();
-                dao1.inner.push(&mut dio, &dao1, TestEnumDao::Blah1).unwrap();
+                let dao3 = dao1.inner.push(&mut dio, &dao1, TestEnumDao::Blah1).unwrap();
 
                 key1 = dao1.key().clone();
                 println!("key1: {}", key1.as_hex_string());
+
+                key3 = dao3.key().clone();
+                println!("key3: {}", key3.as_hex_string());
                 
                 dio.load::<TestStructDao>(&key1).expect_err("This load is meant to fail as we are still editing the object");
 
@@ -645,6 +763,10 @@ fn test_dio()
         // Now its out of scope it should be loadable again
         let test = dio.load::<TestStructDao>(&key1).expect("The dirty data object should have been read after it was flushed");
         assert_eq!(test.val, 3);
+
+        // Read the items in the collection which we should find our second object
+        let test3 = test.inner.iter(&test, &mut dio).unwrap().next().expect("Three should be a data object in this collection");
+        assert_eq!(test3.key(), &key3);
     }
 
     {
