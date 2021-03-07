@@ -33,6 +33,12 @@ pub struct MetaSignature
     pub public_key_hash: Hash,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MetaSignWith
+{
+    pub keys: Vec<Hash>,
+}
+
 #[derive(Debug)]
 pub struct SignaturePlugin<M>
 {
@@ -61,6 +67,7 @@ impl<M> SignaturePlugin<M>
         }
     }
 
+    #[allow(dead_code)]
     pub fn has_public_key(&self, key_hash: &Hash) -> bool
     {
         self.pk.contains_key(&key_hash)
@@ -144,8 +151,8 @@ where M: OtherMetadata,
         // Build a list of all the authorizations we need to write
         let mut auths = raw
             .iter()
-            .filter_map(|e| e.meta.get_authorization())
-            .flat_map(|a| a.allow_write.iter())
+            .filter_map(|e| e.meta.get_sign_with())
+            .flat_map(|a| a.keys.iter())
             .collect::<Vec<_>>();
         auths.sort();
         auths.dedup();
@@ -172,8 +179,8 @@ where M: OtherMetadata,
             // Compute a hash of the hashes
             let mut data_hashes = Vec::new();
             for e in raw.iter() {
-                if let Some(a) = e.meta.get_authorization() {
-                    if a.allow_write.contains(&auth) == true {
+                if let Some(a) = e.meta.get_sign_with() {
+                    if a.keys.contains(&auth) == true {
                         let hash = match &e.data_hash {
                             Some(d) => DoubleHash::from_hashes(&e.meta_hash, d).hash(),
                             None => e.meta_hash
@@ -182,7 +189,10 @@ where M: OtherMetadata,
                     }
                 }
             }
-            let hashes_bytes: Vec<u8> = data_hashes.iter().flat_map(|h| { Vec::from(h.clone().val).into_iter() }).collect();
+            let hashes_bytes = data_hashes
+                .iter()
+                .flat_map(|h| { Vec::from(h.clone().val).into_iter() })
+                .collect::<Vec<_>>();
             let hash_of_hashes = Hash::from_bytes(&hashes_bytes[..]);
             
             // Add the public key side into the chain-of-trust if it is not present yet

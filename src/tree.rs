@@ -10,14 +10,17 @@ use super::session::*;
 use super::transform::*;
 use super::plugin::*;
 use super::event::*;
+use super::header::*;
 use bytes::Bytes;
 use fxhash::FxHashMap;
+use fxhash::FxHashSet;
 
 #[derive(Debug)]
 pub struct TreeAuthorityPlugin<M>
 where M: OtherMetadata
 {
     root_keys: FxHashMap<Hash, PublicKey>,
+    auth: FxHashMap<PrimaryKey, MetaAuthorization>,
     signature_plugin: SignaturePlugin<M>,
 }
 
@@ -28,6 +31,7 @@ where M: OtherMetadata
         TreeAuthorityPlugin {
             root_keys: FxHashMap::default(),
             signature_plugin: SignaturePlugin::new(),
+            auth: FxHashMap::default(),
         }
     }
 
@@ -35,6 +39,60 @@ where M: OtherMetadata
     pub fn add_root_public_key(&mut self, key: &PublicKey)
     {
         self.root_keys.insert(key.hash(), key.clone());
+    }
+
+    fn compute_auth(&self, meta: &MetadataExt<M>) -> MetaAuthorization
+    {
+        let mut read = FxHashSet::default();
+        let mut write = FxHashSet::default();
+        let mut implicit = None;
+
+        for a in self.root_keys.keys() {
+            write.insert(a.clone());
+        }
+
+        if let Some(tree) = meta.get_tree() {
+            if tree.inherit_read && tree.inherit_write {
+                if let Some(auth) = self.auth.get(&tree.parent_id) {
+                    if tree.inherit_read {
+                        for a in auth.allow_read.iter() {
+                            read.insert(a.clone());
+                        }
+                    } else {
+                        read.clear();
+                    }
+                    if tree.inherit_write {
+                        for a in auth.allow_write.iter() {
+                            write.insert(a.clone());
+                        }
+                    } else {
+                        write.clear();
+                    }
+                }
+            }
+        }
+
+        if let Some(key) = meta.get_data_key()
+        {
+            if let Some(auth) = self.auth.get(&key) {
+                for a in auth.allow_read.iter() {
+                    read.insert(a.clone());
+                }
+                for a in auth.allow_write.iter() {
+                    write.insert(a.clone());
+                }
+                implicit = match &auth.implicit_authority {
+                    Some(a) => Some(a.clone()),
+                    None => None,
+                };
+            }
+        }
+
+        MetaAuthorization {
+            allow_read: read.into_iter().collect::<Vec<_>>(),
+            allow_write: write.into_iter().collect::<Vec<_>>(),
+            implicit_authority: implicit,
+        }
     }
 }
 
@@ -44,6 +102,17 @@ where M: OtherMetadata
 {
     fn feed(&mut self, meta: &MetadataExt<M>, data_hash: &Option<Hash>) -> Result<(), SinkError>
     {
+        
+        if let Some(key) = meta.get_data_key()
+        {
+            let auth = self.compute_auth(meta);
+            self.auth.insert(key, auth);
+        }
+
+        if let Some(key) = meta.get_tombstone() {
+            self.auth.remove(&key);
+        }
+
         self.signature_plugin.feed(meta, data_hash)?;
         Ok(())
     }
@@ -74,9 +143,10 @@ where M: OtherMetadata
             None => { return Err(ValidationError::NoSignatures); },
         };
         
-        // If its got a root key attached to it then we are all good
+        // Compute the auth tree and if a signature exists for any of the auths then its allowed
+        let auth = self.compute_auth(&validation_data.meta);
         for hash in verified_signatures.iter() {
-            if self.root_keys.contains_key(hash) {
+            if auth.allow_write.contains(hash) {
                 return Ok(ValidationResult::Allow);
             }
         }
@@ -121,53 +191,48 @@ where M: OtherMetadata,
     fn metadata_lint_event(&self, data_hash: &Option<Hash>, meta: &MetadataExt<M>, session: &Session) -> Result<Vec<CoreMetadata>, LintError>
     {
         let mut ret = Vec::new();
+        let mut sign_with = Vec::new();
 
-        let mut no_auth_metadata = true;
-        let mut no_auth = true;
-        if let Some(auth) = meta.get_authorization() {
-            no_auth_metadata = false;
-            for write_hash in auth.allow_write.iter() {
-                no_auth = false;
-                if self.signature_plugin.has_public_key(&write_hash) == false
-                {                    
-                    // Make sure we actually own the key that it wants to write with
-                    if let None = session.properties
-                        .iter()
-                        .filter_map(|p| {
-                            match p {
-                                SessionProperty::WriteKey(w) => {
-                                    if w.hash() == *write_hash {
-                                        Some(w)
-                                    } else {
-                                        None
-                                    }
-                                }
-                                _ => None,
+        let auth = self.compute_auth(meta);
+        for write_hash in auth.allow_write.iter()
+        {
+            // Make sure we actually own the key that it wants to write with
+            let sk = session.properties
+                .iter()
+                .filter_map(|p| {
+                    match p {
+                        SessionProperty::WriteKey(w) => {
+                            if w.hash() == *write_hash {
+                                Some(w)
+                            } else {
+                                None
                             }
-                        })
-                        .next()
-                    {
-                        // We could not find the write key!
-                        return Err(LintError::MissingWriteKey(write_hash.clone()));
+                        }
+                        _ => None,
                     }
-                }
+                })
+                .next();
+
+            // If we have the key then we can write to the chain
+            if let Some(sk) = sk {
+                sign_with.push(sk.hash());
             }
         }
 
-        if data_hash.is_some() && no_auth == true
+        if meta.needs_signature() && sign_with.len() <= 0
         {
             // This record has no authorization
-            if no_auth_metadata {
-                return match meta.get_data_key() {
-                    Some(key) => Err(LintError::MissingAuthorizationMetadata(key)),
-                    None => Err(LintError::MissingAuthorizationMetadataOrphan)
-                };
-            } else {
-                return match meta.get_data_key() {
-                    Some(key) => Err(LintError::NoAuthorization(key)),
-                    None => Err(LintError::NoAuthorizationOrphan)
-                };
-            }
+            return match meta.get_data_key() {
+                Some(key) => Err(LintError::NoAuthorization(key)),
+                None => Err(LintError::NoAuthorizationOrphan)
+            };
+        }
+
+        // Add the signing key hashes for the later stages
+        if sign_with.len() > 0 {
+            ret.push(CoreMetadata::SignWith(MetaSignWith {
+                keys: sign_with,
+            }));
         }
         
         // Now run the signature plugin

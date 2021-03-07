@@ -145,6 +145,8 @@ pub enum SerializationError
     EncodeError(RmpEncodeError),
     DecodeError(RmpDecodeError),
     JsonError(JsonError),
+    #[allow(dead_code)]
+    CollectionDetached,
 }
 
 impl From<RmpEncodeError>
@@ -187,6 +189,9 @@ for SerializationError {
             SerializationError::JsonError(err) => {
                 write!(f, "JSON serialization error - {}", err)
             },
+            SerializationError::CollectionDetached => {
+                write!(f, "Collection is detached from a parent")
+            },
         }
     }
 }
@@ -201,6 +206,8 @@ pub enum LoadError {
     SerializationError(SerializationError),
     TransformationError(TransformError),
     IO(tokio::io::Error),
+    #[allow(dead_code)]
+    CollectionDetached,
 }
 
 impl From<tokio::io::Error>
@@ -254,6 +261,9 @@ for LoadError {
             },
             LoadError::IO(err) => {
                 write!(f, "IO error while attempting to load data object - {}", err)
+            },
+            LoadError::CollectionDetached => {
+                write!(f, "Collection is detached from its parent, it must be attached before it can be used")
             },
         }
     }
@@ -376,8 +386,6 @@ for ChainCreationError
 pub enum LintError {
     IO(std::io::Error),
     MissingWriteKey(Hash),
-    MissingAuthorizationMetadata(PrimaryKey),
-    MissingAuthorizationMetadataOrphan,
     NoAuthorization(PrimaryKey),
     NoAuthorizationOrphan,
     SerializationError(SerializationError),
@@ -417,12 +425,6 @@ for LintError {
             },
             LintError::MissingWriteKey(hash) => {
                 write!(f, "Could not find the write public key ({}) in the session", hash.to_string())
-            },
-            LintError::MissingAuthorizationMetadata(key) => {
-                write!(f, "Data object with key ({}) has no write authorization metadata attached to it", key.as_hex_string())
-            },
-            LintError::MissingAuthorizationMetadataOrphan => {
-                write!(f, "Data object without a primary has no write authorization metadata attached to it")
             },
             LintError::NoAuthorization(key) => {
                 write!(f, "Data object with key ({}) has no write authorization in its metadata", key.as_hex_string())

@@ -23,6 +23,7 @@ mod signature;
 mod time;
 mod tree;
 mod chain;
+mod collection;
 mod dio;
 
 #[cfg(test)]

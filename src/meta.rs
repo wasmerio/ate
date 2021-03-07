@@ -1,4 +1,6 @@
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
+use crate::signature::MetaSignWith;
+
 use super::crypto::*;
 use super::header::*;
 use super::signature::MetaSignature;
@@ -16,10 +18,18 @@ pub struct MetaAuthorization
     pub implicit_authority: Option<String>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, Hash)]
+pub struct MetaCollection
+{
+    pub parent_id: PrimaryKey,
+    pub collection_id: u64,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MetaTree
 {
-    pub parent: PrimaryKey,
+    pub parent_id: PrimaryKey,
+    pub collection_id: u64,
     pub inherit_read: bool,
     pub inherit_write: bool,
 }
@@ -41,9 +51,11 @@ pub enum CoreMetadata
     PublicKey(PublicKey),
     EncryptedPrivateKey(EncryptedPrivateKey),
     EncryptedEncryptionKey(EncryptKey),
+    Collection(MetaCollection),
     Tree(MetaTree),
     Timestamp(MetaTimestamp),
     Signature(MetaSignature),
+    SignWith(MetaSignWith),
     Author(String),
 }
 
@@ -83,6 +95,28 @@ impl<M> MetadataExt<M>
         None
     }
 
+    pub fn get_tree(&self) -> Option<&MetaTree>
+    {
+        for core in &self.core {
+            if let CoreMetadata::Tree(a) = core {
+                return Some(a);
+            }
+        }
+        
+        None
+    }
+
+    pub fn get_collections(&self) -> Vec<MetaCollection>
+    {
+        let mut ret = Vec::new();
+        for core in &self.core {
+            if let CoreMetadata::Collection(a) = core {
+                ret.push(a.clone());
+            }
+        }        
+        ret
+    }
+
     pub fn needs_signature(&self) -> bool
     {
         for core in &self.core {
@@ -96,5 +130,16 @@ impl<M> MetadataExt<M>
         }
 
         false
+    }
+
+    pub fn get_sign_with(&self) -> Option<&MetaSignWith>
+    {
+        for core in &self.core {
+            if let CoreMetadata::SignWith(a) = core {
+                return Some(a);
+            }
+        }
+        
+        None
     }
 }

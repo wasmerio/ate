@@ -21,20 +21,25 @@ use super::error::*;
 #[allow(unused_imports)]
 use super::crypto::*;
 
+pub use super::collection::DaoVec;
+pub use super::collection::DaoVecExt;
+
 #[allow(dead_code)]
 type Dio<'a> = DioExt<'a, NoAdditionalMetadata>;
 #[allow(dead_code)]
 type Dao<D> = DaoExt<NoAdditionalMetadata, D>;
 
 #[derive(Debug, Clone)]
-struct Row<M, D>
+pub(super) struct Row<M, D>
 where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone,
 {
-    pub key: PrimaryKey,
-    pub meta: M,
-    pub data: D,
-    pub auth: MetaAuthorization,
+    pub(super) key: PrimaryKey,
+    pub(super) tree: Option<MetaTree>,
+    pub(super) meta: M,
+    pub(super) data: D,
+    pub(super) auth: MetaAuthorization,
+    pub(super) collections: FxHashSet<MetaCollection>,
 }
 
 impl<D, M> Row<M, D>
@@ -42,12 +47,22 @@ where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone,
 {
     #[allow(dead_code)]
-    pub fn new(key: PrimaryKey, meta: M, data: D, auth: MetaAuthorization) -> Row<M, D> {
+    pub(super) fn new(
+        key: PrimaryKey,
+        meta: M,
+        data: D,
+        auth: MetaAuthorization,
+        tree: Option<MetaTree>,
+        collections: FxHashSet<MetaCollection>,
+    ) -> Row<M, D>
+    {
         Row {
-            key: key,
-            meta: meta,
-            data: data,
-            auth: auth,
+            key,
+            tree,
+            meta,
+            data,
+            auth,
+            collections,
         }
     }
 
@@ -56,17 +71,23 @@ where M: OtherMetadata,
             Some(key) => key,
             None => { return Result::Err(SerializationError::NoPrimarykey) }
         };
+        let mut collections = FxHashSet::default();
+        for a in evt.raw.meta.get_collections() {
+            collections.insert(a);
+        }
         match &evt.raw.data {
             Some(data) => {
                 Ok(
                     Row {
-                        key: key,
+                        key,
+                        tree: match evt.raw.meta.get_tree() { Some(a) => Some(a.clone()), None => None },
                         meta: evt.raw.meta.other.clone(),
                         data: serde_json::from_slice(&data)?,
                         auth: match evt.raw.meta.get_authorization() {
                             Some(a) => a.clone(),
                             None => MetaAuthorization::default(),
-                        }
+                        },
+                        collections,
                     }
                 )
             }
@@ -78,9 +99,11 @@ where M: OtherMetadata,
         Ok(
             Row {
                 key: row.key,
+                tree: row.tree.clone(),
                 meta: row.meta.clone(),
                 data: serde_json::from_slice(&row.data)?,
                 auth: row.auth.clone(),
+                collections: row.collections.clone(),
             }
         )
     }
@@ -92,24 +115,28 @@ where M: OtherMetadata,
         (
             RowData {
                 key: self.key.clone(),
+                tree: self.tree.clone(),
                 meta: self.meta.clone(),
-                data_hash: data_hash,
-                data: data,
+                data_hash,
+                data,
                 auth: self.auth.clone(),
+                collections: self.collections.clone(),
             }
         )
     }
 }
 
 #[derive(Debug, Clone)]
-struct RowData<M>
+pub(super) struct RowData<M>
 where M: OtherMetadata
 {
     pub key: PrimaryKey,
+    pub tree: Option<MetaTree>,
     pub meta: M,
     pub data_hash: super::crypto::Hash,
     pub data: Bytes,
     pub auth: MetaAuthorization,
+    pub collections: FxHashSet<MetaCollection>,
 }
 
 #[derive(Debug)]
@@ -118,7 +145,7 @@ where M: OtherMetadata,
       D: Serialize + DeserializeOwned + Clone,
 {
     dirty: bool,
-    row: Row<M, D>,
+    pub(super) row: Row<M, D>,
     state: Rc<RefCell<DioState<M>>>,
 }
 
@@ -134,7 +161,7 @@ where M: OtherMetadata,
         }
     }
 
-    fn fork(&mut self) -> bool {
+    pub(super) fn fork(&mut self) -> bool {
         if self.dirty == false {
             let mut state = self.state.borrow_mut();
             if state.lock(&self.row.key) == false {
@@ -143,6 +170,18 @@ where M: OtherMetadata,
             self.dirty = true;
         }
         true
+    }
+
+    #[allow(dead_code)]
+    pub(super) fn attach_vec<C>(&mut self, vec: &MetaCollection)
+    where C: Serialize + DeserializeOwned + Clone,
+    {
+        if self.row.collections.contains(vec) {
+            return;
+        }
+
+        self.fork();
+        self.row.collections.insert(vec.clone());
     }
 
     pub fn flush(&mut self) -> std::result::Result<(), SerializationError> {
@@ -159,15 +198,6 @@ where M: OtherMetadata,
         Ok(())
     }
 
-    pub fn validate(&self) -> Result<(), FlushError>
-    {
-        // If it has no authorizations then we can't write it anywhere
-        if self.auth().allow_write.len() <= 0 {
-            return Err(FlushError::LintError(LintError::NoAuthorization(self.row.key.clone())));
-        }
-        Ok(())
-    }
-
     #[allow(dead_code)]
     pub fn key(&self) -> &PrimaryKey {
         &self.row.key
@@ -176,6 +206,12 @@ where M: OtherMetadata,
     #[allow(dead_code)]
     pub fn metadata(&self) -> &M {
         &self.row.meta
+    }
+
+    #[allow(dead_code)]
+    pub fn detach(&mut self) {
+        self.fork();
+        self.row.tree = None;
     }
 
     #[allow(dead_code)]
@@ -196,7 +232,7 @@ where M: OtherMetadata,
     }
 
     #[allow(dead_code)]
-    pub fn delete(self) {
+    pub fn delete(self) -> std::result::Result<(), SerializationError> {
         let mut state = self.state.borrow_mut();
         if state.lock(&self.row.key) == false {
             eprintln!("Detected concurrent write while deleting a data object ({:?}) - the delete operation will override everything else", self.row.key);
@@ -204,7 +240,10 @@ where M: OtherMetadata,
         let key = self.key().clone();
         state.cache_store.remove(&key);
         state.cache_load.remove(&key);
-        state.deleted.insert(key, self.auth().clone());
+
+        let row_data = self.row.as_row_data()?;
+        state.deleted.insert(key, Rc::new(row_data));
+        Ok(())
     }
 }
 
@@ -235,11 +274,6 @@ where M: OtherMetadata,
 {
     fn drop(&mut self)
     {
-        // Do some basic checks
-        if let Err(err) = self.validate() {
-            debug_assert!(false, "dao-validation-error {}", err.to_string());
-        }
-
         // Now attempt to flush it
         if let Err(err) = self.flush() {
             debug_assert!(false, "dao-flush-error {}", err.to_string());
@@ -255,7 +289,7 @@ where M: OtherMetadata,
     cache_store: FxHashMap<PrimaryKey, Rc<RowData<M>>>,
     cache_load: FxHashMap<PrimaryKey, Rc<EventExt<M>>>,
     locked: FxHashSet<PrimaryKey>,
-    deleted: FxHashMap<PrimaryKey, MetaAuthorization>,
+    deleted: FxHashMap<PrimaryKey, Rc<RowData<M>>>,
 }
 
 impl<M> DioState<M>
@@ -314,9 +348,11 @@ where M: OtherMetadata,
     {
         let row = Row {
             key: PrimaryKey::generate(),
+            tree: None,
             meta: M::default(),
             data: data,
             auth: MetaAuthorization::default(),
+            collections: FxHashSet::default(),
         };
 
         let mut ret = DaoExt::new(row, &self.state);
@@ -373,6 +409,12 @@ where M: OtherMetadata,
         Ok(DaoExt::new(row, &self.state))
     }
 
+    pub fn children<D>(&mut self, _parent_id: PrimaryKey, _collection_id: u64) -> Result<Vec<DaoExt<M, D>>, LoadError>
+    where D: Serialize + DeserializeOwned + Clone,
+    {
+        Ok(Vec::new())
+    }
+
     fn flush(&mut self) -> Result<(), FlushError>
     {
         // If we have dirty records
@@ -394,6 +436,9 @@ where M: OtherMetadata,
                     let mut meta = MetadataExt::for_data(row.key);
                     meta.other = row.meta.clone();
                     meta.core.push(CoreMetadata::Authorization(row.auth.clone()));
+                    if let Some(tree) = &row.tree {
+                        meta.core.push(CoreMetadata::Tree(tree.clone()))
+                    }
                     
                     // Perform any transformation (e.g. data encryption)
                     let data = multi.data_as_underlay(&mut meta, row.data.clone())?;
@@ -412,9 +457,12 @@ where M: OtherMetadata,
                 }
 
                 // Build events that will represent tombstones on all these records (they will be sent after the writes)
-                for (key, auth) in &state.deleted {
+                for (key, row) in &state.deleted {
                     let mut meta = MetadataExt::default();
-                    meta.core.push(CoreMetadata::Authorization(auth.clone()));
+                    meta.core.push(CoreMetadata::Authorization(row.auth.clone()));
+                    if let Some(tree) = &row.tree {
+                        meta.core.push(CoreMetadata::Tree(tree.clone()))
+                    }
 
                     // Compute all the extra metadata for an event
                     let extra_meta = multi.metadata_lint_event(&None, &mut meta, &self.session)?;
@@ -490,13 +538,31 @@ where M: OtherMetadata,
 
 #[cfg(test)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum TestDao
+pub enum TestEnumDao
 {
+    None,
     Blah1,
     Blah2(u32),
     Blah3(String),
     Blah4,
     Blah5,
+}
+
+#[cfg(test)]
+impl Default
+for TestEnumDao
+{
+    fn default() -> TestEnumDao {
+        TestEnumDao::None
+    }
+}
+
+#[cfg(test)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct TestStructDao
+{
+    val: u32,
+    inner: DaoVec<TestEnumDao>,
 }
 
 #[test]
@@ -524,11 +590,16 @@ fn test_dio()
         // Write a value immediately from chain (this data will remain in the transaction)
         {
             {
-                let mut dao1 = dio.store(TestDao::Blah1).unwrap();
+                let mut mock_dao = TestStructDao::default();
+                mock_dao.val = 1;
+                
+                let mut dao1 = dio.store(mock_dao).unwrap();
+                dao1.inner.push(&mut dio, &dao1, TestEnumDao::Blah1).unwrap();
+
                 key1 = dao1.key().clone();
                 println!("key1: {}", key1.as_hex_string());
                 
-                dio.load::<TestDao>(&key1).expect_err("This load is meant to fail as we are still editing the object");
+                dio.load::<TestStructDao>(&key1).expect_err("This load is meant to fail as we are still editing the object");
 
                 dao1.auth_mut().allow_write.push(write_key.hash());
             }
@@ -537,32 +608,30 @@ fn test_dio()
 
             {
                 // Load the object again which should load it from the cache
-                let mut dao1: Dao<TestDao> = dio.load(&key1).unwrap();
+                let mut dao1 = dio.load::<TestStructDao>(&key1).unwrap();
 
                 // When we update this value it will become dirty and hence should block future loads until its flushed or goes out of scope
-                *dao1 = TestDao::Blah2(2);
-                dio.load::<TestDao>(&key1).expect_err("This load is meant to fail due to a lock being triggered");
+                dao1.val = 2;
+                dio.load::<TestStructDao>(&key1).expect_err("This load is meant to fail due to a lock being triggered");
 
                 // Flush the data and attempt to read it again (this should succeed)
                 dao1.flush().expect("Flush failed");
-                match *dio.load(&key1).expect("The dirty data object should have been read after it was flushed") {
-                    TestDao::Blah2(a) => assert_eq!(a.clone(), 2 as u32),
-                    _ => panic!("Data is not saved correctly")
-                }
+                let test: Dao<TestStructDao> = dio.load(&key1).expect("The dirty data object should have been read after it was flushed");
+                assert_eq!(test.val, 2 as u32);
             }
 
             {
                 // Load the object again which should load it from the cache
-                let mut dao1: Dao<TestDao> = dio.load(&key1).unwrap();
+                let mut dao1 = dio.load::<TestStructDao>(&key1).unwrap();
             
                 // Again after changing the data reads should fail
-                *dao1 = TestDao::Blah3("testblah".to_string());
-                dio.load::<TestDao>(&key1).expect_err("This load is meant to fail due to a lock being triggered");
+                dao1.val = 3;
+                dio.load::<TestStructDao>(&key1).expect_err("This load is meant to fail due to a lock being triggered");
             }
 
             {
                 // Write a record to the chain that we will delete again later
-                let mut dao2 = dio.store(TestDao::Blah4).unwrap();
+                let mut dao2 = dio.store(TestEnumDao::Blah4).unwrap();
                 
                 // We create a new private key for this data
                 dao2.auth_mut().allow_write.push(write_key.as_public_key().hash());
@@ -574,36 +643,31 @@ fn test_dio()
         }
 
         // Now its out of scope it should be loadable again
-        match &*dio.load(&key1).expect("The dirty data object should have been read after it was flushed") {
-            TestDao::Blah3(a) => assert_eq!(a.clone(), "testblah".to_string()),
-            _ => panic!("Data is not saved correctly")
-        }
+        let test = dio.load::<TestStructDao>(&key1).expect("The dirty data object should have been read after it was flushed");
+        assert_eq!(test.val, 3);
     }
 
     {
         let mut dio = chain.dio(&session);
 
         // The data we saved earlier should be accessible accross DIO scope boundaries
-        let mut dao1 = dio.load(&key1).expect("The data object should have been read");
-        match &*dao1 {
-            TestDao::Blah3(a) => assert_eq!(a.clone(), "testblah".to_string()),
-            _ => panic!("Data is not saved correctly")
-        }
-        *dao1 = TestDao::Blah4;
+        let mut dao1: Dao<TestStructDao> = dio.load(&key1).expect("The data object should have been read");
+        assert_eq!(dao1.val, 3);
+        dao1.val = 4;
 
         // First attempt to read the record then delete it
-        let dao2 = dio.load::<TestDao>(&key2).expect("The record should load before we delete it in this session");
-        dao2.delete();
+        let dao2 = dio.load::<TestEnumDao>(&key2).expect("The record should load before we delete it in this session");
+        dao2.delete().unwrap();
 
         // It should no longer load now that we deleted it
-        dio.load::<TestDao>(&key2).expect_err("This load should fail as we deleted the record");
+        dio.load::<TestEnumDao>(&key2).expect_err("This load should fail as we deleted the record");
     }
 
     {
         let mut dio = chain.dio(&session);
 
         // After going out of scope then back again we should still no longer see the record we deleted
-        dio.load::<TestDao>(&key2).expect_err("This load should fail as we deleted the record");
+        dio.load::<TestEnumDao>(&key2).expect_err("This load should fail as we deleted the record");
     }
 
     //chain.single().destroy().unwrap();

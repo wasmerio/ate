@@ -60,6 +60,7 @@ where M: Default
                 match m
                 {
                     CoreMetadata::Data(k) => Some(k.clone()),
+                    CoreMetadata::Tombstone(k) => Some(k.clone()),
                      _ => None
                 }
             }
