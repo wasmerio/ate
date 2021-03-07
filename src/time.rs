@@ -9,6 +9,7 @@ use super::transform::*;
 use super::compact::*;
 use super::validator::*;
 use super::crypto::Hash;
+use super::conf::*;
 
 use std::{ops::Deref, sync::Arc};
 use std::sync::Mutex;
@@ -24,7 +25,7 @@ use ntp::NtpResult;
 pub struct TimestampEnforcer {
     pub cursor: Duration,
     pub tolerance: Duration,
-    pub ntp_pool: Arc<String>,
+    pub ntp_pool: String,
     pub ntp_port: u32,
     pub ntp_result: Arc<RwLock<NtpResult>>,
     pub bt_exit: Arc<Mutex<bool>>,
@@ -41,18 +42,18 @@ for TimestampEnforcer
 impl TimestampEnforcer
 {
     #[allow(dead_code)]
-    pub fn new(pool: String, port: u32, tolerance_ms: u32) -> Result<TimestampEnforcer, TimeError>
+    pub fn new(cfg: &impl ConfigNtp, tolerance_ms: u32) -> Result<TimestampEnforcer, TimeError>
     {
         let tolerance_ms_loop = tolerance_ms;
         let tolerance_ms_seed = tolerance_ms * 3;
 
-        let pool = Arc::new(pool);
-        let ntp_result = Arc::new(RwLock::new(ntp::query_ntp_retry(pool.deref(), port, tolerance_ms_seed, 10)?));
+        let pool = Arc::new(cfg.ntp_pool());
+        let ntp_result = Arc::new(RwLock::new(ntp::query_ntp_retry(pool.deref(), cfg.ntp_port(), tolerance_ms_seed, 10)?));
         let bt_exit = Arc::new(Mutex::new(false));
 
         let bt_best_ping = Duration::from_micros(ntp_result.write().unwrap().roundtrip()).as_millis() as u32;
-        let bt_pool = pool.clone();
-        let bt_port = port.clone();
+        let bt_pool = Arc::new(cfg.ntp_pool());
+        let bt_port = cfg.ntp_port();
         let bt_exit2 = bt_exit.clone();
         let bt_result = ntp_result.clone();
 
@@ -87,8 +88,8 @@ impl TimestampEnforcer
             {
                 cursor: tolerance,
                 tolerance: tolerance,
-                ntp_pool: pool,
-                ntp_port: port,
+                ntp_pool: cfg.ntp_pool(),
+                ntp_port: cfg.ntp_port(),
                 ntp_result: ntp_result,
                 bt_exit: bt_exit.clone(),
             }
@@ -144,8 +145,10 @@ impl TimestampEnforcer
 impl Default
 for TimestampEnforcer
 {
-    fn default() -> TimestampEnforcer {
-        TimestampEnforcer::new("pool.ntp.org".to_string(), 123, 200).unwrap()
+    fn default() -> TimestampEnforcer
+    {
+        let cfg = DiscreteConfig::default();
+        TimestampEnforcer::new(&cfg, 200).unwrap()
     }
 }
 

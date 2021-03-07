@@ -645,7 +645,7 @@ pub fn create_test_chain(chain_name: String, temp: bool, barebone: bool, root_pu
     };
 
     let builder = match barebone {
-        true => ChainOfTrustBuilder::new(ConfiguredFor::Barebone),
+        true => ChainOfTrustBuilder::new(&mock_cfg, ConfiguredFor::Barebone),
         false => ChainOfTrustBuilder::default()
     };
     let mut builder = builder            

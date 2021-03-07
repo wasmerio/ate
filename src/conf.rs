@@ -26,16 +26,24 @@ pub trait ConfigStorage {
     fn log_path(&self) -> String;
     fn log_temp(&self) -> bool;
 }
-pub trait Config: ConfigMaster + ConfigStorage {
+
+pub trait ConfigNtp {
+    fn ntp_pool(&self) -> String;
+    fn ntp_port(&self) -> u32;
 }
 
-#[derive(Default)]
+pub trait Config: ConfigMaster + ConfigStorage + ConfigNtp {
+}
+
 pub struct DiscreteConfig {
     pub master_addr: String,
     pub master_port: u32,
 
     pub log_path: String,
     pub log_temp: bool,
+
+    pub ntp_pool: String,
+    pub ntp_port: u32,
 }
 
 impl DiscreteConfig {
@@ -62,6 +70,18 @@ impl DiscreteConfig {
         self.log_temp = val;
         self
     }
+
+    #[allow(dead_code)]
+    pub fn with_ntp_pool(mut self, val: String) -> DiscreteConfig {
+        self.ntp_pool = val;
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn with_ntp_port(mut self, val: u32) -> DiscreteConfig {
+        self.ntp_port = val;
+        self
+    }
 }
 
 impl ConfigMaster for DiscreteConfig {
@@ -76,7 +96,28 @@ impl ConfigStorage for DiscreteConfig {
 }
 
 
+impl ConfigNtp for DiscreteConfig {
+    fn ntp_pool(&self) -> String { self.ntp_pool.clone() }
+    fn ntp_port(&self) -> u32 { self.ntp_port }
+}
+
+
 impl Config for DiscreteConfig {
+}
+
+impl Default
+for DiscreteConfig
+{
+    fn default() -> DiscreteConfig {
+        DiscreteConfig {
+            master_addr: "127.0.0.1".to_string(),
+            master_port: 4001,
+            log_path: "/tmp/ate".to_string(),
+            log_temp: true,
+            ntp_pool: "pool.ntp.org".to_string(),
+            ntp_port: 123,
+        }
+    }
 }
 
 #[cfg(test)]
@@ -127,7 +168,7 @@ impl<M> ChainOfTrustBuilderExt<M>
 where M: OtherMetadata + 'static,
 {
     #[allow(dead_code)]
-    pub fn new(flavour: ConfiguredFor) -> ChainOfTrustBuilderExt<M> {
+    pub fn new(cfg: &impl Config, flavour: ConfiguredFor) -> ChainOfTrustBuilderExt<M> {
         ChainOfTrustBuilderExt {
             configured_for: flavour.clone(),
             validators: Vec::new(),
@@ -138,11 +179,11 @@ where M: OtherMetadata + 'static,
             plugins: Vec::new(),
             tree: None,
         }
-        .with_defaults(flavour)
+        .with_defaults(cfg, flavour)
     }
 
     #[allow(dead_code)]
-    pub fn with_defaults(mut self, flavour: ConfiguredFor) -> Self {
+    pub fn with_defaults(mut self, cfg: &impl Config, flavour: ConfiguredFor) -> Self {
         self.validators.clear();
         self.indexers.clear();
         self.linters.clear();
@@ -167,8 +208,13 @@ where M: OtherMetadata + 'static,
             let tree = Arc::new(RwLock::new(super::tree::TreeAuthorityPlugin::new()));
             self.tree = Some(tree.clone());
             self.plugins.push(tree);
-            
-            self.plugins.push(Arc::new(RwLock::new(TimestampEnforcer::default())));
+
+            let tolerance = match flavour {
+                ConfiguredFor::BestPerformance => 2000,
+                ConfiguredFor::BestSecurity => 200,
+                _ => 500,
+            };
+            self.plugins.push(Arc::new(RwLock::new(TimestampEnforcer::new(cfg, tolerance).unwrap())));
         }
 
         match flavour {
@@ -255,7 +301,8 @@ for ChainOfTrustBuilderExt<M>
 where M: OtherMetadata + 'static,
 {
     fn default() -> ChainOfTrustBuilderExt<M> {
-        ChainOfTrustBuilderExt::new(ConfiguredFor::default())
+        let cfg = DiscreteConfig::default();
+        ChainOfTrustBuilderExt::new(&cfg, ConfiguredFor::default())
     }
 }
 
