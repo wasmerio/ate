@@ -156,7 +156,7 @@ impl<M> EventMetadataLinter<M>
 for TimestampEnforcer
 where M: OtherMetadata,
 {
-    fn metadata_lint_event(&self, _data_hash: &Option<Hash>, _meta: &MetadataExt<M>, _session: &Session)-> Result<Vec<CoreMetadata>, LintError> {
+    fn metadata_lint_event(&self, _meta: &MetadataExt<M>, _session: &Session)-> Result<Vec<CoreMetadata>, LintError> {
         let mut ret = Vec::new();
 
         //println!("TIME: {} with offset of {} and ping of {}", self.current_timestamp()?, self.current_offset_ms(), self.current_ping_ms());

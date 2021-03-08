@@ -143,10 +143,12 @@ impl EncryptKey {
         )
     }
 
+    #[allow(dead_code)]
     pub fn as_bytes(&self) -> Vec<u8> {
         Vec::from(self.value())
     }
 
+    #[allow(dead_code)]
     pub fn from_bytes(bytes: &[u8]) -> Result<EncryptKey, std::io::Error> {
         let bytes: Vec<u8> = Vec::from(bytes);
         match bytes.len() {
@@ -587,42 +589,6 @@ impl EncryptedPrivateKey
     #[allow(dead_code)]
     pub fn double_hash(&self) -> DoubleHash {
         DoubleHash::from_hashes(&self.pk_hash(), &self.ek_hash)
-    }
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
-pub struct EncryptedEncryptKey {
-    ek_hash: Hash,
-    ek_iv: InitializationVector,
-    ek_encrypted: Vec<u8>,
-}
-
-impl EncryptedEncryptKey
-{
-    #[allow(dead_code)]
-    pub fn generate(encrypt_key: &EncryptKey) -> Result<EncryptedEncryptKey, std::io::Error> {
-        let ek = EncryptKey::generate(encrypt_key.size());
-        let ek_hash = ek.hash();
-        let ek_encrypted = encrypt_key.encrypt(&ek.as_bytes()[..])?;
-
-        Ok(
-            EncryptedEncryptKey {
-                ek_hash: ek_hash,
-                ek_iv: ek_encrypted.iv,
-                ek_encrypted: ek_encrypted.data,
-            }
-        )
-    }
-
-    #[allow(dead_code)]
-    pub fn inner(&self, key: &EncryptKey) -> Result<EncryptKey, std::io::Error> {
-        let data = key.decrypt(&self.ek_iv, &self.ek_encrypted[..])?;
-        EncryptKey::from_bytes(&data[..])
-    }
-
-    #[allow(dead_code)]
-    pub fn hash(&self) -> Hash {
-        self.ek_hash
     }
 }
 

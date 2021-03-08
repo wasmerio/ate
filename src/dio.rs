@@ -415,7 +415,7 @@ where M: OtherMetadata,
 
         let mut evt = multi.load(&entry)?;
         evt.raw.data = match evt.raw.data {
-            Some(data) => Some(multi.data_as_overlay(&mut evt.raw.meta, data)?),
+            Some(data) => Some(multi.data_as_overlay(&mut evt.raw.meta, data, &self.session)?),
             None => None,
         };
 
@@ -491,7 +491,7 @@ where M: OtherMetadata,
         // Load all the objects that have not yet been loaded
         for mut evt in multi.load_many(to_load)? {
             evt.raw.data = match evt.raw.data {
-                Some(data) => Some(multi.data_as_overlay(&mut evt.raw.meta, data)?),
+                Some(data) => Some(multi.data_as_overlay(&mut evt.raw.meta, data, &self.session)?),
                 None => { continue; },
             };
 
@@ -553,15 +553,16 @@ where M: OtherMetadata,
                     if let Some(tree) = &row.tree {
                         meta.core.push(CoreMetadata::Tree(tree.clone()))
                     }
-                    
-                    // Perform any transformation (e.g. data encryption)
-                    let data = multi.data_as_underlay(&mut meta, row.data.clone())?;
-                    let data_hash = super::crypto::Hash::from_bytes(&data[..]);
 
                     // Compute all the extra metadata for an event
-                    let extra_meta = multi.metadata_lint_event(&Some(data_hash), &mut meta, &self.session)?;
+                    let extra_meta = multi.metadata_lint_event(&mut meta, &self.session)?;
                     meta.core.extend(extra_meta);
                     
+                    // Perform any transformation (e.g. data encryption and compression)
+                    let data = multi.data_as_underlay(&mut meta, row.data.clone(), &self.session)?;
+                    let data_hash = super::crypto::Hash::from_bytes(&data[..]);
+                    
+                    // Only once all the rows are processed will we ship it to the redo log
                     let evt = EventRaw {
                         meta: meta,
                         data_hash: Some(data_hash),
@@ -579,7 +580,7 @@ where M: OtherMetadata,
                     }
 
                     // Compute all the extra metadata for an event
-                    let extra_meta = multi.metadata_lint_event(&None, &mut meta, &self.session)?;
+                    let extra_meta = multi.metadata_lint_event(&mut meta, &self.session)?;
                     meta.core.extend(extra_meta);
 
                     meta.add_tombstone(key.clone());
@@ -676,6 +677,7 @@ for TestEnumDao
 pub struct TestStructDao
 {
     val: u32,
+    hidden: String,
     inner: DaoVec<TestEnumDao>,
 }
 
@@ -689,6 +691,7 @@ fn test_dio()
     
     let mut session = Session::default();
     let mut chain = create_test_chain("test_dio".to_string(), true, false, Some(root_public_key));
+    //let mut chain = create_test_chain("test_dio".to_string(), true, false, None);
 
     session.properties.push(SessionProperty::WriteKey(write_key.clone()));
     session.properties.push(SessionProperty::WriteKey(write_key2.clone()));
@@ -707,6 +710,7 @@ fn test_dio()
             {
                 let mut mock_dao = TestStructDao::default();
                 mock_dao.val = 1;
+                mock_dao.hidden = "This text should be hidden".to_string();
                 
                 let mut dao1 = dio.store(mock_dao).unwrap();
                 let dao3 = dao1.inner.push(&mut dio, &dao1, TestEnumDao::Blah1).unwrap();
@@ -719,7 +723,8 @@ fn test_dio()
                 
                 dio.load::<TestStructDao>(&key1).expect_err("This load is meant to fail as we are still editing the object");
 
-                dao1.auth_mut().allow_write.push(write_key.hash());
+                dao1.auth_mut().allow_read = ReadOption::Specific(read_key.hash());
+                dao1.auth_mut().allow_write = WriteOption::Specific(write_key2.hash());
             }
 
             dio.flush().unwrap();
@@ -752,8 +757,7 @@ fn test_dio()
                 let mut dao2 = dio.store(TestEnumDao::Blah4).unwrap();
                 
                 // We create a new private key for this data
-                dao2.auth_mut().allow_write.push(write_key.as_public_key().hash());
-                //dao2.auth_mut().allow_write.push(write_key2.as_public_key().hash());
+                dao2.auth_mut().allow_write = WriteOption::Specific(write_key2.as_public_key().hash());
                 
                 key2 = dao2.key().clone();
                 println!("key2: {}", key2.as_hex_string());

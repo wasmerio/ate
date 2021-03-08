@@ -38,6 +38,8 @@ pub enum TransformError {
     EncryptionError(openssl::error::ErrorStack),
     IO(std::io::Error),
     CryptoError(CryptoError),
+    MissingReadKey(Hash),
+    UnspecifiedReadability,
 }
 
 impl From<openssl::error::ErrorStack>
@@ -77,6 +79,13 @@ for TransformError {
             TransformError::CryptoError(err) => {
                 write!(f, "Cryptography error while transforming event data - {}", err)
             },
+            TransformError::MissingReadKey(key) => {
+                write!(f, "Missing the read key ({}) needed to encrypt/decrypt this data object", key.to_string())
+            },
+            TransformError::UnspecifiedReadability => {
+                write!(f, "The readability for this data object has not been specified")
+            },
+            
         }
     }
 }
@@ -384,6 +393,7 @@ pub enum LintError {
     NoAuthorizationOrphan,
     SerializationError(SerializationError),
     TimeError(TimeError),
+    UnspecifiedWritability,
 }
 
 impl From<std::io::Error>
@@ -431,6 +441,9 @@ for LintError {
             },
             LintError::TimeError(err) => {
                 write!(f, "Timing error while linting data object - {}", err)
+            },
+            LintError::UnspecifiedWritability => {
+                write!(f, "The writability of this data object has not been specified")
             },
         }
     }

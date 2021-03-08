@@ -199,6 +199,13 @@ where M: OtherMetadata + 'static,
         self.compactors.push(Box::new(RemoveDuplicatesCompactor::default()));
         self.compactors.push(Box::new(TombstoneCompactor::default()));
 
+        match flavour {
+            ConfiguredFor::SmallestSize | ConfiguredFor::Balanced => {
+                self.transformers.insert(0, Box::new(CompressorWithSnapTransformer::default()));
+            }
+            _ => {}
+        }
+
         if flavour == ConfiguredFor::Barebone {
             self.validators.push(Box::new(RubberStampValidator::default()));
             return self;
@@ -215,13 +222,6 @@ where M: OtherMetadata + 'static,
                 _ => 500,
             };
             self.plugins.push(Arc::new(RwLock::new(TimestampEnforcer::new(cfg, tolerance).unwrap())));
-        }
-
-        match flavour {
-            ConfiguredFor::SmallestSize | ConfiguredFor::Balanced => {
-                self.transformers.insert(0, Box::new(CompressorWithSnapTransformer::default()));
-            }
-            _ => {}
         }
 
         self

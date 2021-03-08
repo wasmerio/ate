@@ -1,3 +1,4 @@
+use fxhash::FxHashSet;
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use crate::signature::MetaSignWith;
 
@@ -10,11 +11,80 @@ where Self: Serialize + DeserializeOwned + std::fmt::Debug + Default + Clone + S
 {
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum ReadOption
+{
+    Unspecified,
+    Everyone,
+    Specific(Hash)
+}
+
+impl Default
+for ReadOption
+{
+    fn default() -> ReadOption {
+        ReadOption::Unspecified
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub enum WriteOption
+{
+    Unspecified,
+    Everyone,
+    Specific(Hash),
+    Group(Vec<Hash>)
+}
+
+impl WriteOption
+{
+    pub fn vals(&self) -> FxHashSet<Hash> {
+        let mut ret = FxHashSet::default();
+        match self {
+            WriteOption::Specific(a) => { ret.insert(a.clone()); }
+            WriteOption::Group(hashes) => {
+                for a in hashes {
+                    ret.insert(a.clone());
+                }
+            },
+            _ => {}
+        }
+        return ret;
+    }
+
+    pub fn or(self, other: &WriteOption) -> WriteOption {
+        match other {
+            WriteOption::Unspecified => self,
+            WriteOption::Group(keys) => {
+                let mut vals = self.vals();
+                for a in keys {
+                    vals.insert(a.clone());
+                }
+                WriteOption::Group(vals.iter().map(|k| k.clone()).collect::<Vec<_>>())
+            },
+            WriteOption::Specific(hash) => {
+                let mut vals = self.vals();
+                vals.insert(hash.clone());
+                WriteOption::Group(vals.iter().map(|k| k.clone()).collect::<Vec<_>>())
+            },
+            a => a.clone(),
+        }
+    }
+}
+
+impl Default
+for WriteOption
+{
+    fn default() -> WriteOption {
+        WriteOption::Unspecified
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct MetaAuthorization
 {
-    pub allow_read: Vec<Hash>,
-    pub allow_write: Vec<Hash>,
+    pub allow_read: ReadOption,
+    pub allow_write: WriteOption,
     pub implicit_authority: Option<String>,
 }
 
@@ -49,7 +119,7 @@ pub enum CoreMetadata
     InitializationVector(InitializationVector),
     PublicKey(PublicKey),
     EncryptedPrivateKey(EncryptedPrivateKey),
-    EncryptedEncryptionKey(EncryptKey),
+    Confidentiality(ReadOption),
     Collection(MetaCollection),
     Tree(MetaTree),
     Timestamp(MetaTimestamp),
@@ -116,6 +186,16 @@ impl<M> MetadataExt<M>
         ret
     }
 
+    pub fn get_confidentiality(&self) -> Option<&ReadOption>
+    {
+        for core in &self.core {
+            if let CoreMetadata::Confidentiality(a) = core {
+                return Some(a);
+            }
+        }
+        None
+    }
+
     pub fn needs_signature(&self) -> bool
     {
         for core in &self.core {
@@ -123,7 +203,7 @@ impl<M> MetadataExt<M>
                 CoreMetadata::PublicKey(_) => {},
                 CoreMetadata::Signature(_) => {},
                 CoreMetadata::EncryptedPrivateKey(_) => {},
-                CoreMetadata::EncryptedEncryptionKey(_) => {},                
+                CoreMetadata::Confidentiality(_) => {},                
                 _ => { return true; }
             }
         }

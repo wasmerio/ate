@@ -13,15 +13,22 @@ use super::event::*;
 use super::header::*;
 use bytes::Bytes;
 use fxhash::FxHashMap;
-use fxhash::FxHashSet;
 
 #[derive(Debug)]
 pub struct TreeAuthorityPlugin<M>
 where M: OtherMetadata
 {
+    root: WriteOption,
     root_keys: FxHashMap<Hash, PublicKey>,
     auth: FxHashMap<PrimaryKey, MetaAuthorization>,
+    tree: FxHashMap<PrimaryKey, MetaTree>,
     signature_plugin: SignaturePlugin<M>,
+}
+
+enum ComputePhase
+{
+    BeforeStore,
+    AfterStore,
 }
 
 impl<M> TreeAuthorityPlugin<M>
@@ -29,9 +36,11 @@ where M: OtherMetadata
 {
     pub fn new() -> TreeAuthorityPlugin<M> {
         TreeAuthorityPlugin {
+            root: WriteOption::Everyone,
             root_keys: FxHashMap::default(),
             signature_plugin: SignaturePlugin::new(),
             auth: FxHashMap::default(),
+            tree: FxHashMap::default(),
         }
     }
 
@@ -39,55 +48,59 @@ where M: OtherMetadata
     pub fn add_root_public_key(&mut self, key: &PublicKey)
     {
         self.root_keys.insert(key.hash(), key.clone());
+        self.root = WriteOption::Group(self.root_keys.keys().map(|k| k.clone()).collect::<Vec<_>>());
     }
 
-    fn compute_auth(&self, meta: &MetadataExt<M>) -> MetaAuthorization
+    fn compute_auth(&self, meta: &MetadataExt<M>, phase: ComputePhase) -> MetaAuthorization
     {
-        let mut read = FxHashSet::default();
-        let mut write = FxHashSet::default();
+        let mut read = ReadOption::Everyone;
+        let mut write;
         let mut implicit = None;
 
         // Root keys are there until inheritance is disabled then they
         // can no longer be used but this means that the top level data objects
         // can always be overridden by the root keys
-        for a in self.root_keys.keys() {
-            write.insert(a.clone());
-        }
+        write = self.root.clone();
 
-        // When the data object is attached to a parent then as long as
-        // it has one of the authorizations then it can be saved against it
-        if let Some(tree) = meta.get_tree() {
-            if tree.inherit_read && tree.inherit_write {
-                if let Some(auth) = self.auth.get(&tree.vec.parent_id) {
-                    if tree.inherit_read {
-                        for a in auth.allow_read.iter() {
-                            read.insert(a.clone());
+        // The primary key dictates what authentication rules it inherits
+        if let Some(key) = meta.get_data_key()
+        {
+            // When the data object is attached to a parent then as long as
+            // it has one of the authorizations then MetaCollectionit can be saved against it
+            let tree = match phase {
+                ComputePhase::BeforeStore => self.tree.get(&key),
+                ComputePhase::AfterStore => meta.get_tree(),
+            };
+            if let Some(tree) = tree {
+                if tree.inherit_read && tree.inherit_write {
+                    if let Some(auth) = self.auth.get(&tree.vec.parent_id) {
+                        if tree.inherit_read {
+                            read = match &auth.allow_read {
+                                ReadOption::Unspecified => read,
+                                a => a.clone(),
+                            };
+                        } else {
+                            read = ReadOption::Unspecified;
                         }
-                    } else {
-                        read.clear();
-                    }
-                    if tree.inherit_write {
-                        for a in auth.allow_write.iter() {
-                            write.insert(a.clone());
+                        if tree.inherit_write {
+                            write = write.or(&auth.allow_write);
+                        } else {
+                            write = WriteOption::Unspecified;
                         }
-                    } else {
-                        write.clear();
                     }
                 }
             }
-        }
 
-        // If there are previously accepted authorizations for this row
-        // then they carry over into the next version of it
-        if let Some(key) = meta.get_data_key()
-        {
-            if let Some(auth) = self.auth.get(&key) {
-                for a in auth.allow_read.iter() {
-                    read.insert(a.clone());
-                }
-                for a in auth.allow_write.iter() {
-                    write.insert(a.clone());
-                }
+            let auth = match phase {
+                ComputePhase::BeforeStore => self.auth.get(&key),
+                ComputePhase::AfterStore => meta.get_authorization(),
+            };
+            if let Some(auth) = auth {
+                read = match &auth.allow_read {
+                    ReadOption::Unspecified => read,
+                    a => a.clone(),
+                };
+                write = write.or(&auth.allow_write);
                 implicit = match &auth.implicit_authority {
                     Some(a) => Some(a.clone()),
                     None => None,
@@ -96,9 +109,31 @@ where M: OtherMetadata
         }
 
         MetaAuthorization {
-            allow_read: read.into_iter().collect::<Vec<_>>(),
-            allow_write: write.into_iter().collect::<Vec<_>>(),
+            allow_read: read,
+            allow_write: write,
             implicit_authority: implicit,
+        }
+    }
+
+    fn get_encrypt_key(auth: &ReadOption, session: &Session) -> Result<Option<EncryptKey>, TransformError>
+    {
+        match auth {
+            ReadOption::Unspecified => {
+                Err(TransformError::UnspecifiedReadability)
+            },
+            ReadOption::Everyone => {
+                Ok(None)
+            },
+            ReadOption::Specific(key_hash) => {
+                for prop in session.properties.iter() {
+                    if let SessionProperty::ReadKey(key) = prop {
+                        if key.hash() == *key_hash {
+                            return Ok(Some(key.clone()));
+                        }
+                    }
+                }
+                Err(TransformError::MissingReadKey(key_hash.clone()))
+            }
         }
     }
 }
@@ -112,7 +147,7 @@ where M: OtherMetadata
         
         if let Some(key) = meta.get_data_key()
         {
-            let auth = self.compute_auth(meta);
+            let auth = self.compute_auth(meta, ComputePhase::AfterStore);
             self.auth.insert(key, auth);
         }
 
@@ -134,16 +169,22 @@ where M: OtherMetadata
         // We need to check all the signatures are valid
         self.signature_plugin.validate(validation_data)?;
 
+        // If it does not need a signature then accept it
+        if validation_data.meta.needs_signature() == false && validation_data.data_hash.is_none() {
+            return Ok(ValidationResult::Allow);
+        }
+
         // If it has data then we need to check it - otherwise we ignore it
         let hash = match validation_data.data_hash {
             Some(a) => DoubleHash::from_hashes(&validation_data.meta_hash, &a).hash(),
-            None => {
-                if validation_data.meta.needs_signature() == false && validation_data.data_hash.is_none() {
-                    return Ok(ValidationResult::Abstain);
-                }
-                validation_data.meta_hash.clone()
-            },
+            None => validation_data.meta_hash.clone()
         };
+
+        // It might be the case that everyone is allowed to write freely
+        let auth = self.compute_auth(&validation_data.meta, ComputePhase::BeforeStore);
+        if auth.allow_write == WriteOption::Everyone {
+            return Ok(ValidationResult::Allow);
+        }
         
         let verified_signatures = match self.signature_plugin.get_verified_signatures(&hash) {
             Some(a) => a,
@@ -151,9 +192,9 @@ where M: OtherMetadata
         };
         
         // Compute the auth tree and if a signature exists for any of the auths then its allowed
-        let auth = self.compute_auth(&validation_data.meta);
+        let auth_write = auth.allow_write.vals();
         for hash in verified_signatures.iter() {
-            if auth.allow_write.contains(hash) {
+            if auth_write.contains(hash) {
                 return Ok(ValidationResult::Allow);
             }
         }
@@ -195,55 +236,68 @@ where M: OtherMetadata,
         Ok(ret)
     }
 
-    fn metadata_lint_event(&self, data_hash: &Option<Hash>, meta: &MetadataExt<M>, session: &Session) -> Result<Vec<CoreMetadata>, LintError>
+    fn metadata_lint_event(&self, meta: &MetadataExt<M>, session: &Session) -> Result<Vec<CoreMetadata>, LintError>
     {
         let mut ret = Vec::new();
         let mut sign_with = Vec::new();
 
-        let auth = self.compute_auth(meta);
-        for write_hash in auth.allow_write.iter()
-        {
-            // Make sure we actually own the key that it wants to write with
-            let sk = session.properties
-                .iter()
-                .filter_map(|p| {
-                    match p {
-                        SessionProperty::WriteKey(w) => {
-                            if w.hash() == *write_hash {
-                                Some(w)
-                            } else {
-                                None
+        let auth = self.compute_auth(meta, ComputePhase::BeforeStore);
+        match auth.allow_write {
+            WriteOption::Specific(_) | WriteOption::Group(_) =>
+            {
+                for write_hash in auth.allow_write.vals().iter()
+                {
+                    // Make sure we actually own the key that it wants to write with
+                    let sk = session.properties
+                        .iter()
+                        .filter_map(|p| {
+                            match p {
+                                SessionProperty::WriteKey(w) => {
+                                    if w.hash() == *write_hash {
+                                        Some(w)
+                                    } else {
+                                        None
+                                    }
+                                }
+                                _ => None,
                             }
-                        }
-                        _ => None,
+                        })
+                        .next();
+
+                    // If we have the key then we can write to the chain
+                    if let Some(sk) = sk {
+                        sign_with.push(sk.hash());
                     }
-                })
-                .next();
+                }
 
-            // If we have the key then we can write to the chain
-            if let Some(sk) = sk {
-                sign_with.push(sk.hash());
-            }
+                if meta.needs_signature() && sign_with.len() <= 0
+                {
+                    // This record has no authorization
+                    return match meta.get_data_key() {
+                        Some(key) => Err(LintError::NoAuthorization(key)),
+                        None => Err(LintError::NoAuthorizationOrphan)
+                    };
+                }
+
+                // Add the signing key hashes for the later stages
+                if sign_with.len() > 0 {
+                    ret.push(CoreMetadata::SignWith(MetaSignWith {
+                        keys: sign_with,
+                    }));
+                }
+            },
+            WriteOption::Unspecified => {
+                return Err(LintError::UnspecifiedWritability);
+            },
+            _ => {}
         }
 
-        if meta.needs_signature() && sign_with.len() <= 0
-        {
-            // This record has no authorization
-            return match meta.get_data_key() {
-                Some(key) => Err(LintError::NoAuthorization(key)),
-                None => Err(LintError::NoAuthorizationOrphan)
-            };
-        }
-
-        // Add the signing key hashes for the later stages
-        if sign_with.len() > 0 {
-            ret.push(CoreMetadata::SignWith(MetaSignWith {
-                keys: sign_with,
-            }));
-        }
+        // Now lets add all the encryption keys
+        let auth = self.compute_auth(meta, ComputePhase::AfterStore);
+        ret.push(CoreMetadata::Confidentiality(auth.allow_read));
         
         // Now run the signature plugin
-        ret.extend(self.signature_plugin.metadata_lint_event(data_hash, meta, session)?);
+        ret.extend(self.signature_plugin.metadata_lint_event(meta, session)?);
 
         // We are done
         Ok(ret)
@@ -254,13 +308,41 @@ impl<M> EventDataTransformer<M>
 for TreeAuthorityPlugin<M>
 where M: OtherMetadata
 {
-    fn data_as_underlay(&self, meta: &mut MetadataExt<M>, with: Bytes) -> Result<Bytes, TransformError> {
-        let with = self.signature_plugin.data_as_underlay(meta, with)?;
+    #[allow(unused_variables)]
+    fn data_as_underlay(&self, meta: &mut MetadataExt<M>, with: Bytes, session: &Session) -> Result<Bytes, TransformError>
+    {
+        let mut with = self.signature_plugin.data_as_underlay(meta, with, session)?;
+
+        let read_option = match meta.get_confidentiality() {
+            Some(a) => a,
+            None => { return Err(TransformError::UnspecifiedReadability); }
+        };
+
+        if let Some(key) = TreeAuthorityPlugin::<M>::get_encrypt_key(read_option, session)? {
+            let iv = meta.generate_iv();        
+            let encrypted = key.encrypt_with_iv(&iv, &with[..])?;
+            with = Bytes::from(encrypted);
+        }
+
         Ok(with)
     }
 
-    fn data_as_overlay(&self, meta: &mut MetadataExt<M>, with: Bytes) -> Result<Bytes, TransformError> {
-        let with = self.signature_plugin.data_as_overlay(meta, with)?;
+    #[allow(unused_variables)]
+    fn data_as_overlay(&self, meta: &mut MetadataExt<M>, with: Bytes, session: &Session) -> Result<Bytes, TransformError>
+    {
+        let mut with = self.signature_plugin.data_as_overlay(meta, with, session)?;
+
+        let read_option = match meta.get_confidentiality() {
+            Some(a) => a,
+            None => { return Err(TransformError::UnspecifiedReadability); }
+        };
+
+        if let Some(key) = TreeAuthorityPlugin::<M>::get_encrypt_key(read_option, session)? {
+            let iv = meta.get_iv()?;
+            let decrypted = key.decrypt(&iv, &with[..])?;
+            with = Bytes::from(decrypted);
+        }
+
         Ok(with)
     }
 }

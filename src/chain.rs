@@ -647,37 +647,37 @@ where M: OtherMetadata,
     }
 
     #[allow(dead_code)]
-    pub fn metadata_lint_event(&self, data_hash: &Option<Hash>, meta: &mut MetadataExt<M>, session: &Session) -> Result<Vec<CoreMetadata>, LintError> {
+    pub fn metadata_lint_event(&self, meta: &mut MetadataExt<M>, session: &Session) -> Result<Vec<CoreMetadata>, LintError> {
         let mut ret = Vec::new();
         for linter in self.lock_inner.linters.iter() {
-            ret.extend(linter.metadata_lint_event(data_hash, meta, session)?);
+            ret.extend(linter.metadata_lint_event(meta, session)?);
         }
         for plugin in self.lock_plugins.iter() {
-            ret.extend(plugin.metadata_lint_event(data_hash, meta, session)?);
+            ret.extend(plugin.metadata_lint_event(meta, session)?);
         }
         Ok(ret)
     }
 
     #[allow(dead_code)]
-    pub fn data_as_overlay(&self, meta: &mut MetadataExt<M>, data: Bytes) -> Result<Bytes, TransformError> {
+    pub fn data_as_overlay(&self, meta: &mut MetadataExt<M>, data: Bytes, session: &Session) -> Result<Bytes, TransformError> {
         let mut ret = data;
         for plugin in self.lock_plugins.iter().rev() {
-            ret = plugin.data_as_overlay(meta, ret)?;
+            ret = plugin.data_as_overlay(meta, ret, session)?;
         }
         for transformer in self.lock_inner.transformers.iter().rev() {
-            ret = transformer.data_as_overlay(meta, ret)?;
+            ret = transformer.data_as_overlay(meta, ret, session)?;
         }
         Ok(ret)
     }
 
     #[allow(dead_code)]
-    pub fn data_as_underlay(&self, meta: &mut MetadataExt<M>, data: Bytes) -> Result<Bytes, TransformError> {
+    pub fn data_as_underlay(&self, meta: &mut MetadataExt<M>, data: Bytes, session: &Session) -> Result<Bytes, TransformError> {
         let mut ret = data;
         for transformer in self.lock_inner.transformers.iter() {
-            ret = transformer.data_as_underlay(meta, ret)?;
+            ret = transformer.data_as_underlay(meta, ret, session)?;
         }
         for plugin in self.lock_plugins.iter() {
-            ret = plugin.data_as_underlay(meta, ret)?;
+            ret = plugin.data_as_underlay(meta, ret, session)?;
         }
         Ok(ret)
     }
@@ -696,14 +696,15 @@ pub fn create_test_chain(chain_name: String, temp: bool, barebone: bool, root_pu
         false => ChainKey::default().with_name(chain_name),
     };
 
-    let builder = match barebone {
-        true => ChainOfTrustBuilder::new(&mock_cfg, ConfiguredFor::Barebone),
-        false => ChainOfTrustBuilder::default()
-    };
-    let mut builder = builder            
-        .add_validator(Box::new(RubberStampValidator::default()))
-        .add_data_transformer(Box::new(StaticEncryptionTransformer::new(&EncryptKey::from_string("test".to_string(), KeySize::Bit192))))
-        .add_metadata_linter(Box::new(EventAuthorLinter::default()));
+    let mut builder = match barebone {
+        true => {
+            ChainOfTrustBuilder::new(&mock_cfg, ConfiguredFor::Barebone)
+                .add_validator(Box::new(RubberStampValidator::default()))
+                .add_data_transformer(Box::new(StaticEncryptionTransformer::new(&EncryptKey::from_string("test".to_string(), KeySize::Bit192))))
+                .add_metadata_linter(Box::new(EventAuthorLinter::default()))
+        },
+        false => ChainOfTrustBuilder::new(&mock_cfg, ConfiguredFor::Balanced)
+    };        
 
     if let Some(key) = root_public_key {
         builder = builder.add_root_public_key(&key);
