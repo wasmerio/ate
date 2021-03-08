@@ -12,18 +12,16 @@ pub enum ValidationResult {
     Abstain,
 }
 
-pub struct ValidationData<'a, M>
-where M: OtherMetadata
+pub struct ValidationData<'a>
 {
     pub meta_hash: Hash,
-    pub meta: &'a MetadataExt<M>,
+    pub meta: &'a Metadata,
     pub data_hash: Option<Hash>,
 }
 
-impl<'a, M> ValidationData<'a, M>
-where M: OtherMetadata
+impl<'a> ValidationData<'a>
 {
-    pub fn from_event_entry(evt: &'a EventEntryExt<M>) -> ValidationData<'a, M> {
+    pub fn from_event_entry(evt: &'a EventEntryExt) -> ValidationData<'a> {
         ValidationData {
             meta_hash: evt.meta_hash,
             meta: &evt.meta,
@@ -31,19 +29,19 @@ where M: OtherMetadata
         }
     }
 
-    pub fn from_event(evt: &'a EventRawPlus<M>) -> ValidationData<'a, M> {
+    #[allow(dead_code)]
+    pub fn from_event(evt: &'a EventRawPlus) -> ValidationData<'a> {
         ValidationData {
             meta_hash: evt.meta_hash.clone(),
-            meta: &evt.meta,
-            data_hash: evt.data_hash.clone(),
+            meta: &evt.inner.meta,
+            data_hash: evt.inner.data_hash.clone(),
         }
     }
 }
 
-pub trait EventValidator<M>
-where M: OtherMetadata
+pub trait EventValidator
 {
-    fn validate(&self, _validation_data: &ValidationData<M>) -> Result<ValidationResult, ValidationError> {
+    fn validate(&self, _validation_data: &ValidationData) -> Result<ValidationResult, ValidationError> {
         Ok(ValidationResult::Abstain)
     }
 }
@@ -52,12 +50,11 @@ where M: OtherMetadata
 pub struct RubberStampValidator {   
 }
 
-impl<M> EventValidator<M>
+impl EventValidator
 for RubberStampValidator
-where M: OtherMetadata
 {
     #[allow(unused_variables)]
-    fn validate(&self, _validation_data: &ValidationData<M>) -> Result<ValidationResult, ValidationError>
+    fn validate(&self, _validation_data: &ValidationData) -> Result<ValidationResult, ValidationError>
     {
         Ok(ValidationResult::Allow)
     }
@@ -78,19 +75,17 @@ impl StaticSignatureValidator
     }
 }
 
-impl<M> EventValidator<M>
+impl EventValidator
 for StaticSignatureValidator
-where M: OtherMetadata
 {
     #[allow(unused_variables)]
-    fn validate(&self, _validation_data: &ValidationData<M>) -> Result<ValidationResult, ValidationError>
+    fn validate(&self, _validation_data: &ValidationData) -> Result<ValidationResult, ValidationError>
     {
         Ok(ValidationResult::Allow)
     }
 }
 
-impl<M> MetadataExt<M>
-where M: OtherMetadata
+impl Metadata
 {
     #[allow(dead_code)]
     pub fn add_signature(&mut self, _sig: MetaSignature) {

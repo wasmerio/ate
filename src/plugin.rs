@@ -1,7 +1,6 @@
 #[allow(unused_imports)]
 use crate::{compact::EventCompactor, lint::EventMetadataLinter, transform::EventDataTransformer};
 
-use super::meta::*;
 #[allow(unused_imports)]
 use super::crypto::*;
 use super::sink::*;
@@ -12,11 +11,10 @@ use super::validator::*;
 #[allow(unused_imports)]
 use super::event::*;
 
-pub trait EventPlugin<M>
-where Self: EventValidator<M> + EventSink<M> + EventCompactor<M> + EventMetadataLinter<M> + EventDataTransformer<M>,
-      M: OtherMetadata,
+pub trait EventPlugin
+where Self: EventValidator + EventSink + EventCompactor + EventMetadataLinter + EventDataTransformer,
 {
-    fn rebuild(&mut self, _data: &Vec<EventEntryExt<M>>) -> Result<(), SinkError>
+    fn rebuild(&mut self, _data: &Vec<EventEntryExt>) -> Result<(), SinkError>
     {
         Ok(())
     }

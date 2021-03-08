@@ -15,7 +15,7 @@ proc-macro = true
 
 [dependencies]
 uuid = { version = "*", features = ["serde", "v4"] }
-tokio = { version = "*", features = ["full"] }
+tokio = { version = "*", features = ["full", "signal", "process"] }
 serde = { version = "*", features = ["derive"] }
 serde-big-array = "*"
 serde_json = "*"

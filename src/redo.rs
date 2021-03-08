@@ -604,7 +604,7 @@ TESTS
 #[cfg(test)]
 async fn test_write_data(log: &mut dyn LogWritable, key: PrimaryKey, body: Option<Vec<u8>>, flush: bool) -> LogFilePointer
 {
-    let mut meta = DefaultMetadata::for_data(key);
+    let mut meta = Metadata::for_data(key);
     meta.core.push(CoreMetadata::Author("test@nowhere.com".to_string()));
     let meta_bytes = Bytes::from(rmps::to_vec(&meta).unwrap());
 
@@ -630,7 +630,7 @@ async fn test_read_data(log: &mut RedoLog, read_header: LogFilePointer, test_key
         .await
         .expect(&format!("Failed to read the entry {:?}", read_header));
     
-    let mut meta = DefaultMetadata::for_data(test_key);
+    let mut meta = Metadata::for_data(test_key);
     meta.core.push(CoreMetadata::Author("test@nowhere.com".to_string()));
     let meta_bytes = Bytes::from(rmps::to_vec(&meta).unwrap());
 

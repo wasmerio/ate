@@ -1,23 +1,22 @@
 use super::error::*;
-use super::meta::*;
 use super::crypto::*;
 use super::session::*;
+use super::meta::*;
 use snap::read::FrameDecoder;
 use snap::read::FrameEncoder;
 use bytes::{Bytes, Buf};
 #[allow(unused_imports)]
 use openssl::symm::{encrypt, decrypt, Cipher};
 
-pub trait EventDataTransformer<M>
-where M: OtherMetadata
+pub trait EventDataTransformer
 {
     /// Callback when data is stored in the event 
-    fn data_as_underlay(&self, _meta: &mut MetadataExt<M>, with: Bytes, _session: &Session) -> Result<Bytes, TransformError> {
+    fn data_as_underlay(&self, _meta: &mut Metadata, with: Bytes, _session: &Session) -> Result<Bytes, TransformError> {
         Ok(with)
     }
 
     /// Callback before data in an event is actually used by an actual user
-    fn data_as_overlay(&self, _meta: &mut MetadataExt<M>, with: Bytes, _session: &Session) -> Result<Bytes, TransformError> {
+    fn data_as_overlay(&self, _meta: &mut Metadata, with: Bytes, _session: &Session) -> Result<Bytes, TransformError> {
         Ok(with)
     }
 }
@@ -27,12 +26,11 @@ pub struct CompressorWithSnapTransformer
 {
 }
 
-impl<M> EventDataTransformer<M>
+impl EventDataTransformer
 for CompressorWithSnapTransformer
-where M: OtherMetadata,
 {
     #[allow(unused_variables)]
-    fn data_as_underlay(&self, meta: &mut MetadataExt<M>, with: Bytes, _session: &Session) -> Result<Bytes, TransformError> {
+    fn data_as_underlay(&self, meta: &mut Metadata, with: Bytes, _session: &Session) -> Result<Bytes, TransformError> {
         let mut reader = FrameEncoder::new(with.reader());
         let mut compressed = Vec::new();
         std::io::copy(&mut reader, &mut compressed)?;
@@ -40,7 +38,7 @@ where M: OtherMetadata,
     }
 
     #[allow(unused_variables)]
-    fn data_as_overlay(&self, meta: &mut MetadataExt<M>, with: Bytes, _session: &Session) -> Result<Bytes, TransformError> {
+    fn data_as_overlay(&self, meta: &mut Metadata, with: Bytes, _session: &Session) -> Result<Bytes, TransformError> {
         let mut reader = FrameDecoder::new(with.reader());
         let mut decompressed = Vec::new();
         std::io::copy(&mut reader, &mut decompressed)?;
@@ -64,12 +62,11 @@ impl StaticEncryptionTransformer
     }
 }
 
-impl<M> EventDataTransformer<M>
+impl EventDataTransformer
 for StaticEncryptionTransformer
-where M: OtherMetadata,
 {
     #[allow(unused_variables)]
-    fn data_as_underlay(&self, meta: &mut MetadataExt<M>, with: Bytes, _session: &Session) -> Result<Bytes, TransformError>
+    fn data_as_underlay(&self, meta: &mut Metadata, with: Bytes, _session: &Session) -> Result<Bytes, TransformError>
     {
         let iv = meta.generate_iv();
         let encrypted = self.key.encrypt_with_iv(&iv, &with[..])?;
@@ -77,7 +74,7 @@ where M: OtherMetadata,
     }
 
     #[allow(unused_variables)]
-    fn data_as_overlay(&self, meta: &mut MetadataExt<M>, with: Bytes, _session: &Session) -> Result<Bytes, TransformError>
+    fn data_as_overlay(&self, meta: &mut Metadata, with: Bytes, _session: &Session) -> Result<Bytes, TransformError>
     {
         let iv = meta.get_iv()?;
         let decrypted = self.key.decrypt(&iv, &with[..])?;
@@ -92,7 +89,7 @@ fn test_encrypter()
     let encrypter = StaticEncryptionTransformer::new(&key);
 
     let test_bytes = Bytes::from_static(b"Some Crypto Text");
-    let mut meta = DefaultMetadata::default();
+    let mut meta = Metadata::default();
     let encrypted = encrypter.data_as_underlay(&mut meta, test_bytes.clone(), &Session::default()).unwrap();
 
     println!("metadata: {:?}", meta);
@@ -112,7 +109,7 @@ fn test_compressor()
     let compressor = CompressorWithSnapTransformer::default();
 
     let test_bytes = Bytes::from("test".as_bytes());
-    let mut meta = DefaultMetadata::default();
+    let mut meta = Metadata::default();
     let compressed = compressor.data_as_underlay(&mut meta, test_bytes.clone(), &Session::default()).unwrap();
 
     println!("metadata: {:?}", meta);

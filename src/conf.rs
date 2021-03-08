@@ -1,8 +1,5 @@
-use crate::{chain::ChainAccessorExt, time::TimestampEnforcer, tree::TreeAuthorityPlugin};
-use std::sync::Arc;
-use std::sync::RwLock;
+use crate::{accessor::ChainAccessor, time::TimestampEnforcer, tree::TreeAuthorityPlugin};
 
-use super::meta::OtherMetadata;
 use super::validator::EventValidator;
 use super::compact::EventCompactor;
 use super::index::EventIndexer;
@@ -151,25 +148,23 @@ for ConfiguredFor
 
 
 
-pub struct ChainOfTrustBuilderExt<M>
-where M: OtherMetadata,
+pub struct ChainOfTrustBuilder
 {
     pub(super) configured_for: ConfiguredFor,
-    pub(super) validators: Vec<Box<dyn EventValidator<M>>>,
-    pub(super) compactors: Vec<Box<dyn EventCompactor<M>>>,
-    pub(super) linters: Vec<Box<dyn EventMetadataLinter<M>>>,
-    pub(super) transformers: Vec<Box<dyn EventDataTransformer<M>>>,
-    pub(super) indexers: Vec<Arc<RwLock<dyn EventIndexer<M>>>>,
-    pub(super) plugins: Vec<Arc<RwLock<dyn EventPlugin<M>>>>,
-    pub(super) tree: Option<Arc<RwLock<TreeAuthorityPlugin<M>>>>,
+    pub(super) validators: Vec<Box<dyn EventValidator + Send + Sync>>,
+    pub(super) compactors: Vec<Box<dyn EventCompactor + Send + Sync>>,
+    pub(super) linters: Vec<Box<dyn EventMetadataLinter + Send + Sync>>,
+    pub(super) transformers: Vec<Box<dyn EventDataTransformer + Send + Sync>>,
+    pub(super) indexers: Vec<Box<dyn EventIndexer + Send + Sync>>,
+    pub(super) plugins: Vec<Box<dyn EventPlugin + Send + Sync>>,
+    pub(super) tree: Option<TreeAuthorityPlugin>,
 }
 
-impl<M> ChainOfTrustBuilderExt<M>
-where M: OtherMetadata + 'static,
+impl ChainOfTrustBuilder
 {
     #[allow(dead_code)]
-    pub fn new(cfg: &impl Config, flavour: ConfiguredFor) -> ChainOfTrustBuilderExt<M> {
-        ChainOfTrustBuilderExt {
+    pub fn new(cfg: &impl Config, flavour: ConfiguredFor) -> ChainOfTrustBuilder {
+        ChainOfTrustBuilder {
             configured_for: flavour.clone(),
             validators: Vec::new(),
             indexers: Vec::new(),
@@ -212,16 +207,14 @@ where M: OtherMetadata + 'static,
         }
         else
         {
-            let tree = Arc::new(RwLock::new(super::tree::TreeAuthorityPlugin::new()));
-            self.tree = Some(tree.clone());
-            self.plugins.push(tree);
+            self.tree = Some(super::tree::TreeAuthorityPlugin::new());
 
             let tolerance = match flavour {
                 ConfiguredFor::BestPerformance => 2000,
                 ConfiguredFor::BestSecurity => 200,
                 _ => 500,
             };
-            self.plugins.push(Arc::new(RwLock::new(TimestampEnforcer::new(cfg, tolerance).unwrap())));
+            self.plugins.push(Box::new(TimestampEnforcer::new(cfg, tolerance).unwrap()));
         }
 
         self
@@ -240,69 +233,68 @@ where M: OtherMetadata + 'static,
     }
 
     #[allow(dead_code)]
-    pub fn add_compactor(mut self, compactor: Box<dyn EventCompactor<M>>) -> Self {
+    pub fn add_compactor(mut self, compactor: Box<dyn EventCompactor + Send + Sync>) -> Self {
         self.compactors.push(compactor);
         self
     }
 
     #[allow(dead_code)]
-    pub fn add_validator(mut self, validator: Box<dyn EventValidator<M>>) -> Self {
+    pub fn add_validator(mut self, validator: Box<dyn EventValidator + Send + Sync>) -> Self {
         self.validators.push(validator);
         self
     }
     #[allow(dead_code)]
-    pub fn add_metadata_linter(mut self, linter: Box<dyn EventMetadataLinter<M>>) -> Self {
+    pub fn add_metadata_linter(mut self, linter: Box<dyn EventMetadataLinter + Send + Sync>) -> Self {
         self.linters.push(linter);
         self
     }
 
     #[allow(dead_code)]
-    pub fn add_data_transformer(mut self, transformer: Box<dyn EventDataTransformer<M>>) -> Self {
+    pub fn add_data_transformer(mut self, transformer: Box<dyn EventDataTransformer + Send + Sync>) -> Self {
         self.transformers.push(transformer);
         self
     }
 
     #[allow(dead_code)]
-    pub fn add_indexer(mut self, indexer: &Arc<RwLock<dyn EventIndexer<M>>>) -> Self {
-        self.indexers.push(indexer.clone());
+    pub fn add_indexer(mut self, indexer: Box<dyn EventIndexer + Send + Sync>) -> Self {
+        self.indexers.push(indexer);
         self
     }
 
 
     #[allow(dead_code)]
-    pub fn add_plugin(mut self, plugin: &Arc<RwLock<dyn EventPlugin<M>>>) -> Self {
-        self.plugins.push(plugin.clone());
+    pub fn add_plugin(mut self, plugin: Box<dyn EventPlugin + Send + Sync>) -> Self {
+        self.plugins.push(plugin);
         self
     }
 
     #[allow(dead_code)]
-    pub fn add_root_public_key(self, key: &PublicKey) -> Self {
-        if let Some(tree) = &self.tree {
-            tree.write().unwrap().add_root_public_key(key);
+    pub fn add_root_public_key(mut self, key: &PublicKey) -> Self {
+        if let Some(tree) = &mut self.tree {
+            tree.add_root_public_key(key);
         }
         self
     }
 
     #[allow(dead_code)]
-    pub fn build<I, V>
+    pub async fn build<I, V>
     (
         self,
         cfg: &impl ConfigStorage,
         key: &ChainKey,
         truncate: bool
-    ) -> Result<ChainAccessorExt<M>, ChainCreationError>
+    ) -> Result<ChainAccessor, ChainCreationError>
     {
-        ChainAccessorExt::new(self, cfg, key, truncate)
+        ChainAccessor::new(self, cfg, key, truncate).await
     }
 }
 
-impl<M> Default
-for ChainOfTrustBuilderExt<M>
-where M: OtherMetadata + 'static,
+impl Default
+for ChainOfTrustBuilder
 {
-    fn default() -> ChainOfTrustBuilderExt<M> {
+    fn default() -> ChainOfTrustBuilder {
         let cfg = DiscreteConfig::default();
-        ChainOfTrustBuilderExt::new(&cfg, ConfiguredFor::default())
+        ChainOfTrustBuilder::new(&cfg, ConfiguredFor::default())
     }
 }
 

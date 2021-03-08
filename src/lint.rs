@@ -6,17 +6,16 @@ use super::event::*;
 #[allow(unused_imports)]
 use openssl::symm::{encrypt, Cipher};
 
-pub trait EventMetadataLinter<M>
-where M: OtherMetadata,
+pub trait EventMetadataLinter
 {
     /// Called just before the metadata is pushed into the redo log
-    fn metadata_lint_many(&self, _data_hashes: &Vec<EventRawPlus<M>>, _session: &Session) -> Result<Vec<CoreMetadata>, LintError>
+    fn metadata_lint_many(&self, _data_hashes: &Vec<EventRawPlus>, _session: &Session) -> Result<Vec<CoreMetadata>, LintError>
     {
         Ok(Vec::new())
     }
 
     // Lint an exact event
-    fn metadata_lint_event(&self, _meta: &MetadataExt<M>, _session: &Session)-> Result<Vec<CoreMetadata>, LintError>
+    fn metadata_lint_event(&self, _meta: &Metadata, _session: &Session)-> Result<Vec<CoreMetadata>, LintError>
     {
         Ok(Vec::new())
     }
@@ -26,11 +25,10 @@ where M: OtherMetadata,
 pub struct EventAuthorLinter {
 }
 
-impl<M> EventMetadataLinter<M>
+impl EventMetadataLinter
 for EventAuthorLinter
-where M: OtherMetadata,
 {
-    fn metadata_lint_event(&self, _meta: &MetadataExt<M>, session: &Session)-> Result<Vec<CoreMetadata>, LintError> {
+    fn metadata_lint_event(&self, _meta: &Metadata, session: &Session)-> Result<Vec<CoreMetadata>, LintError> {
         let mut ret = Vec::new();
 
         for core in &session.properties {

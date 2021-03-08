@@ -10,25 +10,22 @@ use super::meta::*;
 use super::sink::*;
 use super::error::*;
 
-pub trait EventIndexer<M>
-where Self: EventSink<M>,
-      M: OtherMetadata
+pub trait EventIndexer
+where Self: EventSink,
 {
-    fn rebuild(&mut self, _data: &Vec<EventEntryExt<M>>) -> Result<(), SinkError> {
+    fn rebuild(&mut self, _data: &Vec<EventEntryExt>) -> Result<(), SinkError> {
         Ok(())
     }
 }
 
 #[derive(Default)]
-pub struct BinaryTreeIndexer<M>
-where M: OtherMetadata
+pub struct BinaryTreeIndexer
 {
-    primary: BTreeMap<PrimaryKey, EventEntryExt<M>>,
-    secondary: MultiMap<MetaCollection, EventEntryExt<M>>,
+    primary: BTreeMap<PrimaryKey, EventEntryExt>,
+    secondary: MultiMap<MetaCollection, EventEntryExt>,
 }
 
-impl<M> BinaryTreeIndexer<M>
-where M: OtherMetadata
+impl BinaryTreeIndexer
 {
     #[allow(dead_code)]
     pub fn contains_key(&self, key: &PrimaryKey) -> bool {
@@ -41,7 +38,7 @@ where M: OtherMetadata
     }
 
     #[allow(dead_code)]
-    pub fn feed(&mut self, entry: &EventEntryExt<M>) {
+    pub fn feed(&mut self, entry: &EventEntryExt) {
         let mut entry_tree = None;
         for core in entry.meta.core.iter() {
             match core {
@@ -83,14 +80,14 @@ where M: OtherMetadata
         }
     }
 
-    pub fn lookup_primary(&self, key: &PrimaryKey) -> Option<EventEntryExt<M>> {
+    pub fn lookup_primary(&self, key: &PrimaryKey) -> Option<EventEntryExt> {
         match self.primary.get(key) {
             None => None,
             Some(a) => Some(a.clone())
         }
     }
 
-    pub fn lookup_secondary(&self, key: &MetaCollection) -> Option<&Vec<EventEntryExt<M>>> {
+    pub fn lookup_secondary(&self, key: &MetaCollection) -> Option<&Vec<EventEntryExt>> {
         self.secondary.get_vec(key)
     }
 }
@@ -100,17 +97,15 @@ pub struct UselessIndexer
 {
 }
 
-impl<'a, M> EventSink<M>
+impl EventSink
 for UselessIndexer
-where M: OtherMetadata + 'a
 {
 }
 
-impl<'a, M> EventIndexer<M>
+impl EventIndexer
 for UselessIndexer
-where M: OtherMetadata + 'a
 {
-    fn rebuild<'b>(&mut self, _data: &Vec<EventEntryExt<M>>) -> Result<(), SinkError>
+    fn rebuild(&mut self, _data: &Vec<EventEntryExt>) -> Result<(), SinkError>
     {
         Ok(())
     }

@@ -278,6 +278,7 @@ pub enum FeedError {
     IO(tokio::io::Error),
     ValidationError(ValidationError),
     SerializationError(SerializationError),
+    SendError(String),
 }
 
 impl From<SinkError>
@@ -312,6 +313,14 @@ for FeedError
     }   
 }
 
+impl<T> From<tokio::sync::mpsc::error::SendError<T>>
+for FeedError
+{
+    fn from(err: tokio::sync::mpsc::error::SendError<T>) -> FeedError {
+        FeedError::SendError(format!("{}", err.to_string()))
+    }
+}
+
 impl std::fmt::Display
 for FeedError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -327,6 +336,9 @@ for FeedError {
             },
             FeedError::SerializationError(err) => {
                 write!(f, "Serialization error while processing a stream of events - {}", err)
+            },
+            FeedError::SendError(err) => {
+                write!(f, "Send error while processing a stream of events - {}", err)
             },
         }
     }

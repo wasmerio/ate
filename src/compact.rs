@@ -14,16 +14,15 @@ pub enum EventRelevance
     ForceDrop,      // Force the event to drop
 }
 
-pub trait EventCompactor<M>
-where M: OtherMetadata
+pub trait EventCompactor
 {
     // Clones the compactor and prepares it for a compaction operation
-    fn clone_prepare(&self) -> Box<dyn EventCompactor<M>> {
+    fn clone_prepare(&self) -> Box<dyn EventCompactor> {
         Box::new(IndecisiveCompactor::default())
     }
 
     // Decision making time - in order of back to front we now decide if we keep or drop an event
-    fn relevance(&mut self, _evt: &EventEntryExt<M>) -> EventRelevance {
+    fn relevance(&mut self, _evt: &EventEntryExt) -> EventRelevance {
         EventRelevance::Abstain
     }
 }
@@ -34,15 +33,14 @@ pub struct RemoveDuplicatesCompactor
     already: FxHashSet<PrimaryKey>,
 }
 
-impl<M> EventCompactor<M>
+impl EventCompactor
 for RemoveDuplicatesCompactor
-where M: OtherMetadata
 {
-    fn clone_prepare(&self) -> Box<dyn EventCompactor<M>> {
+    fn clone_prepare(&self) -> Box<dyn EventCompactor> {
         Box::new(RemoveDuplicatesCompactor::default())
     }
     
-    fn relevance(&mut self, header: &EventEntryExt<M>) -> EventRelevance
+    fn relevance(&mut self, header: &EventEntryExt) -> EventRelevance
     {
         let key = match header.meta.get_data_key() {
             Some(key) => key,
@@ -64,15 +62,14 @@ pub struct TombstoneCompactor
     tombstoned: FxHashSet<PrimaryKey>,
 }
 
-impl<M> EventCompactor<M>
+impl EventCompactor
 for TombstoneCompactor
-where M: OtherMetadata
 {
-    fn clone_prepare(&self) -> Box<dyn EventCompactor<M>> {
+    fn clone_prepare(&self) -> Box<dyn EventCompactor> {
         Box::new(TombstoneCompactor::default())
     }
     
-    fn relevance(&mut self, header: &EventEntryExt<M>) -> EventRelevance
+    fn relevance(&mut self, header: &EventEntryExt) -> EventRelevance
     {
         match header.meta.get_tombstone() {
             Some(key) => {
@@ -95,8 +92,7 @@ where M: OtherMetadata
     }
 }
 
-impl<M> MetadataExt<M>
-where M: OtherMetadata
+impl Metadata
 {
     pub fn get_tombstone(&self) -> Option<PrimaryKey> {
         self.core.iter().filter_map(
@@ -131,15 +127,14 @@ pub struct IndecisiveCompactor
 {
 }
 
-impl<M> EventCompactor<M>
+impl EventCompactor
 for IndecisiveCompactor
-where M: OtherMetadata
 {
-    fn clone_prepare(&self) -> Box<dyn EventCompactor<M>> {
+    fn clone_prepare(&self) -> Box<dyn EventCompactor> {
         Box::new(IndecisiveCompactor::default())
     }
     
-    fn relevance(&mut self, _: &EventEntryExt<M>) -> EventRelevance
+    fn relevance(&mut self, _: &EventEntryExt) -> EventRelevance
     {
         EventRelevance::Abstain
     }

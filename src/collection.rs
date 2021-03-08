@@ -4,49 +4,42 @@ use serde::*;
 use serde::de::*;
 use super::meta::*;
 use super::dio::*;
+use super::dao::*;
 use super::error::*;
 use std::collections::VecDeque;
 
-#[allow(dead_code)]
-pub type DaoVec<D> = DaoVecExt<NoAdditionalMetadata, D>;
-
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct DaoVecExt<M, D>
-where M: OtherMetadata,
-      D: Serialize + DeserializeOwned + Clone,
+pub struct DaoVec<D>
+where D: Serialize + DeserializeOwned + Clone,
 {
     pub(super) vec_id: u64,
     #[serde(skip)]
-    _phantom1: PhantomData<M>,
-    #[serde(skip)]
-    _phantom2: PhantomData<D>,
+    _phantom1: PhantomData<D>,
 }
 
-impl<M, D> DaoVecExt<M, D>
-where M: OtherMetadata,
-      D: Serialize + DeserializeOwned + Clone,
+impl<D> DaoVec<D>
+where D: Serialize + DeserializeOwned + Clone,
 {
-    pub fn new() -> DaoVecExt<M, D> {
-        DaoVecExt {
+    pub fn new() -> DaoVec<D> {
+        DaoVec {
             vec_id: fastrand::u64(..),
             _phantom1: PhantomData,
-            _phantom2: PhantomData,
         }
     }
 
     #[allow(dead_code)]
-    pub fn iter<P>(&self, parent: &DaoExt<M, P>, dio: &mut DioExt<M>) -> Result<Iter<M, D>, LoadError>
+    pub async fn iter<'a, P>(&self, parent: &Dao<P>, dio: &mut Dio<'a>) -> Result<Iter<D>, LoadError>
     where P: Serialize + DeserializeOwned + Clone,
     {
         Ok(
             Iter::new(
-                dio.children(parent.key().clone(), self.vec_id.clone())?
+                dio.children(parent.key().clone(), self.vec_id.clone()).await?
             )
         )
     }
     
     #[allow(dead_code)]
-    pub fn push<P>(&self, dio: &mut DioExt<M>, parent: &DaoExt<M, P>, data: D) -> Result<DaoExt<M, D>, SerializationError>
+    pub fn push<P>(&self, dio: &mut Dio, parent: &Dao<P>, data: D) -> Result<Dao<D>, SerializationError>
     where P: Serialize + DeserializeOwned + Clone,
     {
         let mut ret = dio.store(data)?;
@@ -66,42 +59,38 @@ where M: OtherMetadata,
     }
 }
 
-impl<M, D> Default
-for DaoVecExt<M, D>
-where M: OtherMetadata,
-      D: Serialize + DeserializeOwned + Clone,
+impl<D> Default
+for DaoVec<D>
+where D: Serialize + DeserializeOwned + Clone,
 {
-    fn default() -> DaoVecExt<M, D>
+    fn default() -> DaoVec<D>
     {
-        DaoVecExt::new()
+        DaoVec::new()
     }
 }
-pub struct Iter<M, D>
-where M: OtherMetadata,
-      D: Serialize + DeserializeOwned + Clone,
+pub struct Iter<D>
+where D: Serialize + DeserializeOwned + Clone,
 {
-    vec: VecDeque<DaoExt<M, D>>,
+    vec: VecDeque<Dao<D>>,
 }
 
-impl<M, D> Iter<M, D>
-where M: OtherMetadata,
-      D: Serialize + DeserializeOwned + Clone,
+impl<D> Iter<D>
+where D: Serialize + DeserializeOwned + Clone,
 {
-    fn new(vec: Vec<DaoExt<M, D>>) -> Iter<M, D> {
+    fn new(vec: Vec<Dao<D>>) -> Iter<D> {
         Iter {
             vec: VecDeque::from(vec),
         }
     }
 }
 
-impl<M, D> Iterator
-for Iter<M, D>
-where M: OtherMetadata,
-      D: Serialize + DeserializeOwned + Clone,
+impl<D> Iterator
+for Iter<D>
+where D: Serialize + DeserializeOwned + Clone,
 {
-    type Item = DaoExt<M, D>;
+    type Item = Dao<D>;
 
-    fn next(&mut self) -> Option<DaoExt<M, D>> {
+    fn next(&mut self) -> Option<Dao<D>> {
         self.vec.pop_front()
     }
 }

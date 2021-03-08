@@ -1,15 +1,10 @@
 use fxhash::FxHashSet;
-use serde::{Serialize, Deserialize, de::DeserializeOwned};
+use serde::{Serialize, Deserialize};
 use crate::signature::MetaSignWith;
 
 use super::crypto::*;
 use super::header::*;
 use super::signature::MetaSignature;
-
-pub trait OtherMetadata
-where Self: Serialize + DeserializeOwned + std::fmt::Debug + Default + Clone + Sized
-{
-}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum ReadOption
@@ -83,9 +78,8 @@ for WriteOption
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct MetaAuthorization
 {
-    pub allow_read: ReadOption,
-    pub allow_write: WriteOption,
-    pub implicit_authority: Option<String>,
+    pub read: ReadOption,
+    pub write: WriteOption,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
@@ -135,20 +129,12 @@ impl Default for CoreMetadata {
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
-pub struct NoAdditionalMetadata { }
-impl OtherMetadata for NoAdditionalMetadata { }
-
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
-pub struct MetadataExt<M>
+pub struct Metadata
 {
     pub core: Vec<CoreMetadata>,
-    pub other: M,
 }
 
-#[allow(dead_code)]
-pub type DefaultMetadata = MetadataExt<NoAdditionalMetadata>;
-
-impl<M> MetadataExt<M>
+impl Metadata
 {
     pub fn get_authorization(&self) -> Option<&MetaAuthorization>
     {

@@ -10,18 +10,16 @@ use super::redo::LogFilePointer;
 extern crate rmp_serde as rmps;
 
 #[derive(Debug, Clone)]
-pub struct EventRaw<M>
-where M: OtherMetadata
+pub struct EventRaw
 {
-    pub meta: MetadataExt<M>,
+    pub meta: Metadata,
     pub data_hash: Option<super::crypto::Hash>,
     pub data: Option<Bytes>,
 }
 
-impl<M> EventRaw<M>
-where M: OtherMetadata
+impl EventRaw
 {
-    pub fn as_plus(self) -> Result<EventRawPlus<M>, SerializationError>
+    pub fn as_plus(self) -> Result<EventRawPlus, SerializationError>
     {
         let meta_bytes = Bytes::from(rmps::to_vec(&self.meta)?);
         let meta_hash = Hash::from_bytes(&meta_bytes[..]);
@@ -29,32 +27,30 @@ where M: OtherMetadata
             EventRawPlus {
                 meta_hash: meta_hash,
                 meta_bytes: meta_bytes,
-                meta: self.meta,
-                data_hash: self.data_hash,
-                data: self.data,
+                inner: EventRaw {
+                    meta: self.meta,
+                    data_hash: self.data_hash,
+                    data: self.data,
+                }
             }
         )
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct EventRawPlus<M>
-where M: OtherMetadata
+pub struct EventRawPlus
 {
     pub meta_hash: super::crypto::Hash,
     pub meta_bytes: Bytes,
-    pub meta: MetadataExt<M>,
-    pub data_hash: Option<super::crypto::Hash>,
-    pub data: Option<Bytes>,
+    pub inner: EventRaw,
 }
 
 #[derive(Debug, Clone)]
-pub struct EventExt<M>
-where M: OtherMetadata
+pub struct EventExt
 {
     pub meta_hash: super::crypto::Hash,
     pub meta_bytes: Bytes,
-    pub raw: EventRaw<M>,
+    pub raw: EventRaw,
     pub pointer: LogFilePointer,
 }
 
@@ -78,21 +74,19 @@ pub struct EventEntry
 }
 
 #[derive(Debug, Clone)]
-pub struct EventEntryExt<M>
-where M: OtherMetadata
+pub struct EventEntryExt
 {
     pub meta_hash: super::crypto::Hash,
     pub meta_bytes: Bytes,
-    pub meta: MetadataExt<M>,
+    pub meta: Metadata,
     pub data_hash: Option<super::crypto::Hash>,
     pub pointer: LogFilePointer,
 }
 
-impl<M> EventEntryExt<M>
-where M: OtherMetadata
+impl EventEntryExt
 {
     #[allow(dead_code)]
-    pub fn from_generic(metadata: &EventEntry) -> Result<EventEntryExt<M>, SerializationError> {
+    pub fn from_generic(metadata: &EventEntry) -> Result<EventEntryExt, SerializationError> {
         Ok(
             EventEntryExt {
                 meta_hash: metadata.meta_hash,
@@ -119,13 +113,12 @@ where M: OtherMetadata
     }
 }
 
-impl<M> EventRaw<M>
-where M: OtherMetadata
+impl EventRaw
 {
     #[allow(dead_code)]
-    pub fn new(key: PrimaryKey, data: Bytes) -> EventRaw<M> {        
+    pub fn new(key: PrimaryKey, data: Bytes) -> EventRaw {        
         EventRaw {
-            meta: MetadataExt::for_data(key),
+            meta: Metadata::for_data(key),
             data_hash: Some(super::crypto::Hash::from_bytes(&data[..])),
             data: Some(data),
         }
@@ -138,13 +131,7 @@ where M: OtherMetadata
     }
 
     #[allow(dead_code)]
-    pub fn with_other_metadata(mut self, other: M) -> Self {
-        self.meta.other = other;
-        self
-    }
-
-    #[allow(dead_code)]
-    pub fn from_event_data(evt: &EventData) -> Result<EventExt<M>, SerializationError> {
+    pub fn from_event_data(evt: &EventData) -> Result<EventExt, SerializationError> {
         Ok(
             EventExt {
                 meta_hash: evt.meta_hash,
@@ -165,8 +152,7 @@ where M: OtherMetadata
     }
 }
 
-impl<M> EventExt<M>
-where M: OtherMetadata
+impl EventExt
 {
     #[allow(dead_code)]
     pub fn to_event_data(&self) -> Result<EventData, SerializationError> {
@@ -184,7 +170,7 @@ where M: OtherMetadata
     }
 
     #[allow(dead_code)]
-    pub fn to_event_entry(self) -> EventEntryExt<M> {
+    pub fn to_event_entry(self) -> EventEntryExt {
         EventEntryExt {
             meta_hash: self.meta_hash,
             meta_bytes: self.meta_bytes.clone(),

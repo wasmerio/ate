@@ -345,8 +345,7 @@ impl InitializationVector {
     }
 }
 
-impl<M> MetadataExt<M>
-where M: OtherMetadata
+impl Metadata
 {
     #[allow(dead_code)]
     pub fn generate_iv(&mut self) -> InitializationVector {

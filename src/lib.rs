@@ -23,8 +23,13 @@ mod signature;
 mod time;
 mod tree;
 mod chain;
+mod accessor;
+mod single;
+mod multi;
 mod collection;
+mod dao;
 mod dio;
+mod pipe;
 
 #[cfg(test)]
 mod tests {

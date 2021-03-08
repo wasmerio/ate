@@ -1,5 +1,3 @@
-use std::marker::PhantomData;
-
 use multimap::MultiMap;
 #[allow(unused_imports)]
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
@@ -40,21 +38,19 @@ pub struct MetaSignWith
 }
 
 #[derive(Debug)]
-pub struct SignaturePlugin<M>
+pub struct SignaturePlugin
 {
     pk: FxHashMap<Hash, PublicKey>,
     sigs: MultiMap<Hash, Hash>,
-    _marker: PhantomData<M>,
 }
 
-impl<M> SignaturePlugin<M>
+impl SignaturePlugin
 {
-    pub fn new() -> SignaturePlugin<M>
+    pub fn new() -> SignaturePlugin
     {
         SignaturePlugin {
             pk: FxHashMap::default(),
             sigs: MultiMap::default(),
-            _marker: PhantomData,
         }
     }
 
@@ -74,11 +70,10 @@ impl<M> SignaturePlugin<M>
     }
 }
 
-impl<M> EventSink<M>
-for SignaturePlugin<M>
-where M: OtherMetadata
+impl EventSink
+for SignaturePlugin
 {
-    fn feed(&mut self, meta: &MetadataExt<M>, _data_hash: &Option<Hash>) -> Result<(), SinkError>
+    fn feed(&mut self, meta: &Metadata, _data_hash: &Option<Hash>) -> Result<(), SinkError>
     {
         // Store the public key and encrypt private keys into the index
         for m in meta.core.iter() {
@@ -123,23 +118,20 @@ where M: OtherMetadata
     }
 }
 
-impl<M> EventValidator<M>
-for SignaturePlugin<M>
-where M: OtherMetadata
+impl EventValidator
+for SignaturePlugin
 {
 }
 
-impl<M> EventCompactor<M>
-for SignaturePlugin<M>
-where M: OtherMetadata
+impl EventCompactor
+for SignaturePlugin
 {
 }
 
-impl<M> EventMetadataLinter<M>
-for SignaturePlugin<M>
-where M: OtherMetadata,
+impl EventMetadataLinter
+for SignaturePlugin
 {
-    fn metadata_lint_many(&self, raw: &Vec<EventRawPlus<M>>, session: &Session) -> Result<Vec<CoreMetadata>, LintError>
+    fn metadata_lint_many(&self, raw: &Vec<EventRawPlus>, session: &Session) -> Result<Vec<CoreMetadata>, LintError>
     {
         // If there is no data then we are already done
         if raw.len() <= 0 {
@@ -151,7 +143,7 @@ where M: OtherMetadata,
         // Build a list of all the authorizations we need to write
         let mut auths = raw
             .iter()
-            .filter_map(|e| e.meta.get_sign_with())
+            .filter_map(|e| e.inner.meta.get_sign_with())
             .flat_map(|a| a.keys.iter())
             .collect::<Vec<_>>();
         auths.sort();
@@ -179,9 +171,9 @@ where M: OtherMetadata,
             // Compute a hash of the hashes
             let mut data_hashes = Vec::new();
             for e in raw.iter() {
-                if let Some(a) = e.meta.get_sign_with() {
+                if let Some(a) = e.inner.meta.get_sign_with() {
                     if a.keys.contains(&auth) == true {
-                        let hash = match &e.data_hash {
+                        let hash = match &e.inner.data_hash {
                             Some(d) => DoubleHash::from_hashes(&e.meta_hash, d).hash(),
                             None => e.meta_hash
                         };
@@ -217,17 +209,15 @@ where M: OtherMetadata,
     }
 }
 
-impl<M> EventDataTransformer<M>
-for SignaturePlugin<M>
-where M: OtherMetadata
+impl EventDataTransformer
+for SignaturePlugin
 {
 }
 
-impl<M> EventPlugin<M>
-for SignaturePlugin<M>
-where M: OtherMetadata,
+impl EventPlugin
+for SignaturePlugin
 {
-    fn rebuild(&mut self, data: &Vec<EventEntryExt<M>>) -> Result<(), SinkError>
+    fn rebuild(&mut self, data: &Vec<EventEntryExt>) -> Result<(), SinkError>
     {
         self.pk.clear();
         self.sigs.clear();

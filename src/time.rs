@@ -129,7 +129,7 @@ impl TimestampEnforcer
         )
     }
 
-    fn get_timestamp<M: OtherMetadata>(meta: &MetadataExt<M>) -> Option<&MetaTimestamp> {
+    fn get_timestamp(meta: &Metadata) -> Option<&MetaTimestamp> {
         meta.core
             .iter()
             .filter_map(|m| {
@@ -152,11 +152,10 @@ for TimestampEnforcer
     }
 }
 
-impl<M> EventMetadataLinter<M>
+impl EventMetadataLinter
 for TimestampEnforcer
-where M: OtherMetadata,
 {
-    fn metadata_lint_event(&self, _meta: &MetadataExt<M>, _session: &Session)-> Result<Vec<CoreMetadata>, LintError> {
+    fn metadata_lint_event(&self, _meta: &Metadata, _session: &Session)-> Result<Vec<CoreMetadata>, LintError> {
         let mut ret = Vec::new();
 
         //println!("TIME: {} with offset of {} and ping of {}", self.current_timestamp()?, self.current_offset_ms(), self.current_ping_ms());
@@ -171,11 +170,10 @@ where M: OtherMetadata,
     }
 }
 
-impl<M> EventSink<M>
+impl EventSink
 for TimestampEnforcer
-where M: OtherMetadata,
 {
-    fn feed(&mut self, meta: &MetadataExt<M>, _data_hash: &Option<Hash>) -> Result<(), SinkError>
+    fn feed(&mut self, meta: &Metadata, _data_hash: &Option<Hash>) -> Result<(), SinkError>
     {
         if let Some(time) = TimestampEnforcer::get_timestamp(meta) {
             let time = Duration::from_millis(time.time_since_epoch_ms);
@@ -187,29 +185,25 @@ where M: OtherMetadata,
     }   
 }
 
-impl<M> EventIndexer<M>
+impl EventIndexer
 for TimestampEnforcer
-where M: OtherMetadata,
 {
 }
 
-impl<M> EventDataTransformer<M>
+impl EventDataTransformer
 for TimestampEnforcer
-where M: OtherMetadata,
 {
 }
 
-impl<M> EventCompactor<M>
+impl EventCompactor
 for TimestampEnforcer
-where M: OtherMetadata,
 {
 }
 
-impl<M> EventValidator<M>
+impl EventValidator
 for TimestampEnforcer
-where M: OtherMetadata,
 {
-    fn validate(&self, validation_data: &ValidationData<M>) -> Result<ValidationResult, ValidationError>
+    fn validate(&self, validation_data: &ValidationData) -> Result<ValidationResult, ValidationError>
     {
         // If it does not have a timestamp then we can not accept it
         let time = match TimestampEnforcer::get_timestamp(&validation_data.meta) {
@@ -238,8 +232,7 @@ where M: OtherMetadata,
     }
 }
 
-impl<M> EventPlugin<M>
+impl EventPlugin
 for TimestampEnforcer
-where M: OtherMetadata,
 {
 }
