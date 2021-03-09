@@ -250,14 +250,14 @@ impl<'a> Dio<'a>
 
     fn commit_internal(&mut self) -> Result<(), CommitError>
     {
-        let multi = self.multi.as_ref().unwrap();
-
         // If we have dirty records
         let mut state = self.state.borrow_mut();
         if state.store.is_empty() && state.deleted.is_empty() {
+            self.multi = None;
             return Ok(())
         }
         
+        let multi = self.multi.as_ref().unwrap();        
         let mut evts = Vec::new();
 
         // Convert all the events that we are storing into serialize data
@@ -335,7 +335,7 @@ impl<'a> Dio<'a>
 
         // We drop the lock on the 
         drop(multi);
-        self.multi = None;        
+        self.multi = None;
         
         // Wait for the transaction to commit (or not?) - if an error occurs it will
         // be returned to the caller
