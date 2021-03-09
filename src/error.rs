@@ -7,6 +7,7 @@ use rmp_serde::encode::Error as RmpEncodeError;
 use rmp_serde::decode::Error as RmpDecodeError;
 use serde_json::Error as JsonError;
 use std::time::SystemTimeError;
+use std::sync::mpsc as smpsc;
 
 #[derive(Debug)]
 pub enum CryptoError {
@@ -497,66 +498,6 @@ for ValidationError {
     }
 }
 
-#[derive(Debug)]
-pub enum FlushError {
-    FeedError(FeedError),
-    TransformError(TransformError),
-    LintError(LintError),
-    SerializationError(SerializationError),
-}
-
-impl From<FeedError>
-for FlushError
-{
-    fn from(err: FeedError) -> FlushError {
-        FlushError::FeedError(err)
-    }   
-}
-
-impl From<TransformError>
-for FlushError
-{
-    fn from(err: TransformError) -> FlushError {
-        FlushError::TransformError(err)
-    }   
-}
-
-impl From<LintError>
-for FlushError
-{
-    fn from(err: LintError) -> FlushError {
-        FlushError::LintError(err)
-    }   
-}
-
-impl From<SerializationError>
-for FlushError
-{
-    fn from(err: SerializationError) -> FlushError {
-        FlushError::SerializationError(err)
-    }   
-}
-
-impl std::fmt::Display
-for FlushError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            FlushError::FeedError(err) => {
-                write!(f, "Failed to flush the data due to an error feeding events into the chain of trust - {}", err.to_string())
-            },
-            FlushError::TransformError(err) => {
-                write!(f, "Failed to flush the data due to an error transforming the data object into events - {}", err.to_string())
-            },
-            FlushError::LintError(err) => {
-                write!(f, "Failed to flush the data due to an error linting the data object events - {}", err.to_string())
-            },
-            FlushError::SerializationError(err) => {
-                write!(f, "Failed to flush the data due to an serialization error - {}", err.to_string())
-            },
-        }
-    }
-}
-
 pub enum TimeError
 {
     IO(std::io::Error),
@@ -627,6 +568,84 @@ for TimeError {
                 let time = std::time::UNIX_EPOCH + *dur;
                 let datetime: chrono::DateTime<chrono::Utc> = time.into();
                 write!(f, "TimeError::OutOfBounds({})", datetime.format("%d/%m/%Y %T"))
+            },
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum CommitError
+{
+    #[allow(dead_code)]
+    Aborted,
+    FeedError(FeedError),
+    TransformError(TransformError),
+    LintError(LintError),
+    SerializationError(SerializationError),
+    PipeError(smpsc::RecvError),
+}
+
+impl From<FeedError>
+for CommitError
+{
+    fn from(err: FeedError) -> CommitError {
+        CommitError::FeedError(err)
+    }   
+}
+
+impl From<TransformError>
+for CommitError
+{
+    fn from(err: TransformError) -> CommitError {
+        CommitError::TransformError(err)
+    }   
+}
+
+impl From<LintError>
+for CommitError
+{
+    fn from(err: LintError) -> CommitError {
+        CommitError::LintError(err)
+    }   
+}
+
+impl From<SerializationError>
+for CommitError
+{
+    fn from(err: SerializationError) -> CommitError {
+        CommitError::SerializationError(err)
+    }   
+}
+
+impl From<smpsc::RecvError>
+for CommitError
+{
+    fn from(err: smpsc::RecvError) -> CommitError {
+        CommitError::PipeError(err)
+    }   
+}
+
+impl std::fmt::Display
+for CommitError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            CommitError::Aborted => {
+                write!(f, "The transaction aborted before it could be completed")
+            },
+            CommitError::FeedError(err) => {
+                write!(f, "The transaction failed while feeding the events into the chain-of-trust - {}", err)
+            },
+            CommitError::TransformError(err) => {
+                write!(f, "Failed to commit the data due to an error transforming the data object into events - {}", err.to_string())
+            },
+            CommitError::LintError(err) => {
+                write!(f, "Failed to commit the data due to an error linting the data object events - {}", err.to_string())
+            },
+            CommitError::SerializationError(err) => {
+                write!(f, "Failed to commit the data due to an serialization error - {}", err.to_string())
+            },
+            CommitError::PipeError(err) => {
+                write!(f, "Failed to commit the data due to an error receiving the result in the interprocess pipe - {}", err.to_string())
             },
         }
     }

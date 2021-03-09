@@ -7,6 +7,7 @@ use super::meta::*;
 use super::error::*;
 use super::accessor::*;
 use super::pipe::*;
+use super::transaction::*;
 
 use super::header::*;
 use super::event::*;
@@ -18,7 +19,7 @@ use super::event::EventExt;
 pub struct ChainMultiUser<'a>
 {
     pub(super) inside: RwLockReadGuard<'a, ChainAccessorProtected>,
-    sender: mpsc::Sender<Vec<EventRawPlus>>,
+    sender: mpsc::Sender<Transaction>,
 }
 
 impl<'a> ChainMultiUser<'a>
@@ -109,9 +110,9 @@ impl<'a> EventPipe
 for ChainMultiUser<'a>
 {
     #[allow(dead_code)]
-    fn feed(&self, evts: Vec<EventRawPlus>) -> Result<(), FeedError> {
+    fn feed(&self, trans: Transaction) -> Result<(), FeedError> {
         let sender = self.sender.clone();
-        tokio::task::spawn(async move { sender.send(evts).await.unwrap(); } );
+        tokio::task::spawn(async move { sender.send(trans).await.unwrap(); } );
         Ok(())
     }
 }

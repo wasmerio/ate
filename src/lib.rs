@@ -27,6 +27,7 @@ mod accessor;
 mod single;
 mod multi;
 mod collection;
+mod transaction;
 mod dao;
 mod dio;
 mod pipe;

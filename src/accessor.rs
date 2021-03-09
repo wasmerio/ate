@@ -8,6 +8,7 @@ use super::conf::*;
 use super::event::*;
 use super::index::*;
 use super::validator::*;
+use super::transaction::*;
 
 #[allow(unused_imports)]
 use std::rc::Rc;
@@ -35,18 +36,34 @@ pub struct ChainAccessorProtected
 pub struct ChainAccessor
 {
     pub(super) inside: Arc<RwLock<ChainAccessorProtected>>,
-    pub(super) event_sender: mpsc::Sender<Vec<EventRawPlus>>,
+    pub(super) event_sender: mpsc::Sender<Transaction>,
 }
 
 impl<'a> ChainAccessor
 {
-    async fn worker(inside: Arc<RwLock<ChainAccessorProtected>>, mut receiver: mpsc::Receiver<Vec<EventRawPlus>>)
+    async fn worker(inside: Arc<RwLock<ChainAccessorProtected>>, mut receiver: mpsc::Receiver<Transaction>)
     {
-        while let Some(evts) = receiver.recv().await {
+        // Wait for the next transaction to be processed
+        while let Some(trans) = receiver.recv().await
+        {
+            // We lock the chain of trust while we update the local chain
             let mut lock = inside.write().await;
-            if let Err(err) = lock.feed_async(evts).await {
-                debug_assert!(false, "dao-flush-error {}", err.to_string());
-            }
+
+            // Push the events into the chain of trust and release the lock on it before
+            // we transmit the result so that there is less lock thrashing
+            let chain_result = match lock.feed_async(trans.events).await{
+                Ok(a) => Ok(a),
+                Err(err) => Err(CommitError::FeedError(err))
+            };
+
+            // Flush then drop the lock
+            lock.chain.flush().await.unwrap();
+            drop(lock);
+
+            // We send the result of a feed operation back to the caller, if the send
+            // operation fails its most likely because the caller has moved on and is
+            // not concerned by the result hence we do nothing with these errors
+            let _ = trans.result.send(chain_result);
         }
     }
 

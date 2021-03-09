@@ -11,6 +11,8 @@ use super::transform::*;
 use super::meta::*;
 use super::error::*;
 #[allow(unused_imports)]
+use super::transaction::*;
+#[allow(unused_imports)]
 use super::pipe::*;
 #[allow(unused_imports)]
 use super::accessor::*;
@@ -220,8 +222,13 @@ pub async fn test_chain() {
             let mut evts = Vec::new();
             evts.push(evt1.clone());
             evts.push(evt2.clone());
-            lock.feed(evts).expect("The event failed to be accepted");
-            assert_eq!(2, lock.count());
+
+            let (trans, receiver) = Transaction::from_events(evts, Scope::Local);
+            lock.feed(trans).expect("The event failed to be accepted");
+            
+            drop(lock);
+            receiver.recv().unwrap().unwrap();
+            assert_eq!(2, chain.count().await);
         }
 
         {
@@ -241,8 +248,12 @@ pub async fn test_chain() {
             
             let mut evts = Vec::new();
             evts.push(evt1.clone());
-            lock.feed(evts).expect("The event failed to be accepted");
-            assert_eq!(3, lock.count());
+            let (trans, receiver) = Transaction::from_events(evts, Scope::Local);
+            lock.feed(trans).expect("The event failed to be accepted");
+
+            drop(lock);
+            receiver.recv().unwrap().unwrap();
+            assert_eq!(3, chain.count().await);
         }
 
         // Now compact the chain-of-trust which should reduce the duplicate event
@@ -271,10 +282,13 @@ pub async fn test_chain() {
             
             let mut evts = Vec::new();
             evts.push(evt2.clone());
-            lock.feed(evts).expect("The event failed to be accepted");
+            let (trans, receiver) = Transaction::from_events(evts, Scope::Local);
+            lock.feed(trans).expect("The event failed to be accepted");
             
             // Number of events should have gone up by one even though there should be one less item
-            assert_eq!(3, lock.count());
+            drop(lock);
+            receiver.recv().unwrap().unwrap();
+            assert_eq!(3, chain.count().await);
         }
 
         // Searching for the item we should not find it

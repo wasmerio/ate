@@ -7,6 +7,10 @@ use serde::{Serialize, de::DeserializeOwned};
 use std::cell::{RefCell};
 use std::rc::Rc;
 use std::ops::Deref;
+#[allow(unused_imports)]
+use tokio::sync::mpsc;
+#[allow(unused_imports)]
+use std::sync::mpsc as smpsc;
 
 #[allow(unused_imports)]
 use crate::crypto::{EncryptedPrivateKey, PrivateKey};
@@ -24,6 +28,7 @@ use super::accessor::*;
 use super::pipe::*;
 #[allow(unused_imports)]
 use super::crypto::*;
+use super::transaction::*;
 
 pub use super::collection::DaoVec;
 
@@ -80,10 +85,11 @@ impl DioState
 
 pub struct Dio<'a>
 {
-    multi: ChainMultiUser<'a>,
+    multi: Option<ChainMultiUser<'a>>,
     state: Rc<RefCell<DioState>>,
     #[allow(dead_code)]
     session: &'a Session,
+    scope: Scope,
 }
 
 impl<'a> Dio<'a>
@@ -110,6 +116,7 @@ impl<'a> Dio<'a>
     pub async fn load<D>(&mut self, key: &PrimaryKey) -> Result<Dao<D>, LoadError>
     where D: Serialize + DeserializeOwned + Clone,
     {
+        let multi = self.multi.as_ref().unwrap();
         let mut state = self.state.borrow_mut();
         if state.is_locked(key) {
             return Result::Err(LoadError::ObjectStillLocked(key.clone()));
@@ -126,7 +133,7 @@ impl<'a> Dio<'a>
             return Result::Err(LoadError::AlreadyDeleted(key.clone()));
         }
 
-        let entry = match self.multi.lookup_primary(key) {
+        let entry = match multi.lookup_primary(key) {
             Some(a) => a,
             None => return Result::Err(LoadError::NotFound(key.clone()))
         };
@@ -134,9 +141,9 @@ impl<'a> Dio<'a>
             return Result::Err(LoadError::Tombstoned(key.clone()));
         }
 
-        let mut evt = self.multi.load(&entry).await?;
+        let mut evt = multi.load(&entry).await?;
         evt.raw.data = match evt.raw.data {
-            Some(data) => Some(self.multi.data_as_overlay(&mut evt.raw.meta, data, &self.session)?),
+            Some(data) => Some(multi.data_as_overlay(&mut evt.raw.meta, data, &self.session)?),
             None => None,
         };
 
@@ -148,6 +155,7 @@ impl<'a> Dio<'a>
     pub async fn children<D>(&mut self, parent_id: PrimaryKey, collection_id: u64) -> Result<Vec<Dao<D>>, LoadError>
     where D: Serialize + DeserializeOwned + Clone,
     {
+        let multi = self.multi.as_ref().unwrap();
         let mut state = self.state.borrow_mut();
         
         // Build the secondary index key
@@ -162,7 +170,7 @@ impl<'a> Dio<'a>
 
         // We either find existing objects in the cache or build a list of objects to load
         let mut to_load = Vec::new();
-        for entry in match self.multi.lookup_secondary(&key) {
+        for entry in match multi.lookup_secondary(&key) {
             Some(a) => a,
             None => return Ok(Vec::new())
         } {
@@ -200,9 +208,9 @@ impl<'a> Dio<'a>
         }
 
         // Load all the objects that have not yet been loaded
-        for mut evt in self.multi.load_many(to_load).await? {
+        for mut evt in multi.load_many(to_load).await? {
             evt.raw.data = match evt.raw.data {
-                Some(data) => Some(self.multi.data_as_overlay(&mut evt.raw.meta, data, &self.session)?),
+                Some(data) => Some(multi.data_as_overlay(&mut evt.raw.meta, data, &self.session)?),
                 None => { continue; },
             };
 
@@ -240,8 +248,10 @@ impl<'a> Dio<'a>
         Ok(ret)
     }
 
-    fn flush(&mut self) -> Result<(), FlushError>
+    fn commit_internal(&mut self) -> Result<(), CommitError>
     {
+        let multi = self.multi.as_ref().unwrap();
+
         // If we have dirty records
         let mut state = self.state.borrow_mut();
         if state.store.is_empty() && state.deleted.is_empty() {
@@ -261,11 +271,11 @@ impl<'a> Dio<'a>
             }
 
             // Compute all the extra metadata for an event
-            let extra_meta = self.multi.metadata_lint_event(&mut meta, &self.session)?;
+            let extra_meta = multi.metadata_lint_event(&mut meta, &self.session)?;
             meta.core.extend(extra_meta);
             
             // Perform any transformation (e.g. data encryption and compression)
-            let data = self.multi.data_as_underlay(&mut meta, row.data.clone(), &self.session)?;
+            let data = multi.data_as_underlay(&mut meta, row.data.clone(), &self.session)?;
             let data_hash = super::crypto::Hash::from_bytes(&data[..]);
             
             // Only once all the rows are processed will we ship it to the redo log
@@ -286,7 +296,7 @@ impl<'a> Dio<'a>
             }
 
             // Compute all the extra metadata for an event
-            let extra_meta = self.multi.metadata_lint_event(&mut meta, &self.session)?;
+            let extra_meta = multi.metadata_lint_event(&mut meta, &self.session)?;
             meta.core.extend(extra_meta);
 
             meta.add_tombstone(key.clone());
@@ -299,7 +309,7 @@ impl<'a> Dio<'a>
         }
 
         // Lint the data
-        let meta = self.multi.metadata_lint_many(&evts, &self.session)?;
+        let meta = multi.metadata_lint_many(&evts, &self.session)?;
 
         // If it has data then insert it at the front of these events
         if meta.len() > 0 {
@@ -312,8 +322,33 @@ impl<'a> Dio<'a>
             }.as_plus()?);
         }
 
+        // Create the transaction
+        let (sender, receiver) = smpsc::channel();
+        let trans = Transaction {
+            scope: self.scope.clone(),
+            events: evts,
+            result: sender,
+        };
+
         // Process it in the chain of trust
-        self.multi.feed(evts)?;
+        multi.feed(trans)?;
+
+        // We drop the lock on the 
+        drop(multi);
+        self.multi = None;        
+        
+        // Wait for the transaction to commit (or not?) - if an error occurs it will
+        // be returned to the caller
+        match &self.scope {
+            Scope::None => { },
+            _ => {
+                tokio::task::block_in_place(move || {
+                    receiver.recv()
+                })??
+            }
+        };
+
+        // Success
         Ok(())
     }
 }
@@ -323,8 +358,8 @@ for Dio<'a>
 {
     fn drop(&mut self)
     {
-        if let Err(err) = self.flush() {
-            debug_assert!(false, "dio-flush-error {}", err.to_string());
+        if let Err(err) = self.commit_internal() {
+            debug_assert!(false, "dio-commit-error {}", err.to_string());
         }
     }
 }
@@ -333,11 +368,17 @@ impl ChainAccessor
 {
     #[allow(dead_code)]
     async fn dio<'a>(&'a mut self, session: &'a Session) -> Dio<'a> {
+        self.dio_ext(session, Scope::Local).await
+    }
+
+    #[allow(dead_code)]
+    async fn dio_ext<'a>(&'a mut self, session: &'a Session, scope: Scope) -> Dio<'a> {
         let multi = self.multi().await;
         Dio {
             state: Rc::new(RefCell::new(DioState::new())),
-            multi: multi,
+            multi: Some(multi),
             session: session,
+            scope,
         }
     }
 }
@@ -394,68 +435,70 @@ async fn test_dio()
     let key2;
     let key3;
 
+    // Write a value immediately from chain (this data will remain in the transaction)
     {
         let mut dio = chain.dio(&session).await;
-
-        // Write a value immediately from chain (this data will remain in the transaction)
         {
-            {
-                let mut mock_dao = TestStructDao::default();
-                mock_dao.val = 1;
-                mock_dao.hidden = "This text should be hidden".to_string();
-                
-                let mut dao1 = dio.store(mock_dao).unwrap();
-                let dao3 = dao1.inner.push(&mut dio, &dao1, TestEnumDao::Blah1).unwrap();
-
-                key1 = dao1.key().clone();
-                println!("key1: {}", key1.as_hex_string());
-
-                key3 = dao3.key().clone();
-                println!("key3: {}", key3.as_hex_string());
-                
-                dio.load::<TestStructDao>(&key1).await.expect_err("This load is meant to fail as we are still editing the object");
-
-                dao1.auth_mut().read = ReadOption::Specific(read_key.hash());
-                dao1.auth_mut().write = WriteOption::Specific(write_key2.hash());
-            }
-
-            dio.flush().unwrap();
-
-            {
-                // Load the object again which should load it from the cache
-                let mut dao1 = dio.load::<TestStructDao>(&key1).await.unwrap();
-
-                // When we update this value it will become dirty and hence should block future loads until its flushed or goes out of scope
-                dao1.val = 2;
-                dio.load::<TestStructDao>(&key1).await.expect_err("This load is meant to fail due to a lock being triggered");
-
-                // Flush the data and attempt to read it again (this should succeed)
-                dao1.flush().expect("Flush failed");
-                let test: Dao<TestStructDao> = dio.load(&key1).await.expect("The dirty data object should have been read after it was flushed");
-                assert_eq!(test.val, 2 as u32);
-            }
-
-            {
-                // Load the object again which should load it from the cache
-                let mut dao1 = dio.load::<TestStructDao>(&key1).await.unwrap();
+            let mut mock_dao = TestStructDao::default();
+            mock_dao.val = 1;
+            mock_dao.hidden = "This text should be hidden".to_string();
             
-                // Again after changing the data reads should fail
-                dao1.val = 3;
-                dio.load::<TestStructDao>(&key1).await.expect_err("This load is meant to fail due to a lock being triggered");
-            }
+            let mut dao1 = dio.store(mock_dao).unwrap();
+            let dao3 = dao1.inner.push(&mut dio, &dao1, TestEnumDao::Blah1).unwrap();
 
-            {
-                // Write a record to the chain that we will delete again later
-                let mut dao2 = dio.store(TestEnumDao::Blah4).unwrap();
-                
-                // We create a new private key for this data
-                dao2.auth_mut().write = WriteOption::Specific(write_key2.as_public_key().hash());
-                
-                key2 = dao2.key().clone();
-                println!("key2: {}", key2.as_hex_string());
-            }
+            key1 = dao1.key().clone();
+            println!("key1: {}", key1.as_hex_string());
+
+            key3 = dao3.key().clone();
+            println!("key3: {}", key3.as_hex_string());
+            
+            dio.load::<TestStructDao>(&key1).await.expect_err("This load is meant to fail as we are still editing the object");
+
+            dao1.auth_mut().read = ReadOption::Specific(read_key.hash());
+            dao1.auth_mut().write = WriteOption::Specific(write_key2.hash());
+        }   
+    }
+
+    {
+        let mut dio = chain.dio(&session).await;
+        {
+            // Load the object again which should load it from the cache
+            let mut dao1 = dio.load::<TestStructDao>(&key1).await.unwrap();
+
+            // When we update this value it will become dirty and hence should block future loads until its flushed or goes out of scope
+            dao1.val = 2;
+            dio.load::<TestStructDao>(&key1).await.expect_err("This load is meant to fail due to a lock being triggered");
+
+            // Flush the data and attempt to read it again (this should succeed)
+            dao1.flush().expect("Flush failed");
+            let test: Dao<TestStructDao> = dio.load(&key1).await.expect("The dirty data object should have been read after it was flushed");
+            assert_eq!(test.val, 2 as u32);
         }
 
+        {
+            // Load the object again which should load it from the cache
+            let mut dao1 = dio.load::<TestStructDao>(&key1).await.unwrap();
+        
+            // Again after changing the data reads should fail
+            dao1.val = 3;
+            dio.load::<TestStructDao>(&key1).await.expect_err("This load is meant to fail due to a lock being triggered");
+        }
+
+        {
+            // Write a record to the chain that we will delete again later
+            let mut dao2 = dio.store(TestEnumDao::Blah4).unwrap();
+            
+            // We create a new private key for this data
+            dao2.auth_mut().write = WriteOption::Specific(write_key2.as_public_key().hash());
+            
+            key2 = dao2.key().clone();
+            println!("key2: {}", key2.as_hex_string());
+        }
+    }
+
+    {
+        let mut dio = chain.dio(&session).await;
+        
         // Now its out of scope it should be loadable again
         let test = dio.load::<TestStructDao>(&key1).await.expect("The dirty data object should have been read after it was flushed");
         assert_eq!(test.val, 3);
