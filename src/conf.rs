@@ -14,24 +14,31 @@ use super::chain::ChainKey;
 use super::crypto::PublicKey;
 use super::error::*;
 
-pub trait ConfigMaster {
+pub trait ConfigMaster
+where Self: Clone
+{
     fn master_addr(&self) -> String;
     fn master_port(&self) -> u32;
 }
 
-pub trait ConfigStorage {
+pub trait ConfigStorage
+where Self: Clone
+{
     fn log_path(&self) -> String;
     fn log_temp(&self) -> bool;
 }
 
-pub trait ConfigNtp {
+pub trait ConfigNtp
+where Self: Clone
+{
     fn ntp_pool(&self) -> String;
     fn ntp_port(&self) -> u32;
 }
 
-pub trait Config: ConfigMaster + ConfigStorage + ConfigNtp {
+pub trait Config: ConfigMaster + ConfigStorage + ConfigNtp + Clone {
 }
 
+#[derive(Debug, Clone)]
 pub struct DiscreteConfig {
     pub master_addr: String,
     pub master_port: u32,
@@ -98,7 +105,6 @@ impl ConfigNtp for DiscreteConfig {
     fn ntp_port(&self) -> u32 { self.ntp_port }
 }
 
-
 impl Config for DiscreteConfig {
 }
 
@@ -145,8 +151,6 @@ for ConfiguredFor
         ConfiguredFor::Balanced
     }
 }
-
-
 
 pub struct ChainOfTrustBuilder
 {
@@ -283,7 +287,8 @@ impl ChainOfTrustBuilder
         cfg: &impl ConfigStorage,
         key: &ChainKey,
         truncate: bool
-    ) -> Result<ChainAccessor, ChainCreationError>
+    )
+    -> Result<ChainAccessor, ChainCreationError>
     {
         ChainAccessor::new(self, cfg, key, truncate).await
     }

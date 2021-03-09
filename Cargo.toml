@@ -44,6 +44,7 @@ sha3 = "*"
 multimap = "*"
 hex = "*"
 chrono = "*"
+lru_time_cache = "*"
 
 [dev-dependencies]
 ctor = "*"

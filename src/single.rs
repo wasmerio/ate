@@ -9,10 +9,10 @@ pub struct ChainSingleUser<'a>
 
 impl<'a> ChainSingleUser<'a>
 {
-    pub async fn new(chain: &'a ChainAccessor) -> ChainSingleUser<'a>
+    pub async fn new(accessor: &'a ChainAccessor) -> ChainSingleUser<'a>
     {
         ChainSingleUser {
-            inside: chain.inside.write().await,
+            inside: accessor.inside.write().await,
         }
     }
 

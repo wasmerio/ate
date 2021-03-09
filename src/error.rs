@@ -650,3 +650,100 @@ for CommitError {
         }
     }
 }
+
+#[derive(Debug)]
+pub enum CommsError
+{
+    EncodeError(RmpEncodeError),
+    DecodeError(RmpDecodeError),
+    SendError(String),
+    ReceiveError(String),
+    IO(std::io::Error),
+    NoReplyChannel,
+    Disconnected,
+}
+
+impl From<RmpEncodeError>
+for CommsError
+{
+    fn from(err: RmpEncodeError) -> CommsError {
+        CommsError::EncodeError(err)
+    }   
+}
+
+impl From<RmpDecodeError>
+for CommsError
+{
+    fn from(err: RmpDecodeError) -> CommsError {
+        CommsError::DecodeError(err)
+    }   
+}
+
+impl From<std::io::Error>
+for CommsError
+{
+    fn from(err: std::io::Error) -> CommsError {
+        CommsError::IO(err)
+    }   
+}
+
+impl<T> From<tokio::sync::mpsc::error::SendError<T>>
+for CommsError
+{
+    fn from(err: tokio::sync::mpsc::error::SendError<T>) -> CommsError {
+        CommsError::SendError(err.to_string())
+    }   
+}
+
+impl From<tokio::sync::mpsc::error::RecvError>
+for CommsError
+{
+    fn from(err: tokio::sync::mpsc::error::RecvError) -> CommsError {
+        CommsError::ReceiveError(err.to_string())
+    }   
+}
+
+impl<T> From<tokio::sync::broadcast::error::SendError<T>>
+for CommsError
+{
+    fn from(err: tokio::sync::broadcast::error::SendError<T>) -> CommsError {
+        CommsError::SendError(err.to_string())
+    }   
+}
+
+impl From<tokio::sync::broadcast::error::RecvError>
+for CommsError
+{
+    fn from(err: tokio::sync::broadcast::error::RecvError) -> CommsError {
+        CommsError::ReceiveError(err.to_string())
+    }   
+}
+
+impl std::fmt::Display
+for CommsError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            CommsError::EncodeError(err) => {
+                write!(f, "Encoding error while processing communication - {}", err)
+            },
+            CommsError::DecodeError(err) => {
+                write!(f, "Decoding error while processing communication - {}", err)
+            },
+            CommsError::IO(err) => {
+                write!(f, "IO error while processing communication - {}", err)
+            },
+            CommsError::SendError(err) => {
+                write!(f, "Sending error while processing communication - {}", err)
+            },
+            CommsError::ReceiveError(err) => {
+                write!(f, "Receiving error while processing communication - {}", err)
+            },
+            CommsError::NoReplyChannel => {
+                write!(f, "Message has no reply channel attached to it")
+            },
+            CommsError::Disconnected => {
+                write!(f, "Channel has been disconnected")
+            },
+        }
+    }
+}

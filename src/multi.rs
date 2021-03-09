@@ -24,11 +24,11 @@ pub struct ChainMultiUser<'a>
 
 impl<'a> ChainMultiUser<'a>
 {
-    pub async fn new(chain: &'a ChainAccessor) -> ChainMultiUser<'a>
+    pub async fn new(accessor: &'a ChainAccessor) -> ChainMultiUser<'a>
     {
         ChainMultiUser {
-            inside: chain.inside.read().await,
-            sender: chain.event_sender.clone(),
+            inside: accessor.inside.read().await,
+            sender: accessor.event_sender.clone(),
         }
     }
  
