@@ -16,37 +16,24 @@ use tokio::time::Duration;
 use std::sync::Arc;
 #[allow(unused_imports)]
 use tokio::sync::Mutex;
-use serde::{Serialize, Deserialize};
+use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use bytes::BytesMut;
 use tokio::sync::Barrier;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum Message {
-    Connected,
-    Disconnected,
-    StartOfHistory,
-    ProcessEvent {
-        meta: Vec<u8>,
-        data: Vec<u8>
-    },
-    EndOfHistory,
-    Confirm(u64),
-    Confirmed(u64),
-    Ping(String),
-    Pong(String),
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Packet {
-    pub msg: Message,
-    #[serde(skip)]
-    reply_here: Option<mpsc::Sender<Packet>>,
-}
-
-impl From<Message>
-for Packet
+pub struct Packet<M>
+where M: Send + Sync + Clone
 {
-    fn from(msg: Message) -> Packet {
+    pub msg: M,
+    #[serde(skip)]
+    reply_here: Option<mpsc::Sender<Packet<M>>>,
+}
+
+impl<M> From<M>
+for Packet<M>
+where M: Send + Sync + Serialize + DeserializeOwned + Clone
+{
+    fn from(msg: M) -> Packet<M> {
         Packet {
             msg,
             reply_here: None,
@@ -54,9 +41,11 @@ for Packet
     }
 }
 
-impl Packet {
+impl<M> Packet<M>
+where M: Send + Sync + Serialize + DeserializeOwned + Clone
+{
     #[allow(dead_code)]
-    pub async fn reply(&self, msg: Message) -> Result<(), CommsError> {
+    pub async fn reply(&self, msg: M) -> Result<(), CommsError> {
         let pck = Packet {
             msg,
             reply_here: None,
@@ -72,22 +61,22 @@ impl Packet {
     }
 }
 
-pub struct MeshTarget
+pub struct NodeTarget
 {
     addr: String,
     port: u16,
 }
 
-pub struct MeshConfig
+pub struct NodeConfig
 {
-    listen_on: Vec<MeshTarget>,
-    connect_to: Vec<MeshTarget>,
+    listen_on: Vec<NodeTarget>,
+    connect_to: Vec<NodeTarget>,
 }
 
-impl MeshConfig {
+impl NodeConfig {
     #[allow(dead_code)]
-    pub fn new() -> MeshConfig {
-        MeshConfig {
+    pub fn new() -> NodeConfig {
+        NodeConfig {
             listen_on: Vec::new(),
             connect_to: Vec::new(),
         }
@@ -95,34 +84,38 @@ impl MeshConfig {
 
     #[allow(dead_code)]
     pub fn listen_on(mut self, addr: String, port: u16) -> Self {
-        self.listen_on.push(MeshTarget{addr,port});
+        self.listen_on.push(NodeTarget{addr,port});
         self
     }
 
     #[allow(dead_code)]
     pub fn connect_to(mut self, addr: String, port: u16) -> Self {
-        self.connect_to.push(MeshTarget{addr,port});
+        self.connect_to.push(NodeTarget{addr,port});
         self
     }
 }
 
-pub struct Mesh
+pub struct Node<M>
+where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default
 {
-    pub inbox: mpsc::Receiver<Packet>,
-    downcast: Arc<broadcast::Sender<Packet>>,
-    upcast: FxHashMap<u64, Upstream>,
+    pub inbox: mpsc::Receiver<Packet<M>>,
+    downcast: Arc<broadcast::Sender<Packet<M>>>,
+    upcast: FxHashMap<u64, Upstream<M>>,
 }
 
 #[derive(Clone)]
-pub struct Upstream
+pub struct Upstream<M>
+where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default
 {
     id: u64,
-    outbox: mpsc::Sender<Packet>,
+    outbox: mpsc::Sender<Packet<M>>,
 }
 
 #[allow(dead_code)]
-impl Mesh {
-    pub async fn new(conf: &MeshConfig) -> Mesh
+impl<M> Node<M>
+where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static
+{
+    pub async fn new(conf: &NodeConfig) -> Node<M>
     {
         // Setup the communication pipes for the server
         let (inbox_tx, inbox_rx) = mpsc::channel(1000);
@@ -145,33 +138,33 @@ impl Mesh {
         }
 
         // Return the mesh
-        Mesh {
+        Node {
             inbox: inbox_rx,
             downcast: downcast_tx,
             upcast: upcast,
         }
     }
 
-    pub async fn downcast(&self, pck: Packet) -> Result<(), CommsError> {
+    pub async fn downcast(&self, pck: Packet<M>) -> Result<(), CommsError> {
         self.downcast.send(pck)?;
         Ok(())
     }
 
-    pub async fn upcast(&self, pck: Packet) -> Result<(), CommsError> {
+    pub async fn upcast(&self, pck: Packet<M>) -> Result<(), CommsError> {
         let upcasts = self.upcast.values().collect::<Vec<_>>();
         let upcast = upcasts.choose(&mut rand::thread_rng()).unwrap();
         upcast.outbox.send(pck).await?;
         Ok(())
     }
 
-    pub async fn downcast_many(&self, pcks: Vec<Packet>) -> Result<(), CommsError> {
+    pub async fn downcast_many(&self, pcks: Vec<Packet<M>>) -> Result<(), CommsError> {
         for pck in pcks {
             self.downcast.send(pck)?;
         }
         Ok(())
     }
 
-    pub async fn upcast_many(&self, pcks: Vec<Packet>) -> Result<(), CommsError> {
+    pub async fn upcast_many(&self, pcks: Vec<Packet<M>>) -> Result<(), CommsError> {
         let upcasts = self.upcast.values().collect::<Vec<_>>();
         let upcast = upcasts.choose(&mut rand::thread_rng()).unwrap();
         for pck in pcks {
@@ -181,7 +174,9 @@ impl Mesh {
     }
 }
 
-async fn mesh_listen_on(addr: String, inbox: mpsc::Sender<Packet>, outbox: Arc<broadcast::Sender<Packet>>) {
+async fn mesh_listen_on<M>(addr: String, inbox: mpsc::Sender<Packet<M>>, outbox: Arc<broadcast::Sender<Packet<M>>>)
+where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static
+{
     let listener = TcpListener::bind(addr).await.unwrap();
 
     tokio::task::spawn(async move {
@@ -222,12 +217,14 @@ async fn mesh_listen_on(addr: String, inbox: mpsc::Sender<Packet>, outbox: Arc<b
     });
 }
 
-async fn mesh_connect_to(addr: String, inbox: mpsc::Sender<Packet>) -> Upstream {
-    let barrier = Arc::new(Barrier::new(5));
+async fn mesh_connect_to<M>(addr: String, inbox: mpsc::Sender<Packet<M>>) -> Upstream<M>
+where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static
+{
+    let barrier = Arc::new(Barrier::new(4));
 
     let (reply_tx, reply_rx) = mpsc::channel(1000);
-    let reply_tx: mpsc::Sender<Packet> = reply_tx;
-    let reply_rx: mpsc::Receiver<Packet> = reply_rx;
+    let reply_tx: mpsc::Sender<Packet<M>> = reply_tx;
+    let reply_rx: mpsc::Receiver<Packet<M>> = reply_rx;
     let reply_tx0 = reply_tx.clone();
 
     let sender = fastrand::u64(..);
@@ -277,7 +274,9 @@ async fn mesh_connect_to(addr: String, inbox: mpsc::Sender<Packet>) -> Upstream 
 }
 
 #[allow(unused_variables)]
-async fn process_inbox(mut rx: tcp::OwnedReadHalf, reply_tx: mpsc::Sender<Packet>, inbox: mpsc::Sender<Packet>, sender: u64) -> Result<(), CommsError> {
+async fn process_inbox<M>(mut rx: tcp::OwnedReadHalf, reply_tx: mpsc::Sender<Packet<M>>, inbox: mpsc::Sender<Packet<M>>, sender: u64) -> Result<(), CommsError>
+where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default
+{
     loop
     {
         // Read the next message
@@ -287,7 +286,7 @@ async fn process_inbox(mut rx: tcp::OwnedReadHalf, reply_tx: mpsc::Sender<Packet
         if n == 0 { break; }
 
         // Deserialize it and process it
-        let mut pck: Packet = rmps::from_read_ref(&buf[..])?;
+        let mut pck: Packet<M> = rmps::from_read_ref(&buf[..])?;
         pck.reply_here = Some(reply_tx.clone());
         inbox.send(pck).await?;
     }
@@ -295,7 +294,9 @@ async fn process_inbox(mut rx: tcp::OwnedReadHalf, reply_tx: mpsc::Sender<Packet
 }
 
 #[allow(unused_variables)]
-async fn process_outbox(mut tx: tcp::OwnedWriteHalf, mut reply_rx: mpsc::Receiver<Packet>, sender: u64) -> Result<(), CommsError> {
+async fn process_outbox<M>(mut tx: tcp::OwnedWriteHalf, mut reply_rx: mpsc::Receiver<Packet<M>>, sender: u64) -> Result<(), CommsError>
+where M: Send + Sync + Serialize + DeserializeOwned + Clone
+{
     loop
     {
         // Read the next message (and add the sender)
@@ -312,7 +313,9 @@ async fn process_outbox(mut tx: tcp::OwnedWriteHalf, mut reply_rx: mpsc::Receive
 }
 
 #[allow(unused_variables)]
-async fn process_downcast(tx: mpsc::Sender<Packet>, mut outbox: broadcast::Receiver<Packet>) -> Result<(), CommsError> {
+async fn process_downcast<M>(tx: mpsc::Sender<Packet<M>>, mut outbox: broadcast::Receiver<Packet<M>>) -> Result<(), CommsError>
+where M: Send + Sync + Serialize + DeserializeOwned + Clone
+{
     loop
     {
         let pck = outbox.recv().await?;
@@ -325,21 +328,40 @@ fn setup_tcp_stream(stream: &TcpStream) -> io::Result<()> {
     Ok(())
 }
 
+#[cfg(test)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
+enum TestMessage
+{
+    Noop,
+    Rejected(Box<TestMessage>),
+    Ping(String),
+    Pong(String),
+}
+
+#[cfg(test)]
+impl Default
+for TestMessage
+{
+    fn default() -> TestMessage {
+        TestMessage::Noop
+    }
+}
+
 #[tokio::main]
 #[test]
 async fn test_server_client() {
     {
         // Start the server
-        let cfg = MeshConfig::new().listen_on("127.0.0.1".to_string(), 4001);
-        let mut server = Mesh::new(&cfg).await;
+        let cfg = NodeConfig::new().listen_on("127.0.0.1".to_string(), 4001);
+        let mut server = Node::new(&cfg).await;
 
         // Create a background thread that will respond to pings with pong
         tokio::spawn(async move {
             while let Some(pck) = server.inbox.recv().await {
-                let pck: Packet = pck;
+                let pck: Packet<TestMessage> = pck;
                 match &pck.msg {
-                    Message::Ping(txt) => {
-                        let _ = pck.reply(Message::Pong(txt.clone())).await;
+                    TestMessage::Ping(txt) => {
+                        let _ = pck.reply(TestMessage::Pong(txt.clone())).await;
                     },
                     _ => {}
                 };
@@ -349,34 +371,38 @@ async fn test_server_client() {
 
     {
         // Start the reply
-        let cfg = MeshConfig::new()
+        let cfg = NodeConfig::new()
             .listen_on("127.0.0.1".to_string(), 4002)
             .connect_to("127.0.0.1".to_string(), 4001);
-        let mut relay = Mesh::new(&cfg).await;
+        let mut relay: Node<TestMessage> = Node::new(&cfg).await;
 
         // Create a background thread that will respond to pings with pong
         tokio::spawn(async move {
             while let Some(pck) = relay.inbox.recv().await {
-                relay.upcast(pck).await.unwrap();
+                match &pck.msg {
+                    TestMessage::Ping(_) => relay.upcast(pck).await.unwrap(),
+                    TestMessage::Pong(_) => relay.downcast(pck).await.unwrap(),
+                    _ => pck.reply(TestMessage::Rejected(Box::new(pck.msg.clone()))).await.unwrap(),
+                };
             }
         });
     }
     
     {
         // Start the client
-        let cfg = MeshConfig::new().connect_to("127.0.0.1".to_string(), 4001);
-        let mut client = Mesh::new(&cfg).await;
+        let cfg = NodeConfig::new().connect_to("127.0.0.1".to_string(), 4002);
+        let mut client = Node::new(&cfg).await;
 
         // We need to test it alot
         for n in 0..1000
         {
             // Send a ping
             let test = format!("hello! {}", n);
-            client.upcast(Packet::from(Message::Ping(test.clone()))).await.unwrap();
+            client.upcast(Packet::from(TestMessage::Ping(test.clone()))).await.unwrap();
 
             // Wait for the pong
             let pong = client.inbox.recv().await.unwrap();
-            if let Message::Pong(txt) = pong.msg {
+            if let TestMessage::Pong(txt) = pong.msg {
                 assert_eq!(test, txt);
             } else {
                 panic!("Wrong message type returned")

@@ -10,6 +10,7 @@ mod meta;
 mod event;
 mod conf;
 mod comms;
+mod mesh;
 mod redo;
 mod sink;
 mod session;
