@@ -77,7 +77,7 @@ impl TimestampEnforcer
                     }
                 }
                 
-                std::thread::sleep(Duration::from_millis(100));
+                std::thread::sleep(std::time::Duration::from_millis(100));
                 n = n + 1;
             }
         });

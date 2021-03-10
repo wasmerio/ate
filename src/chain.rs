@@ -1,4 +1,5 @@
 use futures::future::join_all;
+use serde::{Serialize, Deserialize};
 
 #[allow(unused_imports)]
 use crate::session::{Session, SessionProperty};
@@ -44,7 +45,7 @@ use super::event::EventExt;
 use super::crypto::Hash;
 
 #[allow(dead_code)]
-#[derive(Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ChainKey {
     pub name: String,
 }

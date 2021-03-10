@@ -6,6 +6,7 @@ extern crate rmp_serde as rmps;
 use rmp_serde::encode::Error as RmpEncodeError;
 use rmp_serde::decode::Error as RmpDecodeError;
 use serde_json::Error as JsonError;
+use tokio::task::JoinError;
 use std::time::SystemTimeError;
 use std::sync::mpsc as smpsc;
 
@@ -551,25 +552,7 @@ for TimeError {
 impl std::fmt::Debug
 for TimeError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            TimeError::IO(err) => {
-                write!(f, "TimeError::IO - {}", err.to_string())
-            },
-            TimeError::SystemTimeError(err) => {
-                write!(f, "TimeError::SystemTimeError - {}", err.to_string())
-            },
-            TimeError::BeyondTolerance(err) => {
-                write!(f, "TimeError::BeyondTolerance - {}", err.to_string())
-            },
-            TimeError::NoTimestamp => {
-                write!(f, "TimeError::NoTimestamp")
-            },
-            TimeError::OutOfBounds(dur) => {
-                let time = std::time::UNIX_EPOCH + *dur;
-                let datetime: chrono::DateTime<chrono::Utc> = time.into();
-                write!(f, "TimeError::OutOfBounds({})", datetime.format("%d/%m/%Y %T"))
-            },
-        }
+        write!(f, "{}", self.to_string())
     }
 }
 
@@ -651,7 +634,6 @@ for CommitError {
     }
 }
 
-#[derive(Debug)]
 pub enum CommsError
 {
     EncodeError(RmpEncodeError),
@@ -661,6 +643,8 @@ pub enum CommsError
     IO(std::io::Error),
     NoReplyChannel,
     Disconnected,
+    #[allow(dead_code)]
+    JoinError(JoinError),
 }
 
 impl From<RmpEncodeError>
@@ -719,6 +703,14 @@ for CommsError
     }   
 }
 
+impl From<JoinError>
+for CommsError
+{
+    fn from(err: JoinError) -> CommsError {
+        CommsError::ReceiveError(err.to_string())
+    }   
+}
+
 impl std::fmt::Display
 for CommsError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -744,6 +736,16 @@ for CommsError {
             CommsError::Disconnected => {
                 write!(f, "Channel has been disconnected")
             },
+            CommsError::JoinError(err) => {
+                write!(f, "Receiving error while processing communication - {}", err)
+            },
         }
+    }
+}
+
+impl std::fmt::Debug
+for CommsError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.to_string())
     }
 }

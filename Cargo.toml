@@ -44,7 +44,8 @@ sha3 = "*"
 multimap = "*"
 hex = "*"
 chrono = "*"
-lru_time_cache = "*"
+pnet = "*"
+log = "0.4.11"
 
 [dev-dependencies]
 ctor = "*"

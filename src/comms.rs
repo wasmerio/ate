@@ -1,12 +1,17 @@
 extern crate tokio;
 extern crate rmp_serde as rmps;
 
+use log::{info, warn};
+
 use rand::seq::SliceRandom;
 use fxhash::FxHashMap;
 use tokio::{net::{TcpListener, TcpStream}};
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::tcp;
 use tokio::sync::mpsc;
+use std::{net::IpAddr};
+#[allow(unused_imports)]
+use std::str::FromStr;
 use tokio::sync::broadcast;
 use super::error::*;
 #[allow(unused_imports)]
@@ -18,7 +23,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use bytes::BytesMut;
-use tokio::sync::Barrier;
+use std::net::SocketAddr;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Packet<M>
@@ -61,49 +66,77 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct NodeTarget
 {
-    addr: String,
+    ip: IpAddr,
     port: u16,
 }
 
-pub struct NodeConfig
+impl From<NodeTarget>
+for SocketAddr
 {
-    listen_on: Vec<NodeTarget>,
-    connect_to: Vec<NodeTarget>,
+    fn from(target: NodeTarget) -> SocketAddr {
+        SocketAddr::new(target.ip, target.port)
+    }
 }
 
-impl NodeConfig {
+pub struct NodeConfig<M>
+where M: Send + Sync + Serialize + DeserializeOwned + Clone
+{
+    listen_on: Vec<SocketAddr>,
+    connect_to: Vec<SocketAddr>,
+    on_connect: Option<M>,
+}
+
+impl<M> NodeConfig<M>
+where M: Send + Sync + Serialize + DeserializeOwned + Clone
+{
     #[allow(dead_code)]
-    pub fn new() -> NodeConfig {
+    pub fn new() -> NodeConfig<M> {
         NodeConfig {
             listen_on: Vec::new(),
             connect_to: Vec::new(),
+            on_connect: None,
         }
     }
 
     #[allow(dead_code)]
-    pub fn listen_on(mut self, addr: String, port: u16) -> Self {
-        self.listen_on.push(NodeTarget{addr,port});
+    pub fn listen_on(mut self, ip: IpAddr, port: u16) -> Self {
+        self.listen_on.push(SocketAddr::from(NodeTarget{ip, port}));
         self
     }
 
     #[allow(dead_code)]
-    pub fn connect_to(mut self, addr: String, port: u16) -> Self {
-        self.connect_to.push(NodeTarget{addr,port});
+    pub fn connect_to(mut self, ip: IpAddr, port: u16) -> Self {
+        self.connect_to.push(SocketAddr::from(NodeTarget{ip, port}));
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn on_connect(mut self, msg: M) -> Self {
+        self.on_connect = Some(msg);
         self
     }
 }
 
+#[derive(Debug)]
 pub struct Node<M>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default
 {
-    pub inbox: mpsc::Receiver<Packet<M>>,
     downcast: Arc<broadcast::Sender<Packet<M>>>,
     upcast: FxHashMap<u64, Upstream<M>>,
 }
 
-#[derive(Clone)]
+#[derive(Debug)]
+pub struct NodeWithReceiver<M>
+where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default
+{
+    pub inbox: mpsc::Receiver<Packet<M>>,
+    pub node: Node<M>
+}
+
+#[derive(Debug, Clone)]
 pub struct Upstream<M>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default
 {
@@ -115,7 +148,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default
 impl<M> Node<M>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static
 {
-    pub async fn new(conf: &NodeConfig) -> Node<M>
+    pub async fn new(conf: &NodeConfig<M>) -> NodeWithReceiver<M>
     {
         // Setup the communication pipes for the server
         let (inbox_tx, inbox_rx) = mpsc::channel(1000);
@@ -125,36 +158,43 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static
         // Create all the outbound connections
         let mut upcast = FxHashMap::default();
         for target in conf.connect_to.iter() {
-            let addr = format!("{}:{}", target.addr, target.port);
-            
-            let upstream = mesh_connect_to(addr, inbox_tx.clone()).await;
+            let upstream = mesh_connect_to(target.clone(), inbox_tx.clone(), conf.on_connect.clone()).await;
             upcast.insert(upstream.id, upstream);
         }
 
         // Create all the listeners
         for target in conf.listen_on.iter() {
-            let addr = format!("{}:{}", target.addr, target.port);
-            mesh_listen_on(addr, inbox_tx.clone(), Arc::clone(&downcast_tx)).await;
+            mesh_listen_on(target.clone(), inbox_tx.clone(), Arc::clone(&downcast_tx)).await;
         }
 
         // Return the mesh
-        Node {
+        NodeWithReceiver {
             inbox: inbox_rx,
-            downcast: downcast_tx,
-            upcast: upcast,
+            node: Node {
+                downcast: downcast_tx,
+                upcast: upcast,
+            }
         }
     }
 
-    pub async fn downcast(&self, pck: Packet<M>) -> Result<(), CommsError> {
+    pub async fn downcast_packet(&self, pck: Packet<M>) -> Result<(), CommsError> {
         self.downcast.send(pck)?;
         Ok(())
     }
 
-    pub async fn upcast(&self, pck: Packet<M>) -> Result<(), CommsError> {
+    pub async fn downcast(&self, msg: M) -> Result<(), CommsError> {
+        self.downcast_packet(Packet::from(msg)).await
+    }
+
+    pub async fn upcast_packet(&self, pck: Packet<M>) -> Result<(), CommsError> {
         let upcasts = self.upcast.values().collect::<Vec<_>>();
         let upcast = upcasts.choose(&mut rand::thread_rng()).unwrap();
         upcast.outbox.send(pck).await?;
         Ok(())
+    }
+
+    pub async fn upcast(&self, msg: M) -> Result<(), CommsError> {
+        self.upcast_packet(Packet::from(msg)).await
     }
 
     pub async fn downcast_many(&self, pcks: Vec<Packet<M>>) -> Result<(), CommsError> {
@@ -174,14 +214,28 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static
     }
 }
 
-async fn mesh_listen_on<M>(addr: String, inbox: mpsc::Sender<Packet<M>>, outbox: Arc<broadcast::Sender<Packet<M>>>)
+async fn mesh_listen_on<M>(addr: SocketAddr, inbox: mpsc::Sender<Packet<M>>, outbox: Arc<broadcast::Sender<Packet<M>>>)
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static
 {
-    let listener = TcpListener::bind(addr).await.unwrap();
+    let listener = TcpListener::bind(addr.clone()).await
+        .expect(&format!("Failed to bind listener to address ({})", addr.clone()));
 
+    let mut exp_backoff = Duration::from_millis(100);
     tokio::task::spawn(async move {
         loop {
-            let (stream, _sock_addr) = listener.accept().await.unwrap();
+            let (stream, sock_addr) = match listener.accept().await {
+                Ok(a) => a,
+                Err(err) => {
+                    eprintln!("tcp-listener - {}", err.to_string());
+                    std::thread::sleep(exp_backoff);
+                    exp_backoff *= 2;
+                    if exp_backoff > Duration::from_secs(10) { exp_backoff = Duration::from_secs(10); }
+                    continue;
+                }
+            };
+            exp_backoff = Duration::from_millis(100);
+            info!("connection-from: {}", sock_addr.to_string());
+
             setup_tcp_stream(&stream).unwrap();
 
             let (rx, tx) = stream.into_split();
@@ -195,14 +249,21 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static
             tokio::spawn(async move {
                 match process_inbox(rx, reply_tx1, worker_inbox, sender).await {
                     Ok(_) => { },
-                    Err(err) => debug_assert!(false, "comms-inbox-error {}", err.to_string()),
+                    Err(CommsError::IO(err)) if err.kind() == std::io::ErrorKind::UnexpectedEof => { },
+                    Err(err) => {
+                        debug_assert!(false, "comms-inbox-error {:?}", err);
+                        warn!("connection-failed: {}", err.to_string());
+                    },
                 };
             });
 
             tokio::spawn(async move {
                 match process_outbox(tx, reply_rx, sender).await {
                     Ok(_) => { },
-                    Err(err) => debug_assert!(false, "comms-outbox-error {}", err.to_string()),
+                    Err(err) => {
+                        debug_assert!(false, "comms-outbox-error {:?}", err);
+                        warn!("connection-failed: {}", err.to_string());
+                    },
                 };
             });
 
@@ -210,62 +271,122 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static
             tokio::spawn(async move {
                 match process_downcast(reply_tx2, worker_outbox).await {
                     Ok(_) => { },
-                    Err(err) => debug_assert!(false, "comms-downcast-error {}", err.to_string()),
+                    Err(err) => {
+                        debug_assert!(false, "comms-downcast-error {:?}", err);
+                        warn!("connection-failed: {}", err.to_string());
+                    },
                 };
             });
         }
     });
 }
 
-async fn mesh_connect_to<M>(addr: String, inbox: mpsc::Sender<Packet<M>>) -> Upstream<M>
+async fn mesh_connect_worker<M>
+(
+    addr: SocketAddr,
+    mut reply_rx: mpsc::Receiver<Packet<M>>,
+    reply_tx: mpsc::Sender<Packet<M>>,
+    inbox: mpsc::Sender<Packet<M>>,
+    sender: u64,
+    on_connect: Option<M>
+)
+-> Result<(), CommsError>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static
 {
-    let barrier = Arc::new(Barrier::new(4));
+    let mut exp_backoff = Duration::from_millis(100);
+    loop {
+        let stream = match TcpStream::connect(addr.clone()).await {
+            Err(err) if match err.kind() {
+                std::io::ErrorKind::ConnectionRefused => true,
+                std::io::ErrorKind::ConnectionReset => true,
+                std::io::ErrorKind::ConnectionAborted => true,
+                _ => false   
+            } => {
+                std::thread::sleep(exp_backoff);
+                exp_backoff *= 2;
+                if exp_backoff > Duration::from_secs(10) { exp_backoff = Duration::from_secs(10); }
+                continue;
+            },
+            a => a?,
+        };
+        exp_backoff = Duration::from_millis(100);
 
+        setup_tcp_stream(&stream)?;
+        
+        let (rx, tx) = stream.into_split();
+
+        let reply_tx1 = reply_tx.clone();
+
+        let join2 = tokio::spawn(async move {
+            match process_outbox(tx, reply_rx, sender).await {
+                Ok(a) => Some(a),
+                Err(err) => {
+                    debug_assert!(false, "comms-outbox-error {:?}", err);
+                    warn!("connection-failed: {}", err.to_string());
+                    return None;
+                },
+            }
+        });
+
+        let worker_inbox = inbox.clone();
+        let join1 = tokio::spawn(async move {
+            match process_inbox(rx, reply_tx1, worker_inbox, sender).await {
+                Ok(_) => { },
+                Err(CommsError::IO(err)) if match err.kind() {
+                    std::io::ErrorKind::UnexpectedEof => true,
+                    std::io::ErrorKind::ConnectionReset => true,
+                    std::io::ErrorKind::ConnectionAborted => true,
+                    _ => false,
+                } => {
+                    info!("connection-lost: {}", err.to_string());
+                    return;
+                },
+                Err(err) => {
+                    debug_assert!(false, "comms-inbox-error {:?}", err);
+                    warn!("connection-failed: {}", err.to_string());
+                    return;
+                },
+            };
+        });
+
+        if let Some(on_connect) = &on_connect {
+            let _ = inbox.send(Packet::from(on_connect.clone())).await;
+        }
+
+        reply_rx = match join2.await? {
+            Some(a) => a,
+            None => { return Err(CommsError::Disconnected); }
+        };
+        join1.await?;
+    }
+}
+
+async fn mesh_connect_to<M>
+(
+    addr: SocketAddr,
+    inbox: mpsc::Sender<Packet<M>>,
+    on_connect: Option<M>
+) -> Upstream<M>
+where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static
+{
     let (reply_tx, reply_rx) = mpsc::channel(1000);
     let reply_tx: mpsc::Sender<Packet<M>> = reply_tx;
     let reply_rx: mpsc::Receiver<Packet<M>> = reply_rx;
     let reply_tx0 = reply_tx.clone();
 
     let sender = fastrand::u64(..);
-
-    let worker_barrier = Arc::clone(&barrier);
-    tokio::task::spawn(async move {
-        let mut worker_barrier1 = Some(Arc::clone(&worker_barrier));
-        let mut worker_barrier2 = Some(Arc::clone(&worker_barrier));
-        let mut worker_barrier4 = Some(worker_barrier);
-
-        let stream = TcpStream::connect(addr.clone()).await.unwrap();
-        setup_tcp_stream(&stream).unwrap();
-
-        let (rx, tx) = stream.into_split();
-        
-        let worker_barrier1 = worker_barrier1.take();
-        let worker_barrier2 = worker_barrier2.take();
-
-        let reply_tx1 = reply_tx.clone();
-
-        let worker_inbox = inbox.clone();
-        let join1 = tokio::spawn(async move {
-            if let Some(b) = worker_barrier1 { b.wait().await; }
-            match process_inbox(rx, reply_tx1, worker_inbox, sender).await {
-                Ok(_) => { },
-                Err(err) => debug_assert!(false, "comms-inbox-error {}", err.to_string()),
-            };
-        });
-
-        let join2 = tokio::spawn(async move {
-            if let Some(b) = worker_barrier2 { b.wait().await; }
-            match process_outbox(tx, reply_rx, sender).await {
-                Ok(_) => { },
-                Err(err) => debug_assert!(false, "comms-outbox-error {}", err.to_string()),
-            };
-        });
-
-        if let Some(b) = worker_barrier4.take() { b.wait().await; }
-        futures::future::join_all(vec![join1, join2]).await;
-    });
-    barrier.wait().await;
+    
+    tokio::task::spawn(
+        mesh_connect_worker::<M>
+        (
+            addr,
+            reply_rx,
+            reply_tx,
+            inbox,
+            sender,
+            on_connect
+        )
+    );
 
     Upstream {
         id: sender,
@@ -294,7 +415,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default
 }
 
 #[allow(unused_variables)]
-async fn process_outbox<M>(mut tx: tcp::OwnedWriteHalf, mut reply_rx: mpsc::Receiver<Packet<M>>, sender: u64) -> Result<(), CommsError>
+async fn process_outbox<M>(mut tx: tcp::OwnedWriteHalf, mut reply_rx: mpsc::Receiver<Packet<M>>, sender: u64) -> Result<mpsc::Receiver<Packet<M>>, CommsError>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone
 {
     loop
@@ -307,7 +428,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
             tx.write_u32(buf.len() as u32).await?;
             tx.write_all(&buf).await?;
         } else {
-            return Err(CommsError::Disconnected);
+            return Ok(reply_rx);
         }
     }
 }
@@ -352,7 +473,7 @@ for TestMessage
 async fn test_server_client() {
     {
         // Start the server
-        let cfg = NodeConfig::new().listen_on("127.0.0.1".to_string(), 4001);
+        let cfg = NodeConfig::new().listen_on(IpAddr::from_str("127.0.0.1").unwrap(), 4001);
         let mut server = Node::new(&cfg).await;
 
         // Create a background thread that will respond to pings with pong
@@ -372,16 +493,16 @@ async fn test_server_client() {
     {
         // Start the reply
         let cfg = NodeConfig::new()
-            .listen_on("127.0.0.1".to_string(), 4002)
-            .connect_to("127.0.0.1".to_string(), 4001);
-        let mut relay: Node<TestMessage> = Node::new(&cfg).await;
+            .listen_on(IpAddr::from_str("127.0.0.1").unwrap(), 4002)
+            .connect_to(IpAddr::from_str("127.0.0.1").unwrap(), 4001);
+        let mut relay: NodeWithReceiver<TestMessage> = Node::new(&cfg).await;
 
         // Create a background thread that will respond to pings with pong
         tokio::spawn(async move {
             while let Some(pck) = relay.inbox.recv().await {
                 match &pck.msg {
-                    TestMessage::Ping(_) => relay.upcast(pck).await.unwrap(),
-                    TestMessage::Pong(_) => relay.downcast(pck).await.unwrap(),
+                    TestMessage::Ping(_) => relay.node.upcast_packet(pck).await.unwrap(),
+                    TestMessage::Pong(_) => relay.node.downcast_packet(pck).await.unwrap(),
                     _ => pck.reply(TestMessage::Rejected(Box::new(pck.msg.clone()))).await.unwrap(),
                 };
             }
@@ -390,7 +511,7 @@ async fn test_server_client() {
     
     {
         // Start the client
-        let cfg = NodeConfig::new().connect_to("127.0.0.1".to_string(), 4002);
+        let cfg = NodeConfig::new().connect_to(IpAddr::from_str("127.0.0.1").unwrap(), 4002);
         let mut client = Node::new(&cfg).await;
 
         // We need to test it alot
@@ -398,7 +519,7 @@ async fn test_server_client() {
         {
             // Send a ping
             let test = format!("hello! {}", n);
-            client.upcast(Packet::from(TestMessage::Ping(test.clone()))).await.unwrap();
+            client.node.upcast(TestMessage::Ping(test.clone())).await.unwrap();
 
             // Wait for the pong
             let pong = client.inbox.recv().await.unwrap();
