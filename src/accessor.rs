@@ -35,6 +35,7 @@ pub struct ChainAccessorProtected
 
 pub struct ChainAccessor
 {
+    pub key: ChainKey,
     pub(super) inside: Arc<RwLock<ChainAccessorProtected>>,
     pub(super) event_sender: mpsc::Sender<Transaction>,
 }
@@ -114,6 +115,7 @@ impl<'a> ChainAccessor
 
         Ok(
             ChainAccessor {
+                key: key.clone(),
                 inside,
                 event_sender: sender,
             }
@@ -121,12 +123,12 @@ impl<'a> ChainAccessor
     }
 
     #[allow(dead_code)]
-    pub async fn single(&'a mut self) -> ChainSingleUser<'a> {
+    pub async fn single(&'a self) -> ChainSingleUser<'a> {
         ChainSingleUser::new(self).await
     }
 
     #[allow(dead_code)]
-    pub async fn multi(&'a mut self) -> ChainMultiUser<'a> {
+    pub async fn multi(&'a self) -> ChainMultiUser<'a> {
         ChainMultiUser::new(self).await
     }
 
@@ -246,12 +248,6 @@ impl<'a> ChainAccessor
     pub async fn count(&self) -> usize {
         self.inside.read().await.chain.redo.count()
     }
-
-    /*
-    pub fn create_runtime() -> Rc<Runtime> {
-        Rc::new(tokio::runtime::Builder::new_current_thread().enable_all().build().unwrap())
-    }
-    */
 }
 
 impl ChainAccessorProtected
@@ -310,7 +306,7 @@ impl ChainAccessorProtected
     }
 
     #[allow(dead_code)]
-    async fn feed_async(&mut self, evts: Vec<EventRawPlus>) -> Result<(), FeedError> {
+    pub(super) async fn feed_async(&mut self, evts: Vec<EventRawPlus>) -> Result<(), FeedError> {
         let mut validated_evts = Vec::new();
         {
             for evt in evts.into_iter()

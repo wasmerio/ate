@@ -367,12 +367,12 @@ for Dio<'a>
 impl ChainAccessor
 {
     #[allow(dead_code)]
-    async fn dio<'a>(&'a mut self, session: &'a Session) -> Dio<'a> {
+    pub async fn dio<'a>(&'a self, session: &'a Session) -> Dio<'a> {
         self.dio_ext(session, Scope::Local).await
     }
 
     #[allow(dead_code)]
-    async fn dio_ext<'a>(&'a mut self, session: &'a Session, scope: Scope) -> Dio<'a> {
+    pub async fn dio_ext<'a>(&'a self, session: &'a Session, scope: Scope) -> Dio<'a> {
         let multi = self.multi().await;
         Dio {
             state: Rc::new(RefCell::new(DioState::new())),
@@ -423,7 +423,7 @@ async fn test_dio()
     let root_public_key = write_key.as_public_key();
     
     let mut session = Session::default();
-    let mut chain = super::chain::create_test_chain("test_dio".to_string(), true, false, Some(root_public_key)).await;
+    let chain = super::chain::create_test_chain("test_dio".to_string(), true, false, Some(root_public_key)).await;
     //let mut chain = create_test_chain("test_dio".to_string(), true, false, None);
 
     session.properties.push(SessionProperty::WriteKey(write_key.clone()));

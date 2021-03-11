@@ -52,6 +52,13 @@ pub struct ChainKey {
 
 impl ChainKey {
     #[allow(dead_code)]
+    pub fn new(val: String) -> ChainKey {
+        ChainKey {
+            name: val,
+        }
+    }
+
+    #[allow(dead_code)]
     pub fn with_name(&self, val: String) -> ChainKey
     {
         let mut ret = self.clone();
@@ -65,6 +72,11 @@ impl ChainKey {
         let mut ret = self.clone();
         ret.name = format!("{}_{}", val, PrimaryKey::generate().as_hex_string());
         ret
+    }
+
+    pub fn hash(&self) -> Hash
+    {
+        Hash::from_bytes(&self.name.clone().into_bytes())
     }
 }
 
@@ -180,12 +192,16 @@ pub async fn create_test_chain(chain_name: String, temp: bool, barebone: bool, r
 
     let mut builder = match barebone {
         true => {
-            ChainOfTrustBuilder::new(&mock_cfg, ConfiguredFor::Barebone)
+            mock_cfg.configured_for = ConfiguredFor::Barebone;
+            ChainOfTrustBuilder::new(&mock_cfg)
                 .add_validator(Box::new(RubberStampValidator::default()))
                 .add_data_transformer(Box::new(StaticEncryptionTransformer::new(&EncryptKey::from_string("test".to_string(), KeySize::Bit192))))
                 .add_metadata_linter(Box::new(EventAuthorLinter::default()))
         },
-        false => ChainOfTrustBuilder::new(&mock_cfg, ConfiguredFor::Balanced)
+        false => {
+            mock_cfg.configured_for = ConfiguredFor::Balanced;
+            ChainOfTrustBuilder::new(&mock_cfg)
+        }
     };        
 
     if let Some(key) = root_public_key {
@@ -303,7 +319,7 @@ pub async fn test_chain() {
 
     {
         // Reload the chain from disk and check its integrity
-        let mut chain = create_test_chain(chain_name, false, true, None).await;
+        let chain = create_test_chain(chain_name, false, true, None).await;
 
         {
             let lock = chain.multi().await;

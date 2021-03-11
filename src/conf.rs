@@ -12,6 +12,7 @@ use super::plugin::*;
 use super::chain::ChainKey;
 use super::crypto::PublicKey;
 use super::error::*;
+use super::crypto::Hash;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct MeshAddress
@@ -29,6 +30,17 @@ impl MeshAddress
             port,
         }
     }
+
+    pub fn hash(&self) -> Hash {
+        match self.ip {
+            IpAddr::V4(ip) => {
+                Hash::from_bytes_twice(&ip.octets(), &self.port.to_be_bytes())
+            },
+            IpAddr::V6(ip) => {
+                Hash::from_bytes_twice(&ip.octets(), &self.port.to_be_bytes())
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -43,6 +55,8 @@ pub struct Config
     pub roots: Vec<MeshAddress>,
     pub force_client_only: bool,
     pub force_listen: Option<MeshAddress>,
+
+    pub configured_for: ConfiguredFor,
 }
 
 impl Default
@@ -57,6 +71,7 @@ for Config
             roots: Vec::new(),
             force_client_only: false,
             force_listen: None,
+            configured_for: ConfiguredFor::default(),
         }
     }
 }
@@ -126,10 +141,10 @@ for ChainOfTrustBuilder
 impl ChainOfTrustBuilder
 {
     #[allow(dead_code)]
-    pub fn new(cfg: &Config, flavour: ConfiguredFor) -> ChainOfTrustBuilder {
+    pub fn new(cfg: &Config) -> ChainOfTrustBuilder {
         ChainOfTrustBuilder {
             cfg: cfg.clone(),
-            configured_for: flavour.clone(),
+            configured_for: cfg.configured_for.clone(),
             validators: Vec::new(),
             indexers: Vec::new(),
             compactors: Vec::new(),
@@ -139,11 +154,11 @@ impl ChainOfTrustBuilder
             tree: None,
             truncate: false,
         }
-        .with_defaults(flavour)
+        .with_defaults()
     }
 
     #[allow(dead_code)]
-    pub fn with_defaults(mut self, flavour: ConfiguredFor) -> Self {
+    pub fn with_defaults(mut self) -> Self {
         self.validators.clear();
         self.indexers.clear();
         self.linters.clear();
@@ -153,21 +168,21 @@ impl ChainOfTrustBuilder
         self.tree = None;
         self.truncate = false;
 
-        if flavour == ConfiguredFor::Raw {
+        if self.configured_for == ConfiguredFor::Raw {
             return self;
         }
 
         self.compactors.push(Box::new(RemoveDuplicatesCompactor::default()));
         self.compactors.push(Box::new(TombstoneCompactor::default()));
 
-        match flavour {
+        match self.configured_for {
             ConfiguredFor::SmallestSize | ConfiguredFor::Balanced => {
                 self.transformers.insert(0, Box::new(CompressorWithSnapTransformer::default()));
             }
             _ => {}
         }
 
-        if flavour == ConfiguredFor::Barebone {
+        if self.configured_for == ConfiguredFor::Barebone {
             self.validators.push(Box::new(RubberStampValidator::default()));
             return self;
         }
@@ -175,7 +190,7 @@ impl ChainOfTrustBuilder
         {
             self.tree = Some(super::tree::TreeAuthorityPlugin::new());
 
-            let tolerance = match flavour {
+            let tolerance = match self.configured_for {
                 ConfiguredFor::BestPerformance => 2000,
                 ConfiguredFor::BestSecurity => 200,
                 _ => 500,
@@ -244,7 +259,7 @@ impl ChainOfTrustBuilder
     }
 
     #[allow(dead_code)]
-    pub async fn build<I, V>
+    pub async fn build
     (
         self,
         key: &ChainKey,
@@ -260,7 +275,7 @@ for ChainOfTrustBuilder
 {
     fn default() -> ChainOfTrustBuilder {
         let cfg = Config::default();
-        ChainOfTrustBuilder::new(&cfg, ConfiguredFor::default())
+        ChainOfTrustBuilder::new(&cfg)
     }
 }
 

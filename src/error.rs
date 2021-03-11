@@ -368,11 +368,30 @@ impl ProcessError {
     }
 }
 
+impl std::fmt::Display
+for ProcessError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let mut err = "Processing error - ".to_string();
+        for sink in self.sink_errors.iter() {
+            err = err + &sink.to_string()[..] + " - ";
+        }
+        for validation in self.validation_errors.iter() {
+            err = err + &validation.to_string()[..] + " - ";
+        }
+        write!(f, "{}", err)
+    }
+}
+
 #[derive(Debug)]
 pub enum ChainCreationError {
     ProcessError(ProcessError),
     IO(tokio::io::Error),
     SerializationError(SerializationError),
+    NoRootFound,
+    #[allow(dead_code)]
+    NotThisRoot,
+    #[allow(dead_code)]
+    NotImplemented,
 }
 
 impl From<ProcessError>
@@ -397,6 +416,32 @@ for ChainCreationError
     fn from(err: tokio::io::Error) -> ChainCreationError {
         ChainCreationError::IO(err)
     }   
+}
+
+impl std::fmt::Display
+for ChainCreationError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            ChainCreationError::ProcessError(err) => {
+                write!(f, "Failed to create chain-of-trust due to a processingerror - {}", err)
+            },
+            ChainCreationError::SerializationError(err) => {
+                write!(f, "Failed to create chain-of-trust due to a serialization error - {}", err)
+            },
+            ChainCreationError::IO(err) => {
+                write!(f, "Failed to create chain-of-trust due to an IO error - {}", err)
+            },
+            ChainCreationError::NotImplemented => {
+                write!(f, "Failed to create chain-of-trust as the method is not implemented")
+            },
+            ChainCreationError::NoRootFound => {
+                write!(f, "Failed to create chain-of-trust as the root node is not found")
+            },
+            ChainCreationError::NotThisRoot => {
+                write!(f, "Failed to create chain-of-trust as this is the wrong root node")
+            },
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -645,6 +690,8 @@ pub enum CommsError
     Disconnected,
     #[allow(dead_code)]
     JoinError(JoinError),
+    LoadError(LoadError),
+    ChainCreationError(ChainCreationError),
 }
 
 impl From<RmpEncodeError>
@@ -711,6 +758,22 @@ for CommsError
     }   
 }
 
+impl From<LoadError>
+for CommsError
+{
+    fn from(err: LoadError) -> CommsError {
+        CommsError::LoadError(err)
+    }   
+}
+
+impl From<ChainCreationError>
+for CommsError
+{
+    fn from(err: ChainCreationError) -> CommsError {
+        CommsError::ChainCreationError(err)
+    }   
+}
+
 impl std::fmt::Display
 for CommsError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -738,6 +801,12 @@ for CommsError {
             },
             CommsError::JoinError(err) => {
                 write!(f, "Receiving error while processing communication - {}", err)
+            },
+            CommsError::LoadError(err) => {
+                write!(f, "Load error occured while processing communication - {}", err)
+            },
+            CommsError::ChainCreationError(err) => {
+                write!(f, "Chain creation error while processing communication - {}", err)
             },
         }
     }
