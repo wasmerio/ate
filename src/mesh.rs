@@ -11,6 +11,9 @@ use super::comms::*;
 use super::accessor::*;
 use super::chain::*;
 use super::error::*;
+#[allow(unused_imports)]
+use super::chain::*;
+use super::conf::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Message {
@@ -41,32 +44,6 @@ for Message
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct MeshAddress
-{
-    pub ip: IpAddr,
-    pub port: u16,
-}
-
-impl MeshAddress
-{
-    #[allow(dead_code)]
-    pub fn new(ip: IpAddr, port: u16) -> MeshAddress {
-        MeshAddress {
-            ip: ip,
-            port,
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Default, Debug, Clone)]
-pub struct MeshConfig
-{
-    pub roots: Vec<MeshAddress>,
-    pub force_client_only: bool,
-    pub force_listen: Option<MeshAddress>,
-}
-
 #[allow(dead_code)]
 pub struct MeshSession
 {
@@ -83,18 +60,18 @@ pub struct MeshPeer
 
 impl MeshPeer
 {
-    async fn new(peer_cfg: NodeConfig<Message>, chain_lookup: Arc<RwLock<FxHashMap<ChainKey, Arc<MeshPeer>>>>) -> Arc<MeshPeer> {
+    async fn new(peer_cfg: NodeConfig<Message>, root_inside: Arc<MeshRootProtected>) -> Arc<MeshPeer> {
         let node: NodeWithReceiver<Message> = Node::new(&peer_cfg).await;
         let peer = Arc::new(MeshPeer {
             chains: RwLock::new(FxHashSet::default()),
             node: node.node,
         });
         
-        tokio::spawn(MeshPeer::worker_inbox(peer.clone(), chain_lookup.clone(), node.inbox));
+        tokio::spawn(MeshPeer::worker_inbox(peer.clone(), root_inside.clone(), node.inbox));
         peer
     }
 
-    async fn worker_inbox(self: Arc<MeshPeer>, chain_lookup: Arc<RwLock<FxHashMap<ChainKey, Arc<MeshPeer>>>>, mut inbox: mpsc::Receiver<Packet<Message>>)
+    async fn worker_inbox(self: Arc<MeshPeer>, root_inside: Arc<MeshRootProtected>, mut inbox: mpsc::Receiver<Packet<Message>>)
     -> Result<(), CommsError>
     {
         while let Some(pck) = inbox.recv().await {
@@ -103,15 +80,13 @@ impl MeshPeer
                     self.node.upcast(Message::WhatChains).await?;
                 },
                 Message::MyChains(chains) => {
-                    println!("BLAH!!!");
-
                     let mut guard = self.chains.write().await;
                     for chain_key in chains.iter() {
                         guard.insert(chain_key.clone());
                     }
                     drop(guard);
 
-                    let mut guard = chain_lookup.write().await;
+                    let mut guard = root_inside.remote_chains.write().await;
                     for chain_key in chains.into_iter() {
                         guard.insert(chain_key, self.clone());
                     }
@@ -124,20 +99,27 @@ impl MeshPeer
     }
 }
 
-#[derive(Debug)]
+#[derive(Default)]
+pub struct MeshRootProtected
+{
+    local_chains: RwLock<FxHashMap<ChainKey, ChainOfTrust>>,
+    remote_chains: RwLock<FxHashMap<ChainKey, Arc<MeshPeer>>>,
+}
+
 pub struct MeshRoot
 {
+    #[allow(dead_code)]
     listen: Node<Message>,
+    #[allow(dead_code)]
     peers: Vec<Arc<MeshPeer>>,
-    chains: Arc<RwLock<FxHashMap<ChainKey, Arc<MeshPeer>>>>,
+    #[allow(dead_code)]
+    inside: Arc<MeshRootProtected>,
 }
 
 impl MeshRoot
 {
-    pub async fn new(cfg: &MeshConfig, listen_addrs: Vec<MeshAddress>) -> MeshRoot {
-        let mut node_cfg = NodeConfig::new()
-            .on_connect(Message::Connected);
-
+    pub async fn new(cfg: &Config, listen_addrs: Vec<MeshAddress>) -> MeshRoot {
+        let mut node_cfg = NodeConfig::new();
         let mut listen_ports = listen_addrs
             .iter()
             .map(|a| a.port)
@@ -150,35 +132,41 @@ impl MeshRoot
                 .listen_on(IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0)), port.clone());                
         }
 
-        let chains = Arc::new(RwLock::new(FxHashMap::default()));
+        let inside = Arc::new(MeshRootProtected::default());
         
         let listen = Node::new(&node_cfg).await;
 
         let mut peers = Vec::new();
         for peer_addr in cfg.roots.iter() {
+            if listen_addrs.contains(peer_addr) { continue; }
+
             let peer_cfg = NodeConfig::new()
                 .connect_to(peer_addr.ip, peer_addr.port)
                 .on_connect(Message::Connected);
 
-            peers.push(MeshPeer::new(peer_cfg, chains.clone()).await);
+            peers.push(MeshPeer::new(peer_cfg, inside.clone()).await);
         }
 
-        tokio::spawn(MeshRoot::root_inbox(listen.inbox));
+        tokio::spawn(MeshRoot::root_inbox(listen.inbox, inside.clone()));
 
         MeshRoot {
             listen: listen.node,
             peers,
-            chains,
+            inside,
         }
     }
 
-    async fn root_inbox(mut inbox: mpsc::Receiver<Packet<Message>>)
+    async fn root_inbox(mut inbox: mpsc::Receiver<Packet<Message>>, root_inside: Arc<MeshRootProtected>)
     -> Result<(), CommsError>
     {
         while let Some(pck) = inbox.recv().await {
             match pck.msg {
                 Message::WhatChains => {
-                    let chains = Vec::new();
+                    let chains = root_inside.local_chains
+                        .read().await
+                        .iter()
+                        .map(|a| a.1.key.clone())
+                        .collect::<Vec<_>>();
                     pck.reply(Message::MyChains(chains)).await?;
                 },
                 _ => { }
@@ -188,19 +176,24 @@ impl MeshRoot
     }
 }
 
-#[derive(Debug)]
 pub struct Mesh
 {
-    cfg: MeshConfig,
+    #[allow(dead_code)]
+    builder: ChainOfTrustBuilder,
+    #[allow(dead_code)]
+    cfg: Config,
+    #[allow(dead_code)]
     local_ips: Vec<IpAddr>,
+    #[allow(dead_code)]
     root: Option<MeshRoot>,
 }
 
 impl Mesh
 {
     #[allow(dead_code)]
-    pub async fn new(cfg: &MeshConfig) -> Mesh
+    pub async fn new(builder: ChainOfTrustBuilder) -> Mesh
     {
+        let cfg = builder.cfg.clone();
         let local_ips = pnet::datalink::interfaces()
             .iter()
             .flat_map(|i| i.ips.iter())
@@ -223,12 +216,13 @@ impl Mesh
 
         let root = match listen_root_addresses.len() {
             0 => None,
-            _ => Some(MeshRoot::new(cfg, listen_root_addresses).await)
+            _ => Some(MeshRoot::new(&cfg, listen_root_addresses).await)
         };
 
         Mesh {
+            builder,
             local_ips,
-            cfg: cfg.clone(),
+            cfg,
             root,
         }
     }
@@ -238,21 +232,25 @@ impl Mesh
 #[test]
 async fn test_mesh()
 {
-    let mut cfg = MeshConfig::default();
-    for n in 4001..4010 {
+    let mut cfg = Config::default();
+    for n in 4000..4002 {
         cfg.roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
     }
 
     let mut mesh_roots = Vec::new();
-    for n in 4001..4010 {
+    for n in 4000..4002 {
         cfg.force_listen = Some(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
-        let mesh = Mesh::new(&cfg).await;
+
+        let builder = ChainOfTrustBuilder::new(&cfg, ConfiguredFor::Balanced);
+        let mesh = Mesh::new(builder).await;
         mesh_roots.push(mesh);
     }
     
     cfg.force_listen = None;
     cfg.force_client_only = true;
-    let _mesh_client = Mesh::new(&cfg).await;
+
+    let builder = ChainOfTrustBuilder::new(&cfg, ConfiguredFor::Balanced);
+    let _mesh_client = Mesh::new(builder).await;
 
     std::thread::sleep(std::time::Duration::from_secs(100));
 }

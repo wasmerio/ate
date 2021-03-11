@@ -11,11 +11,13 @@ use super::sink::*;
 use super::error::*;
 
 pub trait EventIndexer
-where Self: EventSink,
+where Self: EventSink + Send + Sync,
 {
     fn rebuild(&mut self, _data: &Vec<EventEntryExt>) -> Result<(), SinkError> {
         Ok(())
     }
+
+    fn clone_indexer(&self) -> Box<dyn EventIndexer>;
 }
 
 #[derive(Default)]
@@ -105,6 +107,10 @@ for UselessIndexer
 impl EventIndexer
 for UselessIndexer
 {
+    fn clone_indexer(&self) -> Box<dyn EventIndexer> {
+        Box::new(UselessIndexer::default())
+    }
+
     fn rebuild(&mut self, _data: &Vec<EventEntryExt>) -> Result<(), SinkError>
     {
         Ok(())

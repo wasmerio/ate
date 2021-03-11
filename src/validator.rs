@@ -39,20 +39,26 @@ impl<'a> ValidationData<'a>
     }
 }
 
-pub trait EventValidator
+pub trait EventValidator: Send + Sync
 {
     fn validate(&self, _validation_data: &ValidationData) -> Result<ValidationResult, ValidationError> {
         Ok(ValidationResult::Abstain)
     }
+
+    fn clone_validator(&self) -> Box<dyn EventValidator>;
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct RubberStampValidator {   
 }
 
 impl EventValidator
 for RubberStampValidator
 {
+    fn clone_validator(&self) -> Box<dyn EventValidator> {
+        Box::new(self.clone())
+    }
+
     #[allow(unused_variables)]
     fn validate(&self, _validation_data: &ValidationData) -> Result<ValidationResult, ValidationError>
     {
@@ -60,6 +66,7 @@ for RubberStampValidator
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct StaticSignatureValidator {
     #[allow(dead_code)]
     pk: PublicKey,
@@ -78,6 +85,10 @@ impl StaticSignatureValidator
 impl EventValidator
 for StaticSignatureValidator
 {
+    fn clone_validator(&self) -> Box<dyn EventValidator> {
+        Box::new(self.clone())
+    }
+    
     #[allow(unused_variables)]
     fn validate(&self, _validation_data: &ValidationData) -> Result<ValidationResult, ValidationError>
     {

@@ -1,135 +1,73 @@
+use serde::{Serialize, Deserialize};
 use crate::{accessor::ChainAccessor, time::TimestampEnforcer, tree::TreeAuthorityPlugin};
+#[allow(unused_imports)]
+use std::{net::IpAddr, str::FromStr};
 
-use super::validator::EventValidator;
-use super::compact::EventCompactor;
-use super::index::EventIndexer;
-use super::lint::EventMetadataLinter;
-use super::transform::EventDataTransformer;
-use super::plugin::EventPlugin;
-use super::compact::RemoveDuplicatesCompactor;
-use super::compact::TombstoneCompactor;
-use super::validator::RubberStampValidator;
-use super::transform::CompressorWithSnapTransformer;
+use super::validator::*;
+use super::compact::*;
+use super::index::*;
+use super::lint::*;
+use super::transform::*;
+use super::plugin::*;
 use super::chain::ChainKey;
 use super::crypto::PublicKey;
 use super::error::*;
 
-pub trait ConfigMaster
-where Self: Clone
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct MeshAddress
 {
-    fn master_addr(&self) -> String;
-    fn master_port(&self) -> u32;
+    pub ip: IpAddr,
+    pub port: u16,
 }
 
-pub trait ConfigStorage
-where Self: Clone
+impl MeshAddress
 {
-    fn log_path(&self) -> String;
-    fn log_temp(&self) -> bool;
-}
-
-pub trait ConfigNtp
-where Self: Clone
-{
-    fn ntp_pool(&self) -> String;
-    fn ntp_port(&self) -> u32;
-}
-
-pub trait Config: ConfigMaster + ConfigStorage + ConfigNtp + Clone {
+    #[allow(dead_code)]
+    pub fn new(ip: IpAddr, port: u16) -> MeshAddress {
+        MeshAddress {
+            ip: ip,
+            port,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
-pub struct DiscreteConfig {
-    pub master_addr: String,
-    pub master_port: u32,
-
+pub struct Config
+{
     pub log_path: String,
     pub log_temp: bool,
 
     pub ntp_pool: String,
     pub ntp_port: u32,
-}
 
-impl DiscreteConfig {
-    #[allow(dead_code)]
-    pub fn with_master_addr(mut self, val: String) -> DiscreteConfig {
-        self.master_addr = val;
-        self
-    }
-
-    #[allow(dead_code)]
-    pub fn with_master_port(mut self, val: u32) -> DiscreteConfig {
-        self.master_port = val;
-        self
-    }
-
-    #[allow(dead_code)]
-    pub fn with_log_path(mut self, val: String) -> DiscreteConfig {
-        self.log_path = val;
-        self
-    }
-
-    #[allow(dead_code)]
-    pub fn with_log_temp(mut self, val: bool) -> DiscreteConfig {
-        self.log_temp = val;
-        self
-    }
-
-    #[allow(dead_code)]
-    pub fn with_ntp_pool(mut self, val: String) -> DiscreteConfig {
-        self.ntp_pool = val;
-        self
-    }
-
-    #[allow(dead_code)]
-    pub fn with_ntp_port(mut self, val: u32) -> DiscreteConfig {
-        self.ntp_port = val;
-        self
-    }
-}
-
-impl ConfigMaster for DiscreteConfig {
-    fn master_addr(&self) -> String { self.master_addr.clone() }
-    fn master_port(&self) -> u32 { self.master_port }
-}
-
-
-impl ConfigStorage for DiscreteConfig {
-    fn log_path(&self) -> String { self.log_path.clone() }
-    fn log_temp(&self) -> bool { self.log_temp }
-}
-
-
-impl ConfigNtp for DiscreteConfig {
-    fn ntp_pool(&self) -> String { self.ntp_pool.clone() }
-    fn ntp_port(&self) -> u32 { self.ntp_port }
-}
-
-impl Config for DiscreteConfig {
+    pub roots: Vec<MeshAddress>,
+    pub force_client_only: bool,
+    pub force_listen: Option<MeshAddress>,
 }
 
 impl Default
-for DiscreteConfig
+for Config
 {
-    fn default() -> DiscreteConfig {
-        DiscreteConfig {
-            master_addr: "127.0.0.1".to_string(),
-            master_port: 4001,
+    fn default() -> Config {
+        Config {
             log_path: "/tmp/ate".to_string(),
             log_temp: true,
             ntp_pool: "pool.ntp.org".to_string(),
             ntp_port: 123,
+            roots: Vec::new(),
+            force_client_only: false,
+            force_listen: None,
         }
     }
 }
 
 #[cfg(test)]
-pub fn mock_test_config() -> DiscreteConfig {
-    DiscreteConfig::default()
-        .with_master_addr("127.0.0.1".to_string())
-        .with_master_port(4001)
-        .with_log_path("/tmp/ate".to_string())
-        .with_log_temp(true)
+pub fn mock_test_config() -> Config {
+    let mut ret = Config::default();
+    ret.log_path = "/tmp/ate".to_string();
+    ret.log_temp = true;
+    ret.roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), 4001));
+    return ret;
 }
 
 #[allow(dead_code)]
@@ -154,21 +92,43 @@ for ConfiguredFor
 
 pub struct ChainOfTrustBuilder
 {
+    pub(super) cfg: Config, 
     pub(super) configured_for: ConfiguredFor,
-    pub(super) validators: Vec<Box<dyn EventValidator + Send + Sync>>,
-    pub(super) compactors: Vec<Box<dyn EventCompactor + Send + Sync>>,
-    pub(super) linters: Vec<Box<dyn EventMetadataLinter + Send + Sync>>,
-    pub(super) transformers: Vec<Box<dyn EventDataTransformer + Send + Sync>>,
-    pub(super) indexers: Vec<Box<dyn EventIndexer + Send + Sync>>,
-    pub(super) plugins: Vec<Box<dyn EventPlugin + Send + Sync>>,
+    pub(super) validators: Vec<Box<dyn EventValidator>>,
+    pub(super) compactors: Vec<Box<dyn EventCompactor>>,
+    pub(super) linters: Vec<Box<dyn EventMetadataLinter>>,
+    pub(super) transformers: Vec<Box<dyn EventDataTransformer>>,
+    pub(super) indexers: Vec<Box<dyn EventIndexer>>,
+    pub(super) plugins: Vec<Box<dyn EventPlugin>>,
     pub(super) tree: Option<TreeAuthorityPlugin>,
+    pub(super) truncate: bool,
+}
+
+impl Clone
+for ChainOfTrustBuilder
+{
+    fn clone(&self) -> Self {
+        ChainOfTrustBuilder {
+            cfg: self.cfg.clone(),
+            configured_for: self.configured_for.clone(),
+            validators: self.validators.iter().map(|a| a.clone_validator()).collect::<Vec<_>>(),
+            compactors: self.compactors.iter().map(|a| a.clone_compactor()).collect::<Vec<_>>(),
+            linters: self.linters.iter().map(|a| a.clone_linter()).collect::<Vec<_>>(),
+            transformers: self.transformers.iter().map(|a| a.clone_transformer()).collect::<Vec<_>>(),
+            indexers: self.indexers.iter().map(|a| a.clone_indexer()).collect::<Vec<_>>(),
+            plugins: self.plugins.iter().map(|a| a.clone_plugin()).collect::<Vec<_>>(),
+            tree: self.tree.clone(),
+            truncate: self.truncate,
+        }
+    }
 }
 
 impl ChainOfTrustBuilder
 {
     #[allow(dead_code)]
-    pub fn new(cfg: &impl Config, flavour: ConfiguredFor) -> ChainOfTrustBuilder {
+    pub fn new(cfg: &Config, flavour: ConfiguredFor) -> ChainOfTrustBuilder {
         ChainOfTrustBuilder {
+            cfg: cfg.clone(),
             configured_for: flavour.clone(),
             validators: Vec::new(),
             indexers: Vec::new(),
@@ -177,12 +137,13 @@ impl ChainOfTrustBuilder
             transformers: Vec::new(),
             plugins: Vec::new(),
             tree: None,
+            truncate: false,
         }
-        .with_defaults(cfg, flavour)
+        .with_defaults(flavour)
     }
 
     #[allow(dead_code)]
-    pub fn with_defaults(mut self, cfg: &impl Config, flavour: ConfiguredFor) -> Self {
+    pub fn with_defaults(mut self, flavour: ConfiguredFor) -> Self {
         self.validators.clear();
         self.indexers.clear();
         self.linters.clear();
@@ -190,6 +151,7 @@ impl ChainOfTrustBuilder
         self.plugins.clear();
         self.compactors.clear();
         self.tree = None;
+        self.truncate = false;
 
         if flavour == ConfiguredFor::Raw {
             return self;
@@ -218,7 +180,7 @@ impl ChainOfTrustBuilder
                 ConfiguredFor::BestSecurity => 200,
                 _ => 500,
             };
-            self.plugins.push(Box::new(TimestampEnforcer::new(cfg, tolerance).unwrap()));
+            self.plugins.push(Box::new(TimestampEnforcer::new(&self.cfg, tolerance).unwrap()));
         }
 
         self
@@ -233,41 +195,42 @@ impl ChainOfTrustBuilder
         self.transformers.clear();
         self.plugins.clear();
         self.tree = None;
+        self.truncate = false;
         self
     }
 
     #[allow(dead_code)]
-    pub fn add_compactor(mut self, compactor: Box<dyn EventCompactor + Send + Sync>) -> Self {
+    pub fn add_compactor(mut self, compactor: Box<dyn EventCompactor>) -> Self {
         self.compactors.push(compactor);
         self
     }
 
     #[allow(dead_code)]
-    pub fn add_validator(mut self, validator: Box<dyn EventValidator + Send + Sync>) -> Self {
+    pub fn add_validator(mut self, validator: Box<dyn EventValidator>) -> Self {
         self.validators.push(validator);
         self
     }
     #[allow(dead_code)]
-    pub fn add_metadata_linter(mut self, linter: Box<dyn EventMetadataLinter + Send + Sync>) -> Self {
+    pub fn add_metadata_linter(mut self, linter: Box<dyn EventMetadataLinter>) -> Self {
         self.linters.push(linter);
         self
     }
 
     #[allow(dead_code)]
-    pub fn add_data_transformer(mut self, transformer: Box<dyn EventDataTransformer + Send + Sync>) -> Self {
+    pub fn add_data_transformer(mut self, transformer: Box<dyn EventDataTransformer>) -> Self {
         self.transformers.push(transformer);
         self
     }
 
     #[allow(dead_code)]
-    pub fn add_indexer(mut self, indexer: Box<dyn EventIndexer + Send + Sync>) -> Self {
+    pub fn add_indexer(mut self, indexer: Box<dyn EventIndexer>) -> Self {
         self.indexers.push(indexer);
         self
     }
 
 
     #[allow(dead_code)]
-    pub fn add_plugin(mut self, plugin: Box<dyn EventPlugin + Send + Sync>) -> Self {
+    pub fn add_plugin(mut self, plugin: Box<dyn EventPlugin>) -> Self {
         self.plugins.push(plugin);
         self
     }
@@ -284,13 +247,11 @@ impl ChainOfTrustBuilder
     pub async fn build<I, V>
     (
         self,
-        cfg: &impl ConfigStorage,
         key: &ChainKey,
-        truncate: bool
     )
     -> Result<ChainAccessor, ChainCreationError>
     {
-        ChainAccessor::new(self, cfg, key, truncate).await
+        ChainAccessor::new(self, key).await
     }
 }
 
@@ -298,7 +259,7 @@ impl Default
 for ChainOfTrustBuilder
 {
     fn default() -> ChainOfTrustBuilder {
-        let cfg = DiscreteConfig::default();
+        let cfg = Config::default();
         ChainOfTrustBuilder::new(&cfg, ConfiguredFor::default())
     }
 }
@@ -306,5 +267,5 @@ for ChainOfTrustBuilder
 #[test]
 fn test_config_mocking() {
     let cfg = mock_test_config();
-    assert_eq!(cfg.master_addr(), "127.0.0.1");
+    assert_eq!(cfg.roots.iter().next().unwrap().ip.to_string(), "127.0.0.1");
 }

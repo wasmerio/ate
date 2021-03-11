@@ -37,7 +37,7 @@ pub struct MetaSignWith
     pub keys: Vec<Hash>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SignaturePlugin
 {
     pk: FxHashMap<Hash, PublicKey>,
@@ -121,16 +121,31 @@ for SignaturePlugin
 impl EventValidator
 for SignaturePlugin
 {
+    fn clone_validator(&self) -> Box<dyn EventValidator> {
+        Box::new(self.clone())
+    }
 }
 
 impl EventCompactor
 for SignaturePlugin
 {
+    fn clone_compactor(&self) -> Box<dyn EventCompactor> {
+        Box::new(self.clone())
+    }
+
+    fn reset(&mut self) {
+        self.pk.clear();
+        self.sigs.clear();
+    }
 }
 
 impl EventMetadataLinter
 for SignaturePlugin
 {
+    fn clone_linter(&self) -> Box<dyn EventMetadataLinter> {
+        Box::new(self.clone())
+    }
+
     fn metadata_lint_many(&self, raw: &Vec<EventRawPlus>, session: &Session) -> Result<Vec<CoreMetadata>, LintError>
     {
         // If there is no data then we are already done
@@ -212,11 +227,18 @@ for SignaturePlugin
 impl EventDataTransformer
 for SignaturePlugin
 {
+    fn clone_transformer(&self) -> Box<dyn EventDataTransformer> {
+        Box::new(self.clone())
+    }
 }
 
 impl EventPlugin
 for SignaturePlugin
 {
+    fn clone_plugin(&self) -> Box<dyn EventPlugin> {
+        Box::new(self.clone())
+    }
+
     fn rebuild(&mut self, data: &Vec<EventEntryExt>) -> Result<(), SinkError>
     {
         self.pk.clear();

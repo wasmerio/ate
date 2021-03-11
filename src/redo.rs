@@ -449,11 +449,11 @@ pub struct RedoLog {
 
 impl RedoLog
 {
-    async fn new(cfg: &impl ConfigStorage, path_log: String, truncate: bool) -> Result<(RedoLog, RedoLogLoader)> {
+    async fn new(cfg: &Config, path_log: String, truncate: bool) -> Result<(RedoLog, RedoLogLoader)> {
         let mut ret = RedoLog {
-            log_temp: cfg.log_temp(),
+            log_temp: cfg.log_temp,
             log_path: path_log.clone(),
-            log_file: LogFile::new(cfg.log_temp(), path_log.clone(), truncate).await?,
+            log_file: LogFile::new(cfg.log_temp, path_log.clone(), truncate).await?,
             flip: None,
         };
 
@@ -537,10 +537,10 @@ impl RedoLog
     }
 
     #[allow(dead_code)]
-    pub async fn create(cfg: &impl ConfigStorage, key: &ChainKey) -> Result<RedoLog> {
-        let _ = std::fs::create_dir_all(cfg.log_path());
+    pub async fn create(cfg: &Config, key: &ChainKey) -> Result<RedoLog> {
+        let _ = std::fs::create_dir_all(cfg.log_path.clone());
 
-        let path_log = format!("{}/{}.log", cfg.log_path(), key.name);
+        let path_log = format!("{}/{}.log", cfg.log_path, key.name);
 
         let (log, _) = RedoLog::new(cfg, path_log.clone(), true).await?;
 
@@ -550,10 +550,10 @@ impl RedoLog
     }
 
     #[allow(dead_code)]
-    pub async fn open(cfg: &impl ConfigStorage, key: &ChainKey, truncate: bool) -> Result<(RedoLog, RedoLogLoader)> {
-        let _ = std::fs::create_dir_all(cfg.log_path());
+    pub async fn open(cfg: &Config, key: &ChainKey, truncate: bool) -> Result<(RedoLog, RedoLogLoader)> {
+        let _ = std::fs::create_dir_all(cfg.log_path.clone());
 
-        let path_log = format!("{}/{}.log", cfg.log_path(), key.name);
+        let path_log = format!("{}/{}.log", cfg.log_path, key.name);
 
         let (log, loader) = RedoLog::new(cfg, path_log.clone(), truncate).await?;
 
@@ -656,8 +656,8 @@ fn test_redo_log() {
     let blah7 = PrimaryKey::generate();
 
     rt.block_on(async {
-        let mock_cfg = mock_test_config()
-            .with_log_temp(false);
+        let mut mock_cfg = mock_test_config();
+        mock_cfg.log_temp = false;
 
         let mock_chain_key = ChainKey::default()
             .with_temp_name("test_redo".to_string());

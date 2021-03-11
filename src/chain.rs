@@ -76,10 +76,10 @@ pub struct ChainOfTrust
     pub(super) configured_for: ConfiguredFor,
     pub(super) history: Vec<EventEntryExt>,
     pub(super) pointers: BinaryTreeIndexer,
-    pub(super) validators: Vec<Box<dyn EventValidator + Send + Sync>>,
-    pub(super) compactors: Vec<Box<dyn EventCompactor + Send + Sync>>,
-    pub(super) linters: Vec<Box<dyn EventMetadataLinter + Send + Sync>>,
-    pub(super) transformers: Vec<Box<dyn EventDataTransformer + Send + Sync>>,
+    pub(super) validators: Vec<Box<dyn EventValidator>>,
+    pub(super) compactors: Vec<Box<dyn EventCompactor>>,
+    pub(super) linters: Vec<Box<dyn EventMetadataLinter>>,
+    pub(super) transformers: Vec<Box<dyn EventDataTransformer>>,
 }
 
 impl<'a> ChainOfTrust
@@ -194,9 +194,7 @@ pub async fn create_test_chain(chain_name: String, temp: bool, barebone: bool, r
     
     ChainAccessor::new(
         builder,
-        &mock_cfg,
-        &mock_chain_key,
-        temp)
+        &mock_chain_key)
         .await.unwrap()
 }
 

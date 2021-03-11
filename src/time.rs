@@ -22,6 +22,7 @@ mod ntp;
 
 use ntp::NtpResult;
 
+#[derive(Debug, Clone)]
 pub struct TimestampEnforcer {
     pub cursor: Duration,
     pub tolerance: Duration,
@@ -42,18 +43,18 @@ for TimestampEnforcer
 impl TimestampEnforcer
 {
     #[allow(dead_code)]
-    pub fn new(cfg: &impl ConfigNtp, tolerance_ms: u32) -> Result<TimestampEnforcer, TimeError>
+    pub fn new(cfg: &Config, tolerance_ms: u32) -> Result<TimestampEnforcer, TimeError>
     {
         let tolerance_ms_loop = tolerance_ms;
         let tolerance_ms_seed = tolerance_ms * 3;
 
-        let pool = Arc::new(cfg.ntp_pool());
-        let ntp_result = Arc::new(RwLock::new(ntp::query_ntp_retry(pool.deref(), cfg.ntp_port(), tolerance_ms_seed, 10)?));
+        let pool = Arc::new(cfg.ntp_pool.clone());
+        let ntp_result = Arc::new(RwLock::new(ntp::query_ntp_retry(pool.deref(), cfg.ntp_port, tolerance_ms_seed, 10)?));
         let bt_exit = Arc::new(Mutex::new(false));
 
         let bt_best_ping = Duration::from_micros(ntp_result.write().unwrap().roundtrip()).as_millis() as u32;
-        let bt_pool = Arc::new(cfg.ntp_pool());
-        let bt_port = cfg.ntp_port();
+        let bt_pool = Arc::new(cfg.ntp_pool.clone());
+        let bt_port = cfg.ntp_port;
         let bt_exit2 = bt_exit.clone();
         let bt_result = ntp_result.clone();
 
@@ -77,7 +78,7 @@ impl TimestampEnforcer
                     }
                 }
                 
-                std::thread::sleep(std::time::Duration::from_millis(100));
+                std::thread::sleep(Duration::from_millis(100));
                 n = n + 1;
             }
         });
@@ -88,8 +89,8 @@ impl TimestampEnforcer
             {
                 cursor: tolerance,
                 tolerance: tolerance,
-                ntp_pool: cfg.ntp_pool(),
-                ntp_port: cfg.ntp_port(),
+                ntp_pool: cfg.ntp_pool.clone(),
+                ntp_port: cfg.ntp_port,
                 ntp_result: ntp_result,
                 bt_exit: bt_exit.clone(),
             }
@@ -147,7 +148,7 @@ for TimestampEnforcer
 {
     fn default() -> TimestampEnforcer
     {
-        let cfg = DiscreteConfig::default();
+        let cfg = Config::default();
         TimestampEnforcer::new(&cfg, 200).unwrap()
     }
 }
@@ -155,6 +156,10 @@ for TimestampEnforcer
 impl EventMetadataLinter
 for TimestampEnforcer
 {
+    fn clone_linter(&self) -> Box<dyn EventMetadataLinter> {
+        Box::new(self.clone())
+    }
+
     fn metadata_lint_event(&self, _meta: &Metadata, _session: &Session)-> Result<Vec<CoreMetadata>, LintError> {
         let mut ret = Vec::new();
 
@@ -188,21 +193,37 @@ for TimestampEnforcer
 impl EventIndexer
 for TimestampEnforcer
 {
+    fn clone_indexer(&self) -> Box<dyn EventIndexer> {
+        Box::new(self.clone())
+    }
 }
 
 impl EventDataTransformer
 for TimestampEnforcer
 {
+    fn clone_transformer(&self) -> Box<dyn EventDataTransformer> {
+        Box::new(self.clone())
+    }
 }
 
 impl EventCompactor
 for TimestampEnforcer
 {
+    fn clone_compactor(&self) -> Box<dyn EventCompactor> {
+        Box::new(self.clone())
+    }
+
+    fn reset(&mut self) {
+    }
 }
 
 impl EventValidator
 for TimestampEnforcer
 {
+    fn clone_validator(&self) -> Box<dyn EventValidator> {
+        Box::new(self.clone())
+    }
+
     fn validate(&self, validation_data: &ValidationData) -> Result<ValidationResult, ValidationError>
     {
         // If it does not have a timestamp then we can not accept it
@@ -235,4 +256,7 @@ for TimestampEnforcer
 impl EventPlugin
 for TimestampEnforcer
 {
+    fn clone_plugin(&self) -> Box<dyn EventPlugin> {
+        Box::new(self.clone())
+    }
 }

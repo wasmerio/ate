@@ -14,20 +14,19 @@ pub enum EventRelevance
     ForceDrop,      // Force the event to drop
 }
 
-pub trait EventCompactor
+pub trait EventCompactor: Send + Sync
 {
-    // Clones the compactor and prepares it for a compaction operation
-    fn clone_prepare(&self) -> Box<dyn EventCompactor> {
-        Box::new(IndecisiveCompactor::default())
-    }
-
     // Decision making time - in order of back to front we now decide if we keep or drop an event
     fn relevance(&mut self, _evt: &EventEntryExt) -> EventRelevance {
         EventRelevance::Abstain
     }
+
+    fn reset(&mut self);
+
+    fn clone_compactor(&self) -> Box<dyn EventCompactor>;
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct RemoveDuplicatesCompactor
 {
     already: FxHashSet<PrimaryKey>,
@@ -36,8 +35,12 @@ pub struct RemoveDuplicatesCompactor
 impl EventCompactor
 for RemoveDuplicatesCompactor
 {
-    fn clone_prepare(&self) -> Box<dyn EventCompactor> {
-        Box::new(RemoveDuplicatesCompactor::default())
+    fn clone_compactor(&self) -> Box<dyn EventCompactor> {
+        Box::new(self.clone())
+    }
+
+    fn reset(&mut self) {
+        self.already.clear();
     }
     
     fn relevance(&mut self, header: &EventEntryExt) -> EventRelevance
@@ -56,7 +59,7 @@ for RemoveDuplicatesCompactor
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct TombstoneCompactor
 {
     tombstoned: FxHashSet<PrimaryKey>,
@@ -65,8 +68,12 @@ pub struct TombstoneCompactor
 impl EventCompactor
 for TombstoneCompactor
 {
-    fn clone_prepare(&self) -> Box<dyn EventCompactor> {
-        Box::new(TombstoneCompactor::default())
+    fn clone_compactor(&self) -> Box<dyn EventCompactor> {
+        Box::new(self.clone())
+    }
+
+    fn reset(&mut self) {
+        self.tombstoned.clear();
     }
     
     fn relevance(&mut self, header: &EventEntryExt) -> EventRelevance
@@ -122,7 +129,7 @@ impl Metadata
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct IndecisiveCompactor
 {
 }
@@ -130,8 +137,11 @@ pub struct IndecisiveCompactor
 impl EventCompactor
 for IndecisiveCompactor
 {
-    fn clone_prepare(&self) -> Box<dyn EventCompactor> {
-        Box::new(IndecisiveCompactor::default())
+    fn clone_compactor(&self) -> Box<dyn EventCompactor> {
+        Box::new(self.clone())
+    }
+
+    fn reset(&mut self) {
     }
     
     fn relevance(&mut self, _: &EventEntryExt) -> EventRelevance

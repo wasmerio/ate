@@ -14,7 +14,7 @@ use super::header::*;
 use bytes::Bytes;
 use fxhash::FxHashMap;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct TreeAuthorityPlugin
 {
     root: WriteOption,
@@ -154,6 +154,10 @@ for TreeAuthorityPlugin
 impl EventValidator
 for TreeAuthorityPlugin
 {
+    fn clone_validator(&self) -> Box<dyn EventValidator> {
+        Box::new(self.clone())
+    }
+
     fn validate(&self, validation_data: &ValidationData) -> Result<ValidationResult, ValidationError>
     {
         // We need to check all the signatures are valid
@@ -198,8 +202,8 @@ for TreeAuthorityPlugin
 impl EventCompactor
 for TreeAuthorityPlugin
 {
-    fn clone_prepare(&self) -> Box<dyn EventCompactor> {
-        Box::new(IndecisiveCompactor::default())
+    fn clone_compactor(&self) -> Box<dyn EventCompactor> {
+        Box::new(self.clone())
     }
 
     fn relevance(&mut self, evt: &EventEntryExt) -> EventRelevance {
@@ -209,11 +213,21 @@ for TreeAuthorityPlugin
         }
         EventRelevance::Abstain
     }
+
+    fn reset(&mut self) {
+        self.auth.clear();
+        self.tree.clear();
+        self.signature_plugin.reset();
+    }
 }
 
 impl EventMetadataLinter
 for TreeAuthorityPlugin
 {
+    fn clone_linter(&self) -> Box<dyn EventMetadataLinter> {
+        Box::new(self.clone())
+    }
+
     fn metadata_lint_many(&self, raws: &Vec<EventRawPlus>, session: &Session) -> Result<Vec<CoreMetadata>, LintError>
     {
         let mut ret = Vec::new();
@@ -295,6 +309,10 @@ for TreeAuthorityPlugin
 impl EventDataTransformer
 for TreeAuthorityPlugin
 {
+    fn clone_transformer(&self) -> Box<dyn EventDataTransformer> {
+        Box::new(self.clone())
+    }
+
     #[allow(unused_variables)]
     fn data_as_underlay(&self, meta: &mut Metadata, with: Bytes, session: &Session) -> Result<Bytes, TransformError>
     {
@@ -337,6 +355,10 @@ for TreeAuthorityPlugin
 impl EventPlugin
 for TreeAuthorityPlugin
 {
+    fn clone_plugin(&self) -> Box<dyn EventPlugin> {
+        Box::new(self.clone())
+    }
+
     fn rebuild(&mut self, data: &Vec<EventEntryExt>) -> Result<(), SinkError>
     {
         self.signature_plugin.rebuild(data)?;

@@ -12,10 +12,12 @@ use super::validator::*;
 use super::event::*;
 
 pub trait EventPlugin
-where Self: EventValidator + EventSink + EventCompactor + EventMetadataLinter + EventDataTransformer,
+where Self: EventValidator + EventSink + EventCompactor + EventMetadataLinter + EventDataTransformer + Send + Sync,
 {
     fn rebuild(&mut self, _data: &Vec<EventEntryExt>) -> Result<(), SinkError>
     {
         Ok(())
     }
+
+    fn clone_plugin(&self) -> Box<dyn EventPlugin>;
 }

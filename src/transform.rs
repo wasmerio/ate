@@ -8,7 +8,7 @@ use bytes::{Bytes, Buf};
 #[allow(unused_imports)]
 use openssl::symm::{encrypt, decrypt, Cipher};
 
-pub trait EventDataTransformer
+pub trait EventDataTransformer: Send + Sync
 {
     /// Callback when data is stored in the event 
     fn data_as_underlay(&self, _meta: &mut Metadata, with: Bytes, _session: &Session) -> Result<Bytes, TransformError> {
@@ -19,6 +19,8 @@ pub trait EventDataTransformer
     fn data_as_overlay(&self, _meta: &mut Metadata, with: Bytes, _session: &Session) -> Result<Bytes, TransformError> {
         Ok(with)
     }
+
+    fn clone_transformer(&self) -> Box<dyn EventDataTransformer>;
 }
 
 #[derive(Debug, Default, Clone)]
@@ -29,6 +31,10 @@ pub struct CompressorWithSnapTransformer
 impl EventDataTransformer
 for CompressorWithSnapTransformer
 {
+    fn clone_transformer(&self) -> Box<dyn EventDataTransformer> {
+        Box::new(self.clone())
+    }
+
     #[allow(unused_variables)]
     fn data_as_underlay(&self, meta: &mut Metadata, with: Bytes, _session: &Session) -> Result<Bytes, TransformError> {
         let mut reader = FrameEncoder::new(with.reader());
@@ -65,6 +71,10 @@ impl StaticEncryptionTransformer
 impl EventDataTransformer
 for StaticEncryptionTransformer
 {
+    fn clone_transformer(&self) -> Box<dyn EventDataTransformer> {
+        Box::new(self.clone())
+    }
+    
     #[allow(unused_variables)]
     fn data_as_underlay(&self, meta: &mut Metadata, with: Bytes, _session: &Session) -> Result<Bytes, TransformError>
     {

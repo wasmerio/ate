@@ -19,7 +19,8 @@ use tokio::sync::RwLock;
 use tokio::sync::mpsc;
 
 use super::redo::*;
-use super::conf::ConfigStorage;
+#[allow(unused_imports)]
+use super::conf::*;
 
 use super::chain::*;
 use super::single::*;
@@ -28,11 +29,10 @@ use super::multi::*;
 pub struct ChainAccessorProtected
 {
     pub(super) chain: ChainOfTrust,
-    pub(super) plugins: Vec<Box<dyn EventPlugin + Send + Sync>>,
-    pub(super) indexers: Vec<Box<dyn EventIndexer + Send + Sync>>,
+    pub(super) plugins: Vec<Box<dyn EventPlugin>>,
+    pub(super) indexers: Vec<Box<dyn EventIndexer>>,
 }
 
-#[derive(Clone)]
 pub struct ChainAccessor
 {
     pub(super) inside: Arc<RwLock<ChainAccessorProtected>>,
@@ -70,15 +70,13 @@ impl<'a> ChainAccessor
     #[allow(dead_code)]
     pub async fn new(
         builder: ChainOfTrustBuilder,
-        cfg: &impl ConfigStorage,
         key: &ChainKey,
-        truncate: bool,
     ) -> Result<ChainAccessor, ChainCreationError>
     {
         let (
             redo_log,
             mut redo_loader
-        ) = RedoLog::open(cfg, key, truncate).await?;
+        ) = RedoLog::open(&builder.cfg, key, builder.truncate).await?;
 
         let mut entries: Vec<EventEntryExt> = Vec::new();
         while let Some(header) = redo_loader.pop() {
@@ -160,10 +158,14 @@ impl<'a> ChainAccessor
                 // step1 - reset all the compactors
                 let mut compactors = Vec::new();
                 for compactor in &multi.inside.chain.compactors {
-                    compactors.push(compactor.clone_prepare());
+                    let mut compactor = compactor.clone_compactor();
+                    compactor.reset();
+                    compactors.push(compactor);
                 }
                 for plugin in &multi.inside.plugins {
-                    compactors.push(plugin.clone_prepare());
+                    let mut compactor = plugin.clone_compactor();
+                    compactor.reset();
+                    compactors.push(compactor);
                 }
 
                 // build a list of the events that are actually relevant to a compacted log
