@@ -15,6 +15,7 @@ use std::sync::mpsc as smpsc;
 use fxhash::FxHashMap;
 use crate::{meta::Metadata, pipe::EventPipe};
 use bytes::Bytes;
+use std::sync::Weak;
 
 #[allow(unused_imports)]
 use super::crypto::Hash;
@@ -520,7 +521,7 @@ for MeshSession
 struct MeshClient {
     cfg: Config,
     lookup: MeshHashTable,
-    sessions: Mutex<FxHashMap<ChainKey, Arc<MeshSession>>>,
+    sessions: Mutex<FxHashMap<ChainKey, Weak<MeshSession>>>,
 }
 
 impl MeshClient {
@@ -544,23 +545,25 @@ for MeshClient {
         -> Result<Arc<ChainAccessor>, ChainCreationError>
     {
         let mut sessions = self.sessions.lock().await;
-        let session = match sessions.entry(key.clone()) {
+        let record = match sessions.entry(key.clone()) {
             Entry::Occupied(o) => o.into_mut(),
-            Entry::Vacant(v) =>
-            {
-                let addr = match self.lookup.lookup(&key) {
-                    Some(a) => a,
-                    None => {
-                        return Err(ChainCreationError::NoRootFound);
-                    }
-                };
-                
-                let builder = ChainOfTrustBuilder::new(&self.cfg);
-                v.insert(
-                    MeshSession::new(builder, &key, &addr).await?
-                )
+            Entry::Vacant(v) => v.insert(Weak::new())
+        };
+
+        if let Some(ret) = record.upgrade() {
+            return Ok(Arc::clone(&ret.chain));
+        }
+
+        let addr = match self.lookup.lookup(&key) {
+            Some(a) => a,
+            None => {
+                return Err(ChainCreationError::NoRootFound);
             }
         };
+        
+        let builder = ChainOfTrustBuilder::new(&self.cfg);
+        let session = MeshSession::new(builder, &key, &addr).await?;
+        *record = Arc::downgrade(&session);
 
         Ok(Arc::clone(&session.chain))
     }
