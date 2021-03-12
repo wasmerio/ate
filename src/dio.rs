@@ -327,7 +327,10 @@ impl<'a> Dio<'a>
         let trans = Transaction {
             scope: self.scope.clone(),
             events: evts,
-            result: sender,
+            result: match &self.scope {
+                Scope::None => None,
+                _ => Some(sender)
+            },
         };
 
         // Process it in the chain of trust

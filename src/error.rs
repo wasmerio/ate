@@ -9,6 +9,7 @@ use serde_json::Error as JsonError;
 use tokio::task::JoinError;
 use std::time::SystemTimeError;
 use std::sync::mpsc as smpsc;
+use tokio::sync::mpsc as mpsc;
 
 #[derive(Debug)]
 pub enum CryptoError {
@@ -274,78 +275,6 @@ for LoadError {
     }
 }
 
-#[derive(Debug)]
-pub enum FeedError {
-    SinkError(SinkError),
-    IO(tokio::io::Error),
-    ValidationError(ValidationError),
-    SerializationError(SerializationError),
-    SendError(String),
-}
-
-impl From<SinkError>
-for FeedError
-{
-    fn from(err: SinkError) -> FeedError {
-        FeedError::SinkError(err)
-    }   
-}
-
-impl From<ValidationError>
-for FeedError
-{
-    fn from(err: ValidationError) -> FeedError {
-        FeedError::ValidationError(err)
-    }   
-}
-
-impl From<tokio::io::Error>
-for FeedError
-{
-    fn from(err: tokio::io::Error) -> FeedError {
-        FeedError::IO(err)
-    }   
-}
-
-impl From<SerializationError>
-for FeedError
-{
-    fn from(err: SerializationError) -> FeedError {
-        FeedError::SerializationError(err)
-    }   
-}
-
-impl<T> From<tokio::sync::mpsc::error::SendError<T>>
-for FeedError
-{
-    fn from(err: tokio::sync::mpsc::error::SendError<T>) -> FeedError {
-        FeedError::SendError(format!("{}", err.to_string()))
-    }
-}
-
-impl std::fmt::Display
-for FeedError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            FeedError::SinkError(err) => {
-                write!(f, "Event sink error while processing a stream of events - {}", err)
-            },
-            FeedError::IO(err) => {
-                write!(f, "IO sink error while processing a stream of events - {}", err)
-            },
-            FeedError::ValidationError(err) => {
-                write!(f, "Validation error while processing a stream of events - {}", err)
-            },
-            FeedError::SerializationError(err) => {
-                write!(f, "Serialization error while processing a stream of events - {}", err)
-            },
-            FeedError::SendError(err) => {
-                write!(f, "Send error while processing a stream of events - {}", err)
-            },
-        }
-    }
-}
-
 #[derive(Debug, Default)]
 pub struct ProcessError
 {
@@ -392,6 +321,7 @@ pub enum ChainCreationError {
     NotThisRoot,
     #[allow(dead_code)]
     NotImplemented,
+    CommsError(CommsError),
 }
 
 impl From<ProcessError>
@@ -418,6 +348,14 @@ for ChainCreationError
     }   
 }
 
+impl From<CommsError>
+for ChainCreationError
+{
+    fn from(err: CommsError) -> ChainCreationError {
+        ChainCreationError::CommsError(err)
+    }   
+}
+
 impl std::fmt::Display
 for ChainCreationError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -439,6 +377,9 @@ for ChainCreationError {
             },
             ChainCreationError::NotThisRoot => {
                 write!(f, "Failed to create chain-of-trust as this is the wrong root node")
+            },
+            ChainCreationError::CommsError(err) => {
+                write!(f, "Failed to create chain-of-trust due to a communication error - {}", err)
             },
         }
     }
@@ -606,19 +547,14 @@ pub enum CommitError
 {
     #[allow(dead_code)]
     Aborted,
-    FeedError(FeedError),
     TransformError(TransformError),
     LintError(LintError),
+    SinkError(SinkError),
+    IO(tokio::io::Error),
+    ValidationError(ValidationError),
     SerializationError(SerializationError),
-    PipeError(smpsc::RecvError),
-}
-
-impl From<FeedError>
-for CommitError
-{
-    fn from(err: FeedError) -> CommitError {
-        CommitError::FeedError(err)
-    }   
+    PipeError(String),
+    RootError(String),
 }
 
 impl From<TransformError>
@@ -637,6 +573,30 @@ for CommitError
     }   
 }
 
+impl From<SinkError>
+for CommitError
+{
+    fn from(err: SinkError) -> CommitError {
+        CommitError::SinkError(err)
+    }   
+}
+
+impl From<ValidationError>
+for CommitError
+{
+    fn from(err: ValidationError) -> CommitError {
+        CommitError::ValidationError(err)
+    }   
+}
+
+impl From<tokio::io::Error>
+for CommitError
+{
+    fn from(err: tokio::io::Error) -> CommitError {
+        CommitError::IO(err)
+    }   
+}
+
 impl From<SerializationError>
 for CommitError
 {
@@ -649,7 +609,31 @@ impl From<smpsc::RecvError>
 for CommitError
 {
     fn from(err: smpsc::RecvError) -> CommitError {
-        CommitError::PipeError(err)
+        CommitError::PipeError(err.to_string())
+    }   
+}
+
+impl<T> From<smpsc::SendError<T>>
+for CommitError
+{
+    fn from(err: smpsc::SendError<T>) -> CommitError {
+        CommitError::PipeError(err.to_string())
+    }   
+}
+
+impl From<mpsc::error::RecvError>
+for CommitError
+{
+    fn from(err: mpsc::error::RecvError) -> CommitError {
+        CommitError::PipeError(err.to_string())
+    }   
+}
+
+impl<T> From<mpsc::error::SendError<T>>
+for CommitError
+{
+    fn from(err: mpsc::error::SendError<T>) -> CommitError {
+        CommitError::PipeError(err.to_string())
     }   
 }
 
@@ -660,20 +644,29 @@ for CommitError {
             CommitError::Aborted => {
                 write!(f, "The transaction aborted before it could be completed")
             },
-            CommitError::FeedError(err) => {
-                write!(f, "The transaction failed while feeding the events into the chain-of-trust - {}", err)
-            },
             CommitError::TransformError(err) => {
                 write!(f, "Failed to commit the data due to an error transforming the data object into events - {}", err.to_string())
             },
             CommitError::LintError(err) => {
                 write!(f, "Failed to commit the data due to an error linting the data object events - {}", err.to_string())
             },
+            CommitError::SinkError(err) => {
+                write!(f, "Failed to commit the data due to an error accepting the event into a sink - {}", err.to_string())
+            },
+            CommitError::IO(err) => {
+                write!(f, "Failed to commit the data due to an IO error - {}", err.to_string())
+            },
+            CommitError::ValidationError(err) => {
+                write!(f, "Failed to commit the data due to a validation error - {}", err.to_string())
+            },
             CommitError::SerializationError(err) => {
                 write!(f, "Failed to commit the data due to an serialization error - {}", err.to_string())
             },
             CommitError::PipeError(err) => {
                 write!(f, "Failed to commit the data due to an error receiving the result in the interprocess pipe - {}", err.to_string())
+            },
+            CommitError::RootError(err) => {
+                write!(f, "Failed to commit the data due to an error at the root server while processing the events - {}", err.to_string())
             },
         }
     }
@@ -691,7 +684,8 @@ pub enum CommsError
     #[allow(dead_code)]
     JoinError(JoinError),
     LoadError(LoadError),
-    ChainCreationError(ChainCreationError),
+    RootServerError(String),
+    InternalError(String),
 }
 
 impl From<RmpEncodeError>
@@ -718,18 +712,34 @@ for CommsError
     }   
 }
 
-impl<T> From<tokio::sync::mpsc::error::SendError<T>>
+impl<T> From<mpsc::error::SendError<T>>
 for CommsError
 {
-    fn from(err: tokio::sync::mpsc::error::SendError<T>) -> CommsError {
+    fn from(err: mpsc::error::SendError<T>) -> CommsError {
         CommsError::SendError(err.to_string())
     }   
 }
 
-impl From<tokio::sync::mpsc::error::RecvError>
+impl From<mpsc::error::RecvError>
 for CommsError
 {
-    fn from(err: tokio::sync::mpsc::error::RecvError) -> CommsError {
+    fn from(err: mpsc::error::RecvError) -> CommsError {
+        CommsError::ReceiveError(err.to_string())
+    }   
+}
+
+impl<T> From<smpsc::SendError<T>>
+for CommsError
+{
+    fn from(err: smpsc::SendError<T>) -> CommsError {
+        CommsError::SendError(err.to_string())
+    }   
+}
+
+impl From<smpsc::RecvError>
+for CommsError
+{
+    fn from(err: smpsc::RecvError) -> CommsError {
         CommsError::ReceiveError(err.to_string())
     }   
 }
@@ -770,7 +780,15 @@ impl From<ChainCreationError>
 for CommsError
 {
     fn from(err: ChainCreationError) -> CommsError {
-        CommsError::ChainCreationError(err)
+        CommsError::RootServerError(err.to_string())
+    }   
+}
+
+impl From<CommitError>
+for CommsError
+{
+    fn from(err: CommitError) -> CommsError {
+        CommsError::InternalError(err.to_string())
     }   
 }
 
@@ -805,8 +823,11 @@ for CommsError {
             CommsError::LoadError(err) => {
                 write!(f, "Load error occured while processing communication - {}", err)
             },
-            CommsError::ChainCreationError(err) => {
-                write!(f, "Chain creation error while processing communication - {}", err)
+            CommsError::RootServerError(err) => {
+                write!(f, "Error at the root server while processing communication - {}", err)
+            },
+            CommsError::InternalError(err) => {
+                write!(f, "Internal error while processing communication - {}", err)
             },
         }
     }

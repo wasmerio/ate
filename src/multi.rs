@@ -1,5 +1,9 @@
 use tokio::sync::RwLockReadGuard;
 use tokio::sync::mpsc;
+#[allow(unused_imports)]
+use std::sync::mpsc as smpsc;
+#[allow(unused_imports)]
+use std::sync::{Weak, Arc};
 
 use crate::session::{Session};
 
@@ -19,7 +23,7 @@ use super::event::EventExt;
 pub struct ChainMultiUser<'a>
 {
     pub(super) inside: RwLockReadGuard<'a, ChainAccessorProtected>,
-    sender: mpsc::Sender<Transaction>,
+    inbox: mpsc::Sender<Transaction>,
 }
 
 impl<'a> ChainMultiUser<'a>
@@ -28,8 +32,15 @@ impl<'a> ChainMultiUser<'a>
     {
         ChainMultiUser {
             inside: accessor.inside.read().await,
-            sender: accessor.event_sender.clone(),
+            inbox: accessor.inbox.clone(),
         }
+    }
+
+    #[allow(dead_code)]
+    pub fn proxy(&mut self, proxy: mpsc::Sender<Transaction>) -> mpsc::Sender<Transaction> {
+        let ret = self.inbox.clone();
+        self.inbox = proxy;
+        return ret;
     }
  
     #[allow(dead_code)]
@@ -110,8 +121,9 @@ impl<'a> EventPipe
 for ChainMultiUser<'a>
 {
     #[allow(dead_code)]
-    fn feed(&self, trans: Transaction) -> Result<(), FeedError> {
-        let sender = self.sender.clone();
+    fn feed(&self, trans: Transaction) -> Result<(), CommitError>
+    {
+        let sender = self.inbox.clone();
         tokio::task::spawn(async move { sender.send(trans).await.unwrap(); } );
         Ok(())
     }

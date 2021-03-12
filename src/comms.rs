@@ -31,7 +31,7 @@ where M: Send + Sync + Clone
 {
     pub msg: M,
     #[serde(skip)]
-    reply_here: Option<mpsc::Sender<Packet<M>>>,
+    pub reply_here: Option<mpsc::Sender<Packet<M>>>,
 }
 
 impl<M> From<M>
@@ -51,12 +51,19 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
 {
     #[allow(dead_code)]
     pub async fn reply(&self, msg: M) -> Result<(), CommsError> {
+        Ok(
+            Packet::reply_at(self.reply_here.as_ref(), msg).await?
+        )
+    }
+
+    #[allow(dead_code)]
+    pub async fn reply_at(at: Option<&mpsc::Sender<Packet<M>>>, msg: M) -> Result<(), CommsError> {
         let pck = Packet {
             msg,
             reply_here: None,
         };
 
-        if let Some(tx) = &self.reply_here {
+        if let Some(tx) = at {
             tx.send(pck).await?;
         } else {
             return Err(CommsError::NoReplyChannel);
@@ -87,6 +94,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
     listen_on: Vec<SocketAddr>,
     connect_to: Vec<SocketAddr>,
     on_connect: Option<M>,
+    buffer_size: usize,
 }
 
 impl<M> NodeConfig<M>
@@ -98,6 +106,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
             listen_on: Vec::new(),
             connect_to: Vec::new(),
             on_connect: None,
+            buffer_size: 1000,
         }
     }
 
@@ -110,6 +119,11 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
     #[allow(dead_code)]
     pub fn connect_to(mut self, ip: IpAddr, port: u16) -> Self {
         self.connect_to.push(SocketAddr::from(NodeTarget{ip, port}));
+        self
+    }
+
+    pub fn buffer_size(mut self, buffer_size: usize) -> Self {
+        self.buffer_size = buffer_size;
         self
     }
 
@@ -151,20 +165,30 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static
     pub async fn new(conf: &NodeConfig<M>) -> NodeWithReceiver<M>
     {
         // Setup the communication pipes for the server
-        let (inbox_tx, inbox_rx) = mpsc::channel(1000);
-        let (downcast_tx, _) = broadcast::channel(1000);
+        let (inbox_tx, inbox_rx) = mpsc::channel(conf.buffer_size);
+        let (downcast_tx, _) = broadcast::channel(conf.buffer_size);
         let downcast_tx = Arc::new(downcast_tx);
         
         // Create all the outbound connections
         let mut upcast = FxHashMap::default();
         for target in conf.connect_to.iter() {
-            let upstream = mesh_connect_to(target.clone(), inbox_tx.clone(), conf.on_connect.clone()).await;
+            let upstream = mesh_connect_to(
+                target.clone(), 
+                inbox_tx.clone(), 
+                conf.on_connect.clone(),
+                conf.buffer_size
+                ).await;
             upcast.insert(upstream.id, upstream);
         }
 
         // Create all the listeners
         for target in conf.listen_on.iter() {
-            mesh_listen_on(target.clone(), inbox_tx.clone(), Arc::clone(&downcast_tx)).await;
+            mesh_listen_on(
+                target.clone(), 
+                inbox_tx.clone(), 
+                Arc::clone(&downcast_tx),
+                conf.buffer_size
+                ).await;
         }
 
         // Return the mesh
@@ -214,7 +238,11 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static
     }
 }
 
-async fn mesh_listen_on<M>(addr: SocketAddr, inbox: mpsc::Sender<Packet<M>>, outbox: Arc<broadcast::Sender<Packet<M>>>)
+async fn mesh_listen_on<M>(addr: SocketAddr,
+                           inbox: mpsc::Sender<Packet<M>>,
+                           outbox: Arc<broadcast::Sender<Packet<M>>>,
+                           buffer_size: usize
+                        )
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static
 {
     let listener = TcpListener::bind(addr.clone()).await
@@ -241,7 +269,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static
             let (rx, tx) = stream.into_split();
             let sender = fastrand::u64(..);
 
-            let (reply_tx, reply_rx) = mpsc::channel(1000);
+            let (reply_tx, reply_rx) = mpsc::channel(buffer_size);
             let reply_tx1 = reply_tx.clone();
             let reply_tx2 = reply_tx.clone();
 
@@ -365,11 +393,12 @@ async fn mesh_connect_to<M>
 (
     addr: SocketAddr,
     inbox: mpsc::Sender<Packet<M>>,
-    on_connect: Option<M>
+    on_connect: Option<M>,
+    buffer_size: usize,
 ) -> Upstream<M>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static
 {
-    let (reply_tx, reply_rx) = mpsc::channel(1000);
+    let (reply_tx, reply_rx) = mpsc::channel(buffer_size);
     let reply_tx: mpsc::Sender<Packet<M>> = reply_tx;
     let reply_rx: mpsc::Receiver<Packet<M>> = reply_rx;
     let reply_tx0 = reply_tx.clone();
@@ -395,7 +424,12 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static
 }
 
 #[allow(unused_variables)]
-async fn process_inbox<M>(mut rx: tcp::OwnedReadHalf, reply_tx: mpsc::Sender<Packet<M>>, inbox: mpsc::Sender<Packet<M>>, sender: u64) -> Result<(), CommsError>
+async fn process_inbox<M>(
+    mut rx: tcp::OwnedReadHalf,
+    reply_tx: mpsc::Sender<Packet<M>>,
+    inbox: mpsc::Sender<Packet<M>>,
+    sender: u64
+) -> Result<(), CommsError>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default
 {
     loop

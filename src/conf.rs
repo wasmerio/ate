@@ -57,6 +57,9 @@ pub struct Config
     pub force_listen: Option<MeshAddress>,
 
     pub configured_for: ConfiguredFor,
+
+    pub buffer_size_client: usize,
+    pub buffer_size_server: usize,
 }
 
 impl Default
@@ -72,6 +75,8 @@ for Config
             force_client_only: false,
             force_listen: None,
             configured_for: ConfiguredFor::default(),
+            buffer_size_client: 1000,
+            buffer_size_server: 1000,
         }
     }
 }

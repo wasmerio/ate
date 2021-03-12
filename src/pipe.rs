@@ -3,8 +3,8 @@ use crate::meta::*;
 use super::error::*;
 use super::transaction::*;
 
-pub trait EventPipe
+pub trait EventPipe: Send + Sync
 {
     #[allow(dead_code)]
-    fn feed(&self, trans: Transaction) -> Result<(), FeedError>;
+    fn feed(&self, trans: Transaction) -> Result<(), CommitError>;
 }

@@ -2,15 +2,12 @@ use std::sync::mpsc as smpsc;
 use super::event::*;
 use super::error::*;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum Scope
 {
     /// The thread will not wait for any data storage confirmation
     #[allow(dead_code)]
     None,
-    /// The data will be bufferred to local disk
-    #[allow(dead_code)]
-    Buffered,
     /// Data must be flushed to local disk
     #[allow(dead_code)]
     Local,
@@ -22,12 +19,12 @@ pub enum Scope
     Full
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Transaction
 {
     pub scope: Scope,
     pub events: Vec<EventRawPlus>,
-    pub result: smpsc::Sender<Result<(), CommitError>>
+    pub result: Option<smpsc::Sender<Result<(), CommitError>>>
 }
 
 impl Transaction
@@ -40,7 +37,7 @@ impl Transaction
             Transaction {
                 scope,
                 events,
-                result: sender,
+                result: Some(sender),
             },
             receiver
         )

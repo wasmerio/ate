@@ -14,7 +14,8 @@ use super::transaction::*;
 use std::rc::Rc;
 #[allow(unused_imports)]
 use tokio::runtime::Runtime;
-use std::sync::Arc;
+#[allow(unused_imports)]
+use std::sync::{Arc, Weak};
 use tokio::sync::RwLock;
 use tokio::sync::mpsc;
 
@@ -25,6 +26,8 @@ use super::conf::*;
 use super::chain::*;
 use super::single::*;
 use super::multi::*;
+#[allow(unused_imports)]
+use super::pipe::*;
 
 pub struct ChainAccessorProtected
 {
@@ -37,7 +40,7 @@ pub struct ChainAccessor
 {
     pub key: ChainKey,
     pub(super) inside: Arc<RwLock<ChainAccessorProtected>>,
-    pub(super) event_sender: mpsc::Sender<Transaction>,
+    pub(super) inbox: mpsc::Sender<Transaction>,
 }
 
 impl<'a> ChainAccessor
@@ -52,10 +55,7 @@ impl<'a> ChainAccessor
 
             // Push the events into the chain of trust and release the lock on it before
             // we transmit the result so that there is less lock thrashing
-            let chain_result = match lock.feed_async(trans.events).await{
-                Ok(a) => Ok(a),
-                Err(err) => Err(CommitError::FeedError(err))
-            };
+            let chain_result = lock.feed_async(trans.events).await;
 
             // Flush then drop the lock
             lock.chain.flush().await.unwrap();
@@ -64,7 +64,9 @@ impl<'a> ChainAccessor
             // We send the result of a feed operation back to the caller, if the send
             // operation fails its most likely because the caller has moved on and is
             // not concerned by the result hence we do nothing with these errors
-            let _ = trans.result.send(chain_result);
+            if let Some(result) = trans.result {
+                let _ = result.send(chain_result);
+            }
         }
     }
 
@@ -107,7 +109,8 @@ impl<'a> ChainAccessor
         inside.process(entries)?;
 
         let (sender,
-        receiver) = mpsc::channel(100);
+             receiver)
+             = mpsc::channel(builder.cfg.buffer_size_client);
 
         let inside = std::sync::Arc::new(RwLock::new(inside));
         let worker_inside = Arc::clone(&inside);
@@ -117,9 +120,16 @@ impl<'a> ChainAccessor
             ChainAccessor {
                 key: key.clone(),
                 inside,
-                event_sender: sender,
+                inbox: sender,
             }
         )
+    }
+    
+    #[allow(dead_code)]
+    pub fn proxy(&mut self, proxy: mpsc::Sender<Transaction>) -> mpsc::Sender<Transaction> {
+        let ret = self.inbox.clone();
+        self.inbox = proxy;
+        return ret;
     }
 
     #[allow(dead_code)]
@@ -248,6 +258,12 @@ impl<'a> ChainAccessor
     pub async fn count(&self) -> usize {
         self.inside.read().await.chain.redo.count()
     }
+
+    pub async fn flush(&self) -> Result<(), tokio::io::Error> {
+        Ok(
+            self.inside.write().await.chain.flush().await?
+        )
+    }
 }
 
 impl ChainAccessorProtected
@@ -306,7 +322,7 @@ impl ChainAccessorProtected
     }
 
     #[allow(dead_code)]
-    pub(super) async fn feed_async(&mut self, evts: Vec<EventRawPlus>) -> Result<(), FeedError> {
+    pub(super) async fn feed_async(&mut self, evts: Vec<EventRawPlus>) -> Result<(), CommitError> {
         let mut validated_evts = Vec::new();
         {
             for evt in evts.into_iter()
