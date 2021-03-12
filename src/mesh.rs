@@ -622,12 +622,12 @@ struct TestData {
 async fn test_mesh()
 {
     let mut cfg = Config::default();
-    for n in 4000..4002 {
+    for n in 4000..4010 {
         cfg.roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
     }
 
     let mut mesh_roots = Vec::new();
-    for n in 4000..4002 {
+    for n in 4000..4010 {
         cfg.force_listen = Some(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
         mesh_roots.push(create_mesh(&cfg).await);
     }
