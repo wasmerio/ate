@@ -96,6 +96,7 @@ where D: Serialize + DeserializeOwned + Clone,
 
     pub fn as_row_data(&self) -> std::result::Result<RowData, SerializationError> {
         let data = Bytes::from(serde_json::to_vec(&self.data)?);
+            
         let data_hash = Hash::from_bytes(&data[..]);
         Ok
         (

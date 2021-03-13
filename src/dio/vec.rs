@@ -28,19 +28,17 @@ where D: Serialize + DeserializeOwned + Clone,
     }
 
     #[allow(dead_code)]
-    pub async fn iter<'a, P>(&self, parent: &Dao<P>, dio: &mut Dio<'a>) -> Result<Iter<D>, LoadError>
-    where P: Serialize + DeserializeOwned + Clone,
+    pub async fn iter<'a>(&self, parent_id: &PrimaryKey, dio: &mut Dio<'a>) -> Result<Iter<D>, LoadError>
     {
         Ok(
             Iter::new(
-                dio.children(parent.key().clone(), self.vec_id.clone()).await?
+                dio.children(parent_id.clone(), self.vec_id.clone()).await?
             )
         )
     }
     
     #[allow(dead_code)]
-    pub fn push<P>(&self, dio: &mut Dio, parent: &Dao<P>, data: D) -> Result<Dao<D>, SerializationError>
-    where P: Serialize + DeserializeOwned + Clone,
+    pub fn push(&self, dio: &mut Dio, parent_id: &PrimaryKey, data: D) -> Result<Dao<D>, SerializationError>
     {
         let mut ret = dio.store(data)?;
 
@@ -48,7 +46,7 @@ where D: Serialize + DeserializeOwned + Clone,
         ret.row.tree = Some(
             MetaTree {
                 vec: MetaCollection {
-                    parent_id: parent.key().clone(),
+                    parent_id: parent_id.clone(),
                     collection_id: self.vec_id.clone(),
                 },
                 inherit_read: true,

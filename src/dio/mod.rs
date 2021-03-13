@@ -36,9 +36,10 @@ use super::crypto::*;
 use super::transaction::*;
 
 pub use crate::dio::vec::DaoVec;
+pub use crate::dio::dao::Dao;
 
 #[derive(Debug)]
-pub(super) struct DioState
+struct DioState
 {
     pub(super) store: Vec<Rc<RowData>>,
     pub(super) cache_store_primary: FxHashMap<PrimaryKey, Rc<RowData>>,
@@ -149,7 +150,7 @@ impl<'a> Dio<'a>
         Ok(self.load_from_entry(entry).await?)
     }
 
-    pub(crate) async fn load_from_entry<D>(&self, entry: EventEntryExt)
+    pub(crate) async fn load_from_entry<D>(&mut self, entry: EventEntryExt)
     -> Result<Dao<D>, LoadError>
     where D: Serialize + DeserializeOwned + Clone,
     {
@@ -162,7 +163,7 @@ impl<'a> Dio<'a>
         Ok(self.load_from_event(evt)?)
     }
 
-    pub(crate) fn load_from_event<D>(&self, evt: EventExt)
+    pub(crate) fn load_from_event<D>(&mut self, evt: EventExt)
     -> Result<Dao<D>, LoadError>
     where D: Serialize + DeserializeOwned + Clone,
     {
@@ -273,7 +274,7 @@ impl<'a> Dio<'a>
         Ok(ret)
     }
 
-    fn commit_internal(&mut self) -> Result<(), CommitError>
+    pub fn commit(&mut self) -> Result<(), CommitError>
     {
         // If we have dirty records
         let mut state = self.state.borrow_mut();
@@ -383,7 +384,7 @@ for Dio<'a>
 {
     fn drop(&mut self)
     {
-        if let Err(err) = self.commit_internal() {
+        if let Err(err) = self.commit() {
             debug_assert!(false, "dio-commit-error {}", err.to_string());
         }
     }
@@ -468,7 +469,7 @@ async fn test_dio()
             mock_dao.hidden = "This text should be hidden".to_string();
             
             let mut dao1 = dio.store(mock_dao).unwrap();
-            let dao3 = dao1.inner.push(&mut dio, &dao1, TestEnumDao::Blah1).unwrap();
+            let dao3 = dao1.inner.push(&mut dio, dao1.key(), TestEnumDao::Blah1).unwrap();
 
             key1 = dao1.key().clone();
             println!("key1: {}", key1.as_hex_string());
@@ -528,7 +529,7 @@ async fn test_dio()
         assert_eq!(test.val, 3);
 
         // Read the items in the collection which we should find our second object
-        let test3 = test.inner.iter(&test, &mut dio).await.unwrap().next().expect("Three should be a data object in this collection");
+        let test3 = test.inner.iter(test.key(), &mut dio).await.unwrap().next().expect("Three should be a data object in this collection");
         assert_eq!(test3.key(), &key3);
     }
 

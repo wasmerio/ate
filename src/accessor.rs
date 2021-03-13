@@ -456,9 +456,8 @@ impl<'a> ChainAccessor
     {
         let mut notify_map = MultiMap::new();
         for evt in evts.iter() {
-            let keys = evt.raw.meta.get_collections();
-            for key in keys {
-                notify_map.insert(key, evt.clone());
+            if let Some(tree) = evt.raw.meta.get_tree() {
+                notify_map.insert(&tree.vec, evt.clone());
             }
         }
 

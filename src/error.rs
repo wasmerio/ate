@@ -864,6 +864,7 @@ pub enum BusError
     ChannelClosed,
     SerializationError(SerializationError),
     LockError(LockError),
+    TransformError(TransformError),
 }
 
 impl From<LoadError>
@@ -871,6 +872,14 @@ for BusError
 {
     fn from(err: LoadError) -> BusError {
         BusError::LoadError(err)
+    }   
+}
+
+impl From<TransformError>
+for BusError
+{
+    fn from(err: TransformError) -> BusError {
+        BusError::TransformError(err)
     }   
 }
 
@@ -913,6 +922,9 @@ for BusError {
             BusError::LoadError(err) => {
                 write!(f, "Failed to receive event from BUS due to an error loading the event - {}", err)
             },
+            BusError::TransformError(err) => {
+                write!(f, "Failed to receive event from BUS due to an error transforming the data - {}", err)
+            },
             BusError::ReceiveError(err) => {
                 write!(f, "Failed to receive event from BUS due to an internal error  - {}", err)
             },
@@ -926,6 +938,13 @@ for BusError {
                 write!(f, "Failed to receive event from BUS due to an error locking the data object - {}", err)
             },
         }
+    }
+}
+
+impl std::fmt::Debug
+for BusError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.to_string())
     }
 }
 
@@ -994,5 +1013,12 @@ for LockError {
                 write!(f, "Failed to lock the data object due to an error receiving on the pipe - {}", err)
             },
         }
+    }
+}
+
+impl std::fmt::Debug
+for LockError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.to_string())
     }
 }

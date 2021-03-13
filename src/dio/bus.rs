@@ -5,16 +5,15 @@ use tokio::sync::mpsc;
 use crate::{error::*, event::EventExt, meta::MetaCollection};
 use super::dao::*;
 use crate::dio::*;
-use crate::meta::*;
 use crate::accessor::*;
 
 impl<D> DaoVec<D>
 where D: Serialize + DeserializeOwned + Clone,
 {
     #[allow(dead_code)]
-    pub fn bus<'a>(&self, chain: &'a ChainAccessor, parent: &Dao<D>) -> Bus<'a, D> {
+    pub fn bus<'a>(&self, chain: &'a ChainAccessor, parent_id: &PrimaryKey) -> Bus<'a, D> {
         let vec = MetaCollection {
-            parent_id: parent.key().clone(),
+            parent_id: parent_id.clone(),
             collection_id: self.vec_id,
         };
         Bus::new(chain, vec.clone())
@@ -59,9 +58,16 @@ where D: Serialize + DeserializeOwned + Clone,
     }
 
     #[allow(dead_code)]
-    pub async fn recv(&mut self, dio: &mut Dio<'a>) -> Result<Dao<D>, BusError> {
-        if let Some(evt) = self.receiver.recv().await {
-            return Ok(dio.load_from_event(evt)?);
+    pub async fn recv(&mut self, session: &Session) -> Result<D, BusError> {
+        while let Some(mut evt) = self.receiver.recv().await {
+
+            let multi = self.chain.multi().await;
+            evt.raw.data = match evt.raw.data {
+                Some(data) => Some(multi.data_as_overlay(&mut evt.raw.meta, data, session)?),
+                None => continue,
+            };
+
+            return Ok(Row::from_event(&evt)?.data);
         }
         Err(BusError::ChannelClosed)
     }
@@ -77,21 +83,6 @@ where D: Serialize + DeserializeOwned + Clone,
                 return Ok(dao);
             }
         }
-    }
-
-    #[allow(dead_code)]
-    pub fn send(&'a mut self, dio: &'a mut Dio<'a>, data: D) -> Result<Dao<D>, BusError> {
-        let mut ret = dio.store(data)?;
-
-        ret.fork();
-        ret.row.tree = Some(
-            MetaTree {
-                vec: self.vec.clone(),
-                inherit_read: true,
-                inherit_write: true,
-            }
-        );
-        Ok(ret)
     }
 }
 

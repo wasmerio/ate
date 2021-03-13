@@ -93,7 +93,7 @@ impl MeshSession
              } =>
             {
                 let feed_me = MessageEvent::convert_from(&evts);
-                
+
                 let mut single = self.chain.single().await;
                 let evts = single.feed_async(feed_me).await?;
                 single.inside_async.chain.flush().await?;
