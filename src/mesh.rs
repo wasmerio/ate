@@ -636,13 +636,29 @@ async fn test_mesh()
     {
         cfg.force_listen = None;
         cfg.force_client_only = true;
-        let client = create_mesh(&cfg).await;
+        let client_a = create_mesh(&cfg).await;
 
-        let chain = client.open(ChainKey::new("test-chain".to_string())).await.unwrap();
-        let session = Session::default();
+        let chain_a = client_a.open(ChainKey::new("test-chain".to_string())).await.unwrap();
+        let session_a = Session::default();
+
         {
-            let mut dio = chain.dio_ext(&session, Scope::Full).await;
-            dao_key = dio.store(TestData::default()).unwrap().key().clone();
+            cfg.force_listen = None;
+            cfg.force_client_only = true;
+            let client_b = create_mesh(&cfg).await;
+
+            let chain_b = client_b.open(ChainKey::new("test-chain".to_string())).await.unwrap();
+            let session_b = Session::default();
+            {
+                let mut dio = chain_b.dio_ext(&session_b, Scope::Full).await;
+                dao_key = dio.store(TestData::default()).unwrap().key().clone();
+            }
+        }
+
+        {
+            chain_a.sync().await.unwrap();
+
+            let mut dio = chain_a.dio_ext(&session_a, Scope::Full).await;
+            dio.load::<TestData>(&dao_key).await.expect("The data did not not get replicated to other clients in realtime");
         }
     }
 
@@ -655,7 +671,7 @@ async fn test_mesh()
         let session = Session::default();
         {
             let mut dio = chain.dio_ext(&session, Scope::Full).await;
-            dio.load::<TestData>(&dao_key).await.expect("The data did not survive being pushed to the root node");
+            dio.load::<TestData>(&dao_key).await.expect("The data did not survive between new sessions");
         }
     }
 }

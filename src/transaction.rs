@@ -2,7 +2,7 @@ use std::sync::mpsc as smpsc;
 use super::event::*;
 use super::error::*;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Scope
 {
     /// The thread will not wait for any data storage confirmation

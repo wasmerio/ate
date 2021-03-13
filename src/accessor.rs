@@ -18,6 +18,7 @@ use tokio::runtime::Runtime;
 use std::sync::{Arc, Weak};
 use tokio::sync::RwLock;
 use tokio::sync::mpsc;
+use std::sync::mpsc as smpsc;
 
 use super::redo::*;
 #[allow(unused_imports)]
@@ -263,6 +264,29 @@ impl<'a> ChainAccessor
         Ok(
             self.inside.write().await.chain.flush().await?
         )
+    }
+
+    #[allow(dead_code)]
+    pub async fn sync(&self) -> Result<(), CommitError>
+    {
+        // Create the transaction
+        let (sender, receiver) = smpsc::channel();
+        let trans = Transaction {
+            scope: Scope::Full,
+            events: Vec::new(),
+            result: Some(sender),
+        };
+
+        // Feed the transaction into the chain
+        let multi = self.multi().await;
+        multi.feed(trans)?;
+        drop(multi);
+
+        // Block until the transaction is received
+        tokio::task::block_in_place(move || {
+            receiver.recv()
+        })??;
+        Ok(())
     }
 }
 
