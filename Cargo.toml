@@ -6,7 +6,7 @@ r = "run"
 
 [package]
 name = "ate"
-version = "2.0.0"
+version = "0.1.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "Distributed immutable data store with strong encryption and authentication"
