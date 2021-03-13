@@ -52,4 +52,4 @@ pnet = "0.27"
 log = "0.4"
 
 [dev-dependencies]
-ctor = "*"
+ctor = "0.1"
