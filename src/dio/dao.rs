@@ -11,13 +11,12 @@ use crate::crypto::{EncryptedPrivateKey, PrivateKey};
 #[allow(unused_imports)]
 use crate::{crypto::EncryptKey, session::{Session, SessionProperty}};
 
-use super::header::*;
-use super::event::*;
-use super::meta::*;
-use super::error::*;
-#[allow(unused_imports)]
-use super::crypto::*;
-use super::dio::DioState;
+use crate::header::*;
+use crate::event::*;
+use crate::meta::*;
+use crate::error::*;
+use crate::crypto::Hash;
+use crate::dio::DioState;
 
 pub use super::collection::DaoVec;
 
@@ -95,7 +94,7 @@ where D: Serialize + DeserializeOwned + Clone,
 
     pub fn as_row_data(&self) -> std::result::Result<RowData, SerializationError> {
         let data = Bytes::from(serde_json::to_vec(&self.data)?);
-        let data_hash = super::crypto::Hash::from_bytes(&data[..]);
+        let data_hash = Hash::from_bytes(&data[..]);
         Ok
         (
             RowData {
@@ -111,11 +110,11 @@ where D: Serialize + DeserializeOwned + Clone,
 }
 
 #[derive(Debug, Clone)]
-pub(super) struct RowData
+pub(crate) struct RowData
 {
     pub key: PrimaryKey,
     pub tree: Option<MetaTree>,
-    pub data_hash: super::crypto::Hash,
+    pub data_hash: Hash,
     pub data: Bytes,
     pub auth: MetaAuthorization,
     pub collections: FxHashSet<MetaCollection>,

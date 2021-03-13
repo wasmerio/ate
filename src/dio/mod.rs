@@ -1,3 +1,7 @@
+mod dao;
+mod collection;
+mod bus;
+
 use fxhash::{FxHashMap, FxHashSet};
 
 use multimap::MultiMap;
@@ -22,7 +26,7 @@ use super::multi::*;
 use super::event::*;
 use super::meta::*;
 use super::error::*;
-use super::dao::*;
+use super::dio::dao::*;
 use super::accessor::*;
 #[allow(unused_imports)]
 use super::pipe::*;
@@ -30,7 +34,7 @@ use super::pipe::*;
 use super::crypto::*;
 use super::transaction::*;
 
-pub use super::collection::DaoVec;
+pub use crate::dio::collection::DaoVec;
 
 #[derive(Debug)]
 pub(super) struct DioState

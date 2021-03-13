@@ -39,7 +39,7 @@ pub struct ChainAccessorProtected
 
 pub struct ChainAccessor
 {
-    pub key: ChainKey,
+    pub(super) key: ChainKey,
     pub(super) inside: Arc<RwLock<ChainAccessorProtected>>,
     pub(super) inbox: mpsc::Sender<Transaction>,
 }
@@ -134,11 +134,14 @@ impl<'a> ChainAccessor
     }
 
     #[allow(dead_code)]
+    pub fn key(&'a self) -> ChainKey {
+        self.key.clone()
+    }
+
     pub async fn single(&'a self) -> ChainSingleUser<'a> {
         ChainSingleUser::new(self).await
     }
 
-    #[allow(dead_code)]
     pub async fn multi(&'a self) -> ChainMultiUser<'a> {
         ChainMultiUser::new(self).await
     }
