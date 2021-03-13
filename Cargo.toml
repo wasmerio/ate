@@ -14,6 +14,8 @@ license = "LGPL-3.0-only"
 license-file = "LICENSE"
 keywords = ["immutable", "database", "kafka", "blockchain", "datastore", "immutable objects", "quantum algorithms", "materialized views", "materialized view", "immutable store", "nosql"]
 categories = ["Asynchronous", "Caching", "Cryptography", "Database implementations"]
+repository = "https://github.com/john-sharratt/ate-2.0"
+readme = "README.md"
 
 [lib]
 proc-macro = true
