@@ -10,7 +10,6 @@ version = "2.0.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "Distributed immutable data store with strong encryption and authentication"
-license = "LGPL-3.0-only"
 license-file = "LICENSE"
 keywords = ["immutable", "database", "kafka", "blockchain", "datastore", "immutable objects", "quantum algorithms", "materialized views", "materialized view", "immutable store", "nosql"]
 categories = ["Asynchronous", "Caching", "Cryptography", "Database implementations"]
