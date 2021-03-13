@@ -38,15 +38,15 @@ impl MessageEvent
         feed_me
     }
 
-    pub fn convert_from(evts: Vec<MessageEvent>) -> Vec<EventRawPlus>
+    pub fn convert_from(evts: &Vec<MessageEvent>) -> Vec<EventRawPlus>
     {
         let mut feed_me = Vec::new();
-        for evt in evts {
+        for evt in evts.iter() {
             let evt = EventRaw {
-                meta: evt.meta,
+                meta: evt.meta.clone(),
                 data_hash: evt.data_hash,
-                data: match evt.data {
-                    Some(d) => Some(Bytes::from(d)),
+                data: match &evt.data {
+                    Some(d) => Some(Bytes::from(d.clone())),
                     None => None,
                 },
             };

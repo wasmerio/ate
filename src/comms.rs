@@ -32,6 +32,8 @@ where M: Send + Sync + Clone
     pub msg: M,
     #[serde(skip)]
     pub reply_here: Option<mpsc::Sender<Packet<M>>>,
+    #[serde(skip)]
+    pub skip_here: Option<u64>,
 }
 
 impl<M> From<M>
@@ -42,6 +44,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
         Packet {
             msg,
             reply_here: None,
+            skip_here: None,
         }
     }
 }
@@ -61,6 +64,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
         let pck = Packet {
             msg,
             reply_here: None,
+            skip_here: None,
         };
 
         if let Some(tx) = at {
@@ -297,7 +301,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static
 
             let worker_outbox = outbox.subscribe();
             tokio::spawn(async move {
-                match process_downcast(reply_tx2, worker_outbox).await {
+                match process_downcast(reply_tx2, worker_outbox, sender).await {
                     Ok(_) => { },
                     Err(err) => {
                         debug_assert!(false, "comms-downcast-error {:?}", err);
@@ -443,6 +447,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default
         // Deserialize it and process it
         let mut pck: Packet<M> = rmps::from_read_ref(&buf[..])?;
         pck.reply_here = Some(reply_tx.clone());
+        pck.skip_here = Some(sender);
         inbox.send(pck).await?;
     }
     Ok(())
@@ -468,12 +473,17 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
 }
 
 #[allow(unused_variables)]
-async fn process_downcast<M>(tx: mpsc::Sender<Packet<M>>, mut outbox: broadcast::Receiver<Packet<M>>) -> Result<(), CommsError>
+async fn process_downcast<M>(tx: mpsc::Sender<Packet<M>>, mut outbox: broadcast::Receiver<Packet<M>>, sender: u64) -> Result<(), CommsError>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone
 {
     loop
     {
         let pck = outbox.recv().await?;
+        if let Some(skip) = pck.skip_here {
+            if sender == skip {
+                continue;
+            }
+        }
         tx.send(pck).await?;
     }
 }

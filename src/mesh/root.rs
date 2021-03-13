@@ -55,17 +55,18 @@ impl MeshRoot
         );
 
         let listen = Node::new(&node_cfg).await;
-        tokio::spawn(MeshRoot::inbox(Arc::clone(&ret), listen.inbox));
+        tokio::spawn(MeshRoot::inbox(Arc::clone(&ret), listen.inbox, listen.node));
 
         ret
     }
 
-    async fn inbox_packet(self: &Arc<MeshRoot>, mut pck: Packet<Message>)
+    async fn inbox_packet(self: &Arc<MeshRoot>, mut pck: Packet<Message>, node: &Node<Message>)
         -> Result<(), CommsError>
     {
         let reply_at_owner = pck.reply_here.take();
         let reply_at = reply_at_owner.as_ref();
-        match pck.msg {
+        
+        match &pck.msg {
             Message::Subscribe(key) =>
             {
                 let chain = match self.open(key.clone()).await {
@@ -116,6 +117,7 @@ impl MeshRoot
                 commit,
                 evts
             } => {
+                let commit = commit.clone();
                 let chain = match self.open(key.clone()).await {
                     Err(ChainCreationError::NoRootFound) => {
                         Packet::reply_at(reply_at, Message::NotThisRoot).await?;
@@ -129,6 +131,11 @@ impl MeshRoot
                 let ret = single.inside.feed_async(evts).await;
                 drop(single);
 
+                let downcast_err = match ret.is_ok() {
+                    true => node.downcast_packet(pck).await,
+                    false => Ok(())
+                };
+
                 if let Some(id) = commit {
                     match ret {
                         Ok(()) => Packet::reply_at(reply_at, Message::Confirmed(id.clone())).await?,
@@ -138,17 +145,19 @@ impl MeshRoot
                         }).await?
                     };
                 }
+
+                downcast_err?;
             },
             _ => { }
         };
         Ok(())
     }
 
-    async fn inbox(self: Arc<MeshRoot>, mut inbox: mpsc::Receiver<Packet<Message>>)
+    async fn inbox(self: Arc<MeshRoot>, mut inbox: mpsc::Receiver<Packet<Message>>, node: Node<Message>)
         -> Result<(), CommsError>
     {
         while let Some(pck) = inbox.recv().await {
-            match MeshRoot::inbox_packet(&self, pck).await {
+            match MeshRoot::inbox_packet(&self, pck, &node).await {
                 Ok(_) => { },
                 Err(err) => {
                     debug_assert!(false, "mesh-root-err {:?}", err);
