@@ -15,6 +15,7 @@ use crate::error::*;
 use crate::conf::*;
 use crate::transaction::*;
 use super::client::MeshClient;
+use super::msg::*;
 
 pub(super) struct MeshRoot {
     cfg: Config,

@@ -12,6 +12,7 @@ use crate::chain::*;
 use crate::error::*;
 use crate::conf::*;
 use crate::transaction::*;
+use super::msg::*;
 
 #[allow(dead_code)]
 pub struct MeshSession

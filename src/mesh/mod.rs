@@ -1,5 +1,6 @@
 #![cfg_attr(debug_assertions, allow(dead_code, unused_imports))]
 
+mod msg;
 mod core;
 mod root;
 mod client;
@@ -29,6 +30,7 @@ use super::chain::*;
 use super::conf::*;
 use super::transaction::*;
 use super::session::*;
+use crate::mesh::msg::*;
 
 use crate::mesh::client::MeshClient;
 use crate::mesh::root::MeshRoot;
