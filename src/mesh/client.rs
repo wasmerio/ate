@@ -1,0 +1,74 @@
+use async_trait::async_trait;
+use tokio::sync::{Mutex};
+use std::{sync::Arc, collections::hash_map::Entry};
+use fxhash::FxHashMap;
+use crate::{pipe::EventPipe};
+use std::sync::Weak;
+
+use super::core::*;
+use super::session::*;
+use crate::accessor::*;
+use crate::chain::*;
+use crate::error::*;
+use crate::conf::*;
+use crate::transaction::*;
+
+pub(super) struct MeshClient {
+    cfg: Config,
+    lookup: MeshHashTable,
+    sessions: Mutex<FxHashMap<ChainKey, Weak<MeshSession>>>,
+}
+
+impl MeshClient {
+    pub(super) async fn new(cfg: &Config) -> Arc<MeshClient>
+    {
+        Arc::new(
+            MeshClient
+            {
+                cfg: cfg.clone(),
+                lookup: MeshHashTable::new(cfg),
+                sessions: Mutex::new(FxHashMap::default()),
+            }
+        )
+    }
+}
+
+#[async_trait]
+impl Mesh
+for MeshClient {
+    async fn open<'a>(&'a self, key: ChainKey)
+        -> Result<Arc<ChainAccessor>, ChainCreationError>
+    {
+        let mut sessions = self.sessions.lock().await;
+        let record = match sessions.entry(key.clone()) {
+            Entry::Occupied(o) => o.into_mut(),
+            Entry::Vacant(v) => v.insert(Weak::new())
+        };
+
+        if let Some(ret) = record.upgrade() {
+            return Ok(Arc::clone(&ret.chain));
+        }
+
+        let addr = match self.lookup.lookup(&key) {
+            Some(a) => a,
+            None => {
+                return Err(ChainCreationError::NoRootFound);
+            }
+        };
+        
+        let builder = ChainOfTrustBuilder::new(&self.cfg);
+        let session = MeshSession::new(builder, &key, &addr).await?;
+        *record = Arc::downgrade(&session);
+
+        Ok(Arc::clone(&session.chain))
+    }
+}
+
+impl EventPipe
+for MeshClient
+{
+    fn feed(&self, _trans: Transaction) -> Result<(), CommitError>
+    {
+        Ok(())
+    }
+}
