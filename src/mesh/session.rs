@@ -1,9 +1,11 @@
+use async_trait::async_trait;
 use log::{warn};
 use std::sync::Mutex as StdMutex;
 use std::{sync::Arc};
 use tokio::sync::mpsc;
 use std::sync::mpsc as smpsc;
 use fxhash::FxHashMap;
+use std::sync::RwLock as StdRwLock;
 
 use super::core::*;
 use crate::comms::*;
@@ -13,23 +15,28 @@ use crate::error::*;
 use crate::conf::*;
 use crate::transaction::*;
 use super::msg::*;
+use crate::pipe::*;
+use crate::header::*;
 
-#[allow(dead_code)]
+struct SessionPipe
+{
+    key: ChainKey,
+    comms: Node<Message>,
+    next: StdRwLock<Option<Arc<dyn EventPipe>>>,
+    commit: Arc<StdMutex<FxHashMap<u64, smpsc::Sender<Result<(), CommitError>>>>>,
+}
+
 pub struct MeshSession
 {
     key: ChainKey,
     pub(super) chain: Arc<ChainAccessor>,
-    commit: StdMutex<FxHashMap<u64, smpsc::Sender<Result<(), CommitError>>>>,
+    commit: Arc<StdMutex<FxHashMap<u64, smpsc::Sender<Result<(), CommitError>>>>>,
 }
 
 impl MeshSession
 {
     pub(super) async fn new(builder: ChainOfTrustBuilder, key: &ChainKey, addr: &MeshAddress) -> Result<Arc<MeshSession>, ChainCreationError>
     {
-        let (outbox_sender,
-             outbox_receiver)
-            = mpsc::channel(builder.cfg.buffer_size_client);
-
         let (loaded_sender, mut loaded_receiver)
             = mpsc::channel(1);
         
@@ -38,67 +45,35 @@ impl MeshSession
             .buffer_size(builder.cfg.buffer_size_client);
         let node: NodeWithReceiver<Message> = Node::new(&node_cfg).await;
 
-        let mut chain = ChainAccessor::new(builder, key).await?;
-        let outbox_next = chain.proxy(outbox_sender);
+        let commit = Arc::new(StdMutex::new(FxHashMap::default()));
 
-        let chain = Arc::new(chain);        
+        let comms = node.node;
+        comms.upcast(Message::Subscribe(key.clone())).await?;
+
+        let mut chain = ChainAccessor::new(builder, key).await?;
+        chain.proxy(
+            Arc::new(
+                SessionPipe {
+                    key: key.clone(),
+                    comms: comms,
+                    next: StdRwLock::new(None),
+                    commit: Arc::clone(&commit),
+                }
+            )
+        );
+        let chain = Arc::new(chain);
+
         let ret = Arc::new(MeshSession {
             key: key.clone(),
             chain,
-            commit: StdMutex::new(FxHashMap::default()),
+            commit,
         });
 
         tokio::spawn(MeshSession::inbox(Arc::clone(&ret), node.inbox, loaded_sender));
 
-        let comms = node.node;
-        comms.upcast(Message::Subscribe(key.clone())).await?;
-        tokio::spawn(MeshSession::outbox(Arc::clone(&ret), outbox_receiver, comms, outbox_next));
-
         loaded_receiver.recv().await;
 
         Ok(ret)
-    }
-
-    async fn outbox_trans(self: &Arc<MeshSession>, comms: &Node<Message>, next: &mpsc::Sender<Transaction>, mut trans: Transaction)
-        -> Result<(), CommsError>
-    {
-        let evts = MessageEvent::convert_to(&trans.events);
-        
-        let commit = match &trans.scope {
-            Scope::Full | Scope::One => {
-                let id = fastrand::u64(..);
-                if let Some(result) = trans.result.take() {
-                    self.commit.lock().unwrap().insert(id, result);
-                }
-                Some(id)
-            },
-            _ => None,
-        };
-
-        comms.upcast(Message::Events{
-            key: self.key.clone(),
-            commit,
-            evts,
-        }).await?;
-
-        next.send(trans).await?;
-        Ok(())
-    }
-
-    async fn outbox(self: Arc<MeshSession>, mut receiver: mpsc::Receiver<Transaction>, comms: Node<Message>, next: mpsc::Sender<Transaction>)
-        -> Result<(), CommsError>
-    {
-        while let Some(trans) = receiver.recv().await {
-            match MeshSession::outbox_trans(&self, &comms, &next, trans).await {
-                Ok(_) => { },
-                Err(err) => {
-                    debug_assert!(false, "mesh-session-err {:?}", err);
-                    warn!("mesh-session-err: {}", err.to_string());
-                    continue;
-                }
-            }
-        }
-        Ok(())
     }
 
     async fn inbox_packet(
@@ -175,5 +150,56 @@ for MeshSession
                 warn!("mesh-session-err: {}", err.to_string());
             }
         }
+    }
+}
+
+#[async_trait]
+impl EventPipe
+for SessionPipe
+{
+    async fn feed(&self, mut trans: Transaction) -> Result<(), CommitError>
+    {
+        let evts = MessageEvent::convert_to(&trans.events);
+        
+        let commit = match &trans.scope {
+            Scope::Full | Scope::One => {
+                let id = fastrand::u64(..);
+                if let Some(result) = trans.result.take() {
+                    self.commit.lock().unwrap().insert(id, result);
+                }
+                Some(id)
+            },
+            _ => None,
+        };
+
+        self.comms.upcast(Message::Events{
+            key: self.key.clone(),
+            commit,
+            evts,
+        }).await?;
+
+        {
+            let lock = self.next.read().unwrap().clone();
+            if let Some(next) = lock {
+                next.feed(trans).await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn try_lock(&self, _key: PrimaryKey) -> Result<bool, CommitError>
+    {
+        Ok(false)
+    }
+
+    async fn unlock(&self, _key: PrimaryKey) -> Result<(), CommitError>
+    {
+        Ok(())
+    }
+
+    fn set_next(&self, next: Arc<dyn EventPipe>) {
+        let mut lock = self.next.write().unwrap();
+        lock.replace(next);
     }
 }

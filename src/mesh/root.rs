@@ -5,7 +5,7 @@ use tokio::sync::{Mutex};
 use std::{sync::Arc, collections::hash_map::Entry};
 use tokio::sync::mpsc;
 use fxhash::FxHashMap;
-use crate::{pipe::EventPipe};
+use crate::{header::PrimaryKey, pipe::EventPipe};
 
 use super::core::*;
 use crate::comms::*;
@@ -210,14 +210,5 @@ for MeshRoot {
                 a => a?,
             }
         )
-    }
-}
-
-impl EventPipe
-for MeshRoot
-{
-    fn feed(&self, _trans: Transaction) -> Result<(), CommitError>
-    {
-        Ok(())
     }
 }

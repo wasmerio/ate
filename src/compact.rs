@@ -101,6 +101,7 @@ for TombstoneCompactor
 
 impl Metadata
 {
+    #[allow(dead_code)]
     pub fn get_tombstone(&self) -> Option<PrimaryKey> {
         self.core.iter().filter_map(
             |m| {

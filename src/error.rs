@@ -559,6 +559,7 @@ pub enum CommitError
     SerializationError(SerializationError),
     PipeError(String),
     RootError(String),
+    CommsError(CommsError),
 }
 
 impl From<TransformError>
@@ -574,6 +575,14 @@ for CommitError
 {
     fn from(err: LintError) -> CommitError {
         CommitError::LintError(err)
+    }   
+}
+
+impl From<CommsError>
+for CommitError
+{
+    fn from(err: CommsError) -> CommitError {
+        CommitError::CommsError(err)
     }   
 }
 
@@ -650,6 +659,9 @@ for CommitError {
             },
             CommitError::TransformError(err) => {
                 write!(f, "Failed to commit the data due to an error transforming the data object into events - {}", err.to_string())
+            },
+            CommitError::CommsError(err) => {
+                write!(f, "Failed to commit the data due to an error in communication - {}", err.to_string())
             },
             CommitError::LintError(err) => {
                 write!(f, "Failed to commit the data due to an error linting the data object events - {}", err.to_string())
@@ -919,16 +931,67 @@ for BusError {
 
 pub enum LockError
 {
-    #[allow(dead_code)]
-    NotImplemented,
+    SerializationError(SerializationError),
+    LintError(LintError),
+    CommitError(String),
+    ReceiveError(String),
+}
+
+impl From<SerializationError>
+for LockError
+{
+    fn from(err: SerializationError) -> LockError {
+        LockError::SerializationError(err)
+    }   
+}
+
+impl From<LintError>
+for LockError
+{
+    fn from(err: LintError) -> LockError {
+        LockError::LintError(err)
+    }   
+}
+
+impl From<CommitError>
+for LockError
+{
+    fn from(err: CommitError) -> LockError {
+        LockError::CommitError(err.to_string())
+    }   
+}
+
+impl From<mpsc::error::RecvError>
+for LockError
+{
+    fn from(err: mpsc::error::RecvError) -> LockError {
+        LockError::ReceiveError(err.to_string())
+    }   
+}
+
+impl From<smpsc::RecvError>
+for LockError
+{
+    fn from(err: smpsc::RecvError) -> LockError {
+        LockError::ReceiveError(err.to_string())
+    }   
 }
 
 impl std::fmt::Display
 for LockError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            LockError::NotImplemented => {
-                write!(f, "Failed to lock the data object as this function is not yet implemented")
+            LockError::SerializationError(err) => {
+                write!(f, "Failed to lock the data object due to a serialization error - {}", err)
+            },
+            LockError::LintError(err) => {
+                write!(f, "Failed to lock the data object due to issue linting the event - {}", err)
+            },
+            LockError::CommitError(err) => {
+                write!(f, "Failed to lock the data object due to issue committing the event to the pipe - {}", err)
+            },
+            LockError::ReceiveError(err) => {
+                write!(f, "Failed to lock the data object due to an error receiving on the pipe - {}", err)
             },
         }
     }

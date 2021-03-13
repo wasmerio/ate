@@ -69,15 +69,18 @@ where D: Serialize + DeserializeOwned + Clone,
     #[allow(dead_code)]
     pub async fn process(&mut self, dio: &mut Dio<'a>) -> Result<Dao<D>, BusError> {
         loop {
-            let mut dao = self.recv(dio).await?;
-            if dao.try_lock_then_delete()? == true {
+            let mut dao: Dao<D> = match self.receiver.recv().await {
+                Some(evt) => dio.load_from_event(evt)?,
+                None => { return Err(BusError::ChannelClosed); }
+            };
+            if dao.try_lock_then_delete(dio).await? == true {
                 return Ok(dao);
             }
         }
     }
 
     #[allow(dead_code)]
-    pub fn send(&mut self, dio: &mut Dio<'a>, data: D) -> Result<Dao<D>, BusError> {
+    pub fn send(&'a mut self, dio: &'a mut Dio<'a>, data: D) -> Result<Dao<D>, BusError> {
         let mut ret = dio.store(data)?;
 
         ret.fork();
@@ -88,7 +91,7 @@ where D: Serialize + DeserializeOwned + Clone,
                 inherit_write: true,
             }
         );
-        Ok (ret)
+        Ok(ret)
     }
 }
 

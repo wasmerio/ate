@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use fxhash::FxHashMap;
 use multimap::MultiMap;
 
@@ -17,6 +18,8 @@ use std::rc::Rc;
 use tokio::runtime::Runtime;
 #[allow(unused_imports)]
 use std::sync::{Arc, Weak};
+use std::sync::Mutex as StdMutex;
+use fxhash::FxHashSet;
 use tokio::sync::RwLock;
 use std::sync::RwLock as StdRwLock;
 use std::sync::RwLockWriteGuard as StdRwLockWriteGuard;
@@ -34,7 +37,14 @@ use super::multi::*;
 use super::pipe::*;
 use super::lint::*;
 use super::transform::*;
+use super::header::PrimaryKey;
 use super::meta::MetaCollection;
+
+struct InboxPipe
+{
+    inbox: mpsc::Sender<Transaction>,
+    locks: StdMutex<FxHashSet<PrimaryKey>>,
+}
 
 pub struct ChainAccessorProtectedAsync
 {
@@ -62,7 +72,7 @@ pub struct ChainAccessor
     pub(super) key: ChainKey,
     pub(super) inside_sync: Arc<StdRwLock<ChainAccessorProtectedSync>>,
     pub(super) inside_async: Arc<RwLock<ChainAccessorProtectedAsync>>,
-    pub(super) inbox: mpsc::Sender<Transaction>,
+    pub(super) pipe: Arc<dyn EventPipe>,
 }
 
 impl ChainAccessorProtectedAsync
@@ -265,16 +275,18 @@ impl<'a> ChainAccessor
                 key: key.clone(),
                 inside_sync,
                 inside_async,
-                inbox: sender,
+                pipe: Arc::new(InboxPipe {
+                    inbox: sender,
+                    locks: StdMutex::new(FxHashSet::default()),
+                }),
             }
         )
     }
     
-    #[allow(dead_code)]
-    pub fn proxy(&'a mut self, proxy: mpsc::Sender<Transaction>) -> mpsc::Sender<Transaction> {
-        let ret = self.inbox.clone();
-        self.inbox = proxy;
-        return ret;
+    pub fn proxy(&mut self, proxy: Arc<dyn EventPipe>) {
+        let next = self.pipe.clone();
+        proxy.set_next(next);
+        self.pipe = proxy;
     }
 
     #[allow(dead_code)]
@@ -428,9 +440,8 @@ impl<'a> ChainAccessor
         };
 
         // Feed the transaction into the chain
-        let multi = self.multi().await;
-        multi.feed(trans)?;
-        drop(multi);
+        let pipe = self.pipe.clone();
+        pipe.feed(trans).await?;
 
         // Block until the transaction is received
         tokio::task::block_in_place(move || {
@@ -466,5 +477,41 @@ impl<'a> ChainAccessor
                 }
             }
         }
+    }
+}
+
+#[async_trait]
+impl EventPipe
+for InboxPipe
+{
+    #[allow(dead_code)]
+    async fn feed(&self, trans: Transaction) -> Result<(), CommitError>
+    {
+        let sender = self.inbox.clone();
+        sender.send(trans).await.unwrap();
+        Ok(())
+    }
+
+    #[allow(dead_code)]
+    async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError>
+    {
+        let mut guard = self.locks.lock().unwrap();
+        if guard.contains(&key) {
+            return Ok(false);
+        }
+        guard.insert(key.clone());
+        
+        Ok(true)
+    }
+
+    #[allow(dead_code)]
+    async fn unlock(&self, key: PrimaryKey) -> Result<(), CommitError>
+    {
+        let mut guard = self.locks.lock().unwrap();
+        guard.remove(&key);
+        Ok(())
+    }
+
+    fn set_next(&self, _next: Arc<dyn EventPipe>) {
     }
 }

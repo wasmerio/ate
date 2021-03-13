@@ -1,6 +1,5 @@
 use tokio::sync::RwLock;
 use std::sync::RwLock as StdRwLock;
-use tokio::sync::mpsc;
 #[allow(unused_imports)]
 use std::sync::mpsc as smpsc;
 #[allow(unused_imports)]
@@ -12,7 +11,6 @@ use super::meta::*;
 use super::error::*;
 use super::accessor::*;
 use super::pipe::*;
-use super::transaction::*;
 
 use super::header::*;
 use super::event::*;
@@ -25,7 +23,7 @@ pub struct ChainMultiUser
 {
     pub(super) inside_async: Arc<RwLock<ChainAccessorProtectedAsync>>,
     pub(super) inside_sync: Arc<StdRwLock<ChainAccessorProtectedSync>>,
-    inbox: mpsc::Sender<Transaction>,
+    pub(super) pipe: Arc<dyn EventPipe>,
 }
 
 impl ChainMultiUser
@@ -35,15 +33,8 @@ impl ChainMultiUser
         ChainMultiUser {
             inside_async: Arc::clone(&accessor.inside_async),
             inside_sync: Arc::clone(&accessor.inside_sync),
-            inbox: accessor.inbox.clone(),
+            pipe: Arc::clone(&accessor.pipe),
         }
-    }
-
-    #[allow(dead_code)]
-    pub fn proxy(&mut self, proxy: mpsc::Sender<Transaction>) -> mpsc::Sender<Transaction> {
-        let ret = self.inbox.clone();
-        self.inbox = proxy;
-        return ret;
     }
  
     #[allow(dead_code)]
@@ -121,17 +112,5 @@ impl ChainMultiUser
     #[allow(dead_code)]
     pub async fn count(&self) -> usize {
         self.inside_async.read().await.chain.redo.count()
-    }
-}
-
-impl EventPipe
-for ChainMultiUser
-{
-    #[allow(dead_code)]
-    fn feed(&self, trans: Transaction) -> Result<(), CommitError>
-    {
-        let sender = self.inbox.clone();
-        tokio::task::spawn(async move { sender.send(trans).await.unwrap(); } );
-        Ok(())
     }
 }

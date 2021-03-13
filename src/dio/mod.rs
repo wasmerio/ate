@@ -10,6 +10,7 @@ use serde::{Deserialize};
 use serde::{Serialize, de::DeserializeOwned};
 use std::cell::{RefCell};
 use std::rc::Rc;
+use std::sync::Arc;
 use std::ops::Deref;
 #[allow(unused_imports)]
 use tokio::sync::mpsc;
@@ -89,7 +90,7 @@ impl DioState
 
 pub struct Dio<'a>
 {
-    multi: Option<ChainMultiUser>,
+    multi: ChainMultiUser,
     state: Rc<RefCell<DioState>>,
     #[allow(dead_code)]
     session: &'a Session,
@@ -120,7 +121,6 @@ impl<'a> Dio<'a>
     pub async fn load<D>(&mut self, key: &PrimaryKey) -> Result<Dao<D>, LoadError>
     where D: Serialize + DeserializeOwned + Clone,
     {
-        let multi = self.multi.as_ref().unwrap();
         let state = self.state.borrow_mut();
         if state.is_locked(key) {
             return Result::Err(LoadError::ObjectStillLocked(key.clone()));
@@ -137,7 +137,7 @@ impl<'a> Dio<'a>
             return Result::Err(LoadError::AlreadyDeleted(key.clone()));
         }
 
-        let entry = match multi.lookup_primary(key).await {
+        let entry = match self.multi.lookup_primary(key).await {
             Some(a) => a,
             None => return Result::Err(LoadError::NotFound(key.clone()))
         };
@@ -145,7 +145,6 @@ impl<'a> Dio<'a>
             return Result::Err(LoadError::Tombstoned(key.clone()));
         }
         drop(state);
-        drop(multi);
 
         Ok(self.load_from_entry(entry).await?)
     }
@@ -154,15 +153,11 @@ impl<'a> Dio<'a>
     -> Result<Dao<D>, LoadError>
     where D: Serialize + DeserializeOwned + Clone,
     {
-        let multi = self.multi.as_ref().unwrap();
-        
-        let mut evt = multi.load(&entry).await?;
+        let mut evt = self.multi.load(&entry).await?;
         evt.raw.data = match evt.raw.data {
-            Some(data) => Some(multi.data_as_overlay(&mut evt.raw.meta, data, &self.session)?),
+            Some(data) => Some(self.multi.data_as_overlay(&mut evt.raw.meta, data, &self.session)?),
             None => None,
         };
-
-        drop(multi);
 
         Ok(self.load_from_event(evt)?)
     }
@@ -186,7 +181,6 @@ impl<'a> Dio<'a>
     pub async fn children<D>(&mut self, parent_id: PrimaryKey, collection_id: u64) -> Result<Vec<Dao<D>>, LoadError>
     where D: Serialize + DeserializeOwned + Clone,
     {
-        let multi = self.multi.as_ref().unwrap();
         let mut state = self.state.borrow_mut();
         
         // Build the secondary index key
@@ -201,7 +195,7 @@ impl<'a> Dio<'a>
 
         // We either find existing objects in the cache or build a list of objects to load
         let mut to_load = Vec::new();
-        for entry in match multi.lookup_secondary(&key).await {
+        for entry in match self.multi.lookup_secondary(&key).await {
             Some(a) => a,
             None => return Ok(Vec::new())
         } {
@@ -239,9 +233,9 @@ impl<'a> Dio<'a>
         }
 
         // Load all the objects that have not yet been loaded
-        for mut evt in multi.load_many(to_load).await? {
+        for mut evt in self.multi.load_many(to_load).await? {
             evt.raw.data = match evt.raw.data {
-                Some(data) => Some(multi.data_as_overlay(&mut evt.raw.meta, data, &self.session)?),
+                Some(data) => Some(self.multi.data_as_overlay(&mut evt.raw.meta, data, &self.session)?),
                 None => { continue; },
             };
 
@@ -284,11 +278,9 @@ impl<'a> Dio<'a>
         // If we have dirty records
         let mut state = self.state.borrow_mut();
         if state.store.is_empty() && state.deleted.is_empty() {
-            self.multi = None;
             return Ok(())
         }
         
-        let multi = self.multi.as_ref().unwrap();        
         let mut evts = Vec::new();
 
         // Convert all the events that we are storing into serialize data
@@ -302,11 +294,11 @@ impl<'a> Dio<'a>
             }
 
             // Compute all the extra metadata for an event
-            let extra_meta = multi.metadata_lint_event(&mut meta, &self.session)?;
+            let extra_meta = self.multi.metadata_lint_event(&mut meta, &self.session)?;
             meta.core.extend(extra_meta);
             
             // Perform any transformation (e.g. data encryption and compression)
-            let data = multi.data_as_underlay(&mut meta, row.data.clone(), &self.session)?;
+            let data = self.multi.data_as_underlay(&mut meta, row.data.clone(), &self.session)?;
             let data_hash = super::crypto::Hash::from_bytes(&data[..]);
             
             // Only once all the rows are processed will we ship it to the redo log
@@ -327,7 +319,7 @@ impl<'a> Dio<'a>
             }
 
             // Compute all the extra metadata for an event
-            let extra_meta = multi.metadata_lint_event(&mut meta, &self.session)?;
+            let extra_meta = self.multi.metadata_lint_event(&mut meta, &self.session)?;
             meta.core.extend(extra_meta);
 
             meta.add_tombstone(key.clone());
@@ -340,7 +332,7 @@ impl<'a> Dio<'a>
         }
 
         // Lint the data
-        let meta = multi.metadata_lint_many(&evts, &self.session)?;
+        let meta = self.multi.metadata_lint_many(&evts, &self.session)?;
 
         // If it has data then insert it at the front of these events
         if meta.len() > 0 {
@@ -365,11 +357,10 @@ impl<'a> Dio<'a>
         };
 
         // Process it in the chain of trust
-        multi.feed(trans)?;
-
-        // We drop the lock on the 
-        drop(multi);
-        self.multi = None;
+        let pipe = Arc::clone(&self.multi.pipe);
+        tokio::task::spawn(async move { 
+            let _ = pipe.feed(trans).await;
+        });
         
         // Wait for the transaction to commit (or not?) - if an error occurs it will
         // be returned to the caller
@@ -407,10 +398,9 @@ impl ChainAccessor
 
     #[allow(dead_code)]
     pub async fn dio_ext<'a>(&'a self, session: &'a Session, scope: Scope) -> Dio<'a> {
-        let multi = self.multi().await;
         Dio {
             state: Rc::new(RefCell::new(DioState::new())),
-            multi: Some(multi),
+            multi: self.multi().await,
             session: session,
             scope,
         }

@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use tokio::sync::{Mutex};
 use std::{sync::Arc, collections::hash_map::Entry};
 use fxhash::FxHashMap;
-use crate::{pipe::EventPipe};
+use crate::{header::PrimaryKey, pipe::EventPipe};
 use std::sync::Weak;
 
 use super::core::*;
@@ -62,14 +62,5 @@ for MeshClient {
         *record = Arc::downgrade(&session);
 
         Ok(Arc::clone(&session.chain))
-    }
-}
-
-impl EventPipe
-for MeshClient
-{
-    fn feed(&self, _trans: Transaction) -> Result<(), CommitError>
-    {
-        Ok(())
     }
 }

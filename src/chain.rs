@@ -239,7 +239,7 @@ pub async fn test_chain() {
             evts.push(evt2.clone());
 
             let (trans, receiver) = Transaction::from_events(evts, Scope::Local);
-            lock.feed(trans).expect("The event failed to be accepted");
+            lock.pipe.feed(trans).await.expect("The event failed to be accepted");
             
             drop(lock);
             receiver.recv().unwrap().unwrap();
@@ -264,7 +264,7 @@ pub async fn test_chain() {
             let mut evts = Vec::new();
             evts.push(evt1.clone());
             let (trans, receiver) = Transaction::from_events(evts, Scope::Local);
-            lock.feed(trans).expect("The event failed to be accepted");
+            lock.pipe.feed(trans).await.expect("The event failed to be accepted");
 
             drop(lock);
             receiver.recv().unwrap().unwrap();
@@ -298,7 +298,7 @@ pub async fn test_chain() {
             let mut evts = Vec::new();
             evts.push(evt2.clone());
             let (trans, receiver) = Transaction::from_events(evts, Scope::Local);
-            lock.feed(trans).expect("The event failed to be accepted");
+            lock.pipe.feed(trans).await.expect("The event failed to be accepted");
             
             // Number of events should have gone up by one even though there should be one less item
             drop(lock);

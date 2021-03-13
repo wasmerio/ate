@@ -12,7 +12,7 @@ use crate::error::*;
 use crate::conf::*;
 
 #[async_trait]
-pub trait Mesh: EventPipe
+pub trait Mesh
 {
     async fn open<'a>(&'a self, key: ChainKey) -> Result<Arc<ChainAccessor>, ChainCreationError>;
 }

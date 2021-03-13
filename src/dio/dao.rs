@@ -18,6 +18,7 @@ use crate::meta::*;
 use crate::error::*;
 use crate::crypto::Hash;
 use crate::dio::DioState;
+use crate::dio::Dio;
 
 pub use super::vec::DaoVec;
 
@@ -244,10 +245,17 @@ where D: Serialize + DeserializeOwned + Clone,
     }
 
     #[allow(dead_code)]
-    pub fn try_lock(&mut self) -> Result<bool, LockError> {
+    pub async fn try_lock<'a>(&mut self, dio: &mut Dio<'a>) -> Result<bool, LockError> {
         match self.lock {
             DaoLock::Locked | DaoLock::LockedThenDelete => {},
-            DaoLock::Unlocked => {
+            DaoLock::Unlocked =>
+            {
+                // Attempt the lock
+                if dio.multi.pipe.try_lock(self.key().clone()).await? == false {
+                    return Ok(false)
+                }
+
+                // The object is now locked
                 self.lock = DaoLock::Locked;
             }
         };
@@ -255,8 +263,8 @@ where D: Serialize + DeserializeOwned + Clone,
     }
 
     #[allow(dead_code)]
-    pub fn try_lock_then_delete(&mut self) -> Result<bool, LockError> {
-        if self.try_lock()? == false {
+    pub async fn try_lock_then_delete<'a>(&mut self, dio: &mut Dio<'a>) -> Result<bool, LockError> {
+        if self.try_lock(dio).await? == false {
             return Ok(false);
         }
         self.lock = DaoLock::LockedThenDelete;
