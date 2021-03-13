@@ -13,7 +13,7 @@ description = "Distributed immutable data store with strong encryption and authe
 license-file = "LICENSE"
 keywords = ["immutable", "database", "kafka", "blockchain", "datastore", "immutable objects", "quantum algorithms", "materialized views", "materialized view", "immutable store", "nosql"]
 categories = ["Asynchronous", "Caching", "Cryptography", "Database implementations"]
-repository = "https://github.com/john-sharratt/ate-2.0"
+repository = "https://github.com/john-sharratt/ate"
 readme = "README.md"
 
 [lib]
