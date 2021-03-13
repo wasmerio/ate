@@ -39,7 +39,7 @@ pub use crate::dio::vec::DaoVec;
 pub use crate::dio::dao::Dao;
 
 #[derive(Debug)]
-struct DioState
+pub(crate) struct DioState
 {
     pub(super) store: Vec<Rc<RowData>>,
     pub(super) cache_store_primary: FxHashMap<PrimaryKey, Rc<RowData>>,
@@ -47,6 +47,7 @@ struct DioState
     pub(super) cache_load: FxHashMap<PrimaryKey, Rc<EventExt>>,
     pub(super) locked: FxHashSet<PrimaryKey>,
     pub(super) deleted: FxHashMap<PrimaryKey, Rc<RowData>>,
+    pub(super) pipe_unlock: FxHashSet<PrimaryKey>,
 }
 
 impl DioState
@@ -85,6 +86,7 @@ impl DioState
             cache_load: FxHashMap::default(),
             locked: FxHashSet::default(),
             deleted: FxHashMap::default(),
+            pipe_unlock: FxHashSet::default(),
         }
     }
 }
@@ -154,19 +156,19 @@ impl<'a> Dio<'a>
     -> Result<Dao<D>, LoadError>
     where D: Serialize + DeserializeOwned + Clone,
     {
-        let mut evt = self.multi.load(&entry).await?;
+        let evt = self.multi.load(&entry).await?;        
+        Ok(self.load_from_event(evt)?)
+    }
+
+    pub(crate) fn load_from_event<D>(&mut self, mut evt: EventExt)
+    -> Result<Dao<D>, LoadError>
+    where D: Serialize + DeserializeOwned + Clone,
+    {
         evt.raw.data = match evt.raw.data {
             Some(data) => Some(self.multi.data_as_overlay(&mut evt.raw.meta, data, &self.session)?),
             None => None,
         };
 
-        Ok(self.load_from_event(evt)?)
-    }
-
-    pub(crate) fn load_from_event<D>(&mut self, evt: EventExt)
-    -> Result<Dao<D>, LoadError>
-    where D: Serialize + DeserializeOwned + Clone,
-    {
         let mut state = self.state.borrow_mut();
 
         match evt.raw.meta.get_data_key() {
@@ -273,7 +275,41 @@ impl<'a> Dio<'a>
 
         Ok(ret)
     }
+}
 
+impl ChainAccessor
+{
+    #[allow(dead_code)]
+    pub async fn dio<'a>(&'a self, session: &'a Session) -> Dio<'a> {
+        self.dio_ext(session, Scope::Local).await
+    }
+
+    #[allow(dead_code)]
+    pub async fn dio_ext<'a>(&'a self, session: &'a Session, scope: Scope) -> Dio<'a> {
+        Dio {
+            state: Rc::new(RefCell::new(DioState::new())),
+            multi: self.multi().await,
+            session: session,
+            scope,
+        }
+    }
+}
+
+
+
+impl<'a> Drop
+for Dio<'a>
+{
+    fn drop(&mut self)
+    {
+        if let Err(err) = self.commit() {
+            debug_assert!(false, "dio-commit-error {}", err.to_string());
+        }
+    }
+}
+
+impl<'a> Dio<'a>
+{
     pub fn commit(&mut self) -> Result<(), CommitError>
     {
         // If we have dirty records
@@ -281,6 +317,15 @@ impl<'a> Dio<'a>
         if state.store.is_empty() && state.deleted.is_empty() {
             return Ok(())
         }
+
+        // First unlock any data objects that were locked via the pipe
+        let unlock_multi = self.multi.clone();
+        let unlock_me = state.pipe_unlock.iter().map(|a| a.clone()).collect::<Vec<_>>();
+        tokio::spawn(async move {
+            for key in unlock_me {
+                let _ = unlock_multi.pipe.unlock(key).await;
+            }
+        });
         
         let mut evts = Vec::new();
 
@@ -359,7 +404,7 @@ impl<'a> Dio<'a>
 
         // Process it in the chain of trust
         let pipe = Arc::clone(&self.multi.pipe);
-        tokio::task::spawn(async move { 
+        tokio::task::spawn(async move {
             let _ = pipe.feed(trans).await;
         });
         
@@ -376,35 +421,6 @@ impl<'a> Dio<'a>
 
         // Success
         Ok(())
-    }
-}
-
-impl<'a> Drop
-for Dio<'a>
-{
-    fn drop(&mut self)
-    {
-        if let Err(err) = self.commit() {
-            debug_assert!(false, "dio-commit-error {}", err.to_string());
-        }
-    }
-}
-
-impl ChainAccessor
-{
-    #[allow(dead_code)]
-    pub async fn dio<'a>(&'a self, session: &'a Session) -> Dio<'a> {
-        self.dio_ext(session, Scope::Local).await
-    }
-
-    #[allow(dead_code)]
-    pub async fn dio_ext<'a>(&'a self, session: &'a Session, scope: Scope) -> Dio<'a> {
-        Dio {
-            state: Rc::new(RefCell::new(DioState::new())),
-            multi: self.multi().await,
-            session: session,
-            scope,
-        }
     }
 }
 

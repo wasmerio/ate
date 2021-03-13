@@ -68,9 +68,9 @@ impl MeshRoot
         let reply_at = reply_at_owner.as_ref();
         
         match &pck.msg {
-            Message::Subscribe(key) =>
+            Message::Subscribe(chain_key) =>
             {
-                let chain = match self.open(key.clone()).await {
+                let chain = match self.open(chain_key.clone()).await {
                     Err(ChainCreationError::NoRootFound) => {
                         Packet::reply_at(reply_at, Message::NotThisRoot).await?;
                         return Ok(());
@@ -97,7 +97,7 @@ impl MeshRoot
 
                     if evts.len() > 100 {
                         Packet::reply_at(reply_at, Message::Events {
-                            key: key.clone(),
+                            chain_key: chain_key.clone(),
                             commit: None,
                             evts
                         }).await?;
@@ -106,7 +106,7 @@ impl MeshRoot
                 }
                 if evts.len() > 0 {
                     Packet::reply_at(reply_at, Message::Events {
-                        key: key.clone(),
+                        chain_key: chain_key.clone(),
                         commit: None,
                         evts
                     }).await?;
@@ -114,12 +114,12 @@ impl MeshRoot
                 Packet::reply_at(reply_at, Message::EndOfHistory).await?;
             },
             Message::Events {
-                key,
+                chain_key,
                 commit,
                 evts
             } => {
                 let commit = commit.clone();
-                let chain = match self.open(key.clone()).await {
+                let chain = match self.open(chain_key.clone()).await {
                     Err(ChainCreationError::NoRootFound) => {
                         Packet::reply_at(reply_at, Message::NotThisRoot).await?;
                         return Ok(());
@@ -154,6 +154,39 @@ impl MeshRoot
 
                 downcast_err?;
             },
+            Message::Lock {
+                chain_key,
+                key,
+            } => {
+                let chain = match self.open(chain_key.clone()).await {
+                    Err(ChainCreationError::NoRootFound) => {
+                        Packet::reply_at(reply_at, Message::NotThisRoot).await?;
+                        return Ok(());
+                    },
+                    a => a?
+                };
+
+                let is_locked = chain.pipe.try_lock(key.clone()).await?;
+                Packet::reply_at(reply_at, Message::LockResult {
+                    chain_key: chain_key.clone(),
+                    key: key.clone(),
+                    is_locked
+                }).await?
+            },
+            Message::Unlock {
+                chain_key,
+                key,
+            } => {
+                let chain = match self.open(chain_key.clone()).await {
+                    Err(ChainCreationError::NoRootFound) => {
+                        Packet::reply_at(reply_at, Message::NotThisRoot).await?;
+                        return Ok(());
+                    },
+                    a => a?
+                };
+
+                chain.pipe.unlock(key.clone()).await?;
+            }
             _ => { }
         };
         Ok(())

@@ -19,6 +19,7 @@ use bytes::Bytes;
 
 use super::event::EventExt;
 
+#[derive(Clone)]
 pub struct ChainMultiUser
 {
     pub(super) inside_async: Arc<RwLock<ChainAccessorProtectedAsync>>,

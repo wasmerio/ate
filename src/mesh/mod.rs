@@ -129,17 +129,23 @@ async fn test_mesh()
 
                 let dao2: Dao<TestData> = dio.load(&dao_key2).await.expect("An earlier saved object should have loaded");
                 
-                dao2.inner.push(&mut dio, dao2.key(), "test_string".to_string()).unwrap();
+                dao2.inner.push(&mut dio, dao2.key(), "test_string1".to_string()).unwrap();
+                dao2.inner.push(&mut dio, dao2.key(), "test_string2".to_string()).unwrap();
             }
         }
 
         chain_a.sync().await.unwrap();
 
         let task_ret = task.await.expect("Should have received the result on the BUS");
-        assert_eq!(*task_ret, "test_string".to_string());
+        assert_eq!(*task_ret, "test_string1".to_string());
 
         {
             let mut dio = chain_a.dio_ext(&session_a, Scope::Full).await;
+
+            let task = bus.process(&mut dio);
+            let task_ret = task.await.expect("Should have received the result on the BUS for the second time");
+            assert_eq!(*task_ret, "test_string2".to_string());
+
             dio.load::<TestData>(&dao_key1).await.expect("The data did not not get replicated to other clients in realtime");
         }
     }

@@ -18,19 +18,12 @@ use super::msg::*;
 use crate::pipe::*;
 use crate::header::*;
 
-struct SessionPipe
-{
-    key: ChainKey,
-    comms: Node<Message>,
-    next: StdRwLock<Option<Arc<dyn EventPipe>>>,
-    commit: Arc<StdMutex<FxHashMap<u64, smpsc::Sender<Result<(), CommitError>>>>>,
-}
-
 pub struct MeshSession
 {
     key: ChainKey,
     pub(super) chain: Arc<ChainAccessor>,
     commit: Arc<StdMutex<FxHashMap<u64, smpsc::Sender<Result<(), CommitError>>>>>,
+    lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, smpsc::Sender<bool>>>>,
 }
 
 impl MeshSession
@@ -45,7 +38,10 @@ impl MeshSession
             .buffer_size(builder.cfg.buffer_size_client);
         let node: NodeWithReceiver<Message> = Node::new(&node_cfg).await;
 
-        let commit = Arc::new(StdMutex::new(FxHashMap::default()));
+        let commit
+            = Arc::new(StdMutex::new(FxHashMap::default()));
+        let lock_requests
+            = Arc::new(StdMutex::new(FxHashMap::default()));
 
         let comms = node.node;
         comms.upcast(Message::Subscribe(key.clone())).await?;
@@ -58,6 +54,7 @@ impl MeshSession
                     comms: comms,
                     next: StdRwLock::new(None),
                     commit: Arc::clone(&commit),
+                    lock_requests: Arc::clone(&lock_requests),
                 }
             )
         );
@@ -67,6 +64,7 @@ impl MeshSession
             key: key.clone(),
             chain,
             commit,
+            lock_requests,
         });
 
         tokio::spawn(MeshSession::inbox(Arc::clone(&ret), node.inbox, loaded_sender));
@@ -87,7 +85,7 @@ impl MeshSession
                 pck.reply(Message::Subscribe(self.key.clone())).await?;
             },
             Message::Events {
-                key: _key,
+                chain_key: _chain_key,
                 commit: _commit,
                 evts
              } =>
@@ -112,6 +110,15 @@ impl MeshSession
             } => {
                 if let Some(result) = self.commit.lock().unwrap().remove(&id) {
                     result.send(Err(CommitError::RootError(err)))?;
+                }
+            },
+            Message::LockResult {
+                chain_key: _chain_key,
+                key,
+                is_locked
+            } => {
+                if let Some(result) = self.lock_requests.lock().unwrap().remove(&key) {
+                    result.send(is_locked)?;
                 }
             },
             Message::EndOfHistory => {
@@ -142,15 +149,37 @@ impl MeshSession
 impl Drop
 for MeshSession
 {
-    fn drop(&mut self) {
-        let guard = self.commit.lock().unwrap();
-        for sender in guard.values() {
-            if let Err(err) = sender.send(Err(CommitError::Aborted)) {
-                debug_assert!(false, "mesh-session-err {:?}", err);
-                warn!("mesh-session-err: {}", err.to_string());
+    fn drop(&mut self)
+    {
+        {
+            let guard = self.commit.lock().unwrap();
+            for sender in guard.values() {
+                if let Err(err) = sender.send(Err(CommitError::Aborted)) {
+                    debug_assert!(false, "mesh-session-err {:?}", err);
+                    warn!("mesh-session-err: {}", err.to_string());
+                }
+            }
+        }
+
+        {
+            let guard = self.lock_requests.lock().unwrap();
+            for sender in guard.values() {
+                if let Err(err) = sender.send(false) {
+                    debug_assert!(false, "mesh-session-err {:?}", err);
+                    warn!("mesh-session-err: {}", err.to_string());
+                }
             }
         }
     }
+}
+
+struct SessionPipe
+{
+    key: ChainKey,
+    comms: Node<Message>,
+    next: StdRwLock<Option<Arc<dyn EventPipe>>>,
+    commit: Arc<StdMutex<FxHashMap<u64, smpsc::Sender<Result<(), CommitError>>>>>,
+    lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, smpsc::Sender<bool>>>>,
 }
 
 #[async_trait]
@@ -173,7 +202,7 @@ for SessionPipe
         };
 
         self.comms.upcast(Message::Events{
-            key: self.key.clone(),
+            chain_key: self.key.clone(),
             commit,
             evts,
         }).await?;
@@ -188,13 +217,51 @@ for SessionPipe
         Ok(())
     }
 
-    async fn try_lock(&self, _key: PrimaryKey) -> Result<bool, CommitError>
+    async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError>
     {
-        Ok(false)
+        // First we do a lock locally so that we reduce the number of
+        // collisions on the main server itself
+        {
+            let lock = self.next.read().unwrap().clone();
+            if let Some(next) = lock {
+                if next.try_lock(key).await? == false {
+                    return Ok(false)
+                }
+            }
+        }
+
+        // Write an entry into the lookup table
+        let (tx, rx) = smpsc::channel();
+        self.lock_requests.lock().unwrap().insert(key.clone(), tx);
+
+        // Send a message up to the main server asking for a lock on the data object
+        self.comms.upcast(Message::Lock {
+            chain_key: self.key.clone(),
+            key: key.clone(),
+        }).await?;
+
+        // Wait for the response from the server
+        Ok(rx.recv()?)
     }
 
-    async fn unlock(&self, _key: PrimaryKey) -> Result<(), CommitError>
+    async fn unlock(&self, key: PrimaryKey) -> Result<(), CommitError>
     {
+        // First we unlock any local locks so errors do not kill access
+        // to the data object
+        {
+            let lock = self.next.read().unwrap().clone();
+            if let Some(next) = lock {
+                next.unlock(key).await?;
+            }
+        }
+
+        // Send a message up to the main server asking for a lock on the data object
+        self.comms.upcast(Message::Unlock {
+            chain_key: self.key.clone(),
+            key: key.clone(),
+        }).await?;
+
+        // Success
         Ok(())
     }
 

@@ -11,6 +11,7 @@ use crate::chain::ChainKey;
 use crate::pipe::EventPipe;
 use crate::accessor::ChainAccessor;
 use crate::error::*;
+use crate::header::PrimaryKey;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub(super) struct MessageEvent
@@ -75,9 +76,23 @@ pub(super) enum Message {
     NotFound,
     NotThisRoot,
 
+    Lock {
+        chain_key: ChainKey,
+        key: PrimaryKey,
+    },
+    Unlock {
+        chain_key: ChainKey,
+        key: PrimaryKey,
+    },
+    LockResult {
+        chain_key: ChainKey,
+        key: PrimaryKey,
+        is_locked: bool
+    },
+
     StartOfHistory,
     Events {
-        key: ChainKey,
+        chain_key: ChainKey,
         commit: Option<u64>,
         evts: Vec<MessageEvent>
     },

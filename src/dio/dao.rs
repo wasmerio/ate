@@ -3,7 +3,7 @@ use fxhash::FxHashSet;
 
 use serde::{Serialize, de::DeserializeOwned};
 use bytes::Bytes;
-use std::cell::{RefCell};
+use std::cell::{RefCell, RefMut};
 use std::ops::{Deref, DerefMut};
 use std::rc::Rc;
 
@@ -180,24 +180,6 @@ where D: Serialize + DeserializeOwned + Clone,
         self.row.collections.insert(vec.clone());
     }
 
-    pub fn flush(&mut self) -> std::result::Result<(), SerializationError> {
-        if self.dirty == true
-        {            
-            let mut state = self.state.borrow_mut();
-            state.unlock(&self.row.key);
-            
-            self.dirty = false;
-
-            let row_data = self.row.as_row_data()?;
-            let row_tree = match &self.row.tree {
-                Some(a) => Some(a),
-                None => None,
-            };
-            state.dirty(&self.row.key, row_tree, row_data);
-        }
-        Ok(())
-    }
-
     #[allow(dead_code)]
     pub fn key(&self) -> &PrimaryKey {
         &self.row.key
@@ -222,12 +204,12 @@ where D: Serialize + DeserializeOwned + Clone,
 
     #[allow(dead_code)]
     pub(crate) fn delete(self) -> std::result::Result<(), SerializationError> {
-        self.delete_internal()
+        let mut state = self.state.borrow_mut();
+        self.delete_internal(&mut state)
     }
 
     #[allow(dead_code)]
-    pub(crate) fn delete_internal(&self) -> std::result::Result<(), SerializationError> {
-        let mut state = self.state.borrow_mut();
+    pub(crate) fn delete_internal(&self, state: &mut RefMut<DioState>) -> std::result::Result<(), SerializationError> {
         if state.lock(&self.row.key) == false {
             eprintln!("Detected concurrent write while deleting a data object ({:?}) - the delete operation will override everything else", self.row.key);
         }
@@ -247,6 +229,8 @@ where D: Serialize + DeserializeOwned + Clone,
 
     #[allow(dead_code)]
     pub async fn try_lock<'a>(&mut self, dio: &mut Dio<'a>) -> Result<bool, LockError> {
+        self.fork();
+
         match self.lock {
             DaoLock::Locked | DaoLock::LockedThenDelete => {},
             DaoLock::Unlocked =>
@@ -273,12 +257,13 @@ where D: Serialize + DeserializeOwned + Clone,
     }
 
     #[allow(dead_code)]
-    pub fn unlock(&mut self) -> Result<bool, LockError> {
+    pub async fn unlock<'a>(&mut self, dio: &mut Dio<'a>) -> Result<bool, LockError> {
         match self.lock {
             DaoLock::Unlocked | DaoLock::LockedThenDelete => {
                 return Ok(false);
             },
             DaoLock::Locked => {
+                dio.multi.pipe.unlock(self.key().clone()).await?;
                 self.lock = DaoLock::Unlocked;
             }
         };
@@ -319,28 +304,48 @@ where D: Serialize + DeserializeOwned + Clone,
 {
     fn drop(&mut self)
     {
-        // Deal with any locks that exist on this data object
-        match self.lock {
-            DaoLock::Locked => {
-                if let Err(err) = self.unlock() {
-                    debug_assert!(false, "dao-flush-error {}", err.to_string());
-                    warn!("dao-flush-error {}", err.to_string());
-                }
-            },
-            DaoLock::LockedThenDelete => {
-                if let Err(err) = self.delete_internal() {
-                    debug_assert!(false, "dao-flush-error {}", err.to_string());
-                    warn!("dao-flush-error {}", err.to_string());
-                }
-                return;
-            },
-            _ => {}
-        }
-
         // Now attempt to flush it
         if let Err(err) = self.flush() {
             debug_assert!(false, "dao-flush-error {}", err.to_string());
             warn!("dao-flush-error {}", err.to_string());
         }
+    }
+}
+
+impl<D> Dao<D>
+where D: Serialize + DeserializeOwned + Clone,
+{
+    pub fn flush(&mut self) -> std::result::Result<(), SerializationError>
+    {
+        if self.dirty == true
+        {            
+            let mut state = self.state.borrow_mut();
+
+            // The local DIO lock gets released first
+            state.unlock(&self.row.key);
+
+            // Next any pessimistic locks on the local chain
+            match self.lock {
+                DaoLock::Locked => {
+                    state.pipe_unlock.insert(self.row.key.clone());
+                },
+                DaoLock::LockedThenDelete => {
+                    state.pipe_unlock.insert(self.row.key.clone());
+                    self.delete_internal(&mut state)?;
+                },
+                _ => {}
+            }
+            
+            // Next we ship any data
+            self.dirty = false;
+
+            let row_data = self.row.as_row_data()?;
+            let row_tree = match &self.row.tree {
+                Some(a) => Some(a),
+                None => None,
+            };
+            state.dirty(&self.row.key, row_tree, row_data);
+        }
+        Ok(())
     }
 }
