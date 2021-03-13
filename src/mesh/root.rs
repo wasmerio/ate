@@ -1,10 +1,13 @@
 use async_trait::async_trait;
+use serde::{Serialize, Deserialize};
 use log::{warn};
 use std::{net::{IpAddr, Ipv6Addr}};
 use tokio::sync::{Mutex};
+use std::sync::Mutex as StdMutex;
 use std::{sync::Arc, collections::hash_map::Entry};
 use tokio::sync::mpsc;
 use fxhash::FxHashMap;
+use fxhash::FxHashSet;
 use crate::{header::PrimaryKey, pipe::EventPipe};
 
 use super::core::*;
@@ -23,6 +26,29 @@ pub(super) struct MeshRoot {
     client: Arc<MeshClient>,
     addrs: Vec<MeshAddress>,
     chains: Mutex<FxHashMap<ChainKey, Arc<ChainAccessor>>>,
+}
+
+#[derive(Debug)]
+struct SessionContextProtected {
+    chain_key: Option<ChainKey>,
+    locks: FxHashSet<PrimaryKey>,
+}
+
+#[derive(Debug)]
+struct SessionContext {
+    inside: StdMutex<SessionContextProtected>
+}
+
+impl Default
+for SessionContext {
+    fn default() -> SessionContext {
+        SessionContext {
+            inside: StdMutex::new(SessionContextProtected {
+                chain_key: None,
+                locks: FxHashSet::default(),
+            })
+        }
+    }
 }
 
 impl MeshRoot
@@ -61,71 +87,86 @@ impl MeshRoot
         ret
     }
 
-    async fn inbox_packet(self: &Arc<MeshRoot>, mut pck: Packet<Message>, node: &Node<Message>)
+    async fn inbox_packet(self: &Arc<MeshRoot>, pck: PacketWithContext<Message, SessionContext>, node: &Node<Message, SessionContext>)
         -> Result<(), CommsError>
     {
+        let context = pck.context.clone();
+        let mut pck = pck.packet;
+
         let reply_at_owner = pck.reply_here.take();
         let reply_at = reply_at_owner.as_ref();
         
-        match &pck.msg {
-            Message::Subscribe(chain_key) =>
-            {
-                let chain = match self.open(chain_key.clone()).await {
-                    Err(ChainCreationError::NoRootFound) => {
-                        Packet::reply_at(reply_at, Message::NotThisRoot).await?;
-                        return Ok(());
-                    }
-                    a => a?
-                };
-                chain.flush().await?;
-                
-                let multi = chain.multi().await;
-                Packet::reply_at(reply_at, Message::StartOfHistory).await?;
-
-                let mut evts = Vec::new();
-                for evt in multi.inside_async.read().await.chain.history.iter() {
-                    let evt = multi.load(evt).await?;
-                    let evt = MessageEvent {
-                        meta: evt.raw.meta.clone(),
-                        data_hash: evt.raw.data_hash.clone(),
-                        data: match evt.raw.data {
-                            Some(a) => Some(a.to_vec()),
-                            None => None,
-                        }
-                    };
-                    evts.push(evt);
-
-                    if evts.len() > 100 {
-                        Packet::reply_at(reply_at, Message::Events {
-                            chain_key: chain_key.clone(),
-                            commit: None,
-                            evts
-                        }).await?;
-                        evts = Vec::new();
-                    }
+        if let Message::Subscribe(chain_key) = &pck.msg {
+            let chain = match self.open(chain_key.clone()).await {
+                Err(ChainCreationError::NoRootFound) => {
+                    Packet::reply_at(reply_at, Message::NotThisRoot).await?;
+                    return Ok(());
                 }
-                if evts.len() > 0 {
+                a => a?
+            };
+            chain.flush().await?;
+
+            context.inside
+                .lock()
+                .unwrap()
+                .chain_key
+                .replace(chain_key.clone());
+            
+            let multi = chain.multi().await;
+            Packet::reply_at(reply_at, Message::StartOfHistory).await?;
+
+            let mut evts = Vec::new();
+            for evt in multi.inside_async.read().await.chain.history.iter() {
+                let evt = multi.load(evt).await?;
+                let evt = MessageEvent {
+                    meta: evt.raw.meta.clone(),
+                    data_hash: evt.raw.data_hash.clone(),
+                    data: match evt.raw.data {
+                        Some(a) => Some(a.to_vec()),
+                        None => None,
+                    }
+                };
+                evts.push(evt);
+
+                if evts.len() > 100 {
                     Packet::reply_at(reply_at, Message::Events {
-                        chain_key: chain_key.clone(),
                         commit: None,
                         evts
                     }).await?;
+                    evts = Vec::new();
                 }
-                Packet::reply_at(reply_at, Message::EndOfHistory).await?;
+            }
+            if evts.len() > 0 {
+                Packet::reply_at(reply_at, Message::Events {
+                    commit: None,
+                    evts
+                }).await?;
+            }
+            Packet::reply_at(reply_at, Message::EndOfHistory).await?;
+        }
+
+        let chain_key = context.inside.lock().unwrap().chain_key.clone();
+        let chain_key = match chain_key {
+            Some(k) => k,
+            None => {
+                Packet::reply_at(reply_at, Message::NotYetSubscribed).await?;
+                return Ok(());
+            }
+        };
+        let chain = match self.open(chain_key.clone()).await {
+            Err(ChainCreationError::NoRootFound) => {
+                Packet::reply_at(reply_at, Message::NotThisRoot).await?;
+                return Ok(());
             },
+            a => a?
+        };
+
+        match &pck.msg {
             Message::Events {
-                chain_key,
                 commit,
                 evts
             } => {
                 let commit = commit.clone();
-                let chain = match self.open(chain_key.clone()).await {
-                    Err(ChainCreationError::NoRootFound) => {
-                        Packet::reply_at(reply_at, Message::NotThisRoot).await?;
-                        return Ok(());
-                    },
-                    a => a?
-                };
                 
                 let evts = MessageEvent::convert_from(evts);
                 let mut single = chain.single().await;                    
@@ -155,36 +196,17 @@ impl MeshRoot
                 downcast_err?;
             },
             Message::Lock {
-                chain_key,
                 key,
             } => {
-                let chain = match self.open(chain_key.clone()).await {
-                    Err(ChainCreationError::NoRootFound) => {
-                        Packet::reply_at(reply_at, Message::NotThisRoot).await?;
-                        return Ok(());
-                    },
-                    a => a?
-                };
-
                 let is_locked = chain.pipe.try_lock(key.clone()).await?;
                 Packet::reply_at(reply_at, Message::LockResult {
-                    chain_key: chain_key.clone(),
                     key: key.clone(),
                     is_locked
                 }).await?
             },
             Message::Unlock {
-                chain_key,
                 key,
             } => {
-                let chain = match self.open(chain_key.clone()).await {
-                    Err(ChainCreationError::NoRootFound) => {
-                        Packet::reply_at(reply_at, Message::NotThisRoot).await?;
-                        return Ok(());
-                    },
-                    a => a?
-                };
-
                 chain.pipe.unlock(key.clone()).await?;
             }
             _ => { }
@@ -192,8 +214,11 @@ impl MeshRoot
         Ok(())
     }
 
-    async fn inbox(self: Arc<MeshRoot>, mut inbox: mpsc::Receiver<Packet<Message>>, node: Node<Message>)
-        -> Result<(), CommsError>
+    async fn inbox(
+        self: Arc<MeshRoot>,
+        mut inbox: mpsc::Receiver<PacketWithContext<Message, SessionContext>>,
+        node: Node<Message, SessionContext>
+    ) -> Result<(), CommsError>
     {
         while let Some(pck) = inbox.recv().await {
             match MeshRoot::inbox_packet(&self, pck, &node).await {

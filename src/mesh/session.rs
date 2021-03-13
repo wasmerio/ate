@@ -36,7 +36,7 @@ impl MeshSession
         let node_cfg = NodeConfig::new()
             .connect_to(addr.ip, addr.port)
             .buffer_size(builder.cfg.buffer_size_client);
-        let node: NodeWithReceiver<Message> = Node::new(&node_cfg).await;
+        let node: NodeWithReceiver<Message, ()> = Node::new(&node_cfg).await;
 
         let commit
             = Arc::new(StdMutex::new(FxHashMap::default()));
@@ -54,7 +54,7 @@ impl MeshSession
                     comms: comms,
                     next: StdRwLock::new(None),
                     commit: Arc::clone(&commit),
-                    lock_requests: Arc::clone(&lock_requests),
+                    lock_requests: Arc::clone(&lock_requests)
                 }
             )
         );
@@ -85,7 +85,6 @@ impl MeshSession
                 pck.reply(Message::Subscribe(self.key.clone())).await?;
             },
             Message::Events {
-                chain_key: _chain_key,
                 commit: _commit,
                 evts
              } =>
@@ -113,7 +112,6 @@ impl MeshSession
                 }
             },
             Message::LockResult {
-                chain_key: _chain_key,
                 key,
                 is_locked
             } => {
@@ -129,10 +127,11 @@ impl MeshSession
         Ok(())
     }
 
-    async fn inbox(self: Arc<MeshSession>, mut inbox: mpsc::Receiver<Packet<Message>>, loaded: mpsc::Sender<Result<(), ChainCreationError>>)
+    async fn inbox(self: Arc<MeshSession>, mut inbox: mpsc::Receiver<PacketWithContext<Message, ()>>, loaded: mpsc::Sender<Result<(), ChainCreationError>>)
         -> Result<(), CommsError>
     {
         while let Some(pck) = inbox.recv().await {
+            let pck = pck.packet;
             match MeshSession::inbox_packet(&self, &loaded, pck).await {
                 Ok(_) => { },
                 Err(err) => {
@@ -176,7 +175,7 @@ for MeshSession
 struct SessionPipe
 {
     key: ChainKey,
-    comms: Node<Message>,
+    comms: Node<Message, ()>,
     next: StdRwLock<Option<Arc<dyn EventPipe>>>,
     commit: Arc<StdMutex<FxHashMap<u64, smpsc::Sender<Result<(), CommitError>>>>>,
     lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, smpsc::Sender<bool>>>>,
@@ -202,7 +201,6 @@ for SessionPipe
         };
 
         self.comms.upcast(Message::Events{
-            chain_key: self.key.clone(),
             commit,
             evts,
         }).await?;
@@ -236,7 +234,6 @@ for SessionPipe
 
         // Send a message up to the main server asking for a lock on the data object
         self.comms.upcast(Message::Lock {
-            chain_key: self.key.clone(),
             key: key.clone(),
         }).await?;
 
@@ -257,7 +254,6 @@ for SessionPipe
 
         // Send a message up to the main server asking for a lock on the data object
         self.comms.upcast(Message::Unlock {
-            chain_key: self.key.clone(),
             key: key.clone(),
         }).await?;
 
