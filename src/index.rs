@@ -89,8 +89,15 @@ impl BinaryTreeIndexer
         }
     }
 
-    pub fn lookup_secondary(&self, key: &MetaCollection) -> Option<&Vec<EventEntryExt>> {
-        self.secondary.get_vec(key)
+    pub fn lookup_secondary(&self, key: &MetaCollection) -> Option<Vec<EventEntryExt>> {
+        match self.secondary.get_vec(key) {
+            Some(vec) => {
+                Some(vec.iter()
+                    .map(|a| a.clone())
+                    .collect::<Vec<_>>())
+            },
+            None => None,
+        }
     }
 }
 

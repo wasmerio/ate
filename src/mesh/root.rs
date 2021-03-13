@@ -82,7 +82,7 @@ impl MeshRoot
                 Packet::reply_at(reply_at, Message::StartOfHistory).await?;
 
                 let mut evts = Vec::new();
-                for evt in multi.inside.chain.history.iter() {
+                for evt in multi.inside_async.read().await.chain.history.iter() {
                     let evt = multi.load(evt).await?;
                     let evt = MessageEvent {
                         meta: evt.raw.meta.clone(),
@@ -128,7 +128,7 @@ impl MeshRoot
                 
                 let evts = MessageEvent::convert_from(evts);
                 let mut single = chain.single().await;                    
-                let ret = single.inside.feed_async(evts).await;
+                let ret = single.feed_async(evts).await;
                 drop(single);
 
                 let downcast_err = match ret.is_ok() {

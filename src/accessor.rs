@@ -17,6 +17,8 @@ use tokio::runtime::Runtime;
 #[allow(unused_imports)]
 use std::sync::{Arc, Weak};
 use tokio::sync::RwLock;
+use std::sync::RwLock as StdRwLock;
+use std::sync::RwLockWriteGuard as StdRwLockWriteGuard;
 use tokio::sync::mpsc;
 use std::sync::mpsc as smpsc;
 
@@ -29,34 +31,44 @@ use super::single::*;
 use super::multi::*;
 #[allow(unused_imports)]
 use super::pipe::*;
+use super::lint::*;
+use super::transform::*;
 
-pub struct ChainAccessorProtected
+pub struct ChainAccessorProtectedAsync
 {
     pub(super) chain: ChainOfTrust,
+}
+
+pub struct ChainAccessorProtectedSync
+{
     pub(super) plugins: Vec<Box<dyn EventPlugin>>,
     pub(super) indexers: Vec<Box<dyn EventIndexer>>,
+    pub(super) linters: Vec<Box<dyn EventMetadataLinter>>,
+    pub(super) transformers: Vec<Box<dyn EventDataTransformer>>,
+    pub(super) validators: Vec<Box<dyn EventValidator>>,
 }
 
 pub struct ChainAccessor
 {
     pub(super) key: ChainKey,
-    pub(super) inside: Arc<RwLock<ChainAccessorProtected>>,
+    pub(super) inside_sync: Arc<StdRwLock<ChainAccessorProtectedSync>>,
+    pub(super) inside_async: Arc<RwLock<ChainAccessorProtectedAsync>>,
     pub(super) inbox: mpsc::Sender<Transaction>,
 }
 
 impl<'a> ChainAccessor
 {
-    async fn worker(inside: Arc<RwLock<ChainAccessorProtected>>, mut receiver: mpsc::Receiver<Transaction>)
+    async fn worker(inside_async: Arc<RwLock<ChainAccessorProtectedAsync>>, inside_sync: Arc<StdRwLock<ChainAccessorProtectedSync>>, mut receiver: mpsc::Receiver<Transaction>)
     {
         // Wait for the next transaction to be processed
         while let Some(trans) = receiver.recv().await
         {
             // We lock the chain of trust while we update the local chain
-            let mut lock = inside.write().await;
+            let mut lock = inside_async.write().await;
 
             // Push the events into the chain of trust and release the lock on it before
             // we transmit the result so that there is less lock thrashing
-            let chain_result = lock.feed_async(trans.events).await;
+            let chain_result = lock.feed_async_internal(inside_sync.clone(), trans.events).await;
 
             // Flush then drop the lock
             lock.chain.flush().await.unwrap();
@@ -93,34 +105,40 @@ impl<'a> ChainAccessor
             configured_for: builder.configured_for,
             history: Vec::new(),
             pointers: BinaryTreeIndexer::default(),
-            validators: builder.validators,
             compactors: builder.compactors,
-            linters: builder.linters,
-            transformers: builder.transformers,
         };
 
-        let mut inside = ChainAccessorProtected {
-            chain,
+        let mut inside_sync = ChainAccessorProtectedSync {
             indexers: builder.indexers,
             plugins: builder.plugins,
+            linters: builder.linters,
+            validators: builder.validators,
+            transformers: builder.transformers,
         };
         if let Some(tree) = builder.tree {
-            inside.plugins.push(Box::new(tree));
+            inside_sync.plugins.push(Box::new(tree));
         }
-        inside.process(entries)?;
+        let inside_sync = Arc::new(StdRwLock::new(inside_sync));
+
+        let mut inside_async = ChainAccessorProtectedAsync {
+            chain,
+        };        
+        inside_async.process(inside_sync.write().unwrap(), entries)?;
+        let inside_async = Arc::new(RwLock::new(inside_async));
 
         let (sender,
              receiver)
              = mpsc::channel(builder.cfg.buffer_size_client);
 
-        let inside = std::sync::Arc::new(RwLock::new(inside));
-        let worker_inside = Arc::clone(&inside);
-        tokio::task::spawn(ChainAccessor::worker(worker_inside, receiver));
+        let worker_inside_async = Arc::clone(&inside_async);
+        let worker_inside_sync = Arc::clone(&inside_sync);
+        tokio::task::spawn(ChainAccessor::worker(worker_inside_async, worker_inside_sync, receiver));
 
         Ok(
             ChainAccessor {
                 key: key.clone(),
-                inside,
+                inside_sync,
+                inside_async,
                 inbox: sender,
             }
         )
@@ -142,7 +160,7 @@ impl<'a> ChainAccessor
         ChainSingleUser::new(self).await
     }
 
-    pub async fn multi(&'a self) -> ChainMultiUser<'a> {
+    pub async fn multi(&'a self) -> ChainMultiUser {
         ChainMultiUser::new(self).await
     }
 
@@ -162,97 +180,100 @@ impl<'a> ChainAccessor
         // create the flip
         let mut flip = {
             let mut single = self.single().await;
-            let ret = single.inside.chain.redo.begin_flip().await?;
-            single.inside.chain.redo.flush().await?;
+            let ret = single.inside_async.chain.redo.begin_flip().await?;
+            single.inside_async.chain.redo.flush().await?;
             ret
         };
 
         {
             let multi = self.multi().await;
+            let guard_async = multi.inside_async.read().await;
+            let guard_sync = multi.inside_sync.read().unwrap();
 
-            {
-                // step1 - reset all the compactors
-                let mut compactors = Vec::new();
-                for compactor in &multi.inside.chain.compactors {
-                    let mut compactor = compactor.clone_compactor();
-                    compactor.reset();
-                    compactors.push(compactor);
-                }
-                for plugin in &multi.inside.plugins {
-                    let mut compactor = plugin.clone_compactor();
-                    compactor.reset();
-                    compactors.push(compactor);
-                }
-
-                // build a list of the events that are actually relevant to a compacted log
-                for entry in multi.inside.chain.history.iter().rev()
-                {
-                    let mut is_force_keep = false;
-                    let mut is_keep = false;
-                    let mut is_drop = false;
-                    let mut is_force_drop = false;
-                    for compactor in compactors.iter_mut() {
-                        match compactor.relevance(&entry) {
-                            EventRelevance::ForceKeep => is_force_keep = true,
-                            EventRelevance::Keep => is_keep = true,
-                            EventRelevance::Drop => is_drop = true,
-                            EventRelevance::ForceDrop => is_force_drop = true,
-                            EventRelevance::Abstain => { }
-                        }
-                    }
-                    let keep = match is_force_keep {
-                        true => true,
-                        false if is_force_drop == true => false,
-                        _ if is_keep == true => true,
-                        _ if is_drop == false => true,
-                        _ => false
-                    };
-                    if keep == true {
-                        keepers.push(entry);
-                        new_pointers.feed(entry);
-                    }
-                }
-
-                // write the events out only loading the ones that are actually needed
-                let mut refactor = FxHashMap::default();
-                for entry in keepers.iter().rev() {
-                    let new_entry = EventEntryExt {
-                        meta_hash: entry.meta_hash,
-                        meta_bytes: entry.meta_bytes.clone(),
-                        meta: entry.meta.clone(),
-                        data_hash: entry.data_hash.clone(),
-                        pointer: flip.copy_event(&multi.inside.chain.redo, &entry.pointer).await?,
-                    };
-                    refactor.insert(entry.pointer, new_entry.pointer.clone());
-                    new_chain.push(new_entry);
-                }
-
-                // Refactor the index
-                new_pointers.refactor(&refactor);
+            // step1 - reset all the compactors
+            let mut compactors = Vec::new();
+            for compactor in &guard_async.chain.compactors {
+                let mut compactor = compactor.clone_compactor();
+                compactor.reset();
+                compactors.push(compactor);
             }
+            for plugin in &guard_sync.plugins {
+                let mut compactor = plugin.clone_compactor();
+                compactor.reset();
+                compactors.push(compactor);
+            }
+
+            // build a list of the events that are actually relevant to a compacted log
+            for entry in guard_async.chain.history.iter().rev()
+            {
+                let mut is_force_keep = false;
+                let mut is_keep = false;
+                let mut is_drop = false;
+                let mut is_force_drop = false;
+                for compactor in compactors.iter_mut() {
+                    match compactor.relevance(&entry) {
+                        EventRelevance::ForceKeep => is_force_keep = true,
+                        EventRelevance::Keep => is_keep = true,
+                        EventRelevance::Drop => is_drop = true,
+                        EventRelevance::ForceDrop => is_force_drop = true,
+                        EventRelevance::Abstain => { }
+                    }
+                }
+                let keep = match is_force_keep {
+                    true => true,
+                    false if is_force_drop == true => false,
+                    _ if is_keep == true => true,
+                    _ if is_drop == false => true,
+                    _ => false
+                };
+                if keep == true {
+                    keepers.push(entry);
+                    new_pointers.feed(entry);
+                }
+            }
+
+            // write the events out only loading the ones that are actually needed
+            let mut refactor = FxHashMap::default();
+            for entry in keepers.iter().rev() {
+                let new_entry = EventEntryExt {
+                    meta_hash: entry.meta_hash,
+                    meta_bytes: entry.meta_bytes.clone(),
+                    meta: entry.meta.clone(),
+                    data_hash: entry.data_hash.clone(),
+                    pointer: flip.copy_event(&guard_async.chain.redo, &entry.pointer).await?,
+                };
+                refactor.insert(entry.pointer, new_entry.pointer.clone());
+                new_chain.push(new_entry);
+            }
+
+            // Refactor the index
+            new_pointers.refactor(&refactor);
         }
 
         let mut single = self.single().await;
 
         // finish the flips
-        let new_events = single.inside.chain.redo.finish_flip(flip).await?;
+        let new_events = single.inside_async.chain.redo.finish_flip(flip).await?;
         let new_events= new_events
             .into_iter()
             .map(|e| EventEntryExt::from_generic(&e))
             .collect::<Result<Vec<_>,_>>()?;
                         
         // complete the transaction
-        single.inside.chain.pointers = new_pointers;
-        single.inside.chain.history = new_chain;
+        single.inside_async.chain.pointers = new_pointers;
+        single.inside_async.chain.history = new_chain;
 
-        for indexer in single.inside.indexers.iter_mut() {
-            indexer.rebuild(&new_events)?;
+        {
+            let mut lock = single.inside_sync.write().unwrap();
+            for indexer in lock.indexers.iter_mut() {
+                indexer.rebuild(&new_events)?;
+            }
+            for plugin in lock.plugins.iter_mut() {
+                plugin.rebuild(&new_events)?;
+            }
         }
-        for plugin in single.inside.plugins.iter_mut() {
-            plugin.rebuild(&new_events)?;
-        }
-
-        single.inside.chain.flush().await?;
+        
+        single.inside_async.chain.flush().await?;
 
         // success
         Ok(())
@@ -260,12 +281,12 @@ impl<'a> ChainAccessor
 
     #[allow(dead_code)]
     pub async fn count(&self) -> usize {
-        self.inside.read().await.chain.redo.count()
+        self.inside_async.read().await.chain.redo.count()
     }
 
     pub async fn flush(&self) -> Result<(), tokio::io::Error> {
         Ok(
-            self.inside.write().await.chain.flush().await?
+            self.inside_async.write().await.chain.flush().await?
         )
     }
 
@@ -293,26 +314,26 @@ impl<'a> ChainAccessor
     }
 }
 
-impl ChainAccessorProtected
+impl ChainAccessorProtectedAsync
 {
     #[allow(dead_code)]
-    pub(super) fn process(&mut self, entries: Vec<EventEntryExt>) -> Result<(), ProcessError>
+    pub(super) fn process(&mut self, mut sync: StdRwLockWriteGuard<ChainAccessorProtectedSync>, entries: Vec<EventEntryExt>) -> Result<(), ProcessError>
     {
         let mut ret = ProcessError::default();
 
         for entry in entries.into_iter()
         {
             let validation_data = ValidationData::from_event_entry(&entry);
-            if let Result::Err(err) = self.validate_event(&validation_data) {
+            if let Result::Err(err) = sync.validate_event(&validation_data) {
                 ret.validation_errors.push(err);
             }
 
-            for indexer in self.indexers.iter_mut() {
+            for indexer in sync.indexers.iter_mut() {
                 if let Err(err) = indexer.feed(&entry.meta, &entry.data_hash) {
                     ret.sink_errors.push(err);
                 }
             }
-            for plugin in self.plugins.iter_mut() {
+            for plugin in sync.plugins.iter_mut() {
                 if let Err(err) = plugin.feed(&entry.meta, &entry.data_hash) {
                     ret.sink_errors.push(err);
                 }
@@ -326,41 +347,19 @@ impl ChainAccessorProtected
     }
 
     #[allow(dead_code)]
-    pub(super) fn validate_event(&self, data: &ValidationData) -> Result<ValidationResult, ValidationError>
-    {
-        let mut is_allow = false;
-        for validator in self.chain.validators.iter() {
-            match validator.validate(data)? {
-                ValidationResult::Allow => is_allow = true,
-                _ => {},
-            }
-        }
-        for plugin in self.plugins.iter() {
-            match plugin.validate(data)? {
-                ValidationResult::Allow => is_allow = true,
-                _ => {}
-            }
-        }
-
-        if is_allow == false {
-            return Err(ValidationError::AllAbstained);
-        }
-        Ok(ValidationResult::Allow)
-    }
-
-    #[allow(dead_code)]
-    pub(super) async fn feed_async(&mut self, evts: Vec<EventRawPlus>) -> Result<(), CommitError> {
+    pub(super) async fn feed_async_internal(&mut self, sync: Arc<StdRwLock<ChainAccessorProtectedSync>>, evts: Vec<EventRawPlus>) -> Result<(), CommitError> {
         let mut validated_evts = Vec::new();
         {
+            let mut sync = sync.write().unwrap();
             for evt in evts.into_iter()
             {
                 let validation_data = ValidationData::from_event(&evt);
-                self.validate_event(&validation_data)?;
+                sync.validate_event(&validation_data)?;
 
-                for indexer in self.indexers.iter_mut() {
+                for indexer in sync.indexers.iter_mut() {
                     indexer.feed(&evt.inner.meta, &evt.inner.data_hash)?;
                 }
-                for plugin in self.plugins.iter_mut() {
+                for plugin in sync.plugins.iter_mut() {
                     plugin.feed(&evt.inner.meta, &evt.inner.data_hash)?;
                 }
 
@@ -383,5 +382,31 @@ impl ChainAccessorProtected
             self.chain.history.push(entry);
         }
         Ok(())
+    }
+}
+
+impl ChainAccessorProtectedSync
+{
+    #[allow(dead_code)]
+    pub(super) fn validate_event(&self, data: &ValidationData) -> Result<ValidationResult, ValidationError>
+    {
+        let mut is_allow = false;
+        for validator in self.validators.iter() {
+            match validator.validate(data)? {
+                ValidationResult::Allow => is_allow = true,
+                _ => {},
+            }
+        }
+        for plugin in self.plugins.iter() {
+            match plugin.validate(data)? {
+                ValidationResult::Allow => is_allow = true,
+                _ => {}
+            }
+        }
+
+        if is_allow == false {
+            return Err(ValidationError::AllAbstained);
+        }
+        Ok(ValidationResult::Allow)
     }
 }

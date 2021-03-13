@@ -839,3 +839,9 @@ for CommsError {
         write!(f, "{}", self.to_string())
     }
 }
+
+#[allow(dead_code)]
+pub enum BusError
+{
+    NotImplemented,
+}

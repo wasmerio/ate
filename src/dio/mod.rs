@@ -89,7 +89,7 @@ impl DioState
 
 pub struct Dio<'a>
 {
-    multi: Option<ChainMultiUser<'a>>,
+    multi: Option<ChainMultiUser>,
     state: Rc<RefCell<DioState>>,
     #[allow(dead_code)]
     session: &'a Session,
@@ -137,7 +137,7 @@ impl<'a> Dio<'a>
             return Result::Err(LoadError::AlreadyDeleted(key.clone()));
         }
 
-        let entry = match multi.lookup_primary(key) {
+        let entry = match multi.lookup_primary(key).await {
             Some(a) => a,
             None => return Result::Err(LoadError::NotFound(key.clone()))
         };
@@ -174,7 +174,7 @@ impl<'a> Dio<'a>
 
         // We either find existing objects in the cache or build a list of objects to load
         let mut to_load = Vec::new();
-        for entry in match multi.lookup_secondary(&key) {
+        for entry in match multi.lookup_secondary(&key).await {
             Some(a) => a,
             None => return Ok(Vec::new())
         } {

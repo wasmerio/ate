@@ -7,7 +7,9 @@ use crate::session::{Session, SessionProperty};
 #[allow(unused_imports)]
 use super::crypto::*;
 use super::compact::*;
+#[allow(unused_imports)]
 use super::lint::*;
+#[allow(unused_imports)]
 use super::transform::*;
 use super::meta::*;
 use super::error::*;
@@ -22,6 +24,7 @@ use super::accessor::*;
 use super::conf::*;
 #[allow(unused_imports)]
 use super::header::*;
+#[allow(unused_imports)]
 use super::validator::*;
 #[allow(unused_imports)]
 use super::event::*;
@@ -88,10 +91,7 @@ pub struct ChainOfTrust
     pub(super) configured_for: ConfiguredFor,
     pub(super) history: Vec<EventEntryExt>,
     pub(super) pointers: BinaryTreeIndexer,
-    pub(super) validators: Vec<Box<dyn EventValidator>>,
     pub(super) compactors: Vec<Box<dyn EventCompactor>>,
-    pub(super) linters: Vec<Box<dyn EventMetadataLinter>>,
-    pub(super) transformers: Vec<Box<dyn EventDataTransformer>>,
 }
 
 impl<'a> ChainOfTrust
@@ -115,14 +115,14 @@ impl<'a> ChainOfTrust
         }
     }
 
-    pub(super) async fn load_many(&self, entries: Vec<&EventEntryExt>) -> Result<Vec<EventExt>, LoadError>
+    pub(super) async fn load_many(&self, entries: Vec<EventEntryExt>) -> Result<Vec<EventExt>, LoadError>
     {
         let mut ret = Vec::new();
 
         let mut futures = Vec::new();
         for entry in entries {
-            let pointer = entry.pointer.clone();
-            futures.push(self.redo.load(pointer, entry.meta.clone()));
+            let pointer = entry.pointer;
+            futures.push(self.redo.load(pointer, entry.meta));
         }
 
         for loaded in join_all(futures).await {
@@ -152,7 +152,7 @@ impl<'a> ChainOfTrust
     }
 
     #[allow(dead_code)]
-    pub(super) fn lookup_secondary(&self, key: &MetaCollection) -> Option<&Vec<EventEntryExt>>
+    pub(super) fn lookup_secondary(&self, key: &MetaCollection) -> Option<Vec<EventEntryExt>>
     {
         self.pointers.lookup_secondary(key)
     }
@@ -231,7 +231,7 @@ pub async fn test_chain() {
 
         {
             let lock = chain.multi().await;
-            assert_eq!(0, lock.count());
+            assert_eq!(0, lock.count().await);
             
             // Push the first events into the chain-of-trust
             let mut evts = Vec::new();
@@ -250,7 +250,7 @@ pub async fn test_chain() {
             let lock = chain.multi().await;
 
             // Make sure its there in the chain
-            let test_data = lock.lookup_primary(&key1).expect("Failed to find the entry after the flip");
+            let test_data = lock.lookup_primary(&key1).await.expect("Failed to find the entry after the flip");
             let test_data = lock.load(&test_data).await.expect("Could not load the data for the entry");
             assert_eq!(test_data.raw.data, Some(Bytes::from(vec!(1; 1))));
         }
@@ -279,12 +279,12 @@ pub async fn test_chain() {
             let lock = chain.multi().await;
 
             // Read the event and make sure its the second one that results after compaction
-            let test_data = lock.lookup_primary(&key1).expect("Failed to find the entry after the flip");
+            let test_data = lock.lookup_primary(&key1).await.expect("Failed to find the entry after the flip");
             let test_data = lock.load(&test_data).await.unwrap();
             assert_eq!(test_data.raw.data, Some(Bytes::from(vec!(10; 1))));
 
             // The other event we added should also still be there
-            let test_data = lock.lookup_primary(&key2).expect("Failed to find the entry after the flip");
+            let test_data = lock.lookup_primary(&key2).await.expect("Failed to find the entry after the flip");
             let test_data = lock.load(&test_data).await.unwrap();
             assert_eq!(test_data.raw.data, Some(Bytes::from(vec!(2; 1))));
         }
@@ -307,7 +307,7 @@ pub async fn test_chain() {
         }
 
         // Searching for the item we should not find it
-        match chain.multi().await.lookup_primary(&key2) {
+        match chain.multi().await.lookup_primary(&key2).await {
             Some(_) => panic!("The item should not be visible anymore"),
             None => {}
         }
@@ -325,7 +325,7 @@ pub async fn test_chain() {
             let lock = chain.multi().await;
 
             // Read the event and make sure its the second one that results after compaction
-            let test_data = lock.lookup_primary(&key1).expect("Failed to find the entry after we reloaded the chain");
+            let test_data = lock.lookup_primary(&key1).await.expect("Failed to find the entry after we reloaded the chain");
             let test_data = lock.load(&test_data).await.unwrap();
             assert_eq!(test_data.raw.data, Some(Bytes::from(vec!(10; 1))));
         }
