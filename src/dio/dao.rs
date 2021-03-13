@@ -1,3 +1,4 @@
+use log::{warn};
 use fxhash::FxHashSet;
 
 use serde::{Serialize, de::DeserializeOwned};
@@ -120,10 +121,23 @@ pub(crate) struct RowData
     pub collections: FxHashSet<MetaCollection>,
 }
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(crate) enum DaoLock
+{
+    /// The DAO has no lock on it
+    Unlocked,
+    /// The DAO has been manually locked forcing serial access
+    Locked,
+    /// The dao is being processed thus holds a lock and should be deleted
+    /// when it goes out of scope
+    LockedThenDelete,
+}
+
 #[derive(Debug)]
 pub struct Dao<D>
 where D: Serialize + DeserializeOwned + Clone,
 {
+    lock: DaoLock,
     dirty: bool,
     pub(super) row: Row<D>,
     state: Rc<RefCell<DioState>>,
@@ -134,6 +148,7 @@ where D: Serialize + DeserializeOwned + Clone,
 {
     pub(super) fn new<>(row: Row<D>, state: &Rc<RefCell<DioState>>) -> Dao<D> {
         Dao {
+            lock: DaoLock::Unlocked,
             dirty: false,
             row: row,
             state: Rc::clone(state),
@@ -204,7 +219,12 @@ where D: Serialize + DeserializeOwned + Clone,
     }
 
     #[allow(dead_code)]
-    pub fn delete(self) -> std::result::Result<(), SerializationError> {
+    pub(crate) fn delete(self) -> std::result::Result<(), SerializationError> {
+        self.delete_internal()
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn delete_internal(&self) -> std::result::Result<(), SerializationError> {
         let mut state = self.state.borrow_mut();
         if state.lock(&self.row.key) == false {
             eprintln!("Detected concurrent write while deleting a data object ({:?}) - the delete operation will override everything else", self.row.key);
@@ -221,6 +241,48 @@ where D: Serialize + DeserializeOwned + Clone,
         let row_data = self.row.as_row_data()?;
         state.deleted.insert(key, Rc::new(row_data));
         Ok(())
+    }
+
+    #[allow(dead_code)]
+    pub fn try_lock(&mut self) -> Result<bool, LockError> {
+        match self.lock {
+            DaoLock::Locked | DaoLock::LockedThenDelete => {},
+            DaoLock::Unlocked => {
+                self.lock = DaoLock::Locked;
+            }
+        };
+        Ok(true)
+    }
+
+    #[allow(dead_code)]
+    pub fn try_lock_then_delete(&mut self) -> Result<bool, LockError> {
+        if self.try_lock()? == false {
+            return Ok(false);
+        }
+        self.lock = DaoLock::LockedThenDelete;
+        Ok(true)
+    }
+
+    #[allow(dead_code)]
+    pub fn unlock(&mut self) -> Result<bool, LockError> {
+        match self.lock {
+            DaoLock::Unlocked | DaoLock::LockedThenDelete => {
+                return Ok(false);
+            },
+            DaoLock::Locked => {
+                self.lock = DaoLock::Unlocked;
+            }
+        };
+
+        Ok(true)
+    }
+
+    #[allow(dead_code)]
+    pub fn is_locked(&self) -> bool {
+        match self.lock {
+            DaoLock::Locked | DaoLock::LockedThenDelete => true,
+            DaoLock::Unlocked => false
+        }
     }
 }
 
@@ -248,9 +310,28 @@ where D: Serialize + DeserializeOwned + Clone,
 {
     fn drop(&mut self)
     {
+        // Deal with any locks that exist on this data object
+        match self.lock {
+            DaoLock::Locked => {
+                if let Err(err) = self.unlock() {
+                    debug_assert!(false, "dao-flush-error {}", err.to_string());
+                    warn!("dao-flush-error {}", err.to_string());
+                }
+            },
+            DaoLock::LockedThenDelete => {
+                if let Err(err) = self.delete_internal() {
+                    debug_assert!(false, "dao-flush-error {}", err.to_string());
+                    warn!("dao-flush-error {}", err.to_string());
+                }
+                return;
+            },
+            _ => {}
+        }
+
         // Now attempt to flush it
         if let Err(err) = self.flush() {
             debug_assert!(false, "dao-flush-error {}", err.to_string());
+            warn!("dao-flush-error {}", err.to_string());
         }
     }
 }

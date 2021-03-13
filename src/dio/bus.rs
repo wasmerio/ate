@@ -67,6 +67,16 @@ where D: Serialize + DeserializeOwned + Clone,
     }
 
     #[allow(dead_code)]
+    pub async fn process(&mut self, dio: &mut Dio<'a>) -> Result<Dao<D>, BusError> {
+        loop {
+            let mut dao = self.recv(dio).await?;
+            if dao.try_lock_then_delete()? == true {
+                return Ok(dao);
+            }
+        }
+    }
+
+    #[allow(dead_code)]
     pub fn send(&mut self, dio: &mut Dio<'a>, data: D) -> Result<Dao<D>, BusError> {
         let mut ret = dio.store(data)?;
 

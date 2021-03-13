@@ -851,6 +851,7 @@ pub enum BusError
     ReceiveError(String),
     ChannelClosed,
     SerializationError(SerializationError),
+    LockError(LockError),
 }
 
 impl From<LoadError>
@@ -885,6 +886,14 @@ for BusError
     }   
 }
 
+impl From<LockError>
+for BusError
+{
+    fn from(err: LockError) -> BusError {
+        BusError::LockError(err)
+    }   
+}
+
 impl std::fmt::Display
 for BusError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -900,6 +909,26 @@ for BusError {
             },
             BusError::SerializationError(err) => {
                 write!(f, "Failed to send event to the BUS due to an error in serialization - {}", err)
+            },
+            BusError::LockError(err) => {
+                write!(f, "Failed to receive event from BUS due to an error locking the data object - {}", err)
+            },
+        }
+    }
+}
+
+pub enum LockError
+{
+    #[allow(dead_code)]
+    NotImplemented,
+}
+
+impl std::fmt::Display
+for LockError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            LockError::NotImplemented => {
+                write!(f, "Failed to lock the data object as this function is not yet implemented")
             },
         }
     }
