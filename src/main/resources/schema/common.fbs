@@ -1,9 +1,0 @@
-// ../flatc.exe --java --gen-all ../resources/schema/msg/base.fbs
-
-namespace com.tokera.ate.dao;
-
-struct ObjId
-{
-  low           :long;
-  high          :long;
-}
