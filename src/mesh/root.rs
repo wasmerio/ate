@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use serde::{Serialize, Deserialize};
 use log::{warn};
-use std::{net::{IpAddr, Ipv6Addr}};
+use std::{net::{IpAddr, Ipv6Addr}, ops::Deref};
 use tokio::sync::{Mutex};
 use std::sync::Mutex as StdMutex;
 use std::{sync::Arc, collections::hash_map::Entry};
@@ -9,6 +9,7 @@ use tokio::sync::mpsc;
 use fxhash::FxHashMap;
 use fxhash::FxHashSet;
 use crate::{header::PrimaryKey, pipe::EventPipe};
+use std::sync::Weak;
 
 use super::core::*;
 use crate::comms::*;
@@ -28,13 +29,13 @@ pub(super) struct MeshRoot {
     chains: Mutex<FxHashMap<ChainKey, Arc<ChainAccessor>>>,
 }
 
-#[derive(Debug)]
+#[derive(Clone)]
 struct SessionContextProtected {
+    root: Weak<MeshRoot>,
     chain_key: Option<ChainKey>,
     locks: FxHashSet<PrimaryKey>,
 }
 
-#[derive(Debug)]
 struct SessionContext {
     inside: StdMutex<SessionContextProtected>
 }
@@ -44,9 +45,25 @@ for SessionContext {
     fn default() -> SessionContext {
         SessionContext {
             inside: StdMutex::new(SessionContextProtected {
+                root: Weak::new(),
                 chain_key: None,
                 locks: FxHashSet::default(),
             })
+        }
+    }
+}
+
+impl Drop
+for SessionContext {
+    fn drop(&mut self) {
+        let context = self.inside.lock().unwrap().clone();
+        if let Some(root) = context.root.upgrade() {
+            tokio::spawn(async move {
+                if let Err(err) = root.disconnected(context).await {
+                    debug_assert!(false, "mesh-root-err {:?}", err);
+                    warn!("mesh-root-err: {}", err.to_string());
+                }
+            });
         }
     }
 }
@@ -87,6 +104,26 @@ impl MeshRoot
         ret
     }
 
+    async fn disconnected(&self, context: SessionContextProtected) -> Result<(), CommsError> {
+        let chain_key = context.chain_key.clone();
+        let chain_key = match chain_key {
+            Some(k) => k,
+            None => { return Ok(()); }
+        };
+        let chain = match self.open(chain_key.clone()).await {
+            Err(ChainCreationError::NoRootFound) => {
+                return Ok(());
+            }
+            a => a?
+        };
+
+        for key in context.locks {
+            chain.pipe.unlock(key).await?;
+        }
+
+        Ok(())
+    }
+
     async fn inbox_packet(self: &Arc<MeshRoot>, pck: PacketWithContext<Message, SessionContext>, node: &Node<Message, SessionContext>)
         -> Result<(), CommsError>
     {
@@ -106,11 +143,11 @@ impl MeshRoot
             };
             chain.flush().await?;
 
-            context.inside
-                .lock()
-                .unwrap()
-                .chain_key
-                .replace(chain_key.clone());
+            {
+                let mut guard = context.inside.lock().unwrap();
+                guard.root = Arc::downgrade(self);
+                guard.chain_key.replace(chain_key.clone());
+            }
             
             let multi = chain.multi().await;
             Packet::reply_at(reply_at, Message::StartOfHistory).await?;
@@ -199,6 +236,7 @@ impl MeshRoot
                 key,
             } => {
                 let is_locked = chain.pipe.try_lock(key.clone()).await?;
+                context.inside.lock().unwrap().locks.insert(key.clone());
                 Packet::reply_at(reply_at, Message::LockResult {
                     key: key.clone(),
                     is_locked
@@ -207,6 +245,7 @@ impl MeshRoot
             Message::Unlock {
                 key,
             } => {
+                context.inside.lock().unwrap().locks.remove(key);
                 chain.pipe.unlock(key.clone()).await?;
             }
             _ => { }
