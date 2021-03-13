@@ -1,4 +1,5 @@
 use fxhash::FxHashMap;
+use multimap::MultiMap;
 
 use super::compact::*;
 use super::plugin::*;
@@ -33,10 +34,17 @@ use super::multi::*;
 use super::pipe::*;
 use super::lint::*;
 use super::transform::*;
+use super::meta::MetaCollection;
 
 pub struct ChainAccessorProtectedAsync
 {
     pub(super) chain: ChainOfTrust,
+}
+
+pub(crate) struct ChainListener
+{
+    pub(crate) id: u64,
+    pub(crate) sender: mpsc::Sender<EventExt>
 }
 
 pub struct ChainAccessorProtectedSync
@@ -46,6 +54,7 @@ pub struct ChainAccessorProtectedSync
     pub(super) linters: Vec<Box<dyn EventMetadataLinter>>,
     pub(super) transformers: Vec<Box<dyn EventDataTransformer>>,
     pub(super) validators: Vec<Box<dyn EventValidator>>,
+    pub(super) listeners: MultiMap<MetaCollection, ChainListener>,
 }
 
 pub struct ChainAccessor
@@ -54,6 +63,119 @@ pub struct ChainAccessor
     pub(super) inside_sync: Arc<StdRwLock<ChainAccessorProtectedSync>>,
     pub(super) inside_async: Arc<RwLock<ChainAccessorProtectedAsync>>,
     pub(super) inbox: mpsc::Sender<Transaction>,
+}
+
+impl ChainAccessorProtectedAsync
+{
+    #[allow(dead_code)]
+    pub(super) fn process(&mut self, mut sync: StdRwLockWriteGuard<ChainAccessorProtectedSync>, entries: Vec<EventEntryExt>) -> Result<(), ProcessError>
+    {
+        let mut ret = ProcessError::default();
+
+        for entry in entries.into_iter()
+        {
+            let validation_data = ValidationData::from_event_entry(&entry);
+            if let Result::Err(err) = sync.validate_event(&validation_data) {
+                ret.validation_errors.push(err);
+            }
+
+            for indexer in sync.indexers.iter_mut() {
+                if let Err(err) = indexer.feed(&entry.meta, &entry.data_hash) {
+                    ret.sink_errors.push(err);
+                }
+            }
+            for plugin in sync.plugins.iter_mut() {
+                if let Err(err) = plugin.feed(&entry.meta, &entry.data_hash) {
+                    ret.sink_errors.push(err);
+                }
+            }
+
+            self.chain.pointers.feed(&entry);
+            self.chain.history.push(entry);
+        }
+
+        ret.as_result()
+    }
+
+    #[allow(dead_code)]
+    pub(super) async fn feed_async_internal(&mut self, sync: Arc<StdRwLock<ChainAccessorProtectedSync>>, evts: Vec<EventRawPlus>)
+        -> Result<Vec<EventExt>, CommitError>
+    {
+        let mut validated_evts = Vec::new();
+        {
+            let mut sync = sync.write().unwrap();
+            for evt in evts.into_iter()
+            {
+                let validation_data = ValidationData::from_event(&evt);
+                sync.validate_event(&validation_data)?;
+
+                for indexer in sync.indexers.iter_mut() {
+                    indexer.feed(&evt.inner.meta, &evt.inner.data_hash)?;
+                }
+                for plugin in sync.plugins.iter_mut() {
+                    plugin.feed(&evt.inner.meta, &evt.inner.data_hash)?;
+                }
+
+                validated_evts.push(evt);
+            }
+        }
+
+        let mut ret = Vec::new();
+        for evt in validated_evts.into_iter() {
+            let pointer = self.chain.redo
+                .write(
+                    evt.meta_bytes.clone(), 
+                    evt.inner.data.clone()
+                ).await?;
+
+            let entry = EventEntryExt {
+                meta_hash: evt.meta_hash.clone(),
+                meta_bytes: evt.meta_bytes.clone(),
+                meta: evt.inner.meta.clone(),
+                data_hash: evt.inner.data_hash.clone(),
+                pointer: pointer.clone(),
+            };
+
+            self.chain.pointers.feed(&entry);
+            self.chain.history.push(entry);
+
+            let entry = EventExt {
+                meta_hash: evt.meta_hash,
+                meta_bytes: evt.meta_bytes,
+                pointer: pointer,
+                raw: evt.inner,
+            };
+
+            ret.push(entry);
+        }
+        Ok(ret)
+    }
+}
+
+impl ChainAccessorProtectedSync
+{
+    #[allow(dead_code)]
+    pub(super) fn validate_event(&self, data: &ValidationData) -> Result<ValidationResult, ValidationError>
+    {
+        let mut is_allow = false;
+        for validator in self.validators.iter() {
+            match validator.validate(data)? {
+                ValidationResult::Allow => is_allow = true,
+                _ => {},
+            }
+        }
+        for plugin in self.plugins.iter() {
+            match plugin.validate(data)? {
+                ValidationResult::Allow => is_allow = true,
+                _ => {}
+            }
+        }
+
+        if is_allow == false {
+            return Err(ValidationError::AllAbstained);
+        }
+        Ok(ValidationResult::Allow)
+    }
 }
 
 impl<'a> ChainAccessor
@@ -68,7 +190,10 @@ impl<'a> ChainAccessor
 
             // Push the events into the chain of trust and release the lock on it before
             // we transmit the result so that there is less lock thrashing
-            let chain_result = lock.feed_async_internal(inside_sync.clone(), trans.events).await;
+            let chain_result = match lock.feed_async_internal(inside_sync.clone(), trans.events).await {
+                Ok(_) => Ok(()),
+                Err(err) => Err(err),
+            };
 
             // Flush then drop the lock
             lock.chain.flush().await.unwrap();
@@ -114,6 +239,7 @@ impl<'a> ChainAccessor
             linters: builder.linters,
             validators: builder.validators,
             transformers: builder.transformers,
+            listeners: MultiMap::new(),
         };
         if let Some(tree) = builder.tree {
             inside_sync.plugins.push(Box::new(tree));
@@ -145,7 +271,7 @@ impl<'a> ChainAccessor
     }
     
     #[allow(dead_code)]
-    pub fn proxy(&mut self, proxy: mpsc::Sender<Transaction>) -> mpsc::Sender<Transaction> {
+    pub fn proxy(&'a mut self, proxy: mpsc::Sender<Transaction>) -> mpsc::Sender<Transaction> {
         let ret = self.inbox.clone();
         self.inbox = proxy;
         return ret;
@@ -165,12 +291,12 @@ impl<'a> ChainAccessor
     }
 
     #[allow(dead_code)]
-    pub async fn name(&mut self) -> String {
+    pub async fn name(&'a mut self) -> String {
         self.single().await.name()
     }
 
     #[allow(dead_code)]
-    pub async fn compact(&mut self) -> Result<(), CompactError>
+    pub async fn compact(&'a mut self) -> Result<(), CompactError>
     {
         // prepare
         let mut new_pointers = BinaryTreeIndexer::default();
@@ -280,18 +406,18 @@ impl<'a> ChainAccessor
     }
 
     #[allow(dead_code)]
-    pub async fn count(&self) -> usize {
+    pub async fn count(&'a self) -> usize {
         self.inside_async.read().await.chain.redo.count()
     }
 
-    pub async fn flush(&self) -> Result<(), tokio::io::Error> {
+    pub async fn flush(&'a self) -> Result<(), tokio::io::Error> {
         Ok(
             self.inside_async.write().await.chain.flush().await?
         )
     }
 
     #[allow(dead_code)]
-    pub async fn sync(&self) -> Result<(), CommitError>
+    pub async fn sync(&'a self) -> Result<(), CommitError>
     {
         // Create the transaction
         let (sender, receiver) = smpsc::channel();
@@ -310,103 +436,35 @@ impl<'a> ChainAccessor
         tokio::task::block_in_place(move || {
             receiver.recv()
         })??;
+
+        // Success!
         Ok(())
     }
-}
 
-impl ChainAccessorProtectedAsync
-{
-    #[allow(dead_code)]
-    pub(super) fn process(&mut self, mut sync: StdRwLockWriteGuard<ChainAccessorProtectedSync>, entries: Vec<EventEntryExt>) -> Result<(), ProcessError>
+    pub(crate) async fn notify<'b>(&'a self, evts: &'b Vec<EventExt>)
     {
-        let mut ret = ProcessError::default();
-
-        for entry in entries.into_iter()
-        {
-            let validation_data = ValidationData::from_event_entry(&entry);
-            if let Result::Err(err) = sync.validate_event(&validation_data) {
-                ret.validation_errors.push(err);
+        let mut notify_map = MultiMap::new();
+        for evt in evts.iter() {
+            let keys = evt.raw.meta.get_collections();
+            for key in keys {
+                notify_map.insert(key, evt.clone());
             }
+        }
 
-            for indexer in sync.indexers.iter_mut() {
-                if let Err(err) = indexer.feed(&entry.meta, &entry.data_hash) {
-                    ret.sink_errors.push(err);
+        let lock = self.inside_sync.read().unwrap();
+        for pair in notify_map {
+            let (k, v) = pair;
+            if let Some(targets) = lock.listeners.get_vec(&k) {
+                for target in targets {
+                    let target = target.sender.clone();
+                    let evts = v.clone();
+                    tokio::spawn(async move {
+                        for evt in evts {
+                            let _ = target.send(evt).await;
+                        }
+                    });
                 }
             }
-            for plugin in sync.plugins.iter_mut() {
-                if let Err(err) = plugin.feed(&entry.meta, &entry.data_hash) {
-                    ret.sink_errors.push(err);
-                }
-            }
-
-            self.chain.pointers.feed(&entry);
-            self.chain.history.push(entry);
         }
-
-        ret.as_result()
-    }
-
-    #[allow(dead_code)]
-    pub(super) async fn feed_async_internal(&mut self, sync: Arc<StdRwLock<ChainAccessorProtectedSync>>, evts: Vec<EventRawPlus>) -> Result<(), CommitError> {
-        let mut validated_evts = Vec::new();
-        {
-            let mut sync = sync.write().unwrap();
-            for evt in evts.into_iter()
-            {
-                let validation_data = ValidationData::from_event(&evt);
-                sync.validate_event(&validation_data)?;
-
-                for indexer in sync.indexers.iter_mut() {
-                    indexer.feed(&evt.inner.meta, &evt.inner.data_hash)?;
-                }
-                for plugin in sync.plugins.iter_mut() {
-                    plugin.feed(&evt.inner.meta, &evt.inner.data_hash)?;
-                }
-
-                validated_evts.push(evt);
-            }
-        }
-
-        for evt in validated_evts.into_iter() {
-            let pointer = self.chain.redo.write(evt.meta_bytes.clone(), evt.inner.data).await?;
-
-            let entry = EventEntryExt {
-                meta_hash: evt.meta_hash,
-                meta_bytes: evt.meta_bytes,
-                meta: evt.inner.meta,
-                data_hash: evt.inner.data_hash,
-                pointer: pointer,
-            };
-
-            self.chain.pointers.feed(&entry);
-            self.chain.history.push(entry);
-        }
-        Ok(())
-    }
-}
-
-impl ChainAccessorProtectedSync
-{
-    #[allow(dead_code)]
-    pub(super) fn validate_event(&self, data: &ValidationData) -> Result<ValidationResult, ValidationError>
-    {
-        let mut is_allow = false;
-        for validator in self.validators.iter() {
-            match validator.validate(data)? {
-                ValidationResult::Allow => is_allow = true,
-                _ => {},
-            }
-        }
-        for plugin in self.plugins.iter() {
-            match plugin.validate(data)? {
-                ValidationResult::Allow => is_allow = true,
-                _ => {}
-            }
-        }
-
-        if is_allow == false {
-            return Err(ValidationError::AllAbstained);
-        }
-        Ok(ValidationResult::Allow)
     }
 }

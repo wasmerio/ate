@@ -117,9 +117,13 @@ impl MeshSession
              } =>
             {
                 let feed_me = MessageEvent::convert_from(&evts);
+                
                 let mut single = self.chain.single().await;
-                single.feed_async(feed_me).await?;
+                let evts = single.feed_async(feed_me).await?;
                 single.inside_async.chain.flush().await?;
+                drop(single);
+
+                self.chain.notify(&evts).await;
             },
             Message::Confirmed(id) => {
                 if let Some(result) = self.commit.lock().unwrap().remove(&id) {

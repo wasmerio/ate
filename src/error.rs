@@ -209,6 +209,7 @@ for SerializationError {
 #[derive(Debug)]
 pub enum LoadError {
     NotFound(PrimaryKey),
+    NoPrimaryKey,
     ObjectStillLocked(PrimaryKey),
     AlreadyDeleted(PrimaryKey),
     Tombstoned(PrimaryKey),
@@ -249,6 +250,9 @@ for LoadError {
         match self {
             LoadError::NotFound(key) => {
                 write!(f, "Data object with key ({}) could not be found", key.as_hex_string())
+            },
+            LoadError::NoPrimaryKey => {
+                write!(f, "Entry has no primary could and hence could not be loaded")
             },
             LoadError::ObjectStillLocked(key) => {
                 write!(f, "Data object with key ({}) is still being edited in the current scope", key.as_hex_string())
@@ -728,19 +732,19 @@ for CommsError
     }   
 }
 
-impl<T> From<smpsc::SendError<T>>
-for CommsError
-{
-    fn from(err: smpsc::SendError<T>) -> CommsError {
-        CommsError::SendError(err.to_string())
-    }   
-}
-
 impl From<smpsc::RecvError>
 for CommsError
 {
     fn from(err: smpsc::RecvError) -> CommsError {
         CommsError::ReceiveError(err.to_string())
+    }   
+}
+
+impl<T> From<smpsc::SendError<T>>
+for CommsError
+{
+    fn from(err: smpsc::SendError<T>) -> CommsError {
+        CommsError::SendError(err.to_string())
     }   
 }
 
@@ -843,5 +847,60 @@ for CommsError {
 #[allow(dead_code)]
 pub enum BusError
 {
-    NotImplemented,
+    LoadError(LoadError),
+    ReceiveError(String),
+    ChannelClosed,
+    SerializationError(SerializationError),
+}
+
+impl From<LoadError>
+for BusError
+{
+    fn from(err: LoadError) -> BusError {
+        BusError::LoadError(err)
+    }   
+}
+
+impl From<SerializationError>
+for BusError
+{
+    fn from(err: SerializationError) -> BusError {
+        BusError::SerializationError(err)
+    }   
+}
+
+impl From<mpsc::error::RecvError>
+for BusError
+{
+    fn from(err: mpsc::error::RecvError) -> BusError {
+        BusError::ReceiveError(err.to_string())
+    }   
+}
+
+impl From<smpsc::RecvError>
+for BusError
+{
+    fn from(err: smpsc::RecvError) -> BusError {
+        BusError::ReceiveError(err.to_string())
+    }   
+}
+
+impl std::fmt::Display
+for BusError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            BusError::LoadError(err) => {
+                write!(f, "Failed to receive event from BUS due to an error loading the event - {}", err)
+            },
+            BusError::ReceiveError(err) => {
+                write!(f, "Failed to receive event from BUS due to an internal error  - {}", err)
+            },
+            BusError::ChannelClosed => {
+                write!(f, "Failed to receive event from BUS as the channel is closed")
+            },
+            BusError::SerializationError(err) => {
+                write!(f, "Failed to send event to the BUS due to an error in serialization - {}", err)
+            },
+        }
+    }
 }

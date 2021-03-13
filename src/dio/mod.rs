@@ -1,5 +1,5 @@
 mod dao;
-mod collection;
+mod vec;
 mod bus;
 
 use fxhash::{FxHashMap, FxHashSet};
@@ -34,7 +34,7 @@ use super::pipe::*;
 use super::crypto::*;
 use super::transaction::*;
 
-pub use crate::dio::collection::DaoVec;
+pub use crate::dio::vec::DaoVec;
 
 #[derive(Debug)]
 pub(super) struct DioState
@@ -121,7 +121,7 @@ impl<'a> Dio<'a>
     where D: Serialize + DeserializeOwned + Clone,
     {
         let multi = self.multi.as_ref().unwrap();
-        let mut state = self.state.borrow_mut();
+        let state = self.state.borrow_mut();
         if state.is_locked(key) {
             return Result::Err(LoadError::ObjectStillLocked(key.clone()));
         }
@@ -144,16 +144,43 @@ impl<'a> Dio<'a>
         if entry.meta.get_tombstone().is_some() {
             return Result::Err(LoadError::Tombstoned(key.clone()));
         }
+        drop(state);
+        drop(multi);
 
+        Ok(self.load_from_entry(entry).await?)
+    }
+
+    pub(crate) async fn load_from_entry<D>(&self, entry: EventEntryExt)
+    -> Result<Dao<D>, LoadError>
+    where D: Serialize + DeserializeOwned + Clone,
+    {
+        let multi = self.multi.as_ref().unwrap();
+        
         let mut evt = multi.load(&entry).await?;
         evt.raw.data = match evt.raw.data {
             Some(data) => Some(multi.data_as_overlay(&mut evt.raw.meta, data, &self.session)?),
             None => None,
         };
 
-        let row = Row::from_event(&evt)?;
-        state.cache_load.insert(key.clone(), Rc::new(evt));
-        Ok(Dao::new(row, &self.state))
+        drop(multi);
+
+        Ok(self.load_from_event(evt)?)
+    }
+
+    pub(crate) fn load_from_event<D>(&self, evt: EventExt)
+    -> Result<Dao<D>, LoadError>
+    where D: Serialize + DeserializeOwned + Clone,
+    {
+        let mut state = self.state.borrow_mut();
+
+        match evt.raw.meta.get_data_key() {
+            Some(key) => {
+                let row = Row::from_event(&evt)?;
+                state.cache_load.insert(key.clone(), Rc::new(evt));
+                Ok(Dao::new(row, &self.state))
+            },
+            None => Err(LoadError::NoPrimaryKey)
+        }
     }
 
     pub async fn children<D>(&mut self, parent_id: PrimaryKey, collection_id: u64) -> Result<Vec<Dao<D>>, LoadError>

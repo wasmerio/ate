@@ -5,6 +5,7 @@ use std::sync::Arc;
 use super::accessor::*;
 use super::error::*;
 use super::event::EventRawPlus;
+use super::event::EventExt;
 
 pub struct ChainSingleUser<'a>
 {
@@ -37,7 +38,9 @@ impl<'a> ChainSingleUser<'a>
         self.inside_async.chain.is_open()
     }
 
-    pub(crate) async fn feed_async(&mut self, evts: Vec<EventRawPlus>) -> Result<(), CommitError> {
-        self.inside_async.feed_async_internal(Arc::clone(&self.inside_sync), evts).await
+    pub(crate) async fn feed_async(&mut self, evts: Vec<EventRawPlus>) -> Result<Vec<EventExt>, CommitError> {
+        Ok(
+            self.inside_async.feed_async_internal(Arc::clone(&self.inside_sync), evts).await?
+        )
     }
 }

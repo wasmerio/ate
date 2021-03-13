@@ -131,14 +131,19 @@ impl MeshRoot
                 let ret = single.feed_async(evts).await;
                 drop(single);
 
-                let downcast_err = match ret.is_ok() {
-                    true => node.downcast_packet(pck).await,
-                    false => Ok(())
+                let downcast_err = match &ret {
+                    Ok(evts) => {
+                        let join1 = chain.notify(&evts);
+                        let join2 = node.downcast_packet(pck);
+                        join1.await;
+                        join2.await
+                    },
+                    Err(err) => Err(CommsError::InternalError(err.to_string()))
                 };
 
                 if let Some(id) = commit {
-                    match ret {
-                        Ok(()) => Packet::reply_at(reply_at, Message::Confirmed(id.clone())).await?,
+                    match &ret {
+                        Ok(_) => Packet::reply_at(reply_at, Message::Confirmed(id.clone())).await?,
                         Err(err) => Packet::reply_at(reply_at, Message::CommitError{
                             id: id.clone(),
                             err: err.to_string(),

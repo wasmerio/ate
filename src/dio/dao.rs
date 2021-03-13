@@ -18,7 +18,7 @@ use crate::error::*;
 use crate::crypto::Hash;
 use crate::dio::DioState;
 
-pub use super::collection::DaoVec;
+pub use super::vec::DaoVec;
 
 #[derive(Debug, Clone)]
 pub(super) struct Row<D>
