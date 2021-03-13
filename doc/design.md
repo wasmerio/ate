@@ -52,8 +52,9 @@ stored in memory as a DAG ([Directed acyclic graph](https://en.wikipedia.org/wik
 For the use-cases that ATE is designed for it, the "immutable data" implementation
 it uses must meet four key requirements:
 
-1. All events must be retained forever due to need to validate the integrity of the
-   cryptographic chain-of-trust materialized view that they feed.
+1. All trust verifiedevents must be retained forever due to need to validate the
+   integrity of the cryptographic chain-of-trust materialized view that they feed
+   however events can still be tombstoned and compacted.
 2. The logs must be produced and consumed in the exact same order as seen by all
    consumers - this is essential for the eventual consistency of the data merging
    and transactions. Further, the crypto validation techniques mandate that all data
@@ -68,24 +69,20 @@ it uses must meet four key requirements:
    footprint of the in-memory materialized views.
 4. The distributed commit log must support multi-producers concurrent with
    multi-consumers to meet the later end of the scalability curve.
-   
-These ([and other reasons](https://medium.freecodecamp.org/what-makes-apache-kafka-so-fast-a8d4f94ab145))
-are why this implementation uses Kafka as its storage backend for the distributed
-commit log. Ultimately the characteristics of a Kafka cluster setup with specific
-configuration that makes it persistent  creates one of the best implementations
-of "immutable data" out there.
 
-Reference: https://www.confluent.io/blog/okay-store-data-apache-kafka/  
-Reference: https://www.confluent.io/blog/publishing-apache-kafka-new-york-times/  
+While the original version of ATE used Kafka as its backing store there were a
+number of advantages in vertically integrating the redo-log and ATE functional logic
+into a common stack. For this reason the redo-log has been built from scratch in
+rust.
+
 Reference: https://en.wikipedia.org/wiki/Directed_acyclic_graph  
-Reference: https://medium.freecodecamp.org/what-makes-apache-kafka-so-fast-a8d4f94ab145
 
 ## Eventually Consistent Caching
 
 ATE is really just a traditional database split into two parts rather than one.
 
 The traditional commit log attached to databases like SQL Server and Oracle has
-been split off into a highly scalable distributed commit log (Kafka). While the
+been split off into a highly scalable distributed commit log. While the
 tree data structures and tables of the traditional database have moved far away from
 the logs and instead embedded as materialized views within the applications that
 actually need the data. i.e. as close to the business logic as possible.
@@ -135,7 +132,7 @@ Solutions:
 
 * The materialized view is both a cache and an active snapshot of tree (DAG) in
   memory thus it uses cache updating and invalidation messages as a means to
-  synchronize itself (Kafka publish/subscribe pattern).
+  synchronize itself (publish/subscribe pattern).
 * For the very few cases where multiple applications update the same data records
   (partition key) then we can use code and logic to perform a 3-way merge on the
   events that stream into the materialized view thus ensuring correct consistency.
@@ -145,68 +142,41 @@ Solutions:
   materialized views.
 
 Reference: https://engineering.linkedin.com/distributed-systems/log-what-every-software-engineer-should-know-about-real-time-datas-unifying          
-Reference: https://www.confluent.io/blog/okay-store-data-apache-kafka/    
 Reference: https://en.wikipedia.org/wiki/Directed_acyclic_graph  
 
-## Caching API Responses
+## Caching Locally
 
-Various attempts have been made to cache API responses but they generally all
-suffer from one fundamental limitation that tends to limit such efforts to no more
-than caching of static API content.
+ATE is built as a fully distributed commit log that can be validated offline
+no matter where its running, hence this presents an immediate advantage for
+distributed computing as it gives the ability to replicate a live copy
+of the redo log on all clients hence reducing latency on reads to the
+speed of the local machine.
 
-The primary problem with caching of API responses is when to invalidate the
-response. API calls are complex things that implement business logic that may
-touch or use hundreds of data entities to come to a single aggregated value. An
-example of this problem is the classic "Available Funds in my Bank Account"
-use-case.
+Data is invalidated in near real-time as events are streamed from the root
+node back to the local nodes. Data is stored on disk which can be either
+persistent or temporary depending on needs.
 
-Lets write the hypothetical business logic down (although quite simplified):
+                  .-------------------.
+                  |  remote redo-log  |
+                  |-------------------|
+                  |     TCP Server    |
+                  '---------|---------'
+                            |
+                            |. . . . (async)
+                            |
+                  .---------|---------.
+                  |    TCP Client     |
+                  |-------------------|
+                  |  local redo-log   |
+                  |-------------------|
+                  | materialized view |
+                  |-------------------|
+                  |        APP        |
 
-1. Read all the transaction records that put money into the account
-2. Read all the transaction records that take money out of the account
-3. Make sure money going out is a negative and money coming in is a positive
-   number.
-4. Sum them all together as a single vector.
-5. Return the number to the caller.
 
-If one attempts to cache the response of this use case then the problem
-becomes how long do you cache it for?
-
-Some options are:
-
-* Cache it for as long as the session remains open and accept complaints
-  that the balance isn't updating.
-* Cache it for a very short amount of time (essentially making caching
-  totally ineffective)
-* Cache it for a very long amount of time and add a "refresh" button which
-  makes for a bad customer experience from a UI perspective.
-  
-ATE adds a forth option to the list...
-
-1. As your business logic makes data queries to the materialize view in
-   memory ATE will record what data records you access for the scope of the
-   API request.
-2. ATE will return the list of data entities (fine grained or course grained
-   depending on how much you touch) as HTTP headers (i.e. 'Track').
-3. Further ATE will also return any data entities you modify in your
-   business logic as HTTP headers (i.e. 'Invalidate'). This allows for
-   immediate synchronous signals for data you have invalidated because of
-   calls between different APIs.
-4. Lastly as ATE subscribes to a distributed commit log that is highly
-   supportive of peer-to-peer based connectivity it becomes possible for
-   'clients' to subscribe to asynchronous signals for data that other users
-   have invalidated.
-5. Thus a client application (for instance a single-page web application)
-   can wrap API calls with a caching layer that will invalidate previously
-   made API results when 'invalidate' records match 'track' records.
-   
-If one were to follow this caching architecture then one can ensure:
-
-* All API calls that are made by the caller are immediately invalidating cached
-  data that would now return a different answer.
-* All API calls made by other callers will 'eventually' invalide cached data
-  that would now return a different answer, where the delay is the time it
-  takes for Kafka to ship the event to your clients.  
+The local and remote redo-logs are kept in sink at all times over a stateful
+TCP connection however the reads and writes operate off the local redo-log.
+>>>>>>> origin/main
  
 ## Materialized Views and Secondary Indexes
 
@@ -217,37 +187,33 @@ structures and models to a coded on top of a stable data stream.
 Create your views using a set of helper classes optimized for high performance.
 
 Along with Materialized Views that are dynamically created via table scans
-ATE also supports automatic secondary indexes when you use the innerJoin
-syntax - this functionality is enabled by default and can be disabled via the
+ATE also supports automatic secondary indexes when you use the DaoVec objects
+This functionality is enabled by default and can be disabled via the
 bootstrap configuration.
 
 Note: Secondary indexes are automatically updated whenever data objects within
       the index are added, removed or updated, there is minimal performance
       impact of this background indexing capability as it takes advantage of
-      the data streaming capabilities of Kafka and some clever programming to
+      the data streaming capabilities and some clever programming to
       keep useful indexes in memory when needed
 
 More details are in the code just follow this starting point below:
 
-```java
-public abstract class BaseDao implements Serializable, Immutalizable, IPartitionKeyProvider {
-    public <T extends BaseDao> List<T> innerJoinAsList(Class<T> clazz, Function<T, UUID> joiningField) {
-        return AteDelegate.get().indexingDelegate.innerJoin(this, clazz, joiningField);
-    }
+```rust
+pub struct House
+{
+  pub number: String
 }
 
-public class MyAccount extends BaseDao {
-    @JsonProperty
-    public @DaoId UUID id = UUID.randomUUID();
-    @JsonIgnore
-    public List<MyThing> things() { return innerJoinAsList(MyThing.class, t -> t.accountId); }
+pub struct MyStreet
+{
+  pub houses: DaoVec<House>
 }
 
-public class MyThing extends BaseDao {
-    @JsonProperty
-    public @DaoId UUID id = UUID.randomUUID();
-    @JsonProperty
-    public @DaoId UUID accountId;
+let dio = chain.dio(&session);
+let street = dio.load(key);
+for house in street.houses.iter(&dio, street.key()) {
+    println!("{}", house.number);
 }
 ``` 
    
@@ -286,14 +252,14 @@ This ideal model would look something like this:
 The ATE framework comes close to meeting these ideal characteristics as (when
 running in [stateful mode](#stateful-mode)) it operates with these properties:
 
-1. It can be compiled down to a single JAR binary with embedded shared configuration
+1. It can be compiled down to a single binary with embedded shared configuration
    files.
 2. It uses the distributed DNS infrastructure of the Internet to bootstrap itself
    during startup and to validate the various roots for each chain-of-trust.
 3. It excels on high throughput network connectivity even when those networks
    display moderate packet loss and latency (a.k.a. The Internet).
 4. Data is distributed across the local disks wherever the ATE binary is running
-   Kafka nodes, while data integrity during partition events is maintained through
+   root nodes, while data integrity during partition events is maintained through
    data replication.
 
 _Given the properties above it is appropriate to classify the ATE framework as
@@ -344,17 +310,18 @@ which mode to most appropriate for your use-case:
 
 1. If your use-case is constrained to one geo-graphic location (i.e. a country)
    and is not anticipated to need extreme scale and hence require the associated
-   necessary extra setup of the Kafka cluster (e.g. rack awareness, mirror-maker,
+   necessary extra setup of the root cluster (e.g. rack awareness, mirror-maker,
    etc..) then run ATE in its "Stateful Mode".
 2. Otherwise run in "Stateless Mode".
 
 ### Stateful Mode
 
-When operating in this mode Kafka and ZooKeeper servers are running in-process 
-and hence the application is storing the distributed log partitions and indexing
-data on the local disk where the Java application is running. In this mode the
-application is a true "Shared Nothing" as the persistent storage is built into the
-application itself.
+When operating in this mode the application is both the persistent long term
+storage and the worker nodes. All redo-logs are stored in a long term
+persistent storage.
+
+The system can be scaled out by added more nodes, when data is needed from
+another machine it will make TCP connecting and store a temporary copy locally.
 
 This mode of operation has the following benefits and disadvantages:
 
@@ -364,36 +331,27 @@ This mode of operation has the following benefits and disadvantages:
   increasing the capacity is no more than spinning up more nodes. When moving to
   extreme scale with replication all over the world this advantage may not hold
   as the limitations of [CAP theorem](https://en.wikipedia.org/wiki/CAP_theorem)
-  become more apparent requiring custom setups of Kafka to fine-tune the
+  become more apparent requiring custom setups of root nodes to fine-tune the
   trade-offs. 
-* (-1) Any additional custom configuration of the Kafka and ZooKeeper cluster (e.g.
-  rack awareness, mirror maker, cluster authentication) are either not possible to
-  run in this mode of operation or are not yet built into the bootstrapping
-  process.
 * (-1) As the storage engine runs in the application this making it stateful,
   extra care must be taken when bringing nodes online and taking them offline.
   
 Note: Stateful mode is actually a blend of both stateful and stateless nodes. The
 DNS records used for bootstrapping the startup will determine which nodes need
-to operate the Kafka cluster and which are just plain dumb compute nodes - thus -
+to operate the root cluster and which are just plain dumb compute nodes - thus -
 it is still possible to scale out an API built onto of Stateful ATE without
 worrying about also scaling the stateful elements (i.e. the disks)
 
 ### Stateless Mode
 
-In stateless mode the Kafka and ZooKeeper clusters are running externally from the
-application which means while it is still a [distributed application](#distributed-computing-architecture)
-it is no longer "Shared Nothing" as in effect the nodes are simply compute nodes
-while the actual data is instead persistent on an externally hosted distributed
-commit log (bespoke Kafka cluster).
+When operating in this mode the ATE database is running locally in a temporary
+folder where it stores all its local redo-logs. All data is persisted on ATE
+nodes running on long-term servers.
 
 This mode of operation has the following benefits and disadvantages:
 
 * (+1) Splitting up the scaling components makes it easier to understand the
   performance bottlenecks and scaling limits of the various components.
-* (+1) When running in this mode it becomes easier to add additional security
-  on top of the Kafka cluster to increase the layered defence. E.g. Firewall
-  rules, ZooKeeper and Kafka authentication, etc...
 * (-1) This is a more complex setup from a deployment perspective.
 * (-1) Less performance in certain small scale deployments as the data held within
   the distributed commit log may need to travel more distance before it arrives
@@ -425,8 +383,6 @@ possibly at zero cost, ATE gets closer than most to this ideal state.
 
 ATE applies the following design constraints:
 
-* Target intermediate output such as [Bytecode](https://nl.wikipedia.org/wiki/Bytecode)
-  in the case of the ATE framework - Java is used to generate the Bytecode.
 * Configuration is code and thus portability optimizations applied to code are also
   applicable to the configuration files themselves.
 * Configuration files distributed with the applications must be the same regardless
@@ -451,9 +407,7 @@ following:
   domain names are dependent on the application configuration for its use case
   regardless of the environment it is deployed to.  
   DNS entries required for this solution are as follows:
-  1. DNS Entries that determine where ZooKeeper runs in the environment.
-  2. DNS Entries that determine where Kafka runs in the environment.
-  3. DNS Entries that hold the root public keys for the chain-of-trust seeding.
+  1. DNS Entries that hold the root public keys for the chain-of-trust seeding.
 * Configuration file settings for the application are the same regardless of
   which environment they are configured to except for the environment specific
   authentication credentials that segregate security domains. These particular
@@ -662,7 +616,7 @@ secure random number generators.
 ATE uses two asymmetric signature algorithms to prevent breach of integrity (a.k.a.
 unauthorized writes):
 
-- **qTESLA** - _lattice-based (ring learning with errors)_
+- **Falcon** - _lattice-based _
 - **Rainbow** - _multivariable polynomial_
 
 ATE uses two asymmetric encryption algorithms to prevent breach of confidentially
@@ -699,26 +653,3 @@ Reference: https://en.wikipedia.org/wiki/Post-Quantum_Cryptography_Standardizati
 Reference: https://en.wikipedia.org/wiki/Post-quantum_cryptography    
 Reference: https://nvlpubs.nist.gov/nistpubs/ir/2016/NIST.IR.8105.pdf    
 Reference: https://en.wikipedia.org/wiki/NTRU  
-
-## Undertow and Weld
-
-ATE has native integration with Undertow and Weld however if you wish to use
-other application servers and/or dependency injection frameworks then you are
-able to do so.
-
-1. Weld is the reference implementation of JavaEE  
-2. ATE is designed to use Weld SE  
-3. Undertow is a fully embeddable lightweight version of the Wildfly Application Server
-4. ATE uses Undertow for its resteasy implementation
-
-Reference: https://weld.cdi-spec.org/  
-Reference: http://undertow.io/  
-Reference: https://github.com/wildfly/wildfly  
-
-## Native REST Integrated
-
-Various filters, annotations and integration points are provided to popular
-REST frameworks (i.e. Resteasy) that allow the authentication and authorization
-systems to be easily used on API calls.
-
-See the [component guide](components.md) for more details.

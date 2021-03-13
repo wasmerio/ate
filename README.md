@@ -21,32 +21,32 @@ view with strong encryption and authentication.
 What does that mean?
 
 This library is a way of working with data in modern distributed computing.
-* ...data is persisted to a distributed commit log (Kafka).
-* ...partitions are divided into topics that shard data into physical domains.
+* ...data is persisted to a distributed commit log.
+* ...partitions are divided into chains that shard data into physical domains.
 * ...streaming of data to the application occurs on demand during method invocation.
-* ...while online data is kept up-to-date using caching invalidation and publish/subscribe.
-* ...each partition is a crypto-graph with unique asymmetric keys at differentiating nodes.
-* ...the root of the chain-of-trust that validates the crypto-graph is DNS(Sec).
+* ...each chain is a crypto-graph with unique asymmetric keys at differentiating nodes.
+* ...the root of the chain-of-trust that validates the crypto-graph through various plugins.
 * ...strong authentication and authorized is by design built into the data model.
 * ...encryption is highly resistant to quantum attacks and uses fine-grained tenant keys.
 * ...all this is integrated into a shared-nothing highly portable executable.
 
 ## High Level Design
 
-    .--[Java App]---. .--[Java App]---. .--[Java App]---. .--[Java App]---.
+    .--[   App  ]---. .--[   App  ]---. .--[   App  ]---. .--[   App  ]---.
     |               | |               | |               | |               |
-    |>Inbuilt Kafka<| |>Inbuilt Kafka<| |>Inbuilt Kafka<| |>Inbuilt Kafka<|
+    |>local redo-log| |>local redo-log| |>local redo-log| |>local redo-log|
     |.-------------.| |.-------------.| |.-------------.| |.-------------.|
-    || Partition 1 || || Replica P1  || || Replica P1  || ||             ||
-    ||             || || Partition 2 || || Replica P2  || || Replica P2  ||
-    || Replica P3  || ||      ^      || || Partition 3 || || Replica P3  ||
+    || Chain     1 || || Replica P1  || || Replica P1  || ||             ||
+    ||             || || Chain     2 || || Replica P2  || || Replica P2  ||
+    || Replica P3  || ||      ^      || || Chain     3 || || Replica P3  ||
     |*-------------*| |*------|------*| |*-------------*| |*------^------*|
     |               |       subscribe                             |
     |                \________|_______________________________  subscribe
     |                         |                               |   .
+    |  >local redo-log                                        |   .
     |  >Crypto-Graph Materiaized View< (in memory)            |   .
     |  .----------------------------------.      session      |   .
-    |  |             dns                  |   .-----------.   |   .
+    |  |             root                 |   .-----------.   |   .
     |  |              |                   |   |  -token   |   |   .
     |  |      dao----dao                  |---|  -claims  |   |   |
     |  |              \                   |   |  -keys    |   |   .
@@ -63,26 +63,6 @@ This library is a way of working with data in modern distributed computing.
     |  |                                                   |  |   .
     |  |        >realtime client side cache<--(invalidate)_|__|___/
     |  +---------------------------------------------------+  |
-
-## Persistent Kafka
-
-Its okay to store data in Kafka...  
-https://www.confluent.io/blog/okay-store-data-apache-kafka/
-
-Turning the databse inside-out with Apache Samza - Martin Kleppmann's blog  
-https://martin.kleppmann.com/2015/03/04/turning-the-database-inside-out.html
-
-## Maven Central
-
-```xml
-<dependencies>
-    <dependency>
-        <groupId>com.tokera</groupId>
-        <artifactId>ate</artifactId>
-        <version>1.0.3</version>
-    </dependency>
-</dependencies>
-```
 
 ## Contribution
 
