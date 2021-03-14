@@ -40,20 +40,20 @@ This library is a way of working with data in modern distributed computing.
     ||             || || Chain     2 || || Replica P2  ||
     || Replica P3  || ||      ^      || || Chain     3 ||
     |*-------------*| |*------|------*| |*-------------*|
-    |               |       subscribe                          
-    |                \________|_______________________________ 
-    |                         |                               |
-    |  >local redo-log                                        |
-    |  >Crypto-Graph Materiaized View< (in memory)            |
-    |  .----------------------------------.      session      |
-    |  |             root                 |   .-----------.   |
-    |  |              |                   |   |  -token   |   |
-    |  |      dao----dao                  |---|  -claims  |   |
-    |  |              \                   |   |  -keys    |   |
-    |  |               dao                |   |  -timeout |   |
-    |  |                                  |   *-----------*   |
-    |  +----------------------------------+----------------+  |
-    |  |                                                   |  |
+    |               |       subscribe                   
+    |                \________|__________________________
+    |                         |                          
+    |  >local redo-log                                   
+    |  >Crypto-Graph Materiaized View< (in memory)       
+    |  .----------------------------------.      session 
+    |  |             root                 |   .-----------.
+    |  |              |                   |   |  -token   |
+    |  |      dao----dao                  |---|  -claims  |
+    |  |              \                   |   |  -keys    |
+    |  |               dao                |   |  -timeout |
+    |  |                                  |   *-----------*
+    |  +----------------------------------+----------------+
+    |  |                                                   |
 
 ## Quick Start
 

@@ -25,3 +25,21 @@ pub struct Session
 {
     pub properties: Vec<SessionProperty>,
 }
+
+impl Session
+{
+    #[allow(dead_code)]
+    pub fn add_read_key(&mut self, key: &EncryptKey) {
+        self.properties.push(SessionProperty::ReadKey(key.clone()));
+    }
+
+    #[allow(dead_code)]
+    pub fn add_write_key(&mut self, key: &PrivateKey) {
+        self.properties.push(SessionProperty::WriteKey(key.clone()));
+    }
+
+    #[allow(dead_code)]
+    pub fn add_identity(&mut self, identity: String) {
+        self.properties.push(SessionProperty::Identity(identity));
+    }
+}

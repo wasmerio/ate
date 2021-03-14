@@ -5,8 +5,54 @@ extern crate serde;
 use serde::{Serialize, Deserialize};
 use ate::prelude::*;
 
+#[derive(Clone, Serialize, Deserialize)]
+struct TrustedRecord {
+    hidden_data: String,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), AteError>
 {
+    // Make the keys that will protect the data
+    let root = PrivateKey::generate(KeySize::Bit256);
+    let ek = EncryptKey::generate(KeySize::Bit256);
+    let sk = PrivateKey::generate(KeySize::Bit256);
+
+    // Create the chain with a public/private key to protect its integrity
+    let conf = AteConfig::default();
+    let builder = ChainBuilder::new(&conf)
+        .add_root_public_key(&root.as_public_key());
+    let chain = Chain::new(builder, &ChainKey::from("universe")).await?;
+
+    // Our session needs the keys
+    let mut session = AteSession::default();
+    session.add_write_key(&root);
+    session.add_write_key(&sk);
+    session.add_read_key(&ek);
+
+    let key =
+    {
+        // Now create the data using the keys we have
+        let mut dio = chain.dio(&session).await;
+        let mut dao = dio.store(TrustedRecord {
+            hidden_data: "Secret data".to_string(),
+        })?;
+        dao.auth_mut().read = ReadOption::Specific(ek.hash());
+        dao.auth_mut().write = WriteOption::Specific(sk.hash());
+        dao.key().clone()
+    };
+
+    // Build a new session that does not have the root key
+    let mut session = AteSession::default();
+    session.add_write_key(&sk);
+    session.add_read_key(&ek);
+    
+    {
+        // Only we can read or write this record (and anything attached to it) in the chain-of-trust
+        let mut dio = chain.dio(&session).await;
+        let _ = dio.load::<TrustedRecord>(&key).await?;
+    }
+
+    // All errors in ATE will convert into the AteError
     Ok(())
 }
