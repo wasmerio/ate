@@ -1,12 +1,6 @@
-[alias]
-b = "build"
-c = "check"
-t = "test"
-r = "run"
-
 [package]
 name = "ate"
-version = "0.1.1"
+version = "0.1.2"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "Distributed immutable data store with strong encryption and authentication"
@@ -15,9 +9,6 @@ keywords = ["immutable", "database", "blockchain", "nosql", "materialized"]
 categories = ["asynchronous", "caching", "cryptography", "database-implementations"]
 repository = "https://github.com/john-sharratt/ate"
 readme = "README.md"
-
-[lib]
-proc-macro = true
 
 [dependencies]
 uuid = { version = "0.8", features = ["serde", "v4"] }
