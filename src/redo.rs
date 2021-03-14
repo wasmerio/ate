@@ -33,27 +33,27 @@ use tokio::runtime::Runtime;
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub struct LogFilePointer
+pub(crate) struct LogFilePointer
 {
-    pub version: u32,
-    pub size: u32,
-    pub offset: u64,
+    pub(crate) version: u32,
+    pub(crate) size: u32,
+    pub(crate) offset: u64,
 }
 
 struct LogFile
 {
-    pub version: u32,
-    pub log_path: String,
-    pub log_back: Option<tokio::fs::File>,
-    pub log_random_access: Mutex<tokio::fs::File>,
-    pub log_stream: BufStream<tokio::fs::File>,
-    pub log_off: u64,
-    pub log_temp: bool,
-    pub log_count: u64,
+    pub(crate) version: u32,
+    pub(crate) log_path: String,
+    pub(crate) log_back: Option<tokio::fs::File>,
+    pub(crate) log_random_access: Mutex<tokio::fs::File>,
+    pub(crate) log_stream: BufStream<tokio::fs::File>,
+    pub(crate) log_off: u64,
+    pub(crate) log_temp: bool,
+    pub(crate) log_count: u64,
 }
 
 impl LogFile {
-    pub fn check_open(&self) -> Result<()> {
+    pub(crate) fn check_open(&self) -> Result<()> {
         match self.log_back.as_ref() {
             Some(_) => Ok(()),
             None => return Result::Err(Error::new(ErrorKind::NotConnected, "The log file has already been closed.")),
@@ -351,13 +351,13 @@ impl DeferredWrite {
 }
 
 #[async_trait]
-pub trait LogWritable {
+pub(crate) trait LogWritable {
     async fn write(&mut self, meta: Bytes, data: Option<Bytes>) -> Result<LogFilePointer>;
     async fn flush(&mut self) -> Result<()>;
     async fn copy_event(&mut self, from_log: &RedoLog, from_pointer: &LogFilePointer) -> Result<LogFilePointer>;
 }
 
-pub struct FlippedLogFile {
+pub(crate) struct FlippedLogFile {
     log_file: LogFile,
     event_summary: Vec<EventEntry>,
 }
@@ -421,26 +421,26 @@ struct RedoLogFlip {
 }
 
 #[derive(Default)]
-pub struct RedoLogLoader {
+pub(crate) struct RedoLogLoader {
     entries: VecDeque<EventEntry>
 }
 
 impl RedoLogLoader {
     #[allow(dead_code)]
-    pub fn pop(&mut self) -> Option<EventEntry> {
+    pub(crate) fn pop(&mut self) -> Option<EventEntry> {
         self.entries.pop_front()   
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct LoadResult<C>
+pub(crate) struct LoadResult<C>
 {
-    pub pointer: LogFilePointer,
-    pub evt: EventData,
-    pub custom: C,
+    pub(crate) pointer: LogFilePointer,
+    pub(crate) evt: EventData,
+    pub(crate) custom: C,
 }
 
-pub struct RedoLog {
+pub(crate) struct RedoLog {
     log_temp: bool,
     log_path: String,
     log_file: LogFile,
@@ -463,7 +463,7 @@ impl RedoLog
         Ok((ret, loader))
     }
 
-    pub async fn begin_flip(&mut self) -> Result<FlippedLogFile> {
+    pub(crate) async fn begin_flip(&mut self) -> Result<FlippedLogFile> {
         match self.flip
         {
             None => {
@@ -486,7 +486,7 @@ impl RedoLog
         }
     }
 
-    pub async fn finish_flip(&mut self, mut flip: FlippedLogFile) -> Result<Vec<EventEntry>>
+    pub(crate) async fn finish_flip(&mut self, mut flip: FlippedLogFile) -> Result<Vec<EventEntry>>
     {
         match &mut self.flip
         {
@@ -527,17 +527,17 @@ impl RedoLog
         }
     }
 
-    pub async fn load<C>(&self, pointer: LogFilePointer, custom: C) -> Result<LoadResult<C>> {
+    pub(crate) async fn load<C>(&self, pointer: LogFilePointer, custom: C) -> Result<LoadResult<C>> {
         Ok(self.log_file.load(pointer, custom).await?)
     }
 
     #[allow(dead_code)]
-    pub fn count(&self) -> usize {
+    pub(crate) fn count(&self) -> usize {
         self.log_file.count()
     }
 
     #[allow(dead_code)]
-    pub async fn create(cfg: &Config, key: &ChainKey) -> Result<RedoLog> {
+    pub(crate) async fn create(cfg: &Config, key: &ChainKey) -> Result<RedoLog> {
         let _ = std::fs::create_dir_all(cfg.log_path.clone());
 
         let path_log = format!("{}/{}.log", cfg.log_path, key.name);
@@ -550,7 +550,7 @@ impl RedoLog
     }
 
     #[allow(dead_code)]
-    pub async fn open(cfg: &Config, key: &ChainKey, truncate: bool) -> Result<(RedoLog, RedoLogLoader)> {
+    pub(crate) async fn open(cfg: &Config, key: &ChainKey, truncate: bool) -> Result<(RedoLog, RedoLogLoader)> {
         let _ = std::fs::create_dir_all(cfg.log_path.clone());
 
         let path_log = format!("{}/{}.log", cfg.log_path, key.name);
@@ -566,7 +566,7 @@ impl RedoLog
     }
 
     #[allow(dead_code)]
-    pub fn destroy(&mut self) -> Result<()> {
+    pub(crate) fn destroy(&mut self) -> Result<()> {
         self.log_file.destroy()
     }
 

@@ -181,7 +181,7 @@ impl<'a> Dio<'a>
         }
     }
 
-    pub async fn children<D>(&mut self, parent_id: PrimaryKey, collection_id: u64) -> Result<Vec<Dao<D>>, LoadError>
+    pub(crate) async fn children<D>(&mut self, parent_id: PrimaryKey, collection_id: u64) -> Result<Vec<Dao<D>>, LoadError>
     where D: Serialize + DeserializeOwned + Clone,
     {
         let mut state = self.state.borrow_mut();
@@ -277,7 +277,7 @@ impl<'a> Dio<'a>
     }
 }
 
-impl ChainAccessor
+impl Chain
 {
     #[allow(dead_code)]
     pub async fn dio<'a>(&'a self, session: &'a Session) -> Dio<'a> {

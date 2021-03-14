@@ -11,7 +11,7 @@ impl<D> DaoVec<D>
 where D: Serialize + DeserializeOwned + Clone,
 {
     #[allow(dead_code)]
-    pub fn bus<'a>(&self, chain: &'a ChainAccessor, parent_id: &PrimaryKey) -> Bus<'a, D> {
+    pub fn bus<'a>(&self, chain: &'a Chain, parent_id: &PrimaryKey) -> Bus<'a, D> {
         let vec = MetaCollection {
             parent_id: parent_id.clone(),
             collection_id: self.vec_id,
@@ -25,7 +25,7 @@ pub struct Bus<'a, D>
 where D: Serialize + DeserializeOwned + Clone
 {
     id: u64,
-    chain: &'a ChainAccessor,
+    chain: &'a Chain,
     vec: MetaCollection,
     receiver: mpsc::Receiver<EventExt>,
     _marker: PhantomData<D>,
@@ -34,7 +34,7 @@ where D: Serialize + DeserializeOwned + Clone
 impl<'a, D> Bus<'a, D>
 where D: Serialize + DeserializeOwned + Clone,
 {
-    pub fn new(chain: &'a ChainAccessor, vec: MetaCollection) -> Bus<'a, D>
+    pub(crate) fn new(chain: &'a Chain, vec: MetaCollection) -> Bus<'a, D>
     {
         let id = fastrand::u64(..);
         let (tx, rx) = mpsc::channel(100);

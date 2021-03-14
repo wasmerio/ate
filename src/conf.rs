@@ -1,5 +1,5 @@
 use serde::{Serialize, Deserialize};
-use crate::{accessor::ChainAccessor, time::TimestampEnforcer, tree::TreeAuthorityPlugin};
+use crate::{accessor::Chain, time::TimestampEnforcer, tree::TreeAuthorityPlugin};
 #[allow(unused_imports)]
 use std::{net::IpAddr, str::FromStr};
 
@@ -82,7 +82,7 @@ for Config
 }
 
 #[cfg(test)]
-pub fn mock_test_config() -> Config {
+pub(crate) fn mock_test_config() -> Config {
     let mut ret = Config::default();
     ret.log_path = "/tmp/ate".to_string();
     ret.log_temp = true;
@@ -269,9 +269,9 @@ impl ChainOfTrustBuilder
         self,
         key: &ChainKey,
     )
-    -> Result<ChainAccessor, ChainCreationError>
+    -> Result<Chain, ChainCreationError>
     {
-        ChainAccessor::new(self, key).await
+        Chain::new(self, key).await
     }
 }
 

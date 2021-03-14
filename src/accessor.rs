@@ -46,7 +46,7 @@ struct InboxPipe
     locks: StdMutex<FxHashSet<PrimaryKey>>,
 }
 
-pub struct ChainAccessorProtectedAsync
+pub(crate) struct ChainProtectedAsync
 {
     pub(super) chain: ChainOfTrust,
 }
@@ -57,7 +57,7 @@ pub(crate) struct ChainListener
     pub(crate) sender: mpsc::Sender<EventExt>
 }
 
-pub struct ChainAccessorProtectedSync
+pub(crate) struct ChainProtectedSync
 {
     pub(super) plugins: Vec<Box<dyn EventPlugin>>,
     pub(super) indexers: Vec<Box<dyn EventIndexer>>,
@@ -67,18 +67,18 @@ pub struct ChainAccessorProtectedSync
     pub(super) listeners: MultiMap<MetaCollection, ChainListener>,
 }
 
-pub struct ChainAccessor
+pub struct Chain
 {
     pub(super) key: ChainKey,
-    pub(super) inside_sync: Arc<StdRwLock<ChainAccessorProtectedSync>>,
-    pub(super) inside_async: Arc<RwLock<ChainAccessorProtectedAsync>>,
+    pub(super) inside_sync: Arc<StdRwLock<ChainProtectedSync>>,
+    pub(super) inside_async: Arc<RwLock<ChainProtectedAsync>>,
     pub(super) pipe: Arc<dyn EventPipe>,
 }
 
-impl ChainAccessorProtectedAsync
+impl ChainProtectedAsync
 {
     #[allow(dead_code)]
-    pub(super) fn process(&mut self, mut sync: StdRwLockWriteGuard<ChainAccessorProtectedSync>, entries: Vec<EventEntryExt>) -> Result<(), ProcessError>
+    pub(super) fn process(&mut self, mut sync: StdRwLockWriteGuard<ChainProtectedSync>, entries: Vec<EventEntryExt>) -> Result<(), ProcessError>
     {
         let mut ret = ProcessError::default();
 
@@ -108,7 +108,7 @@ impl ChainAccessorProtectedAsync
     }
 
     #[allow(dead_code)]
-    pub(super) async fn feed_async_internal(&mut self, sync: Arc<StdRwLock<ChainAccessorProtectedSync>>, evts: Vec<EventRawPlus>)
+    pub(super) async fn feed_async_internal(&mut self, sync: Arc<StdRwLock<ChainProtectedSync>>, evts: Vec<EventRawPlus>)
         -> Result<Vec<EventExt>, CommitError>
     {
         let mut validated_evts = Vec::new();
@@ -162,7 +162,7 @@ impl ChainAccessorProtectedAsync
     }
 }
 
-impl ChainAccessorProtectedSync
+impl ChainProtectedSync
 {
     #[allow(dead_code)]
     pub(super) fn validate_event(&self, data: &ValidationData) -> Result<ValidationResult, ValidationError>
@@ -188,9 +188,9 @@ impl ChainAccessorProtectedSync
     }
 }
 
-impl<'a> ChainAccessor
+impl<'a> Chain
 {
-    async fn worker(inside_async: Arc<RwLock<ChainAccessorProtectedAsync>>, inside_sync: Arc<StdRwLock<ChainAccessorProtectedSync>>, mut receiver: mpsc::Receiver<Transaction>)
+    async fn worker(inside_async: Arc<RwLock<ChainProtectedAsync>>, inside_sync: Arc<StdRwLock<ChainProtectedSync>>, mut receiver: mpsc::Receiver<Transaction>)
     {
         // Wait for the next transaction to be processed
         while let Some(trans) = receiver.recv().await
@@ -222,7 +222,7 @@ impl<'a> ChainAccessor
     pub async fn new(
         builder: ChainOfTrustBuilder,
         key: &ChainKey,
-    ) -> Result<ChainAccessor, ChainCreationError>
+    ) -> Result<Chain, ChainCreationError>
     {
         let (
             redo_log,
@@ -243,7 +243,7 @@ impl<'a> ChainAccessor
             compactors: builder.compactors,
         };
 
-        let mut inside_sync = ChainAccessorProtectedSync {
+        let mut inside_sync = ChainProtectedSync {
             indexers: builder.indexers,
             plugins: builder.plugins,
             linters: builder.linters,
@@ -256,7 +256,7 @@ impl<'a> ChainAccessor
         }
         let inside_sync = Arc::new(StdRwLock::new(inside_sync));
 
-        let mut inside_async = ChainAccessorProtectedAsync {
+        let mut inside_async = ChainProtectedAsync {
             chain,
         };        
         inside_async.process(inside_sync.write().unwrap(), entries)?;
@@ -268,10 +268,10 @@ impl<'a> ChainAccessor
 
         let worker_inside_async = Arc::clone(&inside_async);
         let worker_inside_sync = Arc::clone(&inside_sync);
-        tokio::task::spawn(ChainAccessor::worker(worker_inside_async, worker_inside_sync, receiver));
+        tokio::task::spawn(Chain::worker(worker_inside_async, worker_inside_sync, receiver));
 
         Ok(
-            ChainAccessor {
+            Chain {
                 key: key.clone(),
                 inside_sync,
                 inside_async,
@@ -283,7 +283,7 @@ impl<'a> ChainAccessor
         )
     }
     
-    pub fn proxy(&mut self, proxy: Arc<dyn EventPipe>) {
+    pub(crate) fn proxy(&mut self, proxy: Arc<dyn EventPipe>) {
         let next = self.pipe.clone();
         proxy.set_next(next);
         self.pipe = proxy;

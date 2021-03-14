@@ -14,12 +14,12 @@ pub struct EventRaw
 {
     pub meta: Metadata,
     pub data_hash: Option<super::crypto::Hash>,
-    pub data: Option<Bytes>,
+    pub(crate) data: Option<Bytes>,
 }
 
 impl EventRaw
 {
-    pub fn as_plus(self) -> Result<EventRawPlus, SerializationError>
+    pub(crate) fn as_plus(self) -> Result<EventRawPlus, SerializationError>
     {
         let meta_bytes = Bytes::from(rmps::to_vec(&self.meta)?);
         let meta_hash = Hash::from_bytes(&meta_bytes[..]);
@@ -40,8 +40,8 @@ impl EventRaw
 #[derive(Debug, Clone)]
 pub struct EventRawPlus
 {
-    pub meta_hash: super::crypto::Hash,
-    pub meta_bytes: Bytes,
+    pub(crate) meta_hash: super::crypto::Hash,
+    pub(crate) meta_bytes: Bytes,
     pub inner: EventRaw,
 }
 
@@ -49,44 +49,44 @@ pub struct EventRawPlus
 pub struct EventExt
 {
     pub meta_hash: super::crypto::Hash,
-    pub meta_bytes: Bytes,
+    pub(crate) meta_bytes: Bytes,
     pub raw: EventRaw,
-    pub pointer: LogFilePointer,
+    pub(crate) pointer: LogFilePointer,
 }
 
 #[derive(Debug, Clone)]
-pub struct EventData
+pub(crate) struct EventData
 {
-    pub meta_hash: super::crypto::Hash,
-    pub meta: Bytes,
-    pub data_hash: Option<super::crypto::Hash>,
-    pub data: Option<Bytes>,
-    pub pointer: LogFilePointer,
+    pub(crate) meta_hash: super::crypto::Hash,
+    pub(crate) meta: Bytes,
+    pub(crate) data_hash: Option<super::crypto::Hash>,
+    pub(crate) data: Option<Bytes>,
+    pub(crate) pointer: LogFilePointer,
 }
 
 #[derive(Debug, Clone)]
-pub struct EventEntry
+pub(crate) struct EventEntry
 {
-    pub meta_hash: super::crypto::Hash,
+    pub(crate) meta_hash: super::crypto::Hash,
     pub meta: Bytes,
     pub data_hash: Option<super::crypto::Hash>,
-    pub pointer: LogFilePointer,
+    pub(crate) pointer: LogFilePointer,
 }
 
 #[derive(Debug, Clone)]
 pub struct EventEntryExt
 {
-    pub meta_hash: super::crypto::Hash,
-    pub meta_bytes: Bytes,
+    pub(crate) meta_hash: super::crypto::Hash,
+    pub(crate) meta_bytes: Bytes,
     pub meta: Metadata,
     pub data_hash: Option<super::crypto::Hash>,
-    pub pointer: LogFilePointer,
+    pub(crate) pointer: LogFilePointer,
 }
 
 impl EventEntryExt
 {
     #[allow(dead_code)]
-    pub fn from_generic(metadata: &EventEntry) -> Result<EventEntryExt, SerializationError> {
+    pub(crate) fn from_generic(metadata: &EventEntry) -> Result<EventEntryExt, SerializationError> {
         Ok(
             EventEntryExt {
                 meta_hash: metadata.meta_hash,
@@ -99,7 +99,7 @@ impl EventEntryExt
     }
 
     #[allow(dead_code)]
-    pub fn to_generic(&self) -> Result<EventEntry, SerializationError> {
+    pub(crate) fn to_generic(&self) -> Result<EventEntry, SerializationError> {
         let meta_bytes = Bytes::from(rmps::to_vec(&self.meta)?);
         let meta_hash = super::crypto::Hash::from_bytes(&meta_bytes[..]);
         Ok(
@@ -116,7 +116,7 @@ impl EventEntryExt
 impl EventRaw
 {
     #[allow(dead_code)]
-    pub fn new(key: PrimaryKey, data: Bytes) -> EventRaw {        
+    pub(crate) fn new(key: PrimaryKey, data: Bytes) -> EventRaw {        
         EventRaw {
             meta: Metadata::for_data(key),
             data_hash: Some(super::crypto::Hash::from_bytes(&data[..])),
@@ -125,13 +125,13 @@ impl EventRaw
     }
 
     #[allow(dead_code)]
-    pub fn with_core_metadata(mut self, core: CoreMetadata) -> Self {
+    pub(crate) fn with_core_metadata(mut self, core: CoreMetadata) -> Self {
         self.meta.core.push(core);
         self
     }
 
     #[allow(dead_code)]
-    pub fn from_event_data(evt: &EventData) -> Result<EventExt, SerializationError> {
+    pub(crate) fn from_event_data(evt: &EventData) -> Result<EventExt, SerializationError> {
         Ok(
             EventExt {
                 meta_hash: evt.meta_hash,
@@ -147,7 +147,7 @@ impl EventRaw
     }
 
     #[allow(dead_code)]
-    pub fn get_meta_bytes(&self) -> Result<Bytes, SerializationError> {
+    pub(crate) fn get_meta_bytes(&self) -> Result<Bytes, SerializationError> {
         Ok(Bytes::from(rmps::to_vec(&self.meta)?))
     }
 }
@@ -155,7 +155,7 @@ impl EventRaw
 impl EventExt
 {
     #[allow(dead_code)]
-    pub fn to_event_data(&self) -> Result<EventData, SerializationError> {
+    pub(crate) fn to_event_data(&self) -> Result<EventData, SerializationError> {
         let meta_bytes = self.raw.get_meta_bytes()?;
         let meta_hash = super::crypto::Hash::from_bytes(&meta_bytes[..]);
         Ok(
@@ -170,7 +170,7 @@ impl EventExt
     }
 
     #[allow(dead_code)]
-    pub fn to_event_entry(self) -> EventEntryExt {
+    pub(crate) fn to_event_entry(self) -> EventEntryExt {
         EventEntryExt {
             meta_hash: self.meta_hash,
             meta_bytes: self.meta_bytes.clone(),

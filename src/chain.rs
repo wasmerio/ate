@@ -108,7 +108,7 @@ for ChainKey
 }
 
 #[allow(dead_code)]
-pub struct ChainOfTrust
+pub(crate) struct ChainOfTrust
 {
     pub(super) key: ChainKey,
     pub(super) redo: RedoLog,
@@ -191,7 +191,7 @@ impl<'a> ChainOfTrust
     }
 
     #[allow(dead_code)]
-    pub fn name(&self) -> String {
+    pub(crate) fn name(&self) -> String {
         self.key.name.clone()
     }
 
@@ -202,8 +202,8 @@ impl<'a> ChainOfTrust
 }
 
 #[cfg(test)]
-pub async fn create_test_chain(chain_name: String, temp: bool, barebone: bool, root_public_key: Option<PublicKey>) ->
-    ChainAccessor
+pub(crate) async fn create_test_chain(chain_name: String, temp: bool, barebone: bool, root_public_key: Option<PublicKey>) ->
+    Chain
 {
     // Create the chain-of-trust and a validator
     let mut mock_cfg = mock_test_config();
@@ -232,7 +232,7 @@ pub async fn create_test_chain(chain_name: String, temp: bool, barebone: bool, r
         builder = builder.add_root_public_key(&key);
     }
     
-    ChainAccessor::new(
+    Chain::new(
         builder,
         &mock_chain_key)
         .await.unwrap()
@@ -240,7 +240,7 @@ pub async fn create_test_chain(chain_name: String, temp: bool, barebone: bool, r
 
 #[tokio::main]
 #[test]
-pub async fn test_chain() {
+async fn test_chain() {
 
     let key1 = PrimaryKey::generate();
     let key2 = PrimaryKey::generate();

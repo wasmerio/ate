@@ -38,7 +38,7 @@ impl MeshClient {
 impl Mesh
 for MeshClient {
     async fn open<'a>(&'a self, key: ChainKey)
-        -> Result<Arc<ChainAccessor>, ChainCreationError>
+        -> Result<Arc<Chain>, ChainCreationError>
     {
         let mut sessions = self.sessions.lock().await;
         let record = match sessions.entry(key.clone()) {

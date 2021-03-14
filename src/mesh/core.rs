@@ -14,7 +14,7 @@ use crate::conf::*;
 #[async_trait]
 pub trait Mesh
 {
-    async fn open<'a>(&'a self, key: ChainKey) -> Result<Arc<ChainAccessor>, ChainCreationError>;
+    async fn open<'a>(&'a self, key: ChainKey) -> Result<Arc<Chain>, ChainCreationError>;
 }
 
 pub(super) struct MeshHashTable
@@ -25,7 +25,7 @@ pub(super) struct MeshHashTable
 impl MeshHashTable
 {
     #[allow(dead_code)]
-    pub fn new(cfg: &Config) -> MeshHashTable
+    pub(crate) fn new(cfg: &Config) -> MeshHashTable
     {
         let mut hash_table = BTreeMap::new();
         for addr in cfg.roots.iter() {
@@ -37,7 +37,7 @@ impl MeshHashTable
         }
     }
 
-    pub fn lookup(&self, key: &ChainKey) -> Option<MeshAddress> {
+    pub(crate) fn lookup(&self, key: &ChainKey) -> Option<MeshAddress> {
         let hash = key.hash();
 
         let mut pointer: Option<&MeshAddress> = None;

@@ -32,7 +32,7 @@ struct NtpPacket {
 }
 
 /// SNTP request result representation
-pub struct NtpResult {
+pub(crate) struct NtpResult {
     /// NTP server seconds value
     pub sec: u32,
     /// NTP server nanoseconds value
@@ -50,7 +50,7 @@ impl NtpResult {
     /// * `nsec` - number of nanoseconds
     /// * `roundtrip` - calculated roundtrip in microseconds
     /// * `offset` - calculated system clock offset in microseconds
-    pub fn new(sec: u32, nsec: u32, roundtrip: u64, offset: i64) -> Self {
+    pub(crate) fn new(sec: u32, nsec: u32, roundtrip: u64, offset: i64) -> Self {
         let residue = nsec / NSEC_IN_SEC;
         let nsec = nsec % NSEC_IN_SEC;
         let sec = sec + residue;
@@ -64,23 +64,23 @@ impl NtpResult {
     }
     /// Returns number of seconds reported by an NTP server
     #[allow(dead_code)]
-    pub fn sec(&self) -> u32 {
+    pub(crate) fn sec(&self) -> u32 {
         self.sec
     }
 
     /// Returns number of nanoseconds reported by an NTP server
     #[allow(dead_code)]
-    pub fn nsec(&self) -> u32 {
+    pub(crate) fn nsec(&self) -> u32 {
         self.nsec
     }
 
     /// Returns request's roundtrip time (client -> server -> client) in microseconds
-    pub fn roundtrip(&self) -> u64 {
+    pub(crate) fn roundtrip(&self) -> u64 {
         self.roundtrip
     }
 
     /// Returns system clock offset value in microseconds
-    pub fn offset(&self) -> i64 {
+    pub(crate) fn offset(&self) -> i64 {
         self.offset
     }
 }
@@ -107,7 +107,7 @@ impl NtpPacket {
     #[allow(dead_code)]
     const MODE_MASK: u8 = 0b1110_0000;
 
-    pub fn new() -> NtpPacket {
+    pub(crate) fn new() -> NtpPacket {
         let tx_timestamp = get_ntp_timestamp();
 
         NtpPacket {
@@ -213,7 +213,7 @@ impl From<&NtpPacket> for RawNtpPacket {
     }
 }
 
-pub fn request(pool: &str, port: u32, timeout: time::Duration) -> io::Result<NtpResult> {
+pub(crate) fn request(pool: &str, port: u32, timeout: time::Duration) -> io::Result<NtpResult> {
     let socket = net::UdpSocket::bind("0.0.0.0:0")
         .expect("Unable to create a UDP socket");
     let dest = format!("{}:{}", pool, port).to_socket_addrs()?;
@@ -371,7 +371,7 @@ fn get_ntp_timestamp() -> u64 {
     timestamp
 }
 
-pub fn query_ntp(pool: &String, port: u32, tolerance_ms: u32) -> Result<NtpResult, TimeError>
+pub(crate) fn query_ntp(pool: &String, port: u32, tolerance_ms: u32) -> Result<NtpResult, TimeError>
 {
     let timeout =  Duration::from_millis(tolerance_ms as u64) + Duration::from_millis(50);
     let ret = request(pool.as_str(), port, timeout)?;
@@ -382,7 +382,7 @@ pub fn query_ntp(pool: &String, port: u32, tolerance_ms: u32) -> Result<NtpResul
     Ok(ret)
 }
 
-pub fn query_ntp_retry(pool: &String, port: u32, tolerance_ms: u32, samples: u32) -> Result<NtpResult, TimeError>
+pub(crate) fn query_ntp_retry(pool: &String, port: u32, tolerance_ms: u32, samples: u32) -> Result<NtpResult, TimeError>
 {
     let mut best: Option<NtpResult> = None;
     let mut positives = 0;

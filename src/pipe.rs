@@ -7,7 +7,7 @@ use super::transaction::*;
 use std::sync::Arc;
 
 #[async_trait]
-pub trait EventPipe: Send + Sync
+pub(crate) trait EventPipe: Send + Sync
 {
     async fn feed(&self, mut trans: Transaction) -> Result<(), CommitError>;
 

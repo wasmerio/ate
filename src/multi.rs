@@ -22,14 +22,14 @@ use super::event::EventExt;
 #[derive(Clone)]
 pub struct ChainMultiUser
 {
-    pub(super) inside_async: Arc<RwLock<ChainAccessorProtectedAsync>>,
-    pub(super) inside_sync: Arc<StdRwLock<ChainAccessorProtectedSync>>,
+    pub(super) inside_async: Arc<RwLock<ChainProtectedAsync>>,
+    pub(super) inside_sync: Arc<StdRwLock<ChainProtectedSync>>,
     pub(super) pipe: Arc<dyn EventPipe>,
 }
 
 impl ChainMultiUser
 {
-    pub async fn new(accessor: &ChainAccessor) -> ChainMultiUser
+    pub(crate) async fn new(accessor: &Chain) -> ChainMultiUser
     {
         ChainMultiUser {
             inside_async: Arc::clone(&accessor.inside_async),
@@ -59,7 +59,7 @@ impl ChainMultiUser
     }
 
     #[allow(dead_code)]
-    pub fn metadata_lint_many(&self, data_hashes: &Vec<EventRawPlus>, session: &Session) -> Result<Vec<CoreMetadata>, LintError> {
+    pub(crate) fn metadata_lint_many(&self, data_hashes: &Vec<EventRawPlus>, session: &Session) -> Result<Vec<CoreMetadata>, LintError> {
         let guard = self.inside_sync.read().unwrap();
         let mut ret = Vec::new();
         for linter in guard.linters.iter() {
@@ -72,7 +72,7 @@ impl ChainMultiUser
     }
 
     #[allow(dead_code)]
-    pub fn metadata_lint_event(&self, meta: &mut Metadata, session: &Session) -> Result<Vec<CoreMetadata>, LintError> {
+    pub(crate) fn metadata_lint_event(&self, meta: &mut Metadata, session: &Session) -> Result<Vec<CoreMetadata>, LintError> {
         let guard = self.inside_sync.read().unwrap();
         let mut ret = Vec::new();
         for linter in guard.linters.iter() {
@@ -85,7 +85,7 @@ impl ChainMultiUser
     }
 
     #[allow(dead_code)]
-    pub fn data_as_overlay(&self, meta: &mut Metadata, data: Bytes, session: &Session) -> Result<Bytes, TransformError> {
+    pub(crate) fn data_as_overlay(&self, meta: &mut Metadata, data: Bytes, session: &Session) -> Result<Bytes, TransformError> {
         let guard = self.inside_sync.read().unwrap();
         let mut ret = data;
         for plugin in guard.plugins.iter().rev() {
@@ -98,7 +98,7 @@ impl ChainMultiUser
     }
 
     #[allow(dead_code)]
-    pub fn data_as_underlay(&self, meta: &mut Metadata, data: Bytes, session: &Session) -> Result<Bytes, TransformError> {
+    pub(crate) fn data_as_underlay(&self, meta: &mut Metadata, data: Bytes, session: &Session) -> Result<Bytes, TransformError> {
         let guard = self.inside_sync.read().unwrap();
         let mut ret = data;
         for transformer in guard.transformers.iter() {

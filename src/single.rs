@@ -9,13 +9,13 @@ use super::event::EventExt;
 
 pub struct ChainSingleUser<'a>
 {
-    pub(super) inside_async: RwLockWriteGuard<'a, ChainAccessorProtectedAsync>,
-    pub(super) inside_sync: Arc<StdRwLock<ChainAccessorProtectedSync>>,
+    pub(super) inside_async: RwLockWriteGuard<'a, ChainProtectedAsync>,
+    pub(super) inside_sync: Arc<StdRwLock<ChainProtectedSync>>,
 }
 
 impl<'a> ChainSingleUser<'a>
 {
-    pub async fn new(accessor: &'a ChainAccessor) -> ChainSingleUser<'a>
+    pub(crate) async fn new(accessor: &'a Chain) -> ChainSingleUser<'a>
     {
         ChainSingleUser {
             inside_async: accessor.inside_async.write().await,
@@ -34,7 +34,7 @@ impl<'a> ChainSingleUser<'a>
     }
 
     #[allow(dead_code)]
-    pub fn is_open(&self) -> bool {
+    pub(crate) fn is_open(&self) -> bool {
         self.inside_async.chain.is_open()
     }
 

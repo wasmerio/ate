@@ -21,7 +21,7 @@ where Self: EventSink + Send + Sync,
 }
 
 #[derive(Default)]
-pub struct BinaryTreeIndexer
+pub(crate) struct BinaryTreeIndexer
 {
     primary: BTreeMap<PrimaryKey, EventEntryExt>,
     secondary: MultiMap<MetaCollection, EventEntryExt>,
@@ -30,17 +30,17 @@ pub struct BinaryTreeIndexer
 impl BinaryTreeIndexer
 {
     #[allow(dead_code)]
-    pub fn contains_key(&self, key: &PrimaryKey) -> bool {
+    pub(crate) fn contains_key(&self, key: &PrimaryKey) -> bool {
         self.primary.contains_key(key)
     }
 
     #[allow(dead_code)]
-    pub fn count(&self) -> usize {
+    pub(crate) fn count(&self) -> usize {
         self.primary.iter().count()
     }
 
     #[allow(dead_code)]
-    pub fn feed(&mut self, entry: &EventEntryExt) {
+    pub(crate) fn feed(&mut self, entry: &EventEntryExt) {
         let mut entry_tree = None;
         for core in entry.meta.core.iter() {
             match core {
@@ -74,7 +74,7 @@ impl BinaryTreeIndexer
         }
     }
 
-    pub fn refactor(&mut self, transform: &FxHashMap<LogFilePointer, LogFilePointer>) {
+    pub(crate) fn refactor(&mut self, transform: &FxHashMap<LogFilePointer, LogFilePointer>) {
         for (_, val) in self.primary.iter_mut() {
             if let Some(next) = transform.get(&val.pointer) {
                 val.pointer = next.clone();
@@ -82,14 +82,14 @@ impl BinaryTreeIndexer
         }
     }
 
-    pub fn lookup_primary(&self, key: &PrimaryKey) -> Option<EventEntryExt> {
+    pub(crate) fn lookup_primary(&self, key: &PrimaryKey) -> Option<EventEntryExt> {
         match self.primary.get(key) {
             None => None,
             Some(a) => Some(a.clone())
         }
     }
 
-    pub fn lookup_secondary(&self, key: &MetaCollection) -> Option<Vec<EventEntryExt>> {
+    pub(crate) fn lookup_secondary(&self, key: &MetaCollection) -> Option<Vec<EventEntryExt>> {
         match self.secondary.get_vec(key) {
             Some(vec) => {
                 Some(vec.iter()

@@ -26,7 +26,7 @@ use bytes::BytesMut;
 use std::net::SocketAddr;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Packet<M>
+pub(crate) struct Packet<M>
 where M: Send + Sync + Clone
 {
     pub msg: M,
@@ -36,9 +36,8 @@ where M: Send + Sync + Clone
     pub skip_here: Option<u64>,
 }
 
-
 #[derive(Debug)]
-pub struct PacketWithContext<M, C>
+pub(crate) struct PacketWithContext<M, C>
 where M: Send + Sync + Clone,
       C: Send + Sync
 {
@@ -63,14 +62,14 @@ impl<M> Packet<M>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone
 {
     #[allow(dead_code)]
-    pub async fn reply(&self, msg: M) -> Result<(), CommsError> {
+    pub(crate) async fn reply(&self, msg: M) -> Result<(), CommsError> {
         Ok(
             Packet::reply_at(self.reply_here.as_ref(), msg).await?
         )
     }
 
     #[allow(dead_code)]
-    pub async fn reply_at(at: Option<&mpsc::Sender<Packet<M>>>, msg: M) -> Result<(), CommsError> {
+    pub(crate) async fn reply_at(at: Option<&mpsc::Sender<Packet<M>>>, msg: M) -> Result<(), CommsError> {
         let pck = Packet {
             msg,
             reply_here: None,
@@ -88,7 +87,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
 }
 
 #[derive(Debug, Clone)]
-pub struct NodeTarget
+pub(crate) struct NodeTarget
 {
     ip: IpAddr,
     port: u16,
@@ -102,7 +101,7 @@ for SocketAddr
     }
 }
 
-pub struct NodeConfig<M>
+pub(crate) struct NodeConfig<M>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone
 {
     listen_on: Vec<SocketAddr>,
@@ -115,7 +114,7 @@ impl<M> NodeConfig<M>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone
 {
     #[allow(dead_code)]
-    pub fn new() -> NodeConfig<M> {
+    pub(crate) fn new() -> NodeConfig<M> {
         NodeConfig {
             listen_on: Vec::new(),
             connect_to: Vec::new(),
@@ -125,31 +124,31 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
     }
 
     #[allow(dead_code)]
-    pub fn listen_on(mut self, ip: IpAddr, port: u16) -> Self {
+    pub(crate) fn listen_on(mut self, ip: IpAddr, port: u16) -> Self {
         self.listen_on.push(SocketAddr::from(NodeTarget{ip, port}));
         self
     }
 
     #[allow(dead_code)]
-    pub fn connect_to(mut self, ip: IpAddr, port: u16) -> Self {
+    pub(crate) fn connect_to(mut self, ip: IpAddr, port: u16) -> Self {
         self.connect_to.push(SocketAddr::from(NodeTarget{ip, port}));
         self
     }
 
-    pub fn buffer_size(mut self, buffer_size: usize) -> Self {
+    pub(crate) fn buffer_size(mut self, buffer_size: usize) -> Self {
         self.buffer_size = buffer_size;
         self
     }
 
     #[allow(dead_code)]
-    pub fn on_connect(mut self, msg: M) -> Self {
+    pub(crate) fn on_connect(mut self, msg: M) -> Self {
         self.on_connect = Some(msg);
         self
     }
 }
 
 #[derive(Debug)]
-pub struct Node<M, C>
+pub(crate) struct Node<M, C>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
       C: Send + Sync
 {
@@ -159,7 +158,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
 }
 
 #[derive(Debug)]
-pub struct NodeWithReceiver<M, C>
+pub(crate) struct NodeWithReceiver<M, C>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
       C: Send + Sync
 {
@@ -168,7 +167,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
 }
 
 #[derive(Debug, Clone)]
-pub struct Upstream<M>
+pub(crate) struct Upstream<M>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
 {
     id: u64,
@@ -220,34 +219,34 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         }
     }
 
-    pub async fn downcast_packet(&self, pck: Packet<M>) -> Result<(), CommsError> {
+    pub(crate) async fn downcast_packet(&self, pck: Packet<M>) -> Result<(), CommsError> {
         self.downcast.send(pck)?;
         Ok(())
     }
 
-    pub async fn downcast(&self, msg: M) -> Result<(), CommsError> {
+    pub(crate) async fn downcast(&self, msg: M) -> Result<(), CommsError> {
         self.downcast_packet(Packet::from(msg)).await
     }
 
-    pub async fn upcast_packet(&self, pck: Packet<M>) -> Result<(), CommsError> {
+    pub(crate) async fn upcast_packet(&self, pck: Packet<M>) -> Result<(), CommsError> {
         let upcasts = self.upcast.values().collect::<Vec<_>>();
         let upcast = upcasts.choose(&mut rand::thread_rng()).unwrap();
         upcast.outbox.send(pck).await?;
         Ok(())
     }
 
-    pub async fn upcast(&self, msg: M) -> Result<(), CommsError> {
+    pub(crate) async fn upcast(&self, msg: M) -> Result<(), CommsError> {
         self.upcast_packet(Packet::from(msg)).await
     }
 
-    pub async fn downcast_many(&self, pcks: Vec<Packet<M>>) -> Result<(), CommsError> {
+    pub(crate) async fn downcast_many(&self, pcks: Vec<Packet<M>>) -> Result<(), CommsError> {
         for pck in pcks {
             self.downcast.send(pck)?;
         }
         Ok(())
     }
 
-    pub async fn upcast_many(&self, pcks: Vec<Packet<M>>) -> Result<(), CommsError> {
+    pub(crate) async fn upcast_many(&self, pcks: Vec<Packet<M>>) -> Result<(), CommsError> {
         let upcasts = self.upcast.values().collect::<Vec<_>>();
         let upcast = upcasts.choose(&mut rand::thread_rng()).unwrap();
         for pck in pcks {

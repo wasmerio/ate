@@ -242,7 +242,7 @@ for Hash
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq)]
-pub struct DoubleHash {
+pub(crate) struct DoubleHash {
     hash1: Hash,
     hash2: Hash,
 }
@@ -316,7 +316,7 @@ thread_local! {
 }
 
 #[derive(Default)]
-pub struct RandomGeneratorAccessor { }
+pub(crate) struct RandomGeneratorAccessor { }
 
 impl RngCore
 for RandomGeneratorAccessor
@@ -610,7 +610,7 @@ impl EncryptedPrivateKey
     }
 
     #[allow(dead_code)]
-    pub fn double_hash(&self) -> DoubleHash {
+    pub(crate) fn double_hash(&self) -> DoubleHash {
         DoubleHash::from_hashes(&self.pk_hash(), &self.ek_hash)
     }
 }

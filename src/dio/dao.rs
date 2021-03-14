@@ -54,7 +54,7 @@ where D: Serialize + DeserializeOwned + Clone,
         }
     }
 
-    pub fn from_event(evt: &EventExt) -> Result<Row<D>, SerializationError> {
+    pub(crate) fn from_event(evt: &EventExt) -> Result<Row<D>, SerializationError> {
         let key = match evt.raw.meta.get_data_key() {
             Some(key) => key,
             None => { return Result::Err(SerializationError::NoPrimarykey) }
@@ -82,7 +82,7 @@ where D: Serialize + DeserializeOwned + Clone,
         }
     }
 
-    pub fn from_row_data(row: &RowData) -> Result<Row<D>, SerializationError> {
+    pub(crate) fn from_row_data(row: &RowData) -> Result<Row<D>, SerializationError> {
         Ok(
             Row {
                 key: row.key,
@@ -94,7 +94,7 @@ where D: Serialize + DeserializeOwned + Clone,
         )
     }
 
-    pub fn as_row_data(&self) -> std::result::Result<RowData, SerializationError> {
+    pub(crate) fn as_row_data(&self) -> std::result::Result<RowData, SerializationError> {
         let data = Bytes::from(serde_json::to_vec(&self.data)?);
             
         let data_hash = Hash::from_bytes(&data[..]);
@@ -203,7 +203,7 @@ where D: Serialize + DeserializeOwned + Clone,
     }
 
     #[allow(dead_code)]
-    pub(crate) fn delete(self) -> std::result::Result<(), SerializationError> {
+    pub fn delete(self) -> std::result::Result<(), SerializationError> {
         let mut state = self.state.borrow_mut();
         self.delete_internal(&mut state)
     }
@@ -315,7 +315,7 @@ where D: Serialize + DeserializeOwned + Clone,
 impl<D> Dao<D>
 where D: Serialize + DeserializeOwned + Clone,
 {
-    pub fn flush(&mut self) -> std::result::Result<(), SerializationError>
+    pub(crate) fn flush(&mut self) -> std::result::Result<(), SerializationError>
     {
         if self.dirty == true
         {            

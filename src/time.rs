@@ -28,8 +28,8 @@ pub struct TimestampEnforcer {
     pub tolerance: Duration,
     pub ntp_pool: String,
     pub ntp_port: u32,
-    pub ntp_result: Arc<RwLock<NtpResult>>,
-    pub bt_exit: Arc<Mutex<bool>>,
+    pub(crate) ntp_result: Arc<RwLock<NtpResult>>,
+    pub(crate) bt_exit: Arc<Mutex<bool>>,
 }
 
 impl Drop

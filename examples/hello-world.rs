@@ -14,14 +14,14 @@ struct World
 async fn main() -> Result<(), AteError>
 {
     // The default configuration will store the redo log locally in the temporary folder
-    let conf = ate::conf::Config::default();
-    let builder = ChainOfTrustBuilder::new(&conf);
+    let conf = AteConfig::default();
+    let builder = ChainBuilder::new(&conf);
 
     // We create a chain with a specific key (this is used for the file name it creates)
-    let chain = ate::accessor::ChainAccessor::new(builder, &ChainKey::from("universe")).await?;
+    let chain = Chain::new(builder, &ChainKey::from("universe")).await?;
     
     // We interact with the data stored in the chain-of-trust using a DIO
-    let session = Session::default();
+    let session = AteSession::default();
     let mut dio = chain.dio(&session).await;
     
     // In this example we store some data in the "World" object

@@ -18,10 +18,10 @@ use super::msg::*;
 use crate::pipe::*;
 use crate::header::*;
 
-pub struct MeshSession
+pub(crate) struct MeshSession
 {
     key: ChainKey,
-    pub(super) chain: Arc<ChainAccessor>,
+    pub(super) chain: Arc<Chain>,
     commit: Arc<StdMutex<FxHashMap<u64, smpsc::Sender<Result<(), CommitError>>>>>,
     lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, smpsc::Sender<bool>>>>,
 }
@@ -46,7 +46,7 @@ impl MeshSession
         let comms = node.node;
         comms.upcast(Message::Subscribe(key.clone())).await?;
 
-        let mut chain = ChainAccessor::new(builder, key).await?;
+        let mut chain = Chain::new(builder, key).await?;
         chain.proxy(
             Arc::new(
                 SessionPipe {

@@ -9,7 +9,7 @@ use crate::event::EventRawPlus;
 use crate::event::EventRaw;
 use crate::chain::ChainKey;
 use crate::pipe::EventPipe;
-use crate::accessor::ChainAccessor;
+use crate::accessor::Chain;
 use crate::error::*;
 use crate::header::PrimaryKey;
 
@@ -23,7 +23,7 @@ pub(super) struct MessageEvent
 
 impl MessageEvent
 {
-    pub fn convert_to(evts: &Vec<EventRawPlus>) -> Vec<MessageEvent>
+    pub(crate) fn convert_to(evts: &Vec<EventRawPlus>) -> Vec<MessageEvent>
     {
         let mut feed_me = Vec::new();
         for evt in evts {
@@ -40,7 +40,7 @@ impl MessageEvent
         feed_me
     }
 
-    pub fn convert_from(evts: &Vec<MessageEvent>) -> Vec<EventRawPlus>
+    pub(crate) fn convert_from(evts: &Vec<MessageEvent>) -> Vec<EventRawPlus>
     {
         let mut feed_me = Vec::new();
         for evt in evts.iter() {

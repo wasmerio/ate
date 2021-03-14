@@ -26,7 +26,7 @@ pub(super) struct MeshRoot {
     lookup: MeshHashTable,
     client: Arc<MeshClient>,
     addrs: Vec<MeshAddress>,
-    chains: Mutex<FxHashMap<ChainKey, Arc<ChainAccessor>>>,
+    chains: Mutex<FxHashMap<ChainKey, Arc<Chain>>>,
 }
 
 #[derive(Clone)]
@@ -273,7 +273,7 @@ impl MeshRoot
     }
 
     async fn open_internal<'a>(&'a self, key: &'a ChainKey)
-        -> Result<Arc<ChainAccessor>, ChainCreationError>
+        -> Result<Arc<Chain>, ChainCreationError>
     {
         let mut chains = self.chains.lock().await;
         let chain = match chains.entry(key.clone()) {
@@ -286,7 +286,7 @@ impl MeshRoot
                 };
 
                 let builder = ChainOfTrustBuilder::new(&self.cfg);
-                v.insert(Arc::new(ChainAccessor::new(builder, &key).await?))
+                v.insert(Arc::new(Chain::new(builder, &key).await?))
             }
         };
         Ok(Arc::clone(chain))
@@ -297,7 +297,7 @@ impl MeshRoot
 impl Mesh
 for MeshRoot {
     async fn open<'a>(&'a self, key: ChainKey)
-        -> Result<Arc<ChainAccessor>, ChainCreationError>
+        -> Result<Arc<Chain>, ChainCreationError>
     {
         Ok(
             match self.open_internal(&key).await {
