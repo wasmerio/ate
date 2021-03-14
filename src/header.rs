@@ -2,7 +2,8 @@ use serde::{Serialize, Deserialize};
 
 #[allow(unused_imports)]
 use fastrand::u64;
-use std::{hash::{Hash}, mem::size_of};
+use std::mem::size_of;
+use crate::crypto::Hash;
 #[allow(unused_imports)]
 use super::meta::*;
 
@@ -42,6 +43,42 @@ impl PrimaryKey {
 
     pub fn as_hex_string(&self) -> String {
         format!("{:X?}", self.key).to_string()
+    }
+}
+
+impl From<Hash>
+for PrimaryKey
+{
+    fn from(val: Hash) -> PrimaryKey {
+        let v = val.val;
+        let bytes = [v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7]];
+        PrimaryKey {
+            key: u64::from_be_bytes(bytes),
+        }
+    }
+}
+
+impl From<String>
+for PrimaryKey
+{
+    fn from(val: String) -> PrimaryKey {
+        PrimaryKey::from(Hash::from(val))
+    }
+}
+
+impl From<&'static str>
+for PrimaryKey
+{
+    fn from(val: &'static str) -> PrimaryKey {
+        PrimaryKey::from(Hash::from(val))
+    }
+}
+
+impl From<u64>
+for PrimaryKey
+{
+    fn from(val: u64) -> PrimaryKey {
+        PrimaryKey::from(Hash::from(val))
     }
 }
 

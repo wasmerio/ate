@@ -217,6 +217,30 @@ impl Hash {
     }
 }
 
+impl From<String>
+for Hash
+{
+    fn from(val: String) -> Hash {
+        Hash::from_bytes(val.as_bytes())
+    }
+}
+
+impl From<&'static str>
+for Hash
+{
+    fn from(val: &'static str) -> Hash {
+        Hash::from(val.to_string())
+    }
+}
+
+impl From<u64>
+for Hash
+{
+    fn from(val: u64) -> Hash {
+        Hash::from_bytes(&val.to_be_bytes())
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq)]
 pub struct DoubleHash {
     hash1: Hash,

@@ -2,8 +2,8 @@ extern crate rand;
 extern crate rand_chacha;
 extern crate sha3;
 
-pub mod error;
 mod test;
+pub mod error;
 pub mod crypto;
 pub mod header;
 pub mod meta;
@@ -30,6 +30,7 @@ pub mod multi;
 pub mod transaction;
 pub mod dio;
 pub mod pipe;
+pub mod prelude;
 
 #[cfg(test)]
 mod tests {

@@ -93,7 +93,6 @@ for TransformError {
     }
 }
 
-#[derive(Debug)]
 pub enum CompactError {
     SinkError(SinkError),
     IO(tokio::io::Error),
@@ -118,6 +117,30 @@ impl From<SerializationError>
 for CompactError {
     fn from(err: SerializationError) -> CompactError {
         CompactError::SerializationError(err)
+    }
+}
+
+impl std::fmt::Display
+for CompactError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            CompactError::IO(err) => {
+                write!(f, "Failed to compact the chain due to an IO error - {}", err)
+            },
+            CompactError::SerializationError(err) => {
+                write!(f, "Failed to compact the chain due to a serialization error - {}", err)
+            },
+            CompactError::SinkError(err) => {
+                write!(f, "Failed to compact the chain due to an error in the sink - {}", err)
+            },
+        }
+    }
+}
+
+impl std::fmt::Debug
+for CompactError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.to_string())
     }
 }
 
@@ -1018,6 +1041,193 @@ for LockError {
 
 impl std::fmt::Debug
 for LockError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}", self.to_string())
+    }
+}
+
+pub enum AteError
+{
+    LockError(LockError),
+    BusError(BusError),
+    CommsError(CommsError),
+    CommitError(CommitError),
+    TimeError(TimeError),
+    LintError(LintError),
+    ChainCreationError(ChainCreationError),
+    ProcessError(ProcessError),
+    SerializationError(SerializationError),
+    SinkError(SinkError),
+    CompactError(CompactError),
+    LoadError(LoadError),
+    CryptoError(CryptoError),
+    TransformError(TransformError),
+}
+
+impl From<LockError>
+for AteError
+{
+    fn from(err: LockError) -> AteError {
+        AteError::LockError(err)
+    }   
+}
+
+impl From<BusError>
+for AteError
+{
+    fn from(err: BusError) -> AteError {
+        AteError::BusError(err)
+    }   
+}
+
+impl From<CommsError>
+for AteError
+{
+    fn from(err: CommsError) -> AteError {
+        AteError::CommsError(err)
+    }   
+}
+
+impl From<CommitError>
+for AteError
+{
+    fn from(err: CommitError) -> AteError {
+        AteError::CommitError(err)
+    }   
+}
+
+impl From<TimeError>
+for AteError
+{
+    fn from(err: TimeError) -> AteError {
+        AteError::TimeError(err)
+    }   
+}
+
+impl From<LintError>
+for AteError
+{
+    fn from(err: LintError) -> AteError {
+        AteError::LintError(err)
+    }   
+}
+
+impl From<ChainCreationError>
+for AteError
+{
+    fn from(err: ChainCreationError) -> AteError {
+        AteError::ChainCreationError(err)
+    }   
+}
+
+impl From<ProcessError>
+for AteError
+{
+    fn from(err: ProcessError) -> AteError {
+        AteError::ProcessError(err)
+    }   
+}
+
+impl From<SerializationError>
+for AteError
+{
+    fn from(err: SerializationError) -> AteError {
+        AteError::SerializationError(err)
+    }   
+}
+
+impl From<SinkError>
+for AteError
+{
+    fn from(err: SinkError) -> AteError {
+        AteError::SinkError(err)
+    }   
+}
+
+impl From<CompactError>
+for AteError
+{
+    fn from(err: CompactError) -> AteError {
+        AteError::CompactError(err)
+    }   
+}
+
+impl From<LoadError>
+for AteError
+{
+    fn from(err: LoadError) -> AteError {
+        AteError::LoadError(err)
+    }   
+}
+
+impl From<TransformError>
+for AteError
+{
+    fn from(err: TransformError) -> AteError {
+        AteError::TransformError(err)
+    }   
+}
+
+impl From<CryptoError>
+for AteError
+{
+    fn from(err: CryptoError) -> AteError {
+        AteError::CryptoError(err)
+    }   
+}
+
+impl std::fmt::Display
+for AteError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            AteError::BusError(err) => {
+                write!(f, "{}", err)
+            },
+            AteError::ChainCreationError(err) => {
+                write!(f, "{}", err)
+            },
+            AteError::CommitError(err) => {
+                write!(f, "{}", err)
+            },
+            AteError::CommsError(err) => {
+                write!(f, "{}", err)
+            },
+            AteError::CompactError(err) => {
+                write!(f, "{}", err)
+            },
+            AteError::CryptoError(err) => {
+                write!(f, "{}", err)
+            },
+            AteError::LintError(err) => {
+                write!(f, "{}", err)
+            },
+            AteError::LoadError(err) => {
+                write!(f, "{}", err)
+            },
+            AteError::LockError(err) => {
+                write!(f, "{}", err)
+            },
+            AteError::ProcessError(err) => {
+                write!(f, "{}", err)
+            },
+            AteError::SerializationError(err) => {
+                write!(f, "{}", err)
+            },
+            AteError::SinkError(err) => {
+                write!(f, "{}", err)
+            },
+            AteError::TimeError(err) => {
+                write!(f, "{}", err)
+            },
+            AteError::TransformError(err) => {
+                write!(f, "{}", err)
+            },
+        }
+    }
+}
+
+impl std::fmt::Debug
+for AteError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self.to_string())
     }

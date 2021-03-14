@@ -83,6 +83,30 @@ impl ChainKey {
     }
 }
 
+impl From<String>
+for ChainKey
+{
+    fn from(val: String) -> ChainKey {
+        ChainKey::new(val)
+    }
+}
+
+impl From<&'static str>
+for ChainKey
+{
+    fn from(val: &'static str) -> ChainKey {
+        ChainKey::new(val.to_string())
+    }
+}
+
+impl From<u64>
+for ChainKey
+{
+    fn from(val: u64) -> ChainKey {
+        ChainKey::new(val.to_string())
+    }
+}
+
 #[allow(dead_code)]
 pub struct ChainOfTrust
 {
