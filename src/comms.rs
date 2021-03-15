@@ -24,16 +24,31 @@ use tokio::sync::Mutex;
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use bytes::BytesMut;
 use std::net::SocketAddr;
+use bytes::Bytes;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub(crate) struct Packet<M>
-where M: Send + Sync + Clone
+#[derive(Debug, Clone)]
+pub(crate) struct PacketData
 {
-    pub msg: M,
-    #[serde(skip)]
-    pub reply_here: Option<mpsc::Sender<Packet<M>>>,
-    #[serde(skip)]
+    pub bytes: Bytes,
+    pub reply_here: Option<mpsc::Sender<PacketData>>,
     pub skip_here: Option<u64>,
+}
+
+impl PacketData
+{
+    #[allow(dead_code)]
+    pub(crate) fn to_packet<M>(self) -> Result<Packet<M>, CommsError>
+    where M: Send + Sync + Serialize + DeserializeOwned + Clone
+    {
+        Ok
+        (
+            Packet {
+                msg: rmps::from_read_ref(&self.bytes[..])?,
+                reply_here: self.reply_here,
+                skip_here: self.skip_here,
+            }
+        )
+    }
 }
 
 #[derive(Debug)]
@@ -43,6 +58,17 @@ where M: Send + Sync + Clone,
 {
     pub packet: Packet<M>,
     pub context: Arc<C>
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub(crate) struct Packet<M>
+where M: Send + Sync + Clone
+{
+    pub msg: M,
+    #[serde(skip)]
+    pub reply_here: Option<mpsc::Sender<PacketData>>,
+    #[serde(skip)]
+    pub skip_here: Option<u64>,
 }
 
 impl<M> From<M>
@@ -61,6 +87,18 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
 impl<M> Packet<M>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone
 {
+    pub(crate) fn to_packet_data(self) -> Result<PacketData, CommsError>
+    {
+        let buf = rmps::to_vec(&self.msg)?;
+        Ok(
+            PacketData {
+                bytes: Bytes::from(buf),
+                reply_here: self.reply_here,
+                skip_here: self.skip_here,
+            }
+        )
+    }
+
     #[allow(dead_code)]
     pub(crate) async fn reply(&self, msg: M) -> Result<(), CommsError> {
         Ok(
@@ -69,12 +107,13 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
     }
 
     #[allow(dead_code)]
-    pub(crate) async fn reply_at(at: Option<&mpsc::Sender<Packet<M>>>, msg: M) -> Result<(), CommsError> {
+    pub(crate) async fn reply_at(at: Option<&mpsc::Sender<PacketData>>, msg: M) -> Result<(), CommsError> {
         let pck = Packet {
             msg,
             reply_here: None,
             skip_here: None,
         };
+        let pck = pck.to_packet_data()?;
 
         if let Some(tx) = at {
             tx.send(pck).await?;
@@ -101,6 +140,7 @@ for SocketAddr
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct NodeConfig<M>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone
 {
@@ -148,12 +188,11 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
 }
 
 #[derive(Debug)]
-pub(crate) struct Node<M, C>
-where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
-      C: Send + Sync
+pub(crate) struct Node<C>
+where C: Send + Sync
 {
-    downcast: Arc<broadcast::Sender<Packet<M>>>,
-    upcast: FxHashMap<u64, Upstream<M>>,
+    downcast: Arc<broadcast::Sender<PacketData>>,
+    upcast: FxHashMap<u64, Upstream>,
     _marker: PhantomData<C>,
 }
 
@@ -163,23 +202,22 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
       C: Send + Sync
 {
     pub inbox: mpsc::Receiver<PacketWithContext<M, C>>,
-    pub node: Node<M, C>
+    pub node: Node<C>
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct Upstream<M>
-where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
+pub(crate) struct Upstream
 {
     id: u64,
-    outbox: mpsc::Sender<Packet<M>>,
+    outbox: mpsc::Sender<PacketData>,
 }
 
 #[allow(dead_code)]
-impl<M, C> Node<M, C>
-where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
-      C: Send + Sync + Default + 'static
+impl<C> Node<C>
+where C: Send + Sync + Default + 'static
 {
-    pub async fn new(conf: &NodeConfig<M>) -> NodeWithReceiver<M, C>
+    pub async fn new<M>(conf: &NodeConfig<M>) -> NodeWithReceiver<M, C>
+    where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
     {
         // Setup the communication pipes for the server
         let (inbox_tx, inbox_rx) = mpsc::channel(conf.buffer_size);
@@ -219,34 +257,38 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         }
     }
 
-    pub(crate) async fn downcast_packet(&self, pck: Packet<M>) -> Result<(), CommsError> {
+    pub(crate) async fn downcast_packet(&self, pck: PacketData) -> Result<(), CommsError> {
         self.downcast.send(pck)?;
         Ok(())
     }
 
-    pub(crate) async fn downcast(&self, msg: M) -> Result<(), CommsError> {
-        self.downcast_packet(Packet::from(msg)).await
+    pub(crate) async fn downcast<M>(&self, msg: M) -> Result<(), CommsError>
+    where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
+    {
+        self.downcast_packet(Packet::from(msg).to_packet_data()?).await
     }
 
-    pub(crate) async fn upcast_packet(&self, pck: Packet<M>) -> Result<(), CommsError> {
+    pub(crate) async fn upcast_packet(&self, pck: PacketData) -> Result<(), CommsError> {
         let upcasts = self.upcast.values().collect::<Vec<_>>();
         let upcast = upcasts.choose(&mut rand::thread_rng()).unwrap();
         upcast.outbox.send(pck).await?;
         Ok(())
     }
 
-    pub(crate) async fn upcast(&self, msg: M) -> Result<(), CommsError> {
-        self.upcast_packet(Packet::from(msg)).await
+    pub(crate) async fn upcast<M>(&self, msg: M) -> Result<(), CommsError>
+    where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
+    {
+        self.upcast_packet(Packet::from(msg).to_packet_data()?).await
     }
 
-    pub(crate) async fn downcast_many(&self, pcks: Vec<Packet<M>>) -> Result<(), CommsError> {
+    pub(crate) async fn downcast_many(&self, pcks: Vec<PacketData>) -> Result<(), CommsError> {
         for pck in pcks {
             self.downcast.send(pck)?;
         }
         Ok(())
     }
 
-    pub(crate) async fn upcast_many(&self, pcks: Vec<Packet<M>>) -> Result<(), CommsError> {
+    pub(crate) async fn upcast_many(&self, pcks: Vec<PacketData>) -> Result<(), CommsError> {
         let upcasts = self.upcast.values().collect::<Vec<_>>();
         let upcast = upcasts.choose(&mut rand::thread_rng()).unwrap();
         for pck in pcks {
@@ -258,7 +300,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
 
 async fn mesh_listen_on<M, C>(addr: SocketAddr,
                            inbox: mpsc::Sender<PacketWithContext<M, C>>,
-                           outbox: Arc<broadcast::Sender<Packet<M>>>,
+                           outbox: Arc<broadcast::Sender<PacketData>>,
                            buffer_size: usize
                         )
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
@@ -282,7 +324,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
             };
             exp_backoff = Duration::from_millis(100);
             info!("connection-from: {}", sock_addr.to_string());
-
+            
             setup_tcp_stream(&stream).unwrap();
 
             let (rx, tx) = stream.into_split();
@@ -332,8 +374,8 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
 async fn mesh_connect_worker<M, C>
 (
     addr: SocketAddr,
-    mut reply_rx: mpsc::Receiver<Packet<M>>,
-    reply_tx: mpsc::Sender<Packet<M>>,
+    mut reply_rx: mpsc::Receiver<PacketData>,
+    reply_tx: mpsc::Sender<PacketData>,
     inbox: mpsc::Sender<PacketWithContext<M, C>>,
     sender: u64,
     on_connect: Option<M>
@@ -359,7 +401,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
             a => a?,
         };
         exp_backoff = Duration::from_millis(100);
-
+        
         setup_tcp_stream(&stream)?;
         
         let context = Arc::new(C::default());
@@ -421,13 +463,13 @@ async fn mesh_connect_to<M, C>
     inbox: mpsc::Sender<PacketWithContext<M, C>>,
     on_connect: Option<M>,
     buffer_size: usize,
-) -> Upstream<M>
+) -> Upstream
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
       C: Send + Sync + Default + 'static,
 {
     let (reply_tx, reply_rx) = mpsc::channel(buffer_size);
-    let reply_tx: mpsc::Sender<Packet<M>> = reply_tx;
-    let reply_rx: mpsc::Receiver<Packet<M>> = reply_rx;
+    let reply_tx: mpsc::Sender<PacketData> = reply_tx;
+    let reply_rx: mpsc::Receiver<PacketData> = reply_rx;
     let reply_tx0 = reply_tx.clone();
 
     let sender = fastrand::u64(..);
@@ -453,7 +495,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
 #[allow(unused_variables)]
 async fn process_inbox<M, C>(
     mut rx: tcp::OwnedReadHalf,
-    reply_tx: mpsc::Sender<Packet<M>>,
+    reply_tx: mpsc::Sender<PacketData>,
     inbox: mpsc::Sender<PacketWithContext<M, C>>,
     sender: u64,
     context: Arc<C>,
@@ -470,9 +512,12 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
         if n == 0 { break; }
 
         // Deserialize it
-        let mut pck: Packet<M> = rmps::from_read_ref(&buf[..])?;
-        pck.reply_here = Some(reply_tx.clone());
-        pck.skip_here = Some(sender);
+        let msg: M = rmps::from_read_ref(&buf[..])?;
+        let pck = Packet {
+            msg,
+            reply_here: Some(reply_tx.clone()),
+            skip_here: Some(sender),
+        };
         
         // Process it
         let pck = PacketWithContext {
@@ -495,20 +540,19 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
 #[allow(unused_variables)]
 async fn process_outbox<M>(
     mut tx: tcp::OwnedWriteHalf,
-    mut reply_rx: mpsc::Receiver<Packet<M>>,
+    mut reply_rx: mpsc::Receiver<PacketData>,
     sender: u64
-) -> Result<mpsc::Receiver<Packet<M>>, CommsError>
+) -> Result<mpsc::Receiver<PacketData>, CommsError>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone,
 {
     loop
     {
         // Read the next message (and add the sender)
-        if let Some(pck) = reply_rx.recv().await
+        if let Some(buf) = reply_rx.recv().await
         {
             // Serialize the packet and send it
-            let buf = rmps::to_vec(&pck)?;
-            tx.write_u32(buf.len() as u32).await?;
-            tx.write_all(&buf).await?;
+            tx.write_u32(buf.bytes.len() as u32).await?;
+            tx.write_all(&buf.bytes).await?;
         } else {
             return Ok(reply_rx);
         }
@@ -517,8 +561,8 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone,
 
 #[allow(unused_variables)]
 async fn process_downcast<M>(
-    tx: mpsc::Sender<Packet<M>>,
-    mut outbox: broadcast::Receiver<Packet<M>>,
+    tx: mpsc::Sender<PacketData>,
+    mut outbox: broadcast::Receiver<PacketData>,
     sender: u64
 ) -> Result<(), CommsError>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone,
@@ -593,8 +637,8 @@ async fn test_server_client() {
             while let Some(pck) = relay.inbox.recv().await {
                 let pck = pck.packet;
                 match &pck.msg {
-                    TestMessage::Ping(_) => relay.node.upcast_packet(pck).await.unwrap(),
-                    TestMessage::Pong(_) => relay.node.downcast_packet(pck).await.unwrap(),
+                    TestMessage::Ping(_) => relay.node.upcast_packet(pck.to_packet_data().unwrap()).await.unwrap(),
+                    TestMessage::Pong(_) => relay.node.downcast_packet(pck.to_packet_data().unwrap()).await.unwrap(),
                     _ => pck.reply(TestMessage::Rejected(Box::new(pck.msg.clone()))).await.unwrap(),
                 };
             }

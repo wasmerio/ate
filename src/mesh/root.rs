@@ -23,7 +23,7 @@ use super::msg::*;
 
 pub(super) struct MeshRoot {
     cfg: Config,
-    lookup: MeshHashTable,
+    lookup: MeshHashTableCluster,
     client: Arc<MeshClient>,
     addrs: Vec<MeshAddress>,
     chains: Mutex<FxHashMap<ChainKey, Arc<Chain>>>,
@@ -71,7 +71,7 @@ for SessionContext {
 impl MeshRoot
 {
     #[allow(dead_code)]
-    pub(super) async fn new(cfg: &Config, listen_addrs: Vec<MeshAddress>) -> Arc<MeshRoot>
+    pub(super) async fn new(cfg: &Config, cfg_cluster: Option<&ConfCluster>, listen_addrs: Vec<MeshAddress>) -> Arc<MeshRoot>
     {
         let mut node_cfg = NodeConfig::new()
             .buffer_size(cfg.buffer_size_server);
@@ -92,7 +92,10 @@ impl MeshRoot
             {
                 cfg: cfg.clone(),
                 addrs: listen_addrs,
-                lookup: MeshHashTable::new(cfg),
+                lookup: match cfg_cluster {
+                    Some(c) => MeshHashTableCluster::new(c),
+                    None => MeshHashTableCluster::default(),
+                },
                 client: MeshClient::new(cfg).await,
                 chains: Mutex::new(FxHashMap::default()),
             }
@@ -124,7 +127,7 @@ impl MeshRoot
         Ok(())
     }
 
-    async fn inbox_packet(self: &Arc<MeshRoot>, pck: PacketWithContext<Message, SessionContext>, node: &Node<Message, SessionContext>)
+    async fn inbox_packet(self: &Arc<MeshRoot>, pck: PacketWithContext<Message, SessionContext>, node: &Node<SessionContext>)
         -> Result<(), CommsError>
     {
         let context = pck.context.clone();
@@ -213,7 +216,7 @@ impl MeshRoot
                 let downcast_err = match &ret {
                     Ok(evts) => {
                         let join1 = chain.notify(&evts);
-                        let join2 = node.downcast_packet(pck);
+                        let join2 = node.downcast_packet(pck.to_packet_data()?);
                         join1.await;
                         join2.await
                     },
@@ -256,7 +259,7 @@ impl MeshRoot
     async fn inbox(
         self: Arc<MeshRoot>,
         mut inbox: mpsc::Receiver<PacketWithContext<Message, SessionContext>>,
-        node: Node<Message, SessionContext>
+        node: Node<SessionContext>
     ) -> Result<(), CommsError>
     {
         while let Some(pck) = inbox.recv().await {
@@ -280,7 +283,7 @@ impl MeshRoot
             Entry::Occupied(o) => o.into_mut(),
             Entry::Vacant(v) =>
             {
-                match self.lookup.lookup(&key) {
+                match self.lookup.lookup(key) {
                     Some(addr) if self.addrs.contains(&addr) => addr,
                     _ => { return Err(ChainCreationError::NoRootFound); }
                 };

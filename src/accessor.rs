@@ -465,21 +465,24 @@ impl<'a> Chain
             }
         }
 
-        let lock = self.inside_sync.read();
-        for pair in notify_map {
-            let (k, v) = pair;
-            if let Some(targets) = lock.listeners.get_vec(&k) {
-                for target in targets {
-                    let target = target.sender.clone();
-                    let evts = v.clone();
-                    tokio::spawn(async move {
-                        for evt in evts {
-                            let _ = target.send(evt).await;
-                        }
-                    });
+        {
+            let lock = self.inside_sync.read();
+            for pair in notify_map {
+                let (k, v) = pair;
+                if let Some(targets) = lock.listeners.get_vec(&k) {
+                    for target in targets {
+                        let target = target.sender.clone();
+                        let evts = v.clone();
+                        tokio::spawn(async move {
+                            for evt in evts {
+                                let _ = target.send(evt).await;
+                            }
+                        });
+                    }
                 }
             }
         }
+        tokio::task::yield_now().await;
     }
 }
 

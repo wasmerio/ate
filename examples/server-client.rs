@@ -8,10 +8,12 @@ use ate::prelude::*;
 #[tokio::main]
 async fn main() -> Result<(), AteError>
 {
-    // Create the server and listen on port 4000
+    // Create the server and listen on port 5000
     let mut cfg = AteConfig::default();
-    let addr = MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), 4000);
-    cfg.roots.push(addr.clone());
+    let addr = MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), 5000);
+    let mut cluster = ConfCluster::default();
+    cluster.roots.push(addr.clone());
+    cfg.clusters.push(cluster);
     cfg.force_listen = Some(addr);
     let server = create_mesh(&cfg).await;
 

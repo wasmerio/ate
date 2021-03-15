@@ -43,6 +43,12 @@ impl MeshAddress
     }
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct ConfCluster
+{
+    pub roots: Vec<MeshAddress>,
+}
+
 #[derive(Debug, Clone)]
 pub struct Config
 {
@@ -52,7 +58,7 @@ pub struct Config
     pub ntp_pool: String,
     pub ntp_port: u32,
 
-    pub roots: Vec<MeshAddress>,
+    pub clusters: Vec<ConfCluster>,
     pub force_client_only: bool,
     pub force_listen: Option<MeshAddress>,
 
@@ -74,7 +80,7 @@ for Config
             log_temp: true,
             ntp_pool: "pool.ntp.org".to_string(),
             ntp_port: 123,
-            roots: Vec::new(),
+            clusters: Vec::new(),
             force_client_only: false,
             force_listen: None,
             configured_for: ConfiguredFor::default(),
@@ -88,10 +94,12 @@ for Config
 
 #[cfg(test)]
 pub(crate) fn mock_test_config() -> Config {
+    let mut cluster = ConfCluster::default();
+    cluster.roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), 4001));
     let mut ret = Config::default();
     ret.log_path = "/tmp/ate".to_string();
     ret.log_temp = true;
-    ret.roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), 4001));
+    ret.clusters.push(cluster);
     return ret;
 }
 
@@ -292,5 +300,5 @@ for ChainOfTrustBuilder
 #[test]
 fn test_config_mocking() {
     let cfg = mock_test_config();
-    assert_eq!(cfg.roots.iter().next().unwrap().ip.to_string(), "127.0.0.1");
+    assert_eq!(cfg.clusters.iter().flat_map(|a| a.roots.iter()).next().unwrap().ip.to_string(), "127.0.0.1");
 }

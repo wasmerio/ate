@@ -43,7 +43,7 @@ pub use crate::mesh::core::Mesh;
 pub async fn create_mesh(cfg: &Config) -> Arc<dyn Mesh>
 {
     let mut hash_table = BTreeMap::new();
-    for addr in cfg.roots.iter() {
+    for addr in cfg.clusters.iter().flat_map(|c| c.roots.iter()) {
         hash_table.insert(addr.hash(), addr.clone());
     }
 
@@ -53,15 +53,20 @@ pub async fn create_mesh(cfg: &Config) -> Arc<dyn Mesh>
         .map(|i| i.ip())
         .collect::<Vec<_>>();
 
+    let mut listen_cluster = cfg.clusters.iter().next();
     let mut listen_root_addresses = Vec::new();
     
     if let Some(addr) = &cfg.force_listen {
         listen_root_addresses.push(addr.clone());
+        listen_cluster = cfg.clusters.iter().filter(|c| c.roots.contains(addr)).next();
     } else if cfg.force_client_only == false {
         for local_ip in local_ips.iter() {
-            for root in cfg.roots.iter() {
-                if root.ip == *local_ip {
-                    listen_root_addresses.push(root.clone());
+            for cfg_cluster in cfg.clusters.iter() {
+                for root in cfg_cluster.roots.iter() {
+                    if root.ip == *local_ip {
+                        listen_cluster = Some(cfg_cluster);
+                        listen_root_addresses.push(root.clone());
+                    }
                 }
             }
         }
@@ -69,7 +74,9 @@ pub async fn create_mesh(cfg: &Config) -> Arc<dyn Mesh>
 
     match listen_root_addresses.len() {
         0 => MeshClient::new(cfg).await,
-        _ => MeshRoot::new(cfg, listen_root_addresses).await
+        _ => {
+            MeshRoot::new(cfg, listen_cluster, listen_root_addresses).await
+        }
     }
 }
 
@@ -83,13 +90,26 @@ struct TestData {
 #[test]
 async fn test_mesh()
 {
-    let mut cfg = Config::default();
-    for n in 5000..5010 {
-        cfg.roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
+    let mut cluster1 = ConfCluster::default();
+    for n in 5100..5105 {
+        cluster1.roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
     }
 
+    let mut cluster2 = ConfCluster::default();
+    for n in 6100..6105 {
+        cluster2.roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
+    }  
+
+    let mut cfg = Config::default();
+    cfg.clusters.push(cluster1);
+    cfg.clusters.push(cluster2);
+
     let mut mesh_roots = Vec::new();
-    for n in 5000..5010 {
+    for n in 5100..5105 {
+        cfg.force_listen = Some(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
+        mesh_roots.push(create_mesh(&cfg).await);
+    }
+    for n in 6100..6105 {
         cfg.force_listen = Some(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
         mesh_roots.push(create_mesh(&cfg).await);
     }
@@ -106,7 +126,7 @@ async fn test_mesh()
 
         let mut bus;
         let task;
-        
+
         {
             let mut dio = chain_a.dio_ext(&session_a, Scope::Full).await;
             let dao2: Dao<TestData> = dio.store(TestData::default()).unwrap();

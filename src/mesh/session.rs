@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use log::{warn};
-use std::sync::Mutex as StdMutex;
+use parking_lot::Mutex as StdMutex;
 use std::{sync::Arc};
 use tokio::sync::mpsc;
 use std::sync::mpsc as smpsc;
@@ -20,6 +20,7 @@ use crate::header::*;
 
 pub(crate) struct MeshSession
 {
+    addrs: Vec<MeshAddress>,
     key: ChainKey,
     pub(super) chain: Arc<Chain>,
     commit: Arc<StdMutex<FxHashMap<u64, smpsc::Sender<Result<(), CommitError>>>>>,
@@ -28,48 +29,63 @@ pub(crate) struct MeshSession
 
 impl MeshSession
 {
-    pub(super) async fn new(builder: ChainOfTrustBuilder, key: &ChainKey, addr: &MeshAddress) -> Result<Arc<MeshSession>, ChainCreationError>
+    pub(super) async fn new(builder: ChainOfTrustBuilder, key: &ChainKey, addrs: Vec<MeshAddress>) -> Result<Arc<MeshSession>, ChainCreationError>
     {
-        let (loaded_sender, mut loaded_receiver)
-            = mpsc::channel(1);
-        
-        let node_cfg = NodeConfig::new()
-            .connect_to(addr.ip, addr.port)
-            .buffer_size(builder.cfg.buffer_size_client);
-        let node: NodeWithReceiver<Message, ()> = Node::new(&node_cfg).await;
-
         let commit
             = Arc::new(StdMutex::new(FxHashMap::default()));
         let lock_requests
             = Arc::new(StdMutex::new(FxHashMap::default()));
 
-        let comms = node.node;
-        comms.upcast(Message::Subscribe(key.clone())).await?;
+        let mut node_inboxes = Vec::new();
+        let mut pipe_comms = Vec::new();
+        for addr in addrs.iter() {
+            
+            let node_cfg = NodeConfig::new()
+                .connect_to(addr.ip, addr.port)
+                .buffer_size(builder.cfg.buffer_size_client);
+            let node: NodeWithReceiver<Message, ()> = Node::new(&node_cfg).await;
+            
+            node_inboxes.push(node.inbox);        
+            let comms = node.node;
 
-        let mut chain = Chain::new(builder, key).await?;
-        chain.proxy(
-            Arc::new(
-                SessionPipe {
-                    key: key.clone(),
-                    comms: comms,
-                    next: StdRwLock::new(None),
-                    commit: Arc::clone(&commit),
-                    lock_requests: Arc::clone(&lock_requests)
-                }
-            )
+            comms.upcast(Message::Subscribe(key.clone())).await?;
+            pipe_comms.push(comms);
+        }
+        
+        let pipe = Arc::new(
+            SessionPipe {
+                key: key.clone(),
+                comms: Arc::new(pipe_comms),
+                next: StdRwLock::new(None),
+                commit: Arc::clone(&commit),
+                lock_requests: Arc::clone(&lock_requests)
+            }
         );
+
+        let mut chain = Chain::new(builder.clone(), key).await?;
+        chain.proxy(pipe);
         let chain = Arc::new(chain);
 
         let ret = Arc::new(MeshSession {
+            addrs: addrs.clone(),
             key: key.clone(),
             chain,
             commit,
             lock_requests,
         });
 
-        tokio::spawn(MeshSession::inbox(Arc::clone(&ret), node.inbox, loaded_sender));
+        let mut wait_for_me = Vec::new();
+        for node_inbox in node_inboxes {
+            let (loaded_sender, loaded_receiver)
+                = mpsc::channel(1);
 
-        loaded_receiver.recv().await;
+            tokio::spawn(MeshSession::inbox(Arc::clone(&ret), node_inbox, loaded_sender));
+            wait_for_me.push(loaded_receiver);
+        };
+
+        for mut wait in wait_for_me {
+            wait.recv().await;
+        }
 
         Ok(ret)
     }
@@ -98,7 +114,7 @@ impl MeshSession
                 self.chain.notify(&evts).await;
             },
             Message::Confirmed(id) => {
-                if let Some(result) = self.commit.lock().unwrap().remove(&id) {
+                if let Some(result) = self.commit.lock().remove(&id) {
                     result.send(Ok(()))?;
                 }
             },
@@ -106,7 +122,7 @@ impl MeshSession
                 id,
                 err
             } => {
-                if let Some(result) = self.commit.lock().unwrap().remove(&id) {
+                if let Some(result) = self.commit.lock().remove(&id) {
                     result.send(Err(CommitError::RootError(err)))?;
                 }
             },
@@ -114,7 +130,7 @@ impl MeshSession
                 key,
                 is_locked
             } => {
-                if let Some(result) = self.lock_requests.lock().unwrap().remove(&key) {
+                if let Some(result) = self.lock_requests.lock().remove(&key) {
                     result.send(is_locked)?;
                 }
             },
@@ -150,7 +166,7 @@ for MeshSession
     fn drop(&mut self)
     {
         {
-            let guard = self.commit.lock().unwrap();
+            let guard = self.commit.lock();
             for sender in guard.values() {
                 if let Err(err) = sender.send(Err(CommitError::Aborted)) {
                     debug_assert!(false, "mesh-session-err {:?}", err);
@@ -160,7 +176,7 @@ for MeshSession
         }
 
         {
-            let guard = self.lock_requests.lock().unwrap();
+            let guard = self.lock_requests.lock();
             for sender in guard.values() {
                 if let Err(err) = sender.send(false) {
                     debug_assert!(false, "mesh-session-err {:?}", err);
@@ -174,7 +190,7 @@ for MeshSession
 struct SessionPipe
 {
     key: ChainKey,
-    comms: Node<Message, ()>,
+    comms: Arc<Vec<Node<()>>>,
     next: StdRwLock<Option<Arc<dyn EventPipe>>>,
     commit: Arc<StdMutex<FxHashMap<u64, smpsc::Sender<Result<(), CommitError>>>>>,
     lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, smpsc::Sender<bool>>>>,
@@ -192,17 +208,25 @@ for SessionPipe
             Scope::Full | Scope::One => {
                 let id = fastrand::u64(..);
                 if let Some(result) = trans.result.take() {
-                    self.commit.lock().unwrap().insert(id, result);
+                    self.commit.lock().insert(id, result);
                 }
                 Some(id)
             },
             _ => None,
         };
 
-        self.comms.upcast(Message::Events{
+        let pck = Packet::from(Message::Events{
             commit,
             evts,
-        }).await?;
+        }).to_packet_data()?;
+
+        let mut joins = Vec::new();
+        for comms in self.comms.iter() {
+            joins.push(comms.upcast_packet(pck.clone()));
+        }
+        for join in joins {
+            join.await?;
+        }
 
         {
             let lock = self.next.read().clone();
@@ -229,12 +253,18 @@ for SessionPipe
 
         // Write an entry into the lookup table
         let (tx, rx) = smpsc::channel();
-        self.lock_requests.lock().unwrap().insert(key.clone(), tx);
+        self.lock_requests.lock().insert(key.clone(), tx);
 
         // Send a message up to the main server asking for a lock on the data object
-        self.comms.upcast(Message::Lock {
-            key: key.clone(),
-        }).await?;
+        let mut joins = Vec::new();
+        for comms in self.comms.iter() {
+            joins.push(comms.upcast(Message::Lock {
+                key: key.clone(),
+            }));
+        }
+        for join in joins {
+            join.await?;
+        }
 
         // Wait for the response from the server
         Ok(rx.recv()?)
@@ -252,9 +282,15 @@ for SessionPipe
         }
 
         // Send a message up to the main server asking for a lock on the data object
-        self.comms.upcast(Message::Unlock {
-            key: key.clone(),
-        }).await?;
+        let mut joins = Vec::new();
+        for comms in self.comms.iter() {
+            joins.push(comms.upcast(Message::Unlock {
+                key: key.clone(),
+            }));
+        }
+        for join in joins {
+            join.await?;
+        }
 
         // Success
         Ok(())

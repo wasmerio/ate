@@ -1,5 +1,6 @@
 pub use crate::conf::Config as AteConfig;
 pub use crate::conf::ConfiguredFor;
+pub use crate::conf::ConfCluster;
 pub use crate::header::PrimaryKey;
 pub use crate::error::AteError;
 

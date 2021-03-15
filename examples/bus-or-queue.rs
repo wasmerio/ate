@@ -24,7 +24,9 @@ async fn main() -> Result<(), AteError>
     // Create the server and listen on port 5001
     let mut cfg = AteConfig::default();
     let addr = MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), 5001);
-    cfg.roots.push(addr.clone());
+    let mut cluster = ConfCluster::default();
+    cluster.roots.push(addr.clone());
+    cfg.clusters.push(cluster);
     cfg.force_listen = Some(addr);
     let _ = create_mesh(&cfg).await;
 

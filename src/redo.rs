@@ -430,7 +430,7 @@ impl Drop
 for LogFile
 {
     fn drop(&mut self) {
-        futures::executor::block_on(self.log_stream.flush()).unwrap();
+        let _ = futures::executor::block_on(self.log_stream.flush());
     }
 }
 

@@ -17,26 +17,14 @@ pub trait Mesh
     async fn open<'a>(&'a self, key: ChainKey) -> Result<Arc<Chain>, ChainCreationError>;
 }
 
-pub(super) struct MeshHashTable
+#[derive(Default)]
+pub(super) struct MeshHashTableCluster
 {
-    hash_table: BTreeMap<Hash, MeshAddress>,
+    pub(super) hash_table: BTreeMap<Hash, MeshAddress>,
 }
 
-impl MeshHashTable
+impl MeshHashTableCluster
 {
-    #[allow(dead_code)]
-    pub(crate) fn new(cfg: &Config) -> MeshHashTable
-    {
-        let mut hash_table = BTreeMap::new();
-        for addr in cfg.roots.iter() {
-            hash_table.insert(addr.hash(), addr.clone());
-        }
-
-        MeshHashTable {
-            hash_table,
-        }
-    }
-
     pub(crate) fn lookup(&self, key: &ChainKey) -> Option<MeshAddress> {
         let hash = key.hash();
 
@@ -54,5 +42,56 @@ impl MeshHashTable
             return Some(a.clone());
         }
         None
+    }
+    #[allow(dead_code)]
+    pub(crate) fn new(cfg_cluster: &ConfCluster) -> MeshHashTableCluster
+    {
+        let mut hash_table = BTreeMap::new();            
+        for addr in cfg_cluster.roots.iter() {
+            hash_table.insert(addr.hash(), addr.clone());
+        }
+        MeshHashTableCluster {
+            hash_table,
+        }
+    }
+}
+
+pub(super) struct MeshHashTable
+{
+    clusters: Vec<MeshHashTableCluster>,
+}
+
+impl MeshHashTable
+{
+    #[allow(dead_code)]
+    pub(crate) fn new(cfg: &Config) -> MeshHashTable
+    {
+        let mut clusters = Vec::new();
+        for cfg_cluster in cfg.clusters.iter() {
+            let mut hash_table = BTreeMap::new();
+            
+            for addr in cfg_cluster.roots.iter() {
+                hash_table.insert(addr.hash(), addr.clone());
+            }
+
+            let cluster = MeshHashTableCluster {
+                hash_table,
+            };
+            clusters.push(cluster);
+        }
+
+        MeshHashTable {
+            clusters,
+        }
+    }
+
+    pub(crate) fn lookup(&self, key: &ChainKey) -> Vec<MeshAddress> {
+        let mut ret = Vec::new();        
+        for cluster in self.clusters.iter() {
+            if let Some(a) = cluster.lookup(key) {
+                ret.push(a);
+            }
+        }
+        ret
     }
 }

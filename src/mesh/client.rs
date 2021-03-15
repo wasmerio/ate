@@ -50,15 +50,13 @@ for MeshClient {
             return Ok(Arc::clone(&ret.chain));
         }
 
-        let addr = match self.lookup.lookup(&key) {
-            Some(a) => a,
-            None => {
-                return Err(ChainCreationError::NoRootFound);
-            }
-        };
+        let addrs = self.lookup.lookup(&key);
+        if addrs.len() <= 0 {
+            return Err(ChainCreationError::NoRootFound);
+        }
         
         let builder = ChainOfTrustBuilder::new(&self.cfg);
-        let session = MeshSession::new(builder, &key, &addr).await?;
+        let session = MeshSession::new(builder, &key, addrs).await?;
         *record = Arc::downgrade(&session);
 
         Ok(Arc::clone(&session.chain))
