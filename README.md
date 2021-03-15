@@ -21,8 +21,8 @@ ATE
     
 ATE is all these things and none of them; it is [unique way](doc/design.md) to work with distributed
 data that can easily implement all of the above use cases - take a look at the [examples](#examples)
-
 for how you can achieve them.
+
 ## Why the name?
 
 The origin of the word "mutate" is the latin word '-ate':  
