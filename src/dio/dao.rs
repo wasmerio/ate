@@ -304,10 +304,10 @@ where D: Serialize + DeserializeOwned + Clone,
 {
     fn drop(&mut self)
     {
-        // Now attempt to flush it
-        if let Err(err) = self.flush() {
-            debug_assert!(false, "dao-flush-error {}", err.to_string());
-            warn!("dao-flush-error {}", err.to_string());
+        // Now attempt to commit it
+        if let Err(err) = self.commit() {
+            debug_assert!(false, "dao-commit-error {}", err.to_string());
+            warn!("dao-commit-error {}", err.to_string());
         }
     }
 }
@@ -315,7 +315,7 @@ where D: Serialize + DeserializeOwned + Clone,
 impl<D> Dao<D>
 where D: Serialize + DeserializeOwned + Clone,
 {
-    pub(crate) fn flush(&mut self) -> std::result::Result<(), SerializationError>
+    pub(crate) fn commit(&mut self) -> std::result::Result<(), SerializationError>
     {
         if self.dirty == true
         {            

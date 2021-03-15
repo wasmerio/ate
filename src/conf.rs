@@ -60,6 +60,9 @@ pub struct Config
 
     pub buffer_size_client: usize,
     pub buffer_size_server: usize,
+
+    pub load_cache_size: usize,
+    pub load_cache_ttl: u64,
 }
 
 impl Default
@@ -77,6 +80,8 @@ for Config
             configured_for: ConfiguredFor::default(),
             buffer_size_client: 1000,
             buffer_size_server: 1000,
+            load_cache_size: 1000,
+            load_cache_ttl: 30,
         }
     }
 }

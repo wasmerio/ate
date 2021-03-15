@@ -3,7 +3,7 @@ use serde::{Serialize, Deserialize};
 use log::{warn};
 use std::{net::{IpAddr, Ipv6Addr}, ops::Deref};
 use tokio::sync::{Mutex};
-use std::sync::Mutex as StdMutex;
+use parking_lot::Mutex as StdMutex;
 use std::{sync::Arc, collections::hash_map::Entry};
 use tokio::sync::mpsc;
 use fxhash::FxHashMap;
@@ -56,7 +56,7 @@ for SessionContext {
 impl Drop
 for SessionContext {
     fn drop(&mut self) {
-        let context = self.inside.lock().unwrap().clone();
+        let context = self.inside.lock().clone();
         if let Some(root) = context.root.upgrade() {
             tokio::spawn(async move {
                 if let Err(err) = root.disconnected(context).await {
@@ -144,7 +144,7 @@ impl MeshRoot
             chain.flush().await?;
 
             {
-                let mut guard = context.inside.lock().unwrap();
+                let mut guard = context.inside.lock();
                 guard.root = Arc::downgrade(self);
                 guard.chain_key.replace(chain_key.clone());
             }
@@ -182,7 +182,7 @@ impl MeshRoot
             Packet::reply_at(reply_at, Message::EndOfHistory).await?;
         }
 
-        let chain_key = context.inside.lock().unwrap().chain_key.clone();
+        let chain_key = context.inside.lock().chain_key.clone();
         let chain_key = match chain_key {
             Some(k) => k,
             None => {
@@ -236,7 +236,7 @@ impl MeshRoot
                 key,
             } => {
                 let is_locked = chain.pipe.try_lock(key.clone()).await?;
-                context.inside.lock().unwrap().locks.insert(key.clone());
+                context.inside.lock().locks.insert(key.clone());
                 Packet::reply_at(reply_at, Message::LockResult {
                     key: key.clone(),
                     is_locked
@@ -245,7 +245,7 @@ impl MeshRoot
             Message::Unlock {
                 key,
             } => {
-                context.inside.lock().unwrap().locks.remove(key);
+                context.inside.lock().locks.remove(key);
                 chain.pipe.unlock(key.clone()).await?;
             }
             _ => { }

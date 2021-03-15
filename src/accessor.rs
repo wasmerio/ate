@@ -18,11 +18,11 @@ use std::rc::Rc;
 use tokio::runtime::Runtime;
 #[allow(unused_imports)]
 use std::sync::{Arc, Weak};
-use std::sync::Mutex as StdMutex;
+use parking_lot::Mutex as StdMutex;
 use fxhash::FxHashSet;
 use tokio::sync::RwLock;
-use std::sync::RwLock as StdRwLock;
-use std::sync::RwLockWriteGuard as StdRwLockWriteGuard;
+use parking_lot::RwLock as StdRwLock;
+use parking_lot::RwLockWriteGuard as StdRwLockWriteGuard;
 use tokio::sync::mpsc;
 use std::sync::mpsc as smpsc;
 
@@ -113,7 +113,7 @@ impl ChainProtectedAsync
     {
         let mut validated_evts = Vec::new();
         {
-            let mut sync = sync.write().unwrap();
+            let mut sync = sync.write();
             for evt in evts.into_iter()
             {
                 let validation_data = ValidationData::from_event(&evt);
@@ -205,8 +205,11 @@ impl<'a> Chain
                 Err(err) => Err(err),
             };
 
-            // Flush then drop the lock
-            lock.chain.flush().await.unwrap();
+            // If the scope requires it then we flush, otherwise we just drop the lock
+            match trans.scope {
+                Scope::One | Scope::Full => lock.chain.flush().await.unwrap(),
+                _ => {}
+            };
             drop(lock);
 
             // We send the result of a feed operation back to the caller, if the send
@@ -259,7 +262,7 @@ impl<'a> Chain
         let mut inside_async = ChainProtectedAsync {
             chain,
         };        
-        inside_async.process(inside_sync.write().unwrap(), entries)?;
+        inside_async.process(inside_sync.write(), entries)?;
         let inside_async = Arc::new(RwLock::new(inside_async));
 
         let (sender,
@@ -326,7 +329,7 @@ impl<'a> Chain
         {
             let multi = self.multi().await;
             let guard_async = multi.inside_async.read().await;
-            let guard_sync = multi.inside_sync.read().unwrap();
+            let guard_sync = multi.inside_sync.read();
 
             // step1 - reset all the compactors
             let mut compactors = Vec::new();
@@ -402,7 +405,7 @@ impl<'a> Chain
         single.inside_async.chain.history = new_chain;
 
         {
-            let mut lock = single.inside_sync.write().unwrap();
+            let mut lock = single.inside_sync.write();
             for indexer in lock.indexers.iter_mut() {
                 indexer.rebuild(&new_events)?;
             }
@@ -411,6 +414,7 @@ impl<'a> Chain
             }
         }
         
+        // Flush the log again
         single.inside_async.chain.flush().await?;
 
         // success
@@ -461,7 +465,7 @@ impl<'a> Chain
             }
         }
 
-        let lock = self.inside_sync.read().unwrap();
+        let lock = self.inside_sync.read();
         for pair in notify_map {
             let (k, v) = pair;
             if let Some(targets) = lock.listeners.get_vec(&k) {
@@ -494,7 +498,7 @@ for InboxPipe
     #[allow(dead_code)]
     async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError>
     {
-        let mut guard = self.locks.lock().unwrap();
+        let mut guard = self.locks.lock();
         if guard.contains(&key) {
             return Ok(false);
         }
@@ -506,7 +510,7 @@ for InboxPipe
     #[allow(dead_code)]
     async fn unlock(&self, key: PrimaryKey) -> Result<(), CommitError>
     {
-        let mut guard = self.locks.lock().unwrap();
+        let mut guard = self.locks.lock();
         guard.remove(&key);
         Ok(())
     }

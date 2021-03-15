@@ -1,5 +1,5 @@
 use tokio::sync::RwLockWriteGuard;
-use std::sync::RwLock as StdRwLock;
+use parking_lot::RwLock as StdRwLock;
 use std::sync::Arc;
 
 use super::accessor::*;

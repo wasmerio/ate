@@ -40,7 +40,7 @@ where D: Serialize + DeserializeOwned + Clone,
         let (tx, rx) = mpsc::channel(100);
         
         {
-            let mut lock = chain.inside_sync.write().unwrap();
+            let mut lock = chain.inside_sync.write();
             let listener = ChainListener {
                 id: id,
                 sender: tx,
@@ -92,7 +92,7 @@ where D: Serialize + DeserializeOwned + Clone,
 {
     fn drop(&mut self)
     {
-        let mut lock = self.chain.inside_sync.write().unwrap();
+        let mut lock = self.chain.inside_sync.write();
         if let Some(vec) = lock.listeners.get_vec_mut(&self.vec) {
             if let Some(index) = vec.iter().position(|x| x.id == self.id) {
                 vec.remove(index);

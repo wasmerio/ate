@@ -14,6 +14,7 @@ use super::meta::*;
 extern crate rmp_serde as rmps;
 
 use async_trait::async_trait;
+use cached::Cached;
 #[allow(unused_imports)]
 use std::{collections::VecDeque, io::SeekFrom, ops::DerefMut};
 #[allow(unused_imports)]
@@ -26,7 +27,10 @@ use bytes::BytesMut;
 use bytes::Bytes;
 use bytes::{Buf};
 use std::mem::size_of;
-use tokio::sync::Mutex;
+use tokio::sync::Mutex as MutexAsync;
+use cached::*;
+use fxhash::FxHashMap;
+use parking_lot::Mutex as MutexSync;
 
 #[cfg(test)]
 use tokio::runtime::Runtime;
@@ -40,16 +44,24 @@ pub(crate) struct LogFilePointer
     pub(crate) offset: u64,
 }
 
+struct LogFileCache
+{
+    pub(crate) flush: FxHashMap<LogFilePointer, LoadResult>,
+    pub(crate) write: TimedSizedCache<LogFilePointer, LoadResult>,
+    pub(crate) read: TimedSizedCache<LogFilePointer, LoadResult>,
+}
+
 struct LogFile
 {
     pub(crate) version: u32,
     pub(crate) log_path: String,
     pub(crate) log_back: Option<tokio::fs::File>,
-    pub(crate) log_random_access: Mutex<tokio::fs::File>,
+    pub(crate) log_random_access: MutexAsync<tokio::fs::File>,
     pub(crate) log_stream: BufStream<tokio::fs::File>,
     pub(crate) log_off: u64,
     pub(crate) log_temp: bool,
     pub(crate) log_count: u64,
+    pub(crate) cache: MutexSync<LogFileCache>,
 }
 
 impl LogFile {
@@ -70,21 +82,31 @@ impl LogFile {
         let log_back = self.log_back.as_ref().unwrap().try_clone().await?;
         let log_random_access = self.log_random_access.lock().await.try_clone().await?;
 
+        let cache = {
+            let cache = self.cache.lock();
+            MutexSync::new(LogFileCache {
+                flush: cache.flush.clone(),
+                read: cached::TimedSizedCache::with_size_and_lifespan(cache.read.cache_capacity().unwrap(), cache.read.cache_lifespan().unwrap()),
+                write: cached::TimedSizedCache::with_size_and_lifespan(cache.write.cache_capacity().unwrap(), cache.write.cache_lifespan().unwrap()),
+            })
+        };
+
         Ok(
             LogFile {
                 version: self.version,
                 log_path: self.log_path.clone(),
                 log_stream: BufStream::new(log_back.try_clone().await?),
                 log_back: Some(log_back),
-                log_random_access: Mutex::new(log_random_access),
+                log_random_access: MutexAsync::new(log_random_access),
                 log_off: self.log_off,
                 log_temp: self.log_temp,
                 log_count: self.log_count,
+                cache,
             }
         )
     }
 
-    async fn new(temp_file: bool, path_log: String, truncate: bool) -> Result<LogFile> {
+    async fn new(temp_file: bool, path_log: String, truncate: bool, cache_size: usize, cache_ttl: u64) -> Result<LogFile> {
         let log_back = match truncate {
             true => tokio::fs::OpenOptions::new().read(true).write(true).truncate(true).create(true).open(path_log.clone()).await?,
                _ => tokio::fs::OpenOptions::new().read(true).write(true).create(true).open(path_log.clone()).await?,
@@ -109,10 +131,15 @@ impl LogFile {
             log_path: path_log.clone(),
             log_stream: log_stream,
             log_back: Some(log_back),
-            log_random_access: Mutex::new(log_random_access),
+            log_random_access: MutexAsync::new(log_random_access),
             log_off: std::mem::size_of::<u32>() as u64,
             log_temp: temp_file,
             log_count: 0,
+            cache: MutexSync::new(LogFileCache {
+                flush: FxHashMap::default(),
+                read: TimedSizedCache::with_size_and_lifespan(cache_size, cache_ttl),
+                write: TimedSizedCache::with_size_and_lifespan(cache_size, cache_ttl),
+            })
         };
 
         if temp_file {
@@ -194,6 +221,7 @@ impl LogFile {
             None => 0 as u32,
         };
 
+        // Write the data to the log stream
         self.log_stream.write(&meta_len.to_be_bytes()).await?;
         self.log_stream.write_all(&meta[..]).await?;
         self.log_stream.write(&body_len.to_be_bytes()).await?;
@@ -204,11 +232,34 @@ impl LogFile {
             _ => {}
         }
 
+        // Build the log pointer and update the offset
         let size = size_of::<u32>() as u64 + meta.len() as u64 + size_of::<u32>() as u64 + body_len as u64;
         let pointer = LogFilePointer { version: self.version, offset: self.log_off, size: size as u32 };
         self.log_count = self.log_count + 1;
         self.log_off = self.log_off + size;
+
+        // Hash body
+        let body_hash = match &body {
+            Some(data) => Some(super::crypto::Hash::from_bytes(&data[..])),
+            None => None,
+        };
+
+        // Cache the data
+        {
+            let mut cache = self.cache.lock();
+            cache.flush.insert(pointer.clone(), LoadResult {
+                evt: EventData {
+                    meta_hash: super::crypto::Hash::from_bytes(&meta[..]),
+                    meta: meta.clone(),
+                    data: body.clone(),
+                    data_hash: body_hash,
+                    pointer: pointer,
+                },
+                pointer,
+            });
+        }
         
+        // Return the log pointer
         Ok(pointer)
     }
 
@@ -216,7 +267,7 @@ impl LogFile {
     {
         self.check_open()?;
         from_log.check_open()?;
-
+        
         let mut buff = BytesMut::with_capacity(from_pointer.size as usize);
         
         let read = {
@@ -237,11 +288,25 @@ impl LogFile {
         Ok(pointer)
     }
 
-    async fn load<C>(&self, pointer: LogFilePointer, custom: C) -> Result<LoadResult<C>> {
+    async fn load(&self, pointer: LogFilePointer) -> Result<LoadResult> {
         self.check_open()?;
 
         if pointer.version != self.version {
             return Result::Err(Error::new(ErrorKind::Other, format!("Could not find data object as it is from a different redo log (pointer.version=0x{:X?}, log.version=0x{:X?})", pointer.version, self.version)));
+        }
+
+        // Check the caches
+        {
+            let mut cache = self.cache.lock();
+            if let Some(result) = cache.flush.get(&pointer) {
+                return Ok(result.clone());
+            }
+            if let Some(result) = cache.read.cache_get(&pointer) {
+                return Ok(result.clone());
+            }
+            if let Some(result) = cache.write.cache_remove(&pointer) {
+                return Ok(result);
+            }
         }
 
         // First read all the data into a buffer
@@ -273,24 +338,28 @@ impl LogFile {
 
         // Hash body
         let body_hash = match &buff_body {
-            Some(data) => {
-                Some(super::crypto::Hash::from_bytes(&data[..]))
-            },
+            Some(data) => Some(super::crypto::Hash::from_bytes(&data[..])),
             None => None,
         };
 
+        // Add it to the read cache
+        let ret = LoadResult {
+            evt: EventData {
+                meta_hash: super::crypto::Hash::from_bytes(&buff_meta[..]),
+                meta: buff_meta,
+                data: buff_body,
+                data_hash: body_hash,
+                pointer: pointer,
+            },
+            pointer,
+        };
+        {
+            let mut cache = self.cache.lock();
+            cache.read.cache_set(pointer.clone(), ret.clone());
+        }
+
         Ok(
-            LoadResult {
-                evt: EventData {
-                    meta_hash: super::crypto::Hash::from_bytes(&buff_meta[..]),
-                    meta: buff_meta,
-                    data: buff_body,
-                    data_hash: body_hash,
-                    pointer: pointer,
-                },
-                pointer,
-                custom,
-            }            
+            ret
         )
     }
 
@@ -308,8 +377,31 @@ impl LogFile {
     {
         self.check_open()?;
 
+        // Make a note of all the cache lines we need to move
+        let mut keys = Vec::new();
+        {
+            let cache = self.cache.lock();
+            for k in cache.flush.keys() {
+                keys.push(k.clone());
+            }
+        }
+
+        // Flush the data to disk
         self.log_stream.flush().await?;
         self.log_back.as_ref().unwrap().sync_all().await?;
+
+
+        // Move the cache lines into the write cache from the flush cache which
+        // will cause them to be released after the TTL is reached
+        {
+            let mut cache = self.cache.lock();
+            for k in keys.into_iter() {
+                if let Some(v) =  cache.flush.remove(&k) {
+                    cache.write.cache_set(k, v);
+                }
+            }
+        }
+
         Ok(())
     }
 
@@ -331,6 +423,14 @@ impl LogFile {
             Some(_) => true,
             _ => false,
         }
+    }
+}
+
+impl Drop
+for LogFile
+{
+    fn drop(&mut self) {
+        futures::executor::block_on(self.log_stream.flush()).unwrap();
     }
 }
 
@@ -433,11 +533,10 @@ impl RedoLogLoader {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct LoadResult<C>
+pub(crate) struct LoadResult
 {
     pub(crate) pointer: LogFilePointer,
     pub(crate) evt: EventData,
-    pub(crate) custom: C,
 }
 
 pub(crate) struct RedoLog {
@@ -449,11 +548,11 @@ pub(crate) struct RedoLog {
 
 impl RedoLog
 {
-    async fn new(cfg: &Config, path_log: String, truncate: bool) -> Result<(RedoLog, RedoLogLoader)> {
+    async fn new(cfg: &Config, path_log: String, truncate: bool, cache_size: usize, cache_ttl: u64) -> Result<(RedoLog, RedoLogLoader)> {
         let mut ret = RedoLog {
             log_temp: cfg.log_temp,
             log_path: path_log.clone(),
-            log_file: LogFile::new(cfg.log_temp, path_log.clone(), truncate).await?,
+            log_file: LogFile::new(cfg.log_temp, path_log.clone(), truncate, cache_size, cache_ttl).await?,
             flip: None,
         };
 
@@ -464,14 +563,24 @@ impl RedoLog
     }
 
     pub(crate) async fn begin_flip(&mut self) -> Result<FlippedLogFile> {
+        
         match self.flip
         {
             None => {
                 let path_flip = format!("{}.flip", self.log_path);
 
-                let flip = FlippedLogFile {
-                    log_file: LogFile::new(self.log_temp, path_flip, true).await?,
-                    event_summary: Vec::new(),
+                let flip = {
+                    let cache = self.log_file.cache.lock();
+                    FlippedLogFile {
+                        log_file: LogFile::new(
+                            self.log_temp, 
+                            path_flip, 
+                            true, 
+                            cache.read.cache_capacity().unwrap(), 
+                            cache.read.cache_lifespan().unwrap()
+                        ).await?,
+                        event_summary: Vec::new(),
+                    }
                 };
                 
                 self.flip = Some(RedoLogFlip {
@@ -527,8 +636,8 @@ impl RedoLog
         }
     }
 
-    pub(crate) async fn load<C>(&self, pointer: LogFilePointer, custom: C) -> Result<LoadResult<C>> {
-        Ok(self.log_file.load(pointer, custom).await?)
+    pub(crate) async fn load(&self, pointer: LogFilePointer) -> Result<LoadResult> {
+        Ok(self.log_file.load(pointer).await?)
     }
 
     #[allow(dead_code)]
@@ -542,7 +651,13 @@ impl RedoLog
 
         let path_log = format!("{}/{}.log", cfg.log_path, key.name);
 
-        let (log, _) = RedoLog::new(cfg, path_log.clone(), true).await?;
+        let (log, _) = RedoLog::new(
+            cfg,
+            path_log.clone(),
+            true,
+            cfg.load_cache_size,
+            cfg.load_cache_ttl
+        ).await?;
 
         Result::Ok(
             log
@@ -555,7 +670,13 @@ impl RedoLog
 
         let path_log = format!("{}/{}.log", cfg.log_path, key.name);
 
-        let (log, loader) = RedoLog::new(cfg, path_log.clone(), truncate).await?;
+        let (log, loader) = RedoLog::new(
+            cfg,
+            path_log.clone(),
+            truncate,
+            cfg.load_cache_size,
+            cfg.load_cache_ttl,
+        ).await?;
 
         Result::Ok(
             (
@@ -626,7 +747,7 @@ async fn test_write_data(log: &mut dyn LogWritable, key: PrimaryKey, body: Optio
 #[cfg(test)]
 async fn test_read_data(log: &mut RedoLog, read_header: LogFilePointer, test_key: PrimaryKey, test_body: Option<Vec<u8>>)
 {
-    let result = log.load(read_header.clone(), ())
+    let result = log.load(read_header.clone())
         .await
         .expect(&format!("Failed to read the entry {:?}", read_header));
     
@@ -722,16 +843,10 @@ fn test_redo_log() {
 
             // The old log file pointer should now be invalid
             println!("test_redo_log - make sure old pointers are now invalid");
-            rl.load(halb5.clone(), ()).await.expect_err("The old log file entry should not work anymore");
+            rl.load(halb5.clone()).await.expect_err("The old log file entry should not work anymore");
 
             // Attempt to read blah 6 before its flushed should result in an error
-            rl.load(halb6.clone(), ()).await.expect_err("This entry was not fushed so it meant to fail");
-
-            // We now flush it before and try again
-            rl.flush().await.unwrap();
-
-            // Attempt to read blah 6 before its flushed should result in an error
-            rl.load(halb6.clone(), ()).await.expect("The log file should ahve worked now");
+            rl.load(halb6.clone()).await.expect("The log file read should have worked now");
 
             println!("test_redo_log - closing redo log");
         }
@@ -740,8 +855,7 @@ fn test_redo_log() {
             // Open it up again which should check that it loads data properly
             println!("test_redo_log - reopening the redo log");
             let (mut rl, mut loader) = RedoLog::open(&mock_cfg, &mock_chain_key, false).await.expect("Failed to load the redo log");
-            assert_eq!(4, rl.count());
-
+            
             // Check that the correct data is read
             println!("test_redo_log - testing read result of blah1 (again)");
             test_read_data(&mut rl, loader.pop().unwrap().pointer, blah1, Some(vec![10; 10])).await;
@@ -752,9 +866,9 @@ fn test_redo_log() {
             println!("test_redo_log - testing read result of blah6");
             test_read_data(&mut rl, loader.pop().unwrap().pointer, blah6, Some(vec![6; 10])).await;
             println!("test_redo_log - confirming no more data");
+            assert_eq!(loader.pop().is_none(), true);
 
             // Write some data to the redo log and the backing redo log
-            println!("test_redo_log - confirming no more data");
             println!("test_redo_log - writing test data to log - blah7");
             let halb7 = test_write_data(&mut rl, blah7, Some(vec![7; 10]), true).await;
             assert_eq!(5, rl.count());

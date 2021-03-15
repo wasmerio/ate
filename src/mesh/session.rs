@@ -5,7 +5,7 @@ use std::{sync::Arc};
 use tokio::sync::mpsc;
 use std::sync::mpsc as smpsc;
 use fxhash::FxHashMap;
-use std::sync::RwLock as StdRwLock;
+use parking_lot::RwLock as StdRwLock;
 
 use super::core::*;
 use crate::comms::*;
@@ -93,7 +93,6 @@ impl MeshSession
 
                 let mut single = self.chain.single().await;
                 let evts = single.feed_async(feed_me).await?;
-                single.inside_async.chain.flush().await?;
                 drop(single);
 
                 self.chain.notify(&evts).await;
@@ -206,7 +205,7 @@ for SessionPipe
         }).await?;
 
         {
-            let lock = self.next.read().unwrap().clone();
+            let lock = self.next.read().clone();
             if let Some(next) = lock {
                 next.feed(trans).await?;
             }
@@ -220,7 +219,7 @@ for SessionPipe
         // First we do a lock locally so that we reduce the number of
         // collisions on the main server itself
         {
-            let lock = self.next.read().unwrap().clone();
+            let lock = self.next.read().clone();
             if let Some(next) = lock {
                 if next.try_lock(key).await? == false {
                     return Ok(false)
@@ -246,7 +245,7 @@ for SessionPipe
         // First we unlock any local locks so errors do not kill access
         // to the data object
         {
-            let lock = self.next.read().unwrap().clone();
+            let lock = self.next.read().clone();
             if let Some(next) = lock {
                 next.unlock(key).await?;
             }
@@ -262,7 +261,7 @@ for SessionPipe
     }
 
     fn set_next(&self, next: Arc<dyn EventPipe>) {
-        let mut lock = self.next.write().unwrap();
+        let mut lock = self.next.write();
         lock.replace(next);
     }
 }

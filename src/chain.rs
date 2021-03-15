@@ -1,4 +1,3 @@
-use futures::future::join_all;
 use serde::{Serialize, Deserialize};
 
 #[allow(unused_imports)]
@@ -121,7 +120,7 @@ pub(crate) struct ChainOfTrust
 impl<'a> ChainOfTrust
 {
     pub(super) async fn load(&self, entry: &EventEntryExt) -> Result<EventExt, LoadError> {
-        let result = self.redo.load(entry.pointer.clone(), ()).await?;
+        let result = self.redo.load(entry.pointer.clone()).await?;
         let evt = result.evt;
         {
             Ok(
@@ -146,18 +145,18 @@ impl<'a> ChainOfTrust
         let mut futures = Vec::new();
         for entry in entries {
             let pointer = entry.pointer;
-            futures.push(self.redo.load(pointer, entry.meta));
+            futures.push((self.redo.load(pointer), entry.meta));
         }
 
-        for loaded in join_all(futures).await {
-            let loaded = loaded?;
+        for (join, meta) in futures {
+            let loaded = join.await?;
             let evt = loaded.evt;
             ret.push(
                 EventExt {
                     meta_hash: evt.meta_hash,
                     meta_bytes: evt.meta.clone(),
                     raw: EventRaw {
-                        meta: loaded.custom,
+                        meta: meta,
                         data_hash: evt.data_hash,
                         data: evt.data.clone(),
                     },

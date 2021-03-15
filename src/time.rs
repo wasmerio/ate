@@ -12,8 +12,8 @@ use super::crypto::Hash;
 use super::conf::*;
 
 use std::{ops::Deref, sync::Arc};
-use std::sync::Mutex;
-use std::sync::RwLock;
+use parking_lot::Mutex;
+use parking_lot::RwLock;
 use std::time::Duration;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
@@ -36,7 +36,7 @@ impl Drop
 for TimestampEnforcer
 {
     fn drop(&mut self) {
-        *self.bt_exit.lock().unwrap() = true;
+        *self.bt_exit.lock() = true;
     }
 }
 
@@ -52,7 +52,7 @@ impl TimestampEnforcer
         let ntp_result = Arc::new(RwLock::new(ntp::query_ntp_retry(pool.deref(), cfg.ntp_port, tolerance_ms_seed, 10)?));
         let bt_exit = Arc::new(Mutex::new(false));
 
-        let bt_best_ping = Duration::from_micros(ntp_result.write().unwrap().roundtrip()).as_millis() as u32;
+        let bt_best_ping = Duration::from_micros(ntp_result.write().roundtrip()).as_millis() as u32;
         let bt_pool = Arc::new(cfg.ntp_pool.clone());
         let bt_port = cfg.ntp_port;
         let bt_exit2 = bt_exit.clone();
@@ -62,7 +62,7 @@ impl TimestampEnforcer
             let mut n: u32 = 0;
             let mut best_ping = bt_best_ping;
 
-            while *bt_exit2.lock().unwrap() == false {
+            while *bt_exit2.lock() == false {
                 if n > 200 {
                     n = 0;
                     match ntp::query_ntp_retry(bt_pool.deref(), bt_port, tolerance_ms_loop, 10) {
@@ -71,7 +71,7 @@ impl TimestampEnforcer
                             let ping = Duration::from_micros(r.roundtrip()).as_millis() as u32;
                             if ping < best_ping + 50 {
                                 best_ping = ping;
-                                *bt_result.write().unwrap() = r;
+                                *bt_result.write() = r;
                             }
                         },
                         _ => {}
@@ -100,14 +100,14 @@ impl TimestampEnforcer
     #[allow(dead_code)]
     pub fn current_offset_ms(&self) -> i64
     {
-        let ret = self.ntp_result.read().unwrap().offset() / 1000;
+        let ret = self.ntp_result.read().offset() / 1000;
         ret
     }
 
     #[allow(dead_code)]
     pub fn current_ping_ms(&self) -> u64
     {
-        let ret = self.ntp_result.read().unwrap().roundtrip() / 1000;
+        let ret = self.ntp_result.read().roundtrip() / 1000;
         ret
     }
 
@@ -117,7 +117,7 @@ impl TimestampEnforcer
         let mut since_the_epoch = start
             .duration_since(UNIX_EPOCH)?;
 
-        let mut offset = self.ntp_result.read().unwrap().offset();
+        let mut offset = self.ntp_result.read().offset();
         if offset >= 0 {
             since_the_epoch = since_the_epoch + Duration::from_micros(offset as u64);
         } else {

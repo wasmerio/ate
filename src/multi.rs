@@ -1,5 +1,5 @@
 use tokio::sync::RwLock;
-use std::sync::RwLock as StdRwLock;
+use parking_lot::RwLock as StdRwLock;
 #[allow(unused_imports)]
 use std::sync::mpsc as smpsc;
 #[allow(unused_imports)]
@@ -60,7 +60,7 @@ impl ChainMultiUser
 
     #[allow(dead_code)]
     pub(crate) fn metadata_lint_many(&self, data_hashes: &Vec<EventRawPlus>, session: &Session) -> Result<Vec<CoreMetadata>, LintError> {
-        let guard = self.inside_sync.read().unwrap();
+        let guard = self.inside_sync.read();
         let mut ret = Vec::new();
         for linter in guard.linters.iter() {
             ret.extend(linter.metadata_lint_many(data_hashes, session)?);
@@ -73,7 +73,7 @@ impl ChainMultiUser
 
     #[allow(dead_code)]
     pub(crate) fn metadata_lint_event(&self, meta: &mut Metadata, session: &Session) -> Result<Vec<CoreMetadata>, LintError> {
-        let guard = self.inside_sync.read().unwrap();
+        let guard = self.inside_sync.read();
         let mut ret = Vec::new();
         for linter in guard.linters.iter() {
             ret.extend(linter.metadata_lint_event(meta, session)?);
@@ -86,7 +86,7 @@ impl ChainMultiUser
 
     #[allow(dead_code)]
     pub(crate) fn data_as_overlay(&self, meta: &mut Metadata, data: Bytes, session: &Session) -> Result<Bytes, TransformError> {
-        let guard = self.inside_sync.read().unwrap();
+        let guard = self.inside_sync.read();
         let mut ret = data;
         for plugin in guard.plugins.iter().rev() {
             ret = plugin.data_as_overlay(meta, ret, session)?;
@@ -99,7 +99,7 @@ impl ChainMultiUser
 
     #[allow(dead_code)]
     pub(crate) fn data_as_underlay(&self, meta: &mut Metadata, data: Bytes, session: &Session) -> Result<Bytes, TransformError> {
-        let guard = self.inside_sync.read().unwrap();
+        let guard = self.inside_sync.read();
         let mut ret = data;
         for transformer in guard.transformers.iter() {
             ret = transformer.data_as_underlay(meta, ret, session)?;

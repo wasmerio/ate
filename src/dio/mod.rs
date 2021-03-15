@@ -511,7 +511,7 @@ async fn test_dio()
             dio.load::<TestStructDao>(&key1).await.expect_err("This load is meant to fail due to a lock being triggered");
 
             // Flush the data and attempt to read it again (this should succeed)
-            dao1.flush().expect("Flush failed");
+            dao1.commit().expect("Commit failed");
             let test: Dao<TestStructDao> = dio.load(&key1).await.expect("The dirty data object should have been read after it was flushed");
             assert_eq!(test.val, 2 as u32);
         }
