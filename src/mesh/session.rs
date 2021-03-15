@@ -6,6 +6,7 @@ use tokio::sync::mpsc;
 use std::sync::mpsc as smpsc;
 use fxhash::FxHashMap;
 use parking_lot::RwLock as StdRwLock;
+use std::ops::Rem;
 
 use super::core::*;
 use crate::comms::*;
@@ -24,7 +25,7 @@ pub(crate) struct MeshSession
     key: ChainKey,
     pub(super) chain: Arc<Chain>,
     commit: Arc<StdMutex<FxHashMap<u64, smpsc::Sender<Result<(), CommitError>>>>>,
-    lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, smpsc::Sender<bool>>>>,
+    lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, LockRequest>>>,
 }
 
 impl MeshSession
@@ -130,9 +131,14 @@ impl MeshSession
                 key,
                 is_locked
             } => {
-                if let Some(result) = self.lock_requests.lock().remove(&key) {
-                    result.send(is_locked)?;
+                let mut remove = false;
+                let mut guard = self.lock_requests.lock();
+                if let Some(result) = guard.get_mut(&key) {
+                    if result.entropy(is_locked) == true {
+                        remove = true;
+                    }
                 }
+                if remove == true { guard.remove(&key); }
             },
             Message::EndOfHistory => {
                 loaded.send(Ok(())).await.unwrap();
@@ -178,12 +184,45 @@ for MeshSession
         {
             let guard = self.lock_requests.lock();
             for sender in guard.values() {
-                if let Err(err) = sender.send(false) {
-                    debug_assert!(false, "mesh-session-err {:?}", err);
-                    warn!("mesh-session-err: {}", err.to_string());
-                }
+                sender.cancel();
             }
         }
+    }
+}
+
+#[derive(Debug, Clone)]
+struct LockRequest
+{
+    needed: u32,
+    positive: u32,
+    negative: u32,
+    receiver: smpsc::Sender<bool>,
+}
+
+impl LockRequest
+{
+    /// returns true if the vote is finished
+    fn entropy(&mut self, result: bool) -> bool {
+        match result {
+            true => self.positive = self.positive + 1,
+            false => self.negative = self.negative + 1,
+        }
+
+        if self.positive >= self.needed {
+            let _ = self.receiver.send(true);
+            return true;
+        }
+
+        if self.positive + self.negative >= self.needed {
+            let _ = self.receiver.send(false);
+            return true;
+        }
+
+        return false;
+    }
+
+    fn cancel(&self) {
+        let _ = self.receiver.send(false);
     }
 }
 
@@ -193,7 +232,7 @@ struct SessionPipe
     comms: Arc<Vec<Node<()>>>,
     next: StdRwLock<Option<Arc<dyn EventPipe>>>,
     commit: Arc<StdMutex<FxHashMap<u64, smpsc::Sender<Result<(), CommitError>>>>>,
-    lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, smpsc::Sender<bool>>>>,
+    lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, LockRequest>>>,
 }
 
 #[async_trait]
@@ -251,13 +290,27 @@ for SessionPipe
             }
         }
 
+        // Build a list of nodes that are needed for the lock vote
+        let mut voters = self.comms.iter().collect::<Vec<_>>();
+        if voters.len() >= 2 && (voters.len() as u32 % 2) == 0 {
+            voters.remove(voters.len()-1);
+        }
+        let needed = voters.len() as u32 / 2;
+        let needed = needed + 1;
+
         // Write an entry into the lookup table
         let (tx, rx) = smpsc::channel();
-        self.lock_requests.lock().insert(key.clone(), tx);
+        let my_lock = LockRequest {
+            needed: needed,
+            positive: 0,
+            negative: 0,
+            receiver: tx,
+        };
+        self.lock_requests.lock().insert(key.clone(), my_lock);
 
         // Send a message up to the main server asking for a lock on the data object
         let mut joins = Vec::new();
-        for comms in self.comms.iter() {
+        for comms in voters.iter() {
             joins.push(comms.upcast(Message::Lock {
                 key: key.clone(),
             }));
