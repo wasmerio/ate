@@ -93,6 +93,7 @@ for TransformError {
     }
 }
 
+#[derive(Debug)]
 pub enum CompactError {
     SinkError(SinkError),
     IO(tokio::io::Error),
@@ -134,13 +135,6 @@ for CompactError {
                 write!(f, "Failed to compact the chain due to an error in the sink - {}", err)
             },
         }
-    }
-}
-
-impl std::fmt::Debug
-for CompactError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.to_string())
     }
 }
 
@@ -512,6 +506,7 @@ for ValidationError {
     }
 }
 
+#[derive(Debug)]
 pub enum TimeError
 {
     IO(std::io::Error),
@@ -559,13 +554,6 @@ for TimeError {
                 write!(f, "The network latency is beyond tolerance to synchronize the clocks - {}", datetime.format("%d/%m/%Y %T"))
             },
         }
-    }
-}
-
-impl std::fmt::Debug
-for TimeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.to_string())
     }
 }
 
@@ -711,6 +699,7 @@ for CommitError {
     }
 }
 
+#[derive(Debug)]
 pub enum CommsError
 {
     EncodeError(RmpEncodeError),
@@ -872,13 +861,7 @@ for CommsError {
     }
 }
 
-impl std::fmt::Debug
-for CommsError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.to_string())
-    }
-}
-
+#[derive(Debug)]
 #[allow(dead_code)]
 pub enum BusError
 {
@@ -964,13 +947,7 @@ for BusError {
     }
 }
 
-impl std::fmt::Debug
-for BusError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.to_string())
-    }
-}
-
+#[derive(Debug)]
 pub enum LockError
 {
     SerializationError(SerializationError),
@@ -1039,13 +1016,7 @@ for LockError {
     }
 }
 
-impl std::fmt::Debug
-for LockError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.to_string())
-    }
-}
-
+#[derive(Debug)]
 pub enum AteError
 {
     LockError(LockError),
@@ -1223,12 +1194,5 @@ for AteError {
                 write!(f, "{}", err)
             },
         }
-    }
-}
-
-impl std::fmt::Debug
-for AteError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "{}", self.to_string())
     }
 }

@@ -8,6 +8,21 @@ ATE
 - [Technical Design of ATE](doc/design.md)
 - [Component Design of ATE](doc/components.md)
 
+## What is ATE?
+
+    ...is it a [NoSQL](https://en.wikipedia.org/wiki/NoSQL) database?
+    ...is it a [distributed redo log](https://en.wikipedia.org/wiki/Redo_log)?
+    ...is it a [event BUS](https://en.wikipedia.org/wiki/Publish%E2%80%93subscribe_pattern)?
+    ...is it a [distributed queue](https://en.wikipedia.org/wiki/Message_queue)?
+    ...is it a [distributed cache](https://en.wikipedia.org/wiki/Distributed_cache)?
+    ...is it a secure encrypted vault?
+    ...is it a [quantum resistant](https://en.wikipedia.org/wiki/NIST_Post-Quantum_Cryptography_Competition) communication framework?
+    ...is it a [WORM](https://en.wikipedia.org/wiki/Write_once_read_many) archive solution?
+    
+    ATE is all these things and none of them; it is [unique way](doc/design.md) to work with distributed
+    data that can easily implement all of the above use cases - take a look at the [examples](#examples)
+    for how you can achieve them.
+
 ## Why the name?
 
 The origin of the word "mutate" is the latin word '-ate':  
@@ -61,8 +76,8 @@ Add ate, serde and tokio to your dependency list in Cargo.toml
 
 ```toml
 [dependencies]
-tokio = { version = "1.3", features = ["full", "signal", "process"] }
-serde = { version = "1.0", features = ["derive"] }
+tokio = { version = "*", features = ["full", "signal", "process"] }
+serde = { version = "*", features = ["derive"] }
 ate = "*"
 ```
 
@@ -112,7 +127,8 @@ async fn main() -> Result<(), AteError>
 
 - [Hello World](examples/hello-world.rs)
 - [Server/Client](examples/server-client.rs)
-- [Fast Event BUS](examples/bus.rs)
+- [Publish/Subscribe](examples/bus-or-queue.rs)
+- [Exactly-Once Queue](examples/bus-or-queue.rs)
 - [Crypto Currency](examples/coin.rs)
 - [Banking Example](examples/bank.rs)
 

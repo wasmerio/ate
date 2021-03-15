@@ -479,7 +479,15 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
             packet: pck,
             context: Arc::clone(&context)
         };
-        inbox.send(pck).await?;
+        
+        // Attempt to process the packet using the nodes inbox processing
+        // thread (if its closed then we better close ourselves)
+        match inbox.send(pck).await {
+            Ok(a) => a,
+            Err(mpsc::error::SendError(err)) => {
+                break;
+            },
+        };
     }
     Ok(())
 }
