@@ -157,11 +157,11 @@ impl MeshRoot
 
             let mut evts = Vec::new();
             for evt in multi.inside_async.read().await.chain.history.iter() {
-                let evt = multi.load(evt).await?;
+                let evt = multi.load(evt.event_hash).await?;
                 let evt = MessageEvent {
-                    meta: evt.raw.meta.clone(),
-                    data_hash: evt.raw.data_hash.clone(),
-                    data: match evt.raw.data {
+                    meta: evt.data.meta.clone(),
+                    data_hash: evt.header.data_hash.clone(),
+                    data: match evt.data.data_bytes {
                         Some(a) => Some(a.to_vec()),
                         None => None,
                     }
@@ -210,11 +210,11 @@ impl MeshRoot
                 
                 let evts = MessageEvent::convert_from(evts);
                 let mut single = chain.single().await;                    
-                let ret = single.feed_async(evts).await;
+                let ret = single.feed_async(&evts).await;
                 drop(single);
 
                 let downcast_err = match &ret {
-                    Ok(evts) => {
+                    Ok(_) => {
                         let join1 = chain.notify(&evts);
                         let join2 = node.downcast_packet(pck.to_packet_data()?);
                         join1.await;

@@ -1,5 +1,5 @@
 use serde::{Serialize, Deserialize};
-use crate::{accessor::Chain, time::TimestampEnforcer, tree::TreeAuthorityPlugin};
+use crate::{accessor::Chain, anti_replay::AntiReplayPlugin, time::TimestampEnforcer, tree::TreeAuthorityPlugin};
 #[allow(unused_imports)]
 use std::{net::IpAddr, str::FromStr};
 
@@ -192,6 +192,7 @@ impl ChainOfTrustBuilder
 
         self.compactors.push(Box::new(RemoveDuplicatesCompactor::default()));
         self.compactors.push(Box::new(TombstoneCompactor::default()));
+        self.plugins.push(Box::new(AntiReplayPlugin::default()));
 
         match self.configured_for {
             ConfiguredFor::SmallestSize | ConfiguredFor::Balanced => {

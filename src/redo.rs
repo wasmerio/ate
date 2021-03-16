@@ -1,7 +1,7 @@
 extern crate tokio;
 extern crate fxhash;
 
-use crate::crypto::Hash;
+use crate::{crypto::Hash};
 
 use super::conf::*;
 use super::chain::*;
@@ -10,6 +10,7 @@ use super::header::*;
 use super::event::*;
 #[allow(unused_imports)]
 use super::meta::*;
+use super::error::*;
 
 extern crate rmp_serde as rmps;
 
@@ -24,6 +25,7 @@ use tokio::io::BufStream;
 use tokio::io::Error;
 use tokio::io::ErrorKind;
 use bytes::BytesMut;
+#[allow(unused_imports)]
 use bytes::Bytes;
 use bytes::{Buf};
 use std::mem::size_of;
@@ -44,6 +46,14 @@ pub(crate) struct LogFilePointer
     pub(crate) offset: u64,
 }
 
+#[derive(Debug, Clone)]
+pub struct LoadResult
+{
+    pub(crate) pointer: LogFilePointer,
+    pub header: EventHeaderRaw,
+    pub data: EventData,
+}
+
 struct LogFileCache
 {
     pub(crate) flush: FxHashMap<LogFilePointer, LoadResult>,
@@ -62,6 +72,7 @@ struct LogFile
     pub(crate) log_temp: bool,
     pub(crate) log_count: u64,
     pub(crate) cache: MutexSync<LogFileCache>,
+    pub(crate) lookup: FxHashMap<Hash, LogFilePointer>,
 }
 
 impl LogFile {
@@ -102,6 +113,7 @@ impl LogFile {
                 log_temp: self.log_temp,
                 log_count: self.log_count,
                 cache,
+                lookup: self.lookup.clone(),
             }
         )
     }
@@ -139,7 +151,8 @@ impl LogFile {
                 flush: FxHashMap::default(),
                 read: TimedSizedCache::with_size_and_lifespan(cache_size, cache_ttl),
                 write: TimedSizedCache::with_size_and_lifespan(cache_size, cache_ttl),
-            })
+            }),
+            lookup: FxHashMap::default(),
         };
 
         if temp_file {
@@ -149,7 +162,7 @@ impl LogFile {
         Ok(ret)
     }
 
-    async fn read_all(&mut self, to: &mut VecDeque<EventEntry>) -> Result<()> {
+    async fn read_all(&mut self, to: &mut VecDeque<LoadResult>) -> std::result::Result<(), SerializationError> {
         self.check_open()?;
 
         while let Some(head) = self.read_once_internal().await? {
@@ -158,7 +171,7 @@ impl LogFile {
         Ok(())
     }
 
-    async fn read_once_internal(&mut self) -> Result<Option<EventEntry>>
+    async fn read_once_internal(&mut self) -> std::result::Result<Option<LoadResult>, SerializationError>
     {
         // Read the metadata
         let size_meta = match self.log_stream.read_u32().await {
@@ -167,28 +180,31 @@ impl LogFile {
                 if err.kind() == ErrorKind::UnexpectedEof {
                     return Ok(None);
                 }
-                return Result::Err(err)
+                return Err(SerializationError::IO(err))
             }
         } as usize;
 
         let mut buff_meta = BytesMut::with_capacity(size_meta);
         let read = self.log_stream.read_buf(&mut buff_meta).await?;
         if read != size_meta {
-            return Result::Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the metadata of the event from the log file ({} bytes vs {} bytes)", read, size_meta)));
+            return Err(SerializationError::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the metadata of the event from the log file ({} bytes vs {} bytes)", read, size_meta))));
         }
         let buff_meta = buff_meta.freeze();
 
         // Read the body and hash the data
         let size_body = self.log_stream.read_u32().await? as usize;
+        let mut buff_body = None;
         let body_hash = match size_body {
             _ if size_body > 0 => {
-                let mut buff_body = BytesMut::with_capacity(size_body);
-                let read = self.log_stream.read_buf(&mut buff_body).await?;
+                let mut body = BytesMut::with_capacity(size_body);
+                let read = self.log_stream.read_buf(&mut body).await?;
                 if read != size_body {
-                    return Result::Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the main body of the event from the log file ({} bytes vs {} bytes)", read, size_body)));
+                    return Err(SerializationError::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the main body of the event from the log file ({} bytes vs {} bytes)", read, size_body))));
                 }
+                let hash = super::crypto::Hash::from_bytes(&body[..]);
 
-                Some(super::crypto::Hash::from_bytes(&buff_body[..]))
+                buff_body = Some(body.freeze());
+                Some(hash)
             },
             _ => None
         };
@@ -201,31 +217,47 @@ impl LogFile {
         // Compute the new offset
         self.log_off = self.log_off + size;
 
+        // Deserialize the meta bytes into a metadata object
+        let meta = rmps::from_read_ref(&buff_meta)?;
+
+        // Record the lookup map
+        let header = EventHeaderRaw::new(
+            Hash::from_bytes(&buff_meta[..]),
+            buff_meta,
+            body_hash,
+        );
+        self.lookup.insert(header.event_hash, pointer.clone());
+
         Ok(
-            Some(EventEntry {
-                meta_hash: Hash::from_bytes(&buff_meta[..]),
-                meta: buff_meta,
-                data_hash: body_hash,
-                pointer: pointer,
-            })
+            Some(
+                LoadResult {
+                    header,
+                    data: EventData {
+                        meta: meta,
+                        data_bytes: buff_body,
+                    },
+                    pointer: pointer.clone(),
+                }
+            )
         )
     }
 
-    async fn write(&mut self, meta: Bytes, body: Option<Bytes>) -> Result<LogFilePointer>
+    async fn write(&mut self, evt: &EventData) -> std::result::Result<LogFilePointer, SerializationError>
     {
         self.check_open()?;
 
-        let meta_len = meta.len() as u32;
-        let body_len = match body.as_ref() {
+        let header = evt.as_header_raw()?;
+        let meta_len = header.meta_bytes.len() as u32;
+        let body_len = match evt.data_bytes.as_ref() {
             Some(a) => a.len() as u32,
             None => 0 as u32,
         };
 
         // Write the data to the log stream
         self.log_stream.write(&meta_len.to_be_bytes()).await?;
-        self.log_stream.write_all(&meta[..]).await?;
+        self.log_stream.write_all(&header.meta_bytes[..]).await?;
         self.log_stream.write(&body_len.to_be_bytes()).await?;
-        match body.as_ref() {
+        match evt.data_bytes.as_ref() {
             Some(a) => {
                 self.log_stream.write_all(&a[..]).await?;
             },
@@ -233,66 +265,94 @@ impl LogFile {
         }
 
         // Build the log pointer and update the offset
-        let size = size_of::<u32>() as u64 + meta.len() as u64 + size_of::<u32>() as u64 + body_len as u64;
+        let size = size_of::<u32>() as u64 + meta_len as u64 + size_of::<u32>() as u64 + body_len as u64;
         let pointer = LogFilePointer { version: self.version, offset: self.log_off, size: size as u32 };
         self.log_count = self.log_count + 1;
         self.log_off = self.log_off + size;
 
-        // Hash body
-        let body_hash = match &body {
-            Some(data) => Some(super::crypto::Hash::from_bytes(&data[..])),
-            None => None,
-        };
+        // Record the lookup map
+        self.lookup.insert(header.event_hash, pointer.clone());
 
         // Cache the data
         {
             let mut cache = self.cache.lock();
             cache.flush.insert(pointer.clone(), LoadResult {
-                evt: EventData {
-                    meta_hash: super::crypto::Hash::from_bytes(&meta[..]),
-                    meta: meta.clone(),
-                    data: body.clone(),
-                    data_hash: body_hash,
-                    pointer: pointer,
-                },
-                pointer,
+                pointer: pointer.clone(),
+                header,
+                data: evt.clone(),
             });
         }
-        
+
         // Return the log pointer
         Ok(pointer)
     }
 
-    async fn copy_event(&mut self, from_log: &LogFile, from_pointer: &LogFilePointer) -> Result<LogFilePointer>
+    async fn copy_event(&mut self, from_log: &LogFile, hash: &Hash) -> std::result::Result<LogFilePointer, LoadError>
     {
         self.check_open()?;
         from_log.check_open()?;
-        
-        let mut buff = BytesMut::with_capacity(from_pointer.size as usize);
-        
-        let read = {
-            let mut lock = from_log.log_random_access.lock().await;
-            lock.seek(SeekFrom::Start(from_pointer.offset)).await?;
-            lock.read_buf(&mut buff).await?
-        };        
-        if read != from_pointer.size as usize {
-            return Result::Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, "Failed to copy the event from another log file"));
+
+        // Load the data from the log file
+        let result = from_log.load(hash).await?;
+
+        let meta_len = result.header.meta_bytes.len() as u32;
+        let body_len = match result.data.data_bytes.as_ref() {
+            Some(a) => a.len() as u32,
+            None => 0 as u32,
+        };
+
+        // Write the data to the log stream
+        self.log_stream.write(&meta_len.to_be_bytes()).await?;
+        self.log_stream.write_all(&result.header.meta_bytes[..]).await?;
+        self.log_stream.write(&body_len.to_be_bytes()).await?;
+        match result.data.data_bytes.as_ref() {
+            Some(a) => {
+                self.log_stream.write_all(&a[..]).await?;
+            },
+            _ => {}
         }
 
-        self.log_stream.write_all(&buff[..]).await?;
-
-        let pointer = LogFilePointer { version: self.version, offset: self.log_off, size: from_pointer.size };
+        let size = size_of::<u32>() as u64 + meta_len as u64 + size_of::<u32>() as u64 + body_len as u64;
+        let pointer = LogFilePointer { version: self.version, offset: self.log_off, size: size as u32 };
         self.log_count = self.log_count + 1;
-        self.log_off = self.log_off + from_pointer.size as u64;
+        self.log_off = self.log_off + size;
+
+        // Record the lookup map
+        self.lookup.insert(hash.clone(), pointer.clone());
+
+        // Cache the data
+        {
+            let mut cache = self.cache.lock();
+            cache.flush.insert(pointer.clone(), LoadResult {
+                header: result.header,
+                pointer: pointer.clone(),
+                data: result.data,
+            });
+        }
 
         Ok(pointer)
     }
 
-    async fn load(&self, pointer: LogFilePointer) -> Result<LoadResult> {
+    async fn load(&self, hash: &Hash) -> std::result::Result<LoadResult, LoadError> {
         self.check_open()?;
 
+        // Lookup the record in the redo log
+        let pointer = match self.lookup.get(hash) {
+            Some(a) => a,
+            None => {
+                return Err(LoadError::NotFoundByHash(hash.clone()));
+            }
+        };
+
+        Ok(self.load_by_pointer(pointer).await?)
+    }
+
+    async fn load_by_pointer(&self, pointer: &LogFilePointer) -> std::result::Result<LoadResult, LoadError> {
+        self.check_open()?;
+
+        // Make sure its the correct version
         if pointer.version != self.version {
-            return Result::Err(Error::new(ErrorKind::Other, format!("Could not find data object as it is from a different redo log (pointer.version=0x{:X?}, log.version=0x{:X?})", pointer.version, self.version)));
+            return Err(LoadError::IO(Error::new(ErrorKind::Other, format!("Could not find data object as it is from a different redo log (pointer.version=0x{:X?}, log.version=0x{:X?})", pointer.version, self.version))));
         }
 
         // Check the caches
@@ -317,13 +377,13 @@ impl LogFile {
             lock.read_buf(&mut buff).await?
         };
         if read != pointer.size as usize {
-            return Result::Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the data object event slice from the redo log ({} bytes vs {} bytes)", read, pointer.size)));
+            return Err(LoadError::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the data object event slice from the redo log ({} bytes vs {} bytes)", read, pointer.size))));
         }
         
         // Read all the data
         let size_meta = buff.get_u32();
         if size_meta > buff.remaining() as u32 {
-            return Result::Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the data object metadata from the redo log as the header exceeds the event slice ({} bytes exceeds remaining event slice {})", size_meta, buff.remaining())));
+            return Err(LoadError::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the data object metadata from the redo log as the header exceeds the event slice ({} bytes exceeds remaining event slice {})", size_meta, buff.remaining()))));
         }
         let buff_meta = buff.copy_to_bytes(size_meta as usize);
         
@@ -331,7 +391,7 @@ impl LogFile {
         let buff_body = match size_body {
             0 => None,
             _ if size_body > buff.remaining() as u32 => {
-                return Result::Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the data object data from the redo log as the header exceeds the event slice ({} bytes exceeds remaining event slice {})", size_body, buff.remaining())));
+                return Err(LoadError::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the data object data from the redo log as the header exceeds the event slice ({} bytes exceeds remaining event slice {})", size_body, buff.remaining()))));
             },
             n => Some(buff.copy_to_bytes(n as usize)),
         };
@@ -342,17 +402,22 @@ impl LogFile {
             None => None,
         };
 
-        // Add it to the read cache
+        // Convert the result into a deserialized result
+        let meta = rmps::from_read_ref(&buff_meta)?;
         let ret = LoadResult {
-            evt: EventData {
-                meta_hash: super::crypto::Hash::from_bytes(&buff_meta[..]),
-                meta: buff_meta,
-                data: buff_body,
-                data_hash: body_hash,
-                pointer: pointer,
+            header: EventHeaderRaw::new(
+                super::crypto::Hash::from_bytes(&buff_meta[..]),
+                buff_meta,
+                body_hash,
+            ),
+            data: EventData {
+                meta,
+                data_bytes: buff_body,
             },
-            pointer,
+            pointer: pointer.clone(),
         };
+
+        // Store it in the read cache
         {
             let mut cache = self.cache.lock();
             cache.read.cache_set(pointer.clone(), ret.clone());
@@ -434,63 +499,29 @@ for LogFile
     }
 }
 
-struct DeferredWrite {
-    pub meta: Bytes,
-    pub data: Option<Bytes>,
-    pub orphan: LogFilePointer,
-}
-
-impl DeferredWrite {
-    pub fn new(meta: Bytes, data: Option<Bytes>, orphan: LogFilePointer) -> DeferredWrite {
-        DeferredWrite {
-            meta: meta,
-            data: data,
-            orphan: orphan,
-        }
-    }
-}
-
 #[async_trait]
 pub(crate) trait LogWritable {
-    async fn write(&mut self, meta: Bytes, data: Option<Bytes>) -> Result<LogFilePointer>;
+    async fn write(&mut self, evt: &EventData) -> std::result::Result<LogFilePointer, SerializationError>;
     async fn flush(&mut self) -> Result<()>;
-    async fn copy_event(&mut self, from_log: &RedoLog, from_pointer: &LogFilePointer) -> Result<LogFilePointer>;
 }
 
 pub(crate) struct FlippedLogFile {
     log_file: LogFile,
-    event_summary: Vec<EventEntry>,
+    pub(crate) event_summary: Vec<EventHeaderRaw>,
 }
 
 #[async_trait]
 impl LogWritable for FlippedLogFile
 {
     #[allow(dead_code)]
-    async fn write(&mut self, meta: Bytes, data: Option<Bytes>) -> Result<LogFilePointer> {
-        let meta_hash = Hash::from_bytes(&meta[..]);
-        let data_hash = match &data {
-            Some(data) => Some(super::crypto::Hash::from_bytes(&data[..])),
-            None => None,
-        };
-        let ret = self.log_file.write(meta.clone(), data).await?;
-
-        let summary = EventEntry {
-            meta_hash: meta_hash,
-            meta: meta,
-            data_hash: data_hash,
-            pointer: ret.clone(),
-        };
-        self.event_summary.push(summary);
+    async fn write(&mut self, evt: &EventData) -> std::result::Result<LogFilePointer, SerializationError> {
+        let ret = self.log_file.write(evt).await?;
+        self.event_summary.push(evt.as_header_raw()?);
         Ok(ret)
     }
 
     async fn flush(&mut self) -> Result<()> {
         self.log_file.flush().await
-    }
-
-    #[allow(dead_code)]
-    async fn copy_event(&mut self, from_log: &RedoLog, from_pointer: &LogFilePointer) -> Result<LogFilePointer> {
-        Ok(self.log_file.copy_event(&from_log.log_file, from_pointer).await?)
     }
 }
 
@@ -506,7 +537,7 @@ impl FlippedLogFile
         self.log_file.count()
     }
 
-    fn drain_events(&mut self) -> Vec<EventEntry>
+    fn drain_events(&mut self) -> Vec<EventHeaderRaw>
     {
         let mut ret = Vec::new();
         for evt in self.event_summary.drain(..) {
@@ -514,29 +545,27 @@ impl FlippedLogFile
         }
         ret
     }
+
+    #[allow(dead_code)]
+    pub(crate) async fn copy_event(&mut self, from_log: &RedoLog, from_pointer: &Hash) -> std::result::Result<LogFilePointer, LoadError> {
+        Ok(self.log_file.copy_event(&from_log.log_file, from_pointer).await?)
+    }
 }
 
 struct RedoLogFlip {
-    deferred: Vec<DeferredWrite>,
+    deferred: Vec<EventData>,
 }
 
 #[derive(Default)]
 pub(crate) struct RedoLogLoader {
-    entries: VecDeque<EventEntry>
+    entries: VecDeque<LoadResult>
 }
 
 impl RedoLogLoader {
     #[allow(dead_code)]
-    pub(crate) fn pop(&mut self) -> Option<EventEntry> {
+    pub(crate) fn pop(&mut self) -> Option<LoadResult> {
         self.entries.pop_front()   
     }
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct LoadResult
-{
-    pub(crate) pointer: LogFilePointer,
-    pub(crate) evt: EventData,
 }
 
 pub(crate) struct RedoLog {
@@ -548,7 +577,7 @@ pub(crate) struct RedoLog {
 
 impl RedoLog
 {
-    async fn new(cfg: &Config, path_log: String, truncate: bool, cache_size: usize, cache_ttl: u64) -> Result<(RedoLog, RedoLogLoader)> {
+    async fn new(cfg: &Config, path_log: String, truncate: bool, cache_size: usize, cache_ttl: u64) -> std::result::Result<(RedoLog, RedoLogLoader), SerializationError> {
         let mut ret = RedoLog {
             log_temp: cfg.log_temp,
             log_path: path_log.clone(),
@@ -595,7 +624,7 @@ impl RedoLog
         }
     }
 
-    pub(crate) async fn finish_flip(&mut self, mut flip: FlippedLogFile) -> Result<Vec<EventEntry>>
+    pub(crate) async fn finish_flip(&mut self, mut flip: FlippedLogFile) -> std::result::Result<Vec<EventHeaderRaw>, SerializationError>
     {
         match &mut self.flip
         {
@@ -605,20 +634,8 @@ impl RedoLog
                 let mut new_log_file = flip.copy_log_file().await?;
 
                 for d in inside.deferred.drain(..) {
-                    let data_hash = match &d.data {
-                        Some(data) => Some(super::crypto::Hash::from_bytes(&data[..])),
-                        None => None,
-                    };
-                    let pointer = new_log_file.write(d.meta.clone(), d.data).await?;
-
-                    let meta_hash = Hash::from_bytes(&d.meta[..]);
-                    let summary = EventEntry {
-                        meta_hash: meta_hash,
-                        meta: d.meta,
-                        data_hash: data_hash,
-                        pointer: pointer,
-                    };
-                    event_summary.push(summary);
+                    event_summary.push(d.as_header_raw()?);
+                    let _ = new_log_file.write(&d).await?;
                 }
                 
                 new_log_file.flush().await?;
@@ -631,13 +648,18 @@ impl RedoLog
             },
             None =>
             {
-                Result::Err(Error::new(ErrorKind::Other, "There is no outstanding flip operation to end."))
+                Err(SerializationError::IO(Error::new(ErrorKind::Other, "There is no outstanding flip operation to end.")))
             }
         }
     }
 
-    pub(crate) async fn load(&self, pointer: LogFilePointer) -> Result<LoadResult> {
-        Ok(self.log_file.load(pointer).await?)
+    pub(crate) async fn load(&self, hash: Hash) -> std::result::Result<LoadResult, LoadError> {
+        Ok(self.log_file.load(&hash).await?)
+    }
+
+    #[allow(dead_code)]
+    pub(crate) async fn load_by_pointer(&self, pointer: &LogFilePointer) -> std::result::Result<LoadResult, LoadError> {
+        Ok(self.log_file.load_by_pointer(pointer).await?)
     }
 
     #[allow(dead_code)]
@@ -646,7 +668,7 @@ impl RedoLog
     }
 
     #[allow(dead_code)]
-    pub(crate) async fn create(cfg: &Config, key: &ChainKey) -> Result<RedoLog> {
+    pub(crate) async fn create(cfg: &Config, key: &ChainKey) -> std::result::Result<RedoLog, SerializationError> {
         let _ = std::fs::create_dir_all(cfg.log_path.clone());
 
         let path_log = format!("{}/{}.log", cfg.log_path, key.name);
@@ -659,13 +681,13 @@ impl RedoLog
             cfg.load_cache_ttl
         ).await?;
 
-        Result::Ok(
+        Ok(
             log
         )
     }
 
     #[allow(dead_code)]
-    pub(crate) async fn open(cfg: &Config, key: &ChainKey, truncate: bool) -> Result<(RedoLog, RedoLogLoader)> {
+    pub(crate) async fn open(cfg: &Config, key: &ChainKey, truncate: bool) -> std::result::Result<(RedoLog, RedoLogLoader), SerializationError> {
         let _ = std::fs::create_dir_all(cfg.log_path.clone());
 
         let path_log = format!("{}/{}.log", cfg.log_path, key.name);
@@ -678,7 +700,7 @@ impl RedoLog
             cfg.load_cache_ttl,
         ).await?;
 
-        Result::Ok(
+        Ok(
             (
                 log,
                 loader
@@ -699,11 +721,11 @@ impl RedoLog
 #[async_trait]
 impl LogWritable for RedoLog
 {
-    async fn write(&mut self, meta: Bytes, body: Option<Bytes>) -> Result<LogFilePointer> {
-        let pointer = self.log_file.write(meta.clone(), body.clone()).await?;   
+    async fn write(&mut self, evt: &EventData) -> std::result::Result<LogFilePointer, SerializationError> {
         if let Some(flip) = &mut self.flip {
-            flip.deferred.push(DeferredWrite::new(meta, body, pointer));
+            flip.deferred.push(evt.clone());
         }
+        let pointer = self.log_file.write(evt).await?;
 
         Ok(pointer)
     }
@@ -712,10 +734,6 @@ impl LogWritable for RedoLog
         self.log_file.flush().await?;
         Ok(())
     }
-
-    async fn copy_event(&mut self, from_log: &RedoLog, from_pointer: &LogFilePointer) -> Result<LogFilePointer> {
-        Ok(self.log_file.copy_event(&from_log.log_file, from_pointer).await?)
-    }
 }
 
 /* 
@@ -723,31 +741,36 @@ TESTS
 */
 
 #[cfg(test)]
-async fn test_write_data(log: &mut dyn LogWritable, key: PrimaryKey, body: Option<Vec<u8>>, flush: bool) -> LogFilePointer
+async fn test_write_data(log: &mut dyn LogWritable, key: PrimaryKey, body: Option<Vec<u8>>, flush: bool) -> Hash
 {
     let mut meta = Metadata::for_data(key);
     meta.core.push(CoreMetadata::Author("test@nowhere.com".to_string()));
-    let meta_bytes = Bytes::from(rmps::to_vec(&meta).unwrap());
-
+    
     // Write some data to the flipped buffer
-    let mock_body = match body {
+    let body = match body {
         Some(a) => Some(Bytes::from(a)),
         None => None,  
     };
-    let ret = log.write(meta_bytes, mock_body)
+    let evt = EventData {
+        meta: meta,
+        data_bytes: body,
+    };
+
+    let hash = evt.as_header_raw().unwrap().event_hash;
+    let _ = log.write(&evt)
         .await.expect("Failed to write the object");
 
     if flush == true {
         let _ = log.flush().await;
     }
 
-    ret
+    hash
 }
 
 #[cfg(test)]
-async fn test_read_data(log: &mut RedoLog, read_header: LogFilePointer, test_key: PrimaryKey, test_body: Option<Vec<u8>>)
+async fn test_read_data(log: &mut RedoLog, read_header: Hash, test_key: PrimaryKey, test_body: Option<Vec<u8>>)
 {
-    let result = log.load(read_header.clone())
+    let result = log.load(read_header)
         .await
         .expect(&format!("Failed to read the entry {:?}", read_header));
     
@@ -760,8 +783,8 @@ async fn test_read_data(log: &mut RedoLog, read_header: LogFilePointer, test_key
         None => None,  
     };
 
-    assert_eq!(meta_bytes, result.evt.meta);
-    assert_eq!(test_body, result.evt.data);
+    assert_eq!(meta_bytes, result.header.meta_bytes);
+    assert_eq!(test_body, result.data.data_bytes);
 }
 
 #[test]
@@ -841,9 +864,8 @@ fn test_redo_log() {
             let halb6 = test_write_data(&mut rl, blah6, Some(vec![6; 10]), false).await;
             assert_eq!(4, rl.count());
 
-            // The old log file pointer should now be invalid
-            println!("test_redo_log - make sure old pointers are now invalid");
-            rl.load(halb5.clone()).await.expect_err("The old log file entry should not work anymore");
+            // Attempt to read the log entry
+            rl.load(halb5.clone()).await.expect("This entry should be readable");
 
             // Attempt to read blah 6 before its flushed should result in an error
             rl.load(halb6.clone()).await.expect("The log file read should have worked now");
@@ -858,13 +880,13 @@ fn test_redo_log() {
             
             // Check that the correct data is read
             println!("test_redo_log - testing read result of blah1 (again)");
-            test_read_data(&mut rl, loader.pop().unwrap().pointer, blah1, Some(vec![10; 10])).await;
+            test_read_data(&mut rl, loader.pop().unwrap().header.event_hash, blah1, Some(vec![10; 10])).await;
             println!("test_redo_log - testing read result of blah4");
-            test_read_data(&mut rl, loader.pop().unwrap().pointer, blah4, Some(vec![4; 10])).await;
+            test_read_data(&mut rl, loader.pop().unwrap().header.event_hash, blah4, Some(vec![4; 10])).await;
             println!("test_redo_log - testing read result of blah5");
-            test_read_data(&mut rl, loader.pop().unwrap().pointer, blah5, Some(vec![5; 10])).await;
+            test_read_data(&mut rl, loader.pop().unwrap().header.event_hash, blah5, Some(vec![5; 10])).await;
             println!("test_redo_log - testing read result of blah6");
-            test_read_data(&mut rl, loader.pop().unwrap().pointer, blah6, Some(vec![6; 10])).await;
+            test_read_data(&mut rl, loader.pop().unwrap().header.event_hash, blah6, Some(vec![6; 10])).await;
             println!("test_redo_log - confirming no more data");
             assert_eq!(loader.pop().is_none(), true);
 

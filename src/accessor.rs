@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use fxhash::FxHashMap;
 use multimap::MultiMap;
 
 use super::compact::*;
@@ -54,7 +53,7 @@ pub(crate) struct ChainProtectedAsync
 pub(crate) struct ChainListener
 {
     pub(crate) id: u64,
-    pub(crate) sender: mpsc::Sender<EventExt>
+    pub(crate) sender: mpsc::Sender<EventData>
 }
 
 pub(crate) struct ChainProtectedSync
@@ -78,85 +77,65 @@ pub struct Chain
 impl ChainProtectedAsync
 {
     #[allow(dead_code)]
-    pub(super) fn process(&mut self, mut sync: StdRwLockWriteGuard<ChainProtectedSync>, entries: Vec<EventEntryExt>) -> Result<(), ProcessError>
+    pub(super) fn process(&mut self, mut sync: StdRwLockWriteGuard<ChainProtectedSync>, headers: Vec<EventHeader>) -> Result<(), ProcessError>
     {
         let mut ret = ProcessError::default();
 
-        for entry in entries.into_iter()
+        for header in headers.into_iter()
         {
-            let validation_data = ValidationData::from_event_entry(&entry);
-            if let Result::Err(err) = sync.validate_event(&validation_data) {
+            if let Result::Err(err) = sync.validate_event(&header) {
                 ret.validation_errors.push(err);
             }
 
             for indexer in sync.indexers.iter_mut() {
-                if let Err(err) = indexer.feed(&entry.meta, &entry.data_hash) {
+                if let Err(err) = indexer.feed(&header) {
                     ret.sink_errors.push(err);
                 }
             }
             for plugin in sync.plugins.iter_mut() {
-                if let Err(err) = plugin.feed(&entry.meta, &entry.data_hash) {
+                if let Err(err) = plugin.feed(&header) {
                     ret.sink_errors.push(err);
                 }
             }
 
-            self.chain.pointers.feed(&entry);
-            self.chain.history.push(entry);
+            self.chain.pointers.feed(&header);
+            self.chain.history.push(header.raw);
         }
 
         ret.as_result()
     }
 
     #[allow(dead_code)]
-    pub(super) async fn feed_async_internal(&mut self, sync: Arc<StdRwLock<ChainProtectedSync>>, evts: Vec<EventRawPlus>)
-        -> Result<Vec<EventExt>, CommitError>
+    pub(super) async fn feed_async_internal(&mut self, sync: Arc<StdRwLock<ChainProtectedSync>>, evts: &Vec<EventData>)
+        -> Result<Vec<EventHeader>, CommitError>
     {
         let mut validated_evts = Vec::new();
         {
             let mut sync = sync.write();
-            for evt in evts.into_iter()
+            for evt in evts.iter()
             {
-                let validation_data = ValidationData::from_event(&evt);
-                sync.validate_event(&validation_data)?;
+                let header = evt.as_header()?;
+                sync.validate_event(&header)?;
 
                 for indexer in sync.indexers.iter_mut() {
-                    indexer.feed(&evt.inner.meta, &evt.inner.data_hash)?;
+                    indexer.feed(&header)?;
                 }
                 for plugin in sync.plugins.iter_mut() {
-                    plugin.feed(&evt.inner.meta, &evt.inner.data_hash)?;
+                    plugin.feed(&header)?;
                 }
 
-                validated_evts.push(evt);
+                validated_evts.push((evt, header));
             }
         }
 
         let mut ret = Vec::new();
-        for evt in validated_evts.into_iter() {
-            let pointer = self.chain.redo
-                .write(
-                    evt.meta_bytes.clone(), 
-                    evt.inner.data.clone()
-                ).await?;
+        for (evt, header) in validated_evts.into_iter() {
+            let _ = self.chain.redo
+                .write(evt).await?;
 
-            let entry = EventEntryExt {
-                meta_hash: evt.meta_hash.clone(),
-                meta_bytes: evt.meta_bytes.clone(),
-                meta: evt.inner.meta.clone(),
-                data_hash: evt.inner.data_hash.clone(),
-                pointer: pointer.clone(),
-            };
-
-            self.chain.pointers.feed(&entry);
-            self.chain.history.push(entry);
-
-            let entry = EventExt {
-                meta_hash: evt.meta_hash,
-                meta_bytes: evt.meta_bytes,
-                pointer: pointer,
-                raw: evt.inner,
-            };
-
-            ret.push(entry);
+            self.chain.pointers.feed(&header);
+            self.chain.history.push(header.raw.clone());
+            ret.push(header);
         }
         Ok(ret)
     }
@@ -165,22 +144,28 @@ impl ChainProtectedAsync
 impl ChainProtectedSync
 {
     #[allow(dead_code)]
-    pub(super) fn validate_event(&self, data: &ValidationData) -> Result<ValidationResult, ValidationError>
+    pub(super) fn validate_event(&self, header: &EventHeader) -> Result<ValidationResult, ValidationError>
     {
+        let mut is_deny = false;
         let mut is_allow = false;
         for validator in self.validators.iter() {
-            match validator.validate(data)? {
+            match validator.validate(header)? {
+                ValidationResult::Deny => is_deny = true,
                 ValidationResult::Allow => is_allow = true,
                 _ => {},
             }
         }
         for plugin in self.plugins.iter() {
-            match plugin.validate(data)? {
+            match plugin.validate(header)? {
+                ValidationResult::Deny => is_deny = true,
                 ValidationResult::Allow => is_allow = true,
                 _ => {}
             }
         }
 
+        if is_deny == true {
+            return Err(ValidationError::Denied)
+        }
         if is_allow == false {
             return Err(ValidationError::AllAbstained);
         }
@@ -200,7 +185,7 @@ impl<'a> Chain
 
             // Push the events into the chain of trust and release the lock on it before
             // we transmit the result so that there is less lock thrashing
-            let chain_result = match lock.feed_async_internal(inside_sync.clone(), trans.events).await {
+            let chain_result = match lock.feed_async_internal(inside_sync.clone(), &trans.events).await {
                 Ok(_) => Ok(()),
                 Err(err) => Err(err),
             };
@@ -232,9 +217,9 @@ impl<'a> Chain
             mut redo_loader
         ) = RedoLog::open(&builder.cfg, key, builder.truncate).await?;
 
-        let mut entries: Vec<EventEntryExt> = Vec::new();
-        while let Some(header) = redo_loader.pop() {
-            entries.push(EventEntryExt::from_generic(&header)?);
+        let mut entries = Vec::new();
+        while let Some(result) = redo_loader.pop() {
+            entries.push(result.header.as_header()?);
         }
 
         let chain = ChainOfTrust {
@@ -347,18 +332,21 @@ impl<'a> Chain
             // build a list of the events that are actually relevant to a compacted log
             for entry in guard_async.chain.history.iter().rev()
             {
+                let header = entry.as_header()?;
+                
                 let mut is_force_keep = false;
                 let mut is_keep = false;
                 let mut is_drop = false;
                 let mut is_force_drop = false;
                 for compactor in compactors.iter_mut() {
-                    match compactor.relevance(&entry) {
+                    match compactor.relevance(&header) {
                         EventRelevance::ForceKeep => is_force_keep = true,
                         EventRelevance::Keep => is_keep = true,
                         EventRelevance::Drop => is_drop = true,
                         EventRelevance::ForceDrop => is_force_drop = true,
                         EventRelevance::Abstain => { }
                     }
+                    compactor.feed(&header)?;
                 }
                 let keep = match is_force_keep {
                     true => true,
@@ -369,43 +357,34 @@ impl<'a> Chain
                 };
                 if keep == true {
                     keepers.push(entry);
-                    new_pointers.feed(entry);
+                    new_pointers.feed(&header);
                 }
             }
 
             // write the events out only loading the ones that are actually needed
-            let mut refactor = FxHashMap::default();
-            for entry in keepers.iter().rev() {
-                let new_entry = EventEntryExt {
-                    meta_hash: entry.meta_hash,
-                    meta_bytes: entry.meta_bytes.clone(),
-                    meta: entry.meta.clone(),
-                    data_hash: entry.data_hash.clone(),
-                    pointer: flip.copy_event(&guard_async.chain.redo, &entry.pointer).await?,
-                };
-                refactor.insert(entry.pointer, new_entry.pointer.clone());
-                new_chain.push(new_entry);
+            for entry in keepers.into_iter().rev() {
+                flip.event_summary.push(entry.clone());
+                flip.copy_event(&guard_async.chain.redo, &entry.event_hash).await?;
+                new_chain.push(entry.clone());
             }
-
-            // Refactor the index
-            new_pointers.refactor(&refactor);
         }
 
         let mut single = self.single().await;
 
-        // finish the flips
-        let new_events = single.inside_async.chain.redo.finish_flip(flip).await?;
-        let new_events= new_events
-            .into_iter()
-            .map(|e| EventEntryExt::from_generic(&e))
-            .collect::<Result<Vec<_>,_>>()?;
-                        
-        // complete the transaction
-        single.inside_async.chain.pointers = new_pointers;
-        single.inside_async.chain.history = new_chain;
-
+        // complete the transaction under another lock
         {
             let mut lock = single.inside_sync.write();
+
+            // finish the flips
+            let new_events = single.inside_async.chain.redo.finish_flip(flip).await?;
+            let new_events= new_events
+                .into_iter()
+                .map(|e| e.as_header())
+                .collect::<Result<Vec<_>,_>>()?;
+
+            single.inside_async.chain.pointers = new_pointers;
+            single.inside_async.chain.history = new_chain;
+
             for indexer in lock.indexers.iter_mut() {
                 indexer.rebuild(&new_events)?;
             }
@@ -456,11 +435,11 @@ impl<'a> Chain
         Ok(())
     }
 
-    pub(crate) async fn notify<'b>(&'a self, evts: &'b Vec<EventExt>)
+    pub(crate) async fn notify<'b>(&'a self, evts: &'b Vec<EventData>)
     {
         let mut notify_map = MultiMap::new();
         for evt in evts.iter() {
-            if let Some(tree) = evt.raw.meta.get_tree() {
+            if let Some(tree) = evt.meta.get_tree() {
                 notify_map.insert(&tree.vec, evt.clone());
             }
         }

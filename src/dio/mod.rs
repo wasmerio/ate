@@ -26,6 +26,7 @@ use super::header::*;
 use super::multi::*;
 use super::event::*;
 use super::meta::*;
+use super::lint::*;
 use super::error::*;
 use super::dio::dao::*;
 use super::accessor::*;
@@ -44,7 +45,7 @@ pub(crate) struct DioState
     pub(super) store: Vec<Rc<RowData>>,
     pub(super) cache_store_primary: FxHashMap<PrimaryKey, Rc<RowData>>,
     pub(super) cache_store_secondary: MultiMap<MetaCollection, PrimaryKey>,
-    pub(super) cache_load: FxHashMap<PrimaryKey, Rc<EventExt>>,
+    pub(super) cache_load: FxHashMap<PrimaryKey, Rc<EventData>>,
     pub(super) locked: FxHashSet<PrimaryKey>,
     pub(super) deleted: FxHashMap<PrimaryKey, Rc<RowData>>,
     pub(super) pipe_unlock: FxHashSet<PrimaryKey>,
@@ -144,37 +145,34 @@ impl<'a> Dio<'a>
             Some(a) => a,
             None => return Result::Err(LoadError::NotFound(key.clone()))
         };
-        if entry.meta.get_tombstone().is_some() {
-            return Result::Err(LoadError::Tombstoned(key.clone()));
-        }
         drop(state);
 
         Ok(self.load_from_entry(entry).await?)
     }
 
-    pub(crate) async fn load_from_entry<D>(&mut self, entry: EventEntryExt)
+    pub(crate) async fn load_from_entry<D>(&mut self, entry: super::crypto::Hash)
     -> Result<Dao<D>, LoadError>
     where D: Serialize + DeserializeOwned + Clone,
     {
-        let evt = self.multi.load(&entry).await?;        
-        Ok(self.load_from_event(evt)?)
+        let evt = self.multi.load(entry).await?;
+        Ok(self.load_from_event(evt.data, evt.header.as_header()?)?)
     }
 
-    pub(crate) fn load_from_event<D>(&mut self, mut evt: EventExt)
+    pub(crate) fn load_from_event<D>(&mut self, mut data: EventData, header: EventHeader)
     -> Result<Dao<D>, LoadError>
     where D: Serialize + DeserializeOwned + Clone,
     {
-        evt.raw.data = match evt.raw.data {
-            Some(data) => Some(self.multi.data_as_overlay(&mut evt.raw.meta, data, &self.session)?),
+        data.data_bytes = match data.data_bytes {
+            Some(data) => Some(self.multi.data_as_overlay(&header.meta, data, &self.session)?),
             None => None,
         };
 
         let mut state = self.state.borrow_mut();
 
-        match evt.raw.meta.get_data_key() {
+        match header.meta.get_data_key() {
             Some(key) => {
-                let row = Row::from_event(&evt)?;
-                state.cache_load.insert(key.clone(), Rc::new(evt));
+                let row = Row::from_event(&data)?;
+                state.cache_load.insert(key.clone(), Rc::new(data));
                 Ok(Dao::new(row, &self.state))
             },
             None => Err(LoadError::NoPrimaryKey)
@@ -202,12 +200,14 @@ impl<'a> Dio<'a>
             Some(a) => a,
             None => return Ok(Vec::new())
         } {
-            // Obviously if its tombstoned then we are done
-            if entry.meta.get_tombstone().is_some() {
-                continue;
-            }
+            to_load.push(entry);
+        }
 
-            let key = match entry.meta.get_data_key() {
+        // Load all the objects that have not yet been loaded
+        for mut evt in self.multi.load_many(to_load).await? {
+            let mut header = evt.header.as_header()?;
+
+            let key = match header.meta.get_data_key() {
                 Some(k) => k,
                 None => { continue; }
             };
@@ -231,19 +231,14 @@ impl<'a> Dio<'a>
             if state.deleted.contains_key(&key) {
                 continue;
             }
-    
-            to_load.push(entry);
-        }
 
-        // Load all the objects that have not yet been loaded
-        for mut evt in self.multi.load_many(to_load).await? {
-            evt.raw.data = match evt.raw.data {
-                Some(data) => Some(self.multi.data_as_overlay(&mut evt.raw.meta, data, &self.session)?),
+            evt.data.data_bytes = match evt.data.data_bytes {
+                Some(data) => Some(self.multi.data_as_overlay(&mut header.meta, data, &self.session)?),
                 None => { continue; },
             };
 
-            let row = Row::from_event(&evt)?;
-            state.cache_load.insert(row.key.clone(), Rc::new(evt));
+            let row = Row::from_event(&evt.data)?;
+            state.cache_load.insert(row.key.clone(), Rc::new(evt.data));
 
             already.insert(row.key.clone());
             ret.push(Dao::new(row, &self.state));
@@ -345,14 +340,12 @@ impl<'a> Dio<'a>
             
             // Perform any transformation (e.g. data encryption and compression)
             let data = self.multi.data_as_underlay(&mut meta, row.data.clone(), &self.session)?;
-            let data_hash = super::crypto::Hash::from_bytes(&data[..]);
             
             // Only once all the rows are processed will we ship it to the redo log
-            let evt = EventRaw {
+            let evt = EventData {
                 meta: meta,
-                data_hash: Some(data_hash),
-                data: Some(data),
-            }.as_plus()?;
+                data_bytes: Some(data),
+            };
             evts.push(evt);
         }
 
@@ -369,26 +362,31 @@ impl<'a> Dio<'a>
             meta.core.extend(extra_meta);
 
             meta.add_tombstone(key.clone());
-            let evt = EventRaw {
+            let evt = EventData {
                 meta: meta,
-                data_hash: None,
-                data: None,
-            }.as_plus()?;
+                data_bytes: None,
+            };
             evts.push(evt);
         }
 
         // Lint the data
-        let meta = self.multi.metadata_lint_many(&evts, &self.session)?;
+        let mut lints = Vec::new();
+        for evt in evts.iter() {
+            lints.push(LintData {
+                data: evt,
+                header: evt.as_header()?,
+            });
+        }
+        let meta = self.multi.metadata_lint_many(&lints, &self.session)?;
 
         // If it has data then insert it at the front of these events
         if meta.len() > 0 {
-            evts.insert(0, EventRaw {
+            evts.insert(0, EventData {
                 meta: Metadata {
                     core: meta,
                 },
-                data_hash: None,
-                data: None,
-            }.as_plus()?);
+                data_bytes: None,
+            });
         }
 
         // Create the transaction

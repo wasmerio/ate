@@ -1,10 +1,12 @@
-use super::meta::Metadata;
-use super::crypto::Hash;
+use super::event::*;
 use super::error::*;
 
 pub trait EventSink
 {
-    fn feed(&mut self, _meta: &Metadata, _data_hash: &Option<Hash>) -> Result<(), SinkError> {
+    fn feed(&mut self, _header: &EventHeader) -> Result<(), SinkError> {
         Ok(())
+    }
+
+    fn reset(&mut self) {
     }
 }

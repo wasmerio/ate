@@ -2,7 +2,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use std::marker::PhantomData;
 use tokio::sync::mpsc;
 
-use crate::{error::*, event::EventExt, meta::MetaCollection};
+use crate::{error::*, event::*, meta::MetaCollection};
 use super::dao::*;
 use crate::dio::*;
 use crate::accessor::*;
@@ -27,7 +27,7 @@ where D: Serialize + DeserializeOwned + Clone
     id: u64,
     chain: &'a Chain,
     vec: MetaCollection,
-    receiver: mpsc::Receiver<EventExt>,
+    receiver: mpsc::Receiver<EventData>,
     _marker: PhantomData<D>,
 }
 
@@ -62,8 +62,8 @@ where D: Serialize + DeserializeOwned + Clone,
         while let Some(mut evt) = self.receiver.recv().await {
 
             let multi = self.chain.multi().await;
-            evt.raw.data = match evt.raw.data {
-                Some(data) => Some(multi.data_as_overlay(&mut evt.raw.meta, data, session)?),
+            evt.data_bytes = match evt.data_bytes {
+                Some(data) => Some(multi.data_as_overlay(&mut evt.meta, data, session)?),
                 None => continue,
             };
 
@@ -76,7 +76,10 @@ where D: Serialize + DeserializeOwned + Clone,
     pub async fn process(&mut self, dio: &mut Dio<'a>) -> Result<Dao<D>, BusError> {
         loop {
             let mut dao: Dao<D> = match self.receiver.recv().await {
-                Some(evt) => dio.load_from_event(evt)?,
+                Some(evt) => {
+                    let header = evt.as_header()?;
+                    dio.load_from_event(evt, header)?
+                },
                 None => { return Err(BusError::ChannelClosed); }
             };
             if dao.try_lock_then_delete(dio).await? == true {

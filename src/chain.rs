@@ -42,7 +42,7 @@ use super::redo::*;
 use bytes::Bytes;
 
 #[allow(unused_imports)]
-use super::event::EventExt;
+use super::event::*;
 #[allow(unused_imports)]
 use super::crypto::Hash;
 
@@ -112,70 +112,41 @@ pub(crate) struct ChainOfTrust
     pub(super) key: ChainKey,
     pub(super) redo: RedoLog,
     pub(super) configured_for: ConfiguredFor,
-    pub(super) history: Vec<EventEntryExt>,
+    pub(super) history: Vec<EventHeaderRaw>,
     pub(super) pointers: BinaryTreeIndexer,
     pub(super) compactors: Vec<Box<dyn EventCompactor>>,
 }
 
 impl<'a> ChainOfTrust
 {
-    pub(super) async fn load(&self, entry: &EventEntryExt) -> Result<EventExt, LoadError> {
-        let result = self.redo.load(entry.pointer.clone()).await?;
-        let evt = result.evt;
-        {
-            Ok(
-                EventExt {
-                    meta_hash: evt.meta_hash,
-                    meta_bytes: evt.meta.clone(),
-                    raw: EventRaw {
-                        meta: entry.meta.clone(),
-                        data_hash: evt.data_hash,
-                        data: evt.data.clone(),
-                    },
-                    pointer: entry.pointer.clone(),
-                }
-            )
-        }
+    pub(super) async fn load(&self, entry: super::crypto::Hash) -> Result<LoadResult, LoadError> {
+        Ok(self.redo.load(entry).await?)
     }
 
-    pub(super) async fn load_many(&self, entries: Vec<EventEntryExt>) -> Result<Vec<EventExt>, LoadError>
+    pub(super) async fn load_many(&self, entries: Vec<super::crypto::Hash>) -> Result<Vec<LoadResult>, LoadError>
     {
         let mut ret = Vec::new();
 
         let mut futures = Vec::new();
         for entry in entries {
-            let pointer = entry.pointer;
-            futures.push((self.redo.load(pointer), entry.meta));
+            futures.push(self.redo.load(entry));
         }
 
-        for (join, meta) in futures {
-            let loaded = join.await?;
-            let evt = loaded.evt;
-            ret.push(
-                EventExt {
-                    meta_hash: evt.meta_hash,
-                    meta_bytes: evt.meta.clone(),
-                    raw: EventRaw {
-                        meta: meta,
-                        data_hash: evt.data_hash,
-                        data: evt.data.clone(),
-                    },
-                    pointer: loaded.pointer.clone(),
-                }
-            );
+        for join in futures {
+            ret.push(join.await?);
         }
 
         Ok(ret)
     }
 
     #[allow(dead_code)]
-    pub(super) fn lookup_primary(&self, key: &PrimaryKey) -> Option<EventEntryExt>
+    pub(super) fn lookup_primary(&self, key: &PrimaryKey) -> Option<super::crypto::Hash>
     {
         self.pointers.lookup_primary(key)
     }
 
     #[allow(dead_code)]
-    pub(super) fn lookup_secondary(&self, key: &MetaCollection) -> Option<Vec<EventEntryExt>>
+    pub(super) fn lookup_secondary(&self, key: &MetaCollection) -> Option<Vec<super::crypto::Hash>>
     {
         self.pointers.lookup_secondary(key)
     }
@@ -249,8 +220,8 @@ async fn test_chain() {
         let mut chain = create_test_chain("test_chain".to_string(), true, true, None).await;
         chain_name = chain.name().await;
 
-        let mut evt1 = EventRaw::new(key1.clone(), Bytes::from(vec!(1; 1))).as_plus().unwrap();
-        let mut evt2 = EventRaw::new(key2.clone(), Bytes::from(vec!(2; 1))).as_plus().unwrap();
+        let mut evt1 = EventData::new(key1.clone(), Bytes::from(vec!(1; 1)));
+        let mut evt2 = EventData::new(key2.clone(), Bytes::from(vec!(2; 1)));
 
         {
             let lock = chain.multi().await;
@@ -274,15 +245,15 @@ async fn test_chain() {
 
             // Make sure its there in the chain
             let test_data = lock.lookup_primary(&key1).await.expect("Failed to find the entry after the flip");
-            let test_data = lock.load(&test_data).await.expect("Could not load the data for the entry");
-            assert_eq!(test_data.raw.data, Some(Bytes::from(vec!(1; 1))));
+            let test_data = lock.load(test_data).await.expect("Could not load the data for the entry");
+            assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(1; 1))));
         }
             
         {
             let lock = chain.multi().await;
 
             // Duplicate one of the event so the compactor has something to clean
-            evt1.inner.data = Some(Bytes::from(vec!(10; 1)));
+            evt1.data_bytes = Some(Bytes::from(vec!(10; 1)));
             
             let mut evts = Vec::new();
             evts.push(evt1.clone());
@@ -295,6 +266,7 @@ async fn test_chain() {
         }
 
         // Now compact the chain-of-trust which should reduce the duplicate event
+        assert_eq!(3, chain.count().await);
         chain.compact().await.expect("Failed to compact the log");
         assert_eq!(2, chain.count().await);
 
@@ -303,20 +275,20 @@ async fn test_chain() {
 
             // Read the event and make sure its the second one that results after compaction
             let test_data = lock.lookup_primary(&key1).await.expect("Failed to find the entry after the flip");
-            let test_data = lock.load(&test_data).await.unwrap();
-            assert_eq!(test_data.raw.data, Some(Bytes::from(vec!(10; 1))));
+            let test_data = lock.load(test_data).await.unwrap();
+            assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(10; 1))));
 
             // The other event we added should also still be there
             let test_data = lock.lookup_primary(&key2).await.expect("Failed to find the entry after the flip");
-            let test_data = lock.load(&test_data).await.unwrap();
-            assert_eq!(test_data.raw.data, Some(Bytes::from(vec!(2; 1))));
+            let test_data = lock.load(test_data).await.unwrap();
+            assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(2; 1))));
         }
 
         {
             let lock = chain.multi().await;
 
             // Now lets tombstone the second event
-            evt2.inner.meta.add_tombstone(key2);
+            evt2.meta.add_tombstone(key2);
             
             let mut evts = Vec::new();
             evts.push(evt2.clone());
@@ -349,8 +321,8 @@ async fn test_chain() {
 
             // Read the event and make sure its the second one that results after compaction
             let test_data = lock.lookup_primary(&key1).await.expect("Failed to find the entry after we reloaded the chain");
-            let test_data = lock.load(&test_data).await.unwrap();
-            assert_eq!(test_data.raw.data, Some(Bytes::from(vec!(10; 1))));
+            let test_data = lock.load(test_data).await.unwrap();
+            assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(10; 1))));
         }
 
         // Destroy the chain

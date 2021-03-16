@@ -133,21 +133,27 @@ impl TreeAuthorityPlugin
 impl EventSink
 for TreeAuthorityPlugin
 {
-    fn feed(&mut self, meta: &Metadata, data_hash: &Option<Hash>) -> Result<(), SinkError>
+    fn feed(&mut self, header: &EventHeader) -> Result<(), SinkError>
     {
         
-        if let Some(key) = meta.get_data_key()
+        if let Some(key) = header.meta.get_data_key()
         {
-            let auth = self.compute_auth(meta, ComputePhase::AfterStore);
+            let auth = self.compute_auth(&header.meta, ComputePhase::AfterStore);
             self.auth.insert(key, auth);
         }
 
-        if let Some(key) = meta.get_tombstone() {
+        if let Some(key) = header.meta.get_tombstone() {
             self.auth.remove(&key);
         }
 
-        self.signature_plugin.feed(meta, data_hash)?;
+        self.signature_plugin.feed(header)?;
         Ok(())
+    }
+
+    fn reset(&mut self) {
+        self.auth.clear();
+        self.tree.clear();
+        self.signature_plugin.reset();
     }
 }
 
@@ -158,24 +164,24 @@ for TreeAuthorityPlugin
         Box::new(self.clone())
     }
 
-    fn validate(&self, validation_data: &ValidationData) -> Result<ValidationResult, ValidationError>
+    fn validate(&self, header: &EventHeader) -> Result<ValidationResult, ValidationError>
     {
         // We need to check all the signatures are valid
-        self.signature_plugin.validate(validation_data)?;
+        self.signature_plugin.validate(header)?;
 
         // If it does not need a signature then accept it
-        if validation_data.meta.needs_signature() == false && validation_data.data_hash.is_none() {
+        if header.meta.needs_signature() == false && header.raw.data_hash.is_none() {
             return Ok(ValidationResult::Allow);
         }
 
         // If it has data then we need to check it - otherwise we ignore it
-        let hash = match validation_data.data_hash {
-            Some(a) => DoubleHash::from_hashes(&validation_data.meta_hash, &a).hash(),
-            None => validation_data.meta_hash.clone()
+        let hash = match header.raw.data_hash {
+            Some(a) => DoubleHash::from_hashes(&header.raw.meta_hash, &a).hash(),
+            None => header.raw.meta_hash.clone()
         };
 
         // It might be the case that everyone is allowed to write freely
-        let auth = self.compute_auth(&validation_data.meta, ComputePhase::BeforeStore);
+        let auth = self.compute_auth(&header.meta, ComputePhase::BeforeStore);
         if auth.write == WriteOption::Everyone {
             return Ok(ValidationResult::Allow);
         }
@@ -206,18 +212,12 @@ for TreeAuthorityPlugin
         Box::new(self.clone())
     }
 
-    fn relevance(&mut self, evt: &EventEntryExt) -> EventRelevance {
-        match self.signature_plugin.relevance(evt) {
+    fn relevance(&self, header: &EventHeader) -> EventRelevance {
+        match self.signature_plugin.relevance(header) {
             EventRelevance::Abstain => {},
             r => { return r; },
         }
         EventRelevance::Abstain
-    }
-
-    fn reset(&mut self) {
-        self.auth.clear();
-        self.tree.clear();
-        self.signature_plugin.reset();
     }
 }
 
@@ -228,11 +228,11 @@ for TreeAuthorityPlugin
         Box::new(self.clone())
     }
 
-    fn metadata_lint_many(&self, raws: &Vec<EventRawPlus>, session: &Session) -> Result<Vec<CoreMetadata>, LintError>
+    fn metadata_lint_many<'a>(&self, headers: &Vec<LintData<'a>>, session: &Session) -> Result<Vec<CoreMetadata>, LintError>
     {
         let mut ret = Vec::new();
 
-        let mut other = self.signature_plugin.metadata_lint_many(raws, session)?;
+        let mut other = self.signature_plugin.metadata_lint_many(headers, session)?;
         ret.append(&mut other);
 
         Ok(ret)
@@ -333,7 +333,7 @@ for TreeAuthorityPlugin
     }
 
     #[allow(unused_variables)]
-    fn data_as_overlay(&self, meta: &mut Metadata, with: Bytes, session: &Session) -> Result<Bytes, TransformError>
+    fn data_as_overlay(&self, meta: &Metadata, with: Bytes, session: &Session) -> Result<Bytes, TransformError>
     {
         let mut with = self.signature_plugin.data_as_overlay(meta, with, session)?;
 
@@ -359,9 +359,13 @@ for TreeAuthorityPlugin
         Box::new(self.clone())
     }
 
-    fn rebuild(&mut self, data: &Vec<EventEntryExt>) -> Result<(), SinkError>
+    fn rebuild(&mut self, headers: &Vec<EventHeader>) -> Result<(), SinkError>
     {
-        self.signature_plugin.rebuild(data)?;
+        self.reset();
+        self.signature_plugin.rebuild(headers)?;
+        for header in headers {
+            self.feed(header)?;
+        }
         Ok(())
     }
 }

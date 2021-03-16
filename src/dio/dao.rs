@@ -54,23 +54,23 @@ where D: Serialize + DeserializeOwned + Clone,
         }
     }
 
-    pub(crate) fn from_event(evt: &EventExt) -> Result<Row<D>, SerializationError> {
-        let key = match evt.raw.meta.get_data_key() {
+    pub(crate) fn from_event(evt: &EventData) -> Result<Row<D>, SerializationError> {
+        let key = match evt.meta.get_data_key() {
             Some(key) => key,
             None => { return Result::Err(SerializationError::NoPrimarykey) }
         };
         let mut collections = FxHashSet::default();
-        for a in evt.raw.meta.get_collections() {
+        for a in evt.meta.get_collections() {
             collections.insert(a);
         }
-        match &evt.raw.data {
+        match &evt.data_bytes {
             Some(data) => {
                 Ok(
                     Row {
                         key,
-                        tree: match evt.raw.meta.get_tree() { Some(a) => Some(a.clone()), None => None },
+                        tree: match evt.meta.get_tree() { Some(a) => Some(a.clone()), None => None },
                         data: serde_json::from_slice(&data)?,
-                        auth: match evt.raw.meta.get_authorization() {
+                        auth: match evt.meta.get_authorization() {
                             Some(a) => a.clone(),
                             None => MetaAuthorization::default(),
                         },

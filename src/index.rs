@@ -1,8 +1,5 @@
 use std::collections::BTreeMap;
-use fxhash::FxHashMap;
 use multimap::MultiMap;
-
-use crate::redo::LogFilePointer;
 
 use super::event::*;
 use super::header::*;
@@ -11,20 +8,20 @@ use super::sink::*;
 use super::error::*;
 
 pub trait EventIndexer
-where Self: EventSink + Send + Sync,
+where Self: EventSink + Send + Sync + std::fmt::Debug,
 {
-    fn rebuild(&mut self, _data: &Vec<EventEntryExt>) -> Result<(), SinkError> {
+    fn rebuild(&mut self, _data: &Vec<EventHeader>) -> Result<(), SinkError> {
         Ok(())
     }
 
     fn clone_indexer(&self) -> Box<dyn EventIndexer>;
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub(crate) struct BinaryTreeIndexer
 {
-    primary: BTreeMap<PrimaryKey, EventEntryExt>,
-    secondary: MultiMap<MetaCollection, EventEntryExt>,
+    primary: BTreeMap<PrimaryKey, super::crypto::Hash>,
+    secondary: MultiMap<MetaCollection, super::crypto::Hash>,
 }
 
 impl BinaryTreeIndexer
@@ -40,19 +37,19 @@ impl BinaryTreeIndexer
     }
 
     #[allow(dead_code)]
-    pub(crate) fn feed(&mut self, entry: &EventEntryExt) {
+    pub(crate) fn feed(&mut self, entry: &EventHeader) {
         let mut entry_tree = None;
         for core in entry.meta.core.iter() {
             match core {
                 CoreMetadata::Data(key) => {
-                    if entry.data_hash.is_none() {
+                    if entry.raw.data_hash.is_none() {
                         continue;
                     }
-                    self.primary.insert(key.clone(), entry.clone());
+                    self.primary.insert(key.clone(), entry.raw.event_hash.clone());
                 },
                 CoreMetadata::Tree(tree) => {
                     entry_tree =  Some(&tree.vec);
-                    self.secondary.insert(tree.vec.clone(), entry.clone());
+                    self.secondary.insert(tree.vec.clone(), entry.raw.event_hash.clone());
                 }
                 _ => { },
             }
@@ -61,11 +58,11 @@ impl BinaryTreeIndexer
         for core in entry.meta.core.iter() {
             match core {
                 CoreMetadata::Tombstone(key) => {
+                    let hash = entry.raw.event_hash.clone();
                     self.primary.remove(&key);
                     if let Some(tree) = entry_tree {
-                        let test = Some(key.clone());
                         if let Some(vec) = self.secondary.get_vec_mut(tree) {
-                            vec.retain(|x| x.meta.get_data_key() != test);
+                            vec.retain(|x| *x != hash);
                         }
                     }
                 },
@@ -74,22 +71,14 @@ impl BinaryTreeIndexer
         }
     }
 
-    pub(crate) fn refactor(&mut self, transform: &FxHashMap<LogFilePointer, LogFilePointer>) {
-        for (_, val) in self.primary.iter_mut() {
-            if let Some(next) = transform.get(&val.pointer) {
-                val.pointer = next.clone();
-            }
-        }
-    }
-
-    pub(crate) fn lookup_primary(&self, key: &PrimaryKey) -> Option<EventEntryExt> {
+    pub(crate) fn lookup_primary(&self, key: &PrimaryKey) -> Option<super::crypto::Hash> {
         match self.primary.get(key) {
             None => None,
             Some(a) => Some(a.clone())
         }
     }
 
-    pub(crate) fn lookup_secondary(&self, key: &MetaCollection) -> Option<Vec<EventEntryExt>> {
+    pub(crate) fn lookup_secondary(&self, key: &MetaCollection) -> Option<Vec<super::crypto::Hash>> {
         match self.secondary.get_vec(key) {
             Some(vec) => {
                 Some(vec.iter()
@@ -101,7 +90,7 @@ impl BinaryTreeIndexer
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct UselessIndexer
 {
 }
@@ -118,7 +107,7 @@ for UselessIndexer
         Box::new(UselessIndexer::default())
     }
 
-    fn rebuild(&mut self, _data: &Vec<EventEntryExt>) -> Result<(), SinkError>
+    fn rebuild(&mut self, _headers: &Vec<EventHeader>) -> Result<(), SinkError>
     {
         Ok(())
     }

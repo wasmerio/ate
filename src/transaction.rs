@@ -23,14 +23,14 @@ pub enum Scope
 pub(crate) struct Transaction
 {
     pub(crate) scope: Scope,
-    pub(crate) events: Vec<EventRawPlus>,
+    pub(crate) events: Vec<EventData>,
     pub(crate) result: Option<smpsc::Sender<Result<(), CommitError>>>
 }
 
 impl Transaction
 {
     #[allow(dead_code)]
-    pub(crate) fn from_events(events: Vec<EventRawPlus>, scope: Scope) -> (Transaction, smpsc::Receiver<Result<(), CommitError>>)
+    pub(crate) fn from_events(events: Vec<EventData>, scope: Scope) -> (Transaction, smpsc::Receiver<Result<(), CommitError>>)
     {
         let (sender, receiver) = smpsc::channel();
         (

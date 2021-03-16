@@ -5,8 +5,7 @@ use std::sync::Arc;
 
 use crate::meta::Metadata;
 use crate::crypto::Hash;
-use crate::event::EventRawPlus;
-use crate::event::EventRaw;
+use crate::event::*;
 use crate::chain::ChainKey;
 use crate::pipe::EventPipe;
 use crate::accessor::Chain;
@@ -23,14 +22,17 @@ pub(super) struct MessageEvent
 
 impl MessageEvent
 {
-    pub(crate) fn convert_to(evts: &Vec<EventRawPlus>) -> Vec<MessageEvent>
+    pub(crate) fn convert_to(evts: &Vec<EventData>) -> Vec<MessageEvent>
     {
         let mut feed_me = Vec::new();
         for evt in evts {
             let evt = MessageEvent {
-                    meta: evt.inner.meta.clone(),
-                    data_hash: evt.inner.data_hash.clone(),
-                    data: match &evt.inner.data {
+                    meta: evt.meta.clone(),
+                    data_hash: match &evt.data_bytes {
+                        Some(d) => Some(Hash::from_bytes(&d[..])),
+                        None => None,
+                    },
+                    data: match &evt.data_bytes {
                         Some(d) => Some(d.to_vec()),
                         None => None,
                     },
@@ -40,24 +42,16 @@ impl MessageEvent
         feed_me
     }
 
-    pub(crate) fn convert_from(evts: &Vec<MessageEvent>) -> Vec<EventRawPlus>
+    pub(crate) fn convert_from(evts: &Vec<MessageEvent>) -> Vec<EventData>
     {
         let mut feed_me = Vec::new();
         for evt in evts.iter() {
-            let evt = EventRaw {
+            let evt = EventData {
                 meta: evt.meta.clone(),
-                data_hash: evt.data_hash,
-                data: match &evt.data {
+                data_bytes: match &evt.data {
                     Some(d) => Some(Bytes::from(d.clone())),
                     None => None,
                 },
-            };
-            let evt = match evt.as_plus() {
-                Ok(a) => a,
-                Err(err) => {
-                    debug_assert!(false, "mesh-inbox-error {:?}", err);
-                    continue;
-                }
             };
             feed_me.push(evt);
         }

@@ -8,8 +8,8 @@ use super::sink::*;
 use super::transform::*;
 use super::compact::*;
 use super::validator::*;
-use super::crypto::Hash;
 use super::conf::*;
+use super::event::EventHeader;
 
 use std::{ops::Deref, sync::Arc};
 use parking_lot::Mutex;
@@ -178,9 +178,9 @@ for TimestampEnforcer
 impl EventSink
 for TimestampEnforcer
 {
-    fn feed(&mut self, meta: &Metadata, _data_hash: &Option<Hash>) -> Result<(), SinkError>
+    fn feed(&mut self, header: &EventHeader) -> Result<(), SinkError>
     {
-        if let Some(time) = TimestampEnforcer::get_timestamp(meta) {
+        if let Some(time) = TimestampEnforcer::get_timestamp(&header.meta) {
             let time = Duration::from_millis(time.time_since_epoch_ms);
             if time > self.cursor {
                 self.cursor = time;
@@ -188,6 +188,10 @@ for TimestampEnforcer
         }
         Ok(())
     }   
+
+    fn reset(&mut self) {
+        self.cursor = self.tolerance.clone();
+    }
 }
 
 impl EventIndexer
@@ -212,9 +216,6 @@ for TimestampEnforcer
     fn clone_compactor(&self) -> Box<dyn EventCompactor> {
         Box::new(self.clone())
     }
-
-    fn reset(&mut self) {
-    }
 }
 
 impl EventValidator
@@ -224,13 +225,13 @@ for TimestampEnforcer
         Box::new(self.clone())
     }
 
-    fn validate(&self, validation_data: &ValidationData) -> Result<ValidationResult, ValidationError>
+    fn validate(&self, header: &EventHeader) -> Result<ValidationResult, ValidationError>
     {
         // If it does not have a timestamp then we can not accept it
-        let time = match TimestampEnforcer::get_timestamp(&validation_data.meta) {
+        let time = match TimestampEnforcer::get_timestamp(&header.meta) {
             Some(m) => m,
             None => {
-                return match validation_data.meta.needs_signature() {
+                return match header.meta.needs_signature() {
                     true => Err(ValidationError::Time(TimeError::NoTimestamp)),
                     false => Ok(ValidationResult::Abstain)
                 };

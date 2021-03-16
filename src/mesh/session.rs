@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use log::{warn};
+use log::{warn, debug};
 use parking_lot::Mutex as StdMutex;
 use std::{sync::Arc};
 use tokio::sync::mpsc;
@@ -109,10 +109,10 @@ impl MeshSession
                 let feed_me = MessageEvent::convert_from(&evts);
 
                 let mut single = self.chain.single().await;
-                let evts = single.feed_async(feed_me).await?;
+                let _ = single.feed_async(&feed_me).await?;
                 drop(single);
 
-                self.chain.notify(&evts).await;
+                self.chain.notify(&feed_me).await;
             },
             Message::Confirmed(id) => {
                 if let Some(result) = self.commit.lock().remove(&id) {
@@ -155,6 +155,10 @@ impl MeshSession
             let pck = pck.packet;
             match MeshSession::inbox_packet(&self, &loaded, pck).await {
                 Ok(_) => { },
+                Err(CommsError::ValidationError(err)) => {
+                    debug!("mesh-session-debug: {}", err.to_string());
+                    continue;
+                }
                 Err(err) => {
                     debug_assert!(false, "mesh-session-err {:?}", err);
                     warn!("mesh-session-err: {}", err.to_string());

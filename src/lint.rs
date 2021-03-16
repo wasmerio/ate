@@ -6,10 +6,16 @@ use super::event::*;
 #[allow(unused_imports)]
 use openssl::symm::{encrypt, Cipher};
 
+pub struct LintData<'a>
+{
+    pub data: &'a EventData,
+    pub header: EventHeader,
+}
+
 pub trait EventMetadataLinter: Send + Sync
 {
     /// Called just before the metadata is pushed into the redo log
-    fn metadata_lint_many(&self, _data_hashes: &Vec<EventRawPlus>, _session: &Session) -> Result<Vec<CoreMetadata>, LintError>
+    fn metadata_lint_many<'a>(&self, _lints: &Vec<LintData<'a>>, _session: &Session) -> Result<Vec<CoreMetadata>, LintError>
     {
         Ok(Vec::new())
     }

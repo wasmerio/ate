@@ -18,10 +18,7 @@ use super::event::*;
 use super::error::*;
 use super::plugin::*;
 use super::meta::*;
-#[allow(unused_imports)]
-use super::validator::ValidationData;
-#[allow(unused_imports)]
-use super::validator::ValidationResult;
+use super::lint::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MetaSignature
@@ -73,10 +70,10 @@ impl SignaturePlugin
 impl EventSink
 for SignaturePlugin
 {
-    fn feed(&mut self, meta: &Metadata, _data_hash: &Option<Hash>) -> Result<(), SinkError>
+    fn feed(&mut self, header: &EventHeader) -> Result<(), SinkError>
     {
         // Store the public key and encrypt private keys into the index
-        for m in meta.core.iter() {
+        for m in header.meta.core.iter() {
             match m {
                 CoreMetadata::PublicKey(pk) => {
                     self.pk.insert(pk.hash(), pk.clone());
@@ -87,7 +84,7 @@ for SignaturePlugin
 
         // The signatures need to be validated after the public keys are processed or 
         // there will be a race condition
-        for m in meta.core.iter() {
+        for m in header.meta.core.iter() {
             match m {
                 CoreMetadata::Signature(sig) => {
                     let pk = match self.pk.get(&sig.public_key_hash) {
@@ -116,6 +113,11 @@ for SignaturePlugin
 
         Ok(())
     }
+
+    fn reset(&mut self) {
+        self.pk.clear();
+        self.sigs.clear();
+    }
 }
 
 impl EventValidator
@@ -132,11 +134,6 @@ for SignaturePlugin
     fn clone_compactor(&self) -> Box<dyn EventCompactor> {
         Box::new(self.clone())
     }
-
-    fn reset(&mut self) {
-        self.pk.clear();
-        self.sigs.clear();
-    }
 }
 
 impl EventMetadataLinter
@@ -146,7 +143,7 @@ for SignaturePlugin
         Box::new(self.clone())
     }
 
-    fn metadata_lint_many(&self, raw: &Vec<EventRawPlus>, session: &Session) -> Result<Vec<CoreMetadata>, LintError>
+    fn metadata_lint_many<'a>(&self, raw: &Vec<LintData<'a>>, session: &Session) -> Result<Vec<CoreMetadata>, LintError>
     {
         // If there is no data then we are already done
         if raw.len() <= 0 {
@@ -158,7 +155,7 @@ for SignaturePlugin
         // Build a list of all the authorizations we need to write
         let mut auths = raw
             .iter()
-            .filter_map(|e| e.inner.meta.get_sign_with())
+            .filter_map(|e| e.data.meta.get_sign_with())
             .flat_map(|a| a.keys.iter())
             .collect::<Vec<_>>();
         auths.sort();
@@ -183,14 +180,14 @@ for SignaturePlugin
                 None => return Err(LintError::MissingWriteKey(auth.clone())),
             };
 
-            // Compute a hash of the hashes
+            // Compute a hash of the hashesevt
             let mut data_hashes = Vec::new();
             for e in raw.iter() {
-                if let Some(a) = e.inner.meta.get_sign_with() {
+                if let Some(a) = e.data.meta.get_sign_with() {
                     if a.keys.contains(&auth) == true {
-                        let hash = match &e.inner.data_hash {
-                            Some(d) => DoubleHash::from_hashes(&e.meta_hash, d).hash(),
-                            None => e.meta_hash
+                        let hash = match &e.header.raw.data_hash {
+                            Some(d) => DoubleHash::from_hashes(&e.header.raw.meta_hash, d).hash(),
+                            None => e.header.raw.meta_hash
                         };
                         data_hashes.push(hash);
                     }
@@ -237,17 +234,5 @@ for SignaturePlugin
 {
     fn clone_plugin(&self) -> Box<dyn EventPlugin> {
         Box::new(self.clone())
-    }
-
-    fn rebuild(&mut self, data: &Vec<EventEntryExt>) -> Result<(), SinkError>
-    {
-        self.pk.clear();
-        self.sigs.clear();
-
-        for data in data.iter() {
-            self.feed(&data.meta, &data.data_hash)?;
-        }
-
-        Ok(())
     }
 }

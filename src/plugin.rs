@@ -14,8 +14,12 @@ use super::event::*;
 pub trait EventPlugin
 where Self: EventValidator + EventSink + EventCompactor + EventMetadataLinter + EventDataTransformer + Send + Sync,
 {
-    fn rebuild(&mut self, _data: &Vec<EventEntryExt>) -> Result<(), SinkError>
+    fn rebuild(&mut self, headers: &Vec<EventHeader>) -> Result<(), SinkError>
     {
+        self.reset();
+        for header in headers {
+            self.feed(header)?;
+        }
         Ok(())
     }
 

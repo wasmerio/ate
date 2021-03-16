@@ -2,6 +2,8 @@ use fxhash::FxHashSet;
 use super::header::*;
 use super::meta::*;
 use super::event::*;
+use super::sink::*;
+use super::error::*;
 
 pub enum EventRelevance
 {
@@ -14,14 +16,12 @@ pub enum EventRelevance
     ForceDrop,      // Force the event to drop
 }
 
-pub trait EventCompactor: Send + Sync
+pub trait EventCompactor: Send + Sync + EventSink
 {
     // Decision making time - in order of back to front we now decide if we keep or drop an event
-    fn relevance(&mut self, _evt: &EventEntryExt) -> EventRelevance {
+    fn relevance(&self, _header: &EventHeader) -> EventRelevance {
         EventRelevance::Abstain
     }
-
-    fn reset(&mut self);
 
     fn clone_compactor(&self) -> Box<dyn EventCompactor>;
 }
@@ -32,18 +32,29 @@ pub struct RemoveDuplicatesCompactor
     already: FxHashSet<PrimaryKey>,
 }
 
+impl EventSink
+for RemoveDuplicatesCompactor
+{
+    fn feed(&mut self, header: &EventHeader) -> Result<(), SinkError> {
+        if let Some(key) = header.meta.get_data_key() {
+            self.already.insert(key.clone());
+        }
+        Ok(())
+    }
+
+    fn reset(&mut self) {
+        self.already.clear();
+    }
+}
+
 impl EventCompactor
 for RemoveDuplicatesCompactor
 {
     fn clone_compactor(&self) -> Box<dyn EventCompactor> {
         Box::new(self.clone())
     }
-
-    fn reset(&mut self) {
-        self.already.clear();
-    }
     
-    fn relevance(&mut self, header: &EventEntryExt) -> EventRelevance
+    fn relevance(&self, header: &EventHeader) -> EventRelevance
     {
         let key = match header.meta.get_data_key() {
             Some(key) => key,
@@ -51,10 +62,7 @@ for RemoveDuplicatesCompactor
         };
         match self.already.contains(&key) {
             true => EventRelevance::Drop,
-            false => {
-                self.already.insert(key.clone());
-                EventRelevance::Keep
-            }
+            false => EventRelevance::Keep,
         }
     }
 }
@@ -65,22 +73,32 @@ pub struct TombstoneCompactor
     tombstoned: FxHashSet<PrimaryKey>,
 }
 
+impl EventSink
+for TombstoneCompactor
+{
+    fn feed(&mut self, header: &EventHeader) -> Result<(), SinkError> {
+        if let Some(key) = header.meta.get_tombstone() {
+            self.tombstoned.insert(key.clone());
+        }
+        Ok(())
+    }
+
+    fn reset(&mut self) {
+        self.tombstoned.clear();
+    }
+}
+
 impl EventCompactor
 for TombstoneCompactor
 {
     fn clone_compactor(&self) -> Box<dyn EventCompactor> {
         Box::new(self.clone())
     }
-
-    fn reset(&mut self) {
-        self.tombstoned.clear();
-    }
     
-    fn relevance(&mut self, header: &EventEntryExt) -> EventRelevance
+    fn relevance(&self, header: &EventHeader) -> EventRelevance
     {
         match header.meta.get_tombstone() {
-            Some(key) => {
-                self.tombstoned.insert(key.clone());
+            Some(_) => {
                 return EventRelevance::ForceDrop;
             },
             None =>
@@ -135,17 +153,21 @@ pub struct IndecisiveCompactor
 {
 }
 
+impl EventSink
+for IndecisiveCompactor
+{
+    fn reset(&mut self) {
+    }
+}
+
 impl EventCompactor
 for IndecisiveCompactor
 {
     fn clone_compactor(&self) -> Box<dyn EventCompactor> {
         Box::new(self.clone())
     }
-
-    fn reset(&mut self) {
-    }
     
-    fn relevance(&mut self, _: &EventEntryExt) -> EventRelevance
+    fn relevance(&self, _: &EventHeader) -> EventRelevance
     {
         EventRelevance::Abstain
     }

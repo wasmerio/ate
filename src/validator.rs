@@ -2,46 +2,19 @@ use super::meta::*;
 use super::crypto::*;
 use super::event::*;
 use super::signature::MetaSignature;
-use super::crypto::Hash;
 use super::error::*;
 
 #[derive(Debug)]
 pub enum ValidationResult {
+    Deny,
     Allow,
     #[allow(dead_code)]
     Abstain,
 }
 
-pub struct ValidationData<'a>
-{
-    pub meta_hash: Hash,
-    pub meta: &'a Metadata,
-    pub data_hash: Option<Hash>,
-}
-
-impl<'a> ValidationData<'a>
-{
-    pub fn from_event_entry(evt: &'a EventEntryExt) -> ValidationData<'a> {
-        ValidationData {
-            meta_hash: evt.meta_hash,
-            meta: &evt.meta,
-            data_hash: evt.data_hash.clone(),
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn from_event(evt: &'a EventRawPlus) -> ValidationData<'a> {
-        ValidationData {
-            meta_hash: evt.meta_hash.clone(),
-            meta: &evt.inner.meta,
-            data_hash: evt.inner.data_hash.clone(),
-        }
-    }
-}
-
 pub trait EventValidator: Send + Sync
 {
-    fn validate(&self, _validation_data: &ValidationData) -> Result<ValidationResult, ValidationError> {
+    fn validate(&self, _header: &EventHeader) -> Result<ValidationResult, ValidationError> {
         Ok(ValidationResult::Abstain)
     }
 
@@ -60,7 +33,7 @@ for RubberStampValidator
     }
 
     #[allow(unused_variables)]
-    fn validate(&self, _validation_data: &ValidationData) -> Result<ValidationResult, ValidationError>
+    fn validate(&self, _header: &EventHeader) -> Result<ValidationResult, ValidationError>
     {
         Ok(ValidationResult::Allow)
     }
@@ -90,7 +63,7 @@ for StaticSignatureValidator
     }
     
     #[allow(unused_variables)]
-    fn validate(&self, _validation_data: &ValidationData) -> Result<ValidationResult, ValidationError>
+    fn validate(&self, _header: &EventHeader) -> Result<ValidationResult, ValidationError>
     {
         Ok(ValidationResult::Allow)
     }

@@ -16,7 +16,7 @@ pub trait EventDataTransformer: Send + Sync
     }
 
     /// Callback before data in an event is actually used by an actual user
-    fn data_as_overlay(&self, _meta: &mut Metadata, with: Bytes, _session: &Session) -> Result<Bytes, TransformError> {
+    fn data_as_overlay(&self, _meta: &Metadata, with: Bytes, _session: &Session) -> Result<Bytes, TransformError> {
         Ok(with)
     }
 
@@ -44,7 +44,7 @@ for CompressorWithSnapTransformer
     }
 
     #[allow(unused_variables)]
-    fn data_as_overlay(&self, meta: &mut Metadata, with: Bytes, _session: &Session) -> Result<Bytes, TransformError> {
+    fn data_as_overlay(&self, meta: &Metadata, with: Bytes, _session: &Session) -> Result<Bytes, TransformError> {
         let mut reader = FrameDecoder::new(with.reader());
         let mut decompressed = Vec::new();
         std::io::copy(&mut reader, &mut decompressed)?;
@@ -84,7 +84,7 @@ for StaticEncryptionTransformer
     }
 
     #[allow(unused_variables)]
-    fn data_as_overlay(&self, meta: &mut Metadata, with: Bytes, _session: &Session) -> Result<Bytes, TransformError>
+    fn data_as_overlay(&self, meta: &Metadata, with: Bytes, _session: &Session) -> Result<Bytes, TransformError>
     {
         let iv = meta.get_iv()?;
         let decrypted = self.key.decrypt(&iv, &with[..])?;

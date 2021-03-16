@@ -97,6 +97,7 @@ for TransformError {
 pub enum CompactError {
     SinkError(SinkError),
     IO(tokio::io::Error),
+    LoadError(LoadError),
     SerializationError(SerializationError),
 }
 
@@ -111,6 +112,13 @@ impl From<SinkError>
 for CompactError {
     fn from(err: SinkError) -> CompactError {
         CompactError::SinkError(err)
+    }
+}
+
+impl From<LoadError>
+for CompactError {
+    fn from(err: LoadError) -> CompactError {
+        CompactError::LoadError(err)
     }
 }
 
@@ -133,6 +141,9 @@ for CompactError {
             },
             CompactError::SinkError(err) => {
                 write!(f, "Failed to compact the chain due to an error in the sink - {}", err)
+            },
+            CompactError::LoadError(err) => {
+                write!(f, "Failed to compact the chain due to an error loaded on event - {}", err)
             },
         }
     }
@@ -169,6 +180,7 @@ pub enum SerializationError
 {
     NoPrimarykey,
     NoData,
+    IO(tokio::io::Error),
     EncodeError(RmpEncodeError),
     DecodeError(RmpDecodeError),
     JsonError(JsonError),
@@ -181,6 +193,14 @@ for SerializationError {
     fn from(err: RmpEncodeError) -> SerializationError {
         SerializationError::EncodeError(err)
     }
+}
+
+impl From<tokio::io::Error>
+for SerializationError
+{
+    fn from(err: tokio::io::Error) -> SerializationError {
+        SerializationError::IO(err)
+    }   
 }
 
 impl From<RmpDecodeError>
@@ -207,6 +227,9 @@ for SerializationError {
             SerializationError::NoData => {
                 write!(f, "Data object has no actual data")
             },
+            SerializationError::IO(err) => {
+                write!(f, "IO error during serialization - {}", err)
+            },
             SerializationError::EncodeError(err) => {
                 write!(f, "MessagePack encoding error - {}", err)
             },
@@ -227,6 +250,8 @@ for SerializationError {
 pub enum LoadError {
     NotFound(PrimaryKey),
     NoPrimaryKey,
+    VersionMismatch,
+    NotFoundByHash(Hash),
     ObjectStillLocked(PrimaryKey),
     AlreadyDeleted(PrimaryKey),
     Tombstoned(PrimaryKey),
@@ -261,6 +286,20 @@ for LoadError
     }   
 }
 
+impl From<RmpEncodeError>
+for LoadError {
+    fn from(err: RmpEncodeError) -> LoadError {
+        LoadError::SerializationError(SerializationError::EncodeError(err))
+    }
+}
+
+impl From<RmpDecodeError>
+for LoadError {
+    fn from(err: RmpDecodeError) -> LoadError {
+        LoadError::SerializationError(SerializationError::DecodeError(err))
+    }
+}
+
 impl std::fmt::Display
 for LoadError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -268,6 +307,12 @@ for LoadError {
             LoadError::NotFound(key) => {
                 write!(f, "Data object with key ({}) could not be found", key.as_hex_string())
             },
+            LoadError::NotFoundByHash(hash) => {
+                write!(f, "Data object with hash ({}) could not be found", hash.to_string())
+            },
+            LoadError::VersionMismatch => {
+                write!(f, "Entry has an invalid version for this log file")
+            }
             LoadError::NoPrimaryKey => {
                 write!(f, "Entry has no primary could and hence could not be loaded")
             },
@@ -472,6 +517,7 @@ for LintError {
 
 #[derive(Debug)]
 pub enum ValidationError {
+    Denied,
     AllAbstained,
     Detached,
     NoSignatures,
@@ -492,6 +538,9 @@ for ValidationError {
         match self {
             ValidationError::AllAbstained => {
                 write!(f, "None of the validators approved this data object event")
+            },
+            ValidationError::Denied => {
+                write!(f, "The data was rejected by one of the validators")
             },
             ValidationError::Detached => {
                 write!(f, "The data object event is detached from the chain of trust")
@@ -709,6 +758,7 @@ pub enum CommsError
     IO(std::io::Error),
     NoReplyChannel,
     Disconnected,
+    ValidationError(ValidationError),
     #[allow(dead_code)]
     JoinError(JoinError),
     LoadError(LoadError),
@@ -816,7 +866,10 @@ impl From<CommitError>
 for CommsError
 {
     fn from(err: CommitError) -> CommsError {
-        CommsError::InternalError(err.to_string())
+        match err {
+            CommitError::ValidationError(err) => CommsError::ValidationError(err),
+            err => CommsError::InternalError(err.to_string()),
+        }
     }   
 }
 
@@ -841,6 +894,9 @@ for CommsError {
             },
             CommsError::NoReplyChannel => {
                 write!(f, "Message has no reply channel attached to it")
+            },
+            CommsError::ValidationError(err) => {
+                write!(f, "Message contained event data that failed validation {}", err)
             },
             CommsError::Disconnected => {
                 write!(f, "Channel has been disconnected")
