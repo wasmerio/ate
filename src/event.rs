@@ -18,6 +18,14 @@ pub struct EventHeaderRaw
     pub event_hash: super::crypto::Hash,
 }
 
+impl std::hash::Hash
+for EventHeaderRaw
+{
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.event_hash.hash(state);
+    }
+}
+
 impl EventHeaderRaw
 {
     pub(crate) fn new(meta_hash: super::crypto::Hash, meta_bytes: Bytes, data_hash: Option<super::crypto::Hash>) -> EventHeaderRaw
@@ -88,7 +96,10 @@ impl EventData
     }
 
     pub(crate) fn as_header(&self) -> Result<EventHeader, SerializationError> {
-        Ok(self.as_header_raw()?.as_header()?)
+        Ok(EventHeader {
+            raw: self.as_header_raw()?,
+            meta: self.meta.clone(),
+        })
     }
 
     #[allow(dead_code)]

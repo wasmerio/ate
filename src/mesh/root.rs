@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use serde::{Serialize, Deserialize};
 use log::{warn};
-use std::{net::{IpAddr, Ipv6Addr}, ops::Deref};
+use std::{borrow::Borrow, net::{IpAddr, Ipv6Addr}, ops::Deref};
 use tokio::sync::{Mutex};
 use parking_lot::Mutex as StdMutex;
 use std::{sync::Arc, collections::hash_map::Entry};
@@ -101,8 +101,8 @@ impl MeshRoot
             }
         );
 
-        let listen = Node::new(&node_cfg).await;
-        tokio::spawn(MeshRoot::inbox(Arc::clone(&ret), listen.inbox, listen.node));
+        let (listen_tx, listen_rx) = crate::comms::connect(&node_cfg).await;
+        tokio::spawn(MeshRoot::inbox(Arc::clone(&ret), listen_rx, listen_tx));
 
         ret
     }
@@ -127,37 +127,69 @@ impl MeshRoot
         Ok(())
     }
 
-    async fn inbox_packet(self: &Arc<MeshRoot>, pck: PacketWithContext<Message, SessionContext>, node: &Node<SessionContext>)
-        -> Result<(), CommsError>
+    async fn inbox_subscribe(
+        self: &Arc<MeshRoot>,
+        chain_key: ChainKey,
+        history_sample: Vec<crate::crypto::Hash>,
+        reply_at: Option<&mpsc::Sender<PacketData>>,
+        context: Arc<SessionContext>,
+    )
+    -> Result<(), CommsError>
     {
-        let context = pck.context.clone();
-        let mut pck = pck.packet;
-
-        let reply_at_owner = pck.reply_here.take();
-        let reply_at = reply_at_owner.as_ref();
-        
-        if let Message::Subscribe(chain_key) = &pck.msg {
-            let chain = match self.open(chain_key.clone()).await {
-                Err(ChainCreationError::NoRootFound) => {
-                    Packet::reply_at(reply_at, Message::NotThisRoot).await?;
-                    return Ok(());
-                }
-                a => a?
-            };
-            chain.flush().await?;
-
-            {
-                let mut guard = context.inside.lock();
-                guard.root = Arc::downgrade(self);
-                guard.chain_key.replace(chain_key.clone());
+        // If we can't find a chain for this subscription then fail and tell the caller
+        let chain = match self.open(chain_key.clone()).await {
+            Err(ChainCreationError::NoRootFound) => {
+                PacketData::reply_at(reply_at, Message::NotThisRoot).await?;
+                return Ok(());
             }
-            
-            let multi = chain.multi().await;
-            Packet::reply_at(reply_at, Message::StartOfHistory).await?;
+            a => a?
+        };
 
+        // Update the context with the latest chain-key
+        {
+            let mut guard = context.inside.lock();
+            guard.root = Arc::downgrade(self);
+            guard.chain_key.replace(chain_key.clone());
+        }
+        
+        // Let the caller know we will be streaming them events
+        let multi = chain.multi().await;
+        PacketData::reply_at(reply_at, Message::StartOfHistory).await?;
+
+        // Find what offset we will start streaming the events back to the caller
+        // (we work backwards from the consumers last known position till we find a match
+        //  otherwise we just start from the front - duplicate records will be deleted anyway)
+        let mut cur = {
+            let guard = multi.inside_async.read().await;
+            match history_sample.iter().filter_map(|t| guard.chain.history_reverse.get(t)).next() {
+                Some(a) => Some(a.clone()),
+                None => guard.chain.history.keys().map(|t| t.clone()).next(),
+            }
+        };
+        
+        // We work in batches of 1000 events releasing the lock between iterations so that the
+        // server has time to process new events
+        while let Some(start) = cur {
+            let mut entries = Vec::new();
+            {
+                let guard = multi.inside_async.read().await;
+                let mut iter = guard.chain.history.range(start..);
+                for _ in 0..1000 {
+                    match iter.next() {
+                        Some((k, v)) => {
+                            cur = Some(k.clone());
+                            entries.push(v.event_hash);
+                        },
+                        None => {
+                            cur = None;
+                            break;
+                        }
+                    }
+                }
+            }
             let mut evts = Vec::new();
-            for evt in multi.inside_async.read().await.chain.history.iter() {
-                let evt = multi.load(evt.event_hash).await?;
+            for entry in entries {
+                let evt = multi.load(entry).await?;
                 let evt = MessageEvent {
                     meta: evt.data.meta.clone(),
                     data_hash: evt.header.data_hash.clone(),
@@ -167,103 +199,164 @@ impl MeshRoot
                     }
                 };
                 evts.push(evt);
-
-                if evts.len() > 100 {
-                    Packet::reply_at(reply_at, Message::Events {
-                        commit: None,
-                        evts
-                    }).await?;
-                    evts = Vec::new();
-                }
             }
-            if evts.len() > 0 {
-                Packet::reply_at(reply_at, Message::Events {
-                    commit: None,
-                    evts
-                }).await?;
-            }
-            Packet::reply_at(reply_at, Message::EndOfHistory).await?;
+            PacketData::reply_at(reply_at, Message::Events {
+                commit: None,
+                evts
+            }).await?;
         }
 
+        // Let caller know we have sent all the events that were requested
+        PacketData::reply_at(reply_at, Message::EndOfHistory).await?;
+        Ok(())
+    }
+
+    async fn inbox_get_chain(
+        self: &Arc<MeshRoot>,
+        reply_at: Option<&mpsc::Sender<PacketData>>,
+        context: Arc<SessionContext>,
+    )
+    -> Result<Option<Arc<Chain>>, CommsError>
+    {
         let chain_key = context.inside.lock().chain_key.clone();
         let chain_key = match chain_key {
             Some(k) => k,
             None => {
-                Packet::reply_at(reply_at, Message::NotYetSubscribed).await?;
-                return Ok(());
+                PacketData::reply_at(reply_at, Message::NotYetSubscribed).await?;
+                return Ok(None);
             }
         };
-        let chain = match self.open(chain_key.clone()).await {
-            Err(ChainCreationError::NoRootFound) => {
-                Packet::reply_at(reply_at, Message::NotThisRoot).await?;
-                return Ok(());
+        Ok(Some(
+            match self.open(chain_key.clone()).await {
+                Err(ChainCreationError::NoRootFound) => {
+                    PacketData::reply_at(reply_at, Message::NotThisRoot).await?;
+                    return Ok(None);
+                },
+                a => a?
+            }
+        ))
+    }
+
+    async fn inbox_event(
+        self: &Arc<MeshRoot>,
+        reply_at: Option<&mpsc::Sender<PacketData>>,
+        context: Arc<SessionContext>,
+        commit: Option<u64>,
+        evts: Vec<MessageEvent>,
+        tx: &NodeTx<SessionContext>,
+        pck_data: PacketData,
+    )
+    -> Result<(), CommsError>
+    {
+        let chain = match Self::inbox_get_chain(self, reply_at, context).await? {
+            Some(a) => a,
+            None => { return Ok(()); }
+        };
+        let commit = commit.clone();
+        
+        let evts = MessageEvent::convert_from(evts);
+        let mut single = chain.single().await;                    
+        let ret = single.feed_async(&evts).await;
+        drop(single);
+
+        let downcast_err = match &ret {
+            Ok(_) => {
+                let join1 = chain.notify(&evts);
+                let join2 = tx.downcast_packet(pck_data);
+                join1.await;
+                join2.await
             },
-            a => a?
+            Err(err) => Err(CommsError::InternalError(err.to_string()))
         };
 
-        match &pck.msg {
-            Message::Events {
-                commit,
-                evts
-            } => {
-                let commit = commit.clone();
-                
-                let evts = MessageEvent::convert_from(evts);
-                let mut single = chain.single().await;                    
-                let ret = single.feed_async(&evts).await;
-                drop(single);
-
-                let downcast_err = match &ret {
-                    Ok(_) => {
-                        let join1 = chain.notify(&evts);
-                        let join2 = node.downcast_packet(pck.to_packet_data()?);
-                        join1.await;
-                        join2.await
-                    },
-                    Err(err) => Err(CommsError::InternalError(err.to_string()))
-                };
-
-                if let Some(id) = commit {
-                    match &ret {
-                        Ok(_) => Packet::reply_at(reply_at, Message::Confirmed(id.clone())).await?,
-                        Err(err) => Packet::reply_at(reply_at, Message::CommitError{
-                            id: id.clone(),
-                            err: err.to_string(),
-                        }).await?
-                    };
-                }
-
-                downcast_err?;
-            },
-            Message::Lock {
-                key,
-            } => {
-                let is_locked = chain.pipe.try_lock(key.clone()).await?;
-                context.inside.lock().locks.insert(key.clone());
-                Packet::reply_at(reply_at, Message::LockResult {
-                    key: key.clone(),
-                    is_locked
+        if let Some(id) = commit {
+            match &ret {
+                Ok(_) => PacketData::reply_at(reply_at, Message::Confirmed(id.clone())).await?,
+                Err(err) => PacketData::reply_at(reply_at, Message::CommitError{
+                    id: id.clone(),
+                    err: err.to_string(),
                 }).await?
-            },
-            Message::Unlock {
-                key,
-            } => {
-                context.inside.lock().locks.remove(key);
-                chain.pipe.unlock(key.clone()).await?;
-            }
-            _ => { }
+            };
+        }
+
+        Ok(downcast_err?)
+    }
+
+    async fn inbox_lock(
+        self: &Arc<MeshRoot>,
+        reply_at: Option<&mpsc::Sender<PacketData>>,
+        context: Arc<SessionContext>,
+        key: PrimaryKey,
+    )
+    -> Result<(), CommsError>
+    {
+        let chain = match Self::inbox_get_chain(self, reply_at, Arc::clone(&context)).await? {
+            Some(a) => a,
+            None => { return Ok(()); }
         };
+
+        let is_locked = chain.pipe.try_lock(key.clone()).await?;
+        context.inside.lock().locks.insert(key.clone());
+        
+        PacketData::reply_at(reply_at, Message::LockResult {
+            key: key.clone(),
+            is_locked
+        }).await
+    }
+
+    async fn inbox_unlock(
+        self: &Arc<MeshRoot>,
+        reply_at: Option<&mpsc::Sender<PacketData>>,
+        context: Arc<SessionContext>,
+        key: PrimaryKey,
+    )
+    -> Result<(), CommsError>
+    {
+        let chain = match Self::inbox_get_chain(self, reply_at, Arc::clone(&context)).await? {
+            Some(a) => a,
+            None => { return Ok(()); }
+        };
+        
+        context.inside.lock().locks.remove(&key);
+        chain.pipe.unlock(key).await?;
         Ok(())
+    }
+
+    async fn inbox_packet(
+        self: &Arc<MeshRoot>,
+        pck: PacketWithContext<Message, SessionContext>,
+        tx: &NodeTx<SessionContext>
+    )
+    -> Result<(), CommsError>
+    {
+        let context = pck.context.clone();
+        let mut pck_data = pck.data;
+        let pck = pck.packet;
+
+        let reply_at_owner = pck_data.reply_here.take();
+        let reply_at = reply_at_owner.as_ref();
+        
+        match pck.msg {
+            Message::Subscribe { chain_key, history_sample }
+                => Self::inbox_subscribe(self, chain_key, history_sample, reply_at, context).await,
+            Message::Events { commit, evts }
+                => Self::inbox_event(self, reply_at, context, commit, evts, tx, pck_data).await,
+            Message::Lock { key }
+                => Self::inbox_lock(self, reply_at, context, key).await,
+            Message::Unlock { key }
+                => Self::inbox_unlock(self, reply_at, context, key).await,
+            _ => Ok(())
+        }
     }
 
     async fn inbox(
         self: Arc<MeshRoot>,
-        mut inbox: mpsc::Receiver<PacketWithContext<Message, SessionContext>>,
-        node: Node<SessionContext>
+        mut rx: NodeRx<Message, SessionContext>,
+        tx: NodeTx<SessionContext>
     ) -> Result<(), CommsError>
     {
-        while let Some(pck) = inbox.recv().await {
-            match MeshRoot::inbox_packet(&self, pck, &node).await {
+        while let Some(pck) = rx.recv().await {
+            match MeshRoot::inbox_packet(&self, pck, &tx).await {
                 Ok(_) => { },
                 Err(err) => {
                     debug_assert!(false, "mesh-root-err {:?}", err);

@@ -1,6 +1,6 @@
 [package]
 name = "ate"
-version = "0.1.6"
+version = "0.1.7"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "Distributed immutable data store with strong encryption and authentication"
@@ -43,6 +43,7 @@ pnet = "0.27.2"
 log = "0.4.14"
 cached = "0.23.0"
 parking_lot = "0.11.1"
+hashlink = "0.6.0"
 
 [dev-dependencies]
 ctor = "0.1.19"

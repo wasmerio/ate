@@ -30,6 +30,7 @@ use super::event::*;
 use super::index::*;
 #[allow(unused_imports)]
 use super::lint::*;
+use std::collections::BTreeMap;
 #[allow(unused_imports)]
 use std::sync::Arc;
 #[allow(unused_imports)]
@@ -45,6 +46,7 @@ use bytes::Bytes;
 use super::event::*;
 #[allow(unused_imports)]
 use super::crypto::Hash;
+use fxhash::FxHashMap;
 
 #[allow(dead_code)]
 #[derive(Serialize, Deserialize, Debug, Clone, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -111,8 +113,10 @@ pub(crate) struct ChainOfTrust
 {
     pub(super) key: ChainKey,
     pub(super) redo: RedoLog,
+    pub(super) history_offset: u64,
+    pub(super) history_reverse: FxHashMap<Hash, u64>,
+    pub(super) history: BTreeMap<u64, EventHeaderRaw>,
     pub(super) configured_for: ConfiguredFor,
-    pub(super) history: Vec<EventHeaderRaw>,
     pub(super) pointers: BinaryTreeIndexer,
     pub(super) compactors: Vec<Box<dyn EventCompactor>>,
 }
@@ -168,6 +172,13 @@ impl<'a> ChainOfTrust
     #[allow(dead_code)]
     pub(super) fn is_open(&self) -> bool {
         self.redo.is_open()
+    }
+
+    pub(crate) fn add_history(&mut self, header: EventHeaderRaw) {
+        let offset = self.history_offset;
+        self.history_offset = self.history_offset + 1;
+        self.history_reverse.insert(header.event_hash.clone(), offset);
+        self.history.insert(offset, header);
     }
 }
 

@@ -1,6 +1,8 @@
 use async_trait::async_trait;
 use multimap::MultiMap;
 
+use crate::crypto::Hash;
+
 use super::compact::*;
 use super::plugin::*;
 use super::error::*;
@@ -18,7 +20,7 @@ use tokio::runtime::Runtime;
 #[allow(unused_imports)]
 use std::sync::{Arc, Weak};
 use parking_lot::Mutex as StdMutex;
-use fxhash::FxHashSet;
+use fxhash::{FxHashMap, FxHashSet};
 use tokio::sync::RwLock;
 use parking_lot::RwLock as StdRwLock;
 use parking_lot::RwLockWriteGuard as StdRwLockWriteGuard;
@@ -38,6 +40,7 @@ use super::lint::*;
 use super::transform::*;
 use super::header::PrimaryKey;
 use super::meta::MetaCollection;
+use std::collections::BTreeMap;
 
 struct InboxPipe
 {
@@ -99,7 +102,7 @@ impl ChainProtectedAsync
             }
 
             self.chain.pointers.feed(&header);
-            self.chain.history.push(header.raw);
+            self.chain.add_history(header.raw);
         }
 
         ret.as_result()
@@ -134,7 +137,7 @@ impl ChainProtectedAsync
                 .write(evt).await?;
 
             self.chain.pointers.feed(&header);
-            self.chain.history.push(header.raw.clone());
+            self.chain.add_history(header.raw.clone());
             ret.push(header);
         }
         Ok(ret)
@@ -226,7 +229,9 @@ impl<'a> Chain
             key: key.clone(),
             redo: redo_log,
             configured_for: builder.configured_for,
-            history: Vec::new(),
+            history_offset: 0,
+            history_reverse: FxHashMap::default(),
+            history: BTreeMap::new(),
             pointers: BinaryTreeIndexer::default(),
             compactors: builder.compactors,
         };
@@ -301,7 +306,8 @@ impl<'a> Chain
         // prepare
         let mut new_pointers = BinaryTreeIndexer::default();
         let mut keepers = Vec::new();
-        let mut new_chain = Vec::new();
+        let mut new_history_reverse = FxHashMap::default();
+        let mut new_history = BTreeMap::new();
         
         // create the flip
         let mut flip = {
@@ -311,6 +317,7 @@ impl<'a> Chain
             ret
         };
 
+        let mut history_offset;
         {
             let multi = self.multi().await;
             let guard_async = multi.inside_async.read().await;
@@ -330,7 +337,8 @@ impl<'a> Chain
             }
 
             // build a list of the events that are actually relevant to a compacted log
-            for entry in guard_async.chain.history.iter().rev()
+            history_offset = guard_async.chain.history_offset;
+            for (_, entry) in guard_async.chain.history.iter().rev()
             {
                 let header = entry.as_header()?;
                 
@@ -356,34 +364,47 @@ impl<'a> Chain
                     _ => false
                 };
                 if keep == true {
-                    keepers.push(entry);
-                    new_pointers.feed(&header);
+                    keepers.push(header);
                 }
             }
 
             // write the events out only loading the ones that are actually needed
-            for entry in keepers.into_iter().rev() {
-                flip.event_summary.push(entry.clone());
-                flip.copy_event(&guard_async.chain.redo, &entry.event_hash).await?;
-                new_chain.push(entry.clone());
+            for header in keepers.into_iter().rev() {
+                new_pointers.feed(&header);
+                flip.event_summary.push(header.raw.clone());
+                flip.copy_event(&guard_async.chain.redo, &header.raw.event_hash).await?;
+                new_history_reverse.insert(header.raw.event_hash.clone(), history_offset);
+                new_history.insert(history_offset, header.raw.clone());
+                history_offset = history_offset + 1;
             }
         }
 
+        // Opening this lock will prevent writes while we are flipping
         let mut single = self.single().await;
+
+        // finish the flips
+        let new_events = single.inside_async.chain.redo.finish_flip(flip, |h| {
+            new_pointers.feed(h);
+            new_history_reverse.insert(h.raw.event_hash.clone(), history_offset);
+            new_history.insert(history_offset, h.raw.clone());
+            history_offset = history_offset + 1;
+        })
+        .await?;
 
         // complete the transaction under another lock
         {
             let mut lock = single.inside_sync.write();
-
-            // finish the flips
-            let new_events = single.inside_async.chain.redo.finish_flip(flip).await?;
             let new_events= new_events
                 .into_iter()
                 .map(|e| e.as_header())
                 .collect::<Result<Vec<_>,_>>()?;
 
-            single.inside_async.chain.pointers = new_pointers;
-            single.inside_async.chain.history = new_chain;
+            // Flip all the indexes
+            let chain = &mut single.inside_async.chain;
+            chain.pointers = new_pointers;
+            chain.history_offset = history_offset;
+            chain.history_reverse = new_history_reverse;
+            chain.history = new_history;
 
             for indexer in lock.indexers.iter_mut() {
                 indexer.rebuild(&new_events)?;
@@ -462,6 +483,23 @@ impl<'a> Chain
             }
         }
         tokio::task::yield_now().await;
+    }
+
+    pub(crate) async fn get_ending_sample(&self) -> Vec<Hash> {
+        let guard = self.inside_async.read().await;
+        let mut sample = Vec::new();
+
+        let mut iter = guard.chain.history.iter().rev();
+        let mut stride = 1;
+        while let Some((_, v)) = iter.next() {
+            sample.push(v.event_hash.clone());
+            for _ in 1..stride {
+                iter.next();
+            }
+            stride = stride * 2;
+        }
+
+        sample
     }
 }
 

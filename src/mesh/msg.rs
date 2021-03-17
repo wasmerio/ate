@@ -42,14 +42,14 @@ impl MessageEvent
         feed_me
     }
 
-    pub(crate) fn convert_from(evts: &Vec<MessageEvent>) -> Vec<EventData>
+    pub(crate) fn convert_from(evts: Vec<MessageEvent>) -> Vec<EventData>
     {
         let mut feed_me = Vec::new();
-        for evt in evts.iter() {
+        for evt in evts.into_iter() {
             let evt = EventData {
                 meta: evt.meta.clone(),
-                data_bytes: match &evt.data {
-                    Some(d) => Some(Bytes::from(d.clone())),
+                data_bytes: match evt.data {
+                    Some(d) => Some(Bytes::from(d)),
                     None => None,
                 },
             };
@@ -65,7 +65,10 @@ pub(super) enum Message {
     Connected,
     Disconnected,
     
-    Subscribe(ChainKey),
+    Subscribe {
+        history_sample: Vec<Hash>,
+        chain_key: ChainKey
+    },
     
     NotYetSubscribed,
     NotFound,

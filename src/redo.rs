@@ -624,7 +624,7 @@ impl RedoLog
         }
     }
 
-    pub(crate) async fn finish_flip(&mut self, mut flip: FlippedLogFile) -> std::result::Result<Vec<EventHeaderRaw>, SerializationError>
+    pub(crate) async fn finish_flip(&mut self, mut flip: FlippedLogFile, mut deferred_write_callback: impl FnMut(&mut EventHeader)) -> std::result::Result<Vec<EventHeaderRaw>, SerializationError>
     {
         match &mut self.flip
         {
@@ -634,7 +634,10 @@ impl RedoLog
                 let mut new_log_file = flip.copy_log_file().await?;
 
                 for d in inside.deferred.drain(..) {
-                    event_summary.push(d.as_header_raw()?);
+                    let mut header = d.as_header()?;
+                    deferred_write_callback(&mut header);
+
+                    event_summary.push(header.raw);
                     let _ = new_log_file.write(&d).await?;
                 }
                 
@@ -856,7 +859,7 @@ fn test_redo_log() {
             
             // End the flip operation
             println!("test_redo_log - finishing the flip operation");
-            rl.finish_flip(flip).await.expect("Failed to end the flip operation");
+            rl.finish_flip(flip, |_| {}).await.expect("Failed to end the flip operation");
             assert_eq!(3, rl.count());
 
             // Write some more data
