@@ -1,3 +1,5 @@
+use log::{error, info};
+
 extern crate tokio;
 extern crate fxhash;
 
@@ -36,6 +38,8 @@ use parking_lot::Mutex as MutexSync;
 
 #[cfg(test)]
 use tokio::runtime::Runtime;
+
+static MAGIC: &'static [u8; 4] = &[65, 116, 101, 33];
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
@@ -165,10 +169,76 @@ impl LogFile {
     async fn read_all(&mut self, to: &mut VecDeque<LoadResult>) -> std::result::Result<(), SerializationError> {
         self.check_open()?;
 
-        while let Some(head) = self.read_once_internal().await? {
-            to.push_back(head);
+        let mut slow_read = false;
+        loop {
+            match self.read_magic(slow_read).await {
+                Ok(true) => {
+                    match self.read_once_internal().await {
+                        Ok(Some(head)) => {
+                            slow_read = false;
+                            to.push_back(head)
+                        },
+                        Ok(None) => { continue; }
+                        Err(err) => {
+                            error!("log-read-error: {}", err.to_string());
+                            continue;
+                        }
+                    }
+                },
+                Ok(false) => break,
+                Err(err) => {
+                    if slow_read == false {
+                        slow_read = true;
+                        error!("log-read-error: {}", err.to_string());
+                    }
+                    continue;
+                }
+            };
         }
         Ok(())
+    }
+
+    async fn read_magic(&mut self, slow_read: bool) -> std::result::Result<bool, SerializationError>
+    {
+        // If we are the slow path then do it slowky
+        if slow_read {
+            for n in 0..4 {
+                match self.log_stream.read_u8().await {
+                    Ok(a) if a == MAGIC[n] => {
+                        self.log_off = self.log_off + 1;
+                    },
+                    Ok(_) => {
+                        self.log_off = self.log_off + 1;
+                        return Err(SerializationError::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the event magic number at {}", self.log_off))));
+                    }
+                    Err(err) if err.kind() == ErrorKind::UnexpectedEof => { return Ok(false); },
+                    _ => {
+                        return Err(SerializationError::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the event magic number at {}", self.log_off))));
+                    }
+                }
+            }
+            return Ok(true);
+        }
+
+        // Read the magic number
+        let mut magic = [0 as u8; 4];
+        let size_magic = match self.log_stream.read(&mut magic).await {
+            Result::Ok(s) => s,
+            Result::Err(err) => {
+                if err.kind() == ErrorKind::UnexpectedEof {
+                    return Ok(false);
+                }
+                return Err(SerializationError::IO(err))
+            }
+        } as usize;
+        self.log_off = self.log_off + size_magic as u64;
+
+        if size_magic <= 0 { return Ok(false); }
+        if size_magic != 4 || magic != *MAGIC {
+            return Err(SerializationError::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the event magic number"))));
+        }
+
+        Ok(true)
     }
 
     async fn read_once_internal(&mut self) -> std::result::Result<Option<LoadResult>, SerializationError>
@@ -184,8 +254,11 @@ impl LogFile {
             }
         } as usize;
 
+        let offset = self.log_off;
+
         let mut buff_meta = BytesMut::with_capacity(size_meta);
         let read = self.log_stream.read_buf(&mut buff_meta).await?;
+        self.log_off = self.log_off + read as u64;
         if read != size_meta {
             return Err(SerializationError::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the metadata of the event from the log file ({} bytes vs {} bytes)", read, size_meta))));
         }
@@ -198,6 +271,7 @@ impl LogFile {
             _ if size_body > 0 => {
                 let mut body = BytesMut::with_capacity(size_body);
                 let read = self.log_stream.read_buf(&mut body).await?;
+                self.log_off = self.log_off + read as u64;
                 if read != size_body {
                     return Err(SerializationError::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the main body of the event from the log file ({} bytes vs {} bytes)", read, size_body))));
                 }
@@ -208,14 +282,11 @@ impl LogFile {
             },
             _ => None
         };
-        
+
         // Insert it into the log index
         let size = size_of::<u32>() as u64 + size_meta as u64 + size_of::<u32>() as u64 + size_body as u64;
-        let pointer = LogFilePointer { version: self.version, offset: self.log_off, size: size as u32 };
+        let pointer = LogFilePointer { version: self.version, offset: offset, size: size as u32 };
         self.log_count = self.log_count + 1;
-
-        // Compute the new offset
-        self.log_off = self.log_off + size;
 
         // Deserialize the meta bytes into a metadata object
         let meta = rmps::from_read_ref(&buff_meta)?;
@@ -252,6 +323,9 @@ impl LogFile {
             Some(a) => a.len() as u32,
             None => 0 as u32,
         };
+        
+        // Write the magic
+        self.log_stream.write(MAGIC).await?;
 
         // Write the data to the log stream
         self.log_stream.write(&meta_len.to_be_bytes()).await?;
@@ -300,6 +374,9 @@ impl LogFile {
             Some(a) => a.len() as u32,
             None => 0 as u32,
         };
+
+        // Write the magic
+        self.log_stream.write(MAGIC).await?;
 
         // Write the data to the log stream
         self.log_stream.write(&meta_len.to_be_bytes()).await?;
@@ -587,6 +664,8 @@ impl RedoLog
 
         let mut loader = RedoLogLoader::default();
         ret.log_file.read_all(&mut loader.entries).await?;
+
+        info!("redo-log: loaded {} events", loader.entries.len());
 
         Ok((ret, loader))
     }
