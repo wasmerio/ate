@@ -1,8 +1,5 @@
 use log::{error, info};
 
-extern crate tokio;
-extern crate fxhash;
-
 use crate::{crypto::Hash};
 
 use super::conf::*;
@@ -413,22 +410,31 @@ impl LogFile {
 
         // Write the magic
         self.log_stream.write(MAGIC).await?;
+        self.log_off = self.log_off + 4 as u64;
 
         // Write the data to the log stream
+        let offset = self.log_off;
+        
         self.log_stream.write(&meta_len.to_be_bytes()).await?;
+        self.log_off = self.log_off + size_of::<u32>() as u64;
+
         self.log_stream.write_all(&result.header.meta_bytes[..]).await?;
+        self.log_off = self.log_off + meta_len as u64;
+
         self.log_stream.write(&body_len.to_be_bytes()).await?;
+        self.log_off = self.log_off + size_of::<u32>() as u64;
+
         match result.data.data_bytes.as_ref() {
             Some(a) => {
                 self.log_stream.write_all(&a[..]).await?;
+                self.log_off = self.log_off + body_len as u64;
             },
             _ => {}
         }
 
         let size = size_of::<u32>() as u64 + meta_len as u64 + size_of::<u32>() as u64 + body_len as u64;
-        let pointer = LogFilePointer { version: self.version, offset: self.log_off, size: size as u32 };
+        let pointer = LogFilePointer { version: self.version, offset, size: size as u32 };
         self.log_count = self.log_count + 1;
-        self.log_off = self.log_off + size;
 
         // Record the lookup map
         self.lookup.insert(hash.clone(), pointer.clone());

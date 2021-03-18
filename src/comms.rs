@@ -1,4 +1,3 @@
-extern crate tokio;
 extern crate rmp_serde as rmps;
 
 use log::{info, warn};
