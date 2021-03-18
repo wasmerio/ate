@@ -180,9 +180,9 @@ pub struct Hash {
     pub val: [u8; 16]
 }
 
-pub const HASH_ROUTINE:HashRoutine = if cfg!(use_blake3) {
+pub const HASH_ROUTINE:HashRoutine = if cfg!(feature = "use_blake3") {
     HashRoutine::Blake3
-} else if cfg!(use_sha3) {
+} else if cfg!(feature = "use_sha3") {
     HashRoutine::Sha3
 } else {
     HashRoutine::Blake3
@@ -207,7 +207,7 @@ impl Hash {
             HashRoutine::Sha3 => Hash::from_bytes_twice_sha3(input1, input2),
         }
     }
-    fn from_bytes_blake3(input: &[u8]) -> Hash {
+    fn from_bytes_sha3(input: &[u8]) -> Hash {
         let mut hasher = sha3::Keccak384::new();
         hasher.update(input);
         let result = hasher.finalize();
@@ -222,7 +222,7 @@ impl Hash {
             val: result,
         }
     }
-    fn from_bytes_twice_blake3(input1: &[u8], input2: &[u8]) -> Hash {
+    fn from_bytes_twice_sha3(input1: &[u8], input2: &[u8]) -> Hash {
         let mut hasher = sha3::Keccak384::new();
         hasher.update(input1);
         hasher.update(input2);
@@ -238,7 +238,7 @@ impl Hash {
             val: result,
         }
     }
-    fn from_bytes_sha3(input: &[u8]) -> Hash {
+    fn from_bytes_blake3(input: &[u8]) -> Hash {
         let result: [u8; 32] = blake3::hash(input).into();
         let mut ret = Hash {
             val: Default::default(),
@@ -246,7 +246,7 @@ impl Hash {
         ret.val.copy_from_slice(&result[..16]);
         ret
     }
-    fn from_bytes_twice_sha3(input1: &[u8], input2: &[u8]) -> Hash {
+    fn from_bytes_twice_blake3(input1: &[u8], input2: &[u8]) -> Hash {
         let mut hasher = blake3::Hasher::new();
         hasher.update(input1);
         hasher.update(input2);

@@ -2,6 +2,10 @@
 #![allow(unused_variables)]
 #![allow(unused_imports)]
 
+/// You can change the hashing routine with these features
+/// - feature = "use_blake3"
+/// - feature = "use_sha3"
+
 mod test;
 pub mod error;
 pub mod crypto;
