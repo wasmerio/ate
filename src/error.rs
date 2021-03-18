@@ -184,6 +184,7 @@ pub enum SerializationError
     EncodeError(RmpEncodeError),
     DecodeError(RmpDecodeError),
     JsonError(JsonError),
+    BincodeError(bincode::Error),
     #[allow(dead_code)]
     CollectionDetached,
 }
@@ -200,6 +201,14 @@ for SerializationError
 {
     fn from(err: tokio::io::Error) -> SerializationError {
         SerializationError::IO(err)
+    }   
+}
+
+impl From<bincode::Error>
+for SerializationError
+{
+    fn from(err: bincode::Error) -> SerializationError {
+        SerializationError::BincodeError(err)
     }   
 }
 
@@ -238,6 +247,9 @@ for SerializationError {
             },
             SerializationError::JsonError(err) => {
                 write!(f, "JSON serialization error - {}", err)
+            },
+            SerializationError::BincodeError(err) => {
+                write!(f, "Bincode serialization error - {}", err)
             },
             SerializationError::CollectionDetached => {
                 write!(f, "Collection is detached from a parent")

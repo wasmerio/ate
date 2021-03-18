@@ -24,6 +24,7 @@ use sha3::Keccak256;
 #[allow(unused_imports)]
 use sha3::Digest;
 use std::convert::TryInto;
+use crate::conf::HashRoutine;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq)]
 pub enum EncryptKey {
@@ -179,8 +180,65 @@ pub struct Hash {
     pub val: [u8; 16]
 }
 
+pub const HASH_ROUTINE:HashRoutine = if cfg!(use_blake3) {
+    HashRoutine::Blake3
+} else if cfg!(use_sha3) {
+    HashRoutine::Sha3
+} else {
+    HashRoutine::Blake3
+};
+
 impl Hash {
     pub fn from_bytes(input: &[u8]) -> Hash {
+        Self::from_bytes_by_routine(input, HASH_ROUTINE)
+    }
+    pub fn from_bytes_twice(input1: &[u8], input2: &[u8]) -> Hash {
+        Self::from_bytes_twice_by_routine(input1, input2, HASH_ROUTINE)
+    }
+    fn from_bytes_by_routine(input: &[u8], routine: HashRoutine) -> Hash {
+        match routine {
+            HashRoutine::Blake3 => Hash::from_bytes_blake3(input),
+            HashRoutine::Sha3 => Hash::from_bytes_sha3(input),
+        }
+    }
+    fn from_bytes_twice_by_routine(input1: &[u8], input2: &[u8], routine: HashRoutine) -> Hash {
+        match routine {
+            HashRoutine::Blake3 => Hash::from_bytes_twice_blake3(input1, input2),
+            HashRoutine::Sha3 => Hash::from_bytes_twice_sha3(input1, input2),
+        }
+    }
+    fn from_bytes_blake3(input: &[u8]) -> Hash {
+        let mut hasher = sha3::Keccak384::new();
+        hasher.update(input);
+        let result = hasher.finalize();
+        let result: Vec<u8> = result.into_iter()
+            .take(16)
+            .collect();
+        let result: [u8; 16] = result
+            .try_into()
+            .expect("The hash should hit into 16 bytes!");
+
+        Hash {
+            val: result,
+        }
+    }
+    fn from_bytes_twice_blake3(input1: &[u8], input2: &[u8]) -> Hash {
+        let mut hasher = sha3::Keccak384::new();
+        hasher.update(input1);
+        hasher.update(input2);
+        let result = hasher.finalize();
+        let result: Vec<u8> = result.into_iter()
+            .take(16)
+            .collect();
+        let result: [u8; 16] = result
+            .try_into()
+            .expect("The hash should hit into 16 bytes!");
+
+        Hash {
+            val: result,
+        }
+    }
+    fn from_bytes_sha3(input: &[u8]) -> Hash {
         let result: [u8; 32] = blake3::hash(input).into();
         let mut ret = Hash {
             val: Default::default(),
@@ -188,7 +246,7 @@ impl Hash {
         ret.val.copy_from_slice(&result[..16]);
         ret
     }
-    pub fn from_bytes_twice(input1: &[u8], input2: &[u8]) -> Hash {
+    fn from_bytes_twice_sha3(input1: &[u8], input2: &[u8]) -> Hash {
         let mut hasher = blake3::Hasher::new();
         hasher.update(input1);
         hasher.update(input2);
