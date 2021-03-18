@@ -24,7 +24,6 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use parking_lot::Mutex as StdMutex;
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
-use bytes::BytesMut;
 use std::net::SocketAddr;
 use bytes::Bytes;
 
@@ -580,8 +579,8 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
     {
         // Read the next message
         let buf_len = rx.read_u32().await? as usize;
-        let mut buf = BytesMut::with_capacity(buf_len);
-        let n = rx.read_buf(&mut buf).await?;
+        let mut buf = vec![0 as u8; buf_len];
+        let n = rx.read_exact(&mut buf[0..buf_len]).await?;
         if n == 0 { break; }
 
         // Deserialize it
@@ -593,7 +592,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
         // Process it
         let pck = PacketWithContext {
             data: PacketData {
-                bytes: buf.freeze(),
+                bytes: Bytes::from(buf),
                 reply_here: Some(reply_tx.clone()),
                 skip_here: Some(sender),
             },

@@ -26,7 +26,6 @@ use tokio::io::Result;
 use tokio::io::BufStream;
 use tokio::io::Error;
 use tokio::io::ErrorKind;
-use bytes::BytesMut;
 #[allow(unused_imports)]
 use bytes::Bytes;
 use bytes::{Buf};
@@ -256,28 +255,28 @@ impl LogFile {
 
         let offset = self.log_off;
 
-        let mut buff_meta = BytesMut::with_capacity(size_meta);
-        let read = self.log_stream.read_buf(&mut buff_meta).await?;
+        let mut buff_meta = vec![0 as u8; size_meta];
+        let read = self.log_stream.read_exact(&mut buff_meta[..size_meta]).await?;
         self.log_off = self.log_off + read as u64;
         if read != size_meta {
             return Err(SerializationError::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the metadata of the event from the log file ({} bytes vs {} bytes)", read, size_meta))));
         }
-        let buff_meta = buff_meta.freeze();
+        let buff_meta = Bytes::from(buff_meta);
 
         // Read the body and hash the data
         let size_body = self.log_stream.read_u32().await? as usize;
         let mut buff_body = None;
         let body_hash = match size_body {
             _ if size_body > 0 => {
-                let mut body = BytesMut::with_capacity(size_body);
-                let read = self.log_stream.read_buf(&mut body).await?;
+                let mut body = vec![0 as u8; size_body];
+                let read = self.log_stream.read_exact(&mut body[..size_body]).await?;
                 self.log_off = self.log_off + read as u64;
                 if read != size_body {
                     return Err(SerializationError::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the main body of the event from the log file ({} bytes vs {} bytes)", read, size_body))));
                 }
                 let hash = super::crypto::Hash::from_bytes(&body[..]);
 
-                buff_body = Some(body.freeze());
+                buff_body = Some(Bytes::from(body));
                 Some(hash)
             },
             _ => None
@@ -323,27 +322,52 @@ impl LogFile {
             Some(a) => a.len() as u32,
             None => 0 as u32,
         };
+
+        let offset = self.log_off;
         
         // Write the magic
-        self.log_stream.write(MAGIC).await?;
+        let mut wrote;
+        wrote = self.log_stream.write(MAGIC).await?;
+        self.log_off = self.log_off + wrote as u64;
+        if wrote != 4 {
+            return Err(SerializationError::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to write the magic number to the log file ({} bytes vs {} bytes)", wrote, 4))));
+        }
 
         // Write the data to the log stream
-        self.log_stream.write(&meta_len.to_be_bytes()).await?;
-        self.log_stream.write_all(&header.meta_bytes[..]).await?;
-        self.log_stream.write(&body_len.to_be_bytes()).await?;
+        wrote = self.log_stream.write(&meta_len.to_be_bytes()).await?;
+        self.log_off = self.log_off + wrote as u64;
+        if wrote != 4 {
+            return Err(SerializationError::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to write the metadata length to the log file ({} bytes vs {} bytes)", wrote, 4))));
+        }
+
+        wrote = self.log_stream.write(&header.meta_bytes[..]).await?;
+        self.log_off = self.log_off + wrote as u64;
+        if wrote != meta_len as usize {
+            return Err(SerializationError::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to write the metadata to the log file ({} bytes vs {} bytes)", wrote, meta_len))));
+        }
+
+        wrote = self.log_stream.write(&body_len.to_be_bytes()).await?;
+        self.log_off = self.log_off + wrote as u64;
+        if wrote != 4 {
+            return Err(SerializationError::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to write the body length to the log file ({} bytes vs {} bytes)", wrote, 4))));
+        }
+
         match evt.data_bytes.as_ref() {
             Some(a) => {
-                self.log_stream.write_all(&a[..]).await?;
+                wrote = self.log_stream.write(&a[..]).await?;
+                self.log_off = self.log_off + wrote as u64;
+                if wrote != body_len as usize {
+                    return Err(SerializationError::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to write the body to the log file ({} bytes vs {} bytes)", wrote, body_len))));
+                }
             },
             _ => {}
         }
 
         // Build the log pointer and update the offset
         let size = size_of::<u32>() as u64 + meta_len as u64 + size_of::<u32>() as u64 + body_len as u64;
-        let pointer = LogFilePointer { version: self.version, offset: self.log_off, size: size as u32 };
+        let pointer = LogFilePointer { version: self.version, offset: offset, size: size as u32 };
         self.log_count = self.log_count + 1;
-        self.log_off = self.log_off + size;
-
+        
         // Record the lookup map
         self.lookup.insert(header.event_hash, pointer.clone());
 
@@ -447,15 +471,16 @@ impl LogFile {
         }
 
         // First read all the data into a buffer
-        let mut buff = BytesMut::with_capacity(pointer.size as usize);
+        let mut buff = vec![0 as u8; pointer.size as usize];
         let read = {
             let mut lock = self.log_random_access.lock().await;
             lock.seek(SeekFrom::Start(pointer.offset as u64)).await?;
-            lock.read_buf(&mut buff).await?
+            lock.read_exact(&mut buff[..pointer.size as usize]).await?
         };
         if read != pointer.size as usize {
             return Err(LoadError::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the data object event slice from the redo log ({} bytes vs {} bytes)", read, pointer.size))));
         }
+        let mut buff = Bytes::from(buff);
         
         // Read all the data
         let size_meta = buff.get_u32();

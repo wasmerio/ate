@@ -22,12 +22,13 @@ struct Transaction
     from: PrimaryKey,
     to: PrimaryKey,
     description: String,
-    balance: Decimal,
+    amount: Decimal,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct Account
 {
+    name: String,
     transactions: DaoVec<Transaction>,
     balance: Decimal,
 }
@@ -41,9 +42,24 @@ async fn make_account<'a>(chain: &'a Chain, generator: &mut Generator<'a>)
         first_name: generator.next().unwrap(),
         last_name: generator.next().unwrap(),
     };
-    //println!("{:?}", person);
+    let _person = dio.store(person).unwrap();
 
-    dio.store(person).unwrap();
+    let acc = Account {
+        name: "Current Account".to_string(),
+        transactions: DaoVec::default(),
+        balance: Decimal::default(),
+    };
+    let acc = dio.store(acc).unwrap();
+
+    for _ in 0..10 {
+        let trans = Transaction {
+            to: acc.key().clone(),
+            from: PrimaryKey::generate(),
+            description: generator.next().unwrap(),
+            amount: Decimal::from_i64(10).unwrap(),
+        };
+        acc.transactions.push(&mut dio, acc.key(), trans).unwrap();
+    }
 }
 
 #[tokio::main]
@@ -61,9 +77,11 @@ async fn main() -> Result<(), AteError>
 
     // Make a thousand bank accounts
     let mut generator = Generator::default();
-    for _ in 0..1000 {
+    for _ in 0..200 {
         make_account(&chain, &mut generator).await;
     }
+
+    chain.flush().await.unwrap();
 
     Ok(())
 }
