@@ -198,14 +198,14 @@ pub(crate) async fn create_test_chain(chain_name: String, temp: bool, barebone: 
 
     let mut builder = match barebone {
         true => {
-            mock_cfg.configured_for = ConfiguredFor::Barebone;
+            mock_cfg.configured_for(ConfiguredFor::Barebone);
             ChainOfTrustBuilder::new(&mock_cfg)
                 .add_validator(Box::new(RubberStampValidator::default()))
                 .add_data_transformer(Box::new(StaticEncryptionTransformer::new(&EncryptKey::from_string("test".to_string(), KeySize::Bit192))))
                 .add_metadata_linter(Box::new(EventAuthorLinter::default()))
         },
         false => {
-            mock_cfg.configured_for = ConfiguredFor::Balanced;
+            mock_cfg.configured_for(ConfiguredFor::Balanced);
             ChainOfTrustBuilder::new(&mock_cfg)
         }
     };        

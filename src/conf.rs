@@ -70,7 +70,7 @@ pub struct Config
     pub force_client_only: bool,
     pub force_listen: Option<MeshAddress>,
 
-    pub configured_for: ConfiguredFor,
+    configured_for: ConfiguredFor,
 
     pub buffer_size_client: usize,
     pub buffer_size_server: usize,
@@ -79,6 +79,29 @@ pub struct Config
     pub load_cache_ttl: u64,
 
     pub format: MessageFormat,
+}
+
+impl Config
+{
+    pub fn configured_for(&mut self, configured_for: ConfiguredFor)
+    {
+        self.configured_for = configured_for;
+
+        match configured_for {
+            ConfiguredFor::BestPerformance => {
+                self.format.meta = SerializationFormat::Bincode;
+                self.format.data = SerializationFormat::Bincode;
+            },
+            ConfiguredFor::BestCompatibility => {
+                self.format.meta = SerializationFormat::Json;
+                self.format.data = SerializationFormat::Json;
+            },
+            _ => {
+                self.format.meta = SerializationFormat::Bincode;
+                self.format.data = SerializationFormat::Json;
+            }
+        }
+    }
 }
 
 impl Default
@@ -175,6 +198,7 @@ pub enum ConfiguredFor
     Barebone,
     SmallestSize,
     BestPerformance,
+    BestCompatibility,
     Balanced,
     BestSecurity,
 }
