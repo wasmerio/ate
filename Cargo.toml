@@ -1,10 +1,10 @@
 [package]
 name = "ate"
-version = "0.1.9"
+version = "0.1.10"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "Distributed immutable data store with strong encryption and authentication"
-license-file = "LICENSE"
+license = "LGPL-3.0-only"
 keywords = ["immutable", "database", "blockchain", "nosql", "materialized"]
 categories = ["asynchronous", "caching", "cryptography", "database-implementations"]
 repository = "https://github.com/john-sharratt/ate"
