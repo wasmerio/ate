@@ -181,35 +181,23 @@ pub struct Hash {
 
 impl Hash {
     pub fn from_bytes(input: &[u8]) -> Hash {
-        let mut hasher = sha3::Keccak384::new();
-        hasher.update(input);
-        let result = hasher.finalize();
-        let result: Vec<u8> = result.into_iter()
-            .take(16)
-            .collect();
-        let result: [u8; 16] = result
-            .try_into()
-            .expect("The hash should hit into 16 bytes!");
-
-        Hash {
-            val: result,
-        }
+        let result: [u8; 32] = blake3::hash(input).into();
+        let mut ret = Hash {
+            val: Default::default(),
+        };
+        ret.val.copy_from_slice(&result[..16]);
+        ret
     }
     pub fn from_bytes_twice(input1: &[u8], input2: &[u8]) -> Hash {
-        let mut hasher = sha3::Keccak384::new();
+        let mut hasher = blake3::Hasher::new();
         hasher.update(input1);
         hasher.update(input2);
-        let result = hasher.finalize();
-        let result: Vec<u8> = result.into_iter()
-            .take(16)
-            .collect();
-        let result: [u8; 16] = result
-            .try_into()
-            .expect("The hash should hit into 16 bytes!");
-
-        Hash {
-            val: result,
-        }
+        let result: [u8; 32] = hasher.finalize().into();
+        let mut ret = Hash {
+            val: Default::default(),
+        };
+        ret.val.copy_from_slice(&result[..16]);
+        ret
     }
 
     pub fn to_string(&self) -> String {
