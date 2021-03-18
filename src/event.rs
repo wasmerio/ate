@@ -5,8 +5,7 @@ use crate::crypto::{DoubleHash, Hash};
 use super::header::*;
 use super::meta::*;
 use super::error::*;
-
-extern crate rmp_serde as rmps;
+use super::conf::*;
 
 /// Represents the raw bytes that can describe what the event is
 #[derive(Debug, Clone)]
@@ -40,11 +39,11 @@ impl EventHeaderRaw
             data_hash,
         }
     }
-    pub(crate) fn as_header(&self) -> Result<EventHeader, SerializationError> {
+    pub(crate) fn as_header(&self, format: MessageFormat) -> Result<EventHeader, SerializationError> {
         Ok(
             EventHeader {
                 raw: self.clone(),
-                meta: rmps::from_read_ref(&self.meta_bytes)?,
+                meta: format.meta.deserialize(&self.meta_bytes)?,
             }
         )
     }
@@ -82,12 +81,12 @@ impl EventData
         }
     }
 
-    pub(crate) fn as_header_raw(&self) -> Result<EventHeaderRaw, SerializationError> {
+    pub(crate) fn as_header_raw(&self, format: MessageFormat) -> Result<EventHeaderRaw, SerializationError> {
         let data_hash = match &self.data_bytes {
             Some(d) => Some(Hash::from_bytes(&d[..])),
             None => None,
         };
-        let meta_bytes = Bytes::from(rmps::to_vec(&self.meta)?);
+        let meta_bytes = Bytes::from(format.meta.serialize(&self.meta)?);
         let meta_hash = Hash::from_bytes(&meta_bytes[..]);
 
         Ok(
@@ -95,9 +94,9 @@ impl EventData
         )
     }
 
-    pub(crate) fn as_header(&self) -> Result<EventHeader, SerializationError> {
+    pub(crate) fn as_header(&self, format: MessageFormat) -> Result<EventHeader, SerializationError> {
         Ok(EventHeader {
-            raw: self.as_header_raw()?,
+            raw: self.as_header_raw(format)?,
             meta: self.meta.clone(),
         })
     }

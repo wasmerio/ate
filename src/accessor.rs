@@ -67,6 +67,7 @@ pub(crate) struct ChainProtectedSync
     pub(super) transformers: Vec<Box<dyn EventDataTransformer>>,
     pub(super) validators: Vec<Box<dyn EventValidator>>,
     pub(super) listeners: MultiMap<MetaCollection, ChainListener>,
+    pub(super) format: MessageFormat,
 }
 
 pub struct Chain
@@ -75,6 +76,7 @@ pub struct Chain
     pub(super) inside_sync: Arc<StdRwLock<ChainProtectedSync>>,
     pub(super) inside_async: Arc<RwLock<ChainProtectedAsync>>,
     pub(super) pipe: Arc<dyn EventPipe>,
+    pub(crate) format: MessageFormat,
 }
 
 impl ChainProtectedAsync
@@ -117,7 +119,7 @@ impl ChainProtectedAsync
             let mut sync = sync.write();
             for evt in evts.iter()
             {
-                let header = evt.as_header()?;
+                let header = evt.as_header(sync.format)?;
                 sync.validate_event(&header)?;
 
                 for indexer in sync.indexers.iter_mut() {
@@ -222,7 +224,7 @@ impl<'a> Chain
 
         let mut entries = Vec::new();
         while let Some(result) = redo_loader.pop() {
-            entries.push(result.header.as_header()?);
+            entries.push(result.header.as_header(builder.cfg.format)?);
         }
 
         let chain = ChainOfTrust {
@@ -234,6 +236,7 @@ impl<'a> Chain
             history: BTreeMap::new(),
             pointers: BinaryTreeIndexer::default(),
             compactors: builder.compactors,
+            format: builder.cfg.format,
         };
 
         let mut inside_sync = ChainProtectedSync {
@@ -243,6 +246,7 @@ impl<'a> Chain
             validators: builder.validators,
             transformers: builder.transformers,
             listeners: MultiMap::new(),
+            format: builder.cfg.format,
         };
         if let Some(tree) = builder.tree {
             inside_sync.plugins.push(Box::new(tree));
@@ -272,6 +276,7 @@ impl<'a> Chain
                     inbox: sender,
                     locks: StdMutex::new(FxHashSet::default()),
                 }),
+                format: builder.cfg.format,
             }
         )
     }
@@ -340,7 +345,7 @@ impl<'a> Chain
             history_offset = guard_async.chain.history_offset;
             for (_, entry) in guard_async.chain.history.iter().rev()
             {
-                let header = entry.as_header()?;
+                let header = entry.as_header(guard_sync.format)?;
                 
                 let mut is_force_keep = false;
                 let mut is_keep = false;
@@ -396,7 +401,7 @@ impl<'a> Chain
             let mut lock = single.inside_sync.write();
             let new_events= new_events
                 .into_iter()
-                .map(|e| e.as_header())
+                .map(|e| e.as_header(lock.format))
                 .collect::<Result<Vec<_>,_>>()?;
 
             // Flip all the indexes

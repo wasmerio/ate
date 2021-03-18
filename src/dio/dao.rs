@@ -19,6 +19,7 @@ use crate::error::*;
 use crate::crypto::Hash;
 use crate::dio::DioState;
 use crate::dio::Dio;
+use crate::conf::MessageFormat;
 
 pub use super::vec::DaoVec;
 
@@ -27,6 +28,7 @@ pub(super) struct Row<D>
 where D: Serialize + DeserializeOwned + Clone,
 {
     pub(super) key: PrimaryKey,
+    pub(super) format: MessageFormat,
     pub(super) tree: Option<MetaTree>,
     pub(super) data: D,
     pub(super) auth: MetaAuthorization,
@@ -39,6 +41,7 @@ where D: Serialize + DeserializeOwned + Clone,
     #[allow(dead_code)]
     pub(super) fn new(
         key: PrimaryKey,
+        format: MessageFormat,
         data: D,
         auth: MetaAuthorization,
         tree: Option<MetaTree>,
@@ -47,6 +50,7 @@ where D: Serialize + DeserializeOwned + Clone,
     {
         Row {
             key,
+            format,
             tree,
             data,
             auth,
@@ -54,7 +58,7 @@ where D: Serialize + DeserializeOwned + Clone,
         }
     }
 
-    pub(crate) fn from_event(evt: &EventData) -> Result<Row<D>, SerializationError> {
+    pub(crate) fn from_event(evt: &EventData, format: MessageFormat) -> Result<Row<D>, SerializationError> {
         let key = match evt.meta.get_data_key() {
             Some(key) => key,
             None => { return Result::Err(SerializationError::NoPrimarykey) }
@@ -68,8 +72,9 @@ where D: Serialize + DeserializeOwned + Clone,
                 Ok(
                     Row {
                         key,
+                        format,
                         tree: match evt.meta.get_tree() { Some(a) => Some(a.clone()), None => None },
-                        data: serde_json::from_slice(&data)?,
+                        data: format.data.deserialize(&data)?,
                         auth: match evt.meta.get_authorization() {
                             Some(a) => a.clone(),
                             None => MetaAuthorization::default(),
@@ -86,8 +91,9 @@ where D: Serialize + DeserializeOwned + Clone,
         Ok(
             Row {
                 key: row.key,
+                format: row.format,
                 tree: row.tree.clone(),
-                data: serde_json::from_slice(&row.data)?,
+                data: row.format.data.deserialize(&row.data)?,
                 auth: row.auth.clone(),
                 collections: row.collections.clone(),
             }
@@ -95,13 +101,14 @@ where D: Serialize + DeserializeOwned + Clone,
     }
 
     pub(crate) fn as_row_data(&self) -> std::result::Result<RowData, SerializationError> {
-        let data = Bytes::from(serde_json::to_vec(&self.data)?);
+        let data = Bytes::from(self.format.data.serialize(&self.data)?);
             
         let data_hash = Hash::from_bytes(&data[..]);
         Ok
         (
             RowData {
                 key: self.key.clone(),
+                format: self.format,
                 tree: self.tree.clone(),
                 data_hash,
                 data,
@@ -116,6 +123,7 @@ where D: Serialize + DeserializeOwned + Clone,
 pub(crate) struct RowData
 {
     pub key: PrimaryKey,
+    pub format: MessageFormat,
     pub tree: Option<MetaTree>,
     pub data_hash: Hash,
     pub data: Bytes,

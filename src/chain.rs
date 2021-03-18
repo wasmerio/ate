@@ -119,6 +119,7 @@ pub(crate) struct ChainOfTrust
     pub(super) configured_for: ConfiguredFor,
     pub(super) pointers: BinaryTreeIndexer,
     pub(super) compactors: Vec<Box<dyn EventCompactor>>,
+    pub(super) format: MessageFormat,
 }
 
 impl<'a> ChainOfTrust

@@ -67,7 +67,7 @@ where D: Serialize + DeserializeOwned + Clone,
                 None => continue,
             };
 
-            return Ok(Row::from_event(&evt)?.data);
+            return Ok(Row::from_event(&evt, self.chain.format)?.data);
         }
         Err(BusError::ChannelClosed)
     }
@@ -77,7 +77,7 @@ where D: Serialize + DeserializeOwned + Clone,
         loop {
             let mut dao: Dao<D> = match self.receiver.recv().await {
                 Some(evt) => {
-                    let header = evt.as_header()?;
+                    let header = evt.as_header(self.chain.format)?;
                     dio.load_from_event(evt, header)?
                 },
                 None => { return Err(BusError::ChannelClosed); }

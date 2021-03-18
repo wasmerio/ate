@@ -763,8 +763,7 @@ for CommitError {
 #[derive(Debug)]
 pub enum CommsError
 {
-    EncodeError(RmpEncodeError),
-    DecodeError(RmpDecodeError),
+    SerializationError(SerializationError),
     SendError(String),
     ReceiveError(String),
     IO(std::io::Error),
@@ -778,19 +777,11 @@ pub enum CommsError
     InternalError(String),
 }
 
-impl From<RmpEncodeError>
+impl From<SerializationError>
 for CommsError
 {
-    fn from(err: RmpEncodeError) -> CommsError {
-        CommsError::EncodeError(err)
-    }   
-}
-
-impl From<RmpDecodeError>
-for CommsError
-{
-    fn from(err: RmpDecodeError) -> CommsError {
-        CommsError::DecodeError(err)
+    fn from(err: SerializationError) -> CommsError {
+        CommsError::SerializationError(err)
     }   
 }
 
@@ -889,11 +880,8 @@ impl std::fmt::Display
 for CommsError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            CommsError::EncodeError(err) => {
-                write!(f, "Encoding error while processing communication - {}", err)
-            },
-            CommsError::DecodeError(err) => {
-                write!(f, "Decoding error while processing communication - {}", err)
+            CommsError::SerializationError(err) => {
+                write!(f, "Serialization error while processing communication - {}", err)
             },
             CommsError::IO(err) => {
                 write!(f, "IO error while processing communication - {}", err)

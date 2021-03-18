@@ -50,6 +50,13 @@ pub struct ConfCluster
     pub roots: Vec<MeshAddress>,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct MessageFormat
+{
+    pub meta: SerializationFormat,
+    pub data: SerializationFormat,
+}
+
 #[derive(Debug, Clone)]
 pub struct Config
 {
@@ -71,8 +78,7 @@ pub struct Config
     pub load_cache_size: usize,
     pub load_cache_ttl: u64,
 
-    pub meta_serializer: Option<SerializationFormat>,
-    pub data_serializer: Option<SerializationFormat>,
+    pub format: MessageFormat,
 }
 
 impl Default
@@ -92,8 +98,10 @@ for Config
             buffer_size_server: 1000,
             load_cache_size: 1000,
             load_cache_ttl: 30,
-            meta_serializer: None,
-            data_serializer: None,
+            format: MessageFormat {
+                meta: SerializationFormat::Bincode,
+                data: SerializationFormat::Json,
+            },
         }
     }
 }
@@ -126,7 +134,7 @@ pub enum SerializationFormat
 
 impl SerializationFormat
 {
-    fn serialize<T>(&self, val: &T) -> Result<Vec<u8>, SerializationError>
+    pub fn serialize<T>(&self, val: &T) -> Result<Vec<u8>, SerializationError>
     where T: Serialize + ?Sized
     {
         match self {
@@ -138,6 +146,22 @@ impl SerializationFormat
             },
             SerializationFormat::Bincode => {
                 Ok(bincode::serialize(val)?)
+            }
+        }
+    }
+
+    pub fn deserialize<'a, T>(&self, val: &'a [u8]) -> Result<T, SerializationError>
+    where T: serde::de::Deserialize<'a>
+    {
+        match self {
+            SerializationFormat::Json => {
+                Ok(serde_json::from_slice(val)?)
+            },
+            SerializationFormat::MessagePack => {
+                Ok(rmps::from_read_ref(val)?)
+            },
+            SerializationFormat::Bincode => {
+                Ok(bincode::deserialize(val)?)
             }
         }
     }
@@ -175,8 +199,6 @@ pub struct ChainOfTrustBuilder
     pub(super) plugins: Vec<Box<dyn EventPlugin>>,
     pub(super) tree: Option<TreeAuthorityPlugin>,
     pub(super) truncate: bool,
-    pub(super) meta_serializer: SerializationFormat,
-    pub(super) data_serializer: SerializationFormat,
 }
 
 impl Clone
@@ -194,8 +216,6 @@ for ChainOfTrustBuilder
             plugins: self.plugins.iter().map(|a| a.clone_plugin()).collect::<Vec<_>>(),
             tree: self.tree.clone(),
             truncate: self.truncate,
-            meta_serializer: self.meta_serializer.clone(),
-            data_serializer: self.data_serializer.clone(),
         }
     }
 }
@@ -215,14 +235,6 @@ impl ChainOfTrustBuilder
             plugins: Vec::new(),
             tree: None,
             truncate: false,
-            meta_serializer: match &cfg.meta_serializer {
-                Some(a) => a.clone(),
-                None => SerializationFormat::MessagePack
-            },
-            data_serializer: match &cfg.data_serializer {
-                Some(a) => a.clone(),
-                None => SerializationFormat::Json
-            },
         }
         .with_defaults()
     }
@@ -237,16 +249,6 @@ impl ChainOfTrustBuilder
         self.compactors.clear();
         self.tree = None;
         self.truncate = false;
-
-        if self.cfg.meta_serializer.is_none() {
-            self.meta_serializer = SerializationFormat::Bincode;
-        }
-        if self.cfg.data_serializer.is_none() {
-            self.data_serializer = match self.configured_for {
-                ConfiguredFor::BestPerformance => SerializationFormat::Bincode,
-                _ => SerializationFormat::Json,
-            };
-        }
 
         if self.configured_for == ConfiguredFor::Raw {
             return self;

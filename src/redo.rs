@@ -11,8 +11,6 @@ use super::event::*;
 use super::meta::*;
 use super::error::*;
 
-extern crate rmp_serde as rmps;
-
 use async_trait::async_trait;
 use cached::Cached;
 #[allow(unused_imports)]
@@ -64,6 +62,7 @@ struct LogFileCache
 struct LogFile
 {
     pub(crate) version: u32,
+    pub(crate) format: MessageFormat,
     pub(crate) log_path: String,
     pub(crate) log_back: Option<tokio::fs::File>,
     pub(crate) log_random_access: MutexAsync<tokio::fs::File>,
@@ -105,6 +104,7 @@ impl LogFile {
         Ok(
             LogFile {
                 version: self.version,
+                format: self.format,
                 log_path: self.log_path.clone(),
                 log_stream: BufStream::new(log_back.try_clone().await?),
                 log_back: Some(log_back),
@@ -118,7 +118,7 @@ impl LogFile {
         )
     }
 
-    async fn new(temp_file: bool, path_log: String, truncate: bool, cache_size: usize, cache_ttl: u64) -> Result<LogFile> {
+    async fn new(temp_file: bool, path_log: String, truncate: bool, cache_size: usize, cache_ttl: u64, format: MessageFormat) -> Result<LogFile> {
         let log_back = match truncate {
             true => tokio::fs::OpenOptions::new().read(true).write(true).truncate(true).create(true).open(path_log.clone()).await?,
                _ => tokio::fs::OpenOptions::new().read(true).write(true).create(true).open(path_log.clone()).await?,
@@ -140,6 +140,7 @@ impl LogFile {
 
         let ret = LogFile {
             version: version,
+            format,
             log_path: path_log.clone(),
             log_stream: log_stream,
             log_back: Some(log_back),
@@ -297,7 +298,7 @@ impl LogFile {
         self.log_count = self.log_count + 1;
 
         // Deserialize the meta bytes into a metadata object
-        let meta = rmps::from_read_ref(&buff_meta)?;
+        let meta = self.format.meta.deserialize(&buff_meta)?;
 
         // Record the lookup map
         let header = EventHeaderRaw::new(
@@ -325,7 +326,7 @@ impl LogFile {
     {
         self.check_open()?;
 
-        let header = evt.as_header_raw()?;
+        let header = evt.as_header_raw(self.format)?;
         let meta_len = header.meta_bytes.len() as u32;
         let body_len = match evt.data_bytes.as_ref() {
             Some(a) => a.len() as u32,
@@ -523,7 +524,7 @@ impl LogFile {
         };
 
         // Convert the result into a deserialized result
-        let meta = rmps::from_read_ref(&buff_meta)?;
+        let meta = self.format.meta.deserialize(&buff_meta)?;
         let ret = LoadResult {
             header: EventHeaderRaw::new(
                 super::crypto::Hash::from_bytes(&buff_meta[..]),
@@ -636,7 +637,7 @@ impl LogWritable for FlippedLogFile
     #[allow(dead_code)]
     async fn write(&mut self, evt: &EventData) -> std::result::Result<LogFilePointer, SerializationError> {
         let ret = self.log_file.write(evt).await?;
-        self.event_summary.push(evt.as_header_raw()?);
+        self.event_summary.push(evt.as_header_raw(self.log_file.format)?);
         Ok(ret)
     }
 
@@ -701,7 +702,7 @@ impl RedoLog
         let mut ret = RedoLog {
             log_temp: cfg.log_temp,
             log_path: path_log.clone(),
-            log_file: LogFile::new(cfg.log_temp, path_log.clone(), truncate, cache_size, cache_ttl).await?,
+            log_file: LogFile::new(cfg.log_temp, path_log.clone(), truncate, cache_size, cache_ttl, cfg.format).await?,
             flip: None,
         };
 
@@ -728,7 +729,8 @@ impl RedoLog
                             path_flip, 
                             true, 
                             cache.read.cache_capacity().unwrap(), 
-                            cache.read.cache_lifespan().unwrap()
+                            cache.read.cache_lifespan().unwrap(),
+                            self.log_file.format,
                         ).await?,
                         event_summary: Vec::new(),
                     }
@@ -756,7 +758,7 @@ impl RedoLog
                 let mut new_log_file = flip.copy_log_file().await?;
 
                 for d in inside.deferred.drain(..) {
-                    let mut header = d.as_header()?;
+                    let mut header = d.as_header(self.log_file.format)?;
                     deferred_write_callback(&mut header);
 
                     event_summary.push(header.raw);
@@ -803,7 +805,7 @@ impl RedoLog
             path_log.clone(),
             true,
             cfg.load_cache_size,
-            cfg.load_cache_ttl
+            cfg.load_cache_ttl,
         ).await?;
 
         Ok(
@@ -866,7 +868,7 @@ TESTS
 */
 
 #[cfg(test)]
-async fn test_write_data(log: &mut dyn LogWritable, key: PrimaryKey, body: Option<Vec<u8>>, flush: bool) -> Hash
+async fn test_write_data(log: &mut dyn LogWritable, key: PrimaryKey, body: Option<Vec<u8>>, flush: bool, format: MessageFormat) -> Hash
 {
     let mut meta = Metadata::for_data(key);
     meta.core.push(CoreMetadata::Author("test@nowhere.com".to_string()));
@@ -881,7 +883,7 @@ async fn test_write_data(log: &mut dyn LogWritable, key: PrimaryKey, body: Optio
         data_bytes: body,
     };
 
-    let hash = evt.as_header_raw().unwrap().event_hash;
+    let hash = evt.as_header_raw(format).unwrap().event_hash;
     let _ = log.write(&evt)
         .await.expect("Failed to write the object");
 
@@ -893,7 +895,7 @@ async fn test_write_data(log: &mut dyn LogWritable, key: PrimaryKey, body: Optio
 }
 
 #[cfg(test)]
-async fn test_read_data(log: &mut RedoLog, read_header: Hash, test_key: PrimaryKey, test_body: Option<Vec<u8>>)
+async fn test_read_data(log: &mut RedoLog, read_header: Hash, test_key: PrimaryKey, test_body: Option<Vec<u8>>, format: MessageFormat)
 {
     let result = log.load(read_header)
         .await
@@ -901,7 +903,7 @@ async fn test_read_data(log: &mut RedoLog, read_header: Hash, test_key: PrimaryK
     
     let mut meta = Metadata::for_data(test_key);
     meta.core.push(CoreMetadata::Author("test@nowhere.com".to_string()));
-    let meta_bytes = Bytes::from(rmps::to_vec(&meta).unwrap());
+    let meta_bytes = Bytes::from(format.meta.serialize(&meta).unwrap());
 
     let test_body = match test_body {
         Some(a) => Some(Bytes::from(a)),
@@ -942,17 +944,17 @@ fn test_redo_log() {
 
             // First test a simple case of a push and read
             println!("test_redo_log - writing test data to log - blah1");
-            let halb1 = test_write_data(&mut rl, blah1, Some(vec![1; 10]), true).await;
+            let halb1 = test_write_data(&mut rl, blah1, Some(vec![1; 10]), true, mock_cfg.format).await;
             assert_eq!(1, rl.count());
             println!("test_redo_log - testing read result of blah1");
-            test_read_data(&mut rl, halb1, blah1, Some(vec![1; 10])).await;
+            test_read_data(&mut rl, halb1, blah1, Some(vec![1; 10]), mock_cfg.format).await;
 
             // Now we push some data in to get ready for more tests
             println!("test_redo_log - writing test data to log - blah3");
-            let halb2 = test_write_data(&mut rl, blah2, None, true).await;
+            let halb2 = test_write_data(&mut rl, blah2, None, true, mock_cfg.format).await;
             assert_eq!(2, rl.count());
             println!("test_redo_log - writing test data to log - blah3");
-            let _ = test_write_data(&mut rl, blah3, Some(vec![3; 10]), true).await;
+            let _ = test_write_data(&mut rl, blah3, Some(vec![3; 10]), true, mock_cfg.format).await;
             assert_eq!(3, rl.count());
 
             // Begin an operation to flip the redo log
@@ -961,19 +963,19 @@ fn test_redo_log() {
 
             // Read the earlier pushed data
             println!("test_redo_log - testing read result of blah2");
-            test_read_data(&mut rl, halb2, blah2, None).await;
+            test_read_data(&mut rl, halb2, blah2, None, mock_cfg.format).await;
 
             // Write some data to the redo log and the backing redo log
             println!("test_redo_log - writing test data to flip - blah1 (again)");
-            let _ = test_write_data(&mut flip, blah1, Some(vec![10; 10]), true).await;
+            let _ = test_write_data(&mut flip, blah1, Some(vec![10; 10]), true, mock_cfg.format).await;
             assert_eq!(1, flip.count());
             assert_eq!(3, rl.count());
             #[allow(unused_variables)]
-            let halb4 = test_write_data(&mut flip, blah4, Some(vec![4; 10]), true).await;
+            let halb4 = test_write_data(&mut flip, blah4, Some(vec![4; 10]), true, mock_cfg.format).await;
             assert_eq!(2, flip.count());
             assert_eq!(3, rl.count());
             println!("test_redo_log - writing test data to log - blah5");
-            let halb5 = test_write_data(&mut rl, blah5, Some(vec![5; 10]), true).await;
+            let halb5 = test_write_data(&mut rl, blah5, Some(vec![5; 10]), true, mock_cfg.format).await;
             assert_eq!(4, rl.count());
 
             // The deferred writes do not take place until after the flip ends
@@ -986,7 +988,7 @@ fn test_redo_log() {
 
             // Write some more data
             println!("test_redo_log - writing test data to log - blah6");
-            let halb6 = test_write_data(&mut rl, blah6, Some(vec![6; 10]), false).await;
+            let halb6 = test_write_data(&mut rl, blah6, Some(vec![6; 10]), false, mock_cfg.format).await;
             assert_eq!(4, rl.count());
 
             // Attempt to read the log entry
@@ -1005,24 +1007,24 @@ fn test_redo_log() {
             
             // Check that the correct data is read
             println!("test_redo_log - testing read result of blah1 (again)");
-            test_read_data(&mut rl, loader.pop().unwrap().header.event_hash, blah1, Some(vec![10; 10])).await;
+            test_read_data(&mut rl, loader.pop().unwrap().header.event_hash, blah1, Some(vec![10; 10]), mock_cfg.format).await;
             println!("test_redo_log - testing read result of blah4");
-            test_read_data(&mut rl, loader.pop().unwrap().header.event_hash, blah4, Some(vec![4; 10])).await;
+            test_read_data(&mut rl, loader.pop().unwrap().header.event_hash, blah4, Some(vec![4; 10]), mock_cfg.format).await;
             println!("test_redo_log - testing read result of blah5");
-            test_read_data(&mut rl, loader.pop().unwrap().header.event_hash, blah5, Some(vec![5; 10])).await;
+            test_read_data(&mut rl, loader.pop().unwrap().header.event_hash, blah5, Some(vec![5; 10]), mock_cfg.format).await;
             println!("test_redo_log - testing read result of blah6");
-            test_read_data(&mut rl, loader.pop().unwrap().header.event_hash, blah6, Some(vec![6; 10])).await;
+            test_read_data(&mut rl, loader.pop().unwrap().header.event_hash, blah6, Some(vec![6; 10]), mock_cfg.format).await;
             println!("test_redo_log - confirming no more data");
             assert_eq!(loader.pop().is_none(), true);
 
             // Write some data to the redo log and the backing redo log
             println!("test_redo_log - writing test data to log - blah7");
-            let halb7 = test_write_data(&mut rl, blah7, Some(vec![7; 10]), true).await;
+            let halb7 = test_write_data(&mut rl, blah7, Some(vec![7; 10]), true, mock_cfg.format).await;
             assert_eq!(5, rl.count());
     
             // Read the test data again
             println!("test_redo_log - testing read result of blah7");
-            test_read_data(&mut rl, halb7, blah7, Some(vec![7; 10])).await;
+            test_read_data(&mut rl, halb7, blah7, Some(vec![7; 10]), mock_cfg.format).await;
             println!("test_redo_log - confirming no more data");
             assert_eq!(5, rl.count());
 

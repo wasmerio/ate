@@ -1,5 +1,3 @@
-extern crate rmp_serde as rmps;
-
 use log::{info, warn};
 
 use rand::seq::SliceRandom;
@@ -25,6 +23,7 @@ use parking_lot::Mutex as StdMutex;
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use std::net::SocketAddr;
 use bytes::Bytes;
+use crate::conf::*;
 
 #[derive(Debug, Clone)]
 pub(crate) struct PacketData
@@ -32,6 +31,7 @@ pub(crate) struct PacketData
     pub bytes: Bytes,
     pub reply_here: Option<mpsc::Sender<PacketData>>,
     pub skip_here: Option<u64>,
+    pub format: MessageFormat,
 }
 
 #[derive(Debug)]
@@ -51,12 +51,12 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone,
     #[allow(dead_code)]
     pub(crate) async fn reply(&self, msg: M) -> Result<(), CommsError> {
         if self.data.reply_here.is_none() { return Ok(()); }
-        Ok(Self::reply_at(self.data.reply_here.as_ref(), msg).await?)
+        Ok(Self::reply_at(self.data.reply_here.as_ref(), msg, self.data.format).await?)
     }
 
     #[allow(dead_code)]
-    pub(crate) async fn reply_at(at: Option<&mpsc::Sender<PacketData>>, msg: M) -> Result<(), CommsError> {
-        Ok(PacketData::reply_at(at, msg).await?)
+    pub(crate) async fn reply_at(at: Option<&mpsc::Sender<PacketData>>, msg: M, format: MessageFormat) -> Result<(), CommsError> {
+        Ok(PacketData::reply_at(at, msg, format).await?)
     }
 }
 
@@ -68,20 +68,21 @@ impl PacketData
     {
         if self.reply_here.is_none() { return Ok(()); }
         Ok(
-            Self::reply_at(self.reply_here.as_ref(), msg).await?
+            Self::reply_at(self.reply_here.as_ref(), msg, self.format).await?
         )
     }
 
     #[allow(dead_code)]
-    pub(crate) async fn reply_at<M>(at: Option<&mpsc::Sender<PacketData>>, msg: M) -> Result<(), CommsError>
+    pub(crate) async fn reply_at<M>(at: Option<&mpsc::Sender<PacketData>>, msg: M, format: MessageFormat) -> Result<(), CommsError>
     where M: Send + Sync + Serialize + DeserializeOwned + Clone,
     {
         if at.is_none() { return Ok(()); }
 
         let pck = PacketData {
-            bytes: Bytes::from(rmps::to_vec(&msg)?),
+            bytes: Bytes::from(format.data.serialize(&msg)?),
             reply_here: None,
             skip_here: None,
+            format,
         };
 
         if let Some(tx) = at {
@@ -115,14 +116,15 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
 impl<M> Packet<M>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone
 {
-    pub(crate) fn to_packet_data(self) -> Result<PacketData, CommsError>
+    pub(crate) fn to_packet_data(self, format: MessageFormat) -> Result<PacketData, CommsError>
     {
-        let buf = rmps::to_vec(&self.msg)?;
+        let buf = format.data.serialize(&self.msg)?;
         Ok(
             PacketData {
                 bytes: Bytes::from(buf),
                 reply_here: None,
                 skip_here: None,
+                format,
             }
         )
     }
@@ -151,18 +153,20 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
     connect_to: Vec<SocketAddr>,
     on_connect: Option<M>,
     buffer_size: usize,
+    format: MessageFormat
 }
 
 impl<M> NodeConfig<M>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone
 {
     #[allow(dead_code)]
-    pub(crate) fn new() -> NodeConfig<M> {
+    pub(crate) fn new(format: MessageFormat) -> NodeConfig<M> {
         NodeConfig {
             listen_on: Vec::new(),
             connect_to: Vec::new(),
             on_connect: None,
             buffer_size: 1000,
+            format,
         }
     }
 
@@ -210,6 +214,7 @@ where C: Send + Sync
     downcast: Arc<broadcast::Sender<PacketData>>,
     upcast: FxHashMap<u64, Upstream>,
     state: Arc<StdMutex<NodeState>>,
+    format: MessageFormat,
     _marker: PhantomData<C>,
 }
 
@@ -220,6 +225,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone,
     rx: mpsc::Receiver<PacketWithContext<M, C>>,
     #[allow(dead_code)]
     state: Arc<StdMutex<NodeState>>,
+    format: MessageFormat,
     _marker: PhantomData<C>,
 }
 
@@ -246,6 +252,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
             conf.on_connect.clone(),
             conf.buffer_size,
             Arc::clone(&state),
+            conf.format
         ).await;
 
         upcast.insert(upstream.id, upstream);
@@ -259,6 +266,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
             Arc::clone(&downcast_tx),
             conf.buffer_size,
             Arc::clone(&state),
+            conf.format,
         ).await;
     }
 
@@ -268,11 +276,13 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
             downcast: downcast_tx,
             upcast: upcast,
             state: Arc::clone(&state),
+            format: conf.format,
             _marker: PhantomData
         },
         NodeRx {
             rx: inbox_rx,
             state: state,
+            format: conf.format,
             _marker: PhantomData
         }
     )
@@ -290,7 +300,7 @@ where C: Send + Sync + Default + 'static
     pub(crate) async fn downcast<M>(&self, msg: M) -> Result<(), CommsError>
     where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default
     {
-        self.downcast_packet(Packet::from(msg).to_packet_data()?).await
+        self.downcast_packet(Packet::from(msg).to_packet_data(self.format)?).await
     }
 
     pub(crate) async fn upcast_packet(&self, pck: PacketData) -> Result<(), CommsError> {
@@ -303,7 +313,7 @@ where C: Send + Sync + Default + 'static
     pub(crate) async fn upcast<M>(&self, msg: M) -> Result<(), CommsError>
     where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default
     {
-        self.upcast_packet(Packet::from(msg).to_packet_data()?).await
+        self.upcast_packet(Packet::from(msg).to_packet_data(self.format)?).await
     }
 
     pub(crate) async fn downcast_many(&self, pcks: Vec<PacketData>) -> Result<(), CommsError> {
@@ -344,6 +354,7 @@ async fn mesh_listen_on<M, C>(addr: SocketAddr,
                            outbox: Arc<broadcast::Sender<PacketData>>,
                            buffer_size: usize,
                            state: Arc<StdMutex<NodeState>>,
+                           format: MessageFormat,
                         )
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
       C: Send + Sync + Default + 'static
@@ -387,7 +398,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
             let worker_state = Arc::clone(&worker_state);
             let worker_inbox = inbox.clone();
             tokio::spawn(async move {
-                match process_inbox::<M, C>(rx, reply_tx1, worker_inbox, sender, context).await {
+                match process_inbox::<M, C>(rx, reply_tx1, worker_inbox, sender, context, format).await {
                     Ok(_) => { },
                     Err(CommsError::IO(err)) if err.kind() == std::io::ErrorKind::UnexpectedEof => { },
                     Err(err) => {
@@ -434,6 +445,7 @@ async fn mesh_connect_worker<M, C>
     sender: u64,
     on_connect: Option<M>,
     state: Arc<StdMutex<NodeState>>,
+    format: MessageFormat
 )
 -> Result<(), CommsError>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
@@ -485,7 +497,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         let worker_context = Arc::clone(&context);
         let worker_inbox = inbox.clone();
         let join1 = tokio::spawn(async move {
-            match process_inbox::<M, C>(rx, reply_tx1, worker_inbox, sender, worker_context).await {
+            match process_inbox::<M, C>(rx, reply_tx1, worker_inbox, sender, worker_context, format).await {
                 Ok(_) => { },
                 Err(CommsError::IO(err)) if match err.kind() {
                     std::io::ErrorKind::UnexpectedEof => true,
@@ -508,7 +520,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
 
         if let Some(on_connect) = &on_connect {
             let packet = Packet::from(on_connect.clone());
-            let mut packet_data = packet.clone().to_packet_data()?;
+            let mut packet_data = packet.clone().to_packet_data(format)?;
             packet_data.reply_here = Some(reply_tx.clone());
 
             let _ = inbox.send(PacketWithContext {
@@ -533,6 +545,7 @@ async fn mesh_connect_to<M, C>
     on_connect: Option<M>,
     buffer_size: usize,
     state: Arc<StdMutex<NodeState>>,
+    format: MessageFormat
 ) -> Upstream
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
       C: Send + Sync + Default + 'static,
@@ -554,6 +567,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
             sender,
             on_connect,
             state,
+            format,
         )
     );
 
@@ -570,6 +584,7 @@ async fn process_inbox<M, C>(
     inbox: mpsc::Sender<PacketWithContext<M, C>>,
     sender: u64,
     context: Arc<C>,
+    format: MessageFormat
 ) -> Result<(), CommsError>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
       C: Send + Sync,
@@ -583,7 +598,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
         if n == 0 { break; }
 
         // Deserialize it
-        let msg: M = rmps::from_read_ref(&buf[..])?;
+        let msg: M = format.data.deserialize(&buf[..])?;
         let pck = Packet {
             msg,
         };
@@ -594,6 +609,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
                 bytes: Bytes::from(buf),
                 reply_here: Some(reply_tx.clone()),
                 skip_here: Some(sender),
+                format,
             },
             context: Arc::clone(&context),
             packet: pck,
@@ -680,9 +696,13 @@ for TestMessage
 #[tokio::main]
 #[test]
 async fn test_server_client() {
+    let format = MessageFormat {
+        meta: SerializationFormat::MessagePack,
+        data: SerializationFormat::Json,
+    };
     {
         // Start the server
-        let cfg = NodeConfig::new().listen_on(IpAddr::from_str("127.0.0.1").unwrap(), 4001);
+        let cfg = NodeConfig::new(format).listen_on(IpAddr::from_str("127.0.0.1").unwrap(), 4001);
         let (_, mut server_rx) = connect::<TestMessage, ()>(&cfg).await;
 
         // Create a background thread that will respond to pings with pong
@@ -702,7 +722,7 @@ async fn test_server_client() {
 
     {
         // Start the reply
-        let cfg = NodeConfig::new()
+        let cfg = NodeConfig::new(format)
             .listen_on(IpAddr::from_str("127.0.0.1").unwrap(), 4002)
             .connect_to(IpAddr::from_str("127.0.0.1").unwrap(), 4001);
         let (relay_tx, mut relay_rx) = connect::<TestMessage, ()>(&cfg).await;
@@ -723,7 +743,7 @@ async fn test_server_client() {
     
     {
         // Start the client
-        let cfg = NodeConfig::new().connect_to(IpAddr::from_str("127.0.0.1").unwrap(), 4002);
+        let cfg = NodeConfig::new(format).connect_to(IpAddr::from_str("127.0.0.1").unwrap(), 4002);
         let (client_tx, mut client_rx) = connect::<TestMessage, ()>(&cfg).await;
 
         // We need to test it alot
