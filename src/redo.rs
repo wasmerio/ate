@@ -208,11 +208,11 @@ impl LogFile {
                     },
                     Ok(_) => {
                         self.log_off = self.log_off + 1;
-                        return Err(SerializationError::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the event magic number at {}", self.log_off))));
+                        return Err(SerializationError::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the event magic number at 0x{:x}", self.log_off))));
                     }
                     Err(err) if err.kind() == ErrorKind::UnexpectedEof => { return Ok(false); },
                     _ => {
-                        return Err(SerializationError::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the event magic number at {}", self.log_off))));
+                        return Err(SerializationError::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the event magic number at 0x{:x}", self.log_off))));
                     }
                 }
             }
@@ -220,8 +220,9 @@ impl LogFile {
         }
 
         // Read the magic number
+        let offset = self.log_off;
         let mut magic = [0 as u8; 4];
-        let size_magic = match self.log_stream.read(&mut magic).await {
+        let read_magic = match self.log_stream.read_exact(&mut magic).await {
             Result::Ok(s) => s,
             Result::Err(err) => {
                 if err.kind() == ErrorKind::UnexpectedEof {
@@ -230,11 +231,11 @@ impl LogFile {
                 return Err(SerializationError::IO(err))
             }
         } as usize;
-        self.log_off = self.log_off + size_magic as u64;
+        self.log_off = offset + read_magic as u64;
 
-        if size_magic <= 0 { return Ok(false); }
-        if size_magic != 4 || magic != *MAGIC {
-            return Err(SerializationError::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the event magic number"))));
+        if read_magic <= 0 { return Ok(false); }
+        if read_magic != 4 || magic != *MAGIC {
+            return Err(SerializationError::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the event magic number at 0x{:x} (read {} bytes)", offset, read_magic))));
         }
 
         Ok(true)
@@ -242,6 +243,10 @@ impl LogFile {
 
     async fn read_once_internal(&mut self) -> std::result::Result<Option<LoadResult>, SerializationError>
     {
+        let offset = self.log_off;
+
+        //info!("log-read-event: offset={}", offset);
+
         // Read the metadata
         let size_meta = match self.log_stream.read_u32().await {
             Result::Ok(s) => s,
@@ -252,9 +257,11 @@ impl LogFile {
                 return Err(SerializationError::IO(err))
             }
         } as usize;
+        self.log_off = self.log_off + size_of::<u32>() as u64;
 
-        let offset = self.log_off;
+        //info!("log-read-event: size_meta={}", size_meta);
 
+        // Read the metadata
         let mut buff_meta = vec![0 as u8; size_meta];
         let read = self.log_stream.read_exact(&mut buff_meta[..size_meta]).await?;
         self.log_off = self.log_off + read as u64;
@@ -265,12 +272,17 @@ impl LogFile {
 
         // Read the body and hash the data
         let size_body = self.log_stream.read_u32().await? as usize;
+        self.log_off = self.log_off + size_of::<u32>() as u64;
+        
         let mut buff_body = None;
         let body_hash = match size_body {
-            _ if size_body > 0 => {
+            _ if size_body > 0 =>
+            {
                 let mut body = vec![0 as u8; size_body];
+
                 let read = self.log_stream.read_exact(&mut body[..size_body]).await?;
                 self.log_off = self.log_off + read as u64;
+
                 if read != size_body {
                     return Err(SerializationError::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the main body of the event from the log file ({} bytes vs {} bytes)", read, size_body))));
                 }
@@ -284,7 +296,7 @@ impl LogFile {
 
         // Insert it into the log index
         let size = size_of::<u32>() as u64 + size_meta as u64 + size_of::<u32>() as u64 + size_body as u64;
-        let pointer = LogFilePointer { version: self.version, offset: offset, size: size as u32 };
+        let pointer = LogFilePointer { version: self.version, offset, size: size as u32 };
         self.log_count = self.log_count + 1;
 
         // Deserialize the meta bytes into a metadata object

@@ -33,6 +33,7 @@ struct Account
     balance: Decimal,
 }
 
+#[allow(dead_code)]
 async fn make_account<'a>(chain: &'a Chain, generator: &mut Generator<'a>)
 {
     let session = AteSession::default();
