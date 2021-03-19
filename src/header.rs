@@ -78,7 +78,9 @@ impl From<u64>
 for PrimaryKey
 {
     fn from(val: u64) -> PrimaryKey {
-        PrimaryKey::from(Hash::from(val))
+        PrimaryKey {
+            key: val
+        }
     }
 }
 

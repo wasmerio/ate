@@ -109,13 +109,20 @@ impl<'a> Dio<'a>
     pub fn store<D>(&mut self, data: D) -> Result<Dao<D>, SerializationError>
     where D: Serialize + DeserializeOwned + Clone,
     {
+        self.store_with_format(data, self.default_format)
+    }
+
+    #[allow(dead_code)]
+    pub fn store_with_format<D>(&mut self, data: D, format: MessageFormat) -> Result<Dao<D>, SerializationError>
+    where D: Serialize + DeserializeOwned + Clone,
+    {
         let row = Row {
             key: PrimaryKey::generate(),
             tree: None,
             data: data,
             auth: MetaAuthorization::default(),
             collections: FxHashSet::default(),
-            format: self.default_format,
+            format,
         };
 
         let mut ret = Dao::new(row, &self.state);

@@ -21,7 +21,7 @@ pub const LOG_VERSION: spec::LogVersion = if cfg!(feature = "use_version1") {
 } else if cfg!(feature = "use_version2") {
     spec::LogVersion::V2
 } else {
-    spec::LogVersion::V1
+    spec::LogVersion::V2
 };
 
 mod test;

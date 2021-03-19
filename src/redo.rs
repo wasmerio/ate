@@ -1,4 +1,5 @@
-use log::{error, info};
+#[allow(unused_imports)]
+use log::{error, info, debug};
 
 use crate::{crypto::Hash};
 
@@ -157,7 +158,11 @@ impl LogFile {
 
         loop {
             match self.read_once_internal().await {
-                Ok(Some(head)) => to.push_back(head),
+                Ok(Some(head)) => {
+                    #[cfg(feature = "verbose")]
+                    debug!("log-read: {:?}", head);
+                    to.push_back(head)
+                },
                 Ok(None) => break,
                 Err(err) => {
                     error!("log-read-error: {} at {}", err.to_string(), self.log_off);
@@ -173,7 +178,8 @@ impl LogFile {
     {
         let offset = self.log_off;
 
-        //info!("log-read-event: offset={}", offset);
+        #[cfg(feature = "verbose")]
+        info!("log-read-event: offset={}", offset);
 
         // Read the log event
         let evt = match LogVersion::read(self, self.default_format).await? {
