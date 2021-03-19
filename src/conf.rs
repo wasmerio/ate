@@ -2,7 +2,6 @@ use serde::{Serialize, Deserialize};
 use crate::{accessor::Chain, anti_replay::AntiReplayPlugin, time::TimestampEnforcer, tree::TreeAuthorityPlugin};
 #[allow(unused_imports)]
 use std::{net::IpAddr, str::FromStr};
-extern crate rmp_serde as rmps;
 
 use super::validator::*;
 use super::compact::*;
@@ -14,6 +13,7 @@ use super::chain::ChainKey;
 use super::crypto::PublicKey;
 use super::error::*;
 use super::crypto::Hash;
+use super::spec::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct MeshAddress
@@ -50,13 +50,6 @@ pub struct ConfCluster
     pub roots: Vec<MeshAddress>,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct MessageFormat
-{
-    pub meta: SerializationFormat,
-    pub data: SerializationFormat,
-}
-
 #[derive(Debug, Clone)]
 pub struct Config
 {
@@ -78,7 +71,8 @@ pub struct Config
     pub load_cache_size: usize,
     pub load_cache_ttl: u64,
 
-    pub format: MessageFormat,
+    pub log_format: MessageFormat,
+    pub wire_format: SerializationFormat,
 }
 
 impl Config
@@ -89,16 +83,16 @@ impl Config
 
         match configured_for {
             ConfiguredFor::BestPerformance => {
-                self.format.meta = SerializationFormat::Bincode;
-                self.format.data = SerializationFormat::Bincode;
+                self.log_format.meta = SerializationFormat::Bincode;
+                self.log_format.data = SerializationFormat::Bincode;
             },
             ConfiguredFor::BestCompatibility => {
-                self.format.meta = SerializationFormat::Json;
-                self.format.data = SerializationFormat::Json;
+                self.log_format.meta = SerializationFormat::Json;
+                self.log_format.data = SerializationFormat::Json;
             },
             _ => {
-                self.format.meta = SerializationFormat::Bincode;
-                self.format.data = SerializationFormat::Json;
+                self.log_format.meta = SerializationFormat::Bincode;
+                self.log_format.data = SerializationFormat::Json;
             }
         }
     }
@@ -121,10 +115,11 @@ for Config
             buffer_size_server: 1000,
             load_cache_size: 1000,
             load_cache_ttl: 30,
-            format: MessageFormat {
+            log_format: MessageFormat {
                 meta: SerializationFormat::Bincode,
                 data: SerializationFormat::Json,
             },
+            wire_format: SerializationFormat::Bincode,
         }
     }
 }
@@ -145,49 +140,6 @@ pub enum HashRoutine
 {
     Sha3,
     Blake3,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum SerializationFormat
-{
-    Json,
-    MessagePack,
-    Bincode,
-}
-
-impl SerializationFormat
-{
-    pub fn serialize<T>(&self, val: &T) -> Result<Vec<u8>, SerializationError>
-    where T: Serialize + ?Sized
-    {
-        match self {
-            SerializationFormat::Json => {
-                Ok(serde_json::to_vec(val)?)
-            },
-            SerializationFormat::MessagePack => {
-                Ok(rmps::to_vec(val)?)
-            },
-            SerializationFormat::Bincode => {
-                Ok(bincode::serialize(val)?)
-            }
-        }
-    }
-
-    pub fn deserialize<'a, T>(&self, val: &'a [u8]) -> Result<T, SerializationError>
-    where T: serde::de::Deserialize<'a>
-    {
-        match self {
-            SerializationFormat::Json => {
-                Ok(serde_json::from_slice(val)?)
-            },
-            SerializationFormat::MessagePack => {
-                Ok(rmps::from_read_ref(val)?)
-            },
-            SerializationFormat::Bincode => {
-                Ok(bincode::deserialize(val)?)
-            }
-        }
-    }
 }
 
 #[allow(dead_code)]

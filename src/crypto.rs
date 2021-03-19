@@ -180,20 +180,12 @@ pub struct Hash {
     pub val: [u8; 16]
 }
 
-pub const HASH_ROUTINE:HashRoutine = if cfg!(feature = "use_blake3") {
-    HashRoutine::Blake3
-} else if cfg!(feature = "use_sha3") {
-    HashRoutine::Sha3
-} else {
-    HashRoutine::Blake3
-};
-
 impl Hash {
     pub fn from_bytes(input: &[u8]) -> Hash {
-        Self::from_bytes_by_routine(input, HASH_ROUTINE)
+        Self::from_bytes_by_routine(input, crate::HASH_ROUTINE)
     }
     pub fn from_bytes_twice(input1: &[u8], input2: &[u8]) -> Hash {
-        Self::from_bytes_twice_by_routine(input1, input2, HASH_ROUTINE)
+        Self::from_bytes_twice_by_routine(input1, input2, crate::HASH_ROUTINE)
     }
     fn from_bytes_by_routine(input: &[u8], routine: HashRoutine) -> Hash {
         match routine {

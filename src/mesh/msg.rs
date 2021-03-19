@@ -11,6 +11,7 @@ use crate::pipe::EventPipe;
 use crate::accessor::Chain;
 use crate::error::*;
 use crate::header::PrimaryKey;
+use crate::spec::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub(super) struct MessageEvent
@@ -18,6 +19,7 @@ pub(super) struct MessageEvent
     pub(crate) meta: Metadata,
     pub(crate) data_hash: Option<Hash>,
     pub(crate) data: Option<Vec<u8>>,
+    pub(crate) format: MessageFormat,
 }
 
 impl MessageEvent
@@ -36,6 +38,7 @@ impl MessageEvent
                         Some(d) => Some(d.to_vec()),
                         None => None,
                     },
+                    format: evt.format,
                 };
             feed_me.push(evt);
         }
@@ -52,6 +55,7 @@ impl MessageEvent
                     Some(d) => Some(Bytes::from(d)),
                     None => None,
                 },
+                format: evt.format,
             };
             feed_me.push(evt);
         }

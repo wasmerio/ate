@@ -47,6 +47,7 @@ use super::event::*;
 #[allow(unused_imports)]
 use super::crypto::Hash;
 use fxhash::FxHashMap;
+use super::spec::*;
 
 #[allow(dead_code)]
 #[derive(Serialize, Deserialize, Debug, Clone, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -119,7 +120,7 @@ pub(crate) struct ChainOfTrust
     pub(super) configured_for: ConfiguredFor,
     pub(super) pointers: BinaryTreeIndexer,
     pub(super) compactors: Vec<Box<dyn EventCompactor>>,
-    pub(super) format: MessageFormat,
+    pub(super) default_format: MessageFormat,
 }
 
 impl<'a> ChainOfTrust
@@ -232,8 +233,8 @@ async fn test_chain() {
         let mut chain = create_test_chain("test_chain".to_string(), true, true, None).await;
         chain_name = chain.name().await;
 
-        let mut evt1 = EventData::new(key1.clone(), Bytes::from(vec!(1; 1)));
-        let mut evt2 = EventData::new(key2.clone(), Bytes::from(vec!(2; 1)));
+        let mut evt1 = EventData::new(key1.clone(), Bytes::from(vec!(1; 1)), chain.default_format);
+        let mut evt2 = EventData::new(key2.clone(), Bytes::from(vec!(2; 1)), chain.default_format);
 
         {
             let lock = chain.multi().await;

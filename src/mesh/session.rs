@@ -18,6 +18,7 @@ use crate::transaction::*;
 use super::msg::*;
 use crate::pipe::*;
 use crate::header::*;
+use crate::spec::*;
 
 pub(crate) struct MeshSession
 {
@@ -46,7 +47,7 @@ impl MeshSession
         let mut pipe_tx = Vec::new();
         for addr in addrs.iter() {
             
-            let node_cfg = NodeConfig::new(builder.cfg.format)
+            let node_cfg = NodeConfig::new(builder.cfg.wire_format)
                 .connect_to(addr.ip, addr.port)
                 .on_connect(Message::Connected)
                 .buffer_size(builder.cfg.buffer_size_client);
@@ -62,7 +63,7 @@ impl MeshSession
                 next: StdRwLock::new(None),
                 commit: Arc::clone(&commit),
                 lock_requests: Arc::clone(&lock_requests),
-                format: builder.cfg.format,
+                wire_format: builder.cfg.wire_format,
             }
         );
 
@@ -248,7 +249,7 @@ struct SessionPipe
     next: StdRwLock<Option<Arc<dyn EventPipe>>>,
     commit: Arc<StdMutex<FxHashMap<u64, smpsc::Sender<Result<(), CommitError>>>>>,
     lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, LockRequest>>>,
-    format: MessageFormat,
+    wire_format: SerializationFormat,
 }
 
 #[async_trait]
@@ -273,7 +274,7 @@ for SessionPipe
         let pck = Packet::from(Message::Events{
             commit,
             evts,
-        }).to_packet_data(self.format)?;
+        }).to_packet_data(self.wire_format)?;
 
         let mut joins = Vec::new();
         {

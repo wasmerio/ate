@@ -19,7 +19,7 @@ use crate::error::*;
 use crate::crypto::Hash;
 use crate::dio::DioState;
 use crate::dio::Dio;
-use crate::conf::MessageFormat;
+use crate::spec::*;
 
 pub use super::vec::DaoVec;
 
@@ -58,7 +58,7 @@ where D: Serialize + DeserializeOwned + Clone,
         }
     }
 
-    pub(crate) fn from_event(evt: &EventData, format: MessageFormat) -> Result<Row<D>, SerializationError> {
+    pub(crate) fn from_event(evt: &EventData) -> Result<Row<D>, SerializationError> {
         let key = match evt.meta.get_data_key() {
             Some(key) => key,
             None => { return Result::Err(SerializationError::NoPrimarykey) }
@@ -72,9 +72,9 @@ where D: Serialize + DeserializeOwned + Clone,
                 Ok(
                     Row {
                         key,
-                        format,
+                        format: evt.format,
                         tree: match evt.meta.get_tree() { Some(a) => Some(a.clone()), None => None },
-                        data: format.data.deserialize(&data)?,
+                        data: evt.format.data.deserialize(&data)?,
                         auth: match evt.meta.get_authorization() {
                             Some(a) => a.clone(),
                             None => MetaAuthorization::default(),

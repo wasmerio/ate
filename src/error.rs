@@ -180,6 +180,7 @@ pub enum SerializationError
 {
     NoPrimarykey,
     NoData,
+    InvalidSerializationFormat,
     IO(tokio::io::Error),
     EncodeError(RmpEncodeError),
     DecodeError(RmpDecodeError),
@@ -235,6 +236,9 @@ for SerializationError {
             },
             SerializationError::NoData => {
                 write!(f, "Data object has no actual data")
+            },
+            SerializationError::InvalidSerializationFormat => {
+                write!(f, "Data is stored in an unknown serialization format")
             },
             SerializationError::IO(err) => {
                 write!(f, "IO error during serialization - {}", err)

@@ -9,7 +9,6 @@ use crate::session::{Session};
 
 use super::meta::*;
 use super::error::*;
-use super::conf::*;
 use super::accessor::*;
 use super::pipe::*;
 use super::redo::*;
@@ -17,6 +16,7 @@ use super::header::*;
 #[allow(unused_imports)]
 use super::event::*;
 use super::lint::*;
+use super::spec::*;
 
 use bytes::Bytes;
 
@@ -26,7 +26,7 @@ pub struct ChainMultiUser
     pub(super) inside_async: Arc<RwLock<ChainProtectedAsync>>,
     pub(super) inside_sync: Arc<StdRwLock<ChainProtectedSync>>,
     pub(super) pipe: Arc<dyn EventPipe>,
-    pub(super) format: MessageFormat,
+    pub(super) default_format: MessageFormat,
 }
 
 impl ChainMultiUser
@@ -37,7 +37,7 @@ impl ChainMultiUser
             inside_async: Arc::clone(&accessor.inside_async),
             inside_sync: Arc::clone(&accessor.inside_sync),
             pipe: Arc::clone(&accessor.pipe),
-            format: accessor.format,
+            default_format: accessor.default_format,
         }
     }
  

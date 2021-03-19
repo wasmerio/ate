@@ -5,7 +5,7 @@ use crate::crypto::{DoubleHash, Hash};
 use super::header::*;
 use super::meta::*;
 use super::error::*;
-use super::conf::*;
+use super::spec::*;
 
 /// Represents the raw bytes that can describe what the event is
 #[derive(Debug, Clone)]
@@ -15,6 +15,7 @@ pub struct EventHeaderRaw
     pub meta_bytes: Bytes,
     pub data_hash: Option<super::crypto::Hash>,
     pub event_hash: super::crypto::Hash,
+    pub format: MessageFormat,
 }
 
 impl std::hash::Hash
@@ -27,7 +28,7 @@ for EventHeaderRaw
 
 impl EventHeaderRaw
 {
-    pub(crate) fn new(meta_hash: super::crypto::Hash, meta_bytes: Bytes, data_hash: Option<super::crypto::Hash>) -> EventHeaderRaw
+    pub(crate) fn new(meta_hash: super::crypto::Hash, meta_bytes: Bytes, data_hash: Option<super::crypto::Hash>, format: MessageFormat) -> EventHeaderRaw
     {
         EventHeaderRaw {
             event_hash: match &data_hash {
@@ -37,13 +38,14 @@ impl EventHeaderRaw
             meta_hash,
             meta_bytes,
             data_hash,
+            format,
         }
     }
-    pub(crate) fn as_header(&self, format: MessageFormat) -> Result<EventHeader, SerializationError> {
+    pub(crate) fn as_header(&self) -> Result<EventHeader, SerializationError> {
         Ok(
             EventHeader {
                 raw: self.clone(),
-                meta: format.meta.deserialize(&self.meta_bytes)?,
+                meta: self.format.meta.deserialize(&self.meta_bytes)?,
             }
         )
     }
@@ -69,34 +71,36 @@ pub struct EventData
 {
     pub meta: Metadata,
     pub data_bytes: Option<Bytes>,
+    pub format: MessageFormat,
 }
 
 impl EventData
 {
     #[allow(dead_code)]
-    pub(crate) fn new(key: PrimaryKey, data: Bytes) -> EventData {        
+    pub(crate) fn new(key: PrimaryKey, data: Bytes, format: MessageFormat) -> EventData {        
         EventData {
             meta: Metadata::for_data(key),
             data_bytes: Some(data),
+            format,
         }
     }
 
-    pub(crate) fn as_header_raw(&self, format: MessageFormat) -> Result<EventHeaderRaw, SerializationError> {
+    pub(crate) fn as_header_raw(&self) -> Result<EventHeaderRaw, SerializationError> {
         let data_hash = match &self.data_bytes {
             Some(d) => Some(Hash::from_bytes(&d[..])),
             None => None,
         };
-        let meta_bytes = Bytes::from(format.meta.serialize(&self.meta)?);
+        let meta_bytes = Bytes::from(self.format.meta.serialize(&self.meta)?);
         let meta_hash = Hash::from_bytes(&meta_bytes[..]);
 
         Ok(
-            EventHeaderRaw::new(meta_hash, meta_bytes, data_hash)
+            EventHeaderRaw::new(meta_hash, meta_bytes, data_hash, self.format)
         )
     }
 
-    pub(crate) fn as_header(&self, format: MessageFormat) -> Result<EventHeader, SerializationError> {
+    pub(crate) fn as_header(&self) -> Result<EventHeader, SerializationError> {
         Ok(EventHeader {
-            raw: self.as_header_raw(format)?,
+            raw: self.as_header_raw()?,
             meta: self.meta.clone(),
         })
     }

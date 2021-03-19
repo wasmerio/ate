@@ -27,7 +27,7 @@ use super::multi::*;
 use super::event::*;
 use super::meta::*;
 use super::lint::*;
-use super::conf::*;
+use super::spec::*;
 use super::error::*;
 use super::dio::dao::*;
 use super::accessor::*;
@@ -100,7 +100,7 @@ pub struct Dio<'a>
     #[allow(dead_code)]
     session: &'a Session,
     scope: Scope,
-    format: MessageFormat,
+    default_format: MessageFormat,
 }
 
 impl<'a> Dio<'a>
@@ -115,7 +115,7 @@ impl<'a> Dio<'a>
             data: data,
             auth: MetaAuthorization::default(),
             collections: FxHashSet::default(),
-            format: self.format,
+            format: self.default_format,
         };
 
         let mut ret = Dao::new(row, &self.state);
@@ -137,7 +137,7 @@ impl<'a> Dio<'a>
             return Ok(Dao::new(row, &self.state));
         }
         if let Some(dao) = state.cache_load.get(key) {
-            let row = Row::from_event(dao.deref(), self.format)?;
+            let row = Row::from_event(dao.deref())?;
             return Ok(Dao::new(row, &self.state));
         }
         if state.deleted.contains_key(key) {
@@ -158,7 +158,7 @@ impl<'a> Dio<'a>
     where D: Serialize + DeserializeOwned + Clone,
     {
         let evt = self.multi.load(entry).await?;
-        Ok(self.load_from_event(evt.data, evt.header.as_header(self.format)?)?)
+        Ok(self.load_from_event(evt.data, evt.header.as_header()?)?)
     }
 
     pub(crate) fn load_from_event<D>(&mut self, mut data: EventData, header: EventHeader)
@@ -174,7 +174,7 @@ impl<'a> Dio<'a>
 
         match header.meta.get_data_key() {
             Some(key) => {
-                let row = Row::from_event(&data, self.format)?;
+                let row = Row::from_event(&data)?;
                 state.cache_load.insert(key.clone(), Rc::new(data));
                 Ok(Dao::new(row, &self.state))
             },
@@ -208,7 +208,7 @@ impl<'a> Dio<'a>
 
         // Load all the objects that have not yet been loaded
         for mut evt in self.multi.load_many(to_load).await? {
-            let mut header = evt.header.as_header(self.format)?;
+            let mut header = evt.header.as_header()?;
 
             let key = match header.meta.get_data_key() {
                 Some(k) => k,
@@ -226,7 +226,7 @@ impl<'a> Dio<'a>
                 continue;
             }
             if let Some(dao) = state.cache_load.get(&key) {
-                let row = Row::from_event(dao.deref(), self.format)?;
+                let row = Row::from_event(dao.deref())?;
 
                 already.insert(row.key.clone());
                 ret.push(Dao::new(row, &self.state));
@@ -240,7 +240,7 @@ impl<'a> Dio<'a>
                 None => { continue; },
             };
 
-            let row = Row::from_event(&evt.data, self.format)?;
+            let row = Row::from_event(&evt.data)?;
             state.cache_load.insert(row.key.clone(), Rc::new(evt.data));
 
             already.insert(row.key.clone());
@@ -287,7 +287,7 @@ impl Chain
         let multi = self.multi().await;
         Dio {
             state: Rc::new(RefCell::new(DioState::new())),
-            format: multi.format,
+            default_format: multi.default_format,
             multi,
             session: session,
             scope,            
@@ -350,6 +350,7 @@ impl<'a> Dio<'a>
             let evt = EventData {
                 meta: meta,
                 data_bytes: Some(data),
+                format: self.default_format,
             };
             evts.push(evt);
         }
@@ -370,6 +371,7 @@ impl<'a> Dio<'a>
             let evt = EventData {
                 meta: meta,
                 data_bytes: None,
+                format: self.default_format,
             };
             evts.push(evt);
         }
@@ -379,7 +381,7 @@ impl<'a> Dio<'a>
         for evt in evts.iter() {
             lints.push(LintData {
                 data: evt,
-                header: evt.as_header(self.format)?,
+                header: evt.as_header()?,
             });
         }
         let meta = self.multi.metadata_lint_many(&lints, &self.session)?;
@@ -391,6 +393,7 @@ impl<'a> Dio<'a>
                     core: meta,
                 },
                 data_bytes: None,
+                format: self.default_format,
             });
         }
 

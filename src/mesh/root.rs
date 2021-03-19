@@ -73,7 +73,7 @@ impl MeshRoot
     #[allow(dead_code)]
     pub(super) async fn new(cfg: &Config, cfg_cluster: Option<&ConfCluster>, listen_addrs: Vec<MeshAddress>) -> Arc<MeshRoot>
     {
-        let mut node_cfg = NodeConfig::new(cfg.format)
+        let mut node_cfg = NodeConfig::new(cfg.wire_format)
             .buffer_size(cfg.buffer_size_server);
         let mut listen_ports = listen_addrs
             .iter()
@@ -139,7 +139,7 @@ impl MeshRoot
         // If we can't find a chain for this subscription then fail and tell the caller
         let chain = match self.open(chain_key.clone()).await {
             Err(ChainCreationError::NoRootFound) => {
-                PacketData::reply_at(reply_at, Message::NotThisRoot, self.cfg.format).await?;
+                PacketData::reply_at(reply_at, Message::NotThisRoot, self.cfg.wire_format).await?;
                 return Ok(());
             }
             a => a?
@@ -154,7 +154,7 @@ impl MeshRoot
         
         // Let the caller know we will be streaming them events
         let multi = chain.multi().await;
-        PacketData::reply_at(reply_at, Message::StartOfHistory, self.cfg.format).await?;
+        PacketData::reply_at(reply_at, Message::StartOfHistory, self.cfg.wire_format).await?;
 
         // Find what offset we will start streaming the events back to the caller
         // (we work backwards from the consumers last known position till we find a match
@@ -196,18 +196,19 @@ impl MeshRoot
                     data: match evt.data.data_bytes {
                         Some(a) => Some(a.to_vec()),
                         None => None,
-                    }
+                    },
+                    format: evt.header.format,
                 };
                 evts.push(evt);
             }
             PacketData::reply_at(reply_at, Message::Events {
                 commit: None,
                 evts
-            }, self.cfg.format).await?;
+            }, self.cfg.wire_format).await?;
         }
 
         // Let caller know we have sent all the events that were requested
-        PacketData::reply_at(reply_at, Message::EndOfHistory, self.cfg.format).await?;
+        PacketData::reply_at(reply_at, Message::EndOfHistory, self.cfg.wire_format).await?;
         Ok(())
     }
 
@@ -222,14 +223,14 @@ impl MeshRoot
         let chain_key = match chain_key {
             Some(k) => k,
             None => {
-                PacketData::reply_at(reply_at, Message::NotYetSubscribed, self.cfg.format).await?;
+                PacketData::reply_at(reply_at, Message::NotYetSubscribed, self.cfg.wire_format).await?;
                 return Ok(None);
             }
         };
         Ok(Some(
             match self.open(chain_key.clone()).await {
                 Err(ChainCreationError::NoRootFound) => {
-                    PacketData::reply_at(reply_at, Message::NotThisRoot, self.cfg.format).await?;
+                    PacketData::reply_at(reply_at, Message::NotThisRoot, self.cfg.wire_format).await?;
                     return Ok(None);
                 },
                 a => a?
@@ -271,11 +272,11 @@ impl MeshRoot
 
         if let Some(id) = commit {
             match &ret {
-                Ok(_) => PacketData::reply_at(reply_at, Message::Confirmed(id.clone()), self.cfg.format).await?,
+                Ok(_) => PacketData::reply_at(reply_at, Message::Confirmed(id.clone()), self.cfg.wire_format).await?,
                 Err(err) => PacketData::reply_at(reply_at, Message::CommitError{
                     id: id.clone(),
                     err: err.to_string(),
-                }, self.cfg.format).await?
+                }, self.cfg.wire_format).await?
             };
         }
 
@@ -301,7 +302,7 @@ impl MeshRoot
         PacketData::reply_at(reply_at, Message::LockResult {
             key: key.clone(),
             is_locked
-        }, self.cfg.format).await
+        }, self.cfg.wire_format).await
     }
 
     async fn inbox_unlock(
