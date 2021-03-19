@@ -53,3 +53,11 @@ num_enum = "0.5.1"
 ctor = "0.1.*"
 rust_decimal = "1.10.*"
 names = "0.11.*"
+
+[profile.dev]
+opt-level = 1
+overflow-checks = false
+
+[profile.test]
+opt-level = 1
+overflow-checks = false

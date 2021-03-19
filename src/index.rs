@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use fxhash::FxHashMap;
 use multimap::MultiMap;
 
 use super::event::*;
@@ -20,7 +20,7 @@ where Self: EventSink + Send + Sync + std::fmt::Debug,
 #[derive(Default, Debug)]
 pub(crate) struct BinaryTreeIndexer
 {
-    primary: BTreeMap<PrimaryKey, super::crypto::Hash>,
+    primary: FxHashMap<PrimaryKey, super::crypto::Hash>,
     secondary: MultiMap<MetaCollection, super::crypto::Hash>,
 }
 

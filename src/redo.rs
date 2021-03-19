@@ -160,13 +160,12 @@ impl LogFile {
                 Ok(Some(head)) => to.push_back(head),
                 Ok(None) => break,
                 Err(err) => {
-                    error!("log-read-error: {}", err.to_string());
+                    error!("log-read-error: {} at {}", err.to_string(), self.log_off);
                     continue;
                 }
             }
         }
 
-        info!("log-loaded: path={} events={}", self.log_path, to.len());
         Ok(())
     }
 
