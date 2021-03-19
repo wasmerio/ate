@@ -41,13 +41,13 @@ fn load_test() -> Result<(), AteError> {
                 data3: [2 as u8; 32],
                 data4: Vec::new()
             };
-            for _ in 0..1000 {
+            for _ in 0..100 {
                 test_obj.data4.push(1234 as u128);
             }
 
             // Do a whole let of work
             info!("create::running");
-            for _ in 0..100 {
+            for _ in 0..50 {
                 let mut dio = chain.dio(&session).await;
                 for _ in 0..100 {
                     dio.store(test_obj.clone())?;
