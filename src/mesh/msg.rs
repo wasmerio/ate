@@ -8,7 +8,7 @@ use crate::crypto::Hash;
 use crate::event::*;
 use crate::chain::ChainKey;
 use crate::pipe::EventPipe;
-use crate::accessor::Chain;
+use crate::chain::Chain;
 use crate::error::*;
 use crate::header::PrimaryKey;
 use crate::spec::*;

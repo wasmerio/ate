@@ -1,5 +1,5 @@
 use serde::{Serialize, Deserialize};
-use crate::{accessor::Chain, anti_replay::AntiReplayPlugin, time::TimestampEnforcer, tree::TreeAuthorityPlugin};
+use crate::{chain::Chain, anti_replay::AntiReplayPlugin, time::TimestampEnforcer, tree::TreeAuthorityPlugin};
 #[allow(unused_imports)]
 use std::{net::IpAddr, str::FromStr};
 
@@ -9,7 +9,7 @@ use super::index::*;
 use super::lint::*;
 use super::transform::*;
 use super::plugin::*;
-use super::chain::ChainKey;
+use super::trust::ChainKey;
 use super::crypto::PublicKey;
 use super::error::*;
 use super::crypto::Hash;

@@ -10,7 +10,7 @@ use std::ops::Rem;
 
 use super::core::*;
 use crate::comms::*;
-use crate::accessor::*;
+use crate::trust::*;
 use crate::chain::*;
 use crate::error::*;
 use crate::conf::*;

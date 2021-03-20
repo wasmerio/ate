@@ -1,3 +1,6 @@
+#![allow(unused_imports)]
+use log::{info, error, debug};
+
 mod dao;
 mod vec;
 mod bus;
@@ -5,21 +8,15 @@ mod bus;
 use fxhash::{FxHashMap, FxHashSet};
 
 use multimap::MultiMap;
-#[cfg(test)]
 use serde::{Deserialize};
 use serde::{Serialize, de::DeserializeOwned};
-use std::cell::{RefCell};
-use std::rc::Rc;
 use std::sync::Arc;
+use parking_lot::Mutex;
 use std::ops::Deref;
-#[allow(unused_imports)]
 use tokio::sync::mpsc;
-#[allow(unused_imports)]
 use std::sync::mpsc as smpsc;
 
-#[allow(unused_imports)]
 use crate::crypto::{EncryptedPrivateKey, PrivateKey};
-#[allow(unused_imports)]
 use crate::{crypto::EncryptKey, session::{Session, SessionProperty}};
 
 use super::header::*;
@@ -30,10 +27,9 @@ use super::lint::*;
 use super::spec::*;
 use super::error::*;
 use super::dio::dao::*;
-use super::accessor::*;
-#[allow(unused_imports)]
+use super::trust::*;
+use super::chain::*;
 use super::pipe::*;
-#[allow(unused_imports)]
 use super::crypto::*;
 use super::transaction::*;
 
@@ -42,20 +38,21 @@ pub use crate::dio::dao::Dao;
 
 #[derive(Debug)]
 pub(crate) struct DioState
+where Self: Send + Sync
 {
-    pub(super) store: Vec<Rc<RowData>>,
-    pub(super) cache_store_primary: FxHashMap<PrimaryKey, Rc<RowData>>,
+    pub(super) store: Vec<Arc<RowData>>,
+    pub(super) cache_store_primary: FxHashMap<PrimaryKey, Arc<RowData>>,
     pub(super) cache_store_secondary: MultiMap<MetaCollection, PrimaryKey>,
-    pub(super) cache_load: FxHashMap<PrimaryKey, Rc<EventData>>,
+    pub(super) cache_load: FxHashMap<PrimaryKey, Arc<EventData>>,
     pub(super) locked: FxHashSet<PrimaryKey>,
-    pub(super) deleted: FxHashMap<PrimaryKey, Rc<RowData>>,
+    pub(super) deleted: FxHashMap<PrimaryKey, Arc<RowData>>,
     pub(super) pipe_unlock: FxHashSet<PrimaryKey>,
 }
 
 impl DioState
 {
     pub(super) fn dirty(&mut self, key: &PrimaryKey, tree: Option<&MetaTree>, row: RowData) {
-        let row = Rc::new(row);
+        let row = Arc::new(row);
         self.store.push(row.clone());
         self.cache_store_primary.insert(key.clone(), row);
         if let Some(tree) = tree {
@@ -94,9 +91,10 @@ impl DioState
 }
 
 pub struct Dio<'a>
+where Self: Send + Sync
 {
     multi: ChainMultiUser,
-    state: Rc<RefCell<DioState>>,
+    state: Arc<Mutex<DioState>>,
     #[allow(dead_code)]
     session: &'a Session,
     scope: Scope,
@@ -107,22 +105,28 @@ impl<'a> Dio<'a>
 {
     #[allow(dead_code)]
     pub fn store<D>(&mut self, data: D) -> Result<Dao<D>, SerializationError>
-    where D: Serialize + DeserializeOwned + Clone,
+    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
-        self.store_with_format(data, self.default_format)
+        self.store_ext(data, None, None)
     }
 
     #[allow(dead_code)]
-    pub fn store_with_format<D>(&mut self, data: D, format: MessageFormat) -> Result<Dao<D>, SerializationError>
-    where D: Serialize + DeserializeOwned + Clone,
+    pub fn store_ext<D>(&mut self, data: D, format: Option<MessageFormat>, key: Option<PrimaryKey>) -> Result<Dao<D>, SerializationError>
+    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
         let row = Row {
-            key: PrimaryKey::generate(),
+            key: match key {
+                Some(k) => k,
+                None => PrimaryKey::generate(),
+            },
             tree: None,
             data: data,
             auth: MetaAuthorization::default(),
             collections: FxHashSet::default(),
-            format,
+            format: match format {
+                Some(f) => f,
+                None => self.default_format
+            },
         };
 
         let mut ret = Dao::new(row, &self.state);
@@ -133,36 +137,37 @@ impl<'a> Dio<'a>
 
     #[allow(dead_code)]
     pub async fn load<D>(&mut self, key: &PrimaryKey) -> Result<Dao<D>, LoadError>
-    where D: Serialize + DeserializeOwned + Clone,
+    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
-        let state = self.state.borrow_mut();
-        if state.is_locked(key) {
-            return Result::Err(LoadError::ObjectStillLocked(key.clone()));
-        }
-        if let Some(dao) = state.cache_store_primary.get(key) {
-            let row = Row::from_row_data(dao.deref())?;
-            return Ok(Dao::new(row, &self.state));
-        }
-        if let Some(dao) = state.cache_load.get(key) {
-            let row = Row::from_event(dao.deref())?;
-            return Ok(Dao::new(row, &self.state));
-        }
-        if state.deleted.contains_key(key) {
-            return Result::Err(LoadError::AlreadyDeleted(key.clone()));
+        {
+            let state = self.state.lock();
+            if state.is_locked(key) {
+                return Result::Err(LoadError::ObjectStillLocked(key.clone()));
+            }
+            if let Some(dao) = state.cache_store_primary.get(key) {
+                let row = Row::from_row_data(dao.deref())?;
+                return Ok(Dao::new(row, &self.state));
+            }
+            if let Some(dao) = state.cache_load.get(key) {
+                let row = Row::from_event(dao.deref())?;
+                return Ok(Dao::new(row, &self.state));
+            }
+            if state.deleted.contains_key(key) {
+                return Result::Err(LoadError::AlreadyDeleted(key.clone()));
+            }
         }
 
         let entry = match self.multi.lookup_primary(key).await {
             Some(a) => a,
             None => return Result::Err(LoadError::NotFound(key.clone()))
         };
-        drop(state);
 
         Ok(self.load_from_entry(entry).await?)
     }
 
     pub(crate) async fn load_from_entry<D>(&mut self, entry: super::crypto::Hash)
     -> Result<Dao<D>, LoadError>
-    where D: Serialize + DeserializeOwned + Clone,
+    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
         let evt = self.multi.load(entry).await?;
         Ok(self.load_from_event(evt.data, evt.header.as_header()?)?)
@@ -170,19 +175,19 @@ impl<'a> Dio<'a>
 
     pub(crate) fn load_from_event<D>(&mut self, mut data: EventData, header: EventHeader)
     -> Result<Dao<D>, LoadError>
-    where D: Serialize + DeserializeOwned + Clone,
+    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
         data.data_bytes = match data.data_bytes {
             Some(data) => Some(self.multi.data_as_overlay(&header.meta, data, &self.session)?),
             None => None,
         };
 
-        let mut state = self.state.borrow_mut();
+        let mut state = self.state.lock();
 
         match header.meta.get_data_key() {
             Some(key) => {
                 let row = Row::from_event(&data)?;
-                state.cache_load.insert(key.clone(), Rc::new(data));
+                state.cache_load.insert(key.clone(), Arc::new(data));
                 Ok(Dao::new(row, &self.state))
             },
             None => Err(LoadError::NoPrimaryKey)
@@ -190,9 +195,9 @@ impl<'a> Dio<'a>
     }
 
     pub(crate) async fn children<D>(&mut self, parent_id: PrimaryKey, collection_id: u64) -> Result<Vec<Dao<D>>, LoadError>
-    where D: Serialize + DeserializeOwned + Clone,
+    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
-        let mut state = self.state.borrow_mut();
+        let mut state = self.state.lock();
         
         // Build the secondary index key
         let key = MetaCollection {
@@ -248,7 +253,7 @@ impl<'a> Dio<'a>
             };
 
             let row = Row::from_event(&evt.data)?;
-            state.cache_load.insert(row.key.clone(), Rc::new(evt.data));
+            state.cache_load.insert(row.key.clone(), Arc::new(evt.data));
 
             already.insert(row.key.clone());
             ret.push(Dao::new(row, &self.state));
@@ -293,7 +298,7 @@ impl Chain
     pub async fn dio_ext<'a>(&'a self, session: &'a Session, scope: Scope) -> Dio<'a> {
         let multi = self.multi().await;
         Dio {
-            state: Rc::new(RefCell::new(DioState::new())),
+            state: Arc::new(Mutex::new(DioState::new())),
             default_format: multi.default_format,
             multi,
             session: session,
@@ -320,10 +325,12 @@ impl<'a> Dio<'a>
     pub fn commit(&mut self) -> Result<(), CommitError>
     {
         // If we have dirty records
-        let mut state = self.state.borrow_mut();
+        let mut state = self.state.lock();
         if state.store.is_empty() && state.deleted.is_empty() {
             return Ok(())
         }
+
+        debug!("atefs::commit stored={} deleted={}", state.store.len(), state.deleted.len());
 
         // First unlock any data objects that were locked via the pipe
         let unlock_multi = self.multi.clone();
@@ -414,6 +421,7 @@ impl<'a> Dio<'a>
                 _ => Some(sender)
             },
         };
+        debug!("atefs::commit events={}", trans.events.len());
 
         // Process it in the chain of trust
         let pipe = Arc::clone(&self.multi.pipe);
@@ -477,7 +485,7 @@ async fn test_dio()
     let root_public_key = write_key.as_public_key();
     
     let mut session = Session::default();
-    let chain = super::chain::create_test_chain("test_dio".to_string(), true, false, Some(root_public_key)).await;
+    let chain = super::trust::create_test_chain("test_dio".to_string(), true, false, Some(root_public_key)).await;
     //let mut chain = create_test_chain("test_dio".to_string(), true, false, None);
 
     session.properties.push(SessionProperty::WriteKey(write_key.clone()));

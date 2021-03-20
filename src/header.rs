@@ -44,6 +44,10 @@ impl PrimaryKey {
     pub fn as_hex_string(&self) -> String {
         format!("{:X?}", self.key).to_string()
     }
+
+    pub fn as_u64(&self) -> u64 {
+        self.key
+    }
 }
 
 impl From<Hash>

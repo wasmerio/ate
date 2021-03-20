@@ -12,8 +12,8 @@ pub use crate::crypto::KeySize;
 pub use crate::meta::ReadOption;
 pub use crate::meta::WriteOption;
 
-pub use crate::accessor::Chain;
-pub use crate::chain::ChainKey;
+pub use crate::chain::Chain;
+pub use crate::trust::ChainKey;
 pub use crate::conf::ChainOfTrustBuilder as ChainBuilder;
 
 pub use crate::dio::DaoVec;

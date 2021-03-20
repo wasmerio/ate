@@ -9,7 +9,7 @@ use crate::session::{Session};
 
 use super::meta::*;
 use super::error::*;
-use super::accessor::*;
+use super::chain::*;
 use super::pipe::*;
 use super::redo::*;
 use super::header::*;
@@ -22,6 +22,7 @@ use bytes::Bytes;
 
 #[derive(Clone)]
 pub struct ChainMultiUser
+where Self: Send + Sync
 {
     pub(super) inside_async: Arc<RwLock<ChainProtectedAsync>>,
     pub(super) inside_sync: Arc<StdRwLock<ChainProtectedSync>>,

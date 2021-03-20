@@ -7,7 +7,7 @@ use std::sync::Weak;
 
 use super::core::*;
 use super::session::*;
-use crate::accessor::*;
+use crate::trust::*;
 use crate::chain::*;
 use crate::error::*;
 use crate::conf::*;

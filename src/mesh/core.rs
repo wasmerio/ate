@@ -6,7 +6,7 @@ use bytes::Bytes;
 
 use crate::crypto::*;
 use crate::event::*;
-use crate::accessor::*;
+use crate::trust::*;
 use crate::chain::*;
 use crate::error::*;
 use crate::conf::*;

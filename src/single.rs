@@ -2,7 +2,7 @@ use tokio::sync::RwLockWriteGuard;
 use parking_lot::RwLock as StdRwLock;
 use std::sync::Arc;
 
-use super::accessor::*;
+use super::chain::*;
 use super::error::*;
 use super::event::*;
 

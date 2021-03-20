@@ -68,6 +68,7 @@ impl EventHeader {
 /// Represents an event that has not yet been stored anywhere
 #[derive(Debug, Clone)]
 pub struct EventData
+where Self: Send + Sync
 {
     pub meta: Metadata,
     pub data_bytes: Option<Bytes>,

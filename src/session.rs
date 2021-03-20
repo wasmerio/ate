@@ -22,6 +22,7 @@ impl Default for SessionProperty {
 #[allow(dead_code)]
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Session
+where Self: Send + Sync
 {
     pub properties: Vec<SessionProperty>,
 }

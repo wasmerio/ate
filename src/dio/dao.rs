@@ -1,15 +1,14 @@
+#![allow(unused_imports)]
 use log::{warn};
 use fxhash::FxHashSet;
 
 use serde::{Serialize, de::DeserializeOwned};
 use bytes::Bytes;
-use std::cell::{RefCell, RefMut};
 use std::ops::{Deref, DerefMut};
-use std::rc::Rc;
+use std::sync::Arc;
+use parking_lot::{Mutex, MutexGuard};
 
-#[allow(unused_imports)]
 use crate::crypto::{EncryptedPrivateKey, PrivateKey};
-#[allow(unused_imports)]
 use crate::{crypto::EncryptKey, session::{Session, SessionProperty}};
 
 use crate::header::*;
@@ -25,7 +24,8 @@ pub use super::vec::DaoVec;
 
 #[derive(Debug, Clone)]
 pub(super) struct Row<D>
-where D: Serialize + DeserializeOwned + Clone,
+where Self: Send + Sync,
+      D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     pub(super) key: PrimaryKey,
     pub(super) format: MessageFormat,
@@ -36,7 +36,8 @@ where D: Serialize + DeserializeOwned + Clone,
 }
 
 impl<D> Row<D>
-where D: Serialize + DeserializeOwned + Clone,
+where Self: Send + Sync,
+      D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     #[allow(dead_code)]
     pub(super) fn new(
@@ -121,6 +122,7 @@ where D: Serialize + DeserializeOwned + Clone,
 
 #[derive(Debug, Clone)]
 pub(crate) struct RowData
+where Self: Send + Sync
 {
     pub key: PrimaryKey,
     pub format: MessageFormat,
@@ -145,29 +147,31 @@ pub(crate) enum DaoLock
 
 #[derive(Debug)]
 pub struct Dao<D>
-where D: Serialize + DeserializeOwned + Clone,
+where Self: Send + Sync,
+      D: Serialize + DeserializeOwned + Clone + Sync + Send,
 {
     lock: DaoLock,
     dirty: bool,
     pub(super) row: Row<D>,
-    state: Rc<RefCell<DioState>>,
+    state: Arc<Mutex<DioState>>,
 }
 
 impl<D> Dao<D>
-where D: Serialize + DeserializeOwned + Clone,
+where Self: Send + Sync,
+      D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
-    pub(super) fn new<>(row: Row<D>, state: &Rc<RefCell<DioState>>) -> Dao<D> {
+    pub(super) fn new<>(row: Row<D>, state: &Arc<Mutex<DioState>>) -> Dao<D> {
         Dao {
             lock: DaoLock::Unlocked,
             dirty: false,
             row: row,
-            state: Rc::clone(state),
+            state: Arc::clone(state),
         }
     }
 
     pub(super) fn fork(&mut self) -> bool {
         if self.dirty == false {
-            let mut state = self.state.borrow_mut();
+            let mut state = self.state.lock();
             if state.lock(&self.row.key) == false {
                 eprintln!("Detected concurrent writes on data object ({:?}) - the last one in scope will override the all other changes made", self.row.key);
             }
@@ -212,27 +216,8 @@ where D: Serialize + DeserializeOwned + Clone,
 
     #[allow(dead_code)]
     pub fn delete(self) -> std::result::Result<(), SerializationError> {
-        let mut state = self.state.borrow_mut();
-        self.delete_internal(&mut state)
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn delete_internal(&self, state: &mut RefMut<DioState>) -> std::result::Result<(), SerializationError> {
-        if state.lock(&self.row.key) == false {
-            eprintln!("Detected concurrent write while deleting a data object ({:?}) - the delete operation will override everything else", self.row.key);
-        }
-        let key = self.key().clone();
-        state.cache_store_primary.remove(&key);
-        if let Some(tree) = &self.row.tree {
-            if let Some(y) = state.cache_store_secondary.get_vec_mut(&tree.vec) {
-                y.retain(|x| *x == key);
-            }
-        }
-        state.cache_load.remove(&key);
-
-        let row_data = self.row.as_row_data()?;
-        state.deleted.insert(key, Rc::new(row_data));
-        Ok(())
+        let mut state = self.state.lock();
+        delete_internal(&self, &mut state)
     }
 
     #[allow(dead_code)]
@@ -288,8 +273,29 @@ where D: Serialize + DeserializeOwned + Clone,
     }
 }
 
+pub(crate) fn delete_internal<D>(dao: &Dao<D>, state: &mut MutexGuard<DioState>)
+    -> std::result::Result<(), SerializationError>
+where D: Serialize + DeserializeOwned + Clone + Send + Sync,
+{
+    if state.lock(&dao.row.key) == false {
+        eprintln!("Detected concurrent write while deleting a data object ({:?}) - the delete operation will override everything else", dao.row.key);
+    }
+    let key = dao.key().clone();
+    state.cache_store_primary.remove(&key);
+    if let Some(tree) = &dao.row.tree {
+        if let Some(y) = state.cache_store_secondary.get_vec_mut(&tree.vec) {
+            y.retain(|x| *x == key);
+        }
+    }
+    state.cache_load.remove(&key);
+
+    let row_data = dao.row.as_row_data()?;
+    state.deleted.insert(key, Arc::new(row_data));
+    Ok(())
+}
+
 impl<D> Deref for Dao<D>
-where D: Serialize + DeserializeOwned + Clone,
+where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     type Target = D;
 
@@ -299,7 +305,7 @@ where D: Serialize + DeserializeOwned + Clone,
 }
 
 impl<D> DerefMut for Dao<D>
-where D: Serialize + DeserializeOwned + Clone,
+where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
         self.fork();
@@ -308,7 +314,7 @@ where D: Serialize + DeserializeOwned + Clone,
 }
 
 impl<D> Drop for Dao<D>
-where D: Serialize + DeserializeOwned + Clone,
+where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     fn drop(&mut self)
     {
@@ -321,13 +327,13 @@ where D: Serialize + DeserializeOwned + Clone,
 }
 
 impl<D> Dao<D>
-where D: Serialize + DeserializeOwned + Clone,
+where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     pub(crate) fn commit(&mut self) -> std::result::Result<(), SerializationError>
     {
         if self.dirty == true
         {            
-            let mut state = self.state.borrow_mut();
+            let mut state = self.state.lock();
 
             // The local DIO lock gets released first
             state.unlock(&self.row.key);
@@ -339,7 +345,8 @@ where D: Serialize + DeserializeOwned + Clone,
                 },
                 DaoLock::LockedThenDelete => {
                     state.pipe_unlock.insert(self.row.key.clone());
-                    self.delete_internal(&mut state)?;
+                    delete_internal(self, &mut state)?;
+                    return Ok(())
                 },
                 _ => {}
             }

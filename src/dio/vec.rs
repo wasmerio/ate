@@ -10,7 +10,7 @@ use std::collections::VecDeque;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DaoVec<D>
-where D: Serialize + DeserializeOwned + Clone,
+where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     pub(super) vec_id: u64,
     #[serde(skip)]
@@ -18,7 +18,7 @@ where D: Serialize + DeserializeOwned + Clone,
 }
 
 impl<D> DaoVec<D>
-where D: Serialize + DeserializeOwned + Clone,
+where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     pub fn new() -> DaoVec<D> {
         DaoVec {
@@ -59,7 +59,7 @@ where D: Serialize + DeserializeOwned + Clone,
 
 impl<D> Default
 for DaoVec<D>
-where D: Serialize + DeserializeOwned + Clone,
+where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     fn default() -> DaoVec<D>
     {
@@ -67,13 +67,13 @@ where D: Serialize + DeserializeOwned + Clone,
     }
 }
 pub struct Iter<D>
-where D: Serialize + DeserializeOwned + Clone,
+where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     vec: VecDeque<Dao<D>>,
 }
 
 impl<D> Iter<D>
-where D: Serialize + DeserializeOwned + Clone,
+where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     fn new(vec: Vec<Dao<D>>) -> Iter<D> {
         Iter {
@@ -84,7 +84,7 @@ where D: Serialize + DeserializeOwned + Clone,
 
 impl<D> Iterator
 for Iter<D>
-where D: Serialize + DeserializeOwned + Clone,
+where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     type Item = Dao<D>;
 

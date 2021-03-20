@@ -1,344 +1,575 @@
-use serde::{Serialize, Deserialize};
 
-#[allow(unused_imports)]
-use crate::session::{Session, SessionProperty};
+#![allow(unused_imports)]
+use log::{info, error, debug};
 
-#[allow(unused_imports)]
-use super::crypto::*;
+use async_trait::async_trait;
+use multimap::MultiMap;
+
+use crate::crypto::Hash;
+
 use super::compact::*;
-#[allow(unused_imports)]
-use super::lint::*;
-#[allow(unused_imports)]
-use super::transform::*;
-use super::meta::*;
+use super::plugin::*;
 use super::error::*;
-#[allow(unused_imports)]
-use super::transaction::*;
-#[allow(unused_imports)]
-use super::pipe::*;
-#[allow(unused_imports)]
-use super::accessor::*;
 
-#[allow(unused_imports)]
 use super::conf::*;
-#[allow(unused_imports)]
-use super::header::*;
-#[allow(unused_imports)]
-use super::validator::*;
-#[allow(unused_imports)]
 use super::event::*;
 use super::index::*;
-#[allow(unused_imports)]
-use super::lint::*;
-use std::collections::BTreeMap;
-#[allow(unused_imports)]
-use std::sync::Arc;
-#[allow(unused_imports)]
+use super::validator::*;
+use super::transaction::*;
+
 use std::rc::Rc;
+use tokio::runtime::Runtime;
+use std::sync::{Arc, Weak};
+use parking_lot::Mutex as StdMutex;
+use fxhash::{FxHashMap, FxHashSet};
+use tokio::sync::RwLock;
+use parking_lot::RwLock as StdRwLock;
+use parking_lot::RwLockWriteGuard as StdRwLockWriteGuard;
+use tokio::sync::mpsc;
+use std::sync::mpsc as smpsc;
 
-#[allow(unused_imports)]
-use std::io::Write;
 use super::redo::*;
-#[allow(unused_imports)]
-use bytes::Bytes;
+use super::conf::*;
 
-#[allow(unused_imports)]
-use super::event::*;
-#[allow(unused_imports)]
-use super::crypto::Hash;
-use fxhash::FxHashMap;
+use super::trust::*;
+use super::single::*;
+use super::multi::*;
+use super::pipe::*;
+use super::lint::*;
+use super::transform::*;
+use super::header::PrimaryKey;
+use super::meta::MetaCollection;
 use super::spec::*;
+use std::collections::BTreeMap;
 
-#[allow(dead_code)]
-#[derive(Serialize, Deserialize, Debug, Clone, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct ChainKey {
-    pub name: String,
-}
+pub use super::transaction::Scope;
+pub use super::trust::ChainKey;
 
-impl ChainKey {
-    #[allow(dead_code)]
-    pub fn new(val: String) -> ChainKey {
-        ChainKey {
-            name: val,
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn with_name(&self, val: String) -> ChainKey
-    {
-        let mut ret = self.clone();
-        ret.name = val;
-        ret
-    }
-
-    #[allow(dead_code)]
-    pub fn with_temp_name(&self, val: String) -> ChainKey
-    {
-        let mut ret = self.clone();
-        ret.name = format!("{}_{}", val, PrimaryKey::generate().as_hex_string());
-        ret
-    }
-
-    pub fn hash(&self) -> Hash
-    {
-        Hash::from_bytes(&self.name.clone().into_bytes())
-    }
-}
-
-impl From<String>
-for ChainKey
+struct InboxPipe
 {
-    fn from(val: String) -> ChainKey {
-        ChainKey::new(val)
-    }
+    inbox: mpsc::Sender<Transaction>,
+    locks: StdMutex<FxHashSet<PrimaryKey>>,
 }
 
-impl From<&'static str>
-for ChainKey
+pub(crate) struct ChainProtectedAsync
 {
-    fn from(val: &'static str) -> ChainKey {
-        ChainKey::new(val.to_string())
-    }
+    pub(super) chain: ChainOfTrust,
 }
 
-impl From<u64>
-for ChainKey
+pub(crate) struct ChainListener
 {
-    fn from(val: u64) -> ChainKey {
-        ChainKey::new(val.to_string())
-    }
+    pub(crate) id: u64,
+    pub(crate) sender: mpsc::Sender<EventData>
 }
 
-#[allow(dead_code)]
-pub(crate) struct ChainOfTrust
+pub(crate) struct ChainProtectedSync
+{
+    pub(super) plugins: Vec<Box<dyn EventPlugin>>,
+    pub(super) indexers: Vec<Box<dyn EventIndexer>>,
+    pub(super) linters: Vec<Box<dyn EventMetadataLinter>>,
+    pub(super) transformers: Vec<Box<dyn EventDataTransformer>>,
+    pub(super) validators: Vec<Box<dyn EventValidator>>,
+    pub(super) listeners: MultiMap<MetaCollection, ChainListener>,
+}
+
+#[derive(Clone)]
+pub struct Chain
+where Self: Send + Sync
 {
     pub(super) key: ChainKey,
-    pub(super) redo: RedoLog,
-    pub(super) history_offset: u64,
-    pub(super) history_reverse: FxHashMap<Hash, u64>,
-    pub(super) history: BTreeMap<u64, EventHeaderRaw>,
-    pub(super) configured_for: ConfiguredFor,
-    pub(super) pointers: BinaryTreeIndexer,
-    pub(super) compactors: Vec<Box<dyn EventCompactor>>,
-    pub(super) default_format: MessageFormat,
+    pub(super) inside_sync: Arc<StdRwLock<ChainProtectedSync>>,
+    pub(super) inside_async: Arc<RwLock<ChainProtectedAsync>>,
+    pub(super) pipe: Arc<dyn EventPipe>,
+    pub(crate) default_format: MessageFormat,
 }
 
-impl<'a> ChainOfTrust
+impl ChainProtectedAsync
 {
-    pub(super) async fn load(&self, entry: super::crypto::Hash) -> Result<LoadResult, LoadError> {
-        Ok(self.redo.load(entry).await?)
+    #[allow(dead_code)]
+    pub(super) fn process(&mut self, mut sync: StdRwLockWriteGuard<ChainProtectedSync>, headers: Vec<EventHeader>) -> Result<(), ProcessError>
+    {
+        let mut ret = ProcessError::default();
+
+        for header in headers.into_iter()
+        {
+            if let Result::Err(err) = sync.validate_event(&header) {
+                ret.validation_errors.push(err);
+            }
+
+            for indexer in sync.indexers.iter_mut() {
+                if let Err(err) = indexer.feed(&header) {
+                    ret.sink_errors.push(err);
+                }
+            }
+            for plugin in sync.plugins.iter_mut() {
+                if let Err(err) = plugin.feed(&header) {
+                    ret.sink_errors.push(err);
+                }
+            }
+
+            self.chain.pointers.feed(&header);
+            self.chain.add_history(header.raw);
+        }
+
+        ret.as_result()
     }
 
-    pub(super) async fn load_many(&self, entries: Vec<super::crypto::Hash>) -> Result<Vec<LoadResult>, LoadError>
+    #[allow(dead_code)]
+    pub(super) async fn feed_async_internal(&mut self, sync: Arc<StdRwLock<ChainProtectedSync>>, evts: &Vec<EventData>)
+        -> Result<Vec<EventHeader>, CommitError>
     {
+        let mut validated_evts = Vec::new();
+        {
+            let mut sync = sync.write();
+            for evt in evts.iter()
+            {
+                let header = evt.as_header()?;
+                match sync.validate_event(&header) {
+                    Err(err) => {
+                        debug!("chain::feed-validation-err {}", err);
+                        Err(err)?;
+                    }
+                    _ => {}
+                }
+
+                for indexer in sync.indexers.iter_mut() {
+                    indexer.feed(&header)?;
+                }
+                for plugin in sync.plugins.iter_mut() {
+                    plugin.feed(&header)?;
+                }
+
+                validated_evts.push((evt, header));
+            }
+        }
+
         let mut ret = Vec::new();
+        for (evt, header) in validated_evts.into_iter() {
+            let _ = self.chain.redo
+                .write(evt).await?;
 
-        let mut futures = Vec::new();
-        for entry in entries {
-            futures.push(self.redo.load(entry));
+            self.chain.pointers.feed(&header);
+            self.chain.add_history(header.raw.clone());
+            ret.push(header);
         }
-
-        for join in futures {
-            ret.push(join.await?);
-        }
-
         Ok(ret)
     }
+}
 
-    #[allow(dead_code)]
-    pub(super) fn lookup_primary(&self, key: &PrimaryKey) -> Option<super::crypto::Hash>
-    {
-        self.pointers.lookup_primary(key)
-    }
-
-    #[allow(dead_code)]
-    pub(super) fn lookup_secondary(&self, key: &MetaCollection) -> Option<Vec<super::crypto::Hash>>
-    {
-        self.pointers.lookup_secondary(key)
-    }
-
-    pub(super) async fn flush(&mut self) -> Result<(), tokio::io::Error> {
-        self.redo.flush().await
-    }
-
-    #[allow(dead_code)]
-    pub(super) async fn destroy(&mut self) -> Result<(), tokio::io::Error> {
-        self.redo.destroy()
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn name(&self) -> String {
-        self.key.name.clone()
-    }
-
-    #[allow(dead_code)]
-    pub(super) fn is_open(&self) -> bool {
-        self.redo.is_open()
-    }
-
-    pub(crate) fn add_history(&mut self, header: EventHeaderRaw) {
-        let offset = self.history_offset;
-        self.history_offset = self.history_offset + 1;
-        self.history_reverse.insert(header.event_hash.clone(), offset);
-        self.history.insert(offset, header);
+impl Drop
+for ChainProtectedAsync
+{
+    fn drop(&mut self) {
+        let _ = futures::executor::block_on(self.chain.flush());
     }
 }
 
-#[cfg(test)]
-pub(crate) async fn create_test_chain(chain_name: String, temp: bool, barebone: bool, root_public_key: Option<PublicKey>) ->
-    Chain
+impl ChainProtectedSync
 {
-    // Create the chain-of-trust and a validator
-    let mut mock_cfg = mock_test_config();
-    mock_cfg.log_temp = false;
-
-    let mock_chain_key = match temp {
-        true => ChainKey::default().with_temp_name(chain_name),
-        false => ChainKey::default().with_name(chain_name),
-    };
-
-    let mut builder = match barebone {
-        true => {
-            mock_cfg.configured_for(ConfiguredFor::Barebone);
-            ChainOfTrustBuilder::new(&mock_cfg)
-                .add_validator(Box::new(RubberStampValidator::default()))
-                .add_data_transformer(Box::new(StaticEncryptionTransformer::new(&EncryptKey::from_string("test".to_string(), KeySize::Bit192))))
-                .add_metadata_linter(Box::new(EventAuthorLinter::default()))
-        },
-        false => {
-            mock_cfg.configured_for(ConfiguredFor::Balanced);
-            ChainOfTrustBuilder::new(&mock_cfg)
+    #[allow(dead_code)]
+    pub(super) fn validate_event(&self, header: &EventHeader) -> Result<ValidationResult, ValidationError>
+    {
+        let mut is_deny = false;
+        let mut is_allow = false;
+        for validator in self.validators.iter() {
+            match validator.validate(header)? {
+                ValidationResult::Deny => is_deny = true,
+                ValidationResult::Allow => is_allow = true,
+                _ => {},
+            }
         }
-    };        
+        for plugin in self.plugins.iter() {
+            match plugin.validate(header)? {
+                ValidationResult::Deny => is_deny = true,
+                ValidationResult::Allow => is_allow = true,
+                _ => {}
+            }
+        }
 
-    if let Some(key) = root_public_key {
-        builder = builder.add_root_public_key(&key);
+        if is_deny == true {
+            return Err(ValidationError::Denied)
+        }
+        if is_allow == false {
+            return Err(ValidationError::AllAbstained);
+        }
+        Ok(ValidationResult::Allow)
+    }
+}
+
+impl<'a> Chain
+{
+    async fn worker(inside_async: Arc<RwLock<ChainProtectedAsync>>, inside_sync: Arc<StdRwLock<ChainProtectedSync>>, mut receiver: mpsc::Receiver<Transaction>)
+    {
+        // Wait for the next transaction to be processed
+        while let Some(trans) = receiver.recv().await
+        {
+            // We lock the chain of trust while we update the local chain
+            let mut lock = inside_async.write().await;
+
+            // Push the events into the chain of trust and release the lock on it before
+            // we transmit the result so that there is less lock thrashing
+            let chain_result = match lock.feed_async_internal(inside_sync.clone(), &trans.events).await {
+                Ok(_) => Ok(()),
+                Err(err) => Err(err),
+            };
+
+            // If the scope requires it then we flush, otherwise we just drop the lock
+            let late_flush = match trans.scope {
+                Scope::One | Scope::Full => {
+                    lock.chain.flush().await.unwrap();
+                    false
+                },
+                _ => true
+            };
+            drop(lock);
+
+            // We send the result of a feed operation back to the caller, if the send
+            // operation fails its most likely because the caller has moved on and is
+            // not concerned by the result hence we do nothing with these errors
+            if let Some(result) = trans.result {
+                let _ = result.send(chain_result);
+            }
+
+            // If we have a late flush in play then execute it
+            if late_flush {
+                let flush_async = inside_async.clone();
+                tokio::spawn(async move {
+                    let mut lock = flush_async.write().await;
+                    lock.chain.flush().await.unwrap();
+                });
+                tokio::task::yield_now().await;
+            }
+        }
+    }
+
+    #[allow(dead_code)]
+    pub async fn new(
+        builder: ChainOfTrustBuilder,
+        key: &ChainKey,
+    ) -> Result<Chain, ChainCreationError>
+    {
+        let (
+            redo_log,
+            mut redo_loader
+        ) = RedoLog::open(&builder.cfg, key, builder.truncate).await?;
+
+        let mut entries = Vec::new();
+        while let Some(result) = redo_loader.pop() {
+            entries.push(result.header.as_header()?);
+        }
+
+        let chain = ChainOfTrust {
+            key: key.clone(),
+            redo: redo_log,
+            configured_for: builder.configured_for,
+            history_offset: 0,
+            history_reverse: FxHashMap::default(),
+            history: BTreeMap::new(),
+            pointers: BinaryTreeIndexer::default(),
+            compactors: builder.compactors,
+            default_format: builder.cfg.log_format,
+        };
+
+        let mut inside_sync = ChainProtectedSync {
+            indexers: builder.indexers,
+            plugins: builder.plugins,
+            linters: builder.linters,
+            validators: builder.validators,
+            transformers: builder.transformers,
+            listeners: MultiMap::new(),
+        };
+        if let Some(tree) = builder.tree {
+            inside_sync.plugins.push(Box::new(tree));
+        }
+        let inside_sync = Arc::new(StdRwLock::new(inside_sync));
+
+        let mut inside_async = ChainProtectedAsync {
+            chain,
+        };        
+        inside_async.process(inside_sync.write(), entries)?;
+        let inside_async = Arc::new(RwLock::new(inside_async));
+
+        let (sender,
+             receiver)
+             = mpsc::channel(builder.cfg.buffer_size_client);
+
+        let worker_inside_async = Arc::clone(&inside_async);
+        let worker_inside_sync = Arc::clone(&inside_sync);
+        tokio::task::spawn(Chain::worker(worker_inside_async, worker_inside_sync, receiver));
+
+        Ok(
+            Chain {
+                key: key.clone(),
+                inside_sync,
+                inside_async,
+                pipe: Arc::new(InboxPipe {
+                    inbox: sender,
+                    locks: StdMutex::new(FxHashSet::default()),
+                }),
+                default_format: builder.cfg.log_format,
+            }
+        )
     }
     
-    Chain::new(
-        builder,
-        &mock_chain_key)
-        .await.unwrap()
-}
-
-#[tokio::main]
-#[test]
-async fn test_chain() {
-
-    let key1 = PrimaryKey::generate();
-    let key2 = PrimaryKey::generate();
-    let chain_name;
-
-    {
-        let mut chain = create_test_chain("test_chain".to_string(), true, true, None).await;
-        chain_name = chain.name().await;
-
-        let mut evt1 = EventData::new(key1.clone(), Bytes::from(vec!(1; 1)), chain.default_format);
-        let mut evt2 = EventData::new(key2.clone(), Bytes::from(vec!(2; 1)), chain.default_format);
-
-        {
-            let lock = chain.multi().await;
-            assert_eq!(0, lock.count().await);
-            
-            // Push the first events into the chain-of-trust
-            let mut evts = Vec::new();
-            evts.push(evt1.clone());
-            evts.push(evt2.clone());
-
-            let (trans, receiver) = Transaction::from_events(evts, Scope::Local);
-            lock.pipe.feed(trans).await.expect("The event failed to be accepted");
-            
-            drop(lock);
-            receiver.recv().unwrap().unwrap();
-            assert_eq!(2, chain.count().await);
-        }
-
-        {
-            let lock = chain.multi().await;
-
-            // Make sure its there in the chain
-            let test_data = lock.lookup_primary(&key1).await.expect("Failed to find the entry after the flip");
-            let test_data = lock.load(test_data).await.expect("Could not load the data for the entry");
-            assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(1; 1))));
-        }
-            
-        {
-            let lock = chain.multi().await;
-
-            // Duplicate one of the event so the compactor has something to clean
-            evt1.data_bytes = Some(Bytes::from(vec!(10; 1)));
-            
-            let mut evts = Vec::new();
-            evts.push(evt1.clone());
-            let (trans, receiver) = Transaction::from_events(evts, Scope::Local);
-            lock.pipe.feed(trans).await.expect("The event failed to be accepted");
-
-            drop(lock);
-            receiver.recv().unwrap().unwrap();
-            assert_eq!(3, chain.count().await);
-        }
-
-        // Now compact the chain-of-trust which should reduce the duplicate event
-        assert_eq!(3, chain.count().await);
-        chain.compact().await.expect("Failed to compact the log");
-        assert_eq!(2, chain.count().await);
-
-        {
-            let lock = chain.multi().await;
-
-            // Read the event and make sure its the second one that results after compaction
-            let test_data = lock.lookup_primary(&key1).await.expect("Failed to find the entry after the flip");
-            let test_data = lock.load(test_data).await.unwrap();
-            assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(10; 1))));
-
-            // The other event we added should also still be there
-            let test_data = lock.lookup_primary(&key2).await.expect("Failed to find the entry after the flip");
-            let test_data = lock.load(test_data).await.unwrap();
-            assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(2; 1))));
-        }
-
-        {
-            let lock = chain.multi().await;
-
-            // Now lets tombstone the second event
-            evt2.meta.add_tombstone(key2);
-            
-            let mut evts = Vec::new();
-            evts.push(evt2.clone());
-            let (trans, receiver) = Transaction::from_events(evts, Scope::Local);
-            lock.pipe.feed(trans).await.expect("The event failed to be accepted");
-            
-            // Number of events should have gone up by one even though there should be one less item
-            drop(lock);
-            receiver.recv().unwrap().unwrap();
-            assert_eq!(3, chain.count().await);
-        }
-
-        // Searching for the item we should not find it
-        match chain.multi().await.lookup_primary(&key2).await {
-            Some(_) => panic!("The item should not be visible anymore"),
-            None => {}
-        }
-        
-        // Now compact the chain-of-trust which should remove one of the events and its tombstone
-        chain.compact().await.expect("Failed to compact the log");
-        assert_eq!(1, chain.count().await);
+    pub(crate) fn proxy(&mut self, proxy: Arc<dyn EventPipe>) {
+        let next = self.pipe.clone();
+        proxy.set_next(next);
+        self.pipe = proxy;
     }
 
+    #[allow(dead_code)]
+    pub fn key(&'a self) -> ChainKey {
+        self.key.clone()
+    }
+
+    pub async fn single(&'a self) -> ChainSingleUser<'a> {
+        ChainSingleUser::new(self).await
+    }
+
+    pub async fn multi(&'a self) -> ChainMultiUser {
+        ChainMultiUser::new(self).await
+    }
+
+    #[allow(dead_code)]
+    pub async fn name(&'a mut self) -> String {
+        self.single().await.name()
+    }
+
+    #[allow(dead_code)]
+    pub async fn compact(&'a mut self) -> Result<(), CompactError>
     {
-        // Reload the chain from disk and check its integrity
-        let chain = create_test_chain(chain_name, false, true, None).await;
+        // prepare
+        let mut new_pointers = BinaryTreeIndexer::default();
+        let mut keepers = Vec::new();
+        let mut new_history_reverse = FxHashMap::default();
+        let mut new_history = BTreeMap::new();
+        
+        // create the flip
+        let mut flip = {
+            let mut single = self.single().await;
+            let ret = single.inside_async.chain.redo.begin_flip().await?;
+            single.inside_async.chain.redo.flush().await?;
+            ret
+        };
 
+        let mut history_offset;
         {
-            let lock = chain.multi().await;
+            let multi = self.multi().await;
+            let guard_async = multi.inside_async.read().await;
+            let guard_sync = multi.inside_sync.read();
 
-            // Read the event and make sure its the second one that results after compaction
-            let test_data = lock.lookup_primary(&key1).await.expect("Failed to find the entry after we reloaded the chain");
-            let test_data = lock.load(test_data).await.unwrap();
-            assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(10; 1))));
+            // step1 - reset all the compactors
+            let mut compactors = Vec::new();
+            for compactor in &guard_async.chain.compactors {
+                let mut compactor = compactor.clone_compactor();
+                compactor.reset();
+                compactors.push(compactor);
+            }
+            for plugin in &guard_sync.plugins {
+                let mut compactor = plugin.clone_compactor();
+                compactor.reset();
+                compactors.push(compactor);
+            }
+
+            // build a list of the events that are actually relevant to a compacted log
+            history_offset = guard_async.chain.history_offset;
+            for (_, entry) in guard_async.chain.history.iter().rev()
+            {
+                let header = entry.as_header()?;
+                
+                let mut is_force_keep = false;
+                let mut is_keep = false;
+                let mut is_drop = false;
+                let mut is_force_drop = false;
+                for compactor in compactors.iter_mut() {
+                    match compactor.relevance(&header) {
+                        EventRelevance::ForceKeep => is_force_keep = true,
+                        EventRelevance::Keep => is_keep = true,
+                        EventRelevance::Drop => is_drop = true,
+                        EventRelevance::ForceDrop => is_force_drop = true,
+                        EventRelevance::Abstain => { }
+                    }
+                    compactor.feed(&header)?;
+                }
+                let keep = match is_force_keep {
+                    true => true,
+                    false if is_force_drop == true => false,
+                    _ if is_keep == true => true,
+                    _ if is_drop == false => true,
+                    _ => false
+                };
+                if keep == true {
+                    keepers.push(header);
+                }
+            }
+
+            // write the events out only loading the ones that are actually needed
+            for header in keepers.into_iter().rev() {
+                new_pointers.feed(&header);
+                flip.event_summary.push(header.raw.clone());
+                flip.copy_event(&guard_async.chain.redo, &header.raw.event_hash).await?;
+                new_history_reverse.insert(header.raw.event_hash.clone(), history_offset);
+                new_history.insert(history_offset, header.raw.clone());
+                history_offset = history_offset + 1;
+            }
         }
 
-        // Destroy the chain
-        chain.single().await.destroy().await.unwrap();
+        // Opening this lock will prevent writes while we are flipping
+        let mut single = self.single().await;
+
+        // finish the flips
+        let new_events = single.inside_async.chain.redo.finish_flip(flip, |h| {
+            new_pointers.feed(h);
+            new_history_reverse.insert(h.raw.event_hash.clone(), history_offset);
+            new_history.insert(history_offset, h.raw.clone());
+            history_offset = history_offset + 1;
+        })
+        .await?;
+
+        // complete the transaction under another lock
+        {
+            let mut lock = single.inside_sync.write();
+            let new_events= new_events
+                .into_iter()
+                .map(|e| e.as_header())
+                .collect::<Result<Vec<_>,_>>()?;
+
+            // Flip all the indexes
+            let chain = &mut single.inside_async.chain;
+            chain.pointers = new_pointers;
+            chain.history_offset = history_offset;
+            chain.history_reverse = new_history_reverse;
+            chain.history = new_history;
+
+            for indexer in lock.indexers.iter_mut() {
+                indexer.rebuild(&new_events)?;
+            }
+            for plugin in lock.plugins.iter_mut() {
+                plugin.rebuild(&new_events)?;
+            }
+        }
+        
+        // Flush the log again
+        single.inside_async.chain.flush().await?;
+
+        // success
+        Ok(())
+    }
+
+    #[allow(dead_code)]
+    pub async fn count(&'a self) -> usize {
+        self.inside_async.read().await.chain.redo.count()
+    }
+
+    pub async fn flush(&'a self) -> Result<(), tokio::io::Error> {
+        Ok(
+            self.inside_async.write().await.chain.flush().await?
+        )
+    }
+
+    #[allow(dead_code)]
+    pub async fn sync(&'a self) -> Result<(), CommitError>
+    {
+        // Create the transaction
+        let (sender, receiver) = smpsc::channel();
+        let trans = Transaction {
+            scope: Scope::Full,
+            events: Vec::new(),
+            result: Some(sender),
+        };
+
+        // Feed the transaction into the chain
+        let pipe = self.pipe.clone();
+        pipe.feed(trans).await?;
+
+        // Block until the transaction is received
+        tokio::task::block_in_place(move || {
+            receiver.recv()
+        })??;
+
+        // Success!
+        Ok(())
+    }
+
+    pub(crate) async fn notify<'b>(&'a self, evts: &'b Vec<EventData>)
+    {
+        let mut notify_map = MultiMap::new();
+        for evt in evts.iter() {
+            if let Some(tree) = evt.meta.get_tree() {
+                notify_map.insert(&tree.vec, evt.clone());
+            }
+        }
+
+        {
+            let lock = self.inside_sync.read();
+            for pair in notify_map {
+                let (k, v) = pair;
+                if let Some(targets) = lock.listeners.get_vec(&k) {
+                    for target in targets {
+                        let target = target.sender.clone();
+                        let evts = v.clone();
+                        tokio::spawn(async move {
+                            for evt in evts {
+                                let _ = target.send(evt).await;
+                            }
+                        });
+                    }
+                }
+            }
+        }
+        tokio::task::yield_now().await;
+    }
+
+    pub(crate) async fn get_ending_sample(&self) -> Vec<Hash> {
+        let guard = self.inside_async.read().await;
+        let mut sample = Vec::new();
+
+        let mut iter = guard.chain.history.iter().rev();
+        let mut stride = 1;
+        while let Some((_, v)) = iter.next() {
+            sample.push(v.event_hash.clone());
+            for _ in 1..stride {
+                iter.next();
+            }
+            stride = stride * 2;
+        }
+
+        sample
+    }
+}
+
+#[async_trait]
+impl EventPipe
+for InboxPipe
+{
+    #[allow(dead_code)]
+    async fn feed(&self, trans: Transaction) -> Result<(), CommitError>
+    {
+        let sender = self.inbox.clone();
+        sender.send(trans).await.unwrap();
+        Ok(())
+    }
+
+    #[allow(dead_code)]
+    async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError>
+    {
+        let mut guard = self.locks.lock();
+        if guard.contains(&key) {
+            return Ok(false);
+        }
+        guard.insert(key.clone());
+        
+        Ok(true)
+    }
+
+    #[allow(dead_code)]
+    async fn unlock(&self, key: PrimaryKey) -> Result<(), CommitError>
+    {
+        let mut guard = self.locks.lock();
+        guard.remove(&key);
+        Ok(())
+    }
+
+    fn set_next(&self, _next: Arc<dyn EventPipe>) {
     }
 }

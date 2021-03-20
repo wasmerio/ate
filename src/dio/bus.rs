@@ -5,10 +5,10 @@ use tokio::sync::mpsc;
 use crate::{error::*, event::*, meta::MetaCollection};
 use super::dao::*;
 use crate::dio::*;
-use crate::accessor::*;
+use crate::chain::*;
 
 impl<D> DaoVec<D>
-where D: Serialize + DeserializeOwned + Clone,
+where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     #[allow(dead_code)]
     pub fn bus<'a>(&self, chain: &'a Chain, parent_id: &PrimaryKey) -> Bus<'a, D> {
@@ -22,7 +22,7 @@ where D: Serialize + DeserializeOwned + Clone,
 
 #[allow(dead_code)]
 pub struct Bus<'a, D>
-where D: Serialize + DeserializeOwned + Clone
+where D: Serialize + DeserializeOwned + Clone + Send + Sync
 {
     id: u64,
     chain: &'a Chain,
@@ -32,7 +32,7 @@ where D: Serialize + DeserializeOwned + Clone
 }
 
 impl<'a, D> Bus<'a, D>
-where D: Serialize + DeserializeOwned + Clone,
+where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     pub(crate) fn new(chain: &'a Chain, vec: MetaCollection) -> Bus<'a, D>
     {
@@ -91,7 +91,7 @@ where D: Serialize + DeserializeOwned + Clone,
 
 impl<'a, D> Drop
 for Bus<'a, D>
-where D: Serialize + DeserializeOwned + Clone,
+where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     fn drop(&mut self)
     {

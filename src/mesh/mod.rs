@@ -23,7 +23,7 @@ use std::sync::Weak;
 use super::crypto::Hash;
 use super::event::*;
 use super::comms::*;
-use super::accessor::*;
+use super::trust::*;
 use super::chain::*;
 use super::error::*;
 use super::chain::*;
