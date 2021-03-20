@@ -1091,6 +1091,7 @@ pub enum AteError
     SinkError(SinkError),
     CompactError(CompactError),
     LoadError(LoadError),
+    IO(tokio::io::Error),
     CryptoError(CryptoError),
     TransformError(TransformError),
 }
@@ -1207,6 +1208,14 @@ for AteError
     }   
 }
 
+impl From<tokio::io::Error>
+for AteError
+{
+    fn from(err: tokio::io::Error) -> AteError {
+        AteError::IO(err)
+    }   
+}
+
 impl std::fmt::Display
 for AteError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -1251,6 +1260,9 @@ for AteError {
                 write!(f, "{}", err)
             },
             AteError::TransformError(err) => {
+                write!(f, "{}", err)
+            },
+            AteError::IO(err) => {
                 write!(f, "{}", err)
             },
         }

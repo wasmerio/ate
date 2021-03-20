@@ -30,7 +30,7 @@ async fn main() -> Result<(), AteError> {
     let uid = unsafe { libc::getuid() };
     let gid = unsafe { libc::getgid() };
 
-    let mount_options = MountOptions::default().uid(uid).gid(gid).read_only(true);
+    let mount_options = MountOptions::default().uid(uid).gid(gid);
     let mount_path = mount_path.expect("no mount point specified");
 
     // The default configuration will store the redo log locally in the temporary folder

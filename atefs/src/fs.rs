@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 use log::{info, error, debug};
+use serde::__private::de::IdentifierDeserializer;
 
 use std::{collections::BTreeMap, ops::Deref};
 use std::ffi::{OsStr, OsString};
@@ -16,7 +17,10 @@ use ate::error::*;
 use ate::chain::*;
 use ate::session::Session as AteSession;
 use ate::header::PrimaryKey;
+use super::dir::Directory;
+use super::file::RegularFile;
 use super::model::*;
+use super::api::*;
 
 use async_trait::async_trait;
 use bytes::{Buf, BytesMut};
@@ -24,6 +28,7 @@ use futures_util::stream;
 use futures_util::stream::{Empty, Iter};
 use futures_util::StreamExt;
 use tokio::sync::RwLock;
+use fxhash::FxHashMap;
 
 use fuse3::raw::prelude::*;
 use fuse3::{Errno, Result};
@@ -32,10 +37,58 @@ use fuse3::{Errno, Result};
 const TTL: Duration = Duration::from_secs(1);
 
 pub struct AteFS
-where Self: Send + Sync + 'static
+where Self: Send + Sync
 {
     pub chain: Chain,
     pub session: AteSession,
+    pub open_handles: Mutex<FxHashMap<u64, OpenHandle>>
+}
+
+pub struct OpenHandle
+where Self: Send + Sync
+{
+    pub inode: u64,
+    pub fh: u64,
+    pub attr: FileAttr,
+    pub children: Vec<DirectoryEntry>,
+    pub children_plus: Vec<DirectoryEntryPlus>,
+}
+
+impl OpenHandle
+{
+    fn add_child(&mut self, inode: u64, kind: FileType, name: String, mode: u32) {
+        let attr = FileAttr {
+            ino: inode,
+            generation: 0,
+            size: 0,
+            blocks: 0,
+            atime: SystemTime::UNIX_EPOCH,
+            mtime: SystemTime::UNIX_EPOCH,
+            ctime: SystemTime::UNIX_EPOCH,
+            kind: kind,
+            perm: fuse3::perm_from_mode_and_kind(kind, mode),
+            nlink: 0,
+            uid: 0,
+            gid: 0,
+            rdev: 0,
+            blksize: 0,
+        };
+
+        self.children.push(DirectoryEntry {
+            inode,
+            kind,
+            name: OsString::from(name.clone()),
+        });
+        self.children_plus.push(DirectoryEntryPlus {
+            inode,
+            kind,
+            name: OsString::from(name.clone()),
+            generation: 0,
+            attr,
+            entry_ttl: TTL,
+            attr_ttl: TTL,
+        });
+    }
 }
 
 impl Inode
@@ -49,13 +102,47 @@ impl Inode
             atime: SystemTime::UNIX_EPOCH,
             mtime: SystemTime::UNIX_EPOCH,
             ctime: SystemTime::UNIX_EPOCH,
-            kind: FileType::Directory,
-            perm: fuse3::perm_from_mode_and_kind(FileType::Directory, self.dentry.mode),
+            kind: self.spec.kind(self),
+            perm: fuse3::perm_from_mode_and_kind(self.spec.kind(self), self.dentry.mode),
             nlink: 0,
             uid: 0,
             gid: 0,
             rdev: 0,
             blksize: 0,
+        }
+    }
+}
+
+fn conv_load<T>(r: std::result::Result<T, LoadError>) -> std::result::Result<T, Errno> {
+    conv(match r {
+        Ok(a) => Ok(a),
+        Err(err) => Err(AteError::LoadError(err)),
+    })
+}
+
+fn conv_io<T>(r: std::result::Result<T, tokio::io::Error>) -> std::result::Result<T, Errno> {
+    conv(match r {
+        Ok(a) => Ok(a),
+        Err(err) => Err(AteError::IO(err)),
+    })
+}
+
+fn conv_serialization<T>(r: std::result::Result<T, SerializationError>) -> std::result::Result<T, Errno> {
+    conv(match r {
+        Ok(a) => Ok(a),
+        Err(err) => Err(AteError::SerializationError(err)),
+    })
+}
+
+fn conv<T>(r: std::result::Result<T, AteError>) -> std::result::Result<T, Errno> {
+    match r {
+        Ok(a) => Ok(a),
+        Err(err) => {
+            debug!("atefs::error {}", err);
+            match err {
+                AteError::LoadError(LoadError::NotFound(_)) => Err(libc::ENOSYS.into()),
+                _ => Err(libc::ENOSYS.into())
+            }
         }
     }
 }
@@ -67,19 +154,37 @@ impl AteFS
         AteFS {
             chain,
             session,
+            open_handles: Mutex::new(FxHashMap::default()),
         }
     }
 
     pub async fn load(&self, inode: u64) -> Result<Inode> {
         let mut dio = self.chain.dio(&self.session).await;
-        let dao = match dio.load::<Inode>(&PrimaryKey::from(inode)).await {
-            Ok(a) => a,
-            Err(err) => {
-                debug!("atefs::load-error {}", err);
-                return Err(libc::ENOSYS.into());
-            }
-        };
+        let dao = conv_load(dio.load::<Inode>(&PrimaryKey::from(inode)).await)?;
         Ok(dao.clone())
+    }
+
+    async fn create_open_handle(&self, inode: u64) -> Result<OpenHandle>
+    {
+        let mut dio = self.chain.dio(&self.session).await;
+        let data = conv_load(dio.load::<Inode>(&PrimaryKey::from(inode)).await)?;
+        
+        let key = PrimaryKey::from(inode);
+        let mut open = OpenHandle {
+            inode,
+            fh: fastrand::u64(..),
+            children: Vec::new(),
+            children_plus: Vec::new(),
+            attr: data.attr(inode),
+        };
+        
+        open.add_child(inode, FileType::Directory, ".".to_string(), data.dentry.mode);
+        open.add_child(inode, FileType::Directory, "..".to_string(), data.dentry.mode);
+        for child in conv_load(data.children.iter(&key, &mut dio).await)? {
+            open.add_child(child.key().as_u64(), child.spec.kind(child.deref()), child.dentry.name.clone(), child.dentry.mode);
+        }
+
+        Ok(open)
     }
 }
 
@@ -87,7 +192,7 @@ impl AteFS
 impl Filesystem
 for AteFS
 {
-    type DirEntryStream = Iter<std::iter::Skip<IntoIter<Result<DirectoryEntry>>>>;
+    type DirEntryStream = Iter<IntoIter<Result<DirectoryEntry>>>;
     type DirEntryPlusStream = Iter<IntoIter<Result<DirectoryEntryPlus>>>;
 
     async fn init(&self, _req: Request) -> Result<()>
@@ -97,7 +202,9 @@ for AteFS
         let mut dio = self.chain.dio(&self.session).await;
         if let Err(LoadError::NotFound(_)) = dio.load::<Inode>(&PrimaryKey::from(1)).await {
             info!("atefs::creating-root-node");
-            match dio.store_ext(Inode::default(), None, Some(PrimaryKey::from(1))) {
+
+            let root = Inode::new("/".to_string(), 0o755, FileSpec::Directory(Directory::default()));
+            match dio.store_ext(root, None, Some(PrimaryKey::from(1))) {
                 Ok(_) => { },
                 Err(err) => {
                     debug!("atefs::error {}", err);        
@@ -113,52 +220,204 @@ for AteFS
         info!("atefs::destroy");
     }
 
+    async fn readdirplus(
+        &self,
+        _req: Request,
+        parent: u64,
+        fh: u64,
+        offset: u64,
+        _lock_owner: u64,
+    ) -> Result<ReplyDirectoryPlus<Self::DirEntryPlusStream>> {        
+        debug!("atefs::readdirplus id={} offset={}", parent, offset);
+
+        if fh == 0 {
+            let open = self.create_open_handle(parent).await?;
+            let entries = open.children_plus.iter().skip(offset as usize).map(|a| Ok(a.clone())).collect::<Vec<_>>();
+            return Ok(ReplyDirectoryPlus {
+                entries: stream::iter(entries.into_iter())
+            });
+        }
+
+        let lock = self.open_handles.lock();
+        if let Some(open) = lock.get(&fh) {
+            let entries = open.children_plus.iter().skip(offset as usize).map(|a| Ok(a.clone())).collect::<Vec<_>>();
+            Ok(ReplyDirectoryPlus {
+                entries: stream::iter(entries.into_iter())
+            })
+        } else {
+            Err(libc::ENOSYS.into())
+        }
+    }
+
     async fn readdir(
         &self,
         _req: Request,
         parent: u64,
-        _fh: u64,
+        fh: u64,
         offset: i64,
     ) -> Result<ReplyDirectory<Self::DirEntryStream>> {
         debug!("atefs::readdir parent={}", parent);
 
-        let entries: Vec<Result<DirectoryEntry>> = vec![
-            Ok(DirectoryEntry {
-                inode: parent,
-                kind: FileType::Directory,
-                name: OsString::from("."),
-            }),
-            Ok(DirectoryEntry {
-                inode: parent,
-                kind: FileType::Directory,
-                name: OsString::from(".."),
-            }),
-            Ok(DirectoryEntry {
-                inode: parent,
-                kind: FileType::RegularFile,
-                name: OsString::from("blah".to_string()),
-            }),
-        ];
+        if fh == 0 {
+            let open = self.create_open_handle(parent).await?;
+            let entries = open.children.iter().skip(offset as usize).map(|a| Ok(a.clone())).collect::<Vec<_>>();
+            return Ok(ReplyDirectory {
+                entries: stream::iter(entries.into_iter())
+            });
+        }
 
-        Ok(ReplyDirectory {
-            entries: stream::iter(entries.into_iter().skip(offset as usize)),
-        })
+        let lock = self.open_handles.lock();
+        if let Some(open) = lock.get(&fh) {
+            let entries = open.children.iter().skip(offset as usize).map(|a| Ok(a.clone())).collect::<Vec<_>>();
+            Ok(ReplyDirectory {
+                entries: stream::iter(entries.into_iter())
+            })
+        } else {
+            Err(libc::ENOSYS.into())
+        }
     }
 
     async fn getattr(
         &self,
         _req: Request,
         inode: u64,
-        _fh: Option<u64>,
+        fh: Option<u64>,
         _flags: u32,
     ) -> Result<ReplyAttr> {
         debug!("atefs::getattr inode={}", inode);
+
+        if let Some(fh) = fh {
+            let lock = self.open_handles.lock();
+            if let Some(open) = lock.get(&fh) {
+                return Ok(ReplyAttr {
+                    ttl: TTL,
+                    attr: open.attr,
+                })
+            }
+        }
 
         let dao = self.load(inode).await?;
         Ok(ReplyAttr {
             ttl: TTL,
             attr: dao.attr(inode),
         })
+    }
+
+    async fn opendir(&self, _req: Request, inode: u64, _flags: u32) -> Result<ReplyOpen> {
+        debug!("atefs::opendir inode={}", inode);
+
+        let open = self.create_open_handle(inode).await?;
+
+        if open.attr.kind != FileType::Directory {
+            debug!("atefs::opendir not-a-directory");
+            return Err(libc::ENOTDIR.into());
+        }
+
+        let fh = open.fh;
+        self.open_handles.lock().insert(open.fh, open);
+
+        Ok(ReplyOpen { fh, flags: 0 })
+    }
+
+    async fn releasedir(&self, _req: Request, inode: u64, fh: u64, _flags: u32) -> Result<()> {
+        debug!("atefs::releasedir inode={}", inode);
+        self.open_handles.lock().remove(&fh);
+        Ok(())
+    }
+
+    async fn lookup(&self, _req: Request, parent: u64, name: &OsStr) -> Result<ReplyEntry> {
+        let open = self.create_open_handle(parent).await?;
+
+        if open.attr.kind != FileType::Directory {
+            debug!("atefs::lookup parent={} not-a-directory", parent);
+            return Err(libc::ENOTDIR.into());
+        }
+        
+        if let Some(entry) = open.children_plus.iter().filter(|c| *c.name == *name).next() {
+            debug!("atefs::lookup parent={} name={}: found", parent, name.to_str().unwrap());
+            return Ok(ReplyEntry {
+                ttl: TTL,
+                attr: entry.attr,
+                generation: 0,
+            });
+        }
+
+        debug!("atefs::lookup parent={} name={}: not found", parent, name.to_str().unwrap());
+        Err(libc::ENOENT.into())
+    }
+
+    async fn forget(&self, _req: Request, _inode: u64, _nlookup: u64) {}
+
+    async fn fsync(&self, _req: Request, inode: u64, _fh: u64, _datasync: bool) -> Result<()> {
+        debug!("atefs::fsync inode={}", inode);
+        Ok(())
+    }
+
+    async fn flush(&self, _req: Request, inode: u64, _fh: u64, _lock_owner: u64) -> Result<()> {
+        debug!("atefs::flush inode={}", inode);
+        conv_io(self.chain.flush().await)?;
+        Ok(())
+    }
+
+    async fn access(&self, _req: Request, inode: u64, _mask: u32) -> Result<()> {
+        debug!("atefs::access inode={}", inode);
+        Ok(())
+    }
+
+    async fn mkdir(
+        &self,
+        _req: Request,
+        parent: u64,
+        name: &OsStr,
+        mode: u32,
+        _umask: u32,
+    ) -> Result<ReplyEntry> {
+        debug!("atefs::mkdir parent={}", parent);
+
+        let mut dio = self.chain.dio(&self.session).await;
+        let data = conv_load(dio.load::<Inode>(&PrimaryKey::from(parent)).await)?;
+
+        if data.spec.kind(data.deref()) != FileType::Directory {
+            return Err(libc::ENOTDIR.into());
+        }
+
+        let child = Inode::new(name.to_str().unwrap().to_string(), mode, FileSpec::Directory(Directory::default()));
+
+        let key = PrimaryKey::from(parent);
+        let child = conv_serialization(data.children.push(&mut dio, &key, child))?;
+
+        Ok(ReplyEntry {
+            ttl: TTL,
+            attr: child.attr(child.key().as_u64()),
+            generation: 0,
+        })
+    }
+
+    async fn rmdir(&self, _req: Request, parent: u64, name: &OsStr) -> Result<()> {
+        debug!("atefs::rmdir parent={}", parent);
+
+        let open = self.create_open_handle(parent).await?;
+
+        if open.attr.kind != FileType::Directory {
+            debug!("atefs::rmdir parent={} not-a-directory", parent);
+            return Err(libc::ENOTDIR.into());
+        }
+        
+        if let Some(entry) = open.children_plus.iter().filter(|c| *c.name == *name).next() {
+            debug!("atefs::rmdir parent={} name={}: found", parent, name.to_str().unwrap());
+
+            let mut dio = self.chain.dio(&self.session).await;
+            let data = conv_load(dio.load::<Inode>(&PrimaryKey::from(entry.inode)).await)?;
+
+            if let Some(_) = conv_load(data.children.iter(data.key(), &mut dio).await)?.next() {
+                return Err(Errno::from(libc::ENOTEMPTY));
+            }
+
+            return Ok(())
+        }
+
+        debug!("atefs::rmdir parent={} name={}: not found", parent, name.to_str().unwrap());
+        Err(libc::ENOENT.into())
     }
 }
 

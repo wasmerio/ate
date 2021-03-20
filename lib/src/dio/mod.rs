@@ -197,8 +197,6 @@ impl<'a> Dio<'a>
     pub(crate) async fn children<D>(&mut self, parent_id: PrimaryKey, collection_id: u64) -> Result<Vec<Dao<D>>, LoadError>
     where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
-        let mut state = self.state.lock();
-        
         // Build the secondary index key
         let key = MetaCollection {
             parent_id,
@@ -226,6 +224,8 @@ impl<'a> Dio<'a>
                 Some(k) => k,
                 None => { continue; }
             };
+
+            let mut state = self.state.lock();
             if state.is_locked(&key) {
                 return Result::Err(LoadError::ObjectStillLocked(key.clone()));
             }
@@ -261,6 +261,7 @@ impl<'a> Dio<'a>
 
         // Now we search the secondary local index so any objects we have
         // added in this transaction scope are returned
+        let state = self.state.lock();
         if let Some(vec) = state.cache_store_secondary.get_vec(&key) {
             for a in vec {
                 // This is an OR of two lists so its likely that the object

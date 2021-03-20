@@ -25,14 +25,29 @@ pub struct Extent {
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
 pub struct Dentry {
     pub parent: Option<u64>,
-    pub name: Option<String>,
+    pub name: String,
     pub mode: u32,
 }
 
-#[derive(Debug, Default, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Inode {
     pub spec: FileSpec,
     pub dentry: Dentry,
     pub blob: DaoVec<Extent>,
     pub children: DaoVec<Inode>,
+}
+
+impl Inode {
+    pub fn new(name: String, mode: u32, spec: FileSpec) -> Inode {
+        Inode {
+            spec,
+            dentry: Dentry {
+                name,
+                mode,
+                parent: None,
+            },
+            blob: DaoVec::default(),
+            children: DaoVec::default(),
+        }
+    }
 }
