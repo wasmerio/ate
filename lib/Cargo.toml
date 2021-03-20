@@ -1,0 +1,54 @@
+[package]
+name = "ate"
+version = "0.1.14"
+authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
+edition = "2018"
+description = "Distributed immutable data store with strong encryption and authentication"
+license = "MIT OR Apache-2.0"
+keywords = ["immutable", "database", "blockchain", "nosql", "materialized"]
+categories = ["asynchronous", "caching", "cryptography", "database-implementations"]
+repository = "https://github.com/john-sharratt/ate"
+readme = "README.md"
+
+[dependencies]
+uuid = { version = "0.8.*", features = ["serde", "v4"] }
+tokio = { version = "1.3.*", features = ["full", "signal", "process"] }
+serde = { version = "1.0.*", features = ["derive"] }
+serde_json = "1.0.*"
+rmp = "0.8.*"
+rmp-serde = "0.15.*"
+derive-new = "0.5.*"
+bytes = "1.0.*"
+futures = "0.3.*"
+futures-util = "0.3.*"
+hash = "0.3.*"
+fxhash = "0.2.*"
+async-trait = "0.1.*"
+fastrand = "1.4.*"
+rust-crypto = "0.2.*"
+rand = "0.8.*"
+rand_chacha = "0.3.*"
+buffered_offset_reader = "0.6.*"
+snap = "1.0.*"
+openssl = { version = "0.10.*", features = ["vendored"] }
+once_cell = "1.7.*"
+pqcrypto-falcon = "0.2.*"
+pqcrypto-traits = "0.3.*"
+sha3 = "0.9.*"
+multimap = "0.8.*"
+hex = "0.4.*"
+chrono = "0.4.*"
+pnet = "0.27.*"
+log = "0.4.*"
+cached = "0.23.*"
+parking_lot = "0.11.*"
+hashlink = "0.6.*"
+env_logger = "0.8.*"
+blake3 = "0.3.*"
+bincode = "1.3.*"
+num_enum = "0.5.*"
+
+[dev-dependencies]
+ctor = "0.1.*"
+rust_decimal = "1.10.*"
+names = "0.11.*"
