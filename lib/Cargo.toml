@@ -8,7 +8,7 @@ license = "MIT OR Apache-2.0"
 keywords = ["immutable", "database", "blockchain", "nosql", "materialized"]
 categories = ["asynchronous", "caching", "cryptography", "database-implementations"]
 repository = "https://github.com/john-sharratt/ate"
-readme = "README.md"
+readme = "../README.md"
 
 [dependencies]
 uuid = { version = "0.8.*", features = ["serde", "v4"] }
