@@ -232,7 +232,7 @@ async fn test_chain() {
     {
         let mut chain = create_test_chain("test_chain".to_string(), true, true, None).await;
         chain_name = chain.name().await;
-
+        
         let mut evt1 = EventData::new(key1.clone(), Bytes::from(vec!(1; 1)), chain.default_format);
         let mut evt2 = EventData::new(key2.clone(), Bytes::from(vec!(2; 1)), chain.default_format);
 

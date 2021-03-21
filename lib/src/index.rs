@@ -21,7 +21,7 @@ where Self: EventSink + Send + Sync + std::fmt::Debug,
 pub(crate) struct BinaryTreeIndexer
 {
     primary: FxHashMap<PrimaryKey, super::crypto::Hash>,
-    secondary: MultiMap<MetaCollection, super::crypto::Hash>,
+    secondary: MultiMap<MetaCollection, PrimaryKey>,
 }
 
 impl BinaryTreeIndexer
@@ -38,7 +38,21 @@ impl BinaryTreeIndexer
 
     #[allow(dead_code)]
     pub(crate) fn feed(&mut self, entry: &EventHeader) {
-        let mut entry_tree = None;
+        for core in entry.meta.core.iter() {
+            match core {
+                CoreMetadata::Tombstone(key) => {
+                    self.primary.remove(&key);
+                    if let Some(tree) = entry.meta.get_tree() {
+                        if let Some(vec) = self.secondary.get_vec_mut(&tree.vec) {
+                            vec.retain(|x| *x != *key);
+                        }
+                    }
+                    return;
+                },
+                _ => { },
+            }
+        }
+
         for core in entry.meta.core.iter() {
             match core {
                 CoreMetadata::Data(key) => {
@@ -48,24 +62,10 @@ impl BinaryTreeIndexer
                     self.primary.insert(key.clone(), entry.raw.event_hash.clone());
                 },
                 CoreMetadata::Tree(tree) => {
-                    entry_tree =  Some(&tree.vec);
-                    self.secondary.insert(tree.vec.clone(), entry.raw.event_hash.clone());
-                }
-                _ => { },
-            }
-        }
-
-        for core in entry.meta.core.iter() {
-            match core {
-                CoreMetadata::Tombstone(key) => {
-                    let hash = entry.raw.event_hash.clone();
-                    self.primary.remove(&key);
-                    if let Some(tree) = entry_tree {
-                        if let Some(vec) = self.secondary.get_vec_mut(tree) {
-                            vec.retain(|x| *x != hash);
-                        }
+                    if let Some(key) = entry.meta.get_data_key() {
+                        self.secondary.insert(tree.vec.clone(), key);
                     }
-                },
+                }
                 _ => { },
             }
         }
@@ -82,6 +82,8 @@ impl BinaryTreeIndexer
         match self.secondary.get_vec(key) {
             Some(vec) => {
                 Some(vec.iter()
+                    .map(|a| a.clone())
+                    .filter_map(|a| self.primary.get(&a))
                     .map(|a| a.clone())
                     .collect::<Vec<_>>())
             },

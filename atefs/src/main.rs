@@ -1,10 +1,11 @@
-#[allow(unused_imports)]
+#![allow(unused_imports)]
 use log::{info, error};
 use ate::prelude::*;
 use std::env;
 use std::io::ErrorKind;
 use directories::BaseDirs;
 
+mod fixed;
 mod api;
 mod model;
 mod dir;
@@ -36,6 +37,8 @@ async fn main() -> Result<(), AteError> {
     // The default configuration will store the redo log locally in the temporary folder
     let mut conf = AteConfig::default();
     conf.configured_for(ConfiguredFor::BestPerformance);
+    //conf.log_format.meta = ate::spec::SerializationFormat::Json;
+    //conf.log_format.data = ate::spec::SerializationFormat::Json;
     
     conf.log_path = BaseDirs::new().unwrap().home_dir().join("ate").to_str().unwrap().to_string();
     conf.log_temp = false;

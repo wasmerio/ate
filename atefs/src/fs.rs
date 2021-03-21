@@ -17,6 +17,8 @@ use ate::error::*;
 use ate::chain::*;
 use ate::session::Session as AteSession;
 use ate::header::PrimaryKey;
+use crate::fixed::FixedFile;
+
 use super::dir::Directory;
 use super::file::RegularFile;
 use super::model::*;
@@ -56,33 +58,18 @@ where Self: Send + Sync
 
 impl OpenHandle
 {
-    fn add_child(&mut self, inode: u64, kind: FileType, name: String, mode: u32) {
-        let attr = FileAttr {
-            ino: inode,
-            generation: 0,
-            size: 0,
-            blocks: 0,
-            atime: SystemTime::UNIX_EPOCH,
-            mtime: SystemTime::UNIX_EPOCH,
-            ctime: SystemTime::UNIX_EPOCH,
-            kind: kind,
-            perm: fuse3::perm_from_mode_and_kind(kind, mode),
-            nlink: 0,
-            uid: 0,
-            gid: 0,
-            rdev: 0,
-            blksize: 0,
-        };
+    fn add_child(&mut self, spec: &FileSpec) {
+        let attr = spec_as_attr(spec).clone();
 
         self.children.push(DirectoryEntry {
-            inode,
-            kind,
-            name: OsString::from(name.clone()),
+            inode: spec.ino(),
+            kind: spec.kind(),
+            name: OsString::from(spec.name()),
         });
         self.children_plus.push(DirectoryEntryPlus {
-            inode,
-            kind,
-            name: OsString::from(name.clone()),
+            inode: spec.ino(),
+            kind: spec.kind(),
+            name: OsString::from(spec.name().clone()),
             generation: 0,
             attr,
             entry_ttl: TTL,
@@ -91,25 +78,25 @@ impl OpenHandle
     }
 }
 
-impl Inode
-{
-    pub fn attr(&self, id: u64) -> FileAttr {
-        FileAttr {
-            ino: id,
-            generation: 0,
-            size: 0,
-            blocks: 0,
-            atime: SystemTime::UNIX_EPOCH,
-            mtime: SystemTime::UNIX_EPOCH,
-            ctime: SystemTime::UNIX_EPOCH,
-            kind: self.spec.kind(self),
-            perm: fuse3::perm_from_mode_and_kind(self.spec.kind(self), self.dentry.mode),
-            nlink: 0,
-            uid: 0,
-            gid: 0,
-            rdev: 0,
-            blksize: 0,
-        }
+pub fn spec_as_attr(spec: &FileSpec) -> FileAttr {
+    let size = spec.size();
+    let blksize = super::model::PAGE_SIZE as u64;
+
+    FileAttr {
+        ino: spec.ino(),
+        generation: 0,
+        size,
+        blocks: (size / blksize),
+        atime: SystemTime::UNIX_EPOCH,
+        mtime: SystemTime::UNIX_EPOCH,
+        ctime: SystemTime::UNIX_EPOCH,
+        kind: spec.kind(),
+        perm: fuse3::perm_from_mode_and_kind(spec.kind(), spec.mode()),
+        nlink: 0,
+        uid: spec.uid(),
+        gid: spec.gid(),
+        rdev: 0,
+        blksize: blksize as u32,
     }
 }
 
@@ -166,22 +153,31 @@ impl AteFS
 
     async fn create_open_handle(&self, inode: u64) -> Result<OpenHandle>
     {
-        let mut dio = self.chain.dio(&self.session).await;
-        let data = conv_load(dio.load::<Inode>(&PrimaryKey::from(inode)).await)?;
-        
         let key = PrimaryKey::from(inode);
+        let mut dio = self.chain.dio(&self.session).await;
+        let data = conv_load(dio.load::<Inode>(&key).await)?;
+        let spec = data.as_file_spec(key);
+        
         let mut open = OpenHandle {
             inode,
             fh: fastrand::u64(..),
             children: Vec::new(),
             children_plus: Vec::new(),
-            attr: data.attr(inode),
+            attr: spec_as_attr(&spec),
         };
-        
-        open.add_child(inode, FileType::Directory, ".".to_string(), data.dentry.mode);
-        open.add_child(inode, FileType::Directory, "..".to_string(), data.dentry.mode);
+
+        let uid = spec.uid();
+        let gid = spec.gid();
+
+        let fixed = FixedFile::new(&key, ".".to_string(), FileType::Directory).uid(uid).gid(gid);
+        open.add_child(&FileSpec::FixedFile(fixed));
+
+        let fixed = FixedFile::new(&key, "..".to_string(), FileType::Directory).uid(uid).gid(gid);
+        open.add_child(&FileSpec::FixedFile(fixed));
+
         for child in conv_load(data.children.iter(&key, &mut dio).await)? {
-            open.add_child(child.key().as_u64(), child.spec.kind(child.deref()), child.dentry.name.clone(), child.dentry.mode);
+            let child_spec = child.as_file_spec(child.key().clone());
+            open.add_child(&child_spec);
         }
 
         Ok(open)
@@ -195,15 +191,15 @@ for AteFS
     type DirEntryStream = Iter<IntoIter<Result<DirectoryEntry>>>;
     type DirEntryPlusStream = Iter<IntoIter<Result<DirectoryEntryPlus>>>;
 
-    async fn init(&self, _req: Request) -> Result<()>
+    async fn init(&self, req: Request) -> Result<()>
     {
         // Attempt to load the root node, if it does not exist then create it
         //let mut dio = self.chain.dio_ext(&self.session, Scope::Full).await;
         let mut dio = self.chain.dio(&self.session).await;
         if let Err(LoadError::NotFound(_)) = dio.load::<Inode>(&PrimaryKey::from(1)).await {
             info!("atefs::creating-root-node");
-
-            let root = Inode::new("/".to_string(), 0o755, FileSpec::Directory(Directory::default()));
+            
+            let root = Inode::new("/".to_string(), 0o755, req.uid, req.gid, SpecType::Directory);
             match dio.store_ext(root, None, Some(PrimaryKey::from(1))) {
                 Ok(_) => { },
                 Err(err) => {
@@ -297,9 +293,10 @@ for AteFS
         }
 
         let dao = self.load(inode).await?;
+        let spec = dao.as_file_spec(PrimaryKey::from(inode));
         Ok(ReplyAttr {
             ttl: TTL,
-            attr: dao.attr(inode),
+            attr: spec_as_attr(&spec),
         })
     }
 
@@ -366,7 +363,7 @@ for AteFS
 
     async fn mkdir(
         &self,
-        _req: Request,
+        req: Request,
         parent: u64,
         name: &OsStr,
         mode: u32,
@@ -374,21 +371,29 @@ for AteFS
     ) -> Result<ReplyEntry> {
         debug!("atefs::mkdir parent={}", parent);
 
+        let key = PrimaryKey::from(parent);
         let mut dio = self.chain.dio(&self.session).await;
         let data = conv_load(dio.load::<Inode>(&PrimaryKey::from(parent)).await)?;
+        let spec = data.as_file_spec(key.clone());
 
-        if data.spec.kind(data.deref()) != FileType::Directory {
+        if spec.kind() != FileType::Directory {
             return Err(libc::ENOTDIR.into());
         }
 
-        let child = Inode::new(name.to_str().unwrap().to_string(), mode, FileSpec::Directory(Directory::default()));
+        let child = Inode::new(
+            name.to_str().unwrap().to_string(),
+            mode, 
+            req.uid,
+            req.gid,
+            SpecType::Directory,
+        );
 
-        let key = PrimaryKey::from(parent);
         let child = conv_serialization(data.children.push(&mut dio, &key, child))?;
+        let child_spec = child.as_file_spec(child.key().clone());
 
         Ok(ReplyEntry {
             ttl: TTL,
-            attr: child.attr(child.key().as_u64()),
+            attr: spec_as_attr(&child_spec),
             generation: 0,
         })
     }
@@ -412,6 +417,8 @@ for AteFS
             if let Some(_) = conv_load(data.children.iter(data.key(), &mut dio).await)?.next() {
                 return Err(Errno::from(libc::ENOTEMPTY));
             }
+
+            conv_serialization(data.delete())?;
 
             return Ok(())
         }

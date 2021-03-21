@@ -2,11 +2,11 @@ use enum_dispatch::enum_dispatch;
 use serde::*;
 use super::dir::Directory;
 use super::file::RegularFile;
+use super::fixed::FixedFile;
 use fuse3::FileType;
-use super::model::Inode;
 
 #[enum_dispatch(FileApi)]
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug)]
 pub enum FileSpec
 {
     //Custom,
@@ -17,18 +17,33 @@ pub enum FileSpec
     RegularFile,
     //Symlink,
     //Socket,
+    FixedFile,
 }
 
-impl Default
-for FileSpec
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum SpecType
 {
-    fn default() -> FileSpec {
-        FileSpec::RegularFile(RegularFile{})
-    }
+    Directory,
+    RegularFile,
+    FixedFile,
 }
 
 #[enum_dispatch]
 pub trait FileApi
 {
-    fn kind(&self, inode: &Inode) -> FileType;
+    fn ino(&self) -> u64;
+
+    fn name(&self) -> String;
+
+    fn spec(&self) -> SpecType;
+
+    fn kind(&self) -> FileType;
+
+    fn uid(&self) -> u32 { 0 }
+
+    fn gid(&self) -> u32 { 0 }
+
+    fn size(&self) -> u64 { 0 }
+
+    fn mode(&self) -> u32 { 0 }
 }

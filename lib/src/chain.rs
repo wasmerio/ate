@@ -331,7 +331,7 @@ impl<'a> Chain
     }
 
     #[allow(dead_code)]
-    pub async fn name(&'a mut self) -> String {
+    pub async fn name(&'a self) -> String {
         self.single().await.name()
     }
 

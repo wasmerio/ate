@@ -2,6 +2,9 @@ use serde::*;
 use serbia::serbia;
 use ate::prelude::*;
 use super::api::*;
+use super::dir::Directory;
+use super::file::RegularFile;
+use super::fixed::FixedFile;
 
 pub const PAGE_SIZE: usize = 2097152;
 type PageBuf = [u8; PAGE_SIZE];
@@ -27,27 +30,39 @@ pub struct Dentry {
     pub parent: Option<u64>,
     pub name: String,
     pub mode: u32,
+    pub uid: u32,
+    pub gid: u32,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Inode {
-    pub spec: FileSpec,
+    pub spec_type: SpecType,
     pub dentry: Dentry,
     pub blob: DaoVec<Extent>,
     pub children: DaoVec<Inode>,
 }
 
 impl Inode {
-    pub fn new(name: String, mode: u32, spec: FileSpec) -> Inode {
+    pub fn new(name: String, mode: u32, uid: u32, gid: u32, spec_type: SpecType) -> Inode {
         Inode {
-            spec,
+            spec_type,
             dentry: Dentry {
                 name,
                 mode,
                 parent: None,
+                uid,
+                gid,
             },
             blob: DaoVec::default(),
             children: DaoVec::default(),
+        }
+    }
+
+    pub fn as_file_spec(&self, key: PrimaryKey) -> FileSpec {
+        match self.spec_type {
+            SpecType::Directory => FileSpec::Directory(Directory::new(&key, self)),
+            SpecType::RegularFile => FileSpec::RegularFile(RegularFile::new(&key, self)),
+            _ => FileSpec::FixedFile(FixedFile::new(&key, self.dentry.name.clone(), fuse3::FileType::RegularFile))
         }
     }
 }

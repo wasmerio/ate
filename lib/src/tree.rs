@@ -136,14 +136,13 @@ for TreeAuthorityPlugin
     fn feed(&mut self, header: &EventHeader) -> Result<(), SinkError>
     {
         
-        if let Some(key) = header.meta.get_data_key()
+        if let Some(key) = header.meta.get_tombstone() {
+            self.auth.remove(&key);
+        }
+        else if let Some(key) = header.meta.get_data_key()
         {
             let auth = self.compute_auth(&header.meta, ComputePhase::AfterStore);
             self.auth.insert(key, auth);
-        }
-
-        if let Some(key) = header.meta.get_tombstone() {
-            self.auth.remove(&key);
         }
 
         self.signature_plugin.feed(header)?;
