@@ -132,6 +132,10 @@ async fn main() -> Result<(), AteError>
 - [Crypto Currency](examples/coin.rs)
 - [Banking Example](examples/bank.rs)
 
+## Projects
+
+- [atefs](atefs/README.md)
+
 ## Contribution
 
 If you would like to help setup a community to continue to develop this project
