@@ -1,3 +1,4 @@
+use log::Record;
 use serde::{Serialize, de::DeserializeOwned};
 use std::marker::PhantomData;
 use tokio::sync::mpsc;
@@ -62,12 +63,13 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
         while let Some(mut evt) = self.receiver.recv().await {
 
             let multi = self.chain.multi().await;
-            evt.data_bytes = match evt.data_bytes {
-                Some(data) => Some(multi.data_as_overlay(&mut evt.meta, data, session)?),
+            match evt.data_bytes {
+                Some(data) => {
+                    let data = multi.data_as_overlay(&mut evt.meta, data, session)?;
+                    return Ok(evt.format.data.deserialize(&data)?)
+                },
                 None => continue,
             };
-
-            return Ok(Row::from_event(&evt)?.data);
         }
         Err(BusError::ChannelClosed)
     }
@@ -78,7 +80,12 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
             let mut dao: Dao<D> = match self.receiver.recv().await {
                 Some(evt) => {
                     let header = evt.as_header()?;
-                    dio.load_from_event(evt, header)?
+                    let leaf = EventLeaf {
+                        record: header.raw.event_hash,
+                        created: 0,
+                        updated: 0,
+                    };
+                    dio.load_from_event(evt, header, leaf)?
                 },
                 None => { return Err(BusError::ChannelClosed); }
             };

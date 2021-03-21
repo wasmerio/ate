@@ -46,4 +46,10 @@ pub trait FileApi
     fn size(&self) -> u64 { 0 }
 
     fn mode(&self) -> u32 { 0 }
+
+    fn accessed(&self) -> u64 { 0 }
+
+    fn created(&self) -> u64 { 0 }
+
+    fn updated(&self) -> u64 { 0 }
 }

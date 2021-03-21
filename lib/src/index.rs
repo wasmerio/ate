@@ -17,10 +17,18 @@ where Self: EventSink + Send + Sync + std::fmt::Debug,
     fn clone_indexer(&self) -> Box<dyn EventIndexer>;
 }
 
+#[derive(Debug, Copy, Clone)]
+pub struct EventLeaf
+{
+    pub record: super::crypto::Hash,
+    pub created: u64,
+    pub updated: u64,
+}
+
 #[derive(Default, Debug)]
 pub(crate) struct BinaryTreeIndexer
 {
-    primary: FxHashMap<PrimaryKey, super::crypto::Hash>,
+    primary: FxHashMap<PrimaryKey, EventLeaf>,
     secondary: MultiMap<MetaCollection, PrimaryKey>,
 }
 
@@ -59,7 +67,14 @@ impl BinaryTreeIndexer
                     if entry.raw.data_hash.is_none() {
                         continue;
                     }
-                    self.primary.insert(key.clone(), entry.raw.event_hash.clone());
+                    let when = entry.meta.get_timestamp();
+                    let v = self.primary.entry(key.clone()).or_insert(EventLeaf {
+                        record: crate::crypto::Hash { val: [0; 16] },
+                        created: match when { Some(t) => t.time_since_epoch_ms, None => 0 },
+                        updated: 0,
+                    });
+                    v.record = entry.raw.event_hash.clone();
+                    v.updated = match when { Some(t) => t.time_since_epoch_ms, None => 0 };
                 },
                 CoreMetadata::Tree(tree) => {
                     if let Some(key) = entry.meta.get_data_key() {
@@ -71,14 +86,14 @@ impl BinaryTreeIndexer
         }
     }
 
-    pub(crate) fn lookup_primary(&self, key: &PrimaryKey) -> Option<super::crypto::Hash> {
+    pub(crate) fn lookup_primary(&self, key: &PrimaryKey) -> Option<EventLeaf> {
         match self.primary.get(key) {
             None => None,
             Some(a) => Some(a.clone())
         }
     }
 
-    pub(crate) fn lookup_secondary(&self, key: &MetaCollection) -> Option<Vec<super::crypto::Hash>> {
+    pub(crate) fn lookup_secondary(&self, key: &MetaCollection) -> Option<Vec<EventLeaf>> {
         match self.secondary.get_vec(key) {
             Some(vec) => {
                 Some(vec.iter()

@@ -123,36 +123,58 @@ pub(crate) struct ChainOfTrust
     pub(super) default_format: MessageFormat,
 }
 
+#[derive(Debug, Clone)]
+pub struct LoadResult
+{
+    pub(crate) offset: u64,
+    pub header: EventHeaderRaw,
+    pub data: EventData,
+    pub leaf: EventLeaf,
+}
+
 impl<'a> ChainOfTrust
 {
-    pub(super) async fn load(&self, entry: super::crypto::Hash) -> Result<LoadResult, LoadError> {
-        Ok(self.redo.load(entry).await?)
+    pub(super) async fn load(&self, leaf: EventLeaf) -> Result<LoadResult, LoadError> {
+        let data = self.redo.load(leaf.record.clone()).await?;
+        Ok(LoadResult {
+            offset: data.offset,
+            header: data.header,
+            data: data.data,
+            leaf: leaf,
+        })
     }
 
-    pub(super) async fn load_many(&self, entries: Vec<super::crypto::Hash>) -> Result<Vec<LoadResult>, LoadError>
+    pub(super) async fn load_many(&self, leafs: Vec<EventLeaf>) -> Result<Vec<LoadResult>, LoadError>
     {
         let mut ret = Vec::new();
 
         let mut futures = Vec::new();
-        for entry in entries {
-            futures.push(self.redo.load(entry));
+        for leaf in leafs.into_iter() {
+            let data = self.redo.load(leaf.record.clone());
+            futures.push((data, leaf));
         }
 
-        for join in futures {
-            ret.push(join.await?);
+        for (join, leaf) in futures.into_iter() {
+            let data = join.await?;
+            ret.push(LoadResult {
+                offset: data.offset,
+                header: data.header,
+                data: data.data,
+                leaf,
+            });
         }
 
         Ok(ret)
     }
 
     #[allow(dead_code)]
-    pub(super) fn lookup_primary(&self, key: &PrimaryKey) -> Option<super::crypto::Hash>
+    pub(super) fn lookup_primary(&self, key: &PrimaryKey) -> Option<EventLeaf>
     {
         self.pointers.lookup_primary(key)
     }
 
     #[allow(dead_code)]
-    pub(super) fn lookup_secondary(&self, key: &MetaCollection) -> Option<Vec<super::crypto::Hash>>
+    pub(super) fn lookup_secondary(&self, key: &MetaCollection) -> Option<Vec<EventLeaf>>
     {
         self.pointers.lookup_secondary(key)
     }
@@ -258,7 +280,7 @@ async fn test_chain() {
 
             // Make sure its there in the chain
             let test_data = lock.lookup_primary(&key1).await.expect("Failed to find the entry after the flip");
-            let test_data = lock.load(test_data).await.expect("Could not load the data for the entry");
+            let test_data = lock.load(test_data.clone()).await.expect("Could not load the data for the entry");
             assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(1; 1))));
         }
             
@@ -288,12 +310,12 @@ async fn test_chain() {
 
             // Read the event and make sure its the second one that results after compaction
             let test_data = lock.lookup_primary(&key1).await.expect("Failed to find the entry after the flip");
-            let test_data = lock.load(test_data).await.unwrap();
+            let test_data = lock.load(test_data.clone()).await.unwrap();
             assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(10; 1))));
 
             // The other event we added should also still be there
             let test_data = lock.lookup_primary(&key2).await.expect("Failed to find the entry after the flip");
-            let test_data = lock.load(test_data).await.unwrap();
+            let test_data = lock.load(test_data.clone()).await.unwrap();
             assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(2; 1))));
         }
 

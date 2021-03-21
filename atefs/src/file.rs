@@ -9,15 +9,19 @@ use super::api::SpecType;
 pub struct RegularFile
 {
     pub key: PrimaryKey,
-    pub inode: Inode
+    pub inode: Inode,
+    pub created: u64,
+    pub updated: u64,
 }
 
 impl RegularFile
 {
-    pub fn new(key: &PrimaryKey, inode: &Inode) -> RegularFile {
+    pub fn new(key: &PrimaryKey, inode: &Inode, created: u64, updated: u64) -> RegularFile {
         RegularFile {
             key: key.clone(),
             inode: inode.clone(),
+            created,
+            updated,
         }
     }
 }
@@ -55,5 +59,17 @@ for RegularFile
 
     fn name(&self) -> String {
         self.inode.dentry.name.clone()
+    }
+
+    fn created(&self) -> u64 {
+        self.created
+    }
+
+    fn updated(&self) -> u64 {
+        self.updated
+    }
+
+    fn accessed(&self) -> u64 {
+        self.updated
     }
 }

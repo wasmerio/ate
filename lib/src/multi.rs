@@ -11,12 +11,13 @@ use super::meta::*;
 use super::error::*;
 use super::chain::*;
 use super::pipe::*;
-use super::redo::*;
+use super::trust::*;
 use super::header::*;
 #[allow(unused_imports)]
 use super::event::*;
 use super::lint::*;
 use super::spec::*;
+use super::index::*;
 
 use bytes::Bytes;
 
@@ -43,22 +44,22 @@ impl ChainMultiUser
     }
  
     #[allow(dead_code)]
-    pub async fn load(&self, entry: super::crypto::Hash) -> Result<LoadResult, LoadError> {
-        self.inside_async.read().await.chain.load(entry).await
+    pub async fn load(&self, leaf: EventLeaf) -> Result<LoadResult, LoadError> {
+        self.inside_async.read().await.chain.load(leaf).await
     }
 
     #[allow(dead_code)]
-    pub async fn load_many(&self, entries: Vec<super::crypto::Hash>) -> Result<Vec<LoadResult>, LoadError> {
-        self.inside_async.read().await.chain.load_many(entries).await
+    pub async fn load_many(&self, leafs: Vec<EventLeaf>) -> Result<Vec<LoadResult>, LoadError> {
+        self.inside_async.read().await.chain.load_many(leafs).await
     }
 
     #[allow(dead_code)]
-    pub async fn lookup_primary(&self, key: &PrimaryKey) -> Option<super::crypto::Hash> {
+    pub async fn lookup_primary(&self, key: &PrimaryKey) -> Option<EventLeaf> {
         self.inside_async.read().await.chain.lookup_primary(key)
     }
 
     #[allow(dead_code)]
-    pub async fn lookup_secondary(&self, key: &MetaCollection) -> Option<Vec<super::crypto::Hash>> {
+    pub async fn lookup_secondary(&self, key: &MetaCollection) -> Option<Vec<EventLeaf>> {
         self.inside_async.read().await.chain.lookup_secondary(key)
     }
 

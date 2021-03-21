@@ -32,6 +32,7 @@ use super::chain::*;
 use super::pipe::*;
 use super::crypto::*;
 use super::transaction::*;
+use super::index::*;
 
 pub use crate::dio::vec::DaoVec;
 pub use crate::dio::dao::Dao;
@@ -43,7 +44,7 @@ where Self: Send + Sync
     pub(super) store: Vec<Arc<RowData>>,
     pub(super) cache_store_primary: FxHashMap<PrimaryKey, Arc<RowData>>,
     pub(super) cache_store_secondary: MultiMap<MetaCollection, PrimaryKey>,
-    pub(super) cache_load: FxHashMap<PrimaryKey, Arc<EventData>>,
+    pub(super) cache_load: FxHashMap<PrimaryKey, (Arc<EventData>, EventLeaf)>,
     pub(super) locked: FxHashSet<PrimaryKey>,
     pub(super) deleted: FxHashMap<PrimaryKey, Arc<RowData>>,
     pub(super) pipe_unlock: FxHashSet<PrimaryKey>,
@@ -127,6 +128,8 @@ impl<'a> Dio<'a>
                 Some(f) => f,
                 None => self.default_format
             },
+            created: 0,
+            updated: 0,
         };
 
         let mut ret = Dao::new(row, &self.state);
@@ -148,8 +151,8 @@ impl<'a> Dio<'a>
                 let row = Row::from_row_data(dao.deref())?;
                 return Ok(Dao::new(row, &self.state));
             }
-            if let Some(dao) = state.cache_load.get(key) {
-                let row = Row::from_event(dao.deref())?;
+            if let Some((dao, leaf)) = state.cache_load.get(key) {
+                let row = Row::from_event(dao.deref(), leaf.created, leaf.updated)?;
                 return Ok(Dao::new(row, &self.state));
             }
             if state.deleted.contains_key(key) {
@@ -165,15 +168,15 @@ impl<'a> Dio<'a>
         Ok(self.load_from_entry(entry).await?)
     }
 
-    pub(crate) async fn load_from_entry<D>(&mut self, entry: super::crypto::Hash)
+    pub(crate) async fn load_from_entry<D>(&mut self, leaf: EventLeaf)
     -> Result<Dao<D>, LoadError>
     where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
-        let evt = self.multi.load(entry).await?;
-        Ok(self.load_from_event(evt.data, evt.header.as_header()?)?)
+        let evt = self.multi.load(leaf).await?;
+        Ok(self.load_from_event(evt.data, evt.header.as_header()?, leaf)?)
     }
 
-    pub(crate) fn load_from_event<D>(&mut self, mut data: EventData, header: EventHeader)
+    pub(crate) fn load_from_event<D>(&mut self, mut data: EventData, header: EventHeader, leaf: EventLeaf)
     -> Result<Dao<D>, LoadError>
     where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
@@ -186,8 +189,8 @@ impl<'a> Dio<'a>
 
         match header.meta.get_data_key() {
             Some(key) => {
-                let row = Row::from_event(&data)?;
-                state.cache_load.insert(key.clone(), Arc::new(data));
+                let row = Row::from_event(&data, leaf.created, leaf.updated)?;
+                state.cache_load.insert(key.clone(), (Arc::new(data), leaf));
                 Ok(Dao::new(row, &self.state))
             },
             None => Err(LoadError::NoPrimaryKey)
@@ -237,8 +240,8 @@ impl<'a> Dio<'a>
                 ret.push(Dao::new(row, &self.state));
                 continue;
             }
-            if let Some(dao) = state.cache_load.get(&key) {
-                let row = Row::from_event(dao.deref())?;
+            if let Some((dao, leaf)) = state.cache_load.get(&key) {
+                let row = Row::from_event(dao.deref(), leaf.created, leaf.updated)?;
 
                 already.insert(row.key.clone());
                 ret.push(Dao::new(row, &self.state));
@@ -252,8 +255,8 @@ impl<'a> Dio<'a>
                 None => { continue; },
             };
 
-            let row = Row::from_event(&evt.data)?;
-            state.cache_load.insert(row.key.clone(), Arc::new(evt.data));
+            let row = Row::from_event(&evt.data, evt.leaf.created, evt.leaf.updated)?;
+            state.cache_load.insert(row.key.clone(), (Arc::new(evt.data), evt.leaf));
 
             already.insert(row.key.clone());
             ret.push(Dao::new(row, &self.state));

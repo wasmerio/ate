@@ -15,6 +15,7 @@ use super::core::*;
 use crate::comms::*;
 use crate::trust::*;
 use crate::chain::*;
+use crate::index::*;
 use crate::error::*;
 use crate::conf::*;
 use crate::transaction::*;
@@ -170,7 +171,7 @@ impl MeshRoot
         // We work in batches of 1000 events releasing the lock between iterations so that the
         // server has time to process new events
         while let Some(start) = cur {
-            let mut entries = Vec::new();
+            let mut leafs = Vec::new();
             {
                 let guard = multi.inside_async.read().await;
                 let mut iter = guard.chain.history.range(start..);
@@ -178,7 +179,11 @@ impl MeshRoot
                     match iter.next() {
                         Some((k, v)) => {
                             cur = Some(k.clone());
-                            entries.push(v.event_hash);
+                            leafs.push(EventLeaf {
+                                record: v.event_hash,
+                                created: 0,
+                                updated: 0,
+                            });
                         },
                         None => {
                             cur = None;
@@ -188,8 +193,8 @@ impl MeshRoot
                 }
             }
             let mut evts = Vec::new();
-            for entry in entries {
-                let evt = multi.load(entry).await?;
+            for leaf in leafs {
+                let evt = multi.load(leaf).await?;
                 let evt = MessageEvent {
                     meta: evt.data.meta.clone(),
                     data_hash: evt.header.data_hash.clone(),

@@ -19,6 +19,7 @@ use crate::crypto::Hash;
 use crate::dio::DioState;
 use crate::dio::Dio;
 use crate::spec::*;
+use crate::index::*;
 
 pub use super::vec::DaoVec;
 
@@ -28,6 +29,8 @@ where Self: Send + Sync,
       D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     pub(super) key: PrimaryKey,
+    pub(super) created: u64,
+    pub(super) updated: u64,
     pub(super) format: MessageFormat,
     pub(super) tree: Option<MetaTree>,
     pub(super) data: D,
@@ -39,27 +42,7 @@ impl<D> Row<D>
 where Self: Send + Sync,
       D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
-    #[allow(dead_code)]
-    pub(super) fn new(
-        key: PrimaryKey,
-        format: MessageFormat,
-        data: D,
-        auth: MetaAuthorization,
-        tree: Option<MetaTree>,
-        collections: FxHashSet<MetaCollection>,
-    ) -> Row<D>
-    {
-        Row {
-            key,
-            format,
-            tree,
-            data,
-            auth,
-            collections,
-        }
-    }
-
-    pub(crate) fn from_event(evt: &EventData) -> Result<Row<D>, SerializationError> {
+    pub(crate) fn from_event(evt: &EventData, created: u64, updated: u64) -> Result<Row<D>, SerializationError> {
         let key = match evt.meta.get_data_key() {
             Some(key) => key,
             None => { return Result::Err(SerializationError::NoPrimarykey) }
@@ -81,6 +64,8 @@ where Self: Send + Sync,
                             None => MetaAuthorization::default(),
                         },
                         collections,
+                        created,
+                        updated,
                     }
                 )
             }
@@ -97,6 +82,8 @@ where Self: Send + Sync,
                 data: row.format.data.deserialize(&row.data)?,
                 auth: row.auth.clone(),
                 collections: row.collections.clone(),
+                created: row.created,
+                updated: row.updated,
             }
         )
     }
@@ -115,6 +102,8 @@ where Self: Send + Sync,
                 data,
                 auth: self.auth.clone(),
                 collections: self.collections.clone(),
+                created: self.created,
+                updated: self.updated,
             }
         )
     }
@@ -131,6 +120,8 @@ where Self: Send + Sync
     pub data: Bytes,
     pub auth: MetaAuthorization,
     pub collections: FxHashSet<MetaCollection>,
+    pub created: u64,
+    pub updated: u64,
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -270,6 +261,16 @@ where Self: Send + Sync,
             DaoLock::Locked | DaoLock::LockedThenDelete => true,
             DaoLock::Unlocked => false
         }
+    }
+
+    #[allow(dead_code)]
+    pub fn when_created(&self) -> u64 {
+        self.row.created
+    }
+
+    #[allow(dead_code)]
+    pub fn when_updated(&self) -> u64 {
+        self.row.updated
     }
 }
 

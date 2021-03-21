@@ -129,18 +129,6 @@ impl TimestampEnforcer
             since_the_epoch
         )
     }
-
-    fn get_timestamp(meta: &Metadata) -> Option<&MetaTimestamp> {
-        meta.core
-            .iter()
-            .filter_map(|m| {
-                match m {
-                    CoreMetadata::Timestamp(time) => Some(time),
-                    _ => None,
-                }
-            })
-            .next()
-    }
 }
 
 impl Default
@@ -180,7 +168,7 @@ for TimestampEnforcer
 {
     fn feed(&mut self, header: &EventHeader) -> Result<(), SinkError>
     {
-        if let Some(time) = TimestampEnforcer::get_timestamp(&header.meta) {
+        if let Some(time) = header.meta.get_timestamp() {
             let time = Duration::from_millis(time.time_since_epoch_ms);
             if time > self.cursor {
                 self.cursor = time;
@@ -228,7 +216,7 @@ for TimestampEnforcer
     fn validate(&self, header: &EventHeader) -> Result<ValidationResult, ValidationError>
     {
         // If it does not have a timestamp then we can not accept it
-        let time = match TimestampEnforcer::get_timestamp(&header.meta) {
+        let time = match header.meta.get_timestamp() {
             Some(m) => m,
             None => {
                 return match header.meta.needs_signature() {

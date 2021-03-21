@@ -207,4 +207,16 @@ impl Metadata
         
         None
     }
+
+    pub fn get_timestamp(&self) -> Option<&MetaTimestamp> {
+        self.core
+            .iter()
+            .filter_map(|m| {
+                match m {
+                    CoreMetadata::Timestamp(time) => Some(time),
+                    _ => None,
+                }
+            })
+            .next()
+    }
 }

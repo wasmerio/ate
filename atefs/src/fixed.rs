@@ -16,6 +16,8 @@ pub struct FixedFile
     size: u64,
     mode: u32,
     name: String,
+    created: u64,
+    updated: u64,
 }
 
 impl FixedFile
@@ -29,6 +31,8 @@ impl FixedFile
             size: 0,
             mode: 0,
             name: name,
+            created: 0,
+            updated: 0
         }
     }
 
@@ -51,6 +55,18 @@ impl FixedFile
     #[allow(dead_code)]
     pub fn size(mut self, val: u64) -> FixedFile {
         self.size = val;
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn created(mut self, val: u64) -> FixedFile {
+        self.created = val;
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn updated(mut self, val: u64) -> FixedFile {
+        self.updated = val;
         self
     }
 }

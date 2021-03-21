@@ -35,7 +35,7 @@ use parking_lot::Mutex as MutexSync;
 use tokio::runtime::Runtime;
 
 #[derive(Debug, Clone)]
-pub struct LoadResult
+pub(crate) struct LoadData
 {
     pub(crate) offset: u64,
     pub header: EventHeaderRaw,
@@ -44,9 +44,9 @@ pub struct LoadResult
 
 struct LogFileCache
 {
-    pub(crate) flush: FxHashMap<Hash, LoadResult>,
-    pub(crate) write: TimedSizedCache<Hash, LoadResult>,
-    pub(crate) read: TimedSizedCache<Hash, LoadResult>,
+    pub(crate) flush: FxHashMap<Hash, LoadData>,
+    pub(crate) write: TimedSizedCache<Hash, LoadData>,
+    pub(crate) read: TimedSizedCache<Hash, LoadData>,
 }
 
 struct LogFile
@@ -153,7 +153,7 @@ impl LogFile {
         Ok(ret)
     }
 
-    async fn read_all(&mut self, to: &mut VecDeque<LoadResult>) -> std::result::Result<(), SerializationError> {
+    async fn read_all(&mut self, to: &mut VecDeque<LoadData>) -> std::result::Result<(), SerializationError> {
         self.check_open()?;
 
         loop {
@@ -174,7 +174,7 @@ impl LogFile {
         Ok(())
     }
 
-    async fn read_once_internal(&mut self) -> std::result::Result<Option<LoadResult>, SerializationError>
+    async fn read_once_internal(&mut self) -> std::result::Result<Option<LoadData>, SerializationError>
     {
         let offset = self.log_off;
 
@@ -212,7 +212,7 @@ impl LogFile {
 
         Ok(
             Some(
-                LoadResult {
+                LoadData {
                     header,
                     data: EventData {
                         meta: meta,
@@ -247,7 +247,7 @@ impl LogFile {
         // Cache the data
         {
             let mut cache = self.cache.lock();
-            cache.flush.insert(header.event_hash, LoadResult {
+            cache.flush.insert(header.event_hash, LoadData {
                 offset: log_header.offset,
                 header,
                 data: evt.clone(),
@@ -258,7 +258,7 @@ impl LogFile {
         Ok(log_header.offset)
     }
 
-    async fn copy_event(&mut self, from_log: &LogFile, hash: &Hash) -> std::result::Result<u64, LoadError>
+    async fn copy_event(&mut self, from_log: &LogFile, hash: Hash) -> std::result::Result<u64, LoadError>
     {
         self.check_open()?;
         from_log.check_open()?;
@@ -284,7 +284,7 @@ impl LogFile {
         // Cache the data
         {
             let mut cache = self.cache.lock();
-            cache.flush.insert(hash.clone(), LoadResult {
+            cache.flush.insert(hash.clone(), LoadData {
                 header: result.header,
                 offset: log_header.offset,
                 data: result.data,
@@ -294,7 +294,7 @@ impl LogFile {
         Ok(log_header.offset)
     }
 
-    async fn load(&self, hash: &Hash) -> std::result::Result<LoadResult, LoadError> {
+    async fn load(&self, hash: Hash) -> std::result::Result<LoadData, LoadError> {
         self.check_open()?;
 
         // Check the caches
@@ -312,10 +312,10 @@ impl LogFile {
         }
 
         // Lookup the record in the redo log
-        let offset = match self.lookup.get(hash) {
+        let offset = match self.lookup.get(&hash) {
             Some(a) => a.clone(),
             None => {
-                return Err(LoadError::NotFoundByHash(hash.clone()));
+                return Err(LoadError::NotFoundByHash(hash));
             }
         };
 
@@ -324,7 +324,7 @@ impl LogFile {
             let mut loader = SpecificLogLoader::new(&self.log_random_access, offset).await?;
             match LogVersion::read(&mut loader, self.default_format).await? {
                 Some(a) => a,
-                None => { return Err(LoadError::NotFoundByHash(hash.clone())); }
+                None => { return Err(LoadError::NotFoundByHash(hash)); }
             }
         };
 
@@ -340,7 +340,7 @@ impl LogFile {
 
         // Convert the result into a deserialized result
         let meta = result.header.format.meta.deserialize(&result.meta[..])?;
-        let ret = LoadResult {
+        let ret = LoadData {
             header: EventHeaderRaw::new(
                 super::crypto::Hash::from_bytes(&result.meta[..]),
                 Bytes::from(result.meta),
@@ -641,7 +641,7 @@ impl FlippedLogFile
     }
 
     #[allow(dead_code)]
-    pub(crate) async fn copy_event(&mut self, from_log: &RedoLog, from_pointer: &Hash) -> std::result::Result<u64, LoadError> {
+    pub(crate) async fn copy_event(&mut self, from_log: &RedoLog, from_pointer: Hash) -> std::result::Result<u64, LoadError> {
         Ok(self.log_file.copy_event(&from_log.log_file, from_pointer).await?)
     }
 }
@@ -652,12 +652,12 @@ struct RedoLogFlip {
 
 #[derive(Default)]
 pub(crate) struct RedoLogLoader {
-    entries: VecDeque<LoadResult>
+    entries: VecDeque<LoadData>
 }
 
 impl RedoLogLoader {
     #[allow(dead_code)]
-    pub(crate) fn pop(&mut self) -> Option<LoadResult> {
+    pub(crate) fn pop(&mut self) -> Option<LoadData> {
         self.entries.pop_front()   
     }
 }
@@ -753,8 +753,8 @@ impl RedoLog
         }
     }
 
-    pub(crate) async fn load(&self, hash: Hash) -> std::result::Result<LoadResult, LoadError> {
-        Ok(self.log_file.load(&hash).await?)
+    pub(crate) async fn load(&self, hash: Hash) -> std::result::Result<LoadData, LoadError> {
+        Ok(self.log_file.load(hash).await?)
     }
 
     #[allow(dead_code)]

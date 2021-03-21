@@ -407,7 +407,7 @@ impl<'a> Chain
             for header in keepers.into_iter().rev() {
                 new_pointers.feed(&header);
                 flip.event_summary.push(header.raw.clone());
-                flip.copy_event(&guard_async.chain.redo, &header.raw.event_hash).await?;
+                flip.copy_event(&guard_async.chain.redo, header.raw.event_hash).await?;
                 new_history_reverse.insert(header.raw.event_hash.clone(), history_offset);
                 new_history.insert(history_offset, header.raw.clone());
                 history_offset = history_offset + 1;
