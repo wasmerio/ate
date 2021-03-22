@@ -78,7 +78,14 @@ impl BinaryTreeIndexer
                 },
                 CoreMetadata::Tree(tree) => {
                     if let Some(key) = entry.meta.get_data_key() {
-                        self.secondary.insert(tree.vec.clone(), key);
+                        let vec = tree.vec.clone();
+                        let exists = match self.secondary.get_vec(&vec)  {
+                            Some(a) => a.contains(&key),
+                            None => false,
+                        };
+                        if exists == false {
+                            self.secondary.insert(vec, key);
+                        }
                     }
                 }
                 _ => { },

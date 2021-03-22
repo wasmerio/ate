@@ -308,6 +308,36 @@ for AteFS
         })
     }
 
+    async fn setattr(
+        &self,
+        _req: Request,
+        inode: u64,
+        _fh: Option<u64>,
+        set_attr: SetAttr,
+    ) -> Result<ReplyAttr> {
+        debug!("atefs::setattr inode={}", inode);
+
+        let key = PrimaryKey::from(inode);
+        let mut dio = self.chain.dio(&self.session).await;
+        let mut dao = conv_load(dio.load::<Inode>(&key).await)?;
+
+        if let Some(mode) = set_attr.mode {
+            dao.dentry.mode = mode;
+        }
+        if let Some(uid) = set_attr.uid {
+            dao.dentry.uid = uid;
+        }
+        if let Some(gid) = set_attr.gid {
+            dao.dentry.gid = gid;
+        }
+
+        let spec = dao.as_file_spec(PrimaryKey::from(inode), dao.when_created(), dao.when_updated());
+        Ok(ReplyAttr {
+            ttl: TTL,
+            attr: spec_as_attr(&spec),
+        })
+    }
+
     async fn opendir(&self, _req: Request, inode: u64, _flags: u32) -> Result<ReplyOpen> {
         debug!("atefs::opendir inode={}", inode);
 
@@ -446,28 +476,6 @@ for AteFS
 impl Filesystem for AteFS {
     type DirEntryStream = Iter<std::iter::Skip<IntoIter<Result<DirectoryEntry>>>>;
     type DirEntryPlusStream = Iter<IntoIter<Result<DirectoryEntryPlus>>>;
-
-    async fn setattr(
-        &self,
-        _req: Request,
-        inode: u64,
-        _fh: Option<u64>,
-        set_attr: SetAttr,
-    ) -> Result<ReplyAttr> {
-        debug!("atefs::setattr inode={}", inode);
-        Ok(ReplyAttr {
-            ttl: TTL,
-            attr: self
-                .0
-                .read()
-                .await
-                .inode_map
-                .get(&inode)
-                .ok_or_else(|| Errno::from(libc::ENOENT))?
-                .set_attr(set_attr)
-                .await,
-        })
-    }
 
     async fn unlink(&self, _req: Request, parent: u64, name: &OsStr) -> Result<()> {
         debug!("atefs::unlink parent={}", parent);
