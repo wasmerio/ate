@@ -42,17 +42,7 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
         let mut ret = dio.store(data)?;
 
-        ret.fork();
-        ret.row.tree = Some(
-            MetaTree {
-                vec: MetaCollection {
-                    parent_id: parent_id.clone(),
-                    collection_id: self.vec_id.clone(),
-                },
-                inherit_read: true,
-                inherit_write: true,
-            }
-        );
+        ret.attach(parent_id, self);
         Ok (ret)
     }
 }

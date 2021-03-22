@@ -195,6 +195,21 @@ where Self: Send + Sync,
     }
 
     #[allow(dead_code)]
+    pub fn attach(&mut self, parent_id: &PrimaryKey, vec: &DaoVec<D>) {
+        self.fork();
+        self.row.tree = Some(
+            MetaTree {
+                vec: MetaCollection {
+                    parent_id: parent_id.clone(),
+                    collection_id: vec.vec_id.clone(),
+                },
+                inherit_read: true,
+                inherit_write: true,
+            }
+        );
+    }
+
+    #[allow(dead_code)]
     pub fn auth(&self) -> &MetaAuthorization {
         &self.row.auth
     }

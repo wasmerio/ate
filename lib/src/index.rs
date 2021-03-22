@@ -30,6 +30,7 @@ pub(crate) struct BinaryTreeIndexer
 {
     primary: FxHashMap<PrimaryKey, EventLeaf>,
     secondary: MultiMap<MetaCollection, PrimaryKey>,
+    parent: FxHashMap<PrimaryKey, MetaTree>,
 }
 
 impl BinaryTreeIndexer
@@ -50,7 +51,7 @@ impl BinaryTreeIndexer
             match core {
                 CoreMetadata::Tombstone(key) => {
                     self.primary.remove(&key);
-                    if let Some(tree) = entry.meta.get_tree() {
+                    if let Some(tree) = self.parent.remove(&key) {
                         if let Some(vec) = self.secondary.get_vec_mut(&tree.vec) {
                             vec.retain(|x| *x != *key);
                         }
@@ -78,6 +79,13 @@ impl BinaryTreeIndexer
                 },
                 CoreMetadata::Tree(tree) => {
                     if let Some(key) = entry.meta.get_data_key() {
+                        if let Some(tree) = self.parent.remove(&key) {
+                            if let Some(vec) = self.secondary.get_vec_mut(&tree.vec) {
+                                vec.retain(|x| *x != key);
+                            }
+                        }
+                        self.parent.insert(key.clone(), tree.clone());
+
                         let vec = tree.vec.clone();
                         let exists = match self.secondary.get_vec(&vec)  {
                             Some(a) => a.contains(&key),

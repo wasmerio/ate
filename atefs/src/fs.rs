@@ -469,45 +469,75 @@ for AteFS
         debug!("atefs::interrupt unique={}", unique);
         Ok(())
     }
-}
 
-/*
-#[async_trait]
-impl Filesystem for AteFS {
-    type DirEntryStream = Iter<std::iter::Skip<IntoIter<Result<DirectoryEntry>>>>;
-    type DirEntryPlusStream = Iter<IntoIter<Result<DirectoryEntryPlus>>>;
+    async fn mknod(
+        &self,
+        req: Request,
+        parent: u64,
+        name: &OsStr,
+        mode: u32,
+        _rdev: u32,
+    ) -> Result<ReplyEntry> {
+        debug!("atefs::mknod parent={} name={}", parent, name.to_str().unwrap().to_string());
+
+        let key = PrimaryKey::from(parent);
+        let mut dio = self.chain.dio(&self.session).await;
+        let data = conv_load(dio.load::<Inode>(&key).await)?;
+
+        if data.spec_type != SpecType::Directory {
+            debug!("atefs::create parent={} not-a-directory", parent);
+            return Err(libc::ENOTDIR.into());
+        }
+        
+        if let Some(_) = conv_load(data.children.iter(&key, &mut dio).await)?.filter(|c| *c.dentry.name == *name).next() {
+            debug!("atefs::create parent={} name={}: already-exists", parent, name.to_str().unwrap());
+            return Err(libc::EEXIST.into());
+        }
+
+        let child = Inode::new(
+            name.to_str().unwrap().to_string(),
+            mode, 
+            req.uid,
+            req.gid,
+            SpecType::RegularFile,
+        );
+        conv_serialization(data.children.push(&mut dio, &key, child))?;
+
+        let spec = data.as_file_spec(data.key().clone(), data.when_created(), data.when_updated());
+        let attr = spec_as_attr(&spec);
+
+        Ok(ReplyEntry {
+            ttl: TTL,
+            attr,
+            generation: 0,
+        })
+    }
 
     async fn unlink(&self, _req: Request, parent: u64, name: &OsStr) -> Result<()> {
-        debug!("atefs::unlink parent={}", parent);
-        let mut inner = self.0.write().await;
+        debug!("atefs::unlink parent={} name={}", parent, name.to_str().unwrap().to_string());
 
-        let entry = inner
-            .inode_map
-            .get(&parent)
-            .ok_or_else(|| Errno::from(libc::ENOENT))?;
+        let key = PrimaryKey::from(parent);
+        let mut dio = self.chain.dio(&self.session).await;
+        let data = conv_load(dio.load::<Inode>(&key).await)?;
 
-        if let Entry::Dir(dir) = entry {
-            let mut dir = dir.write().await;
-
-            if dir
-                .children
-                .get(name)
-                .ok_or_else(|| Errno::from(libc::ENOENT))?
-                .is_dir()
-            {
+        if data.spec_type != SpecType::Directory {
+            debug!("atefs::unlink parent={} not-a-directory", parent);
+            return Err(libc::ENOTDIR.into());
+        }
+        
+        if let Some(data) = conv_load(data.children.iter(&key, &mut dio).await)?.filter(|c| *c.dentry.name == *name).next()
+        {
+            if data.spec_type == SpecType::Directory {
+                debug!("atefs::unlink parent={} name={} is-a-directory", parent, name.to_str().unwrap().to_string());
                 return Err(libc::EISDIR.into());
             }
 
-            let inode = dir.children.remove(name).unwrap().inode().await;
+            conv_serialization(data.delete())?;
 
-            drop(dir); // fix inner can't borrow as mut next line
-
-            inner.inode_map.remove(&inode);
-
-            Ok(())
-        } else {
-            Err(libc::ENOTDIR.into())
+            return Ok(());
         }
+
+        Err(libc::ENOENT.into())
     }
 
     async fn rename(
@@ -518,49 +548,60 @@ impl Filesystem for AteFS {
         new_parent: u64,
         new_name: &OsStr,
     ) -> Result<()> {
-        debug!("atefs::rename parent={}", parent);
-        let inner = self.0.read().await;
+        debug!("atefs::rename name={} new_name={}", name.to_str().unwrap().to_string(), new_name.to_str().unwrap().to_string());
+        
+        let mut dio = self.chain.dio(&self.session).await;
+        let parent_key = PrimaryKey::from(parent);
+        let parent_data = conv_load(dio.load::<Inode>(&parent_key).await)?;
 
-        let parent_entry = inner
-            .inode_map
-            .get(&parent)
-            .ok_or_else(|| Errno::from(libc::ENOENT))?;
+        if parent_data.spec_type != SpecType::Directory {
+            debug!("atefs::rename parent={} not-a-directory", parent);
+            return Err(libc::ENOTDIR.into());
+        }
+        
+        if let Some(mut data) = conv_load(parent_data.children.iter(&parent_key, &mut dio).await)?.filter(|c| *c.dentry.name == *name).next()
+        {
+            // If the parent has changed then move it
+            if parent != new_parent
+            {
+                let new_parent_key = PrimaryKey::from(new_parent);
+                let new_parent_data = conv_load(dio.load::<Inode>(&new_parent_key).await)?;
 
-        if let Entry::Dir(parent_dir) = parent_entry {
-            let mut parent_dir = parent_dir.write().await;
+                if new_parent_data.spec_type != SpecType::Directory {
+                    debug!("atefs::rename new_parent={} not-a-directory", new_parent);
+                    return Err(libc::ENOTDIR.into());
+                }
 
-            if parent == new_parent {
-                let entry = parent_dir
-                    .children
-                    .remove(name)
-                    .ok_or_else(|| Errno::from(libc::ENOENT))?;
-                parent_dir.children.insert(new_name.to_os_string(), entry);
+                if conv_load(new_parent_data.children.iter(&parent_key, &mut dio).await)?.filter(|c| *c.dentry.name == *new_name).next().is_some() {
+                    debug!("atefs::rename new_name={} already exists", new_name.to_str().unwrap().to_string());
+                    return Err(libc::EEXIST.into());
+                }
 
-                return Ok(());
+                data.detach();
+                data.attach(&new_parent_key, &new_parent_data.children);
+            }
+            else
+            {
+                if conv_load(parent_data.children.iter(&parent_key, &mut dio).await)?.filter(|c| *c.dentry.name == *new_name).next().is_some() {
+                    debug!("atefs::rename new_name={} already exists", new_name.to_str().unwrap().to_string());
+                    return Err(libc::ENOTDIR.into());
+                }
             }
 
-            let new_parent_entry = inner
-                .inode_map
-                .get(&new_parent)
-                .ok_or_else(|| Errno::from(libc::ENOENT))?;
+            data.dentry.name = new_name.to_str().unwrap().to_string();
 
-            if let Entry::Dir(new_parent_dir) = new_parent_entry {
-                let mut new_parent_dir = new_parent_dir.write().await;
-
-                let entry = parent_dir
-                    .children
-                    .remove(name)
-                    .ok_or_else(|| Errno::from(libc::ENOENT))?;
-                new_parent_dir
-                    .children
-                    .insert(new_name.to_os_string(), entry);
-
-                return Ok(());
-            }
+            return Ok(());
         }
 
-        Err(libc::ENOTDIR.into())
+        Err(libc::ENOENT.into())
     }
+}
+
+/*
+#[async_trait]
+impl Filesystem for AteFS {
+    type DirEntryStream = Iter<std::iter::Skip<IntoIter<Result<DirectoryEntry>>>>;
+    type DirEntryPlusStream = Iter<IntoIter<Result<DirectoryEntryPlus>>>;
 
     async fn open(&self, _req: Request, inode: u64, _flags: u32) -> Result<ReplyOpen> {
         debug!("atefs::open inode={}", inode);
