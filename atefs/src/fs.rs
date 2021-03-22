@@ -660,6 +660,67 @@ for AteFS
         };
         Ok(ReplyData { data: open.spec.read(&self.chain, &self.session, offset, size).await?,  })
     }
+
+    async fn fallocate(
+        &self,
+        _req: Request,
+        inode: u64,
+        fh: u64,
+        offset: u64,
+        length: u64,
+        _mode: u32,
+    ) -> Result<()> {
+        debug!("atefs::fallocate inode={}", inode);
+
+        if fh > 0 {
+            let open = {
+                let lock = self.open_handles.lock();
+                match lock.get(&fh) {
+                    Some(a) => Some(Arc::clone(a)),
+                    None => None,
+                }
+            };
+            if let Some(open) = open {
+                open.spec.fallocate(offset + length).await;
+                return Ok(());
+            }
+        }
+
+        let mut dao = self.load(inode).await?;
+        dao.size = offset + length;
+        return Ok(());
+    }
+
+    async fn lseek(
+        &self,
+        _req: Request,
+        inode: u64,
+        fh: u64,
+        offset: u64,
+        whence: u32,
+    ) -> Result<ReplyLSeek> {
+        debug!("atefs::lseek inode={}", inode);
+
+        let offset = if whence == libc::SEEK_CUR as u32 || whence == libc::SEEK_SET as u32 {
+            offset
+        } else if whence == libc::SEEK_END as u32 {
+            let mut size = None;
+            if fh > 0 {
+                let lock = self.open_handles.lock();
+                if let Some(open) = lock.get(&fh) {
+                    size = Some(open.spec.size());
+                }
+            }
+            let size = match size {
+                Some(a) => a,
+                None => self.load(inode).await?.size
+            };
+            offset + size
+        } else {
+            return Err(libc::EINVAL.into());
+        };
+        Ok(ReplyLSeek { offset })
+    }
 }
 
 /*
@@ -668,43 +729,6 @@ impl Filesystem for AteFS {
     type DirEntryStream = Iter<std::iter::Skip<IntoIter<Result<DirectoryEntry>>>>;
     type DirEntryPlusStream = Iter<IntoIter<Result<DirectoryEntryPlus>>>;
 
-    async fn read(
-        &self,
-        _req: Request,
-        inode: u64,
-        _fh: u64,
-        offset: u64,
-        size: u32,
-    ) -> Result<ReplyData> {
-        debug!("atefs::read inode={}", inode);
-        let inner = self.0.read().await;
-
-        let entry = inner
-            .inode_map
-            .get(&inode)
-            .ok_or_else(|| Errno::from(libc::ENOENT))?;
-
-        if let Entry::File(file) = entry {
-            let file = file.read().await;
-
-            let mut cursor = Cursor::new(&file.content);
-            cursor.set_position(offset);
-
-            let size = cursor.remaining().min(size as _);
-
-            let mut data = BytesMut::with_capacity(size);
-            // safety
-            unsafe {
-                data.set_len(size);
-            }
-
-            cursor.read_exact(&mut data).unwrap();
-
-            Ok(ReplyData { data: data.into() })
-        } else {
-            Err(libc::EISDIR.into())
-        }
-    }
 
     async fn write(
         &self,
@@ -756,105 +780,6 @@ impl Filesystem for AteFS {
         } else {
             Err(libc::EISDIR.into())
         }
-    }
-
-    async fn fallocate(
-        &self,
-        _req: Request,
-        inode: u64,
-        _fh: u64,
-        offset: u64,
-        length: u64,
-        _mode: u32,
-    ) -> Result<()> {
-        debug!("atefs::fallocate inode={}", inode);
-        let inner = self.0.read().await;
-
-        let entry = inner
-            .inode_map
-            .get(&inode)
-            .ok_or_else(|| Errno::from(libc::ENOENT))?;
-
-        if let Entry::File(file) = entry {
-            let mut file = file.write().await;
-
-            let new_size = (offset + length) as usize;
-
-            let size = file.content.len();
-
-            if new_size > size {
-                file.content.reserve(new_size - size);
-            } else {
-                file.content.truncate(new_size);
-            }
-
-            Ok(())
-        } else {
-            Err(libc::EISDIR.into())
-        }
-    }
-
-    async fn lseek(
-        &self,
-        _req: Request,
-        inode: u64,
-        _fh: u64,
-        offset: u64,
-        whence: u32,
-    ) -> Result<ReplyLSeek> {
-        debug!("atefs::lseek inode={}", inode);
-        let inner = self.0.read().await;
-
-        let entry = inner
-            .inode_map
-            .get(&inode)
-            .ok_or_else(|| Errno::from(libc::ENOENT))?;
-
-        let whence = whence as i32;
-
-        if let Entry::File(file) = entry {
-            let offset = if whence == libc::SEEK_CUR || whence == libc::SEEK_SET {
-                offset
-            } else if whence == libc::SEEK_END {
-                let content_size = file.read().await.content.len();
-
-                if content_size >= offset as _ {
-                    content_size as u64 - offset
-                } else {
-                    0
-                }
-            } else {
-                return Err(libc::EINVAL.into());
-            };
-
-            Ok(ReplyLSeek { offset })
-        } else {
-            Err(libc::EISDIR.into())
-        }
-    }
-
-    async fn copy_file_range(
-        &self,
-        req: Request,
-        inode: u64,
-        fh_in: u64,
-        off_in: u64,
-        inode_out: u64,
-        fh_out: u64,
-        off_out: u64,
-        length: u64,
-        flags: u64,
-    ) -> Result<ReplyCopyFileRange> {
-        debug!("atefs::copy_file_range inode={}", inode);
-        let data = self.read(req, inode, fh_in, off_in, length as _).await?;
-
-        let data = data.data.as_ref().as_ref();
-
-        let ReplyWrite { written } = self
-            .write(req, inode_out, fh_out, off_out, data, flags as _)
-            .await?;
-
-        Ok(ReplyCopyFileRange { copied: written })
     }
 }
 */

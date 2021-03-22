@@ -6,23 +6,19 @@ use super::dir::Directory;
 use super::file::RegularFile;
 use super::fixed::FixedFile;
 
-pub const PAGE_SIZE: usize = 2097152;
-type PageBuf = [u8; PAGE_SIZE];
+pub const BUNDLE_SIZE: usize = 1024;
+pub const PAGE_SIZE: usize = 131072;
 
-#[serbia]
+/// Represents a block of data
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Page {
-    pub off: u64,
-    #[serbia_bufsize(PAGE_SIZE)]
-    pub buf: PageBuf,
+    pub buf: Vec<u8>,
 }
 
+/// Represents a bundle of 1024 pages
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Extent {
-    pub offset: u64,
-    pub size: u64,
-    pub pages: DaoVec<Page>,
-    pub extents: DaoVec<Extent>,
+pub struct PageBundle {
+    pub pages: Vec<Option<PrimaryKey>>,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize, Clone)]
@@ -38,7 +34,8 @@ pub struct Dentry {
 pub struct Inode {
     pub spec_type: SpecType,
     pub dentry: Dentry,
-    pub blob: DaoVec<Extent>,
+    pub size: u64,
+    pub bundles: Vec<Option<PrimaryKey>>,
     pub children: DaoVec<Inode>,
 }
 
@@ -53,7 +50,8 @@ impl Inode {
                 uid,
                 gid,
             },
-            blob: DaoVec::default(),
+            size: 0,
+            bundles: Vec::default(),
             children: DaoVec::default(),
         }
     }

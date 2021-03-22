@@ -1,4 +1,5 @@
 #![allow(unused_imports)]
+use async_trait::async_trait;
 use crate::api::FileApi;
 use serde::*;
 use fuse3::FileType;
@@ -71,6 +72,7 @@ impl FixedFile
     }
 }
 
+#[async_trait]
 impl FileApi
 for FixedFile
 {

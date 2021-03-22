@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use crate::api::FileApi;
 use ate::header::PrimaryKey;
 use serde::*;
@@ -25,6 +26,7 @@ impl Directory
     }
 }
 
+#[async_trait]
 impl FileApi
 for Directory
 {
