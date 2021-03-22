@@ -58,11 +58,11 @@ impl Inode {
         }
     }
 
-    pub fn as_file_spec(&self, key: PrimaryKey, created: u64, updated: u64) -> FileSpec {
-        match self.spec_type {
-            SpecType::Directory => FileSpec::Directory(Directory::new(&key, self, created, updated)),
-            SpecType::RegularFile => FileSpec::RegularFile(RegularFile::new(&key, self, created, updated)),
-            _ => FileSpec::FixedFile(FixedFile::new(&key, self.dentry.name.clone(), fuse3::FileType::RegularFile).created(created).updated(updated))
+    pub fn as_file_spec(ino: u64, created: u64, updated: u64, dao: Dao<Inode>) -> FileSpec {
+        match dao.spec_type {
+            SpecType::Directory => FileSpec::Directory(Directory::new(dao, created, updated)),
+            SpecType::RegularFile => FileSpec::RegularFile(RegularFile::new(dao, created, updated)),
+            _ => FileSpec::FixedFile(FixedFile::new(ino, dao.dentry.name.clone(), fuse3::FileType::RegularFile).created(created).updated(updated))
         }
     }
 }

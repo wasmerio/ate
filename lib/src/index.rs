@@ -120,6 +120,17 @@ impl BinaryTreeIndexer
             None => None,
         }
     }
+
+    pub(crate) fn lookup_secondary_raw(&self, key: &MetaCollection) -> Option<Vec<PrimaryKey>> {
+        match self.secondary.get_vec(key) {
+            Some(vec) => {
+                Some(vec.iter()
+                    .map(|a| a.clone())
+                    .collect::<Vec<_>>())
+            },
+            None => None,
+        }
+    }
 }
 
 #[derive(Default, Debug)]

@@ -179,6 +179,12 @@ impl<'a> ChainOfTrust
         self.pointers.lookup_secondary(key)
     }
 
+    #[allow(dead_code)]
+    pub(super) fn lookup_secondary_raw(&self, key: &MetaCollection) -> Option<Vec<PrimaryKey>>
+    {
+        self.pointers.lookup_secondary_raw(key)
+    }
+
     pub(super) async fn flush(&mut self) -> Result<(), tokio::io::Error> {
         self.redo.flush().await
     }

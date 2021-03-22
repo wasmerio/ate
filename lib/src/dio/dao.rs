@@ -144,7 +144,7 @@ where Self: Send + Sync,
     lock: DaoLock,
     dirty: bool,
     pub(super) row: Row<D>,
-    state: Arc<Mutex<DioState>>,
+    pub(super) state: Arc<Mutex<DioState>>,
 }
 
 impl<D> Dao<D>

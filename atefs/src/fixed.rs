@@ -22,9 +22,9 @@ pub struct FixedFile
 
 impl FixedFile
 {
-    pub fn new(key: &PrimaryKey, name: String, kind: FileType) -> FixedFile {
+    pub fn new(ino: u64, name: String, kind: FileType) -> FixedFile {
         FixedFile {
-            ino: key.as_u64(),
+            ino,
             kind,
             uid: 0,
             gid: 0,

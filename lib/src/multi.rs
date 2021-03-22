@@ -64,6 +64,11 @@ impl ChainMultiUser
     }
 
     #[allow(dead_code)]
+    pub async fn lookup_secondary_raw(&self, key: &MetaCollection) -> Option<Vec<PrimaryKey>> {
+        self.inside_async.read().await.chain.lookup_secondary_raw(key)
+    }
+
+    #[allow(dead_code)]
     pub(crate) fn metadata_lint_many<'a>(&self, lints: &Vec<LintData<'a>>, session: &Session) -> Result<Vec<CoreMetadata>, LintError> {
         let guard = self.inside_sync.read();
         let mut ret = Vec::new();

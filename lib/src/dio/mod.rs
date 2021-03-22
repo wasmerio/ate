@@ -212,11 +212,36 @@ impl<'a> Dio<'a>
 
         // We either find existing objects in the cache or build a list of objects to load
         let mut to_load = Vec::new();
-        for entry in match self.multi.lookup_secondary(&key).await {
+        for key in match self.multi.lookup_secondary_raw(&key).await {
             Some(a) => a,
             None => return Ok(Vec::new())
         } {
-            to_load.push(entry);
+            {
+                let state = self.state.lock();
+                if state.is_locked(&key) {
+                    return Result::Err(LoadError::ObjectStillLocked(key));
+                }
+                if let Some(dao) = state.cache_store_primary.get(&key) {
+                    let row = Row::from_row_data(dao.deref())?;
+                    already.insert(row.key.clone());
+                    ret.push(Dao::new(row, &self.state));
+                    continue;
+                }
+                if let Some((dao, leaf)) = state.cache_load.get(&key) {
+                    let row = Row::from_event(dao.deref(), leaf.created, leaf.updated)?;
+                    already.insert(row.key.clone());
+                    ret.push(Dao::new(row, &self.state));
+                    continue;
+                }
+                if state.deleted.contains_key(&key) {
+                    continue;
+                }
+            }
+
+            to_load.push(match self.multi.lookup_primary(&key).await {
+                Some(a) => a,
+                None => { continue },
+            });
         }
 
         // Load all the objects that have not yet been loaded
@@ -272,6 +297,9 @@ impl<'a> Dio<'a>
                 if already.contains(a) {
                     continue;
                 }
+                if state.deleted.contains_key(a) {
+                    continue;
+                }
 
                 // If its still locked then that is a problem
                 if state.is_locked(a) {
@@ -303,6 +331,20 @@ impl Chain
         let multi = self.multi().await;
         Dio {
             state: Arc::new(Mutex::new(DioState::new())),
+            default_format: multi.default_format,
+            multi,
+            session: session,
+            scope,            
+        }
+    }
+
+    #[allow(dead_code)]
+    pub async fn dio_for_dao<'a, D>(&'a self, session: &'a Session, scope: Scope, dao: &Dao<D>) -> Dio<'a>
+    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
+    {
+        let multi = self.multi().await;
+        Dio {
+            state: Arc::clone(&dao.state),
             default_format: multi.default_format,
             multi,
             session: session,

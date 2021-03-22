@@ -1,9 +1,14 @@
+use async_trait::async_trait;
 use enum_dispatch::enum_dispatch;
 use serde::*;
 use super::dir::Directory;
 use super::file::RegularFile;
 use super::fixed::FixedFile;
+use ate::dio::Dio;
 use fuse3::FileType;
+use bytes::Bytes;
+use ate::prelude::*;
+use fuse3::{Errno, Result};
 
 #[enum_dispatch(FileApi)]
 #[derive(Debug)]
@@ -28,6 +33,7 @@ pub enum SpecType
     FixedFile,
 }
 
+#[async_trait]
 #[enum_dispatch]
 pub trait FileApi
 {
@@ -52,4 +58,6 @@ pub trait FileApi
     fn created(&self) -> u64 { 0 }
 
     fn updated(&self) -> u64 { 0 }
+
+    async fn read(&self, _chain: &Chain, _session: &AteSession, _offset: u64, _size: u32) -> Result<Bytes> { Ok(Bytes::from(Vec::new())) }
 }
