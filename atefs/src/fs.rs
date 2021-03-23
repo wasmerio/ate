@@ -201,6 +201,44 @@ impl AteFS
     }
 }
 
+impl AteFS
+{
+    async fn mknod_internal(
+        &self,
+        req: Request,
+        parent: u64,
+        name: &OsStr,
+        mode: u32,
+        _rdev: u32,
+    ) -> Result<Dao<Inode>> {
+        
+        let key = PrimaryKey::from(parent);
+        let mut dio = self.chain.dio(&self.session).await;
+        let data = conv_load(dio.load::<Inode>(&key).await)?;
+
+        if data.spec_type != SpecType::Directory {
+            debug!("atefs::create parent={} not-a-directory", parent);
+            return Err(libc::ENOTDIR.into());
+        }
+        
+        if let Some(_) = conv_load(data.children.iter(&key, &mut dio).await)?.filter(|c| *c.dentry.name == *name).next() {
+            debug!("atefs::create parent={} name={}: already-exists", parent, name.to_str().unwrap());
+            return Err(libc::EEXIST.into());
+        }
+
+        let child = Inode::new(
+            name.to_str().unwrap().to_string(),
+            mode, 
+            req.uid,
+            req.gid,
+            SpecType::RegularFile,
+        );
+
+        let child = conv_serialization(data.children.push(&mut dio, &key, child))?;
+        return Ok(child);
+    }
+}
+
 #[async_trait]
 impl Filesystem
 for AteFS
@@ -484,40 +522,52 @@ for AteFS
         parent: u64,
         name: &OsStr,
         mode: u32,
-        _rdev: u32,
+        rdev: u32,
     ) -> Result<ReplyEntry> {
         debug!("atefs::mknod parent={} name={}", parent, name.to_str().unwrap().to_string());
 
-        let key = PrimaryKey::from(parent);
-        let mut dio = self.chain.dio(&self.session).await;
-        let data = conv_load(dio.load::<Inode>(&key).await)?;
-
-        if data.spec_type != SpecType::Directory {
-            debug!("atefs::create parent={} not-a-directory", parent);
-            return Err(libc::ENOTDIR.into());
-        }
-        
-        if let Some(_) = conv_load(data.children.iter(&key, &mut dio).await)?.filter(|c| *c.dentry.name == *name).next() {
-            debug!("atefs::create parent={} name={}: already-exists", parent, name.to_str().unwrap());
-            return Err(libc::EEXIST.into());
-        }
-
-        let child = Inode::new(
-            name.to_str().unwrap().to_string(),
-            mode, 
-            req.uid,
-            req.gid,
-            SpecType::RegularFile,
-        );
-        conv_serialization(data.children.push(&mut dio, &key, child))?;
-
-        let spec = Inode::as_file_spec(data.key().as_u64(), data.when_created(), data.when_updated(), data);
-        let attr = spec_as_attr(&spec);
-
+        let dao = self.mknod_internal(req, parent, name, mode, rdev).await?;
+        let spec = Inode::as_file_spec(dao.key().as_u64(), dao.when_created(), dao.when_updated(), dao);
         Ok(ReplyEntry {
             ttl: TTL,
-            attr,
+            attr: spec_as_attr(&spec),
             generation: 0,
+        })
+    }
+
+    async fn create(
+        &self,
+        req: Request,
+        parent: u64,
+        name: &OsStr,
+        mode: u32,
+        flags: u32,
+    ) -> Result<ReplyCreated> {
+        debug!("atefs::create parent={} name={}", parent, name.to_str().unwrap().to_string());
+
+        let data = self.mknod_internal(req, parent, name, mode, 0).await?;
+        let spec = Inode::as_file_spec(data.key().as_u64(), data.when_created(), data.when_updated(), data);
+
+        let open = OpenHandle {
+            inode: spec.ino(),
+            fh: fastrand::u64(..),
+            attr: spec_as_attr(&spec),
+            spec: spec,
+            children: Vec::new(),
+            children_plus: Vec::new(),
+        };
+
+        let fh = open.fh;
+        let attr = open.attr.clone();
+
+        self.open_handles.lock().insert(open.fh, Arc::new(open));
+
+        Ok(ReplyCreated {
+            ttl: TTL,
+            attr: attr,
+            generation: 0,
+            fh,
+            flags,
         })
     }
 
@@ -670,13 +720,14 @@ for AteFS
         data: &[u8],
         _flags: u32,
     ) -> Result<ReplyWrite> {
-        
-        
+        debug!("atefs::write inode={} offset={} size={}", inode, offset, data.len());
+
         let open = {
             let lock = self.open_handles.lock();
             match lock.get(&fh) {
                 Some(a) => Arc::clone(a),
                 None => {
+                    debug!("atefs::write-failed inode={} offset={} size={}", inode, offset, data.len());
                     return Err(libc::ENOSYS.into());
                 },
             }
@@ -749,65 +800,153 @@ for AteFS
         };
         Ok(ReplyLSeek { offset })
     }
-}
 
-/*
-#[async_trait]
-impl Filesystem for AteFS {
-    type DirEntryStream = Iter<std::iter::Skip<IntoIter<Result<DirectoryEntry>>>>;
-    type DirEntryPlusStream = Iter<IntoIter<Result<DirectoryEntryPlus>>>;
-
-
-    async fn write(
+    async fn symlink(
         &self,
         _req: Request,
-        inode: u64,
-        _fh: u64,
-        offset: u64,
-        mut data: &[u8],
+        _parent: u64,
+        _name: &OsStr,
+        _link: &OsStr,
+    ) -> Result<ReplyEntry> {
+        debug!("atefs::symlink not-implemented");
+        Err(libc::ENOSYS.into())
+    }
+
+    /// create a hard link.
+    async fn link(
+        &self,
+        _req: Request,
+        _inode: u64,
+        _new_parent: u64,
+        _new_name: &OsStr,
+    ) -> Result<ReplyEntry> {
+        debug!("atefs::link not-implemented");
+        Err(libc::ENOSYS.into())
+    }
+
+    /// get filesystem statistics.
+    async fn statsfs(
+        &self,
+        _req: Request,
+        _inode: u64
+    ) -> Result<ReplyStatFs> {
+        debug!("atefs::statsfs not-implemented");
+        Err(libc::ENOSYS.into())
+    }
+
+    /// set an extended attribute.
+    async fn setxattr(
+        &self,
+        _req: Request,
+        _inode: u64,
+        _name: &OsStr,
+        _value: &OsStr,
         _flags: u32,
-    ) -> Result<ReplyWrite> {
-        debug!("atefs::write inode={}", inode);
-        let inner = self.0.read().await;
+        _position: u32,
+    ) -> Result<()> {
+        debug!("atefs::setxattr not-implemented");
+        Err(libc::ENOSYS.into())
+    }
 
-        let entry = inner
-            .inode_map
-            .get(&inode)
-            .ok_or_else(|| Errno::from(libc::ENOENT))?;
+    /// get an extended attribute. If size is too small, use [`ReplyXAttr::Size`] to return correct
+    /// size. If size is enough, use [`ReplyXAttr::Data`] to send it, or return error.
+    async fn getxattr(
+        &self,
+        _req: Request,
+        _inode: u64,
+        _name: &OsStr,
+        _size: u32,
+    ) -> Result<ReplyXAttr> {
+        debug!("atefs::getxattr not-implemented");
+        Err(libc::ENOSYS.into())
+    }
 
-        if let Entry::File(file) = entry {
-            let mut file = file.write().await;
+    /// list extended attribute names. If size is too small, use [`ReplyXAttr::Size`] to return
+    /// correct size. If size is enough, use [`ReplyXAttr::Data`] to send it, or return error.
+    async fn listxattr(
+        &self,
+        _req: Request,
+        _inode: u64,
+        _size: u32
+    ) -> Result<ReplyXAttr> {
+        debug!("atefs::listxattr not-implemented");
+        Err(libc::ENOSYS.into())
+    }
 
-            if file.content.len() > offset as _ {
-                let mut content = &mut file.content[offset as _..];
+    /// remove an extended attribute.
+    async fn removexattr(
+        &self,
+        _req: Request,
+        _inode: u64,
+        _name: &OsStr
+    ) -> Result<()> {
+        debug!("atefs::removexattr not-implemented");
+        Err(libc::ENOSYS.into())
+    }
 
-                if content.len() > data.len() {
-                    io::copy(&mut data, &mut content).unwrap();
+    /// map block index within file to block index within device.
+    ///
+    /// # Notes:
+    ///
+    /// This may not works because currently this crate doesn't support fuseblk mode yet.
+    async fn bmap(
+        &self,
+        _req: Request,
+        _inode: u64,
+        _blocksize: u32,
+        _idx: u64,
+    ) -> Result<ReplyBmap> {
+        debug!("atefs::bmap not-implemented");
+        Err(libc::ENOSYS.into())
+    }
 
-                    return Ok(ReplyWrite {
-                        written: data.len() as _,
-                    });
-                }
+    async fn poll(
+        &self,
+        _req: Request,
+        _inode: u64,
+        _fh: u64,
+        _kh: Option<u64>,
+        _flags: u32,
+        _events: u32,
+        _notify: &Notify,
+    ) -> Result<ReplyPoll> {
+        debug!("atefs::poll not-implemented");
+        Err(libc::ENOSYS.into())
+    }
 
-                let n = io::copy(&mut (&data[..content.len()]), &mut content).unwrap();
+    async fn notify_reply(
+        &self,
+        _req: Request,
+        _inode: u64,
+        _offset: u64,
+        _data: bytes::Bytes,
+    ) -> Result<()> {
+        debug!("atefs::notify_reply not-implemented");
+        Err(libc::ENOSYS.into())
+    }
 
-                file.content.extend_from_slice(&data[n as _..]);
+    /// forget more than one inode. This is a batch version [`forget`][Filesystem::forget]
+    async fn batch_forget(
+        &self,
+        _req: Request,
+        _inodes: &[u64])
+    {
+        debug!("atefs::batch_forget not-implemented");
+    }
 
-                Ok(ReplyWrite {
-                    written: data.len() as _,
-                })
-            } else {
-                file.content.resize(offset as _, 0);
-
-                file.content.extend_from_slice(&data);
-
-                Ok(ReplyWrite {
-                    written: data.len() as _,
-                })
-            }
-        } else {
-            Err(libc::EISDIR.into())
-        }
+    async fn copy_file_range(
+        &self,
+        _req: Request,
+        _inode: u64,
+        _fh_in: u64,
+        _off_in: u64,
+        _inode_out: u64,
+        _fh_out: u64,
+        _off_out: u64,
+        _length: u64,
+        _flags: u64,
+    ) -> Result<ReplyCopyFileRange> {
+        debug!("atefs::copy_file_range not-implemented");
+        Err(libc::ENOSYS.into())
     }
 }
-*/
