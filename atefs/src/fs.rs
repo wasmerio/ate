@@ -10,6 +10,7 @@ use std::time::{Duration, SystemTime};
 use std::vec::IntoIter;
 use parking_lot::Mutex;
 
+use ate::prelude::TransactionScope;
 use ate::dio::Dio;
 use ate::dio::Dao;
 use ate::error::*;
@@ -203,17 +204,17 @@ impl AteFS
 
 impl AteFS
 {
-    async fn mknod_internal(
-        &self,
+    async fn mknod_internal<'a>(
+        &'a self,
         req: Request,
         parent: u64,
         name: &OsStr,
         mode: u32,
         _rdev: u32,
-    ) -> Result<Dao<Inode>> {
+    ) -> Result<(Dao<Inode>, Dio<'a>)> {
         
         let key = PrimaryKey::from(parent);
-        let mut dio = self.chain.dio(&self.session).await;
+        let mut dio = self.chain.dio_ext(&self.session, TransactionScope::None).await;
         let data = conv_load(dio.load::<Inode>(&key).await)?;
 
         if data.spec_type != SpecType::Directory {
@@ -235,7 +236,7 @@ impl AteFS
         );
 
         let child = conv_serialization(data.children.push(&mut dio, &key, child))?;
-        return Ok(child);
+        return Ok((child, dio));
     }
 }
 
@@ -320,6 +321,7 @@ for AteFS
         if let Some(gid) = set_attr.gid {
             dao.dentry.gid = gid;
         }
+        conv_serialization(dao.commit())?;
 
         let spec = Inode::as_file_spec(inode, dao.when_created(), dao.when_updated(), dao);
         Ok(ReplyAttr {
@@ -472,7 +474,9 @@ for AteFS
             SpecType::Directory,
         );
 
-        let child = conv_serialization(data.children.push(&mut dio, &key, child))?;
+        let mut child = conv_serialization(data.children.push(&mut dio, &key, child))?;
+
+        conv_serialization(child.commit())?;
         let child_spec = Inode::as_file_spec(child.key().as_u64(), child.when_created(), child.when_updated(), child);
 
         Ok(ReplyEntry {
@@ -526,7 +530,8 @@ for AteFS
     ) -> Result<ReplyEntry> {
         debug!("atefs::mknod parent={} name={}", parent, name.to_str().unwrap().to_string());
 
-        let dao = self.mknod_internal(req, parent, name, mode, rdev).await?;
+        let (mut dao, _dio) = self.mknod_internal(req, parent, name, mode, rdev).await?;
+        conv_serialization(dao.commit())?;
         let spec = Inode::as_file_spec(dao.key().as_u64(), dao.when_created(), dao.when_updated(), dao);
         Ok(ReplyEntry {
             ttl: TTL,
@@ -545,7 +550,8 @@ for AteFS
     ) -> Result<ReplyCreated> {
         debug!("atefs::create parent={} name={}", parent, name.to_str().unwrap().to_string());
 
-        let data = self.mknod_internal(req, parent, name, mode, 0).await?;
+        let (mut data, _dio) = self.mknod_internal(req, parent, name, mode, 0).await?;
+        conv_serialization(data.commit())?;
         let spec = Inode::as_file_spec(data.key().as_u64(), data.when_created(), data.when_updated(), data);
 
         let open = OpenHandle {
@@ -591,7 +597,6 @@ for AteFS
             }
 
             conv_serialization(data.delete())?;
-
             return Ok(());
         }
 
@@ -647,6 +652,7 @@ for AteFS
             }
 
             data.dentry.name = new_name.to_str().unwrap().to_string();
+            conv_serialization(data.commit())?;
 
             return Ok(());
         }
@@ -767,6 +773,8 @@ for AteFS
 
         let mut dao = self.load(inode).await?;
         dao.size = offset + length;
+        conv_serialization(dao.commit())?;
+
         return Ok(());
     }
 
@@ -803,13 +811,46 @@ for AteFS
 
     async fn symlink(
         &self,
-        _req: Request,
-        _parent: u64,
-        _name: &OsStr,
-        _link: &OsStr,
+        req: Request,
+        parent: u64,
+        name: &OsStr,
+        link: &OsStr,
     ) -> Result<ReplyEntry> {
-        debug!("atefs::symlink not-implemented");
-        Err(libc::ENOSYS.into())
+        debug!("atefs::symlink parent={}, name={}, link={}", parent, name.to_str().unwrap().to_string(), link.to_str().unwrap().to_string());
+
+        let link = link.to_str().unwrap().to_string();
+        let spec = {
+            let (mut dao, _dio) = self.mknod_internal(req, parent, name, 0o755, 0).await?;
+            dao.spec_type = SpecType::SymLink;
+            dao.link = Some(link);
+            conv_serialization(dao.commit())?;
+            Inode::as_file_spec(dao.key().as_u64(), dao.when_created(), dao.when_updated(), dao)
+        };
+        
+        Ok(ReplyEntry {
+            ttl: TTL,
+            attr: spec_as_attr(&spec),
+            generation: 0,
+        })
+    }
+
+    /// read symbolic link.
+    async fn readlink(
+        &self,
+        _req: Request,
+        inode: u64
+    ) -> Result<ReplyData> {
+        debug!("atefs::readlink inode={}", inode);
+
+        let dao = self.load(inode).await?;
+        match &dao.link {
+            Some(l) => {
+                Ok(ReplyData {
+                    data: bytes::Bytes::from(l.clone().into_bytes()),
+                })
+            },
+            None => Err(libc::ENOSYS.into())
+        }
     }
 
     /// create a hard link.

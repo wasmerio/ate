@@ -1,10 +1,12 @@
 use serde::*;
 use serbia::serbia;
 use ate::prelude::*;
+use fxhash::FxHashMap;
 use super::api::*;
 use super::dir::Directory;
 use super::file::RegularFile;
 use super::fixed::FixedFile;
+use super::symlink::SymLink;
 
 pub const BUNDLE_SIZE: usize = 1024;
 pub const PAGE_SIZE: usize = 131072;
@@ -28,6 +30,7 @@ pub struct Dentry {
     pub mode: u32,
     pub uid: u32,
     pub gid: u32,
+    pub xattr: FxHashMap<String, String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -37,6 +40,7 @@ pub struct Inode {
     pub size: u64,
     pub bundles: Vec<Option<PrimaryKey>>,
     pub children: DaoVec<Inode>,
+    pub link: Option<String>,
 }
 
 impl Inode {
@@ -49,10 +53,12 @@ impl Inode {
                 parent: None,
                 uid,
                 gid,
+                xattr: FxHashMap::default(),
             },
             size: 0,
             bundles: Vec::default(),
             children: DaoVec::default(),
+            link: None,
         }
     }
 
@@ -60,7 +66,8 @@ impl Inode {
         match dao.spec_type {
             SpecType::Directory => FileSpec::Directory(Directory::new(dao, created, updated)),
             SpecType::RegularFile => FileSpec::RegularFile(RegularFile::new(dao, created, updated)),
-            _ => FileSpec::FixedFile(FixedFile::new(ino, dao.dentry.name.clone(), fuse3::FileType::RegularFile).created(created).updated(updated))
+            SpecType::SymLink => FileSpec::SymLink(SymLink::new(dao, created, updated)),
+            SpecType::FixedFile => FileSpec::FixedFile(FixedFile::new(ino, dao.dentry.name.clone(), fuse3::FileType::RegularFile).created(created).updated(updated))
         }
     }
 }

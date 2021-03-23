@@ -9,6 +9,7 @@ mod fixed;
 mod api;
 mod model;
 mod dir;
+mod symlink;
 mod file;
 mod fs;
 

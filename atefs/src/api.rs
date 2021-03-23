@@ -4,6 +4,7 @@ use serde::*;
 use super::dir::Directory;
 use super::file::RegularFile;
 use super::fixed::FixedFile;
+use super::symlink::SymLink;
 use ate::dio::Dio;
 use fuse3::FileType;
 use bytes::Bytes;
@@ -20,7 +21,7 @@ pub enum FileSpec
     //BlockDevice,
     Directory,
     RegularFile,
-    //Symlink,
+    SymLink,
     //Socket,
     FixedFile,
 }
@@ -31,6 +32,7 @@ pub enum SpecType
     Directory,
     RegularFile,
     FixedFile,
+    SymLink,
 }
 
 #[async_trait]
@@ -64,4 +66,6 @@ pub trait FileApi
     async fn read(&self, _chain: &Chain, _session: &AteSession, _offset: u64, _size: u32) -> Result<Bytes> { Ok(Bytes::from(Vec::new())) }
 
     async fn write(&self, _chain: &Chain, _session: &AteSession, _offset: u64, _data: &[u8]) -> Result<u64> { Ok(0) }
+
+    fn link(&self) -> Option<String> { None }
 }
