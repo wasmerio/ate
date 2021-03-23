@@ -647,7 +647,7 @@ for AteFS
         offset: u64,
         size: u32,
     ) -> Result<ReplyData> {
-        debug!("atefs::read inode={}", inode);
+        debug!("atefs::read inode={} offset={} size={}", inode, offset, size);
         
         let open = {
             let lock = self.open_handles.lock();
@@ -659,6 +659,34 @@ for AteFS
             }
         };
         Ok(ReplyData { data: open.spec.read(&self.chain, &self.session, offset, size).await?,  })
+    }
+
+    async fn write(
+        &self,
+        _req: Request,
+        inode: u64,
+        fh: u64,
+        offset: u64,
+        data: &[u8],
+        _flags: u32,
+    ) -> Result<ReplyWrite> {
+        
+        
+        let open = {
+            let lock = self.open_handles.lock();
+            match lock.get(&fh) {
+                Some(a) => Arc::clone(a),
+                None => {
+                    return Err(libc::ENOSYS.into());
+                },
+            }
+        };
+
+        let wrote = open.spec.write(&self.chain, &self.session, offset, data).await?;
+        debug!("atefs::wrote inode={} offset={} size={}", inode, offset, wrote);
+        Ok(ReplyWrite {
+            written: wrote,
+        })
     }
 
     async fn fallocate(

@@ -62,4 +62,6 @@ pub trait FileApi
     async fn fallocate(&self, _size: u64) { }
 
     async fn read(&self, _chain: &Chain, _session: &AteSession, _offset: u64, _size: u32) -> Result<Bytes> { Ok(Bytes::from(Vec::new())) }
+
+    async fn write(&self, _chain: &Chain, _session: &AteSession, _offset: u64, _data: &[u8]) -> Result<u64> { Ok(0) }
 }

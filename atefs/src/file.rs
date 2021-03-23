@@ -9,6 +9,7 @@ use ate::prelude::*;
 use bytes::Bytes;
 use fuse3::{Errno, Result};
 use super::fs::conv_load;
+use super::fs::conv_serialization;
 use tokio::sync::Mutex;
 use parking_lot::Mutex as PMutex;
 
@@ -128,6 +129,9 @@ for RegularFile
         let stride_bundle = super::model::BUNDLE_SIZE as u64 * stride_page;
         for bundle in bundles.into_iter()
         {
+            // If we are done
+            if size <= 0 { break; }
+
             // If the bundle is miles to the left then ignore it
             if offset >= stride_bundle {
                 offset = offset - stride_bundle;
@@ -144,6 +148,9 @@ for RegularFile
                     let bundle = conv_load(dio.load::<PageBundle>(&bundle).await)?;
                     for page in bundle.pages.iter()
                     {
+                        // If we are done
+                        if size <= 0 { break; }
+                        
                         // If the page is entirely to the left then ignore it
                         if offset >= stride_page {
                             offset = offset - stride_page;
@@ -209,5 +216,100 @@ for RegularFile
 
         // Return the result
         Ok(Bytes::from(ret))
+    }
+
+    async fn write(&self, chain: &Chain, session: &AteSession, offset: u64, data: &[u8]) -> Result<u64>
+    {
+        let size = data.len() as u64;
+        let mut offset = offset;
+        let mut ret = 0 as u64;
+
+        // Lock the object and get a DIO
+        let mut lock = self.inode.lock().await;
+        let mut dio = chain.dio_for_dao(session, TransactionScope::None, &*lock).await;
+
+        // Add missing bundles up to the range we need
+        let range = offset + size;
+        let stride_page = super::model::PAGE_SIZE as u64;
+        let stride_bundle = super::model::BUNDLE_SIZE as u64 * stride_page;
+        while (lock.bundles.len() as u64 * stride_bundle) < range {
+            lock.bundles.push(None);
+        }
+
+        // Now its time to write to all the bundles that are impacted
+        let mut remaining = size;
+        for bundle in lock.bundles.iter_mut() {
+            if remaining <= 0 { break; }
+
+            // If the bundle is miles to the left then ignore it
+            if offset >= stride_bundle {
+                offset = offset - stride_bundle;
+                continue;
+            }
+
+            // Get or create the bundle
+            let mut bundle = match bundle.as_mut() {
+                Some(a) => conv_load(dio.load::<PageBundle>(a).await)?,
+                None => {
+                    let b = conv_serialization(dio.store(PageBundle {
+                        pages: Vec::new()
+                    }))?;
+                    bundle.replace(b.key().clone());
+                    b
+                }
+            };
+
+            // Add all the pages for this bundle
+            while bundle.pages.len() < super::model::BUNDLE_SIZE {
+                bundle.pages.push(None);
+            }
+
+            // Loop through all the pages
+            for page in bundle.pages.iter_mut() {
+                if remaining <= 0 { break; }
+
+                // If the page is entirely to the left then ignore it
+                if offset >= stride_page {
+                    offset = offset - stride_page;
+                    continue;
+                }
+
+                // Get or create the page
+                let mut page = match page.as_mut() {
+                    Some(a) => conv_load(dio.load::<Page>(a).await)?,
+                    None => {
+                        let p = conv_serialization(dio.store(Page {
+                            buf: Vec::new()
+                        }))?;
+                        page.replace(p.key().clone());
+                        p
+                    }
+                };
+
+                // Write zeros up to the offset
+                while (page.buf.len() as u64) < offset {
+                    page.buf.push(0);
+                }
+
+                // Build the cursors
+                use std::io::Cursor;
+                let next = remaining.min(stride_page - offset);
+                let ret_next = ret + next;
+
+                // Write the data to the buffer
+                let mut writer = Cursor::new(&mut page.buf);
+                writer.set_position(offset);
+                let mut reader = Cursor::new(&data[ret as usize..ret_next as usize]);
+                std::io::copy(&mut reader, &mut writer)?;
+                ret = ret + next;
+                
+                // Clear the offset
+                offset = 0;
+                remaining = remaining - next;
+            }
+        }
+        
+        // Return the result
+        Ok(ret)
     }
 }
