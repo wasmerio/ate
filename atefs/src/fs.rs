@@ -259,7 +259,7 @@ for AteFS
             match dio.store_ext(root, None, Some(PrimaryKey::from(1))) {
                 Ok(_) => { },
                 Err(err) => {
-                    debug!("atefs::error {}", err);        
+                    error!("atefs::error {}", err);        
                 }
             }     
        };

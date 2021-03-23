@@ -155,6 +155,28 @@ pub enum ConfiguredFor
     BestSecurity,
 }
 
+impl std::str::FromStr
+for ConfiguredFor
+{
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "raw" => Ok(ConfiguredFor::Raw),
+            "barebone" => Ok(ConfiguredFor::Barebone),
+            "best_performance" => Ok(ConfiguredFor::BestPerformance),
+            "performance" => Ok(ConfiguredFor::BestPerformance),
+            "speed" => Ok(ConfiguredFor::BestPerformance),
+            "best_compatibility" => Ok(ConfiguredFor::BestCompatibility),
+            "compatibility" => Ok(ConfiguredFor::BestCompatibility),
+            "balanced" => Ok(ConfiguredFor::Balanced),
+            "best_security" => Ok(ConfiguredFor::BestSecurity),
+            "security" => Ok(ConfiguredFor::BestSecurity),
+            _ => Err("no match"),
+        }
+    }
+}
+
 impl Default
 for ConfiguredFor
 {

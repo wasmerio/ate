@@ -16,6 +16,23 @@ pub enum SerializationFormat
     Bincode = 3,
 }
 
+impl std::str::FromStr
+for SerializationFormat
+{
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "json" => Ok(SerializationFormat::Json),
+            "messagepack" => Ok(SerializationFormat::MessagePack),
+            "mpack" => Ok(SerializationFormat::MessagePack),
+            "bincode" => Ok(SerializationFormat::Bincode),
+            "bc" => Ok(SerializationFormat::Bincode),
+            _ => Err("no match"),
+        }
+    }
+}
+
 impl SerializationFormat
 {
     pub fn serialize<T>(&self, val: &T) -> Result<Vec<u8>, SerializationError>
