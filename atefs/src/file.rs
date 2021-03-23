@@ -1,3 +1,5 @@
+use std::ops::DerefMut;
+
 use async_trait::async_trait;
 use crate::api::FileApi;
 use serde::*;
@@ -107,8 +109,8 @@ for RegularFile
         // Load the bundles into memory
         let mut dio;
         let bundles = {
-            let lock = self.inode.lock().await;
-            dio = chain.dio_for_dao(session, TransactionScope::None, &*lock).await;
+            let mut lock = self.inode.lock().await;
+            dio = chain.dio_for_dao(session, TransactionScope::None, lock.deref_mut()).await;
 
             // Clip the size to within the bounds of the file and do some early exits
             if offset >= lock.size {
@@ -138,61 +140,9 @@ for RegularFile
                 continue;
             }
             
-            // The bundle could be a hole
-            match bundle {
-
-                // The bundle might have some data
-                Some(bundle) =>
-                {
-                    // Load bundle from the chain-of-trust and iterate through the pages
-                    let bundle = conv_load(dio.load::<PageBundle>(&bundle).await)?;
-                    for page in bundle.pages.iter()
-                    {
-                        // If we are done
-                        if size <= 0 { break; }
-                        
-                        // If the page is entirely to the left then ignore it
-                        if offset >= stride_page {
-                            offset = offset - stride_page;
-                            continue;
-                        }
-
-                        // Clip the read bytes to the page size
-                        let next = size.min(stride_page - offset);
-                        match page
-                        {
-                            // The page is lead so load it
-                            Some(k) => {
-                                let page = conv_load(dio.load::<Page>(&k).await)?;
-                                
-                                // It might be a partial page
-                                let sub_next = next.min(page.buf.len() as u64 - offset);
-                                if sub_next > 0 {
-                                    ret.copy_from_slice(&page.buf[offset as usize..(offset + sub_next) as usize]);
-                                }
-
-                                // Finish the last bit with zeros
-                                for _ in sub_next..next {
-                                    ret.push(0);
-                                }
-                            },
-
-                            // The page is whole so just write zeros for it all
-                            None => {
-                                for _ in 0..next {
-                                    ret.push(0);
-                                }
-                            }
-                        }
-                        
-                        // Update the position and move onto the next page
-                        offset = 0;
-                        size = size - next;
-                        continue;
-                    }
-                },
-
-                // The bundle is a hole
+            // Load the bundle (if its a hole then skip it)
+            let bundle = match bundle {
+                Some(a) => conv_load(dio.load::<PageBundle>(&a).await)?,
                 None =>
                 {
                     // Write a bunch of zeros that represent this hole
@@ -206,6 +156,55 @@ for RegularFile
                     size = size - next;
                     continue;
                 }
+            };
+
+            // Load bundle from the chain-of-trust and iterate through the pages
+            for page in bundle.pages.iter()
+            {
+                // If we are done
+                if size <= 0 { break; }
+                
+                // If the page is entirely to the left then ignore it
+                if offset >= stride_page {
+                    offset = offset - stride_page;
+                    continue;
+                }
+
+                // Clip the read bytes to the page size and lead the page (if its a hole then skip it)
+                let next = size.min(stride_page - offset);
+                let page = match page {
+                    Some(k) => conv_load(dio.load::<Page>(&k).await)?,
+                    None => {
+                        for _ in 0..next {
+                            ret.push(0);
+                        }
+
+                        // Update the offset and size then keep going
+                        offset = 0;
+                        size = size - next;
+                        continue;
+                    }
+                };
+                        
+                // It might be a partial page
+                let sub_next = next.min(page.buf.len() as u64 - offset);
+                if sub_next > 0 {
+                    use std::io::Cursor;
+                    let ret_end = ret.len() as u64;
+                    let mut writer = Cursor::new(&mut ret);
+                    writer.set_position(ret_end);
+                    let mut reader = Cursor::new(&page.buf[offset as usize..(offset + sub_next) as usize]);
+                    tokio::io::copy(&mut reader, &mut writer).await?;
+                }
+
+                // Finish the last bit with zeros
+                for _ in sub_next..next {
+                    ret.push(0);
+                }
+                
+                // Update the position and move onto the next page
+                offset = 0;
+                size = size - next;
             }
         }
 
@@ -226,7 +225,13 @@ for RegularFile
 
         // Lock the object and get a DIO
         let mut lock = self.inode.lock().await;
-        let mut dio = chain.dio_for_dao(session, TransactionScope::None, &*lock).await;
+        let mut dio = chain.dio_for_dao(session, TransactionScope::None, lock.deref_mut()).await;
+
+        // Update the size of the file (if it expands)
+        let new_file_size = lock.size.max(offset + data.len() as u64);
+        if new_file_size > lock.size {
+            lock.size = new_file_size;
+        }
 
         // Add missing bundles up to the range we need
         let range = offset + size;
@@ -300,7 +305,7 @@ for RegularFile
                 let mut writer = Cursor::new(&mut page.buf);
                 writer.set_position(offset);
                 let mut reader = Cursor::new(&data[ret as usize..ret_next as usize]);
-                std::io::copy(&mut reader, &mut writer)?;
+                tokio::io::copy(&mut reader, &mut writer).await?;
                 ret = ret + next;
                 
                 // Clear the offset
@@ -308,6 +313,9 @@ for RegularFile
                 remaining = remaining - next;
             }
         }
+
+        // Commit the main object manually (as the DIO has a shorter scope lifetime)
+        conv_serialization(lock.commit())?;
         
         // Return the result
         Ok(ret)

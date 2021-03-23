@@ -141,8 +141,8 @@ pub struct Dao<D>
 where Self: Send + Sync,
       D: Serialize + DeserializeOwned + Clone + Sync + Send,
 {
-    lock: DaoLock,
-    dirty: bool,
+    pub(super) lock: DaoLock,
+    pub(super) dirty: bool,
     pub(super) row: Row<D>,
     pub(super) state: Arc<Mutex<DioState>>,
 }
@@ -345,7 +345,7 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 impl<D> Dao<D>
 where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
-    pub(crate) fn commit(&mut self) -> std::result::Result<(), SerializationError>
+    pub fn commit(&mut self) -> std::result::Result<(), SerializationError>
     {
         if self.dirty == true
         {            

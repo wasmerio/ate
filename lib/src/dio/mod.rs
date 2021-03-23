@@ -339,9 +339,12 @@ impl Chain
     }
 
     #[allow(dead_code)]
-    pub async fn dio_for_dao<'a, D>(&'a self, session: &'a Session, scope: Scope, dao: &Dao<D>) -> Dio<'a>
+    pub async fn dio_for_dao<'a, D>(&'a self, session: &'a Session, scope: Scope, dao: &mut Dao<D>) -> Dio<'a>
     where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
+        dao.dirty = false;
+        dao.lock = DaoLock::Unlocked;
+
         let multi = self.multi().await;
         Dio {
             state: Arc::clone(&dao.state),
