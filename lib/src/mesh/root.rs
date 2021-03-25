@@ -59,11 +59,14 @@ for SessionContext {
     fn drop(&mut self) {
         let context = self.inside.lock().clone();
         if let Some(root) = context.root.upgrade() {
-            tokio::spawn(async move {
-                if let Err(err) = root.disconnected(context).await {
-                    debug_assert!(false, "mesh-root-err {:?}", err);
-                    warn!("mesh-root-err: {}", err.to_string());
-                }
+            let exec = async_executor::LocalExecutor::default();
+            tokio::task::block_in_place(|| {
+                futures::executor::block_on(exec.spawn(async move {
+                    if let Err(err) = root.disconnected(context).await {
+                        debug_assert!(false, "mesh-root-err {:?}", err);
+                        warn!("mesh-root-err: {}", err.to_string());
+                    }
+                }))
             });
         }
     }

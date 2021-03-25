@@ -1,3 +1,6 @@
+#![allow(unused_imports)]
+use log::{error, info, debug};
+
 use super::error::*;
 use super::meta::*;
 use super::lint::*;
@@ -136,7 +139,7 @@ for TimestampEnforcer
     fn default() -> TimestampEnforcer
     {
         let cfg = Config::default();
-        TimestampEnforcer::new(&cfg, 200).unwrap()
+        TimestampEnforcer::new(&cfg, 1000).unwrap()
     }
 }
 
@@ -211,7 +214,10 @@ for TimestampEnforcer
             Some(m) => m,
             None => {
                 return match header.meta.needs_signature() {
-                    true => Err(ValidationError::Time(TimeError::NoTimestamp)),
+                    true => {
+                        debug!("rejected event due to missing timestamp");
+                        Err(ValidationError::Time(TimeError::NoTimestamp))
+                    },
                     false => Ok(ValidationResult::Abstain)
                 };
             },
@@ -225,7 +231,8 @@ for TimestampEnforcer
         if timestamp < min_timestamp ||
            timestamp > max_timestamp
         {
-            return Err(ValidationError::Time(TimeError::OutOfBounds(timestamp)));
+            debug!("rejected event due to out-of-bounds timestamp ({:?} vs {:?})", self.cursor, timestamp);
+            return Err(ValidationError::Time(TimeError::OutOfBounds(self.cursor - timestamp)));
         }
 
         // All good

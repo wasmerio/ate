@@ -10,7 +10,7 @@ use fxhash::{FxHashMap, FxHashSet};
 use multimap::MultiMap;
 use serde::{Deserialize};
 use serde::{Serialize, de::DeserializeOwned};
-use std::sync::Arc;
+use std::{fmt::Debug, sync::Arc};
 use parking_lot::Mutex;
 use std::ops::Deref;
 use tokio::sync::mpsc;
@@ -46,7 +46,7 @@ where Self: Send + Sync
     pub(super) cache_store_secondary: MultiMap<MetaCollection, PrimaryKey>,
     pub(super) cache_load: FxHashMap<PrimaryKey, (Arc<EventData>, EventLeaf)>,
     pub(super) locked: FxHashSet<PrimaryKey>,
-    pub(super) deleted: FxHashMap<PrimaryKey, Arc<RowData>>,
+    pub(super) deleted: FxHashMap<PrimaryKey, RowData>,
     pub(super) pipe_unlock: FxHashSet<PrimaryKey>,
 }
 
@@ -95,7 +95,7 @@ pub struct Dio<'a>
 where Self: Send + Sync
 {
     multi: ChainMultiUser,
-    state: Arc<Mutex<DioState>>,
+    state: DioState,
     #[allow(dead_code)]
     session: &'a Session,
     scope: Scope,
@@ -108,11 +108,11 @@ impl<'a> Dio<'a>
     pub fn store<D>(&mut self, data: D) -> Result<Dao<D>, SerializationError>
     where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
-        self.store_ext(data, None, None)
+        self.store_ext(data, None, None, true)
     }
 
     #[allow(dead_code)]
-    pub fn store_ext<D>(&mut self, data: D, format: Option<MessageFormat>, key: Option<PrimaryKey>) -> Result<Dao<D>, SerializationError>
+    pub fn store_ext<D>(&mut self, data: D, format: Option<MessageFormat>, key: Option<PrimaryKey>, auto_commit: bool) -> Result<Dao<D>, SerializationError>
     where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
         let row = Row {
@@ -132,9 +132,11 @@ impl<'a> Dio<'a>
             updated: 0,
         };
 
-        let mut ret = Dao::new(row, &self.state);
-        ret.fork();
-        
+        let mut ret = Dao::new(row);
+        ret.dirty = true;
+        if auto_commit {
+            ret.commit(self)?;
+        }
         Ok(ret)
     }
 
@@ -143,17 +145,17 @@ impl<'a> Dio<'a>
     where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
         {
-            let state = self.state.lock();
+            let state = &self.state;
             if state.is_locked(key) {
                 return Result::Err(LoadError::ObjectStillLocked(key.clone()));
             }
             if let Some(dao) = state.cache_store_primary.get(key) {
                 let row = Row::from_row_data(dao.deref())?;
-                return Ok(Dao::new(row, &self.state));
+                return Ok(Dao::new(row));
             }
             if let Some((dao, leaf)) = state.cache_load.get(key) {
                 let row = Row::from_event(dao.deref(), leaf.created, leaf.updated)?;
-                return Ok(Dao::new(row, &self.state));
+                return Ok(Dao::new(row));
             }
             if state.deleted.contains_key(key) {
                 return Result::Err(LoadError::AlreadyDeleted(key.clone()));
@@ -186,13 +188,12 @@ impl<'a> Dio<'a>
             None => None,
         };
 
-        let mut state = self.state.lock();
-
+        let state = &mut self.state;
         match header.meta.get_data_key() {
             Some(key) => {
                 let row = Row::from_event(&data, leaf.created, leaf.updated)?;
                 state.cache_load.insert(key.clone(), (Arc::new(data), leaf));
-                Ok(Dao::new(row, &self.state))
+                Ok(Dao::new(row))
             },
             None => Err(LoadError::NoPrimaryKey)
         }
@@ -218,20 +219,20 @@ impl<'a> Dio<'a>
             None => return Ok(Vec::new())
         } {
             {
-                let state = self.state.lock();
+                let state = &self.state;
                 if state.is_locked(&key) {
                     return Result::Err(LoadError::ObjectStillLocked(key));
                 }
                 if let Some(dao) = state.cache_store_primary.get(&key) {
                     let row = Row::from_row_data(dao.deref())?;
                     already.insert(row.key.clone());
-                    ret.push(Dao::new(row, &self.state));
+                    ret.push(Dao::new(row));
                     continue;
                 }
                 if let Some((dao, leaf)) = state.cache_load.get(&key) {
                     let row = Row::from_event(dao.deref(), leaf.created, leaf.updated)?;
                     already.insert(row.key.clone());
-                    ret.push(Dao::new(row, &self.state));
+                    ret.push(Dao::new(row));
                     continue;
                 }
                 if state.deleted.contains_key(&key) {
@@ -254,7 +255,7 @@ impl<'a> Dio<'a>
                 None => { continue; }
             };
 
-            let mut state = self.state.lock();
+            let state = &mut self.state;
             if state.is_locked(&key) {
                 return Result::Err(LoadError::ObjectStillLocked(key.clone()));
             }
@@ -263,14 +264,14 @@ impl<'a> Dio<'a>
                 let row = Row::from_row_data(dao.deref())?;
 
                 already.insert(row.key.clone());
-                ret.push(Dao::new(row, &self.state));
+                ret.push(Dao::new(row));
                 continue;
             }
             if let Some((dao, leaf)) = state.cache_load.get(&key) {
                 let row = Row::from_event(dao.deref(), leaf.created, leaf.updated)?;
 
                 already.insert(row.key.clone());
-                ret.push(Dao::new(row, &self.state));
+                ret.push(Dao::new(row));
             }
             if state.deleted.contains_key(&key) {
                 continue;
@@ -285,12 +286,12 @@ impl<'a> Dio<'a>
             state.cache_load.insert(row.key.clone(), (Arc::new(evt.data), evt.leaf));
 
             already.insert(row.key.clone());
-            ret.push(Dao::new(row, &self.state));
+            ret.push(Dao::new(row));
         }
 
         // Now we search the secondary local index so any objects we have
         // added in this transaction scope are returned
-        let state = self.state.lock();
+        let state = &self.state;
         if let Some(vec) = state.cache_store_secondary.get_vec(&key) {
             for a in vec {
                 // This is an OR of two lists so its likely that the object
@@ -311,7 +312,7 @@ impl<'a> Dio<'a>
                     let row = Row::from_row_data(dao.deref())?;
     
                     already.insert(row.key.clone());
-                    ret.push(Dao::new(row, &self.state));
+                    ret.push(Dao::new(row));
                 }
             }
         }
@@ -331,7 +332,7 @@ impl Chain
     pub async fn dio_ext<'a>(&'a self, session: &'a Session, scope: Scope) -> Dio<'a> {
         let multi = self.multi().await;
         Dio {
-            state: Arc::new(Mutex::new(DioState::new())),
+            state: DioState::new(),
             default_format: multi.default_format,
             multi,
             session: session,
@@ -348,7 +349,7 @@ impl Chain
 
         let multi = self.multi().await;
         Dio {
-            state: Arc::clone(&dao.state),
+            state: DioState::new(),
             default_format: multi.default_format,
             multi,
             session: session,
@@ -357,25 +358,21 @@ impl Chain
     }
 }
 
-
-
-impl<'a> Drop
-for Dio<'a>
-{
-    fn drop(&mut self)
-    {
-        if let Err(err) = self.commit() {
-            debug_assert!(false, "dio-commit-error {}", err.to_string());
-        }
-    }
-}
-
 impl<'a> Dio<'a>
 {
-    pub fn commit(&mut self) -> Result<(), CommitError>
+    pub fn has_uncommitted(&self) -> bool
+    {
+        let state = &self.state;
+        if state.store.is_empty() && state.deleted.is_empty() {
+            return false;
+        }
+        return true;
+    }
+
+    pub async fn commit(&mut self) -> Result<(), CommitError>
     {
         // If we have dirty records
-        let mut state = self.state.lock();
+        let state = &mut self.state;
         if state.store.is_empty() && state.deleted.is_empty() {
             return Ok(())
         }
@@ -420,18 +417,18 @@ impl<'a> Dio<'a>
         }
 
         // Build events that will represent tombstones on all these records (they will be sent after the writes)
-        for (key, row) in &state.deleted {
+        for (key, row) in state.deleted.drain() {
             let mut meta = Metadata::default();
-            meta.core.push(CoreMetadata::Authorization(row.auth.clone()));
-            if let Some(tree) = &row.tree {
-                meta.core.push(CoreMetadata::Tree(tree.clone()))
+            meta.core.push(CoreMetadata::Authorization(row.auth));
+            if let Some(tree) = row.tree {
+                meta.core.push(CoreMetadata::Tree(tree))
             }
 
             // Compute all the extra metadata for an event
             let extra_meta = self.multi.metadata_lint_event(&mut meta, &self.session)?;
             meta.core.extend(extra_meta);
 
-            meta.add_tombstone(key.clone());
+            meta.add_tombstone(key);
             let evt = EventData {
                 meta: meta,
                 data_bytes: None,
@@ -462,7 +459,7 @@ impl<'a> Dio<'a>
         }
 
         // Create the transaction
-        let (sender, receiver) = smpsc::channel();
+        let (sender, mut receiver) = mpsc::channel(1);
         let trans = Transaction {
             scope: self.scope.clone(),
             events: evts,
@@ -474,24 +471,30 @@ impl<'a> Dio<'a>
         debug!("atefs::commit events={}", trans.events.len());
 
         // Process it in the chain of trust
-        let pipe = Arc::clone(&self.multi.pipe);
-        tokio::task::spawn(async move {
-            let _ = pipe.feed(trans).await;
-        });
+        self.multi.pipe.feed(trans).await?;
         
         // Wait for the transaction to commit (or not?) - if an error occurs it will
         // be returned to the caller
         match &self.scope {
             Scope::None => { },
-            _ => {
-                tokio::task::block_in_place(move || {
-                    receiver.recv()
-                })??
+            _ => match receiver.recv().await {
+                Some(a) => a?,
+                None => { return Err(CommitError::Aborted); }
             }
         };
 
         // Success
         Ok(())
+    }
+}
+
+impl<'a> Drop
+for Dio<'a>
+{
+    fn drop(&mut self)
+    {
+        // If the DIO has uncommitted changes then warn the caller
+        debug_assert!(self.has_uncommitted() == false, "dio-has-uncommitted - the DIO has uncommitted data in it - call the .commit() method before the DIO goes out of scope.");
     }
 }
 
@@ -565,7 +568,7 @@ async fn test_dio()
                 mock_dao.hidden = "This text should be hidden".to_string();
                 
                 let mut dao1 = dio.store(mock_dao).unwrap();
-                let dao3 = dao1.inner.push(&mut dio, dao1.key(), TestEnumDao::Blah1).unwrap();
+                let mut dao3 = dao1.inner.push(&mut dio, dao1.key(), TestEnumDao::Blah1).unwrap();
 
                 key1 = dao1.key().clone();
                 debug!("key1: {}", key1.as_hex_string());
@@ -574,12 +577,15 @@ async fn test_dio()
                 debug!("key3: {}", key3.as_hex_string());
                 
                 debug!("loading data object 1");
-                dio.load::<TestStructDao>(&key1).await.expect_err("This load is meant to fail as we are still editing the object");
-
+                
                 debug!("setting read and write crypto keys");
                 dao1.auth_mut().read = ReadOption::Specific(read_key.hash());
                 dao1.auth_mut().write = WriteOption::Specific(write_key2.hash());
-            }   
+
+                dao1.commit(&mut dio).unwrap();
+                dao3.commit(&mut dio).unwrap();
+            }
+            dio.commit().await.unwrap();
         }
 
         {
@@ -593,13 +599,10 @@ async fn test_dio()
                 // When we update this value it will become dirty and hence should block future loads until its flushed or goes out of scope
                 debug!("updating data object");
                 dao1.val = 2;
-
-                debug!("performing negative test on locks");
-                dio.load::<TestStructDao>(&key1).await.expect_err("This load is meant to fail due to a lock being triggered");
+                dao1.commit(&mut dio).unwrap();
 
                 // Flush the data and attempt to read it again (this should succeed)
-                debug!("commiting the chain-of-trust and loading again");
-                dao1.commit().expect("Commit failed");
+                debug!("load the object again");
                 let test: Dao<TestStructDao> = dio.load(&key1).await.expect("The dirty data object should have been read after it was flushed");
                 assert_eq!(test.val, 2 as u32);
             }
@@ -612,9 +615,7 @@ async fn test_dio()
                 // Again after changing the data reads should fail
                 debug!("modifying data object 1");
                 dao1.val = 3;
-
-                debug!("performing negative test on locks");
-                dio.load::<TestStructDao>(&key1).await.expect_err("This load is meant to fail due to a lock being triggered");
+                dao1.commit(&mut dio).unwrap();
             }
 
             {
@@ -625,10 +626,12 @@ async fn test_dio()
                 // We create a new private key for this data
                 debug!("adding a write crypto key");
                 dao2.auth_mut().write = WriteOption::Specific(write_key2.as_public_key().hash());
+                dao2.commit(&mut dio).unwrap();
                 
                 key2 = dao2.key().clone();
                 debug!("key2: {}", key2.as_hex_string());
             }
+            dio.commit().await.expect("The DIO should commit");
         }
 
         {
@@ -655,17 +658,20 @@ async fn test_dio()
             let mut dao1: Dao<TestStructDao> = dio.load(&key1).await.expect("The data object should have been read");
             assert_eq!(dao1.val, 3);
             dao1.val = 4;
+            dao1.commit(&mut dio).unwrap();
 
             // First attempt to read the record then delete it
             debug!("loading data object 2");
             let dao2 = dio.load::<TestEnumDao>(&key2).await.expect("The record should load before we delete it in this session");
 
             debug!("deleting data object 2");
-            dao2.delete().unwrap();
+            dao2.delete(&mut dio).unwrap();
 
             // It should no longer load now that we deleted it
             debug!("negative test on loading data object 2");
             dio.load::<TestEnumDao>(&key2).await.expect_err("This load should fail as we deleted the record");
+
+            dio.commit().await.expect("The DIO should commit");
         }
     }
 

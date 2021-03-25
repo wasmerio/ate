@@ -32,11 +32,6 @@ impl<'a> ChainSingleUser<'a>
         self.inside_async.chain.name()
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn is_open(&self) -> bool {
-        self.inside_async.chain.is_open()
-    }
-
     pub(crate) async fn feed_async(&mut self, evts: &Vec<EventData>) -> Result<Vec<EventHeader>, CommitError> {
         Ok(
             self.inside_async.feed_async_internal(Arc::clone(&self.inside_sync), evts).await?

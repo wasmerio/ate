@@ -1,3 +1,5 @@
+#![allow(unused_imports)]
+use tokio::sync::mpsc as mpsc;
 use std::sync::mpsc as smpsc;
 use super::event::*;
 use super::error::*;
@@ -24,15 +26,15 @@ pub(crate) struct Transaction
 {
     pub(crate) scope: Scope,
     pub(crate) events: Vec<EventData>,
-    pub(crate) result: Option<smpsc::Sender<Result<(), CommitError>>>
+    pub(crate) result: Option<mpsc::Sender<Result<(), CommitError>>>
 }
 
 impl Transaction
 {
     #[allow(dead_code)]
-    pub(crate) fn from_events(events: Vec<EventData>, scope: Scope) -> (Transaction, smpsc::Receiver<Result<(), CommitError>>)
+    pub(crate) fn from_events(events: Vec<EventData>, scope: Scope) -> (Transaction, mpsc::Receiver<Result<(), CommitError>>)
     {
-        let (sender, receiver) = smpsc::channel();
+        let (sender, receiver) = mpsc::channel(1);
         (
             Transaction {
                 scope,

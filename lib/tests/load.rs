@@ -52,6 +52,7 @@ fn load_test() -> Result<(), AteError> {
                 for _ in 0..100 {
                     dio.store(test_obj.clone())?;
                 }
+                dio.commit().await?;
             }
             info!("create::finished");
         }

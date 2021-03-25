@@ -1,3 +1,6 @@
+#![allow(unused_imports)]
+use log::{error, info, debug};
+
 use super::crypto::*;
 use super::signature::*;
 use super::error::*;
@@ -188,7 +191,10 @@ for TreeAuthorityPlugin
         
         let verified_signatures = match self.signature_plugin.get_verified_signatures(&hash) {
             Some(a) => a,
-            None => { return Err(ValidationError::NoSignatures); },
+            None => { 
+                debug!("rejected event as it has no signature");
+                return Err(ValidationError::NoSignatures);
+            },
         };
         
         // Compute the auth tree and if a signature exists for any of the auths then its allowed
@@ -201,6 +207,7 @@ for TreeAuthorityPlugin
         
         // If we get this far then any data events must be denied
         // as all the other possible routes for it to be excepted have already passed
+        debug!("rejected event as it is detached from the tree");
         Err(ValidationError::Detached)
     }
 }

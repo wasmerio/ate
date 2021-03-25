@@ -326,7 +326,7 @@ pub(crate) async fn write_data(inode: &Mutex<Dao<Inode>>, chain: &Chain, session
     }
 
     // Commit the main object manually (as the DIO has a shorter scope lifetime)
-    conv_serialization(lock.commit())?;
+    conv_serialization(lock.commit(&mut dio))?;
     
     // Return the result
     Ok(ret)

@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-use log::{warn};
+use log::{warn, debug};
 use fxhash::FxHashSet;
 
 use serde::{Serialize, de::DeserializeOwned};
@@ -144,31 +144,18 @@ where Self: Send + Sync,
     pub(super) lock: DaoLock,
     pub(super) dirty: bool,
     pub(super) row: Row<D>,
-    pub(super) state: Arc<Mutex<DioState>>,
 }
 
 impl<D> Dao<D>
 where Self: Send + Sync,
       D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
-    pub(super) fn new<>(row: Row<D>, state: &Arc<Mutex<DioState>>) -> Dao<D> {
+    pub(super) fn new<>(row: Row<D>) -> Dao<D> {
         Dao {
             lock: DaoLock::Unlocked,
             dirty: false,
             row: row,
-            state: Arc::clone(state),
         }
-    }
-
-    pub(super) fn fork(&mut self) -> bool {
-        if self.dirty == false {
-            let mut state = self.state.lock();
-            if state.lock(&self.row.key) == false {
-                eprintln!("Detected concurrent writes on data object ({:?}) - the last one in scope will override the all other changes made", self.row.key);
-            }
-            self.dirty = true;
-        }
-        true
     }
 
     #[allow(dead_code)]
@@ -179,7 +166,7 @@ where Self: Send + Sync,
             return;
         }
 
-        self.fork();
+        self.dirty = true;
         self.row.collections.insert(vec.clone());
     }
 
@@ -190,13 +177,13 @@ where Self: Send + Sync,
 
     #[allow(dead_code)]
     pub fn detach(&mut self) {
-        self.fork();
+        self.dirty = true;
         self.row.tree = None;
     }
 
     #[allow(dead_code)]
     pub fn attach(&mut self, parent_id: &PrimaryKey, vec: &DaoVec<D>) {
-        self.fork();
+        self.dirty = true;
         self.row.tree = Some(
             MetaTree {
                 vec: MetaCollection {
@@ -216,19 +203,19 @@ where Self: Send + Sync,
 
     #[allow(dead_code)]
     pub fn auth_mut(&mut self) -> &mut MetaAuthorization {
-        self.fork();
+        self.dirty = true;
         &mut self.row.auth
     }
 
     #[allow(dead_code)]
-    pub fn delete(self) -> std::result::Result<(), SerializationError> {
-        let mut state = self.state.lock();
-        delete_internal(&self, &mut state)
+    pub fn delete<'a>(self, dio: &mut Dio<'a>) -> std::result::Result<(), SerializationError> {
+        let state = &mut dio.state;
+        delete_internal(&self, state)
     }
 
     #[allow(dead_code)]
     pub async fn try_lock<'a>(&mut self, dio: &mut Dio<'a>) -> Result<bool, LockError> {
-        self.fork();
+        self.dirty = true;
 
         match self.lock {
             DaoLock::Locked | DaoLock::LockedThenDelete => {},
@@ -287,9 +274,46 @@ where Self: Send + Sync,
     pub fn when_updated(&self) -> u64 {
         self.row.updated
     }
+
+    pub fn cancel(&mut self) {
+        self.dirty = false;
+    }
+    
+    pub fn commit<'a>(&mut self, dio: &mut Dio<'a>) -> std::result::Result<(), SerializationError>
+    {
+        if self.dirty == true {
+            self.dirty = false;
+
+            let state = &mut dio.state;
+
+            // The local DIO lock gets released first
+            state.unlock(&self.row.key);
+
+            // Next any pessimistic locks on the local chain
+            match self.lock {
+                DaoLock::Locked => {
+                    state.pipe_unlock.insert(self.row.key.clone());
+                },
+                DaoLock::LockedThenDelete => {
+                    state.pipe_unlock.insert(self.row.key.clone());
+                    delete_internal(self, state)?;
+                    return Ok(())
+                },
+                _ => {}
+            }
+
+            let row_data = self.row.as_row_data()?;
+            let row_tree = match &self.row.tree {
+                Some(a) => Some(a),
+                None => None,
+            };
+            state.dirty(&self.row.key, row_tree, row_data);
+        }
+        Ok(())
+    }
 }
 
-pub(crate) fn delete_internal<D>(dao: &Dao<D>, state: &mut MutexGuard<DioState>)
+pub(crate) fn delete_internal<D>(dao: &Dao<D>, state: &mut DioState)
     -> std::result::Result<(), SerializationError>
 where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
@@ -306,7 +330,7 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     state.cache_load.remove(&key);
 
     let row_data = dao.row.as_row_data()?;
-    state.deleted.insert(key, Arc::new(row_data));
+    state.deleted.insert(key, row_data);
     Ok(())
 }
 
@@ -324,7 +348,7 @@ impl<D> DerefMut for Dao<D>
 where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.fork();
+        self.dirty = true;
         &mut self.row.data
     }
 }
@@ -334,49 +358,7 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     fn drop(&mut self)
     {
-        // Now attempt to commit it
-        if let Err(err) = self.commit() {
-            debug_assert!(false, "dao-commit-error {}", err.to_string());
-            warn!("dao-commit-error {}", err.to_string());
-        }
-    }
-}
-
-impl<D> Dao<D>
-where D: Serialize + DeserializeOwned + Clone + Send + Sync,
-{
-    pub fn commit(&mut self) -> std::result::Result<(), SerializationError>
-    {
-        if self.dirty == true
-        {            
-            let mut state = self.state.lock();
-
-            // The local DIO lock gets released first
-            state.unlock(&self.row.key);
-
-            // Next any pessimistic locks on the local chain
-            match self.lock {
-                DaoLock::Locked => {
-                    state.pipe_unlock.insert(self.row.key.clone());
-                },
-                DaoLock::LockedThenDelete => {
-                    state.pipe_unlock.insert(self.row.key.clone());
-                    delete_internal(self, &mut state)?;
-                    return Ok(())
-                },
-                _ => {}
-            }
-            
-            // Next we ship any data
-            self.dirty = false;
-
-            let row_data = self.row.as_row_data()?;
-            let row_tree = match &self.row.tree {
-                Some(a) => Some(a),
-                None => None,
-            };
-            state.dirty(&self.row.key, row_tree, row_data);
-        }
-        Ok(())
+        // If the DAO is dirty and was not committed then assert an error
+        debug_assert!(self.dirty == false, "dao-is-dirty {} - the DAO is dirty due to mutations thus you must call .commit() or .cancel()", self.key());
     }
 }

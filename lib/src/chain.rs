@@ -156,14 +156,6 @@ impl ChainProtectedAsync
     }
 }
 
-impl Drop
-for ChainProtectedAsync
-{
-    fn drop(&mut self) {
-        let _ = futures::executor::block_on(self.chain.flush());
-    }
-}
-
 impl ChainProtectedSync
 {
     #[allow(dead_code)]
@@ -227,7 +219,7 @@ impl<'a> Chain
             // operation fails its most likely because the caller has moved on and is
             // not concerned by the result hence we do nothing with these errors
             if let Some(result) = trans.result {
-                let _ = result.send(chain_result);
+                let _ = result.send(chain_result).await;
             }
 
             // If we have a late flush in play then execute it
@@ -333,6 +325,15 @@ impl<'a> Chain
     #[allow(dead_code)]
     pub async fn name(&'a self) -> String {
         self.single().await.name()
+    }
+
+    #[allow(dead_code)]
+    pub async fn rotate(&'a mut self) -> Result<(), tokio::io::Error>
+    {
+        // Start a new log file
+        let mut single = self.single().await;
+        single.inside_async.chain.redo.rotate().await?;
+        Ok(())
     }
 
     #[allow(dead_code)]
@@ -470,7 +471,7 @@ impl<'a> Chain
     pub async fn sync(&'a self) -> Result<(), CommitError>
     {
         // Create the transaction
-        let (sender, receiver) = smpsc::channel();
+        let (sender, mut receiver) = mpsc::channel(1);
         let trans = Transaction {
             scope: Scope::Full,
             events: Vec::new(),
@@ -482,9 +483,10 @@ impl<'a> Chain
         pipe.feed(trans).await?;
 
         // Block until the transaction is received
-        tokio::task::block_in_place(move || {
-            receiver.recv()
-        })??;
+        match receiver.recv().await {
+            Some(a) => a?,
+            None => { return Err(CommitError::Aborted); }
+        };
 
         // Success!
         Ok(())

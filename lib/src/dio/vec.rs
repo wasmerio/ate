@@ -40,9 +40,9 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     #[allow(dead_code)]
     pub fn push(&self, dio: &mut Dio, parent_id: &PrimaryKey, data: D) -> Result<Dao<D>, SerializationError>
     {
-        let mut ret = dio.store(data)?;
-
+        let mut ret = dio.store_ext(data, None, None, false)?;
         ret.attach(parent_id, self);
+        ret.commit(dio)?;
         Ok (ret)
     }
 }

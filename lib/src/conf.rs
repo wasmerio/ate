@@ -273,9 +273,9 @@ impl ChainOfTrustBuilder
             self.compactors.push(Box::new(TreeCompactor::default()));
 
             let tolerance = match self.configured_for {
-                ConfiguredFor::BestPerformance => 2000,
-                ConfiguredFor::BestSecurity => 200,
-                _ => 500,
+                ConfiguredFor::BestPerformance => 4000,
+                ConfiguredFor::BestSecurity => 1000,
+                _ => 2000,
             };
             self.plugins.push(Box::new(TimestampEnforcer::new(&self.cfg, tolerance).unwrap()));
         }

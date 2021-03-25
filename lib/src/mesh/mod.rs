@@ -1,4 +1,6 @@
 #![cfg_attr(debug_assertions, allow(dead_code, unused_imports))]
+#![allow(unused_imports)]
+use log::{error, info, debug};
 
 mod msg;
 mod core;
@@ -7,7 +9,6 @@ mod client;
 mod session;
 
 use async_trait::async_trait;
-use log::{info, warn};
 use serde::{Serialize, Deserialize};
 use std::{net::{IpAddr, Ipv6Addr}, str::FromStr};
 use tokio::sync::{RwLock, Mutex};
@@ -90,37 +91,43 @@ struct TestData {
 #[test]
 async fn test_mesh()
 {
-    let mut cluster1 = ConfCluster::default();
-    for n in 5100..5105 {
-        cluster1.roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
-    }
+    //env_logger::init();
 
-    let mut cluster2 = ConfCluster::default();
-    for n in 6100..6105 {
-        cluster2.roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
-    }  
+    let mut cfg = {
+        let mut cluster1 = ConfCluster::default();
+        for n in 5100..5105 {
+            cluster1.roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
+        }
 
-    let mut cfg = Config::default();
-    cfg.clusters.push(cluster1);
-    cfg.clusters.push(cluster2);
+        let mut cluster2 = ConfCluster::default();
+        for n in 6100..6105 {
+            cluster2.roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
+        }  
 
-    let mut mesh_roots = Vec::new();
-    for n in 5100..5105 {
-        cfg.force_listen = Some(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
-        mesh_roots.push(create_mesh(&cfg).await);
-    }
-    for n in 6100..6105 {
-        cfg.force_listen = Some(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
-        mesh_roots.push(create_mesh(&cfg).await);
-    }
+        let mut cfg = Config::default();
+        cfg.clusters.push(cluster1);
+        cfg.clusters.push(cluster2);
+
+        let mut mesh_roots = Vec::new();
+        for n in 5100..5105 {
+            cfg.force_listen = Some(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
+            mesh_roots.push(create_mesh(&cfg).await);
+        }
+        for n in 6100..6105 {
+            cfg.force_listen = Some(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
+            mesh_roots.push(create_mesh(&cfg).await);
+        }
+        cfg
+    };
     
     let dao_key1;
     let dao_key2;
     {
         cfg.force_listen = None;
         cfg.force_client_only = true;
-        let client_a = create_mesh(&cfg).await;
 
+        debug!("create the mesh and connect to it with client 1");
+        let client_a = create_mesh(&cfg).await;
         let chain_a = client_a.open(ChainKey::new("test-chain".to_string())).await.unwrap();
         let session_a = Session::default();
 
@@ -134,6 +141,7 @@ async fn test_mesh()
 
             bus = dao2.inner.bus(&chain_a, dao2.key());
             task = bus.recv(&session_a);
+            dio.commit().await.unwrap();
         }
 
         {
@@ -144,29 +152,48 @@ async fn test_mesh()
             let chain_b = client_b.open(ChainKey::new("test-chain".to_string())).await.unwrap();
             let session_b = Session::default();
             {
+                debug!("start a DIO session for client B");
                 let mut dio = chain_b.dio_ext(&session_b, Scope::Full).await;
+
+                debug!("store data object 1");
                 dao_key1 = dio.store(TestData::default()).unwrap().key().clone();
 
+                debug!("load data object 2");
                 let dao2: Dao<TestData> = dio.load(&dao_key2).await.expect("An earlier saved object should have loaded");
                 
+                debug!("add to new sub objects to the vector");
                 dao2.inner.push(&mut dio, dao2.key(), "test_string1".to_string()).unwrap();
                 dao2.inner.push(&mut dio, dao2.key(), "test_string2".to_string()).unwrap();
+
+                debug!("commit the DIO");
+                dio.commit().await.unwrap();
             }
         }
 
+        debug!("sync to disk");
         chain_a.sync().await.unwrap();
 
+        debug!("wait for an event on the BUS");
         let task_ret = task.await.expect("Should have received the result on the BUS");
         assert_eq!(*task_ret, "test_string1".to_string());
 
         {
+            debug!("new DIO session for client A");
             let mut dio = chain_a.dio_ext(&session_a, Scope::Full).await;
 
+            debug!("processing the next event in the BUS (and lock_for_delete it)");
             let task = bus.process(&mut dio);
-            let task_ret = task.await.expect("Should have received the result on the BUS for the second time");
+            let mut task_ret = task.await.expect("Should have received the result on the BUS for the second time");
             assert_eq!(*task_ret, "test_string2".to_string());
 
+            // Committing the DIO
+            task_ret.commit(&mut dio).unwrap();
+
+            debug!("loading data object 1");
             dio.load::<TestData>(&dao_key1).await.expect("The data did not not get replicated to other clients in realtime");
+            
+            debug!("committing the DIO");
+            dio.commit().await.unwrap();
         }
     }
 
@@ -175,11 +202,16 @@ async fn test_mesh()
         cfg.force_client_only = true;
         let client = create_mesh(&cfg).await;
 
+        debug!("reconnecting the client");
         let chain = client.open(ChainKey::new("test-chain".to_string())).await.unwrap();
         let session = Session::default();
         {
+            debug!("loading data object 1");
             let mut dio = chain.dio_ext(&session, Scope::Full).await;
             dio.load::<TestData>(&dao_key1).await.expect("The data did not survive between new sessions");
         }
     }
+
+    debug!("shutting down");
+    //std::process::exit(0);
 }

@@ -184,11 +184,6 @@ impl<'a> ChainOfTrust
         self.key.name.clone()
     }
 
-    #[allow(dead_code)]
-    pub(super) fn is_open(&self) -> bool {
-        self.redo.is_open()
-    }
-
     pub(crate) fn add_history(&mut self, header: EventHeaderRaw) {
         let offset = self.history_offset;
         self.history_offset = self.history_offset + 1;
@@ -271,11 +266,11 @@ async fn test_chain() {
             evts.push(evt2.clone());
 
             debug!("feeding two events into the chain");
-            let (trans, receiver) = Transaction::from_events(evts, Scope::Local);
+            let (trans, mut receiver) = Transaction::from_events(evts, Scope::Local);
             lock.pipe.feed(trans).await.expect("The event failed to be accepted");
             
             drop(lock);
-            receiver.recv().unwrap().unwrap();
+            let _ = receiver.recv().await;
             assert_eq!(2, chain.count().await);
         }
 
@@ -306,13 +301,13 @@ async fn test_chain() {
 
             // Make sure its there in the chain
             debug!("checking event1 is in the chain");
-            let test_data = lock.lookup_primary(&key1).await.expect("Failed to find the entry after the flip");
+            let test_data = lock.lookup_primary(&key1).await.expect("Failed to find the entry after the reload");
             let test_data = lock.load(test_data.clone()).await.expect("Could not load the data for the entry");
             assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(1; 1))));
 
             // The other event we added should also still be there
             debug!("checking event2 is in the chain");
-            let test_data = lock.lookup_primary(&key2).await.expect("Failed to find the entry after the compact");
+            let test_data = lock.lookup_primary(&key2).await.expect("Failed to find the entry after the reload");
             let test_data = lock.load(test_data.clone()).await.unwrap();
             assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(2; 1))));
 
@@ -322,11 +317,11 @@ async fn test_chain() {
             debug!("feeding new version of event1 into the chain");
             let mut evts = Vec::new();
             evts.push(evt1.clone());
-            let (trans, receiver) = Transaction::from_events(evts, Scope::Local);
+            let (trans, mut receiver) = Transaction::from_events(evts, Scope::Local);
             lock.pipe.feed(trans).await.expect("The event failed to be accepted");
 
             drop(lock);
-            receiver.recv().unwrap().unwrap();
+            let _ = receiver.recv().await;
             assert_eq!(3, chain.count().await);
         }
 
@@ -384,12 +379,12 @@ async fn test_chain() {
             debug!("feeding the tombstone into the chain");
             let mut evts = Vec::new();
             evts.push(evt2.clone());
-            let (trans, receiver) = Transaction::from_events(evts, Scope::Local);
+            let (trans, mut receiver) = Transaction::from_events(evts, Scope::Local);
             lock.pipe.feed(trans).await.expect("The event failed to be accepted");
             
             // Number of events should have gone up by one even though there should be one less item
             drop(lock);
-            receiver.recv().unwrap().unwrap();
+            let _ = receiver.recv().await;
             assert_eq!(3, chain.count().await);
         }
 

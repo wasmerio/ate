@@ -1,28 +1,23 @@
-#[allow(unused_imports)]
+#![allow(unused_imports)]
 use log::{error, info, debug};
 
 use crate::{crypto::Hash};
 
 use super::conf::*;
 use super::chain::*;
-#[allow(unused_imports)]
 use super::header::*;
 use super::event::*;
-#[allow(unused_imports)]
 use super::meta::*;
 use super::error::*;
 
 use async_trait::async_trait;
 use cached::Cached;
-#[allow(unused_imports)]
 use std::{collections::VecDeque, io::SeekFrom, ops::DerefMut};
-#[allow(unused_imports)]
 use tokio::{io::{AsyncReadExt, AsyncWriteExt, AsyncSeekExt}, time::sleep, time::Duration};
 use tokio::io::Result;
 use tokio::io::BufStream;
 use tokio::io::Error;
 use tokio::io::ErrorKind;
-#[allow(unused_imports)]
 use bytes::Bytes;
 use std::mem::size_of;
 use tokio::sync::Mutex as MutexAsync;
@@ -77,7 +72,7 @@ struct LogFile
 {
     pub(crate) default_format: MessageFormat,
     pub(crate) log_path: String,
-    pub(crate) log_back: Option<tokio::fs::File>,
+    pub(crate) log_back: tokio::fs::File,
     pub(crate) log_stream: BufStream<tokio::fs::File>,
     pub(crate) log_off: u64,
     pub(crate) log_temp: bool,
@@ -88,60 +83,8 @@ struct LogFile
     pub(crate) archives: FxHashMap<u32, LogArchive>,
 }
 
-impl LogFile {
-    pub(crate) fn check_open(&self) -> Result<()> {
-        match self.log_back.as_ref() {
-            Some(_) => Ok(()),
-            None => return Result::Err(Error::new(ErrorKind::NotConnected, "The log file has already been closed.")),
-        }
-    }
-
-    async fn copy(&mut self) -> Result<LogFile>
-    {
-        // We have to flush the stream in-case there is outstanding IO that is not yet written to the backing disk
-        self.log_stream.flush().await?;
-
-        // Copy the file handles
-        self.check_open()?;
-        let log_back = self.log_back.as_ref().unwrap().try_clone().await?;
-
-        // Copy all the archives
-        let mut log_archives = FxHashMap::default();
-        for (k, v) in self.archives.iter() {
-            let log_back = v.log_random_access.lock().await.try_clone().await?;
-            log_archives.insert(k.clone(), LogArchive {
-                log_index: v.log_index,
-                log_path: v.log_path.clone(),
-                log_random_access: MutexAsync::new(log_back),                
-            });
-        }
-
-        let cache = {
-            let cache = self.cache.lock();
-            MutexSync::new(LogFileCache {
-                flush: cache.flush.clone(),
-                read: cached::TimedSizedCache::with_size_and_lifespan(cache.read.cache_capacity().unwrap(), cache.read.cache_lifespan().unwrap()),
-                write: cached::TimedSizedCache::with_size_and_lifespan(cache.write.cache_capacity().unwrap(), cache.write.cache_lifespan().unwrap()),
-            })
-        };
-
-        Ok(
-            LogFile {
-                default_format: self.default_format,
-                log_path: self.log_path.clone(),
-                log_stream: BufStream::new(log_back.try_clone().await?),
-                log_back: Some(log_back),
-                log_off: self.log_off,
-                log_temp: self.log_temp,
-                log_count: self.log_count,
-                log_index: self.log_index,
-                cache,
-                lookup: self.lookup.clone(),
-                archives: log_archives,
-            }
-        )
-    }
-
+impl LogFile
+{
     async fn new(temp_file: bool, path_log: String, truncate: bool, cache_size: usize, cache_ttl: u64, default_format: MessageFormat) -> Result<LogFile>
     {
         // Compute the log file name
@@ -183,7 +126,7 @@ impl LogFile {
             default_format,
             log_path: path_log.clone(),
             log_stream: log_stream,
-            log_back: Some(log_back),
+            log_back: log_back,
             log_off: 0,
             log_temp: temp_file,
             log_count: 0,
@@ -204,9 +147,84 @@ impl LogFile {
         Ok(ret)
     }
 
-    async fn read_all(&mut self, to: &mut VecDeque<LoadData>) -> std::result::Result<(), SerializationError> {
-        self.check_open()?;
+    async fn rotate(&mut self) -> Result<()>
+    {
+        // Flush and close
+        self.log_stream.flush().await?;
+        self.log_back.sync_all().await?;
 
+        // Create a new log file (with the next index)
+        let log_index = self.log_index  + 1;
+        let log_back_path = format!("{}.{}", self.log_path, log_index);
+
+        // Create a new file
+        let log_back = tokio::fs::OpenOptions::new().read(true).write(true).create(true).open(log_back_path.clone()).await?;
+        let log_stream = BufStream::new(log_back.try_clone().await.unwrap());
+
+        // Add the file to the archive
+        let log_random_access = tokio::fs::OpenOptions::new().read(true).open(log_back_path.clone()).await?;
+        self.archives.insert(log_index , LogArchive {
+            log_index: log_index,
+            log_path: log_back_path,
+            log_random_access: MutexAsync::new(log_random_access),
+        });
+
+        // Set the new log file, stream and index
+        self.log_index = log_index;
+        self.log_back = log_back;
+        self.log_stream = log_stream;
+        self.log_count = self.log_count + 1;
+
+        // Success
+        Ok(())
+    }
+
+    async fn copy(&mut self) -> Result<LogFile>
+    {
+        // We have to flush the stream in-case there is outstanding IO that is not yet written to the backing disk
+        self.log_stream.flush().await?;
+
+        // Copy the file handles
+        let log_back = self.log_back.try_clone().await?;
+
+        // Copy all the archives
+        let mut log_archives = FxHashMap::default();
+        for (k, v) in self.archives.iter() {
+            let log_back = v.log_random_access.lock().await.try_clone().await?;
+            log_archives.insert(k.clone(), LogArchive {
+                log_index: v.log_index,
+                log_path: v.log_path.clone(),
+                log_random_access: MutexAsync::new(log_back),                
+            });
+        }
+
+        let cache = {
+            let cache = self.cache.lock();
+            MutexSync::new(LogFileCache {
+                flush: cache.flush.clone(),
+                read: cached::TimedSizedCache::with_size_and_lifespan(cache.read.cache_capacity().unwrap(), cache.read.cache_lifespan().unwrap()),
+                write: cached::TimedSizedCache::with_size_and_lifespan(cache.write.cache_capacity().unwrap(), cache.write.cache_lifespan().unwrap()),
+            })
+        };
+
+        Ok(
+            LogFile {
+                default_format: self.default_format,
+                log_path: self.log_path.clone(),
+                log_stream: BufStream::new(log_back.try_clone().await?),
+                log_back: log_back,
+                log_off: self.log_off,
+                log_temp: self.log_temp,
+                log_count: self.log_count,
+                log_index: self.log_index,
+                cache,
+                lookup: self.lookup.clone(),
+                archives: log_archives,
+            }
+        )
+    }
+
+    async fn read_all(&mut self, to: &mut VecDeque<LoadData>) -> std::result::Result<(), SerializationError> {
         let mut lookup = FxHashMap::default();
 
         let archives = self.archives.values_mut().collect::<Vec<_>>();
@@ -303,8 +321,6 @@ impl LogFile {
 
     async fn write(&mut self, evt: &EventData) -> std::result::Result<u64, SerializationError>
     {
-        self.check_open()?;
-
         let header = evt.as_header_raw()?;
         let log_header = crate::LOG_VERSION.write(
             self, 
@@ -346,9 +362,6 @@ impl LogFile {
 
     async fn copy_event(&mut self, from_log: &LogFile, hash: Hash) -> std::result::Result<u64, LoadError>
     {
-        self.check_open()?;
-        from_log.check_open()?;
-
         // Load the data from the log file
         let result = from_log.load(hash).await?;
 
@@ -384,9 +397,8 @@ impl LogFile {
         Ok(log_header.offset)
     }
 
-    async fn load(&self, hash: Hash) -> std::result::Result<LoadData, LoadError> {
-        self.check_open()?;
-
+    async fn load(&self, hash: Hash) -> std::result::Result<LoadData, LoadError>
+    {
         // Check the caches
         {
             let mut cache = self.cache.lock();
@@ -467,9 +479,8 @@ impl LogFile {
         )
     }
 
-    fn move_log_file(&mut self, new_path: &String) -> Result<()> {
-        self.check_open()?;
-
+    fn move_log_file(&mut self, new_path: &String) -> Result<()>
+    {
         if self.log_temp == false
         {
             // First rename the orginal logs as a backup
@@ -518,8 +529,6 @@ impl LogFile {
 
     async fn flush(&mut self) -> Result<()>
     {
-        self.check_open()?;
-
         // Make a note of all the cache lines we need to move
         let mut keys = Vec::new();
         {
@@ -531,7 +540,7 @@ impl LogFile {
 
         // Flush the data to disk
         self.log_stream.flush().await?;
-        self.log_back.as_ref().unwrap().sync_all().await?;
+        self.log_back.sync_all().await?;
 
 
         // Move the cache lines into the write cache from the flush cache which
@@ -553,9 +562,8 @@ impl LogFile {
         self.log_count as usize
     }
 
-    fn destroy(&mut self) -> Result<()> {
-        self.check_open()?;
-
+    fn destroy(&mut self) -> Result<()>
+    {
         // Now delete all the log files
         let mut n = 0;
         loop {
@@ -567,15 +575,7 @@ impl LogFile {
             }
             n = n + 1;
         }
-        self.log_back = None;
         Ok(())
-    }
-
-    fn is_open(&self) -> bool {
-        match self.log_back {
-            Some(_) => true,
-            _ => false,
-        }
     }
 }
 
@@ -800,7 +800,8 @@ impl Drop
 for LogFile
 {
     fn drop(&mut self) {
-        let _ = futures::executor::block_on(self.log_stream.flush());
+        let exec = async_executor::LocalExecutor::default();
+        let _ = futures::executor::block_on(exec.run(self.log_stream.shutdown()));
     }
 }
 
@@ -898,6 +899,10 @@ impl RedoLog
 
         info!("redo-log: loaded {} events from {} files", loader.entries.len(), ret.log_file.archives.len());
         Ok((ret, loader))
+    }
+
+    pub(crate) async fn rotate(&mut self) -> Result<()> {
+        Ok(self.log_file.rotate().await?)
     }
 
     pub(crate) async fn begin_flip(&mut self) -> Result<FlippedLogFile> {
@@ -1019,10 +1024,6 @@ impl RedoLog
     #[allow(dead_code)]
     pub(crate) fn destroy(&mut self) -> Result<()> {
         self.log_file.destroy()
-    }
-
-    pub fn is_open(&self) -> bool {
-        self.log_file.is_open()
     }
 }
 

@@ -1,3 +1,6 @@
+#![allow(unused_imports)]
+use log::{error, info, debug};
+
 use fxhash::FxHashSet;
 use crate::crypto::{Hash};
 
@@ -46,7 +49,10 @@ for AntiReplayPlugin
 {
     fn validate(&self, header: &EventHeader) -> Result<ValidationResult, ValidationError> {
         match self.seen.contains(&header.raw.event_hash) {
-            true => Ok(ValidationResult::Deny),
+            true => {
+                debug!("rejected event as it is a duplicate");
+                Ok(ValidationResult::Deny)
+            },
             false => Ok(ValidationResult::Abstain),
         }
         

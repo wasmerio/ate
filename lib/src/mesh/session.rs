@@ -25,7 +25,7 @@ pub(crate) struct MeshSession
     addrs: Vec<MeshAddress>,
     key: ChainKey,
     pub(crate) chain: Arc<Chain>,
-    commit: Arc<StdMutex<FxHashMap<u64, smpsc::Sender<Result<(), CommitError>>>>>,
+    commit: Arc<StdMutex<FxHashMap<u64, mpsc::Sender<Result<(), CommitError>>>>>,
     lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, LockRequest>>>,
 }
 
@@ -113,16 +113,24 @@ impl MeshSession
         Ok(())
     }
 
-    fn inbox_confirmed(self: &Arc<MeshSession>, id: u64) -> Result<(), CommsError> {
-        if let Some(result) = self.commit.lock().remove(&id) {
-            result.send(Ok(()))?;
+    async fn inbox_confirmed(self: &Arc<MeshSession>, id: u64) -> Result<(), CommsError> {
+        let r = {
+            let mut lock = self.commit.lock();
+            lock.remove(&id)
+        };
+        if let Some(result) = r {
+            result.send(Ok(())).await?;
         }
         Ok(())
     }
 
-    fn inbox_commit_error(self: &Arc<MeshSession>, id: u64, err: String) -> Result<(), CommsError> {
-        if let Some(result) = self.commit.lock().remove(&id) {
-            result.send(Err(CommitError::RootError(err)))?;
+    async fn inbox_commit_error(self: &Arc<MeshSession>, id: u64, err: String) -> Result<(), CommsError> {
+        let r= {
+            let mut lock = self.commit.lock();
+            lock.remove(&id)
+        };
+        if let Some(result) = r {
+            result.send(Err(CommitError::RootError(err))).await?;
         }
         Ok(())
     }
@@ -153,8 +161,8 @@ impl MeshSession
         match pck.packet.msg {
             Message::Connected => Self::inbox_connected(self, pck.data).await,
             Message::Events { commit: _, evts } => Self::inbox_events(self, evts).await,
-            Message::Confirmed(id) => Self::inbox_confirmed(self, id),
-            Message::CommitError { id, err } => Self::inbox_commit_error(self, id, err),
+            Message::Confirmed(id) => Self::inbox_confirmed(self, id).await,
+            Message::CommitError { id, err } => Self::inbox_commit_error(self, id, err).await,
             Message::LockResult { key, is_locked } => Self::inbox_lock_result(self, key, is_locked),
             Message::EndOfHistory => Self::inbox_end_of_history(loaded).await,
             _ => Ok(())
@@ -190,7 +198,7 @@ for MeshSession
         {
             let guard = self.commit.lock();
             for sender in guard.values() {
-                if let Err(err) = sender.send(Err(CommitError::Aborted)) {
+                if let Err(err) = sender.blocking_send(Err(CommitError::Aborted)) {
                     debug_assert!(false, "mesh-session-err {:?}", err);
                     warn!("mesh-session-err: {}", err.to_string());
                 }
@@ -247,7 +255,7 @@ struct SessionPipe
     key: ChainKey,
     tx: Vec<NodeTx<()>>,
     next: StdRwLock<Option<Arc<dyn EventPipe>>>,
-    commit: Arc<StdMutex<FxHashMap<u64, smpsc::Sender<Result<(), CommitError>>>>>,
+    commit: Arc<StdMutex<FxHashMap<u64, mpsc::Sender<Result<(), CommitError>>>>>,
     lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, LockRequest>>>,
     wire_format: SerializationFormat,
 }
