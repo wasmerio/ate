@@ -37,6 +37,7 @@ use tokio::runtime::Runtime;
 #[derive(Debug, Clone)]
 pub(crate) struct LoadData
 {
+    pub(crate) index: u32,
     pub(crate) offset: u64,
     pub header: EventHeaderRaw,
     pub data: EventData,
@@ -49,19 +50,42 @@ struct LogFileCache
     pub(crate) read: TimedSizedCache<Hash, LoadData>,
 }
 
+#[derive(Debug)]
+struct LogArchive
+{
+    pub(crate) log_index: u32,
+    pub(crate) log_path: String,
+    pub(crate) log_random_access: MutexAsync<tokio::fs::File>,
+}
+
+#[derive(Debug)]
+struct LogArchiveReader
+{
+    pub(crate) log_index: u32,
+    pub(crate) log_off: u64,
+    pub(crate) log_stream: BufStream<tokio::fs::File>,
+}
+
+#[derive(Debug, Clone, Copy)]
+struct LogLookup
+{
+    pub(crate) index: u32,
+    pub(crate) offset: u64,
+}
+
 struct LogFile
 {
-    pub(crate) version: u32,
     pub(crate) default_format: MessageFormat,
     pub(crate) log_path: String,
     pub(crate) log_back: Option<tokio::fs::File>,
-    pub(crate) log_random_access: MutexAsync<tokio::fs::File>,
     pub(crate) log_stream: BufStream<tokio::fs::File>,
     pub(crate) log_off: u64,
     pub(crate) log_temp: bool,
     pub(crate) log_count: u64,
+    pub(crate) log_index: u32,
     pub(crate) cache: MutexSync<LogFileCache>,
-    pub(crate) lookup: FxHashMap<Hash, u64>,
+    pub(crate) lookup: FxHashMap<Hash, LogLookup>,
+    pub(crate) archives: FxHashMap<u32, LogArchive>,
 }
 
 impl LogFile {
@@ -80,7 +104,17 @@ impl LogFile {
         // Copy the file handles
         self.check_open()?;
         let log_back = self.log_back.as_ref().unwrap().try_clone().await?;
-        let log_random_access = self.log_random_access.lock().await.try_clone().await?;
+
+        // Copy all the archives
+        let mut log_archives = FxHashMap::default();
+        for (k, v) in self.archives.iter() {
+            let log_back = v.log_random_access.lock().await.try_clone().await?;
+            log_archives.insert(k.clone(), LogArchive {
+                log_index: v.log_index,
+                log_path: v.log_path.clone(),
+                log_random_access: MutexAsync::new(log_back),                
+            });
+        }
 
         let cache = {
             let cache = self.cache.lock();
@@ -93,61 +127,78 @@ impl LogFile {
 
         Ok(
             LogFile {
-                version: self.version,
                 default_format: self.default_format,
                 log_path: self.log_path.clone(),
                 log_stream: BufStream::new(log_back.try_clone().await?),
                 log_back: Some(log_back),
-                log_random_access: MutexAsync::new(log_random_access),
                 log_off: self.log_off,
                 log_temp: self.log_temp,
                 log_count: self.log_count,
+                log_index: self.log_index,
                 cache,
                 lookup: self.lookup.clone(),
+                archives: log_archives,
             }
         )
     }
 
-    async fn new(temp_file: bool, path_log: String, truncate: bool, cache_size: usize, cache_ttl: u64, default_format: MessageFormat) -> Result<LogFile> {
-        let log_back = match truncate {
-            true => tokio::fs::OpenOptions::new().read(true).write(true).truncate(true).create(true).open(path_log.clone()).await?,
-               _ => tokio::fs::OpenOptions::new().read(true).write(true).create(true).open(path_log.clone()).await?,
+    async fn new(temp_file: bool, path_log: String, truncate: bool, cache_size: usize, cache_ttl: u64, default_format: MessageFormat) -> Result<LogFile>
+    {
+        // Compute the log file name
+        let log_back_path = format!("{}.{}", path_log.clone(), 0);
+        let mut log_back = match truncate {
+            true => tokio::fs::OpenOptions::new().read(true).write(true).truncate(true).create(true).open(log_back_path.clone()).await?,
+               _ => tokio::fs::OpenOptions::new().read(true).write(true).create(true).open(log_back_path.clone()).await?,
         };
-        let mut log_stream = BufStream::new(log_back.try_clone().await.unwrap());
-
-        let version = match log_stream.read_u32().await {
-            Ok(a) => a,
-            Err(err) if err.kind() == ErrorKind::UnexpectedEof => {
-                let new_version = fastrand::u32(..);
-                let _ = log_stream.write_u32(new_version).await?;
-                let _ = log_stream.flush().await?;
-                new_version
-            },
-            Err(err) => return Result::Err(err)
-        };
+        log_back.seek(SeekFrom::End(0)).await?;
+        let log_stream = BufStream::new(log_back.try_clone().await.unwrap());
         
-        let log_random_access = tokio::fs::OpenOptions::new().read(true).open(path_log.clone()).await?;
+        // Make a note of the last log file
+        let mut last_log_path = path_log.clone();
+        let mut last_log_index = 0;
+
+        // Load all the archives
+        let mut archives = FxHashMap::default();
+        let mut n = 0 as u32;
+        loop {
+            let log_back_path = format!("{}.{}", path_log.clone(), n);
+            if std::path::Path::new(log_back_path.as_str()).exists()
+            {
+                last_log_path = log_back_path.clone();
+                last_log_index = n;
+
+                let log_random_access = tokio::fs::OpenOptions::new().read(true).open(log_back_path.clone()).await?;
+                archives.insert(n , LogArchive {
+                    log_index: n,
+                    log_path: log_back_path,
+                    log_random_access: MutexAsync::new(log_random_access),
+                });
+            } else {
+                break;
+            }
+            n = n + 1;
+        }
 
         let ret = LogFile {
-            version,
             default_format,
             log_path: path_log.clone(),
             log_stream: log_stream,
             log_back: Some(log_back),
-            log_random_access: MutexAsync::new(log_random_access),
-            log_off: std::mem::size_of::<u32>() as u64,
+            log_off: 0,
             log_temp: temp_file,
             log_count: 0,
+            log_index: last_log_index,
             cache: MutexSync::new(LogFileCache {
                 flush: FxHashMap::default(),
                 read: TimedSizedCache::with_size_and_lifespan(cache_size, cache_ttl),
                 write: TimedSizedCache::with_size_and_lifespan(cache_size, cache_ttl),
             }),
             lookup: FxHashMap::default(),
+            archives,
         };
 
         if temp_file {
-            let _ = std::fs::remove_file(path_log);
+            let _ = std::fs::remove_file(last_log_path);
         }
 
         Ok(ret)
@@ -156,40 +207,65 @@ impl LogFile {
     async fn read_all(&mut self, to: &mut VecDeque<LoadData>) -> std::result::Result<(), SerializationError> {
         self.check_open()?;
 
-        loop {
-            match self.read_once_internal().await {
-                Ok(Some(head)) => {
-                    #[cfg(feature = "verbose")]
-                    debug!("log-read: {:?}", head);
-                    to.push_back(head)
-                },
-                Ok(None) => break,
-                Err(err) => {
-                    error!("log-read-error: {} at {}", err.to_string(), self.log_off);
-                    continue;
+        let mut lookup = FxHashMap::default();
+
+        let archives = self.archives.values_mut().collect::<Vec<_>>();
+        for archive in archives
+        {
+            let lock = archive.log_random_access.lock().await;
+            let mut file = lock.try_clone().await.unwrap();
+            file.seek(SeekFrom::Start(0)).await?;
+
+            let mut reader = LogArchiveReader {
+                log_index: archive.log_index,
+                log_off: 0,
+                log_stream: BufStream::new(file),
+            };
+            loop {
+                match LogFile::read_once_internal(&mut reader, self.default_format).await {
+                    Ok(Some(head)) => {
+                        #[cfg(feature = "verbose")]
+                        debug!("log-read: {:?}", head);
+
+                        lookup.insert(head.header.event_hash, LogLookup{
+                            index: head.index,
+                            offset: head.offset,
+                        });
+
+                        to.push_back(head);
+                    },
+                    Ok(None) => break,
+                    Err(err) => {
+                        error!("log-read-error: {} at {}", err.to_string(), self.log_off);
+                        continue;
+                    }
                 }
             }
+        }
+
+        for (v, k) in lookup.into_iter() {
+            self.log_count = self.log_count + 1;
+            self.lookup.insert(v, k);
         }
 
         Ok(())
     }
 
-    async fn read_once_internal(&mut self) -> std::result::Result<Option<LoadData>, SerializationError>
+    async fn read_once_internal(archive: &mut LogArchiveReader, default_format: MessageFormat) -> std::result::Result<Option<LoadData>, SerializationError>
     {
-        let offset = self.log_off;
-
         #[cfg(feature = "verbose")]
         info!("log-read-event: offset={}", offset);
 
+        let offset = archive.log_off;
+
         // Read the log event
-        let evt = match LogVersion::read(self, self.default_format).await? {
+        let evt = match LogVersion::read(archive, default_format).await? {
             Some(e) => e,
             None => {
                 return Ok(None);
             }
         };
-        self.log_count = self.log_count + 1;
-
+        
         // Deserialize the meta bytes into a metadata object
         let meta = evt.header.format.meta.deserialize(&evt.meta[..])?;
         let data_hash = match &evt.data {
@@ -208,7 +284,6 @@ impl LogFile {
             data_hash,
             evt.header.format,
         );
-        self.lookup.insert(header.event_hash, offset);
 
         Ok(
             Some(
@@ -219,6 +294,7 @@ impl LogFile {
                         data_bytes: data,
                         format: evt.header.format,
                     },
+                    index: archive.log_index,
                     offset,
                 }
             )
@@ -242,7 +318,16 @@ impl LogFile {
         self.log_count = self.log_count + 1;
         
         // Record the lookup map
-        self.lookup.insert(header.event_hash, log_header.offset);
+        let lookup = LogLookup {
+            index: self.log_index,
+            offset: log_header.offset
+        };
+        self.lookup.insert(header.event_hash, lookup);
+
+        //#[cfg(feature = "verbose")]
+        debug!("log-write: {} - {:?}", header.event_hash, lookup);
+        #[cfg(feature = "verbose")]
+        debug!("log-write: {:?} - {:?}", header, evt);
 
         // Cache the data
         {
@@ -250,6 +335,7 @@ impl LogFile {
             cache.flush.insert(header.event_hash, LoadData {
                 offset: log_header.offset,
                 header,
+                index: self.log_index,
                 data: evt.clone(),
             });
         }
@@ -279,7 +365,10 @@ impl LogFile {
         self.log_count = self.log_count + 1;
 
         // Record the lookup map
-        self.lookup.insert(hash.clone(), log_header.offset);
+        self.lookup.insert(hash.clone(), LogLookup {
+            index: result.index,
+            offset: log_header.offset
+        });
 
         // Cache the data
         {
@@ -287,6 +376,7 @@ impl LogFile {
             cache.flush.insert(hash.clone(), LoadData {
                 header: result.header,
                 offset: log_header.offset,
+                index: result.index,
                 data: result.data,
             });
         }
@@ -312,8 +402,17 @@ impl LogFile {
         }
 
         // Lookup the record in the redo log
-        let offset = match self.lookup.get(&hash) {
+        let lookup = match self.lookup.get(&hash) {
             Some(a) => a.clone(),
+            None => {
+                return Err(LoadError::NotFoundByHash(hash));
+            }
+        };
+        let offset = lookup.offset;
+
+        // Load the archive
+        let archive = match self.archives.get(&lookup.index) {
+            Some(a) => a,
             None => {
                 return Err(LoadError::NotFoundByHash(hash));
             }
@@ -321,13 +420,13 @@ impl LogFile {
 
         // First read all the data into a buffer
         let result = {
-            let mut loader = SpecificLogLoader::new(&self.log_random_access, offset).await?;
+            let mut loader = SpecificLogLoader::new(&archive.log_random_access, offset).await?;
             match LogVersion::read(&mut loader, self.default_format).await? {
                 Some(a) => a,
                 None => { return Err(LoadError::NotFoundByHash(hash)); }
             }
         };
-
+        
         // Hash body
         let data_hash = match &result.data {
             Some(data) => Some(super::crypto::Hash::from_bytes(&data[..])),
@@ -352,8 +451,10 @@ impl LogFile {
                 data_bytes: data,
                 format: result.header.format,
             },
+            index: lookup.index,
             offset,
         };
+        assert_eq!(hash.to_string(), ret.header.event_hash.to_string());
 
         // Store it in the read cache
         {
@@ -369,8 +470,47 @@ impl LogFile {
     fn move_log_file(&mut self, new_path: &String) -> Result<()> {
         self.check_open()?;
 
-        if self.log_temp == false {
-            std::fs::rename(self.log_path.clone(), new_path)?;
+        if self.log_temp == false
+        {
+            // First rename the orginal logs as a backup
+            let mut n = 0;
+            loop {
+                let path_from = format!("{}.{}", new_path, n);
+                let path_to = format!("{}.backup.{}", new_path, n);
+
+                if std::path::Path::new(path_from.as_str()).exists() == false {
+                    break;
+                }
+
+                std::fs::rename(path_from, path_to)?;
+                n = n + 1;
+            }
+
+            // Move the flipped logs over to replace the originals
+            let mut n = 0;
+            loop {
+                let path_from = format!("{}.{}", self.log_path.clone(), n);
+                let path_to = format!("{}.{}", new_path, n);
+
+                if std::path::Path::new(path_from.as_str()).exists() == false {
+                    break;
+                }
+
+                std::fs::rename(path_from, path_to)?;
+                n = n + 1;
+            }
+
+            // Now delete all the backups
+            let mut n = 0;
+            loop {
+                let path_old = format!("{}.backup.{}", new_path, n);
+                if std::path::Path::new(path_old.as_str()).exists() == true {
+                    std::fs::remove_file(path_old)?;
+                } else {
+                    break;
+                }
+                n = n + 1;
+            }
         }
         self.log_path = new_path.clone();
         Ok(())
@@ -416,7 +556,17 @@ impl LogFile {
     fn destroy(&mut self) -> Result<()> {
         self.check_open()?;
 
-        std::fs::remove_file(self.log_path.clone())?;
+        // Now delete all the log files
+        let mut n = 0;
+        loop {
+            let path_old = format!("{}.{}", self.log_path, n);
+            if std::path::Path::new(path_old.as_str()).exists() == true {
+                std::fs::remove_file(path_old)?;
+            } else {
+                break;
+            }
+            n = n + 1;
+        }
         self.log_back = None;
         Ok(())
     }
@@ -495,6 +645,67 @@ for LogFile
         self.log_stream.write_all(&buf[..]).await?;
         self.log_off = self.log_off + buf.len() as u64;
         Ok(())
+    }
+}
+
+
+
+#[async_trait]
+impl LogApi
+for LogArchiveReader
+{
+    fn offset(&self) -> u64 {
+        self.log_off
+    }
+    
+    async fn read_u8(&mut self) -> Result<u8> {
+        let ret = self.log_stream.read_u8().await?;
+        self.log_off = self.log_off + size_of::<u8>() as u64;
+        Ok(ret)
+    }
+
+    async fn read_u16(&mut self) -> Result<u16> {
+        let ret = self.log_stream.read_u16().await?;
+        self.log_off = self.log_off + size_of::<u16>() as u64;
+        Ok(ret)
+    }
+
+    async fn read_u32(&mut self) -> Result<u32> {
+        let ret = self.log_stream.read_u32().await?;
+        self.log_off = self.log_off + size_of::<u32>() as u64;
+        Ok(ret)
+    }
+
+    async fn read_u64(&mut self) -> Result<u64> {
+        let ret = self.log_stream.read_u64().await?;
+        self.log_off = self.log_off + size_of::<u64>() as u64;
+        Ok(ret)
+    }
+
+    async fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
+        let amt = self.log_stream.read_exact(&mut buf[..]).await?;
+        self.log_off = self.log_off + amt as u64;
+        Ok(())
+    }
+
+    async fn write_u8(&mut self, _: u8) -> Result<()> {
+        Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, "Not implemented"))
+    }
+
+    async fn write_u16(&mut self, _: u16) -> Result<()> {
+        Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, "Not implemented"))
+    }
+
+    async fn write_u32(&mut self, _: u32) -> Result<()> {
+        Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, "Not implemented"))
+    }
+
+    async fn write_u64(&mut self, _: u64) -> Result<()> {
+        Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, "Not implemented"))
+    }
+
+    async fn write_exact(&mut self, _: &[u8]) -> Result<()> {
+        Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, "Not implemented"))
     }
 }
 
@@ -671,19 +882,21 @@ pub(crate) struct RedoLog {
 
 impl RedoLog
 {
-    async fn new(cfg: &Config, path_log: String, truncate: bool, cache_size: usize, cache_ttl: u64) -> std::result::Result<(RedoLog, RedoLogLoader), SerializationError> {
+    async fn new(cfg: &Config, path_log: String, truncate: bool, cache_size: usize, cache_ttl: u64) -> std::result::Result<(RedoLog, RedoLogLoader), SerializationError>
+    {
+        // Build the loader
+        let mut loader = RedoLogLoader::default();
+
+        // Now load the real thing
         let mut ret = RedoLog {
             log_temp: cfg.log_temp,
             log_path: path_log.clone(),
             log_file: LogFile::new(cfg.log_temp, path_log.clone(), truncate, cache_size, cache_ttl, cfg.log_format).await?,
             flip: None,
         };
-
-        let mut loader = RedoLogLoader::default();
         ret.log_file.read_all(&mut loader.entries).await?;
 
-        info!("redo-log: loaded {} events", loader.entries.len());
-
+        info!("redo-log: loaded {} events from {} files", loader.entries.len(), ret.log_file.archives.len());
         Ok((ret, loader))
     }
 
@@ -885,6 +1098,8 @@ async fn test_read_data(log: &mut RedoLog, read_header: Hash, test_key: PrimaryK
 
 #[test]
 fn test_redo_log() {
+    //env_logger::init();
+
     let rt = Runtime::new().unwrap();
 
     let blah1 = PrimaryKey::generate();

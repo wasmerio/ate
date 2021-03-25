@@ -356,17 +356,11 @@ impl<'a> Chain
         {
             let multi = self.multi().await;
             let guard_async = multi.inside_async.read().await;
-            let guard_sync = multi.inside_sync.read();
 
             // step1 - reset all the compactors
             let mut compactors = Vec::new();
             for compactor in &guard_async.chain.compactors {
                 let mut compactor = compactor.clone_compactor();
-                compactor.reset();
-                compactors.push(compactor);
-            }
-            for plugin in &guard_sync.plugins {
-                let mut compactor = plugin.clone_compactor();
                 compactor.reset();
                 compactors.push(compactor);
             }
@@ -404,10 +398,13 @@ impl<'a> Chain
             }
 
             // write the events out only loading the ones that are actually needed
-            for header in keepers.into_iter().rev() {
+            debug!("compact: copying {} events", keepers.len());
+            for header in keepers.into_iter() {
                 new_pointers.feed(&header);
                 flip.event_summary.push(header.raw.clone());
+
                 flip.copy_event(&guard_async.chain.redo, header.raw.event_hash).await?;
+
                 new_history_reverse.insert(header.raw.event_hash.clone(), history_offset);
                 new_history.insert(history_offset, header.raw.clone());
                 history_offset = history_offset + 1;
@@ -418,6 +415,7 @@ impl<'a> Chain
         let mut single = self.single().await;
 
         // finish the flips
+        debug!("compact: finished the flip");
         let new_events = single.inside_async.chain.redo.finish_flip(flip, |h| {
             new_pointers.feed(h);
             new_history_reverse.insert(h.raw.event_hash.clone(), history_offset);
@@ -441,6 +439,7 @@ impl<'a> Chain
             chain.history_reverse = new_history_reverse;
             chain.history = new_history;
 
+            debug!("compact: rebuilding indexes");
             for indexer in lock.indexers.iter_mut() {
                 indexer.rebuild(&new_events)?;
             }

@@ -2,7 +2,6 @@ use fxhash::FxHashSet;
 use crate::crypto::{Hash};
 
 use super::validator::EventValidator;
-use super::compact::EventCompactor;
 use super::lint::EventMetadataLinter;
 use super::transform::EventDataTransformer;
 use super::sink::{EventSink};
@@ -54,14 +53,6 @@ for AntiReplayPlugin
     }
 
     fn clone_validator(&self) -> Box<dyn EventValidator> {
-        Box::new(self.clone())
-    }
-}
-
-impl EventCompactor
-for AntiReplayPlugin
-{
-    fn clone_compactor(&self) -> Box<dyn EventCompactor> {
         Box::new(self.clone())
     }
 }

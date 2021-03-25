@@ -22,9 +22,6 @@ use clap::Clap;
 #[derive(Clap)]
 #[clap(version = "0.1", author = "John S. <johnathan.sharratt@gmail.com>")]
 struct Opts {
-    /// Path to a file that will hold the PID for this running process
-    #[allow(dead_code)]
-    pid_file: Option<String>,
     /// Sets the level of log verbosity, can be used multiple times
     #[allow(dead_code)]
     #[clap(short, long, parse(from_occurrences))]
@@ -46,6 +43,10 @@ enum SubCommand {
 /// Mounts a particular directory as an ATE file system
 #[derive(Clap)]
 struct Mount {
+    /// Configuration file of a ATE mesh to connect to - default is local-only mode
+    #[allow(dead_code)]
+    #[clap(short, long)]
+    mesh: Option<String>,
     /// Path to directory that the file system will be mounted at
     #[clap(short, long)]
     path: String,
@@ -55,10 +56,6 @@ struct Mount {
     /// Redo log file will be deleted when the file system is unmounted
     #[clap(short, long)]
     temp: bool,
-    /// Specifies a remote server that the file system will connect to
-    #[allow(dead_code)]
-    #[clap(short, long)]
-    server: Option<String>,
     /// UID of the user that this file system will be mounted as
     #[clap(short, long)]
     uid: Option<u32>,

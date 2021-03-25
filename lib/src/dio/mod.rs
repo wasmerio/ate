@@ -173,6 +173,7 @@ impl<'a> Dio<'a>
     where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
         let evt = self.multi.load(leaf).await?;
+
         Ok(self.load_from_event(evt.data, evt.header.as_header()?, leaf)?)
     }
 
@@ -528,13 +529,16 @@ pub struct TestStructDao
 #[test]
 async fn test_dio()
 {
+    //env_logger::init();
+
+    debug!("generating crypto keys");
     let write_key = PrivateKey::generate(crate::crypto::KeySize::Bit192);
     let write_key2 = PrivateKey::generate(KeySize::Bit256);
     let read_key = EncryptKey::generate(crate::crypto::KeySize::Bit192);
     let root_public_key = write_key.as_public_key();
     
-    let mut session = Session::default();
-    
+    debug!("building the session");
+    let mut session = Session::default();    
     session.properties.push(SessionProperty::WriteKey(write_key.clone()));
     session.properties.push(SessionProperty::WriteKey(write_key2.clone()));
     session.properties.push(SessionProperty::ReadKey(read_key.clone()));
@@ -546,6 +550,7 @@ async fn test_dio()
     let chain_name;
 
     {
+        debug!("creating the chain-of-trust");
         let chain = super::trust::create_test_chain("test_dio".to_string(), true, false, Some(root_public_key.clone())).await;
         //let mut chain = create_test_chain("test_dio".to_string(), true, false, None);
         chain_name = chain.name().await.clone();
@@ -554,6 +559,7 @@ async fn test_dio()
         {
             let mut dio = chain.dio(&session).await;
             {
+                debug!("storing data object 1");
                 let mut mock_dao = TestStructDao::default();
                 mock_dao.val = 1;
                 mock_dao.hidden = "This text should be hidden".to_string();
@@ -562,29 +568,37 @@ async fn test_dio()
                 let dao3 = dao1.inner.push(&mut dio, dao1.key(), TestEnumDao::Blah1).unwrap();
 
                 key1 = dao1.key().clone();
-                println!("key1: {}", key1.as_hex_string());
+                debug!("key1: {}", key1.as_hex_string());
 
                 key3 = dao3.key().clone();
-                println!("key3: {}", key3.as_hex_string());
+                debug!("key3: {}", key3.as_hex_string());
                 
+                debug!("loading data object 1");
                 dio.load::<TestStructDao>(&key1).await.expect_err("This load is meant to fail as we are still editing the object");
 
+                debug!("setting read and write crypto keys");
                 dao1.auth_mut().read = ReadOption::Specific(read_key.hash());
                 dao1.auth_mut().write = WriteOption::Specific(write_key2.hash());
             }   
         }
 
         {
+            debug!("new DIO context");
             let mut dio = chain.dio(&session).await;
             {
                 // Load the object again which should load it from the cache
+                debug!("loading data object 1");
                 let mut dao1 = dio.load::<TestStructDao>(&key1).await.unwrap();
 
                 // When we update this value it will become dirty and hence should block future loads until its flushed or goes out of scope
+                debug!("updating data object");
                 dao1.val = 2;
+
+                debug!("performing negative test on locks");
                 dio.load::<TestStructDao>(&key1).await.expect_err("This load is meant to fail due to a lock being triggered");
 
                 // Flush the data and attempt to read it again (this should succeed)
+                debug!("commiting the chain-of-trust and loading again");
                 dao1.commit().expect("Commit failed");
                 let test: Dao<TestStructDao> = dio.load(&key1).await.expect("The dirty data object should have been read after it was flushed");
                 assert_eq!(test.val, 2 as u32);
@@ -592,68 +606,87 @@ async fn test_dio()
 
             {
                 // Load the object again which should load it from the cache
+                debug!("loading data object 1 in new scope");
                 let mut dao1 = dio.load::<TestStructDao>(&key1).await.unwrap();
             
                 // Again after changing the data reads should fail
+                debug!("modifying data object 1");
                 dao1.val = 3;
+
+                debug!("performing negative test on locks");
                 dio.load::<TestStructDao>(&key1).await.expect_err("This load is meant to fail due to a lock being triggered");
             }
 
             {
                 // Write a record to the chain that we will delete again later
+                debug!("storing data object 2");
                 let mut dao2 = dio.store(TestEnumDao::Blah4).unwrap();
                 
                 // We create a new private key for this data
+                debug!("adding a write crypto key");
                 dao2.auth_mut().write = WriteOption::Specific(write_key2.as_public_key().hash());
                 
                 key2 = dao2.key().clone();
-                println!("key2: {}", key2.as_hex_string());
+                debug!("key2: {}", key2.as_hex_string());
             }
         }
 
         {
+            debug!("new DIO context");
             let mut dio = chain.dio(&session).await;
             
             // Now its out of scope it should be loadable again
+            debug!("loading data object 1");
             let test = dio.load::<TestStructDao>(&key1).await.expect("The dirty data object should have been read after it was flushed");
             assert_eq!(test.val, 3);
 
             // Read the items in the collection which we should find our second object
+            debug!("loading children");
             let test3 = test.inner.iter(test.key(), &mut dio).await.unwrap().next().expect("Three should be a data object in this collection");
             assert_eq!(test3.key(), &key3);
         }
 
         {
+            debug!("new DIO context");
             let mut dio = chain.dio(&session).await;
 
             // The data we saved earlier should be accessible accross DIO scope boundaries
+            debug!("loading data object 1");
             let mut dao1: Dao<TestStructDao> = dio.load(&key1).await.expect("The data object should have been read");
             assert_eq!(dao1.val, 3);
             dao1.val = 4;
 
             // First attempt to read the record then delete it
+            debug!("loading data object 2");
             let dao2 = dio.load::<TestEnumDao>(&key2).await.expect("The record should load before we delete it in this session");
+
+            debug!("deleting data object 2");
             dao2.delete().unwrap();
 
             // It should no longer load now that we deleted it
+            debug!("negative test on loading data object 2");
             dio.load::<TestEnumDao>(&key2).await.expect_err("This load should fail as we deleted the record");
         }
     }
 
     {
-        let chain = super::trust::create_test_chain(chain_name, false, false, Some(root_public_key)).await;
+        debug!("reloading the chain of trust");
+        let chain = super::trust::create_test_chain(chain_name.clone(), false, false, Some(root_public_key.clone())).await;
 
         {
             let mut dio = chain.dio(&session).await;
 
             // Load it again
+            debug!("loading data object 1");
             let dao1: Dao<TestStructDao> = dio.load(&key1).await.expect("The data object should have been read");
             assert_eq!(dao1.val, 4);
 
             // After going out of scope then back again we should still no longer see the record we deleted
+            debug!("loading data object 2");
             dio.load::<TestEnumDao>(&key2).await.expect_err("This load should fail as we deleted the record");
         }
 
+        debug!("destroying the chain of trust");
         chain.single().await.destroy().await.unwrap();
     }
 }

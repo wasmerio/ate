@@ -19,7 +19,7 @@ pub enum EventRelevance
 pub trait EventCompactor: Send + Sync + EventSink
 {
     // Decision making time - in order of back to front we now decide if we keep or drop an event
-    fn relevance(&self, _header: &EventHeader) -> EventRelevance {
+    fn relevance(&mut self, _header: &EventHeader) -> EventRelevance {
         EventRelevance::Abstain
     }
 
@@ -54,7 +54,7 @@ for RemoveDuplicatesCompactor
         Box::new(self.clone())
     }
     
-    fn relevance(&self, header: &EventHeader) -> EventRelevance
+    fn relevance(&mut self, header: &EventHeader) -> EventRelevance
     {
         let key = match header.meta.get_data_key() {
             Some(key) => key,
@@ -95,7 +95,7 @@ for TombstoneCompactor
         Box::new(self.clone())
     }
     
-    fn relevance(&self, header: &EventHeader) -> EventRelevance
+    fn relevance(&mut self, header: &EventHeader) -> EventRelevance
     {
         match header.meta.get_tombstone() {
             Some(_) => {
@@ -109,7 +109,7 @@ for TombstoneCompactor
                 };
 
                 match self.tombstoned.contains(&key) {
-                    true => EventRelevance::ForceDrop,
+                    true => EventRelevance::Drop,
                     false => EventRelevance::Abstain,
                 }
             }
@@ -167,7 +167,7 @@ for IndecisiveCompactor
         Box::new(self.clone())
     }
     
-    fn relevance(&self, _: &EventHeader) -> EventRelevance
+    fn relevance(&mut self, _: &EventHeader) -> EventRelevance
     {
         EventRelevance::Abstain
     }

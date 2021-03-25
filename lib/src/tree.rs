@@ -13,6 +13,7 @@ use super::event::*;
 use super::header::*;
 use bytes::Bytes;
 use fxhash::FxHashMap;
+use fxhash::FxHashSet;
 
 #[derive(Debug, Clone)]
 pub struct TreeAuthorityPlugin
@@ -204,22 +205,6 @@ for TreeAuthorityPlugin
     }
 }
 
-impl EventCompactor
-for TreeAuthorityPlugin
-{
-    fn clone_compactor(&self) -> Box<dyn EventCompactor> {
-        Box::new(self.clone())
-    }
-
-    fn relevance(&self, header: &EventHeader) -> EventRelevance {
-        match self.signature_plugin.relevance(header) {
-            EventRelevance::Abstain => {},
-            r => { return r; },
-        }
-        EventRelevance::Abstain
-    }
-}
-
 impl EventMetadataLinter
 for TreeAuthorityPlugin
 {
@@ -366,5 +351,42 @@ for TreeAuthorityPlugin
             self.feed(header)?;
         }
         Ok(())
+    }
+}
+#[derive(Debug, Default, Clone)]
+pub struct TreeCompactor
+{
+    parent_needed: FxHashSet<PrimaryKey>,
+}
+
+impl EventSink
+for TreeCompactor
+{
+    fn feed(&mut self, header: &EventHeader) -> Result<(), SinkError>
+    {
+        if let Some(tree) = header.meta.get_tree() {
+            self.parent_needed.insert(tree.vec.parent_id);
+        }
+        Ok(())
+    }
+}
+
+impl EventCompactor
+for TreeCompactor
+{
+    fn clone_compactor(&self) -> Box<dyn EventCompactor> {
+        Box::new(self.clone())
+    }
+    
+    fn relevance(&mut self, header: &EventHeader) -> EventRelevance
+    {
+        if let Some(key) = header.meta.get_data_key()
+        {
+            if self.parent_needed.remove(&key) {
+                return EventRelevance::ForceKeep;       
+            }
+        }
+
+        return EventRelevance::Abstain;
     }
 }

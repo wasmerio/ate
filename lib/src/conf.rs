@@ -1,5 +1,5 @@
 use serde::{Serialize, Deserialize};
-use crate::{chain::Chain, anti_replay::AntiReplayPlugin, time::TimestampEnforcer, tree::TreeAuthorityPlugin};
+use crate::{anti_replay::AntiReplayPlugin, chain::Chain, time::TimestampEnforcer, tree::{TreeAuthorityPlugin, TreeCompactor}};
 #[allow(unused_imports)]
 use std::{net::IpAddr, str::FromStr};
 
@@ -257,7 +257,7 @@ impl ChainOfTrustBuilder
         self.plugins.push(Box::new(AntiReplayPlugin::default()));
 
         match self.configured_for {
-            ConfiguredFor::SmallestSize | ConfiguredFor::Balanced => {
+            ConfiguredFor::SmallestSize => {
                 self.transformers.insert(0, Box::new(CompressorWithSnapTransformer::default()));
             }
             _ => {}
@@ -270,6 +270,7 @@ impl ChainOfTrustBuilder
         else
         {
             self.tree = Some(super::tree::TreeAuthorityPlugin::new());
+            self.compactors.push(Box::new(TreeCompactor::default()));
 
             let tolerance = match self.configured_for {
                 ConfiguredFor::BestPerformance => 2000,

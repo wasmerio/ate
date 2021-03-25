@@ -2,7 +2,7 @@ use serde::{Serialize, Deserialize};
 
 #[allow(unused_imports)]
 use fastrand::u64;
-use std::mem::size_of;
+use std::{mem::size_of};
 use crate::crypto::Hash;
 #[allow(unused_imports)]
 use super::meta::*;
@@ -85,6 +85,12 @@ for PrimaryKey
         PrimaryKey {
             key: val
         }
+    }
+}
+
+impl std::fmt::Display for PrimaryKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_hex_string())
     }
 }
 

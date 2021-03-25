@@ -8,7 +8,6 @@ use crate::crypto::{EncryptedPrivateKey, Hash, DoubleHash, PublicKey};
 use crate::session::{Session, SessionProperty};
 
 use super::validator::EventValidator;
-use super::compact::EventCompactor;
 use super::lint::EventMetadataLinter;
 use super::transform::EventDataTransformer;
 #[allow(unused_imports)]
@@ -124,14 +123,6 @@ impl EventValidator
 for SignaturePlugin
 {
     fn clone_validator(&self) -> Box<dyn EventValidator> {
-        Box::new(self.clone())
-    }
-}
-
-impl EventCompactor
-for SignaturePlugin
-{
-    fn clone_compactor(&self) -> Box<dyn EventCompactor> {
         Box::new(self.clone())
     }
 }

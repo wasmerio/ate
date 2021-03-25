@@ -6,7 +6,6 @@ use super::index::*;
 use super::session::*;
 use super::sink::*;
 use super::transform::*;
-use super::compact::*;
 use super::validator::*;
 use super::conf::*;
 use super::event::EventHeader;
@@ -194,14 +193,6 @@ impl EventDataTransformer
 for TimestampEnforcer
 {
     fn clone_transformer(&self) -> Box<dyn EventDataTransformer> {
-        Box::new(self.clone())
-    }
-}
-
-impl EventCompactor
-for TimestampEnforcer
-{
-    fn clone_compactor(&self) -> Box<dyn EventCompactor> {
         Box::new(self.clone())
     }
 }
