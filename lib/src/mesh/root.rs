@@ -27,7 +27,8 @@ pub(super) struct MeshRoot {
     lookup: MeshHashTableCluster,
     client: Arc<MeshClient>,
     addrs: Vec<MeshAddress>,
-    chains: Mutex<FxHashMap<ChainKey, Arc<Chain>>>,
+    chains: StdMutex<FxHashMap<ChainKey, Arc<Chain>>>,
+    chain_builder: Mutex<()>,
 }
 
 #[derive(Clone)]
@@ -59,15 +60,10 @@ for SessionContext {
     fn drop(&mut self) {
         let context = self.inside.lock().clone();
         if let Some(root) = context.root.upgrade() {
-            let exec = async_executor::LocalExecutor::default();
-            tokio::task::block_in_place(|| {
-                futures::executor::block_on(exec.spawn(async move {
-                    if let Err(err) = root.disconnected(context).await {
-                        debug_assert!(false, "mesh-root-err {:?}", err);
-                        warn!("mesh-root-err: {}", err.to_string());
-                    }
-                }))
-            });
+            if let Err(err) = root.disconnected(context) {
+                debug_assert!(false, "mesh-root-err {:?}", err);
+                warn!("mesh-root-err: {}", err.to_string());
+            }
         }
     }
 }
@@ -101,7 +97,8 @@ impl MeshRoot
                     None => MeshHashTableCluster::default(),
                 },
                 client: MeshClient::new(cfg).await,
-                chains: Mutex::new(FxHashMap::default()),
+                chains: StdMutex::new(FxHashMap::default()),
+                chain_builder: Mutex::new(()),
             }
         );
 
@@ -111,22 +108,20 @@ impl MeshRoot
         ret
     }
 
-    async fn disconnected(&self, context: SessionContextProtected) -> Result<(), CommsError> {
+    fn disconnected(&self, context: SessionContextProtected) -> Result<(), CommsError> {
         let chain_key = context.chain_key.clone();
         let chain_key = match chain_key {
             Some(k) => k,
             None => { return Ok(()); }
         };
-        let chain = match self.open(chain_key.clone()).await {
-            Err(ChainCreationError::NoRootFound) => {
-                return Ok(());
-            }
-            a => a?
-        };
 
-        for key in context.locks {
-            chain.pipe.unlock(key).await?;
-        }
+        let chains = self.chains.lock();
+        for (k, chain) in chains.iter() {
+            if *k != chain_key { continue; }
+            for key in context.locks.iter() {
+                chain.pipe.unlock_local(key.clone())?;
+            }
+        }        
 
         Ok(())
     }
@@ -380,7 +375,26 @@ impl MeshRoot
     async fn open_internal<'a>(&'a self, key: &'a ChainKey)
         -> Result<Arc<Chain>, ChainCreationError>
     {
-        let mut chains = self.chains.lock().await;
+        {
+            let chains = self.chains.lock();
+            if let Some(chain) = chains.get(&key) {
+                return Ok(Arc::clone(chain));
+            }
+        }
+
+        let _chain_builder_lock = self.chain_builder.lock().await;
+        
+        {
+            let chains = self.chains.lock();
+            if let Some(chain) = chains.get(&key) {
+                return Ok(Arc::clone(chain));
+            }
+        }
+
+        let builder = ChainOfTrustBuilder::new(&self.cfg);
+        let new_chain = Arc::new(Chain::new(builder, &key).await?);
+        
+        let mut chains = self.chains.lock();
         let chain = match chains.entry(key.clone()) {
             Entry::Occupied(o) => o.into_mut(),
             Entry::Vacant(v) =>
@@ -390,8 +404,7 @@ impl MeshRoot
                     _ => { return Err(ChainCreationError::NoRootFound); }
                 };
 
-                let builder = ChainOfTrustBuilder::new(&self.cfg);
-                v.insert(Arc::new(Chain::new(builder, &key).await?))
+                v.insert(new_chain)
             }
         };
         Ok(Arc::clone(chain))

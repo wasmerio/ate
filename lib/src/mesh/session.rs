@@ -350,6 +350,11 @@ for SessionPipe
         Ok(rx.recv()?)
     }
 
+    fn unlock_local(&self, _key: PrimaryKey) -> Result<(), CommitError>
+    {
+        Ok(())
+    }
+
     async fn unlock(&self, key: PrimaryKey) -> Result<(), CommitError>
     {
         // First we unlock any local locks so errors do not kill access
@@ -361,7 +366,7 @@ for SessionPipe
             }
         }
 
-        // Send a message up to the main server asking for a lock on the data object
+        // Send a message up to the main server asking for an unlock on the data object
         let mut joins = Vec::new();
         for tx in self.tx.iter() {
             joins.push(tx.upcast(Message::Unlock {

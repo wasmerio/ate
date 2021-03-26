@@ -43,7 +43,7 @@ fn rotate_test() -> Result<(), AteError>
         }
 
         {
-            let chain = Chain::new(builder.clone(), &ChainKey::from("load")).await?;
+            let chain = Chain::new(builder.clone(), &ChainKey::from("rotate")).await?;
 
             let session = AteSession::default();
             let mut dio = chain.dio(&session).await;

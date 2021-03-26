@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-use log::{error, info, debug};
+use log::{error, info, warn, debug};
 
 use crate::{crypto::Hash};
 
@@ -26,8 +26,9 @@ use super::spec::*;
 use fxhash::FxHashMap;
 use parking_lot::Mutex as MutexSync;
 
-#[cfg(test)]
 use tokio::runtime::Runtime;
+
+static REDO_MAGIC: &'static [u8; 4] = b"REDO";
 
 #[derive(Debug, Clone)]
 pub(crate) struct LoadData
@@ -89,12 +90,34 @@ impl LogFile
     {
         // Compute the log file name
         let log_back_path = format!("{}.{}", path_log.clone(), 0);
-        let mut log_back = match truncate {
+        let log_back = match truncate {
             true => tokio::fs::OpenOptions::new().read(true).write(true).truncate(true).create(true).open(log_back_path.clone()).await?,
                _ => tokio::fs::OpenOptions::new().read(true).write(true).create(true).open(log_back_path.clone()).await?,
         };
-        log_back.seek(SeekFrom::End(0)).await?;
-        let log_stream = BufStream::new(log_back.try_clone().await.unwrap());
+        let mut log_stream = BufStream::new(log_back.try_clone().await.unwrap());
+        
+        // If it does not have a magic then add one - otherwise read it and check the value
+        let mut magic_buf = [0 as u8; 4];
+        let log_off = match log_stream.read_exact(&mut magic_buf[..]).await {
+            Ok(a) if a > 0 && magic_buf != *REDO_MAGIC => {
+                return Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("File magic header does not match {:?} vs {:?}", magic_buf, *REDO_MAGIC)));
+            },
+            Ok(a) if a != REDO_MAGIC.len() => {
+                return Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("File magic header could not be read")));
+            },
+            Ok(a) => {
+                a as u64
+            },
+            Err(err) if err.kind() == ErrorKind::UnexpectedEof => {
+                let _ = log_stream.write_all(&REDO_MAGIC[..]).await?;
+                log_stream.flush().await?;
+                log_back.sync_all().await?;
+                REDO_MAGIC.len() as u64
+            },
+            Err(err) => {
+                return Err(err);
+            }
+        };
         
         // Make a note of the last log file
         let mut last_log_path = path_log.clone();
@@ -127,7 +150,7 @@ impl LogFile
             log_path: path_log.clone(),
             log_stream: log_stream,
             log_back: log_back,
-            log_off: 0,
+            log_off,
             log_temp: temp_file,
             log_count: 0,
             log_index: last_log_index,
@@ -158,8 +181,11 @@ impl LogFile
         let log_back_path = format!("{}.{}", self.log_path, log_index);
 
         // Create a new file
-        let log_back = tokio::fs::OpenOptions::new().read(true).write(true).create(true).open(log_back_path.clone()).await?;
+        let mut log_back = tokio::fs::OpenOptions::new().read(true).write(true).create(true).open(log_back_path.clone()).await?;
         let log_stream = BufStream::new(log_back.try_clone().await.unwrap());
+
+        // Add the magic header
+        log_back.write_all(&REDO_MAGIC[..]).await?;
 
         // Add the file to the archive
         let log_random_access = tokio::fs::OpenOptions::new().read(true).open(log_back_path.clone()).await?;
@@ -233,16 +259,33 @@ impl LogFile
             let lock = archive.log_random_access.lock().await;
             let mut file = lock.try_clone().await.unwrap();
             file.seek(SeekFrom::Start(0)).await?;
+            
+            let mut log_stream = BufStream::new(file);
+            let mut magic_buf = [0 as u8; 4];
+            let read = match log_stream.read_exact(&mut magic_buf[..]).await
+            {
+                Ok(a) => a as u64,
+                Err(err) if err.kind() == ErrorKind::UnexpectedEof => {
+                    warn!("log-read-error: log file is empty");
+                    continue;
+                },
+                Err(err) => { return Err(SerializationError::IO(err)); }
+            };
+            if magic_buf != *REDO_MAGIC {
+                error!("log-read-error: invalid log file magic header {:?} vs {:?}", magic_buf, *REDO_MAGIC);
+                continue;
+            }
 
+            let log_off = read;
             let mut reader = LogArchiveReader {
                 log_index: archive.log_index,
-                log_off: 0,
-                log_stream: BufStream::new(file),
+                log_off,
+                log_stream,
             };
             loop {
                 match LogFile::read_once_internal(&mut reader, self.default_format).await {
                     Ok(Some(head)) => {
-                        #[cfg(feature = "verbose")]
+                        //#[cfg(feature = "verbose")]
                         debug!("log-read: {:?}", head);
 
                         lookup.insert(head.header.event_hash, LogLookup{
@@ -1099,7 +1142,7 @@ async fn test_read_data(log: &mut RedoLog, read_header: Hash, test_key: PrimaryK
 
 #[test]
 fn test_redo_log() {
-    //env_logger::init();
+    env_logger::init();
 
     let rt = Runtime::new().unwrap();
 

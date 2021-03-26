@@ -564,11 +564,17 @@ for InboxPipe
     }
 
     #[allow(dead_code)]
-    async fn unlock(&self, key: PrimaryKey) -> Result<(), CommitError>
+    fn unlock_local(&self, key: PrimaryKey) -> Result<(), CommitError>
     {
         let mut guard = self.locks.lock();
         guard.remove(&key);
         Ok(())
+    }
+
+    #[allow(dead_code)]
+    async fn unlock(&self, key: PrimaryKey) -> Result<(), CommitError>
+    {
+        Ok(self.unlock_local(key)?)
     }
 
     fn set_next(&self, _next: Arc<dyn EventPipe>) {

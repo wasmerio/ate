@@ -15,5 +15,7 @@ pub(crate) trait EventPipe: Send + Sync
 
     async fn unlock(&self, key: PrimaryKey) -> Result<(), CommitError>;
 
+    fn unlock_local(&self, key: PrimaryKey) -> Result<(), CommitError>;
+
     fn set_next(&self, next: Arc<dyn EventPipe>);
 }
