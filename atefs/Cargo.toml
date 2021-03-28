@@ -1,6 +1,6 @@
 [package]
 name = "atefs"
-version = "1.0.0"
+version = "1.1.0"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "Distributed filesystem built on an immutable data store with strong encryption and authentication"
@@ -31,3 +31,8 @@ fuse3 = { version = "0.2.0-beta.4", features = ["tokio-runtime", "unprivileged"]
 enum_dispatch = { version = "0.3.*" }
 clap = "3.0.0-beta.2"
 shellexpand = "2.1.0"
+cached = "0.23.*"
+seqlock = "0.1.*"
+xarc = "0.2.*"
+lockfree = "0.5.*"
+array-init = "1.0.*"

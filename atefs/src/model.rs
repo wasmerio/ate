@@ -8,7 +8,7 @@ use super::file::RegularFile;
 use super::fixed::FixedFile;
 use super::symlink::SymLink;
 
-pub const BUNDLE_SIZE: usize = 1024;
+pub const PAGES_PER_BUNDLE: usize = 1024;
 pub const PAGE_SIZE: usize = 131072;
 
 /// Represents a block of data

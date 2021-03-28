@@ -137,12 +137,19 @@ pub(crate) enum DaoLock
 }
 
 #[derive(Debug)]
+pub struct DaoState
+where Self: Send + Sync,
+{
+    pub(super) lock: DaoLock,
+    pub(super) dirty: bool,
+}
+
+#[derive(Debug)]
 pub struct Dao<D>
 where Self: Send + Sync,
       D: Serialize + DeserializeOwned + Clone + Sync + Send,
 {
-    pub(super) lock: DaoLock,
-    pub(super) dirty: bool,
+    pub(super) state: DaoState,
     pub(super) row: Row<D>,
 }
 
@@ -152,9 +159,33 @@ where Self: Send + Sync,
 {
     pub(super) fn new<>(row: Row<D>) -> Dao<D> {
         Dao {
-            lock: DaoLock::Unlocked,
-            dirty: false,
+            state: DaoState {
+                lock: DaoLock::Unlocked,
+                dirty: false,
+            },
             row: row,
+        }
+    }
+
+    pub fn make(key: PrimaryKey, format: MessageFormat, data: D) -> Dao<D> {
+        Dao {
+            state: DaoState {
+                lock: DaoLock::Unlocked,
+                dirty: true,
+            },
+            row: Row {
+                key,
+                created: 0,
+                updated: 0,
+                tree: None,
+                data,
+                format: format,
+                auth: MetaAuthorization {
+                    read: ReadOption::Unspecified,
+                    write: WriteOption::Unspecified,
+                },
+                collections: FxHashSet::default(),
+            },
         }
     }
 
@@ -166,7 +197,7 @@ where Self: Send + Sync,
             return;
         }
 
-        self.dirty = true;
+        self.state.dirty = true;
         self.row.collections.insert(vec.clone());
     }
 
@@ -177,13 +208,13 @@ where Self: Send + Sync,
 
     #[allow(dead_code)]
     pub fn detach(&mut self) {
-        self.dirty = true;
+        self.state.dirty = true;
         self.row.tree = None;
     }
 
     #[allow(dead_code)]
     pub fn attach(&mut self, parent_id: &PrimaryKey, vec: &DaoVec<D>) {
-        self.dirty = true;
+        self.state.dirty = true;
         self.row.tree = Some(
             MetaTree {
                 vec: MetaCollection {
@@ -203,7 +234,7 @@ where Self: Send + Sync,
 
     #[allow(dead_code)]
     pub fn auth_mut(&mut self) -> &mut MetaAuthorization {
-        self.dirty = true;
+        self.state.dirty = true;
         &mut self.row.auth
     }
 
@@ -215,9 +246,9 @@ where Self: Send + Sync,
 
     #[allow(dead_code)]
     pub async fn try_lock<'a>(&mut self, dio: &mut Dio<'a>) -> Result<bool, LockError> {
-        self.dirty = true;
+        self.state.dirty = true;
 
-        match self.lock {
+        match self.state.lock {
             DaoLock::Locked | DaoLock::LockedThenDelete => {},
             DaoLock::Unlocked =>
             {
@@ -227,7 +258,7 @@ where Self: Send + Sync,
                 }
 
                 // The object is now locked
-                self.lock = DaoLock::Locked;
+                self.state.lock = DaoLock::Locked;
             }
         };
         Ok(true)
@@ -238,19 +269,19 @@ where Self: Send + Sync,
         if self.try_lock(dio).await? == false {
             return Ok(false);
         }
-        self.lock = DaoLock::LockedThenDelete;
+        self.state.lock = DaoLock::LockedThenDelete;
         Ok(true)
     }
 
     #[allow(dead_code)]
     pub async fn unlock<'a>(&mut self, dio: &mut Dio<'a>) -> Result<bool, LockError> {
-        match self.lock {
+        match self.state.lock {
             DaoLock::Unlocked | DaoLock::LockedThenDelete => {
                 return Ok(false);
             },
             DaoLock::Locked => {
                 dio.multi.pipe.unlock(self.key().clone()).await?;
-                self.lock = DaoLock::Unlocked;
+                self.state.lock = DaoLock::Unlocked;
             }
         };
 
@@ -259,10 +290,15 @@ where Self: Send + Sync,
 
     #[allow(dead_code)]
     pub fn is_locked(&self) -> bool {
-        match self.lock {
+        match self.state.lock {
             DaoLock::Locked | DaoLock::LockedThenDelete => true,
             DaoLock::Unlocked => false
         }
+    }
+
+    #[allow(dead_code)]
+    pub fn is_dirty(&self) -> bool {
+        self.state.dirty
     }
 
     #[allow(dead_code)]
@@ -276,13 +312,13 @@ where Self: Send + Sync,
     }
 
     pub fn cancel(&mut self) {
-        self.dirty = false;
+        self.state.dirty = false;
     }
     
     pub fn commit<'a>(&mut self, dio: &mut Dio<'a>) -> std::result::Result<(), SerializationError>
     {
-        if self.dirty == true {
-            self.dirty = false;
+        if self.state.dirty == true {
+            self.state.dirty = false;
 
             let state = &mut dio.state;
 
@@ -290,7 +326,7 @@ where Self: Send + Sync,
             state.unlock(&self.row.key);
 
             // Next any pessimistic locks on the local chain
-            match self.lock {
+            match self.state.lock {
                 DaoLock::Locked => {
                     state.pipe_unlock.insert(self.row.key.clone());
                 },
@@ -310,6 +346,10 @@ where Self: Send + Sync,
             state.dirty(&self.row.key, row_tree, row_data);
         }
         Ok(())
+    }
+    
+    pub fn take(self) -> D {
+        self.row.data
     }
 }
 
@@ -348,17 +388,16 @@ impl<D> DerefMut for Dao<D>
 where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.dirty = true;
+        self.state.dirty = true;
         &mut self.row.data
     }
 }
 
-impl<D> Drop for Dao<D>
-where D: Serialize + DeserializeOwned + Clone + Send + Sync,
+impl Drop for DaoState
 {
     fn drop(&mut self)
     {
         // If the DAO is dirty and was not committed then assert an error
-        debug_assert!(self.dirty == false, "dao-is-dirty {} - the DAO is dirty due to mutations thus you must call .commit() or .cancel()", self.key());
+        debug_assert!(self.dirty == false, "dao-is-dirty - the DAO is dirty due to mutations thus you must call .commit() or .cancel()");
     }
 }

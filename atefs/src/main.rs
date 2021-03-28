@@ -88,9 +88,34 @@ struct Mount {
     data_format: ate::spec::SerializationFormat,
 }
 
+#[allow(dead_code)]
+fn main_debug() -> Opts {
+    Opts {
+        verbose: 2,
+        debug: true,
+        subcmd: SubCommand::Mount(Mount {
+            mesh: None,
+            path: "/mnt/test".to_string(),
+            log: "~/ate".to_string(),
+            temp: false,
+            uid: None,
+            gid: None,
+            allow_root: false,
+            allow_other: false,
+            read_only: false,
+            write_back: false,
+            non_empty: false,
+            configured_for: ate::conf::ConfiguredFor::BestPerformance,
+            meta_format: ate::spec::SerializationFormat::Bincode,
+            data_format: ate::spec::SerializationFormat::Bincode,
+        }),
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), AteError> {
     let opts: Opts = Opts::parse();
+    //let opts = main_debug();
 
     let log_level = match opts.verbose {
         1 => "info",

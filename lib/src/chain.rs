@@ -309,9 +309,12 @@ impl<'a> Chain
         self.pipe = proxy;
     }
 
-    #[allow(dead_code)]
     pub fn key(&'a self) -> ChainKey {
         self.key.clone()
+    }
+
+    pub fn default_format(&'a self) -> MessageFormat {
+        self.default_format.clone()
     }
 
     pub async fn single(&'a self) -> ChainSingleUser<'a> {
@@ -322,12 +325,10 @@ impl<'a> Chain
         ChainMultiUser::new(self).await
     }
 
-    #[allow(dead_code)]
     pub async fn name(&'a self) -> String {
         self.single().await.name()
     }
 
-    #[allow(dead_code)]
     pub async fn rotate(&'a mut self) -> Result<(), tokio::io::Error>
     {
         // Start a new log file
@@ -336,7 +337,6 @@ impl<'a> Chain
         Ok(())
     }
 
-    #[allow(dead_code)]
     pub async fn compact(&'a mut self) -> Result<(), CompactError>
     {
         // prepare
@@ -456,7 +456,6 @@ impl<'a> Chain
         Ok(())
     }
 
-    #[allow(dead_code)]
     pub async fn count(&'a self) -> usize {
         self.inside_async.read().await.chain.redo.count()
     }
@@ -467,7 +466,6 @@ impl<'a> Chain
         )
     }
 
-    #[allow(dead_code)]
     pub async fn sync(&'a self) -> Result<(), CommitError>
     {
         // Create the transaction

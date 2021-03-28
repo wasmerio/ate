@@ -35,24 +35,29 @@ use fxhash::FxHashMap;
 use fuse3::raw::prelude::*;
 use fuse3::{Errno, Result};
 
-#[allow(dead_code)]
-const TTL: Duration = Duration::from_secs(1);
+const FUSE_TTL: Duration = Duration::from_secs(1);
 
 pub struct AteFS
 where Self: Send + Sync
 {
     pub chain: Chain,
     pub session: AteSession,
-    pub open_handles: Mutex<FxHashMap<u64, Arc<OpenHandle>>>
+    pub open_handles: Mutex<FxHashMap<u64, Arc<OpenHandle>>>,
+    pub elapsed: std::time::Instant,
+    pub last_elapsed: seqlock::SeqLock<u64>,
+    pub commit_lock: tokio::sync::Mutex<()>,
 }
 
 pub struct OpenHandle
 where Self: Send + Sync
 {
+    pub dirty: seqlock::SeqLock<bool>,
+
     pub inode: u64,
     pub fh: u64,
     pub attr: FileAttr,
     pub spec: FileSpec,
+    
     pub children: Vec<DirectoryEntry>,
     pub children_plus: Vec<DirectoryEntryPlus>,
 }
@@ -73,8 +78,8 @@ impl OpenHandle
             name: OsString::from(spec.name().clone()),
             generation: 0,
             attr,
-            entry_ttl: TTL,
-            attr_ttl: TTL,
+            entry_ttl: FUSE_TTL,
+            attr_ttl: FUSE_TTL,
         });
     }
 }
@@ -115,6 +120,13 @@ pub(crate) fn conv_io<T>(r: std::result::Result<T, tokio::io::Error>) -> std::re
     })
 }
 
+pub(crate) fn conv_commit<T>(r: std::result::Result<T, CommitError>) -> std::result::Result<T, Errno> {
+    conv(match r {
+        Ok(a) => Ok(a),
+        Err(err) => Err(AteError::CommitError(err)),
+    })
+}
+
 pub(crate) fn conv_serialization<T>(r: std::result::Result<T, SerializationError>) -> std::result::Result<T, Errno> {
     conv(match r {
         Ok(a) => Ok(a),
@@ -143,6 +155,9 @@ impl AteFS
             chain,
             session,
             open_handles: Mutex::new(FxHashMap::default()),
+            elapsed: std::time::Instant::now(),
+            last_elapsed: seqlock::SeqLock::new(0),
+            commit_lock: tokio::sync::Mutex::new(()),
         }
     }
 
@@ -192,6 +207,7 @@ impl AteFS
             spec: spec,
             children: Vec::new(),
             children_plus: Vec::new(),
+            dirty: seqlock::SeqLock::new(false),
         };
 
         for child in children.into_iter() {
@@ -238,6 +254,42 @@ impl AteFS
         let child = conv_serialization(data.children.push(&mut dio, &key, child))?;
         return Ok((child, dio));
     }
+
+    async fn tick(&self) -> Result<()> {
+        let secs = self.elapsed.elapsed().as_secs();
+        if secs > self.last_elapsed.read() {
+            let _ = self.commit_lock.lock();
+            if secs > self.last_elapsed.read() {
+                *self.last_elapsed.lock_write() = secs;
+                self.commit_internal().await?;
+            }
+        }
+        Ok(())
+    }
+
+    async fn commit(&self) -> Result<()> {
+        let _ = self.commit_lock.lock();
+        self.commit_internal().await?;
+        Ok(())
+    }
+
+    async fn commit_internal(&self) -> Result<()> {
+        debug!("atefs::commit");
+        let open_handles = {
+            let lock = self.open_handles.lock();
+            lock.values()
+                .filter(|a| a.dirty.read())
+                .map(|v| {
+                    *v.dirty.lock_write() = false;
+                    Arc::clone(v)
+                })
+                .collect::<Vec<_>>()
+        };
+        for open in open_handles {
+            open.spec.commit(&self.chain, &self.session).await?;
+        }
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -262,13 +314,19 @@ for AteFS
                     error!("atefs::error {}", err);        
                 }
             }     
-       };
+        };
         info!("atefs::init");
-
+        
+        // All good
+        self.tick().await?;
+        self.commit().await?;
+        conv_commit(dio.commit().await)?;
         Ok(())
     }
 
     async fn destroy(&self, _req: Request) {
+        self.tick().await.unwrap();
+        self.commit().await.unwrap();
         info!("atefs::destroy");
     }
 
@@ -279,13 +337,14 @@ for AteFS
         fh: Option<u64>,
         _flags: u32,
     ) -> Result<ReplyAttr> {
+        self.tick().await?;
         debug!("atefs::getattr inode={}", inode);
 
         if let Some(fh) = fh {
             let lock = self.open_handles.lock();
             if let Some(open) = lock.get(&fh) {
                 return Ok(ReplyAttr {
-                    ttl: TTL,
+                    ttl: FUSE_TTL,
                     attr: open.attr,
                 })
             }
@@ -294,7 +353,7 @@ for AteFS
         let (dao, _dio) = self.load(inode).await?;
         let spec = Inode::as_file_spec(inode, dao.when_created(), dao.when_updated(), dao);
         Ok(ReplyAttr {
-            ttl: TTL,
+            ttl: FUSE_TTL,
             attr: spec_as_attr(&spec),
         })
     }
@@ -306,6 +365,7 @@ for AteFS
         _fh: Option<u64>,
         set_attr: SetAttr,
     ) -> Result<ReplyAttr> {
+        self.tick().await?;
         debug!("atefs::setattr inode={}", inode);
 
         let key = PrimaryKey::from(inode);
@@ -325,12 +385,13 @@ for AteFS
 
         let spec = Inode::as_file_spec(inode, dao.when_created(), dao.when_updated(), dao);
         Ok(ReplyAttr {
-            ttl: TTL,
+            ttl: FUSE_TTL,
             attr: spec_as_attr(&spec),
         })
     }
 
     async fn opendir(&self, _req: Request, inode: u64, _flags: u32) -> Result<ReplyOpen> {
+        self.tick().await?;
         debug!("atefs::opendir inode={}", inode);
 
         let open = self.create_open_handle(inode).await?;
@@ -347,8 +408,13 @@ for AteFS
     }
 
     async fn releasedir(&self, _req: Request, inode: u64, fh: u64, _flags: u32) -> Result<()> {
+        self.tick().await?;
         debug!("atefs::releasedir inode={}", inode);
-        self.open_handles.lock().remove(&fh);
+
+        let open = self.open_handles.lock().remove(&fh);
+        if let Some(open) = open {
+            open.spec.commit(&self.chain, &self.session).await?
+        }
         Ok(())
     }
 
@@ -359,7 +425,8 @@ for AteFS
         fh: u64,
         offset: u64,
         _lock_owner: u64,
-    ) -> Result<ReplyDirectoryPlus<Self::DirEntryPlusStream>> {        
+    ) -> Result<ReplyDirectoryPlus<Self::DirEntryPlusStream>> {
+        self.tick().await?;
         debug!("atefs::readdirplus id={} offset={}", parent, offset);
 
         if fh == 0 {
@@ -388,6 +455,7 @@ for AteFS
         fh: u64,
         offset: i64,
     ) -> Result<ReplyDirectory<Self::DirEntryStream>> {
+        self.tick().await?;
         debug!("atefs::readdir parent={}", parent);
 
         if fh == 0 {
@@ -410,6 +478,7 @@ for AteFS
     }
 
     async fn lookup(&self, _req: Request, parent: u64, name: &OsStr) -> Result<ReplyEntry> {
+        self.tick().await?;
         let open = self.create_open_handle(parent).await?;
 
         if open.attr.kind != FileType::Directory {
@@ -420,7 +489,7 @@ for AteFS
         if let Some(entry) = open.children_plus.iter().filter(|c| *c.name == *name).next() {
             debug!("atefs::lookup parent={} name={}: found", parent, name.to_str().unwrap());
             return Ok(ReplyEntry {
-                ttl: TTL,
+                ttl: FUSE_TTL,
                 attr: entry.attr,
                 generation: 0,
             });
@@ -430,21 +499,41 @@ for AteFS
         Err(libc::ENOENT.into())
     }
 
-    async fn forget(&self, _req: Request, _inode: u64, _nlookup: u64) {}
+    async fn forget(&self, _req: Request, _inode: u64, _nlookup: u64) {
+        let _ = self.tick().await;
+    }
 
     async fn fsync(&self, _req: Request, inode: u64, _fh: u64, _datasync: bool) -> Result<()> {
+        self.tick().await?;
         debug!("atefs::fsync inode={}", inode);
+
         Ok(())
     }
 
-    async fn flush(&self, _req: Request, inode: u64, _fh: u64, _lock_owner: u64) -> Result<()> {
+    async fn flush(&self, _req: Request, inode: u64, fh: u64, _lock_owner: u64) -> Result<()> {
+        self.tick().await?;
+        self.commit().await?;
         debug!("atefs::flush inode={}", inode);
+
+        let open = {
+            let lock = self.open_handles.lock();
+            match lock.get(&fh) {
+                Some(open) => Some(Arc::clone(&open)),
+                _ => None,
+            }
+        };
+        if let Some(open) = open {
+            open.spec.commit(&self.chain, &self.session).await?
+        }
+
         conv_io(self.chain.flush().await)?;
         Ok(())
     }
 
     async fn access(&self, _req: Request, inode: u64, _mask: u32) -> Result<()> {
+        self.tick().await?;
         debug!("atefs::access inode={}", inode);
+        
         Ok(())
     }
 
@@ -456,6 +545,7 @@ for AteFS
         mode: u32,
         _umask: u32,
     ) -> Result<ReplyEntry> {
+        self.tick().await?;
         debug!("atefs::mkdir parent={}", parent);
 
         let key = PrimaryKey::from(parent);
@@ -478,15 +568,17 @@ for AteFS
 
         conv_serialization(child.commit(&mut dio))?;
         let child_spec = Inode::as_file_spec(child.key().as_u64(), child.when_created(), child.when_updated(), child);
+        conv_commit(dio.commit().await)?;
 
         Ok(ReplyEntry {
-            ttl: TTL,
+            ttl: FUSE_TTL,
             attr: spec_as_attr(&child_spec),
             generation: 0,
         })
     }
 
     async fn rmdir(&self, _req: Request, parent: u64, name: &OsStr) -> Result<()> {
+        self.tick().await?;
         debug!("atefs::rmdir parent={}", parent);
 
         let open = self.create_open_handle(parent).await?;
@@ -516,7 +608,9 @@ for AteFS
     }
 
     async fn interrupt(&self, _req: Request, unique: u64) -> Result<()> {
+        self.tick().await?;
         debug!("atefs::interrupt unique={}", unique);
+
         Ok(())
     }
 
@@ -528,13 +622,14 @@ for AteFS
         mode: u32,
         rdev: u32,
     ) -> Result<ReplyEntry> {
+        self.tick().await?;
         debug!("atefs::mknod parent={} name={}", parent, name.to_str().unwrap().to_string());
 
         let (mut dao, mut dio) = self.mknod_internal(req, parent, name, mode, rdev).await?;
         conv_serialization(dao.commit(&mut dio))?;
         let spec = Inode::as_file_spec(dao.key().as_u64(), dao.when_created(), dao.when_updated(), dao);
         Ok(ReplyEntry {
-            ttl: TTL,
+            ttl: FUSE_TTL,
             attr: spec_as_attr(&spec),
             generation: 0,
         })
@@ -548,6 +643,7 @@ for AteFS
         mode: u32,
         flags: u32,
     ) -> Result<ReplyCreated> {
+        self.tick().await?;
         debug!("atefs::create parent={} name={}", parent, name.to_str().unwrap().to_string());
 
         let (mut data, mut dio) = self.mknod_internal(req, parent, name, mode, 0).await?;
@@ -561,6 +657,7 @@ for AteFS
             spec: spec,
             children: Vec::new(),
             children_plus: Vec::new(),
+            dirty: seqlock::SeqLock::new(false),
         };
 
         let fh = open.fh;
@@ -568,8 +665,9 @@ for AteFS
 
         self.open_handles.lock().insert(open.fh, Arc::new(open));
 
+        conv_commit(dio.commit().await)?;
         Ok(ReplyCreated {
-            ttl: TTL,
+            ttl: FUSE_TTL,
             attr: attr,
             generation: 0,
             fh,
@@ -578,6 +676,7 @@ for AteFS
     }
 
     async fn unlink(&self, _req: Request, parent: u64, name: &OsStr) -> Result<()> {
+        self.tick().await?;
         debug!("atefs::unlink parent={} name={}", parent, name.to_str().unwrap().to_string());
 
         let key = PrimaryKey::from(parent);
@@ -586,6 +685,8 @@ for AteFS
 
         if data.spec_type != SpecType::Directory {
             debug!("atefs::unlink parent={} not-a-directory", parent);
+            
+            dio.cancel();
             return Err(libc::ENOTDIR.into());
         }
         
@@ -593,13 +694,17 @@ for AteFS
         {
             if data.spec_type == SpecType::Directory {
                 debug!("atefs::unlink parent={} name={} is-a-directory", parent, name.to_str().unwrap().to_string());
+                
+                dio.cancel();
                 return Err(libc::EISDIR.into());
             }
 
             conv_serialization(data.delete(&mut dio))?;
+            conv_commit(dio.commit().await)?;
             return Ok(());
         }
 
+        dio.cancel();
         Err(libc::ENOENT.into())
     }
 
@@ -611,6 +716,7 @@ for AteFS
         new_parent: u64,
         new_name: &OsStr,
     ) -> Result<()> {
+        self.tick().await?;
         debug!("atefs::rename name={} new_name={}", name.to_str().unwrap().to_string(), new_name.to_str().unwrap().to_string());
         
         let mut dio = self.chain.dio(&self.session).await;
@@ -619,6 +725,7 @@ for AteFS
 
         if parent_data.spec_type != SpecType::Directory {
             debug!("atefs::rename parent={} not-a-directory", parent);
+            dio.cancel();
             return Err(libc::ENOTDIR.into());
         }
         
@@ -632,11 +739,13 @@ for AteFS
 
                 if new_parent_data.spec_type != SpecType::Directory {
                     debug!("atefs::rename new_parent={} not-a-directory", new_parent);
+                    dio.cancel();
                     return Err(libc::ENOTDIR.into());
                 }
 
                 if conv_load(new_parent_data.children.iter(&parent_key, &mut dio).await)?.filter(|c| *c.dentry.name == *new_name).next().is_some() {
                     debug!("atefs::rename new_name={} already exists", new_name.to_str().unwrap().to_string());
+                    dio.cancel();
                     return Err(libc::EEXIST.into());
                 }
 
@@ -647,20 +756,23 @@ for AteFS
             {
                 if conv_load(parent_data.children.iter(&parent_key, &mut dio).await)?.filter(|c| *c.dentry.name == *new_name).next().is_some() {
                     debug!("atefs::rename new_name={} already exists", new_name.to_str().unwrap().to_string());
+                    dio.cancel();
                     return Err(libc::ENOTDIR.into());
                 }
             }
 
             data.dentry.name = new_name.to_str().unwrap().to_string();
             conv_serialization(data.commit(&mut dio))?;
-
+            conv_commit(dio.commit().await)?;
             return Ok(());
         }
 
+        dio.cancel();
         Err(libc::ENOENT.into())
     }
 
     async fn open(&self, _req: Request, inode: u64, flags: u32) -> Result<ReplyOpen> {
+        self.tick().await?;
         debug!("atefs::open inode={}", inode);
 
         let open = self.create_open_handle(inode).await?;
@@ -685,8 +797,14 @@ for AteFS
         _lock_owner: u64,
         flush: bool,
     ) -> Result<()> {
+        self.tick().await?;
         debug!("atefs::release inode={}", inode);
-        self.open_handles.lock().remove(&fh);
+        
+        
+        let open = self.open_handles.lock().remove(&fh);
+        if let Some(open) = open {
+            open.spec.commit(&self.chain, &self.session).await?
+        }
 
         if flush {
             self.chain.flush().await?;
@@ -703,6 +821,7 @@ for AteFS
         offset: u64,
         size: u32,
     ) -> Result<ReplyData> {
+        self.tick().await?;
         debug!("atefs::read inode={} offset={} size={}", inode, offset, size);
         
         let open = {
@@ -714,7 +833,7 @@ for AteFS
                 },
             }
         };
-        Ok(ReplyData { data: open.spec.read(&self.chain, &self.session, offset, size).await?,  })
+        Ok(ReplyData { data: open.spec.read(&self.chain, &self.session, offset, size as u64).await?,  })
     }
 
     async fn write(
@@ -726,6 +845,7 @@ for AteFS
         data: &[u8],
         _flags: u32,
     ) -> Result<ReplyWrite> {
+        self.tick().await?;
         debug!("atefs::write inode={} offset={} size={}", inode, offset, data.len());
 
         let open = {
@@ -740,6 +860,10 @@ for AteFS
         };
 
         let wrote = open.spec.write(&self.chain, &self.session, offset, data).await?;
+        if open.dirty.read() == false {
+            *open.dirty.lock_write() = true;
+        }
+
         debug!("atefs::wrote inode={} offset={} size={}", inode, offset, wrote);
         Ok(ReplyWrite {
             written: wrote,
@@ -755,6 +879,7 @@ for AteFS
         length: u64,
         _mode: u32,
     ) -> Result<()> {
+        self.tick().await?;
         debug!("atefs::fallocate inode={}", inode);
 
         if fh > 0 {
@@ -766,7 +891,10 @@ for AteFS
                 }
             };
             if let Some(open) = open {
-                open.spec.fallocate(offset + length).await;
+                open.spec.fallocate(&self.chain, &self.session, offset + length).await?;
+                if open.dirty.read() == false {
+                    *open.dirty.lock_write() = true;
+                }
                 return Ok(());
             }
         }
@@ -774,7 +902,6 @@ for AteFS
         let (mut dao, mut dio) = self.load(inode).await?;
         dao.size = offset + length;
         conv_serialization(dao.commit(&mut dio))?;
-
         return Ok(());
     }
 
@@ -786,6 +913,7 @@ for AteFS
         offset: u64,
         whence: u32,
     ) -> Result<ReplyLSeek> {
+        self.tick().await?;
         debug!("atefs::lseek inode={}", inode);
 
         let offset = if whence == libc::SEEK_CUR as u32 || whence == libc::SEEK_SET as u32 {
@@ -816,6 +944,7 @@ for AteFS
         name: &OsStr,
         link: &OsStr,
     ) -> Result<ReplyEntry> {
+        self.tick().await?;
         debug!("atefs::symlink parent={}, name={}, link={}", parent, name.to_str().unwrap().to_string(), link.to_str().unwrap().to_string());
 
         let link = link.to_str().unwrap().to_string();
@@ -824,11 +953,12 @@ for AteFS
             dao.spec_type = SpecType::SymLink;
             dao.link = Some(link);
             conv_serialization(dao.commit(&mut dio))?;
+            conv_commit(dio.commit().await)?;
             Inode::as_file_spec(dao.key().as_u64(), dao.when_created(), dao.when_updated(), dao)
         };
         
         Ok(ReplyEntry {
-            ttl: TTL,
+            ttl: FUSE_TTL,
             attr: spec_as_attr(&spec),
             generation: 0,
         })
@@ -840,6 +970,7 @@ for AteFS
         _req: Request,
         inode: u64
     ) -> Result<ReplyData> {
+        self.tick().await?;
         debug!("atefs::readlink inode={}", inode);
 
         let dao = self.load(inode).await?;
@@ -861,7 +992,9 @@ for AteFS
         _new_parent: u64,
         _new_name: &OsStr,
     ) -> Result<ReplyEntry> {
+        self.tick().await?;
         debug!("atefs::link not-implemented");
+
         Err(libc::ENOSYS.into())
     }
 
@@ -871,7 +1004,9 @@ for AteFS
         _req: Request,
         _inode: u64
     ) -> Result<ReplyStatFs> {
+        self.tick().await?;
         debug!("atefs::statsfs not-implemented");
+
         Err(libc::ENOSYS.into())
     }
 
@@ -885,7 +1020,9 @@ for AteFS
         _flags: u32,
         _position: u32,
     ) -> Result<()> {
+        self.tick().await?;
         debug!("atefs::setxattr not-implemented");
+        
         Err(libc::ENOSYS.into())
     }
 
@@ -898,7 +1035,9 @@ for AteFS
         _name: &OsStr,
         _size: u32,
     ) -> Result<ReplyXAttr> {
+        self.tick().await?;
         debug!("atefs::getxattr not-implemented");
+
         Err(libc::ENOSYS.into())
     }
 
@@ -910,7 +1049,9 @@ for AteFS
         _inode: u64,
         _size: u32
     ) -> Result<ReplyXAttr> {
+        self.tick().await?;
         debug!("atefs::listxattr not-implemented");
+
         Err(libc::ENOSYS.into())
     }
 
@@ -921,7 +1062,9 @@ for AteFS
         _inode: u64,
         _name: &OsStr
     ) -> Result<()> {
+        self.tick().await?;
         debug!("atefs::removexattr not-implemented");
+
         Err(libc::ENOSYS.into())
     }
 
@@ -937,7 +1080,9 @@ for AteFS
         _blocksize: u32,
         _idx: u64,
     ) -> Result<ReplyBmap> {
+        self.tick().await?;
         debug!("atefs::bmap not-implemented");
+
         Err(libc::ENOSYS.into())
     }
 
@@ -951,7 +1096,9 @@ for AteFS
         _events: u32,
         _notify: &Notify,
     ) -> Result<ReplyPoll> {
+        self.tick().await?;
         debug!("atefs::poll not-implemented");
+
         Err(libc::ENOSYS.into())
     }
 
@@ -962,7 +1109,9 @@ for AteFS
         _offset: u64,
         _data: bytes::Bytes,
     ) -> Result<()> {
+        self.tick().await?;
         debug!("atefs::notify_reply not-implemented");
+
         Err(libc::ENOSYS.into())
     }
 
@@ -972,6 +1121,7 @@ for AteFS
         _req: Request,
         _inodes: &[u64])
     {
+        let _ = self.tick().await;
         debug!("atefs::batch_forget not-implemented");
     }
 
@@ -987,7 +1137,9 @@ for AteFS
         _length: u64,
         _flags: u64,
     ) -> Result<ReplyCopyFileRange> {
+        self.tick().await?;
         debug!("atefs::copy_file_range not-implemented");
+
         Err(libc::ENOSYS.into())
     }
 }

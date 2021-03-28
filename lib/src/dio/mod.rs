@@ -133,7 +133,7 @@ impl<'a> Dio<'a>
         };
 
         let mut ret = Dao::new(row);
-        ret.dirty = true;
+        ret.state.dirty = true;
         if auto_commit {
             ret.commit(self)?;
         }
@@ -339,23 +339,6 @@ impl Chain
             scope,            
         }
     }
-
-    #[allow(dead_code)]
-    pub async fn dio_for_dao<'a, D>(&'a self, session: &'a Session, scope: Scope, dao: &mut Dao<D>) -> Dio<'a>
-    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
-    {
-        dao.dirty = false;
-        dao.lock = DaoLock::Unlocked;
-
-        let multi = self.multi().await;
-        Dio {
-            state: DioState::new(),
-            default_format: multi.default_format,
-            multi,
-            session: session,
-            scope,            
-        }
-    }
 }
 
 impl<'a> Dio<'a>
@@ -367,6 +350,13 @@ impl<'a> Dio<'a>
             return false;
         }
         return true;
+    }
+
+    pub fn cancel(&mut self)
+    {
+        let state = &mut self.state;
+        state.store.clear();   
+        state.deleted.clear();
     }
 
     pub async fn commit(&mut self) -> Result<(), CommitError>
