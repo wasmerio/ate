@@ -144,6 +144,19 @@ where Self: Send + Sync,
     pub(super) dirty: bool,
 }
 
+/// Represents a data object that will be represented as one or
+/// more events on the redo-log and validated in the chain-of-trust.
+/// 
+/// Reading this object using none-mutable behavior will incur no IO
+/// on the redo-log however if you edit the object you must commit it
+/// to the `Dio` before it goes out of scope or the data will be lost
+/// (in Debug mode this will even trigger an assert).
+///
+/// Metadata about the data object can also be accessed via this object
+/// which allows you to change the read/write access rights, etc.
+///
+/// If you change your mind on commiting the data to the redo-log then
+/// you can call the `cancel` function instead.
 #[derive(Debug)]
 pub struct Dao<D>
 where Self: Send + Sync,

@@ -11,6 +11,7 @@ use crate::chain::*;
 use crate::error::*;
 use crate::conf::*;
 
+/// Meshes are the networking API used for opening chains on a distributed chain.
 #[async_trait]
 pub trait Mesh
 {

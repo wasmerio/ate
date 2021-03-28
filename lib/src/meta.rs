@@ -6,6 +6,12 @@ use super::crypto::*;
 use super::header::*;
 use super::signature::MetaSignature;
 
+/// Determines if the event record will be restricted so that
+/// only a specific set of users can read the data. If it is
+/// limited to a specific set of users they must all possess
+/// the encryption key in their session when accessing these
+/// data records of which the hash of the encryption key must
+/// match this record.
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum ReadOption
 {
@@ -22,6 +28,10 @@ for ReadOption
     }
 }
 
+/// Determines who is allowed to attach events records to this part of the
+/// chain-of-trust key. Only users who have the `PrivateKey` in their session
+/// will be able to write these records to the chain. The hash of the `PublicKey`
+/// side is stored in this enum.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum WriteOption
 {

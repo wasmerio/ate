@@ -8,6 +8,23 @@ use crate::dio::dao::*;
 use crate::error::*;
 use std::collections::VecDeque;
 
+/// Rerepresents a vector of children attached to a parent DAO
+///
+/// This object does not actually store the children which are
+/// actually stored within the chain-of-trust as seperate events
+/// that are indexed into secondary indexes that this object queries.
+///
+/// Vectors can also be used as queues and as a bus for various
+/// different usecases.
+/// 
+/// Storing this vector within other DAO's allows complex models
+/// to be represented.
+///
+/// Alternatively you can store your vectors, maps and other
+/// relationships as collections of `PrimaryKey`'s however you
+/// will need to manage this yourselve and can not benefit from
+/// publish/subscribe patterns.
+///
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DaoVec<D>
 where D: Serialize + DeserializeOwned + Clone + Send + Sync,

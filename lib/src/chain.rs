@@ -72,6 +72,20 @@ pub(crate) struct ChainProtectedSync
     pub(super) listeners: MultiMap<MetaCollection, ChainListener>,
 }
 
+/// Represents the main API to access a specific chain-of-trust
+///
+/// This object must stay within scope for the duration of its
+/// use which has been optimized for infrequent initialization as
+/// creating this object will reload the entire chain's metadata
+/// into memory.
+///
+/// The actual data of the chain is stored locally on disk thus
+/// huge chains can be stored here however very random access on
+/// large chains will result in random access IO on the disk.
+///
+/// Chains also allow subscribe/publish models to be applied to
+/// particular vectors (see the examples for details)
+///
 #[derive(Clone)]
 pub struct Chain
 where Self: Send + Sync

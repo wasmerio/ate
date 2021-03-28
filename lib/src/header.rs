@@ -7,6 +7,10 @@ use crate::crypto::Hash;
 #[allow(unused_imports)]
 use super::meta::*;
 
+/// All event and data objects within ATE have a primary key that uniquely represents
+/// it and allows it to be indexed and referenced. This primary key can be derived from
+/// other input data like strings or numbers in order to make object lookups that are
+/// static (e.g. root nodes)
 #[allow(dead_code)]
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct PrimaryKey

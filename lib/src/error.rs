@@ -1076,6 +1076,9 @@ for LockError {
     }
 }
 
+/// Super-set of all errors that could possibly happen within this ATE library
+/// This error allows one to roll up all the errors into a clean object using
+/// standard from conversions for cleaner code.
 #[derive(Debug)]
 pub enum AteError
 {

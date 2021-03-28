@@ -15,6 +15,7 @@ use super::error::*;
 use super::crypto::Hash;
 use super::spec::*;
 
+/// Represents a target node within a mesh
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct MeshAddress
 {
@@ -44,34 +45,70 @@ impl MeshAddress
     }
 }
 
+/// Represents all nodes within this replication cluster. All the chains
+/// are spread evenly across the nodes within a cluster using a hashing
+/// algorithm. Care must be taken when added new addresses that the
+/// redo logs are not lost during a respreading of addresses. The recommended
+/// way to grow clusters is to add brand new clusters with the new addresses
+/// when a cluster is expanded and only remove the old ones when all the
+/// redo logs are synchronized, otherwise just make sure your cluster is
+/// big enought to start with.
 #[derive(Debug, Clone, Default)]
 pub struct ConfCluster
 {
     pub roots: Vec<MeshAddress>,
 }
 
+/// Configuration settings for the ATE datastore
+///
 #[derive(Debug, Clone)]
 pub struct Config
 {
+    /// Directory path that the redo logs will be stored.
     pub log_path: String,
+    /// Indicates if the redo logs will be deleted on exit which is normally
+    /// useful when running a client in fully stateless mode.
     pub log_temp: bool,
 
+    /// NTP pool server which ATE will synchronize its clocks with, its
+    /// important to have synchronized clocks with ATE as it uses time as
+    /// digest to prevent replay attacks
     pub ntp_pool: String,
+    /// Port that the NTP server is listening on (defaults to 123)
     pub ntp_port: u32,
 
+    /// When running a distributed ATE datastore in a mesh configuration then
+    /// one more clusters can be specified here. Each cluster represents a
+    /// replication target hence scaling out clusters increasing capacity
+    /// while scaling _more_ clusters creates data replication for improved
+    /// resilience. If you do not specific any clusters ATE will run in
+    /// local machine mode.
     pub clusters: Vec<ConfCluster>,
+    /// Forces ATE to act as a client even if its local IP address is one
+    /// of the node machines in the clusters (normally ATE would automatically
+    /// listen for connections)
     pub force_client_only: bool,
+    /// Forces ATE to listen on a particular address for connections even if
+    /// the address is not in the list of cluster nodes.
     pub force_listen: Option<MeshAddress>,
 
+    /// Optimizes ATE for a specific group of usecases
     configured_for: ConfiguredFor,
 
+    /// Size of the buffer on mesh clients, tweak this number with care
     pub buffer_size_client: usize,
+    /// Size of the buffer on mesh servers, tweak this number with care
     pub buffer_size_server: usize,
 
+    /// Size of the local cache that stores redo log entries in memory
     pub load_cache_size: usize,
+    /// Number of seconds that redo log entries will remain in memory before
+    /// they are evicted
     pub load_cache_ttl: u64,
 
+    /// Serialization format of the log files
     pub log_format: MessageFormat,
+    /// Serialization format of the data on the network pipes between nodes and clients
     pub wire_format: SerializationFormat,
 }
 
@@ -142,16 +179,33 @@ pub enum HashRoutine
     Blake3,
 }
 
+/// Determines what optimizes and defaults ATE selects based of a particular
+/// group of usecases
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ConfiguredFor
 {
+    /// ATE is left completely unconfigured with no-assumptions and no default functionality
     Raw,
+    /// ATE is configured with the minimum that is considered at least functional
     Barebone,
+    /// ATE will optimize its usage for the redo-logs with the smallest size possible, this
+    /// includes using compression on the data streams by default.
     SmallestSize,
+    /// ATE will use serializers that are much faster than normal however they do not support
+    /// forward or backwards compatibility meaning changes to the data object schemas will
+    /// break your trees thus you will need to handle versioning yourself manually.
     BestPerformance,
+    /// ATE will use serializers that provide both forward and backward compatibility for changes
+    /// to the metadata schema and the data schema. This format while slower than the performance
+    /// setting allows seamless upgrades and changes to your model without breaking existing data.
     BestCompatibility,
+    /// A balance between performance, compatibility and security that gives a bit of each without
+    /// without going towards the extremes of any. For instance, the data model is forwards and
+    /// backwards compatible however the metadata is not. Encryption is good eno\for all known
+    /// attacks of today but less protected against unknown attacks of the future.
     Balanced,
+    /// Provides the best encryption routines available at the expense of performance and size
     BestSecurity,
 }
 
@@ -185,6 +239,9 @@ for ConfiguredFor
     }
 }
 
+/// Building class used to construct a chain-of-trust with
+/// its user defined plugins and configuration. Nearly always
+/// this builder will be used to create and load your chains.
 pub struct ChainOfTrustBuilder
 {
     pub(super) cfg: Config, 

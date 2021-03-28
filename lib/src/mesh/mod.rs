@@ -40,6 +40,7 @@ use crate::mesh::root::MeshRoot;
 
 pub use crate::mesh::core::Mesh;
 
+/// Creates a mesh using a supplied configuration settings
 #[allow(dead_code)]
 pub async fn create_mesh(cfg: &Config) -> Arc<dyn Mesh>
 {

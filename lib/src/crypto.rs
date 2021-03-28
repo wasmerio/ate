@@ -26,6 +26,9 @@ use sha3::Digest;
 use std::convert::TryInto;
 use crate::conf::HashRoutine;
 
+/// Represents an encryption key that will give confidentiality to
+/// data stored within the redo-log. Note this does not give integrity
+/// which comes from the `PrivateKey` crypto instead.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq)]
 pub enum EncryptKey {
     Aes128([u8; 16]),
@@ -33,6 +36,9 @@ pub enum EncryptKey {
     Aes256([u8; 32]),
 }
 
+/// Size of a cryptographic key, smaller keys are still very secure but
+/// have less room in the future should new attacks be found against the
+/// crypto algorithms used by ATE.
 #[derive(Debug, Clone)]
 pub enum KeySize {
     #[allow(dead_code)]
@@ -175,6 +181,9 @@ pub struct EncryptResult {
     pub data: Vec<u8>
 }
 
+/// Represents a hash of a piece of data that is cryptographically secure enough
+/// that it can be used for integrity but small enough that it does not bloat
+/// the redo log metadata.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct Hash {
     pub val: [u8; 16]
@@ -443,6 +452,15 @@ impl Metadata
     }
 }
 
+/// Private keys provide the ability to sign records within the
+/// redo log chain-of-trust, these inserts records with associated
+/// public keys embedded within teh cahin allow
+/// records/events stored within the ATE redo log to have integrity
+/// without actually being able to read the records themselves. This
+/// attribute allows a chain-of-trust to be built without access to
+/// the data held within of chain. Asymetric crypto in ATE uses the
+/// leading candidates from NIST that provide protection against
+/// quantom computer attacks
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub enum PrivateKey {
     Falcon512 {
@@ -542,6 +560,13 @@ impl PrivateKey
     }
 }
 
+/// Public key which is one side of a private key. Public keys allow
+/// records/events stored within the ATE redo log to have integrity
+/// without actually being able to read the records themselves. This
+/// attribute allows a chain-of-trust to be built without access to
+/// the data held within of chain. Asymetric crypto in ATE uses the
+/// leading candidates from NIST that provide protection against
+/// quantom computer attacks
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub enum PublicKey {
     Falcon512 {

@@ -91,6 +91,19 @@ impl DioState
     }
 }
 
+/// Represents a series of mutations that the user is making on a particular chain-of-trust
+/// with a specific set of facts attached to a session. All changes are stored in memory
+/// until the commit function is invoked which will feed them into the chain.
+///
+/// If you decide to abort the transaction then call the `cancel` function before it goes
+/// out of scope however if you mutate data and do not call `commit` then the data will be
+/// lost (or an assert will be triggerd when in Debug mode).
+///
+/// These objects are multi-thread safe and allow for very high concurrency through async
+/// operations.
+///
+/// When setting the scope for the DIO it will behave differently when the commit function
+/// is invoked based on what scope you set for the transaction.
 pub struct Dio<'a>
 where Self: Send + Sync
 {

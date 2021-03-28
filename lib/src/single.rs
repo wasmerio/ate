@@ -6,6 +6,9 @@ use super::chain::*;
 use super::error::*;
 use super::event::*;
 
+/// Represents an exclusive lock on a chain-of-trust that allows the
+/// user to execute mutations that would otherwise have an immedaite
+/// impact on other users.
 pub struct ChainSingleUser<'a>
 {
     pub(super) inside_async: RwLockWriteGuard<'a, ChainProtectedAsync>,

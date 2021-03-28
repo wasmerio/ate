@@ -4,6 +4,10 @@ use std::sync::mpsc as smpsc;
 use super::event::*;
 use super::error::*;
 
+/// Represents the scope of `Dio` transaction for all the data
+/// it is gathering up locally. Once the user calls the `commit`
+/// method it will push the data into the redo log following one
+/// of the behaviours defined in this enum.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Scope
 {

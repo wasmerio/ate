@@ -34,6 +34,10 @@ use super::crypto::Hash;
 use fxhash::FxHashMap;
 use super::spec::*;
 
+/// Unique key that represents this chain-of-trust. The design must
+/// partition their data space into seperate chains to improve scalability
+/// and performance as a single chain will reside on a single node within
+/// the cluster.
 #[allow(dead_code)]
 #[derive(Serialize, Deserialize, Debug, Clone, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ChainKey {
