@@ -37,16 +37,11 @@ use trust_dns_proto::{
     xfer::{DnsHandle, DnsRequest},
 };
 
-pub struct RegistryEntry
-{
-    mesh: Arc<dyn Mesh>,
-}
-
 pub struct Registry
 {
     cfg: Config,
     dns: Mutex<DnssecDnsHandle<MemoizeClientHandle<AsyncClient>>>,
-    chains: Mutex<FxHashMap<Url, RegistryEntry>>,
+    chains: Mutex<FxHashMap<String, Arc<dyn Mesh>>>,
 }
 
 impl Registry
@@ -78,16 +73,20 @@ impl Registry
     {
         let key = ChainKey::new(url.path().to_string());
         let mut lock = self.chains.lock().await;
-        match lock.get(url) {
+        
+        let domain = match url.domain() {
+            Some(a) => a.to_string(),
+            None => { return Err(ChainCreationError::NoValidDomain(url.to_string())); }
+        };
+        
+        match lock.get(&domain) {
             Some(a) => {
-                Ok(a.mesh.open(key).await?)
+                Ok(a.open(key).await?)
             },
             None => {
                 let cfg = self.cfg(url).await?;
                 let mesh = create_mesh(&cfg).await;
-                lock.insert(url.clone(), RegistryEntry {
-                    mesh: Arc::clone(&mesh),
-                });
+                lock.insert(domain, Arc::clone(&mesh));
                 Ok(mesh.open(key).await?)
             }
         }
