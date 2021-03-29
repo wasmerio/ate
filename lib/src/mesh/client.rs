@@ -52,7 +52,7 @@ for MeshClient {
 
         let addrs = self.lookup.lookup(&key);
         if addrs.len() <= 0 {
-            return Err(ChainCreationError::NoRootFound);
+            return Err(ChainCreationError::NoRootFoundInConfig);
         }
         
         let builder = ChainOfTrustBuilder::new(&self.cfg);

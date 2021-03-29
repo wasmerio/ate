@@ -137,7 +137,7 @@ impl MeshRoot
     {
         // If we can't find a chain for this subscription then fail and tell the caller
         let chain = match self.open(chain_key.clone()).await {
-            Err(ChainCreationError::NoRootFound) => {
+            Err(ChainCreationError::NoRootFoundInConfig) => {
                 PacketData::reply_at(reply_at, Message::NotThisRoot, self.cfg.wire_format).await?;
                 return Ok(());
             }
@@ -232,7 +232,7 @@ impl MeshRoot
         };
         Ok(Some(
             match self.open(chain_key.clone()).await {
-                Err(ChainCreationError::NoRootFound) => {
+                Err(ChainCreationError::NoRootFoundInConfig) => {
                     PacketData::reply_at(reply_at, Message::NotThisRoot, self.cfg.wire_format).await?;
                     return Ok(None);
                 },
@@ -401,7 +401,7 @@ impl MeshRoot
             {
                 match self.lookup.lookup(key) {
                     Some(addr) if self.addrs.contains(&addr) => addr,
-                    _ => { return Err(ChainCreationError::NoRootFound); }
+                    _ => { return Err(ChainCreationError::NoRootFoundInConfig); }
                 };
 
                 v.insert(new_chain)

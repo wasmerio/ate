@@ -7,6 +7,7 @@ mod core;
 mod root;
 mod client;
 mod session;
+mod registry;
 
 use async_trait::async_trait;
 use serde::{Serialize, Deserialize};

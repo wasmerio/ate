@@ -16,7 +16,9 @@ pub use crate::chain::Chain;
 pub use crate::trust::ChainKey;
 pub use crate::conf::ChainOfTrustBuilder as ChainBuilder;
 
+pub use crate::dio::DaoForeign;
 pub use crate::dio::DaoVec;
+pub use crate::dio::DaoRef;
 pub use crate::dio::Dao;
 pub use crate::dio::Dio;
 

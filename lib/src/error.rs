@@ -10,6 +10,8 @@ use tokio::task::JoinError;
 use std::time::SystemTimeError;
 use std::sync::mpsc as smpsc;
 use tokio::sync::mpsc as mpsc;
+use trust_dns_proto::error::ProtoError as DnsProtoError;
+use trust_dns_client::error::ClientError as DnsClientError;
 
 #[derive(Debug)]
 pub enum CryptoError {
@@ -398,12 +400,17 @@ pub enum ChainCreationError {
     ProcessError(ProcessError),
     IO(tokio::io::Error),
     SerializationError(SerializationError),
-    NoRootFound,
+    NoRootFoundInConfig,
+    NoRootFoundForUrl(String),
+    UnsupportedProtocol,
     #[allow(dead_code)]
     NotThisRoot,
     #[allow(dead_code)]
     NotImplemented,
+    NoValidDomain(String),
     CommsError(CommsError),
+    DnsProtoError(DnsProtoError),
+    DnsClientError(DnsClientError),
 }
 
 impl From<ProcessError>
@@ -438,6 +445,22 @@ for ChainCreationError
     }   
 }
 
+impl From<DnsProtoError>
+for ChainCreationError
+{
+    fn from(err: DnsProtoError) -> ChainCreationError {
+        ChainCreationError::DnsProtoError(err)
+    }
+}
+
+impl From<DnsClientError>
+for ChainCreationError
+{
+    fn from(err: DnsClientError) -> ChainCreationError {
+        ChainCreationError::DnsClientError(err)
+    }
+}
+
 impl std::fmt::Display
 for ChainCreationError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -454,14 +477,29 @@ for ChainCreationError {
             ChainCreationError::NotImplemented => {
                 write!(f, "Failed to create chain-of-trust as the method is not implemented")
             },
-            ChainCreationError::NoRootFound => {
-                write!(f, "Failed to create chain-of-trust as the root node is not found")
+            ChainCreationError::NoRootFoundInConfig => {
+                write!(f, "Failed to create chain-of-trust as the root node is not found in the configuration settings")
+            },
+            ChainCreationError::NoRootFoundForUrl(url) => {
+                write!(f, "Failed to create chain-of-trust as the root node is not found in the URL [{}]", url)
+            },
+            ChainCreationError::UnsupportedProtocol => {
+                write!(f, "Failed to create chain-of-trust as the protocol is not supported (only TCP is supported)")
             },
             ChainCreationError::NotThisRoot => {
                 write!(f, "Failed to create chain-of-trust as this is the wrong root node")
             },
             ChainCreationError::CommsError(err) => {
                 write!(f, "Failed to create chain-of-trust due to a communication error - {}", err)
+            },
+            ChainCreationError::NoValidDomain(err) => {
+                write!(f, "Failed to create chain-of-trust as the address does not have a valid domain name [{}]", err)
+            },
+            ChainCreationError::DnsProtoError(err) => {
+                write!(f, "Failed to create chain-of-trust due to a DNS error - {}", err)
+            },
+            ChainCreationError::DnsClientError(err) => {
+                write!(f, "Failed to create chain-of-trust due to a DNS error - {}", err)
             },
         }
     }

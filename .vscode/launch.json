@@ -1,0 +1,327 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in library 'ate'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--lib",
+                    "--package=ate"
+                ],
+                "filter": {
+                    "name": "ate",
+                    "kind": "lib"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'stress'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=stress",
+                    "--package=ate"
+                ],
+                "filter": {
+                    "name": "stress",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'stress'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=stress",
+                    "--package=ate"
+                ],
+                "filter": {
+                    "name": "stress",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'coin'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=coin",
+                    "--package=ate"
+                ],
+                "filter": {
+                    "name": "coin",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in example 'coin'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--example=coin",
+                    "--package=ate"
+                ],
+                "filter": {
+                    "name": "coin",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'hello-world'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=hello-world",
+                    "--package=ate"
+                ],
+                "filter": {
+                    "name": "hello-world",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in example 'hello-world'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--example=hello-world",
+                    "--package=ate"
+                ],
+                "filter": {
+                    "name": "hello-world",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'server-client'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=server-client",
+                    "--package=ate"
+                ],
+                "filter": {
+                    "name": "server-client",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in example 'server-client'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--example=server-client",
+                    "--package=ate"
+                ],
+                "filter": {
+                    "name": "server-client",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'bus-or-queue'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=bus-or-queue",
+                    "--package=ate"
+                ],
+                "filter": {
+                    "name": "bus-or-queue",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in example 'bus-or-queue'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--example=bus-or-queue",
+                    "--package=ate"
+                ],
+                "filter": {
+                    "name": "bus-or-queue",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug example 'bank'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--example=bank",
+                    "--package=ate"
+                ],
+                "filter": {
+                    "name": "bank",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in example 'bank'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--example=bank",
+                    "--package=ate"
+                ],
+                "filter": {
+                    "name": "bank",
+                    "kind": "example"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'load'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=load",
+                    "--package=ate"
+                ],
+                "filter": {
+                    "name": "load",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug integration test 'rotate'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--test=rotate",
+                    "--package=ate"
+                ],
+                "filter": {
+                    "name": "rotate",
+                    "kind": "test"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug executable 'atefs'",
+            "cargo": {
+                "args": [
+                    "build",
+                    "--bin=atefs",
+                    "--package=atefs"
+                ],
+                "filter": {
+                    "name": "atefs",
+                    "kind": "bin"
+                }
+            },
+            "args": [
+                "mount",
+                "--path /mnt/ate",
+            ],
+            "cwd": "${workspaceFolder}"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "name": "Debug unit tests in executable 'atefs'",
+            "cargo": {
+                "args": [
+                    "test",
+                    "--no-run",
+                    "--bin=atefs",
+                    "--package=atefs",
+                ],
+                "filter": {
+                    "name": "atefs",
+                    "kind": "bin"
+                }
+            },
+            "args": [],
+            "cwd": "${workspaceFolder}"
+        }
+    ]
+}

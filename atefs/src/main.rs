@@ -1,4 +1,4 @@
-#![allow(unused_imports)]
+#![allow(unused_imports, dead_code)]
 use log::{info, error, debug};
 use ate::prelude::*;
 use std::env;
@@ -26,6 +26,9 @@ struct Opts {
     #[allow(dead_code)]
     #[clap(short, long, parse(from_occurrences))]
     verbose: i32,
+    /// URL where the user is authenticated
+    #[clap(short, long, default_value = "tcp://ate.tokera.com/auth")]
+    auth: String,
     /// Logs debug info to the console
     #[allow(dead_code)]
     #[clap(short, long)]
@@ -36,23 +39,46 @@ struct Opts {
 
 #[derive(Clap)]
 enum SubCommand {
-    #[clap(version = "1.0", author = "John S. <johnathan.sharratt@gmail.com>")]
+    #[clap()]
     Mount(Mount),
+    #[clap()]
+    Login(Login),
+    #[clap()]
+    Logout(Logout),
+}
+
+/// Logs into the authentication server using the supplied credentials
+#[derive(Clap)]
+struct Login {
+    /// Email address that you wish to login using
+    #[clap(index = 1)]
+    email: String,
+    /// Password associated with this account
+    #[clap(index = 2)]
+    password: String
+}
+
+/// Logs out by removing all the authentication tokens from the local machine
+#[derive(Clap)]
+struct Logout {
 }
 
 /// Mounts a particular directory as an ATE file system
 #[derive(Clap)]
 struct Mount {
+    /// Path to directory that the file system will be mounted at
+    #[clap(index=1)]
+    mount_path: String,
     /// Configuration file of a ATE mesh to connect to - default is local-only mode
     #[allow(dead_code)]
     #[clap(short, long)]
     mesh: Option<String>,
-    /// Path to directory that the file system will be mounted at
+    /// URL where the data is stored (e.g. tcp://ate.tokera.com/myfs) - if not specified then data will only be stored locally
     #[clap(short, long)]
-    path: String,
+    data: Option<String>,
     /// Location of the persistent redo log
     #[clap(short, long, default_value = "~/ate")]
-    log: String,
+    log_path: String,
     /// Redo log file will be deleted when the file system is unmounted
     #[clap(short, long)]
     temp: bool,
@@ -77,7 +103,7 @@ struct Mount {
     /// Allow fuse filesystem mount on a non-empty directory, default is not allowed.
     #[clap(short, long)]
     non_empty: bool,
-    /// Log file is configured for <raw>, <barebone>, <speed>, <compatibility>, <balanced> or <security>
+    /// Configure the log file for <raw>, <barebone>, <speed>, <compatibility>, <balanced> or <security>
     #[clap(long, default_value = "speed")]
     configured_for: ate::conf::ConfiguredFor,
     /// Format of the metadata in the log file as <bincode>, <json> or <mpack>
@@ -93,10 +119,12 @@ fn main_debug() -> Opts {
     Opts {
         verbose: 2,
         debug: true,
+        auth: "tcp://ate.tokera.com/auth".to_string(),
         subcmd: SubCommand::Mount(Mount {
             mesh: None,
-            path: "/mnt/test".to_string(),
-            log: "~/ate".to_string(),
+            mount_path: "/mnt/test".to_string(),
+            log_path: "~/ate".to_string(),
+            data: None,
             temp: false,
             uid: None,
             gid: None,
@@ -125,6 +153,12 @@ async fn main() -> Result<(), AteError> {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(log_level)).init();
     
     match opts.subcmd {
+        SubCommand::Login(_login) => {
+            panic!("Not implemented");
+        },
+        SubCommand::Logout(_logout) => {
+            panic!("Not implemented");
+        },
         SubCommand::Mount(mount) => {
             let uid = match mount.uid {
                 Some(a) => a,
@@ -157,7 +191,7 @@ async fn main() -> Result<(), AteError> {
             conf.configured_for(mount.configured_for);
             conf.log_format.meta = mount.meta_format;
             conf.log_format.data = mount.data_format;
-            conf.log_path = shellexpand::tilde(&mount.log).to_string();
+            conf.log_path = shellexpand::tilde(&mount.log_path).to_string();
             conf.log_temp = mount.temp;
 
             debug!("configured_for: {:?}", mount.configured_for);
@@ -165,7 +199,7 @@ async fn main() -> Result<(), AteError> {
             debug!("data_format: {:?}", mount.data_format);
             debug!("log_path: {}", conf.log_path);
             debug!("log_temp: {}", mount.temp);
-            debug!("mount_path: {}", mount.path);
+            debug!("mount_path: {}", mount.mount_path);
 
             let builder = ChainBuilder::new(&conf);
 
@@ -176,7 +210,7 @@ async fn main() -> Result<(), AteError> {
             // Mount the file system
             info!("atefs::mount");
             match Session::new(mount_options)
-                .mount_with_unprivileged(AteFS::new(chain), mount.path)
+                .mount_with_unprivileged(AteFS::new(chain), mount.mount_path)
                 .await
             {
                 Err(err) if err.kind() == ErrorKind::Other => {
