@@ -33,6 +33,12 @@ struct Opts {
     #[allow(dead_code)]
     #[clap(short, long)]
     debug: bool,
+    /// Determines if ATE will use DNSSec or just plain DNS
+    #[clap(long)]
+    dns_sec: bool,
+    /// Address that DNS queries will be sent to
+    #[clap(long, default_value = "8.8.8.8")]
+    dns_server: String,
     #[clap(subcommand)]
     subcmd: SubCommand,
 }
@@ -119,6 +125,8 @@ fn main_debug() -> Opts {
     Opts {
         verbose: 2,
         debug: true,
+        dns_sec: false,
+        dns_server: "8.8.8.8".to_string(),
         auth: "tcp://ate.tokera.com/auth".to_string(),
         subcmd: SubCommand::Mount(Mount {
             mesh: None,
@@ -193,6 +201,8 @@ async fn main() -> Result<(), AteError> {
             conf.log_format.data = mount.data_format;
             conf.log_path = shellexpand::tilde(&mount.log_path).to_string();
             conf.log_temp = mount.temp;
+            conf.dns_sec = opts.dns_sec;
+            conf.dns_server = opts.dns_server;
 
             debug!("configured_for: {:?}", mount.configured_for);
             debug!("meta_format: {:?}", mount.meta_format);

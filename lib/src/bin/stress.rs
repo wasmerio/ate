@@ -16,7 +16,7 @@ async fn main() -> Result<(), AteError> {
     env_logger::init();
 
     // The default configuration will store the redo log locally in the temporary folder
-    let mut conf = AteConfig::default();
+    let mut conf = ConfAte::default();
     conf.configured_for(ConfiguredFor::BestPerformance);
     conf.log_temp = false;
     let builder = ChainBuilder::new(&conf);
@@ -45,6 +45,7 @@ async fn main() -> Result<(), AteError> {
             for _ in 0..500 {
                 dio.store(test_obj.clone())?;
             }
+            dio.commit().await?;
         }
         info!("stress::finished");
     }

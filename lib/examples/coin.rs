@@ -16,7 +16,7 @@ async fn main() -> Result<(), AteError>
     let sk = PrivateKey::generate(KeySize::Bit256);
 
     // Create the chain with a public/private key to protect its integrity
-    let conf = AteConfig::default();
+    let conf = ConfAte::default();
     let builder = ChainBuilder::new(&conf)
         .add_root_public_key(&root.as_public_key());
     let chain = Chain::new(builder, &ChainKey::from("universe")).await?;
@@ -36,6 +36,8 @@ async fn main() -> Result<(), AteError>
         })?;
         dao.auth_mut().read = ReadOption::Specific(ek.hash());
         dao.auth_mut().write = WriteOption::Specific(sk.hash());
+        dao.commit(&mut dio)?;
+        dio.commit().await?;
         dao.key().clone()
     };
 

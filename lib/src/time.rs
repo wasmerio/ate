@@ -45,7 +45,7 @@ for TimestampEnforcer
 impl TimestampEnforcer
 {
     #[allow(dead_code)]
-    pub fn new(cfg: &Config, tolerance_ms: u32) -> Result<TimestampEnforcer, TimeError>
+    pub fn new(cfg: &ConfAte, tolerance_ms: u32) -> Result<TimestampEnforcer, TimeError>
     {
         let tolerance_ms_loop = tolerance_ms;
         let tolerance_ms_seed = tolerance_ms * 3;
@@ -138,7 +138,7 @@ for TimestampEnforcer
 {
     fn default() -> TimestampEnforcer
     {
-        let cfg = Config::default();
+        let cfg = ConfAte::default();
         TimestampEnforcer::new(&cfg, 1000).unwrap()
     }
 }

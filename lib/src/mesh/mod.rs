@@ -39,14 +39,16 @@ use crate::dio::Dao;
 use crate::mesh::client::MeshClient;
 use crate::mesh::root::MeshRoot;
 
+pub(crate) use super::mesh::session::MeshSession;
 pub use crate::mesh::core::Mesh;
+pub use crate::mesh::registry::Registry;
 
 /// Creates a mesh using a supplied configuration settings
 #[allow(dead_code)]
-pub async fn create_mesh(cfg: &Config) -> Arc<dyn Mesh>
+pub async fn create_mesh(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Arc<dyn Mesh>
 {
     let mut hash_table = BTreeMap::new();
-    for addr in cfg.clusters.iter().flat_map(|c| c.roots.iter()) {
+    for addr in cfg_mesh.clusters.iter().flat_map(|c| c.roots.iter()) {
         hash_table.insert(addr.hash(), addr.clone());
     }
 
@@ -56,15 +58,15 @@ pub async fn create_mesh(cfg: &Config) -> Arc<dyn Mesh>
         .map(|i| i.ip())
         .collect::<Vec<_>>();
 
-    let mut listen_cluster = cfg.clusters.iter().next();
+    let mut listen_cluster = cfg_mesh.clusters.iter().next();
     let mut listen_root_addresses = Vec::new();
     
-    if let Some(addr) = &cfg.force_listen {
+    if let Some(addr) = &cfg_mesh.force_listen {
         listen_root_addresses.push(addr.clone());
-        listen_cluster = cfg.clusters.iter().filter(|c| c.roots.contains(addr)).next();
-    } else if cfg.force_client_only == false {
+        listen_cluster = cfg_mesh.clusters.iter().filter(|c| c.roots.contains(addr)).next();
+    } else if cfg_mesh.force_client_only == false {
         for local_ip in local_ips.iter() {
-            for cfg_cluster in cfg.clusters.iter() {
+            for cfg_cluster in cfg_mesh.clusters.iter() {
                 for root in cfg_cluster.roots.iter() {
                     if root.ip == *local_ip {
                         listen_cluster = Some(cfg_cluster);
@@ -76,9 +78,9 @@ pub async fn create_mesh(cfg: &Config) -> Arc<dyn Mesh>
     }
 
     match listen_root_addresses.len() {
-        0 => MeshClient::new(cfg).await,
+        0 => MeshClient::new(&cfg_ate, &cfg_mesh).await,
         _ => {
-            MeshRoot::new(cfg, listen_cluster, listen_root_addresses).await
+            MeshRoot::new(&cfg_ate, &cfg_mesh, listen_cluster, listen_root_addresses).await
         }
     }
 }
@@ -95,7 +97,9 @@ async fn test_mesh()
 {
     //env_logger::init();
 
-    let mut cfg = {
+    let cfg_ate = ConfAte::default();
+    let mut mesh_roots = Vec::new();
+    let mut cfg_mesh = {
         let mut cluster1 = ConfCluster::default();
         for n in 5100..5105 {
             cluster1.roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
@@ -106,30 +110,29 @@ async fn test_mesh()
             cluster2.roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
         }  
 
-        let mut cfg = Config::default();
-        cfg.clusters.push(cluster1);
-        cfg.clusters.push(cluster2);
+        let mut cfg_mesh = ConfMesh::default();
+        cfg_mesh.clusters.push(cluster1);
+        cfg_mesh.clusters.push(cluster2);
 
-        let mut mesh_roots = Vec::new();
         for n in 5100..5105 {
-            cfg.force_listen = Some(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
-            mesh_roots.push(create_mesh(&cfg).await);
+            cfg_mesh.force_listen = Some(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
+            mesh_roots.push(create_mesh(&cfg_ate, &cfg_mesh).await);
         }
         for n in 6100..6105 {
-            cfg.force_listen = Some(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
-            mesh_roots.push(create_mesh(&cfg).await);
+            cfg_mesh.force_listen = Some(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
+            mesh_roots.push(create_mesh(&cfg_ate, &cfg_mesh).await);
         }
-        cfg
+        cfg_mesh
     };
     
     let dao_key1;
     let dao_key2;
     {
-        cfg.force_listen = None;
-        cfg.force_client_only = true;
+        cfg_mesh.force_listen = None;
+        cfg_mesh.force_client_only = true;
 
         debug!("create the mesh and connect to it with client 1");
-        let client_a = create_mesh(&cfg).await;
+        let client_a = create_mesh(&cfg_ate, &cfg_mesh).await;
         let chain_a = client_a.open(ChainKey::new("test-chain".to_string())).await.unwrap();
         let session_a = Session::default();
 
@@ -147,9 +150,9 @@ async fn test_mesh()
         }
 
         {
-            cfg.force_listen = None;
-            cfg.force_client_only = true;
-            let client_b = create_mesh(&cfg).await;
+            cfg_mesh.force_listen = None;
+            cfg_mesh.force_client_only = true;
+            let client_b = create_mesh(&cfg_ate, &cfg_mesh).await;
 
             let chain_b = client_b.open(ChainKey::new("test-chain".to_string())).await.unwrap();
             let session_b = Session::default();
@@ -200,9 +203,9 @@ async fn test_mesh()
     }
 
     {
-        cfg.force_listen = None;
-        cfg.force_client_only = true;
-        let client = create_mesh(&cfg).await;
+        cfg_mesh.force_listen = None;
+        cfg_mesh.force_client_only = true;
+        let client = create_mesh(&cfg_ate, &cfg_mesh).await;
 
         debug!("reconnecting the client");
         let chain = client.open(ChainKey::new("test-chain".to_string())).await.unwrap();

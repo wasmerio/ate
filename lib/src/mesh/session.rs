@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use log::{warn, debug};
 use parking_lot::Mutex as StdMutex;
-use std::{sync::Arc};
+use std::{sync::Arc, sync::Weak};
 use tokio::sync::mpsc;
 use std::sync::mpsc as smpsc;
 use fxhash::FxHashMap;
@@ -20,7 +20,7 @@ use crate::pipe::*;
 use crate::header::*;
 use crate::spec::*;
 
-pub(crate) struct MeshSession
+pub struct MeshSession
 {
     addrs: Vec<MeshAddress>,
     key: ChainKey,
@@ -33,6 +33,8 @@ impl MeshSession
 {
     pub(super) async fn new(builder: ChainOfTrustBuilder, chain_key: &ChainKey, addrs: Vec<MeshAddress>) -> Result<Arc<MeshSession>, ChainCreationError>
     {
+        debug!("new: chain_key={}", chain_key.to_string());
+
         let commit
             = Arc::new(StdMutex::new(FxHashMap::default()));
         let lock_requests
@@ -94,7 +96,20 @@ impl MeshSession
         Ok(ret)
     }
 
+    pub(super) fn retro_create(chain: Arc<Chain>) -> Arc<MeshSession>
+    {
+        Arc::new(MeshSession {
+            addrs: Vec::new(),
+            key: chain.key().clone(),
+            chain: chain,
+            commit: Arc::new(StdMutex::new(FxHashMap::default())),
+            lock_requests: Arc::new(StdMutex::new(FxHashMap::default())),
+        })
+    }
+
     async fn inbox_connected(self: &Arc<MeshSession>, pck: PacketData) -> Result<(), CommsError> {
+        debug!("inbox: connected pck.size={}", pck.bytes.len());
+
         pck.reply(Message::Subscribe {
             chain_key: self.key.clone(),
             history_sample: self.chain.get_ending_sample().await,
@@ -103,6 +118,8 @@ impl MeshSession
     }
 
     async fn inbox_events(self: &Arc<MeshSession>, evts: Vec<MessageEvent>) -> Result<(), CommsError> {
+        debug!("inbox: events cnt={}", evts.len());
+
         let feed_me = MessageEvent::convert_from(evts);
 
         let mut single = self.chain.single().await;
@@ -114,6 +131,8 @@ impl MeshSession
     }
 
     async fn inbox_confirmed(self: &Arc<MeshSession>, id: u64) -> Result<(), CommsError> {
+        debug!("inbox: confirmed id={}", id);
+
         let r = {
             let mut lock = self.commit.lock();
             lock.remove(&id)
@@ -125,6 +144,8 @@ impl MeshSession
     }
 
     async fn inbox_commit_error(self: &Arc<MeshSession>, id: u64, err: String) -> Result<(), CommsError> {
+        debug!("inbox: commit_error id={}, err={}", id, err);
+
         let r= {
             let mut lock = self.commit.lock();
             lock.remove(&id)
@@ -136,6 +157,8 @@ impl MeshSession
     }
 
     fn inbox_lock_result(self: &Arc<MeshSession>, key: PrimaryKey, is_locked: bool) -> Result<(), CommsError> {
+        debug!("inbox: lock_result key={} is_locked={}", key.to_string(), is_locked);
+
         let mut remove = false;
         let mut guard = self.lock_requests.lock();
         if let Some(result) = guard.get_mut(&key) {
@@ -148,6 +171,7 @@ impl MeshSession
     }
 
     async fn inbox_end_of_history(loaded: &mpsc::Sender<Result<(), ChainCreationError>>) -> Result<(), CommsError> {
+        debug!("inbox: end_of_history");
         loaded.send(Ok(())).await.unwrap();
         Ok(())
     }
@@ -158,6 +182,7 @@ impl MeshSession
         pck: PacketWithContext<Message, ()>,
     ) -> Result<(), CommsError>
     {
+        debug!("inbox: packet size={}", pck.data.bytes.len());
         match pck.packet.msg {
             Message::Connected => Self::inbox_connected(self, pck.data).await,
             Message::Events { commit: _, evts } => Self::inbox_events(self, evts).await,
@@ -169,11 +194,18 @@ impl MeshSession
         }
     }
 
-    async fn inbox(self: Arc<MeshSession>, mut rx: NodeRx<Message, ()>, loaded: mpsc::Sender<Result<(), ChainCreationError>>)
+    async fn inbox(session: Arc<MeshSession>, mut rx: NodeRx<Message, ()>, loaded: mpsc::Sender<Result<(), ChainCreationError>>)
         -> Result<(), CommsError>
     {
+        let weak = Arc::downgrade(&session);
+        drop(session);
+
         while let Some(pck) = rx.recv().await {
-            match MeshSession::inbox_packet(&self, &loaded, pck).await {
+            let session = match weak.upgrade() {
+                Some(a) => a,
+                None => { break; }
+            };
+            match MeshSession::inbox_packet(&session, &loaded, pck).await {
                 Ok(_) => { },
                 Err(CommsError::ValidationError(err)) => {
                     debug!("mesh-session-debug: {}", err.to_string());
@@ -190,11 +222,23 @@ impl MeshSession
     }
 }
 
+impl std::ops::Deref
+for MeshSession
+{
+    type Target = Chain;
+
+    fn deref(&self) -> &Chain
+    {
+        self.chain.deref()
+    }
+}
+
 impl Drop
 for MeshSession
 {
     fn drop(&mut self)
     {
+        debug!("drop {}", self.key.to_string());
         {
             let guard = self.commit.lock();
             for sender in guard.values() {

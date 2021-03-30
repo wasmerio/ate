@@ -15,7 +15,7 @@ struct Person
 struct Transaction
 {
     from: PrimaryKey,
-    to: PrimaryKey,
+    to: DaoRef<Person>,
     description: String,
     amount: Decimal,
 }
@@ -29,7 +29,7 @@ struct Account
 }
 
 #[allow(dead_code)]
-async fn make_account<'a>(chain: &'a Chain, generator: &mut Generator<'a>)
+async fn make_account<'a>(chain: &'a Chain, generator: &mut Generator<'a>) -> Result<(), AteError>
 {
     let session = AteSession::default();
     let mut dio = chain.dio(&session).await;
@@ -45,17 +45,21 @@ async fn make_account<'a>(chain: &'a Chain, generator: &mut Generator<'a>)
         transactions: DaoVec::default(),
         balance: Decimal::default(),
     };
-    let acc = dio.store(acc).unwrap();
+    let mut acc = dio.store(acc).unwrap();
 
     for _ in 0..10 {
         let trans = Transaction {
-            to: acc.key().clone(),
+            to: DaoRef::from(acc.key().clone()),
             from: PrimaryKey::generate(),
             description: generator.next().unwrap(),
             amount: Decimal::from_i64(10).unwrap(),
         };
         acc.transactions.push(&mut dio, acc.key(), trans).unwrap();
     }
+
+    acc.commit(&mut dio)?;
+    dio.commit().await?;
+    Ok(())
 }
 
 #[tokio::main]
@@ -64,7 +68,7 @@ async fn main() -> Result<(), AteError>
     env_logger::init();
 
     // The default configuration will store the redo log locally in the temporary folder
-    let mut conf = AteConfig::default();
+    let mut conf = ConfAte::default();
     conf.log_temp = false;
     let builder = ChainBuilder::new(&conf);
 
@@ -74,7 +78,7 @@ async fn main() -> Result<(), AteError>
     // Make a thousand bank accounts
     let mut generator = Generator::default();
     for _ in 0..200 {
-        make_account(&chain, &mut generator).await;
+        make_account(&chain, &mut generator).await?;
     }
 
     chain.flush().await.unwrap();

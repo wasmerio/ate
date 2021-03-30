@@ -10,18 +10,21 @@ use crate::trust::*;
 use crate::chain::*;
 use crate::error::*;
 use crate::conf::*;
+use crate::mesh::MeshSession;
 
 /// Meshes are the networking API used for opening chains on a distributed chain.
 #[async_trait]
 pub trait Mesh
 {
-    async fn open<'a>(&'a self, key: ChainKey) -> Result<Arc<Chain>, ChainCreationError>;
+    async fn open<'a>(&'a self, key: ChainKey) -> Result<Arc<MeshSession>, ChainCreationError>;
 }
 
 #[derive(Default)]
 pub(super) struct MeshHashTableCluster
 {
-    pub(super) hash_table: BTreeMap<Hash, MeshAddress>,
+    pub(super) address_lookup: Vec<MeshAddress>,
+    pub(super) hash_table: BTreeMap<Hash, usize>,
+    pub(super) offset: usize,
 }
 
 impl MeshHashTableCluster
@@ -29,30 +32,46 @@ impl MeshHashTableCluster
     pub(crate) fn lookup(&self, key: &ChainKey) -> Option<MeshAddress> {
         let hash = key.hash();
 
-        let mut pointer: Option<&MeshAddress> = None;
+        let mut pointer: Option<usize> = None;
         for (k, v) in self.hash_table.iter() {
             if *k > hash {
-                return match pointer {
-                    Some(a) => Some(a.clone()),
-                    None => Some(v.clone())
+                match pointer {
+                    Some(a) => {
+                        pointer = Some(a.clone());
+                        break;
+                    },
+                    None => {
+                        pointer = Some(v.clone());
+                        break;
+                    }
                 };
             }
-            pointer = Some(v);
+            pointer = Some(v.clone());
         }
         if let Some(a) = pointer {
-            return Some(a.clone());
+            let index = (a + self.offset) % self.address_lookup.len();
+            if let Some(a) = self.address_lookup.get(index) {
+                return Some(a.clone());
+            }
         }
         None
     }
     #[allow(dead_code)]
     pub(crate) fn new(cfg_cluster: &ConfCluster) -> MeshHashTableCluster
     {
+        let mut index: usize = 0;
+
+        let mut addresses = Vec::new();
         let mut hash_table = BTreeMap::new();            
         for addr in cfg_cluster.roots.iter() {
-            hash_table.insert(addr.hash(), addr.clone());
+            addresses.push(addr.clone());
+            hash_table.insert(addr.hash(), index);
+            index = index + 1;
         }
         MeshHashTableCluster {
+            address_lookup: addresses,
             hash_table,
+            offset: cfg_cluster.offset as usize,
         }
     }
 }
@@ -65,20 +84,11 @@ pub(super) struct MeshHashTable
 impl MeshHashTable
 {
     #[allow(dead_code)]
-    pub(crate) fn new(cfg: &Config) -> MeshHashTable
+    pub(crate) fn new(cfg_mesh: &ConfMesh) -> MeshHashTable
     {
         let mut clusters = Vec::new();
-        for cfg_cluster in cfg.clusters.iter() {
-            let mut hash_table = BTreeMap::new();
-            
-            for addr in cfg_cluster.roots.iter() {
-                hash_table.insert(addr.hash(), addr.clone());
-            }
-
-            let cluster = MeshHashTableCluster {
-                hash_table,
-            };
-            clusters.push(cluster);
+        for cfg_cluster in cfg_mesh.clusters.iter() {
+            clusters.push(MeshHashTableCluster::new(cfg_cluster));
         }
 
         MeshHashTable {

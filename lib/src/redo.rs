@@ -926,7 +926,7 @@ pub(crate) struct RedoLog {
 
 impl RedoLog
 {
-    async fn new(cfg: &Config, path_log: String, truncate: bool, cache_size: usize, cache_ttl: u64) -> std::result::Result<(RedoLog, RedoLogLoader), SerializationError>
+    async fn new(cfg: &ConfAte, path_log: String, truncate: bool, cache_size: usize, cache_ttl: u64) -> std::result::Result<(RedoLog, RedoLogLoader), SerializationError>
     {
         // Build the loader
         let mut loader = RedoLogLoader::default();
@@ -1024,7 +1024,7 @@ impl RedoLog
     }
 
     #[allow(dead_code)]
-    pub(crate) async fn create(cfg: &Config, key: &ChainKey) -> std::result::Result<RedoLog, SerializationError> {
+    pub(crate) async fn create(cfg: &ConfAte, key: &ChainKey) -> std::result::Result<RedoLog, SerializationError> {
         let _ = std::fs::create_dir_all(cfg.log_path.clone());
 
         let path_log = format!("{}/{}.log", cfg.log_path, key.name);
@@ -1043,7 +1043,7 @@ impl RedoLog
     }
 
     #[allow(dead_code)]
-    pub(crate) async fn open(cfg: &Config, key: &ChainKey, truncate: bool) -> std::result::Result<(RedoLog, RedoLogLoader), SerializationError> {
+    pub(crate) async fn open(cfg: &ConfAte, key: &ChainKey, truncate: bool) -> std::result::Result<(RedoLog, RedoLogLoader), SerializationError> {
         let _ = std::fs::create_dir_all(cfg.log_path.clone());
 
         let path_log = format!("{}/{}.log", cfg.log_path, key.name);

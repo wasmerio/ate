@@ -72,6 +72,11 @@ impl ChainKey {
     {
         Hash::from_bytes(&self.name.clone().into_bytes())
     }
+
+    pub fn to_string(&self) -> String
+    {
+        self.name.clone()
+    }
 }
 
 impl From<String>

@@ -1,4 +1,6 @@
-pub use crate::conf::Config as AteConfig;
+pub use crate::conf::ConfAte as AteConfig;
+pub use crate::conf::ConfAte;
+pub use crate::conf::ConfMesh;
 pub use crate::conf::ConfiguredFor;
 pub use crate::conf::ConfCluster;
 pub use crate::header::PrimaryKey;
@@ -27,6 +29,7 @@ pub use crate::single::ChainSingleUser;
 pub use crate::session::Session as AteSession;
 pub use crate::transaction::Scope as TransactionScope;
 
+pub use crate::mesh::Registry;
 pub use crate::mesh::Mesh;
 pub use crate::conf::MeshAddress;
 pub use std::{net::{IpAddr, Ipv4Addr, Ipv6Addr}, str::FromStr};

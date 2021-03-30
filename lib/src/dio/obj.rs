@@ -142,6 +142,18 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     }
 }
 
+impl<D> From<PrimaryKey>
+for DaoRef<D>
+where D: Serialize + DeserializeOwned + Clone + Send + Sync,
+{
+    fn from(key: PrimaryKey) -> DaoRef<D> {
+        DaoRef {
+            id: Some(key),
+            _phantom1: PhantomData
+        }
+    }
+}
+
 impl<D> Default
 for DaoRef<D>
 where D: Serialize + DeserializeOwned + Clone + Send + Sync,

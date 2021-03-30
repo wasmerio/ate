@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use tokio::sync::{Mutex};
+use log::{warn, debug, error};
 use std::{sync::Arc, collections::hash_map::Entry};
 use fxhash::FxHashMap;
 use crate::{header::PrimaryKey, pipe::EventPipe};
@@ -15,19 +16,19 @@ use crate::transaction::*;
 use super::msg::*;
 
 pub(super) struct MeshClient {
-    cfg: Config,
+    cfg_ate: ConfAte,
     lookup: MeshHashTable,
     sessions: Mutex<FxHashMap<ChainKey, Weak<MeshSession>>>,
 }
 
 impl MeshClient {
-    pub(super) async fn new(cfg: &Config) -> Arc<MeshClient>
+    pub(super) async fn new(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Arc<MeshClient>
     {
         Arc::new(
             MeshClient
             {
-                cfg: cfg.clone(),
-                lookup: MeshHashTable::new(cfg),
+                cfg_ate: cfg_ate.clone(),
+                lookup: MeshHashTable::new(cfg_mesh),
                 sessions: Mutex::new(FxHashMap::default()),
             }
         )
@@ -37,9 +38,15 @@ impl MeshClient {
 #[async_trait]
 impl Mesh
 for MeshClient {
-    async fn open<'a>(&'a self, key: ChainKey)
-        -> Result<Arc<Chain>, ChainCreationError>
+    async fn open<'a>(&'a self, mut key: ChainKey)
+        -> Result<Arc<MeshSession>, ChainCreationError>
     {
+        if key.to_string().starts_with("/") == false {
+            key = ChainKey::from(format!("/{}", key.to_string()));
+        }
+
+        debug!("open {}", key.to_string());
+
         let mut sessions = self.sessions.lock().await;
         let record = match sessions.entry(key.clone()) {
             Entry::Occupied(o) => o.into_mut(),
@@ -47,7 +54,7 @@ for MeshClient {
         };
 
         if let Some(ret) = record.upgrade() {
-            return Ok(Arc::clone(&ret.chain));
+            return Ok(Arc::clone(&ret));
         }
 
         let addrs = self.lookup.lookup(&key);
@@ -55,10 +62,18 @@ for MeshClient {
             return Err(ChainCreationError::NoRootFoundInConfig);
         }
         
-        let builder = ChainOfTrustBuilder::new(&self.cfg);
+        let builder = ChainOfTrustBuilder::new(&self.cfg_ate);
         let session = MeshSession::new(builder, &key, addrs).await?;
         *record = Arc::downgrade(&session);
 
-        Ok(Arc::clone(&session.chain))
+        Ok(session)
+    }
+}
+
+impl Drop
+for MeshClient
+{
+    fn drop(&mut self) {
+        debug!("drop");
     }
 }

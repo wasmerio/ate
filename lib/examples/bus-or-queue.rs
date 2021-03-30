@@ -19,19 +19,20 @@ struct Table
 async fn main() -> Result<(), AteError>
 {
     // Create the server and listen on port 5001
-    let mut cfg = AteConfig::default();
+    let mut cfg_mesh = ConfMesh::default();
+    let cfg_ate = ConfAte::default();
     let addr = MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), 5001);
     let mut cluster = ConfCluster::default();
     cluster.roots.push(addr.clone());
-    cfg.clusters.push(cluster);
-    cfg.force_listen = Some(addr);
-    let _ = create_mesh(&cfg).await;
+    cfg_mesh.clusters.push(cluster);
+    cfg_mesh.force_listen = Some(addr);
+    let _ = create_mesh(&cfg_ate,&cfg_mesh).await;
 
     // Connect to the server from a client
-    cfg.force_listen = None;
-    cfg.force_client_only = true;
-    let client_a = create_mesh(&cfg).await;
-    let client_b = create_mesh(&cfg).await;
+    cfg_mesh.force_listen = None;
+    cfg_mesh.force_client_only = true;
+    let client_a = create_mesh(&cfg_ate, &cfg_mesh).await;
+    let client_b = create_mesh(&cfg_ate, &cfg_mesh).await;
 
     // Create a session
     let session = AteSession::default();
@@ -43,6 +44,7 @@ async fn main() -> Result<(), AteError>
         let dao = dio.store(Table {
             ball: DaoVec::new(),
         })?;
+        dio.commit().await?;
 
         // Now attach a BUS that will simple write to the console
         (
@@ -56,9 +58,11 @@ async fn main() -> Result<(), AteError>
         let chain_b = client_b.open(ChainKey::from("ping-pong-table")).await.unwrap();
         chain_b.sync().await?;
         let mut dio = chain_b.dio_ext(&session, TransactionScope::Full).await;
-        let dao = dio.load::<Table>(&key).await?;
+        let mut dao = dio.load::<Table>(&key).await?;
         dao.ball.push(&mut dio, dao.key(), BallSound::Ping)?;
         dao.ball.push(&mut dio, dao.key(), BallSound::Ping)?;
+        dao.commit(&mut dio)?;
+        dio.commit().await?;
     }
 
     // Process any events that were received on the BUS
@@ -66,8 +70,10 @@ async fn main() -> Result<(), AteError>
         let mut dio = chain_a.dio_ext(&session, TransactionScope::Full).await;
 
         // (this is an exactly once queue)
-        let ret = bus.process(&mut dio).await?;
+        let mut ret = bus.process(&mut dio).await?;
         println!("{:?}", ret);
+        ret.commit(&mut dio)?;
+        dio.commit().await?;
 
         // (this is a broadcast event to all current subscribers)
         let ret = bus.recv(&session).await?;

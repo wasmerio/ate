@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use serde::{Serialize, Deserialize};
-use log::{warn};
+use log::{info, warn, debug, error};
 use std::{borrow::Borrow, net::{IpAddr, Ipv6Addr}, ops::Deref};
 use tokio::sync::{Mutex};
 use parking_lot::Mutex as StdMutex;
@@ -21,9 +21,10 @@ use crate::conf::*;
 use crate::transaction::*;
 use super::client::MeshClient;
 use super::msg::*;
+use super::MeshSession;
 
 pub(super) struct MeshRoot {
-    cfg: Config,
+    cfg_ate: ConfAte,
     lookup: MeshHashTableCluster,
     client: Arc<MeshClient>,
     addrs: Vec<MeshAddress>,
@@ -71,10 +72,10 @@ for SessionContext {
 impl MeshRoot
 {
     #[allow(dead_code)]
-    pub(super) async fn new(cfg: &Config, cfg_cluster: Option<&ConfCluster>, listen_addrs: Vec<MeshAddress>) -> Arc<MeshRoot>
+    pub(super) async fn new(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh, cfg_cluster: Option<&ConfCluster>, listen_addrs: Vec<MeshAddress>) -> Arc<MeshRoot>
     {
-        let mut node_cfg = NodeConfig::new(cfg.wire_format)
-            .buffer_size(cfg.buffer_size_server);
+        let mut node_cfg = NodeConfig::new(cfg_ate.wire_format)
+            .buffer_size(cfg_ate.buffer_size_server);
         let mut listen_ports = listen_addrs
             .iter()
             .map(|a| a.port)
@@ -90,13 +91,13 @@ impl MeshRoot
         let ret = Arc::new(
             MeshRoot
             {
-                cfg: cfg.clone(),
+                cfg_ate: cfg_ate.clone(),
                 addrs: listen_addrs,
                 lookup: match cfg_cluster {
                     Some(c) => MeshHashTableCluster::new(c),
                     None => MeshHashTableCluster::default(),
                 },
-                client: MeshClient::new(cfg).await,
+                client: MeshClient::new(cfg_ate, cfg_mesh).await,
                 chains: StdMutex::new(FxHashMap::default()),
                 chain_builder: Mutex::new(()),
             }
@@ -135,10 +136,12 @@ impl MeshRoot
     )
     -> Result<(), CommsError>
     {
+        debug!("inbox: subscribe: {}", chain_key.to_string());
+
         // If we can't find a chain for this subscription then fail and tell the caller
         let chain = match self.open(chain_key.clone()).await {
             Err(ChainCreationError::NoRootFoundInConfig) => {
-                PacketData::reply_at(reply_at, Message::NotThisRoot, self.cfg.wire_format).await?;
+                PacketData::reply_at(reply_at, Message::NotThisRoot, self.cfg_ate.wire_format).await?;
                 return Ok(());
             }
             a => a?
@@ -153,7 +156,7 @@ impl MeshRoot
         
         // Let the caller know we will be streaming them events
         let multi = chain.multi().await;
-        PacketData::reply_at(reply_at, Message::StartOfHistory, self.cfg.wire_format).await?;
+        PacketData::reply_at(reply_at, Message::StartOfHistory, self.cfg_ate.wire_format).await?;
 
         // Find what offset we will start streaming the events back to the caller
         // (we work backwards from the consumers last known position till we find a match
@@ -207,11 +210,11 @@ impl MeshRoot
             PacketData::reply_at(reply_at, Message::Events {
                 commit: None,
                 evts
-            }, self.cfg.wire_format).await?;
+            }, self.cfg_ate.wire_format).await?;
         }
 
         // Let caller know we have sent all the events that were requested
-        PacketData::reply_at(reply_at, Message::EndOfHistory, self.cfg.wire_format).await?;
+        PacketData::reply_at(reply_at, Message::EndOfHistory, self.cfg_ate.wire_format).await?;
         Ok(())
     }
 
@@ -220,20 +223,22 @@ impl MeshRoot
         reply_at: Option<&mpsc::Sender<PacketData>>,
         context: Arc<SessionContext>,
     )
-    -> Result<Option<Arc<Chain>>, CommsError>
+    -> Result<Option<Arc<MeshSession>>, CommsError>
     {
+        debug!("get_chain");
+
         let chain_key = context.inside.lock().chain_key.clone();
         let chain_key = match chain_key {
             Some(k) => k,
             None => {
-                PacketData::reply_at(reply_at, Message::NotYetSubscribed, self.cfg.wire_format).await?;
+                PacketData::reply_at(reply_at, Message::NotYetSubscribed, self.cfg_ate.wire_format).await?;
                 return Ok(None);
             }
         };
         Ok(Some(
             match self.open(chain_key.clone()).await {
                 Err(ChainCreationError::NoRootFoundInConfig) => {
-                    PacketData::reply_at(reply_at, Message::NotThisRoot, self.cfg.wire_format).await?;
+                    PacketData::reply_at(reply_at, Message::NotThisRoot, self.cfg_ate.wire_format).await?;
                     return Ok(None);
                 },
                 a => a?
@@ -252,6 +257,8 @@ impl MeshRoot
     )
     -> Result<(), CommsError>
     {
+        debug!("inbox: events: cnt={}", evts.len());
+
         let chain = match Self::inbox_get_chain(self, reply_at, context).await? {
             Some(a) => a,
             None => { return Ok(()); }
@@ -275,11 +282,11 @@ impl MeshRoot
 
         if let Some(id) = commit {
             match &ret {
-                Ok(_) => PacketData::reply_at(reply_at, Message::Confirmed(id.clone()), self.cfg.wire_format).await?,
+                Ok(_) => PacketData::reply_at(reply_at, Message::Confirmed(id.clone()), self.cfg_ate.wire_format).await?,
                 Err(err) => PacketData::reply_at(reply_at, Message::CommitError{
                     id: id.clone(),
                     err: err.to_string(),
-                }, self.cfg.wire_format).await?
+                }, self.cfg_ate.wire_format).await?
             };
         }
 
@@ -294,6 +301,8 @@ impl MeshRoot
     )
     -> Result<(), CommsError>
     {
+        debug!("inbox: lock {}", key);
+
         let chain = match Self::inbox_get_chain(self, reply_at, Arc::clone(&context)).await? {
             Some(a) => a,
             None => { return Ok(()); }
@@ -305,7 +314,7 @@ impl MeshRoot
         PacketData::reply_at(reply_at, Message::LockResult {
             key: key.clone(),
             is_locked
-        }, self.cfg.wire_format).await
+        }, self.cfg_ate.wire_format).await
     }
 
     async fn inbox_unlock(
@@ -316,6 +325,8 @@ impl MeshRoot
     )
     -> Result<(), CommsError>
     {
+        debug!("inbox: unlock {}", key);
+
         let chain = match Self::inbox_get_chain(self, reply_at, Arc::clone(&context)).await? {
             Some(a) => a,
             None => { return Ok(()); }
@@ -333,6 +344,8 @@ impl MeshRoot
     )
     -> Result<(), CommsError>
     {
+        debug!("inbox: packet size={}", pck.data.bytes.len());
+
         let context = pck.context.clone();
         let mut pck_data = pck.data;
         let pck = pck.packet;
@@ -354,13 +367,20 @@ impl MeshRoot
     }
 
     async fn inbox(
-        self: Arc<MeshRoot>,
+        session: Arc<MeshRoot>,
         mut rx: NodeRx<Message, SessionContext>,
         tx: NodeTx<SessionContext>
     ) -> Result<(), CommsError>
     {
+        let weak = Arc::downgrade(&session);
+        drop(session);
+
         while let Some(pck) = rx.recv().await {
-            match MeshRoot::inbox_packet(&self, pck, &tx).await {
+            let session = match weak.upgrade() {
+                Some(a) => a,
+                None => { break; }
+            };
+            match MeshRoot::inbox_packet(&session, pck, &tx).await {
                 Ok(_) => { },
                 Err(err) => {
                     debug_assert!(false, "mesh-root-err {:?}", err);
@@ -391,7 +411,7 @@ impl MeshRoot
             }
         }
 
-        let builder = ChainOfTrustBuilder::new(&self.cfg);
+        let builder = ChainOfTrustBuilder::new(&self.cfg_ate);
         let new_chain = Arc::new(Chain::new(builder, &key).await?);
         
         let mut chains = self.chains.lock();
@@ -414,15 +434,23 @@ impl MeshRoot
 #[async_trait]
 impl Mesh
 for MeshRoot {
-    async fn open<'a>(&'a self, key: ChainKey)
-        -> Result<Arc<Chain>, ChainCreationError>
+    async fn open<'a>(&'a self, mut key: ChainKey)
+        -> Result<Arc<MeshSession>, ChainCreationError>
     {
+        if key.to_string().starts_with("/") == false {
+            key = ChainKey::from(format!("/{}", key.to_string()));
+        }
+
+        debug!("open {}", key.to_string());
         Ok(
             match self.open_internal(&key).await {
                 Err(ChainCreationError::NotThisRoot) => {
                     return Ok(self.client.open(key).await?);
                 }
-                a => a?,
+                a => {
+                    let chain = a?;
+                    MeshSession::retro_create(chain)
+                },
             }
         )
     }

@@ -1,6 +1,7 @@
 #![allow(unused_imports)]
+use log::{warn, debug, error};
 use crate::{
-    conf::Config,
+    conf::ConfAte,
     error::ChainCreationError
 };
 use crate::chain::Chain;
@@ -21,6 +22,7 @@ use std::net::Ipv4Addr;
 use std::net::Ipv6Addr;
 use std::str::FromStr;
 use trust_dns_client::client::{Client, SyncClient, ClientHandle, AsyncClient, MemoizeClientHandle};
+use trust_dns_client::error::ClientError;
 use trust_dns_client::udp::UdpClientConnection;
 use trust_dns_client::udp::UdpClientStream;
 use trust_dns_client::tcp::TcpClientConnection;
@@ -37,18 +39,42 @@ use trust_dns_proto::{
     xfer::{DnsHandle, DnsRequest},
 };
 
+enum DnsClient
+{
+    Dns(MemoizeClientHandle<AsyncClient>),
+    DnsSec(DnssecDnsHandle<MemoizeClientHandle<AsyncClient>>)
+}
+
+impl DnsClient
+{
+    async fn query(
+        &mut self,
+        name: Name,
+        query_class: DNSClass,
+        query_type: RecordType,
+    ) -> Result<DnsResponse, ClientError>
+    {
+        match self {
+            DnsClient::Dns(c) => c.query(name, query_class, query_type).await,
+            DnsClient::DnsSec(c) => c.query(name, query_class, query_type).await,
+        }
+    }
+}
+
 pub struct Registry
 {
-    cfg: Config,
-    dns: Mutex<DnssecDnsHandle<MemoizeClientHandle<AsyncClient>>>,
+    cfg_ate: ConfAte,
+    dns: Mutex<DnsClient>,
     chains: Mutex<FxHashMap<String, Arc<dyn Mesh>>>,
 }
 
 impl Registry
 {
-    pub async fn new(cfg: Config) -> Arc<Registry>
+    pub async fn new(cfg_ate: &ConfAte) -> Arc<Registry>
     {
-        let addr: SocketAddr = ("8.8.8.8", 53).to_socket_addrs().unwrap().next().unwrap();
+        debug!("using DNS server: {}", cfg_ate.dns_server);
+        let addr: SocketAddr = (cfg_ate.dns_server.clone(), 53).to_socket_addrs().unwrap().next().unwrap();
+        
         let (stream, sender)
             = TcpClientStream::<AsyncIoTokioAsStd<TokioTcpStream>>::new(addr);
         let client
@@ -58,18 +84,28 @@ impl Registry
         tokio::spawn(bg);
 
         let client = MemoizeClientHandle::new(client);
-        let client = DnssecDnsHandle::new(client);
+        let dns = match cfg_ate.dns_sec {
+            true => {
+                debug!("configured for DNSSec");
+                DnsClient::DnsSec(DnssecDnsHandle::new(client.clone()))
+            },
+            false => {
+                debug!("configured for plain DNS");
+                DnsClient::Dns(client)
+            }
+        };
+        let dns = Mutex::new(dns);
         
         Arc::new(
             Registry {
-                cfg,
-                dns: Mutex::new(client),
+                cfg_ate: cfg_ate.clone(),
+                dns,
                 chains: Mutex::new(FxHashMap::default()),
             }
         )
     }
 
-    pub async fn chain(&self, url: &Url) -> Result<Arc<Chain>, ChainCreationError>
+    pub async fn chain(&self, url: &Url) -> Result<Arc<MeshSession>, ChainCreationError>
     {
         let key = ChainKey::new(url.path().to_string());
         let mut lock = self.chains.lock().await;
@@ -84,18 +120,16 @@ impl Registry
                 Ok(a.open(key).await?)
             },
             None => {
-                let cfg = self.cfg(url).await?;
-                let mesh = create_mesh(&cfg).await;
+                let cfg_mesh = self.cfg(url).await?;
+                let mesh = create_mesh(&self.cfg_ate, &cfg_mesh).await;
                 lock.insert(domain, Arc::clone(&mesh));
                 Ok(mesh.open(key).await?)
             }
         }
     }
 
-    async fn cfg(&self, url: &Url) -> Result<Config, ChainCreationError>
+    async fn cfg(&self, url: &Url) -> Result<ConfMesh, ChainCreationError>
     {
-        let mut client = self.dns.lock().await;
-
         if url.scheme().to_lowercase().trim() != "tcp" {
             return Err(ChainCreationError::UnsupportedProtocol);
         }
@@ -105,51 +139,51 @@ impl Registry
             None => 5000,
         };
 
-        let mut ret = self.cfg.clone();
-        for n in 0 as i32.. {
-            let name_store;
-            let name = Name::from_str(
-                match url.domain() {
-                    Some(a) => {
-                        match n {
-                            0 => a,
-                            n => {
-                                name_store = format!("{}{}", a, n);
-                                name_store.as_str()
-                            }
-                        }
-                    },
-                    None => { return Err(ChainCreationError::NoValidDomain(url.to_string())); }
-                }
-            ).unwrap();
-            
-            let mut addrs = Vec::new();
-            
-            let response
-                = client.query(name.clone(), DNSClass::IN, RecordType::AAAA).await?;
-            for answer in response.answers() {
-                if let RData::AAAA(ref address) = *answer.rdata() {
-                    addrs.push(IpAddr::V6(address.clone()));
-                }
-            }
-            let response
-                = client.query(name.clone(), DNSClass::IN, RecordType::A).await?;
-            for answer in response.answers() {
-                if let RData::A(ref address) = *answer.rdata() {
-                    addrs.push(IpAddr::V4(address.clone()));
-                }
-            }
+        let mut ret = ConfMesh::default();
+        ret.force_listen = None;
+        ret.force_client_only = true;
 
+        for n in 0 as i32..10
+        {
+            // Build the DNS name we will query
+            let name_store;
+            let name = match url.domain() {
+                Some(a) => {
+                    match n {
+                        0 => a,
+                        n => {
+                            name_store = format!("{}{}", a, n);
+                            name_store.as_str()
+                        }
+                    }
+                },
+                None => { return Err(ChainCreationError::NoValidDomain(url.to_string())); }
+            };
+            
+            // Search DNS for entries for this server (Ipv6 takes prioity over Ipv4)
+            let (mut addrs, no_more) = self.dns_query(name).await?;
             if addrs.len() <= 0 {
+                if n == 0 { debug!("no nodes found for {}", name); }
                 break;
             }
+            if n > 0 { debug!("another cluster found at {}", name); }
+
+            addrs.sort();
+            for addr in addrs.iter() {
+                debug!("found node {}", addr);
+            }
             
+            // Add the cluster to the configuration
             let mut cluster = ConfCluster::default();
+            cluster.offset = n;
             for addr in addrs {
                 let addr = MeshAddress::new(addr, port);
                 cluster.roots.push(addr);
             }
             ret.clusters.push(cluster);
+
+            // If we are not to process any more clusters then break from the loop
+            if no_more { break; }
         }
 
         if ret.clusters.len() <= 0 {
@@ -157,5 +191,39 @@ impl Registry
         }
 
         Ok(ret)
+    }
+
+    async fn dns_query(&self, name: &str) -> Result<(Vec<IpAddr>, bool), ClientError>
+    {
+        match name.to_lowercase().as_str() {
+            "localhost" => { return Ok((vec![IpAddr::V4(Ipv4Addr::from_str("127.0.0.1").unwrap())], true)) },
+            _ => { }
+        };
+
+        if let Ok(ip) = IpAddr::from_str(name) {
+            return Ok((vec![ip], true));
+        }
+
+        let mut client = self.dns.lock().await;
+
+        let mut addrs = Vec::new();
+        let response
+            = client.query(Name::from_str(name).unwrap(), DNSClass::IN, RecordType::AAAA).await?;
+        for answer in response.answers() {
+            if let RData::AAAA(ref address) = *answer.rdata() {
+                addrs.push(IpAddr::V6(address.clone()));
+            }
+        }
+        if addrs.len() <= 0 {
+            let response
+                = client.query(Name::from_str(name).unwrap(), DNSClass::IN, RecordType::A).await?;
+            for answer in response.answers() {
+                if let RData::A(ref address) = *answer.rdata() {
+                    addrs.push(IpAddr::V4(address.clone()));
+                }
+            }
+        }
+
+        Ok((addrs, false))
     }
 }

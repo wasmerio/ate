@@ -56,27 +56,18 @@ impl MeshAddress
 #[derive(Debug, Clone, Default)]
 pub struct ConfCluster
 {
+    /// List of all the addresses that the root nodes exists on
     pub roots: Vec<MeshAddress>,
+    /// Offset to apply when lookup up which server has a particular
+    /// chain. This allows the mirrors to be on different servers
+    /// but share the same set of physical nodes (and their IP addresses)
+    pub offset: i32,
 }
 
-/// Configuration settings for the ATE datastore
-///
+/// Configuration of a particular mesh that contains one of more chains
 #[derive(Debug, Clone)]
-pub struct Config
+pub struct ConfMesh
 {
-    /// Directory path that the redo logs will be stored.
-    pub log_path: String,
-    /// Indicates if the redo logs will be deleted on exit which is normally
-    /// useful when running a client in fully stateless mode.
-    pub log_temp: bool,
-
-    /// NTP pool server which ATE will synchronize its clocks with, its
-    /// important to have synchronized clocks with ATE as it uses time as
-    /// digest to prevent replay attacks
-    pub ntp_pool: String,
-    /// Port that the NTP server is listening on (defaults to 123)
-    pub ntp_port: u32,
-
     /// When running a distributed ATE datastore in a mesh configuration then
     /// one more clusters can be specified here. Each cluster represents a
     /// replication target hence scaling out clusters increasing capacity
@@ -91,6 +82,30 @@ pub struct Config
     /// Forces ATE to listen on a particular address for connections even if
     /// the address is not in the list of cluster nodes.
     pub force_listen: Option<MeshAddress>,
+}
+
+/// Configuration settings for the ATE datastore
+///
+#[derive(Debug, Clone)]
+pub struct ConfAte
+{
+    /// Directory path that the redo logs will be stored.
+    pub log_path: String,
+    /// Indicates if the redo logs will be deleted on exit which is normally
+    /// useful when running a client in fully stateless mode.
+    pub log_temp: bool,
+
+    /// NTP pool server which ATE will synchronize its clocks with, its
+    /// important to have synchronized clocks with ATE as it uses time as
+    /// digest to prevent replay attacks
+    pub ntp_pool: String,
+    /// Port that the NTP server is listening on (defaults to 123)
+    pub ntp_port: u32,
+
+    /// Flag that determines if ATE will use DNSSec or just plain DNS
+    pub dns_sec: bool,
+    /// DNS server that queries will be made do by the chain registry
+    pub dns_server: String,
 
     /// Optimizes ATE for a specific group of usecases
     configured_for: ConfiguredFor,
@@ -112,7 +127,7 @@ pub struct Config
     pub wire_format: SerializationFormat,
 }
 
-impl Config
+impl ConfAte
 {
     pub fn configured_for(&mut self, configured_for: ConfiguredFor)
     {
@@ -136,17 +151,28 @@ impl Config
 }
 
 impl Default
-for Config
+for ConfMesh
 {
-    fn default() -> Config {
-        Config {
-            log_path: "/tmp/ate".to_string(),
-            log_temp: true,
-            ntp_pool: "pool.ntp.org".to_string(),
-            ntp_port: 123,
+    fn default() -> ConfMesh {
+        ConfMesh {
             clusters: Vec::new(),
             force_client_only: false,
             force_listen: None,
+        }
+    }
+}
+
+impl Default
+for ConfAte
+{
+    fn default() -> ConfAte {
+        ConfAte {
+            log_path: "/tmp/ate".to_string(),
+            log_temp: true,
+            dns_sec: false,
+            dns_server: "8.8.8.8".to_string(),
+            ntp_pool: "pool.ntp.org".to_string(),
+            ntp_port: 123,
             configured_for: ConfiguredFor::default(),
             buffer_size_client: 1000,
             buffer_size_server: 1000,
@@ -162,14 +188,20 @@ for Config
 }
 
 #[cfg(test)]
-pub(crate) fn mock_test_config() -> Config {
-    let mut cluster = ConfCluster::default();
-    cluster.roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), 4001));
-    let mut ret = Config::default();
+pub(crate) fn mock_test_config() -> ConfAte {
+    let mut ret = ConfAte::default();
     ret.log_path = "/tmp/ate".to_string();
     ret.log_temp = true;
-    ret.clusters.push(cluster);
     return ret;
+}
+
+#[cfg(test)]
+pub(crate) fn mock_test_mesh() -> ConfMesh {
+    let mut ret = ConfMesh::default();
+    let mut cluster = ConfCluster::default();
+    cluster.roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), 4001));
+    ret.clusters.push(cluster);
+    ret
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -244,7 +276,7 @@ for ConfiguredFor
 /// this builder will be used to create and load your chains.
 pub struct ChainOfTrustBuilder
 {
-    pub(super) cfg: Config, 
+    pub(super) cfg: ConfAte, 
     pub(super) configured_for: ConfiguredFor,
     pub(super) validators: Vec<Box<dyn EventValidator>>,
     pub(super) compactors: Vec<Box<dyn EventCompactor>>,
@@ -278,7 +310,7 @@ for ChainOfTrustBuilder
 impl ChainOfTrustBuilder
 {
     #[allow(dead_code)]
-    pub fn new(cfg: &Config) -> ChainOfTrustBuilder {
+    pub fn new(cfg: &ConfAte) -> ChainOfTrustBuilder {
         ChainOfTrustBuilder {
             cfg: cfg.clone(),
             configured_for: cfg.configured_for.clone(),
@@ -316,6 +348,9 @@ impl ChainOfTrustBuilder
         match self.configured_for {
             ConfiguredFor::SmallestSize => {
                 self.transformers.insert(0, Box::new(CompressorWithSnapTransformer::default()));
+            },
+            ConfiguredFor::BestSecurity => {
+                self.cfg.dns_sec = true;
             }
             _ => {}
         }
@@ -413,13 +448,13 @@ impl Default
 for ChainOfTrustBuilder
 {
     fn default() -> ChainOfTrustBuilder {
-        let cfg = Config::default();
+        let cfg = ConfAte::default();
         ChainOfTrustBuilder::new(&cfg)
     }
 }
 
 #[test]
 fn test_config_mocking() {
-    let cfg = mock_test_config();
+    let cfg = mock_test_mesh();
     assert_eq!(cfg.clusters.iter().flat_map(|a| a.roots.iter()).next().unwrap().ip.to_string(), "127.0.0.1");
 }

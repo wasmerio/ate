@@ -404,6 +404,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                         warn!("connection-failed: {}", err.to_string());
                     },
                 };
+                info!("disconnection: {}", sock_addr.to_string());
 
                 // Decrease the connection state
                 let mut guard = worker_state.lock();
