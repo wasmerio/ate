@@ -202,7 +202,7 @@ impl<'a> ChainOfTrust
 }
 
 #[cfg(test)]
-pub(crate) async fn create_test_chain(chain_name: String, temp: bool, barebone: bool, root_public_key: Option<PublicKey>) ->
+pub(crate) async fn create_test_chain(chain_name: String, temp: bool, barebone: bool, root_public_key: Option<PublicSignKey>) ->
     Chain
 {
     // Create the chain-of-trust and a validator
@@ -222,7 +222,7 @@ pub(crate) async fn create_test_chain(chain_name: String, temp: bool, barebone: 
 
             ChainOfTrustBuilder::new(&mock_cfg)
                 .add_validator(Box::new(RubberStampValidator::default()))
-                .add_data_transformer(Box::new(StaticEncryptionTransformer::new(&EncryptKey::from_string("test".to_string(), KeySize::Bit192))))
+                .add_data_transformer(Box::new(StaticEncryptionTransformer::new(&EncryptKey::from_seed_string("test".to_string(), KeySize::Bit192))))
                 .add_metadata_linter(Box::new(EventAuthorLinter::default()))
         },
         false => {

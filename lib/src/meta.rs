@@ -121,7 +121,7 @@ pub enum CoreMetadata
     Tombstone(PrimaryKey),
     Authorization(MetaAuthorization),
     InitializationVector(InitializationVector),
-    PublicKey(PublicKey),
+    PublicKey(PublicSignKey),
     EncryptedPrivateKey(EncryptedPrivateKey),
     Confidentiality(ReadOption),
     Collection(MetaCollection),

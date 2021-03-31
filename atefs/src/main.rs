@@ -88,6 +88,9 @@ struct Mount {
     /// Redo log file will be deleted when the file system is unmounted
     #[clap(short, long)]
     temp: bool,
+    /// Indicates if ATE will use quantum resistant wire encryption (possible values are 128, 192, 256).
+    #[clap(long)]
+    wire_encryption: Option<KeySize>,
     /// UID of the user that this file system will be mounted as
     #[clap(short, long)]
     uid: Option<u32>,
@@ -136,6 +139,7 @@ fn main_debug() -> Opts {
             temp: false,
             uid: None,
             gid: None,
+            wire_encryption: None,
             allow_root: false,
             allow_other: false,
             read_only: false,
@@ -203,6 +207,7 @@ async fn main() -> Result<(), AteError> {
             conf.log_temp = mount.temp;
             conf.dns_sec = opts.dns_sec;
             conf.dns_server = opts.dns_server;
+            conf.wire_encryption = mount.wire_encryption;
 
             debug!("configured_for: {:?}", mount.configured_for);
             debug!("meta_format: {:?}", mount.meta_format);

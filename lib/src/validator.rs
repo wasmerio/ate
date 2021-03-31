@@ -42,13 +42,13 @@ for RubberStampValidator
 #[derive(Debug, Clone)]
 pub struct StaticSignatureValidator {
     #[allow(dead_code)]
-    pk: PublicKey,
+    pk: PublicSignKey,
 }
 
 impl StaticSignatureValidator
 {
     #[allow(dead_code)]
-    pub fn new(key: &PublicKey) -> StaticSignatureValidator {
+    pub fn new(key: &PublicSignKey) -> StaticSignatureValidator {
         StaticSignatureValidator {
             pk: key.clone(),
         }

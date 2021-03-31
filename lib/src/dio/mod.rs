@@ -18,7 +18,7 @@ use std::ops::Deref;
 use tokio::sync::mpsc;
 use std::sync::mpsc as smpsc;
 
-use crate::crypto::{EncryptedPrivateKey, PrivateKey};
+use crate::crypto::{EncryptedPrivateKey, PrivateSignKey};
 use crate::{crypto::EncryptKey, session::{Session, SessionProperty}};
 
 use super::header::*;
@@ -542,8 +542,8 @@ async fn test_dio()
     //env_logger::init();
 
     debug!("generating crypto keys");
-    let write_key = PrivateKey::generate(crate::crypto::KeySize::Bit192);
-    let write_key2 = PrivateKey::generate(KeySize::Bit256);
+    let write_key = PrivateSignKey::generate(crate::crypto::KeySize::Bit192);
+    let write_key2 = PrivateSignKey::generate(KeySize::Bit256);
     let read_key = EncryptKey::generate(crate::crypto::KeySize::Bit192);
     let root_public_key = write_key.as_public_key();
     

@@ -3,7 +3,7 @@ use multimap::MultiMap;
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use fxhash::FxHashMap;
 #[allow(unused_imports)]
-use crate::crypto::{EncryptedPrivateKey, Hash, DoubleHash, PublicKey};
+use crate::crypto::{EncryptedPrivateKey, Hash, DoubleHash, PublicSignKey};
 #[allow(unused_imports)]
 use crate::session::{Session, SessionProperty};
 
@@ -36,7 +36,7 @@ pub struct MetaSignWith
 #[derive(Debug, Clone)]
 pub struct SignaturePlugin
 {
-    pk: FxHashMap<Hash, PublicKey>,
+    pk: FxHashMap<Hash, PublicSignKey>,
     sigs: MultiMap<Hash, Hash>,
 }
 

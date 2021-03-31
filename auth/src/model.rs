@@ -53,7 +53,7 @@ pub enum SshKeyType
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum AuthenticationMethod
 {
-    WithPrivateKey(PublicKey),
+    WithPrivateKey(PublicSignKey),
     WithPassword {
         salt: String,
         hash: AteHash,
@@ -114,7 +114,7 @@ pub struct User {
 pub struct Authorization {
     name: String,
     read: Option<EncryptKey>,
-    write: Option<PrivateKey>,
+    write: Option<PrivateSignKey>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

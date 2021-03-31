@@ -1,3 +1,4 @@
+#![allow(unused_imports)]
 use log::{info, warn};
 
 use rand::seq::SliceRandom;
@@ -7,21 +8,18 @@ use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
 use tokio::net::tcp;
 use tokio::sync::mpsc;
 use std::{marker::PhantomData, net::IpAddr};
-#[allow(unused_imports)]
 use std::str::FromStr;
 use tokio::sync::broadcast;
 
 use super::error::*;
-#[allow(unused_imports)]
 use tokio::time::sleep;
-#[allow(unused_imports)]
 use tokio::time::Duration;
 use std::sync::Arc;
-#[allow(unused_imports)]
 use tokio::sync::Mutex;
 use parking_lot::Mutex as StdMutex;
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use std::net::SocketAddr;
+use super::crypto::KeySize;
 use bytes::Bytes;
 use crate::spec::*;
 
@@ -154,12 +152,12 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
     on_connect: Option<M>,
     buffer_size: usize,
     wire_format: SerializationFormat,
+    wire_encryption: Option<KeySize>,
 }
 
 impl<M> NodeConfig<M>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone
 {
-    #[allow(dead_code)]
     pub(crate) fn new(wire_format: SerializationFormat) -> NodeConfig<M> {
         NodeConfig {
             listen_on: Vec::new(),
@@ -167,16 +165,20 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
             on_connect: None,
             buffer_size: 1000,
             wire_format,
+            wire_encryption: None,
         }
     }
 
-    #[allow(dead_code)]
+    pub(crate) fn wire_encryption(mut self, key_size: Option<KeySize>) -> Self {
+        self.wire_encryption = key_size;
+        self
+    }
+
     pub(crate) fn listen_on(mut self, ip: IpAddr, port: u16) -> Self {
         self.listen_on.push(SocketAddr::from(NodeTarget{ip, port}));
         self
     }
 
-    #[allow(dead_code)]
     pub(crate) fn connect_to(mut self, ip: IpAddr, port: u16) -> Self {
         self.connect_to.push(SocketAddr::from(NodeTarget{ip, port}));
         self
@@ -187,7 +189,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
         self
     }
 
-    #[allow(dead_code)]
     pub(crate) fn on_connect(mut self, msg: M) -> Self {
         self.on_connect = Some(msg);
         self
@@ -252,6 +253,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
             conf.buffer_size,
             Arc::clone(&state),
             conf.wire_format,
+            conf.wire_encryption,
         ).await;
 
         upcast.insert(upstream.id, upstream);
@@ -444,7 +446,8 @@ async fn mesh_connect_worker<M, C>
     sender: u64,
     on_connect: Option<M>,
     state: Arc<StdMutex<NodeState>>,
-    wire_format: SerializationFormat
+    wire_format: SerializationFormat,
+    wire_encryption: Option<KeySize>,
 )
 -> Result<(), CommsError>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
@@ -469,6 +472,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         };
         exp_backoff = Duration::from_millis(100);
         
+        // Setup the TCP stream
         setup_tcp_stream(&stream)?;
 
         {
@@ -476,7 +480,13 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
             let mut guard = worker_state.lock();
             guard.connected = guard.connected + 1;
         }
+
+        // If we are using wire encryption then exchange secrets
+        if let Some(_key_size) = wire_encryption {
+            //stream = setup_crypto_stream(stream)?;
+        }
         
+        // Start the background threads that will process packets for chains
         let context = Arc::new(C::default());
         let (rx, tx) = stream.into_split();
 
@@ -545,6 +555,7 @@ async fn mesh_connect_to<M, C>
     buffer_size: usize,
     state: Arc<StdMutex<NodeState>>,
     wire_format: SerializationFormat,
+    wire_encryption: Option<KeySize>,
 ) -> Upstream
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
       C: Send + Sync + Default + 'static,
@@ -567,6 +578,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
             on_connect,
             state,
             wire_format,
+            wire_encryption,
         )
     );
 
@@ -698,7 +710,10 @@ async fn test_server_client() {
     let wire_format = SerializationFormat::MessagePack;
     {
         // Start the server
-        let cfg = NodeConfig::new(wire_format).listen_on(IpAddr::from_str("127.0.0.1").unwrap(), 4001);
+        let cfg = NodeConfig::new(wire_format)
+            .wire_encryption(Some(KeySize::Bit256))
+            .listen_on(IpAddr::from_str("127.0.0.1")
+            .unwrap(), 4001);
         let (_, mut server_rx) = connect::<TestMessage, ()>(&cfg).await;
 
         // Create a background thread that will respond to pings with pong
@@ -719,6 +734,7 @@ async fn test_server_client() {
     {
         // Start the reply
         let cfg = NodeConfig::new(wire_format)
+            .wire_encryption(Some(KeySize::Bit256))
             .listen_on(IpAddr::from_str("127.0.0.1").unwrap(), 4002)
             .connect_to(IpAddr::from_str("127.0.0.1").unwrap(), 4001);
         let (relay_tx, mut relay_rx) = connect::<TestMessage, ()>(&cfg).await;
@@ -740,6 +756,7 @@ async fn test_server_client() {
     {
         // Start the client
         let cfg = NodeConfig::new(wire_format)
+            .wire_encryption(Some(KeySize::Bit256))
             .connect_to(IpAddr::from_str("127.0.0.1")
             .unwrap(), 4002);
         let (client_tx, mut client_rx) = connect::<TestMessage, ()>(&cfg)

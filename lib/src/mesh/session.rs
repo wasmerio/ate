@@ -50,6 +50,7 @@ impl MeshSession
         for addr in addrs.iter() {
             
             let node_cfg = NodeConfig::new(builder.cfg.wire_format)
+                .wire_encryption(builder.cfg.wire_encryption)
                 .connect_to(addr.ip, addr.port)
                 .on_connect(Message::Connected)
                 .buffer_size(builder.cfg.buffer_size_client);

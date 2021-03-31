@@ -33,6 +33,7 @@ snap = "1.0.*"
 openssl = { version = "0.10.*", features = ["vendored"] }
 once_cell = "1.7.*"
 pqcrypto-falcon = "0.2.*"
+pqcrypto-ntru = "0.5.*"
 pqcrypto-traits = "0.3.*"
 sha3 = "0.9.*"
 multimap = "0.8.*"

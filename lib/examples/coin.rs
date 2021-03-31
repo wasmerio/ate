@@ -11,9 +11,9 @@ struct TrustedRecord {
 async fn main() -> Result<(), AteError>
 {
     // Make the keys that will protect the data
-    let root = PrivateKey::generate(KeySize::Bit256);
+    let root = PrivateSignKey::generate(KeySize::Bit256);
     let ek = EncryptKey::generate(KeySize::Bit256);
-    let sk = PrivateKey::generate(KeySize::Bit256);
+    let sk = PrivateSignKey::generate(KeySize::Bit256);
 
     // Create the chain with a public/private key to protect its integrity
     let conf = ConfAte::default();

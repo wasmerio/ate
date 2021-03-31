@@ -75,6 +75,7 @@ impl MeshRoot
     pub(super) async fn new(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh, cfg_cluster: Option<&ConfCluster>, listen_addrs: Vec<MeshAddress>) -> Arc<MeshRoot>
     {
         let mut node_cfg = NodeConfig::new(cfg_ate.wire_format)
+            .wire_encryption(cfg_ate.wire_encryption)
             .buffer_size(cfg_ate.buffer_size_server);
         let mut listen_ports = listen_addrs
             .iter()

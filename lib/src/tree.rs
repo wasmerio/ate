@@ -22,7 +22,7 @@ use fxhash::FxHashSet;
 pub struct TreeAuthorityPlugin
 {
     root: WriteOption,
-    root_keys: FxHashMap<Hash, PublicKey>,
+    root_keys: FxHashMap<Hash, PublicSignKey>,
     auth: FxHashMap<PrimaryKey, MetaAuthorization>,
     tree: FxHashMap<PrimaryKey, MetaTree>,
     signature_plugin: SignaturePlugin,
@@ -47,7 +47,7 @@ impl TreeAuthorityPlugin
     }
 
     #[allow(dead_code)]
-    pub fn add_root_public_key(&mut self, key: &PublicKey)
+    pub fn add_root_public_key(&mut self, key: &PublicSignKey)
     {
         self.root_keys.insert(key.hash(), key.clone());
         self.root = WriteOption::Group(self.root_keys.keys().map(|k| k.clone()).collect::<Vec<_>>());

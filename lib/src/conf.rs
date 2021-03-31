@@ -10,7 +10,8 @@ use super::lint::*;
 use super::transform::*;
 use super::plugin::*;
 use super::trust::ChainKey;
-use super::crypto::PublicKey;
+use super::crypto::PublicSignKey;
+use super::crypto::KeySize;
 use super::error::*;
 use super::crypto::Hash;
 use super::spec::*;
@@ -107,6 +108,15 @@ pub struct ConfAte
     /// DNS server that queries will be made do by the chain registry
     pub dns_server: String,
 
+    /// Flag that indicates if encryption will be used for the underlying
+    /// connections over the wire. When using a ATE's in built encryption
+    /// and quantum resistant signatures it is not mandatory to use
+    /// wire encryption as confidentially and integrity are already enforced however
+    /// for best security it is advisable to apply a layered defence, of
+    /// which double encrypting your data and the metadata around it is
+    /// another defence.
+    pub wire_encryption: Option<KeySize>,
+
     /// Optimizes ATE for a specific group of usecases
     configured_for: ConfiguredFor,
 
@@ -173,6 +183,7 @@ for ConfAte
             dns_server: "8.8.8.8".to_string(),
             ntp_pool: "pool.ntp.org".to_string(),
             ntp_port: 123,
+            wire_encryption: Some(KeySize::Bit128),
             configured_for: ConfiguredFor::default(),
             buffer_size_client: 1000,
             buffer_size_server: 1000,
@@ -349,8 +360,12 @@ impl ChainOfTrustBuilder
             ConfiguredFor::SmallestSize => {
                 self.transformers.insert(0, Box::new(CompressorWithSnapTransformer::default()));
             },
+            ConfiguredFor::Balanced => {
+                self.cfg.wire_encryption = Some(KeySize::Bit128);
+            },
             ConfiguredFor::BestSecurity => {
                 self.cfg.dns_sec = true;
+                self.cfg.wire_encryption = Some(KeySize::Bit256);
             }
             _ => {}
         }
@@ -425,7 +440,7 @@ impl ChainOfTrustBuilder
     }
 
     #[allow(dead_code)]
-    pub fn add_root_public_key(mut self, key: &PublicKey) -> Self {
+    pub fn add_root_public_key(mut self, key: &PublicSignKey) -> Self {
         if let Some(tree) = &mut self.tree {
             tree.add_root_public_key(key);
         }

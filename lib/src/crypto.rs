@@ -1,4 +1,4 @@
-#[allow(unused_imports)]
+#![allow(unused_imports)]
 use pqcrypto_falcon::ffi;
 use serde::{Serialize, Deserialize};
 use super::meta::*;
@@ -9,19 +9,18 @@ use std::{cell::RefCell, io::ErrorKind};
 use std::sync::{Mutex, MutexGuard};
 use once_cell::sync::Lazy;
 use std::result::Result;
-#[allow(unused_imports)]
+use pqcrypto_ntru::ntruhps2048509 as ntru128;
+use pqcrypto_ntru::ntruhps2048677 as ntru192;
+use pqcrypto_ntru::ntruhps4096821 as ntru256;
+use pqcrypto_ntru::ffi::*;
 use pqcrypto_falcon::falcon512;
-#[allow(unused_imports)]
 use pqcrypto_falcon::falcon1024;
 use pqcrypto_traits::sign::{DetachedSignature, PublicKey as PQCryptoPublicKey};
 use pqcrypto_traits::sign::SecretKey as PQCryptoSecretKey;
-#[allow(unused_imports)]
+use pqcrypto_traits::kem::*;
 use openssl::symm::{Cipher};
-#[allow(unused_imports)]
 use openssl::error::{Error, ErrorStack};
-#[allow(unused_imports)]
 use sha3::Keccak256;
-#[allow(unused_imports)]
 use sha3::Digest;
 use std::convert::TryInto;
 use crate::conf::HashRoutine;
@@ -39,7 +38,7 @@ pub enum EncryptKey {
 /// Size of a cryptographic key, smaller keys are still very secure but
 /// have less room in the future should new attacks be found against the
 /// crypto algorithms used by ATE.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum KeySize {
     #[allow(dead_code)]
     Bit128,
@@ -47,6 +46,21 @@ pub enum KeySize {
     Bit192,
     #[allow(dead_code)]
     Bit256,
+}
+
+impl std::str::FromStr
+for KeySize
+{
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "128" => Ok(KeySize::Bit128),
+            "192" => Ok(KeySize::Bit192),
+            "256" => Ok(KeySize::Bit256),
+            _ => Err("no match"),
+        }
+    }
 }
 
 impl EncryptKey {
@@ -73,6 +87,10 @@ impl EncryptKey {
         })
     }
 
+    #[deprecated(
+        since = "0.2.1",
+        note = "Please use 'from_seed_string' instead as this function only uses the first 30 bytes while the later uses all of the string as its entropy."
+    )]
     #[allow(dead_code)]
     pub fn from_string(str: String, size: KeySize) -> EncryptKey {
         let mut n = 0;
@@ -172,6 +190,34 @@ impl EncryptKey {
             EncryptKey::Aes128(a) => Hash::from_bytes(a),
             EncryptKey::Aes192(a) => Hash::from_bytes(a),
             EncryptKey::Aes256(a) => Hash::from_bytes(a),
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn from_seed_string(str: String, size: KeySize) -> EncryptKey {
+        EncryptKey::from_seed_bytes(str.as_bytes(), size)
+    }
+
+    #[allow(dead_code)]
+    pub fn from_seed_bytes(seed_bytes: &[u8], size: KeySize) -> EncryptKey
+    {
+        let mut hasher = sha3::Keccak384::new();
+        hasher.update(seed_bytes);
+        let result = hasher.finalize();
+
+        match size {
+            KeySize::Bit128 => {
+                let aes_key: [u8; 16] = result.into_iter().take(16).collect::<Vec<_>>().try_into().unwrap();
+                EncryptKey::Aes128(aes_key)
+            },
+            KeySize::Bit192 => {
+                let aes_key: [u8; 24] = result.into_iter().take(24).collect::<Vec<_>>().try_into().unwrap();
+                EncryptKey::Aes192(aes_key)
+            },
+            KeySize::Bit256 => {
+                let aes_key: [u8; 32] = result.into_iter().take(32).collect::<Vec<_>>().try_into().unwrap();
+                EncryptKey::Aes256(aes_key)
+            }
         }
     }
 }
@@ -405,20 +451,30 @@ impl Default for EncryptKey {
     }
 }
 
+/// Represents an initiailization vector used for both hash prefixing
+/// to create entropy and help prevent rainbow table attacks. These
+/// vectors are also used as the exchange medium during a key exchange
+/// so that two parties can established a shared secret key
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub struct InitializationVector
 {
-    pub bytes: [u8; 16],
+    pub bytes: Vec<u8>,
 }
 
 impl InitializationVector {
     pub fn generate() -> InitializationVector {
         let mut rng = RandomGeneratorAccessor::default();
         let mut iv = InitializationVector {
-            bytes: [0 as u8; 16]
+            bytes: vec![0 as u8; 16]
         };
         rng.fill_bytes(&mut iv.bytes);
         iv
+    }
+
+    pub fn from_bytes(bytes: Vec<u8>) -> InitializationVector {
+        InitializationVector {
+            bytes,
+        }
     }
 }
 
@@ -462,7 +518,7 @@ impl Metadata
 /// leading candidates from NIST that provide protection against
 /// quantom computer attacks
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
-pub enum PrivateKey {
+pub enum PrivateSignKey {
     Falcon512 {
         pk: Vec<u8>,
         sk: Vec<u8>,
@@ -473,21 +529,21 @@ pub enum PrivateKey {
     },
 }
 
-impl PrivateKey
+impl PrivateSignKey
 {
     #[allow(dead_code)]
-    pub fn generate(size: KeySize) -> PrivateKey {
+    pub fn generate(size: KeySize) -> PrivateSignKey {
         match size {
             KeySize::Bit128 | KeySize::Bit192 => {
                 let (pk, sk) = falcon512::keypair();
-                PrivateKey::Falcon512 {
+                PrivateSignKey::Falcon512 {
                     pk: Vec::from(pk.as_bytes()),
                     sk: Vec::from(sk.as_bytes()),
                 }
             },
             KeySize::Bit256 => {
                 let (pk, sk) = falcon1024::keypair();
-                PrivateKey::Falcon1024 {
+                PrivateSignKey::Falcon1024 {
                     pk: Vec::from(pk.as_bytes()),
                     sk: Vec::from(sk.as_bytes()),
                 }
@@ -496,15 +552,15 @@ impl PrivateKey
     }
 
     #[allow(dead_code)]
-    pub fn as_public_key(&self) -> PublicKey {
+    pub fn as_public_key(&self) -> PublicSignKey {
         match &self {
-            PrivateKey::Falcon512 { sk: _, pk } => {
-                PublicKey::Falcon512 {
+            PrivateSignKey::Falcon512 { sk: _, pk } => {
+                PublicSignKey::Falcon512 {
                     pk: pk.clone(),
                 }
             },
-            PrivateKey::Falcon1024 { sk: _, pk } => {
-                PublicKey::Falcon1024 {
+            PrivateSignKey::Falcon1024 { sk: _, pk } => {
+                PublicSignKey::Falcon1024 {
                     pk: pk.clone(),
                 }
             },
@@ -514,31 +570,31 @@ impl PrivateKey
     #[allow(dead_code)]
     pub fn hash(&self) -> Hash {
         match &self {
-            PrivateKey::Falcon512 { pk, sk: _ } => Hash::from_bytes(&pk[..]),
-            PrivateKey::Falcon1024 { pk, sk: _ } => Hash::from_bytes(&pk[..]),
+            PrivateSignKey::Falcon512 { pk, sk: _ } => Hash::from_bytes(&pk[..]),
+            PrivateSignKey::Falcon1024 { pk, sk: _ } => Hash::from_bytes(&pk[..]),
         }
     }
 
     #[allow(dead_code)]
     pub fn pk(&self) -> Vec<u8> { 
         match &self {
-            PrivateKey::Falcon512 { pk, sk: _ } => pk.clone(),
-            PrivateKey::Falcon1024 { pk, sk: _ } => pk.clone(),
+            PrivateSignKey::Falcon512 { pk, sk: _ } => pk.clone(),
+            PrivateSignKey::Falcon1024 { pk, sk: _ } => pk.clone(),
         }
     }
 
     #[allow(dead_code)]
     pub fn sk(&self) -> Vec<u8> { 
         match &self {
-            PrivateKey::Falcon512 { pk: _, sk } => sk.clone(),
-            PrivateKey::Falcon1024 { pk: _, sk } => sk.clone(),
+            PrivateSignKey::Falcon512 { pk: _, sk } => sk.clone(),
+            PrivateSignKey::Falcon1024 { pk: _, sk } => sk.clone(),
         }
     }
 
     #[allow(dead_code)]
     pub fn sign(&self, data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
         let ret = match &self {
-            PrivateKey::Falcon512 { pk: _, sk } => {
+            PrivateSignKey::Falcon512 { pk: _, sk } => {
                 let sk = match falcon512::SecretKey::from_bytes(&sk[..]) {
                     Ok(sk) => sk,
                     Err(err) => { return Result::Err(std::io::Error::new(ErrorKind::Other, format!("Failed to decode the secret key ({}).", err))); },
@@ -546,7 +602,7 @@ impl PrivateKey
                 let sig = falcon512::detached_sign(data, &sk);
                 Vec::from(sig.as_bytes())
             },
-            PrivateKey::Falcon1024 { pk: _, sk } => {
+            PrivateSignKey::Falcon1024 { pk: _, sk } => {
                 let sk = match falcon1024::SecretKey::from_bytes(&sk[..]) {
                     Ok(sk) => sk,
                     Err(err) => { return Result::Err(std::io::Error::new(ErrorKind::Other, format!("Failed to decode the secret key ({}).", err))); },
@@ -568,7 +624,7 @@ impl PrivateKey
 /// leading candidates from NIST that provide protection against
 /// quantom computer attacks
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
-pub enum PublicKey {
+pub enum PublicSignKey {
     Falcon512 {
         pk: Vec<u8>,
     },
@@ -577,33 +633,33 @@ pub enum PublicKey {
     }
 }
 
-impl PublicKey
+impl PublicSignKey
 {
     #[allow(dead_code)]
     pub fn pk(&self) -> Vec<u8> { 
         match &self {
-            PublicKey::Falcon512 { pk } => pk.clone(),
-            PublicKey::Falcon1024 { pk } => pk.clone(),
+            PublicSignKey::Falcon512 { pk } => pk.clone(),
+            PublicSignKey::Falcon1024 { pk } => pk.clone(),
         }
     }
 
     #[allow(dead_code)]
     pub fn hash(&self) -> Hash {
         match &self {
-            PublicKey::Falcon512 { pk } => Hash::from_bytes(&pk[..]),
-            PublicKey::Falcon1024 { pk } => Hash::from_bytes(&pk[..]),
+            PublicSignKey::Falcon512 { pk } => Hash::from_bytes(&pk[..]),
+            PublicSignKey::Falcon1024 { pk } => Hash::from_bytes(&pk[..]),
         }
     }
     
     #[allow(dead_code)]
     pub fn verify(&self, data: &[u8], sig: &[u8]) -> Result<bool, pqcrypto_traits::Error> {
         let ret = match &self {
-            PublicKey::Falcon512 { pk } => {
+            PublicSignKey::Falcon512 { pk } => {
                 let pk = falcon512::PublicKey::from_bytes(&pk[..])?;
                 let sig = falcon512::DetachedSignature::from_bytes(sig)?;
                 falcon512::verify_detached_signature(&sig, data, &pk).is_ok()
             },
-            PublicKey::Falcon1024 { pk } => {
+            PublicSignKey::Falcon1024 { pk } => {
                 let pk = falcon1024::PublicKey::from_bytes(&pk[..])?;
                 let sig = falcon1024::DetachedSignature::from_bytes(sig)?;
                 falcon1024::verify_detached_signature(&sig, data, &pk).is_ok()
@@ -616,7 +672,7 @@ impl PublicKey
 
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub struct EncryptedPrivateKey {
-    pk: PublicKey,
+    pk: PublicSignKey,
     ek_hash: Hash,
     sk_iv: InitializationVector,
     sk_encrypted: Vec<u8>
@@ -626,12 +682,12 @@ impl EncryptedPrivateKey
 {
     #[allow(dead_code)]
     pub fn generate(encrypt_key: &EncryptKey) -> Result<EncryptedPrivateKey, std::io::Error> {
-        let pair = PrivateKey::generate(encrypt_key.size());
+        let pair = PrivateSignKey::generate(encrypt_key.size());
         EncryptedPrivateKey::from_pair(&pair, encrypt_key)
     }
 
     #[allow(dead_code)]
-    pub fn from_pair(pair: &PrivateKey, encrypt_key: &EncryptKey) -> Result<EncryptedPrivateKey, std::io::Error> {
+    pub fn from_pair(pair: &PrivateSignKey, encrypt_key: &EncryptKey) -> Result<EncryptedPrivateKey, std::io::Error> {
         let sk = pair.sk();
         let sk = encrypt_key.encrypt(&sk[..])?;
         
@@ -646,20 +702,20 @@ impl EncryptedPrivateKey
     }
 
     #[allow(dead_code)]
-    pub fn as_private_key(&self, key: &EncryptKey) -> Result<PrivateKey, std::io::Error> {
+    pub fn as_private_key(&self, key: &EncryptKey) -> Result<PrivateSignKey, std::io::Error> {
         let data = key.decrypt(&self.sk_iv, &self.sk_encrypted[..])?;
         match &self.pk {
-            PublicKey::Falcon512 { pk } => {
+            PublicSignKey::Falcon512 { pk } => {
                 Ok(
-                    PrivateKey::Falcon512 {
+                    PrivateSignKey::Falcon512 {
                         pk: pk.clone(),
                         sk: data,
                     }
                 )
             },
-            PublicKey::Falcon1024{ pk } => {
+            PublicSignKey::Falcon1024{ pk } => {
                 Ok(
-                    PrivateKey::Falcon1024 {
+                    PrivateSignKey::Falcon1024 {
                         pk: pk.clone(),
                         sk: data,
                     }
@@ -669,7 +725,7 @@ impl EncryptedPrivateKey
     }
 
     #[allow(dead_code)]
-    pub fn as_public_key(&self) -> PublicKey {
+    pub fn as_public_key(&self) -> PublicSignKey {
         self.pk.clone()
     }
 
@@ -684,6 +740,219 @@ impl EncryptedPrivateKey
     }
 }
 
+/// Private encryption keys provide the ability to decrypt a secret
+/// that was encrypted using a Public Key - this capability is
+/// useful for key-exchange and trust validation in the crypto chain.
+/// Asymetric crypto in ATE uses the leading candidates from NIST
+/// that provide protection against quantom computer attacks
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
+pub enum PrivateEncryptKey {
+    Ntru128 {
+        pk: Vec<u8>,
+        sk: Vec<u8>,
+    },
+    Ntru192 {
+        pk: Vec<u8>,
+        sk: Vec<u8>,
+    },
+    Ntru256 {
+        pk: Vec<u8>,
+        sk: Vec<u8>,
+    }
+}
+
+impl PrivateEncryptKey
+{
+    #[allow(dead_code)]
+    pub fn generate(size: KeySize) -> PrivateEncryptKey {
+        match size {
+            KeySize::Bit128 => {
+                let (pk, sk) = ntru128::keypair();
+                PrivateEncryptKey::Ntru128 {
+                    pk: Vec::from(pk.as_bytes()),
+                    sk: Vec::from(sk.as_bytes()),
+                }
+            },
+            KeySize::Bit192 => {
+                let (pk, sk) = ntru192::keypair();
+                PrivateEncryptKey::Ntru192 {
+                    pk: Vec::from(pk.as_bytes()),
+                    sk: Vec::from(sk.as_bytes()),
+                }
+            },
+            KeySize::Bit256 => {
+                let (pk, sk) = ntru256::keypair();
+                PrivateEncryptKey::Ntru256 {
+                    pk: Vec::from(pk.as_bytes()),
+                    sk: Vec::from(sk.as_bytes()),
+                }
+            }
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn as_public_key(&self) -> PublicEncryptKey {
+        match &self {
+            PrivateEncryptKey::Ntru128 { sk: _, pk } => {
+                PublicEncryptKey::Ntru128 {
+                    pk: pk.clone(),
+                }
+            },
+            PrivateEncryptKey::Ntru192 { sk: _, pk } => {
+                PublicEncryptKey::Ntru192 {
+                    pk: pk.clone(),
+                }
+            },
+            PrivateEncryptKey::Ntru256 { sk: _, pk } => {
+                PublicEncryptKey::Ntru256 {
+                    pk: pk.clone(),
+                }
+            },
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn hash(&self) -> Hash {
+        match &self {
+            PrivateEncryptKey::Ntru128 { pk, sk: _ } => Hash::from_bytes(&pk[..]),
+            PrivateEncryptKey::Ntru192 { pk, sk: _ } => Hash::from_bytes(&pk[..]),
+            PrivateEncryptKey::Ntru256 { pk, sk: _ } => Hash::from_bytes(&pk[..]),
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn pk(&self) -> Vec<u8> { 
+        match &self {
+            PrivateEncryptKey::Ntru128 { pk, sk: _ } => pk.clone(),
+            PrivateEncryptKey::Ntru192 { pk, sk: _ } => pk.clone(),
+            PrivateEncryptKey::Ntru256 { pk, sk: _ } => pk.clone(),
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn sk(&self) -> Vec<u8> { 
+        match &self {
+            PrivateEncryptKey::Ntru128 { pk: _, sk } => sk.clone(),
+            PrivateEncryptKey::Ntru192 { pk: _, sk } => sk.clone(),
+            PrivateEncryptKey::Ntru256 { pk: _, sk } => sk.clone(),
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn decapsulate(&self, iv: &InitializationVector) -> EncryptKey {
+        match &self {
+            PrivateEncryptKey::Ntru128 { pk: _, sk } => {
+                let ct = ntru128::Ciphertext::from_bytes(&iv.bytes[..]).unwrap();
+                let sk = ntru128::SecretKey::from_bytes(&sk[..]).unwrap();
+                let ss = ntru128::decapsulate(&ct, &sk);
+                EncryptKey::from_seed_bytes(ss.as_bytes(), KeySize::Bit128)
+            },
+            PrivateEncryptKey::Ntru192 { pk: _, sk } => {
+                let ct = ntru192::Ciphertext::from_bytes(&iv.bytes[..]).unwrap();
+                let sk = ntru192::SecretKey::from_bytes(&sk[..]).unwrap();
+                let ss = ntru192::decapsulate(&ct, &sk);
+                EncryptKey::from_seed_bytes(ss.as_bytes(), KeySize::Bit192)
+            },
+            PrivateEncryptKey::Ntru256 { pk: _, sk } => {
+                let ct = ntru256::Ciphertext::from_bytes(&iv.bytes[..]).unwrap();
+                let sk = ntru256::SecretKey::from_bytes(&sk[..]).unwrap();
+                let ss = ntru256::decapsulate(&ct, &sk);
+                EncryptKey::from_seed_bytes(ss.as_bytes(), KeySize::Bit256)
+            },
+        }
+    }
+    
+    pub fn decrypt(&self, iv: &InitializationVector, data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
+        let ek = self.decapsulate(iv);
+        let ek_iv = PublicEncryptKey::trim_iv(&iv);
+        Ok(
+            openssl::symm::decrypt(ek.cipher(), ek.value(), Some(&ek_iv.bytes[..]), data)?
+        )
+    }
+}
+
+/// Public encryption keys provide the ability to encrypt a secret
+/// without the ability to decrypt it yourself - this capability is
+/// useful for key-exchange and trust validation in the crypto chain.
+/// Asymetric crypto in ATE uses the leading candidates from NIST
+/// that provide protection against quantom computer attacks
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
+pub enum PublicEncryptKey {
+    Ntru128 {
+        pk: Vec<u8>,
+    },
+    Ntru192 {
+        pk: Vec<u8>,
+    },
+    Ntru256 {
+        pk: Vec<u8>,
+    }
+}
+
+
+impl PublicEncryptKey
+{
+    #[allow(dead_code)]
+    pub fn pk(&self) -> Vec<u8> { 
+        match &self {
+            PublicEncryptKey::Ntru128 { pk } => pk.clone(),
+            PublicEncryptKey::Ntru192 { pk } => pk.clone(),
+            PublicEncryptKey::Ntru256 { pk } => pk.clone(),
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn hash(&self) -> Hash {
+        match &self {
+            PublicEncryptKey::Ntru128 { pk } => Hash::from_bytes(&pk[..]),
+            PublicEncryptKey::Ntru192 { pk } => Hash::from_bytes(&pk[..]),
+            PublicEncryptKey::Ntru256 { pk } => Hash::from_bytes(&pk[..]),
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn encapsulate(&self) -> (InitializationVector, EncryptKey) {
+        match &self {
+            PublicEncryptKey::Ntru128 { pk } => {
+                let pk = ntru128::PublicKey::from_bytes(&pk[..]).unwrap();
+                let (ss, ct) = ntru128::encapsulate(&pk);
+                let iv = InitializationVector::from_bytes(Vec::from(ct.as_bytes()));
+                (iv, EncryptKey::from_seed_bytes(ss.as_bytes(), KeySize::Bit128))
+            },
+            PublicEncryptKey::Ntru192 { pk } => {
+                let pk = ntru192::PublicKey::from_bytes(&pk[..]).unwrap();
+                let (ss, ct) = ntru192::encapsulate(&pk);
+                let iv = InitializationVector::from_bytes(Vec::from(ct.as_bytes()));
+                (iv, EncryptKey::from_seed_bytes(ss.as_bytes(), KeySize::Bit192))
+            },
+            PublicEncryptKey::Ntru256 { pk } => {
+                let pk = ntru256::PublicKey::from_bytes(&pk[..]).unwrap();
+                let (ss, ct) = ntru256::encapsulate(&pk);
+                let iv = InitializationVector::from_bytes(Vec::from(ct.as_bytes()));
+                (iv, EncryptKey::from_seed_bytes(ss.as_bytes(), KeySize::Bit256))
+            },
+        }
+    }
+
+    pub fn encrypt(&self, data: &[u8]) -> Result<EncryptResult, std::io::Error> {
+        let (iv, ek) = self.encapsulate();
+        let ek_iv = PublicEncryptKey::trim_iv(&iv);
+        let data = ek.encrypt_with_iv(&ek_iv, data)?;
+        Ok(
+            EncryptResult {
+                iv,
+                data,
+            }
+        )
+    }
+
+    fn trim_iv(iv: &InitializationVector) -> InitializationVector {
+        InitializationVector {
+            bytes: iv.bytes.clone().into_iter().take(16).collect::<Vec<_>>()
+        }
+    }
+}
+
 #[test]
 fn test_secure_random() {
     let t = 1024;
@@ -693,14 +962,26 @@ fn test_secure_random() {
     }
 }
 
+#[allow(deprecated)]
 #[test]
-fn test_encrypt_key_seeding() {
+fn test_encrypt_key_seeding_old() {
     let provided = EncryptKey::from_string("test".to_string(), KeySize::Bit256);
     let expected = EncryptKey::Aes256([109, 23, 234, 219, 133, 97, 152, 126, 236, 229, 197, 134, 107, 89, 217, 82, 107, 27, 70, 176, 239, 71, 218, 171, 68, 75, 54, 215, 249, 219, 231, 69]);
     assert_eq!(provided, expected);
 
     let provided = EncryptKey::from_string("test2".to_string(), KeySize::Bit256);
     let expected = EncryptKey::Aes256([230, 248, 163, 17, 228, 69, 199, 43, 44, 106, 137, 243, 229, 187, 80, 173, 250, 183, 169, 165, 247, 153, 250, 8, 248, 187, 48, 83, 165, 91, 255, 180]);
+    assert_eq!(provided, expected);
+}
+
+#[test]
+fn test_encrypt_key_seeding_new() {
+    let provided = EncryptKey::from_seed_string("test".to_string(), KeySize::Bit256);
+    let expected = EncryptKey::Aes256([83, 208, 186, 19, 115, 7, 212, 194, 249, 182, 103, 76, 131, 237, 189, 88, 183, 12, 15, 67, 64, 19, 62, 208, 173, 198, 251, 161, 210, 71, 138, 106]);
+    assert_eq!(provided, expected);
+
+    let provided = EncryptKey::from_seed_string("test2".to_string(), KeySize::Bit256);
+    let expected = EncryptKey::Aes256([159, 117, 193, 157, 58, 233, 178, 104, 76, 27, 193, 46, 126, 60, 139, 195, 55, 116, 66, 157, 228, 23, 223, 83, 106, 242, 81, 107, 17, 200, 1, 157]);
     assert_eq!(provided, expected);
 }
 
@@ -732,4 +1013,42 @@ fn test_asym_crypto_256()
 
     let negative = b"blahtest";
     assert!(public.verify(negative, &sig[..]).unwrap() == false, "Signature verificaton passes when it should not");
+}
+
+#[test]
+fn test_ntru_encapsulate() -> Result<(), AteError>
+{
+    static KEY_SIZES: [KeySize; 3] = [KeySize::Bit128, KeySize::Bit192, KeySize::Bit256];
+    for key_size in KEY_SIZES.iter() {
+        let sk = PrivateEncryptKey::generate(key_size.clone());
+        let pk = sk.as_public_key();
+        let (iv, ek1) = pk.encapsulate();
+        let ek2 = sk.decapsulate(&iv);
+
+        let plain_text1 = "the cat ran up the wall".to_string();
+        let cipher_text = ek1.encrypt(plain_text1.as_bytes())?;
+        let plain_test2 = String::from_utf8(ek2.decrypt(&cipher_text.iv, &cipher_text.data)?).unwrap();
+
+        assert_eq!(plain_text1, plain_test2);
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_ntru_encrypt() -> Result<(), AteError>
+{
+    static KEY_SIZES: [KeySize; 3] = [KeySize::Bit128, KeySize::Bit192, KeySize::Bit256];
+    for key_size in KEY_SIZES.iter() {
+        let sk = PrivateEncryptKey::generate(key_size.clone());
+        let pk = sk.as_public_key();
+        
+        let plain_text1 = "the cat ran up the wall".to_string();
+        let cipher_text = pk.encrypt(plain_text1.as_bytes())?;
+        let plain_test2 = String::from_utf8(sk.decrypt(&cipher_text.iv, &cipher_text.data)?).unwrap();
+
+        assert_eq!(plain_text1, plain_test2);
+    }
+
+    Ok(())
 }

@@ -95,7 +95,7 @@ for StaticEncryptionTransformer
 #[test]
 fn test_encrypter()
 {
-    let key = EncryptKey::from_string("test".to_string(), KeySize::Bit256);
+    let key = EncryptKey::from_seed_string("test".to_string(), KeySize::Bit256);
     let encrypter = StaticEncryptionTransformer::new(&key);
 
     let test_bytes = Bytes::from_static(b"Some Crypto Text");

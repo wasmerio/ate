@@ -9,7 +9,7 @@ pub enum SessionProperty
 {
     None,
     ReadKey(EncryptKey),
-    WriteKey(PrivateKey),
+    WriteKey(PrivateSignKey),
     Identity(String),
 }
 
@@ -50,7 +50,7 @@ impl Session
     }
 
     #[allow(dead_code)]
-    pub fn add_write_key(&mut self, key: &PrivateKey) {
+    pub fn add_write_key(&mut self, key: &PrivateSignKey) {
         self.properties.push(SessionProperty::WriteKey(key.clone()));
     }
 

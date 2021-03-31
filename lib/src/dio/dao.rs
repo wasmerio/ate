@@ -8,7 +8,7 @@ use std::ops::{Deref, DerefMut};
 use std::sync::Arc;
 use parking_lot::{Mutex, MutexGuard};
 
-use crate::crypto::{EncryptedPrivateKey, PrivateKey};
+use crate::crypto::{EncryptedPrivateKey, PrivateSignKey};
 use crate::{crypto::EncryptKey, session::{Session, SessionProperty}};
 
 use crate::header::*;
