@@ -114,6 +114,7 @@ async fn main() -> Result<(), AteError>
     let key = dio.store(World {
         commandment: "Hello".to_string(),
     })?.key().clone();
+    dio.commit().await?;
     
     // Now we retreive the data and print it to console
     println!("{} world!", dio.load::<World>(&key).await?.commandment);
