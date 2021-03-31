@@ -25,15 +25,6 @@ use sha3::Digest;
 use std::convert::TryInto;
 use crate::conf::HashRoutine;
 
-/// Represents an encryption key that will give confidentiality to
-/// data stored within the redo-log. Note this does not give integrity
-/// which comes from the `PrivateKey` crypto instead.
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq)]
-pub enum EncryptKey {
-    Aes128([u8; 16]),
-    Aes192([u8; 24]),
-    Aes256([u8; 32]),
-}
 
 /// Size of a cryptographic key, smaller keys are still very secure but
 /// have less room in the future should new attacks be found against the
@@ -46,6 +37,33 @@ pub enum KeySize {
     Bit192,
     #[allow(dead_code)]
     Bit256,
+}
+
+impl KeySize
+{
+    pub fn ntru_public_key_size(&self) -> usize {
+        match &self {
+            KeySize::Bit128 => ntru128::public_key_bytes(),
+            KeySize::Bit192 => ntru192::public_key_bytes(),
+            KeySize::Bit256 => ntru256::public_key_bytes(),
+        }
+    }
+
+    pub fn ntru_private_key_size(&self) -> usize {
+        match &self {
+            KeySize::Bit128 => ntru128::secret_key_bytes(),
+            KeySize::Bit192 => ntru192::secret_key_bytes(),
+            KeySize::Bit256 => ntru256::secret_key_bytes(),
+        }
+    }
+
+    pub fn ntru_cipher_text_size(&self) -> usize {
+        match &self {
+            KeySize::Bit128 => ntru128::ciphertext_bytes(),
+            KeySize::Bit192 => ntru192::ciphertext_bytes(),
+            KeySize::Bit256 => ntru256::ciphertext_bytes(),
+        }
+    }
 }
 
 impl std::str::FromStr
@@ -61,6 +79,16 @@ for KeySize
             _ => Err("no match"),
         }
     }
+}
+
+/// Represents an encryption key that will give confidentiality to
+/// data stored within the redo-log. Note this does not give integrity
+/// which comes from the `PrivateKey` crypto instead.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq)]
+pub enum EncryptKey {
+    Aes128([u8; 16]),
+    Aes192([u8; 24]),
+    Aes256([u8; 32]),
 }
 
 impl EncryptKey {
@@ -219,6 +247,18 @@ impl EncryptKey {
                 EncryptKey::Aes256(aes_key)
             }
         }
+    }
+
+    pub fn xor(ek1: EncryptKey, ek2: EncryptKey) -> Result<EncryptKey, std::io::Error>
+    {
+        let mut ek1_bytes = ek1.as_bytes();
+        let ek2_bytes = ek2.as_bytes();
+
+        ek1_bytes.iter_mut()
+            .zip(ek2_bytes.iter())
+            .for_each(|(x1, x2)| *x1 ^= *x2);
+
+        EncryptKey::from_bytes(&ek1_bytes[..])
     }
 }
 
@@ -839,31 +879,39 @@ impl PrivateEncryptKey
     }
 
     #[allow(dead_code)]
-    pub fn decapsulate(&self, iv: &InitializationVector) -> EncryptKey {
+    pub fn decapsulate(&self, iv: &InitializationVector) -> Option<EncryptKey> {
         match &self {
             PrivateEncryptKey::Ntru128 { pk: _, sk } => {
+                if iv.bytes.len() != ntru128::ciphertext_bytes() { return None; }
                 let ct = ntru128::Ciphertext::from_bytes(&iv.bytes[..]).unwrap();
                 let sk = ntru128::SecretKey::from_bytes(&sk[..]).unwrap();
                 let ss = ntru128::decapsulate(&ct, &sk);
-                EncryptKey::from_seed_bytes(ss.as_bytes(), KeySize::Bit128)
+                Some(EncryptKey::from_seed_bytes(ss.as_bytes(), KeySize::Bit128))
             },
             PrivateEncryptKey::Ntru192 { pk: _, sk } => {
+                if iv.bytes.len() != ntru192::ciphertext_bytes() { return None; }
                 let ct = ntru192::Ciphertext::from_bytes(&iv.bytes[..]).unwrap();
                 let sk = ntru192::SecretKey::from_bytes(&sk[..]).unwrap();
                 let ss = ntru192::decapsulate(&ct, &sk);
-                EncryptKey::from_seed_bytes(ss.as_bytes(), KeySize::Bit192)
+                Some(EncryptKey::from_seed_bytes(ss.as_bytes(), KeySize::Bit192))
             },
             PrivateEncryptKey::Ntru256 { pk: _, sk } => {
+                if iv.bytes.len() != ntru256::ciphertext_bytes() { return None; }
                 let ct = ntru256::Ciphertext::from_bytes(&iv.bytes[..]).unwrap();
                 let sk = ntru256::SecretKey::from_bytes(&sk[..]).unwrap();
                 let ss = ntru256::decapsulate(&ct, &sk);
-                EncryptKey::from_seed_bytes(ss.as_bytes(), KeySize::Bit256)
+                Some(EncryptKey::from_seed_bytes(ss.as_bytes(), KeySize::Bit256))
             },
         }
     }
     
     pub fn decrypt(&self, iv: &InitializationVector, data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
-        let ek = self.decapsulate(iv);
+        let ek = match self.decapsulate(iv) {
+            Some(a) => a,
+            None => {
+                return Err(std::io::Error::new(std::io::ErrorKind::Other, "The encryption key could not be decapsulated from the initialization vector."));
+            }
+        };
         let ek_iv = PublicEncryptKey::trim_iv(&iv);
         Ok(
             openssl::symm::decrypt(ek.cipher(), ek.value(), Some(&ek_iv.bytes[..]), data)?
@@ -892,7 +940,16 @@ pub enum PublicEncryptKey {
 
 impl PublicEncryptKey
 {
-    #[allow(dead_code)]
+    pub fn from_bytes(bytes: Vec<u8>) -> Option<PublicEncryptKey>
+    {
+        match bytes.len() {
+            a if a == ntru128::public_key_bytes() => Some(PublicEncryptKey::Ntru128 { pk: bytes }),
+            a if a == ntru192::public_key_bytes() => Some(PublicEncryptKey::Ntru192 { pk: bytes }),
+            a if a == ntru256::public_key_bytes() => Some(PublicEncryptKey::Ntru256 { pk: bytes }),
+            _ => None,
+        }
+    }
+
     pub fn pk(&self) -> Vec<u8> { 
         match &self {
             PublicEncryptKey::Ntru128 { pk } => pk.clone(),
@@ -1023,7 +1080,7 @@ fn test_ntru_encapsulate() -> Result<(), AteError>
         let sk = PrivateEncryptKey::generate(key_size.clone());
         let pk = sk.as_public_key();
         let (iv, ek1) = pk.encapsulate();
-        let ek2 = sk.decapsulate(&iv);
+        let ek2 = sk.decapsulate(&iv).unwrap();
 
         let plain_text1 = "the cat ran up the wall".to_string();
         let cipher_text = ek1.encrypt(plain_text1.as_bytes())?;

@@ -356,6 +356,7 @@ impl ChainOfTrustBuilder
         self.compactors.push(Box::new(TombstoneCompactor::default()));
         self.plugins.push(Box::new(AntiReplayPlugin::default()));
 
+        self.cfg.wire_encryption = None;
         match self.configured_for {
             ConfiguredFor::SmallestSize => {
                 self.transformers.insert(0, Box::new(CompressorWithSnapTransformer::default()));

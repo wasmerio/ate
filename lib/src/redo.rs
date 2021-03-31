@@ -1142,7 +1142,7 @@ async fn test_read_data(log: &mut RedoLog, read_header: Hash, test_key: PrimaryK
 
 #[test]
 fn test_redo_log() {
-    env_logger::init();
+    //env_logger::init();
 
     let rt = Runtime::new().unwrap();
 
