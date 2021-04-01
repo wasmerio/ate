@@ -12,11 +12,12 @@ use super::signature::MetaSignature;
 /// the encryption key in their session when accessing these
 /// data records of which the hash of the encryption key must
 /// match this record.
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ReadOption
 {
-    Unspecified,
+    Inherit,
     Everyone,
+    Noone,
     Specific(Hash)
 }
 
@@ -24,7 +25,7 @@ impl Default
 for ReadOption
 {
     fn default() -> ReadOption {
-        ReadOption::Unspecified
+        ReadOption::Inherit
     }
 }
 
@@ -35,8 +36,9 @@ for ReadOption
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum WriteOption
 {
-    Unspecified,
+    Inherit,
     Everyone,
+    Noone,
     Specific(Hash),
     Group(Vec<Hash>)
 }
@@ -59,7 +61,7 @@ impl WriteOption
 
     pub fn or(self, other: &WriteOption) -> WriteOption {
         match other {
-            WriteOption::Unspecified => self,
+            WriteOption::Inherit => self,
             WriteOption::Group(keys) => {
                 let mut vals = self.vals();
                 for a in keys {
@@ -81,7 +83,7 @@ impl Default
 for WriteOption
 {
     fn default() -> WriteOption {
-        WriteOption::Unspecified
+        WriteOption::Inherit
     }
 }
 
@@ -100,11 +102,9 @@ pub struct MetaCollection
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct MetaTree
+pub struct MetaParent
 {
     pub vec: MetaCollection,
-    pub inherit_read: bool,
-    pub inherit_write: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -125,7 +125,7 @@ pub enum CoreMetadata
     EncryptedPrivateKey(EncryptedPrivateKey),
     Confidentiality(ReadOption),
     Collection(MetaCollection),
-    Tree(MetaTree),
+    Parent(MetaParent),
     Timestamp(MetaTimestamp),
     Signature(MetaSignature),
     SignWith(MetaSignWith),
@@ -160,10 +160,32 @@ impl Metadata
         None
     }
 
-    pub fn get_tree(&self) -> Option<&MetaTree>
+    pub fn get_effective_authorization(&self, inherit_auth: Option<MetaAuthorization>) -> MetaAuthorization
+    {
+        let auth = match self.get_authorization() {
+            Some(a) => a.clone(),
+            None => MetaAuthorization::default(),
+        };
+        let (inherit_read, inherit_write) = match inherit_auth {
+            Some(a) => (a.read, a.write),
+            None => (ReadOption::Everyone, WriteOption::Everyone)
+        };
+        MetaAuthorization {
+            read: match auth.read {
+                ReadOption::Inherit => inherit_read,
+                a => a,
+            },
+            write: match auth.write {
+                WriteOption::Inherit => inherit_write,
+                a => a,
+            }
+        }
+    }
+
+    pub fn get_parent(&self) -> Option<&MetaParent>
     {
         for core in &self.core {
-            if let CoreMetadata::Tree(a) = core {
+            if let CoreMetadata::Parent(a) = core {
                 return Some(a);
             }
         }

@@ -508,8 +508,8 @@ impl<'a> Chain
     {
         let mut notify_map = MultiMap::new();
         for evt in evts.iter() {
-            if let Some(tree) = evt.meta.get_tree() {
-                notify_map.insert(&tree.vec, evt.clone());
+            if let Some(parent) = evt.meta.get_parent() {
+                notify_map.insert(&parent.vec, evt.clone());
             }
         }
 

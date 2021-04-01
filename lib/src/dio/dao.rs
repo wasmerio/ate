@@ -32,7 +32,7 @@ where Self: Send + Sync,
     pub(super) created: u64,
     pub(super) updated: u64,
     pub(super) format: MessageFormat,
-    pub(super) tree: Option<MetaTree>,
+    pub(super) parent: Option<MetaParent>,
     pub(super) data: D,
     pub(super) auth: MetaAuthorization,
     pub(super) collections: FxHashSet<MetaCollection>,
@@ -53,16 +53,18 @@ where Self: Send + Sync,
         }
         match &evt.data_bytes {
             Some(data) => {
+                let auth = match evt.meta.get_authorization() {
+                    Some(a) => a.clone(),
+                    None => MetaAuthorization::default(),
+                };
+                let parent = match evt.meta.get_parent() { Some(a) => Some(a.clone()), None => None };
                 Ok(
                     Row {
                         key,
                         format: evt.format,
-                        tree: match evt.meta.get_tree() { Some(a) => Some(a.clone()), None => None },
+                        parent,
                         data: evt.format.data.deserialize(&data)?,
-                        auth: match evt.meta.get_authorization() {
-                            Some(a) => a.clone(),
-                            None => MetaAuthorization::default(),
-                        },
+                        auth,
                         collections,
                         created,
                         updated,
@@ -78,7 +80,7 @@ where Self: Send + Sync,
             Row {
                 key: row.key,
                 format: row.format,
-                tree: row.tree.clone(),
+                parent: row.parent.clone(),
                 data: row.format.data.deserialize(&row.data)?,
                 auth: row.auth.clone(),
                 collections: row.collections.clone(),
@@ -97,7 +99,7 @@ where Self: Send + Sync,
             RowData {
                 key: self.key.clone(),
                 format: self.format,
-                tree: self.tree.clone(),
+                parent: self.parent.clone(),
                 data_hash,
                 data,
                 auth: self.auth.clone(),
@@ -115,7 +117,7 @@ where Self: Send + Sync
 {
     pub key: PrimaryKey,
     pub format: MessageFormat,
-    pub tree: Option<MetaTree>,
+    pub parent: Option<MetaParent>,
     pub data_hash: Hash,
     pub data: Bytes,
     pub auth: MetaAuthorization,
@@ -190,12 +192,12 @@ where Self: Send + Sync,
                 key,
                 created: 0,
                 updated: 0,
-                tree: None,
+                parent: None,
                 data,
                 format: format,
                 auth: MetaAuthorization {
-                    read: ReadOption::Unspecified,
-                    write: WriteOption::Unspecified,
+                    read: ReadOption::Inherit,
+                    write: WriteOption::Inherit,
                 },
                 collections: FxHashSet::default(),
             },
@@ -222,20 +224,18 @@ where Self: Send + Sync,
     #[allow(dead_code)]
     pub fn detach(&mut self) {
         self.state.dirty = true;
-        self.row.tree = None;
+        self.row.parent = None;
     }
 
     #[allow(dead_code)]
     pub fn attach(&mut self, parent_id: &PrimaryKey, vec: &DaoVec<D>) {
         self.state.dirty = true;
-        self.row.tree = Some(
-            MetaTree {
+        self.row.parent = Some(
+            MetaParent {
                 vec: MetaCollection {
                     parent_id: parent_id.clone(),
                     collection_id: vec.vec_id.clone(),
                 },
-                inherit_read: true,
-                inherit_write: true,
             }
         );
     }
@@ -250,7 +250,6 @@ where Self: Send + Sync,
         self.state.dirty = true;
         &mut self.row.auth
     }
-
     #[allow(dead_code)]
     pub fn delete<'a>(self, dio: &mut Dio<'a>) -> std::result::Result<(), SerializationError> {
         let state = &mut dio.state;
@@ -352,11 +351,11 @@ where Self: Send + Sync,
             }
 
             let row_data = self.row.as_row_data()?;
-            let row_tree = match &self.row.tree {
+            let row_parent = match &self.row.parent {
                 Some(a) => Some(a),
                 None => None,
             };
-            state.dirty(&self.row.key, row_tree, row_data);
+            state.dirty(&self.row.key, row_parent, row_data);
         }
         Ok(())
     }
@@ -375,7 +374,7 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     }
     let key = dao.key().clone();
     state.cache_store_primary.remove(&key);
-    if let Some(tree) = &dao.row.tree {
+    if let Some(tree) = &dao.row.parent {
         if let Some(y) = state.cache_store_secondary.get_vec_mut(&tree.vec) {
             y.retain(|x| *x == key);
         }
@@ -387,7 +386,7 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     Ok(())
 }
 
-impl<D> Deref for Dao<D>
+impl<D> std::ops::Deref for Dao<D>
 where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     type Target = D;
@@ -397,7 +396,7 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     }
 }
 
-impl<D> DerefMut for Dao<D>
+impl<D> std::ops::DerefMut for Dao<D>
 where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {

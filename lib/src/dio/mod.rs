@@ -56,12 +56,12 @@ where Self: Send + Sync
 
 impl DioState
 {
-    pub(super) fn dirty(&mut self, key: &PrimaryKey, tree: Option<&MetaTree>, row: RowData) {
+    pub(super) fn dirty(&mut self, key: &PrimaryKey, parent: Option<&MetaParent>, row: RowData) {
         let row = Arc::new(row);
         self.store.push(row.clone());
         self.cache_store_primary.insert(key.clone(), row);
-        if let Some(tree) = tree {
-            self.cache_store_secondary.insert(tree.vec.clone(), key.clone());
+        if let Some(parent) = parent {
+            self.cache_store_secondary.insert(parent.vec.clone(), key.clone());
         }
         self.cache_load.remove(key);
     }
@@ -137,7 +137,7 @@ impl<'a> Dio<'a>
                 Some(k) => k,
                 None => PrimaryKey::generate(),
             },
-            tree: None,
+            parent: None,
             data: data,
             auth: MetaAuthorization::default(),
             collections: FxHashSet::default(),
@@ -397,18 +397,27 @@ impl<'a> Dio<'a>
         
         let mut evts = Vec::new();
 
+        // Build the transaction metadata
+        let mut trans_meta = TransactionMetadata::default();
+        for row in state.store.iter() {
+            trans_meta.auth.insert(row.key, row.auth.clone());
+            if let Some(parent) = &row.parent {
+                trans_meta.parents.insert(row.key, parent.clone());
+            }
+        }
+
         // Convert all the events that we are storing into serialize data
         for row in state.store.drain(..)
         {
             // Build a new clean metadata header
             let mut meta = Metadata::for_data(row.key);
             meta.core.push(CoreMetadata::Authorization(row.auth.clone()));
-            if let Some(tree) = &row.tree {
-                meta.core.push(CoreMetadata::Tree(tree.clone()))
+            if let Some(parent) = &row.parent {
+                meta.core.push(CoreMetadata::Parent(parent.clone()))
             }
 
             // Compute all the extra metadata for an event
-            let extra_meta = self.multi.metadata_lint_event(&mut meta, &self.session)?;
+            let extra_meta = self.multi.metadata_lint_event(&mut meta, &self.session, &trans_meta)?;
             meta.core.extend(extra_meta);
             
             // Perform any transformation (e.g. data encryption and compression)
@@ -426,13 +435,16 @@ impl<'a> Dio<'a>
         // Build events that will represent tombstones on all these records (they will be sent after the writes)
         for (key, row) in state.deleted.drain() {
             let mut meta = Metadata::default();
-            meta.core.push(CoreMetadata::Authorization(row.auth));
-            if let Some(tree) = row.tree {
-                meta.core.push(CoreMetadata::Tree(tree))
+            meta.core.push(CoreMetadata::Authorization(MetaAuthorization {
+                read: ReadOption::Noone,
+                write: WriteOption::Noone,
+            }));
+            if let Some(parent) = row.parent {
+                meta.core.push(CoreMetadata::Parent(parent))
             }
 
             // Compute all the extra metadata for an event
-            let extra_meta = self.multi.metadata_lint_event(&mut meta, &self.session)?;
+            let extra_meta = self.multi.metadata_lint_event(&mut meta, &self.session, &trans_meta)?;
             meta.core.extend(extra_meta);
 
             meta.add_tombstone(key);

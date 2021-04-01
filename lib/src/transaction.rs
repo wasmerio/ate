@@ -1,8 +1,13 @@
 #![allow(unused_imports)]
 use tokio::sync::mpsc as mpsc;
 use std::sync::mpsc as smpsc;
+use crate::meta::MetaParent;
+use fxhash::FxHashMap;
+
 use super::event::*;
 use super::error::*;
+use super::meta::*;
+use super::header::*;
 
 /// Represents the scope of `Dio` transaction for all the data
 /// it is gathering up locally. Once the user calls the `commit`
@@ -48,4 +53,11 @@ impl Transaction
             receiver
         )
     }
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct TransactionMetadata
+{
+    pub auth: FxHashMap<PrimaryKey, MetaAuthorization>,
+    pub parents: FxHashMap<PrimaryKey, MetaParent>,
 }

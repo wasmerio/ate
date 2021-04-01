@@ -90,6 +90,9 @@ pub struct ConfMesh
 #[derive(Debug, Clone)]
 pub struct ConfAte
 {
+    /// Optimizes ATE for a specific group of usecases
+    configured_for: ConfiguredFor,
+
     /// Directory path that the redo logs will be stored.
     pub log_path: String,
     /// Indicates if the redo logs will be deleted on exit which is normally
@@ -116,9 +119,6 @@ pub struct ConfAte
     /// which double encrypting your data and the metadata around it is
     /// another defence.
     pub wire_encryption: Option<KeySize>,
-
-    /// Optimizes ATE for a specific group of usecases
-    configured_for: ConfiguredFor,
 
     /// Size of the buffer on mesh clients, tweak this number with care
     pub buffer_size_client: usize,
@@ -445,6 +445,12 @@ impl ChainOfTrustBuilder
         if let Some(tree) = &mut self.tree {
             tree.add_root_public_key(key);
         }
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn truncate(mut self, val: bool) -> Self {
+        self.truncate = val;
         self
     }
 

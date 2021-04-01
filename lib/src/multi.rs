@@ -18,6 +18,7 @@ use super::event::*;
 use super::lint::*;
 use super::spec::*;
 use super::index::*;
+use super::transaction::*;
 
 use bytes::Bytes;
 
@@ -82,14 +83,14 @@ impl ChainMultiUser
     }
 
     #[allow(dead_code)]
-    pub(crate) fn metadata_lint_event(&self, meta: &mut Metadata, session: &Session) -> Result<Vec<CoreMetadata>, LintError> {
+    pub(crate) fn metadata_lint_event(&self, meta: &mut Metadata, session: &Session, trans_meta: &TransactionMetadata) -> Result<Vec<CoreMetadata>, LintError> {
         let guard = self.inside_sync.read();
         let mut ret = Vec::new();
         for linter in guard.linters.iter() {
-            ret.extend(linter.metadata_lint_event(meta, session)?);
+            ret.extend(linter.metadata_lint_event(meta, session, trans_meta)?);
         }
         for plugin in guard.plugins.iter() {
-            ret.extend(plugin.metadata_lint_event(meta, session)?);
+            ret.extend(plugin.metadata_lint_event(meta, session, trans_meta)?);
         }
         Ok(ret)
     }

@@ -30,7 +30,7 @@ pub(crate) struct BinaryTreeIndexer
 {
     primary: FxHashMap<PrimaryKey, EventLeaf>,
     secondary: MultiMap<MetaCollection, PrimaryKey>,
-    parent: FxHashMap<PrimaryKey, MetaTree>,
+    parents: FxHashMap<PrimaryKey, MetaParent>,
 }
 
 impl BinaryTreeIndexer
@@ -51,7 +51,7 @@ impl BinaryTreeIndexer
             match core {
                 CoreMetadata::Tombstone(key) => {
                     self.primary.remove(&key);
-                    if let Some(tree) = self.parent.remove(&key) {
+                    if let Some(tree) = self.parents.remove(&key) {
                         if let Some(vec) = self.secondary.get_vec_mut(&tree.vec) {
                             vec.retain(|x| *x != *key);
                         }
@@ -77,16 +77,16 @@ impl BinaryTreeIndexer
                     v.record = entry.raw.event_hash.clone();
                     v.updated = match when { Some(t) => t.time_since_epoch_ms, None => 0 };
                 },
-                CoreMetadata::Tree(tree) => {
+                CoreMetadata::Parent(parent) => {
                     if let Some(key) = entry.meta.get_data_key() {
-                        if let Some(tree) = self.parent.remove(&key) {
-                            if let Some(vec) = self.secondary.get_vec_mut(&tree.vec) {
+                        if let Some(parent) = self.parents.remove(&key) {
+                            if let Some(vec) = self.secondary.get_vec_mut(&parent.vec) {
                                 vec.retain(|x| *x != key);
                             }
                         }
-                        self.parent.insert(key.clone(), tree.clone());
+                        self.parents.insert(key.clone(), parent.clone());
 
-                        let vec = tree.vec.clone();
+                        let vec = parent.vec.clone();
                         let exists = match self.secondary.get_vec(&vec)  {
                             Some(a) => a.contains(&key),
                             None => false,

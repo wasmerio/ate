@@ -11,6 +11,7 @@ use super::sink::*;
 use super::transform::*;
 use super::validator::*;
 use super::conf::*;
+use super::transaction::*;
 use super::event::EventHeader;
 
 use std::{ops::Deref, sync::Arc};
@@ -150,7 +151,7 @@ for TimestampEnforcer
         Box::new(self.clone())
     }
 
-    fn metadata_lint_event(&self, _meta: &Metadata, _session: &Session)-> Result<Vec<CoreMetadata>, LintError> {
+    fn metadata_lint_event(&self, _meta: &Metadata, _session: &Session, _trans_meta: &TransactionMetadata)-> Result<Vec<CoreMetadata>, LintError> {
         let mut ret = Vec::new();
 
         //println!("TIME: {} with offset of {} and ping of {}", self.current_timestamp()?, self.current_offset_ms(), self.current_ping_ms());

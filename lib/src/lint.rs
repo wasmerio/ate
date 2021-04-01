@@ -3,6 +3,7 @@ use crate::session::{Session, SessionProperty};
 use super::error::*;
 use super::meta::*;
 use super::event::*;
+use super::transaction::*;
 #[allow(unused_imports)]
 use openssl::symm::{encrypt, Cipher};
 
@@ -21,7 +22,7 @@ pub trait EventMetadataLinter: Send + Sync
     }
 
     // Lint an exact event
-    fn metadata_lint_event(&self, _meta: &Metadata, _session: &Session)-> Result<Vec<CoreMetadata>, LintError>
+    fn metadata_lint_event(&self, _meta: &Metadata, _session: &Session, _trans_meta: &TransactionMetadata)-> Result<Vec<CoreMetadata>, LintError>
     {
         Ok(Vec::new())
     }
@@ -40,7 +41,7 @@ for EventAuthorLinter
         Box::new(self.clone())
     }
 
-    fn metadata_lint_event(&self, _meta: &Metadata, session: &Session)-> Result<Vec<CoreMetadata>, LintError> {
+    fn metadata_lint_event(&self, _meta: &Metadata, session: &Session, _trans_meta: &TransactionMetadata)-> Result<Vec<CoreMetadata>, LintError> {
         let mut ret = Vec::new();
 
         for core in &session.properties {

@@ -174,6 +174,16 @@ impl EncryptKey {
     }
 
     pub fn encrypt_with_iv(&self, iv: &InitializationVector, data: &[u8]) -> Result<Vec<u8>, openssl::error::ErrorStack> {
+        let iv_store;
+        let iv = match iv.bytes.len() {
+            16 => iv,
+            _ => {
+                iv_store = InitializationVector {
+                    bytes: iv.bytes.clone().into_iter().take(16).collect::<Vec<_>>()
+                };
+                &iv_store
+            }
+        };
         Ok(
             openssl::symm::encrypt(self.cipher(), self.value(), Some(&iv.bytes[..]), data)?
         )
@@ -191,6 +201,16 @@ impl EncryptKey {
     }
     
     pub fn decrypt(&self, iv: &InitializationVector, data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
+        let iv_store;
+        let iv = match iv.bytes.len() {
+            16 => iv,
+            _ => {
+                iv_store = InitializationVector {
+                    bytes: iv.bytes.clone().into_iter().take(16).collect::<Vec<_>>()
+                };
+                &iv_store
+            }
+        };
         Ok(
             openssl::symm::decrypt(self.cipher(), self.value(), Some(&iv.bytes[..]), data)?
         )
@@ -912,9 +932,8 @@ impl PrivateEncryptKey
                 return Err(std::io::Error::new(std::io::ErrorKind::Other, "The encryption key could not be decapsulated from the initialization vector."));
             }
         };
-        let ek_iv = PublicEncryptKey::trim_iv(&iv);
         Ok(
-            openssl::symm::decrypt(ek.cipher(), ek.value(), Some(&ek_iv.bytes[..]), data)?
+            openssl::symm::decrypt(ek.cipher(), ek.value(), Some(&iv.bytes[..]), data)?
         )
     }
 }
@@ -993,20 +1012,13 @@ impl PublicEncryptKey
 
     pub fn encrypt(&self, data: &[u8]) -> Result<EncryptResult, std::io::Error> {
         let (iv, ek) = self.encapsulate();
-        let ek_iv = PublicEncryptKey::trim_iv(&iv);
-        let data = ek.encrypt_with_iv(&ek_iv, data)?;
+        let data = ek.encrypt_with_iv(&iv, data)?;
         Ok(
             EncryptResult {
                 iv,
                 data,
             }
         )
-    }
-
-    fn trim_iv(iv: &InitializationVector) -> InitializationVector {
-        InitializationVector {
-            bytes: iv.bytes.clone().into_iter().take(16).collect::<Vec<_>>()
-        }
     }
 }
 
