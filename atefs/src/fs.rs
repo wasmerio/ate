@@ -13,6 +13,7 @@ use parking_lot::Mutex;
 use ate::prelude::TransactionScope;
 use ate::dio::Dio;
 use ate::dio::Dao;
+use ate::dio::DaoObj;
 use ate::error::*;
 use ate::chain::*;
 use ate::session::Session as AteSession;
@@ -193,7 +194,7 @@ impl AteFS
             .updated(updated);
         children.push(FileSpec::FixedFile(fixed));
 
-        for child in conv_load(data.children.iter(&key, &mut dio).await)? {
+        for child in conv_load(data.iter(&mut dio, data.children).await)? {
             let child_spec = Inode::as_file_spec(child.key().as_u64(), child.when_created(), child.when_updated(), child);
             children.push(child_spec);
         }
@@ -231,14 +232,14 @@ impl AteFS
         
         let key = PrimaryKey::from(parent);
         let mut dio = self.chain.dio_ext(&self.session, TransactionScope::None).await;
-        let data = conv_load(dio.load::<Inode>(&key).await)?;
+        let mut data = conv_load(dio.load::<Inode>(&key).await)?;
 
         if data.spec_type != SpecType::Directory {
             debug!("atefs::create parent={} not-a-directory", parent);
             return Err(libc::ENOTDIR.into());
         }
         
-        if let Some(_) = conv_load(data.children.iter(&key, &mut dio).await)?.filter(|c| *c.dentry.name == *name).next() {
+        if let Some(_) = conv_load(data.iter(&mut dio, data.children).await)?.filter(|c| *c.dentry.name == *name).next() {
             debug!("atefs::create parent={} name={}: already-exists", parent, name.to_str().unwrap());
             return Err(libc::EEXIST.into());
         }
@@ -251,7 +252,7 @@ impl AteFS
             SpecType::RegularFile,
         );
 
-        let child = conv_serialization(data.children.push(&mut dio, &key, child))?;
+        let child = conv_serialization(data.push(&mut dio, data.children, child))?;
         return Ok((child, dio));
     }
 
@@ -548,9 +549,8 @@ for AteFS
         self.tick().await?;
         debug!("atefs::mkdir parent={}", parent);
 
-        let key = PrimaryKey::from(parent);
         let mut dio = self.chain.dio(&self.session).await;
-        let data = conv_load(dio.load::<Inode>(&PrimaryKey::from(parent)).await)?;
+        let mut data = conv_load(dio.load::<Inode>(&PrimaryKey::from(parent)).await)?;
         
         if data.spec_type != SpecType::Directory {
             return Err(libc::ENOTDIR.into());
@@ -564,7 +564,7 @@ for AteFS
             SpecType::Directory,
         );
 
-        let mut child = conv_serialization(data.children.push(&mut dio, &key, child))?;
+        let mut child = conv_serialization(data.push(&mut dio, data.children, child))?;
 
         conv_serialization(child.commit(&mut dio))?;
         let child_spec = Inode::as_file_spec(child.key().as_u64(), child.when_created(), child.when_updated(), child);
@@ -594,7 +594,7 @@ for AteFS
             let mut dio = self.chain.dio(&self.session).await;
             let data = conv_load(dio.load::<Inode>(&PrimaryKey::from(entry.inode)).await)?;
 
-            if let Some(_) = conv_load(data.children.iter(data.key(), &mut dio).await)?.next() {
+            if let Some(_) = conv_load(data.iter(&mut dio, data.children).await)?.next() {
                 return Err(Errno::from(libc::ENOTEMPTY));
             }
 
@@ -690,7 +690,7 @@ for AteFS
             return Err(libc::ENOTDIR.into());
         }
         
-        if let Some(data) = conv_load(data.children.iter(&key, &mut dio).await)?.filter(|c| *c.dentry.name == *name).next()
+        if let Some(data) = conv_load(data.iter(&mut dio, data.children).await)?.filter(|c| *c.dentry.name == *name).next()
         {
             if data.spec_type == SpecType::Directory {
                 debug!("atefs::unlink parent={} name={} is-a-directory", parent, name.to_str().unwrap().to_string());
@@ -729,7 +729,7 @@ for AteFS
             return Err(libc::ENOTDIR.into());
         }
         
-        if let Some(mut data) = conv_load(parent_data.children.iter(&parent_key, &mut dio).await)?.filter(|c| *c.dentry.name == *name).next()
+        if let Some(mut data) = conv_load(parent_data.iter(&mut dio, parent_data.children).await)?.filter(|c| *c.dentry.name == *name).next()
         {
             // If the parent has changed then move it
             if parent != new_parent
@@ -743,18 +743,18 @@ for AteFS
                     return Err(libc::ENOTDIR.into());
                 }
 
-                if conv_load(new_parent_data.children.iter(&parent_key, &mut dio).await)?.filter(|c| *c.dentry.name == *new_name).next().is_some() {
+                if conv_load(new_parent_data.iter(&mut dio, new_parent_data.children).await)?.filter(|c| *c.dentry.name == *new_name).next().is_some() {
                     debug!("atefs::rename new_name={} already exists", new_name.to_str().unwrap().to_string());
                     dio.cancel();
                     return Err(libc::EEXIST.into());
                 }
 
                 data.detach();
-                data.attach(&new_parent_key, &new_parent_data.children);
+                data.attach(&new_parent_data, new_parent_data.children);
             }
             else
             {
-                if conv_load(parent_data.children.iter(&parent_key, &mut dio).await)?.filter(|c| *c.dentry.name == *new_name).next().is_some() {
+                if conv_load(parent_data.iter(&mut dio, parent_data.children).await)?.filter(|c| *c.dentry.name == *new_name).next().is_some() {
                     debug!("atefs::rename new_name={} already exists", new_name.to_str().unwrap().to_string());
                     dio.cancel();
                     return Err(libc::ENOTDIR.into());

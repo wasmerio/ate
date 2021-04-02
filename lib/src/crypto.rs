@@ -282,6 +282,18 @@ impl EncryptKey {
     }
 }
 
+impl std::fmt::Display
+for EncryptKey
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EncryptKey::Aes128(a) => write!(f, "aes-128:{}", hex::encode(a)),
+            EncryptKey::Aes192(a) => write!(f, "aes-192:{}", hex::encode(a)),
+            EncryptKey::Aes256(a) => write!(f, "aes-256:{}", hex::encode(a)),
+        }
+    }
+}
+
 pub struct EncryptResult {
     pub iv: InitializationVector,
     pub data: Vec<u8>
@@ -538,6 +550,14 @@ impl InitializationVector {
     }
 }
 
+impl std::fmt::Display
+for InitializationVector
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", hex::encode(&self.bytes[..]))
+    }
+}
+
 impl Metadata
 {
     #[allow(dead_code)]
@@ -557,10 +577,10 @@ impl Metadata
     }
 
     #[allow(dead_code)]
-    pub fn get_iv(&self) -> Result<InitializationVector, CryptoError> {
+    pub fn get_iv(&self) -> Result<&InitializationVector, CryptoError> {
         for m in self.core.iter() {
             match m {
-                CoreMetadata::InitializationVector(iv) => return Result::Ok(iv.clone()),
+                CoreMetadata::InitializationVector(iv) => return Result::Ok(iv),
                 _ => { }
             }
         }
@@ -676,6 +696,17 @@ impl PrivateSignKey
     }
 }
 
+impl std::fmt::Display
+for PrivateSignKey
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PrivateSignKey::Falcon512 { pk: _, sk: _ } => write!(f, "falcon512:pk:{}+sk", self.hash()),
+            PrivateSignKey::Falcon1024 { pk: _, sk: _ } => write!(f, "falcon1024:pk:{}+sk", self.hash()),
+        }
+    }
+}
+
 /// Public key which is one side of a private key. Public keys allow
 /// records/events stored within the ATE redo log to have integrity
 /// without actually being able to read the records themselves. This
@@ -727,6 +758,17 @@ impl PublicSignKey
         };
         
         Ok(ret)
+    }
+}
+
+impl std::fmt::Display
+for PublicSignKey
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PublicSignKey::Falcon512 { pk: _ } => write!(f, "falcon512:pk:{}", self.hash()),
+            PublicSignKey::Falcon1024 { pk: _ } => write!(f, "falcon1024:pk:{}", self.hash()),
+        }
     }
 }
 
@@ -932,9 +974,19 @@ impl PrivateEncryptKey
                 return Err(std::io::Error::new(std::io::ErrorKind::Other, "The encryption key could not be decapsulated from the initialization vector."));
             }
         };
-        Ok(
-            openssl::symm::decrypt(ek.cipher(), ek.value(), Some(&iv.bytes[..]), data)?
-        )
+        ek.decrypt(iv, data)
+    }
+}
+
+impl std::fmt::Display
+for PrivateEncryptKey
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PrivateEncryptKey::Ntru128 { pk: _, sk: _ } => write!(f, "ntru128:pk:{}+sk", self.hash()),
+            PrivateEncryptKey::Ntru192 { pk: _, sk: _ } => write!(f, "ntru192:pk:{}+sk", self.hash()),
+            PrivateEncryptKey::Ntru256 { pk: _, sk: _ } => write!(f, "ntru256:pk:{}+sk", self.hash()),
+        }
     }
 }
 
@@ -955,7 +1007,6 @@ pub enum PublicEncryptKey {
         pk: Vec<u8>,
     }
 }
-
 
 impl PublicEncryptKey
 {
@@ -1019,6 +1070,18 @@ impl PublicEncryptKey
                 data,
             }
         )
+    }
+}
+
+impl std::fmt::Display
+for PublicEncryptKey
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PublicEncryptKey::Ntru128 { pk: _ } => write!(f, "ntru128:pk:{}", self.hash()),
+            PublicEncryptKey::Ntru192 { pk: _ } => write!(f, "ntru192:pk:{}", self.hash()),
+            PublicEncryptKey::Ntru256 { pk: _ } => write!(f, "ntru256:pk:{}", self.hash()),
+        }
     }
 }
 

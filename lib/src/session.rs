@@ -21,6 +21,21 @@ impl Default for SessionProperty {
     }
 }
 
+impl std::fmt::Display
+for SessionProperty
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SessionProperty::None => write!(f, "none"),
+            SessionProperty::ReadKey(a) => write!(f, "read_key:{}", a),
+            SessionProperty::PrivateReadKey(a) => write!(f, "private_read_key:{}", a),
+            SessionProperty::PublicReadKey(a) => write!(f, "public_read_key:{}", a),
+            SessionProperty::WriteKey(a) => write!(f, "write_key:{}", a),
+            SessionProperty::Identity(a) => write!(f, "identity:{}", a),
+        }
+    }
+}
+
 /// Sessions hold facts about the user that give them certains
 /// rights and abilities to view data within the chain-of-trust.
 ///
@@ -64,5 +79,22 @@ impl Session
     #[allow(dead_code)]
     pub fn add_identity(&mut self, identity: String) {
         self.properties.push(SessionProperty::Identity(identity));
+    }
+}
+
+impl std::fmt::Display
+for Session
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[")?;
+        let mut first = true;
+        for prop in self.properties.iter() {
+            match first {
+                true => first = false,
+                false => write!(f, ",")?
+            };
+            prop.fmt(f)?;
+        }
+        write!(f, "]")
     }
 }

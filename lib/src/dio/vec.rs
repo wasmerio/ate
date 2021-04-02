@@ -25,17 +25,30 @@ use std::collections::VecDeque;
 /// will need to manage this yourselve and can not benefit from
 /// publish/subscribe patterns.
 ///
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct DaoVec<D>
-where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     pub(super) vec_id: u64,
     #[serde(skip)]
     _phantom1: PhantomData<D>,
 }
 
+impl<D> Clone
+for DaoVec<D>
+{
+    fn clone(&self) -> DaoVec<D>
+    {
+        DaoVec {
+            vec_id: self.vec_id,
+            _phantom1: PhantomData,
+        }
+    }
+}
+
+impl<D> Copy
+for DaoVec<D> { }
+
 impl<D> DaoVec<D>
-where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     pub fn new() -> DaoVec<D> {
         DaoVec {
@@ -43,36 +56,45 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
             _phantom1: PhantomData,
         }
     }
-
-    #[allow(dead_code)]
-    pub async fn iter<'a>(&self, parent_id: &PrimaryKey, dio: &mut Dio<'a>) -> Result<Iter<D>, LoadError>
-    {
-        Ok(
-            Iter::new(
-                dio.children(parent_id.clone(), self.vec_id.clone()).await?
-            )
-        )
-    }
-    
-    #[allow(dead_code)]
-    pub fn push(&self, dio: &mut Dio, parent_id: &PrimaryKey, data: D) -> Result<Dao<D>, SerializationError>
-    {
-        let mut ret = dio.store_ext(data, None, None, false)?;
-        ret.attach(parent_id, self);
-        ret.commit(dio)?;
-        Ok (ret)
-    }
 }
 
 impl<D> Default
 for DaoVec<D>
-where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     fn default() -> DaoVec<D>
     {
         DaoVec::new()
     }
 }
+
+impl<D> Dao<D>
+where D: Serialize + DeserializeOwned + Clone + Send + Sync,
+{
+    #[allow(dead_code)]
+    pub async fn iter<'a, C>(&self, dio: &mut Dio<'a>, vec: DaoVec<C>) -> Result<Iter<C>, LoadError>
+    where C: Serialize + DeserializeOwned + Clone + Send + Sync
+    {
+        Ok(
+            Iter::new(
+                dio.children(self.key().clone(), vec.vec_id).await?
+            )
+        )
+    }
+    
+    #[allow(dead_code)]
+    pub fn push<C>(&mut self, dio: &mut Dio, vec: DaoVec<C>, data: C) -> Result<Dao<C>, SerializationError>
+    where C: Serialize + DeserializeOwned + Clone + Send + Sync
+    {
+        if self.is_dirty() {
+            self.commit(dio)?;
+        }
+        let mut ret = dio.store_ext(data, None, None, false)?;
+        ret.attach(self, vec);
+        ret.commit(dio)?;
+        Ok (ret)
+    }
+}
+
 pub struct Iter<D>
 where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {

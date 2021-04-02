@@ -35,6 +35,7 @@ use super::session::*;
 use crate::mesh::msg::*;
 use crate::dio::DaoVec;
 use crate::dio::Dao;
+use crate::dio::DaoObj;
 
 use crate::mesh::client::MeshClient;
 use crate::mesh::root::MeshRoot;
@@ -144,7 +145,7 @@ async fn test_mesh()
             let dao2: Dao<TestData> = dio.store(TestData::default()).unwrap();
             dao_key2 = dao2.key().clone();
 
-            bus = dao2.inner.bus(&chain_a, dao2.key());
+            bus = dao2.bus(&chain_a, dao2.inner);
             task = bus.recv(&session_a);
             dio.commit().await.unwrap();
         }
@@ -164,11 +165,11 @@ async fn test_mesh()
                 dao_key1 = dio.store(TestData::default()).unwrap().key().clone();
 
                 debug!("load data object 2");
-                let dao2: Dao<TestData> = dio.load(&dao_key2).await.expect("An earlier saved object should have loaded");
+                let mut dao2: Dao<TestData> = dio.load(&dao_key2).await.expect("An earlier saved object should have loaded");
                 
                 debug!("add to new sub objects to the vector");
-                dao2.inner.push(&mut dio, dao2.key(), "test_string1".to_string()).unwrap();
-                dao2.inner.push(&mut dio, dao2.key(), "test_string2".to_string()).unwrap();
+                dao2.push(&mut dio, dao2.inner, "test_string1".to_string()).unwrap();
+                dao2.push(&mut dio, dao2.inner, "test_string2".to_string()).unwrap();
 
                 debug!("commit the DIO");
                 dio.commit().await.unwrap();

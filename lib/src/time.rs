@@ -217,7 +217,7 @@ for TimestampEnforcer
                 return match header.meta.needs_signature() {
                     true => {
                         debug!("rejected event due to missing timestamp");
-                        Err(ValidationError::Time(TimeError::NoTimestamp))
+                        Err(ValidationError::Trust(TrustError::Time(TimeError::NoTimestamp)))
                     },
                     false => Ok(ValidationResult::Abstain)
                 };
@@ -233,7 +233,7 @@ for TimestampEnforcer
            timestamp > max_timestamp
         {
             debug!("rejected event due to out-of-bounds timestamp ({:?} vs {:?})", self.cursor, timestamp);
-            return Err(ValidationError::Time(TimeError::OutOfBounds(self.cursor - timestamp)));
+            return Err(ValidationError::Trust(TrustError::Time(TimeError::OutOfBounds(self.cursor - timestamp))));
         }
 
         // All good

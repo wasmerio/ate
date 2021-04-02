@@ -29,6 +29,7 @@ pub struct TreeAuthorityPlugin
     signature_plugin: SignaturePlugin,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum ComputePhase
 {
     BeforeStore,
@@ -54,91 +55,113 @@ impl TreeAuthorityPlugin
         self.root = WriteOption::Group(self.root_keys.keys().map(|k| k.clone()).collect::<Vec<_>>());
     }
 
-    fn compute_auth(&self, meta: &Metadata, trans_meta: &TransactionMetadata, phase: ComputePhase) -> MetaAuthorization
+    fn compute_auth(&self, meta: &Metadata, trans_meta: &TransactionMetadata, phase: ComputePhase) -> Result<MetaAuthorization, TrustError>
     {
-        // Declare the defaults
-        let root_read = ReadOption::Everyone;
-        let root_write;
+        // If its not got a key then it just inherits the permissions of the root
+        let key = match meta.get_data_key() {
+            Some(a) => a,
+            None => {
+                return Ok(
+                    MetaAuthorization {
+                        read: ReadOption::Everyone,
+                        write: self.root.clone(),
+                    }
+                );
+            }
+        };
 
-        // Root keys are there until inheritance is disabled then they
-        // can no longer be used but this means that the top level data objects
-        // can always be overridden by the root keys
-        root_write = self.root.clone();
-
-        // This object itself may have specific authorization set
-        let auth = match phase {
-            ComputePhase::BeforeStore =>
-            {
-                match meta.get_data_key() {
-                    Some(key) => self.auth.get(&key),
-                    None => None
-                }
-            },
+        // Get the authorization of this node itself (if its post phase)
+        let mut auth = match phase {
+            ComputePhase::BeforeStore => None,
             ComputePhase::AfterStore => meta.get_authorization(),
         };
 
-        // Determine the leaf read and write authorization
+        // In the scenarios that this is before the record is saved or
+        // if no authorization is attached to the record then we fall
+        // back to whatever is the value in the existing chain of trust
+        if auth.is_none() {
+            auth = trans_meta.auth.get(&key);
+            if auth.is_none() {
+                auth = self.auth.get(&key);
+            }
+        }
+
+        // Fall back on inheriting from the parent if there is no
+        // record yet set for this data object
         let (mut read, mut write) = match auth {
             Some(a) => (a.read.clone(), a.write.clone()),
-            None => (root_read.clone(), root_write.clone()),
+            None => (ReadOption::Inherit, WriteOption::Inherit),
         };
 
-        // Resolve any inheritance
+        // Resolve any inheritance through recursive queries
         let mut parent = meta.get_parent();
-        while read == ReadOption::Inherit || write == WriteOption::Inherit
+        while (read == ReadOption::Inherit || write == WriteOption::Inherit)
+               && parent.is_some()
         {
-            // Get the authorization for this parent (if there is one)
-            let parent_auth = match parent {
-                Some(a) => {
-                    match phase {
-                        ComputePhase::BeforeStore => self.auth.get(&a.vec.parent_id),
-                        ComputePhase::AfterStore => {
-                            match trans_meta.auth.get(&a.vec.parent_id) {
-                                Some(a) => Some(a),
-                                None => self.auth.get(&a.vec.parent_id)
-                            }
-                        }
-                    }
-                }
-                None => None,
-            };
+            {
+                let parent = match parent {
+                    Some(a) => a.vec.parent_id,
+                    None => unreachable!(),
+                };
 
-            // Resolve the read inheritance
-            if read == ReadOption::Inherit {
-                read = match parent_auth {
-                    Some(a) => a.read.clone(),
-                    None => root_read.clone(),
+                // Get the authorization for this parent (if there is one)
+                let mut parent_auth = trans_meta.auth.get(&parent);
+                if parent_auth.is_none() {
+                    parent_auth = self.auth.get(&parent);
+                }
+                let parent_auth = match parent_auth {
+                    Some(a) => a,
+                    None => {
+                        return Err(TrustError::MissingParent(parent));
+                    }
                 };
-            }
-            // Resolve the write inheritance
-            if write == WriteOption::Inherit {
-                write = match parent_auth {
-                    Some(a) => a.write.clone(),
-                    None => root_write.clone(),
-                };
+
+                // Resolve the read inheritance
+                if read == ReadOption::Inherit {
+                    read = parent_auth.read.clone();
+                }
+                // Resolve the write inheritance
+                if write == WriteOption::Inherit {
+                    write = parent_auth.write.clone();
+                }
             }
 
             // Walk up the tree until we have a resolved inheritance or there are no more parents
             parent = match parent {
                 Some(a) => {
-                    match phase {
-                        ComputePhase::BeforeStore => self.parents.get(&a.vec.parent_id),
-                        ComputePhase::AfterStore => {
-                            match trans_meta.parents.get(&a.vec.parent_id) {
-                                Some(a) => Some(a),
-                                None => self.parents.get(&a.vec.parent_id)
+                    let mut r = trans_meta.parents.get(&a.vec.parent_id);
+                    if r.is_none() {
+                        r = self.parents.get(&a.vec.parent_id);
+                    }
+                    match r {
+                        Some(a) => Some(a),
+                        None => {
+                            if trans_meta.auth.contains_key(&a.vec.parent_id) || self.auth.contains_key(&a.vec.parent_id) {
+                                break;
                             }
+                            return Err(TrustError::MissingParent(a.vec.parent_id.clone()));
                         }
                     }
                 },
-                None => None,
+                None => unreachable!(),
             }
         }
 
-        MetaAuthorization {
-            read,
-            write,
+        // If we are at the top of the walk and its still inherit then we inherit the
+        // permissions of a root node
+        if read == ReadOption::Inherit {
+            read = ReadOption::Everyone;
         }
+        if write == WriteOption::Inherit {
+            write = self.root.clone();
+        }
+
+        Ok(
+            MetaAuthorization {
+                read,
+                write,
+            }
+        )
     }
 
     fn generate_encrypt_key(auth: &ReadOption, session: &Session) -> Result<Option<(InitializationVector, EncryptKey)>, TransformError>
@@ -147,7 +170,7 @@ impl TreeAuthorityPlugin
             ReadOption::Inherit => {
                 Err(TransformError::UnspecifiedReadability)
             },
-            ReadOption::Everyone | &ReadOption::Noone => {
+            ReadOption::Everyone => {
                 Ok(None)
             },
             ReadOption::Specific(key_hash) => {
@@ -183,13 +206,13 @@ impl TreeAuthorityPlugin
         }
     }
 
-    fn get_encrypt_key(auth: &ReadOption, iv: &InitializationVector, session: &Session) -> Result<Option<EncryptKey>, TransformError>
+    fn get_encrypt_key(auth: &ReadOption, iv: Option<&InitializationVector>, session: &Session) -> Result<Option<EncryptKey>, TransformError>
     {
         match auth {
             ReadOption::Inherit => {
                 Err(TransformError::UnspecifiedReadability)
             },
-            ReadOption::Everyone | &ReadOption::Noone => {
+            ReadOption::Everyone => {
                 Ok(None)
             },
             ReadOption::Specific(key_hash) => {
@@ -200,13 +223,15 @@ impl TreeAuthorityPlugin
                         }
                     }
                 }
-                for prop in session.properties.iter() {
-                    if let SessionProperty::PrivateReadKey(key) = prop {
-                        if key.hash() == *key_hash {
-                            return Ok(Some(match key.decapsulate(iv) {
-                                Some(a) => a,
-                                None => { continue; }
-                            }));
+                if let Some(iv) = iv {
+                    for prop in session.properties.iter() {
+                        if let SessionProperty::PrivateReadKey(key) = prop {
+                            if key.hash() == *key_hash {
+                                return Ok(Some(match key.decapsulate(iv) {
+                                    Some(a) => a,
+                                    None => { continue; }
+                                }));
+                            }
                         }
                     }
                 }
@@ -227,7 +252,7 @@ for TreeAuthorityPlugin
         }
         else if let Some(key) = header.meta.get_data_key() {
             let dummy_trans_meta = TransactionMetadata::default();
-            let auth = self.compute_auth(&header.meta, &dummy_trans_meta, ComputePhase::AfterStore);
+            let auth = self.compute_auth(&header.meta, &dummy_trans_meta, ComputePhase::AfterStore)?;
             self.auth.insert(key, auth);
         }
 
@@ -267,7 +292,7 @@ for TreeAuthorityPlugin
 
         // It might be the case that everyone is allowed to write freely
         let dummy_trans_meta = TransactionMetadata::default();
-        let auth = self.compute_auth(&header.meta, &dummy_trans_meta, ComputePhase::BeforeStore);
+        let auth = self.compute_auth(&header.meta, &dummy_trans_meta, ComputePhase::BeforeStore)?;
         if auth.write == WriteOption::Everyone {
             return Ok(ValidationResult::Allow);
         }
@@ -287,9 +312,9 @@ for TreeAuthorityPlugin
                 return Ok(ValidationResult::Allow);
             }
         }
-        
+
         // If we get this far then any data events must be denied
-        // as all the other possible routes for it to be excepted have already passed
+        // as all the other possible routes for it to be accepted into the tree have failed
         debug!("rejected event as it is detached from the tree");
         Err(ValidationError::Detached)
     }
@@ -318,7 +343,7 @@ for TreeAuthorityPlugin
         let mut sign_with = Vec::new();
 
         // Signatures a done using the authorizations before its attached
-        let auth = self.compute_auth(meta, trans_meta, ComputePhase::BeforeStore);
+        let auth = self.compute_auth(meta, trans_meta, ComputePhase::BeforeStore)?;
         match auth.write {
             WriteOption::Specific(_) | WriteOption::Group(_) =>
             {
@@ -351,8 +376,8 @@ for TreeAuthorityPlugin
                 {
                     // This record has no authorization
                     return match meta.get_data_key() {
-                        Some(key) => Err(LintError::NoAuthorization(key)),
-                        None => Err(LintError::NoAuthorizationOrphan)
+                        Some(key) => Err(LintError::Trust(TrustError::NoAuthorization(key))),
+                        None => Err(LintError::Trust(TrustError::NoAuthorizationOrphan))
                     };
                 }
 
@@ -364,13 +389,13 @@ for TreeAuthorityPlugin
                 }
             },
             WriteOption::Inherit => {
-                return Err(LintError::UnspecifiedWritability);
+                return Err(LintError::Trust(TrustError::UnspecifiedWritability));
             },
             _ => {}
         }
 
         // Now lets add all the encryption keys
-        let auth = self.compute_auth(meta, trans_meta, ComputePhase::AfterStore);
+        let auth = self.compute_auth(meta, trans_meta, ComputePhase::AfterStore)?;
         ret.push(CoreMetadata::Confidentiality(auth.read));
         
         // Now run the signature plugin
@@ -417,8 +442,13 @@ for TreeAuthorityPlugin
             None => { return Err(TransformError::UnspecifiedReadability); }
         };
 
-        let iv = meta.get_iv()?;
-        if let Some(key) = TreeAuthorityPlugin::get_encrypt_key(read_option, &iv, session)? {
+        
+        let iv = meta.get_iv().ok();
+        if let Some(key) = TreeAuthorityPlugin::get_encrypt_key(read_option, iv, session)? {
+            let iv = match iv {
+                Some(a) => a,
+                None => { return Err(TransformError::CryptoError(CryptoError::NoIvPresent)); }
+            };
             let decrypted = key.decrypt(&iv, &with[..])?;
             with = Bytes::from(decrypted);
         }

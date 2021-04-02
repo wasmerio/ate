@@ -23,6 +23,7 @@ pub use crate::conf::ChainOfTrustBuilder as ChainBuilder;
 pub use crate::dio::DaoForeign;
 pub use crate::dio::DaoVec;
 pub use crate::dio::DaoRef;
+pub use crate::dio::DaoObj;
 pub use crate::dio::Dao;
 pub use crate::dio::Dio;
 

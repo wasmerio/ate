@@ -8,16 +8,18 @@ use super::dao::*;
 use crate::dio::*;
 use crate::chain::*;
 
-impl<D> DaoVec<D>
+impl<D> Dao<D>
 where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     #[allow(dead_code)]
-    pub fn bus<'a>(&self, chain: &'a Chain, parent_id: &PrimaryKey) -> Bus<'a, D> {
+    pub fn bus<'a, C>(&self, chain: &'a Chain, vec: DaoVec<C>) -> Bus<'a, C>
+    where C: Serialize + DeserializeOwned + Clone + Send + Sync,
+    {
         let vec = MetaCollection {
-            parent_id: parent_id.clone(),
-            collection_id: self.vec_id,
+            parent_id: self.key().clone(),
+            collection_id: vec.vec_id,
         };
-        Bus::new(chain, vec.clone())
+        Bus::new(chain, vec)
     }
 }
 

@@ -17,7 +17,6 @@ pub enum ReadOption
 {
     Inherit,
     Everyone,
-    Noone,
     Specific(Hash)
 }
 
@@ -38,7 +37,7 @@ pub enum WriteOption
 {
     Inherit,
     Everyone,
-    Noone,
+    Nobody,
     Specific(Hash),
     Group(Vec<Hash>)
 }
@@ -92,6 +91,33 @@ pub struct MetaAuthorization
 {
     pub read: ReadOption,
     pub write: WriteOption,
+}
+
+impl std::fmt::Display
+for MetaAuthorization
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let r = match &self.read {
+            ReadOption::Everyone => "everyone".to_string(),
+            ReadOption::Inherit => "inherit".to_string(),
+            ReadOption::Specific(a) => format!("specific-{}", a),
+        };
+        let w = match &self.write {
+            WriteOption::Everyone => "everyone".to_string(),
+            WriteOption::Nobody => "nobody".to_string(),
+            WriteOption::Inherit => "inherit".to_string(),
+            WriteOption::Specific(a) => format!("specific-{}", a),
+            WriteOption::Group(a) => {
+                let mut r = "group".to_string();
+                for a in a {
+                    r.push_str("-");
+                    r.push_str(a.to_string().as_str());
+                }
+                r
+            }
+        };
+        write!(f, "(r:{}, w:{})", r, w)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Eq, PartialEq, Hash, PartialOrd, Ord)]
@@ -158,28 +184,6 @@ impl Metadata
         }
         
         None
-    }
-
-    pub fn get_effective_authorization(&self, inherit_auth: Option<MetaAuthorization>) -> MetaAuthorization
-    {
-        let auth = match self.get_authorization() {
-            Some(a) => a.clone(),
-            None => MetaAuthorization::default(),
-        };
-        let (inherit_read, inherit_write) = match inherit_auth {
-            Some(a) => (a.read, a.write),
-            None => (ReadOption::Everyone, WriteOption::Everyone)
-        };
-        MetaAuthorization {
-            read: match auth.read {
-                ReadOption::Inherit => inherit_read,
-                a => a,
-            },
-            write: match auth.write {
-                WriteOption::Inherit => inherit_write,
-                a => a,
-            }
-        }
     }
 
     pub fn get_parent(&self) -> Option<&MetaParent>

@@ -154,10 +154,19 @@ for CompactError {
 #[derive(Debug)]
 pub enum SinkError {
     MissingPublicKey(Hash),
+    Trust(TrustError),
     InvalidSignature {
         hash: Hash,
         err: Option<pqcrypto_traits::Error>,
     }
+}
+
+impl From<TrustError>
+for SinkError
+{
+    fn from(err: TrustError) -> SinkError {
+        SinkError::Trust(err)
+    }   
 }
 
 impl std::fmt::Display
@@ -166,6 +175,9 @@ for SinkError {
         match self {
             SinkError::MissingPublicKey(hash) => {
                 write!(f, "The public key ({}) for signature could not be found in the chain-of-trust", hash.to_string())
+            },
+            SinkError::Trust(err) => {
+                write!(f, "Failed to accept event due to a trust error - {}", err)
             },
             SinkError::InvalidSignature { hash, err } => {
                 match err {
@@ -506,14 +518,52 @@ for ChainCreationError {
 }
 
 #[derive(Debug)]
+pub enum TrustError
+{
+    NoAuthorization(PrimaryKey),
+    NoAuthorizationOrphan,
+    MissingParent(PrimaryKey),
+    Time(TimeError),
+    UnspecifiedWritability,
+}
+
+impl From<TimeError>
+for TrustError
+{
+    fn from(err: TimeError) -> TrustError {
+        TrustError::Time(err)
+    }   
+}
+
+impl std::fmt::Display
+for TrustError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            TrustError::NoAuthorization(key) => {
+                write!(f, "Data object with key ({}) has no write authorization in its metadata", key.as_hex_string())
+            },
+            TrustError::MissingParent(key) => {
+                write!(f, "Data object references a parent object that does not exist ({})", key.as_hex_string())
+            },
+            TrustError::NoAuthorizationOrphan => {
+                write!(f, "Data objects without a primary key has no write authorization")
+            },
+            TrustError::Time(err) => {
+                write!(f, "Timing error while linting data object - {}", err)
+            },
+            TrustError::UnspecifiedWritability => {
+                write!(f, "The writability of this data object has not been specified")
+            },
+        }
+    }
+}
+
+#[derive(Debug)]
 pub enum LintError {
     IO(std::io::Error),
     MissingWriteKey(Hash),
-    NoAuthorization(PrimaryKey),
-    NoAuthorizationOrphan,
+    Trust(TrustError),
     SerializationError(SerializationError),
-    TimeError(TimeError),
-    UnspecifiedWritability,
 }
 
 impl From<std::io::Error>
@@ -532,11 +582,19 @@ for LintError
     }   
 }
 
+impl From<TrustError>
+for LintError
+{
+    fn from(err: TrustError) -> LintError {
+        LintError::Trust(err)
+    }   
+}
+
 impl From<TimeError>
 for LintError
 {
     fn from(err: TimeError) -> LintError {
-        LintError::TimeError(err)
+        LintError::Trust(TrustError::Time(err))
     }   
 }
 
@@ -550,20 +608,11 @@ for LintError {
             LintError::MissingWriteKey(hash) => {
                 write!(f, "Could not find the write public key ({}) in the session", hash.to_string())
             },
-            LintError::NoAuthorization(key) => {
-                write!(f, "Data object with key ({}) has no write authorization in its metadata", key.as_hex_string())
-            },
-            LintError::NoAuthorizationOrphan => {
-                write!(f, "Data objects without a primary key has no write authorization")
-            },
             LintError::SerializationError(err) => {
                 write!(f, "Serialization error while linting data object - {}", err)
             },
-            LintError::TimeError(err) => {
-                write!(f, "Timing error while linting data object - {}", err)
-            },
-            LintError::UnspecifiedWritability => {
-                write!(f, "The writability of this data object has not been specified")
+            LintError::Trust(err) => {
+                write!(f, "Trust error while linting data object - {}", err)
             },
         }
     }
@@ -575,14 +624,22 @@ pub enum ValidationError {
     AllAbstained,
     Detached,
     NoSignatures,
-    Time(TimeError),
+    Trust(TrustError),
+}
+
+impl From<TrustError>
+for ValidationError
+{
+    fn from(err: TrustError) -> ValidationError {
+        ValidationError::Trust(err)
+    }   
 }
 
 impl From<TimeError>
 for ValidationError
 {
     fn from(err: TimeError) -> ValidationError {
-        ValidationError::Time(err)
+        ValidationError::Trust(TrustError::Time(err))
     }   
 }
 
@@ -602,8 +659,8 @@ for ValidationError {
             ValidationError::NoSignatures => {
                 write!(f, "The data object event has no signatures")
             },
-            ValidationError::Time(err) => {
-                write!(f, "The data object event has an issue with time - {}", err)
+            ValidationError::Trust(err) => {
+                write!(f, "The data object event has an issue with trust - {}", err)
             },
         }
     }

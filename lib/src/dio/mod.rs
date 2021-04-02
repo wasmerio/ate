@@ -38,6 +38,7 @@ use super::index::*;
 
 pub use crate::dio::vec::DaoVec;
 pub use crate::dio::dao::Dao;
+pub use crate::dio::dao::DaoObj;
 pub use crate::dio::obj::DaoRef;
 pub use crate::dio::foreign::DaoForeign;
 
@@ -385,26 +386,10 @@ impl<'a> Dio<'a>
         }
 
         debug!("atefs::commit stored={} deleted={}", state.store.len(), state.deleted.len());
-
-        // First unlock any data objects that were locked via the pipe
-        let unlock_multi = self.multi.clone();
-        let unlock_me = state.pipe_unlock.iter().map(|a| a.clone()).collect::<Vec<_>>();
-        tokio::spawn(async move {
-            for key in unlock_me {
-                let _ = unlock_multi.pipe.unlock(key).await;
-            }
-        });
         
+        // Declare variables
         let mut evts = Vec::new();
-
-        // Build the transaction metadata
         let mut trans_meta = TransactionMetadata::default();
-        for row in state.store.iter() {
-            trans_meta.auth.insert(row.key, row.auth.clone());
-            if let Some(parent) = &row.parent {
-                trans_meta.parents.insert(row.key, parent.clone());
-            }
-        }
 
         // Convert all the events that we are storing into serialize data
         for row in state.store.drain(..)
@@ -419,6 +404,20 @@ impl<'a> Dio<'a>
             // Compute all the extra metadata for an event
             let extra_meta = self.multi.metadata_lint_event(&mut meta, &self.session, &trans_meta)?;
             meta.core.extend(extra_meta);
+
+            // Add the data to the transaction metadata object
+            if let Some(key) = meta.get_data_key() {
+                trans_meta.auth.insert(key, match meta.get_authorization() {
+                    Some(a) => a.clone(),
+                    None => MetaAuthorization {
+                        read: ReadOption::Inherit,
+                        write: WriteOption::Inherit,
+                    }
+                });
+                if let Some(parent) = meta.get_parent() {
+                    trans_meta.parents.insert(key, parent.clone());
+                }
+            }
             
             // Perform any transformation (e.g. data encryption and compression)
             let data = self.multi.data_as_underlay(&mut meta, row.data.clone(), &self.session)?;
@@ -436,18 +435,18 @@ impl<'a> Dio<'a>
         for (key, row) in state.deleted.drain() {
             let mut meta = Metadata::default();
             meta.core.push(CoreMetadata::Authorization(MetaAuthorization {
-                read: ReadOption::Noone,
-                write: WriteOption::Noone,
+                read: ReadOption::Everyone,
+                write: WriteOption::Nobody,
             }));
             if let Some(parent) = row.parent {
                 meta.core.push(CoreMetadata::Parent(parent))
             }
-
+            meta.add_tombstone(key);
+            
             // Compute all the extra metadata for an event
             let extra_meta = self.multi.metadata_lint_event(&mut meta, &self.session, &trans_meta)?;
             meta.core.extend(extra_meta);
 
-            meta.add_tombstone(key);
             let evt = EventData {
                 meta: meta,
                 data_bytes: None,
@@ -502,6 +501,15 @@ impl<'a> Dio<'a>
             }
         };
 
+        // Last thing we do is kick off an unlock operation using fire and forget
+        let unlock_multi = self.multi.clone();
+        let unlock_me = state.pipe_unlock.iter().map(|a| a.clone()).collect::<Vec<_>>();
+        tokio::spawn(async move {
+            for key in unlock_me {
+                let _ = unlock_multi.pipe.unlock(key).await;
+            }
+        });
+
         // Success
         Ok(())
     }
@@ -551,7 +559,7 @@ pub struct TestStructDao
 #[test]
 async fn test_dio()
 {
-    //env_logger::init();
+    env_logger::init();
 
     debug!("generating crypto keys");
     let write_key = PrivateSignKey::generate(crate::crypto::KeySize::Bit192);
@@ -565,6 +573,7 @@ async fn test_dio()
     session.properties.push(SessionProperty::WriteKey(write_key2.clone()));
     session.properties.push(SessionProperty::ReadKey(read_key.clone()));
     session.properties.push(SessionProperty::Identity("author@here.com".to_string()));
+    debug!("{}", session);
 
     let key1;
     let key2;
@@ -587,7 +596,7 @@ async fn test_dio()
                 mock_dao.hidden = "This text should be hidden".to_string();
                 
                 let mut dao1 = dio.store(mock_dao).unwrap();
-                let mut dao3 = dao1.inner.push(&mut dio, dao1.key(), TestEnumDao::Blah1).unwrap();
+                let mut dao3 = dao1.push(&mut dio, dao1.inner, TestEnumDao::Blah1).unwrap();
 
                 key1 = dao1.key().clone();
                 debug!("key1: {}", key1.as_hex_string());
@@ -664,7 +673,7 @@ async fn test_dio()
 
             // Read the items in the collection which we should find our second object
             debug!("loading children");
-            let test3 = test.inner.iter(test.key(), &mut dio).await.unwrap().next().expect("Three should be a data object in this collection");
+            let test3 = test.iter(&mut dio, test.inner).await.unwrap().next().expect("Three should be a data object in this collection");
             assert_eq!(test3.key(), &key3);
         }
 

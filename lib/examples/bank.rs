@@ -54,7 +54,7 @@ async fn make_account<'a>(chain: &'a Chain, generator: &mut Generator<'a>) -> Re
             description: generator.next().unwrap(),
             amount: Decimal::from_i64(10).unwrap(),
         };
-        acc.transactions.push(&mut dio, acc.key(), trans).unwrap();
+        acc.push(&mut dio, acc.transactions, trans).unwrap();
     }
 
     acc.commit(&mut dio)?;

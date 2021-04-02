@@ -48,7 +48,7 @@ async fn main() -> Result<(), AteError>
 
         // Now attach a BUS that will simple write to the console
         (
-            dao.ball.bus(&chain_a, dao.key()),
+            dao.bus(&chain_a, dao.ball),
             dao.key().clone(),
         )
     };
@@ -59,8 +59,8 @@ async fn main() -> Result<(), AteError>
         chain_b.sync().await?;
         let mut dio = chain_b.dio_ext(&session, TransactionScope::Full).await;
         let mut dao = dio.load::<Table>(&key).await?;
-        dao.ball.push(&mut dio, dao.key(), BallSound::Ping)?;
-        dao.ball.push(&mut dio, dao.key(), BallSound::Ping)?;
+        dao.push(&mut dio, dao.ball, BallSound::Ping)?;
+        dao.push(&mut dio, dao.ball, BallSound::Ping)?;
         dao.commit(&mut dio)?;
         dio.commit().await?;
     }

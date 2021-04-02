@@ -19,9 +19,9 @@ struct Garage
 }
 
 #[test]
-fn test() -> Result<(), AteError>
+fn test_trust_tree() -> Result<(), AteError>
 {
-    env_logger::init();
+    //env_logger::init();
 
     let rt = Runtime::new().unwrap();
     rt.block_on(async
@@ -64,7 +64,7 @@ fn test() -> Result<(), AteError>
                 let mut car = Car::default();
                 car.name = name.clone();
                 
-                let car = garage.cars.push(&mut dio, garage.key(), car)?;
+                let car = garage.push(&mut dio, garage.cars, car)?;
                 assert_eq!(car.name, name);
             }
             garage.commit(&mut dio)?;
@@ -92,7 +92,7 @@ fn test() -> Result<(), AteError>
             // Load the garage
             let mut dio = chain.dio(&session).await;
             let garage = dio.load::<Garage>(&key1).await?;
-            assert_eq!(garage.cars.iter(garage.key(), &mut dio).await?.collect::<Vec<_>>().len(), 100);
+            assert_eq!(garage.iter(&mut dio, garage.cars).await?.collect::<Vec<_>>().len(), 100);
 
             // Delete the chain
             chain.single().await.destroy().await.unwrap();
