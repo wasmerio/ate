@@ -126,12 +126,12 @@ async fn main() -> Result<(), AteError>
 
 ## Examples
 
-- [Hello World](examples/hello-world.rs)
-- [Server/Client](examples/server-client.rs)
-- [Publish/Subscribe](examples/bus-or-queue.rs)
-- [Exactly-Once Queue](examples/bus-or-queue.rs)
-- [Crypto Currency](examples/coin.rs)
-- [Banking Example](examples/bank.rs)
+- [Hello World](lib/examples/hello-world.rs)
+- [Server/Client](lib/examples/server-client.rs)
+- [Publish/Subscribe](lib/examples/bus-or-queue.rs)
+- [Exactly-Once Queue](lib/examples/bus-or-queue.rs)
+- [Crypto Currency](lib/examples/coin.rs)
+- [Banking Example](lib/examples/bank.rs)
 
 ## Projects
 
