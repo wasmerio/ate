@@ -27,6 +27,8 @@ chrono = { version = "0.4.*", features = ["serde"] }
 isocountry = "0.3.*"
 
 [dev-dependencies]
-regex = "1.4.*"
+regex = "*"
 clap = "3.0.0-beta.2"
-ctrlc = "3.1.*"
+ctrlc = "*"
+bincode = "*"
+shellexpand = "*"

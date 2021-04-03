@@ -82,7 +82,7 @@ struct Mount {
     #[clap(short, long)]
     data: Option<String>,
     /// Location of the persistent redo log
-    #[clap(short, long, default_value = "~/ate")]
+    #[clap(short, long, default_value = "~/ate/fs")]
     log_path: String,
     /// Redo log file will be deleted when the file system is unmounted
     #[clap(short, long)]
