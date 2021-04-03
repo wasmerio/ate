@@ -230,7 +230,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone,
     _marker: PhantomData<C>,
 }
 
-pub(crate) async fn connect<M, C>(conf: &NodeConfig<M>) -> (NodeTx<C>, NodeRx<M, C>)
+pub(crate) async fn connect<M, C>(conf: &NodeConfig<M>, domain: Option<String>) -> (NodeTx<C>, NodeRx<M, C>)
 where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
       C: Send + Sync + Default + 'static
 {
@@ -249,6 +249,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
     for target in conf.connect_to.iter() {
         let upstream = mesh_connect_to::<M, C>(
             target.clone(), 
+            domain.clone(),
             inbox_tx.clone(), 
             conf.on_connect.clone(),
             conf.buffer_size,
@@ -259,6 +260,37 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
 
         upcast.insert(upstream.id, upstream);
     }
+
+    // Return the mesh
+    (
+        NodeTx {
+            downcast: downcast_tx,
+            upcast: upcast,
+            state: Arc::clone(&state),
+            wire_format: conf.wire_format,
+            _marker: PhantomData
+        },
+        NodeRx {
+            rx: inbox_rx,
+            state: state,
+            _marker: PhantomData
+        }
+    )
+}
+
+pub(crate) async fn listen<M, C>(conf: &NodeConfig<M>) -> (NodeTx<C>, NodeRx<M, C>)
+where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
+      C: Send + Sync + Default + 'static
+{
+    // Setup the communication pipes for the server
+    let (inbox_tx, inbox_rx) = mpsc::channel(conf.buffer_size);
+    let (downcast_tx, _) = broadcast::channel(conf.buffer_size);
+    let downcast_tx = Arc::new(downcast_tx);
+
+    // Create the node state and initialize it
+    let state = Arc::new(StdMutex::new(NodeState {
+        connected: 0,
+    }));
 
     // Create all the listeners
     for target in conf.listen_on.iter() {
@@ -277,7 +309,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
     (
         NodeTx {
             downcast: downcast_tx,
-            upcast: upcast,
+            upcast: FxHashMap::default(),
             state: Arc::clone(&state),
             wire_format: conf.wire_format,
             _marker: PhantomData
@@ -396,7 +428,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                     match mesh_key_exchange_receiver(&mut stream, key_size).await {
                         Ok(a) => a,
                         Err(err) => {
-                            debug_assert!(false, "comms-inbox-error {:?}", err);
                             warn!("connection-failed: {}", err.to_string());
                             continue;
                         }
@@ -421,7 +452,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                     Ok(_) => { },
                     Err(CommsError::IO(err)) if err.kind() == std::io::ErrorKind::UnexpectedEof => { },
                     Err(err) => {
-                        debug_assert!(false, "comms-inbox-error {:?}", err);
                         warn!("connection-failed: {}", err.to_string());
                     },
                 };
@@ -436,7 +466,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                 match process_outbox::<M>(tx, reply_rx, sender, ek2).await {
                     Ok(_) => { },
                     Err(err) => {
-                        debug_assert!(false, "comms-outbox-error {:?}", err);
                         warn!("connection-failed: {}", err.to_string());
                     },
                 };
@@ -447,7 +476,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                 match process_downcast::<M>(reply_tx2, worker_outbox, sender).await {
                     Ok(_) => { },
                     Err(err) => {
-                        debug_assert!(false, "comms-downcast-error {:?}", err);
                         warn!("connection-failed: {}", err.to_string());
                     },
                 };
@@ -456,14 +484,47 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
     });
 }
 
-async fn mesh_key_exchange_sender(stream: &mut TcpStream, key_size: KeySize) -> Result<EncryptKey, CommsError>
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Hello
 {
+    pub domain: Option<String>,
+    pub key_size: KeySize,    
+}
+
+async fn mesh_key_exchange_sender(stream: &mut TcpStream, domain: Option<String>, mut key_size: KeySize) -> Result<EncryptKey, CommsError>
+{
+    debug!("negotiating {}bit shared secret", key_size);
+
+    // Send over the hello message and wait for a response
+    debug!("client sending hello");
+    let hello_client = Hello {
+        domain,
+        key_size,
+    };
+    let hello_client_bytes = serde_json::to_vec(&hello_client)?;
+    stream.write_u16(hello_client_bytes.len() as u16).await?;
+    stream.write_all(&hello_client_bytes[..]).await?;
+
+    // Read the hello message from the other side
+    let hello_server_bytes_len = stream.read_u16().await?;
+    let mut hello_server_bytes = vec![0 as u8; hello_server_bytes_len as usize];
+    stream.read_exact(&mut hello_server_bytes).await?;
+    debug!("client received hello from server");
+    let hello_server: Hello = serde_json::from_slice(&hello_server_bytes[..])?;
+
+    // Upgrade the key_size if the server is bigger
+    if hello_server.key_size > key_size {
+        key_size = hello_server.key_size;
+        debug!("upgrading to {}bit shared secret", key_size);
+    }
+
+    // Generate the encryption keys
     let sk1 = super::crypto::PrivateEncryptKey::generate(key_size);
     let pk1 = sk1.as_public_key();
     let pk1_bytes = pk1.pk();
 
     // Send our public key to the other side
-    debug!("client sending its public key");
+    debug!("client sending its public key (and strength)");
     stream.write_all(&pk1_bytes[..]).await?;
 
     // Receive one half of the secret that was just generated by the other side
@@ -495,8 +556,33 @@ async fn mesh_key_exchange_sender(stream: &mut TcpStream, key_size: KeySize) -> 
     Ok(EncryptKey::xor(ek1, ek2)?)
 }
 
-async fn mesh_key_exchange_receiver(stream: &mut TcpStream, key_size: KeySize) -> Result<EncryptKey, CommsError>
+async fn mesh_key_exchange_receiver(stream: &mut TcpStream, mut key_size: KeySize) -> Result<EncryptKey, CommsError>
 {
+    debug!("negotiating {}bit shared secret", key_size);
+
+    // Read the hello message from the other side
+    let hello_client_bytes_len = stream.read_u16().await?;
+    let mut hello_client_bytes = vec![0 as u8; hello_client_bytes_len as usize];
+    stream.read_exact(&mut hello_client_bytes).await?;
+    debug!("server received hello from client");
+    let hello_client: Hello = serde_json::from_slice(&hello_client_bytes[..])?;
+
+    // Upgrade the key_size if the client is bigger
+    if hello_client.key_size > key_size {
+        key_size = hello_client.key_size;
+        debug!("upgrading to {}bit shared secret", key_size);
+    }
+
+    // Send over the hello message and wait for a response
+    debug!("server sending hello");
+    let hello_server = Hello {
+        domain: None,
+        key_size,
+    };
+    let hello_server_bytes = serde_json::to_vec(&hello_server)?;
+    stream.write_u16(hello_server_bytes.len() as u16).await?;
+    stream.write_all(&hello_server_bytes[..]).await?;
+
     // Receive the public key from the caller side (which we will use in a sec)
     let mut pk1_bytes = vec![0 as u8; key_size.ntru_public_key_size()];
     stream.read_exact(&mut pk1_bytes[..]).await?;
@@ -537,6 +623,7 @@ async fn mesh_key_exchange_receiver(stream: &mut TcpStream, key_size: KeySize) -
 async fn mesh_connect_worker<M, C>
 (
     addr: SocketAddr,
+    domain: Option<String>,
     mut reply_rx: mpsc::Receiver<PacketData>,
     reply_tx: mpsc::Sender<PacketData>,
     inbox: mpsc::Sender<PacketWithContext<M, C>>,
@@ -580,7 +667,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
 
         // If we are using wire encryption then exchange secrets
         let ek = match wire_encryption {
-            Some(key_size) => Some(mesh_key_exchange_sender(&mut stream, key_size).await?),
+            Some(key_size) => Some(mesh_key_exchange_sender(&mut stream, domain.clone(), key_size).await?),
             None => None,
         };
         let ek1 = ek.clone();
@@ -650,6 +737,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
 async fn mesh_connect_to<M, C>
 (
     addr: SocketAddr,
+    domain: Option<String>,
     inbox: mpsc::Sender<PacketWithContext<M, C>>,
     on_connect: Option<M>,
     buffer_size: usize,
@@ -671,6 +759,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         mesh_connect_worker::<M, C>
         (
             addr,
+            domain,
             reply_rx,
             reply_tx,
             inbox,
@@ -854,7 +943,7 @@ async fn test_server_client() {
             .wire_encryption(Some(KeySize::Bit256))
             .listen_on(IpAddr::from_str("127.0.0.1")
             .unwrap(), 4001);
-        let (_, mut server_rx) = connect::<TestMessage, ()>(&cfg).await;
+        let (_, mut server_rx) = listen::<TestMessage, ()>(&cfg).await;
 
         // Create a background thread that will respond to pings with pong
         tokio::spawn(async move {
@@ -877,7 +966,7 @@ async fn test_server_client() {
             .wire_encryption(Some(KeySize::Bit256))
             .listen_on(IpAddr::from_str("127.0.0.1").unwrap(), 4002)
             .connect_to(IpAddr::from_str("127.0.0.1").unwrap(), 4001);
-        let (relay_tx, mut relay_rx) = connect::<TestMessage, ()>(&cfg).await;
+        let (relay_tx, mut relay_rx) = connect::<TestMessage, ()>(&cfg, None).await;
 
         // Create a background thread that will respond to pings with pong
         tokio::spawn(async move {
@@ -899,7 +988,7 @@ async fn test_server_client() {
             .wire_encryption(Some(KeySize::Bit256))
             .connect_to(IpAddr::from_str("127.0.0.1")
             .unwrap(), 4002);
-        let (client_tx, mut client_rx) = connect::<TestMessage, ()>(&cfg)
+        let (client_tx, mut client_rx) = connect::<TestMessage, ()>(&cfg, None)
             .await;
 
         // We need to test it alot

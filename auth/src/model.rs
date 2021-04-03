@@ -21,24 +21,24 @@ for Gender
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Person {
-    first_name: String,
-    last_name: String,
-    other_names: Vec<String>,
-    date_of_birth: Option<chrono::naive::NaiveDate>,
-    gender: Gender,
-    nationalities: Vec<isocountry::CountryCode>,
-    foreign: DaoForeign
+    pub first_name: String,
+    pub last_name: String,
+    pub other_names: Vec<String>,
+    pub date_of_birth: Option<chrono::naive::NaiveDate>,
+    pub gender: Gender,
+    pub nationalities: Vec<isocountry::CountryCode>,
+    pub foreign: DaoForeign
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SmsVerification {
-    salt: String,
-    hash: AteHash,
+    pub salt: String,
+    pub hash: AteHash,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct EmailVerification {
-    code: String,
+    pub code: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
@@ -98,58 +98,58 @@ pub enum UserRole {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct User {
-    person: DaoRef<Person>,
-    account: DaoRef<Account>,
-    role: UserRole,    
-    status: UserStatus,
-    not_lockable: bool,
-    failed_logins: i32,
-    last_login: Option<chrono::naive::NaiveDate>,    
-    login_methods: Vec<AuthenticationMethod>,
-    access: Vec<Authorization>,
-    foreign: DaoForeign
+    pub person: DaoRef<Person>,
+    pub account: DaoRef<Account>,
+    pub role: UserRole,    
+    pub status: UserStatus,
+    pub not_lockable: bool,
+    pub failed_logins: i32,
+    pub last_login: Option<chrono::naive::NaiveDate>,    
+    pub login_methods: Vec<AuthenticationMethod>,
+    pub access: Vec<Authorization>,
+    pub foreign: DaoForeign
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Authorization {
-    name: String,
-    read: Option<EncryptKey>,
-    write: Option<PrivateSignKey>,
+    pub name: String,
+    pub read: Option<EncryptKey>,
+    pub write: Option<PrivateSignKey>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AccountCore {
-    email: String,
-    name: String,
-    access: Vec<Authorization>,
-    foreign: DaoForeign
+    pub email: String,
+    pub name: String,
+    pub access: Vec<Authorization>,
+    pub foreign: DaoForeign
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AccountPersonal
 {
-    core: AccountCore,
-    user: DaoRef<User>,
-    person: DaoRef<Person>,
+    pub core: AccountCore,
+    pub user: DaoRef<User>,
+    pub person: DaoRef<Person>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Company
 {
-    registration_no: String,
-    tax_id: String,
-    phone_number: String,
-    email: String,
-    do_business_as: String,
-    legal_business_name: String,
-    share_holders: DaoVec<Person>,
+    pub registration_no: String,
+    pub tax_id: String,
+    pub phone_number: String,
+    pub email: String,
+    pub do_business_as: String,
+    pub legal_business_name: String,
+    pub share_holders: DaoVec<Person>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AccountCompany
 {
-    core: AccountCore,
-    users: DaoVec<User>,
+    pub core: AccountCore,
+    pub users: DaoVec<User>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

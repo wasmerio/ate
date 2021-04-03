@@ -34,9 +34,10 @@ impl MeshClient {
         )
     }
 
-    async fn open_internal<'a>(&'a self, mut key: ChainKey)
+    async fn open_internal<'a>(&'a self, url: &url::Url)
         -> Result<Arc<MeshSession>, ChainCreationError>
     {
+        let mut key = ChainKey::new(url.path().to_string());
         if key.to_string().starts_with("/") == false {
             key = ChainKey::from(format!("/{}", key.to_string()));
         }
@@ -59,16 +60,16 @@ impl MeshClient {
         }
         
         let builder = ChainOfTrustBuilder::new(&self.cfg_ate);
-        let session = MeshSession::connect(builder, &key, addrs).await?;
+        let session = MeshSession::connect(builder, url, addrs).await?;
         *record = Arc::downgrade(&session);
 
         Ok(session)
     }
 
-    pub async fn open(&self, key: ChainKey)
+    pub async fn open(&self, url: &url::Url)
         -> Result<Arc<MeshSession>, ChainCreationError>
     {
-        self.open_internal(key).await
+        self.open_internal(url).await
     }
 }
 

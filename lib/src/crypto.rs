@@ -29,14 +29,15 @@ use crate::conf::HashRoutine;
 /// Size of a cryptographic key, smaller keys are still very secure but
 /// have less room in the future should new attacks be found against the
 /// crypto algorithms used by ATE.
-#[derive(Debug, Clone, Copy)]
+#[repr(u8)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum KeySize {
     #[allow(dead_code)]
-    Bit128,
+    Bit128 = 16,
     #[allow(dead_code)]
-    Bit192,
+    Bit192 = 24,
     #[allow(dead_code)]
-    Bit256,
+    Bit256 = 32,
 }
 
 impl KeySize
@@ -77,6 +78,18 @@ for KeySize
             "192" => Ok(KeySize::Bit192),
             "256" => Ok(KeySize::Bit256),
             _ => Err("no match"),
+        }
+    }
+}
+
+impl std::fmt::Display
+for KeySize
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            KeySize::Bit128 => write!(f, "128"),
+            KeySize::Bit192 => write!(f, "192"),
+            KeySize::Bit256 => write!(f, "256"),
         }
     }
 }
@@ -317,7 +330,7 @@ impl Hash {
     fn from_bytes_by_routine(input: &[u8], routine: HashRoutine) -> Hash {
         match routine {
             HashRoutine::Blake3 => Hash::from_bytes_blake3(input),
-            HashRoutine::Sha3 => Hash::from_bytes_sha3(input),
+            HashRoutine::Sha3 => Hash::from_bytes_sha3(input, 1),
         }
     }
     fn from_bytes_twice_by_routine(input1: &[u8], input2: &[u8], routine: HashRoutine) -> Hash {
@@ -326,9 +339,11 @@ impl Hash {
             HashRoutine::Sha3 => Hash::from_bytes_twice_sha3(input1, input2),
         }
     }
-    fn from_bytes_sha3(input: &[u8]) -> Hash {
+    pub fn from_bytes_sha3(input: &[u8], repeat: i32) -> Hash {
         let mut hasher = sha3::Keccak384::new();
-        hasher.update(input);
+        for _ in 0..repeat {
+            hasher.update(input);
+        }
         let result = hasher.finalize();
         let result: Vec<u8> = result.into_iter()
             .take(16)
@@ -357,7 +372,7 @@ impl Hash {
             val: result,
         }
     }
-    fn from_bytes_blake3(input: &[u8]) -> Hash {
+    pub fn from_bytes_blake3(input: &[u8]) -> Hash {
         let result: [u8; 32] = blake3::hash(input).into();
         let mut ret = Hash {
             val: Default::default(),
@@ -377,8 +392,16 @@ impl Hash {
         ret
     }
 
-    pub fn to_string(&self) -> String {
+    pub fn to_hex_string(&self) -> String {
         hex::encode(self.val)
+    }
+
+    pub fn to_string(&self) -> String {
+        self.to_hex_string()
+    }
+
+    pub fn to_bytes(&self) -> &[u8; 16] {
+        &self.val
     }
 }
 

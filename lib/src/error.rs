@@ -979,6 +979,28 @@ for CommsError
     }   
 }
 
+impl From<bincode::Error>
+for CommsError
+{
+    fn from(err: bincode::Error) -> CommsError {
+        CommsError::SerializationError(SerializationError::BincodeError(err))
+    }   
+}
+
+impl From<RmpDecodeError>
+for CommsError {
+    fn from(err: RmpDecodeError) -> CommsError {
+        CommsError::SerializationError(SerializationError::DecodeError(err))
+    }
+}
+
+impl From<JsonError>
+for CommsError {
+    fn from(err: JsonError) -> CommsError {
+        CommsError::SerializationError(SerializationError::JsonError(err))
+    }
+}
+
 impl std::fmt::Display
 for CommsError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {

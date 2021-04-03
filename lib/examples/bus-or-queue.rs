@@ -44,7 +44,7 @@ async fn main() -> Result<(), AteError>
 
     // Setup a BUS that we will listen on
     debug!("opening a chain on called 'ping-pong-table' using client 1");
-    let chain_a = client_a.open(ChainKey::from("ping-pong-table")).await.unwrap();
+    let chain_a = client_a.open(&url::Url::parse("tcp://127.0.0.1/ping-pong-table").unwrap()).await.unwrap();
     let (mut bus, key) =
     {
         debug!("writing a record ('table') to the remote chain from client 1");
@@ -65,7 +65,7 @@ async fn main() -> Result<(), AteError>
     {
         // Write a ping... twice
         debug!("connecting to the communication bus from client 2");
-        let chain_b = client_b.open(ChainKey::from("ping-pong-table")).await.unwrap();
+        let chain_b = client_b.open(&url::Url::parse("tcp://127.0.0.1/ping-pong-table").unwrap()).await.unwrap();
         chain_b.sync().await?;
 
         debug!("writing two records ('balls') onto the earlier saved record 'table' from client 2");

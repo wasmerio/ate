@@ -107,7 +107,7 @@ where F: OpenFlow + 'static
             }
         );
 
-        let (listen_tx, listen_rx) = crate::comms::connect(&node_cfg).await;
+        let (listen_tx, listen_rx) = crate::comms::listen(&node_cfg).await;
         tokio::spawn(inbox(Arc::clone(&ret), listen_rx, listen_tx));
 
         ret
@@ -345,7 +345,8 @@ where F: OpenFlow + 'static
     // If we can't find a chain for this subscription then fail and tell the caller
     let chain = match open_internal(Arc::clone(&root), chain_key.clone()).await {
         Err(ChainCreationError::NotThisRoot) => {
-            root.client.open(chain_key).await?
+            PacketData::reply_at(reply_at, Message::NotThisRoot, root.cfg_ate.wire_format).await?;
+            return Ok(());
         },
         Err(ChainCreationError::NoRootFoundInConfig) => {
             PacketData::reply_at(reply_at, Message::NotThisRoot, root.cfg_ate.wire_format).await?;
@@ -362,9 +363,16 @@ where F: OpenFlow + 'static
         let mut guard = context.inside.lock();
         guard.chain.replace(Arc::clone(&chain));
     }
-    
+
     // Stream the data (if a reply target is given)
-    if let Some(reply_at) = reply_at {
+    if let Some(reply_at) = reply_at
+    {
+        // First up tell the caller what our default settings are for this chain
+        PacketData::reply_at(Some(&reply_at), Message::Defaults {
+            log_format: chain.default_format(),
+        }, root.cfg_ate.wire_format).await?;
+
+        // Stream the data back to the client
         tokio::spawn(inbox_stream_data(
             root,
             Arc::clone(&chain), 

@@ -4,6 +4,8 @@ use ate::prelude::*;
 use std::env;
 use std::io::ErrorKind;
 use directories::BaseDirs;
+use std::sync::Arc;
+use url::Url;
 
 mod fixed;
 mod api;
@@ -28,7 +30,7 @@ struct Opts {
     verbose: i32,
     /// URL where the user is authenticated
     #[clap(short, long, default_value = "tcp://ate.tokera.com/auth")]
-    auth: String,
+    auth: Url,
     /// Logs debug info to the console
     #[clap(short, long)]
     debug: bool,
@@ -60,7 +62,10 @@ struct Login {
     email: String,
     /// Password associated with this account
     #[clap(index = 2)]
-    password: String
+    password: Option<String>,
+    /// Authenticator code from your google authenticator
+    #[clap(index = 3)]
+    code: Option<String>
 }
 
 /// Logs out by removing all the authentication tokens from the local machine
@@ -129,7 +134,7 @@ fn main_debug() -> Opts {
         debug: true,
         dns_sec: false,
         dns_server: "8.8.8.8".to_string(),
-        auth: "tcp://ate.tokera.com/auth".to_string(),
+        auth: Url::from_str("tcp://ate.tokera.com/auth").unwrap(),
         subcmd: SubCommand::Mount(Mount {
             mesh: None,
             mount_path: "/mnt/test".to_string(),
@@ -157,95 +162,110 @@ async fn main() -> Result<(), AteError> {
     //let opts = main_debug();
 
     let mut log_level = match opts.verbose {
-        1 => "info",
-        2 => "debug",
-        _ => "error",
+        0 => "error",
+        1 => "warn",
+        2 => "info",
+        _ => "debug",
     };
     if opts.debug { log_level = "debug"; }
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(log_level)).init();
+
+    let mut conf = AteConfig::default();
+    conf.dns_sec = opts.dns_sec;
+    conf.dns_server = opts.dns_server;
     
     match opts.subcmd {
-        SubCommand::Login(_login) => {
-            panic!("Not implemented");
+        SubCommand::Login(login) => {
+            let _session = ate_auth::main_login(Some(login.email), login.password, login.code, opts.auth).await?;
         },
-        SubCommand::Logout(_logout) => {
-            panic!("Not implemented");
+        SubCommand::Logout(logout) => {
+            main_logout(logout).await?;
         },
         SubCommand::Mount(mount) => {
-            let uid = match mount.uid {
-                Some(a) => a,
-                None => unsafe { libc::getuid() }
-            };
-            let gid = match mount.gid {
-                Some(a) => a,
-                None => unsafe { libc::getgid() }
-            };
-
-            debug!("uid: {}", uid);
-            debug!("gid: {}", uid);
-
-            let mount_options = MountOptions::default()
-                .uid(uid)
-                .gid(gid)
-                .allow_root(mount.allow_root)
-                .allow_other(mount.allow_other)
-                .read_only(mount.read_only)
-                .write_back(mount.write_back)
-                .nonempty(mount.non_empty);
-
-            debug!("allow_root: {}", mount.allow_root);
-            debug!("allow_other: {}", mount.allow_other);
-            debug!("read_only: {}", mount.read_only);
-            debug!("write_back: {}", mount.write_back);
-            debug!("non_empty: {}", mount.non_empty);
-            
-            let mut conf = AteConfig::default();
-            conf.configured_for(mount.configured_for);
-            conf.log_format.meta = mount.meta_format;
-            conf.log_format.data = mount.data_format;
-            conf.log_path = shellexpand::tilde(&mount.log_path).to_string();
-            conf.dns_sec = opts.dns_sec;
-            conf.dns_server = opts.dns_server;
-            conf.wire_encryption = mount.wire_encryption;
-
-            debug!("configured_for: {:?}", mount.configured_for);
-            debug!("meta_format: {:?}", mount.meta_format);
-            debug!("data_format: {:?}", mount.data_format);
-            debug!("log_path: {}", conf.log_path);
-            debug!("log_temp: {}", mount.temp);
-            debug!("mount_path: {}", mount.mount_path);
-
-            let builder = ChainBuilder::new(&conf)
-                .temporal(mount.temp);
-
-            // We create a chain with a specific key (this is used for the file name it creates)
-            info!("atefs::chain-init");
-            let chain = Chain::new(builder.clone(), &ChainKey::from("root")).await?;
-            
-            // Mount the file system
-            info!("atefs::mount");
-            match Session::new(mount_options)
-                .mount_with_unprivileged(AteFS::new(chain), mount.mount_path)
-                .await
-            {
-                Err(err) if err.kind() == ErrorKind::Other => {
-                    if err.to_string().contains("find fusermount binary failed") {
-                        error!("Fuse3 could not be found - you may need to install fuse3 via apt/yum");
-                        return Ok(())
-                    }
-                    error!("{}", err);
-                    std::process::exit(1);
-                }
-                Err(err) => {
-                    error!("{}", err);
-                    std::process::exit(1);
-                }
-                _ => {}
-            }
+            main_mount(mount, conf).await?;
         }
     }
 
     info!("atefs::shutdown");
+
+    Ok(())
+}
+
+async fn main_logout(_logout: Logout) -> Result<(), AteError>
+{
+    panic!("Not implemented");
+}
+
+async fn main_mount(mount: Mount, conf: ConfAte) -> Result<(), AteError>
+{
+    let uid = match mount.uid {
+        Some(a) => a,
+        None => unsafe { libc::getuid() }
+    };
+    let gid = match mount.gid {
+        Some(a) => a,
+        None => unsafe { libc::getgid() }
+    };
+
+    debug!("uid: {}", uid);
+    debug!("gid: {}", uid);
+
+    let mount_options = MountOptions::default()
+        .uid(uid)
+        .gid(gid)
+        .allow_root(mount.allow_root)
+        .allow_other(mount.allow_other)
+        .read_only(mount.read_only)
+        .write_back(mount.write_back)
+        .nonempty(mount.non_empty);
+
+    debug!("allow_root: {}", mount.allow_root);
+    debug!("allow_other: {}", mount.allow_other);
+    debug!("read_only: {}", mount.read_only);
+    debug!("write_back: {}", mount.write_back);
+    debug!("non_empty: {}", mount.non_empty);
+    
+    let mut conf = conf.clone();
+    conf.configured_for(mount.configured_for);
+    conf.log_format.meta = mount.meta_format;
+    conf.log_format.data = mount.data_format;
+    conf.log_path = shellexpand::tilde(&mount.log_path).to_string();
+    conf.wire_encryption = mount.wire_encryption;
+
+    debug!("configured_for: {:?}", mount.configured_for);
+    debug!("meta_format: {:?}", mount.meta_format);
+    debug!("data_format: {:?}", mount.data_format);
+    debug!("log_path: {}", conf.log_path);
+    debug!("log_temp: {}", mount.temp);
+    debug!("mount_path: {}", mount.mount_path);
+
+    let builder = ChainBuilder::new(&conf)
+        .temporal(mount.temp);
+
+    // We create a chain with a specific key (this is used for the file name it creates)
+    info!("atefs::chain-init");
+    let chain = Chain::new(builder.clone(), &ChainKey::from("root")).await?;
+    
+    // Mount the file system
+    info!("atefs::mount");
+    match Session::new(mount_options)
+        .mount_with_unprivileged(AteFS::new(chain), mount.mount_path)
+        .await
+    {
+        Err(err) if err.kind() == ErrorKind::Other => {
+            if err.to_string().contains("find fusermount binary failed") {
+                error!("Fuse3 could not be found - you may need to install fuse3 via apt/yum");
+                return Ok(())
+            }
+            error!("{}", err);
+            std::process::exit(1);
+        }
+        Err(err) => {
+            error!("{}", err);
+            std::process::exit(1);
+        }
+        _ => {}
+    }
 
     Ok(())
 }

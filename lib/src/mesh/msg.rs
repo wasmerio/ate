@@ -102,6 +102,10 @@ pub(super) enum Message {
         id: u64,
         err: String,
     },
+
+    Defaults {
+        log_format: MessageFormat,
+    }
 }
 
 impl Default

@@ -107,7 +107,6 @@ impl Registry
 
     pub async fn open(&self, url: &Url) -> Result<Arc<MeshSession>, ChainCreationError>
     {
-        let key = ChainKey::new(url.path().to_string());
         let mut lock = self.chains.lock().await;
         
         let domain = match url.domain() {
@@ -117,13 +116,13 @@ impl Registry
         
         match lock.get(&domain) {
             Some(a) => {
-                Ok(a.open(key).await?)
+                Ok(a.open(&url).await?)
             },
             None => {
                 let cfg_mesh = self.cfg(url).await?;
                 let mesh = create_client(&self.cfg_ate, &cfg_mesh).await;
                 lock.insert(domain, Arc::clone(&mesh));
-                Ok(mesh.open(key).await?)
+                Ok(mesh.open(&url).await?)
             }
         }
     }

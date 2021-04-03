@@ -40,7 +40,7 @@ impl ChainMultiUser
             inside_async: Arc::clone(&accessor.inside_async),
             inside_sync: Arc::clone(&accessor.inside_sync),
             pipe: Arc::clone(&accessor.pipe),
-            default_format: accessor.default_format,
+            default_format: accessor.default_format(),
         }
     }
  

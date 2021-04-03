@@ -25,6 +25,8 @@ serde = { version = "1.0.*", features = ["derive"] }
 ate = { version = "0.2.*", path = "../lib" }
 chrono = { version = "0.4.*", features = ["serde"] }
 isocountry = "0.3.*"
+url = "2.2.*"
+rpassword = "0.0.*"
 
 [dev-dependencies]
 regex = "*"

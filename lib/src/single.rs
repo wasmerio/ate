@@ -1,6 +1,7 @@
 use tokio::sync::RwLockWriteGuard;
 use parking_lot::RwLock as StdRwLock;
 use std::sync::Arc;
+use super::spec::MessageFormat;
 
 use super::chain::*;
 use super::error::*;
@@ -39,5 +40,11 @@ impl<'a> ChainSingleUser<'a>
         Ok(
             self.inside_async.feed_async_internal(Arc::clone(&self.inside_sync), evts).await?
         )
+    }
+
+    pub(crate) fn set_default_format(&mut self, format: MessageFormat) {
+        let mut guard = self.inside_sync.write();
+        self.inside_async.chain.default_format = format.clone();
+        guard.default_format = format.clone();
     }
 }

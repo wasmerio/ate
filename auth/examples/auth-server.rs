@@ -118,9 +118,10 @@ async fn main() -> Result<(), AteError>
 
     // Prepare the logging
     let mut log_level = match opts.verbose {
-        1 => "info",
-        2 => "debug",
-        _ => "error",
+        0 => "error",
+        1 => "warn",
+        2 => "info",
+        _ => "debug",
     };
     if opts.debug { log_level = "debug"; }
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(log_level)).init();
@@ -140,7 +141,7 @@ async fn main() -> Result<(), AteError>
 
             // Create the chain flow and generate configuration
             let flow = ChainFlow::new(root_key);
-            let mut cfg_ate = ConfAte::default();
+            let mut cfg_ate = ate_auth::conf_auth();
             cfg_ate.log_path = run.logs_path;
             
             // Create the server and listen on port 5000
@@ -154,6 +155,7 @@ async fn main() -> Result<(), AteError>
             }
             println!("Goodbye!");
         },
+
         SubCommand::Generate(generate) => {
             let key = PrivateSignKey::generate(generate.strength);
             let path = shellexpand::tilde(&generate.key_path).to_string();

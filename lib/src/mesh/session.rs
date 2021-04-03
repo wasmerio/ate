@@ -31,8 +31,9 @@ pub struct MeshSession
 
 impl MeshSession
 {
-    pub(super) async fn connect(builder: ChainOfTrustBuilder, chain_key: &ChainKey, addrs: Vec<MeshAddress>) -> Result<Arc<MeshSession>, ChainCreationError>
+    pub(super) async fn connect(builder: ChainOfTrustBuilder, chain_url: &url::Url, addrs: Vec<MeshAddress>) -> Result<Arc<MeshSession>, ChainCreationError>
     {
+        let chain_key = ChainKey::new(chain_url.path().to_string());
         debug!("new: chain_key={}", chain_key.to_string());
 
         let commit
@@ -42,7 +43,7 @@ impl MeshSession
 
         // Open the chain and make a sample of the last items so that we can
         // speed up the synchronization by skipping already loaded items
-        let mut chain = Chain::new(builder.clone(), chain_key).await?;
+        let mut chain = Chain::new(builder.clone(), &chain_key).await?;
 
         // Create pipes to all the target root nodes
         let mut pipe_rx = Vec::new();
@@ -54,7 +55,7 @@ impl MeshSession
                 .connect_to(addr.ip, addr.port)
                 .on_connect(Message::Connected)
                 .buffer_size(builder.cfg.buffer_size_client);
-            let (node_tx, node_rx) = crate::comms::connect::<Message, ()>(&node_cfg).await;
+            let (node_tx, node_rx) = crate::comms::connect::<Message, ()>(&node_cfg, Some(chain_url.to_string())).await;
             pipe_tx.push(node_tx);
             pipe_rx.push(node_rx);
         }
@@ -185,6 +186,10 @@ impl MeshSession
     {
         //debug!("inbox: packet size={}", pck.data.bytes.len());
         match pck.packet.msg {
+            Message::Defaults { log_format } => {
+                self.chain.single().await.set_default_format(log_format);
+                Ok(())
+            },
             Message::Connected => Self::inbox_connected(self, pck.data).await,
             Message::Events { commit: _, evts } => Self::inbox_events(self, evts).await,
             Message::Confirmed(id) => Self::inbox_confirmed(self, id).await,
