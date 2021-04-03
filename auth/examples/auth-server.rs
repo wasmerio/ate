@@ -22,8 +22,8 @@ impl ChainFlow
     fn new(root_key: PrivateSignKey) -> Self {        
         ChainFlow {
             root_key,
-            regex_auth: Regex::new(r"^auth-[a-f0-9]{4}$").unwrap(),
-            regex_cmd: Regex::new(r"^cmd-[a-f0-9]{32}$").unwrap(),
+            regex_auth: Regex::new("^/auth-[a-f0-9]{4}$").unwrap(),
+            regex_cmd: Regex::new("^/cmd-[a-f0-9]{32}$").unwrap(),
         }
     }
 }
@@ -50,7 +50,7 @@ for ChainFlow
                 .await?;
             return Ok(OpenAction::Chain(chain));
         }
-        Ok(OpenAction::Deny("The chain-key does not match a valid chain supported by this server.".to_string()))
+        Ok(OpenAction::Deny(format!("The chain-key ({}) does not match a valid chain supported by this server.", key.to_string()).to_string()))
     }
 }
 
