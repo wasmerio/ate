@@ -44,7 +44,6 @@ fn test_trust_tree() -> Result<(), AteError>
 
             debug!("creating the chain-of-trust");
             let mut conf = ConfAte::default();
-            conf.log_temp = false;
             conf.log_format.meta = SerializationFormat::Json;
             conf.log_format.data = SerializationFormat::Json;
             let builder = ChainBuilder::new(&conf)
@@ -82,7 +81,6 @@ fn test_trust_tree() -> Result<(), AteError>
 
             debug!("loading the chain-of-trust again");
             let mut conf = ConfAte::default();
-            conf.log_temp = false;
             conf.log_format.meta = SerializationFormat::Json;
             conf.log_format.data = SerializationFormat::Json;
             let builder = ChainBuilder::new(&conf)

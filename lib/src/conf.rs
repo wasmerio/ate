@@ -95,9 +95,6 @@ pub struct ConfAte
 
     /// Directory path that the redo logs will be stored.
     pub log_path: String,
-    /// Indicates if the redo logs will be deleted on exit which is normally
-    /// useful when running a client in fully stateless mode.
-    pub log_temp: bool,
 
     /// NTP pool server which ATE will synchronize its clocks with, its
     /// important to have synchronized clocks with ATE as it uses time as
@@ -178,7 +175,6 @@ for ConfAte
     fn default() -> ConfAte {
         ConfAte {
             log_path: "/tmp/ate".to_string(),
-            log_temp: true,
             dns_sec: false,
             dns_server: "8.8.8.8".to_string(),
             ntp_pool: "pool.ntp.org".to_string(),
@@ -202,7 +198,6 @@ for ConfAte
 pub(crate) fn mock_test_config() -> ConfAte {
     let mut ret = ConfAte::default();
     ret.log_path = "/tmp/ate".to_string();
-    ret.log_temp = true;
     return ret;
 }
 
@@ -297,6 +292,7 @@ pub struct ChainOfTrustBuilder
     pub(super) plugins: Vec<Box<dyn EventPlugin>>,
     pub(super) tree: Option<TreeAuthorityPlugin>,
     pub(super) truncate: bool,
+    pub(super) temporal: bool,
 }
 
 impl Clone
@@ -314,6 +310,7 @@ for ChainOfTrustBuilder
             plugins: self.plugins.iter().map(|a| a.clone_plugin()).collect::<Vec<_>>(),
             tree: self.tree.clone(),
             truncate: self.truncate,
+            temporal: self.temporal,
         }
     }
 }
@@ -333,6 +330,7 @@ impl ChainOfTrustBuilder
             plugins: Vec::new(),
             tree: None,
             truncate: false,
+            temporal: false,
         }
         .with_defaults()
     }
@@ -451,6 +449,12 @@ impl ChainOfTrustBuilder
     #[allow(dead_code)]
     pub fn truncate(mut self, val: bool) -> Self {
         self.truncate = val;
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn temporal(mut self, val: bool) -> Self {
+        self.temporal = val;
         self
     }
 

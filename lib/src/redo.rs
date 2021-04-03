@@ -924,18 +924,49 @@ pub(crate) struct RedoLog {
     flip: Option<RedoLogFlip>,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct OpenFlags
+{
+    pub truncate: bool,
+    pub temporal: bool,
+}
+
+impl OpenFlags
+{
+    pub fn create() -> OpenFlags {
+        OpenFlags {
+            truncate: true,
+            temporal: false,
+        }
+    }
+
+    pub fn open() -> OpenFlags {
+        OpenFlags {
+            truncate: false,
+            temporal: false,
+        }
+    }
+
+    pub fn ethereal() -> OpenFlags {
+        OpenFlags {
+            truncate: false,
+            temporal: true,
+        }
+    }
+}
+
 impl RedoLog
 {
-    async fn new(cfg: &ConfAte, path_log: String, truncate: bool, cache_size: usize, cache_ttl: u64) -> std::result::Result<(RedoLog, RedoLogLoader), SerializationError>
+    async fn new(cfg: &ConfAte, path_log: String, flags: OpenFlags, cache_size: usize, cache_ttl: u64) -> std::result::Result<(RedoLog, RedoLogLoader), SerializationError>
     {
         // Build the loader
         let mut loader = RedoLogLoader::default();
 
         // Now load the real thing
         let mut ret = RedoLog {
-            log_temp: cfg.log_temp,
+            log_temp: flags.temporal,
             log_path: path_log.clone(),
-            log_file: LogFile::new(cfg.log_temp, path_log.clone(), truncate, cache_size, cache_ttl, cfg.log_format).await?,
+            log_file: LogFile::new(flags.temporal, path_log.clone(), flags.truncate, cache_size, cache_ttl, cfg.log_format).await?,
             flip: None,
         };
         ret.log_file.read_all(&mut loader.entries).await?;
@@ -1024,26 +1055,7 @@ impl RedoLog
     }
 
     #[allow(dead_code)]
-    pub(crate) async fn create(cfg: &ConfAte, key: &ChainKey) -> std::result::Result<RedoLog, SerializationError> {
-        let _ = std::fs::create_dir_all(cfg.log_path.clone());
-
-        let path_log = format!("{}/{}.log", cfg.log_path, key.name);
-
-        let (log, _) = RedoLog::new(
-            cfg,
-            path_log.clone(),
-            true,
-            cfg.load_cache_size,
-            cfg.load_cache_ttl,
-        ).await?;
-
-        Ok(
-            log
-        )
-    }
-
-    #[allow(dead_code)]
-    pub(crate) async fn open(cfg: &ConfAte, key: &ChainKey, truncate: bool) -> std::result::Result<(RedoLog, RedoLogLoader), SerializationError> {
+    pub(crate) async fn open(cfg: &ConfAte, key: &ChainKey, flags: OpenFlags) -> std::result::Result<(RedoLog, RedoLogLoader), SerializationError> {
         let _ = std::fs::create_dir_all(cfg.log_path.clone());
 
         let path_log = format!("{}/{}.log", cfg.log_path, key.name);
@@ -1051,7 +1063,7 @@ impl RedoLog
         let (log, loader) = RedoLog::new(
             cfg,
             path_log.clone(),
-            truncate,
+            flags,
             cfg.load_cache_size,
             cfg.load_cache_ttl,
         ).await?;
@@ -1155,16 +1167,14 @@ fn test_redo_log() {
     let blah7 = PrimaryKey::generate();
 
     rt.block_on(async {
-        let mut mock_cfg = mock_test_config();
-        mock_cfg.log_temp = false;
-
+        let mock_cfg = mock_test_config();
         let mock_chain_key = ChainKey::default()
             .with_temp_name("test_redo".to_string());
             
         {
             // Open the log once for writing
             println!("test_redo_log - creating the redo log");
-            let mut rl = RedoLog::create(&mock_cfg, &mock_chain_key).await.expect("Failed to load the redo log");
+            let (mut rl, _) = RedoLog::open(&mock_cfg, &mock_chain_key, OpenFlags::create()).await.expect("Failed to load the redo log");
             
             // Test that its empty
             println!("test_redo_log - confirming no more data");
@@ -1231,7 +1241,7 @@ fn test_redo_log() {
         {
             // Open it up again which should check that it loads data properly
             println!("test_redo_log - reopening the redo log");
-            let (mut rl, mut loader) = RedoLog::open(&mock_cfg, &mock_chain_key, false).await.expect("Failed to load the redo log");
+            let (mut rl, mut loader) = RedoLog::open(&mock_cfg, &mock_chain_key, OpenFlags::open()).await.expect("Failed to load the redo log");
             
             // Check that the correct data is read
             println!("test_redo_log - testing read result of blah1 (again)");

@@ -22,7 +22,7 @@ async fn main() -> Result<(), AteError>
 
     let key = {
         let registry = Registry::new(&cfg_ate).await;
-        let chain = registry.chain(&url::Url::from_str("tcp://localhost:5000/test-chain").unwrap()).await?;
+        let chain = registry.persistent(&url::Url::from_str("tcp://localhost:5000/test-chain").unwrap()).await?;
         let session = AteSession::default();
         let mut dio = chain.dio_ext(&session, TransactionScope::Full).await;
         let dao = dio.store("my test string".to_string())?;
@@ -32,7 +32,7 @@ async fn main() -> Result<(), AteError>
 
     info!("read it back again on the server");
 
-    let chain = server.open(ChainKey::from("test-chain")).await.unwrap();
+    let chain = server.persistent(ChainKey::from("test-chain")).await.unwrap();
     chain.sync().await?;
     let session = AteSession::default();
     let mut dio = chain.dio_ext(&session, TransactionScope::Full).await;

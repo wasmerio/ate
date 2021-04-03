@@ -134,7 +134,7 @@ async fn test_mesh()
 
         debug!("create the mesh and connect to it with client 1");
         let client_a = create_mesh(&cfg_ate, &cfg_mesh).await;
-        let chain_a = client_a.open(ChainKey::new("test-chain".to_string())).await.unwrap();
+        let chain_a = client_a.persistent(ChainKey::new("test-chain".to_string())).await.unwrap();
         let session_a = Session::default();
 
         let mut bus;
@@ -155,7 +155,7 @@ async fn test_mesh()
             cfg_mesh.force_client_only = true;
             let client_b = create_mesh(&cfg_ate, &cfg_mesh).await;
 
-            let chain_b = client_b.open(ChainKey::new("test-chain".to_string())).await.unwrap();
+            let chain_b = client_b.persistent(ChainKey::new("test-chain".to_string())).await.unwrap();
             let session_b = Session::default();
             {
                 debug!("start a DIO session for client B");
@@ -209,7 +209,7 @@ async fn test_mesh()
         let client = create_mesh(&cfg_ate, &cfg_mesh).await;
 
         debug!("reconnecting the client");
-        let chain = client.open(ChainKey::new("test-chain".to_string())).await.unwrap();
+        let chain = client.persistent(ChainKey::new("test-chain".to_string())).await.unwrap();
         let session = Session::default();
         {
             debug!("loading data object 1");

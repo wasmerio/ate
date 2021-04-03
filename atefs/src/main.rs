@@ -204,7 +204,6 @@ async fn main() -> Result<(), AteError> {
             conf.log_format.meta = mount.meta_format;
             conf.log_format.data = mount.data_format;
             conf.log_path = shellexpand::tilde(&mount.log_path).to_string();
-            conf.log_temp = mount.temp;
             conf.dns_sec = opts.dns_sec;
             conf.dns_server = opts.dns_server;
             conf.wire_encryption = mount.wire_encryption;
@@ -216,7 +215,8 @@ async fn main() -> Result<(), AteError> {
             debug!("log_temp: {}", mount.temp);
             debug!("mount_path: {}", mount.mount_path);
 
-            let builder = ChainBuilder::new(&conf);
+            let builder = ChainBuilder::new(&conf)
+                .temporal(mount.temp);
 
             // We create a chain with a specific key (this is used for the file name it creates)
             info!("atefs::chain-init");

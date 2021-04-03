@@ -16,7 +16,15 @@ use crate::mesh::MeshSession;
 #[async_trait]
 pub trait Mesh
 {
+    #[deprecated(
+        since = "0.2.3",
+        note = "After the introduction of ethereal chains that allow for short-lived group conversations the API was changed. The consumer should now indicate if the chain is persistent or ethereal by using the 'persistent' or 'ethereal' functions attached to this same trait."
+    )]
     async fn open<'a>(&'a self, key: ChainKey) -> Result<Arc<MeshSession>, ChainCreationError>;
+
+    async fn persistent<'a>(&'a self, key: ChainKey) -> Result<Arc<MeshSession>, ChainCreationError>;
+
+    async fn ethereal<'a>(&'a self, key: ChainKey) -> Result<Arc<MeshSession>, ChainCreationError>;
 }
 
 #[derive(Default)]

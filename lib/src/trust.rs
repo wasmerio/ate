@@ -207,8 +207,6 @@ pub(crate) async fn create_test_chain(chain_name: String, temp: bool, barebone: 
 {
     // Create the chain-of-trust and a validator
     let mut mock_cfg = mock_test_config();
-    mock_cfg.log_temp = false;
-
     let mock_chain_key = match temp {
         true => ChainKey::default().with_temp_name(chain_name),
         false => ChainKey::default().with_name(chain_name),

@@ -254,10 +254,14 @@ impl<'a> Chain
         key: &ChainKey,
     ) -> Result<Chain, ChainCreationError>
     {
+        let flags = OpenFlags {
+            truncate: builder.truncate,
+            temporal: builder.temporal,
+        };
         let (
             redo_log,
             mut redo_loader
-        ) = RedoLog::open(&builder.cfg, key, builder.truncate).await?;
+        ) = RedoLog::open(&builder.cfg, key, flags).await?;
 
         let mut entries = Vec::new();
         while let Some(result) = redo_loader.pop() {

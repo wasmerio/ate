@@ -68,8 +68,7 @@ async fn main() -> Result<(), AteError>
     env_logger::init();
 
     // The default configuration will store the redo log locally in the temporary folder
-    let mut conf = ConfAte::default();
-    conf.log_temp = false;
+    let conf = ConfAte::default();
     let builder = ChainBuilder::new(&conf);
 
     // We create a chain with a specific key (this is used for the file name it creates)

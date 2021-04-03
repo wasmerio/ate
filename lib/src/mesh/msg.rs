@@ -68,7 +68,7 @@ pub(super) enum Message {
     Noop,
     Connected,
     Disconnected,
-    
+
     Subscribe {
         history_sample: Vec<Hash>,
         chain_key: ChainKey
@@ -101,6 +101,11 @@ pub(super) enum Message {
     CommitError {
         id: u64,
         err: String,
+    },
+
+    /// Opens a chain-of-trust that only survives the duration of the connected session(s)
+    Ethereal {
+        chain_key: ChainKey
     },
 }
 
