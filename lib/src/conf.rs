@@ -85,6 +85,22 @@ pub struct ConfMesh
     pub force_listen: Option<MeshAddress>,
 }
 
+impl ConfMesh
+{
+    /// Represents a single server listening on all available addresses. All chains
+    /// will be stored locally to this server and there is no replication
+    pub fn solo(addr: &str, port: u16) -> ConfMesh
+    {
+        let mut cfg_mesh = ConfMesh::default();
+        let addr = MeshAddress::new(IpAddr::from_str(addr).unwrap(), port);
+        let mut cluster = ConfCluster::default();
+        cluster.roots.push(addr.clone());
+        cfg_mesh.clusters.push(cluster);
+        cfg_mesh.force_listen = Some(addr);
+        cfg_mesh
+    }
+}
+
 /// Configuration settings for the ATE datastore
 ///
 #[derive(Debug, Clone)]
