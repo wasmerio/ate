@@ -116,9 +116,10 @@ struct TestData {
 #[test]
 async fn test_mesh()
 {
-    //env_logger::init();
+    env_logger::init();
 
     let cfg_ate = ConfAte::default();
+
     let mut mesh_roots = Vec::new();
     let mut cfg_mesh = {
         let mut cluster1 = ConfCluster::default();
@@ -136,27 +137,28 @@ async fn test_mesh()
         cfg_mesh.clusters.push(cluster2);
 
         for n in 5100..5105 {
-            cfg_mesh.force_listen = Some(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
-            mesh_roots.push(create_server(&cfg_ate, &cfg_mesh, super::flow::all_persistent(&cfg_ate)).await);
+            let addr = MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n);
+            debug!("creating server on {:?}", addr);
+            cfg_mesh.force_listen = Some(addr);
+            mesh_roots.push(create_server(&cfg_ate, &cfg_mesh, super::flow::all_ethereal(&cfg_ate)).await);
         }
         for n in 6100..6105 {
-            cfg_mesh.force_listen = Some(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
-            mesh_roots.push(create_server(&cfg_ate, &cfg_mesh, super::flow::all_persistent(&cfg_ate)).await);
+            let addr = MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n);
+            debug!("creating server on {:?}", addr);
+            cfg_mesh.force_listen = Some(addr);
+            mesh_roots.push(create_server(&cfg_ate, &cfg_mesh, super::flow::all_ethereal(&cfg_ate)).await);
         }
         cfg_mesh
     };
+
+    debug!("create the mesh and connect to it with client 1");
+    let client_a = create_client(&cfg_ate, &cfg_mesh).await;
+    let chain_a = client_a.open(&url::Url::parse("tcp://127.0.0.1/test-chain").unwrap()).await.unwrap();
+    let session_a = Session::default();
     
     let dao_key1;
     let dao_key2;
     {
-        cfg_mesh.force_listen = None;
-        cfg_mesh.force_client_only = true;
-
-        debug!("create the mesh and connect to it with client 1");
-        let client_a = create_client(&cfg_ate, &cfg_mesh).await;
-        let chain_a = client_a.open(&url::Url::parse("tcp://127.0.0.1/test-chain").unwrap()).await.unwrap();
-        let session_a = Session::default();
-
         let mut bus;
         let task;
 

@@ -661,7 +661,7 @@ for ValidationError {
                 write!(f, "The data object event is detached from the chain of trust")
             },
             ValidationError::NoSignatures => {
-                write!(f, "The data object event has no signatures")
+                write!(f, "The data object event has no signatures and one is required to store it at this specific location within the chain of trust")
             },
             ValidationError::Trust(err) => {
                 write!(f, "The data object event has an issue with trust - {}", err)
