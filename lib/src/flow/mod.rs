@@ -1,6 +1,7 @@
 #![allow(unused_imports)]
 use async_trait::async_trait;
 pub mod basic;
+use super::chain::Chain;
 use super::chain::ChainKey;
 use super::conf::ConfAte;
 use super::conf::ChainOfTrustBuilder;
@@ -11,8 +12,8 @@ pub enum OpenAction
 {
     /// The open request will be denied
     Deny(String),
-    /// Create a persistent chain
-    Create(ChainOfTrustBuilder),
+    /// The open action has resulted in a chain that can be consumed
+    Chain(Chain),
 }
 
 #[async_trait]

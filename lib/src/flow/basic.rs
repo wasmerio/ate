@@ -34,7 +34,7 @@ impl OpenStaticBuilder
 impl OpenFlow
 for OpenStaticBuilder
 {
-    async fn open(&self, _cfg: &ConfAte, _key: &ChainKey) -> Result<OpenAction, ChainCreationError> {
-        Ok(OpenAction::Create(self.builder.clone()))
+    async fn open(&self, _cfg: &ConfAte, key: &ChainKey) -> Result<OpenAction, ChainCreationError> {
+        Ok(OpenAction::Chain(self.builder.clone().build(key).await?))
     }
 }

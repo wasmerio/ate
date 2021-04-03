@@ -30,7 +30,6 @@ struct Opts {
     #[clap(short, long, default_value = "tcp://ate.tokera.com/auth")]
     auth: String,
     /// Logs debug info to the console
-    #[allow(dead_code)]
     #[clap(short, long)]
     debug: bool,
     /// Determines if ATE will use DNSSec or just plain DNS
@@ -157,11 +156,12 @@ async fn main() -> Result<(), AteError> {
     let opts: Opts = Opts::parse();
     //let opts = main_debug();
 
-    let log_level = match opts.verbose {
+    let mut log_level = match opts.verbose {
         1 => "info",
         2 => "debug",
         _ => "error",
     };
+    if opts.debug { log_level = "debug"; }
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(log_level)).init();
     
     match opts.subcmd {
