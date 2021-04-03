@@ -159,7 +159,7 @@ where F: OpenFlow + 'static
         }
     }
 
-    let builder = match chain_builder.open(&root.cfg_ate, &key) {
+    let builder = match chain_builder.open(&root.cfg_ate, &key).await? {
         OpenAction::Create(b) => b,
         OpenAction::Deny(reason) => {
             return Err(ChainCreationError::ServerRejected(reason));

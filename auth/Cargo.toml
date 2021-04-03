@@ -25,3 +25,4 @@ serde = { version = "1.0.*", features = ["derive"] }
 ate = { version = "0.2.*", path = "../lib" }
 chrono = { version = "0.4.*", features = ["serde"] }
 isocountry = "0.3.*"
+regex = "1.4.*"

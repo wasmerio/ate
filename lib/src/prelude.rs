@@ -16,6 +16,11 @@ pub use crate::crypto::KeySize;
 pub use crate::meta::ReadOption;
 pub use crate::meta::WriteOption;
 
+pub use crate::flow::OpenFlow;
+pub use crate::flow::OpenAction;
+pub use crate::flow::all_ethereal;
+pub use crate::flow::all_persistent;
+
 pub use crate::chain::Chain;
 pub use crate::trust::ChainKey;
 pub use crate::conf::ChainOfTrustBuilder as ChainBuilder;
