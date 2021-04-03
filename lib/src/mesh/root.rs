@@ -25,6 +25,7 @@ use super::msg::*;
 use super::MeshSession;
 use crate::flow::OpenFlow;
 use crate::flow::OpenAction;
+use crate::spec::SerializationFormat;
 
 pub struct MeshRoot<F>
 where F: OpenFlow + 'static
@@ -182,8 +183,7 @@ where F: OpenFlow + 'static
     Ok(new_chain)
 }
 
-async fn inbox_event<F>(
-    root: Arc<MeshRoot<F>>,
+async fn inbox_event(
     reply_at: Option<&mpsc::Sender<PacketData>>,
     context: Arc<SessionContext>,
     commit: Option<u64>,
@@ -192,7 +192,6 @@ async fn inbox_event<F>(
     pck_data: PacketData,
 )
 -> Result<(), CommsError>
-where F: OpenFlow + 'static
 {
     debug!("inbox: events: cnt={}", evts.len());
 
@@ -207,6 +206,7 @@ where F: OpenFlow + 'static
     let ret = single.feed_async(&evts).await;
     drop(single);
 
+    let wire_format = pck_data.wire_format;
     let downcast_err = match &ret {
         Ok(_) => {
             let join1 = chain.notify(&evts);
@@ -219,25 +219,24 @@ where F: OpenFlow + 'static
 
     if let Some(id) = commit {
         match &ret {
-            Ok(_) => PacketData::reply_at(reply_at, Message::Confirmed(id.clone()), root.cfg_ate.wire_format).await?,
-            Err(err) => PacketData::reply_at(reply_at, Message::CommitError{
+            Ok(_) => PacketData::reply_at(reply_at, wire_format, Message::Confirmed(id.clone())).await?,
+            Err(err) => PacketData::reply_at(reply_at, wire_format, Message::CommitError{
                 id: id.clone(),
                 err: err.to_string(),
-            }, root.cfg_ate.wire_format).await?
+            }).await?
         };
     }
 
     Ok(downcast_err?)
 }
 
-async fn inbox_lock<F>(
-    root: Arc<MeshRoot<F>>,
+async fn inbox_lock(
     reply_at: Option<&mpsc::Sender<PacketData>>,
     context: Arc<SessionContext>,
     key: PrimaryKey,
+    wire_format: SerializationFormat
 )
 -> Result<(), CommsError>
-where F: OpenFlow + 'static
 {
     debug!("inbox: lock {}", key);
 
@@ -249,10 +248,10 @@ where F: OpenFlow + 'static
     let is_locked = chain.pipe.try_lock(key.clone()).await?;
     context.inside.lock().locks.insert(key.clone());
     
-    PacketData::reply_at(reply_at, Message::LockResult {
+    PacketData::reply_at(reply_at, wire_format, Message::LockResult {
         key: key.clone(),
         is_locked
-    }, root.cfg_ate.wire_format).await
+    }).await
 }
 
 async fn inbox_unlock(
@@ -283,6 +282,7 @@ where F: OpenFlow + 'static
 {
     //debug!("inbox: packet size={}", pck.data.bytes.len());
 
+    let wire_format = pck.data.wire_format;
     let context = pck.context.clone();
     let mut pck_data = pck.data;
     let pck = pck.packet;
@@ -292,42 +292,15 @@ where F: OpenFlow + 'static
     
     match pck.msg {
         Message::Subscribe { chain_key, history_sample }
-            => inbox_subscribe(root, chain_key, history_sample, reply_at, context).await,
+            => inbox_subscribe(root, chain_key, history_sample, reply_at, context, wire_format).await,
         Message::Events { commit, evts }
-            => inbox_event(root, reply_at, context, commit, evts, tx, pck_data).await,
+            => inbox_event(reply_at, context, commit, evts, tx, pck_data).await,
         Message::Lock { key }
-            => inbox_lock(root, reply_at, context, key).await,
+            => inbox_lock(reply_at, context, key, wire_format).await,
         Message::Unlock { key }
             => inbox_unlock(context, key).await,
         _ => Ok(())
     }
-}
-
-async fn inbox<F>(
-    root: Arc<MeshRoot<F>>,
-    mut rx: NodeRx<Message, SessionContext>,
-    tx: NodeTx<SessionContext>
-) -> Result<(), CommsError>
-where F: OpenFlow + 'static
-{
-    let weak = Arc::downgrade(&root);
-    drop(root);
-
-    while let Some(pck) = rx.recv().await {
-        let root = match weak.upgrade() {
-            Some(a) => a,
-            None => { break; }
-        };
-        match inbox_packet(root, pck, &tx).await {
-            Ok(_) => { },
-            Err(err) => {
-                debug_assert!(false, "mesh-root-err {:?}", err);
-                warn!("mesh-root-err: {}", err.to_string());
-                continue;
-            }
-        }
-    }
-    Ok(())
 }
 
 async fn inbox_subscribe<F>(
@@ -336,6 +309,7 @@ async fn inbox_subscribe<F>(
     history_sample: Vec<crate::crypto::Hash>,
     reply_at: Option<&mpsc::Sender<PacketData>>,
     context: Arc<SessionContext>,
+    wire_format: SerializationFormat
 )
 -> Result<(), CommsError>
 where F: OpenFlow + 'static
@@ -345,15 +319,23 @@ where F: OpenFlow + 'static
     // If we can't find a chain for this subscription then fail and tell the caller
     let chain = match open_internal(Arc::clone(&root), chain_key.clone()).await {
         Err(ChainCreationError::NotThisRoot) => {
-            PacketData::reply_at(reply_at, Message::NotThisRoot, root.cfg_ate.wire_format).await?;
+            PacketData::reply_at(reply_at, wire_format, Message::NotThisRoot).await?;
             return Ok(());
         },
         Err(ChainCreationError::NoRootFoundInConfig) => {
-            PacketData::reply_at(reply_at, Message::NotThisRoot, root.cfg_ate.wire_format).await?;
+            PacketData::reply_at(reply_at, wire_format, Message::NotThisRoot).await?;
             return Ok(());
         }
         a => {
-            let chain = a?;
+            let chain = match a {
+                Ok(a) => a,
+                Err(err) => {
+                    PacketData::reply_at(reply_at, wire_format, Message::FatalTerminate {
+                        err: err.to_string()
+                    }).await?;
+                    return Err(CommsError::RootServerError(err.to_string()));
+                }
+            };
             MeshSession::retro_create(chain)
         }
     };
@@ -368,34 +350,33 @@ where F: OpenFlow + 'static
     if let Some(reply_at) = reply_at
     {
         // First up tell the caller what our default settings are for this chain
-        PacketData::reply_at(Some(&reply_at), Message::Defaults {
+        PacketData::reply_at(Some(&reply_at), wire_format, Message::Defaults {
             log_format: chain.default_format(),
-        }, root.cfg_ate.wire_format).await?;
+        }).await?;
 
         // Stream the data back to the client
         tokio::spawn(inbox_stream_data(
-            root,
             Arc::clone(&chain), 
             history_sample, 
-            reply_at.clone()
+            reply_at.clone(),
+            wire_format,
         ));
     }
 
     Ok(())
 }
 
-async fn inbox_stream_data<F>(
-    root: Arc<MeshRoot<F>>,
+async fn inbox_stream_data(
     chain: Arc<MeshSession>,
     history_sample: Vec<crate::crypto::Hash>,
     reply_at: mpsc::Sender<PacketData>,
+    wire_format: SerializationFormat
 )
 -> Result<(), CommsError>
-where F: OpenFlow + 'static
 {
     // Let the caller know we will be streaming them events
     let multi = chain.multi().await;
-    PacketData::reply_at(Some(&reply_at), Message::StartOfHistory, root.cfg_ate.wire_format).await?;
+    PacketData::reply_at(Some(&reply_at), wire_format, Message::StartOfHistory).await?;
 
     // Find what offset we will start streaming the events back to the caller
     // (we work backwards from the consumers last known position till we find a match
@@ -446,13 +427,43 @@ where F: OpenFlow + 'static
             };
             evts.push(evt);
         }
-        PacketData::reply_at(Some(&reply_at), Message::Events {
+        PacketData::reply_at(Some(&reply_at), wire_format, Message::Events {
             commit: None,
             evts
-        }, root.cfg_ate.wire_format).await?;
+        }).await?;
     }
 
     // Let caller know we have sent all the events that were requested
-    PacketData::reply_at(Some(&reply_at), Message::EndOfHistory, root.cfg_ate.wire_format).await?;
+    PacketData::reply_at(Some(&reply_at), wire_format, Message::EndOfHistory).await?;
+    Ok(())
+}
+
+async fn inbox<F>(
+    root: Arc<MeshRoot<F>>,
+    mut rx: NodeRx<Message, SessionContext>,
+    tx: NodeTx<SessionContext>
+) -> Result<(), CommsError>
+where F: OpenFlow + 'static
+{
+    let weak = Arc::downgrade(&root);
+    drop(root);
+
+    while let Some(pck) = rx.recv().await {
+        let root = match weak.upgrade() {
+            Some(a) => a,
+            None => { break; }
+        };
+        match inbox_packet(root, pck, &tx).await {
+            Ok(_) => { },
+            Err(CommsError::RootServerError(err)) => {
+                warn!("mesh-root-fatal-err: {}", err);
+                continue;
+            },
+            Err(err) => {
+                warn!("mesh-root-err: {}", err.to_string());
+                continue;
+            }
+        }
+    }
     Ok(())
 }

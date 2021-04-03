@@ -196,6 +196,11 @@ impl MeshSession
             Message::CommitError { id, err } => Self::inbox_commit_error(self, id, err).await,
             Message::LockResult { key, is_locked } => Self::inbox_lock_result(self, key, is_locked),
             Message::EndOfHistory => Self::inbox_end_of_history(loaded).await,
+            Message::Disconnected => { return Err(CommsError::Disconnected); },
+            Message::FatalTerminate { err } => {
+                warn!("mesh-session-err: {}", err);
+                return Err(CommsError::Disconnected);
+            },
             _ => Ok(())
         }
     }
@@ -213,6 +218,7 @@ impl MeshSession
             };
             match MeshSession::inbox_packet(&session, &loaded, pck).await {
                 Ok(_) => { },
+                Err(CommsError::Disconnected) => { break; }
                 Err(CommsError::ValidationError(err)) => {
                     debug!("mesh-session-debug: {}", err.to_string());
                     continue;

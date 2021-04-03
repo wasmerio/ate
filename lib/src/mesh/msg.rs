@@ -105,6 +105,10 @@ pub(super) enum Message {
 
     Defaults {
         log_format: MessageFormat,
+    },
+
+    FatalTerminate {
+        err: String
     }
 }
 

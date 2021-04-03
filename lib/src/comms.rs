@@ -50,12 +50,12 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone,
     #[allow(dead_code)]
     pub(crate) async fn reply(&self, msg: M) -> Result<(), CommsError> {
         if self.data.reply_here.is_none() { return Ok(()); }
-        Ok(Self::reply_at(self.data.reply_here.as_ref(), msg, self.data.wire_format).await?)
+        Ok(Self::reply_at(self.data.reply_here.as_ref(), self.data.wire_format, msg).await?)
     }
 
     #[allow(dead_code)]
-    pub(crate) async fn reply_at(at: Option<&mpsc::Sender<PacketData>>, msg: M, format: SerializationFormat) -> Result<(), CommsError> {
-        Ok(PacketData::reply_at(at, msg, format).await?)
+    pub(crate) async fn reply_at(at: Option<&mpsc::Sender<PacketData>>, format: SerializationFormat, msg: M) -> Result<(), CommsError> {
+        Ok(PacketData::reply_at(at, format, msg).await?)
     }
 }
 
@@ -67,12 +67,12 @@ impl PacketData
     {
         if self.reply_here.is_none() { return Ok(()); }
         Ok(
-            Self::reply_at(self.reply_here.as_ref(), msg, self.wire_format).await?
+            Self::reply_at(self.reply_here.as_ref(), self.wire_format, msg).await?
         )
     }
 
     #[allow(dead_code)]
-    pub(crate) async fn reply_at<M>(at: Option<&mpsc::Sender<PacketData>>, msg: M, wire_format: SerializationFormat) -> Result<(), CommsError>
+    pub(crate) async fn reply_at<M>(at: Option<&mpsc::Sender<PacketData>>, wire_format: SerializationFormat, msg: M) -> Result<(), CommsError>
     where M: Send + Sync + Serialize + DeserializeOwned + Clone,
     {
         if at.is_none() { return Ok(()); }
@@ -254,7 +254,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
             conf.on_connect.clone(),
             conf.buffer_size,
             Arc::clone(&state),
-            conf.wire_format,
             conf.wire_encryption,
         ).await;
 
@@ -422,9 +421,19 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                 guard.connected = guard.connected + 1;
             }
 
+            // Say hello
+            let key_size = match wire_encryption { Some(a) => a, None => KeySize::Bit256 };
+            let key_size = match mesh_hello_exchange_receiver(&mut stream, key_size, wire_format).await {
+                Ok(a) => a,
+                Err(err) => {
+                    warn!("connection-failed: {}", err.to_string());
+                    continue;
+                }
+            };
+
             // If we are using wire encryption then exchange secrets
             let ek = match wire_encryption {
-                Some(key_size) => Some(
+                Some(_) => Some(
                     match mesh_key_exchange_receiver(&mut stream, key_size).await {
                         Ok(a) => a,
                         Err(err) => {
@@ -488,35 +497,13 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
 pub struct Hello
 {
     pub domain: Option<String>,
-    pub key_size: KeySize,    
+    pub key_size: KeySize,
+    pub wire_format: Option<SerializationFormat>,
 }
 
-async fn mesh_key_exchange_sender(stream: &mut TcpStream, domain: Option<String>, mut key_size: KeySize) -> Result<EncryptKey, CommsError>
+async fn mesh_key_exchange_sender(stream: &mut TcpStream, key_size: KeySize) -> Result<EncryptKey, CommsError>
 {
     debug!("negotiating {}bit shared secret", key_size);
-
-    // Send over the hello message and wait for a response
-    debug!("client sending hello");
-    let hello_client = Hello {
-        domain,
-        key_size,
-    };
-    let hello_client_bytes = serde_json::to_vec(&hello_client)?;
-    stream.write_u16(hello_client_bytes.len() as u16).await?;
-    stream.write_all(&hello_client_bytes[..]).await?;
-
-    // Read the hello message from the other side
-    let hello_server_bytes_len = stream.read_u16().await?;
-    let mut hello_server_bytes = vec![0 as u8; hello_server_bytes_len as usize];
-    stream.read_exact(&mut hello_server_bytes).await?;
-    debug!("client received hello from server");
-    let hello_server: Hello = serde_json::from_slice(&hello_server_bytes[..])?;
-
-    // Upgrade the key_size if the server is bigger
-    if hello_server.key_size > key_size {
-        key_size = hello_server.key_size;
-        debug!("upgrading to {}bit shared secret", key_size);
-    }
 
     // Generate the encryption keys
     let sk1 = super::crypto::PrivateEncryptKey::generate(key_size);
@@ -556,32 +543,9 @@ async fn mesh_key_exchange_sender(stream: &mut TcpStream, domain: Option<String>
     Ok(EncryptKey::xor(ek1, ek2)?)
 }
 
-async fn mesh_key_exchange_receiver(stream: &mut TcpStream, mut key_size: KeySize) -> Result<EncryptKey, CommsError>
+async fn mesh_key_exchange_receiver(stream: &mut TcpStream, key_size: KeySize) -> Result<EncryptKey, CommsError>
 {
     debug!("negotiating {}bit shared secret", key_size);
-
-    // Read the hello message from the other side
-    let hello_client_bytes_len = stream.read_u16().await?;
-    let mut hello_client_bytes = vec![0 as u8; hello_client_bytes_len as usize];
-    stream.read_exact(&mut hello_client_bytes).await?;
-    debug!("server received hello from client");
-    let hello_client: Hello = serde_json::from_slice(&hello_client_bytes[..])?;
-
-    // Upgrade the key_size if the client is bigger
-    if hello_client.key_size > key_size {
-        key_size = hello_client.key_size;
-        debug!("upgrading to {}bit shared secret", key_size);
-    }
-
-    // Send over the hello message and wait for a response
-    debug!("server sending hello");
-    let hello_server = Hello {
-        domain: None,
-        key_size,
-    };
-    let hello_server_bytes = serde_json::to_vec(&hello_server)?;
-    stream.write_u16(hello_server_bytes.len() as u16).await?;
-    stream.write_all(&hello_server_bytes[..]).await?;
 
     // Receive the public key from the caller side (which we will use in a sec)
     let mut pk1_bytes = vec![0 as u8; key_size.ntru_public_key_size()];
@@ -620,6 +584,74 @@ async fn mesh_key_exchange_receiver(stream: &mut TcpStream, mut key_size: KeySiz
     Ok(EncryptKey::xor(ek1, ek2)?)
 }
 
+async fn mesh_hello_exchange_sender(stream: &mut TcpStream, domain: Option<String>, mut key_size: KeySize) -> Result<(KeySize, SerializationFormat), CommsError>
+{
+    // Send over the hello message and wait for a response
+    debug!("client sending hello");
+    let hello_client = Hello {
+        domain,
+        key_size,
+        wire_format: None,
+    };
+    let hello_client_bytes = serde_json::to_vec(&hello_client)?;
+    stream.write_u16(hello_client_bytes.len() as u16).await?;
+    stream.write_all(&hello_client_bytes[..]).await?;
+
+    // Read the hello message from the other side
+    let hello_server_bytes_len = stream.read_u16().await?;
+    let mut hello_server_bytes = vec![0 as u8; hello_server_bytes_len as usize];
+    stream.read_exact(&mut hello_server_bytes).await?;
+    debug!("client received hello from server");
+    let hello_server: Hello = serde_json::from_slice(&hello_server_bytes[..])?;
+
+    // Upgrade the key_size if the server is bigger
+    if hello_server.key_size > key_size {
+        key_size = hello_server.key_size;
+        debug!("upgrading to {}bit shared secret", key_size);
+    }
+    let wire_format = match hello_server.wire_format {
+        Some(a) => a,
+        None => {
+            debug!("server did not send wire format");
+            return Err(CommsError::NoWireFormat);
+        }
+    };
+    
+    Ok((
+        key_size,
+        wire_format
+    ))
+}
+
+async fn mesh_hello_exchange_receiver(stream: &mut TcpStream, mut key_size: KeySize, wire_format: SerializationFormat) -> Result<KeySize, CommsError>
+{
+    // Read the hello message from the other side
+    let hello_client_bytes_len = stream.read_u16().await?;
+    let mut hello_client_bytes = vec![0 as u8; hello_client_bytes_len as usize];
+    stream.read_exact(&mut hello_client_bytes).await?;
+    debug!("server received hello from client");
+    let hello_client: Hello = serde_json::from_slice(&hello_client_bytes[..])?;
+
+    // Upgrade the key_size if the client is bigger
+    if hello_client.key_size > key_size {
+        key_size = hello_client.key_size;
+        debug!("upgrading to {}bit shared secret", key_size);
+    }
+
+    // Send over the hello message and wait for a response
+    debug!("server sending hello");
+    let hello_server = Hello {
+        domain: None,
+        key_size,
+        wire_format: Some(wire_format),
+    };
+    let hello_server_bytes = serde_json::to_vec(&hello_server)?;
+    stream.write_u16(hello_server_bytes.len() as u16).await?;
+    stream.write_all(&hello_server_bytes[..]).await?;
+
+    Ok(key_size)
+}
+
 async fn mesh_connect_worker<M, C>
 (
     addr: SocketAddr,
@@ -630,7 +662,6 @@ async fn mesh_connect_worker<M, C>
     sender: u64,
     on_connect: Option<M>,
     state: Arc<StdMutex<NodeState>>,
-    wire_format: SerializationFormat,
     wire_encryption: Option<KeySize>,
 )
 -> Result<(), CommsError>
@@ -665,9 +696,13 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
             guard.connected = guard.connected + 1;
         }
 
+        // Say hello
+        let key_size = match wire_encryption { Some(a) => a, None => KeySize::Bit256 };
+        let (key_size, wire_format) = mesh_hello_exchange_sender(&mut stream, domain.clone(), key_size).await?;
+
         // If we are using wire encryption then exchange secrets
         let ek = match wire_encryption {
-            Some(key_size) => Some(mesh_key_exchange_sender(&mut stream, domain.clone(), key_size).await?),
+            Some(_) => Some(mesh_key_exchange_sender(&mut stream, key_size).await?),
             None => None,
         };
         let ek1 = ek.clone();
@@ -742,7 +777,6 @@ async fn mesh_connect_to<M, C>
     on_connect: Option<M>,
     buffer_size: usize,
     state: Arc<StdMutex<NodeState>>,
-    wire_format: SerializationFormat,
     wire_encryption: Option<KeySize>,
 ) -> Upstream
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
@@ -766,7 +800,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
             sender,
             on_connect,
             state,
-            wire_format,
             wire_encryption,
         )
     );

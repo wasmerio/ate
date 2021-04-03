@@ -871,6 +871,7 @@ pub enum CommsError
     ReceiveError(String),
     IO(std::io::Error),
     NoReplyChannel,
+    NoWireFormat,
     Disconnected,
     ValidationError(ValidationError),
     #[allow(dead_code)]
@@ -1019,6 +1020,9 @@ for CommsError {
             },
             CommsError::NoReplyChannel => {
                 write!(f, "Message has no reply channel attached to it")
+            },
+            CommsError::NoWireFormat => {
+                write!(f, "Server did not send a wire format")
             },
             CommsError::ValidationError(err) => {
                 write!(f, "Message contained event data that failed validation {}", err)
