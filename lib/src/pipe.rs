@@ -9,7 +9,7 @@ use std::sync::Arc;
 #[async_trait]
 pub(crate) trait EventPipe: Send + Sync
 {
-    async fn feed(&self, mut trans: Transaction) -> Result<(), CommitError>;
+    async fn feed(&self, mut trans: Transaction) -> Result<Option<Transaction>, CommitError>;
 
     async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError>;
 

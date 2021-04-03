@@ -560,11 +560,11 @@ impl EventPipe
 for InboxPipe
 {
     #[allow(dead_code)]
-    async fn feed(&self, trans: Transaction) -> Result<(), CommitError>
+    async fn feed(&self, trans: Transaction) -> Result<Option<Transaction>, CommitError>
     {
         let sender = self.inbox.clone();
         sender.send(trans).await.unwrap();
-        Ok(())
+        Ok(None)
     }
 
     #[allow(dead_code)]

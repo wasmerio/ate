@@ -192,6 +192,7 @@ impl MeshSession
         //debug!("inbox: packet size={}", pck.data.bytes.len());
         match pck.packet.msg {
             Message::Defaults { log_format } => {
+                debug!("set-default-format: {:?}", log_format);
                 self.chain.single().await.set_default_format(log_format);
                 Ok(())
             },
@@ -292,15 +293,6 @@ for MeshSession
     fn drop(&mut self)
     {
         debug!("drop {}", self.key.to_string());
-
-        {
-            let mut guard = self.commit.lock();
-            for (_, sender) in guard.drain() {
-                if let Err(err) = sender.blocking_send(Err(CommitError::Aborted)) {
-                    warn!("mesh-session-err: {}", err.to_string());
-                }
-            }
-        }
         self.cancel_locks();
     }
 }
@@ -353,16 +345,19 @@ struct SessionPipe
 
 impl SessionPipe
 {
-    async fn feed_internal(&self, trans: &mut Transaction) -> Result<(), CommitError>
+    async fn feed_internal(&self, trans: &mut Transaction) -> Result<Option<u64>, CommitError>
     {
         // Convert the event data into message events
         let evts = MessageEvent::convert_to(&trans.events);
         
         // If the scope requires synchronization with the remote server then allocate a commit ID
         let commit = match &trans.scope {
-            Scope::Full | Scope::One => {
+            Scope::Full | Scope::One =>
+            {
+                // Register a commit ID that will receive the response
                 let id = fastrand::u64(..);
-                if let Some(result) = trans.result.take() {
+                if let Some(result) = trans.result.take()
+                {
                     self.commit.lock().insert(id, result);
                 }
                 Some(id)
@@ -393,7 +388,7 @@ impl SessionPipe
             }
         }
 
-        Ok(())
+        Ok(commit)
     }
 }
 
@@ -401,31 +396,31 @@ impl SessionPipe
 impl EventPipe
 for SessionPipe
 {
-    async fn feed(&self, mut trans: Transaction) -> Result<(), CommitError>
+    async fn feed(&self, mut trans: Transaction) -> Result<Option<Transaction>, CommitError>
     {
         // Process the pipe internal (if it fails then we need to notify the waiter)
-        match self.feed_internal(&mut trans).await {
-            Ok(_) => { },
+        let commit = match self.feed_internal(&mut trans).await {
+            Ok(a) => a,
             Err(err) => {
                 if let Some(tx) = trans.result.take() {
                     tx.send(Err(err)).await?;
-                    return Ok(());
+                    return Ok(None);
                 } else {
                     return Err(err);
                 }
             }
+        };
+
+        // If this transaction is not waiting on a commit then immediately pass it onto
+        // the next pipe in the chain (in the scenario this is not executed then it is
+        // the responsibility of the caller to submit this again with a local transaction scope)
+        if commit.is_some() {
+            trans.scope = Scope::Local;
+            return Ok(Some(trans));
         }
 
-        // Hand over to the next pipe (which will be the one that triggers the transaction callback)
-        {
-            let lock = self.next.read().clone();
-            if let Some(next) = lock {
-                next.feed(trans).await?;
-            }
-        }
-
-        // Done
-        Ok(())
+        // Done synchronously
+        Ok(None)
     }
 
     async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError>

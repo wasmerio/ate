@@ -478,7 +478,7 @@ impl<'a> Dio<'a>
 
         // Create the transaction
         let (sender, mut receiver) = mpsc::channel(1);
-        let trans = Transaction {
+        let mut trans = Transaction {
             scope: self.scope.clone(),
             events: evts,
             result: match &self.scope {
@@ -488,18 +488,20 @@ impl<'a> Dio<'a>
         };
         debug!("atefs::commit events={}", trans.events.len());
 
-        // Process it in the chain of trust
-        self.multi.pipe.feed(trans).await?;
-        
-        // Wait for the transaction to commit (or not?) - if an error occurs it will
-        // be returned to the caller
-        match &self.scope {
-            Scope::None => { },
-            _ => match receiver.recv().await {
+        // Process it in the chain of trust (until its gone)
+        while let Some(delayed_trans) = self.multi.pipe.feed(trans).await?
+        {        
+            // Wait for the transaction to commit (or not?) - if an error occurs it will
+            // be returned to the caller
+            match receiver.recv().await {
                 Some(a) => a?,
                 None => { return Err(CommitError::Aborted); }
             }
-        };
+
+            // Submit it again but this time with a local transaction (which should prevent a delayed commit
+            // and ensure the data is stored locally)
+            trans = delayed_trans;
+        }
 
         // Last thing we do is kick off an unlock operation using fire and forget
         let unlock_multi = self.multi.clone();
