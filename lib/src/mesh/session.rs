@@ -92,7 +92,12 @@ impl MeshSession
         };
 
         for mut wait in wait_for_me {
-            wait.recv().await;
+            match wait.recv().await {
+                Some(result) => result?,
+                None => {
+                    return Err(ChainCreationError::ServerRejected("Server disconnected before it loaded the chain.".to_string()));
+                }
+            }
         }
 
         Ok(ret)
@@ -198,6 +203,7 @@ impl MeshSession
             Message::EndOfHistory => Self::inbox_end_of_history(loaded).await,
             Message::Disconnected => { return Err(CommsError::Disconnected); },
             Message::FatalTerminate { err } => {
+                let _ = loaded.send(Err(ChainCreationError::ServerRejected(err.clone()))).await;
                 warn!("mesh-session-err: {}", err);
                 return Err(CommsError::Disconnected);
             },
