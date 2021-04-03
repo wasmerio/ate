@@ -262,7 +262,7 @@ impl<'a> Chain
             redo_log,
             mut redo_loader
         ) = RedoLog::open(&builder.cfg, key, flags).await?;
-
+        
         let mut entries = Vec::new();
         while let Some(result) = redo_loader.pop() {
             entries.push(result.header.as_header()?);

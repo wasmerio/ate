@@ -142,8 +142,8 @@ async fn main() -> Result<(), AteError>
             // Create the chain flow and generate configuration
             let flow = ChainFlow::new(root_key);
             let mut cfg_ate = ate_auth::conf_auth();
-            cfg_ate.log_path = run.logs_path;
-            
+            cfg_ate.log_path = shellexpand::tilde(&run.logs_path).to_string();
+
             // Create the server and listen on port 5000
             let cfg_mesh = ConfMesh::solo(run.listen.as_str(), run.port);
             let _server = create_server(&cfg_ate, &cfg_mesh, Box::new(flow)).await;

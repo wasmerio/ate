@@ -1058,7 +1058,15 @@ impl RedoLog
     pub(crate) async fn open(cfg: &ConfAte, key: &ChainKey, flags: OpenFlags) -> std::result::Result<(RedoLog, RedoLogLoader), SerializationError> {
         let _ = std::fs::create_dir_all(cfg.log_path.clone());
 
-        let path_log = format!("{}/{}.log", cfg.log_path, key.name);
+        let mut key_name = key.name.clone();
+        if key_name.starts_with("/") {
+            key_name = key_name[1..].to_string();
+        }
+        let path_log = match cfg.log_path.ends_with("/") {
+            true => format!("{}{}.log", cfg.log_path, key_name),
+            false => format!("{}/{}.log", cfg.log_path, key_name)
+        };
+        info!("open at {}", path_log);
 
         let (log, loader) = RedoLog::new(
             cfg,
