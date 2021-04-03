@@ -70,6 +70,7 @@ pub async fn load_credentials(username: String, read_key: EncryptKey, auth: Url)
     // Generate a chain key that matches this username on the authentication server
     let mut conf = ConfAte::default();
     conf.configured_for(ConfiguredFor::BestSecurity);
+    conf.wire_format = SerializationFormat::Json;
     let registry = ate::mesh::Registry::new(&conf).await;
     let chain = registry.open(&chain_url).await?;
 

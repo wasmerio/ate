@@ -217,7 +217,7 @@ where C: Send + Sync
     downcast: Arc<broadcast::Sender<PacketData>>,
     upcast: FxHashMap<u64, Upstream>,
     state: Arc<StdMutex<NodeState>>,
-    wire_format: SerializationFormat,
+    pub(crate) wire_format: SerializationFormat,
     _marker: PhantomData<C>,
 }
 

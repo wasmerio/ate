@@ -300,7 +300,7 @@ for TreeAuthorityPlugin
         let verified_signatures = match self.signature_plugin.get_verified_signatures(&hash) {
             Some(a) => a,
             None => { 
-                debug!("rejected event as it has no signature");
+                debug!("rejected event as it has no signature and one is required to store it at this specific location within the chain of trust.");
                 return Err(ValidationError::NoSignatures);
             },
         };

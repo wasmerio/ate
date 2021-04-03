@@ -67,7 +67,6 @@ impl MeshSession
                 next: StdRwLock::new(None),
                 commit: Arc::clone(&commit),
                 lock_requests: Arc::clone(&lock_requests),
-                wire_format: builder.cfg.wire_format,
             }
         );
 
@@ -340,7 +339,6 @@ struct SessionPipe
     next: StdRwLock<Option<Arc<dyn EventPipe>>>,
     commit: Arc<StdMutex<FxHashMap<u64, mpsc::Sender<Result<(), CommitError>>>>>,
     lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, LockRequest>>>,
-    wire_format: SerializationFormat,
 }
 
 impl SessionPipe
@@ -365,21 +363,17 @@ impl SessionPipe
             _ => None,
         };
 
-        // Build a packet with message events
-        let pck = Packet::from(Message::Events{
-            commit,
-            evts,
-        }).to_packet_data(self.wire_format)?;
-
         // Send the same packet to all the transmit nodes (if there is only one then don't clone)
         if self.tx.len() <= 1 {
             if let Some(tx) = self.tx.iter().next() {
+                let pck = Packet::from(Message::Events{ commit, evts, }).to_packet_data(tx.wire_format)?;
                 tx.upcast_packet(pck).await?;
             }
         } else {
             let mut joins = Vec::new();
             {
                 for tx in self.tx.iter() {
+                    let pck = Packet::from(Message::Events{ commit, evts: evts.clone(), }).to_packet_data(tx.wire_format)?;
                     joins.push(tx.upcast_packet(pck.clone()));
                 }
             }
