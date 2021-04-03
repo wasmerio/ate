@@ -65,7 +65,7 @@ pub struct Registry
 {
     cfg_ate: ConfAte,
     dns: Mutex<DnsClient>,
-    chains: Mutex<FxHashMap<String, Arc<dyn Mesh>>>,
+    chains: Mutex<FxHashMap<String, Arc<MeshClient>>>,
 }
 
 impl Registry
@@ -105,26 +105,7 @@ impl Registry
         )
     }
 
-    #[deprecated(
-        since = "0.2.3",
-        note = "After the introduction of ethereal chains that allow for short-lived group conversations the API was changed. The consumer should now indicate if the chain is persistent or ethereal by using the 'persistent' or 'ethereal' functions attached to this same registry."
-    )]
-    pub async fn chain(&self, url: &Url) -> Result<Arc<MeshSession>, ChainCreationError>
-    {
-        self.chain_internal(url, false).await
-    }
-
-    pub async fn persistent(&self, url: &Url) -> Result<Arc<MeshSession>, ChainCreationError>
-    {
-        self.chain_internal(url, false).await
-    }
-
-    pub async fn session(&self, url: &Url) -> Result<Arc<MeshSession>, ChainCreationError>
-    {
-        self.chain_internal(url, true).await
-    }
-
-    async fn chain_internal(&self, url: &Url, ethereal: bool) -> Result<Arc<MeshSession>, ChainCreationError>
+    pub async fn open(&self, url: &Url) -> Result<Arc<MeshSession>, ChainCreationError>
     {
         let key = ChainKey::new(url.path().to_string());
         let mut lock = self.chains.lock().await;
@@ -136,19 +117,13 @@ impl Registry
         
         match lock.get(&domain) {
             Some(a) => {
-                Ok(match ethereal {
-                    true => a.ethereal(key).await?,
-                    false => a.persistent(key).await?
-                })
+                Ok(a.open(key).await?)
             },
             None => {
                 let cfg_mesh = self.cfg(url).await?;
-                let mesh = create_mesh(&self.cfg_ate, &cfg_mesh).await;
+                let mesh = create_client(&self.cfg_ate, &cfg_mesh).await;
                 lock.insert(domain, Arc::clone(&mesh));
-                Ok(match ethereal {
-                    true => mesh.ethereal(key).await?,
-                    false => mesh.persistent(key).await?
-                })
+                Ok(mesh.open(key).await?)
             }
         }
     }

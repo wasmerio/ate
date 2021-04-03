@@ -24,7 +24,6 @@ pub struct MeshSession
 {
     addrs: Vec<MeshAddress>,
     key: ChainKey,
-    ethereal: bool,
     pub(crate) chain: Arc<Chain>,
     commit: Arc<StdMutex<FxHashMap<u64, mpsc::Sender<Result<(), CommitError>>>>>,
     lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, LockRequest>>>,
@@ -32,7 +31,7 @@ pub struct MeshSession
 
 impl MeshSession
 {
-    pub(super) async fn connect(builder: ChainOfTrustBuilder, chain_key: &ChainKey, addrs: Vec<MeshAddress>, ethereal: bool) -> Result<Arc<MeshSession>, ChainCreationError>
+    pub(super) async fn connect(builder: ChainOfTrustBuilder, chain_key: &ChainKey, addrs: Vec<MeshAddress>) -> Result<Arc<MeshSession>, ChainCreationError>
     {
         debug!("new: chain_key={}", chain_key.to_string());
 
@@ -77,7 +76,6 @@ impl MeshSession
         let ret = Arc::new(MeshSession {
             addrs: addrs.clone(),
             key: chain_key.clone(),
-            ethereal,
             chain,
             commit,
             lock_requests,
@@ -99,12 +97,11 @@ impl MeshSession
         Ok(ret)
     }
 
-    pub(super) fn retro_create(chain: Arc<Chain>, ethereal: bool) -> Arc<MeshSession>
+    pub(super) fn retro_create(chain: Arc<Chain>) -> Arc<MeshSession>
     {
         Arc::new(MeshSession {
             addrs: Vec::new(),
             key: chain.key().clone(),
-            ethereal,
             chain: chain,
             commit: Arc::new(StdMutex::new(FxHashMap::default())),
             lock_requests: Arc::new(StdMutex::new(FxHashMap::default())),
@@ -114,19 +111,10 @@ impl MeshSession
     async fn inbox_connected(self: &Arc<MeshSession>, pck: PacketData) -> Result<(), CommsError> {
         debug!("inbox: connected pck.size={}", pck.bytes.len());
 
-        match self.ethereal {
-            true => {
-                pck.reply(Message::Ethereal {
-                    chain_key: self.key.clone(),
-                }).await?;
-            },
-            false => {
-                pck.reply(Message::Subscribe {
-                    chain_key: self.key.clone(),
-                    history_sample: self.chain.get_ending_sample().await,
-                }).await?;
-            }
-        }
+        pck.reply(Message::Subscribe {
+            chain_key: self.key.clone(),
+            history_sample: self.chain.get_ending_sample().await,
+        }).await?;
         Ok(())
     }
 

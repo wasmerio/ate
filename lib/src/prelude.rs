@@ -35,7 +35,9 @@ pub use crate::session::SessionProperty as AteSessionProperty;
 pub use crate::transaction::Scope as TransactionScope;
 
 pub use crate::mesh::Registry;
-pub use crate::mesh::Mesh;
 pub use crate::conf::MeshAddress;
 pub use std::{net::{IpAddr, Ipv4Addr, Ipv6Addr}, str::FromStr};
-pub use crate::mesh::create_mesh;
+pub use crate::mesh::create_persistent_server;
+pub use crate::mesh::create_ethereal_server;
+pub use crate::mesh::create_server;
+pub use crate::mesh::create_client;

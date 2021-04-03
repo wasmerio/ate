@@ -102,11 +102,6 @@ pub(super) enum Message {
         id: u64,
         err: String,
     },
-
-    /// Opens a chain-of-trust that only survives the duration of the connected session(s)
-    Ethereal {
-        chain_key: ChainKey
-    },
 }
 
 impl Default

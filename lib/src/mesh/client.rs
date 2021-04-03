@@ -15,7 +15,7 @@ use crate::conf::*;
 use crate::transaction::*;
 use super::msg::*;
 
-pub(super) struct MeshClient {
+pub struct MeshClient {
     cfg_ate: ConfAte,
     lookup: MeshHashTable,
     sessions: Mutex<FxHashMap<ChainKey, Weak<MeshSession>>>,
@@ -34,7 +34,7 @@ impl MeshClient {
         )
     }
 
-    async fn open_internal<'a>(&'a self, mut key: ChainKey, ethereal: bool)
+    async fn open_internal<'a>(&'a self, mut key: ChainKey)
         -> Result<Arc<MeshSession>, ChainCreationError>
     {
         if key.to_string().starts_with("/") == false {
@@ -59,32 +59,16 @@ impl MeshClient {
         }
         
         let builder = ChainOfTrustBuilder::new(&self.cfg_ate);
-        let session = MeshSession::connect(builder, &key, addrs, ethereal).await?;
+        let session = MeshSession::connect(builder, &key, addrs).await?;
         *record = Arc::downgrade(&session);
 
         Ok(session)
     }
-}
 
-#[async_trait]
-impl Mesh
-for MeshClient {
-    async fn open<'a>(&'a self, key: ChainKey)
+    pub async fn open(&self, key: ChainKey)
         -> Result<Arc<MeshSession>, ChainCreationError>
     {
-        self.persistent(key).await
-    }
-
-    async fn persistent<'a>(&'a self, key: ChainKey)
-        -> Result<Arc<MeshSession>, ChainCreationError>
-    {
-        self.open_internal(key, false).await
-    }
-
-    async fn ethereal<'a>(&'a self, key: ChainKey)
-        -> Result<Arc<MeshSession>, ChainCreationError>
-    {
-        self.open_internal(key, true).await
+        self.open_internal(key).await
     }
 }
 

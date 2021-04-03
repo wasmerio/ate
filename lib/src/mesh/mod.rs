@@ -18,10 +18,11 @@ use std::{collections::BTreeMap, sync::Arc, collections::hash_map::Entry};
 use tokio::sync::mpsc;
 use std::sync::mpsc as smpsc;
 use fxhash::FxHashMap;
-use crate::{meta::Metadata, pipe::EventPipe};
+use crate::{flow::basic::OpenStaticBuilder, meta::Metadata, pipe::EventPipe};
 use bytes::Bytes;
 use std::sync::Weak;
 
+use super::flow::*;
 use super::crypto::Hash;
 use super::event::*;
 use super::comms::*;
@@ -41,13 +42,9 @@ use crate::mesh::client::MeshClient;
 use crate::mesh::root::MeshRoot;
 
 pub(crate) use super::mesh::session::MeshSession;
-pub use crate::mesh::core::Mesh;
 pub use crate::mesh::registry::Registry;
 
-/// Creates a mesh using a supplied configuration settings
-#[allow(dead_code)]
-pub async fn create_mesh(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Arc<dyn Mesh>
-{
+fn create_prepare<'a, 'b>(cfg_mesh: &'b ConfMesh) -> (Vec<MeshAddress>, Option<&'b ConfCluster>) {
     let mut hash_table = BTreeMap::new();
     for addr in cfg_mesh.clusters.iter().flat_map(|c| c.roots.iter()) {
         hash_table.insert(addr.hash(), addr.clone());
@@ -78,12 +75,35 @@ pub async fn create_mesh(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Arc<dyn Mesh
         }
     }
 
-    match listen_root_addresses.len() {
-        0 => MeshClient::new(&cfg_ate, &cfg_mesh).await,
-        _ => {
-            MeshRoot::new(&cfg_ate, &cfg_mesh, listen_cluster, listen_root_addresses).await
-        }
-    }
+    (listen_root_addresses, listen_cluster)
+}
+
+pub async fn create_persistent_server(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Arc<MeshRoot<OpenStaticBuilder>>
+{
+    create_server(cfg_ate, cfg_mesh, super::flow::all_persistent(cfg_ate)).await
+}
+
+pub async fn create_ethereal_server(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Arc<MeshRoot<OpenStaticBuilder>>
+{
+    create_server(cfg_ate, cfg_mesh, super::flow::all_ethereal(cfg_ate)).await
+}
+
+pub async fn create_server<F>(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh, open_flow: Box<F>) -> Arc<MeshRoot<F>>
+where F: OpenFlow + 'static
+{
+    
+    let (listen_root_addresses, listen_cluster) = create_prepare(cfg_mesh);
+    MeshRoot::new(
+        &cfg_ate,
+        &cfg_mesh,
+        listen_cluster,
+        listen_root_addresses,
+        open_flow).await
+}
+
+pub async fn create_client(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Arc<MeshClient>
+{
+    MeshClient::new(&cfg_ate, &cfg_mesh).await
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -117,11 +137,11 @@ async fn test_mesh()
 
         for n in 5100..5105 {
             cfg_mesh.force_listen = Some(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
-            mesh_roots.push(create_mesh(&cfg_ate, &cfg_mesh).await);
+            mesh_roots.push(create_server(&cfg_ate, &cfg_mesh, super::flow::all_persistent(&cfg_ate)).await);
         }
         for n in 6100..6105 {
             cfg_mesh.force_listen = Some(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
-            mesh_roots.push(create_mesh(&cfg_ate, &cfg_mesh).await);
+            mesh_roots.push(create_server(&cfg_ate, &cfg_mesh, super::flow::all_persistent(&cfg_ate)).await);
         }
         cfg_mesh
     };
@@ -133,8 +153,8 @@ async fn test_mesh()
         cfg_mesh.force_client_only = true;
 
         debug!("create the mesh and connect to it with client 1");
-        let client_a = create_mesh(&cfg_ate, &cfg_mesh).await;
-        let chain_a = client_a.persistent(ChainKey::new("test-chain".to_string())).await.unwrap();
+        let client_a = create_client(&cfg_ate, &cfg_mesh).await;
+        let chain_a = client_a.open(ChainKey::new("test-chain".to_string())).await.unwrap();
         let session_a = Session::default();
 
         let mut bus;
@@ -153,9 +173,9 @@ async fn test_mesh()
         {
             cfg_mesh.force_listen = None;
             cfg_mesh.force_client_only = true;
-            let client_b = create_mesh(&cfg_ate, &cfg_mesh).await;
+            let client_b = create_client(&cfg_ate, &cfg_mesh).await;
 
-            let chain_b = client_b.persistent(ChainKey::new("test-chain".to_string())).await.unwrap();
+            let chain_b = client_b.open(ChainKey::new("test-chain".to_string())).await.unwrap();
             let session_b = Session::default();
             {
                 debug!("start a DIO session for client B");
@@ -206,10 +226,10 @@ async fn test_mesh()
     {
         cfg_mesh.force_listen = None;
         cfg_mesh.force_client_only = true;
-        let client = create_mesh(&cfg_ate, &cfg_mesh).await;
+        let client = create_client(&cfg_ate, &cfg_mesh).await;
 
         debug!("reconnecting the client");
-        let chain = client.persistent(ChainKey::new("test-chain".to_string())).await.unwrap();
+        let chain = client.open(ChainKey::new("test-chain".to_string())).await.unwrap();
         let session = Session::default();
         {
             debug!("loading data object 1");

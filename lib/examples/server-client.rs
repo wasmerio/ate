@@ -11,13 +11,13 @@ async fn main() -> Result<(), AteError>
     // Create the server and listen on port 5000
     let cfg_mesh = ConfMesh::solo("127.0.0.1", 5000);
     let cfg_ate = ConfAte::default();
-    let server = create_mesh(&cfg_ate, &cfg_mesh).await;
+    let server = create_persistent_server(&cfg_ate, &cfg_mesh).await;
 
     info!("write some data to the server");    
 
     let key = {
         let registry = Registry::new(&cfg_ate).await;
-        let chain = registry.persistent(&url::Url::from_str("tcp://localhost:5000/test-chain").unwrap()).await?;
+        let chain = registry.open(&url::Url::from_str("tcp://localhost:5000/test-chain").unwrap()).await?;
         let session = AteSession::default();
         let mut dio = chain.dio_ext(&session, TransactionScope::Full).await;
         let dao = dio.store("my test string".to_string())?;
@@ -27,7 +27,7 @@ async fn main() -> Result<(), AteError>
 
     info!("read it back again on the server");
 
-    let chain = server.persistent(ChainKey::from("test-chain")).await.unwrap();
+    let chain = server.open(ChainKey::from("test-chain")).await.unwrap();
     chain.sync().await?;
     let session = AteSession::default();
     let mut dio = chain.dio_ext(&session, TransactionScope::Full).await;

@@ -54,6 +54,7 @@ pub mod dio;
 pub mod pipe;
 pub mod prelude;
 pub mod anti_replay;
+pub mod flow;
 
 #[cfg(test)]
 mod tests {
