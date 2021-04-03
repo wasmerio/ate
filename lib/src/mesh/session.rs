@@ -183,7 +183,7 @@ impl MeshSession
         pck: PacketWithContext<Message, ()>,
     ) -> Result<(), CommsError>
     {
-        debug!("inbox: packet size={}", pck.data.bytes.len());
+        //debug!("inbox: packet size={}", pck.data.bytes.len());
         match pck.packet.msg {
             Message::Connected => Self::inbox_connected(self, pck.data).await,
             Message::Events { commit: _, evts } => Self::inbox_events(self, evts).await,

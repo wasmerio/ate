@@ -345,7 +345,7 @@ impl MeshRoot
     )
     -> Result<(), CommsError>
     {
-        debug!("inbox: packet size={}", pck.data.bytes.len());
+        //debug!("inbox: packet size={}", pck.data.bytes.len());
 
         let context = pck.context.clone();
         let mut pck_data = pck.data;
