@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use log::{warn, debug};
+use log::{warn, debug, info};
 use parking_lot::Mutex as StdMutex;
 use std::{sync::Arc, sync::Weak};
 use tokio::sync::mpsc;
@@ -179,7 +179,7 @@ impl MeshSession
 
     async fn inbox_end_of_history(loaded: &mpsc::Sender<Result<(), ChainCreationError>>) -> Result<(), CommsError> {
         debug!("inbox: end_of_history");
-        loaded.send(Ok(())).await.unwrap();
+        loaded.send(Ok(())).await?;
         Ok(())
     }
 
@@ -214,6 +214,7 @@ impl MeshSession
     async fn inbox(session: Arc<MeshSession>, mut rx: NodeRx<Message, ()>, loaded: mpsc::Sender<Result<(), ChainCreationError>>)
         -> Result<(), CommsError>
     {
+        let addrs = session.addrs.clone();
         let weak = Arc::downgrade(&session);
         drop(session);
 
@@ -225,18 +226,52 @@ impl MeshSession
             match MeshSession::inbox_packet(&session, &loaded, pck).await {
                 Ok(_) => { },
                 Err(CommsError::Disconnected) => { break; }
+                Err(CommsError::SendError(err)) => {
+                    warn!("mesh-session-err: {}", err);
+                    break;
+                }
                 Err(CommsError::ValidationError(err)) => {
                     debug!("mesh-session-debug: {}", err.to_string());
                     continue;
                 }
                 Err(err) => {
-                    debug_assert!(false, "mesh-session-err {:?}", err);
                     warn!("mesh-session-err: {}", err.to_string());
                     continue;
                 }
             }
         }
+
+        info!("disconnected: {:?}", addrs);
+        if let Some(session) = weak.upgrade() {
+            session.cancel_commits().await;
+            session.cancel_locks();
+        }
         Ok(())
+    }
+
+    async fn cancel_commits(&self)
+    {
+        let mut senders = Vec::new();
+        {
+            let mut guard = self.commit.lock();
+            for (_, sender) in guard.drain() {
+                senders.push(sender);
+            }
+        }
+
+        for sender in senders.into_iter() {
+            if let Err(err) = sender.send(Err(CommitError::Aborted)).await {
+                warn!("mesh-session-cancel-err: {}", err.to_string());
+            }
+        }
+    }
+
+    fn cancel_locks(&self)
+    {
+        let mut guard = self.lock_requests.lock();
+        for (_, sender) in guard.drain() {
+            sender.cancel();
+        }
     }
 }
 
@@ -257,22 +292,16 @@ for MeshSession
     fn drop(&mut self)
     {
         debug!("drop {}", self.key.to_string());
+
         {
-            let guard = self.commit.lock();
-            for sender in guard.values() {
+            let mut guard = self.commit.lock();
+            for (_, sender) in guard.drain() {
                 if let Err(err) = sender.blocking_send(Err(CommitError::Aborted)) {
-                    debug_assert!(false, "mesh-session-err {:?}", err);
                     warn!("mesh-session-err: {}", err.to_string());
                 }
             }
         }
-
-        {
-            let guard = self.lock_requests.lock();
-            for sender in guard.values() {
-                sender.cancel();
-            }
-        }
+        self.cancel_locks();
     }
 }
 
@@ -322,14 +351,14 @@ struct SessionPipe
     wire_format: SerializationFormat,
 }
 
-#[async_trait]
-impl EventPipe
-for SessionPipe
+impl SessionPipe
 {
-    async fn feed(&self, mut trans: Transaction) -> Result<(), CommitError>
+    async fn feed_internal(&self, trans: &mut Transaction) -> Result<(), CommitError>
     {
+        // Convert the event data into message events
         let evts = MessageEvent::convert_to(&trans.events);
         
+        // If the scope requires synchronization with the remote server then allocate a commit ID
         let commit = match &trans.scope {
             Scope::Full | Scope::One => {
                 let id = fastrand::u64(..);
@@ -341,21 +370,53 @@ for SessionPipe
             _ => None,
         };
 
+        // Build a packet with message events
         let pck = Packet::from(Message::Events{
             commit,
             evts,
         }).to_packet_data(self.wire_format)?;
 
-        let mut joins = Vec::new();
-        {
-            for tx in self.tx.iter() {
-                joins.push(tx.upcast_packet(pck.clone()));
+        // Send the same packet to all the transmit nodes (if there is only one then don't clone)
+        if self.tx.len() <= 1 {
+            if let Some(tx) = self.tx.iter().next() {
+                tx.upcast_packet(pck).await?;
+            }
+        } else {
+            let mut joins = Vec::new();
+            {
+                for tx in self.tx.iter() {
+                    joins.push(tx.upcast_packet(pck.clone()));
+                }
+            }
+            for join in joins {
+                join.await?;
             }
         }
-        for join in joins {
-            join.await?;
+
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl EventPipe
+for SessionPipe
+{
+    async fn feed(&self, mut trans: Transaction) -> Result<(), CommitError>
+    {
+        // Process the pipe internal (if it fails then we need to notify the waiter)
+        match self.feed_internal(&mut trans).await {
+            Ok(_) => { },
+            Err(err) => {
+                if let Some(tx) = trans.result.take() {
+                    tx.send(Err(err)).await?;
+                    return Ok(());
+                } else {
+                    return Err(err);
+                }
+            }
         }
 
+        // Hand over to the next pipe (which will be the one that triggers the transaction callback)
         {
             let lock = self.next.read().clone();
             if let Some(next) = lock {
@@ -363,6 +424,7 @@ for SessionPipe
             }
         }
 
+        // Done
         Ok(())
     }
 

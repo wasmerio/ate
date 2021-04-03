@@ -73,6 +73,22 @@ pub async fn load_credentials(username: String, read_key: EncryptKey, auth: Url)
     let registry = ate::mesh::Registry::new(&conf).await;
     let chain = registry.open(&chain_url).await?;
 
+    // Attempt to save a user
+    let mut dio = chain.dio_ext(&session, TransactionScope::Full).await;
+    let _ = dio.store(User {
+        person: DaoRef::default(),
+        account: DaoRef::default(),
+        role: UserRole::Human,
+        status: UserStatus::Unverified,
+        not_lockable: false,
+        failed_logins: 0,
+        last_login: None,
+        login_methods: Vec::new(),
+        access: Vec::new(),
+        foreign: DaoForeign::default(),
+    })?;
+    dio.commit().await?;
+
     // Load the user
     let mut dio = chain.dio(&session).await;
     let user = dio.load::<User>(&key).await?;

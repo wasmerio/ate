@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 use log::{info, warn, debug};
+use tokio::select;
 
 use rand::seq::SliceRandom;
 use fxhash::FxHashMap;
@@ -450,44 +451,54 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
             let context = Arc::new(C::default());
             let sender = fastrand::u64(..);
 
+            let (terminate_tx, _) = tokio::sync::broadcast::channel::<bool>(1);
             let (reply_tx, reply_rx) = mpsc::channel(buffer_size);
             let reply_tx1 = reply_tx.clone();
             let reply_tx2 = reply_tx.clone();
 
             let worker_state = Arc::clone(&worker_state);
             let worker_inbox = inbox.clone();
+            let worker_terminate_tx = terminate_tx.clone();
+            let worker_terminate_rx = terminate_tx.subscribe();
             tokio::spawn(async move {
-                match process_inbox::<M, C>(rx, reply_tx1, worker_inbox, sender, context, wire_format, ek1).await {
+                match process_inbox::<M, C>(rx, reply_tx1, worker_inbox, sender, context, wire_format, ek1, worker_terminate_rx).await {
                     Ok(_) => { },
                     Err(CommsError::IO(err)) if err.kind() == std::io::ErrorKind::UnexpectedEof => { },
                     Err(err) => {
                         warn!("connection-failed: {}", err.to_string());
                     },
                 };
-                info!("disconnection: {}", sock_addr.to_string());
+                info!("disconnected: {}", sock_addr.to_string());
+                let _ = worker_terminate_tx.send(true);
 
                 // Decrease the connection state
                 let mut guard = worker_state.lock();
                 guard.connected = guard.connected - 1;
             });
 
+            let worker_terminate_tx = terminate_tx.clone();
+            let worker_terminate_rx = terminate_tx.subscribe();
             tokio::spawn(async move {
-                match process_outbox::<M>(tx, reply_rx, sender, ek2).await {
+                match process_outbox::<M>(tx, reply_rx, sender, ek2, worker_terminate_rx).await {
                     Ok(_) => { },
                     Err(err) => {
                         warn!("connection-failed: {}", err.to_string());
                     },
                 };
+                let _ = worker_terminate_tx.send(true);
             });
 
             let worker_outbox = outbox.subscribe();
+            let worker_terminate_tx = terminate_tx.clone();
+            let worker_terminate_rx = terminate_tx.subscribe();
             tokio::spawn(async move {
-                match process_downcast::<M>(reply_tx2, worker_outbox, sender).await {
+                match process_downcast::<M>(reply_tx2, worker_outbox, sender, worker_terminate_rx).await {
                     Ok(_) => { },
                     Err(err) => {
                         warn!("connection-failed: {}", err.to_string());
                     },
                 };
+                let _ = worker_terminate_tx.send(true);
             });
         }
     });
@@ -656,7 +667,7 @@ async fn mesh_connect_worker<M, C>
 (
     addr: SocketAddr,
     domain: Option<String>,
-    mut reply_rx: mpsc::Receiver<PacketData>,
+    reply_rx: mpsc::Receiver<PacketData>,
     reply_tx: mpsc::Sender<PacketData>,
     inbox: mpsc::Sender<PacketWithContext<M, C>>,
     sender: u64,
@@ -685,7 +696,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
             },
             a => a?,
         };
-        exp_backoff = Duration::from_millis(100);
         
         // Setup the TCP stream
         setup_tcp_stream(&stream)?;
@@ -713,42 +723,51 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         let (rx, tx) = stream.into_split();
 
         let reply_tx1 = reply_tx.clone();
-
+        let (terminate_tx, _) = tokio::sync::broadcast::channel::<bool>(1);
+        
+        let worker_terminate_tx = terminate_tx.clone();
+        let worker_terminate_rx = terminate_tx.subscribe();
         let join2 = tokio::spawn(async move {
-            match process_outbox::<M>(tx, reply_rx, sender, ek1).await {
+            let ret = match process_outbox::<M>(tx, reply_rx, sender, ek1, worker_terminate_rx).await {
                 Ok(a) => Some(a),
                 Err(err) => {
-                    debug_assert!(false, "comms-outbox-error {:?}", err);
                     warn!("connection-failed: {}", err.to_string());
-                    return None;
+                    None
                 },
-            }
+            };
+            #[cfg(verbose)]
+            debug!("disconnected-outbox: {}", addr.to_string());
+            let _ = worker_terminate_tx.send(true);
+            ret
         });
 
         let worker_context = Arc::clone(&context);
         let worker_inbox = inbox.clone();
+        let worker_terminate_tx = terminate_tx.clone();
+        let worker_terminate_rx = terminate_tx.subscribe();
         let join1 = tokio::spawn(async move {
-            match process_inbox::<M, C>(rx, reply_tx1, worker_inbox, sender, worker_context, wire_format, ek2).await {
+            match process_inbox::<M, C>(rx, reply_tx1, worker_inbox, sender, worker_context, wire_format, ek2, worker_terminate_rx).await {
                 Ok(_) => { },
                 Err(CommsError::IO(err)) if match err.kind() {
                     std::io::ErrorKind::UnexpectedEof => true,
                     std::io::ErrorKind::ConnectionReset => true,
                     std::io::ErrorKind::ConnectionAborted => true,
                     _ => false,
-                } => {
-                    info!("connection-lost: {}", err.to_string());
-                },
+                } => { },
                 Err(err) => {
-                    debug_assert!(false, "comms-inbox-error {:?}", err);
                     warn!("connection-failed: {}", err.to_string());
                 },
             };
+            #[cfg(verbose)]
+            debug!("disconnected-inbox: {}", addr.to_string());
+            let _ = worker_terminate_tx.send(true);
 
             // Decrease the connection count
             let mut guard = worker_state.lock();
             guard.connected = guard.connected - 1;
         });
 
+        // We have connected the plumbing... now its time to send any notifications back to ourselves
         if let Some(on_connect) = &on_connect {
             let packet = Packet::from(on_connect.clone());
             let mut packet_data = packet.clone().to_packet_data(wire_format)?;
@@ -761,11 +780,15 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
             }).await;
         }
 
-        reply_rx = match join2.await? {
-            Some(a) => a,
-            None => { return Err(CommsError::Disconnected); }
+        // Wait till either side disconnected
+        select! {
+            a = join1 => { a? }
+            _ = join2 => { }
         };
-        join1.await?;
+
+        // Shutdown
+        info!("disconnected: {}", addr.to_string());
+        return Err(CommsError::Disconnected);
     }
 }
 
@@ -819,6 +842,7 @@ async fn process_inbox<M, C>(
     context: Arc<C>,
     wire_format: SerializationFormat,
     wire_encryption: Option<EncryptKey>,
+    terminate: tokio::sync::broadcast::Receiver<bool>
 ) -> Result<(), CommsError>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
       C: Send + Sync,
@@ -888,36 +912,45 @@ async fn process_outbox<M>(
     mut tx: tcp::OwnedWriteHalf,
     mut reply_rx: mpsc::Receiver<PacketData>,
     sender: u64,
-    wire_encryption: Option<EncryptKey>
+    wire_encryption: Option<EncryptKey>,
+    mut terminate: tokio::sync::broadcast::Receiver<bool>
 ) -> Result<mpsc::Receiver<PacketData>, CommsError>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone,
 {
     loop
     {
-        // Read the next message (and add the sender)
-        if let Some(buf) = reply_rx.recv().await
-        {
-            match wire_encryption {
-                Some(key) => {
-                    // Encrypt the data
-                    let enc = key.encrypt(&buf.bytes[..])?;
-
-                    // Write the initialization vector
-                    tx.write_u8(enc.iv.bytes.len() as u8).await?;
-                    tx.write_all(&enc.iv.bytes[..]).await?;
-
-                    // Write the cipher text
-                    tx.write_u32(enc.data.len() as u32).await?;
-                    tx.write_all(&enc.data[..]).await?;
-                },
-                None => {
-                    // Write the bytes down the pipe
-                    tx.write_u32(buf.bytes.len() as u32).await?;
-                    tx.write_all(&buf.bytes).await?;
+        select! {
+            buf = reply_rx.recv() =>
+            {
+                // Read the next message (and add the sender)
+                if let Some(buf) = buf
+                {
+                    match wire_encryption {
+                        Some(key) => {
+                            // Encrypt the data
+                            let enc = key.encrypt(&buf.bytes[..])?;
+        
+                            // Write the initialization vector
+                            tx.write_u8(enc.iv.bytes.len() as u8).await?;
+                            tx.write_all(&enc.iv.bytes[..]).await?;
+        
+                            // Write the cipher text
+                            tx.write_u32(enc.data.len() as u32).await?;
+                            tx.write_all(&enc.data[..]).await?;
+                        },
+                        None => {
+                            // Write the bytes down the pipe
+                            tx.write_u32(buf.bytes.len() as u32).await?;
+                            tx.write_all(&buf.bytes).await?;
+                        }
+                    };
+                } else {
+                    return Ok(reply_rx);
                 }
-            };
-        } else {
-            return Ok(reply_rx);
+            },
+            exit = terminate.recv() => {
+                if exit? { return Ok(reply_rx); }
+            },
         }
     }
 }
@@ -926,20 +959,29 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone,
 async fn process_downcast<M>(
     tx: mpsc::Sender<PacketData>,
     mut outbox: broadcast::Receiver<PacketData>,
-    sender: u64
+    sender: u64,
+    mut terminate: tokio::sync::broadcast::Receiver<bool>
 ) -> Result<(), CommsError>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone,
 {
     loop
     {
-        let pck = outbox.recv().await?;
-        if let Some(skip) = pck.skip_here {
-            if sender == skip {
-                continue;
-            }
-        }
-        tx.send(pck).await?;
+        select! {
+            pck = outbox.recv() => {
+                let pck = pck?;
+                if let Some(skip) = pck.skip_here {
+                    if sender == skip {
+                        continue;
+                    }
+                }
+                tx.send(pck).await?;
+            },
+            exit = terminate.recv() => {
+                if exit? { break; }
+            },
+        };
     }
+    Ok(())
 }
 
 fn setup_tcp_stream(stream: &TcpStream) -> io::Result<()> {
