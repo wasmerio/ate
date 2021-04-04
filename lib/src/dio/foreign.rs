@@ -1,13 +1,7 @@
-use std::marker::PhantomData;
 use fxhash::FxHashMap;
 
 use serde::*;
-use serde::de::*;
-use crate::meta::*;
-use crate::dio::*;
-use crate::dio::dao::*;
-use crate::error::*;
-use std::collections::VecDeque;
+use crate::header::*;
 
 /// Rerepresents a reference to structured data that exists in another
 /// chain-of-trust

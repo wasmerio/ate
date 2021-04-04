@@ -1,4 +1,3 @@
-use log::Record;
 use serde::{Serialize, de::DeserializeOwned};
 use std::marker::PhantomData;
 use tokio::sync::mpsc;
@@ -7,6 +6,8 @@ use crate::{error::*, event::*, meta::MetaCollection};
 use super::dao::*;
 use crate::dio::*;
 use crate::chain::*;
+use crate::index::*;
+use crate::session::*;
 
 impl<D> Dao<D>
 where D: Serialize + DeserializeOwned + Clone + Send + Sync,

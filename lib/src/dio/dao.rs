@@ -16,8 +16,7 @@ use crate::event::*;
 use crate::meta::*;
 use crate::error::*;
 use crate::crypto::Hash;
-use crate::dio::DioState;
-use crate::dio::Dio;
+use crate::dio::*;
 use crate::spec::*;
 use crate::index::*;
 

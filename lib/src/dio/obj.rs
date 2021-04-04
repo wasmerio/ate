@@ -2,11 +2,10 @@ use std::marker::PhantomData;
 
 use serde::*;
 use serde::de::*;
-use crate::meta::*;
 use crate::dio::*;
 use crate::dio::dao::*;
 use crate::error::*;
-use std::collections::VecDeque;
+use crate::header::*;
 
 /// Rerepresents a reference to another data object with strong
 /// type linting to make the model more solidified
