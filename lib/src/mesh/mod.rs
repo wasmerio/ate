@@ -136,17 +136,33 @@ async fn test_mesh()
         cfg_mesh.clusters.push(cluster1);
         cfg_mesh.clusters.push(cluster2);
 
+        let mut mesh_root_joins = Vec::new();
         for n in 5100..5105 {
             let addr = MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n);
-            debug!("creating server on {:?}", addr);
-            cfg_mesh.force_listen = Some(addr);
-            mesh_roots.push(create_server(&cfg_ate, &cfg_mesh, super::flow::all_ethereal(&cfg_ate)).await);
+            let cfg_ate = cfg_ate.clone();
+            let mut cfg_mesh = cfg_mesh.clone();
+            cfg_mesh.force_listen = Some(addr.clone());
+
+            let join = tokio::spawn(async move {
+                create_server(&cfg_ate, &cfg_mesh, super::flow::all_ethereal(&cfg_ate)).await
+            });
+            mesh_root_joins.push((addr, join));
         }
         for n in 6100..6105 {
             let addr = MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n);
+            let cfg_ate = cfg_ate.clone();
+            let mut cfg_mesh = cfg_mesh.clone();
+            cfg_mesh.force_listen = Some(addr.clone());
+
+            let join = tokio::spawn(async move {
+                create_server(&cfg_ate, &cfg_mesh, super::flow::all_ethereal(&cfg_ate)).await
+            });
+            mesh_root_joins.push((addr, join));
+        }
+        
+        for (addr, join) in mesh_root_joins {
             debug!("creating server on {:?}", addr);
-            cfg_mesh.force_listen = Some(addr);
-            mesh_roots.push(create_server(&cfg_ate, &cfg_mesh, super::flow::all_ethereal(&cfg_ate)).await);
+            mesh_roots.push(join.await);
         }
         cfg_mesh
     };
