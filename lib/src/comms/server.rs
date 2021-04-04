@@ -105,8 +105,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
             }
 
             // Say hello
-            let key_size = match wire_encryption { Some(a) => a, None => KeySize::Bit256 };
-            let key_size = match super::hello::mesh_hello_exchange_receiver(&mut stream, key_size, wire_format).await {
+            let wire_encryption = match super::hello::mesh_hello_exchange_receiver(&mut stream, wire_encryption, wire_format).await {
                 Ok(a) => a,
                 Err(err) => {
                     warn!("connection-failed: {}", err.to_string());
@@ -116,7 +115,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
 
             // If we are using wire encryption then exchange secrets
             let ek = match wire_encryption {
-                Some(_) => Some(
+                Some(key_size) => Some(
                     match key_exchange::mesh_key_exchange_receiver(&mut stream, key_size).await {
                         Ok(a) => a,
                         Err(err) => {

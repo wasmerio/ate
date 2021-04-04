@@ -156,12 +156,11 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         }
 
         // Say hello
-        let key_size = match wire_encryption { Some(a) => a, None => KeySize::Bit256 };
-        let (key_size, wire_format) = hello::mesh_hello_exchange_sender(&mut stream, domain.clone(), key_size).await?;
+        let (wire_encryption, wire_format) = hello::mesh_hello_exchange_sender(&mut stream, domain.clone(), wire_encryption).await?;
 
         // If we are using wire encryption then exchange secrets
         let ek = match wire_encryption {
-            Some(_) => Some(key_exchange::mesh_key_exchange_sender(&mut stream, key_size).await?),
+            Some(key_size) => Some(key_exchange::mesh_key_exchange_sender(&mut stream, key_size).await?),
             None => None,
         };
         let ek1 = ek.clone();

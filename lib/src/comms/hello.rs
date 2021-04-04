@@ -12,11 +12,11 @@ use crate::spec::*;
 pub struct Hello
 {
     pub domain: Option<String>,
-    pub key_size: KeySize,
+    pub key_size: Option<KeySize>,
     pub wire_format: Option<SerializationFormat>,
 }
 
-pub(super) async fn mesh_hello_exchange_sender(stream: &mut TcpStream, domain: Option<String>, mut key_size: KeySize) -> Result<(KeySize, SerializationFormat), CommsError>
+pub(super) async fn mesh_hello_exchange_sender(stream: &mut TcpStream, domain: Option<String>, mut key_size: Option<KeySize>) -> Result<(Option<KeySize>, SerializationFormat), CommsError>
 {
     // Send over the hello message and wait for a response
     debug!("client sending hello");
@@ -37,10 +37,7 @@ pub(super) async fn mesh_hello_exchange_sender(stream: &mut TcpStream, domain: O
     let hello_server: Hello = serde_json::from_slice(&hello_server_bytes[..])?;
 
     // Upgrade the key_size if the server is bigger
-    if hello_server.key_size > key_size {
-        key_size = hello_server.key_size;
-        debug!("upgrading to {}bit shared secret", key_size);
-    }
+    key_size = mesh_hello_upgrade_key(key_size, hello_server.key_size);
     let wire_format = match hello_server.wire_format {
         Some(a) => a,
         None => {
@@ -55,7 +52,7 @@ pub(super) async fn mesh_hello_exchange_sender(stream: &mut TcpStream, domain: O
     ))
 }
 
-pub(super) async fn mesh_hello_exchange_receiver(stream: &mut TcpStream, mut key_size: KeySize, wire_format: SerializationFormat) -> Result<KeySize, CommsError>
+pub(super) async fn mesh_hello_exchange_receiver(stream: &mut TcpStream, mut key_size: Option<KeySize>, wire_format: SerializationFormat) -> Result<Option<KeySize>, CommsError>
 {
     // Read the hello message from the other side
     let hello_client_bytes_len = stream.read_u16().await?;
@@ -65,10 +62,7 @@ pub(super) async fn mesh_hello_exchange_receiver(stream: &mut TcpStream, mut key
     let hello_client: Hello = serde_json::from_slice(&hello_client_bytes[..])?;
 
     // Upgrade the key_size if the client is bigger
-    if hello_client.key_size > key_size {
-        key_size = hello_client.key_size;
-        debug!("upgrading to {}bit shared secret", key_size);
-    }
+    key_size = mesh_hello_upgrade_key(key_size, hello_client.key_size);
 
     // Send over the hello message and wait for a response
     debug!("server sending hello");
@@ -82,4 +76,41 @@ pub(super) async fn mesh_hello_exchange_receiver(stream: &mut TcpStream, mut key
     stream.write_all(&hello_server_bytes[..]).await?;
 
     Ok(key_size)
+}
+
+fn mesh_hello_upgrade_key(key1: Option<KeySize>, key2: Option<KeySize>) -> Option<KeySize>
+{
+    // If both don't want encryption then who are we to argue about that?
+    if key1.is_none() && key2.is_none() {
+        return None;
+    }
+
+    // Wanting encryption takes priority over not wanting encyption
+    let key1 = match key1 {
+        Some(a) => a,
+        None => {
+            debug!("upgrading to {}bit shared secret", key2.unwrap());
+            return key2;
+        }
+    };
+    let key2 = match key2 {
+        Some(a) => a,
+        None => {
+            debug!("upgrading to {}bit shared secret", key1);
+            return Some(key1);
+        }
+    };
+
+    // Upgrade the key_size if the client is bigger
+    if key2 > key1 {
+        debug!("upgrading to {}bit shared secret", key2);
+        return Some(key2);
+    }
+    if key1 > key2 {
+        debug!("upgrading to {}bit shared secret", key2);
+        return Some(key1);
+    }
+
+    // They are identical
+    return Some(key1);
 }
