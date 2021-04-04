@@ -47,7 +47,7 @@ pub use super::trust::ChainKey;
 
 struct InboxPipe
 {
-    inbox: mpsc::Sender<Transaction>,
+    inbox: mpsc::Sender<ChainWork>,
     locks: StdMutex<FxHashSet<PrimaryKey>>,
 }
 
@@ -202,19 +202,29 @@ impl ChainProtectedSync
     }
 }
 
+struct ChainWork
+{
+    trans: Transaction,
+    notify: Option<mpsc::Sender<Result<(), CommitError>>>,
+}
+
 impl<'a> Chain
 {
-    async fn worker(inside_async: Arc<RwLock<ChainProtectedAsync>>, inside_sync: Arc<StdRwLock<ChainProtectedSync>>, mut receiver: mpsc::Receiver<Transaction>)
+    async fn worker(inside_async: Arc<RwLock<ChainProtectedAsync>>, inside_sync: Arc<StdRwLock<ChainProtectedSync>>, mut receiver: mpsc::Receiver<ChainWork>)
     {
         // Wait for the next transaction to be processed
-        while let Some(trans) = receiver.recv().await
+        while let Some(work) = receiver.recv().await
         {
+            // Extract the variables
+            let trans = work.trans;
+            let notify = work.notify;
+
             // We lock the chain of trust while we update the local chain
             let mut lock = inside_async.write().await;
 
             // Push the events into the chain of trust and release the lock on it before
             // we transmit the result so that there is less lock thrashing
-            let chain_result = match lock.feed_async_internal(inside_sync.clone(), &trans.events).await {
+            let result = match lock.feed_async_internal(inside_sync.clone(), &trans.events).await {
                 Ok(_) => Ok(()),
                 Err(err) => Err(err),
             };
@@ -232,8 +242,8 @@ impl<'a> Chain
             // We send the result of a feed operation back to the caller, if the send
             // operation fails its most likely because the caller has moved on and is
             // not concerned by the result hence we do nothing with these errors
-            if let Some(result) = trans.result {
-                let _ = result.send(chain_result).await;
+            if let Some(notify) = notify {
+                let _ = notify.send(result).await;
             }
 
             // If we have a late flush in play then execute it
@@ -487,22 +497,14 @@ impl<'a> Chain
     pub async fn sync(&'a self) -> Result<(), CommitError>
     {
         // Create the transaction
-        let (sender, mut receiver) = mpsc::channel(1);
         let trans = Transaction {
             scope: Scope::Full,
             events: Vec::new(),
-            result: Some(sender),
         };
 
         // Feed the transaction into the chain
         let pipe = self.pipe.clone();
         pipe.feed(trans).await?;
-
-        // Block until the transaction is received
-        match receiver.recv().await {
-            Some(a) => a?,
-            None => { return Err(CommitError::Aborted); }
-        };
 
         // Success!
         Ok(())
@@ -560,11 +562,45 @@ impl EventPipe
 for InboxPipe
 {
     #[allow(dead_code)]
-    async fn feed(&self, trans: Transaction) -> Result<Option<Transaction>, CommitError>
+    async fn feed(&self, trans: Transaction) -> Result<(), CommitError>
     {
-        let sender = self.inbox.clone();
-        sender.send(trans).await.unwrap();
-        Ok(None)
+        // Determine if we are going to wait for the result or not
+        match trans.scope {
+            Scope::Full | Scope::One | Scope::Local =>
+            {
+                // Prepare the work
+                let (sender, mut receiver) = mpsc::channel(1);
+                let work = ChainWork {
+                    trans,
+                    notify: Some(sender),
+                };
+
+                // Submit the work
+                let sender = self.inbox.clone();
+                sender.send(work).await?;
+
+                // Block until the transaction is received
+                match receiver.recv().await {
+                    Some(a) => a?,
+                    None => { return Err(CommitError::Aborted); }
+                };
+            },
+            Scope::None =>
+            {
+                // Prepare the work and submit it
+                let work = ChainWork {
+                    trans,
+                    notify: None,
+                };
+
+                // Submit the work
+                let sender = self.inbox.clone();
+                sender.send(work).await?;
+            }
+        };
+
+        // Success
+        Ok(())
     }
 
     #[allow(dead_code)]

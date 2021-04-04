@@ -343,24 +343,24 @@ struct SessionPipe
 
 impl SessionPipe
 {
-    async fn feed_internal(&self, trans: &mut Transaction) -> Result<Option<u64>, CommitError>
+    async fn feed_internal(&self, trans: &mut Transaction) -> Result<Option<mpsc::Receiver<Result<(), CommitError>>>, CommitError>
     {
         // Convert the event data into message events
         let evts = MessageEvent::convert_to(&trans.events);
         
         // If the scope requires synchronization with the remote server then allocate a commit ID
-        let commit = match &trans.scope {
+        let (commit, receiver) = match &trans.scope {
             Scope::Full | Scope::One =>
             {
+                // Generate a sender/receiver pair
+                let (sender, receiver) = mpsc::channel(1);
+
                 // Register a commit ID that will receive the response
                 let id = fastrand::u64(..);
-                if let Some(result) = trans.result.take()
-                {
-                    self.commit.lock().insert(id, result);
-                }
-                Some(id)
+                self.commit.lock().insert(id, sender);
+                (Some(id), Some(receiver))
             },
-            _ => None,
+            _ => (None, None),
         };
 
         // Send the same packet to all the transmit nodes (if there is only one then don't clone)
@@ -382,7 +382,7 @@ impl SessionPipe
             }
         }
 
-        Ok(commit)
+        Ok(receiver)
     }
 }
 
@@ -390,36 +390,17 @@ impl SessionPipe
 impl EventPipe
 for SessionPipe
 {
-    async fn feed(&self, mut trans: Transaction) -> Result<Option<Transaction>, CommitError>
+    async fn feed(&self, mut trans: Transaction) -> Result<(), CommitError>
     {
-        // If the transaction is for local only then we do not feed it up the pipe
-        if trans.scope == Scope::LocalOnly {
-            let lock = self.next.read().clone();
-            if let Some(next) = lock {
-                next.feed(trans).await?;
-            }
-            return Ok(None)
-        }
+        // Feed the transaction into the pipe
+        let receiver = self.feed_internal(&mut trans).await?;
 
-        // Process the pipe internal (if it fails then we need to notify the waiter)
-        let commit = match self.feed_internal(&mut trans).await {
-            Ok(a) => a,
-            Err(err) => {
-                if let Some(tx) = trans.result.take() {
-                    tx.send(Err(err)).await?;
-                    return Ok(None);
-                } else {
-                    return Err(err);
-                }
-            }
-        };
-
-        // If this transaction is not waiting on a commit then immediately pass it onto
-        // the next pipe in the chain (in the scenario this is not executed then it is
-        // the responsibility of the caller to submit this again with a local transaction scope)
-        if commit.is_some() {
-            trans.scope = Scope::LocalOnly;
-            return Ok(Some(trans));
+        // If we need to wait for the transaction to commit then do so
+        if let Some(mut receiver) = receiver {
+            match receiver.recv().await {
+                Some(result) => result?,
+                None => { return Err(CommitError::Aborted); }
+            };
         }
 
         // Hand over to the next pipe as this transaction 
@@ -430,8 +411,8 @@ for SessionPipe
             }
         }
 
-        // Done synchronously
-        Ok(None)
+        // Done
+        Ok(())
     }
 
     async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError>

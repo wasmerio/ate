@@ -60,13 +60,12 @@ async fn test_dio()
     let key1;
     let key2;
     let key3;
-    let chain_name;
+    let chain_name = format!("test_dio_{}", PrimaryKey::generate().to_string());
 
     {
         debug!("creating the chain-of-trust");
-        let chain = crate::trust::create_test_chain("test_dio".to_string(), true, false, Some(root_public_key.clone())).await;
+        let chain = crate::trust::create_test_chain(chain_name.clone(), false, false, Some(root_public_key.clone())).await;
         //let mut chain = create_test_chain("test_dio".to_string(), true, false, None);
-        chain_name = chain.name().await.clone();
 
         // Write a value immediately from chain (this data will remain in the transaction)
         {

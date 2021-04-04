@@ -215,7 +215,7 @@ pub(crate) async fn create_test_chain(chain_name: String, temp: bool, barebone: 
     let mut builder = match barebone {
         true => {
             mock_cfg.configured_for(ConfiguredFor::Barebone);
-            mock_cfg.log_format.meta = SerializationFormat::Json;
+            mock_cfg.log_format.meta = SerializationFormat::Bincode;
             mock_cfg.log_format.data = SerializationFormat::Json;
 
             ChainOfTrustBuilder::new(&mock_cfg)
@@ -274,11 +274,10 @@ async fn test_chain() {
             evts.push(evt2.clone());
 
             debug!("feeding two events into the chain");
-            let (trans, mut receiver) = Transaction::from_events(evts, Scope::Local);
+            let trans = Transaction::from_events(evts, Scope::Local);
             lock.pipe.feed(trans).await.expect("The event failed to be accepted");
             
             drop(lock);
-            let _ = receiver.recv().await;
             assert_eq!(2, chain.count().await);
         }
 
@@ -325,11 +324,10 @@ async fn test_chain() {
             debug!("feeding new version of event1 into the chain");
             let mut evts = Vec::new();
             evts.push(evt1.clone());
-            let (trans, mut receiver) = Transaction::from_events(evts, Scope::Local);
+            let trans = Transaction::from_events(evts, Scope::Local);
             lock.pipe.feed(trans).await.expect("The event failed to be accepted");
 
             drop(lock);
-            let _ = receiver.recv().await;
             assert_eq!(3, chain.count().await);
         }
 
@@ -387,12 +385,11 @@ async fn test_chain() {
             debug!("feeding the tombstone into the chain");
             let mut evts = Vec::new();
             evts.push(evt2.clone());
-            let (trans, mut receiver) = Transaction::from_events(evts, Scope::Local);
+            let trans = Transaction::from_events(evts, Scope::Local);
             lock.pipe.feed(trans).await.expect("The event failed to be accepted");
             
             // Number of events should have gone up by one even though there should be one less item
             drop(lock);
-            let _ = receiver.recv().await;
             assert_eq!(3, chain.count().await);
         }
 

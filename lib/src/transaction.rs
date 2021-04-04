@@ -22,9 +22,6 @@ pub enum Scope
     /// Data must be flushed to local disk
     #[allow(dead_code)]
     Local,
-    /// Data must be flushed to local disk and will not be forwarded up the pipe
-    #[allow(dead_code)]
-    LocalOnly,
     /// One of the root servers must have the data flushed to local disk
     #[allow(dead_code)]
     One,
@@ -38,23 +35,17 @@ pub(crate) struct Transaction
 {
     pub(crate) scope: Scope,
     pub(crate) events: Vec<EventData>,
-    pub(crate) result: Option<mpsc::Sender<Result<(), CommitError>>>
 }
 
 impl Transaction
 {
     #[allow(dead_code)]
-    pub(crate) fn from_events(events: Vec<EventData>, scope: Scope) -> (Transaction, mpsc::Receiver<Result<(), CommitError>>)
+    pub(crate) fn from_events(events: Vec<EventData>, scope: Scope) -> Transaction
     {
-        let (sender, receiver) = mpsc::channel(1);
-        (
-            Transaction {
-                scope,
-                events,
-                result: Some(sender),
-            },
-            receiver
-        )
+        Transaction {
+            scope,
+            events,
+        }
     }
 }
 
