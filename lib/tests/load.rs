@@ -46,7 +46,7 @@ fn load_test() -> Result<(), AteError> {
 
             // Do a whole let of work
             info!("create::running");
-            for _ in 0..50 {
+            for _ in 0..100 {
                 let mut dio = chain.dio(&session).await;
                 for _ in 0..100 {
                     dio.store(test_obj.clone())?;
