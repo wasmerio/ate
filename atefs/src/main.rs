@@ -209,7 +209,7 @@ async fn main() -> Result<(), AteError> {
             main_mount(mount, conf).await?;
         },
         SubCommand::Solo(solo) => {
-            main_solo(solo).await?;
+            main_solo(solo, conf).await?;
         }
     }
 
@@ -218,10 +218,9 @@ async fn main() -> Result<(), AteError> {
     Ok(())
 }
 
-async fn main_solo(solo: Solo) -> Result<(), AteError>
+async fn main_solo(solo: Solo, mut cfg_ate: ConfAte) -> Result<(), AteError>
 {
     // Create the chain flow and generate configuration
-    let mut cfg_ate = ate_auth::conf_auth();
     cfg_ate.log_path = shellexpand::tilde(&solo.logs_path).to_string();
 
     // Create the server and listen on port 5000

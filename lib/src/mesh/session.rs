@@ -92,15 +92,20 @@ impl MeshSession
         for node_rx in pipe_rx {
             let (loaded_sender, loaded_receiver)
                 = mpsc::channel(1);
+            
+            let notify_loaded = Box::new(super::loader::NotificationLoader::new(loaded_sender));
+            let mut composite_loader = super::loader::CompositionLoader::default();
+            composite_loader.loaders.push(notify_loaded);
+            if let Some(loader) = loader.take() {
+                composite_loader.loaders.push(loader);
+            }
 
-            let loader = loader.take();
             tokio::spawn(
                 MeshSession::inbox
                 (
                     Arc::clone(&ret),
                     node_rx,
-                    loaded_sender,
-                    loader
+                    Some(Box::new(composite_loader))
                 )
             );
             wait_for_me.push(loaded_receiver);
@@ -151,7 +156,7 @@ impl MeshSession
         drop(single);
 
         if let Some(loader) = loader {
-            loader.feed_events(&feed_me);
+            loader.feed_events(&feed_me).await;
         }
 
         self.chain.notify(&feed_me).await;
@@ -201,23 +206,21 @@ impl MeshSession
 
     async fn inbox_start_of_history(size: usize, loader: &mut Option<Box<impl Loader>>) -> Result<(), CommsError> {
         if let Some(loader) = loader {
-            loader.start_of_history(size);
+            loader.start_of_history(size).await;
         }
         Ok(())
     }
 
-    async fn inbox_end_of_history(loaded: &mpsc::Sender<Result<(), ChainCreationError>>, loader: &mut Option<Box<impl Loader>>) -> Result<(), CommsError> {
+    async fn inbox_end_of_history(loader: &mut Option<Box<impl Loader>>) -> Result<(), CommsError> {
         debug!("inbox: end_of_history");
-        loaded.send(Ok(())).await?;
-        if let Some(loader) = loader {
-            loader.end_of_history();
+        if let Some(mut loader) = loader.take() {
+            loader.end_of_history().await;
         }
         Ok(())
     }
 
     async fn inbox_packet(
         self: &Arc<MeshSession>,
-        loaded: &mpsc::Sender<Result<(), ChainCreationError>>,
         loader: &mut Option<Box<impl Loader>>,
         pck: PacketWithContext<Message, ()>,
     ) -> Result<(), CommsError>
@@ -235,10 +238,12 @@ impl MeshSession
             Message::Confirmed(id) => Self::inbox_confirmed(self, id).await,
             Message::CommitError { id, err } => Self::inbox_commit_error(self, id, err).await,
             Message::LockResult { key, is_locked } => Self::inbox_lock_result(self, key, is_locked),
-            Message::EndOfHistory => Self::inbox_end_of_history(loaded, loader).await,
+            Message::EndOfHistory => Self::inbox_end_of_history(loader).await,
             Message::Disconnected => { return Err(CommsError::Disconnected); },
             Message::FatalTerminate { err } => {
-                let _ = loaded.send(Err(ChainCreationError::ServerRejected(err.clone()))).await;
+                if let Some(mut loader) = loader.take() {
+                    loader.failed(ChainCreationError::ServerRejected(err.clone())).await;
+                }
                 warn!("mesh-session-err: {}", err);
                 return Err(CommsError::Disconnected);
             },
@@ -246,7 +251,7 @@ impl MeshSession
         }
     }
 
-    async fn inbox(session: Arc<MeshSession>, mut rx: NodeRx<Message, ()>, loaded: mpsc::Sender<Result<(), ChainCreationError>>, mut loader: Option<Box<impl Loader>>)
+    async fn inbox(session: Arc<MeshSession>, mut rx: NodeRx<Message, ()>, mut loader: Option<Box<impl Loader>>)
         -> Result<(), CommsError>
     {
         let addrs = session.addrs.clone();
@@ -258,7 +263,7 @@ impl MeshSession
                 Some(a) => a,
                 None => { break; }
             };
-            match MeshSession::inbox_packet(&session, &loaded, &mut loader, pck).await {
+            match MeshSession::inbox_packet(&session, &mut loader, pck).await {
                 Ok(_) => { },
                 Err(CommsError::Disconnected) => { break; }
                 Err(CommsError::SendError(err)) => {

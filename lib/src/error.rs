@@ -424,6 +424,7 @@ pub enum ChainCreationError {
     DnsProtoError(DnsProtoError),
     DnsClientError(DnsClientError),
     ServerRejected(String),
+    InternalError(String),
 }
 
 impl From<ProcessError>
@@ -516,6 +517,9 @@ for ChainCreationError {
             },
             ChainCreationError::ServerRejected(reason) => {
                 write!(f, "Failed to create chain-of-trust as the server refused to create the chain ({})", reason)
+            },
+            ChainCreationError::InternalError(err) => {
+                write!(f, "{}", err)
             },
         }
     }
