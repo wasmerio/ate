@@ -313,7 +313,9 @@ impl FileState
                 let dao = conv_load(dio.load::<Page>(&page).await)?;
                 
                 // We always commit changes to the bundles so no need to commit it here
-                cache_line.replace(dao);
+                if let Some(mut old) = cache_line.replace(dao) {
+                    conv_serialization(old.commit(&mut dio))?;
+                }
                 cache_line.as_mut().unwrap()
             }
         };
