@@ -315,6 +315,7 @@ impl FileState
                 // We always commit changes to the bundles so no need to commit it here
                 if let Some(mut old) = cache_line.replace(dao) {
                     conv_serialization(old.commit(&mut dio))?;
+                    conv_commit(dio.commit().await)?;
                 }
                 cache_line.as_mut().unwrap()
             }

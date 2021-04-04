@@ -9,7 +9,6 @@ mod client;
 mod session;
 mod registry;
 mod test;
-mod loader;
 
 use async_trait::async_trait;
 use serde::{Serialize, Deserialize};
@@ -45,7 +44,7 @@ use crate::mesh::root::MeshRoot;
 
 pub(crate) use super::mesh::session::MeshSession;
 pub use crate::mesh::registry::Registry;
-pub use loader::Loader;
+pub use crate::loader::Loader;
 
 fn create_prepare<'a, 'b>(cfg_mesh: &'b ConfMesh) -> (Vec<MeshAddress>, Option<&'b ConfCluster>) {
     let mut hash_table = BTreeMap::new();

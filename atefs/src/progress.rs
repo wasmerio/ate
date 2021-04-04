@@ -2,15 +2,29 @@
 use log::{info, error, debug};
 use async_trait::async_trait;
 use pbr::ProgressBar;
+use pbr::Units;
 use ate::mesh::Loader;
 use std::io::Stderr;
 use ate::event::EventData;
 use ate::error::ChainCreationError;
 
-#[derive(Default)]
 pub struct LoadProgress
 {
-    bar: Option<ProgressBar<Stderr>>,
+    pub msg_done: String,
+    pub units: pbr::Units,
+    pub bar: Option<ProgressBar<Stderr>>,
+}
+
+impl Default
+for LoadProgress
+{
+    fn default() -> LoadProgress {
+        LoadProgress {
+            msg_done: "Done".to_string(),
+            units: pbr::Units::Default,
+            bar: None,
+        }
+    }
 }
 
 #[async_trait]
@@ -21,6 +35,10 @@ for LoadProgress
     {
         let handle = ::std::io::stderr();
         let mut pb = ProgressBar::on(handle, size as u64);
+        match &self.units {
+            Units::Default => pb.set_units(Units::Default),
+            Units::Bytes => pb.set_units(Units::Bytes),
+        }
         pb.format("╢█▌░╟");
         self.bar.replace(pb);
     }
@@ -35,16 +53,17 @@ for LoadProgress
     async fn end_of_history(&mut self)
     {
         if let Some(mut pb) = self.bar.take() {
-            pb.finish_print("done");
+            pb.finish_print(self.msg_done.as_str());
         }
     }
 
     async fn failed(&mut self, err: ChainCreationError) -> Option<ChainCreationError>
     {
         if let Some(mut pb) = self.bar.take() {
-            pb.finish_print("failed");
+            pb.finish_print(err.to_string().as_str());
+        } else {
+            error!("{}", err.to_string());
         }
-        error!("{}", err.to_string());
         Some(err)
     }
 }

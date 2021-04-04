@@ -40,6 +40,7 @@ use super::transform::*;
 use super::header::PrimaryKey;
 use super::meta::MetaCollection;
 use super::spec::*;
+use super::loader::*;
 use std::collections::BTreeMap;
 
 pub use super::transaction::Scope;
@@ -264,19 +265,43 @@ impl<'a> Chain
         key: &ChainKey,
     ) -> Result<Chain, ChainCreationError>
     {
+        Chain::new_ext(builder, key.clone(), None).await
+    }
+
+    #[allow(dead_code)]
+    pub async fn new_ext(
+        builder: ChainOfTrustBuilder,
+        key: ChainKey,
+        extra_loader: Option<Box<dyn Loader>>,
+    ) -> Result<Chain, ChainCreationError>
+    {
         let flags = OpenFlags {
             truncate: builder.truncate,
             temporal: builder.temporal,
         };
-        let (
-            redo_log,
-            mut redo_loader
-        ) = RedoLog::open(&builder.cfg, key, flags).await?;
+        
+        let (loader, mut rx) = RedoLogLoader::new();
+
+        let mut composite_loader = Box::new(crate::loader::CompositionLoader::default());
+        composite_loader.loaders.push(loader);
+        if let Some(a) = extra_loader {
+            composite_loader.loaders.push(a);
+        }
+        
+        let redo_log = {
+            let key = key.clone();
+            let builder = builder.clone();
+            tokio::spawn(async move {
+                RedoLog::open_ext(&builder.cfg, &key, flags, composite_loader).await
+            })
+        };
         
         let mut entries = Vec::new();
-        while let Some(result) = redo_loader.pop() {
+        while let Some(result) = rx.recv().await {
             entries.push(result.header.as_header()?);
         }
+
+        let redo_log = redo_log.await.unwrap()?;
 
         let chain = ChainOfTrust {
             key: key.clone(),

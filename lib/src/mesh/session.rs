@@ -19,7 +19,7 @@ use super::msg::*;
 use crate::pipe::*;
 use crate::header::*;
 use crate::spec::*;
-use super::loader::*;
+use crate::loader::*;
 
 pub struct MeshSession
 {
@@ -93,8 +93,8 @@ impl MeshSession
             let (loaded_sender, loaded_receiver)
                 = mpsc::channel(1);
             
-            let notify_loaded = Box::new(super::loader::NotificationLoader::new(loaded_sender));
-            let mut composite_loader = super::loader::CompositionLoader::default();
+            let notify_loaded = Box::new(crate::loader::NotificationLoader::new(loaded_sender));
+            let mut composite_loader = crate::loader::CompositionLoader::default();
             composite_loader.loaders.push(notify_loaded);
             if let Some(loader) = loader.take() {
                 composite_loader.loaders.push(loader);

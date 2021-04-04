@@ -9,6 +9,7 @@ use crate::chain::ChainKey;
 use crate::mesh::*;
 use crate::error::*;
 use crate::conf::ConfCluster;
+use crate::loader;
 use std::{net::IpAddr, sync::Arc};
 use fxhash::FxHashMap;
 use tokio::sync::Mutex;
@@ -38,6 +39,7 @@ use trust_dns_proto::{
     error::ProtoError,
     xfer::{DnsHandle, DnsRequest},
 };
+
 
 enum DnsClient
 {

@@ -14,7 +14,7 @@ use crate::error::*;
 use crate::conf::*;
 use crate::transaction::*;
 use super::msg::*;
-use crate::mesh::loader::Loader;
+use crate::loader::Loader;
 
 pub struct MeshClient {
     cfg_ate: ConfAte,
@@ -70,7 +70,7 @@ impl MeshClient {
     pub async fn open(&self, url: &url::Url)
         -> Result<Arc<MeshSession>, ChainCreationError>
     {
-        self.open_internal(url, Box::new(crate::mesh::loader::DummyLoader::default())).await
+        self.open_internal(url, Box::new(crate::loader::DummyLoader::default())).await
     }
 
     pub async fn open_ext(&self, url: &url::Url, loader: Box<impl Loader>)

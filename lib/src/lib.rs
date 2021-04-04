@@ -41,6 +41,7 @@ pub mod validator;
 pub mod compact;
 pub mod index;
 pub mod lint;
+pub mod loader;
 pub mod transform;
 pub mod plugin;
 pub mod signature;

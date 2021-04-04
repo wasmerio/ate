@@ -292,17 +292,29 @@ async fn main_mount(mount: Mount, conf: ConfAte) -> Result<(), AteError>
         .await
         .temporal(mount.temp);
 
+    // Create a progress bar loader
+    let mut progress = Box::new(progress::LoadProgress::default());
+    progress.msg_done = "Loaded the chain-of-trust, proceeding to mount the file system.".to_string();
+    eprint!("Loading the chain-of-trust...");
+
     // We create a chain with a specific key (this is used for the file name it creates)
     debug!("chain-init");
     let registry;
     let session;
     let chain = match mount.remote {
         None => {
-            Arc::new(Chain::new(builder.clone(), &ChainKey::from("root")).await?)
+            progress.units = pbr::Units::Bytes;
+            Arc::new(
+                Chain::new_ext(
+                    builder.clone(),
+                    ChainKey::from("root"),
+                    Some(progress)
+                ).await?
+            )
         },
         Some(remote) => {
             registry = ate::mesh::Registry::new(&conf).await;
-            session = registry.open_ext(&remote, Box::new(progress::LoadProgress::default())).await?;
+            session = registry.open_ext(&remote, progress).await?;
             session.chain()
         },
     };

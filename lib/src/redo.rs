@@ -9,6 +9,7 @@ use super::header::*;
 use super::event::*;
 use super::meta::*;
 use super::error::*;
+use super::loader::*;
 
 use async_trait::async_trait;
 use cached::Cached;
@@ -25,13 +26,14 @@ use cached::*;
 use super::spec::*;
 use fxhash::FxHashMap;
 use parking_lot::Mutex as MutexSync;
+use tokio::sync::mpsc;
 
 use tokio::runtime::Runtime;
 
 static REDO_MAGIC: &'static [u8; 4] = b"REDO";
 
 #[derive(Debug, Clone)]
-pub(crate) struct LoadData
+pub struct LoadData
 {
     pub(crate) index: u32,
     pub(crate) offset: u64,
@@ -250,10 +252,19 @@ impl LogFile
         )
     }
 
-    async fn read_all(&mut self, to: &mut VecDeque<LoadData>) -> std::result::Result<(), SerializationError> {
+    async fn read_all(&mut self, mut loader: Box<impl Loader>) -> std::result::Result<usize, SerializationError> {
         let mut lookup = FxHashMap::default();
 
         let archives = self.archives.values_mut().collect::<Vec<_>>();
+
+        let mut total: usize = 0;
+        for archive in archives.iter() {
+            let lock = archive.log_random_access.lock().await;
+            total = total + lock.metadata().await.unwrap().len() as usize;
+        }
+        loader.start_of_history(total).await;
+
+        let mut cnt: usize = 0;
         for archive in archives
         {
             let lock = archive.log_random_access.lock().await;
@@ -293,7 +304,8 @@ impl LogFile
                             offset: head.offset,
                         });
 
-                        to.push_back(head);
+                        loader.feed_load_data(head).await;
+                        cnt = cnt + 1;
                     },
                     Ok(None) => break,
                     Err(err) => {
@@ -309,7 +321,9 @@ impl LogFile
             self.lookup.insert(v, k);
         }
 
-        Ok(())
+        loader.end_of_history().await;
+
+        Ok(cnt)
     }
 
     async fn read_once_internal(archive: &mut LogArchiveReader, default_format: MessageFormat) -> std::result::Result<Option<LoadData>, SerializationError>
@@ -905,15 +919,29 @@ struct RedoLogFlip {
     deferred: Vec<EventData>,
 }
 
-#[derive(Default)]
 pub(crate) struct RedoLogLoader {
-    entries: VecDeque<LoadData>
+    feed: mpsc::Sender<LoadData>
 }
 
-impl RedoLogLoader {
-    #[allow(dead_code)]
-    pub(crate) fn pop(&mut self) -> Option<LoadData> {
-        self.entries.pop_front()   
+impl RedoLogLoader
+{
+    pub fn new() -> (Box<RedoLogLoader>, mpsc::Receiver<LoadData>)
+    {
+        let (tx, rx) = mpsc::channel(1000);
+        let loader = RedoLogLoader {
+            feed: tx,
+        };
+        (Box::new(loader), rx)
+    }
+}
+
+#[async_trait]
+impl Loader
+for RedoLogLoader
+{
+    async fn feed_load_data(&mut self, data: LoadData)
+    {
+        let _ = self.feed.send(data).await;
     }
 }
 
@@ -957,11 +985,8 @@ impl OpenFlags
 
 impl RedoLog
 {
-    async fn new(cfg: &ConfAte, path_log: String, flags: OpenFlags, cache_size: usize, cache_ttl: u64) -> std::result::Result<(RedoLog, RedoLogLoader), SerializationError>
+    async fn new(cfg: &ConfAte, path_log: String, flags: OpenFlags, cache_size: usize, cache_ttl: u64, loader: Box<impl Loader>) -> std::result::Result<RedoLog, SerializationError>
     {
-        // Build the loader
-        let mut loader = RedoLogLoader::default();
-
         // Now load the real thing
         let mut ret = RedoLog {
             log_temp: flags.temporal,
@@ -969,10 +994,10 @@ impl RedoLog
             log_file: LogFile::new(flags.temporal, path_log.clone(), flags.truncate, cache_size, cache_ttl, cfg.log_format).await?,
             flip: None,
         };
-        ret.log_file.read_all(&mut loader.entries).await?;
+        let cnt = ret.log_file.read_all(loader).await?;
 
-        info!("redo-log: loaded {} events from {} files", loader.entries.len(), ret.log_file.archives.len());
-        Ok((ret, loader))
+        info!("redo-log: loaded {} events from {} files", cnt, ret.log_file.archives.len());
+        Ok(ret)
     }
 
     pub(crate) async fn rotate(&mut self) -> Result<()> {
@@ -1055,7 +1080,27 @@ impl RedoLog
     }
 
     #[allow(dead_code)]
-    pub(crate) async fn open(cfg: &ConfAte, key: &ChainKey, flags: OpenFlags) -> std::result::Result<(RedoLog, RedoLogLoader), SerializationError> {
+    pub(crate) async fn open(cfg: &ConfAte, key: &ChainKey, flags: OpenFlags) -> std::result::Result<(RedoLog, VecDeque<LoadData>), SerializationError>
+    {
+        let mut ret = VecDeque::new();
+        let (loader, mut rx) = RedoLogLoader::new();
+
+        let cfg = cfg.clone();
+        let key = key.clone();
+        let log = tokio::spawn(async move {
+            RedoLog::open_ext(&cfg, &key, flags, loader).await
+        });
+
+        while let Some(evt) = rx.recv().await {
+            ret.push_back(evt);
+        }
+        
+        let log = log.await.unwrap()?;
+        Ok((log, ret))
+    }
+
+    #[allow(dead_code)]
+    pub(crate) async fn open_ext(cfg: &ConfAte, key: &ChainKey, flags: OpenFlags, loader: Box<impl Loader>) -> std::result::Result<RedoLog, SerializationError> {
         let _ = std::fs::create_dir_all(cfg.log_path.clone());
 
         let mut key_name = key.name.clone();
@@ -1066,22 +1111,18 @@ impl RedoLog
             true => format!("{}{}.log", cfg.log_path, key_name),
             false => format!("{}/{}.log", cfg.log_path, key_name)
         };
-        info!("open at {}", path_log);
+        info!("open at {}", path_log);   
 
-        let (log, loader) = RedoLog::new(
+        let log = RedoLog::new(
             cfg,
             path_log.clone(),
             flags,
             cfg.load_cache_size,
             cfg.load_cache_ttl,
+            loader,
         ).await?;
 
-        Ok(
-            (
-                log,
-                loader
-            )
-        )
+        Ok(log)
     }
 
     #[allow(dead_code)]
@@ -1253,15 +1294,15 @@ fn test_redo_log() {
             
             // Check that the correct data is read
             println!("test_redo_log - testing read result of blah1 (again)");
-            test_read_data(&mut rl, loader.pop().unwrap().header.event_hash, blah1, Some(vec![10; 10]), mock_cfg.log_format).await;
+            test_read_data(&mut rl, loader.pop_front().unwrap().header.event_hash, blah1, Some(vec![10; 10]), mock_cfg.log_format).await;
             println!("test_redo_log - testing read result of blah4");
-            test_read_data(&mut rl, loader.pop().unwrap().header.event_hash, blah4, Some(vec![4; 10]), mock_cfg.log_format).await;
+            test_read_data(&mut rl, loader.pop_front().unwrap().header.event_hash, blah4, Some(vec![4; 10]), mock_cfg.log_format).await;
             println!("test_redo_log - testing read result of blah5");
-            test_read_data(&mut rl, loader.pop().unwrap().header.event_hash, blah5, Some(vec![5; 10]), mock_cfg.log_format).await;
+            test_read_data(&mut rl, loader.pop_front().unwrap().header.event_hash, blah5, Some(vec![5; 10]), mock_cfg.log_format).await;
             println!("test_redo_log - testing read result of blah6");
-            test_read_data(&mut rl, loader.pop().unwrap().header.event_hash, blah6, Some(vec![6; 10]), mock_cfg.log_format).await;
+            test_read_data(&mut rl, loader.pop_front().unwrap().header.event_hash, blah6, Some(vec![6; 10]), mock_cfg.log_format).await;
             println!("test_redo_log - confirming no more data");
-            assert_eq!(loader.pop().is_none(), true);
+            assert_eq!(loader.pop_front().is_none(), true);
 
             // Write some data to the redo log and the backing redo log
             println!("test_redo_log - writing test data to log - blah7");
