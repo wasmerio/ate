@@ -7,6 +7,7 @@ use ate::mesh::Loader;
 use std::io::Stderr;
 use ate::event::EventData;
 use ate::error::ChainCreationError;
+use ate::redo::LoadData;
 
 pub struct LoadProgress
 {
@@ -47,6 +48,17 @@ for LoadProgress
     {
         if let Some(pb) = &mut self.bar {
             pb.add(evts.len() as u64);
+        }
+    }
+
+    async fn feed_load_data(&mut self, data: LoadData)
+    {
+        if let Some(pb) = &mut self.bar {
+            let total = 2 + data.header.meta_bytes.len() + match data.data.data_bytes {
+                Some(a) => a.len(),
+                None => 0
+            };
+            pb.add(total as u64);
         }
     }
 

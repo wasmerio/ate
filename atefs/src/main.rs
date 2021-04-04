@@ -155,7 +155,8 @@ fn main_debug() -> Opts {
         subcmd: SubCommand::Mount(Mount {
             mount_path: "/mnt/test".to_string(),
             log_path: "~/ate/fs".to_string(),
-            remote: Some(Url::from_str("tcp://localhost/myfs").unwrap()),
+            //remote: Some(Url::from_str("tcp://localhost/myfs").unwrap()),
+            remote: None,
             temp: false,
             uid: None,
             gid: None,
@@ -182,8 +183,8 @@ fn ctrl_channel() -> tokio::sync::watch::Receiver<bool> {
 
 #[tokio::main]
 async fn main() -> Result<(), AteError> {
-    let opts: Opts = Opts::parse();
-    //let opts = main_debug();
+    //let opts: Opts = Opts::parse();
+    let opts = main_debug();
 
     let mut log_level = match opts.verbose {
         0 => "error",
