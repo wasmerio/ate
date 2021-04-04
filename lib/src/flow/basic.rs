@@ -1,3 +1,5 @@
+#![allow(unused_imports)]
+use log::{error, info, debug};
 use async_trait::async_trait;
 use crate::conf::ConfAte;
 use super::OpenAction;
@@ -35,6 +37,7 @@ impl OpenFlow
 for OpenStaticBuilder
 {
     async fn open(&self, _cfg: &ConfAte, key: &ChainKey) -> Result<OpenAction, ChainCreationError> {
+        debug!("chain-builder: open: {}", key.to_string());
         Ok(OpenAction::Chain(self.builder.clone().build(key).await?))
     }
 }

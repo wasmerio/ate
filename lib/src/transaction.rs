@@ -22,6 +22,9 @@ pub enum Scope
     /// Data must be flushed to local disk
     #[allow(dead_code)]
     Local,
+    /// Data must be flushed to local disk and will not be forwarded up the pipe
+    #[allow(dead_code)]
+    LocalOnly,
     /// One of the root servers must have the data flushed to local disk
     #[allow(dead_code)]
     One,

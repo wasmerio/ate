@@ -392,6 +392,15 @@ for SessionPipe
 {
     async fn feed(&self, mut trans: Transaction) -> Result<Option<Transaction>, CommitError>
     {
+        // If the transaction is for local only then we do not feed it up the pipe
+        if trans.scope == Scope::LocalOnly {
+            let lock = self.next.read().clone();
+            if let Some(next) = lock {
+                next.feed(trans).await?;
+            }
+            return Ok(None)
+        }
+
         // Process the pipe internal (if it fails then we need to notify the waiter)
         let commit = match self.feed_internal(&mut trans).await {
             Ok(a) => a,
@@ -409,8 +418,16 @@ for SessionPipe
         // the next pipe in the chain (in the scenario this is not executed then it is
         // the responsibility of the caller to submit this again with a local transaction scope)
         if commit.is_some() {
-            trans.scope = Scope::Local;
+            trans.scope = Scope::LocalOnly;
             return Ok(Some(trans));
+        }
+
+        // Hand over to the next pipe as this transaction 
+        {
+            let lock = self.next.read().clone();
+            if let Some(next) = lock {
+                next.feed(trans).await?;
+            }
         }
 
         // Done synchronously

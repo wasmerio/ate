@@ -42,9 +42,11 @@ async fn test_mesh()
         let mut mesh_root_joins = Vec::new();
 
         // Create the first cluster of mesh root nodes
+        let mut index = 0;
         for n in (5100+port_offset)..(5105+port_offset) {
             let addr = MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n);
-            let cfg_ate = cfg_ate.clone();
+            let mut cfg_ate = cfg_ate.clone();
+            cfg_ate.log_path = format!("{}/p{}", cfg_ate.log_path, index);
             let mut cfg_mesh = cfg_mesh.clone();
             cfg_mesh.force_listen = Some(addr.clone());
 
@@ -52,12 +54,15 @@ async fn test_mesh()
                 create_server(&cfg_ate, &cfg_mesh, all_ethereal(&cfg_ate).await).await
             });
             mesh_root_joins.push((addr, join));
+            index = index + 1;
         }
 
         // Create the second cluster of mesh root nodes
+        let mut index = 0;
         for n in (6100+port_offset)..(6105+port_offset) {
             let addr = MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n);
-            let cfg_ate = cfg_ate.clone();
+            let mut cfg_ate = cfg_ate.clone();
+            cfg_ate.log_path = format!("{}/s{}", cfg_ate.log_path, index);
             let mut cfg_mesh = cfg_mesh.clone();
             cfg_mesh.force_listen = Some(addr.clone());
 
@@ -65,6 +70,7 @@ async fn test_mesh()
                 create_server(&cfg_ate, &cfg_mesh, all_ethereal(&cfg_ate).await).await
             });
             mesh_root_joins.push((addr, join));
+            index = index + 1;
         }
 
         // Just wait a second there!
