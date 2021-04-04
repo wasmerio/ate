@@ -4,6 +4,8 @@ use tokio::runtime::Runtime;
 #[test]
 fn rotate_test() -> Result<(), AteError>
 {
+    ate::utils::bootstrap_env();
+
     let rt = Runtime::new().unwrap();
     rt.block_on(async {
 

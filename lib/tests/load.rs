@@ -16,7 +16,7 @@ struct MyTestObject
 
 #[test]
 fn load_test() -> Result<(), AteError> {
-    //env_logger::init();
+    ate::utils::bootstrap_env();
 
     let rt = Runtime::new().unwrap();
     rt.block_on(async {

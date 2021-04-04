@@ -561,7 +561,7 @@ pub struct TestStructDao
 #[test]
 async fn test_dio()
 {
-    //env_logger::init();
+    crate::utils::bootstrap_env();
 
     debug!("generating crypto keys");
     let write_key = PrivateSignKey::generate(crate::crypto::KeySize::Bit192);

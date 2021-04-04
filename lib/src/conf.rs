@@ -497,6 +497,8 @@ for ChainOfTrustBuilder
 
 #[test]
 fn test_config_mocking() {
+    crate::utils::bootstrap_env();
+    
     let cfg = mock_test_mesh();
     assert_eq!(cfg.clusters.iter().flat_map(|a| a.roots.iter()).next().unwrap().ip.to_string(), "127.0.0.1");
 }

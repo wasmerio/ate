@@ -1110,6 +1110,8 @@ for PublicEncryptKey
 
 #[test]
 fn test_secure_random() {
+    crate::utils::bootstrap_env();
+    
     let t = 1024;
     for _ in 0..t {
         let mut data = [0 as u8; 1024];

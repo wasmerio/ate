@@ -21,7 +21,7 @@ struct Garage
 #[test]
 fn test_trust_tree() -> Result<(), AteError>
 {
-    //env_logger::init();
+    ate::utils::bootstrap_env();
 
     let rt = Runtime::new().unwrap();
     rt.block_on(async

@@ -116,28 +116,34 @@ struct TestData {
 #[test]
 async fn test_mesh()
 {
-    env_logger::init();
+    crate::utils::bootstrap_env();
 
     let cfg_ate = ConfAte::default();
 
+    // We offset the ports so that we don't need port re-use between tests
+    let port_offset = fastrand::u16(..1000);
+    let port_offset = port_offset * 10;
+
     let mut mesh_roots = Vec::new();
-    let mut cfg_mesh = {
+    let mut cfg_mesh =
+    {
+        // Build the configuration file for the mesh
         let mut cluster1 = ConfCluster::default();
-        for n in 5100..5105 {
+        for n in (5100+port_offset)..(5105+port_offset) {
             cluster1.roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
         }
-
         let mut cluster2 = ConfCluster::default();
-        for n in 6100..6105 {
+        for n in (6100+port_offset)..(6105+port_offset) {
             cluster2.roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
-        }  
-
+        }
         let mut cfg_mesh = ConfMesh::default();
         cfg_mesh.clusters.push(cluster1);
         cfg_mesh.clusters.push(cluster2);
 
         let mut mesh_root_joins = Vec::new();
-        for n in 5100..5105 {
+
+        // Create the first cluster of mesh root nodes
+        for n in (5100+port_offset)..(5105+port_offset) {
             let addr = MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n);
             let cfg_ate = cfg_ate.clone();
             let mut cfg_mesh = cfg_mesh.clone();
@@ -148,7 +154,9 @@ async fn test_mesh()
             });
             mesh_root_joins.push((addr, join));
         }
-        for n in 6100..6105 {
+
+        // Create the second cluster of mesh root nodes
+        for n in (6100+port_offset)..(6105+port_offset) {
             let addr = MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n);
             let cfg_ate = cfg_ate.clone();
             let mut cfg_mesh = cfg_mesh.clone();
@@ -159,7 +167,8 @@ async fn test_mesh()
             });
             mesh_root_joins.push((addr, join));
         }
-        
+
+        // Wait for all the servers to start
         for (addr, join) in mesh_root_joins {
             debug!("creating server on {:?}", addr);
             mesh_roots.push(join.await);

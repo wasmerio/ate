@@ -95,6 +95,8 @@ for StaticEncryptionTransformer
 #[test]
 fn test_encrypter()
 {
+    crate::utils::bootstrap_env();
+    
     let key = EncryptKey::from_seed_string("test".to_string(), KeySize::Bit256);
     let encrypter = StaticEncryptionTransformer::new(&key);
 

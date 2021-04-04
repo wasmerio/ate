@@ -245,7 +245,7 @@ pub(crate) async fn create_test_chain(chain_name: String, temp: bool, barebone: 
 #[tokio::main]
 #[test]
 async fn test_chain() {
-    //env_logger::init();
+    crate::utils::bootstrap_env();
     //env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug")).init();
 
     let key1 = PrimaryKey::generate();

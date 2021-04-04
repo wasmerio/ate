@@ -975,7 +975,7 @@ for CommsError
     fn from(err: CommitError) -> CommsError {
         match err {
             CommitError::ValidationError(err) => CommsError::ValidationError(err),
-            err => CommsError::InternalError(err.to_string()),
+            err => CommsError::InternalError(format!("commit-failed - {}", err.to_string())),
         }
     }   
 }
@@ -1040,7 +1040,7 @@ for CommsError {
                 write!(f, "Error at the root server while processing communication - {}", err)
             },
             CommsError::InternalError(err) => {
-                write!(f, "Internal error while processing communication - {}", err)
+                write!(f, "Internal comms error - {}", err)
             },
         }
     }

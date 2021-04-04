@@ -214,7 +214,7 @@ async fn inbox_event(
             join1.await;
             join2.await
         },
-        Err(err) => Err(CommsError::InternalError(err.to_string()))
+        Err(err) => Err(CommsError::InternalError(format!("feed-failed - {}", err.to_string())))
     };
 
     if let Some(id) = commit {

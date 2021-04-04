@@ -1010,10 +1010,13 @@ for TestMessage
 
 #[tokio::main]
 #[test]
-async fn test_server_client() {
+async fn test_server_client_for_comms() {
+    crate::utils::bootstrap_env();
+    
     let wire_format = SerializationFormat::MessagePack;
     {
         // Start the server
+        info!("starting listen server on 127.0.0.1");
         let cfg = NodeConfig::new(wire_format)
             .wire_encryption(Some(KeySize::Bit256))
             .listen_on(IpAddr::from_str("127.0.0.1")
@@ -1021,6 +1024,7 @@ async fn test_server_client() {
         let (_, mut server_rx) = listen::<TestMessage, ()>(&cfg).await;
 
         // Create a background thread that will respond to pings with pong
+        info!("creating server worker thread");
         tokio::spawn(async move {
             while let Some(pck) = server_rx.recv().await {
                 let data = pck.data;
@@ -1035,8 +1039,11 @@ async fn test_server_client() {
         });
     }
 
+    /* This has been disabled for now as we deprecated the built in relay functionality and will
+     * build it again when the time is right
     {
         // Start the reply
+        info!("start a client that will be relay server");
         let cfg = NodeConfig::new(wire_format)
             .wire_encryption(Some(KeySize::Bit256))
             .listen_on(IpAddr::from_str("127.0.0.1").unwrap(), 4002)
@@ -1044,6 +1051,7 @@ async fn test_server_client() {
         let (relay_tx, mut relay_rx) = connect::<TestMessage, ()>(&cfg, None).await;
 
         // Create a background thread that will respond to pings with pong
+        info!("start a client worker thread");
         tokio::spawn(async move {
             while let Some(pck) = relay_rx.recv().await {
                 let data = pck.data;
@@ -1056,17 +1064,20 @@ async fn test_server_client() {
             }
         });
     }
+    */
     
     {
         // Start the client
+        info!("start another client that will connect to the relay");
         let cfg = NodeConfig::new(wire_format)
             .wire_encryption(Some(KeySize::Bit256))
             .connect_to(IpAddr::from_str("127.0.0.1")
-            .unwrap(), 4002);
+            .unwrap(), 4001);
         let (client_tx, mut client_rx) = connect::<TestMessage, ()>(&cfg, None)
             .await;
 
         // We need to test it alot
+        info!("send lots of hellos");
         for n in 0..1000
         {
             // Send a ping
