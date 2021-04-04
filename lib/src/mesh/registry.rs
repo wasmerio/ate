@@ -107,6 +107,11 @@ impl Registry
 
     pub async fn open(&self, url: &Url) -> Result<Arc<MeshSession>, ChainCreationError>
     {
+        self.open_ext(url, Box::new(loader::DummyLoader::default())).await
+    }
+
+    pub async fn open_ext(&self, url: &Url, loader: Box<impl loader::Loader>) -> Result<Arc<MeshSession>, ChainCreationError>
+    {
         let mut lock = self.chains.lock().await;
         
         let domain = match url.domain() {
@@ -116,13 +121,13 @@ impl Registry
         
         match lock.get(&domain) {
             Some(a) => {
-                Ok(a.open(&url).await?)
+                Ok(a.open_ext(&url, loader).await?)
             },
             None => {
                 let cfg_mesh = self.cfg(url).await?;
                 let mesh = create_client(&self.cfg_ate, &cfg_mesh).await;
                 lock.insert(domain, Arc::clone(&mesh));
-                Ok(mesh.open(&url).await?)
+                Ok(mesh.open_ext(&url, loader).await?)
             }
         }
     }

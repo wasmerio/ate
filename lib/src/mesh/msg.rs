@@ -89,7 +89,9 @@ pub(super) enum Message {
         is_locked: bool
     },
 
-    StartOfHistory,
+    StartOfHistory {
+        size: usize,
+    },
     Events {
         commit: Option<u64>,
         evts: Vec<MessageEvent>

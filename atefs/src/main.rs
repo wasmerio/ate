@@ -14,6 +14,7 @@ mod model;
 mod dir;
 mod symlink;
 mod file;
+mod progress;
 mod fs;
 
 use fs::AteFS;
@@ -153,8 +154,8 @@ fn main_debug() -> Opts {
         auth: Url::from_str("tcp://ate.tokera.com/auth").unwrap(),
         subcmd: SubCommand::Mount(Mount {
             mount_path: "/mnt/test".to_string(),
-            log_path: "~/ate".to_string(),
-            remote: None,
+            log_path: "~/ate/fs".to_string(),
+            remote: Some(Url::from_str("tcp://localhost/myfs").unwrap()),
             temp: false,
             uid: None,
             gid: None,
@@ -302,7 +303,7 @@ async fn main_mount(mount: Mount, conf: ConfAte) -> Result<(), AteError>
         },
         Some(remote) => {
             registry = ate::mesh::Registry::new(&conf).await;
-            session = registry.open(&remote).await?;
+            session = registry.open_ext(&remote, Box::new(progress::LoadProgress::default())).await?;
             session.chain()
         },
     };

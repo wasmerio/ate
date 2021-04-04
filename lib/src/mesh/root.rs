@@ -376,7 +376,7 @@ async fn inbox_stream_data(
 {
     // Let the caller know we will be streaming them events
     let multi = chain.multi().await;
-    PacketData::reply_at(Some(&reply_at), wire_format, Message::StartOfHistory).await?;
+    PacketData::reply_at(Some(&reply_at), wire_format, Message::StartOfHistory { size: chain.count().await }).await?;
 
     // Find what offset we will start streaming the events back to the caller
     // (we work backwards from the consumers last known position till we find a match

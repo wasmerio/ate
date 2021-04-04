@@ -14,6 +14,7 @@ use crate::error::*;
 use crate::conf::*;
 use crate::transaction::*;
 use super::msg::*;
+use crate::mesh::loader::Loader;
 
 pub struct MeshClient {
     cfg_ate: ConfAte,
@@ -34,7 +35,7 @@ impl MeshClient {
         )
     }
 
-    async fn open_internal<'a>(&'a self, url: &url::Url)
+    async fn open_internal<'a>(&'a self, url: &url::Url, loader: Box<impl Loader>)
         -> Result<Arc<MeshSession>, ChainCreationError>
     {
         let mut key = ChainKey::new(url.path().to_string());
@@ -60,7 +61,7 @@ impl MeshClient {
         }
         
         let builder = ChainOfTrustBuilder::new(&self.cfg_ate).await;
-        let session = MeshSession::connect(builder, url, addrs).await?;
+        let session = MeshSession::connect(builder, url, addrs, loader).await?;
         *record = Arc::downgrade(&session);
 
         Ok(session)
@@ -69,7 +70,13 @@ impl MeshClient {
     pub async fn open(&self, url: &url::Url)
         -> Result<Arc<MeshSession>, ChainCreationError>
     {
-        self.open_internal(url).await
+        self.open_internal(url, Box::new(crate::mesh::loader::DummyLoader::default())).await
+    }
+
+    pub async fn open_ext(&self, url: &url::Url, loader: Box<impl Loader>)
+        -> Result<Arc<MeshSession>, ChainCreationError>
+    {
+        self.open_internal(url, loader).await
     }
 }
 

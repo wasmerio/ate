@@ -19,6 +19,7 @@ use super::msg::*;
 use crate::pipe::*;
 use crate::header::*;
 use crate::spec::*;
+use super::loader::*;
 
 pub struct MeshSession
 {
@@ -31,7 +32,7 @@ pub struct MeshSession
 
 impl MeshSession
 {
-    pub(super) async fn connect(builder: ChainOfTrustBuilder, chain_url: &url::Url, addrs: Vec<MeshAddress>) -> Result<Arc<MeshSession>, ChainCreationError>
+    pub(super) async fn connect(builder: ChainOfTrustBuilder, chain_url: &url::Url, addrs: Vec<MeshAddress>, loader: Box<impl Loader>) -> Result<Arc<MeshSession>, ChainCreationError>
     {
         let chain_key = ChainKey::new(chain_url.path().to_string());
         debug!("new: chain_key={}", chain_key.to_string());
@@ -55,7 +56,12 @@ impl MeshSession
                 .connect_to(addr.ip, addr.port)
                 .on_connect(Message::Connected)
                 .buffer_size(builder.cfg.buffer_size_client);
-            let (node_tx, node_rx) = crate::comms::connect::<Message, ()>(&node_cfg, Some(chain_url.to_string())).await;
+            let (node_tx, node_rx)
+                = crate::comms::connect::<Message, ()>
+                (
+                    &node_cfg, 
+                    Some(chain_url.to_string())
+                ).await;
             pipe_tx.push(node_tx);
             pipe_rx.push(node_rx);
         }
@@ -81,15 +87,26 @@ impl MeshSession
             lock_requests,
         });
 
+        let mut loader = Some(loader);
         let mut wait_for_me = Vec::new();
         for node_rx in pipe_rx {
             let (loaded_sender, loaded_receiver)
                 = mpsc::channel(1);
 
-            tokio::spawn(MeshSession::inbox(Arc::clone(&ret), node_rx, loaded_sender));
+            let loader = loader.take();
+            tokio::spawn(
+                MeshSession::inbox
+                (
+                    Arc::clone(&ret),
+                    node_rx,
+                    loaded_sender,
+                    loader
+                )
+            );
             wait_for_me.push(loaded_receiver);
         };
 
+        debug!("loading {}", chain_key.to_string());
         for mut wait in wait_for_me {
             match wait.recv().await {
                 Some(result) => result?,
@@ -98,6 +115,7 @@ impl MeshSession
                 }
             }
         }
+        debug!("loaded {}", chain_key.to_string());
 
         Ok(ret)
     }
@@ -123,7 +141,7 @@ impl MeshSession
         Ok(())
     }
 
-    async fn inbox_events(self: &Arc<MeshSession>, evts: Vec<MessageEvent>) -> Result<(), CommsError> {
+    async fn inbox_events(self: &Arc<MeshSession>, evts: Vec<MessageEvent>, loader: &mut Option<Box<impl Loader>>) -> Result<(), CommsError> {
         debug!("inbox: events cnt={}", evts.len());
 
         let feed_me = MessageEvent::convert_from(evts);
@@ -132,7 +150,12 @@ impl MeshSession
         let _ = single.feed_async(&feed_me).await?;
         drop(single);
 
+        if let Some(loader) = loader {
+            loader.feed_events(&feed_me);
+        }
+
         self.chain.notify(&feed_me).await;
+
         Ok(())
     }
 
@@ -176,15 +199,26 @@ impl MeshSession
         Ok(())
     }
 
-    async fn inbox_end_of_history(loaded: &mpsc::Sender<Result<(), ChainCreationError>>) -> Result<(), CommsError> {
+    async fn inbox_start_of_history(size: usize, loader: &mut Option<Box<impl Loader>>) -> Result<(), CommsError> {
+        if let Some(loader) = loader {
+            loader.start_of_history(size);
+        }
+        Ok(())
+    }
+
+    async fn inbox_end_of_history(loaded: &mpsc::Sender<Result<(), ChainCreationError>>, loader: &mut Option<Box<impl Loader>>) -> Result<(), CommsError> {
         debug!("inbox: end_of_history");
         loaded.send(Ok(())).await?;
+        if let Some(loader) = loader {
+            loader.end_of_history();
+        }
         Ok(())
     }
 
     async fn inbox_packet(
         self: &Arc<MeshSession>,
         loaded: &mpsc::Sender<Result<(), ChainCreationError>>,
+        loader: &mut Option<Box<impl Loader>>,
         pck: PacketWithContext<Message, ()>,
     ) -> Result<(), CommsError>
     {
@@ -195,12 +229,13 @@ impl MeshSession
                 self.chain.single().await.set_default_format(log_format);
                 Ok(())
             },
+            Message::StartOfHistory { size } => Self::inbox_start_of_history(size, loader).await,
             Message::Connected => Self::inbox_connected(self, pck.data).await,
-            Message::Events { commit: _, evts } => Self::inbox_events(self, evts).await,
+            Message::Events { commit: _, evts } => Self::inbox_events(self, evts, loader).await,
             Message::Confirmed(id) => Self::inbox_confirmed(self, id).await,
             Message::CommitError { id, err } => Self::inbox_commit_error(self, id, err).await,
             Message::LockResult { key, is_locked } => Self::inbox_lock_result(self, key, is_locked),
-            Message::EndOfHistory => Self::inbox_end_of_history(loaded).await,
+            Message::EndOfHistory => Self::inbox_end_of_history(loaded, loader).await,
             Message::Disconnected => { return Err(CommsError::Disconnected); },
             Message::FatalTerminate { err } => {
                 let _ = loaded.send(Err(ChainCreationError::ServerRejected(err.clone()))).await;
@@ -211,7 +246,7 @@ impl MeshSession
         }
     }
 
-    async fn inbox(session: Arc<MeshSession>, mut rx: NodeRx<Message, ()>, loaded: mpsc::Sender<Result<(), ChainCreationError>>)
+    async fn inbox(session: Arc<MeshSession>, mut rx: NodeRx<Message, ()>, loaded: mpsc::Sender<Result<(), ChainCreationError>>, mut loader: Option<Box<impl Loader>>)
         -> Result<(), CommsError>
     {
         let addrs = session.addrs.clone();
@@ -223,7 +258,7 @@ impl MeshSession
                 Some(a) => a,
                 None => { break; }
             };
-            match MeshSession::inbox_packet(&session, &loaded, pck).await {
+            match MeshSession::inbox_packet(&session, &loaded, &mut loader, pck).await {
                 Ok(_) => { },
                 Err(CommsError::Disconnected) => { break; }
                 Err(CommsError::SendError(err)) => {
