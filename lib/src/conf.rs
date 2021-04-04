@@ -117,7 +117,7 @@ pub struct ConfAte
     /// digest to prevent replay attacks
     pub ntp_pool: String,
     /// Port that the NTP server is listening on (defaults to 123)
-    pub ntp_port: u32,
+    pub ntp_port: u16,
 
     /// Flag that determines if ATE will use DNSSec or just plain DNS
     pub dns_sec: bool,

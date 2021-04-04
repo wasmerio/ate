@@ -1,4 +1,5 @@
 #![allow(unused_imports)]
+use fxhash::FxHashMap;
 use log::{error, info, debug};
 
 use super::error::*;
@@ -15,11 +16,14 @@ use super::transaction::*;
 use super::event::EventHeader;
 
 use std::{ops::Deref, sync::Arc};
-use parking_lot::Mutex;
-use parking_lot::RwLock;
+use parking_lot::Mutex as PMutex;
+use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 use std::time::Duration;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
+use std::sync::Once;
+use once_cell::sync::Lazy;
 
 mod ntp;
 
@@ -30,62 +34,90 @@ pub struct TimestampEnforcer {
     pub cursor: Duration,
     pub tolerance: Duration,
     pub ntp_pool: String,
-    pub ntp_port: u32,
-    pub(crate) ntp_result: Arc<RwLock<NtpResult>>,
-    pub(crate) bt_exit: Arc<Mutex<bool>>,
+    pub ntp_port: u16,
+    pub(crate) ntp_worker: Arc<NtpWorker>,
 }
 
-impl Drop
-for TimestampEnforcer
+#[derive(Debug)]
+pub(crate) struct NtpWorker
 {
-    fn drop(&mut self) {
-        *self.bt_exit.lock() = true;
+    result: PMutex<NtpResult>
+}
+
+impl NtpWorker
+{
+    async fn new(pool: String, port: u16, tolerance_ms: u32) -> Result<Arc<NtpWorker>, TimeError>
+    {
+        let tolerance_ms_loop = tolerance_ms;
+        let tolerance_ms_seed = tolerance_ms * 3;
+
+        let pool = Arc::new(pool.clone());
+        let ntp_result = ntp::query_ntp_retry(pool.deref(), port, tolerance_ms_seed, 10).await?;
+        
+        let bt_best_ping = Duration::from_micros(ntp_result.roundtrip()).as_millis() as u32;
+        let bt_pool = Arc::new(pool.clone());
+        
+        let ret = Arc::new(NtpWorker {
+            result: PMutex::new(ntp_result)
+        });
+
+        let worker_ret = Arc::clone(&ret);
+        tokio::spawn(async move {
+            let mut n: u32 = 0;
+            let mut best_ping = bt_best_ping;
+
+            let mut backoff = 1;
+            loop {
+                if n > 200 {
+                    n = 0;
+                    match ntp::query_ntp_retry(bt_pool.deref(), port, tolerance_ms_loop, 10).await {
+                        Ok(r) =>
+                        {
+                            let ping = Duration::from_micros(r.roundtrip()).as_millis() as u32;
+                            if ping < best_ping + 50 {
+                                best_ping = ping;
+                                *worker_ret.result.lock() = r;
+                            }
+                            backoff = 1;
+                        },
+                        _ => {
+                            backoff = backoff * 2;
+                            n = 0.max(200-backoff);
+                        }
+                    }
+                }
+                
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                n = n + 1;
+            }
+        });
+
+        Ok(ret)
     }
 }
+
+static TIMESTAMP_WORKER: Lazy<Mutex<FxHashMap<String, Arc<NtpWorker>>>> = Lazy::new(|| Mutex::new(FxHashMap::default()));
 
 impl TimestampEnforcer
 {
     #[allow(dead_code)]
     pub async fn new(cfg: &ConfAte, tolerance_ms: u32) -> Result<TimestampEnforcer, TimeError>
     {
-        let tolerance_ms_loop = tolerance_ms;
-        let tolerance_ms_seed = tolerance_ms * 3;
-
-        let pool = Arc::new(cfg.ntp_pool.clone());
-        let ntp_result = Arc::new(RwLock::new(ntp::query_ntp_retry(pool.deref(), cfg.ntp_port, tolerance_ms_seed, 10).await?));
-        let bt_exit = Arc::new(Mutex::new(false));
-
-        let bt_best_ping = Duration::from_micros(ntp_result.write().roundtrip()).as_millis() as u32;
-        let bt_pool = Arc::new(cfg.ntp_pool.clone());
-        let bt_port = cfg.ntp_port;
-        let bt_exit2 = bt_exit.clone();
-        let bt_result = ntp_result.clone();
-
-        tokio::spawn(async move {
-            let mut n: u32 = 0;
-            let mut best_ping = bt_best_ping;
-
-            while *bt_exit2.lock() == false {
-                if n > 200 {
-                    n = 0;
-                    match ntp::query_ntp_retry(bt_pool.deref(), bt_port, tolerance_ms_loop, 10).await {
-                        Ok(r) =>
-                        {
-                            let ping = Duration::from_micros(r.roundtrip()).as_millis() as u32;
-                            if ping < best_ping + 50 {
-                                best_ping = ping;
-                                *bt_result.write() = r;
-                            }
-                        },
-                        _ => {}
-                    }
+        let pool = cfg.ntp_pool.clone();
+        let port = cfg.ntp_port;
+        let ntp_worker = {
+            let key = format!("{}:{}", cfg.ntp_pool, cfg.ntp_port);
+            let mut guard = TIMESTAMP_WORKER.lock().await;
+            match guard.get(&key) {
+                Some(a) => Arc::clone(a),
+                None => {
+                    let worker = NtpWorker::new(pool, port, tolerance_ms).await?;
+                    guard.insert(key, Arc::clone(&worker));
+                    worker
                 }
-                
-                std::thread::sleep(Duration::from_millis(100));
-                n = n + 1;
             }
-        });
-
+        };
+        
         let tolerance = Duration::from_millis(tolerance_ms as u64);
         Ok(
             TimestampEnforcer
@@ -94,8 +126,7 @@ impl TimestampEnforcer
                 tolerance: tolerance,
                 ntp_pool: cfg.ntp_pool.clone(),
                 ntp_port: cfg.ntp_port,
-                ntp_result: ntp_result,
-                bt_exit: bt_exit.clone(),
+                ntp_worker,
             }
         )
     }
@@ -103,14 +134,14 @@ impl TimestampEnforcer
     #[allow(dead_code)]
     pub fn current_offset_ms(&self) -> i64
     {
-        let ret = self.ntp_result.read().offset() / 1000;
+        let ret = self.ntp_worker.result.lock().offset() / 1000;
         ret
     }
 
     #[allow(dead_code)]
     pub fn current_ping_ms(&self) -> u64
     {
-        let ret = self.ntp_result.read().roundtrip() / 1000;
+        let ret = self.ntp_worker.result.lock().roundtrip() / 1000;
         ret
     }
 
@@ -120,7 +151,7 @@ impl TimestampEnforcer
         let mut since_the_epoch = start
             .duration_since(UNIX_EPOCH)?;
 
-        let mut offset = self.ntp_result.read().offset();
+        let mut offset = self.ntp_worker.result.lock().offset();
         if offset >= 0 {
             since_the_epoch = since_the_epoch + Duration::from_micros(offset as u64);
         } else {

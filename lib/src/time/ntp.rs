@@ -1,9 +1,10 @@
 use std::fmt::Debug;
 use std::fmt::Formatter;
-use std::io;
+use tokio::io;
 use std::mem;
-use std::net;
-use std::net::{SocketAddr, ToSocketAddrs, UdpSocket};
+use tokio::net;
+use tokio::net::UdpSocket;
+use std::net::{SocketAddr, ToSocketAddrs};
 use std::str;
 use std::time;
 use std::time::Duration;
@@ -32,6 +33,7 @@ struct NtpPacket {
 }
 
 /// SNTP request result representation
+#[derive(Clone, Copy)]
 pub(crate) struct NtpResult {
     /// NTP server seconds value
     pub sec: u32,
@@ -213,19 +215,22 @@ impl From<&NtpPacket> for RawNtpPacket {
     }
 }
 
-pub(crate) fn request(pool: &str, port: u32, timeout: time::Duration) -> io::Result<NtpResult> {
+pub(crate) async fn request(pool: &str, port: u16, timeout: time::Duration) -> io::Result<NtpResult> {
     let socket = net::UdpSocket::bind("0.0.0.0:0")
+        .await
         .expect("Unable to create a UDP socket");
     let dest = format!("{}:{}", pool, port).to_socket_addrs()?;
 
+    let socket = socket.into_std()?;
     socket
         .set_read_timeout(Some(timeout))
         .expect("Unable to set up socket timeout");
+    let socket = net::UdpSocket::from_std(socket)?;
 
     let req = NtpPacket::new();
-    let dest = process_request(dest, &req, &socket)?;
+    let dest = process_request(dest, &req, &socket).await?;
     let mut buf: RawNtpPacket = RawNtpPacket::default();
-    let (response, src) = socket.recv_from(buf.0.as_mut())?;
+    let (response, src) = socket.recv_from(buf.0.as_mut()).await?;
     let recv_timestamp = get_ntp_timestamp();
     
     if src != dest {
@@ -252,13 +257,13 @@ pub(crate) fn request(pool: &str, port: u32, timeout: time::Duration) -> io::Res
     ))
 }
 
-fn process_request(
+async fn process_request(
     dest: std::vec::IntoIter<SocketAddr>,
     req: &NtpPacket,
     socket: &UdpSocket,
 ) -> io::Result<SocketAddr> {
     for addr in dest {
-        match send_request(&req, &socket, addr) {
+        match send_request(&req, &socket, addr).await {
             Ok(write_bytes) => {
                 assert_eq!(write_bytes, mem::size_of::<NtpPacket>());
                 return Ok(addr);
@@ -273,14 +278,14 @@ fn process_request(
     ))
 }
 
-fn send_request(
+async fn send_request(
     req: &NtpPacket,
     socket: &net::UdpSocket,
-    dest: net::SocketAddr,
+    dest: std::net::SocketAddr,
 ) -> io::Result<usize> {
     let buf: RawNtpPacket = req.into();
 
-    socket.send_to(&buf.0, dest)
+    socket.send_to(&buf.0, dest).await
 }
 
 fn process_response(
@@ -371,10 +376,10 @@ fn get_ntp_timestamp() -> u64 {
     timestamp
 }
 
-pub(crate) fn query_ntp(pool: &String, port: u32, tolerance_ms: u32) -> Result<NtpResult, TimeError>
+pub(crate) async fn query_ntp(pool: &String, port: u16, tolerance_ms: u32) -> Result<NtpResult, TimeError>
 {
     let timeout =  Duration::from_millis(tolerance_ms as u64) + Duration::from_millis(50);
-    let ret = request(pool.as_str(), port, timeout)?;
+    let ret = request(pool.as_str(), port, timeout).await?;
     let ping = Duration::from_micros(ret.roundtrip()).as_millis() as u32;
     if ping > tolerance_ms {
         return Err(TimeError::BeyondTolerance(ping as u32));
@@ -382,7 +387,7 @@ pub(crate) fn query_ntp(pool: &String, port: u32, tolerance_ms: u32) -> Result<N
     Ok(ret)
 }
 
-pub(crate) async fn query_ntp_retry(pool: &String, port: u32, tolerance_ms: u32, samples: u32) -> Result<NtpResult, TimeError>
+pub(crate) async fn query_ntp_retry(pool: &String, port: u16, tolerance_ms: u32, samples: u32) -> Result<NtpResult, TimeError>
 {
     let mut best: Option<NtpResult> = None;
     let mut positives = 0;
@@ -395,7 +400,7 @@ pub(crate) async fn query_ntp_retry(pool: &String, port: u32, tolerance_ms: u32,
             None => Duration::from_millis(tolerance_ms as u64),
         };
 
-        if let Ok(ret) = request(pool.as_str(), port, timeout) {
+        if let Ok(ret) = request(pool.as_str(), port, timeout).await {
             let current_ping = match &best {
                 Some(b) => b.roundtrip(),
                 None => u64::max_value(),
@@ -423,5 +428,5 @@ pub(crate) async fn query_ntp_retry(pool: &String, port: u32, tolerance_ms: u32,
         }
     }
 
-    query_ntp(pool, port, tolerance_ms)
+    query_ntp(pool, port, tolerance_ms).await
 }

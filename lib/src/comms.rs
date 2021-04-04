@@ -405,7 +405,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                 Ok(a) => a,
                 Err(err) => {
                     eprintln!("tcp-listener - {}", err.to_string());
-                    std::thread::sleep(exp_backoff);
+                    tokio::time::sleep(exp_backoff).await;
                     exp_backoff *= 2;
                     if exp_backoff > Duration::from_secs(10) { exp_backoff = Duration::from_secs(10); }
                     continue;
@@ -689,7 +689,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                 std::io::ErrorKind::ConnectionAborted => true,
                 _ => false   
             } => {
-                std::thread::sleep(exp_backoff);
+                tokio::time::sleep(exp_backoff).await;
                 exp_backoff *= 2;
                 if exp_backoff > Duration::from_secs(10) { exp_backoff = Duration::from_secs(10); }
                 continue;
