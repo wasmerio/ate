@@ -194,17 +194,6 @@ async fn main() -> Result<(), AteError> {
     if opts.debug { log_level = "debug"; }
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(log_level)).init();
 
-    {
-        let count = 1000;
-        let mut pb = pbr::ProgressBar::new(count);
-        pb.format("╢▌▌░╟");
-        for _ in 0..count {
-            pb.inc();
-            std::thread::sleep(std::time::Duration::from_millis(200));
-        }
-        pb.finish_print("done");
-    }
-
     let mut conf = AteConfig::default();
     conf.dns_sec = opts.dns_sec;
     conf.dns_server = opts.dns_server;

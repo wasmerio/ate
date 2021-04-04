@@ -21,7 +21,7 @@ for LoadProgress
     {
         let handle = ::std::io::stderr();
         let mut pb = ProgressBar::on(handle, size as u64);
-        pb.format("╢▌▌░╟");
+        pb.format("╢█▌░╟");
         self.bar.replace(pb);
     }
 
