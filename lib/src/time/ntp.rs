@@ -1,6 +1,9 @@
+#![allow(unused_imports)]
+use log::{error, info, debug};
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use tokio::io;
+use tokio::time::Timeout;
 use std::mem;
 use tokio::net;
 use tokio::net::UdpSocket;
@@ -230,7 +233,7 @@ pub(crate) async fn request(pool: &str, port: u16, timeout: time::Duration) -> i
     let req = NtpPacket::new();
     let dest = process_request(dest, &req, &socket).await?;
     let mut buf: RawNtpPacket = RawNtpPacket::default();
-    let (response, src) = socket.recv_from(buf.0.as_mut()).await?;
+    let (response, src) = tokio::time::timeout(timeout, socket.recv_from(buf.0.as_mut())).await??;
     let recv_timestamp = get_ntp_timestamp();
     
     if src != dest {
@@ -387,6 +390,23 @@ pub(crate) async fn query_ntp(pool: &String, port: u16, tolerance_ms: u32) -> Re
     Ok(ret)
 }
 
+pub(crate) async fn query_ntp_with_backoff(pool: &String, port: u16, tolerance_ms: u32, samples: u32) -> NtpResult
+{
+    let mut wait_time = 50;
+    loop {
+        if let Ok(result) = query_ntp_retry(pool, port, tolerance_ms, samples).await {
+            return result;
+        }
+
+        tokio::time::sleep(Duration::from_millis(wait_time)).await;
+        wait_time = (wait_time * 120) / 100;
+        wait_time = wait_time + 50;
+        if wait_time > 10000 {
+            wait_time = 10000;
+        }
+    }
+}
+
 pub(crate) async fn query_ntp_retry(pool: &String, port: u16, tolerance_ms: u32, samples: u32) -> Result<NtpResult, TimeError>
 {
     let mut best: Option<NtpResult> = None;
@@ -400,7 +420,12 @@ pub(crate) async fn query_ntp_retry(pool: &String, port: u16, tolerance_ms: u32,
             None => Duration::from_millis(tolerance_ms as u64),
         };
 
+        #[cfg(verbose)]
+        debug!("ntp request timeout={}ms", timeout.as_millis());
         if let Ok(ret) = request(pool.as_str(), port, timeout).await {
+            #[cfg(verbose)]
+            debug!("ntp response roundtrip={}, offset={}", ret.roundtrip, ret.offset);
+
             let current_ping = match &best {
                 Some(b) => b.roundtrip(),
                 None => u64::max_value(),
@@ -412,12 +437,16 @@ pub(crate) async fn query_ntp_retry(pool: &String, port: u16, tolerance_ms: u32,
             if positives >= samples {
                 break;
             }
+            wait_time = 50;
         }
         else
         {
             tokio::time::sleep(Duration::from_millis(wait_time)).await;
             wait_time = (wait_time * 120) / 100;
-             wait_time = wait_time + 50;
+            wait_time = wait_time + 50;
+            if wait_time > 10000 {
+                wait_time = 10000;
+            }
         }
     }
 

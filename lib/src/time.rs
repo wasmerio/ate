@@ -48,11 +48,12 @@ impl NtpWorker
 {
     async fn new(pool: String, port: u16, tolerance_ms: u32) -> Result<Arc<NtpWorker>, TimeError>
     {
+        debug!("ntp service started for {}@{}", pool, port);
         let tolerance_ms_loop = tolerance_ms;
         let tolerance_ms_seed = tolerance_ms * 3;
 
         let pool = Arc::new(pool.clone());
-        let ntp_result = ntp::query_ntp_retry(pool.deref(), port, tolerance_ms_seed, 10).await?;
+        let ntp_result = ntp::query_ntp_with_backoff(pool.deref(), port, tolerance_ms_seed, 10).await;
         
         let bt_best_ping = Duration::from_micros(ntp_result.roundtrip()).as_millis() as u32;
         let bt_pool = Arc::new(pool.clone());
@@ -63,35 +64,25 @@ impl NtpWorker
 
         let worker_ret = Arc::clone(&ret);
         tokio::spawn(async move {
-            let mut n: u32 = 0;
             let mut best_ping = bt_best_ping;
-
-            let mut backoff = 1;
             loop {
-                if n > 200 {
-                    n = 0;
-                    match ntp::query_ntp_retry(bt_pool.deref(), port, tolerance_ms_loop, 10).await {
-                        Ok(r) =>
-                        {
-                            let ping = Duration::from_micros(r.roundtrip()).as_millis() as u32;
-                            if ping < best_ping + 50 {
-                                best_ping = ping;
-                                *worker_ret.result.lock() = r;
-                            }
-                            backoff = 1;
-                        },
-                        _ => {
-                            backoff = backoff * 2;
-                            n = 0.max(200-backoff);
+                match ntp::query_ntp_retry(bt_pool.deref(), port, tolerance_ms_loop, 10).await {
+                    Ok(r) =>
+                    {
+                        let ping = Duration::from_micros(r.roundtrip()).as_millis() as u32;
+                        if ping < best_ping + 50 {
+                            best_ping = ping;
+                            *worker_ret.result.lock() = r;
                         }
-                    }
+                    },
+                    _ => { }
                 }
                 
-                tokio::time::sleep(Duration::from_millis(100)).await;
-                n = n + 1;
+                tokio::time::sleep(Duration::from_secs(20)).await;
             }
         });
 
+        debug!("ntp service ready for {}@{}", pool, port);
         Ok(ret)
     }
 }
