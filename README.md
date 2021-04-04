@@ -45,6 +45,23 @@ This library is a way of working with data in modern distributed computing.
 * ...encryption is highly resistant to quantum attacks and uses fine-grained tenant keys.
 * ...all this is integrated into a shared-nothing highly portable executable.
 
+## Changelog
+
+0.3.0 - New API changes to cater for future releases with many fixes for critical bugs.
+        + Improvements to the log file format to support forward compatibility.
+        + Added wire encryption as another layer of defence using perfect-forward-secrecy.
+        + Modified the hash routines to reduce changes of collisions on key generation.
+        + Many bug fixes and performance optimizations.
+0.2.* - Alpha version with API changes 
+0.1.* - Alpha version with basic functionality and free bugs.
+
+## Todo
+
+1.0.* - First release of a production grade version of ATE with AteFS using Tokera as authentication.
+0.*.* - Estimated 1-month of work before enough bugs are solved and the API can be fully stabilised.
+0.4.* - Will include functionality to execute commands remotely, will include the authentication
+        server support using a standardized object model and implementation of the command pattern.
+
 ## High Level Design
 
     .--[   App  ]---. .--[   App  ]---. .--[   App  ]---.
