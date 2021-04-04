@@ -96,7 +96,7 @@ for StaticEncryptionTransformer
 fn test_encrypter()
 {
     crate::utils::bootstrap_env();
-    
+
     let key = EncryptKey::from_seed_string("test".to_string(), KeySize::Bit256);
     let encrypter = StaticEncryptionTransformer::new(&key);
 
@@ -118,6 +118,8 @@ fn test_encrypter()
 #[test]
 fn test_compressor()
 {
+    crate::utils::bootstrap_env();
+
     let compressor = CompressorWithSnapTransformer::default();
 
     let test_bytes = Bytes::from("test".as_bytes());
@@ -138,6 +140,8 @@ fn test_compressor()
 #[test]
 fn test_crypto()
 {
+    crate::utils::bootstrap_env();
+    
     let cipher = Cipher::aes_128_cbc();
     let data = b"Some Crypto Text";
     let key = b"\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0A\x0B\x0C\x0D\x0E\x0F";

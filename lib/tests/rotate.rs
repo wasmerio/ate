@@ -12,7 +12,7 @@ fn rotate_test() -> Result<(), AteError>
         // The default configuration will store the redo log locally in the temporary folder
         let mut conf = ConfAte::default();
         conf.configured_for(ConfiguredFor::BestPerformance);
-        let builder = ChainBuilder::new(&conf);
+        let builder = ChainBuilder::new(&conf).await;
 
         let key1;
         let key2;

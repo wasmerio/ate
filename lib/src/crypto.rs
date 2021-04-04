@@ -1111,7 +1111,7 @@ for PublicEncryptKey
 #[test]
 fn test_secure_random() {
     crate::utils::bootstrap_env();
-    
+
     let t = 1024;
     for _ in 0..t {
         let mut data = [0 as u8; 1024];
@@ -1122,6 +1122,8 @@ fn test_secure_random() {
 #[allow(deprecated)]
 #[test]
 fn test_encrypt_key_seeding_old() {
+    crate::utils::bootstrap_env();
+
     let provided = EncryptKey::from_string("test".to_string(), KeySize::Bit256);
     let expected = EncryptKey::Aes256([109, 23, 234, 219, 133, 97, 152, 126, 236, 229, 197, 134, 107, 89, 217, 82, 107, 27, 70, 176, 239, 71, 218, 171, 68, 75, 54, 215, 249, 219, 231, 69]);
     assert_eq!(provided, expected);
@@ -1133,6 +1135,8 @@ fn test_encrypt_key_seeding_old() {
 
 #[test]
 fn test_encrypt_key_seeding_new() {
+    crate::utils::bootstrap_env();
+
     let provided = EncryptKey::from_seed_string("test".to_string(), KeySize::Bit256);
     let expected = EncryptKey::Aes256([83, 208, 186, 19, 115, 7, 212, 194, 249, 182, 103, 76, 131, 237, 189, 88, 183, 12, 15, 67, 64, 19, 62, 208, 173, 198, 251, 161, 210, 71, 138, 106]);
     assert_eq!(provided, expected);
@@ -1145,6 +1149,8 @@ fn test_encrypt_key_seeding_new() {
 #[test]
 fn test_asym_crypto_128()
 {
+    crate::utils::bootstrap_env();
+
     let key = EncryptKey::generate(KeySize::Bit128);
     let private = EncryptedPrivateKey::generate(&key).unwrap();
     let public = private.as_public_key();
@@ -1160,6 +1166,8 @@ fn test_asym_crypto_128()
 #[test]
 fn test_asym_crypto_256()
 {
+    crate::utils::bootstrap_env();
+
     let key = EncryptKey::generate(KeySize::Bit256);
     let private = EncryptedPrivateKey::generate(&key).unwrap();
     let public = private.as_public_key();
@@ -1175,6 +1183,8 @@ fn test_asym_crypto_256()
 #[test]
 fn test_ntru_encapsulate() -> Result<(), AteError>
 {
+    crate::utils::bootstrap_env();
+
     static KEY_SIZES: [KeySize; 3] = [KeySize::Bit128, KeySize::Bit192, KeySize::Bit256];
     for key_size in KEY_SIZES.iter() {
         let sk = PrivateEncryptKey::generate(key_size.clone());
@@ -1195,6 +1205,8 @@ fn test_ntru_encapsulate() -> Result<(), AteError>
 #[test]
 fn test_ntru_encrypt() -> Result<(), AteError>
 {
+    crate::utils::bootstrap_env();
+    
     static KEY_SIZES: [KeySize; 3] = [KeySize::Bit128, KeySize::Bit192, KeySize::Bit256];
     for key_size in KEY_SIZES.iter() {
         let sk = PrivateEncryptKey::generate(key_size.clone());

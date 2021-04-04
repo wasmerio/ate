@@ -59,7 +59,7 @@ impl MeshClient {
             return Err(ChainCreationError::NoRootFoundInConfig);
         }
         
-        let builder = ChainOfTrustBuilder::new(&self.cfg_ate);
+        let builder = ChainOfTrustBuilder::new(&self.cfg_ate).await;
         let session = MeshSession::connect(builder, url, addrs).await?;
         *record = Arc::downgrade(&session);
 

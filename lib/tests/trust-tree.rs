@@ -47,6 +47,7 @@ fn test_trust_tree() -> Result<(), AteError>
             conf.log_format.meta = SerializationFormat::Json;
             conf.log_format.data = SerializationFormat::Json;
             let builder = ChainBuilder::new(&conf)
+                .await
                 .add_root_public_key(&root_public_key)
                 .truncate(true);
             let chain = Chain::new(builder, &ChainKey::from("trust")).await?;
@@ -84,6 +85,7 @@ fn test_trust_tree() -> Result<(), AteError>
             conf.log_format.meta = SerializationFormat::Json;
             conf.log_format.data = SerializationFormat::Json;
             let builder = ChainBuilder::new(&conf)
+                .await
                 .add_root_public_key(&root_public_key);
             let chain = Chain::new(builder, &ChainKey::from("trust")).await?;
 

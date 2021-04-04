@@ -12,7 +12,8 @@ async fn main() -> Result<(), AteError>
 {
     // The default configuration will store the redo log locally in the temporary folder
     let conf = ConfAte::default();
-    let builder = ChainBuilder::new(&conf);
+    let builder = ChainBuilder::new(&conf)
+        .await;
 
     // We create a chain with a specific key (this is used for the file name it creates)
     let chain = Chain::new(builder, &ChainKey::from("universe")).await?;

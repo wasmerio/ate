@@ -80,12 +80,12 @@ fn create_prepare<'a, 'b>(cfg_mesh: &'b ConfMesh) -> (Vec<MeshAddress>, Option<&
 
 pub async fn create_persistent_server(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Arc<MeshRoot<OpenStaticBuilder>>
 {
-    create_server(cfg_ate, cfg_mesh, super::flow::all_persistent(cfg_ate)).await
+    create_server(cfg_ate, cfg_mesh, super::flow::all_persistent(cfg_ate).await).await
 }
 
 pub async fn create_ethereal_server(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Arc<MeshRoot<OpenStaticBuilder>>
 {
-    create_server(cfg_ate, cfg_mesh, super::flow::all_ethereal(cfg_ate)).await
+    create_server(cfg_ate, cfg_mesh, super::flow::all_ethereal(cfg_ate).await).await
 }
 
 pub async fn create_server<F>(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh, open_flow: Box<F>) -> Arc<MeshRoot<F>>
@@ -150,7 +150,7 @@ async fn test_mesh()
             cfg_mesh.force_listen = Some(addr.clone());
 
             let join = tokio::spawn(async move {
-                create_server(&cfg_ate, &cfg_mesh, super::flow::all_ethereal(&cfg_ate)).await
+                create_server(&cfg_ate, &cfg_mesh, super::flow::all_ethereal(&cfg_ate).await).await
             });
             mesh_root_joins.push((addr, join));
         }
@@ -163,10 +163,13 @@ async fn test_mesh()
             cfg_mesh.force_listen = Some(addr.clone());
 
             let join = tokio::spawn(async move {
-                create_server(&cfg_ate, &cfg_mesh, super::flow::all_ethereal(&cfg_ate)).await
+                create_server(&cfg_ate, &cfg_mesh, super::flow::all_ethereal(&cfg_ate).await).await
             });
             mesh_root_joins.push((addr, join));
         }
+
+        // Just wait a second there!
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
         // Wait for all the servers to start
         for (addr, join) in mesh_root_joins {

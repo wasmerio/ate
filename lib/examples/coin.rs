@@ -18,6 +18,7 @@ async fn main() -> Result<(), AteError>
     // Create the chain with a public/private key to protect its integrity
     let conf = ConfAte::default();
     let builder = ChainBuilder::new(&conf)
+        .await
         .add_root_public_key(&root.as_public_key());
     let chain = Chain::new(builder, &ChainKey::from("universe")).await?;
 

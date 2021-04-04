@@ -19,13 +19,13 @@ impl OpenStaticBuilder
         }
     }
 
-    pub fn all_persistent(cfg: &ConfAte) -> OpenStaticBuilder {
-        let builder = ChainOfTrustBuilder::new(cfg).temporal(false);
+    pub async fn all_persistent(cfg: &ConfAte) -> OpenStaticBuilder {
+        let builder = ChainOfTrustBuilder::new(cfg).await.temporal(false);
         OpenStaticBuilder::new(builder)
     }
 
-    pub fn all_ethereal(cfg: &ConfAte) -> OpenStaticBuilder {
-        let builder = ChainOfTrustBuilder::new(cfg).temporal(true);
+    pub async fn all_ethereal(cfg: &ConfAte) -> OpenStaticBuilder {
+        let builder = ChainOfTrustBuilder::new(cfg).await.temporal(true);
         OpenStaticBuilder::new(builder)
     }
 }

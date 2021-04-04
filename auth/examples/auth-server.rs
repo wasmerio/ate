@@ -38,6 +38,7 @@ for ChainFlow
         let name = name.as_str();
         if self.regex_auth.is_match(name) {
             let chain = ChainBuilder::new(cfg)
+                .await
                 .add_root_public_key(&self.root_key.as_public_key())
                 .build(key)
                 .await?;
@@ -45,6 +46,7 @@ for ChainFlow
         }
         if self.regex_cmd.is_match(name) {
             let chain = ChainBuilder::new(cfg)
+                .await
                 .temporal(true)
                 .build(key)
                 .await?;

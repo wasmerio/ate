@@ -240,6 +240,7 @@ async fn main_mount(mount: Mount, conf: ConfAte) -> Result<(), AteError>
     debug!("mount_path: {}", mount.mount_path);
 
     let builder = ChainBuilder::new(&conf)
+        .await
         .temporal(mount.temp);
 
     // We create a chain with a specific key (this is used for the file name it creates)

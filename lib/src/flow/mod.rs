@@ -23,10 +23,10 @@ where Self: Send + Sync
     async fn open(&self, cfg: &ConfAte, key: &ChainKey) -> Result<OpenAction, ChainCreationError>;
 }
 
-pub fn all_persistent(cfg: &ConfAte) -> Box<basic::OpenStaticBuilder> {
-    Box::new(basic::OpenStaticBuilder::all_persistent(cfg))
+pub async fn all_persistent(cfg: &ConfAte) -> Box<basic::OpenStaticBuilder> {
+    Box::new(basic::OpenStaticBuilder::all_persistent(cfg).await)
 }
 
-pub fn all_ethereal(cfg: &ConfAte) -> Box<basic::OpenStaticBuilder> {
-    Box::new(basic::OpenStaticBuilder::all_ethereal(cfg))
+pub async fn all_ethereal(cfg: &ConfAte) -> Box<basic::OpenStaticBuilder> {
+    Box::new(basic::OpenStaticBuilder::all_ethereal(cfg).await)
 }

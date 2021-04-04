@@ -382,7 +382,7 @@ pub(crate) fn query_ntp(pool: &String, port: u32, tolerance_ms: u32) -> Result<N
     Ok(ret)
 }
 
-pub(crate) fn query_ntp_retry(pool: &String, port: u32, tolerance_ms: u32, samples: u32) -> Result<NtpResult, TimeError>
+pub(crate) async fn query_ntp_retry(pool: &String, port: u32, tolerance_ms: u32, samples: u32) -> Result<NtpResult, TimeError>
 {
     let mut best: Option<NtpResult> = None;
     let mut positives = 0;
@@ -410,7 +410,7 @@ pub(crate) fn query_ntp_retry(pool: &String, port: u32, tolerance_ms: u32, sampl
         }
         else
         {
-            std::thread::sleep(Duration::from_millis(wait_time));
+            tokio::time::sleep(Duration::from_millis(wait_time)).await;
             wait_time = (wait_time * 120) / 100;
              wait_time = wait_time + 50;
         }

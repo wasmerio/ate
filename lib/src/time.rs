@@ -46,13 +46,13 @@ for TimestampEnforcer
 impl TimestampEnforcer
 {
     #[allow(dead_code)]
-    pub fn new(cfg: &ConfAte, tolerance_ms: u32) -> Result<TimestampEnforcer, TimeError>
+    pub async fn new(cfg: &ConfAte, tolerance_ms: u32) -> Result<TimestampEnforcer, TimeError>
     {
         let tolerance_ms_loop = tolerance_ms;
         let tolerance_ms_seed = tolerance_ms * 3;
 
         let pool = Arc::new(cfg.ntp_pool.clone());
-        let ntp_result = Arc::new(RwLock::new(ntp::query_ntp_retry(pool.deref(), cfg.ntp_port, tolerance_ms_seed, 10)?));
+        let ntp_result = Arc::new(RwLock::new(ntp::query_ntp_retry(pool.deref(), cfg.ntp_port, tolerance_ms_seed, 10).await?));
         let bt_exit = Arc::new(Mutex::new(false));
 
         let bt_best_ping = Duration::from_micros(ntp_result.write().roundtrip()).as_millis() as u32;
@@ -61,14 +61,14 @@ impl TimestampEnforcer
         let bt_exit2 = bt_exit.clone();
         let bt_result = ntp_result.clone();
 
-        std::thread::spawn(move || {
+        tokio::spawn(async move {
             let mut n: u32 = 0;
             let mut best_ping = bt_best_ping;
 
             while *bt_exit2.lock() == false {
                 if n > 200 {
                     n = 0;
-                    match ntp::query_ntp_retry(bt_pool.deref(), bt_port, tolerance_ms_loop, 10) {
+                    match ntp::query_ntp_retry(bt_pool.deref(), bt_port, tolerance_ms_loop, 10).await {
                         Ok(r) =>
                         {
                             let ping = Duration::from_micros(r.roundtrip()).as_millis() as u32;
@@ -131,16 +131,6 @@ impl TimestampEnforcer
         Ok(
             since_the_epoch
         )
-    }
-}
-
-impl Default
-for TimestampEnforcer
-{
-    fn default() -> TimestampEnforcer
-    {
-        let cfg = ConfAte::default();
-        TimestampEnforcer::new(&cfg, 1000).unwrap()
     }
 }
 

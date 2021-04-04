@@ -334,7 +334,7 @@ for ChainOfTrustBuilder
 impl ChainOfTrustBuilder
 {
     #[allow(dead_code)]
-    pub fn new(cfg: &ConfAte) -> ChainOfTrustBuilder {
+    pub async fn new(cfg: &ConfAte) -> ChainOfTrustBuilder {
         ChainOfTrustBuilder {
             cfg: cfg.clone(),
             configured_for: cfg.configured_for.clone(),
@@ -349,10 +349,11 @@ impl ChainOfTrustBuilder
             temporal: false,
         }
         .with_defaults()
+        .await
     }
 
     #[allow(dead_code)]
-    pub fn with_defaults(mut self) -> Self {
+    pub async fn with_defaults(mut self) -> Self {
         self.validators.clear();
         self.indexers.clear();
         self.linters.clear();
@@ -399,7 +400,7 @@ impl ChainOfTrustBuilder
                 ConfiguredFor::BestSecurity => 1000,
                 _ => 2000,
             };
-            self.plugins.push(Box::new(TimestampEnforcer::new(&self.cfg, tolerance).unwrap()));
+            self.plugins.push(Box::new(TimestampEnforcer::new(&self.cfg, tolerance).await.unwrap()));
         }
 
         self
@@ -486,19 +487,10 @@ impl ChainOfTrustBuilder
     }
 }
 
-impl Default
-for ChainOfTrustBuilder
-{
-    fn default() -> ChainOfTrustBuilder {
-        let cfg = ConfAte::default();
-        ChainOfTrustBuilder::new(&cfg)
-    }
-}
-
 #[test]
 fn test_config_mocking() {
     crate::utils::bootstrap_env();
-    
+
     let cfg = mock_test_mesh();
     assert_eq!(cfg.clusters.iter().flat_map(|a| a.roots.iter()).next().unwrap().ip.to_string(), "127.0.0.1");
 }

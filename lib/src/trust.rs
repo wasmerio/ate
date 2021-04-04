@@ -219,6 +219,7 @@ pub(crate) async fn create_test_chain(chain_name: String, temp: bool, barebone: 
             mock_cfg.log_format.data = SerializationFormat::Json;
 
             ChainOfTrustBuilder::new(&mock_cfg)
+                .await
                 .add_validator(Box::new(RubberStampValidator::default()))
                 .add_data_transformer(Box::new(StaticEncryptionTransformer::new(&EncryptKey::from_seed_string("test".to_string(), KeySize::Bit192))))
                 .add_metadata_linter(Box::new(EventAuthorLinter::default()))
@@ -228,7 +229,7 @@ pub(crate) async fn create_test_chain(chain_name: String, temp: bool, barebone: 
             mock_cfg.log_format.meta = SerializationFormat::Json;
             mock_cfg.log_format.data = SerializationFormat::Json;
 
-            ChainOfTrustBuilder::new(&mock_cfg)
+            ChainOfTrustBuilder::new(&mock_cfg).await
         }
     };        
 
