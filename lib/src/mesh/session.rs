@@ -273,6 +273,11 @@ impl MeshSession
             sender.cancel();
         }
     }
+
+    pub fn chain(&self) -> Arc<Chain>
+    {
+        Arc::clone(&self.chain)
+    }
 }
 
 impl std::ops::Deref

@@ -41,7 +41,7 @@ const FUSE_TTL: Duration = Duration::from_secs(1);
 pub struct AteFS
 where Self: Send + Sync
 {
-    pub chain: Chain,
+    pub chain: Arc<Chain>,
     pub session: AteSession,
     pub open_handles: Mutex<FxHashMap<u64, Arc<OpenHandle>>>,
     pub elapsed: std::time::Instant,
@@ -150,7 +150,7 @@ pub(crate) fn conv<T>(r: std::result::Result<T, AteError>) -> std::result::Resul
 
 impl AteFS
 {
-    pub fn new(chain: Chain) -> AteFS {
+    pub fn new(chain: Arc<Chain>) -> AteFS {
         let session = AteSession::default();
         AteFS {
             chain,
@@ -316,7 +316,7 @@ for AteFS
                 }
             }     
         };
-        info!("atefs::init");
+        debug!("atefs::init");
         
         // All good
         self.tick().await?;
@@ -328,7 +328,7 @@ for AteFS
     async fn destroy(&self, _req: Request) {
         self.tick().await.unwrap();
         self.commit().await.unwrap();
-        info!("atefs::destroy");
+        debug!("atefs::destroy");
     }
 
     async fn getattr(

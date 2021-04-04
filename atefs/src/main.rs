@@ -5,6 +5,7 @@ use std::env;
 use std::io::ErrorKind;
 use directories::BaseDirs;
 use std::sync::Arc;
+use std::ops::Deref;
 use url::Url;
 
 mod fixed;
@@ -49,6 +50,8 @@ enum SubCommand {
     #[clap()]
     Mount(Mount),
     #[clap()]
+    Solo(Solo),
+    #[clap()]
     Login(Login),
     #[clap()]
     Logout(Logout),
@@ -73,23 +76,36 @@ struct Login {
 struct Logout {
 }
 
+/// Runs a solo ATE database and listens for connections from clients
+#[derive(Clap)]
+struct Solo {
+    /// Path to the log files where all the file system data is stored
+    #[clap(index = 1, default_value = "/opt/fs")]
+    logs_path: String,
+    /// IP address that the authentication server will isten on
+    #[clap(short, long, default_value = "0.0.0.0")]
+    listen: String,
+    /// Port that the authentication server will listen on
+    #[clap(short, long, default_value = "5000")]
+    port: u16,
+}
+
 /// Mounts a particular directory as an ATE file system
 #[derive(Clap)]
 struct Mount {
     /// Path to directory that the file system will be mounted at
     #[clap(index=1)]
     mount_path: String,
-    /// Configuration file of a ATE mesh to connect to - default is local-only mode
-    #[allow(dead_code)]
-    #[clap(short, long)]
-    mesh: Option<String>,
-    /// URL where the data is stored (e.g. tcp://ate.tokera.com/myfs) - if not specified then data will only be stored locally
-    #[clap(short, long)]
-    data: Option<String>,
     /// Location of the persistent redo log
-    #[clap(short, long, default_value = "~/ate/fs")]
+    #[clap(index=2, default_value = "~/ate/fs")]
     log_path: String,
-    /// Redo log file will be deleted when the file system is unmounted
+    /// URL where the data is remotely stored on a distributed commit log (e.g. tcp://ate.tokera.com/myfs).
+    /// If this URL is not specified then data will only be stored locally
+    #[clap(index=3)]
+    remote: Option<Url>,
+    /// Local redo log file will be deleted when the file system is unmounted, remotely stored data on
+    /// any distributed commit log will be persisted. Effectively this setting only uses the local disk
+    /// as a cache of the redo-log while it's being used.
     #[clap(short, long)]
     temp: bool,
     /// Indicates if ATE will use quantum resistant wire encryption (possible values are 128, 192, 256).
@@ -136,10 +152,9 @@ fn main_debug() -> Opts {
         dns_server: "8.8.8.8".to_string(),
         auth: Url::from_str("tcp://ate.tokera.com/auth").unwrap(),
         subcmd: SubCommand::Mount(Mount {
-            mesh: None,
             mount_path: "/mnt/test".to_string(),
             log_path: "~/ate".to_string(),
-            data: None,
+            remote: None,
             temp: false,
             uid: None,
             gid: None,
@@ -154,6 +169,14 @@ fn main_debug() -> Opts {
             data_format: ate::spec::SerializationFormat::Bincode,
         }),
     }
+}
+
+fn ctrl_channel() -> tokio::sync::watch::Receiver<bool> {
+    let (sender, receiver) = tokio::sync::watch::channel(false);
+    ctrlc::set_handler(move || {
+        let _ = sender.send(true);
+    }).unwrap();
+    receiver
 }
 
 #[tokio::main]
@@ -183,11 +206,33 @@ async fn main() -> Result<(), AteError> {
         },
         SubCommand::Mount(mount) => {
             main_mount(mount, conf).await?;
+        },
+        SubCommand::Solo(solo) => {
+            main_solo(solo).await?;
         }
     }
 
     info!("atefs::shutdown");
 
+    Ok(())
+}
+
+async fn main_solo(solo: Solo) -> Result<(), AteError>
+{
+    // Create the chain flow and generate configuration
+    let mut cfg_ate = ate_auth::conf_auth();
+    cfg_ate.log_path = shellexpand::tilde(&solo.logs_path).to_string();
+
+    // Create the server and listen on port 5000
+    let cfg_mesh = ConfMesh::solo(solo.listen.as_str(), solo.port);
+    let _server = create_persistent_server(&cfg_ate, &cfg_mesh).await;
+
+    // Wait for ctrl-c
+    let mut exit = ctrl_channel();
+    while *exit.borrow() == false {
+        exit.changed().await.unwrap();
+    }
+    println!("Goodbye!");
     Ok(())
 }
 
@@ -232,23 +277,38 @@ async fn main_mount(mount: Mount, conf: ConfAte) -> Result<(), AteError>
     conf.log_path = shellexpand::tilde(&mount.log_path).to_string();
     conf.wire_encryption = mount.wire_encryption;
 
-    debug!("configured_for: {:?}", mount.configured_for);
-    debug!("meta_format: {:?}", mount.meta_format);
-    debug!("data_format: {:?}", mount.data_format);
-    debug!("log_path: {}", conf.log_path);
-    debug!("log_temp: {}", mount.temp);
-    debug!("mount_path: {}", mount.mount_path);
+    info!("configured_for: {:?}", mount.configured_for);
+    info!("meta_format: {:?}", mount.meta_format);
+    info!("data_format: {:?}", mount.data_format);
+    info!("log_path: {}", conf.log_path);
+    info!("log_temp: {}", mount.temp);
+    info!("mount_path: {}", mount.mount_path);
+    match &mount.remote {
+        Some(remote) => info!("remote: {}", remote.to_string()),
+        None => info!("remote: local-only"),
+    };
 
     let builder = ChainBuilder::new(&conf)
         .await
         .temporal(mount.temp);
 
     // We create a chain with a specific key (this is used for the file name it creates)
-    info!("atefs::chain-init");
-    let chain = Chain::new(builder.clone(), &ChainKey::from("root")).await?;
+    debug!("chain-init");
+    let registry;
+    let session;
+    let chain = match mount.remote {
+        None => {
+            Arc::new(Chain::new(builder.clone(), &ChainKey::from("root")).await?)
+        },
+        Some(remote) => {
+            registry = ate::mesh::Registry::new(&conf).await;
+            session = registry.open(&remote).await?;
+            session.chain()
+        },
+    };
     
     // Mount the file system
-    info!("atefs::mount");
+    info!("mounting file-system and entering main loop");
     match Session::new(mount_options)
         .mount_with_unprivileged(AteFS::new(chain), mount.mount_path)
         .await
