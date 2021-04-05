@@ -35,7 +35,7 @@ where Self: Send + Sync
     pub(super) cache_store_secondary: MultiMap<MetaCollection, PrimaryKey>,
     pub(super) cache_load: FxHashMap<PrimaryKey, (Arc<EventData>, EventLeaf)>,
     pub(super) locked: FxHashSet<PrimaryKey>,
-    pub(super) deleted: FxHashMap<PrimaryKey, RowData>,
+    pub(super) deleted: FxHashSet<PrimaryKey>,
     pub(super) pipe_unlock: FxHashSet<PrimaryKey>,
 }
 
@@ -62,6 +62,22 @@ impl DioState
     pub(super) fn is_locked(&self, key: &PrimaryKey) -> bool {
         self.locked.contains(key)
     }
+
+    pub(super) fn add_deleted(&mut self, key: PrimaryKey, parent: Option<MetaParent>)
+    {
+        if self.lock(&key) == false {
+            eprintln!("Detected concurrent write while deleting a data object ({:?}) - the delete operation will override everything else", key);
+        }
+
+        self.cache_store_primary.remove(&key);
+        if let Some(tree) = parent {
+            if let Some(y) = self.cache_store_secondary.get_vec_mut(&tree.vec) {
+                y.retain(|x| *x == key);
+            }
+        }
+        self.cache_load.remove(&key);
+        self.deleted.insert(key);
+    }
 }
 
 impl DioState
@@ -74,7 +90,7 @@ impl DioState
             cache_store_secondary: MultiMap::new(),
             cache_load: FxHashMap::default(),
             locked: FxHashSet::default(),
-            deleted: FxHashMap::default(),
+            deleted: FxHashSet::default(),
             pipe_unlock: FxHashSet::default(),
         }
     }
@@ -106,14 +122,12 @@ where Self: Send + Sync
 
 impl<'a> Dio<'a>
 {
-    #[allow(dead_code)]
     pub fn store<D>(&mut self, data: D) -> Result<Dao<D>, SerializationError>
     where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
         self.store_ext(data, None, None, true)
     }
 
-    #[allow(dead_code)]
     pub fn store_ext<D>(&mut self, data: D, format: Option<MessageFormat>, key: Option<PrimaryKey>, auto_commit: bool) -> Result<Dao<D>, SerializationError>
     where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
@@ -142,7 +156,36 @@ impl<'a> Dio<'a>
         Ok(ret)
     }
 
-    #[allow(dead_code)]
+    pub async fn delete<D>(&mut self, key: &PrimaryKey) -> Result<(), LoadError>
+    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
+    {
+        {
+            let state = &self.state;
+            if state.is_locked(key) {
+                return Result::Err(LoadError::ObjectStillLocked(key.clone()));
+            }
+            if let Some(dao) = state.cache_store_primary.get(key) {
+                let row = Row::from_row_data(dao.deref())?;
+                let dao = Dao::<D>::new(row);
+                dao.delete(self)?;
+                return Ok(());
+            }
+            if let Some((dao, leaf)) = state.cache_load.get(key) {
+                let row = Row::from_event(dao.deref(), leaf.created, leaf.updated)?;
+                let dao = Dao::<D>::new(row);
+                dao.delete(self)?;
+                return Ok(());
+            }
+            if state.deleted.contains(&key) {
+                return Result::Err(LoadError::AlreadyDeleted(key.clone()));
+            }
+        }
+        
+        let parent = self.multi.lookup_parent(key).await;
+        self.state.add_deleted(key.clone(), parent);
+        Ok(())
+    }
+
     pub async fn load<D>(&mut self, key: &PrimaryKey) -> Result<Dao<D>, LoadError>
     where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
@@ -159,7 +202,7 @@ impl<'a> Dio<'a>
                 let row = Row::from_event(dao.deref(), leaf.created, leaf.updated)?;
                 return Ok(Dao::new(row));
             }
-            if state.deleted.contains_key(key) {
+            if state.deleted.contains(&key) {
                 return Result::Err(LoadError::AlreadyDeleted(key.clone()));
             }
         }
@@ -237,7 +280,7 @@ impl<'a> Dio<'a>
                     ret.push(Dao::new(row));
                     continue;
                 }
-                if state.deleted.contains_key(&key) {
+                if state.deleted.contains(&key) {
                     continue;
                 }
             }
@@ -275,7 +318,7 @@ impl<'a> Dio<'a>
                 already.insert(row.key.clone());
                 ret.push(Dao::new(row));
             }
-            if state.deleted.contains_key(&key) {
+            if state.deleted.contains(&key) {
                 continue;
             }
 
@@ -301,7 +344,7 @@ impl<'a> Dio<'a>
                 if already.contains(a) {
                     continue;
                 }
-                if state.deleted.contains_key(a) {
+                if state.deleted.contains(a) {
                     continue;
                 }
 
@@ -375,89 +418,95 @@ impl<'a> Dio<'a>
         let mut evts = Vec::new();
         let mut trans_meta = TransactionMetadata::default();
 
-        // Convert all the events that we are storing into serialize data
-        for row in state.store.drain(..)
+        
         {
-            // Build a new clean metadata header
-            let mut meta = Metadata::for_data(row.key);
-            meta.core.push(CoreMetadata::Authorization(row.auth.clone()));
-            if let Some(parent) = &row.parent {
-                meta.core.push(CoreMetadata::Parent(parent.clone()))
-            }
+            // Take all the locks we need to perform the commit actions
+            let multi_lock = self.multi.lock().await;
 
-            // Compute all the extra metadata for an event
-            let extra_meta = self.multi.metadata_lint_event(&mut meta, &self.session, &trans_meta)?;
-            meta.core.extend(extra_meta);
-
-            // Add the data to the transaction metadata object
-            if let Some(key) = meta.get_data_key() {
-                trans_meta.auth.insert(key, match meta.get_authorization() {
-                    Some(a) => a.clone(),
-                    None => MetaAuthorization {
-                        read: ReadOption::Inherit,
-                        write: WriteOption::Inherit,
-                    }
-                });
-                if let Some(parent) = meta.get_parent() {
-                    trans_meta.parents.insert(key, parent.clone());
+            // Convert all the events that we are storing into serialize data
+            for row in state.store.drain(..)
+            {
+                // Build a new clean metadata header
+                let mut meta = Metadata::for_data(row.key);
+                meta.core.push(CoreMetadata::Authorization(row.auth.clone()));
+                if let Some(parent) = &row.parent {
+                    meta.core.push(CoreMetadata::Parent(parent.clone()))
                 }
+
+                // Compute all the extra metadata for an event
+                let extra_meta = multi_lock.metadata_lint_event(&mut meta, &self.session, &trans_meta)?;
+                meta.core.extend(extra_meta);
+
+                // Add the data to the transaction metadata object
+                if let Some(key) = meta.get_data_key() {
+                    trans_meta.auth.insert(key, match meta.get_authorization() {
+                        Some(a) => a.clone(),
+                        None => MetaAuthorization {
+                            read: ReadOption::Inherit,
+                            write: WriteOption::Inherit,
+                        }
+                    });
+                    if let Some(parent) = meta.get_parent() {
+                        trans_meta.parents.insert(key, parent.clone());
+                    }
+                }
+                
+                // Perform any transformation (e.g. data encryption and compression)
+                let data = multi_lock.data_as_underlay(&mut meta, row.data.clone(), &self.session)?;
+                
+                // Only once all the rows are processed will we ship it to the redo log
+                let evt = EventData {
+                    meta: meta,
+                    data_bytes: Some(data),
+                    format: self.default_format,
+                };
+                evts.push(evt);
             }
-            
-            // Perform any transformation (e.g. data encryption and compression)
-            let data = self.multi.data_as_underlay(&mut meta, row.data.clone(), &self.session)?;
-            
-            // Only once all the rows are processed will we ship it to the redo log
-            let evt = EventData {
-                meta: meta,
-                data_bytes: Some(data),
-                format: self.default_format,
-            };
-            evts.push(evt);
-        }
 
-        // Build events that will represent tombstones on all these records (they will be sent after the writes)
-        for (key, row) in state.deleted.drain() {
-            let mut meta = Metadata::default();
-            meta.core.push(CoreMetadata::Authorization(MetaAuthorization {
-                read: ReadOption::Everyone,
-                write: WriteOption::Nobody,
-            }));
-            if let Some(parent) = row.parent {
-                meta.core.push(CoreMetadata::Parent(parent))
+            // Build events that will represent tombstones on all these records (they will be sent after the writes)
+            for key in state.deleted.drain() {
+                let mut meta = Metadata::default();
+                meta.core.push(CoreMetadata::Authorization(MetaAuthorization {
+                    read: ReadOption::Everyone,
+                    write: WriteOption::Nobody,
+                }));
+                if let Some(parent) = multi_lock.inside_async.chain.lookup_parent(&key) {
+                    meta.core.push(CoreMetadata::Parent(parent))
+                }
+                meta.add_tombstone(key);
+                
+                // Compute all the extra metadata for an event
+                let extra_meta = multi_lock.metadata_lint_event(&mut meta, &self.session, &trans_meta)?;
+                meta.core.extend(extra_meta);
+
+                let evt = EventData {
+                    meta: meta,
+                    data_bytes: None,
+                    format: self.default_format,
+                };
+                evts.push(evt);
             }
-            meta.add_tombstone(key);
-            
-            // Compute all the extra metadata for an event
-            let extra_meta = self.multi.metadata_lint_event(&mut meta, &self.session, &trans_meta)?;
-            meta.core.extend(extra_meta);
 
-            let evt = EventData {
-                meta: meta,
-                data_bytes: None,
-                format: self.default_format,
-            };
-            evts.push(evt);
-        }
+            // Lint the data
+            let mut lints = Vec::new();
+            for evt in evts.iter() {
+                lints.push(LintData {
+                    data: evt,
+                    header: evt.as_header()?,
+                });
+            }
+            let meta = multi_lock.metadata_lint_many(&lints, &self.session)?;
 
-        // Lint the data
-        let mut lints = Vec::new();
-        for evt in evts.iter() {
-            lints.push(LintData {
-                data: evt,
-                header: evt.as_header()?,
-            });
-        }
-        let meta = self.multi.metadata_lint_many(&lints, &self.session)?;
-
-        // If it has data then insert it at the front of these events
-        if meta.len() > 0 {
-            evts.insert(0, EventData {
-                meta: Metadata {
-                    core: meta,
-                },
-                data_bytes: None,
-                format: self.default_format,
-            });
+            // If it has data then insert it at the front of these events
+            if meta.len() > 0 {
+                evts.insert(0, EventData {
+                    meta: Metadata {
+                        core: meta,
+                    },
+                    data_bytes: None,
+                    format: self.default_format,
+                });
+            }
         }
 
         // Create the transaction

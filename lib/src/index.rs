@@ -108,6 +108,13 @@ impl BinaryTreeIndexer
         }
     }
 
+    pub(crate) fn lookup_parent(&self, key: &PrimaryKey) -> Option<MetaParent> {
+        match self.parents.get(key) {
+            None => None,
+            Some(a) => Some(a.clone())
+        }
+    }
+
     pub(crate) fn lookup_secondary(&self, key: &MetaCollection) -> Option<Vec<EventLeaf>> {
         match self.secondary.get_vec(key) {
             Some(vec) => {

@@ -161,19 +161,20 @@ impl<'a> ChainOfTrust
         Ok(ret)
     }
 
-    #[allow(dead_code)]
     pub(super) fn lookup_primary(&self, key: &PrimaryKey) -> Option<EventLeaf>
     {
         self.pointers.lookup_primary(key)
     }
 
-    #[allow(dead_code)]
+    pub(super) fn lookup_parent(&self, key: &PrimaryKey) -> Option<MetaParent> {
+        self.pointers.lookup_parent(key)
+    }
+
     pub(super) fn lookup_secondary(&self, key: &MetaCollection) -> Option<Vec<EventLeaf>>
     {
         self.pointers.lookup_secondary(key)
     }
 
-    #[allow(dead_code)]
     pub(super) fn lookup_secondary_raw(&self, key: &MetaCollection) -> Option<Vec<PrimaryKey>>
     {
         self.pointers.lookup_secondary_raw(key)

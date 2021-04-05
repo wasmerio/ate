@@ -22,6 +22,22 @@ use super::transaction::*;
 
 use bytes::Bytes;
 
+pub(crate) struct ChainMultiUserLock<'a>
+{
+    pub inside_async: tokio::sync::RwLockReadGuard<'a, ChainProtectedAsync>,
+    pub inside_sync: parking_lot::RwLockReadGuard<'a, ChainProtectedSync>,
+}
+
+impl<'a> std::ops::Deref
+for ChainMultiUserLock<'a>
+{
+    type Target=ChainProtectedSync;
+
+    fn deref(&self) -> &ChainProtectedSync {
+        self.inside_sync.deref()
+    }
+}
+
 #[derive(Clone)]
 pub struct ChainMultiUser
 where Self: Send + Sync
@@ -44,85 +60,108 @@ impl ChainMultiUser
         }
     }
  
-    #[allow(dead_code)]
     pub async fn load(&self, leaf: EventLeaf) -> Result<LoadResult, LoadError> {
         self.inside_async.read().await.chain.load(leaf).await
     }
 
-    #[allow(dead_code)]
     pub async fn load_many(&self, leafs: Vec<EventLeaf>) -> Result<Vec<LoadResult>, LoadError> {
         self.inside_async.read().await.chain.load_many(leafs).await
     }
 
-    #[allow(dead_code)]
     pub async fn lookup_primary(&self, key: &PrimaryKey) -> Option<EventLeaf> {
         self.inside_async.read().await.chain.lookup_primary(key)
     }
 
-    #[allow(dead_code)]
     pub async fn lookup_secondary(&self, key: &MetaCollection) -> Option<Vec<EventLeaf>> {
         self.inside_async.read().await.chain.lookup_secondary(key)
     }
 
-    #[allow(dead_code)]
     pub async fn lookup_secondary_raw(&self, key: &MetaCollection) -> Option<Vec<PrimaryKey>> {
         self.inside_async.read().await.chain.lookup_secondary_raw(key)
+    }
+
+    pub async fn lookup_parent(&self, key: &PrimaryKey) -> Option<MetaParent> {
+        self.inside_async.read().await.chain.lookup_parent(key)
     }
 
     #[allow(dead_code)]
     pub(crate) fn metadata_lint_many<'a>(&self, lints: &Vec<LintData<'a>>, session: &Session) -> Result<Vec<CoreMetadata>, LintError> {
         let guard = self.inside_sync.read();
-        let mut ret = Vec::new();
-        for linter in guard.linters.iter() {
-            ret.extend(linter.metadata_lint_many(lints, session)?);
-        }
-        for plugin in guard.plugins.iter() {
-            ret.extend(plugin.metadata_lint_many(lints, session)?);
-        }
-        Ok(ret)
+        guard.metadata_lint_many(lints, session)
     }
 
     #[allow(dead_code)]
     pub(crate) fn metadata_lint_event(&self, meta: &mut Metadata, session: &Session, trans_meta: &TransactionMetadata) -> Result<Vec<CoreMetadata>, LintError> {
         let guard = self.inside_sync.read();
-        let mut ret = Vec::new();
-        for linter in guard.linters.iter() {
-            ret.extend(linter.metadata_lint_event(meta, session, trans_meta)?);
-        }
-        for plugin in guard.plugins.iter() {
-            ret.extend(plugin.metadata_lint_event(meta, session, trans_meta)?);
-        }
-        Ok(ret)
+        guard.metadata_lint_event(meta, session, trans_meta)
     }
 
     #[allow(dead_code)]
     pub(crate) fn data_as_overlay(&self, meta: &Metadata, data: Bytes, session: &Session) -> Result<Bytes, TransformError> {
         let guard = self.inside_sync.read();
-        let mut ret = data;
-        for plugin in guard.plugins.iter().rev() {
-            ret = plugin.data_as_overlay(meta, ret, session)?;
-        }
-        for transformer in guard.transformers.iter().rev() {
-            ret = transformer.data_as_overlay(meta, ret, session)?;
-        }
-        Ok(ret)
+        guard.data_as_overlay(meta, data, session)
     }
 
     #[allow(dead_code)]
     pub(crate) fn data_as_underlay(&self, meta: &mut Metadata, data: Bytes, session: &Session) -> Result<Bytes, TransformError> {
         let guard = self.inside_sync.read();
-        let mut ret = data;
-        for transformer in guard.transformers.iter() {
-            ret = transformer.data_as_underlay(meta, ret, session)?;
+        guard.data_as_underlay(meta, data, session)
+    }
+    
+    pub async fn count(&self) -> usize {
+        self.inside_async.read().await.chain.redo.count()
+    }
+
+    pub(crate) async fn lock<'a>(&'a self) -> ChainMultiUserLock<'a> {
+        ChainMultiUserLock {
+            inside_async: self.inside_async.read().await,
+            inside_sync: self.inside_sync.read()
+        }        
+    }
+}
+
+impl ChainProtectedSync {
+    pub(crate) fn metadata_lint_many<'a>(&self, lints: &Vec<LintData<'a>>, session: &Session) -> Result<Vec<CoreMetadata>, LintError> {
+        let mut ret = Vec::new();
+        for linter in self.linters.iter() {
+            ret.extend(linter.metadata_lint_many(lints, session)?);
         }
-        for plugin in guard.plugins.iter() {
-            ret = plugin.data_as_underlay(meta, ret, session)?;
+        for plugin in self.plugins.iter() {
+            ret.extend(plugin.metadata_lint_many(lints, session)?);
         }
         Ok(ret)
     }
-    
-    #[allow(dead_code)]
-    pub async fn count(&self) -> usize {
-        self.inside_async.read().await.chain.redo.count()
+
+    pub(crate) fn metadata_lint_event(&self, meta: &mut Metadata, session: &Session, trans_meta: &TransactionMetadata) -> Result<Vec<CoreMetadata>, LintError> {
+        let mut ret = Vec::new();
+        for linter in self.linters.iter() {
+            ret.extend(linter.metadata_lint_event(meta, session, trans_meta)?);
+        }
+        for plugin in self.plugins.iter() {
+            ret.extend(plugin.metadata_lint_event(meta, session, trans_meta)?);
+        }
+        Ok(ret)
+    }
+
+    pub(crate) fn data_as_overlay(&self, meta: &Metadata, data: Bytes, session: &Session) -> Result<Bytes, TransformError> {
+        let mut ret = data;
+        for plugin in self.plugins.iter().rev() {
+            ret = plugin.data_as_overlay(meta, ret, session)?;
+        }
+        for transformer in self.transformers.iter().rev() {
+            ret = transformer.data_as_overlay(meta, ret, session)?;
+        }
+        Ok(ret)
+    }
+
+    pub(crate) fn data_as_underlay(&self, meta: &mut Metadata, data: Bytes, session: &Session) -> Result<Bytes, TransformError> {
+        let mut ret = data;
+        for transformer in self.transformers.iter() {
+            ret = transformer.data_as_underlay(meta, ret, session)?;
+        }
+        for plugin in self.plugins.iter() {
+            ret = plugin.data_as_underlay(meta, ret, session)?;
+        }
+        Ok(ret)
     }
 }

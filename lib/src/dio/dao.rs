@@ -385,20 +385,8 @@ pub(crate) fn delete_internal<D>(dao: &Dao<D>, state: &mut DioState)
     -> std::result::Result<(), SerializationError>
 where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
-    if state.lock(&dao.row.key) == false {
-        eprintln!("Detected concurrent write while deleting a data object ({:?}) - the delete operation will override everything else", dao.row.key);
-    }
     let key = dao.key().clone();
-    state.cache_store_primary.remove(&key);
-    if let Some(tree) = &dao.row.parent {
-        if let Some(y) = state.cache_store_secondary.get_vec_mut(&tree.vec) {
-            y.retain(|x| *x == key);
-        }
-    }
-    state.cache_load.remove(&key);
-
-    let row_data = dao.row.as_row_data()?;
-    state.deleted.insert(key, row_data);
+    state.add_deleted(key, dao.row.parent.clone());
     Ok(())
 }
 

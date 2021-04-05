@@ -592,14 +592,8 @@ for AteFS
             debug!("atefs::rmdir parent={} name={}: found", parent, name.to_str().unwrap());
 
             let mut dio = self.chain.dio(&self.session).await;
-            let data = conv_load(dio.load::<Inode>(&PrimaryKey::from(entry.inode)).await)?;
-
-            if let Some(_) = conv_load(data.iter(&mut dio, data.children).await)?.next() {
-                return Err(Errno::from(libc::ENOTEMPTY));
-            }
-
-            conv_serialization(data.delete(&mut dio))?;
-
+            conv_load(dio.delete::<Inode>(&PrimaryKey::from(entry.inode)).await)?;
+            conv_commit(dio.commit().await)?;
             return Ok(())
         }
 
@@ -679,18 +673,19 @@ for AteFS
         self.tick().await?;
         debug!("atefs::unlink parent={} name={}", parent, name.to_str().unwrap().to_string());
 
-        let key = PrimaryKey::from(parent);
+        let parent_key = PrimaryKey::from(parent);
         let mut dio = self.chain.dio(&self.session).await;
-        let data = conv_load(dio.load::<Inode>(&key).await)?;
 
-        if data.spec_type != SpecType::Directory {
+        let data_parent = conv_load(dio.load::<Inode>(&parent_key).await)?;
+
+        if data_parent.spec_type != SpecType::Directory {
             debug!("atefs::unlink parent={} not-a-directory", parent);
             
             dio.cancel();
             return Err(libc::ENOTDIR.into());
         }
         
-        if let Some(data) = conv_load(data.iter(&mut dio, data.children).await)?.filter(|c| *c.dentry.name == *name).next()
+        if let Some(data) = conv_load(data_parent.iter(&mut dio, data_parent.children).await)?.filter(|c| *c.dentry.name == *name).next()
         {
             if data.spec_type == SpecType::Directory {
                 debug!("atefs::unlink parent={} name={} is-a-directory", parent, name.to_str().unwrap().to_string());
