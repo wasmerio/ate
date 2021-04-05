@@ -272,37 +272,6 @@ async fn inbox_unlock(
     Ok(())
 }
 
-async fn inbox_packet<F>(
-    root: Arc<MeshRoot<F>>,
-    pck: PacketWithContext<Message, SessionContext>,
-    tx: &NodeTx<SessionContext>
-)
--> Result<(), CommsError>
-where F: OpenFlow + 'static
-{
-    //debug!("inbox: packet size={}", pck.data.bytes.len());
-
-    let wire_format = pck.data.wire_format;
-    let context = pck.context.clone();
-    let mut pck_data = pck.data;
-    let pck = pck.packet;
-
-    let reply_at_owner = pck_data.reply_here.take();
-    let reply_at = reply_at_owner.as_ref();
-    
-    match pck.msg {
-        Message::Subscribe { chain_key, history_sample }
-            => inbox_subscribe(root, chain_key, history_sample, reply_at, context, wire_format).await,
-        Message::Events { commit, evts }
-            => inbox_event(reply_at, context, commit, evts, tx, pck_data).await,
-        Message::Lock { key }
-            => inbox_lock(reply_at, context, key, wire_format).await,
-        Message::Unlock { key }
-            => inbox_unlock(context, key).await,
-        _ => Ok(())
-    }
-}
-
 async fn inbox_subscribe<F>(
     root: Arc<MeshRoot<F>>,
     chain_key: ChainKey,
@@ -350,6 +319,7 @@ where F: OpenFlow + 'static
     if let Some(reply_at) = reply_at
     {
         // First up tell the caller what our default settings are for this chain
+        debug!("sending defaults for {}", chain_key.to_string());
         PacketData::reply_at(Some(&reply_at), wire_format, Message::Defaults {
             log_format: chain.default_format(),
         }).await?;
@@ -361,6 +331,8 @@ where F: OpenFlow + 'static
             reply_at.clone(),
             wire_format,
         ));
+    } else {
+        debug!("no reply address for this subscribe");
     }
 
     Ok(())
@@ -375,8 +347,10 @@ async fn inbox_stream_data(
 -> Result<(), CommsError>
 {
     // Let the caller know we will be streaming them events
+    let size = chain.count().await;
+    debug!("sending start-of-history (size={})", size);
     let multi = chain.multi().await;
-    PacketData::reply_at(Some(&reply_at), wire_format, Message::StartOfHistory { size: chain.count().await }).await?;
+    PacketData::reply_at(Some(&reply_at), wire_format, Message::StartOfHistory { size }).await?;
 
     // Find what offset we will start streaming the events back to the caller
     // (we work backwards from the consumers last known position till we find a match
@@ -384,8 +358,14 @@ async fn inbox_stream_data(
     let mut cur = {
         let guard = multi.inside_async.read().await;
         match history_sample.iter().filter_map(|t| guard.chain.history_reverse.get(t)).next() {
-            Some(a) => Some(a.clone()),
-            None => guard.chain.history.keys().map(|t| t.clone()).next(),
+            Some(a) => {
+                debug!("resuming from offset {}", a);
+                Some(a.clone())
+            },
+            None => {
+                debug!("streaming entire history");
+                guard.chain.history.keys().map(|t| t.clone()).next()
+            },
         }
     };
     
@@ -434,8 +414,40 @@ async fn inbox_stream_data(
     }
 
     // Let caller know we have sent all the events that were requested
+    debug!("sending end-of-history");
     PacketData::reply_at(Some(&reply_at), wire_format, Message::EndOfHistory).await?;
     Ok(())
+}
+
+async fn inbox_packet<F>(
+    root: Arc<MeshRoot<F>>,
+    pck: PacketWithContext<Message, SessionContext>,
+    tx: &NodeTx<SessionContext>
+)
+-> Result<(), CommsError>
+where F: OpenFlow + 'static
+{
+    //debug!("inbox: packet size={}", pck.data.bytes.len());
+
+    let wire_format = pck.data.wire_format;
+    let context = pck.context.clone();
+    let mut pck_data = pck.data;
+    let pck = pck.packet;
+
+    let reply_at_owner = pck_data.reply_here.take();
+    let reply_at = reply_at_owner.as_ref();
+    
+    match pck.msg {
+        Message::Subscribe { chain_key, history_sample }
+            => inbox_subscribe(root, chain_key, history_sample, reply_at, context, wire_format).await,
+        Message::Events { commit, evts }
+            => inbox_event(reply_at, context, commit, evts, tx, pck_data).await,
+        Message::Lock { key }
+            => inbox_lock(reply_at, context, key, wire_format).await,
+        Message::Unlock { key }
+            => inbox_unlock(context, key).await,
+        _ => Ok(())
+    }
 }
 
 async fn inbox<F>(

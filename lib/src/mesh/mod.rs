@@ -4,7 +4,7 @@ use log::{error, info, debug};
 
 mod msg;
 mod core;
-mod root;
+mod server;
 mod client;
 mod session;
 mod registry;
@@ -40,7 +40,7 @@ use crate::dio::Dao;
 use crate::dio::DaoObj;
 
 use crate::mesh::client::MeshClient;
-use crate::mesh::root::MeshRoot;
+use crate::mesh::server::MeshRoot;
 
 pub(crate) use super::mesh::session::MeshSession;
 pub use crate::mesh::registry::Registry;
