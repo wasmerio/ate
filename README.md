@@ -13,6 +13,7 @@ ATE
 ...is it a [NoSQL](https://en.wikipedia.org/wiki/NoSQL) database?  
 ...is it a [distributed redo log](https://en.wikipedia.org/wiki/Redo_log)?  
 ...is it a [event BUS](https://en.wikipedia.org/wiki/Publish%E2%80%93subscribe_pattern)?  
+...is it a [API framework](https://en.wikipedia.org/wiki/Command_pattern)?
 ...is it a [distributed queue](https://en.wikipedia.org/wiki/Message_queue)?  
 ...is it a [distributed cache](https://en.wikipedia.org/wiki/Distributed_cache)?  
 ...is it a secure encrypted vault?  
@@ -155,7 +156,7 @@ async fn main() -> Result<(), AteError>
 - [Hello World](lib/examples/hello-world.rs)
 - [Server/Client](lib/examples/server-client.rs)
 - [Publish/Subscribe](lib/examples/bus-or-queue.rs)
-- [Command/API](lib/examples/command-api.rs)
+- [Service/API](lib/examples/service-api.rs)
 - [Exactly-Once Queue](lib/examples/bus-or-queue.rs)
 - [Crypto Currency](lib/examples/coin.rs)
 - [Banking Example](lib/examples/bank.rs)
