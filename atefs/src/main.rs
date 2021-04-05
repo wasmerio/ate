@@ -7,6 +7,7 @@ use directories::BaseDirs;
 use std::sync::Arc;
 use std::ops::Deref;
 use url::Url;
+use tokio::select;
 
 mod fixed;
 mod api;
@@ -16,6 +17,7 @@ mod symlink;
 mod file;
 mod progress;
 mod fs;
+mod umount;
 
 use fs::AteFS;
 
@@ -319,27 +321,47 @@ async fn main_mount(mount: Mount, conf: ConfAte) -> Result<(), AteError>
             session.chain()
         },
     };
-    
-    // Mount the file system
-    info!("mounting file-system and entering main loop");
-    match Session::new(mount_options)
-        .mount_with_unprivileged(AteFS::new(chain), mount.mount_path)
-        .await
-    {
-        Err(err) if err.kind() == ErrorKind::Other => {
-            if err.to_string().contains("find fusermount binary failed") {
-                error!("Fuse3 could not be found - you may need to install fuse3 via apt/yum");
-                return Ok(())
-            }
-            error!("{}", err);
-            std::process::exit(1);
-        }
-        Err(err) => {
-            error!("{}", err);
-            std::process::exit(1);
-        }
-        _ => {}
-    }
 
-    Ok(())
+    // Create the mount point
+    let mount_path = mount.mount_path.clone();
+    let mount_join = Session::new(mount_options)
+        .mount_with_unprivileged(AteFS::new(chain), mount.mount_path);
+
+    // Install a ctrl-c command
+    info!("mounting file-system and entering main loop");
+    let mut ctrl_c = ctrl_channel();
+
+    // Main loop
+    eprintln!("Press ctrl-c to exit");
+    select!
+    {
+        // Wait for a ctrl-c
+        _ = ctrl_c.changed() => {
+            umount::unmount(std::path::Path::new(mount_path.as_str()))?;
+            eprintln!("Goodbye!");
+            return Ok(());
+        }
+
+        // Mount the file system
+        ret = mount_join => {
+            match ret {
+                Err(err) if err.kind() == ErrorKind::Other => {
+                    if err.to_string().contains("find fusermount binary failed") {
+                        error!("Fuse3 could not be found - you may need to install fuse3 via apt/yum");
+                        return Ok(())
+                    }
+                    error!("{}", err);
+                    std::process::exit(1);
+                }
+                Err(err) => {
+                    error!("{}", err);
+                    std::process::exit(1);
+                }
+                _ => {
+                    eprintln!("Shutdown");
+                    return Ok(());
+                }
+            }
+        }
+    }
 }

@@ -9,6 +9,8 @@ keywords = ["immutable", "filesystem" ]
 categories = ["filesystem"]
 repository = "https://github.com/john-sharratt/ate/atefs"
 readme = "README.md"
+build = "build.rs"
+links = "fuse"
 
 [dependencies]
 ate = { version = "0.3.*", path = "../lib" }
@@ -39,3 +41,6 @@ array-init = "1.0.*"
 rpassword = "0.0.*"
 url = "2.2.*"
 pbr = "1.0.*"
+
+[build-dependencies]
+pkg-config = "0.3.*"
