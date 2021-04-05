@@ -10,7 +10,7 @@ particular varient has some unique qualities that differentiate it from others.
 
 ## What is ATE
 
-[See here](../README.md)
+[See here](https://github.com/john-sharratt/ate/blob/master/README.md)
 
 ## Summary
 
@@ -68,13 +68,17 @@ Features:
 
 ## QuickStart
 
-Add ate, serde and tokio to your dependency list in Cargo.toml
+Run a server somewhere
+
+```sh
+atedb solo
+```
+
+Mount the distributed file-system
 
 ```sh
 sudo apt install fuse3
-mkdir ~/data/myfs
-mkdir ~/myfs
-atefs mount ~/myfs ~/data/myfs
+atefs mount /mnt/test ~/ate/fs tcp://localhost/myfs
 ```
 
 ## Contribution
