@@ -30,13 +30,13 @@ pub struct RedoLog {
 
 impl RedoLog
 {
-    async fn new(cfg: &ConfAte, path_log: String, flags: OpenFlags, cache_size: usize, cache_ttl: u64, loader: Box<impl Loader>) -> std::result::Result<RedoLog, SerializationError>
+    async fn new(path_log: String, flags: OpenFlags, cache_size: usize, cache_ttl: u64, loader: Box<impl Loader>) -> std::result::Result<RedoLog, SerializationError>
     {
         // Now load the real thing
         let mut ret = RedoLog {
             log_temp: flags.temporal,
             log_path: path_log.clone(),
-            log_file: LogFile::new(flags.temporal, path_log.clone(), flags.truncate, cache_size, cache_ttl, cfg.log_format).await?,
+            log_file: LogFile::new(flags.temporal, path_log.clone(), flags.truncate, cache_size, cache_ttl).await?,
             flip: None,
         };
         let cnt = ret.log_file.read_all(loader).await?;
@@ -65,7 +65,6 @@ impl RedoLog
                             true, 
                             cache.read.cache_capacity().unwrap(), 
                             cache.read.cache_lifespan().unwrap(),
-                            self.log_file.default_format,
                         ).await?,
                         event_summary: Vec::new(),
                     }
@@ -156,7 +155,6 @@ impl RedoLog
         info!("open at {}", path_log);   
 
         let log = RedoLog::new(
-            cfg,
             path_log.clone(),
             flags,
             cfg.load_cache_size,

@@ -124,7 +124,13 @@ pub struct LogEntry
 #[repr(u8)]
 pub enum LogVersion
 {
+    /*
+    #[deprecated(
+        since = "0.3.0",
+        note = "This message format is deprecated and will be removed in a future release."
+    )]
     V1 = b'!',
+    */
     V2 = b'1',
 }
 
@@ -174,7 +180,6 @@ impl LogVersion
 
     async fn read_blob_size(&self, api: &mut impl LogApi) -> Result<usize, SerializationError> {
         match self {
-            LogVersion::V1 => Ok(api.read_u32().await? as usize),
             LogVersion::V2 => {
                 match BlobSize::try_from(api.read_u8().await?) {
                     Ok(BlobSize::U8) => Ok(api.read_u8().await? as usize),
@@ -191,7 +196,6 @@ impl LogVersion
 
     async fn write_blob_size(&self, api: &mut impl LogApi, val: usize) -> Result<(), SerializationError> {
         match self {
-            LogVersion::V1 => Ok(api.write_u32(val as u32).await?),
             LogVersion::V2 => {
                 let blob_size = match val {
                     _ if val < u8::MAX as usize => BlobSize::U8,
@@ -211,15 +215,12 @@ impl LogVersion
         }
     }
 
-    async fn read_format(&self, api: &mut impl LogApi, default: SerializationFormat) -> Result<SerializationFormat, SerializationError> {
-        match self {
-            LogVersion::V1 => Ok(default),
-            LogVersion::V2 => Ok(match SerializationFormat::try_from(api.read_u8().await?) {
-                Ok(a) => a,
-                Err(_) => {
-                    return Err(SerializationError::InvalidSerializationFormat);
-                }
-            })
+    async fn read_format(&self, api: &mut impl LogApi) -> Result<SerializationFormat, SerializationError> {
+        match SerializationFormat::try_from(api.read_u8().await?) {
+            Ok(a) => Ok(a),
+            Err(_) => {
+                return Err(SerializationError::InvalidSerializationFormat);
+            }
         }
     }
 
@@ -231,11 +232,10 @@ impl LogVersion
                     Err(err) => Err(SerializationError::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to write data at 0x{:x} - {}", api.offset(), err))))
                 }
             },
-            _ => Ok(()),
         }
     }
 
-    pub async fn read(api: &mut impl LogApi, mut format: MessageFormat) -> Result<Option<LogEntry>, SerializationError> {
+    pub async fn read(api: &mut impl LogApi) -> Result<Option<LogEntry>, SerializationError> {
         let offset = api.offset();
 
         let version = match Self::read_version(api).await? {
@@ -243,12 +243,12 @@ impl LogVersion
             None => { return Ok(None); }
         };
         
-        format.meta = version.read_format(api, format.meta).await?;
+        let format_meta = version.read_format(api).await?;
         let meta_size = version.read_blob_size(api).await?;
         let mut meta = vec![0 as u8; meta_size];
         api.read_exact(&mut meta[..]).await?;
 
-        format.data = version.read_format(api, format.data).await?;
+        let format_data = version.read_format(api).await?;
         let data_size = version.read_blob_size(api).await?;
         let data = if data_size > 0 {
             let mut data = vec![0 as u8; data_size];
@@ -259,7 +259,10 @@ impl LogVersion
         Ok(Some(LogEntry {
             header: LogHeader {
                 offset,
-                format
+                format: MessageFormat {
+                    meta: format_meta,
+                    data: format_data,
+                }
             },
             meta,
             data

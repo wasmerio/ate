@@ -16,13 +16,7 @@ pub const HASH_ROUTINE: conf::HashRoutine = if cfg!(feature = "use_blake3") {
     conf::HashRoutine::Blake3
 };
 
-pub const LOG_VERSION: spec::LogVersion = if cfg!(feature = "use_version1") {
-    spec::LogVersion::V1
-} else if cfg!(feature = "use_version2") {
-    spec::LogVersion::V2
-} else {
-    spec::LogVersion::V2
-};
+pub const LOG_VERSION: spec::LogVersion = spec::LogVersion::V2;
 
 pub mod utils;
 pub mod error;

@@ -42,7 +42,6 @@ pub(crate) struct LogFileCache
 
 pub(super) struct LogFile
 {
-    pub(crate) default_format: MessageFormat,
     pub(crate) log_path: String,
     pub(crate) log_back: tokio::fs::File,
     pub(crate) log_stream: BufStream<tokio::fs::File>,
@@ -57,7 +56,7 @@ pub(super) struct LogFile
 
 impl LogFile
 {
-    pub(super) async fn new(temp_file: bool, path_log: String, truncate: bool, cache_size: usize, cache_ttl: u64, default_format: MessageFormat) -> Result<LogFile>
+    pub(super) async fn new(temp_file: bool, path_log: String, truncate: bool, cache_size: usize, cache_ttl: u64) -> Result<LogFile>
     {
         // Compute the log file name
         let log_back_path = format!("{}.{}", path_log.clone(), 0);
@@ -117,7 +116,6 @@ impl LogFile
 
         
         let ret = LogFile {
-            default_format,
             log_path: path_log.clone(),
             log_stream,
             log_back,
@@ -206,7 +204,6 @@ impl LogFile
 
         Ok(
             LogFile {
-                default_format: self.default_format,
                 log_path: self.log_path.clone(),
                 log_stream: BufStream::new(log_back.try_clone().await?),
                 log_back: log_back,
@@ -263,7 +260,7 @@ impl LogFile
                 log_stream,
             };
             loop {
-                match LogFile::read_once_internal(&mut reader, self.default_format).await {
+                match LogFile::read_once_internal(&mut reader).await {
                     Ok(Some(head)) => {
                         #[cfg(feature = "verbose")]
                         debug!("log-read: {:?}", head);
@@ -295,7 +292,7 @@ impl LogFile
         Ok(cnt)
     }
 
-    async fn read_once_internal(archive: &mut LogArchiveReader, default_format: MessageFormat) -> std::result::Result<Option<LoadData>, SerializationError>
+    async fn read_once_internal(archive: &mut LogArchiveReader) -> std::result::Result<Option<LoadData>, SerializationError>
     {
         #[cfg(feature = "verbose")]
         info!("log-read-event: offset={}", offset);
@@ -303,7 +300,7 @@ impl LogFile
         let offset = archive.log_off;
 
         // Read the log event
-        let evt = match LogVersion::read(archive, default_format).await? {
+        let evt = match LogVersion::read(archive).await? {
             Some(e) => e,
             None => {
                 return Ok(None);
@@ -360,7 +357,7 @@ impl LogFile
                 Some(d) => Some(&d[..]),
                 None => None
             },
-            self.default_format
+            evt.format
         ).await?;
         self.log_count = self.log_count + 1;
         
@@ -464,7 +461,7 @@ impl LogFile
         // First read all the data into a buffer
         let result = {
             let mut loader = SpecificLogLoader::new(&archive.log_random_access, offset).await?;
-            match LogVersion::read(&mut loader, self.default_format).await? {
+            match LogVersion::read(&mut loader).await? {
                 Some(a) => a,
                 None => { return Err(LoadError::NotFoundByHash(hash)); }
             }

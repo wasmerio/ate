@@ -167,41 +167,6 @@ fn ctrl_channel() -> tokio::sync::watch::Receiver<bool> {
     receiver
 }
 
-#[tokio::main]
-async fn main() -> Result<(), AteError> {
-    //let opts: Opts = Opts::parse();
-    let opts = main_debug();
-
-    let mut log_level = match opts.verbose {
-        0 => "error",
-        1 => "warn",
-        2 => "info",
-        _ => "debug",
-    };
-    if opts.debug { log_level = "debug"; }
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(log_level)).init();
-
-    let mut conf = AteConfig::default();
-    conf.dns_sec = opts.dns_sec;
-    conf.dns_server = opts.dns_server;
-    
-    match opts.subcmd {
-        SubCommand::Login(login) => {
-            let _session = ate_auth::main_login(Some(login.email), login.password, login.code, opts.auth).await?;
-        },
-        SubCommand::Logout(logout) => {
-            main_logout(logout).await?;
-        },
-        SubCommand::Mount(mount) => {
-            main_mount(mount, conf).await?;
-        },
-    }
-
-    info!("atefs::shutdown");
-
-    Ok(())
-}
-
 async fn main_logout(_logout: Logout) -> Result<(), AteError>
 {
     panic!("Not implemented");
@@ -338,4 +303,39 @@ async fn main_mount(mount: Mount, conf: ConfAte) -> Result<(), AteError>
             }
         }
     }
+}
+
+#[tokio::main]
+async fn main() -> Result<(), AteError> {
+    let opts: Opts = Opts::parse();
+    //let opts = main_debug();
+
+    let mut log_level = match opts.verbose {
+        0 => "error",
+        1 => "warn",
+        2 => "info",
+        _ => "debug",
+    };
+    if opts.debug { log_level = "debug"; }
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(log_level)).init();
+
+    let mut conf = AteConfig::default();
+    conf.dns_sec = opts.dns_sec;
+    conf.dns_server = opts.dns_server;
+    
+    match opts.subcmd {
+        SubCommand::Login(login) => {
+            let _session = ate_auth::main_login(Some(login.email), login.password, login.code, opts.auth).await?;
+        },
+        SubCommand::Logout(logout) => {
+            main_logout(logout).await?;
+        },
+        SubCommand::Mount(mount) => {
+            main_mount(mount, conf).await?;
+        },
+    }
+
+    info!("atefs::shutdown");
+
+    Ok(())
 }
