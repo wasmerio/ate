@@ -13,7 +13,7 @@ ATE
 ...is it a [NoSQL](https://en.wikipedia.org/wiki/NoSQL) database?  
 ...is it a [distributed redo log](https://en.wikipedia.org/wiki/Redo_log)?  
 ...is it a [event BUS](https://en.wikipedia.org/wiki/Publish%E2%80%93subscribe_pattern)?  
-...is it a [API framework](https://en.wikipedia.org/wiki/Command_pattern)?
+...is it a [API framework](https://en.wikipedia.org/wiki/Command_pattern)?  
 ...is it a [distributed queue](https://en.wikipedia.org/wiki/Message_queue)?  
 ...is it a [distributed cache](https://en.wikipedia.org/wiki/Distributed_cache)?  
 ...is it a secure encrypted vault?  
