@@ -33,19 +33,20 @@ fn test_trust_tree() -> Result<(), AteError>
         let read_key = PrivateEncryptKey::generate(KeySize::Bit256);
         let root_public_key = write_key.as_public_key();
         
+        let mut conf = ConfAte::default();
+        conf.log_format.meta = SerializationFormat::Json;
+        conf.log_format.data = SerializationFormat::Json;
+
         let key1;
         {
             debug!("building the session");
-            let mut session = AteSession::default();    
+            let mut session = AteSession::new(&conf);    
             session.properties.push(AteSessionProperty::WriteKey(write_key.clone()));
             session.properties.push(AteSessionProperty::WriteKey(write_key2.clone()));
             session.properties.push(AteSessionProperty::PublicReadKey(read_key.as_public_key().clone()));
             session.properties.push(AteSessionProperty::Identity("author@here.com".to_string()));
 
             debug!("creating the chain-of-trust");
-            let mut conf = ConfAte::default();
-            conf.log_format.meta = SerializationFormat::Json;
-            conf.log_format.data = SerializationFormat::Json;
             let builder = ChainBuilder::new(&conf)
                 .await
                 .add_root_public_key(&root_public_key)
@@ -75,7 +76,7 @@ fn test_trust_tree() -> Result<(), AteError>
 
         {
             debug!("building the session");
-            let mut session = AteSession::default();    
+            let mut session = AteSession::new(&conf);    
             session.properties.push(AteSessionProperty::WriteKey(write_key2.clone()));
             session.properties.push(AteSessionProperty::PrivateReadKey(read_key.clone()));
             session.properties.push(AteSessionProperty::Identity("author@here.com".to_string()));

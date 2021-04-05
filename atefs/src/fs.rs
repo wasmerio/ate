@@ -24,6 +24,7 @@ use super::dir::Directory;
 use super::file::RegularFile;
 use super::model::*;
 use super::api::*;
+use crate::ConfAte;
 
 use async_trait::async_trait;
 use bytes::{Buf, BytesMut};
@@ -150,8 +151,8 @@ pub(crate) fn conv<T>(r: std::result::Result<T, AteError>) -> std::result::Resul
 
 impl AteFS
 {
-    pub fn new(chain: Arc<Chain>) -> AteFS {
-        let session = AteSession::default();
+    pub fn new(conf: ConfAte, chain: Arc<Chain>) -> AteFS {
+        let session = AteSession::new(&conf);
         AteFS {
             chain,
             session,
@@ -309,7 +310,7 @@ for AteFS
             info!("atefs::creating-root-node");
             
             let root = Inode::new("/".to_string(), 0o755, req.uid, req.gid, SpecType::Directory);
-            match dio.store_ext(root, None, Some(PrimaryKey::from(1)), true) {
+            match dio.store_ext(root, self.session.log_format, Some(PrimaryKey::from(1)), true) {
                 Ok(_) => { },
                 Err(err) => {
                     error!("atefs::error {}", err);        

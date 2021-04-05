@@ -50,7 +50,8 @@ async fn test_dio()
     let root_public_key = write_key.as_public_key();
     
     debug!("building the session");
-    let mut session = AteSession::default();    
+    let cfg = ConfAte::default();
+    let mut session = AteSession::new(&cfg);
     session.properties.push(AteSessionProperty::WriteKey(write_key.clone()));
     session.properties.push(AteSessionProperty::WriteKey(write_key2.clone()));
     session.properties.push(AteSessionProperty::ReadKey(read_key.clone()));
@@ -64,7 +65,8 @@ async fn test_dio()
 
     {
         debug!("creating the chain-of-trust");
-        let chain = crate::trust::create_test_chain(chain_name.clone(), false, false, Some(root_public_key.clone())).await;
+        let mut mock_cfg = crate::conf::mock_test_config();
+        let chain = crate::trust::create_test_chain(&mut mock_cfg, chain_name.clone(), false, false, Some(root_public_key.clone())).await;
         //let mut chain = create_test_chain("test_dio".to_string(), true, false, None);
 
         // Write a value immediately from chain (this data will remain in the transaction)
@@ -186,7 +188,8 @@ async fn test_dio()
 
     {
         debug!("reloading the chain of trust");
-        let chain = crate::trust::create_test_chain(chain_name.clone(), false, false, Some(root_public_key.clone())).await;
+        let mut mock_cfg = crate::conf::mock_test_config();
+        let chain = crate::trust::create_test_chain(&mut mock_cfg, chain_name.clone(), false, false, Some(root_public_key.clone())).await;
 
         {
             let mut dio = chain.dio(&session).await;

@@ -291,7 +291,7 @@ async fn main_mount(mount: Mount, conf: ConfAte) -> Result<(), AteError>
     // Create the mount point
     let mount_path = mount.mount_path.clone();
     let mount_join = Session::new(mount_options)
-        .mount_with_unprivileged(AteFS::new(chain), mount.mount_path);
+        .mount_with_unprivileged(AteFS::new(conf.clone(), chain), mount.mount_path);
 
     // Install a ctrl-c command
     info!("mounting file-system and entering main loop");

@@ -13,10 +13,7 @@ use super::chain::*;
 use super::pipe::*;
 use super::trust::*;
 use super::header::*;
-#[allow(unused_imports)]
-use super::event::*;
 use super::lint::*;
-use super::spec::*;
 use super::index::*;
 use super::transaction::*;
 
@@ -45,7 +42,6 @@ where Self: Send + Sync
     pub(super) inside_async: Arc<RwLock<ChainProtectedAsync>>,
     pub(super) inside_sync: Arc<StdRwLock<ChainProtectedSync>>,
     pub(super) pipe: Arc<dyn EventPipe>,
-    pub(super) default_format: MessageFormat,
 }
 
 impl ChainMultiUser
@@ -56,7 +52,6 @@ impl ChainMultiUser
             inside_async: Arc::clone(&accessor.inside_async),
             inside_sync: Arc::clone(&accessor.inside_sync),
             pipe: Arc::clone(&accessor.pipe),
-            default_format: accessor.default_format(),
         }
     }
  

@@ -23,7 +23,7 @@ async fn main() -> Result<(), AteError>
     let chain = Chain::new(builder, &ChainKey::from("universe")).await?;
 
     // Our session needs the keys
-    let mut session = AteSession::default();
+    let mut session = AteSession::new(&conf);
     session.add_write_key(&root);
     session.add_write_key(&sk);
     session.add_read_key(&ek);
@@ -43,7 +43,7 @@ async fn main() -> Result<(), AteError>
     };
 
     // Build a new session that does not have the root key
-    let mut session = AteSession::default();
+    let mut session = AteSession::new(&conf);
     session.add_write_key(&sk);
     session.add_read_key(&ek);
     

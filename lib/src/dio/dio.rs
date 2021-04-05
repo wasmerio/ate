@@ -117,7 +117,6 @@ where Self: Send + Sync
     #[allow(dead_code)]
     session: &'a Session,
     scope: Scope,
-    default_format: MessageFormat,
 }
 
 impl<'a> Dio<'a>
@@ -125,10 +124,10 @@ impl<'a> Dio<'a>
     pub fn store<D>(&mut self, data: D) -> Result<Dao<D>, SerializationError>
     where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
-        self.store_ext(data, None, None, true)
+        self.store_ext(data, self.session.log_format, None, true)
     }
 
-    pub fn store_ext<D>(&mut self, data: D, format: Option<MessageFormat>, key: Option<PrimaryKey>, auto_commit: bool) -> Result<Dao<D>, SerializationError>
+    pub fn store_ext<D>(&mut self, data: D, format: MessageFormat, key: Option<PrimaryKey>, auto_commit: bool) -> Result<Dao<D>, SerializationError>
     where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
         let row = Row {
@@ -140,10 +139,7 @@ impl<'a> Dio<'a>
             data: data,
             auth: MetaAuthorization::default(),
             collections: FxHashSet::default(),
-            format: match format {
-                Some(f) => f,
-                None => self.default_format
-            },
+            format,
             created: 0,
             updated: 0,
         };
@@ -378,7 +374,6 @@ impl Chain
         let multi = self.multi().await;
         Dio {
             state: DioState::new(),
-            default_format: multi.default_format,
             multi,
             session: session,
             scope,            
@@ -458,7 +453,7 @@ impl<'a> Dio<'a>
                 let evt = EventData {
                     meta: meta,
                     data_bytes: Some(data),
-                    format: self.default_format,
+                    format: row.format,
                 };
                 evts.push(evt);
             }
@@ -482,7 +477,7 @@ impl<'a> Dio<'a>
                 let evt = EventData {
                     meta: meta,
                     data_bytes: None,
-                    format: self.default_format,
+                    format: self.session.log_format,
                 };
                 evts.push(evt);
             }
@@ -504,7 +499,7 @@ impl<'a> Dio<'a>
                         core: meta,
                     },
                     data_bytes: None,
-                    format: self.default_format,
+                    format: self.session.log_format,
                 });
             }
         }

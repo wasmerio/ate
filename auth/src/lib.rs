@@ -59,18 +59,19 @@ pub async fn main_login(
 
 pub async fn load_credentials(username: String, read_key: EncryptKey, auth: Url) -> Result<AteSession, AteError>
 {
+    let mut conf = ConfAte::default();
+    conf.configured_for(ConfiguredFor::BestSecurity);
+    conf.wire_format = SerializationFormat::Json;
+    
     // Prepare for the load operation
     let key = PrimaryKey::from(username.clone());
-    let mut session = AteSession::default();
+    let mut session = AteSession::new(&conf);
     session.add_read_key(&read_key);
 
     // Compute which chain our user exists in
     let chain_url = crate::helper::chain_url(auth, &username);
 
     // Generate a chain key that matches this username on the authentication server
-    let mut conf = ConfAte::default();
-    conf.configured_for(ConfiguredFor::BestSecurity);
-    conf.wire_format = SerializationFormat::Json;
     let registry = ate::mesh::Registry::new(&conf).await;
     let chain = registry.open(&chain_url).await?;
 
@@ -95,7 +96,7 @@ pub async fn load_credentials(username: String, read_key: EncryptKey, auth: Url)
     let user = dio.load::<User>(&key).await?;
 
     // Build a new session
-    let mut session = AteSession::default();
+    let mut session = AteSession::new(&conf);
     for access in user.access.iter() {
         if let Some(read) = &access.read {
             session.add_read_key(read);

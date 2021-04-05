@@ -19,7 +19,7 @@ async fn main() -> Result<(), AteError>
     let key = {
         let registry = Registry::new(&cfg_ate).await;
         let chain = registry.open(&url::Url::from_str("tcp://localhost:5000/test-chain").unwrap()).await?;
-        let session = AteSession::default();
+        let session = AteSession::new(&cfg_ate);
         let mut dio = chain.dio_ext(&session, TransactionScope::Full).await;
         let dao = dio.store("my test string".to_string())?;
         dio.commit().await?;
@@ -30,7 +30,7 @@ async fn main() -> Result<(), AteError>
 
     let chain = server.open(ChainKey::from("test-chain")).await.unwrap();
     chain.sync().await?;
-    let session = AteSession::default();
+    let session = AteSession::new(&cfg_ate);
     let mut dio = chain.dio_ext(&session, TransactionScope::Full).await;
     let dao = dio.load::<String>(&key).await?;
 

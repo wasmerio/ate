@@ -1,7 +1,9 @@
 #[allow(unused_imports)]
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
 
-use super::crypto::*;
+use crate::crypto::*;
+use crate::spec::MessageFormat;
+use crate::conf::ConfAte;
 
 #[allow(dead_code)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -52,31 +54,35 @@ for SessionProperty
 /// Sessions are never cached and only exist in memory for the
 /// duration that you use them for security reasons.
 #[allow(dead_code)]
-#[derive(Serialize, Deserialize, Debug, Default, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Session
 where Self: Send + Sync
 {
     pub properties: Vec<SessionProperty>,
+    pub log_format: MessageFormat,
 }
 
 impl Session
 {
-    #[allow(dead_code)]
+    pub fn new(cfg: &ConfAte) -> Session {
+        Session {
+            properties: Vec::new(),
+            log_format: cfg.log_format
+        }
+    }
+
     pub fn add_read_key(&mut self, key: &EncryptKey) {
         self.properties.push(SessionProperty::ReadKey(key.clone()));
     }
 
-    #[allow(dead_code)]
     pub fn add_private_read_key(&mut self, key: &PrivateEncryptKey) {
         self.properties.push(SessionProperty::PrivateReadKey(key.clone()));
     }
 
-    #[allow(dead_code)]
     pub fn add_write_key(&mut self, key: &PrivateSignKey) {
         self.properties.push(SessionProperty::WriteKey(key.clone()));
     }
 
-    #[allow(dead_code)]
     pub fn add_identity(&mut self, identity: String) {
         self.properties.push(SessionProperty::Identity(identity));
     }

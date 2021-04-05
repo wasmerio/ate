@@ -40,7 +40,7 @@ async fn main() -> Result<(), AteError>
     let client_b = create_client(&cfg_ate, &cfg_mesh).await;
 
     // Create a session
-    let session = AteSession::default();
+    let session = AteSession::new(&cfg_ate);
 
     // Setup a BUS that we will listen on
     debug!("opening a chain on called 'ping-pong-table' using client 1");

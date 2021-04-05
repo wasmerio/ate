@@ -111,10 +111,8 @@ pub(crate) struct ChainOfTrust
     pub(super) history_offset: u64,
     pub(super) history_reverse: FxHashMap<Hash, u64>,
     pub(super) history: BTreeMap<u64, EventHeaderRaw>,
-    pub(super) configured_for: ConfiguredFor,
     pub(super) pointers: BinaryTreeIndexer,
     pub(super) compactors: Vec<Box<dyn EventCompactor>>,
-    pub(super) default_format: MessageFormat,
 }
 
 #[derive(Debug, Clone)]
@@ -203,11 +201,10 @@ impl<'a> ChainOfTrust
 }
 
 #[cfg(test)]
-pub(crate) async fn create_test_chain(chain_name: String, temp: bool, barebone: bool, root_public_key: Option<PublicSignKey>) ->
+pub(crate) async fn create_test_chain(mock_cfg: &mut ConfAte, chain_name: String, temp: bool, barebone: bool, root_public_key: Option<PublicSignKey>) ->
     Chain
 {
     // Create the chain-of-trust and a validator
-    let mut mock_cfg = mock_test_config();
     let mock_chain_key = match temp {
         true => ChainKey::default().with_temp_name(chain_name),
         false => ChainKey::default().with_name(chain_name),
@@ -259,11 +256,12 @@ async fn test_chain() {
 
     {
         debug!("creating test chain");
-        let chain = create_test_chain("test_chain".to_string(), true, true, None).await;
+        let mut mock_cfg = crate::conf::mock_test_config();
+        let chain = create_test_chain(&mut mock_cfg, "test_chain".to_string(), true, true, None).await;
         chain_name = chain.name().await;
         
-        evt1 = EventData::new(key1.clone(), Bytes::from(vec!(1; 1)), chain.default_format());
-        evt2 = EventData::new(key2.clone(), Bytes::from(vec!(2; 1)), chain.default_format());
+        evt1 = EventData::new(key1.clone(), Bytes::from(vec!(1; 1)), mock_cfg.log_format);
+        evt2 = EventData::new(key2.clone(), Bytes::from(vec!(2; 1)), mock_cfg.log_format);
 
         {
             let lock = chain.multi().await;
@@ -302,7 +300,8 @@ async fn test_chain() {
     {
         // Reload the chain from disk and check its integrity
         debug!("reloading the chain");
-        let mut chain = create_test_chain(chain_name.clone(), false, true, None).await;
+        let mut mock_cfg = crate::conf::mock_test_config();
+        let mut chain = create_test_chain(&mut mock_cfg, chain_name.clone(), false, true, None).await;
             
         {
             let lock = chain.multi().await;
@@ -358,7 +357,8 @@ async fn test_chain() {
     {
         // Reload the chain from disk and check its integrity
         debug!("reloading the chain");
-        let mut chain = create_test_chain(chain_name.clone(), false, true, None).await;
+        let mut mock_cfg = crate::conf::mock_test_config();
+        let mut chain = create_test_chain(&mut mock_cfg, chain_name.clone(), false, true, None).await;
 
         {
             let lock = chain.multi().await;
@@ -410,7 +410,8 @@ async fn test_chain() {
     {
         // Reload the chain from disk and check its integrity
         debug!("reloading the chain");
-        let chain = create_test_chain(chain_name.clone(), false, true, None).await;
+        let mut mock_cfg = crate::conf::mock_test_config();
+        let chain = create_test_chain(&mut mock_cfg, chain_name.clone(), false, true, None).await;
 
         {
             let lock = chain.multi().await;

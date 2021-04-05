@@ -71,7 +71,6 @@ pub(crate) struct ChainProtectedSync
     pub(super) transformers: Vec<Box<dyn EventDataTransformer>>,
     pub(super) validators: Vec<Box<dyn EventValidator>>,
     pub(super) listeners: MultiMap<MetaCollection, ChainListener>,
-    pub(crate) default_format: MessageFormat,
 }
 
 /// Represents the main API to access a specific chain-of-trust
@@ -313,13 +312,11 @@ impl<'a> Chain
         let chain = ChainOfTrust {
             key: key.clone(),
             redo: redo_log,
-            configured_for: builder.configured_for,
             history_offset: 0,
             history_reverse: FxHashMap::default(),
             history: BTreeMap::new(),
             pointers: BinaryTreeIndexer::default(),
             compactors: builder.compactors,
-            default_format: builder.cfg.log_format,
         };
 
         let mut inside_sync = ChainProtectedSync {
@@ -329,7 +326,6 @@ impl<'a> Chain
             validators: builder.validators,
             transformers: builder.transformers,
             listeners: MultiMap::new(),
-            default_format: builder.cfg.log_format,
         };
         if let Some(tree) = builder.tree {
             inside_sync.plugins.push(Box::new(tree));
@@ -377,10 +373,6 @@ impl<'a> Chain
 
     pub fn key(&'a self) -> ChainKey {
         self.key.clone()
-    }
-
-    pub fn default_format(&'a self) -> MessageFormat {
-        self.inside_sync.read().default_format.clone()
     }
 
     pub async fn single(&'a self) -> ChainSingleUser<'a> {

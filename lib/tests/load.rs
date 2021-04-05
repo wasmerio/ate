@@ -31,7 +31,7 @@ fn load_test() -> Result<(), AteError> {
             let chain = Chain::new(builder.clone(), &ChainKey::from("load")).await?;
             
             // Prepare
-            let session = AteSession::default();
+            let session = AteSession::new(&conf);
             let mut test_obj = MyTestObject {
                 firstname: "Joe".to_string(),
                 lastname: "Blogs".to_string(),

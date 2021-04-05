@@ -29,9 +29,9 @@ struct Account
 }
 
 #[allow(dead_code)]
-async fn make_account<'a>(chain: &'a Chain, generator: &mut Generator<'a>) -> Result<(), AteError>
+async fn make_account<'a>(conf: &ConfAte, chain: &'a Chain, generator: &mut Generator<'a>) -> Result<(), AteError>
 {
-    let session = AteSession::default();
+    let session = AteSession::new(conf);
     let mut dio = chain.dio(&session).await;
 
     let person = Person {
@@ -77,7 +77,7 @@ async fn main() -> Result<(), AteError>
     // Make a thousand bank accounts
     let mut generator = Generator::default();
     for _ in 0..200 {
-        make_account(&chain, &mut generator).await?;
+        make_account(&conf, &chain, &mut generator).await?;
     }
 
     chain.flush().await.unwrap();

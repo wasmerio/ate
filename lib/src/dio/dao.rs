@@ -216,7 +216,7 @@ where Self: Send + Sync,
                 updated: 0,
                 parent: None,
                 data,
-                format: format,
+                format,
                 auth: MetaAuthorization {
                     read: ReadOption::Inherit,
                     write: WriteOption::Inherit,

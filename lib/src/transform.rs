@@ -8,6 +8,9 @@ use bytes::{Bytes, Buf};
 #[allow(unused_imports)]
 use openssl::symm::{encrypt, decrypt, Cipher};
 
+#[cfg(test)]
+use super::conf::ConfAte;
+
 pub trait EventDataTransformer: Send + Sync
 {
     /// Callback when data is stored in the event 
@@ -99,17 +102,18 @@ fn test_encrypter()
 
     let key = EncryptKey::from_seed_string("test".to_string(), KeySize::Bit256);
     let encrypter = StaticEncryptionTransformer::new(&key);
+    let cfg = ConfAte::default();
 
     let test_bytes = Bytes::from_static(b"Some Crypto Text");
     let mut meta = Metadata::default();
-    let encrypted = encrypter.data_as_underlay(&mut meta, test_bytes.clone(), &Session::default()).unwrap();
+    let encrypted = encrypter.data_as_underlay(&mut meta, test_bytes.clone(), &Session::new(&cfg)).unwrap();
 
     println!("metadata: {:?}", meta);
     println!("data_test: {:X}", &test_bytes);
     println!("data_encrypted: {:X}", &encrypted);
     assert_ne!(&test_bytes, &encrypted);
     
-    let decrypted = encrypter.data_as_overlay(&mut meta, encrypted, &Session::default()).unwrap();
+    let decrypted = encrypter.data_as_overlay(&mut meta, encrypted, &Session::new(&cfg)).unwrap();
 
     println!("data_decrypted: {:X}", &decrypted);
     assert_eq!(&test_bytes, &decrypted);
@@ -121,17 +125,18 @@ fn test_compressor()
     crate::utils::bootstrap_env();
 
     let compressor = CompressorWithSnapTransformer::default();
+    let cfg = ConfAte::default();
 
     let test_bytes = Bytes::from("test".as_bytes());
     let mut meta = Metadata::default();
-    let compressed = compressor.data_as_underlay(&mut meta, test_bytes.clone(), &Session::default()).unwrap();
+    let compressed = compressor.data_as_underlay(&mut meta, test_bytes.clone(), &Session::new(&cfg)).unwrap();
 
     println!("metadata: {:?}", meta);
     println!("data_test: {:X}", &test_bytes);
     println!("data_compressed: {:X}", &compressed);
     assert_ne!(&test_bytes, &compressed);
     
-    let decompressed = compressor.data_as_overlay(&mut meta, compressed, &Session::default()).unwrap();
+    let decompressed = compressor.data_as_overlay(&mut meta, compressed, &Session::new(&cfg)).unwrap();
 
     println!("data_decompressed: {:X}", &decompressed);
     assert_eq!(&test_bytes, &decompressed);

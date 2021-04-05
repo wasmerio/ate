@@ -204,7 +204,7 @@ impl FileState
             Some(a) => a.clone(),
             None => {
                 // Create the bundle
-                let bundle = Dao::make(PrimaryKey::generate(), chain.default_format(), 
+                let bundle = Dao::make(PrimaryKey::generate(), session.log_format, 
                 PageBundle {
                         pages: Vec::new(),
                     }

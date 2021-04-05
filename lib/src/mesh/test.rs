@@ -17,7 +17,7 @@ async fn test_mesh()
 {
     crate::utils::bootstrap_env();
 
-    let cfg_ate = ConfAte::default();
+    let cfg_ate = crate::conf::mock_test_config();
 
     // We offset the ports so that we don't need port re-use between tests
     let port_offset = fastrand::u16(..1000);
@@ -87,7 +87,7 @@ async fn test_mesh()
     debug!("create the mesh and connect to it with client 1");
     let client_a = create_client(&cfg_ate, &cfg_mesh).await;
     let chain_a = client_a.open(&url::Url::parse("tcp://127.0.0.1/test-chain").unwrap()).await.unwrap();
-    let session_a = AteSession::default();
+    let session_a = AteSession::new(&cfg_ate);
     
     let dao_key1;
     let dao_key2;
@@ -111,7 +111,7 @@ async fn test_mesh()
             let client_b = create_client(&cfg_ate, &cfg_mesh).await;
 
             let chain_b = client_b.open(&url::Url::parse("tcp://127.0.0.1/test-chain").unwrap()).await.unwrap();
-            let session_b = AteSession::default();
+            let session_b = AteSession::new(&cfg_ate);
             {
                 debug!("start a DIO session for client B");
                 let mut dio = chain_b.dio_ext(&session_b, TransactionScope::Full).await;
@@ -165,7 +165,7 @@ async fn test_mesh()
 
         debug!("reconnecting the client");
         let chain = client.open(&url::Url::parse("tcp://127.0.0.1/test-chain").unwrap()).await.unwrap();
-        let session = AteSession::default();
+        let session = AteSession::new(&cfg_ate);
         {
             debug!("loading data object 1");
             let mut dio = chain.dio_ext(&session, TransactionScope::Full).await;
