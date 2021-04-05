@@ -154,13 +154,13 @@ impl MeshSession
 
         let feed_me = MessageEvent::convert_from(evts);
 
-        let mut single = self.chain.single().await;
-        let _ = single.feed_async(&feed_me).await?;
-        drop(single);
-
         if let Some(loader) = loader {
             loader.feed_events(&feed_me).await;
         }
+
+        let mut single = self.chain.single().await;
+        let _ = single.feed_async(&feed_me).await?;
+        drop(single);
 
         self.chain.notify(&feed_me).await;
 

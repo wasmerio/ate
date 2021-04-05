@@ -197,8 +197,8 @@ for ConfAte
             ntp_port: 123,
             wire_encryption: Some(KeySize::Bit128),
             configured_for: ConfiguredFor::default(),
-            buffer_size_client: 1000,
-            buffer_size_server: 1000,
+            buffer_size_client: 2,
+            buffer_size_server: 10,
             load_cache_size: 1000,
             load_cache_ttl: 30,
             log_format: MessageFormat {

@@ -363,9 +363,9 @@ async fn inbox_stream_data(
         }
     };
     
-    // We work in batches of 1000 events releasing the lock between iterations so that the
-    // server has time to process new events (capped at 1MB of data per send)
-    let max_send: usize = 1 * 1024 * 1024;
+    // We work in batches of 2000 events releasing the lock between iterations so that the
+    // server has time to process new events (capped at 2MB of data per send)
+    let max_send: usize = 2 * 1024 * 1024;
     while let Some(start) = cur {
         let mut leafs = Vec::new();
         {
@@ -373,7 +373,7 @@ async fn inbox_stream_data(
             let mut iter = guard.chain.history.range(start..);
 
             let mut amount = 0 as usize;
-            for _ in 0..1000 {
+            for _ in 0..2000 {
                 match iter.next() {
                     Some((k, v)) => {
                         cur = Some(k.clone());
