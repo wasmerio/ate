@@ -1,3 +1,5 @@
+#![allow(unused_imports)]
+use log::{info, error, debug};
 use super::crypto::Hash;
 use super::header::PrimaryKey;
 
@@ -1221,6 +1223,7 @@ pub enum CommandError
     LoadError(LoadError),
     SerializationError(SerializationError),
     CommitError(CommitError),
+    PipeError(String),
     Timeout,
     Aborted
 }
@@ -1230,6 +1233,14 @@ for CommandError
 {
     fn from(err: SerializationError) -> CommandError {
         CommandError::SerializationError(err)
+    }   
+}
+
+impl<T> From<mpsc::error::SendError<T>>
+for CommandError
+{
+    fn from(err: mpsc::error::SendError<T>) -> CommandError {
+        CommandError::PipeError(err.to_string())
     }   
 }
 
@@ -1268,6 +1279,9 @@ for CommandError {
                 write!(f, "Command failed - {}", err)
             },
             CommandError::CommitError(err) => {
+                write!(f, "Command failed - {}", err)
+            },
+            CommandError::PipeError(err) => {
                 write!(f, "Command failed - {}", err)
             },
             CommandError::Timeout => {
@@ -1488,6 +1502,56 @@ for AteError {
             AteError::NotImplemented => {
                 write!(f, "Not implemented")
             },
+        }
+    }
+}
+
+pub fn eat<T>(ret: Result<T, AteError>) -> Option<T> {
+    match ret {
+        Ok(a) => Some(a),
+        Err(err) => {
+            debug!("error: {}", err);
+            None
+        }
+    }
+}
+
+pub fn eat_load<T>(ret: Result<T, LoadError>) -> Option<T> {
+    match ret {
+        Ok(a) => Some(a),
+        Err(err) => {
+            debug!("error: {}", err);
+            None
+        }
+    }
+}
+
+pub fn eat_serialization<T>(ret: Result<T, SerializationError>) -> Option<T> {
+    match ret {
+        Ok(a) => Some(a),
+        Err(err) => {
+            debug!("error: {}", err);
+            None
+        }
+    }
+}
+
+pub fn eat_commit<T>(ret: Result<T, CommitError>) -> Option<T> {
+    match ret {
+        Ok(a) => Some(a),
+        Err(err) => {
+            debug!("error: {}", err);
+            None
+        }
+    }
+}
+
+pub fn eat_lock<T>(ret: Result<T, LockError>) -> Option<T> {
+    match ret {
+        Ok(a) => Some(a),
+        Err(err) => {
+            debug!("error: {}", err);
+            None
         }
     }
 }

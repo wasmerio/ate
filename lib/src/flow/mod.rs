@@ -13,7 +13,7 @@ pub enum OpenAction
     /// The open request will be denied
     Deny(String),
     /// The open action has resulted in a chain that can be consumed
-    Chain(Chain),
+    Chain(Arc<Chain>),
 }
 
 #[async_trait]

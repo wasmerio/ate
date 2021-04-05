@@ -19,9 +19,3 @@ pub enum LoginResponse
         authority: Vec<AteSessionProperty>
     },
 }
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum Command
-{
-    Login(LoginRequest)
-}

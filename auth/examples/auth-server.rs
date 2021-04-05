@@ -90,10 +90,14 @@ async fn main() -> Result<(), AteError>
                 bincode::deserialize_from(&file).unwrap()
             };
 
-            // Create the chain flow and generate configuration
-            let flow = ChainFlow::new(root_key);
+            
+            // Build a session for service
             let mut cfg_ate = ate_auth::conf_auth();
             cfg_ate.log_path = shellexpand::tilde(&run.logs_path).to_string();
+            let session = AteSession::new(&cfg_ate);
+
+            // Create the chain flow and generate configuration
+            let flow = ChainFlow::new(root_key, session);
 
             // Create the server and listen on port 5000
             let cfg_mesh = ConfMesh::solo(run.listen.as_str(), run.port);

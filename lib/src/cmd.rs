@@ -63,58 +63,92 @@ impl Chain
         Ok(dio.load::<R>(&key).await?.take())
     }
 
-    pub async fn service<C, R>(self: Arc<Self>, session: Session, worker: impl Fn(&mut Dio, Dao<C>) -> R) -> Result<(), CommandError>
-    where C: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
-          R: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
+    pub async fn service<C, R>(self: &Arc<Self>, session: Session, worker: Box<dyn Fn(&mut Dio, C) -> R + Send + Sync>) -> Result<(), CommandError>
+    where C: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized + 'static,
+          R: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized + 'static,
     {
-        // Downgrade our reference to a weak reference
-        let weak = Arc::downgrade(&self);
-        drop(self);
-
-        // Enter a processing loop until the chain fails
-        loop
+        // First we have to add the hook
+        let (tx, mut rx) = mpsc::channel(100);
         {
-            // Sniff for the command object
+            // The sniffer has a built in function the filters to only the events we care about
             let request_type_name = std::any::type_name::<C>().to_string();
-            let key = sniff_for_command(Weak::clone(&weak), Box::new(move |h| {
-                if let Some(t) = h.meta.get_type_name() {
-                    return t.type_name == request_type_name;
-                }
-                false
-            })).await;
-
-            // If its was aborted then we should give up
-            let key = match key {
-                Some(a) => a,
-                None => { return Err(CommandError::Aborted); }
+            let sniffer = ChainSniffer {
+                filter: Box::new(move |h| {
+                    if let Some(t) = h.meta.get_type_name() {
+                        return t.type_name == request_type_name;
+                    }
+                    false
+                }),
+                notify: tx,
             };
 
-            // Attempt to process this command on the chain
-            if let Some(chain) = weak.upgrade()
-            {
-                // Load the command object
-                let mut dio = chain.dio(&session).await;
-                let cmd = dio.load::<C>(&key).await?;
-
-                // Process it in the worker
-                let reply = worker(&mut dio, cmd);
-
-                // Store the reply (with some extra metadata)
-                let mut reply = dio.store_ext(reply, session.log_format, None, false)?;
-                reply.add_extra_metadata(CoreMetadata::Type(MetaType {
-                    type_name: std::any::type_name::<R>().to_string()
-                }));
-                reply.add_extra_metadata(CoreMetadata::Reply(key));
-                
-                // Send our reply then move onto the next message
-                reply.commit(&mut dio)?;
-                dio.commit().await?;
-            }
-            else
-            {
-                return Err(CommandError::Aborted);
-            }
+            // Insert a sniffer under a lock
+            let mut guard = self.inside_sync.write();
+            guard.eternal_sniffers.push(sniffer);
         }
+
+        // Downgrade our reference to a weak reference
+        let weak = Arc::downgrade(&self);
+
+        // Enter a processing loop until the chain fails
+        tokio::spawn( async move {
+            loop
+            {
+                // Wait for a command to come in
+                let key = rx.recv().await;
+
+                // If its was aborted then we should give up
+                let key = match key {
+                    Some(a) => a,
+                    None => {
+                        debug!("service exited - channel closed");
+                        return;
+                    }
+                };
+
+                // Attempt to process this command on the chain
+                if let Some(chain) = weak.upgrade()
+                {
+                    // Load the command object
+                    let mut dio = chain.dio(&session).await;
+                    if let Some(mut cmd) = eat_load(dio.load::<C>(&key).await)
+                    {
+                        // Attempt to lock the object (if that fails then someone else is processing it
+                        match eat_lock(cmd.try_lock_then_delete(&mut dio).await) {
+                            None => continue,
+                            Some(false) => continue,
+                            _ => { }
+                        };
+
+                        // Process it in the worker (deleting the row just before we do)
+                        eat_serialization(cmd.commit(&mut dio));
+                        let cmd = cmd.take();
+                        let reply = worker(&mut dio, cmd);
+
+                        // Store the reply (with some extra metadata)
+                        if let Some(mut reply) = eat_serialization(dio.store_ext(reply, session.log_format, None, false))
+                        {
+                            reply.add_extra_metadata(CoreMetadata::Type(MetaType {
+                                type_name: std::any::type_name::<R>().to_string()
+                            }));
+                            reply.add_extra_metadata(CoreMetadata::Reply(key));
+                            
+                            // Send our reply then move onto the next message
+                            eat_serialization(reply.commit(&mut dio));
+                            eat_commit(dio.commit().await);
+                        }
+                    }
+                }
+                else
+                {
+                    debug!("service exited - chain destroyed");
+                    return;
+                }
+            }
+        });
+
+        // Everything is running
+        Ok(())
     }
 }
 
@@ -202,12 +236,10 @@ mod tests
         
         debug!("start the service on the chain");
         let session = Session::new(&mock_cfg);
-        {
-            let session = session.clone();
-            let chain = Arc::clone(&chain);
-            tokio::spawn(chain.service(session, |_dio, p: Dao<Ping>| Pong { msg: p.take().msg }));
-        }
-
+        chain.service(session.clone(), Box::new(
+            |_dio, p: Ping| Pong { msg: p.msg }
+        )).await?;
+        
         debug!("sending ping");
         let pong: Pong = chain.invoke(&session, Ping {
             msg: "hi".to_string()

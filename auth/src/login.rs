@@ -34,7 +34,7 @@ pub async fn login_command(username: String, password: String, code: Option<Stri
     };
 
     // Attempt the login request with a 10 second timeout
-    let response: LoginResponse = chain.invoke_ext(&session, Command::Login(login), Duration::from_secs(10)).await?;
+    let response: LoginResponse = chain.invoke_ext(&session, login, Duration::from_secs(10)).await?;
     match response {
         LoginResponse::AccountLocked => Err(LoginError::AccountLocked),
         LoginResponse::NotFound => Err(LoginError::NotFound(username)),

@@ -160,12 +160,12 @@ where F: OpenFlow + 'static
         }
     }
 
-    let new_chain = Arc::new(match chain_builder.open(&root.cfg_ate, &key).await? {
+    let new_chain = match chain_builder.open(&root.cfg_ate, &key).await? {
         OpenAction::Chain(c) => c,
         OpenAction::Deny(reason) => {
             return Err(ChainCreationError::ServerRejected(reason));
         }
-    });
+    };
     
     let mut chains = root.chains.lock();
     match chains.entry(key.clone()) {

@@ -71,6 +71,13 @@ pub(crate) struct ChainSniffer
 
 impl ChainSniffer
 {
+    fn notify(&self, key: PrimaryKey) -> SnifferNotify {
+        SnifferNotify {
+            key,
+            sender: self.notify.clone()
+        }
+    }
+
     fn convert(self, key: PrimaryKey) -> SnifferNotify {
         SnifferNotify {
             key,
@@ -95,6 +102,7 @@ impl SnifferNotify
 pub(crate) struct ChainProtectedSync
 {
     pub(super) sniffers: Vec<ChainSniffer>,
+    pub(super) eternal_sniffers: Vec<ChainSniffer>,
     pub(super) plugins: Vec<Box<dyn EventPlugin>>,
     pub(super) indexers: Vec<Box<dyn EventIndexer>>,
     pub(super) linters: Vec<Box<dyn EventMetadataLinter>>,
@@ -271,6 +279,15 @@ impl<'a> Chain
                     }
                 }
                 guard.sniffers = next;
+
+                for sniffer in guard.eternal_sniffers.iter() {
+                    if let Some(key) = trans.events.iter().filter_map(|e| match (*sniffer.filter)(e) {
+                        true => e.meta.get_data_key(),
+                        false => None,
+                    }).next() {
+                        notifies.push(sniffer.notify(key));
+                    }
+                }
             }
 
             // We lock the chain of trust while we update the local chain
@@ -374,6 +391,7 @@ impl<'a> Chain
 
         let mut inside_sync = ChainProtectedSync {
             sniffers: Vec::new(),
+            eternal_sniffers: Vec::new(),
             indexers: builder.indexers,
             plugins: builder.plugins,
             linters: builder.linters,

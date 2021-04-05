@@ -2,6 +2,7 @@ mod model;
 mod helper;
 mod login;
 mod flow;
+mod service;
 pub mod error;
 pub mod commands;
 pub mod prelude;

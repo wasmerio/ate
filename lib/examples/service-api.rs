@@ -36,12 +36,10 @@ async fn main() -> Result<(), AteError>
     
     debug!("start the service on the chain");
     let session = AteSession::new(&conf);
-    {
-        let session = session.clone();
-        let chain = Arc::clone(&chain);
-        tokio::spawn(chain.service(session, |_dio, p: Dao<Ping>| Pong { msg: p.take().msg }));
-    }
-
+    chain.service(session.clone(), Box::new(
+        |_dio, p: Ping| Pong { msg: p.msg }
+    )).await?;
+    
     debug!("sending ping");
     let pong: Pong = chain.invoke(&session, Ping {
         msg: "hi".to_string()
