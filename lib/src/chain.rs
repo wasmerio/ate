@@ -133,6 +133,7 @@ impl ChainProtectedAsync
     pub(super) async fn feed_async_internal(&mut self, sync: Arc<StdRwLock<ChainProtectedSync>>, evts: &Vec<EventData>)
         -> Result<Vec<EventHeader>, CommitError>
     {
+        let mut errors = Vec::new();
         let mut validated_evts = Vec::new();
         {
             let mut sync = sync.write();
@@ -142,7 +143,7 @@ impl ChainProtectedAsync
                 match sync.validate_event(&header) {
                     Err(err) => {
                         debug!("chain::feed-validation-err {}", err);
-                        Err(err)?;
+                        errors.push(err);
                     }
                     _ => {}
                 }
@@ -167,6 +168,11 @@ impl ChainProtectedAsync
             self.chain.add_history(header.raw.clone());
             ret.push(header);
         }
+
+        if errors.len() > 0 {
+            return Err(CommitError::ValidationError(errors));
+        }
+
         Ok(ret)
     }
 }
@@ -265,7 +271,7 @@ impl<'a> Chain
         key: &ChainKey,
     ) -> Result<Chain, ChainCreationError>
     {
-        Chain::new_ext(builder, key.clone(), None).await
+        Chain::new_ext(builder, key.clone(), None, true).await
     }
 
     #[allow(dead_code)]
@@ -273,6 +279,7 @@ impl<'a> Chain
         builder: ChainOfTrustBuilder,
         key: ChainKey,
         extra_loader: Option<Box<dyn Loader>>,
+        allow_process_errors: bool,
     ) -> Result<Chain, ChainCreationError>
     {
         let flags = OpenFlags {
@@ -331,8 +338,14 @@ impl<'a> Chain
 
         let mut inside_async = ChainProtectedAsync {
             chain,
-        };        
-        inside_async.process(inside_sync.write(), entries)?;
+        };
+        
+        if let Err(err) = inside_async.process(inside_sync.write(), entries) {
+            if allow_process_errors == false {
+                return Err(ChainCreationError::ProcessError(err));
+            }
+        }        
+        
         let inside_async = Arc::new(RwLock::new(inside_async));
 
         let (sender,

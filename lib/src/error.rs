@@ -734,7 +734,7 @@ pub enum CommitError
     LintError(LintError),
     SinkError(SinkError),
     IO(tokio::io::Error),
-    ValidationError(ValidationError),
+    ValidationError(Vec<ValidationError>),
     SerializationError(SerializationError),
     PipeError(String),
     RootError(String),
@@ -777,7 +777,9 @@ impl From<ValidationError>
 for CommitError
 {
     fn from(err: ValidationError) -> CommitError {
-        CommitError::ValidationError(err)
+        let mut errors = Vec::new();
+        errors.push(err);
+        CommitError::ValidationError(errors)
     }   
 }
 
@@ -851,8 +853,12 @@ for CommitError {
             CommitError::IO(err) => {
                 write!(f, "Failed to commit the data due to an IO error - {}", err.to_string())
             },
-            CommitError::ValidationError(err) => {
-                write!(f, "Failed to commit the data due to a validation error - {}", err.to_string())
+            CommitError::ValidationError(errs) => {
+                write!(f, "Failed to commit the data due to a validation error")?;
+                for err in errs.iter() {
+                    write!(f, " - {}", err.to_string())?;
+                }
+                Ok(())
             },
             CommitError::SerializationError(err) => {
                 write!(f, "Failed to commit the data due to an serialization error - {}", err.to_string())
@@ -877,7 +883,7 @@ pub enum CommsError
     NoReplyChannel,
     NoWireFormat,
     Disconnected,
-    ValidationError(ValidationError),
+    ValidationError(Vec<ValidationError>),
     #[allow(dead_code)]
     JoinError(JoinError),
     LoadError(LoadError),
@@ -978,7 +984,7 @@ for CommsError
 {
     fn from(err: CommitError) -> CommsError {
         match err {
-            CommitError::ValidationError(err) => CommsError::ValidationError(err),
+            CommitError::ValidationError(errs) => CommsError::ValidationError(errs),
             err => CommsError::InternalError(format!("commit-failed - {}", err.to_string())),
         }
     }   
@@ -1028,8 +1034,12 @@ for CommsError {
             CommsError::NoWireFormat => {
                 write!(f, "Server did not send a wire format")
             },
-            CommsError::ValidationError(err) => {
-                write!(f, "Message contained event data that failed validation {}", err)
+            CommsError::ValidationError(errs) => {
+                write!(f, "Message contained event data that failed validation")?;
+                for err in errs.iter() {
+                    write!(f, " - {}", err.to_string())?;
+                }
+                Ok(())
             },
             CommsError::Disconnected => {
                 write!(f, "Channel has been disconnected")

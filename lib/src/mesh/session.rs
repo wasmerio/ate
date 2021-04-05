@@ -46,7 +46,7 @@ impl MeshSession
         // speed up the synchronization by skipping already loaded items
         let mut chain = {
             let chain_key = chain_key.clone();
-            Chain::new_ext(builder.clone(), chain_key, Some(loader_local)).await?
+            Chain::new_ext(builder.clone(), chain_key, Some(loader_local), true).await?
         };
 
         // Create pipes to all the target root nodes
@@ -268,8 +268,8 @@ impl MeshSession
                     warn!("mesh-session-err: {}", err);
                     break;
                 }
-                Err(CommsError::ValidationError(err)) => {
-                    debug!("mesh-session-debug: {}", err.to_string());
+                Err(CommsError::ValidationError(errs)) => {
+                    debug!("mesh-session-debug: {}", CommsError::ValidationError(errs).to_string());
                     continue;
                 }
                 Err(err) => {
