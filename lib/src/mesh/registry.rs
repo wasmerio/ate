@@ -109,10 +109,12 @@ impl Registry
 
     pub async fn open(&self, url: &Url) -> Result<Arc<MeshSession>, ChainCreationError>
     {
-        self.open_ext(url, Box::new(loader::DummyLoader::default())).await
+        let loader_local = Box::new(loader::DummyLoader::default());
+        let loader_remote = Box::new(loader::DummyLoader::default());
+        self.open_ext(url, loader_local, loader_remote).await
     }
 
-    pub async fn open_ext(&self, url: &Url, loader: Box<impl loader::Loader>) -> Result<Arc<MeshSession>, ChainCreationError>
+    pub async fn open_ext(&self, url: &Url, loader_local: Box<impl loader::Loader>, loader_remote: Box<impl loader::Loader>) -> Result<Arc<MeshSession>, ChainCreationError>
     {
         let mut lock = self.chains.lock().await;
         
@@ -123,13 +125,13 @@ impl Registry
         
         match lock.get(&domain) {
             Some(a) => {
-                Ok(a.open_ext(&url, loader).await?)
+                Ok(a.open_ext(&url, loader_local, loader_remote).await?)
             },
             None => {
                 let cfg_mesh = self.cfg(url).await?;
                 let mesh = create_client(&self.cfg_ate, &cfg_mesh).await;
                 lock.insert(domain, Arc::clone(&mesh));
-                Ok(mesh.open_ext(&url, loader).await?)
+                Ok(mesh.open_ext(&url, loader_local, loader_remote).await?)
             }
         }
     }

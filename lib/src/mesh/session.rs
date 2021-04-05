@@ -32,7 +32,7 @@ pub struct MeshSession
 
 impl MeshSession
 {
-    pub(super) async fn connect(builder: ChainOfTrustBuilder, chain_url: &url::Url, addrs: Vec<MeshAddress>, loader: Box<impl Loader>) -> Result<Arc<MeshSession>, ChainCreationError>
+    pub(super) async fn connect(builder: ChainOfTrustBuilder, chain_url: &url::Url, addrs: Vec<MeshAddress>, loader_local: Box<impl Loader>, loader_remote: Box<impl Loader>) -> Result<Arc<MeshSession>, ChainCreationError>
     {
         let chain_key = ChainKey::new(chain_url.path().to_string());
         debug!("new: chain_key={}", chain_key.to_string());
@@ -44,7 +44,10 @@ impl MeshSession
 
         // Open the chain and make a sample of the last items so that we can
         // speed up the synchronization by skipping already loaded items
-        let mut chain = Chain::new(builder.clone(), &chain_key).await?;
+        let mut chain = {
+            let chain_key = chain_key.clone();
+            Chain::new_ext(builder.clone(), chain_key, Some(loader_local)).await?
+        };
 
         // Create pipes to all the target root nodes
         let mut pipe_rx = Vec::new();
@@ -87,7 +90,7 @@ impl MeshSession
             lock_requests,
         });
 
-        let mut loader = Some(loader);
+        let mut loader = Some(loader_remote);
         let mut wait_for_me = Vec::new();
         for node_rx in pipe_rx {
             let (loaded_sender, loaded_receiver)
@@ -227,11 +230,6 @@ impl MeshSession
     {
         //debug!("inbox: packet size={}", pck.data.bytes.len());
         match pck.packet.msg {
-            Message::Defaults { log_format } => {
-                debug!("set-default-format: {:?}", log_format);
-                self.chain.single().await.set_default_format(log_format);
-                Ok(())
-            },
             Message::StartOfHistory { size } => Self::inbox_start_of_history(size, loader).await,
             Message::Connected => Self::inbox_connected(self, pck.data).await,
             Message::Events { commit: _, evts } => Self::inbox_events(self, evts, loader).await,

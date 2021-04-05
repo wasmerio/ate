@@ -14,6 +14,7 @@ pub struct EventHeaderRaw
     pub meta_hash: super::crypto::Hash,
     pub meta_bytes: Bytes,
     pub data_hash: Option<super::crypto::Hash>,
+    pub data_size: usize,
     pub event_hash: super::crypto::Hash,
     pub format: MessageFormat,
 }
@@ -28,7 +29,7 @@ for EventHeaderRaw
 
 impl EventHeaderRaw
 {
-    pub(crate) fn new(meta_hash: super::crypto::Hash, meta_bytes: Bytes, data_hash: Option<super::crypto::Hash>, format: MessageFormat) -> EventHeaderRaw
+    pub(crate) fn new(meta_hash: super::crypto::Hash, meta_bytes: Bytes, data_hash: Option<super::crypto::Hash>, data_size: usize, format: MessageFormat) -> EventHeaderRaw
     {
         EventHeaderRaw {
             event_hash: match &data_hash {
@@ -38,6 +39,7 @@ impl EventHeaderRaw
             meta_hash,
             meta_bytes,
             data_hash,
+            data_size,
             format,
         }
     }
@@ -91,11 +93,15 @@ impl EventData
             Some(d) => Some(Hash::from_bytes(&d[..])),
             None => None,
         };
+        let data_size = match &self.data_bytes {
+            Some(d) => d.len() as usize,
+            None => 0
+        };
         let meta_bytes = Bytes::from(self.format.meta.serialize(&self.meta)?);
         let meta_hash = Hash::from_bytes(&meta_bytes[..]);
 
         Ok(
-            EventHeaderRaw::new(meta_hash, meta_bytes, data_hash, self.format)
+            EventHeaderRaw::new(meta_hash, meta_bytes, data_hash, data_size, self.format)
         )
     }
 

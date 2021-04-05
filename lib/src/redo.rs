@@ -309,7 +309,7 @@ impl LogFile
                     },
                     Ok(None) => break,
                     Err(err) => {
-                        error!("log-read-error: {} at {}", err.to_string(), self.log_off);
+                        debug!("log-load-error: {} at {}", err.to_string(), self.log_off);
                         continue;
                     }
                 }
@@ -347,6 +347,10 @@ impl LogFile
             Some(a) => Some(Hash::from_bytes(&a[..])),
             None => None,
         };
+        let data_size = match &evt.data {
+            Some(a) => a.len(),
+            None => 0,
+        };
         let data = match evt.data {
             Some(a) => Some(Bytes::from(a)),
             None => None,
@@ -357,6 +361,7 @@ impl LogFile
             Hash::from_bytes(&evt.meta[..]),
             Bytes::from(evt.meta),
             data_hash,
+            data_size,
             evt.header.format,
         );
 
@@ -501,6 +506,10 @@ impl LogFile
             Some(data) => Some(super::crypto::Hash::from_bytes(&data[..])),
             None => None,
         };
+        let data_size = match &result.data {
+            Some(data) => data.len(),
+            None => 0
+        };
         let data = match result.data {
             Some(data) => Some(Bytes::from(data)),
             None => None,
@@ -513,6 +522,7 @@ impl LogFile
                 super::crypto::Hash::from_bytes(&result.meta[..]),
                 Bytes::from(result.meta),
                 data_hash,
+                data_size,
                 result.header.format,
             ),
             data: EventData {

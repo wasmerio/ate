@@ -35,7 +35,7 @@ impl MeshClient {
         )
     }
 
-    async fn open_internal<'a>(&'a self, url: &url::Url, loader: Box<impl Loader>)
+    async fn open_internal<'a>(&'a self, url: &url::Url, loader_local: Box<impl Loader>, loader_remote: Box<impl Loader>)
         -> Result<Arc<MeshSession>, ChainCreationError>
     {
         let mut key = ChainKey::new(url.path().to_string());
@@ -61,7 +61,7 @@ impl MeshClient {
         }
         
         let builder = ChainOfTrustBuilder::new(&self.cfg_ate).await;
-        let session = MeshSession::connect(builder, url, addrs, loader).await?;
+        let session = MeshSession::connect(builder, url, addrs, loader_local, loader_remote).await?;
         *record = Arc::downgrade(&session);
 
         Ok(session)
@@ -70,13 +70,15 @@ impl MeshClient {
     pub async fn open(&self, url: &url::Url)
         -> Result<Arc<MeshSession>, ChainCreationError>
     {
-        self.open_internal(url, Box::new(crate::loader::DummyLoader::default())).await
+        let loader_local  = Box::new(crate::loader::DummyLoader::default());
+        let loader_remote  = Box::new(crate::loader::DummyLoader::default());
+        self.open_internal(url, loader_local, loader_remote).await
     }
 
-    pub async fn open_ext(&self, url: &url::Url, loader: Box<impl Loader>)
+    pub async fn open_ext(&self, url: &url::Url, loader_local: Box<impl Loader>, loader_remote: Box<impl Loader>)
         -> Result<Arc<MeshSession>, ChainCreationError>
     {
-        self.open_internal(url, loader).await
+        self.open_internal(url, loader_local, loader_remote).await
     }
 }
 

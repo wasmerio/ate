@@ -141,8 +141,8 @@ fn main_debug() -> Opts {
         subcmd: SubCommand::Mount(Mount {
             mount_path: "/mnt/test".to_string(),
             log_path: "~/ate/fs".to_string(),
-            //remote: Some(Url::from_str("tcp://localhost/myfs").unwrap()),
-            remote: None,
+            remote: Some(Url::from_str("tcp://localhost/myfs").unwrap()),
+            //remote: None,
             temp: false,
             uid: None,
             gid: None,
@@ -259,8 +259,11 @@ async fn main_mount(mount: Mount, conf: ConfAte) -> Result<(), AteError>
         .temporal(mount.temp);
 
     // Create a progress bar loader
-    let mut progress = Box::new(progress::LoadProgress::default());
-    progress.msg_done = "Loaded the chain-of-trust, proceeding to mount the file system.".to_string();
+    let mut progress_local = Box::new(progress::LoadProgress::default());
+    let mut progress_remote = Box::new(progress::LoadProgress::default());
+    progress_local.units = pbr::Units::Bytes;
+    progress_local.msg_done = "Downloading latest events from server...".to_string();
+    progress_remote.msg_done = "Loaded the remote chain-of-trust, proceeding to mount the file system.".to_string();
     eprint!("Loading the chain-of-trust...");
 
     // We create a chain with a specific key (this is used for the file name it creates)
@@ -269,18 +272,17 @@ async fn main_mount(mount: Mount, conf: ConfAte) -> Result<(), AteError>
     let session;
     let chain = match mount.remote {
         None => {
-            progress.units = pbr::Units::Bytes;
             Arc::new(
                 Chain::new_ext(
                     builder.clone(),
                     ChainKey::from("root"),
-                    Some(progress)
+                    Some(progress_local)
                 ).await?
             )
         },
         Some(remote) => {
             registry = ate::mesh::Registry::new(&conf).await;
-            session = registry.open_ext(&remote, progress).await?;
+            session = registry.open_ext(&remote, progress_local, progress_remote).await?;
             session.chain()
         },
     };

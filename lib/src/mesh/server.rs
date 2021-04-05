@@ -318,12 +318,6 @@ where F: OpenFlow + 'static
     // Stream the data (if a reply target is given)
     if let Some(reply_at) = reply_at
     {
-        // First up tell the caller what our default settings are for this chain
-        debug!("sending defaults for {}", chain_key.to_string());
-        PacketData::reply_at(Some(&reply_at), wire_format, Message::Defaults {
-            log_format: chain.default_format(),
-        }).await?;
-
         // Stream the data back to the client
         tokio::spawn(inbox_stream_data(
             Arc::clone(&chain), 
@@ -370,12 +364,15 @@ async fn inbox_stream_data(
     };
     
     // We work in batches of 1000 events releasing the lock between iterations so that the
-    // server has time to process new events
+    // server has time to process new events (capped at 1MB of data per send)
+    let max_send: usize = 1 * 1024 * 1024;
     while let Some(start) = cur {
         let mut leafs = Vec::new();
         {
             let guard = multi.inside_async.read().await;
             let mut iter = guard.chain.history.range(start..);
+
+            let mut amount = 0 as usize;
             for _ in 0..1000 {
                 match iter.next() {
                     Some((k, v)) => {
@@ -385,6 +382,11 @@ async fn inbox_stream_data(
                             created: 0,
                             updated: 0,
                         });
+
+                        amount = amount + v.meta_bytes.len() + v.data_size;
+                        if amount > max_send {
+                            break;
+                        }
                     },
                     None => {
                         cur = None;
@@ -407,6 +409,7 @@ async fn inbox_stream_data(
             };
             evts.push(evt);
         }
+        debug!("sending {} events @{}/{}", evts.len(), start, size);
         PacketData::reply_at(Some(&reply_at), wire_format, Message::Events {
             commit: None,
             evts
