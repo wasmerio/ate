@@ -7,7 +7,7 @@ use ate::mesh::Loader;
 use std::io::Stderr;
 use ate::event::EventData;
 use ate::error::ChainCreationError;
-use ate::redo::LoadData;
+use ate::loader::LoadData;
 
 pub struct LoadProgress
 {

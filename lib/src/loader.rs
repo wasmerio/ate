@@ -1,8 +1,17 @@
 use async_trait::async_trait;
+use tokio::sync::mpsc;
+
 use crate::event::*;
 use crate::error::*;
-use tokio::sync::mpsc;
-use crate::redo::LoadData;
+
+#[derive(Debug, Clone)]
+pub struct LoadData
+{
+    pub(crate) index: u32,
+    pub(crate) offset: u64,
+    pub header: EventHeaderRaw,
+    pub data: EventData,
+}
 
 #[async_trait]
 pub trait Loader: Send + Sync + 'static
