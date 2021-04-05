@@ -16,7 +16,7 @@ pub fn command_url(auth: Url) -> Url
 {
     let hex = PrimaryKey::generate().as_hex_string().to_lowercase();
     let mut ret = auth.clone();
-    ret.set_path(format!("cmd-{}", &hex[..4]).as_str());
+    ret.set_path(format!("cmd-{}", &hex[..16]).as_str());
     ret
 }
 

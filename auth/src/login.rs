@@ -1,6 +1,7 @@
 use std::io::stdout;
 use std::io::Write;
 use url::Url;
+use std::time::Duration;
 
 use ate::prelude::*;
 
@@ -9,34 +10,44 @@ use crate::prelude::*;
 use crate::commands::*;
 
 #[allow(dead_code)]
-pub async fn login_command(username: String, read_key: EncryptKey, code: String, auth: Url) -> Result<User, AteError>
+pub async fn login_command(username: String, password: String, code: Option<String>, auth: Url) -> Result<AteSession, LoginError>
 {
     // Open a command chain
     let chain_url = crate::helper::command_url(auth);
     let registry = ate::mesh::Registry::new(&conf_auth()).await;
     let chain = registry.open(&chain_url).await?;
 
+    // Generate a read-key using the password and some seed data
+    // (this read-key will be mixed with entropy on the server side to decrypt the row
+    //  which means that neither the client nor the server can get at the data alone)
+    let prefix = format!("remote-login:{}:", username);
+    let read_key = super::password_to_read_key(&prefix, &password, 10);
+
     // Create the session
     let mut session = AteSession::new(&conf_auth());
-    session.add_read_key(&read_key);
-
+    
     // Create the login command
-    let login = CmdLogin {
-        email: username,
+    let login = LoginRequest {
+        email: username.clone(),
         secret: read_key,
         code,
     };
 
-    // Send the login command
-    let mut dio = chain.dio(&session).await;
-    dio.store(Cmd::Login(login))?;
-    dio.commit().await?;
-
-    // Fail
-    Err(AteError::NotImplemented)
+    // Attempt the login request with a 10 second timeout
+    let response: LoginResponse = chain.invoke_ext(&session, Command::Login(login), Duration::from_secs(10)).await?;
+    match response {
+        LoginResponse::AccountLocked => Err(LoginError::AccountLocked),
+        LoginResponse::NotFound => Err(LoginError::NotFound(username)),
+        LoginResponse::Success {
+            mut authority
+        } => {
+            session.properties.append(&mut authority);
+            Ok(session)
+        }
+    }
 }
 
-pub async fn load_credentials(username: String, read_key: EncryptKey, auth: Url) -> Result<AteSession, AteError>
+pub async fn load_credentials(username: String, read_key: EncryptKey, _code: Option<String>, auth: Url) -> Result<AteSession, AteError>
 {
     // Prepare for the load operation
     let key = PrimaryKey::from(username.clone());
@@ -72,7 +83,7 @@ pub async fn main_login(
     password: Option<String>,
     code: Option<String>,
     auth: Url
-) -> Result<AteSession, AteError>
+) -> Result<AteSession, LoginError>
 {
     let username = match username {
         Some(a) => a,
@@ -94,10 +105,8 @@ pub async fn main_login(
         }
     };
 
-    // Compute the read and write keys
-    let read_key = super::password_to_read_key(&username, &password, 1000);
-
-    let _code = match code {
+    // Read the code
+    let code = match code {
         Some(a) => a,
         None => {
             print!("Code: ");
@@ -108,6 +117,6 @@ pub async fn main_login(
         }
     };
 
-    // Load the user credentials
-    Ok(load_credentials(username, read_key, auth).await?)
+    // Login using the authentication server which will give us a session with all the tokens
+    Ok(login_command(username, password, Some(code), auth).await?)
 }

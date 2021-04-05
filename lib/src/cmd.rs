@@ -6,7 +6,7 @@ use tokio::sync::mpsc;
 use tokio::select;
 use std::sync::Arc;
 
-use crate::{error::*, event::*, meta::{CoreMetadata, MetaCollection}};
+use crate::{error::*, event::*, mesh::MeshSession, meta::{CoreMetadata, MetaCollection}};
 use crate::dio::*;
 use crate::chain::*;
 use crate::index::*;
@@ -115,6 +115,24 @@ impl Chain
                 return Err(CommandError::Aborted);
             }
         }
+    }
+}
+
+impl MeshSession
+{
+    pub async fn invoke<C, R>(self: Arc<Self>, session: &Session, request: C) -> Result<R, CommandError>
+    where C: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
+          R: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
+    {
+        self.invoke_ext(session, request, std::time::Duration::from_secs(60)).await
+    }
+
+    pub async fn invoke_ext<C, R>(self: Arc<Self>, session: &Session, request: C, timeout: Duration) -> Result<R, CommandError>
+    where C: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
+          R: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
+    {
+        let chain = Arc::clone(&self.chain);
+        chain.invoke_ext(session, request, timeout).await
     }
 }
 

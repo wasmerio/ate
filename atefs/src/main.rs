@@ -307,7 +307,7 @@ async fn main_mount(mount: Mount, conf: ConfAte) -> Result<(), AteError>
 }
 
 #[tokio::main]
-async fn main() -> Result<(), AteError> {
+async fn main() -> Result<(), LoginError> {
     let opts: Opts = Opts::parse();
     //let opts = main_debug();
 

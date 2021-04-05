@@ -3,15 +3,25 @@ use serde::*;
 use ate::prelude::*;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct CmdLogin
+pub struct LoginRequest
 {
     pub email: String,
     pub secret: EncryptKey,
-    pub code: String,
+    pub code: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum Cmd
+pub enum LoginResponse
 {
-    Login(CmdLogin)
+    NotFound,
+    AccountLocked,
+    Success {
+        authority: Vec<AteSessionProperty>
+    },
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum Command
+{
+    Login(LoginRequest)
 }

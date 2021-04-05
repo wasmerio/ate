@@ -16,7 +16,7 @@ impl ChainFlow
         ChainFlow {
             root_key,
             regex_auth: Regex::new("^/auth-[a-f0-9]{4}$").unwrap(),
-            regex_cmd: Regex::new("^/cmd-[a-f0-9]{32}$").unwrap(),
+            regex_cmd: Regex::new("^/cmd-[a-f0-9]{16}$").unwrap(),
         }
     }
 }
