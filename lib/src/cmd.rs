@@ -1,4 +1,5 @@
 #![allow(unused_imports)]
+use log::{info, error, debug};
 use serde::{Serialize, de::DeserializeOwned};
 use std::{marker::PhantomData, sync::Weak, time::Duration};
 use tokio::sync::mpsc;
@@ -6,7 +7,6 @@ use tokio::select;
 use std::sync::Arc;
 
 use crate::{error::*, event::*, meta::{CoreMetadata, MetaCollection}};
-use super::dao::*;
 use crate::dio::*;
 use crate::chain::*;
 use crate::index::*;
@@ -38,9 +38,14 @@ impl Chain
 
         // Sniff out the response object
         let cmd_id = cmd.key().clone();
+        let response_type_name = std::any::type_name::<R>().to_string();
         let join = sniff_for_command(Arc::downgrade(&self), Box::new(move |h| {
             if let Some(reply) = h.meta.is_reply_to_what() {
-                return reply == cmd_id;
+                if reply == cmd_id {
+                    if let Some(t) = h.meta.get_type_name() {
+                        return t.type_name == response_type_name;
+                    }
+                }
             }
             false
         }));
@@ -58,7 +63,7 @@ impl Chain
         Ok(dio.load::<R>(&key).await?.take())
     }
 
-    pub async fn service<C, R>(self: Arc<Self>, session: &Session, worker: impl Fn(&mut Dio, Dao<C>) -> R) -> Result<(), CommandError>
+    pub async fn service<C, R>(self: Arc<Self>, session: Session, worker: impl Fn(&mut Dio, Dao<C>) -> R) -> Result<(), CommandError>
     where C: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
           R: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
     {
@@ -70,10 +75,10 @@ impl Chain
         loop
         {
             // Sniff for the command object
-            let type_name = std::any::type_name::<C>().to_string();
+            let request_type_name = std::any::type_name::<C>().to_string();
             let key = sniff_for_command(Weak::clone(&weak), Box::new(move |h| {
                 if let Some(t) = h.meta.get_type_name() {
-                    return t.type_name == type_name;
+                    return t.type_name == request_type_name;
                 }
                 false
             })).await;
@@ -88,7 +93,7 @@ impl Chain
             if let Some(chain) = weak.upgrade()
             {
                 // Load the command object
-                let mut dio = chain.dio(session).await;
+                let mut dio = chain.dio(&session).await;
                 let cmd = dio.load::<C>(&key).await?;
 
                 // Process it in the worker
@@ -132,4 +137,65 @@ async fn sniff_for_command(chain: Weak<Chain>, what: Box<dyn Fn(&EventData) -> b
 
     // Now wait for the response
     rx.recv().await
+}
+
+#[cfg(test)]
+mod tests 
+{
+    #![allow(unused_imports)]
+    use log::{info, error, debug};
+    use serde::{Serialize, Deserialize};
+    use std::sync::Arc;
+    use crate::dio::*;
+    use crate::chain::*;
+    use crate::index::*;
+    use crate::session::*;
+    use crate::meta::*;
+    use crate::header::*;
+    use crate::error::*;
+
+    #[derive(Serialize, Deserialize, Debug, Clone)]
+    struct Ping
+    {
+        msg: String
+    }
+
+    #[derive(Serialize, Deserialize, Debug, Clone)]
+    struct Pong
+    {
+        msg: String
+    }
+
+    #[derive(Serialize, Deserialize, Debug, Clone)]
+    struct Noise
+    {
+        dummy: u64
+    }
+
+    #[tokio::main]
+    #[test]
+    async fn test_cmd() -> Result<(), AteError>
+    {
+        crate::utils::bootstrap_env();
+
+        debug!("creating test chain");
+        let mut mock_cfg = crate::conf::mock_test_config();
+        let chain = Arc::new(crate::trust::create_test_chain(&mut mock_cfg, "test_chain".to_string(), true, true, None).await);
+        
+        debug!("start the service on the chain");
+        let session = Session::new(&mock_cfg);
+        {
+            let session = session.clone();
+            let chain = Arc::clone(&chain);
+            tokio::spawn(chain.service(session, |_dio, p: Dao<Ping>| Pong { msg: p.take().msg }));
+        }
+
+        debug!("sending ping");
+        let pong: Pong = chain.invoke(&session, Ping {
+            msg: "hi".to_string()
+        }).await?;
+
+        debug!("received pong with msg [{}]", pong.msg);
+        Ok(())
+    }
 }

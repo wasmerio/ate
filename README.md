@@ -155,6 +155,7 @@ async fn main() -> Result<(), AteError>
 - [Hello World](lib/examples/hello-world.rs)
 - [Server/Client](lib/examples/server-client.rs)
 - [Publish/Subscribe](lib/examples/bus-or-queue.rs)
+- [Command/API](lib/examples/command-api.rs)
 - [Exactly-Once Queue](lib/examples/bus-or-queue.rs)
 - [Crypto Currency](lib/examples/coin.rs)
 - [Banking Example](lib/examples/bank.rs)
