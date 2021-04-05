@@ -1,3 +1,0 @@
-[submodule "sub/fuse-rs"]
-	path = sub/fuse-rs
-	url = https://github.com/zargony/fuse-rs.git
