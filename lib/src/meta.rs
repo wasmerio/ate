@@ -316,7 +316,7 @@ impl Metadata
         }
     }
 
-    pub fn is_reply_to_what(&mut self) -> Option<PrimaryKey> {
+    pub fn is_reply_to_what(&self) -> Option<PrimaryKey> {
         self.core
             .iter()
             .filter_map(|m| {

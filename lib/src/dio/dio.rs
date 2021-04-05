@@ -114,9 +114,8 @@ where Self: Send + Sync
 {
     pub(super) multi: ChainMultiUser,
     pub(super) state: DioState,
-    #[allow(dead_code)]
-    session: &'a Session,
-    scope: Scope,
+    pub(super) session: &'a Session,
+    pub(super) scope: Scope,
 }
 
 impl<'a> Dio<'a>
@@ -142,6 +141,7 @@ impl<'a> Dio<'a>
             format,
             created: 0,
             updated: 0,
+            extra_meta: Vec::new()
         };
 
         let mut ret = Dao::new(row);
@@ -426,6 +426,9 @@ impl<'a> Dio<'a>
                 meta.core.push(CoreMetadata::Authorization(row.auth.clone()));
                 if let Some(parent) = &row.parent {
                     meta.core.push(CoreMetadata::Parent(parent.clone()))
+                }
+                for extra in row.extra_meta.iter() {
+                    meta.core.push(extra.clone());
                 }
 
                 // Compute all the extra metadata for an event

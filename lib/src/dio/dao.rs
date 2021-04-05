@@ -35,6 +35,7 @@ where Self: Send + Sync,
     pub(super) data: D,
     pub(super) auth: MetaAuthorization,
     pub(super) collections: FxHashSet<MetaCollection>,
+    pub(super) extra_meta: Vec<CoreMetadata>,
 }
 
 impl<D> Row<D>
@@ -67,6 +68,7 @@ where Self: Send + Sync,
                         collections,
                         created,
                         updated,
+                        extra_meta: Vec::new(),
                     }
                 )
             }
@@ -85,6 +87,7 @@ where Self: Send + Sync,
                 collections: row.collections.clone(),
                 created: row.created,
                 updated: row.updated,
+                extra_meta: row.extra_meta.clone(),
             }
         )
     }
@@ -105,6 +108,7 @@ where Self: Send + Sync,
                 collections: self.collections.clone(),
                 created: self.created,
                 updated: self.updated,
+                extra_meta: self.extra_meta.clone(),
             }
         )
     }
@@ -123,6 +127,7 @@ where Self: Send + Sync
     pub collections: FxHashSet<MetaCollection>,
     pub created: u64,
     pub updated: u64,
+    pub extra_meta: Vec<CoreMetadata>,
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -154,6 +159,8 @@ pub trait DaoObj
     fn auth(&self) -> &MetaAuthorization;
 
     fn auth_mut(&mut self) -> &mut MetaAuthorization;
+
+    fn add_extra_metadata(&mut self, meta: CoreMetadata);
 
     fn is_locked(&self) -> bool;
 
@@ -222,6 +229,7 @@ where Self: Send + Sync,
                     write: WriteOption::Inherit,
                 },
                 collections: FxHashSet::default(),
+                extra_meta: Vec::new(),
             },
         }
     }
@@ -322,6 +330,11 @@ where Self: Send + Sync,
     fn auth_mut(&mut self) -> &mut MetaAuthorization {
         self.state.dirty = true;
         &mut self.row.auth
+    }
+
+    fn add_extra_metadata(&mut self, meta: CoreMetadata) {
+        self.state.dirty = true;
+        self.row.extra_meta.push(meta);
     }
 
     fn is_locked(&self) -> bool {

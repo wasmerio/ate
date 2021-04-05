@@ -63,8 +63,38 @@ pub(crate) struct ChainListener
     pub(crate) sender: mpsc::Sender<EventData>
 }
 
+pub(crate) struct ChainSniffer
+{
+    pub(crate) filter: Box<dyn Fn(&EventData) -> bool + Send + Sync>,
+    pub(crate) notify: mpsc::Sender<PrimaryKey>,
+}
+
+impl ChainSniffer
+{
+    fn convert(self, key: PrimaryKey) -> SnifferNotify {
+        SnifferNotify {
+            key,
+            sender: self.notify
+        }
+    }
+}
+
+pub(crate) struct SnifferNotify
+{
+    pub(crate) key: PrimaryKey,
+    pub(crate) sender: mpsc::Sender<PrimaryKey>,
+}
+
+impl SnifferNotify
+{
+    async fn notify(self) {
+        let _ = self.sender.send(self.key).await;
+    }
+}
+
 pub(crate) struct ChainProtectedSync
 {
+    pub(super) sniffers: Vec<ChainSniffer>,
     pub(super) plugins: Vec<Box<dyn EventPlugin>>,
     pub(super) indexers: Vec<Box<dyn EventIndexer>>,
     pub(super) linters: Vec<Box<dyn EventMetadataLinter>>,
@@ -225,6 +255,24 @@ impl<'a> Chain
             let trans = work.trans;
             let notify = work.notify;
 
+            // Check all the sniffers
+            let mut notifies = Vec::new();
+            {
+                let mut guard = inside_sync.write();
+                let mut next = Vec::new();
+                for sniffer in guard.sniffers.drain(..) {
+                    if let Some(key) = trans.events.iter().filter_map(|e| match (*sniffer.filter)(e) {
+                        true => e.meta.get_data_key(),
+                        false => None,
+                    }).next() {
+                        notifies.push(sniffer.convert(key));
+                    } else {
+                        next.push(sniffer);
+                    }
+                }
+                guard.sniffers = next;
+            }
+
             // We lock the chain of trust while we update the local chain
             let mut lock = inside_async.write().await;
 
@@ -250,6 +298,11 @@ impl<'a> Chain
             // not concerned by the result hence we do nothing with these errors
             if let Some(notify) = notify {
                 let _ = notify.send(result).await;
+            }
+
+            // Notify all the sniffers
+            for sniffer in notifies {
+                sniffer.notify().await;
             }
 
             // If we have a late flush in play then execute it
@@ -320,6 +373,7 @@ impl<'a> Chain
         };
 
         let mut inside_sync = ChainProtectedSync {
+            sniffers: Vec::new(),
             indexers: builder.indexers,
             plugins: builder.plugins,
             linters: builder.linters,

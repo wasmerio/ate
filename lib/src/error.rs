@@ -1215,6 +1215,71 @@ for LockError {
     }
 }
 
+#[derive(Debug)]
+pub enum CommandError
+{
+    LoadError(LoadError),
+    SerializationError(SerializationError),
+    CommitError(CommitError),
+    Timeout,
+    Aborted
+}
+
+impl From<SerializationError>
+for CommandError
+{
+    fn from(err: SerializationError) -> CommandError {
+        CommandError::SerializationError(err)
+    }   
+}
+
+impl From<LoadError>
+for CommandError
+{
+    fn from(err: LoadError) -> CommandError {
+        CommandError::LoadError(err)
+    }   
+}
+
+impl From<CommitError>
+for CommandError
+{
+    fn from(err: CommitError) -> CommandError {
+        CommandError::CommitError(err)
+    }   
+}
+
+impl From<tokio::time::error::Elapsed>
+for CommandError
+{
+    fn from(_elapsed: tokio::time::error::Elapsed) -> CommandError {
+        CommandError::Timeout
+    }
+}
+
+impl std::fmt::Display
+for CommandError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            CommandError::LoadError(err) => {
+                write!(f, "Command failed - {}", err)
+            },
+            CommandError::SerializationError(err) => {
+                write!(f, "Command failed - {}", err)
+            },
+            CommandError::CommitError(err) => {
+                write!(f, "Command failed - {}", err)
+            },
+            CommandError::Timeout => {
+                write!(f, "Command failed - Timeout")
+            },
+            CommandError::Aborted => {
+                write!(f, "Command failed - Aborted")
+            },
+        }
+    }
+}
+
 /// Super-set of all errors that could possibly happen within this ATE library
 /// This error allows one to roll up all the errors into a clean object using
 /// standard from conversions for cleaner code.
@@ -1236,6 +1301,7 @@ pub enum AteError
     IO(tokio::io::Error),
     CryptoError(CryptoError),
     TransformError(TransformError),
+    CommandError(CommandError),
     NotImplemented,
 }
 
@@ -1359,6 +1425,14 @@ for AteError
     }   
 }
 
+impl From<CommandError>
+for AteError
+{
+    fn from(err: CommandError) -> AteError {
+        AteError::CommandError(err)
+    }   
+}
+
 impl std::fmt::Display
 for AteError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -1406,6 +1480,9 @@ for AteError {
                 write!(f, "{}", err)
             },
             AteError::IO(err) => {
+                write!(f, "{}", err)
+            },
+            AteError::CommandError(err) => {
                 write!(f, "{}", err)
             },
             AteError::NotImplemented => {

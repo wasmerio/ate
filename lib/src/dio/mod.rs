@@ -4,6 +4,7 @@ mod obj;
 mod bus;
 mod foreign;
 mod test;
+mod cmd;
 mod dio;
 
 pub use crate::dio::vec::DaoVec;
