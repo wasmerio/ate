@@ -331,6 +331,14 @@ async fn main_mount(mount: Mount, conf: ConfAte) -> Result<(), AteError>
     info!("mounting file-system and entering main loop");
     let mut ctrl_c = ctrl_channel();
 
+    // Add a panic hook that will unmount
+    {
+        let mount_path = mount_path.clone();
+        std::panic::set_hook(Box::new(move |_| {
+            let _ = umount::unmount(std::path::Path::new(mount_path.as_str()));
+        }));
+    }
+
     // Main loop
     eprintln!("Press ctrl-c to exit");
     select!
