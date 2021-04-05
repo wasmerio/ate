@@ -48,6 +48,8 @@ This library is a way of working with data in modern distributed computing.
 ## Changelog
 
 ```
+0.3.1 - AteDB is now functional allowing AteFS to store its files in the replicated
+        redo log, also this helped find and solve a whole bunch of bugs.
 0.3.0 - New API changes to cater for future releases with many fixes for critical bugs
         + Improvements to the log file format to support forward compatibility
         + Added wire encryption as another layer of defence using perfect-forward-secrecy
