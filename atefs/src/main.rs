@@ -1,6 +1,7 @@
 #![allow(unused_imports, dead_code)]
 use log::{info, error, debug};
 use ate::prelude::*;
+use ate_auth::prelude::*;
 use std::env;
 use std::io::ErrorKind;
 use directories::BaseDirs;

@@ -3,12 +3,20 @@ use url::Url;
 use ate::prelude::*;
 use ate::crypto::EncryptKey;
 
-pub fn chain_url(auth: Url, email: &String) -> Url
+pub fn auth_url(auth: Url, email: &String) -> Url
 {
     let hash = AteHash::from(email.clone());
     let hex = hash.to_hex_string().to_lowercase();
     let mut ret = auth.clone();
     ret.set_path(format!("{}-{}", ret.path(), &hex[..4]).as_str());
+    ret
+}
+
+pub fn command_url(auth: Url) -> Url
+{
+    let hex = PrimaryKey::generate().as_hex_string().to_lowercase();
+    let mut ret = auth.clone();
+    ret.set_path(format!("cmd-{}", &hex[..4]).as_str());
     ret
 }
 

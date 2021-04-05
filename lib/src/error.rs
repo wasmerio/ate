@@ -1236,6 +1236,7 @@ pub enum AteError
     IO(tokio::io::Error),
     CryptoError(CryptoError),
     TransformError(TransformError),
+    NotImplemented,
 }
 
 impl From<LockError>
@@ -1406,6 +1407,9 @@ for AteError {
             },
             AteError::IO(err) => {
                 write!(f, "{}", err)
+            },
+            AteError::NotImplemented => {
+                write!(f, "Not implemented")
             },
         }
     }

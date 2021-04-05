@@ -140,6 +140,12 @@ pub struct MetaTimestamp
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MetaType
+{
+    pub type_name: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum CoreMetadata
 {
     None,
@@ -156,6 +162,8 @@ pub enum CoreMetadata
     Signature(MetaSignature),
     SignWith(MetaSignWith),
     Author(String),
+    Type(MetaType),
+    Reply(PrimaryKey),
 }
 
 impl Default for CoreMetadata {
@@ -250,6 +258,70 @@ impl Metadata
             .filter_map(|m| {
                 match m {
                     CoreMetadata::Timestamp(time) => Some(time),
+                    _ => None,
+                }
+            })
+            .next()
+    }
+
+    pub fn get_type_name(&self) -> Option<&MetaType> {
+        self.core
+            .iter()
+            .filter_map(|m| {
+                match m {
+                    CoreMetadata::Type(t) => Some(t),
+                    _ => None,
+                }
+            })
+            .next()
+    }
+
+    pub fn is_of_type<T: ?Sized>(&self) -> bool {
+        if let Some(m) = self.core
+            .iter()
+            .filter_map(|m| {
+                match m {
+                    CoreMetadata::Type(t) => Some(t),
+                    _ => None,
+                }
+            })
+            .next()
+        {
+            return m.type_name == std::any::type_name::<T>().to_string()
+        }
+
+        false
+    }
+
+    pub fn set_type_name<T: ?Sized>(&mut self) {
+        let type_name = std::any::type_name::<T>().to_string();
+        
+        if self.core
+            .iter_mut()
+            .filter_map(|m| {
+                match m {
+                    CoreMetadata::Type(t) => {
+                        t.type_name = type_name.clone();
+                        Some(t)
+                    },
+                    _ => None,
+                }
+            })
+            .next()
+            .is_none()
+        {
+            self.core.push(CoreMetadata::Type(MetaType {
+                type_name,
+            }));
+        }
+    }
+
+    pub fn is_reply_to_what(&mut self) -> Option<PrimaryKey> {
+        self.core
+            .iter()
+            .filter_map(|m| {
+                match m {
+                    CoreMetadata::Reply(a) => Some(a.clone()),
                     _ => None,
                 }
             })

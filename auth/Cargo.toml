@@ -27,9 +27,9 @@ chrono = { version = "0.4.*", features = ["serde"] }
 isocountry = "0.3.*"
 url = "2.2.*"
 rpassword = "0.0.*"
+regex = "1.4.*"
 
 [dev-dependencies]
-regex = "1.4.*"
 clap = "3.0.0-beta.2"
 ctrlc = "3.1.*"
 bincode = "1.3.*"
