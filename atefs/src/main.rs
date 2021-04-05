@@ -53,8 +53,6 @@ enum SubCommand {
     #[clap()]
     Mount(Mount),
     #[clap()]
-    Solo(Solo),
-    #[clap()]
     Login(Login),
     #[clap()]
     Logout(Logout),
@@ -77,20 +75,6 @@ struct Login {
 /// Logs out by removing all the authentication tokens from the local machine
 #[derive(Clap)]
 struct Logout {
-}
-
-/// Runs a solo ATE database and listens for connections from clients
-#[derive(Clap)]
-struct Solo {
-    /// Path to the log files where all the file system data is stored
-    #[clap(index = 1, default_value = "/opt/fs")]
-    logs_path: String,
-    /// IP address that the authentication server will isten on
-    #[clap(short, long, default_value = "0.0.0.0")]
-    listen: String,
-    /// Port that the authentication server will listen on
-    #[clap(short, long, default_value = "5000")]
-    port: u16,
 }
 
 /// Mounts a particular directory as an ATE file system
@@ -211,31 +195,10 @@ async fn main() -> Result<(), AteError> {
         SubCommand::Mount(mount) => {
             main_mount(mount, conf).await?;
         },
-        SubCommand::Solo(solo) => {
-            main_solo(solo, conf).await?;
-        }
     }
 
     info!("atefs::shutdown");
 
-    Ok(())
-}
-
-async fn main_solo(solo: Solo, mut cfg_ate: ConfAte) -> Result<(), AteError>
-{
-    // Create the chain flow and generate configuration
-    cfg_ate.log_path = shellexpand::tilde(&solo.logs_path).to_string();
-
-    // Create the server and listen on port 5000
-    let cfg_mesh = ConfMesh::solo(solo.listen.as_str(), solo.port);
-    let _server = create_persistent_server(&cfg_ate, &cfg_mesh).await;
-
-    // Wait for ctrl-c
-    let mut exit = ctrl_channel();
-    while *exit.borrow() == false {
-        exit.changed().await.unwrap();
-    }
-    println!("Goodbye!");
     Ok(())
 }
 

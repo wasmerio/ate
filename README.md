@@ -159,6 +159,7 @@ async fn main() -> Result<(), AteError>
 
 ## Projects
 
+- [atedb](atedb/README.md)
 - [atefs](atefs/README.md)
 
 ## Contribution
