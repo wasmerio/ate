@@ -51,7 +51,7 @@ for ChainFlow
                 .await?);
 
             // Add the services to this chain
-            service_logins(self.session.clone(), Arc::clone(&chain)).await;
+            service_logins(self.session.clone(), &Arc::clone(&chain)).await;
 
             // Return the chain to the caller
             return Ok(OpenAction::Chain(chain));

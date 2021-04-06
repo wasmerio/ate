@@ -1,26 +1,29 @@
 #![allow(unused_imports)]
 use log::{info, error, debug};
+use async_trait::async_trait;
 use std::sync::Arc;
 use ate::prelude::*;
 
 use ate::error::*;
 use crate::commands::*;
 
-pub async fn service_logins(session: AteSession, chain: Arc<Chain>)
+#[derive(Debug, Default)]
+struct AuthService
 {
-    debug!("login service started");
-    match chain.service(session, Box::new(|_dio, r: LoginRequest|
+}
+
+#[async_trait]
+impl ServiceHandler<LoginRequest, LoginResponse>
+for AuthService
+{
+    async fn process(&self, _dio: &mut Dio, request: Dao<LoginRequest>) -> LoginResponse
     {
-        info!("login attempt: {}", r.email);
+        info!("login attempt: {}", request.email);
         LoginResponse::AccountLocked
-    }))
-    .await
-    {
-        Err(CommandError::Aborted) => {
-            debug!("login service finished");
-        },
-        a => {
-            a.unwrap();
-        }
-    };
+    }   
+}
+
+pub async fn service_logins(session: AteSession, chain: &Arc<Chain>)
+{
+    chain.add_service(session, Arc::new(AuthService::default()))
 }

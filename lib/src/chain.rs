@@ -25,6 +25,7 @@ use fxhash::{FxHashMap, FxHashSet};
 use tokio::sync::RwLock;
 use parking_lot::RwLock as StdRwLock;
 use parking_lot::RwLockWriteGuard as StdRwLockWriteGuard;
+use parking_lot::RwLockReadGuard as StdRwLockReadGuard;
 use tokio::sync::mpsc;
 use std::sync::mpsc as smpsc;
 
@@ -41,6 +42,7 @@ use super::header::PrimaryKey;
 use super::meta::MetaCollection;
 use super::spec::*;
 use super::loader::*;
+use super::service::*;
 use std::collections::BTreeMap;
 
 pub use super::transaction::Scope;
@@ -63,52 +65,16 @@ pub(crate) struct ChainListener
     pub(crate) sender: mpsc::Sender<EventData>
 }
 
-pub(crate) struct ChainSniffer
-{
-    pub(crate) filter: Box<dyn Fn(&EventData) -> bool + Send + Sync>,
-    pub(crate) notify: mpsc::Sender<PrimaryKey>,
-}
-
-impl ChainSniffer
-{
-    fn notify(&self, key: PrimaryKey) -> SnifferNotify {
-        SnifferNotify {
-            key,
-            sender: self.notify.clone()
-        }
-    }
-
-    fn convert(self, key: PrimaryKey) -> SnifferNotify {
-        SnifferNotify {
-            key,
-            sender: self.notify
-        }
-    }
-}
-
-pub(crate) struct SnifferNotify
-{
-    pub(crate) key: PrimaryKey,
-    pub(crate) sender: mpsc::Sender<PrimaryKey>,
-}
-
-impl SnifferNotify
-{
-    async fn notify(self) {
-        let _ = self.sender.send(self.key).await;
-    }
-}
-
 pub(crate) struct ChainProtectedSync
 {
     pub(super) sniffers: Vec<ChainSniffer>,
-    pub(super) eternal_sniffers: Vec<ChainSniffer>,
     pub(super) plugins: Vec<Box<dyn EventPlugin>>,
     pub(super) indexers: Vec<Box<dyn EventIndexer>>,
     pub(super) linters: Vec<Box<dyn EventMetadataLinter>>,
     pub(super) transformers: Vec<Box<dyn EventDataTransformer>>,
     pub(super) validators: Vec<Box<dyn EventValidator>>,
     pub(super) listeners: MultiMap<MetaCollection, ChainListener>,
+    pub(super) services: Vec<Arc<dyn Service>>,
 }
 
 /// Represents the main API to access a specific chain-of-trust
@@ -244,6 +210,33 @@ impl ChainProtectedSync
         }
         Ok(ValidationResult::Allow)
     }
+
+    pub(crate) fn notify<'b>(lock: &StdRwLockReadGuard<'b, ChainProtectedSync>, evts: &'b Vec<EventData>)
+    {
+        // Build a map of event parents that will be used in the BUS notifications
+        let mut notify_map = MultiMap::new();
+        for evt in evts.iter() {
+            if let Some(parent) = evt.meta.get_parent() {
+                notify_map.insert(&parent.vec, evt.clone());
+            }
+        }
+
+        // Notify anyone waiting for the events on a BUS
+        for pair in notify_map {
+            let (k, v) = pair;
+            if let Some(targets) = lock.listeners.get_vec(&k) {
+                for target in targets {
+                    let target = target.sender.clone();
+                    let evts = v.clone();
+                    tokio::spawn(async move {
+                        for evt in evts {
+                            let _ = target.send(evt).await;
+                        }
+                    });
+                }
+            }
+        }
+    }
 }
 
 struct ChainWork
@@ -254,86 +247,6 @@ struct ChainWork
 
 impl<'a> Chain
 {
-    async fn worker(inside_async: Arc<RwLock<ChainProtectedAsync>>, inside_sync: Arc<StdRwLock<ChainProtectedSync>>, mut receiver: mpsc::Receiver<ChainWork>)
-    {
-        // Wait for the next transaction to be processed
-        while let Some(work) = receiver.recv().await
-        {
-            // Extract the variables
-            let trans = work.trans;
-            let notify = work.notify;
-
-            // Check all the sniffers
-            let mut notifies = Vec::new();
-            {
-                let mut guard = inside_sync.write();
-                let mut next = Vec::new();
-                for sniffer in guard.sniffers.drain(..) {
-                    if let Some(key) = trans.events.iter().filter_map(|e| match (*sniffer.filter)(e) {
-                        true => e.meta.get_data_key(),
-                        false => None,
-                    }).next() {
-                        notifies.push(sniffer.convert(key));
-                    } else {
-                        next.push(sniffer);
-                    }
-                }
-                guard.sniffers = next;
-
-                for sniffer in guard.eternal_sniffers.iter() {
-                    if let Some(key) = trans.events.iter().filter_map(|e| match (*sniffer.filter)(e) {
-                        true => e.meta.get_data_key(),
-                        false => None,
-                    }).next() {
-                        notifies.push(sniffer.notify(key));
-                    }
-                }
-            }
-
-            // We lock the chain of trust while we update the local chain
-            let mut lock = inside_async.write().await;
-
-            // Push the events into the chain of trust and release the lock on it before
-            // we transmit the result so that there is less lock thrashing
-            let result = match lock.feed_async_internal(inside_sync.clone(), &trans.events).await {
-                Ok(_) => Ok(()),
-                Err(err) => Err(err),
-            };
-
-            // If the scope requires it then we flush, otherwise we just drop the lock
-            let late_flush = match trans.scope {
-                Scope::One | Scope::Full => {
-                    lock.chain.flush().await.unwrap();
-                    false
-                },
-                _ => true
-            };
-            drop(lock);
-
-            // We send the result of a feed operation back to the caller, if the send
-            // operation fails its most likely because the caller has moved on and is
-            // not concerned by the result hence we do nothing with these errors
-            if let Some(notify) = notify {
-                let _ = notify.send(result).await;
-            }
-
-            // Notify all the sniffers
-            for sniffer in notifies {
-                sniffer.notify().await;
-            }
-
-            // If we have a late flush in play then execute it
-            if late_flush {
-                let flush_async = inside_async.clone();
-                tokio::spawn(async move {
-                    let mut lock = flush_async.write().await;
-                    lock.chain.flush().await.unwrap();
-                });
-                tokio::task::yield_now().await;
-            }
-        }
-    }
-
     #[allow(dead_code)]
     pub async fn new(
         builder: ChainOfTrustBuilder,
@@ -391,13 +304,13 @@ impl<'a> Chain
 
         let mut inside_sync = ChainProtectedSync {
             sniffers: Vec::new(),
-            eternal_sniffers: Vec::new(),
             indexers: builder.indexers,
             plugins: builder.plugins,
             linters: builder.linters,
             validators: builder.validators,
             transformers: builder.transformers,
             listeners: MultiMap::new(),
+            services: Vec::new(),
         };
         if let Some(tree) = builder.tree {
             inside_sync.plugins.push(Box::new(tree));
@@ -612,35 +525,6 @@ impl<'a> Chain
         Ok(())
     }
 
-    pub(crate) async fn notify<'b>(&'a self, evts: &'b Vec<EventData>)
-    {
-        let mut notify_map = MultiMap::new();
-        for evt in evts.iter() {
-            if let Some(parent) = evt.meta.get_parent() {
-                notify_map.insert(&parent.vec, evt.clone());
-            }
-        }
-
-        {
-            let lock = self.inside_sync.read();
-            for pair in notify_map {
-                let (k, v) = pair;
-                if let Some(targets) = lock.listeners.get_vec(&k) {
-                    for target in targets {
-                        let target = target.sender.clone();
-                        let evts = v.clone();
-                        tokio::spawn(async move {
-                            for evt in evts {
-                                let _ = target.send(evt).await;
-                            }
-                        });
-                    }
-                }
-            }
-        }
-        tokio::task::yield_now().await;
-    }
-
     pub(crate) async fn get_ending_sample(&self) -> Vec<Hash> {
         let guard = self.inside_async.read().await;
         let mut sample = Vec::new();
@@ -732,5 +616,73 @@ for InboxPipe
     }
 
     fn set_next(&self, _next: Arc<dyn EventPipe>) {
+    }
+}
+
+
+
+impl<'a> Chain
+{
+    async fn worker(inside_async: Arc<RwLock<ChainProtectedAsync>>, inside_sync: Arc<StdRwLock<ChainProtectedSync>>, mut receiver: mpsc::Receiver<ChainWork>)
+    {
+        // Wait for the next transaction to be processed
+        while let Some(work) = receiver.recv().await
+        {
+            // Extract the variables
+            let trans = work.trans;
+            let work_notify = work.notify;
+
+            // Check all the sniffers
+            let notifies = crate::service::callback_events_prepare(&inside_sync.read(), &trans.events);
+
+            // We lock the chain of trust while we update the local chain
+            let mut lock = inside_async.write().await;
+
+            // Push the events into the chain of trust and release the lock on it before
+            // we transmit the result so that there is less lock thrashing
+            let result = match lock.feed_async_internal(inside_sync.clone(), &trans.events).await {
+                Ok(_) => Ok(()),
+                Err(err) => Err(err),
+            };
+
+            // If the scope requires it then we flush, otherwise we just drop the lock
+            let late_flush = match trans.scope {
+                Scope::One | Scope::Full => {
+                    lock.chain.flush().await.unwrap();
+                    false
+                },
+                _ => true
+            };
+            drop(lock);
+
+            // We send the result of a feed operation back to the caller, if the send
+            // operation fails its most likely because the caller has moved on and is
+            // not concerned by the result hence we do nothing with these errors
+            if let Some(notify) = work_notify {
+                let _ = notify.send(result).await;
+            }
+            {
+                let lock = inside_sync.read();
+                ChainProtectedSync::notify(&lock, &trans.events);
+            }
+
+            // Notify all the sniffers
+            match crate::service::callback_events_notify(notifies).await {
+                Ok(_) => {}
+                Err(err) => debug!("notify-err - {}", err)
+            };
+
+            // If we have a late flush in play then execute it
+            if late_flush {
+                let flush_async = inside_async.clone();
+                tokio::spawn(async move {
+                    let mut lock = flush_async.write().await;
+                    lock.chain.flush().await.unwrap();
+                });
+            }
+
+            // Yield so the other async events get time
+            tokio::task::yield_now().await;
+        }
     }
 }

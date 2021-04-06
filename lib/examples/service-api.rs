@@ -1,5 +1,6 @@
 #[allow(unused_imports)]
 use log::{info, error, debug};
+use async_trait::async_trait;
 use serde::{Serialize, Deserialize};
 use std::sync::Arc;
 
@@ -17,10 +18,19 @@ struct Pong
     msg: String
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct Noise
+#[derive(Default)]
+struct PingPongTable
+{        
+}
+
+#[async_trait]
+impl ServiceHandler<Ping, Pong>
+for PingPongTable
 {
-    dummy: u64
+    async fn process(&self, _dio: &mut Dio, ping: Dao<Ping>) -> Pong
+    {
+        Pong { msg: ping.take().msg }
+    }
 }
 
 #[tokio::main]
@@ -36,9 +46,7 @@ async fn main() -> Result<(), AteError>
     
     debug!("start the service on the chain");
     let session = AteSession::new(&conf);
-    chain.service(session.clone(), Box::new(
-        |_dio, p: Ping| Pong { msg: p.msg }
-    )).await?;
+    chain.add_service(session.clone(), Arc::new(PingPongTable::default()));
     
     debug!("sending ping");
     let pong: Pong = chain.invoke(&session, Ping {

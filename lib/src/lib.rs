@@ -47,7 +47,7 @@ pub mod single;
 pub mod multi;
 pub mod transaction;
 pub mod dio;
-pub mod cmd;
+pub mod service;
 pub mod pipe;
 pub mod prelude;
 pub mod anti_replay;

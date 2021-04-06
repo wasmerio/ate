@@ -201,22 +201,24 @@ async fn inbox_event(
     };
     let commit = commit.clone();
     
+    // Feed the events into the chain of trust
     let evts = MessageEvent::convert_from(evts);
-    let mut single = chain.single().await;                    
-    let ret = single.feed_async(&evts).await;
-    drop(single);
+    let ret = chain.pipe.feed(Transaction {
+        scope: Scope::None,
+        events: evts
+    }).await;
 
+    // Send the packet down to others
     let wire_format = pck_data.wire_format;
     let downcast_err = match &ret {
         Ok(_) => {
-            let join1 = chain.notify(&evts);
-            let join2 = tx.downcast_packet(pck_data);
-            join1.await;
-            join2.await
+            tx.downcast_packet(pck_data).await?;
+            Ok(())
         },
         Err(err) => Err(CommsError::InternalError(format!("feed-failed - {}", err.to_string())))
     };
 
+    // If the operation has a commit to transmit the response
     if let Some(id) = commit {
         match &ret {
             Ok(_) => PacketData::reply_at(reply_at, wire_format, Message::Confirmed(id.clone())).await?,

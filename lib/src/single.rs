@@ -3,8 +3,6 @@ use parking_lot::RwLock as StdRwLock;
 use std::sync::Arc;
 
 use super::chain::*;
-use super::error::*;
-use super::event::*;
 
 /// Represents an exclusive lock on a chain-of-trust that allows the
 /// user to execute mutations that would otherwise have an immedaite
@@ -33,11 +31,5 @@ impl<'a> ChainSingleUser<'a>
     #[allow(dead_code)]
     pub fn name(&self) -> String {
         self.inside_async.chain.name()
-    }
-
-    pub(crate) async fn feed_async(&mut self, evts: &Vec<EventData>) -> Result<Vec<EventHeader>, CommitError> {
-        Ok(
-            self.inside_async.feed_async_internal(Arc::clone(&self.inside_sync), evts).await?
-        )
     }
 }

@@ -158,11 +158,10 @@ impl MeshSession
             loader.feed_events(&feed_me).await;
         }
 
-        let mut single = self.chain.single().await;
-        let _ = single.feed_async(&feed_me).await?;
-        drop(single);
-
-        self.chain.notify(&feed_me).await;
+        self.chain.pipe.feed(Transaction {
+            scope: Scope::None,
+            events: feed_me
+        }).await?;
 
         Ok(())
     }
