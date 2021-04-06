@@ -683,7 +683,7 @@ impl<'a> Chain
                 let flush_async = inside_async.clone();
                 tokio::spawn(async move {
                     let mut lock = flush_async.write().await;
-                    lock.chain.flush().await.unwrap();
+                    let _ = lock.chain.flush().await;
                 });
             }
 
