@@ -49,6 +49,7 @@ This library is a way of working with data in modern distributed computing.
 ## Changelog
 
 ```
+0.3.3 - Slight refactoring in order to improve the service invocation functionality
 0.3.2 - Added beta service invocation functionality - see the new example
 0.3.1 - AteDB is now functional allowing AteFS to store its files in the replicated
         redo log, also this helped find and solve a whole bunch of bugs.
