@@ -32,7 +32,6 @@ where F: OpenFlow + 'static
 {
     cfg_ate: ConfAte,
     lookup: MeshHashTableCluster,
-    client: Arc<MeshClient>,
     addrs: Vec<MeshAddress>,
     chains: StdMutex<FxHashMap<ChainKey, Weak<Chain>>>,
     chain_builder: Mutex<Box<F>>,
@@ -75,7 +74,7 @@ impl<F> MeshRoot<F>
 where F: OpenFlow + 'static
 {
     #[allow(dead_code)]
-    pub(super) async fn new(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh, cfg_cluster: Option<&ConfCluster>, listen_addrs: Vec<MeshAddress>, open_flow: Box<F>) -> Arc<Self>
+    pub(super) async fn new(cfg_ate: &ConfAte, cfg_cluster: Option<&ConfCluster>, listen_addrs: Vec<MeshAddress>, open_flow: Box<F>) -> Arc<Self>
     {
         let mut node_cfg = NodeConfig::new(cfg_ate.wire_format)
             .wire_encryption(cfg_ate.wire_encryption)
@@ -102,7 +101,6 @@ where F: OpenFlow + 'static
                     Some(c) => MeshHashTableCluster::new(c),
                     None => MeshHashTableCluster::default(),
                 },
-                client: MeshClient::new(cfg_ate, cfg_mesh).await,
                 chains: StdMutex::new(FxHashMap::default()),
                 chain_builder: open_flow,
             }

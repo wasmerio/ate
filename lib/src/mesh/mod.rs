@@ -97,7 +97,6 @@ where F: OpenFlow + 'static
     let (listen_root_addresses, listen_cluster) = create_prepare(cfg_mesh);
     MeshRoot::new(
         &cfg_ate,
-        &cfg_mesh,
         listen_cluster,
         listen_root_addresses,
         open_flow).await

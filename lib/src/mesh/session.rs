@@ -424,6 +424,8 @@ impl SessionPipe
             }
         }
 
+        debug!("BLAH!");
+
         Ok(receiver)
     }
 }
