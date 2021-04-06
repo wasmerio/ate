@@ -98,7 +98,7 @@ where Self: Send + Sync
     pub(super) key: ChainKey,
     pub(super) inside_sync: Arc<StdRwLock<ChainProtectedSync>>,
     pub(super) inside_async: Arc<RwLock<ChainProtectedAsync>>,
-    pub(super) pipe: Arc<dyn EventPipe>,
+    pub(super) pipe: Arc<Box<dyn EventPipe>>,
 }
 
 impl ChainProtectedAsync
@@ -337,23 +337,28 @@ impl<'a> Chain
         let worker_inside_sync = Arc::clone(&inside_sync);
         tokio::task::spawn(Chain::worker(worker_inside_async, worker_inside_sync, receiver));
 
+        let mut pipe: Arc<Box<dyn EventPipe>> = Arc::new(Box::new(InboxPipe {
+            inbox: sender,
+            locks: StdMutex::new(FxHashSet::default()),
+        }));
+        if let Some(second) = builder.pipes {
+            pipe = Arc::new(Box::new(DuelPipe::new(second, pipe)));
+        };
+
         Ok(
             Chain {
                 key: key.clone(),
                 inside_sync,
                 inside_async,
-                pipe: Arc::new(InboxPipe {
-                    inbox: sender,
-                    locks: StdMutex::new(FxHashSet::default()),
-                }),
+                pipe,
             }
         )
     }
     
-    pub(crate) fn proxy(&mut self, proxy: Arc<dyn EventPipe>) {
-        let next = self.pipe.clone();
-        proxy.set_next(next);
-        self.pipe = proxy;
+    pub(crate) fn proxy(&mut self, mut proxy: Box<dyn EventPipe>) {
+        proxy.set_next(Arc::clone(&self.pipe));
+        let proxy = Arc::new(proxy);
+        let _ = std::mem::replace(&mut self.pipe, proxy);
     }
 
     pub fn key(&'a self) -> ChainKey {
@@ -514,6 +519,7 @@ impl<'a> Chain
         // Create the transaction
         let trans = Transaction {
             scope: Scope::Full,
+            broadcast: false,
             events: Vec::new(),
         };
 
@@ -615,7 +621,7 @@ for InboxPipe
         Ok(self.unlock_local(key)?)
     }
 
-    fn set_next(&self, _next: Arc<dyn EventPipe>) {
+    fn set_next(&mut self, _next: Arc<Box<dyn EventPipe>>) {
     }
 }
 

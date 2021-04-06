@@ -51,7 +51,7 @@ async fn test_mesh()
             cfg_mesh.force_listen = Some(addr.clone());
 
             let join = tokio::spawn(async move {
-                create_server(&cfg_ate, &cfg_mesh, all_ethereal(&cfg_ate).await).await
+                create_server(&cfg_ate, &cfg_mesh, all_ethereal().await).await
             });
             mesh_root_joins.push((addr, join));
             index = index + 1;
@@ -67,7 +67,7 @@ async fn test_mesh()
             cfg_mesh.force_listen = Some(addr.clone());
 
             let join = tokio::spawn(async move {
-                create_server(&cfg_ate, &cfg_mesh, all_ethereal(&cfg_ate).await).await
+                create_server(&cfg_ate, &cfg_mesh, all_ethereal().await).await
             });
             mesh_root_joins.push((addr, join));
             index = index + 1;

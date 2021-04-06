@@ -111,11 +111,6 @@ where F: OpenFlow + 'static
 
         ret
     }
-
-    pub async fn open(self: Arc<Self>, key: ChainKey) -> Result<Arc<Chain>, ChainCreationError>
-    {
-        open_internal(self, key).await
-    }
 }
 
 fn disconnected(mut context: SessionContextProtected) -> Result<(), CommsError> {
@@ -129,7 +124,51 @@ fn disconnected(mut context: SessionContextProtected) -> Result<(), CommsError> 
     Ok(())
 }
 
-async fn open_internal<F>(root: Arc<MeshRoot<F>>, mut key: ChainKey) -> Result<Arc<Chain>, ChainCreationError>
+struct ServerPipe
+{
+    downcast: Arc<tokio::sync::broadcast::Sender<PacketData>>,
+    wire_format: SerializationFormat,
+    next: Arc<Box<dyn EventPipe>>,
+}
+
+#[async_trait]
+impl EventPipe
+for ServerPipe
+{
+    async fn feed(&self, trans: Transaction) -> Result<(), CommitError>
+    {
+        // If this packet is being broadcast then send it to all the other nodes too
+        if trans.broadcast {
+            let evts = MessageEvent::convert_to(&trans.events);
+            let pck = Packet::from(Message::Events{ commit: None, evts: evts.clone(), }).to_packet_data(self.wire_format)?;
+            self.downcast.send(pck)?;
+        }
+
+        // Hand over to the next pipe as this transaction 
+        self.next.feed(trans).await
+    }
+
+    async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError>
+    {
+        self.next.try_lock(key).await
+    }
+
+    fn unlock_local(&self, key: PrimaryKey) -> Result<(), CommitError>
+    {
+        self.next.unlock_local(key)
+    }
+
+    async fn unlock(&self, key: PrimaryKey) -> Result<(), CommitError>
+    {
+        self.next.unlock(key).await
+    }
+
+    fn set_next(&mut self, next: Arc<Box<dyn EventPipe>>) {
+        let _ = std::mem::replace(&mut self.next, next);
+    }
+}
+
+async fn open_internal<F>(root: Arc<MeshRoot<F>>, mut key: ChainKey, tx: &NodeTx<SessionContext>) -> Result<Arc<Chain>, ChainCreationError>
 where F: OpenFlow + 'static
 {
     if key.to_string().starts_with("/") == false {
@@ -147,9 +186,10 @@ where F: OpenFlow + 'static
         }
     }
 
-    let chain_builder = root.chain_builder.lock().await;
+    let chain_builder_flow = root.chain_builder.lock().await;
     
     {
+        // If the chain already exists then we are done
         let chains = root.chains.lock();
         if let Some(chain) = chains.get(&key) {
             if let Some(chain) = chain.upgrade() {
@@ -158,7 +198,18 @@ where F: OpenFlow + 'static
         }
     }
 
-    let new_chain = match chain_builder.open(&root.cfg_ate, &key).await? {
+    // Create a chain builder and add a pipe that will broadcast message to the connected clients
+    let pipe = Box::new(ServerPipe {
+        downcast: tx.downcast.clone(),
+        wire_format: tx.wire_format.clone(),
+        next: crate::pipe::NullPipe::new()
+    });
+    let builder = ChainOfTrustBuilder::new(&root.cfg_ate)
+        .await
+        .add_pipe(pipe);
+
+    // Create the chain using the chain flow builder
+    let new_chain = match chain_builder_flow.open(builder, &key).await? {
         OpenAction::Chain(c) => c,
         OpenAction::Deny(reason) => {
             return Err(ChainCreationError::ServerRejected(reason));
@@ -203,6 +254,7 @@ async fn inbox_event(
     let evts = MessageEvent::convert_from(evts);
     let ret = chain.pipe.feed(Transaction {
         scope: Scope::None,
+        broadcast: false,
         events: evts
     }).await;
 
@@ -278,7 +330,8 @@ async fn inbox_subscribe<F>(
     history_sample: Vec<crate::crypto::Hash>,
     reply_at: Option<&mpsc::Sender<PacketData>>,
     context: Arc<SessionContext>,
-    wire_format: SerializationFormat
+    wire_format: SerializationFormat,
+    tx: &NodeTx<SessionContext>
 )
 -> Result<(), CommsError>
 where F: OpenFlow + 'static
@@ -286,7 +339,7 @@ where F: OpenFlow + 'static
     debug!("inbox: subscribe: {}", chain_key.to_string());
 
     // If we can't find a chain for this subscription then fail and tell the caller
-    let chain = match open_internal(Arc::clone(&root), chain_key.clone()).await {
+    let chain = match open_internal(Arc::clone(&root), chain_key.clone(), tx).await {
         Err(ChainCreationError::NotThisRoot) => {
             PacketData::reply_at(reply_at, wire_format, Message::NotThisRoot).await?;
             return Ok(());
@@ -442,7 +495,7 @@ where F: OpenFlow + 'static
     
     match pck.msg {
         Message::Subscribe { chain_key, history_sample }
-            => inbox_subscribe(root, chain_key, history_sample, reply_at, context, wire_format).await,
+            => inbox_subscribe(root, chain_key, history_sample, reply_at, context, wire_format, tx).await,
         Message::Events { commit, evts }
             => inbox_event(reply_at, context, commit, evts, tx, pck_data).await,
         Message::Lock { key }

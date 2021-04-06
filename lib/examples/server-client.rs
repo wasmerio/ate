@@ -12,7 +12,7 @@ async fn main() -> Result<(), AteError>
     let cfg_mesh = ConfMesh::solo("127.0.0.1", 5000);
     let cfg_ate = ConfAte::default();
     info!("create a persistent server");
-    let server = create_persistent_server(&cfg_ate, &cfg_mesh).await;
+    let _server = create_persistent_server(&cfg_ate, &cfg_mesh).await;
 
     info!("write some data to the server");    
 
@@ -26,14 +26,16 @@ async fn main() -> Result<(), AteError>
         dao.key().clone()
     };
 
-    info!("read it back again on the server");
+    info!("read it back again on a new client");
 
-    let chain = server.open(ChainKey::from("test-chain")).await.unwrap();
-    chain.sync().await?;
-    let session = AteSession::new(&cfg_ate);
-    let mut dio = chain.dio_ext(&session, TransactionScope::Full).await;
-    let dao = dio.load::<String>(&key).await?;
+    {
+        let registry = Registry::new(&cfg_ate).await;
+        let chain = registry.open(&url::Url::from_str("tcp://localhost:5000/test-chain").unwrap()).await?;
+        let session = AteSession::new(&cfg_ate);
+        let mut dio = chain.dio_ext(&session, TransactionScope::Full).await;
+        let dao = dio.load::<String>(&key).await?;
 
-    assert_eq!(*dao, "my test string".to_string());
+        assert_eq!(*dao, "my test string".to_string());
+    }
     Ok(())
 }

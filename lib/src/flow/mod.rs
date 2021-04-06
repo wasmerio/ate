@@ -20,13 +20,13 @@ pub enum OpenAction
 pub trait OpenFlow
 where Self: Send + Sync
 {
-    async fn open(&self, cfg: &ConfAte, key: &ChainKey) -> Result<OpenAction, ChainCreationError>;
+    async fn open(&self, builder: ChainOfTrustBuilder, key: &ChainKey) -> Result<OpenAction, ChainCreationError>;
 }
 
-pub async fn all_persistent(cfg: &ConfAte) -> Box<basic::OpenStaticBuilder> {
-    Box::new(basic::OpenStaticBuilder::all_persistent(cfg).await)
+pub async fn all_persistent() -> Box<basic::OpenStaticBuilder> {
+    Box::new(basic::OpenStaticBuilder::all_persistent().await)
 }
 
-pub async fn all_ethereal(cfg: &ConfAte) -> Box<basic::OpenStaticBuilder> {
-    Box::new(basic::OpenStaticBuilder::all_ethereal(cfg).await)
+pub async fn all_ethereal() -> Box<basic::OpenStaticBuilder> {
+    Box::new(basic::OpenStaticBuilder::all_ethereal().await)
 }

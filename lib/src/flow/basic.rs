@@ -12,25 +12,23 @@ use crate::error::ChainCreationError;
 
 pub struct OpenStaticBuilder
 {
-    builder: ChainOfTrustBuilder
+    temporal: bool
 }
 
 impl OpenStaticBuilder
 {
-    fn new(builder: ChainOfTrustBuilder) -> OpenStaticBuilder {
+    fn new(temporal: bool) -> OpenStaticBuilder {
         OpenStaticBuilder {
-            builder: builder.clone(),
+            temporal
         }
     }
 
-    pub async fn all_persistent(cfg: &ConfAte) -> OpenStaticBuilder {
-        let builder = ChainOfTrustBuilder::new(cfg).await.temporal(false);
-        OpenStaticBuilder::new(builder)
+    pub async fn all_persistent() -> OpenStaticBuilder {
+        OpenStaticBuilder::new(false)
     }
 
-    pub async fn all_ethereal(cfg: &ConfAte) -> OpenStaticBuilder {
-        let builder = ChainOfTrustBuilder::new(cfg).await.temporal(true);
-        OpenStaticBuilder::new(builder)
+    pub async fn all_ethereal() -> OpenStaticBuilder {
+        OpenStaticBuilder::new(true)
     }
 }
 
@@ -38,8 +36,8 @@ impl OpenStaticBuilder
 impl OpenFlow
 for OpenStaticBuilder
 {
-    async fn open(&self, _cfg: &ConfAte, key: &ChainKey) -> Result<OpenAction, ChainCreationError> {
+    async fn open(&self, builder: ChainOfTrustBuilder, key: &ChainKey) -> Result<OpenAction, ChainCreationError> {
         debug!("chain-builder: open: {}", key.to_string());
-        Ok(OpenAction::Chain(Arc::new(self.builder.clone().build(key).await?)))
+        Ok(OpenAction::Chain(Arc::new(builder.temporal(self.temporal).build(key).await?)))
     }
 }

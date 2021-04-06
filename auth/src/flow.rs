@@ -31,24 +31,25 @@ impl ChainFlow
 impl OpenFlow
 for ChainFlow
 {
-    async fn open(&self, cfg: &ConfAte, key: &ChainKey) -> Result<OpenAction, ChainCreationError>
+    async fn open(&self, builder: ChainBuilder, key: &ChainKey) -> Result<OpenAction, ChainCreationError>
     {
         let name = key.name.clone();
         let name = name.as_str();
         if self.regex_auth.is_match(name) {
-            let chain = Arc::new(ChainBuilder::new(cfg)
-                .await
+            let chain = builder
                 .add_root_public_key(&self.root_key.as_public_key())
                 .build(key)
-                .await?);
+                .await?;
+            let chain = Arc::new(chain);
+            
             return Ok(OpenAction::Chain(chain));
         }
         if self.regex_cmd.is_match(name) {
-            let chain = Arc::new(ChainBuilder::new(cfg)
-                .await
+            let chain = builder
                 .temporal(true)
                 .build(key)
-                .await?);
+                .await?;
+            let chain = Arc::new(chain);
 
             // Add the services to this chain
             service_logins(self.session.clone(), &Arc::clone(&chain)).await;

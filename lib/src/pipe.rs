@@ -17,5 +17,84 @@ pub(crate) trait EventPipe: Send + Sync
 
     fn unlock_local(&self, key: PrimaryKey) -> Result<(), CommitError>;
 
-    fn set_next(&self, next: Arc<dyn EventPipe>);
+    fn set_next(&mut self, next: Arc<Box<dyn EventPipe>>);
+}
+
+#[derive(Debug, Default, Clone, Copy)]
+pub(crate) struct NullPipe {
+}
+
+impl NullPipe
+{
+    pub fn new() -> Arc<Box<dyn EventPipe>> {
+        Arc::new(Box::new(NullPipe { }))
+    }
+}
+
+#[async_trait]
+impl EventPipe
+for NullPipe
+{
+    async fn feed(&self, _trans: Transaction) -> Result<(), CommitError> { Ok(()) }
+
+    async fn try_lock(&self, _key: PrimaryKey) -> Result<bool, CommitError> { Ok(false) }
+
+    async fn unlock(&self, _key: PrimaryKey) -> Result<(), CommitError> { Ok(()) }
+
+    fn unlock_local(&self, _key: PrimaryKey) -> Result<(), CommitError> { Ok(()) }
+
+    fn set_next(&mut self, _next: Arc<Box<dyn EventPipe>>) { }
+}
+
+#[derive(Clone)]
+pub(crate) struct DuelPipe
+{
+    first: Arc<Box<dyn EventPipe>>,
+    second: Arc<Box<dyn EventPipe>>,
+}
+
+impl DuelPipe
+{
+    pub fn new(first: Arc<Box<dyn EventPipe>>, second: Arc<Box<dyn EventPipe>>) -> DuelPipe
+    {
+        DuelPipe {
+            first,
+            second
+        }
+    }
+}
+
+#[async_trait]
+impl EventPipe
+for DuelPipe
+{
+    async fn feed(&self, trans: Transaction) -> Result<(), CommitError>
+    {
+        self.first.feed(trans.clone()).await?;
+        self.second.feed(trans).await
+    }
+
+    async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError>
+    {
+        Ok(self.first.try_lock(key).await? && self.second.try_lock(key).await?)
+    }
+
+    async fn unlock(&self, key: PrimaryKey) -> Result<(), CommitError>
+    {
+        self.first.unlock(key).await?;
+        self.second.unlock(key).await?;
+        Ok(())
+    }
+
+    fn unlock_local(&self, key: PrimaryKey) -> Result<(), CommitError>
+    {
+        self.first.unlock_local(key)?;
+        self.second.unlock_local(key)?;
+        Ok(())
+    }
+
+    fn set_next(&mut self, _next: Arc<Box<dyn EventPipe>>)
+    {
+
+    }
 }

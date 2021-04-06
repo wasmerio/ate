@@ -2,6 +2,7 @@ use serde::{Serialize, Deserialize};
 use crate::{anti_replay::AntiReplayPlugin, chain::Chain, time::TimestampEnforcer, tree::{TreeAuthorityPlugin, TreeCompactor}};
 #[allow(unused_imports)]
 use std::{net::IpAddr, str::FromStr};
+use std::sync::Arc;
 
 use super::validator::*;
 use super::compact::*;
@@ -15,6 +16,7 @@ use super::crypto::KeySize;
 use super::error::*;
 use super::crypto::Hash;
 use super::spec::*;
+use super::pipe::*;
 
 /// Represents a target node within a mesh
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -306,6 +308,7 @@ pub struct ChainOfTrustBuilder
     pub(super) transformers: Vec<Box<dyn EventDataTransformer>>,
     pub(super) indexers: Vec<Box<dyn EventIndexer>>,
     pub(super) plugins: Vec<Box<dyn EventPlugin>>,
+    pub(super) pipes: Option<Arc<Box<dyn EventPipe>>>,
     pub(super) tree: Option<TreeAuthorityPlugin>,
     pub(super) truncate: bool,
     pub(super) temporal: bool,
@@ -324,6 +327,7 @@ for ChainOfTrustBuilder
             transformers: self.transformers.iter().map(|a| a.clone_transformer()).collect::<Vec<_>>(),
             indexers: self.indexers.iter().map(|a| a.clone_indexer()).collect::<Vec<_>>(),
             plugins: self.plugins.iter().map(|a| a.clone_plugin()).collect::<Vec<_>>(),
+            pipes: self.pipes.clone(),
             tree: self.tree.clone(),
             truncate: self.truncate,
             temporal: self.temporal,
@@ -344,6 +348,7 @@ impl ChainOfTrustBuilder
             linters: Vec::new(),
             transformers: Vec::new(),
             plugins: Vec::new(),
+            pipes: None,
             tree: None,
             truncate: false,
             temporal: false,
@@ -460,6 +465,16 @@ impl ChainOfTrustBuilder
         if let Some(tree) = &mut self.tree {
             tree.add_root_public_key(key);
         }
+        self
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn add_pipe(mut self, mut pipe: Box<dyn EventPipe>) -> Self {
+        let next = self.pipes.take();
+        if let Some(next) = next {
+            pipe.set_next(next);
+        }
+        self.pipes = Some(Arc::new(pipe));
         self
     }
 

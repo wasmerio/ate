@@ -69,11 +69,11 @@ impl MeshSession
             pipe_rx.push(node_rx);
         }
         
-        let pipe = Arc::new(
+        let pipe = Box::new(
             SessionPipe {
                 key: chain_key.clone(),
                 tx: pipe_tx,
-                next: StdRwLock::new(None),
+                next: NullPipe::new(),
                 commit: Arc::clone(&commit),
                 lock_requests: Arc::clone(&lock_requests),
             }
@@ -160,6 +160,7 @@ impl MeshSession
 
         self.chain.pipe.feed(Transaction {
             scope: Scope::None,
+            broadcast: false,
             events: feed_me
         }).await?;
 
@@ -378,7 +379,7 @@ struct SessionPipe
 {
     key: ChainKey,
     tx: Vec<NodeTx<()>>,
-    next: StdRwLock<Option<Arc<dyn EventPipe>>>,
+    next: Arc<Box<dyn EventPipe>>,
     commit: Arc<StdMutex<FxHashMap<u64, mpsc::Sender<Result<(), CommitError>>>>>,
     lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, LockRequest>>>,
 }
@@ -416,15 +417,13 @@ impl SessionPipe
             {
                 for tx in self.tx.iter() {
                     let pck = Packet::from(Message::Events{ commit, evts: evts.clone(), }).to_packet_data(tx.wire_format)?;
-                    joins.push(tx.upcast_packet(pck.clone()));
+                    joins.push(tx.upcast_packet(pck));
                 }
             }
             for join in joins {
                 join.await?;
             }
         }
-
-        debug!("BLAH!");
 
         Ok(receiver)
     }
@@ -447,29 +446,25 @@ for SessionPipe
             };
         }
 
-        // Hand over to the next pipe as this transaction 
-        {
-            let lock = self.next.read().clone();
-            if let Some(next) = lock {
-                next.feed(trans).await?;
+        // If this packet is being broadcast then send it to all the other nodes too
+        if trans.broadcast {
+            let evts = MessageEvent::convert_to(&trans.events);
+            for tx in self.tx.iter() {
+                let pck = Packet::from(Message::Events{ commit: None, evts: evts.clone(), }).to_packet_data(tx.wire_format)?;
+                tx.downcast_packet(pck.clone()).await?;
             }
         }
 
-        // Done
-        Ok(())
+        // Hand over to the next pipe as this transaction 
+        self.next.feed(trans).await
     }
 
     async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError>
     {
         // First we do a lock locally so that we reduce the number of
         // collisions on the main server itself
-        {
-            let lock = self.next.read().clone();
-            if let Some(next) = lock {
-                if next.try_lock(key).await? == false {
-                    return Ok(false)
-                }
-            }
+        if self.next.try_lock(key).await? == false {
+            return Ok(false)
         }
 
         // Build a list of nodes that are needed for the lock vote
@@ -514,12 +509,7 @@ for SessionPipe
     {
         // First we unlock any local locks so errors do not kill access
         // to the data object
-        {
-            let lock = self.next.read().clone();
-            if let Some(next) = lock {
-                next.unlock(key).await?;
-            }
-        }
+        self.next.unlock(key).await?;
 
         // Send a message up to the main server asking for an unlock on the data object
         let mut joins = Vec::new();
@@ -536,8 +526,7 @@ for SessionPipe
         Ok(())
     }
 
-    fn set_next(&self, next: Arc<dyn EventPipe>) {
-        let mut lock = self.next.write();
-        lock.replace(next);
+    fn set_next(&mut self, next: Arc<Box<dyn EventPipe>>) {
+        let _ = std::mem::replace(&mut self.next, next);
     }
 }

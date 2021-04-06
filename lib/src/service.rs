@@ -104,7 +104,7 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
         
         // Commit the transaction
         res.commit(&mut dio)?;
-        dio.commit().await?;
+        dio.broadcast().await?;
         Ok(())
     }
 }

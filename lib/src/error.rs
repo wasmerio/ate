@@ -12,6 +12,7 @@ use tokio::task::JoinError;
 use std::time::SystemTimeError;
 use std::sync::mpsc as smpsc;
 use tokio::sync::mpsc as mpsc;
+use tokio::sync::broadcast as broadcast;
 use trust_dns_proto::error::ProtoError as DnsProtoError;
 use trust_dns_client::error::ClientError as DnsClientError;
 
@@ -829,6 +830,14 @@ impl<T> From<mpsc::error::SendError<T>>
 for CommitError
 {
     fn from(err: mpsc::error::SendError<T>) -> CommitError {
+        CommitError::PipeError(err.to_string())
+    }   
+}
+
+impl<T> From<broadcast::error::SendError<T>>
+for CommitError
+{
+    fn from(err: broadcast::error::SendError<T>) -> CommitError {
         CommitError::PipeError(err.to_string())
     }   
 }

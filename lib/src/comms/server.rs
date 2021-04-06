@@ -37,7 +37,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
 
     // Create all the listeners
     for target in conf.listen_on.iter() {
-        mesh_listen_on::<M, C>(
+        listen_on::<M, C>(
             target.clone(), 
             inbox_tx.clone(), 
             Arc::clone(&downcast_tx),
@@ -48,7 +48,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
         ).await;
     }
 
-    // Return the mesh
+    // Return the node transmit and receive handlers
     (
         NodeTx {
             downcast: downcast_tx,
@@ -65,7 +65,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
     )
 }
 
-pub(super) async fn mesh_listen_on<M, C>(addr: SocketAddr,
+pub(super) async fn listen_on<M, C>(addr: SocketAddr,
                            inbox: mpsc::Sender<PacketWithContext<M, C>>,
                            outbox: Arc<broadcast::Sender<PacketData>>,
                            buffer_size: usize,

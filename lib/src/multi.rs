@@ -41,7 +41,7 @@ where Self: Send + Sync
 {
     pub(super) inside_async: Arc<RwLock<ChainProtectedAsync>>,
     pub(super) inside_sync: Arc<StdRwLock<ChainProtectedSync>>,
-    pub(super) pipe: Arc<dyn EventPipe>,
+    pub(super) pipe: Arc<Box<dyn EventPipe>>,
 }
 
 impl ChainMultiUser
