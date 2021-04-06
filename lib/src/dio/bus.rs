@@ -95,6 +95,7 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
             if dao.try_lock_then_delete(dio).await? == true {
                 return Ok(dao);
             }
+            dao.cancel();
         }
     }
 }

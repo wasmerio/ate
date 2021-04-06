@@ -76,7 +76,7 @@ for DuelPipe
 
     async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError>
     {
-        Ok(self.first.try_lock(key).await? && self.second.try_lock(key).await?)
+        Ok(self.first.try_lock(key).await? || self.second.try_lock(key).await?)
     }
 
     async fn unlock(&self, key: PrimaryKey) -> Result<(), CommitError>
