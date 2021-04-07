@@ -178,7 +178,7 @@ impl<F> ChainRepository
 for MeshRoot<F>
 where F: OpenFlow + 'static
 {
-    async fn open(&self, url: &url::Url) -> Result<Arc<Chain>, ChainCreationError>
+    async fn open(self: Arc<Self>, url: &url::Url) -> Result<Arc<Chain>, ChainCreationError>
     {
         let key = ChainKey::from_url(url);
         let addr = match self.lookup.lookup(&key) {
@@ -191,15 +191,21 @@ where F: OpenFlow + 'static
         let local_ips = vec!(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1)));
         let is_local = self.addrs.contains(&addr) || local_ips.contains(&addr.ip);
 
-        if is_local {
-            open_internal(self, key, None).await
-        } else {
-            self.remote_registry.open(url).await
-        }
+        let weak = Arc::downgrade(&self);
+        let ret = {
+            if is_local {
+                open_internal(self, key, None).await
+            } else {
+                let repo = Arc::clone(&self.remote_registry);
+                repo.open(url).await
+            }
+        }?;
+        ret.inside_sync.write().repository = Some(weak);
+        Ok(ret)
     }
 }
 
-async fn open_internal<F>(root: &MeshRoot<F>, mut key: ChainKey, tx: Option<&NodeTx<SessionContext>>) -> Result<Arc<Chain>, ChainCreationError>
+async fn open_internal<F>(root: Arc<MeshRoot<F>>, mut key: ChainKey, tx: Option<&NodeTx<SessionContext>>) -> Result<Arc<Chain>, ChainCreationError>
 where F: OpenFlow + 'static
 {
     if key.to_string().starts_with("/") == false {
@@ -376,7 +382,7 @@ where F: OpenFlow + 'static
     debug!("inbox: subscribe: {}", chain_key.to_string());
 
     // If we can't find a chain for this subscription then fail and tell the caller
-    let chain = match open_internal(&root, chain_key.clone(), Some(tx)).await {
+    let chain = match open_internal(Arc::clone(&root), chain_key.clone(), Some(tx)).await {
         Err(ChainCreationError::NotThisRoot) => {
             PacketData::reply_at(reply_at, wire_format, Message::NotThisRoot).await?;
             return Ok(());

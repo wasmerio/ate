@@ -235,10 +235,14 @@ impl Registry
 impl ChainRepository
 for Registry
 {
-    async fn open(&self, url: &Url) -> Result<Arc<Chain>, ChainCreationError>
+    async fn open(self: Arc<Self>, url: &Url) -> Result<Arc<Chain>, ChainCreationError>
     {
         let loader_local = Box::new(loader::DummyLoader::default());
         let loader_remote = Box::new(loader::DummyLoader::default());
-        self.open_ext(url, loader_local, loader_remote).await
+
+        let weak = Arc::downgrade(&self);
+        let ret = self.open_ext(url, loader_local, loader_remote).await?;
+        ret.inside_sync.write().repository = Some(weak);
+        Ok(ret)
     }
 }

@@ -12,5 +12,5 @@ use crate::error::*;
 pub trait ChainRepository
 where Self: Send + Sync
 {
-    async fn open(&self, url: &Url) -> Result<Arc<Chain>, ChainCreationError>;
+    async fn open(self: Arc<Self>, url: &Url) -> Result<Arc<Chain>, ChainCreationError>;
 }
