@@ -511,11 +511,16 @@ impl ChainOfTrustBuilder
 impl ChainRepository
 for ChainOfTrustBuilder
 {
-    async fn open(self: Arc<Self>, url: &Url) -> Result<Arc<Chain>, ChainCreationError>
+    async fn open_by_url(self: Arc<Self>, url: &Url) -> Result<Arc<Chain>, ChainCreationError>
+    {
+        let key = ChainKey::from_url(url);
+        self.open_by_key(&key).await
+    }
+
+    async fn open_by_key(self: Arc<Self>, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
     {
         let weak = Arc::downgrade(&self);
-        let key = ChainKey::from_url(url);
-        let ret = Arc::new(Chain::new((*self).clone(), &key).await?);
+        let ret = Arc::new(Chain::new((*self).clone(), key).await?);
         ret.inside_sync.write().repository = Some(weak);
         Ok(ret)
     }

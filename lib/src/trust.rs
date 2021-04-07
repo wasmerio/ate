@@ -46,7 +46,10 @@ pub struct ChainKey {
 
 impl ChainKey {
     #[allow(dead_code)]
-    pub fn new(val: String) -> ChainKey {
+    pub fn new(mut val: String) -> ChainKey {
+        if val.starts_with("/") == false {
+            val = format!("/{}", val);
+        }
         ChainKey {
             name: val,
         }
@@ -80,11 +83,7 @@ impl ChainKey {
 
     pub fn from_url(url: &url::Url) -> ChainKey
     {
-        let mut key = ChainKey::new(url.path().to_string());
-        if key.to_string().starts_with("/") == false {
-            key = ChainKey::from(format!("/{}", key.to_string()));
-        }
-        key
+        ChainKey::new(url.path().to_string())
     }
 }
 

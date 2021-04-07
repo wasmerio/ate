@@ -18,18 +18,23 @@ struct Pong
     msg: String
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct PingError
+{
+}
+
 #[derive(Default)]
 struct PingPongTable
 {        
 }
 
 #[async_trait]
-impl ServiceHandler<Ping, Pong>
+impl ServiceHandler<Ping, Pong, PingError>
 for PingPongTable
 {
-    async fn process<'a>(&self, ping: Ping, _context: InvocationContext<'a>) -> Pong
+    async fn process<'a>(&self, ping: Ping, _context: InvocationContext<'a>) -> Result<Pong, ServiceError<PingError>>
     {
-        Pong { msg: ping.msg }
+        Ok(Pong { msg: ping.msg })
     }
 }
 
@@ -39,6 +44,7 @@ async fn main() -> Result<(), AteError>
     env_logger::init();
 
     debug!("creating test chain");
+
     // Create the chain with a public/private key to protect its integrity
     let conf = ConfAte::default();
     let builder = ChainBuilder::new(&conf).await;
@@ -49,10 +55,10 @@ async fn main() -> Result<(), AteError>
     chain.add_service(session.clone(), Arc::new(PingPongTable::default()));
     
     debug!("sending ping");
-    let pong: Pong = chain.invoke(&session, Ping {
+    let pong: Result<Pong, InvokeError<PingError>> = chain.invoke(&session, Ping {
         msg: "hi".to_string()
-    }).await?;
+    }).await;
 
-    debug!("received pong with msg [{}]", pong.msg);
+    debug!("received pong with msg [{}]", pong?.msg);
     Ok(())
 }

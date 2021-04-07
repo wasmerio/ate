@@ -15,7 +15,7 @@ pub async fn login_command(username: String, password: String, code: Option<Stri
     // Open a command chain
     let chain_url = crate::helper::command_url(auth);
     let registry = ate::mesh::Registry::new(&conf_auth()).await;
-    let chain = registry.open(&chain_url).await?;
+    let chain = registry.open_by_url(&chain_url).await?;
 
     // Generate a read-key using the password and some seed data
     // (this read-key will be mixed with entropy on the server side to decrypt the row
@@ -34,14 +34,13 @@ pub async fn login_command(username: String, password: String, code: Option<Stri
     };
 
     // Attempt the login request with a 10 second timeout
-    let response: LoginResponse = chain.invoke_ext(&session, login, Duration::from_secs(10)).await?;
+    let response: Result<LoginResponse, InvokeError<LoginFailed>> = chain.invoke_ext(&session, login, Duration::from_secs(10)).await;
     match response {
-        LoginResponse::AccountLocked => Err(LoginError::AccountLocked),
-        LoginResponse::NotFound => Err(LoginError::NotFound(username)),
-        LoginResponse::Success {
-            mut authority
-        } => {
-            session.properties.append(&mut authority);
+        Err(InvokeError::Reply(LoginFailed::AccountLocked)) => Err(LoginError::AccountLocked),
+        Err(InvokeError::Reply(LoginFailed::NotFound)) => Err(LoginError::NotFound(username)),
+        result => {
+            let mut result = result?;
+            session.properties.append(&mut result.authority);
             Ok(session)
         }
     }
@@ -59,7 +58,7 @@ pub async fn load_credentials(username: String, read_key: EncryptKey, _code: Opt
 
     // Generate a chain key that matches this username on the authentication server
     let registry = ate::mesh::Registry::new(&conf_auth()).await;
-    let chain = registry.open(&chain_url).await?;
+    let chain = registry.open_by_url(&chain_url).await?;
 
     // Load the user
     let mut dio = chain.dio(&session).await;

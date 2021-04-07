@@ -32,9 +32,8 @@ pub struct MeshSession
 
 impl MeshSession
 {
-    pub(super) async fn connect(builder: ChainOfTrustBuilder, chain_url: &url::Url, addrs: Vec<MeshAddress>, loader_local: Box<impl Loader>, loader_remote: Box<impl Loader>) -> Result<(Arc<MeshSession>, Arc<Chain>), ChainCreationError>
+    pub(super) async fn connect(builder: ChainOfTrustBuilder, chain_key: &ChainKey, chain_domain: Option<String>, addrs: Vec<MeshAddress>, loader_local: Box<impl Loader>, loader_remote: Box<impl Loader>) -> Result<(Arc<MeshSession>, Arc<Chain>), ChainCreationError>
     {
-        let chain_key = ChainKey::new(chain_url.path().to_string());
         debug!("new: chain_key={}", chain_key.to_string());
 
         let commit
@@ -63,7 +62,7 @@ impl MeshSession
                 = crate::comms::connect::<Message, ()>
                 (
                     &node_cfg, 
-                    Some(chain_url.to_string())
+                    chain_domain.clone()
                 ).await;
             pipe_tx.push(node_tx);
             pipe_rx.push(node_rx);

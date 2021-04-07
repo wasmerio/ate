@@ -1,4 +1,4 @@
-use ate::{error::{ChainCreationError, CommandError}, prelude::AteError};
+use ate::{error::{ChainCreationError, InvokeError}, prelude::AteError};
 
 #[derive(Debug)]
 pub enum LoginError
@@ -34,11 +34,12 @@ for LoginError
     }
 }
 
-impl From<CommandError>
+impl<E> From<InvokeError<E>>
 for LoginError
+where E: std::fmt::Debug
 {
-    fn from(err: CommandError) -> LoginError {
-        LoginError::AteError(AteError::CommandError(err))
+    fn from(err: InvokeError<E>) -> LoginError {
+        LoginError::AteError(AteError::InvokeError(err.to_string()))
     }
 }
 

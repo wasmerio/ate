@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 use log::{info, error, debug};
+use std::error::Error;
 use super::crypto::Hash;
 use super::header::PrimaryKey;
 
@@ -38,6 +39,14 @@ for CryptoError {
                 write!(f, "The event has no initialization vector")
             },
         }
+    }
+}
+
+impl std::error::Error
+for CryptoError
+{
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
     }
 }
 
@@ -98,6 +107,14 @@ for TransformError {
     }
 }
 
+impl std::error::Error
+for TransformError
+{
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
+    }
+}
+
 #[derive(Debug)]
 pub enum CompactError {
     SinkError(SinkError),
@@ -154,6 +171,14 @@ for CompactError {
     }
 }
 
+impl std::error::Error
+for CompactError
+{
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
+    }
+}
+
 #[derive(Debug)]
 pub enum SinkError {
     MissingPublicKey(Hash),
@@ -189,6 +214,14 @@ for SinkError {
                 }
             },
         }
+    }
+}
+
+impl std::error::Error
+for SinkError
+{
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
     }
 }
 
@@ -276,6 +309,14 @@ for SerializationError {
                 write!(f, "Collection is detached from a parent")
             },
         }
+    }
+}
+
+impl std::error::Error
+for SerializationError
+{
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
     }
 }
 
@@ -374,6 +415,14 @@ for LoadError {
     }
 }
 
+impl std::error::Error
+for LoadError
+{
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct ProcessError
 {
@@ -410,6 +459,14 @@ for ProcessError {
     }
 }
 
+impl std::error::Error
+for ProcessError
+{
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
+    }
+}
+
 #[derive(Debug)]
 pub enum ChainCreationError {
     ProcessError(ProcessError),
@@ -418,6 +475,8 @@ pub enum ChainCreationError {
     NoRootFoundInConfig,
     NoRootFoundForUrl(String),
     UnsupportedProtocol,
+    UrlInvalid(url::ParseError),
+    NotSupported,
     #[allow(dead_code)]
     NotThisRoot,
     #[allow(dead_code)]
@@ -428,6 +487,14 @@ pub enum ChainCreationError {
     DnsClientError(DnsClientError),
     ServerRejected(String),
     InternalError(String),
+}
+
+impl From<url::ParseError>
+for ChainCreationError
+{
+    fn from(err: url::ParseError) -> ChainCreationError {
+        ChainCreationError::UrlInvalid(err)
+    }   
 }
 
 impl From<ProcessError>
@@ -488,11 +555,17 @@ for ChainCreationError {
             ChainCreationError::SerializationError(err) => {
                 write!(f, "Failed to create chain-of-trust due to a serialization error - {}", err)
             },
+            ChainCreationError::UrlInvalid(err) => {
+                write!(f, "Failed to create chain-of-trust due to a parsing the chain URL - {}", err)
+            },
             ChainCreationError::IO(err) => {
                 write!(f, "Failed to create chain-of-trust due to an IO error - {}", err)
             },
             ChainCreationError::NotImplemented => {
                 write!(f, "Failed to create chain-of-trust as the method is not implemented")
+            },
+            ChainCreationError::NotSupported => {
+                write!(f, "Failed to create chain-of-trust as the operation is not supported. Possible causes are calling 'open_by_key' on a Registry which only supports the 'open_by_url'.")
             },
             ChainCreationError::NoRootFoundInConfig => {
                 write!(f, "Failed to create chain-of-trust as the root node is not found in the configuration settings")
@@ -525,6 +598,14 @@ for ChainCreationError {
                 write!(f, "{}", err)
             },
         }
+    }
+}
+
+impl std::error::Error
+for ChainCreationError
+{
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
     }
 }
 
@@ -566,6 +647,14 @@ for TrustError {
                 write!(f, "The writability of this data object has not been specified")
             },
         }
+    }
+}
+
+impl std::error::Error
+for TrustError
+{
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
     }
 }
 
@@ -629,6 +718,14 @@ for LintError {
     }
 }
 
+impl std::error::Error
+for LintError
+{
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
+    }
+}
+
 #[derive(Debug)]
 pub enum ValidationError {
     Denied,
@@ -674,6 +771,14 @@ for ValidationError {
                 write!(f, "The data object event has an issue with trust - {}", err)
             },
         }
+    }
+}
+
+impl std::error::Error
+for ValidationError
+{
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
     }
 }
 
@@ -725,6 +830,14 @@ for TimeError {
                 write!(f, "The network latency is beyond tolerance to synchronize the clocks - {}", datetime.format("%d/%m/%Y %T"))
             },
         }
+    }
+}
+
+impl std::error::Error
+for TimeError
+{
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
     }
 }
 
@@ -881,6 +994,14 @@ for CommitError {
                 write!(f, "Failed to commit the data due to an error at the root server while processing the events - {}", err.to_string())
             },
         }
+    }
+}
+
+impl std::error::Error
+for CommitError
+{
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
     }
 }
 
@@ -1071,6 +1192,14 @@ for CommsError {
     }
 }
 
+impl std::error::Error
+for CommsError
+{
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
+    }
+}
+
 #[derive(Debug)]
 #[allow(dead_code)]
 pub enum BusError
@@ -1157,6 +1286,14 @@ for BusError {
     }
 }
 
+impl std::error::Error
+for BusError
+{
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
+    }
+}
+
 #[derive(Debug)]
 pub enum LockError
 {
@@ -1226,77 +1363,228 @@ for LockError {
     }
 }
 
-#[derive(Debug)]
-pub enum CommandError
+impl std::error::Error
+for LockError
 {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
+    }
+}
+
+#[derive(Debug)]
+pub enum InvokeError<E>
+{
+    Reply(E),
     LoadError(LoadError),
     SerializationError(SerializationError),
     CommitError(CommitError),
+    LockError(LockError),
     PipeError(String),
     Timeout,
     Aborted
 }
 
-impl From<SerializationError>
-for CommandError
+impl<E> From<SerializationError>
+for InvokeError<E>
 {
-    fn from(err: SerializationError) -> CommandError {
-        CommandError::SerializationError(err)
+    fn from(err: SerializationError) -> InvokeError<E> {
+        InvokeError::SerializationError(err)
     }   
 }
 
-impl<T> From<mpsc::error::SendError<T>>
-for CommandError
+impl<E> From<LockError>
+for InvokeError<E>
 {
-    fn from(err: mpsc::error::SendError<T>) -> CommandError {
-        CommandError::PipeError(err.to_string())
+    fn from(err: LockError) -> InvokeError<E> {
+        InvokeError::LockError(err)
     }   
 }
 
-impl From<LoadError>
-for CommandError
+impl<T, E> From<mpsc::error::SendError<T>>
+for InvokeError<E>
 {
-    fn from(err: LoadError) -> CommandError {
-        CommandError::LoadError(err)
+    fn from(err: mpsc::error::SendError<T>) -> InvokeError<E> {
+        InvokeError::PipeError(err.to_string())
     }   
 }
 
-impl From<CommitError>
-for CommandError
+impl<E> From<LoadError>
+for InvokeError<E>
 {
-    fn from(err: CommitError) -> CommandError {
-        CommandError::CommitError(err)
+    fn from(err: LoadError) -> InvokeError<E> {
+        InvokeError::LoadError(err)
     }   
 }
 
-impl From<tokio::time::error::Elapsed>
-for CommandError
+impl<E> From<CommitError>
+for InvokeError<E>
 {
-    fn from(_elapsed: tokio::time::error::Elapsed) -> CommandError {
-        CommandError::Timeout
+    fn from(err: CommitError) -> InvokeError<E> {
+        InvokeError::CommitError(err)
+    }   
+}
+
+impl<E> From<tokio::time::error::Elapsed>
+for InvokeError<E>
+{
+    fn from(_elapsed: tokio::time::error::Elapsed) -> InvokeError<E> {
+        InvokeError::Timeout
     }
 }
 
-impl std::fmt::Display
-for CommandError {
+impl<E> std::fmt::Display
+for InvokeError<E>
+where E: std::fmt::Debug
+{
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            CommandError::LoadError(err) => {
+            InvokeError::LoadError(err) => {
                 write!(f, "Command failed - {}", err)
             },
-            CommandError::SerializationError(err) => {
+            InvokeError::SerializationError(err) => {
                 write!(f, "Command failed - {}", err)
             },
-            CommandError::CommitError(err) => {
+            InvokeError::LockError(err) => {
                 write!(f, "Command failed - {}", err)
             },
-            CommandError::PipeError(err) => {
+            InvokeError::CommitError(err) => {
                 write!(f, "Command failed - {}", err)
             },
-            CommandError::Timeout => {
+            InvokeError::PipeError(err) => {
+                write!(f, "Command failed - {}", err)
+            },
+            InvokeError::Reply(_) => {
+                write!(f, "Command failed with a user defined error")
+            },
+            InvokeError::Timeout => {
                 write!(f, "Command failed - Timeout")
             },
-            CommandError::Aborted => {
+            InvokeError::Aborted => {
+                write!(f, "Command failed - Aborted")
+            },
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum ServiceError<E>
+{
+    Reply(E),
+    LoadError(LoadError),
+    SerializationError(SerializationError),
+    ChainCreationError(ChainCreationError),
+    CommitError(CommitError),
+    LockError(LockError),
+    PipeError(String),
+    Timeout,
+    Aborted
+}
+
+impl<E> From<SerializationError>
+for ServiceError<E>
+{
+    fn from(err: SerializationError) -> ServiceError<E> {
+        ServiceError::SerializationError(err)
+    }   
+}
+
+impl<E> From<LockError>
+for ServiceError<E>
+{
+    fn from(err: LockError) -> ServiceError<E> {
+        ServiceError::LockError(err)
+    }   
+}
+
+impl<T, E> From<mpsc::error::SendError<T>>
+for ServiceError<E>
+{
+    fn from(err: mpsc::error::SendError<T>) -> ServiceError<E> {
+        ServiceError::PipeError(err.to_string())
+    }   
+}
+
+impl<E> From<LoadError>
+for ServiceError<E>
+{
+    fn from(err: LoadError) -> ServiceError<E> {
+        ServiceError::LoadError(err)
+    }   
+}
+
+impl<E> From<CommitError>
+for ServiceError<E>
+{
+    fn from(err: CommitError) -> ServiceError<E> {
+        ServiceError::CommitError(err)
+    }   
+}
+
+impl<E> From<ChainCreationError>
+for ServiceError<E>
+{
+    fn from(err: ChainCreationError) -> ServiceError<E> {
+        ServiceError::ChainCreationError(err)
+    }   
+}
+
+impl<E> From<tokio::time::error::Elapsed>
+for ServiceError<E>
+{
+    fn from(_elapsed: tokio::time::error::Elapsed) -> ServiceError<E> {
+        ServiceError::Timeout
+    }
+}
+
+impl<E> ServiceError<E>
+{
+    pub fn strip(self) -> ServiceError<()>
+    {
+        match self {
+            ServiceError::LoadError(a) => ServiceError::LoadError(a),
+            ServiceError::SerializationError(a) => ServiceError::SerializationError(a),
+            ServiceError::LockError(a) => ServiceError::LockError(a),
+            ServiceError::CommitError(a) => ServiceError::CommitError(a),
+            ServiceError::ChainCreationError(a) => ServiceError::ChainCreationError(a),
+            ServiceError::PipeError(a) => ServiceError::PipeError(a),
+            ServiceError::Reply(_) => ServiceError::Reply(()),
+            ServiceError::Timeout => ServiceError::Timeout,
+            ServiceError::Aborted => ServiceError::Aborted,
+        }
+    }
+}
+
+impl<E> std::fmt::Display
+for ServiceError<E>
+where E: std::fmt::Debug
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            ServiceError::LoadError(err) => {
+                write!(f, "Command failed - {}", err)
+            },
+            ServiceError::SerializationError(err) => {
+                write!(f, "Command failed - {}", err)
+            },
+            ServiceError::LockError(err) => {
+                write!(f, "Command failed - {}", err)
+            },
+            ServiceError::CommitError(err) => {
+                write!(f, "Command failed - {}", err)
+            },
+            ServiceError::ChainCreationError(err) => {
+                write!(f, "Command failed - {}", err)
+            },
+            ServiceError::PipeError(err) => {
+                write!(f, "Command failed - {}", err)
+            },
+            ServiceError::Reply(err) => {
+                write!(f, "Command failed - {:?}", err)
+            },
+            ServiceError::Timeout => {
+                write!(f, "Command failed - Timeout")
+            },
+            ServiceError::Aborted => {
                 write!(f, "Command failed - Aborted")
             },
         }
@@ -1324,7 +1612,8 @@ pub enum AteError
     IO(tokio::io::Error),
     CryptoError(CryptoError),
     TransformError(TransformError),
-    CommandError(CommandError),
+    InvokeError(String),
+    ServiceError(String),
     NotImplemented,
 }
 
@@ -1448,11 +1737,21 @@ for AteError
     }   
 }
 
-impl From<CommandError>
+impl<E> From<InvokeError<E>>
 for AteError
+where E: std::fmt::Debug
 {
-    fn from(err: CommandError) -> AteError {
-        AteError::CommandError(err)
+    fn from(err: InvokeError<E>) -> AteError {
+        AteError::InvokeError(err.to_string())
+    }   
+}
+
+impl<E> From<ServiceError<E>>
+for AteError
+where E: std::fmt::Debug
+{
+    fn from(err: ServiceError<E>) -> AteError {
+        AteError::ServiceError(err.to_string())
     }   
 }
 
@@ -1505,13 +1804,24 @@ for AteError {
             AteError::IO(err) => {
                 write!(f, "{}", err)
             },
-            AteError::CommandError(err) => {
+            AteError::InvokeError(err) => {
+                write!(f, "{}", err)
+            },
+            AteError::ServiceError(err) => {
                 write!(f, "{}", err)
             },
             AteError::NotImplemented => {
                 write!(f, "Not implemented")
             },
         }
+    }
+}
+
+impl std::error::Error
+for AteError
+{
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        None
     }
 }
 

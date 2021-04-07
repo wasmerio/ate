@@ -36,10 +36,9 @@ impl MeshClient {
         )
     }
 
-    async fn open_internal<'a>(&'a self, url: &url::Url, loader_local: Box<impl Loader>, loader_remote: Box<impl Loader>)
+    pub async fn open_ext<'a>(&'a self, key: &ChainKey, domain: Option<String>, loader_local: Box<impl Loader>, loader_remote: Box<impl Loader>)
         -> Result<Arc<Chain>, ChainCreationError>
     {
-        let key = ChainKey::from_url(url);
         debug!("open {}", key.to_string());
 
         let mut sessions = self.sessions.lock().await;
@@ -58,16 +57,10 @@ impl MeshClient {
         }
         
         let builder = ChainOfTrustBuilder::new(&self.cfg_ate).await;
-        let (_, chain) = MeshSession::connect(builder, url, addrs, loader_local, loader_remote).await?;
+        let (_, chain) = MeshSession::connect(builder, key, domain, addrs, loader_local, loader_remote).await?;
         *record = Arc::downgrade(&chain);
 
         Ok(chain)
-    }
-
-    pub async fn open_ext(&self, url: &url::Url, loader_local: Box<impl Loader>, loader_remote: Box<impl Loader>)
-        -> Result<Arc<Chain>, ChainCreationError>
-    {
-        self.open_internal(url, loader_local, loader_remote).await
     }
 }
 
@@ -83,12 +76,24 @@ for MeshClient
 impl ChainRepository
 for MeshClient
 {
-    async fn open(self: Arc<Self>, url: &url::Url) -> Result<Arc<Chain>, ChainCreationError>
+    async fn open_by_url(self: Arc<Self>, url: &url::Url) -> Result<Arc<Chain>, ChainCreationError>
+    {
+        let domain = url.domain().map(|a| a.to_string());
+        let key = ChainKey::from_url(url);
+        let weak = Arc::downgrade(&self);
+        let loader_local  = Box::new(crate::loader::DummyLoader::default());
+        let loader_remote  = Box::new(crate::loader::DummyLoader::default());
+        let ret = self.open_ext(&key, domain, loader_local, loader_remote).await?;
+        ret.inside_sync.write().repository = Some(weak);
+        Ok(ret)
+    }
+
+    async fn open_by_key(self: Arc<Self>, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
     {
         let weak = Arc::downgrade(&self);
         let loader_local  = Box::new(crate::loader::DummyLoader::default());
         let loader_remote  = Box::new(crate::loader::DummyLoader::default());
-        let ret = self.open_internal(url, loader_local, loader_remote).await?;
+        let ret = self.open_ext(key, None, loader_local, loader_remote).await?;
         ret.inside_sync.write().repository = Some(weak);
         Ok(ret)
     }

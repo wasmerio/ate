@@ -1,6 +1,6 @@
 #![allow(unused_imports)]
+use log::{info, error, warn, debug};
 use async_trait::async_trait;
-use log::{info, error, debug};
 use serde::{Serialize, de::DeserializeOwned};
 use std::{marker::PhantomData, sync::Weak, time::Duration};
 use tokio::sync::mpsc;
@@ -19,39 +19,42 @@ use crate::meta::*;
 use crate::header::*;
 use crate::repository::*;
 
-pub type ServiceInstance<REQ, RES> = Arc<dyn ServiceHandler<REQ, RES> + Send + Sync>;
+pub type ServiceInstance<REQ, RES, ERR> = Arc<dyn ServiceHandler<REQ, RES, ERR> + Send + Sync>;
 
 pub struct InvocationContext<'a>
 {
-    pub dio: Dio<'a>,
     pub session: &'a Session,
     pub chain: Arc<Chain>,
+    pub repository: Arc<dyn ChainRepository>
 }
 
 #[async_trait]
-pub trait ServiceHandler<REQ, RES>
+pub trait ServiceHandler<REQ, RES, ERR>
 where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
-      RES: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized
+      RES: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
+      ERR: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized
 {
-    async fn process<'a>(&self, request: REQ, context: InvocationContext<'a>) -> RES;
+    async fn process<'a>(&self, request: REQ, context: InvocationContext<'a>) -> Result<RES, ServiceError<ERR>>;
 }
 
-pub(crate) struct ServiceHook<REQ, RES>
+pub(crate) struct ServiceHook<REQ, RES, ERR>
 where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
-      RES: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized
+      RES: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
+      ERR: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized
 {
     chain: Weak<Chain>,
     session: Session,
-    handler: ServiceInstance<REQ, RES>,
+    handler: ServiceInstance<REQ, RES, ERR>,
     request_type_name: String,
     response_type_name: String,
 }
 
-impl<REQ, RES> ServiceHook<REQ, RES>
+impl<REQ, RES, ERR> ServiceHook<REQ, RES, ERR>
 where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
-      RES: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized
+      RES: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
+      ERR: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized
 {
-    pub(crate) fn new(chain: &Arc<Chain>, session: Session, handler: ServiceInstance<REQ, RES>) -> ServiceHook<REQ, RES> {
+    pub(crate) fn new(chain: &Arc<Chain>, session: Session, handler: ServiceInstance<REQ, RES, ERR>) -> ServiceHook<REQ, RES, ERR> {
         ServiceHook {
             chain: Arc::downgrade(chain),
             session: session.clone(),
@@ -68,14 +71,15 @@ where Self: Send + Sync
 {
     fn filter(&self, evt: &EventData) -> bool;
 
-    async fn notify(&self, key: PrimaryKey) -> Result<(), CommandError>;
+    async fn notify(&self, key: PrimaryKey) -> Result<(), ServiceError<()>>;
 }
 
 #[async_trait]
-impl<REQ, RES> Service
-for ServiceHook<REQ, RES>
+impl<REQ, RES, ERR> Service
+for ServiceHook<REQ, RES, ERR>
 where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
-      RES: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized
+      RES: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
+      ERR: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized
 {
     fn filter(&self, evt: &EventData) -> bool {
         if let Some(t) = evt.meta.get_type_name() {
@@ -84,34 +88,67 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
         false
     }
 
-    async fn notify(&self, key: PrimaryKey) -> Result<(), CommandError>
+    async fn notify(&self, key: PrimaryKey) -> Result<(), ServiceError<()>>
     {
         // Get a reference to the chain
         let chain = match self.chain.upgrade() {
             Some(a) => a,
             None => {
-                return Err(CommandError::Aborted);
+                return Err(ServiceError::Aborted);
             }
         };
 
-        let res: RES =
-        {
+        // Load the repository
+        let repo = match chain.repository() {
+            Some(a) => a,
+            None => {
+                warn!("service call failed - repository pointer is missing");
+                return Ok(());
+            }
+        };
+
+        let ret = {
             // Load the object
             let mut dio = chain.dio(&self.session).await;
-            let req = dio.load::<REQ>(&key).await?;
+            let mut req = dio.load::<REQ>(&key).await?;
+
+            // Attempt to lock (later delete) the request - if that fails then someone else
+            // has likely picked this up and will process it instead
+            if req.try_lock_then_delete(&mut dio).await? == false {
+                debug!("service call skipped - someone else locked it");
+                return Ok(())
+            }
 
             // Create the context
             let context = InvocationContext
             {
-                dio,
                 session: &self.session,
                 chain: Arc::clone(&chain),
+                repository: repo,
             };
 
             // Invoke the callback in the service
-            self.handler.process(req.take(), context).await
+            let ret = self.handler.process(req.take(), context).await;
+            dio.broadcast().await?;
+            ret
         };
 
+        match ret {
+            Ok(res) => self.send_reply(chain, key, res).await,
+            Err(ServiceError::Reply(err)) => self.send_reply(chain, key, err).await,
+            Err(err) => { return Err(err.strip()); }
+        }
+    }
+}
+
+impl<REQ, RES, ERR> ServiceHook<REQ, RES, ERR>
+where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
+      RES: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
+      ERR: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized
+{
+    async fn send_reply<T>(&self, chain: Arc<Chain>, req: PrimaryKey, res: T) -> Result<(), ServiceError<()>>
+    where T: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized
+    {
         // Turn it into a data object to be stored on commit
         let mut dio = chain.dio(&self.session).await;
         let mut res = dio.store_ext(res, self.session.log_format.clone(), None, false)?;
@@ -120,7 +157,7 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
         res.add_extra_metadata(CoreMetadata::Type(MetaType {
             type_name: self.response_type_name.clone()
         }));
-        res.add_extra_metadata(CoreMetadata::Reply(key));
+        res.add_extra_metadata(CoreMetadata::Reply(req));
         
         // Commit the transaction
         res.commit(&mut dio)?;
@@ -131,16 +168,18 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
 
 impl Chain
 {
-    pub async fn invoke<C, R>(self: Arc<Self>, session: &Session, request: C) -> Result<R, CommandError>
-    where C: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
-          R: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
+    pub async fn invoke<REQ, RES, ERR>(self: Arc<Self>, session: &Session, request: REQ) -> Result<RES, InvokeError<ERR>>
+    where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
+          RES: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
+          ERR: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
     {
         self.invoke_ext(session, request, std::time::Duration::from_secs(60)).await
     }
 
-    pub async fn invoke_ext<C, R>(self: Arc<Self>, session: &Session, request: C, timeout: Duration) -> Result<R, CommandError>
-    where C: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
-          R: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
+    pub async fn invoke_ext<REQ, RES, ERR>(self: Arc<Self>, session: &Session, request: REQ, timeout: Duration) -> Result<RES, InvokeError<ERR>>
+    where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
+          RES: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
+          ERR: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
     {
         // Build the command object
         let mut dio = self.dio(session).await;
@@ -148,17 +187,34 @@ impl Chain
 
         // Add the extra metadata about the type so the other side can find it
         cmd.add_extra_metadata(CoreMetadata::Type(MetaType {
-            type_name: std::any::type_name::<C>().to_string()
+            type_name: std::any::type_name::<REQ>().to_string()
         }));
 
         // Sniff out the response object
         let cmd_id = cmd.key().clone();
-        let response_type_name = std::any::type_name::<R>().to_string();
-        let join = sniff_for_command(Arc::downgrade(&self), Box::new(move |h| {
+
+        let response_type_name = std::any::type_name::<RES>().to_string();
+        let error_type_name = std::any::type_name::<ERR>().to_string();
+
+        let join_res = sniff_for_command(Arc::downgrade(&self), Box::new(move |h| {
             if let Some(reply) = h.meta.is_reply_to_what() {
                 if reply == cmd_id {
                     if let Some(t) = h.meta.get_type_name() {
-                        return t.type_name == response_type_name;
+                        if t.type_name == response_type_name {
+                            return true;
+                        }
+                    }
+                }
+            }
+            false
+        }));
+        let join_err = sniff_for_command(Arc::downgrade(&self), Box::new(move |h| {
+            if let Some(reply) = h.meta.is_reply_to_what() {
+                if reply == cmd_id {
+                    if let Some(t) = h.meta.get_type_name() {
+                        if t.type_name == error_type_name {
+                            return true;
+                        }
                     }
                 }
             }
@@ -170,18 +226,33 @@ impl Chain
         dio.commit().await?;
         
         // The caller will wait on the response from the sniff that is looking for a reply object
-        let key = tokio::time::timeout(timeout, join).await?;
-        let key = match key {
-            Some(a) => a,
-            None => { return Err(CommandError::Aborted); }
-        };
-        Ok(dio.load::<R>(&key).await?.take())
+        let mut timeout = tokio::time::interval(timeout);
+        select! {
+            key = join_res => {
+                let key = match key {
+                    Some(a) => a,
+                    None => { return Err(InvokeError::Aborted); }
+                };
+                Ok(dio.load::<RES>(&key).await?.take())
+            },
+            key = join_err => {
+                let key = match key {
+                    Some(a) => a,
+                    None => { return Err(InvokeError::Aborted); }
+                };
+                Err(InvokeError::Reply(dio.load::<ERR>(&key).await?.take()))
+            },
+            _ = timeout.tick() => {
+                Err(InvokeError::Timeout)
+            }
+        }  
     }
 
     #[allow(dead_code)]
-    pub fn add_service<REQ, RES>(self: &Arc<Self>, session: Session, handler: ServiceInstance<REQ, RES>)
+    pub fn add_service<REQ, RES, ERR>(self: &Arc<Self>, session: Session, handler: ServiceInstance<REQ, RES, ERR>)
     where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized + 'static,
-          RES: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized + 'static
+          RES: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized + 'static,
+          ERR: std::fmt::Debug + Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized + 'static,
     {
         let mut guard = self.inside_sync.write();
         guard.services.push(
@@ -225,7 +296,7 @@ pub(crate) struct Notify
 
 impl Notify
 {
-    pub(crate) async fn notify(self) -> Result<(), CommandError> {
+    pub(crate) async fn notify(self) -> Result<(), ServiceError<()>> {
         match self.who {
             NotifyWho::Sender(sender) => sender.send(self.key).await?,
             NotifyWho::Service(service) => service.notify(self.key).await?
@@ -259,7 +330,7 @@ pub(crate) fn callback_events_prepare(guard: &StdRwLockReadGuard<ChainProtectedS
     ret
 }
 
-pub(crate) async fn callback_events_notify(mut notifies: Vec<Notify>) -> Result<(), CommandError>
+pub(crate) async fn callback_events_notify(mut notifies: Vec<Notify>) -> Result<(), ServiceError<()>>
 {
     for notify in notifies.drain(..) {
         tokio::spawn(notify.notify());
@@ -340,12 +411,12 @@ mod tests
     }
 
     #[async_trait]
-    impl super::ServiceHandler<Ping, Pong>
+    impl super::ServiceHandler<Ping, Pong, Noise>
     for PingPongTable
     {
-        async fn process<'a>(&self, ping: Ping, _context: InvocationContext<'a>) -> Pong
+        async fn process<'a>(&self, ping: Ping, _context: InvocationContext<'a>) -> Result<Pong, ServiceError<Noise>>
         {
-            Pong { msg: ping.msg }
+            Ok(Pong { msg: ping.msg })
         }
     }
 
@@ -364,11 +435,11 @@ mod tests
         chain.add_service(session.clone(), Arc::new(PingPongTable::default()));
         
         debug!("sending ping");
-        let pong: Pong = chain.invoke(&session, Ping {
+        let pong: Result<Pong, InvokeError<Noise>> = chain.invoke(&session, Ping {
             msg: "hi".to_string()
-        }).await?;
+        }).await;
 
-        debug!("received pong with msg [{}]", pong.msg);
+        debug!("received pong with msg [{}]", pong?.msg);
         Ok(())
     }
 }

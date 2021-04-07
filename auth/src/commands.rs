@@ -11,11 +11,14 @@ pub struct LoginRequest
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum LoginResponse
+pub struct LoginResponse
+{
+    pub authority: Vec<AteSessionProperty>
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum LoginFailed
 {
     NotFound,
     AccountLocked,
-    Success {
-        authority: Vec<AteSessionProperty>
-    },
 }

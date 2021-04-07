@@ -118,15 +118,16 @@ impl Registry
             None => { return Err(ChainCreationError::NoValidDomain(url.to_string())); }
         };
 
+        let key = ChainKey::from_url(&url);
         match lock.get(&domain) {
             Some(a) => {
-                Ok(a.open_ext(&url, loader_local, loader_remote).await?)
+                Ok(a.open_ext(&key, Some(domain), loader_local, loader_remote).await?)
             },
             None => {
                 let cfg_mesh = self.cfg(url).await?;
                 let mesh = create_client(&self.cfg_ate, &cfg_mesh).await;
-                lock.insert(domain, Arc::clone(&mesh));
-                Ok(mesh.open_ext(&url, loader_local, loader_remote).await?)
+                lock.insert(domain.clone(), Arc::clone(&mesh));
+                Ok(mesh.open_ext(&key, Some(domain), loader_local, loader_remote).await?)
             }
         }
     }
@@ -235,7 +236,7 @@ impl Registry
 impl ChainRepository
 for Registry
 {
-    async fn open(self: Arc<Self>, url: &Url) -> Result<Arc<Chain>, ChainCreationError>
+    async fn open_by_url(self: Arc<Self>, url: &Url) -> Result<Arc<Chain>, ChainCreationError>
     {
         let loader_local = Box::new(loader::DummyLoader::default());
         let loader_remote = Box::new(loader::DummyLoader::default());
@@ -244,5 +245,10 @@ for Registry
         let ret = self.open_ext(url, loader_local, loader_remote).await?;
         ret.inside_sync.write().repository = Some(weak);
         Ok(ret)
+    }
+
+    async fn open_by_key(self: Arc<Self>, _key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
+    {
+        return Err(ChainCreationError::NotSupported);
     }
 }

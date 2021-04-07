@@ -178,10 +178,18 @@ impl<F> ChainRepository
 for MeshRoot<F>
 where F: OpenFlow + 'static
 {
-    async fn open(self: Arc<Self>, url: &url::Url) -> Result<Arc<Chain>, ChainCreationError>
+    async fn open_by_url(self: Arc<Self>, url: &url::Url) -> Result<Arc<Chain>, ChainCreationError>
     {
-        let key = ChainKey::from_url(url);
-        let addr = match self.lookup.lookup(&key) {
+        let weak = Arc::downgrade(&self);
+        let repo = Arc::clone(&self.remote_registry);
+        let ret = repo.open_by_url(url).await?;
+        ret.inside_sync.write().repository = Some(weak);
+        return Ok(ret);
+    }
+
+    async fn open_by_key(self: Arc<Self>, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
+    {
+        let addr = match self.lookup.lookup(key) {
             Some(a) => a,
             None => {
                 return Err(ChainCreationError::NoRootFoundInConfig);
@@ -194,24 +202,19 @@ where F: OpenFlow + 'static
         let weak = Arc::downgrade(&self);
         let ret = {
             if is_local {
-                open_internal(self, key, None).await
+                open_internal(self, key.clone(), None).await
             } else {
-                let repo = Arc::clone(&self.remote_registry);
-                repo.open(url).await
+                return Err(ChainCreationError::NotThisRoot);
             }
         }?;
         ret.inside_sync.write().repository = Some(weak);
-        Ok(ret)
+        return Ok(ret);
     }
 }
 
-async fn open_internal<F>(root: Arc<MeshRoot<F>>, mut key: ChainKey, tx: Option<&NodeTx<SessionContext>>) -> Result<Arc<Chain>, ChainCreationError>
+async fn open_internal<F>(root: Arc<MeshRoot<F>>, key: ChainKey, tx: Option<&NodeTx<SessionContext>>) -> Result<Arc<Chain>, ChainCreationError>
 where F: OpenFlow + 'static
 {
-    if key.to_string().starts_with("/") == false {
-        key = ChainKey::from(format!("/{}", key.to_string()));
-    }
-
     debug!("open {}", key.to_string());
 
     {

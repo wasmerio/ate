@@ -86,7 +86,7 @@ async fn test_mesh()
 
     debug!("create the mesh and connect to it with client 1");
     let client_a = create_client(&cfg_ate, &cfg_mesh).await;
-    let chain_a = client_a.open(&url::Url::parse("tcp://127.0.0.1/test-chain").unwrap()).await.unwrap();
+    let chain_a = client_a.open_by_url(&url::Url::parse("tcp://127.0.0.1/test-chain").unwrap()).await.unwrap();
     let session_a = AteSession::new(&cfg_ate);
     
     let dao_key1;
@@ -110,7 +110,7 @@ async fn test_mesh()
             cfg_mesh.force_client_only = true;
             let client_b = create_client(&cfg_ate, &cfg_mesh).await;
 
-            let chain_b = client_b.open(&url::Url::parse("tcp://127.0.0.1/test-chain").unwrap()).await.unwrap();
+            let chain_b = client_b.open_by_key(&ChainKey::new("test-chain".to_string())).await.unwrap();
             let session_b = AteSession::new(&cfg_ate);
             {
                 debug!("start a DIO session for client B");
@@ -164,7 +164,7 @@ async fn test_mesh()
         let client = create_client(&cfg_ate, &cfg_mesh).await;
 
         debug!("reconnecting the client");
-        let chain = client.open(&url::Url::parse("tcp://127.0.0.1/test-chain").unwrap()).await.unwrap();
+        let chain = client.open_by_url(&url::Url::parse("tcp://127.0.0.1/test-chain").unwrap()).await.unwrap();
         let session = AteSession::new(&cfg_ate);
         {
             debug!("loading data object 1");

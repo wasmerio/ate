@@ -41,7 +41,7 @@ for ChainFlow
                 .build(key)
                 .await?;
             let chain = Arc::new(chain);
-            
+
             return Ok(OpenAction::Chain(chain));
         }
         if self.regex_cmd.is_match(name) {

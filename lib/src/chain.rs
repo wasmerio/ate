@@ -553,6 +553,11 @@ impl<'a> Chain
 
         sample
     }
+
+    pub fn repository(&self) -> Option<Arc<dyn ChainRepository>>
+    {
+        self.inside_sync.read().repository()
+    }
 }
 
 #[async_trait]
