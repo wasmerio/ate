@@ -3,6 +3,7 @@ use parking_lot::RwLock as StdRwLock;
 use std::sync::Arc;
 
 use super::chain::*;
+use super::repository::*;
 
 /// Represents an exclusive lock on a chain-of-trust that allows the
 /// user to execute mutations that would otherwise have an immedaite
@@ -31,5 +32,9 @@ impl<'a> ChainSingleUser<'a>
     #[allow(dead_code)]
     pub fn name(&self) -> String {
         self.inside_async.chain.name()
+    }
+    
+    pub fn repository(&self) -> Option<Arc<dyn ChainRepository>> {
+        self.inside_sync.read().repository()
     }
 }

@@ -17,15 +17,23 @@ use crate::index::*;
 use crate::session::*;
 use crate::meta::*;
 use crate::header::*;
+use crate::repository::*;
 
 pub type ServiceInstance<REQ, RES> = Arc<dyn ServiceHandler<REQ, RES> + Send + Sync>;
+
+pub struct InvocationContext<'a>
+{
+    pub dio: Dio<'a>,
+    pub session: &'a Session,
+    pub chain: Arc<Chain>,
+}
 
 #[async_trait]
 pub trait ServiceHandler<REQ, RES>
 where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
       RES: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized
 {
-    async fn process(&self, dio: &mut Dio, request: Dao<REQ>) -> RES;
+    async fn process<'a>(&self, request: REQ, context: InvocationContext<'a>) -> RES;
 }
 
 pub(crate) struct ServiceHook<REQ, RES>
@@ -86,14 +94,26 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
             }
         };
 
-        // Load the object
-        let mut dio = chain.dio(&self.session).await;
-        let req = dio.load::<REQ>(&key).await?;
+        let res: RES =
+        {
+            // Load the object
+            let mut dio = chain.dio(&self.session).await;
+            let req = dio.load::<REQ>(&key).await?;
 
-        // Invoke the callback in the service
-        let res: RES = self.handler.process(&mut dio, req).await;
+            // Create the context
+            let context = InvocationContext
+            {
+                dio,
+                session: &self.session,
+                chain: Arc::clone(&chain),
+            };
+
+            // Invoke the callback in the service
+            self.handler.process(req.take(), context).await
+        };
 
         // Turn it into a data object to be stored on commit
+        let mut dio = chain.dio(&self.session).await;
         let mut res = dio.store_ext(res, self.session.log_format.clone(), None, false)?;
 
         // Add the metadata
@@ -294,6 +314,7 @@ mod tests
     use crate::meta::*;
     use crate::header::*;
     use crate::error::*;
+    use crate::service::*;
 
     #[derive(Serialize, Deserialize, Debug, Clone)]
     struct Ping
@@ -322,9 +343,9 @@ mod tests
     impl super::ServiceHandler<Ping, Pong>
     for PingPongTable
     {
-        async fn process(&self, _dio: &mut Dio, ping: Dao<Ping>) -> Pong
+        async fn process<'a>(&self, ping: Ping, _context: InvocationContext<'a>) -> Pong
         {
-            Pong { msg: ping.take().msg }
+            Pong { msg: ping.msg }
         }
     }
 

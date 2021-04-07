@@ -43,6 +43,7 @@ use super::spec::*;
 use super::loader::*;
 use super::service::*;
 use super::mesh::MeshSession;
+use super::repository::ChainRepository;
 use std::collections::BTreeMap;
 
 pub use super::transaction::Scope;
@@ -76,6 +77,7 @@ pub(crate) struct ChainProtectedSync
     pub(super) listeners: MultiMap<MetaCollection, ChainListener>,
     pub(super) services: Vec<Arc<dyn Service>>,
     pub(super) session: Option<Arc<MeshSession>>,
+    pub(super) repository: Option<Weak<dyn ChainRepository>>,
 }
 
 /// Represents the main API to access a specific chain-of-trust
@@ -312,7 +314,9 @@ impl<'a> Chain
             transformers: builder.transformers,
             listeners: MultiMap::new(),
             services: Vec::new(),
-            session: None
+            session: None,
+            repository: None,
+
         };
         if let Some(tree) = builder.tree {
             inside_sync.plugins.push(Box::new(tree));

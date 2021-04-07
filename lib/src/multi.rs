@@ -16,6 +16,7 @@ use super::header::*;
 use super::lint::*;
 use super::index::*;
 use super::transaction::*;
+use super::repository::*;
 
 use bytes::Bytes;
 
@@ -107,6 +108,10 @@ impl ChainMultiUser
         self.inside_async.read().await.chain.redo.count()
     }
 
+    pub fn repository(&self) -> Option<Arc<dyn ChainRepository>> {
+        self.inside_sync.read().repository()
+    }
+
     pub(crate) async fn lock<'a>(&'a self) -> ChainMultiUserLock<'a> {
         ChainMultiUserLock {
             inside_async: self.inside_async.read().await,
@@ -158,5 +163,12 @@ impl ChainProtectedSync {
             ret = plugin.data_as_underlay(meta, ret, session)?;
         }
         Ok(ret)
+    }
+    
+    pub fn repository(&self) -> Option<Arc<dyn ChainRepository>> {
+        match &self.repository {
+            Some(a) => a.upgrade(),
+            None => None
+        }
     }
 }

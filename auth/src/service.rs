@@ -16,7 +16,7 @@ struct AuthService
 impl ServiceHandler<LoginRequest, LoginResponse>
 for AuthService
 {
-    async fn process(&self, _dio: &mut Dio, request: Dao<LoginRequest>) -> LoginResponse
+    async fn process<'a>(&self, request: LoginRequest, _context: InvocationContext<'a>) -> LoginResponse
     {
         info!("login attempt: {}", request.email);
         LoginResponse::AccountLocked

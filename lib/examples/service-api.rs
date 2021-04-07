@@ -27,9 +27,9 @@ struct PingPongTable
 impl ServiceHandler<Ping, Pong>
 for PingPongTable
 {
-    async fn process(&self, _dio: &mut Dio, ping: Dao<Ping>) -> Pong
+    async fn process<'a>(&self, ping: Ping, _context: InvocationContext<'a>) -> Pong
     {
-        Pong { msg: ping.take().msg }
+        Pong { msg: ping.msg }
     }
 }
 

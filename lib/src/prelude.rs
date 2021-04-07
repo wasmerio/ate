@@ -41,6 +41,7 @@ pub use crate::session::SessionProperty as AteSessionProperty;
 pub use crate::transaction::Scope as TransactionScope;
 
 pub use crate::service::ServiceHandler;
+pub use crate::service::InvocationContext;
 
 pub use crate::mesh::Registry;
 pub use crate::conf::MeshAddress;

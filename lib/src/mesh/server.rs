@@ -30,7 +30,8 @@ use crate::spec::SerializationFormat;
 use crate::repository::ChainRepository;
 
 pub struct MeshRoot<F>
-where F: OpenFlow + 'static
+where Self: ChainRepository,
+      F: OpenFlow + 'static
 {
     cfg_ate: ConfAte,
     lookup: MeshHashTableCluster,
@@ -251,6 +252,7 @@ where F: OpenFlow + 'static
         }
     };
     
+    // Insert it into the cache so future requests can reuse the reference to the chain
     let mut chains = root.chains.lock();
     match chains.entry(key.clone()) {
         Entry::Occupied(o) => o.into_mut(),
@@ -396,6 +398,11 @@ where F: OpenFlow + 'static
             MeshSession::retro_create(chain)
         }
     };
+
+    // Update the chain with the repository
+    let repository = Arc::clone(&root);
+    let repository: Arc<dyn ChainRepository> = repository;
+    chain.inside_sync.write().repository = Some(Arc::downgrade(&repository));
 
     // Update the context with the latest chain-key
     {
