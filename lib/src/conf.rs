@@ -1,8 +1,12 @@
+#![allow(unused_imports)]
+use log::{info, error, debug};
+use async_trait::async_trait;
+
 use serde::{Serialize, Deserialize};
 use crate::{anti_replay::AntiReplayPlugin, chain::Chain, time::TimestampEnforcer, tree::{TreeAuthorityPlugin, TreeCompactor}};
-#[allow(unused_imports)]
 use std::{net::IpAddr, str::FromStr};
 use std::sync::Arc;
+use url::Url;
 
 use super::validator::*;
 use super::compact::*;
@@ -17,6 +21,7 @@ use super::error::*;
 use super::crypto::Hash;
 use super::spec::*;
 use super::pipe::*;
+use super::repository::ChainRepository;
 
 /// Represents a target node within a mesh
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -499,6 +504,17 @@ impl ChainOfTrustBuilder
     -> Result<Chain, ChainCreationError>
     {
         Chain::new(self, key).await
+    }
+}
+
+#[async_trait]
+impl ChainRepository
+for ChainOfTrustBuilder
+{
+    async fn open(&self, url: &Url) -> Result<Arc<Chain>, ChainCreationError>
+    {
+        let key = ChainKey::from_url(url);
+        Ok(Arc::new(Chain::new(self.clone(), &key).await?))
     }
 }
 

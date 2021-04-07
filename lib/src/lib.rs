@@ -52,3 +52,4 @@ pub mod pipe;
 pub mod prelude;
 pub mod anti_replay;
 pub mod flow;
+pub mod repository;

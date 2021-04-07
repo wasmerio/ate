@@ -235,7 +235,6 @@ async fn main_mount(mount: Mount, conf: ConfAte) -> Result<(), AteError>
     // We create a chain with a specific key (this is used for the file name it creates)
     debug!("chain-init");
     let registry;
-    let session;
     let chain = match mount.remote {
         None => {
             Arc::new(
@@ -249,8 +248,7 @@ async fn main_mount(mount: Mount, conf: ConfAte) -> Result<(), AteError>
         },
         Some(remote) => {
             registry = ate::mesh::Registry::new(&conf).await;
-            session = registry.open_ext(&remote, progress_local, progress_remote).await?;
-            session.chain()
+            registry.open_ext(&remote, progress_local, progress_remote).await?
         },
     };
 

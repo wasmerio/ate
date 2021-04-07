@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 use log::{warn, debug, error};
+use async_trait::async_trait;
 use crate::{
     conf::ConfAte,
     error::ChainCreationError
@@ -10,6 +11,7 @@ use crate::mesh::*;
 use crate::error::*;
 use crate::conf::ConfCluster;
 use crate::loader;
+use crate::repository::ChainRepository;
 use std::{net::IpAddr, sync::Arc};
 use fxhash::FxHashMap;
 use tokio::sync::Mutex;
@@ -107,14 +109,7 @@ impl Registry
         )
     }
 
-    pub async fn open(&self, url: &Url) -> Result<Arc<MeshSession>, ChainCreationError>
-    {
-        let loader_local = Box::new(loader::DummyLoader::default());
-        let loader_remote = Box::new(loader::DummyLoader::default());
-        self.open_ext(url, loader_local, loader_remote).await
-    }
-
-    pub async fn open_ext(&self, url: &Url, loader_local: Box<impl loader::Loader>, loader_remote: Box<impl loader::Loader>) -> Result<Arc<MeshSession>, ChainCreationError>
+    pub async fn open_ext(&self, url: &Url, loader_local: Box<impl loader::Loader>, loader_remote: Box<impl loader::Loader>) -> Result<Arc<Chain>, ChainCreationError>
     {
         let mut lock = self.chains.lock().await;
         
@@ -122,7 +117,7 @@ impl Registry
             Some(a) => a.to_string(),
             None => { return Err(ChainCreationError::NoValidDomain(url.to_string())); }
         };
-        
+
         match lock.get(&domain) {
             Some(a) => {
                 Ok(a.open_ext(&url, loader_local, loader_remote).await?)
@@ -233,5 +228,17 @@ impl Registry
         }
 
         Ok((addrs, false))
+    }
+}
+
+#[async_trait]
+impl ChainRepository
+for Registry
+{
+    async fn open(&self, url: &Url) -> Result<Arc<Chain>, ChainCreationError>
+    {
+        let loader_local = Box::new(loader::DummyLoader::default());
+        let loader_remote = Box::new(loader::DummyLoader::default());
+        self.open_ext(url, loader_local, loader_remote).await
     }
 }

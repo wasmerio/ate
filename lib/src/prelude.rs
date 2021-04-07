@@ -33,6 +33,7 @@ pub use crate::dio::Dao;
 pub use crate::dio::Dio;
 
 pub use crate::spec::SerializationFormat;
+pub use crate::repository::ChainRepository;
 pub use crate::multi::ChainMultiUser;
 pub use crate::single::ChainSingleUser;
 pub use crate::session::Session as AteSession;

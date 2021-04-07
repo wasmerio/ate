@@ -77,6 +77,15 @@ impl ChainKey {
     {
         self.name.clone()
     }
+
+    pub fn from_url(url: &url::Url) -> ChainKey
+    {
+        let mut key = ChainKey::new(url.path().to_string());
+        if key.to_string().starts_with("/") == false {
+            key = ChainKey::from(format!("/{}", key.to_string()));
+        }
+        key
+    }
 }
 
 impl From<String>

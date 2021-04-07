@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use serde::{Serialize, Deserialize};
 use log::{info, warn, debug, error};
-use std::{borrow::Borrow, net::{IpAddr, Ipv6Addr}, ops::Deref};
+use std::{borrow::Borrow, net::{IpAddr, Ipv4Addr, Ipv6Addr}, ops::Deref};
 use tokio::sync::{Mutex};
 use parking_lot::Mutex as StdMutex;
 use std::{sync::Arc, collections::hash_map::Entry};
@@ -23,9 +23,11 @@ use crate::transaction::*;
 use super::client::MeshClient;
 use super::msg::*;
 use super::MeshSession;
+use super::Registry;
 use crate::flow::OpenFlow;
 use crate::flow::OpenAction;
 use crate::spec::SerializationFormat;
+use crate::repository::ChainRepository;
 
 pub struct MeshRoot<F>
 where F: OpenFlow + 'static
@@ -35,11 +37,12 @@ where F: OpenFlow + 'static
     addrs: Vec<MeshAddress>,
     chains: StdMutex<FxHashMap<ChainKey, Weak<Chain>>>,
     chain_builder: Mutex<Box<F>>,
+    remote_registry: Arc<Registry>,
 }
 
 #[derive(Clone)]
 struct SessionContextProtected {
-    chain: Option<Arc<MeshSession>>,
+    chain: Option<Arc<Chain>>,
     locks: FxHashSet<PrimaryKey>,
 }
 
@@ -103,6 +106,7 @@ where F: OpenFlow + 'static
                 },
                 chains: StdMutex::new(FxHashMap::default()),
                 chain_builder: open_flow,
+                remote_registry: Registry::new(&cfg_ate).await
             }
         );
 
@@ -168,7 +172,33 @@ for ServerPipe
     }
 }
 
-async fn open_internal<F>(root: Arc<MeshRoot<F>>, mut key: ChainKey, tx: &NodeTx<SessionContext>) -> Result<Arc<Chain>, ChainCreationError>
+#[async_trait]
+impl<F> ChainRepository
+for MeshRoot<F>
+where F: OpenFlow + 'static
+{
+    async fn open(&self, url: &url::Url) -> Result<Arc<Chain>, ChainCreationError>
+    {
+        let key = ChainKey::from_url(url);
+        let addr = match self.lookup.lookup(&key) {
+            Some(a) => a,
+            None => {
+                return Err(ChainCreationError::NoRootFoundInConfig);
+            }
+        };
+
+        let local_ips = vec!(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1)));
+        let is_local = self.addrs.contains(&addr) || local_ips.contains(&addr.ip);
+
+        if is_local {
+            open_internal(self, key, None).await
+        } else {
+            self.remote_registry.open(url).await
+        }
+    }
+}
+
+async fn open_internal<F>(root: &MeshRoot<F>, mut key: ChainKey, tx: Option<&NodeTx<SessionContext>>) -> Result<Arc<Chain>, ChainCreationError>
 where F: OpenFlow + 'static
 {
     if key.to_string().starts_with("/") == false {
@@ -198,15 +228,20 @@ where F: OpenFlow + 'static
         }
     }
 
-    // Create a chain builder and add a pipe that will broadcast message to the connected clients
-    let pipe = Box::new(ServerPipe {
-        downcast: tx.downcast.clone(),
-        wire_format: tx.wire_format.clone(),
-        next: crate::pipe::NullPipe::new()
-    });
-    let builder = ChainOfTrustBuilder::new(&root.cfg_ate)
-        .await
-        .add_pipe(pipe);
+    // Create a chain builder
+    let mut builder = ChainOfTrustBuilder::new(&root.cfg_ate)
+        .await;
+
+    // Add a pipe that will broadcast message to the connected clients
+    if let Some(tx) = tx {
+        let pipe = Box::new(ServerPipe {
+            downcast: tx.downcast.clone(),
+            wire_format: tx.wire_format.clone(),
+            next: crate::pipe::NullPipe::new()
+        });
+    
+        builder = builder.add_pipe(pipe);
+    }
 
     // Create the chain using the chain flow builder
     let new_chain = match chain_builder_flow.open(builder, &key).await? {
@@ -339,7 +374,7 @@ where F: OpenFlow + 'static
     debug!("inbox: subscribe: {}", chain_key.to_string());
 
     // If we can't find a chain for this subscription then fail and tell the caller
-    let chain = match open_internal(Arc::clone(&root), chain_key.clone(), tx).await {
+    let chain = match open_internal(&root, chain_key.clone(), Some(tx)).await {
         Err(ChainCreationError::NotThisRoot) => {
             PacketData::reply_at(reply_at, wire_format, Message::NotThisRoot).await?;
             return Ok(());
@@ -386,7 +421,7 @@ where F: OpenFlow + 'static
 }
 
 async fn inbox_stream_data(
-    chain: Arc<MeshSession>,
+    chain: Arc<Chain>,
     history_sample: Vec<crate::crypto::Hash>,
     reply_at: mpsc::Sender<PacketData>,
     wire_format: SerializationFormat

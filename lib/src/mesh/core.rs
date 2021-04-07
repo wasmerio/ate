@@ -47,7 +47,8 @@ impl MeshHashTableCluster
                 return Some(a.clone());
             }
         }
-        None
+        
+        self.address_lookup.iter().map(|a| a.clone()).next()
     }
     #[allow(dead_code)]
     pub(crate) fn new(cfg_cluster: &ConfCluster) -> MeshHashTableCluster

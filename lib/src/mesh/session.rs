@@ -25,14 +25,14 @@ pub struct MeshSession
 {
     addrs: Vec<MeshAddress>,
     key: ChainKey,
-    pub(crate) chain: Arc<Chain>,
+    chain: Weak<Chain>,
     commit: Arc<StdMutex<FxHashMap<u64, mpsc::Sender<Result<(), CommitError>>>>>,
     lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, LockRequest>>>,
 }
 
 impl MeshSession
 {
-    pub(super) async fn connect(builder: ChainOfTrustBuilder, chain_url: &url::Url, addrs: Vec<MeshAddress>, loader_local: Box<impl Loader>, loader_remote: Box<impl Loader>) -> Result<Arc<MeshSession>, ChainCreationError>
+    pub(super) async fn connect(builder: ChainOfTrustBuilder, chain_url: &url::Url, addrs: Vec<MeshAddress>, loader_local: Box<impl Loader>, loader_remote: Box<impl Loader>) -> Result<(Arc<MeshSession>, Arc<Chain>), ChainCreationError>
     {
         let chain_key = ChainKey::new(chain_url.path().to_string());
         debug!("new: chain_key={}", chain_key.to_string());
@@ -79,17 +79,23 @@ impl MeshSession
             }
         );
 
+        // Cement the chain with a pipe
         chain.proxy(pipe);
         let chain = Arc::new(chain);
 
-        let ret = Arc::new(MeshSession {
+        // Create the session
+        let session = Arc::new(MeshSession {
             addrs: addrs.clone(),
             key: chain_key.clone(),
-            chain,
             commit,
+            chain: Arc::downgrade(&chain),
             lock_requests,
         });
 
+        // Attach a mesh session to it
+        chain.inside_sync.write().session = Some(Arc::clone(&session));
+
+        // Run the loaders and the message procesor
         let mut loader = Some(loader_remote);
         let mut wait_for_me = Vec::new();
         for node_rx in pipe_rx {
@@ -106,7 +112,7 @@ impl MeshSession
             tokio::spawn(
                 MeshSession::inbox
                 (
-                    Arc::clone(&ret),
+                    Arc::clone(&session),
                     node_rx,
                     Some(Box::new(composite_loader))
                 )
@@ -114,6 +120,7 @@ impl MeshSession
             wait_for_me.push(loaded_receiver);
         };
 
+        // Wait for all the messages to load before we give it to the caller
         debug!("loading {}", chain_key.to_string());
         for mut wait in wait_for_me {
             match wait.recv().await {
@@ -125,27 +132,32 @@ impl MeshSession
         }
         debug!("loaded {}", chain_key.to_string());
 
-        Ok(ret)
+        Ok((session, chain))
     }
 
-    pub(super) fn retro_create(chain: Arc<Chain>) -> Arc<MeshSession>
+    pub(super) fn retro_create(chain: Arc<Chain>) -> Arc<Chain>
     {
-        Arc::new(MeshSession {
+        let ret = Arc::new(MeshSession {
             addrs: Vec::new(),
             key: chain.key().clone(),
-            chain: chain,
             commit: Arc::new(StdMutex::new(FxHashMap::default())),
             lock_requests: Arc::new(StdMutex::new(FxHashMap::default())),
-        })
+            chain: Arc::downgrade(&chain)
+        });
+
+        chain.inside_sync.write().session = Some(Arc::clone(&ret));
+        chain
     }
 
     async fn inbox_connected(self: &Arc<MeshSession>, pck: PacketData) -> Result<(), CommsError> {
         debug!("inbox: connected pck.size={}", pck.bytes.len());
 
-        pck.reply(Message::Subscribe {
-            chain_key: self.key.clone(),
-            history_sample: self.chain.get_ending_sample().await,
-        }).await?;
+        if let Some(chain) = self.chain.upgrade() {
+            pck.reply(Message::Subscribe {
+                chain_key: self.key.clone(),
+                history_sample: chain.get_ending_sample().await,
+            }).await?;
+        }
         Ok(())
     }
 
@@ -158,11 +170,13 @@ impl MeshSession
             loader.feed_events(&feed_me).await;
         }
 
-        self.chain.pipe.feed(Transaction {
-            scope: Scope::None,
-            broadcast: false,
-            events: feed_me
-        }).await?;
+        if let Some(chain) = self.chain.upgrade() {
+            chain.pipe.feed(Transaction {
+                scope: Scope::None,
+                broadcast: false,
+                events: feed_me
+            }).await?;
+        }
 
         Ok(())
     }
@@ -310,22 +324,6 @@ impl MeshSession
         for (_, sender) in guard.drain() {
             sender.cancel();
         }
-    }
-
-    pub fn chain(&self) -> Arc<Chain>
-    {
-        Arc::clone(&self.chain)
-    }
-}
-
-impl std::ops::Deref
-for MeshSession
-{
-    type Target = Chain;
-
-    fn deref(&self) -> &Chain
-    {
-        self.chain.deref()
     }
 }
 
