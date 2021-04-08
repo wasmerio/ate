@@ -1470,6 +1470,7 @@ where E: std::fmt::Debug
 pub enum ServiceError<E>
 {
     Reply(E),
+    IO(tokio::io::Error),
     LoadError(LoadError),
     SerializationError(SerializationError),
     ChainCreationError(ChainCreationError),
@@ -1536,6 +1537,14 @@ for ServiceError<E>
     }
 }
 
+impl<E> From<tokio::io::Error>
+for ServiceError<E>
+{
+    fn from(err: tokio::io::Error) -> ServiceError<E> {
+        ServiceError::IO(err)
+    }   
+}
+
 impl<E> ServiceError<E>
 {
     pub fn strip(self) -> ServiceError<()>
@@ -1547,6 +1556,7 @@ impl<E> ServiceError<E>
             ServiceError::CommitError(a) => ServiceError::CommitError(a),
             ServiceError::ChainCreationError(a) => ServiceError::ChainCreationError(a),
             ServiceError::PipeError(a) => ServiceError::PipeError(a),
+            ServiceError::IO(a) => ServiceError::IO(a),
             ServiceError::Reply(_) => ServiceError::Reply(()),
             ServiceError::Timeout => ServiceError::Timeout,
             ServiceError::Aborted => ServiceError::Aborted,
@@ -1576,6 +1586,9 @@ where E: std::fmt::Debug
                 write!(f, "Command failed - {}", err)
             },
             ServiceError::PipeError(err) => {
+                write!(f, "Command failed - {}", err)
+            },
+            ServiceError::IO(err) => {
                 write!(f, "Command failed - {}", err)
             },
             ServiceError::Reply(err) => {

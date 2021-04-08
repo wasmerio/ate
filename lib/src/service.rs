@@ -156,6 +156,11 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
         let mut dio = chain.dio(&self.session).await;
         let mut res = dio.store_ext(res, self.session.log_format.clone(), None, false)?;
 
+        // If the session has an encryption key then use it
+        if let Some(key) = self.session.read_keys().into_iter().map(|a| a.clone()).next() {
+            res.auth_mut().read = ReadOption::Specific(key.hash());
+        }
+
         // Add the metadata
         res.add_extra_metadata(CoreMetadata::Type(MetaType {
             type_name: res_type

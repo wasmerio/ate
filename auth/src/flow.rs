@@ -51,13 +51,13 @@ for ChainFlow
         {
             // Build a secure session
             let session_root_key = PrivateSignKey::generate(KeySize::Bit128);
-            let mut session = AteSession::default();
-            session.add_read_key(&EncryptKey::generate(KeySize::Bit128));
-            session.add_write_key(&session_root_key);
+            let mut cmd_session = AteSession::default();
+            cmd_session.add_read_key(&EncryptKey::generate(KeySize::Bit128));
+            cmd_session.add_write_key(&session_root_key);
 
             // Build the chain
             let chain = builder
-                .set_session(session.clone())
+                .set_session(cmd_session.clone())
                 .add_root_public_key(&session_root_key.as_public_key())
                 .temporal(true)
                 .build(key)
@@ -65,13 +65,13 @@ for ChainFlow
             let chain = Arc::new(chain);
 
             // Add the services to this chain
-            service_logins(session.clone(), &Arc::clone(&chain)).await;
+            service_logins(cmd_session.clone(), cmd_session.clone(), &Arc::clone(&chain)).await;
 
             // Return the chain to the caller
             return Ok(OpenAction::PrivateChain
             {
                 chain,
-                session
+                session: cmd_session
             });
         }
         Ok(OpenAction::Deny(format!("The chain-key ({}) does not match a valid chain supported by this server.", key.to_string()).to_string()))
