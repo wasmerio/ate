@@ -472,6 +472,22 @@ for TreeAuthorityPlugin
         }
         Ok(())
     }
+
+    fn root_keys(&self) -> Vec<PublicSignKey>
+    {
+        self.root_keys.values().map(|a| a.clone()).collect::<Vec<_>>()
+    }
+
+    fn set_root_keys(&mut self, root_keys: &Vec<PublicSignKey>)
+    {
+        self.root_keys.clear();
+        self.root = WriteOption::Everyone;
+
+        for root_key in root_keys {
+            debug!("chain_root_key: {}", root_key.hash().to_string());
+            self.add_root_public_key(root_key);
+        }
+    }
 }
 #[derive(Debug, Default, Clone)]
 pub struct TreeCompactor

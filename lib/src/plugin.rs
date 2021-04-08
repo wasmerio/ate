@@ -24,4 +24,11 @@ where Self: EventValidator + EventSink + EventMetadataLinter + EventDataTransfor
     }
 
     fn clone_plugin(&self) -> Box<dyn EventPlugin>;
+
+    fn root_keys(&self) -> Vec<PublicSignKey>
+    {
+        Vec::new()
+    }
+
+    fn set_root_keys(&mut self, _root_keys: &Vec<PublicSignKey>) { }
 }

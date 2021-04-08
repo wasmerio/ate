@@ -13,6 +13,7 @@ use crate::error::*;
 use crate::header::PrimaryKey;
 use crate::spec::*;
 use crate::session::Session;
+use crate::crypto::PublicSignKey;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub(super) struct MessageEvent
@@ -92,6 +93,7 @@ pub(super) enum Message {
 
     StartOfHistory {
         size: usize,
+        root_keys: Vec<PublicSignKey>,
     },
     Events {
         commit: Option<u64>,

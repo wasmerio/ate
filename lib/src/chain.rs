@@ -45,6 +45,7 @@ use super::service::*;
 use super::session::Session;
 use super::mesh::MeshSession;
 use super::repository::ChainRepository;
+use super::crypto::PublicSignKey;
 use std::collections::BTreeMap;
 
 pub use super::transaction::Scope;
@@ -339,7 +340,8 @@ impl<'a> Chain
         if let Some(tree) = builder.tree {
             inside_sync.plugins.push(Box::new(tree));
         }
-        let inside_sync = Arc::new(StdRwLock::new(inside_sync));
+        let inside_sync
+            = Arc::new(StdRwLock::new(inside_sync));
 
         // The asynchronous critical section protects the chain-of-trust itself and
         // will have longer waits on it when there are writes occuring

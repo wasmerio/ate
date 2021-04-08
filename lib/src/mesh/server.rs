@@ -459,15 +459,29 @@ async fn inbox_stream_data(
     chain: Arc<Chain>,
     history_sample: Vec<crate::crypto::Hash>,
     reply_at: mpsc::Sender<PacketData>,
-    wire_format: SerializationFormat
+    wire_format: SerializationFormat,
 )
 -> Result<(), CommsError>
 {
-    // Let the caller know we will be streaming them events
+    // Extract the root keys
+    let root_keys = chain.inside_sync
+        .read()
+        .plugins
+        .iter()
+        .flat_map(|p| p.root_keys())
+        .collect::<Vec<_>>();
     let size = chain.count().await;
+
+    // Let the caller know we will be streaming them events
     debug!("sending start-of-history (size={})", size);
     let multi = chain.multi().await;
-    PacketData::reply_at(Some(&reply_at), wire_format, Message::StartOfHistory { size }).await?;
+    PacketData::reply_at(Some(&reply_at), wire_format,
+    Message::StartOfHistory
+        {
+            size,
+            root_keys
+        }
+    ).await?;
 
     // Find what offset we will start streaming the events back to the caller
     // (we work backwards from the consumers last known position till we find a match

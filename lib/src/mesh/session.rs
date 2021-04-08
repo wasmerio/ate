@@ -20,6 +20,7 @@ use crate::pipe::*;
 use crate::header::*;
 use crate::spec::*;
 use crate::loader::*;
+use crate::crypto::*;
 
 pub struct MeshSession
 {
@@ -40,13 +41,6 @@ impl MeshSession
             = Arc::new(StdMutex::new(FxHashMap::default()));
         let lock_requests
             = Arc::new(StdMutex::new(FxHashMap::default()));
-
-        // Open the chain and make a sample of the last items so that we can
-        // speed up the synchronization by skipping already loaded items
-        let mut chain = {
-            let chain_key = chain_key.clone();
-            Chain::new_ext(builder.clone(), chain_key, Some(loader_local), true).await?
-        };
 
         // Create pipes to all the target root nodes
         let mut pipe_rx = Vec::new();
@@ -77,6 +71,13 @@ impl MeshSession
                 lock_requests: Arc::clone(&lock_requests),
             }
         );
+
+        // Open the chain and make a sample of the last items so that we can
+        // speed up the synchronization by skipping already loaded items
+        let mut chain = {
+            let chain_key = chain_key.clone();
+            Chain::new_ext(builder.clone(), chain_key, Some(loader_local), true).await?
+        };
 
         // Cement the chain with a pipe
         chain.proxy(pipe);
@@ -220,7 +221,13 @@ impl MeshSession
         Ok(())
     }
 
-    async fn inbox_start_of_history(size: usize, loader: &mut Option<Box<impl Loader>>) -> Result<(), CommsError> {
+    async fn inbox_start_of_history(self: &Arc<MeshSession>, size: usize, loader: &mut Option<Box<impl Loader>>, root_keys: Vec<PublicSignKey>) -> Result<(), CommsError> {
+        if let Some(chain) = self.chain.upgrade() {
+            let mut lock = chain.inside_sync.write();
+            for plugin in lock.plugins.iter_mut() {
+                plugin.set_root_keys(&root_keys);
+            }
+        }
         if let Some(loader) = loader {
             loader.start_of_history(size).await;
         }
@@ -251,7 +258,7 @@ impl MeshSession
     {
         //debug!("inbox: packet size={}", pck.data.bytes.len());
         match pck.packet.msg {
-            Message::StartOfHistory { size } => Self::inbox_start_of_history(size, loader).await,
+            Message::StartOfHistory { size, root_keys } => Self::inbox_start_of_history(self, size, loader, root_keys).await,
             Message::Connected => Self::inbox_connected(self, pck.data).await,
             Message::Events { commit: _, evts } => Self::inbox_events(self, evts, loader).await,
             Message::Confirmed(id) => Self::inbox_confirmed(self, id).await,
