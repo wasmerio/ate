@@ -173,7 +173,7 @@ impl MeshSession
         if let Some(chain) = self.chain.upgrade() {
             chain.pipe.feed(Transaction {
                 scope: Scope::None,
-                broadcast: false,
+                transmit: false,
                 events: feed_me
             }).await?;
         }
@@ -423,14 +423,14 @@ impl SessionPipe
         if self.tx.len() <= 1 {
             if let Some(tx) = self.tx.iter().next() {
                 let pck = Packet::from(Message::Events{ commit, evts, }).to_packet_data(tx.wire_format)?;
-                tx.upcast_packet(pck).await?;
+                tx.send_packet(pck).await?;
             }
         } else {
             let mut joins = Vec::new();
             {
                 for tx in self.tx.iter() {
                     let pck = Packet::from(Message::Events{ commit, evts: evts.clone(), }).to_packet_data(tx.wire_format)?;
-                    joins.push(tx.upcast_packet(pck));
+                    joins.push(tx.send_packet(pck));
                 }
             }
             for join in joins {
@@ -448,23 +448,18 @@ for SessionPipe
 {
     async fn feed(&self, mut trans: Transaction) -> Result<(), CommitError>
     {
-        // Feed the transaction into the pipe
-        let receiver = self.feed_internal(&mut trans).await?;
+        // Only transmit the packet if we are meant to
+        if trans.transmit == true
+        {
+            // Feed the transaction into the pipe
+            let receiver = self.feed_internal(&mut trans).await?;
 
-        // If we need to wait for the transaction to commit then do so
-        if let Some(mut receiver) = receiver {
-            match receiver.recv().await {
-                Some(result) => result?,
-                None => { return Err(CommitError::Aborted); }
-            };
-        }
-
-        // If this packet is being broadcast then send it to all the other nodes too
-        if trans.broadcast {
-            let evts = MessageEvent::convert_to(&trans.events);
-            for tx in self.tx.iter() {
-                let pck = Packet::from(Message::Events{ commit: None, evts: evts.clone(), }).to_packet_data(tx.wire_format)?;
-                tx.downcast_packet(pck.clone()).await?;
+            // If we need to wait for the transaction to commit then do so
+            if let Some(mut receiver) = receiver {
+                match receiver.recv().await {
+                    Some(result) => result?,
+                    None => { return Err(CommitError::Aborted); }
+                };
             }
         }
 
@@ -501,7 +496,7 @@ for SessionPipe
         // Send a message up to the main server asking for a lock on the data object
         let mut joins = Vec::new();
         for tx in voters.iter() {
-            joins.push(tx.upcast(Message::Lock {
+            joins.push(tx.send(Message::Lock {
                 key: key.clone(),
             }));
         }
@@ -527,7 +522,7 @@ for SessionPipe
         // Send a message up to the main server asking for an unlock on the data object
         let mut joins = Vec::new();
         for tx in self.tx.iter() {
-            joins.push(tx.upcast(Message::Unlock {
+            joins.push(tx.send(Message::Unlock {
                 key: key.clone(),
             }));
         }

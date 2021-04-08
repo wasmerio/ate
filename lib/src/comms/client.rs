@@ -5,7 +5,6 @@ use fxhash::FxHashMap;
 use tokio::{net::{TcpStream}};
 use tokio::sync::mpsc;
 use std::{marker::PhantomData};
-use tokio::sync::broadcast;
 use tokio::time::Duration;
 use std::sync::Arc;
 use parking_lot::Mutex as StdMutex;
@@ -30,9 +29,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
 {
     // Setup the communication pipes for the server
     let (inbox_tx, inbox_rx) = mpsc::channel(conf.buffer_size);
-    let (downcast_tx, _) = broadcast::channel(conf.buffer_size);
-    let downcast_tx = Arc::new(downcast_tx);
-
+    
     // Create the node state and initialize it
     let state = Arc::new(StdMutex::new(NodeState {
         connected: 0,
@@ -57,8 +54,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
     // Return the mesh
     (
         NodeTx {
-            downcast: downcast_tx,
-            upcast: upcast,
+            direction: TxDirection::Upcast(upcast),
             state: Arc::clone(&state),
             wire_format: conf.wire_format,
             _marker: PhantomData

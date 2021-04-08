@@ -19,11 +19,17 @@ use super::PacketData;
 use super::PacketWithContext;
 
 #[derive(Debug)]
+pub(crate) enum TxDirection
+{
+    Downcast(Arc<broadcast::Sender<PacketData>>),
+    Upcast(FxHashMap<u64, Upstream>)
+}
+
+#[derive(Debug)]
 pub(crate) struct NodeTx<C>
 where C: Send + Sync
 {
-    pub downcast: Arc<broadcast::Sender<PacketData>>,
-    pub upcast: FxHashMap<u64, Upstream>,
+    pub direction: TxDirection,
     pub state: Arc<StdMutex<NodeState>>,
     pub wire_format: SerializationFormat,
     pub _marker: PhantomData<C>,
@@ -42,44 +48,24 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone,
 impl<C> NodeTx<C>
 where C: Send + Sync + Default + 'static
 {
-    pub(crate) async fn downcast_packet(&self, pck: PacketData) -> Result<(), CommsError> {
-        self.downcast.send(pck)?;
+    pub(crate) async fn send_packet(&self, pck: PacketData) -> Result<(), CommsError> {
+        match &self.direction {
+            TxDirection::Downcast(a) => {
+                a.send(pck)?;
+            },
+            TxDirection::Upcast(a) => {
+                let upcasts = a.values().collect::<Vec<_>>();
+                let upcast = upcasts.choose(&mut rand::thread_rng()).unwrap();
+                upcast.outbox.send(pck).await?;
+            }
+        };
         Ok(())
     }
 
-    pub(crate) async fn downcast<M>(&self, msg: M) -> Result<(), CommsError>
+    pub(crate) async fn send<M>(&self, msg: M) -> Result<(), CommsError>
     where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default
     {
-        self.downcast_packet(Packet::from(msg).to_packet_data(self.wire_format)?).await
-    }
-
-    pub(crate) async fn upcast_packet(&self, pck: PacketData) -> Result<(), CommsError> {
-        let upcasts = self.upcast.values().collect::<Vec<_>>();
-        let upcast = upcasts.choose(&mut rand::thread_rng()).unwrap();
-        upcast.outbox.send(pck).await?;
-        Ok(())
-    }
-
-    pub(crate) async fn upcast<M>(&self, msg: M) -> Result<(), CommsError>
-    where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default
-    {
-        self.upcast_packet(Packet::from(msg).to_packet_data(self.wire_format)?).await
-    }
-
-    pub(crate) async fn downcast_many(&self, pcks: Vec<PacketData>) -> Result<(), CommsError> {
-        for pck in pcks {
-            self.downcast.send(pck)?;
-        }
-        Ok(())
-    }
-
-    pub(crate) async fn upcast_many(&self, pcks: Vec<PacketData>) -> Result<(), CommsError> {
-        let upcasts = self.upcast.values().collect::<Vec<_>>();
-        let upcast = upcasts.choose(&mut rand::thread_rng()).unwrap();
-        for pck in pcks {
-            upcast.outbox.send(pck).await?;
-        }
-        Ok(())
+        self.send_packet(Packet::from(msg).to_packet_data(self.wire_format)?).await
     }
 
     pub(crate) fn connected(&self) -> i32 {

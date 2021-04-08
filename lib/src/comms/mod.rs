@@ -18,6 +18,7 @@ pub(crate) use conf::NodeConfig;
 
 pub(crate) use rx_tx::NodeRx;
 pub(crate) use rx_tx::NodeTx;
+pub(crate) use rx_tx::TxDirection;
 
 pub(crate) use server::listen;
 pub(crate) use client::connect;

@@ -84,7 +84,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
             context: Arc::clone(&context),
             packet: pck,
         };
-         
+
         // Attempt to process the packet using the nodes inbox processing
         // thread (if its closed then we better close ourselves)
         match inbox.send(pck).await {
@@ -159,6 +159,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone,
         select! {
             pck = outbox.recv() => {
                 let pck = pck?;
+
                 if let Some(skip) = pck.skip_here {
                     if sender == skip {
                         continue;

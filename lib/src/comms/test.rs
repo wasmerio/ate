@@ -98,7 +98,7 @@ async fn test_server_client_for_comms() {
         {
             // Send a ping
             let test = format!("hello! {}", n);
-            client_tx.upcast(TestMessage::Ping(test.clone())).await.unwrap();
+            client_tx.send(TestMessage::Ping(test.clone())).await.unwrap();
 
             // Wait for the pong
             let pong = client_rx.recv().await.unwrap();

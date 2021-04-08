@@ -152,7 +152,7 @@ impl ChainProtectedAsync
                 let header = evt.as_header()?;
                 match sync.validate_event(&header) {
                     Err(err) => {
-                        debug!("chain::feed-validation-err {}", err);
+                        debug!("chain::feed-validation-err: {}", err);
                         errors.push(err);
                         continue;
                     }
@@ -556,7 +556,7 @@ impl<'a> Chain
         // Create the transaction
         let trans = Transaction {
             scope: Scope::Full,
-            broadcast: false,
+            transmit: true,
             events: Vec::new(),
         };
 

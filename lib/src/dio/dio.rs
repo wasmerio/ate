@@ -404,17 +404,7 @@ impl<'a> Dio<'a>
         state.deleted.clear();
     }
 
-    pub async fn broadcast(&mut self) -> Result<(), CommitError>
-    {
-        self.commit_ext(true).await
-    }
-
     pub async fn commit(&mut self) -> Result<(), CommitError>
-    {
-        self.commit_ext(false).await
-    }
-
-    async fn commit_ext(&mut self, broadcast: bool) -> Result<(), CommitError>
     {
         // If we have dirty records
         let state = &mut self.state;
@@ -530,12 +520,12 @@ impl<'a> Dio<'a>
         // Create the transaction
         let trans = Transaction {
             scope: self.scope.clone(),
-            broadcast,
+            transmit: true,
             events: evts,
         };
         debug!("commit events={}", trans.events.len());
 
-        // Process the next transaction
+        // Process the transaction in the chain using its pipe
         self.multi.pipe.feed(trans).await?;
 
         // Last thing we do is kick off an unlock operation using fire and forget

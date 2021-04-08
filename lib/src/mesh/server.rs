@@ -28,6 +28,7 @@ use crate::flow::OpenFlow;
 use crate::flow::OpenAction;
 use crate::spec::SerializationFormat;
 use crate::repository::ChainRepository;
+use crate::comms::TxDirection;
 
 pub struct MeshRoot<F>
 where Self: ChainRepository,
@@ -111,8 +112,10 @@ where F: OpenFlow + 'static
             }
         );
 
-        let (listen_tx, listen_rx) = crate::comms::listen(&node_cfg).await;
-        tokio::spawn(inbox(Arc::clone(&ret), listen_rx, listen_tx));
+        let (tx, rx)
+            = crate::comms::listen(&node_cfg).await;
+
+        tokio::spawn(inbox(Arc::clone(&ret), rx, tx));
 
         ret
     }
@@ -143,7 +146,7 @@ for ServerPipe
     async fn feed(&self, trans: Transaction) -> Result<(), CommitError>
     {
         // If this packet is being broadcast then send it to all the other nodes too
-        if trans.broadcast {
+        if trans.transmit {
             let evts = MessageEvent::convert_to(&trans.events);
             let pck = Packet::from(Message::Events{ commit: None, evts: evts.clone(), }).to_packet_data(self.wire_format)?;
             self.downcast.send(pck)?;
@@ -250,13 +253,15 @@ where F: OpenFlow + 'static
 
     // Add a pipe that will broadcast message to the connected clients
     if let Some(ctx) = &context {
-        let pipe = Box::new(ServerPipe {
-            downcast: ctx.tx.downcast.clone(),
-            wire_format: ctx.tx.wire_format.clone(),
-            next: crate::pipe::NullPipe::new()
-        });
-    
-        builder = builder.add_pipe(pipe);
+        if let TxDirection::Downcast(downcast) = &ctx.tx.direction {
+            let pipe = Box::new(ServerPipe {
+                downcast: downcast.clone(),
+                wire_format: ctx.tx.wire_format.clone(),
+                next: crate::pipe::NullPipe::new()
+            });
+        
+            builder = builder.add_pipe(pipe);
+        }
     }
 
     // Create the chain using the chain flow builder
@@ -312,7 +317,7 @@ async fn inbox_event(
     let evts = MessageEvent::convert_from(evts);
     let ret = chain.pipe.feed(Transaction {
         scope: Scope::None,
-        broadcast: false,
+        transmit: false,
         events: evts
     }).await;
 
@@ -320,7 +325,7 @@ async fn inbox_event(
     let wire_format = pck_data.wire_format;
     let downcast_err = match &ret {
         Ok(_) => {
-            tx.downcast_packet(pck_data).await?;
+            tx.send_packet(pck_data).await?;
             Ok(())
         },
         Err(err) => Err(CommsError::InternalError(format!("feed-failed - {}", err.to_string())))

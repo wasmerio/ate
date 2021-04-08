@@ -132,7 +132,7 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
             // Invoke the callback in the service
             req.commit(&mut dio)?;
             let ret = self.handler.process(req.take(), context).await;
-            dio.broadcast().await?;
+            dio.commit().await?;
             ret
         };
 
@@ -164,7 +164,7 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
         
         // Commit the transaction
         res.commit(&mut dio)?;
-        dio.broadcast().await?;
+        dio.commit().await?;
         Ok(())
     }
 }
@@ -197,6 +197,11 @@ impl Chain
         // Build the command object
         let mut dio = self.dio(session).await;
         let mut cmd = dio.store_ext(request, session.log_format, None, false)?;
+        
+        // Add an encryption key on the command (if the session has one)
+        if let Some(key) = session.read_keys().into_iter().next() {
+            cmd.auth_mut().read = ReadOption::Specific(key.hash());
+        }
 
         // Add the extra metadata about the type so the other side can find it
         cmd.add_extra_metadata(CoreMetadata::Type(MetaType {

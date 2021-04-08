@@ -34,18 +34,18 @@ pub enum Scope
 pub(crate) struct Transaction
 {
     pub(crate) scope: Scope,
-    pub(crate) broadcast: bool,
+    pub(crate) transmit: bool,
     pub(crate) events: Vec<EventData>,
 }
 
 impl Transaction
 {
     #[allow(dead_code)]
-    pub(crate) fn from_events(events: Vec<EventData>, scope: Scope, broadcast: bool) -> Transaction
+    pub(crate) fn from_events(events: Vec<EventData>, scope: Scope, transmit: bool) -> Transaction
     {
         Transaction {
             scope,
-            broadcast,
+            transmit,
             events,
         }
     }

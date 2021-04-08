@@ -50,7 +50,7 @@ for AntiReplayPlugin
     fn validate(&self, header: &EventHeader) -> Result<ValidationResult, ValidationError> {
         match self.seen.contains(&header.raw.event_hash) {
             true => {
-                debug!("rejected event as it is a duplicate");
+                debug!("rejected event as it is a duplicate - {}", header.raw.event_hash);
                 Ok(ValidationResult::Deny)
             },
             false => Ok(ValidationResult::Abstain),

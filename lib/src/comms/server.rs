@@ -11,7 +11,6 @@ use serde::{Serialize, de::DeserializeOwned};
 use std::net::SocketAddr;
 use crate::crypto::KeySize;
 use crate::spec::*;
-use fxhash::FxHashMap;
 use std::{marker::PhantomData};
 
 use super::PacketData;
@@ -51,8 +50,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
     // Return the node transmit and receive handlers
     (
         NodeTx {
-            downcast: downcast_tx,
-            upcast: FxHashMap::default(),
+            direction: TxDirection::Downcast(downcast_tx),
             state: Arc::clone(&state),
             wire_format: conf.wire_format,
             _marker: PhantomData

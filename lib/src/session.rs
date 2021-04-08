@@ -97,6 +97,42 @@ impl Session
     pub fn add_identity(&mut self, identity: String) {
         self.properties.push(SessionProperty::Identity(identity));
     }
+
+    pub fn read_keys(&self) -> Vec<&EncryptKey> {
+        self.properties
+            .iter()
+            .filter_map(
+                |p| match p
+                {
+                    SessionProperty::ReadKey(k) => Some(k),
+                    _ => None
+                }
+            ).collect::<Vec<_>>()
+    }
+
+    pub fn write_keys(&self) -> Vec<&PrivateSignKey> {
+        self.properties
+            .iter()
+            .filter_map(
+                |p| match p
+                {
+                    SessionProperty::WriteKey(k) => Some(k),
+                    _ => None
+                }
+            ).collect::<Vec<_>>()
+    }
+
+    pub fn private_read_keys(&self) -> Vec<&PrivateEncryptKey> {
+        self.properties
+            .iter()
+            .filter_map(
+                |p| match p
+                {
+                    SessionProperty::PrivateReadKey(k) => Some(k),
+                    _ => None
+                }
+            ).collect::<Vec<_>>()
+    }
 }
 
 impl std::fmt::Display
