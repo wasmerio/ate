@@ -21,6 +21,7 @@ use super::error::*;
 use super::crypto::Hash;
 use super::spec::*;
 use super::pipe::*;
+use super::session::Session;
 use super::repository::ChainRepository;
 
 /// Represents a target node within a mesh
@@ -317,6 +318,7 @@ pub struct ChainOfTrustBuilder
     pub(super) tree: Option<TreeAuthorityPlugin>,
     pub(super) truncate: bool,
     pub(super) temporal: bool,
+    pub(super) session: Session,
 }
 
 impl Clone
@@ -334,6 +336,7 @@ for ChainOfTrustBuilder
             plugins: self.plugins.iter().map(|a| a.clone_plugin()).collect::<Vec<_>>(),
             pipes: self.pipes.clone(),
             tree: self.tree.clone(),
+            session: self.session.clone(),
             truncate: self.truncate,
             temporal: self.temporal,
         }
@@ -355,6 +358,7 @@ impl ChainOfTrustBuilder
             plugins: Vec::new(),
             pipes: None,
             tree: None,
+            session: Session::new(&cfg),
             truncate: false,
             temporal: false,
         }
@@ -480,6 +484,12 @@ impl ChainOfTrustBuilder
             pipe.set_next(next);
         }
         self.pipes = Some(Arc::new(pipe));
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn set_session(mut self, session: Session) -> Self {
+        self.session = session;
         self
     }
 

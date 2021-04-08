@@ -191,6 +191,12 @@ impl FileState
         let stride_page = super::model::PAGE_SIZE as u64;
         let stride_bundle = super::model::PAGES_PER_BUNDLE as u64 * stride_page;
 
+        // Determine the format of the messages
+        let format = match session.log_format {
+            Some(a) => a,
+            None => chain.default_format()
+        };
+
         // Expand the bundles until we have enough of them to cover this write offset
         let index = offset / stride_bundle;
         while self.inode.bundles.len() <= index as usize {
@@ -204,7 +210,7 @@ impl FileState
             Some(a) => a.clone(),
             None => {
                 // Create the bundle
-                let bundle = Dao::make(PrimaryKey::generate(), session.log_format, 
+                let bundle = Dao::make(PrimaryKey::generate(), format, 
                 PageBundle {
                         pages: Vec::new(),
                     }

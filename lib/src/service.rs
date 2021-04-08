@@ -47,6 +47,7 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
     handler: ServiceInstance<REQ, RES, ERR>,
     request_type_name: String,
     response_type_name: String,
+    error_type_name: String,
 }
 
 impl<REQ, RES, ERR> ServiceHook<REQ, RES, ERR>
@@ -61,6 +62,7 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
             handler: Arc::clone(&handler),
             request_type_name: std::any::type_name::<REQ>().to_string(),
             response_type_name: std::any::type_name::<RES>().to_string(),
+            error_type_name: std::any::type_name::<ERR>().to_string(),
         }
     }
 }
@@ -128,14 +130,15 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
             };
 
             // Invoke the callback in the service
+            req.commit(&mut dio)?;
             let ret = self.handler.process(req.take(), context).await;
             dio.broadcast().await?;
             ret
         };
 
         match ret {
-            Ok(res) => self.send_reply(chain, key, res).await,
-            Err(ServiceError::Reply(err)) => self.send_reply(chain, key, err).await,
+            Ok(res) => self.send_reply(chain, key, res, self.response_type_name.clone()).await,
+            Err(ServiceError::Reply(err)) => self.send_reply(chain, key, err, self.error_type_name.clone()).await,
             Err(err) => { return Err(err.strip()); }
         }
     }
@@ -146,7 +149,7 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
       RES: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
       ERR: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized
 {
-    async fn send_reply<T>(&self, chain: Arc<Chain>, req: PrimaryKey, res: T) -> Result<(), ServiceError<()>>
+    async fn send_reply<T>(&self, chain: Arc<Chain>, req: PrimaryKey, res: T, res_type: String) -> Result<(), ServiceError<()>>
     where T: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized
     {
         // Turn it into a data object to be stored on commit
@@ -155,7 +158,7 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
 
         // Add the metadata
         res.add_extra_metadata(CoreMetadata::Type(MetaType {
-            type_name: self.response_type_name.clone()
+            type_name: res_type
         }));
         res.add_extra_metadata(CoreMetadata::Reply(req));
         
@@ -168,19 +171,29 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
 
 impl Chain
 {
-    pub async fn invoke<REQ, RES, ERR>(self: Arc<Self>, session: &Session, request: REQ) -> Result<RES, InvokeError<ERR>>
+    pub async fn invoke<REQ, RES, ERR>(self: Arc<Self>, request: REQ) -> Result<RES, InvokeError<ERR>>
     where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
           RES: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
           ERR: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
     {
-        self.invoke_ext(session, request, std::time::Duration::from_secs(60)).await
+        self.invoke_ext(None, request, std::time::Duration::from_secs(30)).await
     }
 
-    pub async fn invoke_ext<REQ, RES, ERR>(self: Arc<Self>, session: &Session, request: REQ, timeout: Duration) -> Result<RES, InvokeError<ERR>>
+    pub async fn invoke_ext<REQ, RES, ERR>(self: Arc<Self>, session: Option<&Session>, request: REQ, timeout: Duration) -> Result<RES, InvokeError<ERR>>
     where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
           RES: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
           ERR: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
     {
+        // If no session was provided then use the empty one
+        let session_store;
+        let session = match session {
+            Some(a) => a,
+            None => {
+                session_store = self.inside_sync.read().default_session.clone();
+                &session_store
+            }
+        };
+
         // Build the command object
         let mut dio = self.dio(session).await;
         let mut cmd = dio.store_ext(request, session.log_format, None, false)?;
@@ -200,9 +213,7 @@ impl Chain
             if let Some(reply) = h.meta.is_reply_to_what() {
                 if reply == cmd_id {
                     if let Some(t) = h.meta.get_type_name() {
-                        if t.type_name == response_type_name {
-                            return true;
-                        }
+                        return t.type_name == response_type_name;
                     }
                 }
             }
@@ -212,9 +223,7 @@ impl Chain
             if let Some(reply) = h.meta.is_reply_to_what() {
                 if reply == cmd_id {
                     if let Some(t) = h.meta.get_type_name() {
-                        if t.type_name == error_type_name {
-                            return true;
-                        }
+                        return t.type_name == error_type_name;
                     }
                 }
             }
@@ -227,6 +236,7 @@ impl Chain
         
         // The caller will wait on the response from the sniff that is looking for a reply object
         let mut timeout = tokio::time::interval(timeout);
+        timeout.tick().await;
         select! {
             key = join_res => {
                 let key = match key {
@@ -435,7 +445,7 @@ mod tests
         chain.add_service(session.clone(), Arc::new(PingPongTable::default()));
         
         debug!("sending ping");
-        let pong: Result<Pong, InvokeError<Noise>> = chain.invoke(&session, Ping {
+        let pong: Result<Pong, InvokeError<Noise>> = chain.invoke(Ping {
             msg: "hi".to_string()
         }).await;
 

@@ -21,8 +21,8 @@ for AuthService
     async fn process<'a>(&self, request: LoginRequest, context: InvocationContext<'a>) -> Result<LoginResponse, ServiceError<LoginFailed>>
     {
         // Compute which chain the user should exist within
-        let user_url = auth_url(url::Url::parse("tcp://localhost/auth").unwrap(), &request.email);
-        let _chain = context.repository.open_by_url(&user_url).await?;
+        let user_chain_key = auth_chain_key("auth".to_string(), &request.email);
+        let _chain = context.repository.open_by_key(&user_chain_key).await?;
 
         //context.repository.open_by_key()
         info!("login attempt: {}", request.email);

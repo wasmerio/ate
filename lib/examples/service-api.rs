@@ -55,7 +55,7 @@ async fn main() -> Result<(), AteError>
     chain.add_service(session.clone(), Arc::new(PingPongTable::default()));
     
     debug!("sending ping");
-    let pong: Result<Pong, InvokeError<PingError>> = chain.invoke(&session, Ping {
+    let pong: Result<Pong, InvokeError<PingError>> = chain.invoke(Ping {
         msg: "hi".to_string()
     }).await;
 

@@ -1,7 +1,6 @@
 use std::io::stdout;
 use std::io::Write;
 use url::Url;
-use std::time::Duration;
 
 use ate::prelude::*;
 
@@ -22,9 +21,6 @@ pub async fn login_command(username: String, password: String, code: Option<Stri
     //  which means that neither the client nor the server can get at the data alone)
     let prefix = format!("remote-login:{}:", username);
     let read_key = super::password_to_read_key(&prefix, &password, 10);
-
-    // Create the session
-    let mut session = AteSession::new(&conf_auth());
     
     // Create the login command
     let login = LoginRequest {
@@ -34,12 +30,14 @@ pub async fn login_command(username: String, password: String, code: Option<Stri
     };
 
     // Attempt the login request with a 10 second timeout
-    let response: Result<LoginResponse, InvokeError<LoginFailed>> = chain.invoke_ext(&session, login, Duration::from_secs(10)).await;
+    let response: Result<LoginResponse, InvokeError<LoginFailed>> = chain.invoke(login).await;
     match response {
         Err(InvokeError::Reply(LoginFailed::AccountLocked)) => Err(LoginError::AccountLocked),
         Err(InvokeError::Reply(LoginFailed::NotFound)) => Err(LoginError::NotFound(username)),
         result => {
             let mut result = result?;
+
+            let mut session = AteSession::default();
             session.properties.append(&mut result.authority);
             Ok(session)
         }

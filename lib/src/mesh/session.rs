@@ -235,6 +235,14 @@ impl MeshSession
         Ok(())
     }
 
+    async fn inbox_secure_with(self: &Arc<MeshSession>, mut session: crate::session::Session) -> Result<(), CommsError> {
+        if let Some(chain) = self.chain.upgrade() {
+            debug!("received 'secure_with' secrets");
+            chain.inside_sync.write().default_session.properties.append(&mut session.properties);
+        }
+        Ok(())
+    }
+
     async fn inbox_packet(
         self: &Arc<MeshSession>,
         loader: &mut Option<Box<impl Loader>>,
@@ -250,6 +258,7 @@ impl MeshSession
             Message::CommitError { id, err } => Self::inbox_commit_error(self, id, err).await,
             Message::LockResult { key, is_locked } => Self::inbox_lock_result(self, key, is_locked),
             Message::EndOfHistory => Self::inbox_end_of_history(loader).await,
+            Message::SecuredWith(session) => Self::inbox_secure_with(self, session).await,
             Message::Disconnected => { return Err(CommsError::Disconnected); },
             Message::FatalTerminate { err } => {
                 if let Some(mut loader) = loader.take() {

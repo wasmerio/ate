@@ -126,9 +126,14 @@ impl<'a> Dio<'a>
         self.store_ext(data, self.session.log_format, None, true)
     }
 
-    pub fn store_ext<D>(&mut self, data: D, format: MessageFormat, key: Option<PrimaryKey>, auto_commit: bool) -> Result<Dao<D>, SerializationError>
+    pub fn store_ext<D>(&mut self, data: D, format: Option<MessageFormat>, key: Option<PrimaryKey>, auto_commit: bool) -> Result<Dao<D>, SerializationError>
     where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
+        let format = match format {
+            Some(a) => a,
+            None => self.multi.default_format
+        };
+
         let row = Row {
             key: match key {
                 Some(k) => k,
@@ -417,12 +422,17 @@ impl<'a> Dio<'a>
             return Ok(())
         }
 
-        debug!("atefs::commit stored={} deleted={}", state.store.len(), state.deleted.len());
+        debug!("commit stored={} deleted={}", state.store.len(), state.deleted.len());
         
         // Declare variables
         let mut evts = Vec::new();
         let mut trans_meta = TransactionMetadata::default();
 
+        // Determine the format of the message
+        let format = match self.session.log_format {
+            Some(a) => a,
+            None => self.multi.default_format
+        };
         
         {
             // Take all the locks we need to perform the commit actions
@@ -490,7 +500,7 @@ impl<'a> Dio<'a>
                 let evt = EventData {
                     meta: meta,
                     data_bytes: None,
-                    format: self.session.log_format,
+                    format,
                 };
                 evts.push(evt);
             }
@@ -512,7 +522,7 @@ impl<'a> Dio<'a>
                         core: meta,
                     },
                     data_bytes: None,
-                    format: self.session.log_format,
+                    format,
                 });
             }
         }
@@ -523,7 +533,7 @@ impl<'a> Dio<'a>
             broadcast,
             events: evts,
         };
-        debug!("atefs::commit events={}", trans.events.len());
+        debug!("commit events={}", trans.events.len());
 
         // Process the next transaction
         self.multi.pipe.feed(trans).await?;

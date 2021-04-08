@@ -276,7 +276,7 @@ impl AteFS
     }
 
     async fn commit_internal(&self) -> Result<()> {
-        debug!("atefs::commit");
+        debug!("commit");
         let open_handles = {
             let lock = self.open_handles.lock();
             lock.values()

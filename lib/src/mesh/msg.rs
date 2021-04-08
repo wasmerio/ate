@@ -3,7 +3,7 @@ use serde::{Serialize, Deserialize};
 use bytes::Bytes;
 use std::sync::Arc;
 
-use crate::meta::Metadata;
+use crate::{crypto::{PrivateEncryptKey, PrivateSignKey}, meta::Metadata};
 use crate::crypto::Hash;
 use crate::event::*;
 use crate::chain::ChainKey;
@@ -12,6 +12,7 @@ use crate::chain::Chain;
 use crate::error::*;
 use crate::header::PrimaryKey;
 use crate::spec::*;
+use crate::session::Session;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub(super) struct MessageEvent
@@ -71,7 +72,7 @@ pub(super) enum Message {
 
     Subscribe {
         history_sample: Vec<Hash>,
-        chain_key: ChainKey
+        chain_key: ChainKey,
     },
     
     NotYetSubscribed,
@@ -107,7 +108,9 @@ pub(super) enum Message {
 
     FatalTerminate {
         err: String
-    }
+    },
+
+    SecuredWith(Session),
 }
 
 impl Default

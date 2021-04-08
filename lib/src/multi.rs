@@ -17,6 +17,7 @@ use super::lint::*;
 use super::index::*;
 use super::transaction::*;
 use super::repository::*;
+use super::spec::MessageFormat;
 
 use bytes::Bytes;
 
@@ -43,6 +44,7 @@ where Self: Send + Sync
     pub(super) inside_async: Arc<RwLock<ChainProtectedAsync>>,
     pub(super) inside_sync: Arc<StdRwLock<ChainProtectedSync>>,
     pub(super) pipe: Arc<Box<dyn EventPipe>>,
+    pub(super) default_format: MessageFormat,
 }
 
 impl ChainMultiUser
@@ -53,6 +55,7 @@ impl ChainMultiUser
             inside_async: Arc::clone(&accessor.inside_async),
             inside_sync: Arc::clone(&accessor.inside_sync),
             pipe: Arc::clone(&accessor.pipe),
+            default_format: accessor.default_format
         }
     }
  

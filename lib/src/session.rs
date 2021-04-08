@@ -59,7 +59,18 @@ pub struct Session
 where Self: Send + Sync
 {
     pub properties: Vec<SessionProperty>,
-    pub log_format: MessageFormat,
+    pub log_format: Option<MessageFormat>,
+}
+
+impl Default
+for Session
+{
+    fn default() -> Session {
+        Session {
+            properties: Vec::new(),
+            log_format: None
+        }
+    }
 }
 
 impl Session
@@ -67,7 +78,7 @@ impl Session
     pub fn new(cfg: &ConfAte) -> Session {
         Session {
             properties: Vec::new(),
-            log_format: cfg.log_format
+            log_format: Some(cfg.log_format)
         }
     }
 

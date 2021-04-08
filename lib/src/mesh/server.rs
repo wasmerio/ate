@@ -212,7 +212,13 @@ where F: OpenFlow + 'static
     }
 }
 
-async fn open_internal<F>(root: Arc<MeshRoot<F>>, key: ChainKey, tx: Option<&NodeTx<SessionContext>>) -> Result<Arc<Chain>, ChainCreationError>
+struct OpenContext<'a>
+{
+    tx: &'a NodeTx<SessionContext>,
+    reply_at: Option<&'a mpsc::Sender<PacketData>>,
+}
+
+async fn open_internal<'a, F>(root: Arc<MeshRoot<F>>, key: ChainKey, context: Option<OpenContext<'a>>) -> Result<Arc<Chain>, ChainCreationError>
 where F: OpenFlow + 'static
 {
     debug!("open {}", key.to_string());
@@ -243,10 +249,10 @@ where F: OpenFlow + 'static
         .await;
 
     // Add a pipe that will broadcast message to the connected clients
-    if let Some(tx) = tx {
+    if let Some(ctx) = &context {
         let pipe = Box::new(ServerPipe {
-            downcast: tx.downcast.clone(),
-            wire_format: tx.wire_format.clone(),
+            downcast: ctx.tx.downcast.clone(),
+            wire_format: ctx.tx.wire_format.clone(),
             next: crate::pipe::NullPipe::new()
         });
     
@@ -255,6 +261,12 @@ where F: OpenFlow + 'static
 
     // Create the chain using the chain flow builder
     let new_chain = match chain_builder_flow.open(builder, &key).await? {
+        OpenAction::PrivateChain { chain, session} => {
+            if let Some(ctx) = &context {
+                PacketData::reply_at(ctx.reply_at, ctx.tx.wire_format, Message::SecuredWith(session)).await?;
+            }
+            chain
+        }
         OpenAction::Chain(c) => c,
         OpenAction::Deny(reason) => {
             return Err(ChainCreationError::ServerRejected(reason));
@@ -375,7 +387,7 @@ async fn inbox_subscribe<F>(
     chain_key: ChainKey,
     history_sample: Vec<crate::crypto::Hash>,
     reply_at: Option<&mpsc::Sender<PacketData>>,
-    context: Arc<SessionContext>,
+    session_context: Arc<SessionContext>,
     wire_format: SerializationFormat,
     tx: &NodeTx<SessionContext>
 )
@@ -384,8 +396,15 @@ where F: OpenFlow + 'static
 {
     debug!("inbox: subscribe: {}", chain_key.to_string());
 
+    // Create the open context
+    let open_context = OpenContext
+    {
+        tx,
+        reply_at,
+    };
+
     // If we can't find a chain for this subscription then fail and tell the caller
-    let chain = match open_internal(Arc::clone(&root), chain_key.clone(), Some(tx)).await {
+    let chain = match open_internal(Arc::clone(&root), chain_key.clone(), Some(open_context)).await {
         Err(ChainCreationError::NotThisRoot) => {
             PacketData::reply_at(reply_at, wire_format, Message::NotThisRoot).await?;
             return Ok(());
@@ -415,7 +434,7 @@ where F: OpenFlow + 'static
 
     // Update the context with the latest chain-key
     {
-        let mut guard = context.inside.lock();
+        let mut guard = session_context.inside.lock();
         guard.chain.replace(Arc::clone(&chain));
     }
 

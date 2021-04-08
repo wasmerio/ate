@@ -12,6 +12,13 @@ pub fn auth_url(auth: Url, email: &String) -> Url
     ret
 }
 
+pub fn auth_chain_key(path: String, email: &String) -> ChainKey
+{
+    let hash = AteHash::from(email.clone());
+    let hex = hash.to_hex_string().to_lowercase();
+    ChainKey::new(format!("{}-{}", path, &hex[..4]))
+}
+
 pub fn command_url(auth: Url) -> Url
 {
     let hex = PrimaryKey::generate().as_hex_string().to_lowercase();
