@@ -65,7 +65,7 @@ for ChainFlow
             let chain = Arc::new(chain);
 
             // Add the services to this chain
-            service_logins(cmd_session.clone(), cmd_session.clone(), &Arc::clone(&chain)).await;
+            service_logins(cmd_session.clone(), self.session.clone(), &Arc::clone(&chain)).await;
 
             // Return the chain to the caller
             return Ok(OpenAction::PrivateChain

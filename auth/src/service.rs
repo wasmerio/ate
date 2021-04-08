@@ -23,8 +23,13 @@ for AuthService
     async fn process<'a>(&self, request: LoginRequest, context: InvocationContext<'a>) -> Result<LoginResponse, ServiceError<LoginFailed>>
     {
         // Create a session with crypto keys based off the username and password
-        let master_key = self.master_session.read_keys().into_iter().next().expect("The authentication service must be loaded with a master encryption key.");
-        let super_key = EncryptKey::xor(request.secret.clone(), master_key.clone())?;
+        let master_key = match self.master_session.read_keys().into_iter().next() {
+            Some(a) => a.clone(),
+            None => {
+                return Err(ServiceError::Reply(LoginFailed::NoMasterKey));
+            }
+        };
+        let super_key = EncryptKey::xor(request.secret.clone(), master_key)?;
         let mut session = AteSession::default();
         session.add_read_key(&super_key);
 

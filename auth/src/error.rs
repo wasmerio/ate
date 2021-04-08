@@ -7,6 +7,7 @@ pub enum LoginError
     Timeout,
     NotFound(String),
     AccountLocked,
+    ServerError(String),
     AteError(AteError)
 }
 
@@ -61,6 +62,9 @@ for LoginError {
             },
             LoginError::AteError(err) => {
                 write!(f, "Login failed ({})", err.to_string())
+            },
+            LoginError::ServerError(err) => {
+                write!(f, "Login failed due to an error on the server({})", err)
             },
         }
     }

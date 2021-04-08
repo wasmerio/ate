@@ -21,4 +21,22 @@ pub enum LoginFailed
 {
     NotFound,
     AccountLocked,
+    NoMasterKey,
+}
+
+impl std::fmt::Display
+for LoginFailed {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            LoginFailed::NotFound => {
+                write!(f, "The account could not be found")
+            },
+            LoginFailed::AccountLocked => {
+                write!(f, "The account is currently locked")
+            },
+            LoginFailed::NoMasterKey => {
+                write!(f, "Authentication server has not been properly initialized")
+            },
+        }
+    }
 }

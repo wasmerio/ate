@@ -34,6 +34,7 @@ pub async fn login_command(username: String, password: String, code: Option<Stri
     match response {
         Err(InvokeError::Reply(LoginFailed::AccountLocked)) => Err(LoginError::AccountLocked),
         Err(InvokeError::Reply(LoginFailed::NotFound)) => Err(LoginError::NotFound(username)),
+        Err(InvokeError::Reply(err)) => Err(LoginError::ServerError(err.to_string())),
         result => {
             let mut result = result?;
 

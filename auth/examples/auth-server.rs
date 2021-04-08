@@ -1,5 +1,6 @@
 #[allow(unused_imports)]
 use log::{info, warn, debug, error};
+use serde::*;
 use ate::{prelude::*};
 use ate_auth::prelude::*;
 use clap::Clap;
@@ -54,6 +55,31 @@ struct Generate {
     strength: KeySize,
 }
 
+fn load_key<T>(key_path: String, postfix: &str) -> T
+where T: serde::de::DeserializeOwned
+{
+    let key_path = format!("{}{}", key_path, postfix).to_string();
+    let path = shellexpand::tilde(&key_path).to_string();
+    let path = std::path::Path::new(&path);
+    let _ = std::fs::create_dir_all(path.parent().unwrap().clone());
+    let file = File::open(path).unwrap();
+    bincode::deserialize_from(&file).unwrap()
+}
+
+fn save_key<T>(key_path: String, key: T, postfix: &str)
+where T: Serialize
+{
+    let key_path = format!("{}{}", key_path, postfix).to_string();
+    let path = shellexpand::tilde(&key_path).to_string();
+    let path = std::path::Path::new(&path);
+    let _ = std::fs::create_dir_all(path.parent().unwrap().clone());
+    let mut file = File::create(path).unwrap();
+    
+    print!("Generating secret key at {}...", key_path);
+    bincode::serialize_into(&mut file, &key).unwrap();
+    println!("Done");
+}
+
 fn ctrl_channel() -> tokio::sync::watch::Receiver<bool> {
     let (sender, receiver) = tokio::sync::watch::channel(false);
     ctrlc::set_handler(move || {
@@ -82,22 +108,18 @@ async fn main() -> Result<(), AteError>
         SubCommand::Run(run) =>
         {
             // Open the key file
-            let root_key = {
-                let path = shellexpand::tilde(&run.key_path).to_string();
-                let path = std::path::Path::new(&path);
-                let _ = std::fs::create_dir_all(path.parent().unwrap().clone());
-                let file = File::open(path).unwrap();
-                bincode::deserialize_from(&file).unwrap()
-            };
-
+            let root_write_key: PrivateSignKey = load_key(run.key_path.clone(), ".write");
+            let root_read_key: EncryptKey = load_key(run.key_path.clone(), ".read");
             
             // Build a session for service
             let mut cfg_ate = ate_auth::conf_auth();
             cfg_ate.log_path = shellexpand::tilde(&run.logs_path).to_string();
-            let session = AteSession::new(&cfg_ate);
+            let mut session = AteSession::new(&cfg_ate);
+            session.add_read_key(&root_read_key);
+            session.add_write_key(&root_write_key);
 
             // Create the chain flow and generate configuration
-            let flow = ChainFlow::new(root_key, session);
+            let flow = ChainFlow::new(root_write_key, session);
 
             // Create the server and listen on port 5000
             let cfg_mesh = ConfMesh::solo(run.listen.as_str(), run.port);
@@ -112,15 +134,11 @@ async fn main() -> Result<(), AteError>
         },
 
         SubCommand::Generate(generate) => {
-            let key = PrivateSignKey::generate(generate.strength);
-            let path = shellexpand::tilde(&generate.key_path).to_string();
-            let path = std::path::Path::new(&path);
-            let _ = std::fs::create_dir_all(path.parent().unwrap().clone());
-            let mut file = File::create(path).unwrap();
-            
-            print!("Generating secret key at {}...", generate.key_path);
-            bincode::serialize_into(&mut file, &key).unwrap();
-            println!("Done");
+            let read_key = EncryptKey::generate(generate.strength);
+            save_key(generate.key_path.clone(), read_key, ".read");
+
+            let write_key = PrivateSignKey::generate(generate.strength);
+            save_key(generate.key_path.clone(), write_key, ".write");
         },
     }
 
