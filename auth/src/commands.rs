@@ -21,6 +21,7 @@ pub enum LoginFailed
 {
     NotFound,
     AccountLocked,
+    Unverified,
     NoMasterKey,
 }
 
@@ -33,6 +34,9 @@ for LoginFailed {
             },
             LoginFailed::AccountLocked => {
                 write!(f, "The account is currently locked")
+            },
+            LoginFailed::Unverified => {
+                write!(f, "The account has not yet been verified")
             },
             LoginFailed::NoMasterKey => {
                 write!(f, "Authentication server has not been properly initialized")
