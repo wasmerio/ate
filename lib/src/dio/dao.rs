@@ -34,6 +34,7 @@ where Self: Send + Sync,
     pub(super) parent: Option<MetaParent>,
     pub(super) data: D,
     pub(super) auth: MetaAuthorization,
+    pub(super) sudo: MetaAuthorization,
     pub(super) collections: FxHashSet<MetaCollection>,
     pub(super) extra_meta: Vec<CoreMetadata>,
 }
@@ -57,6 +58,10 @@ where Self: Send + Sync,
                     Some(a) => a.clone(),
                     None => MetaAuthorization::default(),
                 };
+                let sudo = match evt.meta.get_sudo() {
+                    Some(a) => a.clone(),
+                    None => MetaAuthorization::default(),
+                };
                 let parent = match evt.meta.get_parent() { Some(a) => Some(a.clone()), None => None };
                 Ok(
                     Row {
@@ -65,6 +70,7 @@ where Self: Send + Sync,
                         parent,
                         data: evt.format.data.deserialize(&data)?,
                         auth,
+                        sudo,
                         collections,
                         created,
                         updated,
@@ -84,6 +90,7 @@ where Self: Send + Sync,
                 parent: row.parent.clone(),
                 data: row.format.data.deserialize(&row.data)?,
                 auth: row.auth.clone(),
+                sudo: row.sudo.clone(),
                 collections: row.collections.clone(),
                 created: row.created,
                 updated: row.updated,
@@ -105,6 +112,7 @@ where Self: Send + Sync,
                 data_hash,
                 data,
                 auth: self.auth.clone(),
+                sudo: self.sudo.clone(),
                 collections: self.collections.clone(),
                 created: self.created,
                 updated: self.updated,
@@ -124,6 +132,7 @@ where Self: Send + Sync
     pub data_hash: Hash,
     pub data: Bytes,
     pub auth: MetaAuthorization,
+    pub sudo: MetaAuthorization,
     pub collections: FxHashSet<MetaCollection>,
     pub created: u64,
     pub updated: u64,
@@ -159,6 +168,10 @@ pub trait DaoObj
     fn auth(&self) -> &MetaAuthorization;
 
     fn auth_mut(&mut self) -> &mut MetaAuthorization;
+
+    fn sudo(&self) -> &MetaAuthorization;
+
+    fn sudo_mut(&mut self) -> &mut MetaAuthorization;
 
     fn add_extra_metadata(&mut self, meta: CoreMetadata);
 
@@ -225,6 +238,10 @@ where Self: Send + Sync,
                 data,
                 format,
                 auth: MetaAuthorization {
+                    read: ReadOption::Inherit,
+                    write: WriteOption::Inherit,
+                },
+                sudo: MetaAuthorization {
                     read: ReadOption::Inherit,
                     write: WriteOption::Inherit,
                 },
@@ -330,6 +347,15 @@ where Self: Send + Sync,
     fn auth_mut(&mut self) -> &mut MetaAuthorization {
         self.state.dirty = true;
         &mut self.row.auth
+    }
+
+    fn sudo(&self) -> &MetaAuthorization {
+        &self.row.sudo
+    }
+
+    fn sudo_mut(&mut self) -> &mut MetaAuthorization {
+        self.state.dirty = true;
+        &mut self.row.sudo
     }
 
     fn add_extra_metadata(&mut self, meta: CoreMetadata) {

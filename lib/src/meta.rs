@@ -86,11 +86,18 @@ for WriteOption
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
 pub struct MetaAuthorization
 {
     pub read: ReadOption,
     pub write: WriteOption,
+}
+
+impl MetaAuthorization
+{
+    pub fn is_relevant(&self) -> bool {
+        self.read != ReadOption::Inherit || self.write != WriteOption::Inherit
+    }
 }
 
 impl std::fmt::Display
@@ -164,6 +171,7 @@ pub enum CoreMetadata
     Author(String),
     Type(MetaType),
     Reply(PrimaryKey),
+    Sudo(MetaAuthorization),
 }
 
 impl Default for CoreMetadata {
@@ -185,6 +193,20 @@ impl Metadata
         for core in &self.core {
             match core {
                 CoreMetadata::Authorization(a) => {
+                    return Some(a);
+                },
+                _ => {}
+            }
+        }
+        
+        None
+    }
+
+    pub fn get_sudo(&self) -> Option<&MetaAuthorization>
+    {
+        for core in &self.core {
+            match core {
+                CoreMetadata::Sudo(a) => {
                     return Some(a);
                 },
                 _ => {}

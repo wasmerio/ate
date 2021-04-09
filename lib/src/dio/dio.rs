@@ -142,6 +142,7 @@ impl<'a> Dio<'a>
             parent: None,
             data: data,
             auth: MetaAuthorization::default(),
+            sudo: MetaAuthorization::default(),
             collections: FxHashSet::default(),
             format,
             created: 0,
@@ -433,7 +434,12 @@ impl<'a> Dio<'a>
             {
                 // Build a new clean metadata header
                 let mut meta = Metadata::for_data(row.key);
-                meta.core.push(CoreMetadata::Authorization(row.auth.clone()));
+                if row.auth.is_relevant() {
+                    meta.core.push(CoreMetadata::Authorization(row.auth.clone()));
+                }
+                if row.sudo.is_relevant() {
+                    meta.core.push(CoreMetadata::Sudo(row.sudo.clone()));
+                }
                 if let Some(parent) = &row.parent {
                     meta.core.push(CoreMetadata::Parent(parent.clone()))
                 }
@@ -454,6 +460,9 @@ impl<'a> Dio<'a>
                             write: WriteOption::Inherit,
                         }
                     });
+                    if let Some(sudo) = meta.get_sudo() {
+                        trans_meta.sudo.insert(key, sudo.clone());
+                    }
                     if let Some(parent) = meta.get_parent() {
                         trans_meta.parents.insert(key, parent.clone());
                     }

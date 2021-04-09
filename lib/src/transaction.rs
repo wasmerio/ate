@@ -55,5 +55,6 @@ impl Transaction
 pub struct TransactionMetadata
 {
     pub auth: FxHashMap<PrimaryKey, MetaAuthorization>,
+    pub sudo: FxHashMap<PrimaryKey, MetaAuthorization>,
     pub parents: FxHashMap<PrimaryKey, MetaParent>,
 }
