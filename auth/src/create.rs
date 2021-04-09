@@ -30,17 +30,6 @@ impl AuthService
             None => { return Err(ServiceError::Reply(CreateFailed::NoMasterKey)); }
         };
 
-        // Compute which chain the user should exist within
-        let user_chain_key = auth_chain_key("auth".to_string(), &request.email);
-        let chain = context.repository.open_by_key(&user_chain_key).await?;
-        let mut dio = chain.dio(&self.master_session).await;
-
-        // If it already exists then fail
-        let user_key = PrimaryKey::from(request.email.clone());
-        if dio.exists(&user_key).await {
-            return Err(ServiceError::Reply(CreateFailed::AlreadyExists));
-        }
-
         // Create the access object
         let read_key = super_key;
         let write_key = PrivateSignKey::generate(KeySize::Bit256);
@@ -50,6 +39,30 @@ impl AuthService
             read: Some(read_key.clone()),
             write: Some(write_key.clone())
         });
+
+        // Compute the super super key thats used to access the elevated rights object
+        let super_super_key = match self.compute_super_key(super_key.clone()) {
+            Some(a) => a,
+            None => { return Err(ServiceError::Reply(CreateFailed::NoMasterKey)); }
+        };
+
+        // Create an aggregation session
+        let mut session = self.master_session.clone();
+        session.add_read_key(&super_key);
+        session.add_read_key(&super_super_key);
+        session.add_read_key(&read_key);
+        session.add_write_key(&write_key);
+
+        // Compute which chain the user should exist within
+        let user_chain_key = auth_chain_key("auth".to_string(), &request.email);
+        let chain = context.repository.open_by_key(&user_chain_key).await?;
+        let mut dio = chain.dio(&session).await;
+
+        // If it already exists then fail
+        let user_key = PrimaryKey::from(request.email.clone());
+        if dio.exists(&user_key).await {
+            return Err(ServiceError::Reply(CreateFailed::AlreadyExists));
+        }
 
         // Create the user and save it
         let user = User {
@@ -79,12 +92,6 @@ impl AuthService
             read: Some(sudo_read_key.clone()),
             write: Some(sudo_write_key.clone())
         });
-
-        // Compute the super super key thats used to access the elevated rights object
-        let super_super_key = match self.compute_super_key(super_key.clone()) {
-            Some(a) => a,
-            None => { return Err(ServiceError::Reply(CreateFailed::NoMasterKey)); }
-        };
 
         // Build the QR image
         let qr_code = QrCode::new(google_auth_secret.as_bytes()).unwrap()
