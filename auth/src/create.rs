@@ -67,7 +67,6 @@ impl AuthService
         // Set the authorizations amd commit the user to the tree
         user.auth_mut().read = ReadOption::Specific(read_key.hash());
         user.auth_mut().write = WriteOption::Specific(write_key.hash());
-        user.commit(&mut dio)?;
 
         // Generate a QR code and other sudo keys
         let google_auth = google_authenticator::GoogleAuthenticator::new();

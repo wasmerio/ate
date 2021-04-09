@@ -3,6 +3,7 @@ use log::{info, error, debug};
 use std::error::Error;
 use super::crypto::Hash;
 use super::header::PrimaryKey;
+use serde::{Serialize, de::DeserializeOwned, Deserialize};
 
 extern crate rmp_serde as rmps;
 
@@ -1380,6 +1381,7 @@ pub enum InvokeError<E>
     CommitError(CommitError),
     LockError(LockError),
     PipeError(String),
+    ServiceError(String),
     Timeout,
     Aborted
 }
@@ -1454,7 +1456,10 @@ where E: std::fmt::Debug
                 write!(f, "Command failed - {}", err)
             },
             InvokeError::Reply(_) => {
-                write!(f, "Command failed with a user defined error")
+                write!(f, "Command failed for an unspecified reason")
+            },
+            InvokeError::ServiceError(err) => {
+                write!(f, "Command failed - {}", err)
             },
             InvokeError::Timeout => {
                 write!(f, "Command failed - Timeout")
@@ -1464,6 +1469,13 @@ where E: std::fmt::Debug
             },
         }
     }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum ServiceErrorReply<E>
+{
+    Reply(E),
+    ServiceError(String),
 }
 
 #[derive(Debug)]
@@ -1477,6 +1489,7 @@ pub enum ServiceError<E>
     CommitError(CommitError),
     LockError(LockError),
     PipeError(String),
+    ServiceError(String),
     Timeout,
     Aborted
 }
@@ -1545,8 +1558,33 @@ for ServiceError<E>
     }   
 }
 
+impl<E> From<ServiceErrorReply<E>>
+for ServiceError<E>
+{
+    fn from(err: ServiceErrorReply<E>) -> ServiceError<E> {
+        match err {
+            ServiceErrorReply::Reply(err) => ServiceError::Reply(err),
+            ServiceErrorReply::ServiceError(err) => ServiceError::ServiceError(err)
+        }
+    } 
+}
+
 impl<E> ServiceError<E>
 {
+    pub fn as_reply(self) -> (ServiceErrorReply<E>, ServiceError<()>)
+    {
+        match self {
+            ServiceError::Reply(e) => (ServiceErrorReply::Reply(e), ServiceError::Reply(())),
+            err => {
+                let err = err.strip();
+                (
+                    ServiceErrorReply::ServiceError(err.to_string()),
+                    err
+                )
+            }
+        }
+    }
+
     pub fn strip(self) -> ServiceError<()>
     {
         match self {
@@ -1558,6 +1596,7 @@ impl<E> ServiceError<E>
             ServiceError::PipeError(a) => ServiceError::PipeError(a),
             ServiceError::IO(a) => ServiceError::IO(a),
             ServiceError::Reply(_) => ServiceError::Reply(()),
+            ServiceError::ServiceError(a) => ServiceError::ServiceError(a),
             ServiceError::Timeout => ServiceError::Timeout,
             ServiceError::Aborted => ServiceError::Aborted,
         }
@@ -1589,6 +1628,9 @@ where E: std::fmt::Debug
                 write!(f, "Command failed - {}", err)
             },
             ServiceError::IO(err) => {
+                write!(f, "Command failed - {}", err)
+            },
+            ServiceError::ServiceError(err) => {
                 write!(f, "Command failed - {}", err)
             },
             ServiceError::Reply(err) => {

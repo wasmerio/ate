@@ -62,7 +62,7 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
             handler: Arc::clone(&handler),
             request_type_name: std::any::type_name::<REQ>().to_string(),
             response_type_name: std::any::type_name::<RES>().to_string(),
-            error_type_name: std::any::type_name::<ERR>().to_string(),
+            error_type_name: std::any::type_name::<ServiceErrorReply<ERR>>().to_string(),
         }
     }
 }
@@ -81,7 +81,7 @@ impl<REQ, RES, ERR> Service
 for ServiceHook<REQ, RES, ERR>
 where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
       RES: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
-      ERR: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized
+      ERR: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized + std::fmt::Debug
 {
     fn filter(&self, evt: &EventData) -> bool {
         if let Some(t) = evt.meta.get_type_name() {
@@ -136,10 +136,18 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
             ret
         };
 
+        let request_type_name = std::any::type_name::<REQ>().to_string();
         match ret {
-            Ok(res) => self.send_reply(chain, key, res, self.response_type_name.clone()).await,
-            Err(ServiceError::Reply(err)) => self.send_reply(chain, key, err, self.error_type_name.clone()).await,
-            Err(err) => { return Err(err.strip()); }
+            Ok(res) => {
+                debug!("service [{}] ok", request_type_name);
+                self.send_reply(chain, key, res, self.response_type_name.clone()).await
+            },
+            Err(err) => {
+                let (reply, err) = err.as_reply();
+                let _ = self.send_reply(chain, key, reply, self.error_type_name.clone()).await;
+                debug!("service [{}] error: {}", request_type_name, err);
+                return Err(err);
+            }
         }
     }
 }
@@ -217,7 +225,7 @@ impl Chain
         let cmd_id = cmd.key().clone();
 
         let response_type_name = std::any::type_name::<RES>().to_string();
-        let error_type_name = std::any::type_name::<ERR>().to_string();
+        let error_type_name = std::any::type_name::<ServiceErrorReply<ERR>>().to_string();
 
         let join_res = sniff_for_command(Arc::downgrade(&self), Box::new(move |h| {
             if let Some(reply) = h.meta.is_reply_to_what() {
@@ -260,7 +268,10 @@ impl Chain
                     Some(a) => a,
                     None => { return Err(InvokeError::Aborted); }
                 };
-                Err(InvokeError::Reply(dio.load::<ERR>(&key).await?.take()))
+                match dio.load::<ServiceErrorReply<ERR>>(&key).await?.take() {
+                    ServiceErrorReply::Reply(e) => Err(InvokeError::Reply(e)),
+                    ServiceErrorReply::ServiceError(err) => Err(InvokeError::ServiceError(err))
+                }
             },
             _ = timeout.tick() => {
                 Err(InvokeError::Timeout)
