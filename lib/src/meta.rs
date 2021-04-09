@@ -134,7 +134,7 @@ pub struct MetaCollection
     pub collection_id: u64,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct MetaParent
 {
     pub vec: MetaCollection,

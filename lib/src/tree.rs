@@ -276,7 +276,7 @@ impl TreeAuthorityPlugin
     }
 
     #[allow(dead_code)]
-    fn needs_sudo(&self, header: &EventHeader, new_auth: &MetaAuthorization, new_sudo: &MetaAuthorization) -> bool
+    fn needs_sudo(&self, header: &EventHeader, new_auth: &MetaAuthorization) -> bool
     {
         if let Some(_) = header.meta.get_tombstone()  {
             return true;
@@ -285,17 +285,15 @@ impl TreeAuthorityPlugin
         if let Some(key) = header.meta.get_data_key() {
             if let Some(existing_auth) = self.auth.get(&key) {
                 if *existing_auth != *new_auth { return true; }
+            }
 
-                let existing_sudo_store;
-                let existing_sudo = match self.sudo.get(&key) {
-                    Some(a) => a,
-                    None => {
-                        existing_sudo_store = MetaAuthorization::default();
-                        &existing_sudo_store
-                    }
-                };
+            let new_sudo = header.meta.get_sudo();
+            if self.sudo.get(&key) != new_sudo {
+                return true;
+            }
 
-                if *existing_sudo != *new_sudo { return true; }
+            if self.parents.get(&key) != header.meta.get_parent() {
+                return true;
             }
         }
 
@@ -362,11 +360,10 @@ for TreeAuthorityPlugin
         // It might be the case that everyone is allowed to write freely
         let dummy_trans_meta = TransactionMetadata::default();
         let mut auth = self.compute_auth(&header.meta, &dummy_trans_meta, ComputePhase::BeforeStore)?;
-        let sudo = self.compute_sudo(&header.meta, &dummy_trans_meta, ComputePhase::BeforeStore, &auth);
-
+        
         // If its an event that needs elevated rights then do so
-        if self.needs_sudo(header, &auth, &sudo) {
-            auth = sudo;
+        if self.needs_sudo(header, &auth) {
+            auth = self.compute_sudo(&header.meta, &dummy_trans_meta, ComputePhase::BeforeStore, &auth);
         }
 
         // Of course if everyone can write here then its allowed
