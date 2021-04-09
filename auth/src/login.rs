@@ -175,24 +175,17 @@ pub async fn main_login(
     let password = match password {
         Some(a) => a,
         None => {
+            // When no password is supplied we will ask for both the password and the code
             print!("Password: ");
             stdout().lock().flush()?;
-            rpassword::read_password().unwrap()
-        }
-    };
+            let pass = rpassword::read_password().unwrap();
 
-    // Read the code
-    let code = match code {
-        Some(a) => a,
-        None => {
-            print!("Code: ");
-            stdout().lock().flush()?;
-            let mut s = String::new();
-            std::io::stdin().read_line(&mut s).expect("Did not enter a valid username");
-            s
+            pass
         }
     };
 
     // Login using the authentication server which will give us a session with all the tokens
-    Ok(login_command(username, password, Some(code), auth).await?)
+    let session = login_command(username, password, code, auth).await?;
+    println!("{}", session_to_b64(session.clone())?);
+    Ok(session)
 }

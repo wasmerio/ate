@@ -206,7 +206,7 @@ pub async fn main_create(
         println!("{}", code);
     }
 
-    // Create the sessio 
+    // Create the session
     let mut session = AteSession::default();
     session.properties.append(&mut result.authority);
     Ok(session)

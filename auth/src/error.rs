@@ -36,6 +36,14 @@ for LoginError
     }
 }
 
+impl From<SerializationError>
+for LoginError
+{
+    fn from(err: SerializationError) -> LoginError {
+        LoginError::AteError(AteError::SerializationError(err))
+    }
+}
+
 impl<E> From<InvokeError<E>>
 for LoginError
 where E: std::fmt::Debug

@@ -2,6 +2,7 @@ use url::Url;
 
 use ate::prelude::*;
 use ate::crypto::EncryptKey;
+use ate::error::SerializationError;
 
 use crate::model::*;
 
@@ -63,4 +64,18 @@ pub(crate) fn compute_user_auth(user: &User, session: AteSession) -> AteSession
     }
 
     session
+}
+
+pub fn session_to_b64(session: AteSession) -> Result<String, SerializationError>
+{
+    let format = SerializationFormat::MessagePack;
+    let bytes = format.serialize(&session)?;
+    Ok(base64::encode(bytes))
+}
+
+pub fn b64_to_session(val: String) -> AteSession
+{
+    let format = SerializationFormat::MessagePack;
+    let bytes = base64::decode(val).unwrap();
+    format.deserialize( &bytes).unwrap()
 }
