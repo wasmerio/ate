@@ -20,6 +20,7 @@ pub struct LoginResponse
 pub enum LoginFailed
 {
     NotFound,
+    WrongPassword,
     AccountLocked,
     Unverified,
     NoMasterKey,
@@ -31,6 +32,9 @@ for LoginFailed {
         match self {
             LoginFailed::NotFound => {
                 write!(f, "The account could not be found")
+            },
+            LoginFailed::WrongPassword => {
+                write!(f, "The account password is incorrect")
             },
             LoginFailed::AccountLocked => {
                 write!(f, "The account is currently locked")
@@ -48,6 +52,7 @@ for LoginFailed {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CreateRequest
 {
+    pub auth: String,
     pub email: String,
     pub secret: EncryptKey,
 }
@@ -56,6 +61,7 @@ pub struct CreateRequest
 pub struct CreateResponse
 {
     pub key: PrimaryKey,
+    pub qr_code: Option<String>,
     pub authority: Vec<AteSessionProperty>
 }
 

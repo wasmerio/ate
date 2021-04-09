@@ -6,6 +6,7 @@ use url::Url;
 
 use ate::prelude::*;
 use ate::error::LoadError;
+use ate::error::TransformError;
 
 use crate::conf_auth;
 use crate::prelude::*;
@@ -51,6 +52,9 @@ impl AuthService
             let user = match dio.load::<User>(&user_key).await {
                 Ok(a) => a,
                 Err(LoadError::NotFound(_)) => {
+                    return Err(ServiceError::Reply(LoginFailed::NotFound));
+                },
+                Err(LoadError::TransformationError(TransformError::MissingReadKey(_))) => {
                     return Err(ServiceError::Reply(LoginFailed::NotFound));
                 },
                 Err(err) => {

@@ -69,13 +69,13 @@ impl AuthService
             person: DaoRef::default(),
             account: DaoRef::default(),
             role: UserRole::Human,
-            status: UserStatus::Unverified,
+            status: UserStatus::Nominal,
             last_login: None,
             access: access,
             foreign: DaoForeign::default(),
             sudo: DaoRef::default()
         };
-        let mut user = dio.prep(user)?;
+        let mut user = Dao::make(user_key.clone(), chain.default_format(), user);
         
         // Set the authorizations amd commit the user to the tree
         user.auth_mut().read = ReadOption::Specific(read_key.hash());
@@ -83,7 +83,7 @@ impl AuthService
 
         // Generate a QR code and other sudo keys
         let google_auth = google_authenticator::GoogleAuthenticator::new();
-        let google_auth_secret = google_auth.create_secret(32);
+        let google_auth_secret = format!("otpauth://totp/{}:{}?secret={}", request.auth.to_string(), request.email, google_auth.create_secret(32));
         let sudo_read_key = EncryptKey::generate(KeySize::Bit256);
         let sudo_write_key = PrivateSignKey::generate(KeySize::Bit256);
         let mut sudo_access = Vec::new();
@@ -104,7 +104,7 @@ impl AuthService
         let sudo = Sudo {
             google_auth: google_auth_secret,
             access: sudo_access,
-            qr_code
+            qr_code: qr_code.clone(),
         };
         let mut sudo = dio.prep(sudo)?;
         sudo.auth_mut().read = ReadOption::Specific(super_super_key.hash());
@@ -124,16 +124,17 @@ impl AuthService
         // Return success to the caller
         Ok(CreateResponse {
             key: user.key().clone(),
+            qr_code: Some(qr_code),
             authority: session.properties,
         })
     }
 }
 
 #[allow(dead_code)]
-pub async fn create_command(username: String, password: String, auth: Url) -> Result<AteSession, CreateError>
+pub async fn create_command(username: String, password: String, auth: Url) -> Result<CreateResponse, CreateError>
 {
     // Open a command chain
-    let chain_url = crate::helper::command_url(auth);
+    let chain_url = crate::helper::command_url(auth.clone());
     let registry = ate::mesh::Registry::new(&conf_auth()).await;
     let chain = registry.open_by_url(&chain_url).await?;
 
@@ -144,7 +145,12 @@ pub async fn create_command(username: String, password: String, auth: Url) -> Re
     let read_key = super::password_to_read_key(&prefix, &password, 10);
     
     // Create the login command
+    let auth = match auth.domain() {
+        Some(a) => a.to_string(),
+        None => "ate".to_string(),
+    };
     let login = CreateRequest {
+        auth,
         email: username.clone(),
         secret: read_key,
     };
@@ -154,11 +160,9 @@ pub async fn create_command(username: String, password: String, auth: Url) -> Re
     match response {
         Err(InvokeError::Reply(CreateFailed::AlreadyExists)) => Err(CreateError::AlreadyExists),
         result => {
-            let mut result = result?;
-
-            let mut session = AteSession::default();
-            session.properties.append(&mut result.authority);
-            Ok(session)
+            let result = result?;
+            debug!("key: {}", result.key);
+            Ok(result)
         }
     }
 }
@@ -190,5 +194,20 @@ pub async fn main_create(
     };
 
     // Create a user using the authentication server which will give us a session with all the tokens
-    Ok(create_command(username, password, auth).await?)
+    let mut result = create_command(username, password, auth).await?;
+    println!("Account created (id={})", result.key);
+
+    // If it has a QR code then display it
+    if let Some(code) = result.qr_code {
+        println!("");
+        println!("Below is your Google Authenticator QR code - scan it on your phone and");
+        println!("save it as this code is the only way you can recover the account.");
+        println!("");
+        println!("{}", code);
+    }
+
+    // Create the sessio 
+    let mut session = AteSession::default();
+    session.properties.append(&mut result.authority);
+    Ok(session)
 }
