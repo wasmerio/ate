@@ -28,6 +28,8 @@ isocountry = "0.3.*"
 url = "2.2.*"
 rpassword = "0.0.*"
 regex = "1.4.*"
+google-authenticator = "0.2.*"
+qrcode = "0.12.*"
 
 [dev-dependencies]
 clap = "3.0.0-beta.2"

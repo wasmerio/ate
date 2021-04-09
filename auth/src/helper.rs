@@ -3,6 +3,8 @@ use url::Url;
 use ate::prelude::*;
 use ate::crypto::EncryptKey;
 
+use crate::model::*;
+
 pub fn auth_url(auth: Url, email: &String) -> Url
 {
     let hash = AteHash::from(email.clone());
@@ -46,4 +48,19 @@ pub fn conf_auth() -> ConfAte
     cfg_ate.log_format.data = SerializationFormat::Json;
     cfg_ate.wire_format = SerializationFormat::Json;
     cfg_ate
+}
+
+pub(crate) fn compute_user_auth(user: &User, session: AteSession) -> AteSession
+{
+    let mut session = session.clone();
+    for auth in user.access.iter() {
+        if let Some(read) = &auth.read {
+            session.add_read_key(read);
+        }
+        if let Some(write) = &auth.write {
+            session.add_write_key(write);
+        }
+    }
+
+    session
 }

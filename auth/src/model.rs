@@ -102,12 +102,17 @@ pub struct User {
     pub account: DaoRef<Account>,
     pub role: UserRole,    
     pub status: UserStatus,
-    pub not_lockable: bool,
-    pub failed_logins: i32,
-    pub last_login: Option<chrono::naive::NaiveDate>,    
-    pub login_methods: Vec<AuthenticationMethod>,
+    pub last_login: Option<chrono::naive::NaiveDate>,
     pub access: Vec<Authorization>,
-    pub foreign: DaoForeign
+    pub foreign: DaoForeign,
+    pub sudo: DaoRef<Sudo>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Sudo {
+    pub google_auth: String,
+    pub qr_code: String,
+    pub access: Vec<Authorization>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

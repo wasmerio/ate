@@ -17,10 +17,12 @@ mod dir;
 mod symlink;
 mod file;
 mod progress;
+mod error;
 mod fs;
 mod umount;
 
-use fs::AteFS;
+use crate::fs::AteFS;
+use crate::error::CommandError;
 
 use fuse3::raw::prelude::*;
 use fuse3::{MountOptions};
@@ -54,6 +56,8 @@ enum SubCommand {
     #[clap()]
     Mount(Mount),
     #[clap()]
+    CreateUser(CreateUser),
+    #[clap()]
     Login(Login),
     #[clap()]
     Logout(Logout),
@@ -71,6 +75,18 @@ struct Login {
     /// Authenticator code from your google authenticator
     #[clap(index = 3)]
     code: Option<String>
+}
+
+
+/// Creates a new user and login credentials on the authentication server
+#[derive(Clap)]
+struct CreateUser {
+    /// Email address of the user to be created
+    #[clap(index = 1)]
+    email: String,
+    /// New password to be associated with this account
+    #[clap(index = 2)]
+    password: Option<String>,
 }
 
 /// Logs out by removing all the authentication tokens from the local machine
@@ -305,7 +321,7 @@ async fn main_mount(mount: Mount, conf: ConfAte) -> Result<(), AteError>
 }
 
 #[tokio::main]
-async fn main() -> Result<(), LoginError> {
+async fn main() -> Result<(), CommandError> {
     let opts: Opts = Opts::parse();
     //let opts = main_debug();
 
@@ -328,6 +344,9 @@ async fn main() -> Result<(), LoginError> {
         },
         SubCommand::Logout(logout) => {
             main_logout(logout).await?;
+        },
+        SubCommand::CreateUser(create) => {
+            let _session = ate_auth::main_create(Some(create.email), create.password, opts.auth).await?;
         },
         SubCommand::Mount(mount) => {
             main_mount(mount, conf).await?;

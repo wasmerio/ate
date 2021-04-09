@@ -44,3 +44,38 @@ for LoginFailed {
         }
     }
 }
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CreateRequest
+{
+    pub email: String,
+    pub secret: EncryptKey,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CreateResponse
+{
+    pub key: PrimaryKey,
+    pub authority: Vec<AteSessionProperty>
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum CreateFailed
+{
+    AlreadyExists,
+    NoMasterKey,
+}
+
+impl std::fmt::Display
+for CreateFailed {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            CreateFailed::AlreadyExists => {
+                write!(f, "The account already exists")
+            },
+            CreateFailed::NoMasterKey => {
+                write!(f, "Authentication server has not been properly initialized")
+            },
+        }
+    }
+}

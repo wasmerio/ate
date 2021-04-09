@@ -1,12 +1,86 @@
+#![allow(unused_imports)]
+use log::{info, error, debug};
 use std::io::stdout;
 use std::io::Write;
 use url::Url;
 
 use ate::prelude::*;
+use ate::error::LoadError;
 
 use crate::conf_auth;
 use crate::prelude::*;
 use crate::commands::*;
+use crate::service::AuthService;
+use crate::helper::*;
+use crate::error::*;
+use crate::helper::*;
+
+impl AuthService
+{
+    pub(crate) fn compute_super_key(&self, secret: EncryptKey) -> Option<EncryptKey>
+    {
+        // Create a session with crypto keys based off the username and password
+        let master_key = match self.master_session.read_keys().into_iter().next() {
+            Some(a) => a.clone(),
+            None => { return None; }
+        };
+        let super_key = AteHash::from_bytes_twice(master_key.value(), secret.value());
+        let super_key = EncryptKey::from_seed_bytes(super_key.to_bytes(), KeySize::Bit256);
+        Some(super_key)
+    }
+
+    pub async fn process_login<'a>(&self, request: LoginRequest, context: InvocationContext<'a>) -> Result<LoginResponse, ServiceError<LoginFailed>>
+    {
+        info!("login attempt: {}", request.email);
+
+        let super_key = match self.compute_super_key(request.secret) {
+            Some(a) => a,
+            None => { return Err(ServiceError::Reply(LoginFailed::NoMasterKey)); }
+        };
+        let mut session = AteSession::default();
+        session.add_read_key(&super_key);
+
+        let user = {
+            // Compute which chain the user should exist within
+            let user_chain_key = auth_chain_key("auth".to_string(), &request.email);
+            let chain = context.repository.open_by_key(&user_chain_key).await?;
+            let mut dio = chain.dio(&session).await;
+
+            // Attempt to load the object (if it fails we will tell the caller)
+            let user_key = PrimaryKey::from(request.email.clone());
+            let user = match dio.load::<User>(&user_key).await {
+                Ok(a) => a,
+                Err(LoadError::NotFound(_)) => {
+                    return Err(ServiceError::Reply(LoginFailed::NotFound));
+                },
+                Err(err) => {
+                    return Err(ServiceError::LoadError(err));
+                }
+            };
+            
+            // Check if the account is locked or not yet verified
+            match user.status {
+                UserStatus::Locked => {
+                    return Err(ServiceError::Reply(LoginFailed::AccountLocked));
+                },
+                UserStatus::Unverified => {
+                    return Err(ServiceError::Reply(LoginFailed::Unverified));
+                },
+                UserStatus::Nominal => { },
+            };
+
+            user.take()
+        };
+
+        // Add all the authorizations
+        let session = compute_user_auth(&user, session);
+
+        // Return the session that can be used to access this user
+        Ok(LoginResponse {
+            authority: session.properties.clone()
+        })
+    }
+}
 
 #[allow(dead_code)]
 pub async fn login_command(username: String, password: String, code: Option<String>, auth: Url) -> Result<AteSession, LoginError>

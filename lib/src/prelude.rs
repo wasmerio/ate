@@ -42,6 +42,7 @@ pub use crate::transaction::Scope as TransactionScope;
 
 pub use crate::service::InvocationContext;
 pub use crate::service::ServiceHandler;
+pub use crate::service::ServiceInstance;
 pub use crate::error::ServiceError;
 pub use crate::error::InvokeError;
 

@@ -126,6 +126,12 @@ impl<'a> Dio<'a>
         self.store_ext(data, self.session.log_format, None, true)
     }
 
+    pub fn prep<D>(&mut self, data: D) -> Result<Dao<D>, SerializationError>
+    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
+    {
+        self.store_ext(data, self.session.log_format, None, false)
+    }
+
     pub fn store_ext<D>(&mut self, data: D, format: Option<MessageFormat>, key: Option<PrimaryKey>, auto_commit: bool) -> Result<Dao<D>, SerializationError>
     where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
@@ -215,6 +221,24 @@ impl<'a> Dio<'a>
         };
 
         Ok(self.load_from_entry(entry).await?)
+    }
+
+    pub async fn exists(&mut self, key: &PrimaryKey) -> bool
+    {
+        {
+            let state = &self.state;
+            if let Some(_) = state.cache_store_primary.get(key) {
+                return true;
+            }
+            if let Some((_, _)) = state.cache_load.get(key) {
+                return true;
+            }
+            if state.deleted.contains(&key) {
+                return false;
+            }
+        }
+
+        self.multi.lookup_primary(key).await.is_some()
     }
 
     pub(crate) async fn load_from_entry<D>(&mut self, leaf: EventLeaf)
