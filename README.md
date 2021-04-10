@@ -49,6 +49,7 @@ This library is a way of working with data in modern distributed computing.
 ## Changelog
 
 ```
+0.3.5 - Finished the basics of the authentication server logic
 0.3.4 - Added error handling to the invocation function and fixed some serious bugs
 0.3.3 - Slight refactoring in order to improve the service invocation functionality
 0.3.2 - Added beta service invocation functionality - see the new example
