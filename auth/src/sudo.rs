@@ -31,7 +31,7 @@ pub async fn main_sudo(
             stdout().lock().flush()?;
             let mut s = String::new();
             std::io::stdin().read_line(&mut s).expect("Did not enter a valid username");
-            s
+            s.trim().to_string()
         }
     };
 }

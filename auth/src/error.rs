@@ -79,6 +79,14 @@ for LoginError {
     }
 }
 
+impl From<LoginError>
+for AteError
+{
+    fn from(err: LoginError) -> AteError {
+        AteError::ServiceError(err.to_string())
+    }
+}
+
 #[derive(Debug)]
 pub enum CreateError
 {

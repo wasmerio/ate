@@ -100,7 +100,8 @@ struct Mount {
     /// If this URL is not specified then data will only be stored locally
     #[clap(index=3)]
     remote: Option<Url>,
-    /// Token used to access your encrypted file-system (if you do not supply a token then the file-system will accessible by anyone)
+    /// Token used to access your encrypted file-system (if you do not supply a token then you will
+    /// be prompted for a username and password)
     #[clap(short, long)]
     token: Option<String>,
     /// Local redo log file will be deleted when the file system is unmounted, remotely stored data on
@@ -181,7 +182,7 @@ fn ctrl_channel() -> tokio::sync::watch::Receiver<bool> {
     receiver
 }
 
-async fn main_mount(mount: Mount, conf: ConfAte) -> Result<(), AteError>
+async fn main_mount(mount: Mount, conf: ConfAte, session: AteSession) -> Result<(), AteError>
 {
     let uid = match mount.uid {
         Some(a) => a,
@@ -258,12 +259,6 @@ async fn main_mount(mount: Mount, conf: ConfAte) -> Result<(), AteError>
             registry = ate::mesh::Registry::new(&conf).await;
             registry.open_ext(&remote, progress_local, progress_remote).await?
         },
-    };
-
-    // Extract or create a session
-    let session = match mount.token {
-        Some(token) => ate_auth::b64_to_session(token),
-        None => AteSession::new(&conf),
     };
 
     // Create the mount point
@@ -345,8 +340,16 @@ async fn main() -> Result<(), CommandError> {
         SubCommand::CreateUser(create) => {
             let _session = ate_auth::main_create(Some(create.email), create.password, opts.auth).await?;
         },
-        SubCommand::Mount(mount) => {
-            main_mount(mount, conf).await?;
+        SubCommand::Mount(mount) =>
+        {
+            // Extract or create a session
+            let session = match &mount.token {
+                Some(token) => ate_auth::b64_to_session(token.clone()),
+                None => ate_auth::main_login(None, None, None, opts.auth).await?
+            };
+
+            // Mount the file system
+            main_mount(mount, conf, session).await?;
         },
     }
 
