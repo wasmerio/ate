@@ -151,8 +151,7 @@ pub(crate) fn conv<T>(r: std::result::Result<T, AteError>) -> std::result::Resul
 
 impl AteFS
 {
-    pub fn new(conf: ConfAte, chain: Arc<Chain>) -> AteFS {
-        let session = AteSession::new(&conf);
+    pub fn new(chain: Arc<Chain>, session: AteSession) -> AteFS {
         AteFS {
             chain,
             session,

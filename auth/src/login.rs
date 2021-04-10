@@ -245,6 +245,5 @@ pub async fn main_login(
 
     // Login using the authentication server which will give us a session with all the tokens
     let session = login_command(username, password, code, auth).await?;
-    println!("{}", session_to_b64(session.clone())?);
     Ok(session)
 }

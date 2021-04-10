@@ -36,7 +36,7 @@ struct Opts {
     #[clap(short, long, parse(from_occurrences))]
     verbose: i32,
     /// URL where the user is authenticated
-    #[clap(short, long, default_value = "tcp://ate.tokera.com/auth")]
+    #[clap(short, long, default_value = "tcp://auth.tokera.com:5001/auth")]
     auth: Url,
     /// Logs debug info to the console
     #[clap(short, long)]
@@ -58,14 +58,12 @@ enum SubCommand {
     #[clap()]
     CreateUser(CreateUser),
     #[clap()]
-    Login(Login),
-    #[clap()]
-    Logout(Logout),
+    CreateToken(CreateToken),
 }
 
 /// Logs into the authentication server using the supplied credentials
 #[derive(Clap)]
-struct Login {
+struct CreateToken {
     /// Email address that you wish to login using
     #[clap(index = 1)]
     email: String,
@@ -89,11 +87,6 @@ struct CreateUser {
     password: Option<String>,
 }
 
-/// Logs out by removing all the authentication tokens from the local machine
-#[derive(Clap)]
-struct Logout {
-}
-
 /// Mounts a particular directory as an ATE file system
 #[derive(Clap)]
 struct Mount {
@@ -107,10 +100,13 @@ struct Mount {
     /// If this URL is not specified then data will only be stored locally
     #[clap(index=3)]
     remote: Option<Url>,
+    /// Token used to access your encrypted file-system (if you do not supply a token then the file-system will accessible by anyone)
+    #[clap(short, long)]
+    token: Option<String>,
     /// Local redo log file will be deleted when the file system is unmounted, remotely stored data on
     /// any distributed commit log will be persisted. Effectively this setting only uses the local disk
     /// as a cache of the redo-log while it's being used.
-    #[clap(short, long)]
+    #[clap(long)]
     temp: bool,
     /// Indicates if ATE will use quantum resistant wire encryption (possible values are 128, 192, 256).
     #[clap(long)]
@@ -159,6 +155,7 @@ fn main_debug() -> Opts {
             mount_path: "/mnt/test".to_string(),
             log_path: "~/ate/fs".to_string(),
             remote: Some(Url::from_str("tcp://localhost/myfs").unwrap()),
+            token: None,
             //remote: None,
             temp: false,
             uid: None,
@@ -182,11 +179,6 @@ fn ctrl_channel() -> tokio::sync::watch::Receiver<bool> {
         let _ = sender.send(true);
     }).unwrap();
     receiver
-}
-
-async fn main_logout(_logout: Logout) -> Result<(), AteError>
-{
-    panic!("Not implemented");
 }
 
 async fn main_mount(mount: Mount, conf: ConfAte) -> Result<(), AteError>
@@ -268,10 +260,16 @@ async fn main_mount(mount: Mount, conf: ConfAte) -> Result<(), AteError>
         },
     };
 
+    // Extract or create a session
+    let session = match mount.token {
+        Some(token) => ate_auth::b64_to_session(token),
+        None => AteSession::new(&conf),
+    };
+
     // Create the mount point
     let mount_path = mount.mount_path.clone();
     let mount_join = Session::new(mount_options)
-        .mount_with_unprivileged(AteFS::new(conf.clone(), chain), mount.mount_path);
+        .mount_with_unprivileged(AteFS::new(chain, session), mount.mount_path);
 
     // Install a ctrl-c command
     info!("mounting file-system and entering main loop");
@@ -339,11 +337,10 @@ async fn main() -> Result<(), CommandError> {
     conf.dns_server = opts.dns_server;
     
     match opts.subcmd {
-        SubCommand::Login(login) => {
-            let _session = ate_auth::main_login(Some(login.email), login.password, login.code, opts.auth).await?;
-        },
-        SubCommand::Logout(logout) => {
-            main_logout(logout).await?;
+        SubCommand::CreateToken(login) => {
+            let session = ate_auth::main_login(Some(login.email), login.password, login.code, opts.auth).await?;
+            eprintln!("The token string below can be used to secure your file system.\n");
+            println!("{}", ate_auth::session_to_b64(session.clone()).unwrap());
         },
         SubCommand::CreateUser(create) => {
             let _session = ate_auth::main_create(Some(create.email), create.password, opts.auth).await?;
