@@ -345,7 +345,12 @@ async fn main() -> Result<(), CommandError> {
             // Extract or create a session
             let session = match &mount.token {
                 Some(token) => ate_auth::b64_to_session(token.clone()),
-                None => ate_auth::main_login(None, None, None, opts.auth).await?
+                None => {
+                    match mount.remote {
+                        Some(_) => ate_auth::main_login(None, None, None, opts.auth).await?,
+                        None => AteSession::default()
+                    }
+                }
             };
 
             // Mount the file system

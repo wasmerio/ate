@@ -18,6 +18,8 @@ use ate::error::*;
 use ate::chain::*;
 use ate::session::Session as AteSession;
 use ate::header::PrimaryKey;
+use ate::prelude::AteHash;
+use ate::prelude::AteSessionProperty;
 use crate::fixed::FixedFile;
 
 use super::dir::Directory;
@@ -160,6 +162,17 @@ impl AteFS
             last_elapsed: seqlock::SeqLock::new(0),
             commit_lock: tokio::sync::Mutex::new(()),
         }
+    }
+
+    fn get_read_key(&self) -> AteHash {
+        self.session.properties.iter().filter_map(|a| {
+            match a {
+                AteSessionProperty::ReadKey(key) => Some(key.hash()),
+                _ => None,
+            }
+        })
+        .next()
+        .expect("Session does not have a read key embeddeed within it")
     }
 
     pub async fn load<'a>(&'a self, inode: u64) -> Result<(Dao<Inode>, Dio<'a>)> {
@@ -309,8 +322,11 @@ for AteFS
             info!("atefs::creating-root-node");
             
             let root = Inode::new("/".to_string(), 0o755, req.uid, req.gid, SpecType::Directory);
-            match dio.store_ext(root, self.session.log_format, Some(PrimaryKey::from(1)), true) {
-                Ok(_) => { },
+            match dio.store_ext(root, self.session.log_format, Some(PrimaryKey::from(1)), false) {
+                Ok(mut root) => {
+                    root.auth_mut().read = ate::meta::ReadOption::Specific(self.get_read_key());
+                    conv_serialization(root.commit(&mut dio))?;
+                },
                 Err(err) => {
                     error!("atefs::error {}", err);        
                 }
