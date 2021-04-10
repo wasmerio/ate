@@ -295,7 +295,7 @@ for TreeAuthorityPlugin
 
         // It might be the case that everyone is allowed to write freely
         let dummy_trans_meta = TransactionMetadata::default();
-        let mut auth = self.compute_auth(&header.meta, &dummy_trans_meta, ComputePhase::BeforeStore)?;
+        let auth = self.compute_auth(&header.meta, &dummy_trans_meta, ComputePhase::BeforeStore)?;
         
         // Of course if everyone can write here then its allowed
         if auth.write == WriteOption::Everyone {

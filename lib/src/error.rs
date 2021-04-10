@@ -482,6 +482,7 @@ pub enum ChainCreationError {
     NotThisRoot,
     #[allow(dead_code)]
     NotImplemented,
+    TimeError(TimeError),
     NoValidDomain(String),
     CommsError(CommsError),
     DnsProtoError(DnsProtoError),
@@ -546,6 +547,14 @@ for ChainCreationError
     }
 }
 
+impl From<TimeError>
+for ChainCreationError
+{
+    fn from(err: TimeError) -> ChainCreationError {
+        ChainCreationError::TimeError(err)
+    }
+}
+
 impl std::fmt::Display
 for ChainCreationError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -594,6 +603,9 @@ for ChainCreationError {
             },
             ChainCreationError::ServerRejected(reason) => {
                 write!(f, "Failed to create chain-of-trust as the server refused to create the chain ({})", reason)
+            },
+            ChainCreationError::TimeError(err) => {
+                write!(f, "Failed to create chain-of-trust due error with time keeping - {}", err)
             },
             ChainCreationError::InternalError(err) => {
                 write!(f, "{}", err)

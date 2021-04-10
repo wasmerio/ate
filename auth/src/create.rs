@@ -64,6 +64,19 @@ impl AuthService
             return Err(ServiceError::Reply(CreateFailed::AlreadyExists));
         }
 
+        // Generate a QR code and other sudo keys
+        let google_auth = google_authenticator::GoogleAuthenticator::new();
+        let secret = google_auth.create_secret(32);
+        let google_auth_secret = format!("otpauth://totp/{}:{}?secret={}", request.auth.to_string(), request.email, secret);
+        let sudo_read_key = EncryptKey::generate(KeySize::Bit256);
+        let sudo_write_key = PrivateSignKey::generate(KeySize::Bit256);
+        let mut sudo_access = Vec::new();
+        sudo_access.push(Authorization {
+            name: "sudo".to_string(),
+            read: Some(sudo_read_key.clone()),
+            write: Some(sudo_write_key.clone())
+        });
+
         // Create the user and save it
         let user = User {
             person: DaoRef::default(),
@@ -73,25 +86,17 @@ impl AuthService
             last_login: None,
             access: access,
             foreign: DaoForeign::default(),
-            sudo: DaoRef::default()
+            sudo: DaoRef::default(),
+            nominal_read: read_key.hash(),
+            nominal_write: write_key.as_public_key(),
+            sudo_read: sudo_read_key.hash(),
+            sudo_write: sudo_write_key.as_public_key()
         };
         let mut user = Dao::make(user_key.clone(), chain.default_format(), user);
         
         // Set the authorizations amd commit the user to the tree
         user.auth_mut().read = ReadOption::Specific(read_key.hash());
         user.auth_mut().write = WriteOption::Specific(write_key.hash());
-
-        // Generate a QR code and other sudo keys
-        let google_auth = google_authenticator::GoogleAuthenticator::new();
-        let google_auth_secret = format!("otpauth://totp/{}:{}?secret={}", request.auth.to_string(), request.email, google_auth.create_secret(32));
-        let sudo_read_key = EncryptKey::generate(KeySize::Bit256);
-        let sudo_write_key = PrivateSignKey::generate(KeySize::Bit256);
-        let mut sudo_access = Vec::new();
-        sudo_access.push(Authorization {
-            name: "sudo".to_string(),
-            read: Some(sudo_read_key.clone()),
-            write: Some(sudo_write_key.clone())
-        });
 
         // Build the QR image
         let qr_code = QrCode::new(google_auth_secret.as_bytes()).unwrap()
@@ -103,6 +108,7 @@ impl AuthService
         // Create the sudo object and save it using another elevation of the key
         let sudo = Sudo {
             google_auth: google_auth_secret,
+            secret,
             access: sudo_access,
             qr_code: qr_code.clone(),
         };

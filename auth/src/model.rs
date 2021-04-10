@@ -106,11 +106,16 @@ pub struct User {
     pub access: Vec<Authorization>,
     pub foreign: DaoForeign,
     pub sudo: DaoRef<Sudo>,
+    pub nominal_read: ate::crypto::Hash,
+    pub nominal_write: PublicSignKey,
+    pub sudo_read: ate::crypto::Hash,
+    pub sudo_write: PublicSignKey,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Sudo {
     pub google_auth: String,
+    pub secret: String,
     pub qr_code: String,
     pub access: Vec<Authorization>,
 }

@@ -119,7 +119,7 @@ async fn main() -> Result<(), AteError>
             session.add_write_key(&root_write_key);
 
             // Create the chain flow and generate configuration
-            let flow = ChainFlow::new(root_write_key, session);
+            let flow = ChainFlow::new(&cfg_ate, root_write_key, session);
 
             // Create the server and listen on port 5000
             let cfg_mesh = ConfMesh::solo(run.listen.as_str(), run.port);

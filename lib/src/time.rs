@@ -39,10 +39,12 @@ pub struct TimestampEnforcer {
 }
 
 #[derive(Debug)]
-pub(crate) struct NtpWorker
+pub struct NtpWorker
 {
     result: PMutex<NtpResult>
 }
+
+static TIMESTAMP_WORKER: Lazy<Mutex<FxHashMap<String, Arc<NtpWorker>>>> = Lazy::new(|| Mutex::new(FxHashMap::default()));
 
 impl NtpWorker
 {
@@ -85,14 +87,8 @@ impl NtpWorker
         debug!("ntp service ready for {}@{}", pool, port);
         Ok(ret)
     }
-}
 
-static TIMESTAMP_WORKER: Lazy<Mutex<FxHashMap<String, Arc<NtpWorker>>>> = Lazy::new(|| Mutex::new(FxHashMap::default()));
-
-impl TimestampEnforcer
-{
-    #[allow(dead_code)]
-    pub async fn new(cfg: &ConfAte, tolerance_ms: u32) -> Result<TimestampEnforcer, TimeError>
+    pub async fn create(cfg: &ConfAte, tolerance_ms: u32) -> Result<Arc<NtpWorker>, TimeError>
     {
         let pool = cfg.ntp_pool.clone();
         let port = cfg.ntp_port;
@@ -108,31 +104,18 @@ impl TimestampEnforcer
                 }
             }
         };
-        
-        let tolerance = Duration::from_millis(tolerance_ms as u64);
-        Ok(
-            TimestampEnforcer
-            {
-                cursor: tolerance,
-                tolerance: tolerance,
-                ntp_pool: cfg.ntp_pool.clone(),
-                ntp_port: cfg.ntp_port,
-                ntp_worker,
-            }
-        )
+        Ok(ntp_worker)
     }
 
-    #[allow(dead_code)]
     pub fn current_offset_ms(&self) -> i64
     {
-        let ret = self.ntp_worker.result.lock().offset() / 1000;
+        let ret = self.result.lock().offset() / 1000;
         ret
     }
 
-    #[allow(dead_code)]
     pub fn current_ping_ms(&self) -> u64
     {
-        let ret = self.ntp_worker.result.lock().roundtrip() / 1000;
+        let ret = self.result.lock().roundtrip() / 1000;
         ret
     }
 
@@ -142,7 +125,7 @@ impl TimestampEnforcer
         let mut since_the_epoch = start
             .duration_since(UNIX_EPOCH)?;
 
-        let mut offset = self.ntp_worker.result.lock().offset();
+        let mut offset = self.result.lock().offset();
         if offset >= 0 {
             since_the_epoch = since_the_epoch + Duration::from_micros(offset as u64);
         } else {
@@ -152,6 +135,25 @@ impl TimestampEnforcer
 
         Ok(
             since_the_epoch
+        )
+    }
+}
+
+impl TimestampEnforcer
+{
+    #[allow(dead_code)]
+    pub async fn new(cfg: &ConfAte, tolerance_ms: u32) -> Result<TimestampEnforcer, TimeError>
+    {
+        let tolerance = Duration::from_millis(tolerance_ms as u64);
+        Ok(
+            TimestampEnforcer
+            {
+                cursor: tolerance,
+                tolerance: tolerance,
+                ntp_pool: cfg.ntp_pool.clone(),
+                ntp_port: cfg.ntp_port,
+                ntp_worker: NtpWorker::create(cfg, tolerance_ms).await?,
+            }
         )
     }
 }
@@ -170,7 +172,7 @@ for TimestampEnforcer
 
         ret.push(CoreMetadata::Timestamp(
             MetaTimestamp {
-                time_since_epoch_ms: self.current_timestamp()?.as_millis() as u64,
+                time_since_epoch_ms: self.ntp_worker.current_timestamp()?.as_millis() as u64,
             }
         ));
 
@@ -239,7 +241,7 @@ for TimestampEnforcer
         // Check its within the time range
         let timestamp = Duration::from_millis(time.time_since_epoch_ms);
         let min_timestamp = self.cursor - self.tolerance;
-        let max_timestamp = self.current_timestamp()? + self.tolerance;
+        let max_timestamp = self.ntp_worker.current_timestamp()? + self.tolerance;
         
         if timestamp < min_timestamp ||
            timestamp > max_timestamp

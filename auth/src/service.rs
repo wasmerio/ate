@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use ate::prelude::*;
 use ate::error::*;
+use ate::time::NtpWorker;
 
 use crate::commands::*;
 use crate::helper::*;
@@ -13,7 +14,8 @@ use crate::model::*;
 #[derive(Debug)]
 pub(crate) struct AuthService
 {
-    pub master_session: AteSession
+    pub master_session: AteSession,
+    pub(crate) ntp_worker: Arc<NtpWorker>,
 }
 
 #[async_trait]
@@ -37,12 +39,14 @@ for AuthService
 }
 
 
-pub async fn service_logins(cmd_session: AteSession, auth_session: AteSession, chain: &Arc<Chain>)
+pub async fn service_logins(cfg: &ConfAte, cmd_session: AteSession, auth_session: AteSession, chain: &Arc<Chain>)
+-> Result<(), TimeError>
 {
     let service = Arc::new(
         AuthService
         {
             master_session: auth_session,
+            ntp_worker:  NtpWorker::create(cfg, 30000).await?
         }
     );
 
@@ -57,4 +61,6 @@ pub async fn service_logins(cmd_session: AteSession, auth_session: AteSession, c
         let service: ServiceInstance<CreateRequest, CreateResponse, CreateFailed> = service;
         chain.add_service(cmd_session.clone(), service);
     }
+
+    Ok(())
 }

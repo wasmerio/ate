@@ -13,6 +13,11 @@ pub struct LoginRequest
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct LoginResponse
 {
+    pub user_key: PrimaryKey,
+    pub nominal_read: ate::crypto::Hash,
+    pub nominal_write: PublicSignKey,
+    pub sudo_read: ate::crypto::Hash,
+    pub sudo_write: PublicSignKey,
     pub authority: Vec<AteSessionProperty>
 }
 
@@ -21,6 +26,7 @@ pub enum LoginFailed
 {
     NotFound,
     WrongPassword,
+    WrongCode,
     AccountLocked,
     Unverified,
     NoMasterKey,
@@ -35,6 +41,9 @@ for LoginFailed {
             },
             LoginFailed::WrongPassword => {
                 write!(f, "The account password is incorrect")
+            },
+            LoginFailed::WrongCode => {
+                write!(f, "The authenticator code is incorrect")
             },
             LoginFailed::AccountLocked => {
                 write!(f, "The account is currently locked")

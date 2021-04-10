@@ -9,6 +9,7 @@ use ate::{error::ChainCreationError, prelude::*};
 use crate::service::*;
 
 pub struct ChainFlow {
+    cfg: ConfAte,
     root_key: PrivateSignKey,
     regex_auth: Regex,
     regex_cmd: Regex,
@@ -17,8 +18,9 @@ pub struct ChainFlow {
 
 impl ChainFlow
 {
-    pub fn new(root_key: PrivateSignKey, session: AteSession) -> Self {        
+    pub fn new(cfg: &ConfAte, root_key: PrivateSignKey, session: AteSession) -> Self {        
         ChainFlow {
+            cfg: cfg.clone(),
             root_key,
             regex_auth: Regex::new("^/auth-[a-f0-9]{4}$").unwrap(),
             regex_cmd: Regex::new("^/cmd-[a-f0-9]{16}$").unwrap(),
@@ -65,7 +67,7 @@ for ChainFlow
             let chain = Arc::new(chain);
 
             // Add the services to this chain
-            service_logins(cmd_session.clone(), self.session.clone(), &Arc::clone(&chain)).await;
+            service_logins(&self.cfg, cmd_session.clone(), self.session.clone(), &Arc::clone(&chain)).await?;
 
             // Return the chain to the caller
             return Ok(OpenAction::PrivateChain

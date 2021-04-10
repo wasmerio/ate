@@ -41,14 +41,15 @@ impl AuthService
         let mut session = AteSession::default();
         session.add_read_key(&super_key);
 
-        let user = {
-            // Compute which chain the user should exist within
-            let user_chain_key = auth_chain_key("auth".to_string(), &request.email);
-            let chain = context.repository.open_by_key(&user_chain_key).await?;
-            let mut dio = chain.dio(&session).await;
+        // Compute which chain the user should exist within
+        let user_chain_key = auth_chain_key("auth".to_string(), &request.email);
+        let chain = context.repository.open_by_key(&user_chain_key).await?;
 
+        let user_key = PrimaryKey::from(request.email.clone());
+        let user =
+        {
             // Attempt to load the object (if it fails we will tell the caller)
-            let user_key = PrimaryKey::from(request.email.clone());
+            let mut dio = chain.dio(&session).await;
             let user = match dio.load::<User>(&user_key).await {
                 Ok(a) => a,
                 Err(LoadError::NotFound(_)) => {
@@ -73,14 +74,72 @@ impl AuthService
                 UserStatus::Nominal => { },
             };
 
+            // Ok we have the user
             user.take()
         };
 
         // Add all the authorizations
-        let session = compute_user_auth(&user, session);
+        let mut session = compute_user_auth(&user, session);
+
+        // If a google authenticator code has been supplied then we need to try and load the
+        // extra permissions from elevated rights
+        if let Some(code) = request.code {
+            let super_super_key = match self.compute_super_key(super_key.clone()) {
+                Some(a) => a,
+                None => { return Err(ServiceError::Reply(LoginFailed::NotFound)); }
+            };
+            session.add_read_key(&super_super_key);
+
+            // Load the sudo object
+            let mut dio = chain.dio(&session).await;
+            if let Some(sudo) = match user.sudo.load(&mut dio).await {
+                Ok(a) => a,
+                Err(LoadError::NotFound(_)) => {
+                    return Err(ServiceError::Reply(LoginFailed::NotFound));
+                },
+                Err(LoadError::TransformationError(TransformError::MissingReadKey(_))) => {
+                    return Err(ServiceError::Reply(LoginFailed::NotFound));
+                },
+                Err(err) => {
+                    return Err(ServiceError::LoadError(err))
+                }
+            }
+            {
+                // Check the code matches the authenticator code
+                let time = self.ntp_worker.current_timestamp().unwrap();
+                let time = time.as_secs() / 30;
+                let google_auth = google_authenticator::GoogleAuthenticator::new();
+                if google_auth.verify_code(sudo.secret.as_str(), code.as_str(), 3, time) {
+                    debug!("code authenticated");
+                } else {
+                    return Err(ServiceError::Reply(LoginFailed::WrongCode));
+                }
+
+                // Add the extra authentication objects from the sudo
+                let session = compute_sudo_auth(&sudo.take(), session.clone());
+
+                // Return the session that can be used to access this user
+                return Ok(LoginResponse {
+                    user_key,
+                    nominal_read: user.nominal_read,
+                    nominal_write: user.nominal_write,
+                    sudo_read: user.sudo_read,
+                    sudo_write: user.sudo_write,
+                    authority: session.properties.clone()
+                });
+
+            } else {
+                return Err(ServiceError::Reply(LoginFailed::NotFound));
+            }
+        }
 
         // Return the session that can be used to access this user
         Ok(LoginResponse {
+            user_key,
+            nominal_read: user.nominal_read,
+            nominal_write: user.nominal_write,
+            sudo_read: user.sudo_read,
+            sudo_write: user.sudo_write,
             authority: session.properties.clone()
         })
     }
@@ -164,7 +223,7 @@ pub async fn main_login(
     let username = match username {
         Some(a) => a,
         None => {
-            print!("Username: ");
+            eprint!("Username: ");
             stdout().lock().flush()?;
             let mut s = String::new();
             std::io::stdin().read_line(&mut s).expect("Did not enter a valid username");
@@ -176,7 +235,7 @@ pub async fn main_login(
         Some(a) => a,
         None => {
             // When no password is supplied we will ask for both the password and the code
-            print!("Password: ");
+            eprint!("Password: ");
             stdout().lock().flush()?;
             let pass = rpassword::read_password().unwrap();
 

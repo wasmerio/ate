@@ -66,6 +66,21 @@ pub(crate) fn compute_user_auth(user: &User, session: AteSession) -> AteSession
     session
 }
 
+pub(crate) fn compute_sudo_auth(sudo: &Sudo, session: AteSession) -> AteSession
+{
+    let mut session = session.clone();
+    for auth in sudo.access.iter() {
+        if let Some(read) = &auth.read {
+            session.add_read_key(read);
+        }
+        if let Some(write) = &auth.write {
+            session.add_write_key(write);
+        }
+    }
+
+    session
+}
+
 pub fn session_to_b64(session: AteSession) -> Result<String, SerializationError>
 {
     let format = SerializationFormat::MessagePack;
