@@ -171,7 +171,6 @@ pub enum CoreMetadata
     Author(String),
     Type(MetaType),
     Reply(PrimaryKey),
-    Sudo(MetaAuthorization),
 }
 
 impl Default for CoreMetadata {
@@ -193,20 +192,6 @@ impl Metadata
         for core in &self.core {
             match core {
                 CoreMetadata::Authorization(a) => {
-                    return Some(a);
-                },
-                _ => {}
-            }
-        }
-        
-        None
-    }
-
-    pub fn get_sudo(&self) -> Option<&MetaAuthorization>
-    {
-        for core in &self.core {
-            match core {
-                CoreMetadata::Sudo(a) => {
                     return Some(a);
                 },
                 _ => {}

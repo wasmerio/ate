@@ -25,7 +25,6 @@ pub struct TreeAuthorityPlugin
     root: WriteOption,
     root_keys: FxHashMap<Hash, PublicSignKey>,
     auth: FxHashMap<PrimaryKey, MetaAuthorization>,
-    sudo: FxHashMap<PrimaryKey, MetaAuthorization>,
     parents: FxHashMap<PrimaryKey, MetaParent>,
     signature_plugin: SignaturePlugin,
 }
@@ -45,7 +44,6 @@ impl TreeAuthorityPlugin
             root_keys: FxHashMap::default(),
             signature_plugin: SignaturePlugin::new(),
             auth: FxHashMap::default(),
-            sudo: FxHashMap::default(),
             parents: FxHashMap::default(),
         }
     }
@@ -166,39 +164,6 @@ impl TreeAuthorityPlugin
         Ok(auth)
     }
 
-    fn compute_sudo(&self, meta: &Metadata, trans_meta: &TransactionMetadata, phase: ComputePhase, auth: &MetaAuthorization) -> MetaAuthorization
-    {
-        // Compute the sudo
-        let mut sudo = match phase {
-            ComputePhase::BeforeStore => None,
-            ComputePhase::AfterStore => {
-                meta.get_sudo().map(|a| a.clone())
-            },
-        };
-        if let Some(key) = meta.get_data_key() {
-            if sudo.is_none() {
-                sudo = trans_meta.sudo.get(&key).map(|a| a.clone());
-                if sudo.is_none() {
-                    sudo = self.sudo.get(&key).map(|a| a.clone());
-                }
-            }
-        }
-
-        let read = match &sudo {
-            Some(a) if a.read != ReadOption::Inherit => a.read.clone(),
-            _ => auth.read.clone()
-        };
-        let write = match &sudo {
-            Some(a) if a.write != WriteOption::Inherit => a.write.clone(),
-            _ => auth.write.clone()
-        };
-
-        MetaAuthorization {
-            read,
-            write
-        }
-    }
-
     fn generate_encrypt_key(auth: &ReadOption, session: &Session) -> Result<Option<(InitializationVector, EncryptKey)>, TransformError>
     {
         match auth {
@@ -274,31 +239,6 @@ impl TreeAuthorityPlugin
             }
         }
     }
-
-    #[allow(dead_code)]
-    fn needs_sudo(&self, header: &EventHeader, new_auth: &MetaAuthorization) -> bool
-    {
-        if let Some(_) = header.meta.get_tombstone()  {
-            return true;
-        }
-
-        if let Some(key) = header.meta.get_data_key() {
-            if let Some(existing_auth) = self.auth.get(&key) {
-                if *existing_auth != *new_auth { return true; }
-            }
-
-            let new_sudo = header.meta.get_sudo();
-            if self.sudo.get(&key) != new_sudo {
-                return true;
-            }
-
-            if self.parents.get(&key) != header.meta.get_parent() {
-                return true;
-            }
-        }
-
-        return false;
-    }
 }
 
 impl EventSink
@@ -308,7 +248,6 @@ for TreeAuthorityPlugin
     {
         
         if let Some(key) = header.meta.get_tombstone() {
-            self.sudo.remove(&key);
             self.auth.remove(&key);
         }
         else if let Some(key) = header.meta.get_data_key() {
@@ -317,9 +256,6 @@ for TreeAuthorityPlugin
             let auth
                 = self.compute_auth(&header.meta, &dummy_trans_meta, ComputePhase::AfterStore)?;
             
-            if let Some(sudo) = header.meta.get_sudo() {
-                self.sudo.insert(key, sudo.clone());
-            }
             self.auth.insert(key, auth);
         }
 
@@ -361,11 +297,6 @@ for TreeAuthorityPlugin
         let dummy_trans_meta = TransactionMetadata::default();
         let mut auth = self.compute_auth(&header.meta, &dummy_trans_meta, ComputePhase::BeforeStore)?;
         
-        // If its an event that needs elevated rights then do so
-        if self.needs_sudo(header, &auth) {
-            auth = self.compute_sudo(&header.meta, &dummy_trans_meta, ComputePhase::BeforeStore, &auth);
-        }
-
         // Of course if everyone can write here then its allowed
         if auth.write == WriteOption::Everyone {
             return Ok(ValidationResult::Allow);
