@@ -320,8 +320,8 @@ async fn main_mount(mount: Mount, conf: ConfAte, session: AteSession) -> Result<
 
 #[tokio::main]
 async fn main() -> Result<(), CommandError> {
-    //let opts: Opts = Opts::parse();
-    let opts = main_debug();
+    let opts: Opts = Opts::parse();
+    //let opts = main_debug();
 
     let mut log_level = match opts.verbose {
         0 => "error",

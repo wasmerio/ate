@@ -333,14 +333,15 @@ for AteFS
             }     
         };
         debug!("atefs::init");
-
-        // Disable any more root nodes from being created (only the single root node is allowed)
-        self.chain.single().await.disable_new_roots();
         
         // All good
         self.tick().await?;
         self.commit().await?;
         conv_commit(dio.commit().await)?;
+
+        // Disable any more root nodes from being created (only the single root node is allowed)
+        self.chain.single().await.disable_new_roots();
+
         Ok(())
     }
 
