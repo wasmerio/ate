@@ -210,11 +210,12 @@ impl FileState
             Some(a) => a.clone(),
             None => {
                 // Create the bundle
-                let bundle = Dao::make(PrimaryKey::generate(), format, 
+                let mut dio = chain.dio_ext(session, scope).await;
+                let bundle = conv_serialization(dio.store_ext( 
                 PageBundle {
                         pages: Vec::new(),
-                    }
-                );
+                    }, Some(format), None
+                ))?;
                 let key = bundle.key().clone();
 
                 // Replace the cache-line with this new one (if something was left behind then commit it)
@@ -223,11 +224,12 @@ impl FileState
                 let cache_line = &mut self.bundles[cache_index];
                 if let Some(mut old) = cache_line.replace(bundle) {
                     if old.is_dirty() {
-                        let mut dio = chain.dio_ext(session, scope).await;
                         conv_serialization(old.commit(&mut dio))?;
-                        conv_commit(dio.commit().await)?;
                     }
                 }
+
+                // Push the data to the chain
+                conv_commit(dio.commit().await)?;
 
                 // Write the entry to the inode and return its reference
                 bundle_ref.replace(key);
@@ -273,7 +275,7 @@ impl FileState
                 let mut page = conv_serialization(dio.store_ext(Page {
                         buf: Vec::new(),
                     },
-                    None, None, false
+                    None, None
                 ))?;
                 page.attach_orphaned(&bundle_key);
                 let key = page.key().clone();

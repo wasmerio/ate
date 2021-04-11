@@ -162,7 +162,7 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
     {
         // Turn it into a data object to be stored on commit
         let mut dio = chain.dio(&self.session).await;
-        let mut res = dio.store_ext(res, self.session.log_format.clone(), None, false)?;
+        let mut res = dio.make_ext(res, self.session.log_format.clone(), None)?;
 
         // If the session has an encryption key then use it
         if let Some(key) = self.session.read_keys().into_iter().map(|a| a.clone()).next() {
@@ -209,7 +209,7 @@ impl Chain
 
         // Build the command object
         let mut dio = self.dio(session).await;
-        let mut cmd = dio.store_ext(request, session.log_format, None, false)?;
+        let mut cmd = dio.make_ext(request, session.log_format, None)?;
         
         // Add an encryption key on the command (if the session has one)
         if let Some(key) = session.read_keys().into_iter().next() {
@@ -222,6 +222,7 @@ impl Chain
         }));
 
         // Sniff out the response object
+        let cmd = cmd.commit(&mut dio)?;
         let cmd_id = cmd.key().clone();
 
         let response_type_name = std::any::type_name::<RES>().to_string();
@@ -249,7 +250,6 @@ impl Chain
         }));
 
         // Send our command
-        cmd.commit(&mut dio)?;
         dio.commit().await?;
         
         // The caller will wait on the response from the sniff that is looking for a reply object

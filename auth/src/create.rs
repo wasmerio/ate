@@ -112,9 +112,10 @@ impl AuthService
             access: sudo_access,
             qr_code: qr_code.clone(),
         };
-        let mut sudo = dio.prep(sudo)?;
+        let mut sudo = dio.make(sudo)?;
         sudo.auth_mut().read = ReadOption::Specific(super_super_key.hash());
         sudo.auth_mut().write = WriteOption::Specific(sudo_write_key.hash());
+        let sudo = sudo.commit(&mut dio)?;
         user.sudo.set_id(sudo.key().clone());
 
         // Create the advert object and save it using public read
@@ -129,8 +130,7 @@ impl AuthService
         advert.auth_mut().write = WriteOption::Specific(write_key.hash());
         
         // Save the data
-        user.commit(&mut dio)?;
-        sudo.commit(&mut dio)?;
+        let user = user.commit(&mut dio)?;
         advert.commit(&mut dio)?;
         dio.commit().await?;
 

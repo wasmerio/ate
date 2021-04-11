@@ -153,15 +153,10 @@ where Self: Send + Sync,
 {
     pub(super) lock: DaoLock,
     pub(super) dirty: bool,
-    pub(super) never_saved: bool,
 }
 
-pub trait DaoObj
+pub trait DaoObjEthereal
 {
-    fn key(&self) -> &PrimaryKey;
-
-    fn delete<'a>(self, dio: &mut Dio<'a>) -> std::result::Result<(), SerializationError>;
-
     fn auth(&self) -> &MetaAuthorization;
 
     fn auth_mut(&mut self) -> &mut MetaAuthorization;
@@ -172,15 +167,18 @@ pub trait DaoObj
 
     fn is_dirty(&self) -> bool;
 
-    fn is_never_saved(&self) -> bool;
+    fn cancel(&mut self);
+}
+
+pub trait DaoObjReal
+{
+    fn key(&self) -> &PrimaryKey;
+
+    fn delete<'a>(self, dio: &mut Dio<'a>) -> std::result::Result<(), SerializationError>;
 
     fn when_created(&self) -> u64;
 
     fn when_updated(&self) -> u64;
-
-    fn cancel(&mut self);
-    
-    fn commit<'a>(&mut self, dio: &mut Dio<'a>) -> std::result::Result<(), SerializationError>;
 }
 
 /// Represents a data object that will be represented as one or
@@ -196,8 +194,11 @@ pub trait DaoObj
 ///
 /// If you change your mind on commiting the data to the redo-log then
 /// you can call the `cancel` function instead.
+///
+/// The ethereal version represents all operations that can be performed
+/// before the obejct is actually saved
 #[derive(Debug)]
-pub struct Dao<D>
+pub struct DaoEthereal<D>
 where Self: Send + Sync,
       D: Serialize + DeserializeOwned + Clone + Sync + Send,
 {
@@ -205,27 +206,25 @@ where Self: Send + Sync,
     pub(super) row: Row<D>,
 }
 
-impl<D> Dao<D>
+impl<D> DaoEthereal<D>
 where Self: Send + Sync,
       D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
-    pub(super) fn new<>(row: Row<D>) -> Dao<D> {
-        Dao {
+    pub(super) fn new<>(row: Row<D>) -> DaoEthereal<D> {
+        DaoEthereal {
             state: DaoState {
                 lock: DaoLock::Unlocked,
                 dirty: false,
-                never_saved: false,
             },
             row: row,
         }
     }
 
-    pub fn make(key: PrimaryKey, format: MessageFormat, data: D) -> Dao<D> {
-        Dao {
+    pub fn make(key: PrimaryKey, format: MessageFormat, data: D) -> DaoEthereal<D> {
+        DaoEthereal {
             state: DaoState {
                 lock: DaoLock::Unlocked,
                 dirty: true,
-                never_saved: true,
             },
             row: Row {
                 key,
@@ -250,11 +249,7 @@ where Self: Send + Sync,
         self.row.parent = None;
     }
 
-    pub fn attach(&mut self, parent: &dyn DaoObj, vec: DaoVec<D>) -> Result<(), SerializationError> {
-        if parent.is_never_saved() {
-            return Err(SerializationError::ParentNeverCommited);
-        }
-
+    pub fn attach(&mut self, parent: &dyn DaoObjReal, vec: DaoVec<D>) {
         self.state.dirty = true;
         self.row.parent = Some(
             MetaParent {
@@ -264,36 +259,18 @@ where Self: Send + Sync,
                 },
             }
         );
-        Ok(())
     }
 
-    pub fn attach_orphaned(&mut self, parent: &dyn DaoObj) -> Result<(), SerializationError> {
-        if parent.is_never_saved() {
-            return Err(SerializationError::ParentNeverCommited);
-        }
-
+    pub fn attach_orphaned(&mut self, parent: &PrimaryKey) {
         self.state.dirty = true;
         self.row.parent = Some(
             MetaParent {
                 vec: MetaCollection {
-                    parent_id: parent.key().clone(),
+                    parent_id: parent.clone(),
                     collection_id: 0,
                 },
             }
         );
-        Ok(())
-    }
-
-    #[allow(dead_code)]
-    pub(super) fn attach_vec<C>(&mut self, vec: &MetaCollection)
-    where C: Serialize + DeserializeOwned + Clone,
-    {
-        if self.row.collections.contains(vec) {
-            return;
-        }
-
-        self.state.dirty = true;
-        self.row.collections.insert(vec.clone());
     }
     
     pub fn take(self) -> D {
@@ -308,7 +285,7 @@ where Self: Send + Sync,
             DaoLock::Unlocked =>
             {
                 // Attempt the lock
-                if dio.multi.pipe.try_lock(self.key().clone()).await? == false {
+                if dio.multi.pipe.try_lock(self.row.key.clone()).await? == false {
                     return Ok(false)
                 }
 
@@ -319,43 +296,33 @@ where Self: Send + Sync,
         Ok(true)
     }
 
-    pub async fn try_lock_then_delete<'a>(&mut self, dio: &mut Dio<'a>) -> Result<bool, LockError> {
-        if self.try_lock(dio).await? == false {
-            return Ok(false);
-        }
-        self.state.lock = DaoLock::LockedThenDelete;
-        Ok(true)
-    }
-
     pub async fn unlock<'a>(&mut self, dio: &mut Dio<'a>) -> Result<bool, LockError> {
         match self.state.lock {
             DaoLock::Unlocked | DaoLock::LockedThenDelete => {
                 return Ok(false);
             },
             DaoLock::Locked => {
-                dio.multi.pipe.unlock(self.key().clone()).await?;
+                dio.multi.pipe.unlock(self.row.key.clone()).await?;
                 self.state.lock = DaoLock::Unlocked;
             }
         };
 
         Ok(true)
     }
+    
+    pub fn commit<'a>(self, dio: &mut Dio<'a>) -> std::result::Result<Dao<D>, SerializationError>
+    {
+        let mut ret = Dao::new(self);
+        ret.commit(dio)?;
+        Ok(ret)
+    }
 }
 
-impl<D> DaoObj
-for Dao<D>
+impl<D> DaoObjEthereal
+for DaoEthereal<D>
 where Self: Send + Sync,
       D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
-    fn key(&self) -> &PrimaryKey {
-        &self.row.key
-    }
-
-    fn delete<'a>(self, dio: &mut Dio<'a>) -> std::result::Result<(), SerializationError> {
-        let state = &mut dio.state;
-        delete_internal(&self, state)
-    }
-
     fn auth(&self) -> &MetaAuthorization {
         &self.row.auth
     }
@@ -381,56 +348,168 @@ where Self: Send + Sync,
         self.state.dirty
     }
 
-    fn is_never_saved(&self) -> bool {
-        self.state.never_saved
-    }
-
-    fn when_created(&self) -> u64 {
-        self.row.created
-    }
-
-    fn when_updated(&self) -> u64 {
-        self.row.updated
-    }
-
     fn cancel(&mut self) {
         self.state.dirty = false;
     }
+}
+
+/// Represents a data object that will be represented as one or
+/// more events on the redo-log and validated in the chain-of-trust.
+/// 
+/// Reading this object using none-mutable behavior will incur no IO
+/// on the redo-log however if you edit the object you must commit it
+/// to the `Dio` before it goes out of scope or the data will be lost
+/// (in Debug mode this will even trigger an assert).
+///
+/// Metadata about the data object can also be accessed via this object
+/// which allows you to change the read/write access rights, etc.
+///
+/// If you change your mind on commiting the data to the redo-log then
+/// you can call the `cancel` function instead.
+///
+/// The real version represents all operations that can be performed
+/// before the obejct is actually saved and all those after
+#[derive(Debug)]
+pub struct Dao<D>
+where Self: Send + Sync,
+      D: Serialize + DeserializeOwned + Clone + Sync + Send,
+{
+    pub(super) ethereal: DaoEthereal<D>,
+}
+
+impl<D> Dao<D>
+where Self: Send + Sync,
+      D: Serialize + DeserializeOwned + Clone + Send + Sync,
+{
+    pub(super) fn new<>(ethereal: DaoEthereal<D>) -> Dao<D> {
+        Dao {
+            ethereal
+        }
+    }
+
+    pub fn make(key: PrimaryKey, format: MessageFormat, data: D) -> DaoEthereal<D> {
+        DaoEthereal::make(key, format, data)
+    }
+
+    pub fn detach(&mut self) {
+        self.ethereal.detach()
+    }
+
+    pub fn attach(&mut self, parent: &dyn DaoObjReal, vec: DaoVec<D>) {
+        self.ethereal.attach(parent, vec)
+    }
+
+    pub fn attach_orphaned(&mut self, parent: &PrimaryKey) {
+        self.ethereal.attach_orphaned(parent)
+    }
     
-    fn commit<'a>(&mut self, dio: &mut Dio<'a>) -> std::result::Result<(), SerializationError>
+    pub fn take(self) -> D {
+        self.ethereal.take()
+    }
+
+    pub async fn try_lock<'a>(&mut self, dio: &mut Dio<'a>) -> Result<bool, LockError> {
+        self.ethereal.try_lock(dio).await
+    }
+
+    pub async fn try_lock_then_delete<'a>(&mut self, dio: &mut Dio<'a>) -> Result<bool, LockError> {
+        if self.try_lock(dio).await? == false {
+            return Ok(false);
+        }
+        self.ethereal.state.lock = DaoLock::LockedThenDelete;
+        Ok(true)
+    }
+
+    pub async fn unlock<'a>(&mut self, dio: &mut Dio<'a>) -> Result<bool, LockError> {
+        self.ethereal.unlock(dio).await
+    }
+
+    pub fn commit<'a>(&mut self, dio: &mut Dio<'a>) -> std::result::Result<(), SerializationError>
     {
-        if self.state.dirty == true {
+        let s = &mut self.ethereal;
+        if s.state.dirty == true {
 
             let state = &mut dio.state;
 
             // The local DIO lock gets released first
-            state.unlock(&self.row.key);
+            state.unlock(&s.row.key);
 
             // Next any pessimistic locks on the local chain
-            match self.state.lock {
+            match s.state.lock {
                 DaoLock::Locked => {
-                    state.pipe_unlock.insert(self.row.key.clone());
+                    state.pipe_unlock.insert(s.row.key.clone());
                 },
                 DaoLock::LockedThenDelete => {
-                    state.pipe_unlock.insert(self.row.key.clone());
+                    state.pipe_unlock.insert(s.row.key.clone());
                     delete_internal(self, state)?;
                     return Ok(())
                 },
                 _ => {}
             }
 
-            let row_data = self.row.as_row_data()?;
-            let row_parent = match &self.row.parent {
+            let row_data = s.row.as_row_data()?;
+            let row_parent = match &s.row.parent {
                 Some(a) => Some(a),
                 None => None,
             };
-            state.dirty(&self.row.key, row_parent, row_data);
+            state.dirty(&s.row.key, row_parent, row_data);
 
             // Clear the flags
-            self.state.dirty = false;
-            self.state.never_saved = false;
+            s.state.dirty = false;
         }
         Ok(())
+    }
+}
+
+impl<D> DaoObjReal
+for Dao<D>
+where Self: Send + Sync,
+      D: Serialize + DeserializeOwned + Clone + Send + Sync,
+{
+    fn key(&self) -> &PrimaryKey {
+        &self.ethereal.row.key
+    }
+
+    fn delete<'a>(self, dio: &mut Dio<'a>) -> std::result::Result<(), SerializationError> {
+        let state = &mut dio.state;
+        delete_internal(&self, state)
+    }
+
+    fn when_created(&self) -> u64 {
+        self.ethereal.row.created
+    }
+
+    fn when_updated(&self) -> u64 {
+        self.ethereal.row.updated
+    }
+}
+
+impl<D> DaoObjEthereal
+for Dao<D>
+where Self: Send + Sync,
+      D: Serialize + DeserializeOwned + Clone + Send + Sync,
+{
+    fn auth(&self) -> &MetaAuthorization {
+        self.ethereal.auth()
+    }
+
+    fn auth_mut(&mut self) -> &mut MetaAuthorization {
+        self.ethereal.auth_mut()
+    }
+
+    fn add_extra_metadata(&mut self, meta: CoreMetadata) {
+        self.ethereal.add_extra_metadata(meta)
+    }
+
+    fn is_locked(&self) -> bool {
+        self.ethereal.is_locked()
+    }
+
+    fn is_dirty(&self) -> bool {
+        self.ethereal.is_dirty()
+    }
+
+    fn cancel(&mut self) {
+        self.ethereal.cancel()
     }
 }
 
@@ -439,7 +518,7 @@ pub(crate) fn delete_internal<D>(dao: &Dao<D>, state: &mut DioState)
 where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     let key = dao.key().clone();
-    state.add_deleted(key, dao.row.parent.clone());
+    state.add_deleted(key, dao.ethereal.row.parent.clone());
     Ok(())
 }
 
@@ -449,11 +528,29 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     type Target = D;
 
     fn deref(&self) -> &Self::Target {
-        &self.row.data
+        self.ethereal.deref()
     }
 }
 
 impl<D> std::ops::DerefMut for Dao<D>
+where D: Serialize + DeserializeOwned + Clone + Send + Sync,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.ethereal.deref_mut()
+    }
+}
+
+impl<D> std::ops::Deref for DaoEthereal<D>
+where D: Serialize + DeserializeOwned + Clone + Send + Sync,
+{
+    type Target = D;
+
+    fn deref(&self) -> &Self::Target {
+        &self.row.data
+    }
+}
+
+impl<D> std::ops::DerefMut for DaoEthereal<D>
 where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     fn deref_mut(&mut self) -> &mut Self::Target {

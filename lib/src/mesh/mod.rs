@@ -37,7 +37,9 @@ use super::session::*;
 use crate::mesh::msg::*;
 use crate::dio::DaoVec;
 use crate::dio::Dao;
-use crate::dio::DaoObj;
+use crate::dio::DaoEthereal;
+use crate::dio::DaoObjReal;
+use crate::dio::DaoObjEthereal;
 
 use crate::mesh::client::MeshClient;
 use crate::mesh::server::MeshRoot;

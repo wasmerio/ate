@@ -123,16 +123,16 @@ impl<'a> Dio<'a>
     pub fn store<D>(&mut self, data: D) -> Result<Dao<D>, SerializationError>
     where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
-        self.store_ext(data, self.session.log_format, None, true)
+        self.store_ext(data, self.session.log_format, None)
     }
 
-    pub fn prep<D>(&mut self, data: D) -> Result<Dao<D>, SerializationError>
+    pub fn make<D>(&mut self, data: D) -> Result<DaoEthereal<D>, SerializationError>
     where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
-        self.store_ext(data, self.session.log_format, None, false)
+        self.make_ext(data, self.session.log_format, None)
     }
 
-    pub fn store_ext<D>(&mut self, data: D, format: Option<MessageFormat>, key: Option<PrimaryKey>, auto_commit: bool) -> Result<Dao<D>, SerializationError>
+    pub fn make_ext<D>(&mut self, data: D, format: Option<MessageFormat>, key: Option<PrimaryKey>) -> Result<DaoEthereal<D>, SerializationError>
     where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
         let format = match format {
@@ -156,14 +156,17 @@ impl<'a> Dio<'a>
             extra_meta: Vec::new()
         };
 
-        let mut ret = Dao::new(row);
+        let mut ret = DaoEthereal::new(row);
         ret.state.dirty = true;
-        ret.state.never_saved = true;
 
-        if auto_commit {
-            ret.commit(self)?;
-        }
-        
+        Ok(ret)
+    }
+
+    pub fn store_ext<D>(&mut self, data: D, format: Option<MessageFormat>, key: Option<PrimaryKey>) -> Result<Dao<D>, SerializationError>
+    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
+    {
+        let ret = self.make_ext(data, format, key)?;
+        let ret= ret.commit(self)?;
         Ok(ret)
     }
 
@@ -177,13 +180,13 @@ impl<'a> Dio<'a>
             }
             if let Some(dao) = state.cache_store_primary.get(key) {
                 let row = Row::from_row_data(dao.deref())?;
-                let dao = Dao::<D>::new(row);
+                let dao = Dao::new(DaoEthereal::<D>::new(row));
                 dao.delete(self)?;
                 return Ok(());
             }
             if let Some((dao, leaf)) = state.cache_load.get(key) {
                 let row = Row::from_event(dao.deref(), leaf.created, leaf.updated)?;
-                let dao = Dao::<D>::new(row);
+                let dao = Dao::new(DaoEthereal::<D>::new(row));
                 dao.delete(self)?;
                 return Ok(());
             }
@@ -207,11 +210,11 @@ impl<'a> Dio<'a>
             }
             if let Some(dao) = state.cache_store_primary.get(key) {
                 let row = Row::from_row_data(dao.deref())?;
-                return Ok(Dao::new(row));
+                return Ok(Dao::new(DaoEthereal::new(row)));
             }
             if let Some((dao, leaf)) = state.cache_load.get(key) {
                 let row = Row::from_event(dao.deref(), leaf.created, leaf.updated)?;
-                return Ok(Dao::new(row));
+                return Ok(Dao::new(DaoEthereal::new(row)));
             }
             if state.deleted.contains(&key) {
                 return Result::Err(LoadError::AlreadyDeleted(key.clone()));
@@ -267,7 +270,7 @@ impl<'a> Dio<'a>
             Some(key) => {
                 let row = Row::from_event(&data, leaf.created, leaf.updated)?;
                 state.cache_load.insert(key.clone(), (Arc::new(data), leaf));
-                Ok(Dao::new(row))
+                Ok(Dao::new(DaoEthereal::new(row)))
             },
             None => Err(LoadError::NoPrimaryKey)
         }
@@ -300,13 +303,13 @@ impl<'a> Dio<'a>
                 if let Some(dao) = state.cache_store_primary.get(&key) {
                     let row = Row::from_row_data(dao.deref())?;
                     already.insert(row.key.clone());
-                    ret.push(Dao::new(row));
+                    ret.push(Dao::new(DaoEthereal::new(row)));
                     continue;
                 }
                 if let Some((dao, leaf)) = state.cache_load.get(&key) {
                     let row = Row::from_event(dao.deref(), leaf.created, leaf.updated)?;
                     already.insert(row.key.clone());
-                    ret.push(Dao::new(row));
+                    ret.push(Dao::new(DaoEthereal::new(row)));
                     continue;
                 }
                 if state.deleted.contains(&key) {
@@ -338,14 +341,14 @@ impl<'a> Dio<'a>
                 let row = Row::from_row_data(dao.deref())?;
 
                 already.insert(row.key.clone());
-                ret.push(Dao::new(row));
+                ret.push(Dao::new(DaoEthereal::new(row)));
                 continue;
             }
             if let Some((dao, leaf)) = state.cache_load.get(&key) {
                 let row = Row::from_event(dao.deref(), leaf.created, leaf.updated)?;
 
                 already.insert(row.key.clone());
-                ret.push(Dao::new(row));
+                ret.push(Dao::new(DaoEthereal::new(row)));
             }
             if state.deleted.contains(&key) {
                 continue;
@@ -360,7 +363,7 @@ impl<'a> Dio<'a>
             state.cache_load.insert(row.key.clone(), (Arc::new(evt.data), evt.leaf));
 
             already.insert(row.key.clone());
-            ret.push(Dao::new(row));
+            ret.push(Dao::new(DaoEthereal::new(row)));
         }
 
         // Now we search the secondary local index so any objects we have
@@ -386,7 +389,7 @@ impl<'a> Dio<'a>
                     let row = Row::from_row_data(dao.deref())?;
     
                     already.insert(row.key.clone());
-                    ret.push(Dao::new(row));
+                    ret.push(Dao::new(DaoEthereal::new(row)));
                 }
             }
         }

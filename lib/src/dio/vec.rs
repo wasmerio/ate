@@ -80,17 +80,15 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
         )
     }
     
-    #[allow(dead_code)]
     pub fn push<C>(&mut self, dio: &mut Dio, vec: DaoVec<C>, data: C) -> Result<Dao<C>, SerializationError>
     where C: Serialize + DeserializeOwned + Clone + Send + Sync
     {
         if self.is_dirty() {
             self.commit(dio)?;
         }
-        let mut ret = dio.store_ext(data, Some(self.row.format), None, false)?;
-        ret.attach(self, vec)?;
-        ret.commit(dio)?;
-        Ok (ret)
+        let mut ret = dio.make_ext(data, Some(self.ethereal.row.format), None)?;
+        ret.attach(self, vec);
+        Ok(ret.commit(dio)?)
     }
 }
 

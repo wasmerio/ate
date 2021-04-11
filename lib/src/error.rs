@@ -231,7 +231,6 @@ pub enum SerializationError
 {
     NoPrimarykey,
     NoData,
-    ParentNeverCommited,
     InvalidSerializationFormat,
     IO(tokio::io::Error),
     EncodeError(RmpEncodeError),
@@ -291,9 +290,6 @@ for SerializationError {
             },
             SerializationError::InvalidSerializationFormat => {
                 write!(f, "Data is stored in an unknown serialization format")
-            },
-            SerializationError::ParentNeverCommited => {
-                write!(f, "You have attempted to use a parent object that has never been committed to the chain, this could potentially cause the children to be orphaned.")
             },
             SerializationError::IO(err) => {
                 write!(f, "IO error during serialization - {}", err)
@@ -864,7 +860,6 @@ pub enum CommitError
     #[allow(dead_code)]
     Aborted,
     NewRootsAreDisabled,
-    ParentNeverCommited,
     TransformError(TransformError),
     LintError(LintError),
     SinkError(SinkError),
@@ -983,9 +978,6 @@ for CommitError {
             },
             CommitError::NewRootsAreDisabled => {
                 write!(f, "New root objects are currently not allowed for this chain")
-            },
-            CommitError::ParentNeverCommited => {
-                write!(f, "You have attempted to use a parent object that has never been committed to the chain, this could potentially cause the children to be orphaned.")
             },
             CommitError::TransformError(err) => {
                 write!(f, "Failed to commit the data due to an error transforming the data object into events - {}", err.to_string())

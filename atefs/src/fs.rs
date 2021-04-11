@@ -13,7 +13,8 @@ use parking_lot::Mutex;
 use ate::prelude::TransactionScope;
 use ate::dio::Dio;
 use ate::dio::Dao;
-use ate::dio::DaoObj;
+use ate::dio::DaoObjEthereal;
+use ate::dio::DaoObjReal;
 use ate::error::*;
 use ate::chain::*;
 use ate::session::Session as AteSession;
@@ -321,7 +322,7 @@ for AteFS
             info!("atefs::creating-root-node");
             
             let root = Inode::new("/".to_string(), 0o755, req.uid, req.gid, SpecType::Directory);
-            match dio.store_ext(root, self.session.log_format, Some(PrimaryKey::from(1)), false) {
+            match dio.make_ext(root, self.session.log_format, Some(PrimaryKey::from(1))) {
                 Ok(mut root) => {
                     root.auth_mut().read = ate::meta::ReadOption::Specific(self.get_read_key());
                     conv_serialization(root.commit(&mut dio))?;
