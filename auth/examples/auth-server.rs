@@ -40,7 +40,7 @@ struct Run {
     #[clap(short, long, default_value = "0.0.0.0")]
     listen: String,
     /// Port that the authentication server will listen on
-    #[clap(short, long, default_value = "5000")]
+    #[clap(short, long, default_value = "5001")]
     port: u16,
 }
 

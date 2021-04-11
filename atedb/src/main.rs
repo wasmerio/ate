@@ -49,10 +49,10 @@ struct Solo {
     /// Path to the log files where all the file system data is stored
     #[clap(index = 1, default_value = "/opt/ate")]
     logs_path: String,
-    /// IP address that the authentication server will isten on
+    /// IP address that the database server will isten on
     #[clap(short, long, default_value = "0.0.0.0")]
     listen: String,
-    /// Port that the authentication server will listen on
+    /// Port that the database server will listen on
     #[clap(short, long, default_value = "5000")]
     port: u16,
 }
