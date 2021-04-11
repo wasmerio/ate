@@ -88,7 +88,7 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
             self.commit(dio)?;
         }
         let mut ret = dio.store_ext(data, Some(self.row.format), None, false)?;
-        ret.attach(self, vec);
+        ret.attach(self, vec)?;
         ret.commit(dio)?;
         Ok (ret)
     }

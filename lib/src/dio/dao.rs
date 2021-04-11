@@ -153,6 +153,7 @@ where Self: Send + Sync,
 {
     pub(super) lock: DaoLock,
     pub(super) dirty: bool,
+    pub(super) never_saved: bool,
 }
 
 pub trait DaoObj
@@ -170,6 +171,8 @@ pub trait DaoObj
     fn is_locked(&self) -> bool;
 
     fn is_dirty(&self) -> bool;
+
+    fn is_never_saved(&self) -> bool;
 
     fn when_created(&self) -> u64;
 
@@ -211,6 +214,7 @@ where Self: Send + Sync,
             state: DaoState {
                 lock: DaoLock::Unlocked,
                 dirty: false,
+                never_saved: false,
             },
             row: row,
         }
@@ -221,6 +225,7 @@ where Self: Send + Sync,
             state: DaoState {
                 lock: DaoLock::Unlocked,
                 dirty: true,
+                never_saved: true,
             },
             row: Row {
                 key,
@@ -245,7 +250,11 @@ where Self: Send + Sync,
         self.row.parent = None;
     }
 
-    pub fn attach(&mut self, parent: &dyn DaoObj, vec: DaoVec<D>) {
+    pub fn attach(&mut self, parent: &dyn DaoObj, vec: DaoVec<D>) -> Result<(), SerializationError> {
+        if parent.is_never_saved() {
+            return Err(SerializationError::ParentNeverCommited);
+        }
+
         self.state.dirty = true;
         self.row.parent = Some(
             MetaParent {
@@ -255,18 +264,24 @@ where Self: Send + Sync,
                 },
             }
         );
+        Ok(())
     }
 
-    pub fn attach_orphaned(&mut self, parent: &PrimaryKey) {
+    pub fn attach_orphaned(&mut self, parent: &dyn DaoObj) -> Result<(), SerializationError> {
+        if parent.is_never_saved() {
+            return Err(SerializationError::ParentNeverCommited);
+        }
+
         self.state.dirty = true;
         self.row.parent = Some(
             MetaParent {
                 vec: MetaCollection {
-                    parent_id: parent.clone(),
+                    parent_id: parent.key().clone(),
                     collection_id: 0,
                 },
             }
         );
+        Ok(())
     }
 
     #[allow(dead_code)]
@@ -366,6 +381,10 @@ where Self: Send + Sync,
         self.state.dirty
     }
 
+    fn is_never_saved(&self) -> bool {
+        self.state.never_saved
+    }
+
     fn when_created(&self) -> u64 {
         self.row.created
     }
@@ -381,7 +400,6 @@ where Self: Send + Sync,
     fn commit<'a>(&mut self, dio: &mut Dio<'a>) -> std::result::Result<(), SerializationError>
     {
         if self.state.dirty == true {
-            self.state.dirty = false;
 
             let state = &mut dio.state;
 
@@ -407,6 +425,10 @@ where Self: Send + Sync,
                 None => None,
             };
             state.dirty(&self.row.key, row_parent, row_data);
+
+            // Clear the flags
+            self.state.dirty = false;
+            self.state.never_saved = false;
         }
         Ok(())
     }

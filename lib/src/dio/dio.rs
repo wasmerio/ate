@@ -158,9 +158,12 @@ impl<'a> Dio<'a>
 
         let mut ret = Dao::new(row);
         ret.state.dirty = true;
+        ret.state.never_saved = true;
+
         if auto_commit {
             ret.commit(self)?;
         }
+        
         Ok(ret)
     }
 
