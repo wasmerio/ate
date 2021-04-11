@@ -35,7 +35,7 @@ for ChainFlow
         if let Some(captures) = self.regex.captures(path.as_str())
         {
             // Build the email address using the captures
-            let email = format!("{}@{}", captures.get(1).unwrap().as_str(), captures.get(2).unwrap().as_str());
+            let email = format!("{}@{}", captures.get(2).unwrap().as_str(), captures.get(1).unwrap().as_str());
             let dbname = captures.get(3).unwrap().as_str().to_string();
 
             // Check for very naughty parameters
