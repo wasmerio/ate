@@ -142,8 +142,6 @@ impl RedoLog
     }
 
     pub async fn open_ext(cfg: &ConfAte, key: &ChainKey, flags: OpenFlags, loader: Box<impl Loader>) -> std::result::Result<RedoLog, SerializationError> {
-        let _ = std::fs::create_dir_all(cfg.log_path.clone());
-
         let mut key_name = key.name.clone();
         if key_name.starts_with("/") {
             key_name = key_name[1..].to_string();
@@ -152,6 +150,12 @@ impl RedoLog
             true => format!("{}{}.log", cfg.log_path, key_name),
             false => format!("{}/{}.log", cfg.log_path, key_name)
         };
+        
+        {
+            let path = std::path::Path::new(&path_log);
+            let _ = std::fs::create_dir_all(path.parent().unwrap().clone());
+        }
+
         info!("open at {}", path_log);   
 
         let log = RedoLog::new(
