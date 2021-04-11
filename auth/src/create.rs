@@ -16,7 +16,7 @@ use crate::commands::*;
 use crate::service::AuthService;
 use crate::helper::*;
 use crate::error::*;
-use crate::helper::*;
+use crate::model::*;
 
 impl AuthService
 {
@@ -116,10 +116,22 @@ impl AuthService
         sudo.auth_mut().read = ReadOption::Specific(super_super_key.hash());
         sudo.auth_mut().write = WriteOption::Specific(sudo_write_key.hash());
         user.sudo.set_id(sudo.key().clone());
+
+        // Create the advert object and save it using public read
+        let advert_key_entropy = format!("advert@{}", request.email.clone()).to_string();
+        let advert_key = PrimaryKey::from(advert_key_entropy);
+        let advert = Advert {
+            email: request.email.clone(),
+            auth: write_key.as_public_key(),
+        };
+        let mut advert = Dao::make(advert_key, chain.default_format(), advert);
+        advert.auth_mut().read = ReadOption::Everyone;
+        advert.auth_mut().write = WriteOption::Specific(write_key.hash());
         
         // Save the data
         user.commit(&mut dio)?;
         sudo.commit(&mut dio)?;
+        advert.commit(&mut dio)?;
         dio.commit().await?;
 
         // Create the authorizations and return them
