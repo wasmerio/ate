@@ -188,6 +188,7 @@ impl FileState
         self.dirty = true;
 
         // Compute the strides
+        let inode_key = self.inode.key().clone();
         let stride_page = super::model::PAGE_SIZE as u64;
         let stride_bundle = super::model::PAGES_PER_BUNDLE as u64 * stride_page;
 
@@ -211,11 +212,13 @@ impl FileState
             None => {
                 // Create the bundle
                 let mut dio = chain.dio_ext(session, scope).await;
-                let bundle = conv_serialization(dio.store_ext( 
+                let mut bundle = conv_serialization(dio.make_ext( 
                 PageBundle {
                         pages: Vec::new(),
                     }, Some(format), None
                 ))?;
+                bundle.attach_orphaned(&inode_key);
+                let bundle = conv_serialization(bundle.commit(&mut dio))?;
                 let key = bundle.key().clone();
 
                 // Replace the cache-line with this new one (if something was left behind then commit it)
@@ -272,12 +275,13 @@ impl FileState
             None => {
                 // Create the page (and commit it for reference integrity)
                 let mut dio = chain.dio_ext(session, scope).await;
-                let mut page = conv_serialization(dio.store_ext(Page {
+                let mut page = conv_serialization(dio.make_ext(Page {
                         buf: Vec::new(),
                     },
                     None, None
                 ))?;
                 page.attach_orphaned(&bundle_key);
+                let page = conv_serialization(page.commit(&mut dio))?;
                 let key = page.key().clone();
 
                 // Replace the cache-line with this new one (if something was left behind then commit it)
