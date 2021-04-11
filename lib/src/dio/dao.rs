@@ -257,6 +257,18 @@ where Self: Send + Sync,
         );
     }
 
+    pub fn attach_orphaned(&mut self, parent: &PrimaryKey) {
+        self.state.dirty = true;
+        self.row.parent = Some(
+            MetaParent {
+                vec: MetaCollection {
+                    parent_id: parent.clone(),
+                    collection_id: 0,
+                },
+            }
+        );
+    }
+
     #[allow(dead_code)]
     pub(super) fn attach_vec<C>(&mut self, vec: &MetaCollection)
     where C: Serialize + DeserializeOwned + Clone,

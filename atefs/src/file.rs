@@ -263,16 +263,19 @@ impl FileState
         offset = offset - (index * stride_page);
 
         // If the page is a hole then we need to fill it
+        let bundle_key = bundle.key().clone();
         let page_ref = &mut bundle.pages[index as usize];
         let page = match page_ref {
             Some(a) => a.clone(),
             None => {
                 // Create the page (and commit it for reference integrity)
                 let mut dio = chain.dio_ext(session, scope).await;
-                let page = conv_serialization(dio.store(Page {
+                let mut page = conv_serialization(dio.store_ext(Page {
                         buf: Vec::new(),
-                    }
+                    },
+                    None, None, false
                 ))?;
+                page.attach_orphaned(&bundle_key);
                 let key = page.key().clone();
 
                 // Replace the cache-line with this new one (if something was left behind then commit it)
