@@ -66,7 +66,7 @@ pub async fn query_command(username: String, auth: Url) -> Result<QueryResponse,
         Err(InvokeError::Reply(QueryFailed::NotFound)) => Err(QueryError::NotFound),
         result => {
             let result = result?;
-            debug!("advert: {:?}", result.advert);
+            //debug!("advert: {:?}", result.advert);
             Ok(result)
         }
     }
