@@ -104,7 +104,7 @@ impl FileState
             },
             _ => {
                 // Cache-miss - load the bundle into the cacheline and return its pages
-                let mut dio = chain.dio_ext(session, TransactionScope::None).await;                    
+                let mut dio = chain.dio_ext(session, TransactionScope::Local).await;                    
                 let dao = conv_load(dio.load::<PageBundle>(&bundle).await)?;
                 
                 // We always commit changes to the bundles so no need to commit it here
@@ -142,7 +142,7 @@ impl FileState
             },
             _ => {
                 // Cache-miss - load the bundle into the cacheline and return its pages
-                let mut dio = chain.dio_ext(session, TransactionScope::None).await;
+                let mut dio = chain.dio_ext(session, TransactionScope::Local).await;
                 let dao = conv_load(dio.load::<Page>(&page).await)?;
                 
                 // Replace the cache-line - pages here are lazy-written so we might need to flush it
@@ -351,7 +351,7 @@ impl FileState
     pub async fn commit(&mut self, chain: &Chain, session: &AteSession) -> Result<()>
     {
         if self.dirty {
-            let mut dio = chain.dio_ext(session, TransactionScope::None).await;
+            let mut dio = chain.dio_ext(session, TransactionScope::Local).await;
             for page in self.pages.iter_mut() {
                 if let Some(page) = page {
                     conv_serialization(page.commit(&mut dio))?;
@@ -376,7 +376,7 @@ impl RegularFile
             size: SeqLock::new(inode.size),
             created,
             updated,
-            scope: TransactionScope::None,
+            scope: TransactionScope::Local,
             state: Mutex::new(FileState {
                 inode,
                 dirty: false,

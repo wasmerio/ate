@@ -245,7 +245,7 @@ impl AteFS
     ) -> Result<(Dao<Inode>, Dio<'a>)> {
         
         let key = PrimaryKey::from(parent);
-        let mut dio = self.chain.dio_ext(&self.session, TransactionScope::None).await;
+        let mut dio = self.chain.dio_ext(&self.session, TransactionScope::Local).await;
         let mut data = conv_load(dio.load::<Inode>(&key).await)?;
 
         if data.spec_type != SpecType::Directory {
