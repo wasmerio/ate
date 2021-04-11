@@ -152,3 +152,77 @@ for CreateError {
         }
     }
 }
+
+#[derive(Debug)]
+pub enum QueryError
+{
+    IO(tokio::io::Error),
+    AteError(AteError),
+    NotFound,
+    Banned,
+    Suspended,
+}
+
+impl From<tokio::io::Error>
+for QueryError
+{
+    fn from(err: tokio::io::Error) -> QueryError {
+        QueryError::IO(err)
+    }
+}
+
+impl From<ChainCreationError>
+for QueryError
+{
+    fn from(err: ChainCreationError) -> QueryError {
+        QueryError::AteError(AteError::ChainCreationError(err))
+    }
+}
+
+impl From<SerializationError>
+for QueryError
+{
+    fn from(err: SerializationError) -> QueryError {
+        QueryError::AteError(AteError::SerializationError(err))
+    }
+}
+
+impl From<AteError>
+for QueryError
+{
+    fn from(err: AteError) -> QueryError {
+        QueryError::AteError(err)
+    }
+}
+
+impl<E> From<InvokeError<E>>
+for QueryError
+where E: std::fmt::Debug
+{
+    fn from(err: InvokeError<E>) -> QueryError {
+        QueryError::AteError(AteError::InvokeError(err.to_string()))
+    }
+}
+
+impl std::fmt::Display
+for QueryError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            QueryError::AteError(err) => {
+                write!(f, "Create failed ({})", err.to_string())
+            },
+            QueryError::IO(err) => {
+                write!(f, "Create failed due to an IO error ({})", err)
+            },
+            QueryError::NotFound => {
+                write!(f, "Create failed as the user could not be found")
+            },
+            QueryError::Banned => {
+                write!(f, "Create failed as the user has been banned")
+            },
+            QueryError::Suspended => {
+                write!(f, "Create failed as the user has been suspended")
+            },
+        }
+    }
+}

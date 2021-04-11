@@ -11,6 +11,10 @@ use tokio::select;
 
 use clap::Clap;
 
+mod flow;
+
+use crate::flow::ChainFlow;
+
 #[derive(Clap)]
 #[clap(version = "0.1", author = "John S. <johnathan.sharratt@gmail.com>")]
 struct Opts {
@@ -21,6 +25,9 @@ struct Opts {
     /// Logs debug info to the console
     #[clap(short, long)]
     debug: bool,
+    /// URL where the user is authenticated
+    #[clap(short, long, default_value = "tcp://auth.tokera.com:5001/auth")]
+    auth: Url,
     /// Determines if ATE will use DNSSec or just plain DNS
     #[clap(long)]
     dns_sec: bool,
@@ -78,7 +85,7 @@ async fn main() -> Result<(), AteError> {
     
     match opts.subcmd {
         SubCommand::Solo(solo) => {
-            main_solo(solo, conf).await?;
+            main_solo(solo, conf, opts.auth).await?;
         }
     }
 
@@ -87,14 +94,17 @@ async fn main() -> Result<(), AteError> {
     Ok(())
 }
 
-async fn main_solo(solo: Solo, mut cfg_ate: ConfAte) -> Result<(), AteError>
+async fn main_solo(solo: Solo, mut cfg_ate: ConfAte, auth: url::Url) -> Result<(), AteError>
 {
     // Create the chain flow and generate configuration
     cfg_ate.log_path = shellexpand::tilde(&solo.logs_path).to_string();
 
+    // Create the chain flow and generate configuration
+    let flow = ChainFlow::new(&cfg_ate, auth);
+
     // Create the server and listen on port 5000
     let cfg_mesh = ConfMesh::solo(solo.listen.as_str(), solo.port);
-    let _server = create_persistent_server(&cfg_ate, &cfg_mesh).await;
+    let _server = create_server(&cfg_ate, &cfg_mesh, Box::new(flow)).await;
 
     // Wait for ctrl-c
     eprintln!("Press ctrl-c to exit");

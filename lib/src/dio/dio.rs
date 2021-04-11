@@ -145,6 +145,7 @@ impl<'a> Dio<'a>
                 Some(k) => k,
                 None => PrimaryKey::generate(),
             },
+            type_name: std::any::type_name::<D>(),
             parent: None,
             data: data,
             auth: MetaAuthorization::default(),
@@ -455,6 +456,9 @@ impl<'a> Dio<'a>
             // Convert all the events that we are storing into serialize data
             for row in state.store.drain(..)
             {
+                // Debug output
+                debug!("store: {}@{}", row.type_name, row.key.as_hex_string());
+
                 // Build a new clean metadata header
                 let mut meta = Metadata::for_data(row.key);
                 if row.auth.is_relevant() {

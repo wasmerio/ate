@@ -104,6 +104,10 @@ struct Mount {
     /// be prompted for a username and password)
     #[clap(short, long)]
     token: Option<String>,
+    /// Token file to read that holds a previously created token to be used to access your encrypted
+    /// file-system (if you do not supply a token then you will be prompted for a username and password)
+    #[clap(long)]
+    token_path: Option<String>,
     /// Local redo log file will be deleted when the file system is unmounted, remotely stored data on
     /// any distributed commit log will be persisted. Effectively this setting only uses the local disk
     /// as a cache of the redo-log while it's being used.
@@ -151,12 +155,13 @@ fn main_debug() -> Opts {
         debug: true,
         dns_sec: false,
         dns_server: "8.8.8.8".to_string(),
-        auth: Url::from_str("tcp://ate.tokera.com/auth").unwrap(),
+        auth: Url::from_str("tcp://auth.tokera.com:5001/auth").unwrap(),
         subcmd: SubCommand::Mount(Mount {
             mount_path: "/mnt/test".to_string(),
             log_path: "~/ate/fs".to_string(),
-            remote: Some(Url::from_str("tcp://localhost/myfs").unwrap()),
+            remote: Some(Url::from_str("tcp://ate.tokera.com/myfs").unwrap()),
             token: None,
+            token_path: Some("~/token".to_string()),
             //remote: None,
             temp: false,
             uid: None,
@@ -342,18 +347,8 @@ async fn main() -> Result<(), CommandError> {
         },
         SubCommand::Mount(mount) =>
         {
-            // Extract or create a session
-            let session = match &mount.token {
-                Some(token) => ate_auth::b64_to_session(token.clone()),
-                None => {
-                    match mount.remote {
-                        Some(_) => ate_auth::main_login(None, None, None, opts.auth).await?,
-                        None => AteSession::default()
-                    }
-                }
-            };
-
             // Mount the file system
+            let session = ate_auth::main_session(mount.token.clone(), mount.token_path.clone(), Some(opts.auth)).await?;
             main_mount(mount, conf, session).await?;
         },
     }

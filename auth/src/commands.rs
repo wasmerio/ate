@@ -2,6 +2,8 @@
 use serde::*;
 use ate::prelude::*;
 
+use crate::model::Advert;
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct LoginRequest
 {
@@ -90,6 +92,43 @@ for CreateFailed {
             },
             CreateFailed::NoMasterKey => {
                 write!(f, "Authentication server has not been properly initialized")
+            },
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct QueryRequest
+{
+    pub email: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct QueryResponse
+{
+    pub advert: Advert,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum QueryFailed
+{
+    NotFound,
+    Banned,
+    Suspended,
+}
+
+impl std::fmt::Display
+for QueryFailed {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            QueryFailed::NotFound => {
+                write!(f, "The account does not exist")
+            },
+            QueryFailed::Banned => {
+                write!(f, "The account has been banned")
+            },
+            QueryFailed::Suspended => {
+                write!(f, "The account has been suspended")
             },
         }
     }

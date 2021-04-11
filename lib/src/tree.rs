@@ -396,7 +396,8 @@ for TreeAuthorityPlugin
             WriteOption::Inherit => {
                 return Err(LintError::Trust(TrustError::UnspecifiedWritability));
             },
-            _ => {}
+            WriteOption::Everyone => { },
+            WriteOption::Nobody => { },
         }
 
         // Now lets add all the encryption keys

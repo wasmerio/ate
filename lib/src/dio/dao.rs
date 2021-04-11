@@ -28,6 +28,7 @@ where Self: Send + Sync,
       D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     pub(super) key: PrimaryKey,
+    pub(super) type_name: &'static str,
     pub(super) created: u64,
     pub(super) updated: u64,
     pub(super) format: MessageFormat,
@@ -61,6 +62,7 @@ where Self: Send + Sync,
                 Ok(
                     Row {
                         key,
+                        type_name: std::any::type_name::<D>(),
                         format: evt.format,
                         parent,
                         data: evt.format.data.deserialize(&data)?,
@@ -80,6 +82,7 @@ where Self: Send + Sync,
         Ok(
             Row {
                 key: row.key,
+                type_name: row.type_name,
                 format: row.format,
                 parent: row.parent.clone(),
                 data: row.format.data.deserialize(&row.data)?,
@@ -100,6 +103,7 @@ where Self: Send + Sync,
         (
             RowData {
                 key: self.key.clone(),
+                type_name: self.type_name,
                 format: self.format,
                 parent: self.parent.clone(),
                 data_hash,
@@ -119,6 +123,7 @@ pub(crate) struct RowData
 where Self: Send + Sync
 {
     pub key: PrimaryKey,
+    pub type_name: &'static str,
     pub format: MessageFormat,
     pub parent: Option<MetaParent>,
     pub data_hash: Hash,
@@ -219,6 +224,7 @@ where Self: Send + Sync,
             },
             row: Row {
                 key,
+                type_name: std::any::type_name::<D>(),
                 created: 0,
                 updated: 0,
                 parent: None,

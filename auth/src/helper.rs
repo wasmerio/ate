@@ -90,6 +90,7 @@ pub fn session_to_b64(session: AteSession) -> Result<String, SerializationError>
 
 pub fn b64_to_session(val: String) -> AteSession
 {
+    let val = val.trim().to_string();
     let format = SerializationFormat::MessagePack;
     let bytes = base64::decode(val).unwrap();
     format.deserialize( &bytes).unwrap()

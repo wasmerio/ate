@@ -1,6 +1,6 @@
 #![allow(unused_imports)]
 use log::{info, error, debug};
-use std::io::stdout;
+use std::{io::stdout, path::Path};
 use std::io::Write;
 use url::Url;
 
@@ -211,6 +211,45 @@ pub async fn load_credentials(username: String, read_key: EncryptKey, _code: Opt
         }
     }
     Ok(session)
+}
+
+pub async fn main_session(token_string: Option<String>, token_file_path: Option<String>, auth_url: Option<url::Url>) -> Result<AteSession, LoginError>
+{
+    // The session might come from a token_file
+    let mut session = None;
+    if session.is_none() {
+        if let Some(path) = token_file_path {
+            if token_string.is_some() {
+                eprintln!("You must not provide both a token string and a token file path - only specify one of them!");
+                std::process::exit(1);
+            }
+            let path = shellexpand::tilde(path.as_str()).to_string();
+            let token = tokio::fs::read_to_string(path).await?;
+            session = Some(b64_to_session(token));
+        }
+    }
+
+    // The session might be supplied as a base64 string
+    if session.is_none() {            
+        if let Some(token) = token_string {
+            session = Some(b64_to_session(token));
+        }
+    }
+
+    // If we don't have a session but an authentication server was provided then lets use that to get one
+    if session.is_none() {
+        if let Some(auth) = auth_url {
+            session = Some(main_login(None, None, None, auth).await?);
+        }
+    }
+
+    // Otherwise just create an empty session
+    Ok(
+        match session {
+            Some(a) => a,
+            None => AteSession::default()
+        }
+    )
 }
 
 pub async fn main_login(

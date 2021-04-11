@@ -121,6 +121,12 @@ pub struct Sudo {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Advert {
+    pub email: String,
+    pub auth: PublicSignKey,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Authorization {
     pub name: String,
     pub read: Option<EncryptKey>,

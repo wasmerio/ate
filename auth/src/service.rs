@@ -38,6 +38,16 @@ for AuthService
     }
 }
 
+#[async_trait]
+impl ServiceHandler<QueryRequest, QueryResponse, QueryFailed>
+for AuthService
+{
+    async fn process<'a>(&self, request: QueryRequest, context: InvocationContext<'a>) -> Result<QueryResponse, ServiceError<QueryFailed>>
+    {
+        self.process_query(request, context).await
+    }
+}
+
 
 pub async fn service_logins(cfg: &ConfAte, cmd_session: AteSession, auth_session: AteSession, chain: &Arc<Chain>)
 -> Result<(), TimeError>
@@ -59,6 +69,12 @@ pub async fn service_logins(cfg: &ConfAte, cmd_session: AteSession, auth_session
     {
         let service = Arc::clone(&service);
         let service: ServiceInstance<CreateRequest, CreateResponse, CreateFailed> = service;
+        chain.add_service(cmd_session.clone(), service);
+    }
+
+    {
+        let service = Arc::clone(&service);
+        let service: ServiceInstance<QueryRequest, QueryResponse, QueryFailed> = service;
         chain.add_service(cmd_session.clone(), service);
     }
 

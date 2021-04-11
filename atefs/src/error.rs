@@ -25,6 +25,14 @@ for CommandError
     }
 }
 
+impl From<std::io::Error>
+for CommandError
+{
+    fn from(err: std::io::Error) -> CommandError {
+        CommandError::AteError(AteError::IO(err))
+    }
+}
+
 impl From<AteError>
 for CommandError
 {

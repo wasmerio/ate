@@ -316,8 +316,8 @@ for AteFS
     async fn init(&self, req: Request) -> Result<()>
     {
         // Attempt to load the root node, if it does not exist then create it
-        //let mut dio = self.chain.dio_ext(&self.session, Scope::Full).await;
-        let mut dio = self.chain.dio(&self.session).await;
+        let mut dio = self.chain.dio_ext(&self.session, Scope::Full).await;
+        //let mut dio = self.chain.dio(&self.session).await;
         if let Err(LoadError::NotFound(_)) = dio.load::<Inode>(&PrimaryKey::from(1)).await {
             info!("atefs::creating-root-node");
             
