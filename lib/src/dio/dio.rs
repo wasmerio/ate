@@ -466,6 +466,10 @@ impl<'a> Dio<'a>
                 }
                 if let Some(parent) = &row.parent {
                     meta.core.push(CoreMetadata::Parent(parent.clone()))
+                } else {
+                    if multi_lock.inside_async.disable_new_roots == true {
+                        return Err(CommitError::NewRootsAreDisabled);
+                    }
                 }
                 for extra in row.extra_meta.iter() {
                     meta.core.push(extra.clone());

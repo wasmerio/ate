@@ -317,7 +317,6 @@ for AteFS
     {
         // Attempt to load the root node, if it does not exist then create it
         let mut dio = self.chain.dio_ext(&self.session, Scope::Full).await;
-        //let mut dio = self.chain.dio(&self.session).await;
         if let Err(LoadError::NotFound(_)) = dio.load::<Inode>(&PrimaryKey::from(1)).await {
             info!("atefs::creating-root-node");
             
@@ -333,6 +332,9 @@ for AteFS
             }     
         };
         debug!("atefs::init");
+
+        // Disable any more root nodes from being created (only the single root node is allowed)
+        self.chain.single().await.disable_new_roots();
         
         // All good
         self.tick().await?;

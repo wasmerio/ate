@@ -859,6 +859,7 @@ pub enum CommitError
 {
     #[allow(dead_code)]
     Aborted,
+    NewRootsAreDisabled,
     TransformError(TransformError),
     LintError(LintError),
     SinkError(SinkError),
@@ -974,6 +975,9 @@ for CommitError {
         match self {
             CommitError::Aborted => {
                 write!(f, "The transaction aborted before it could be completed")
+            },
+            CommitError::NewRootsAreDisabled => {
+                write!(f, "New root objects are currently not allowed for this chain")
             },
             CommitError::TransformError(err) => {
                 write!(f, "Failed to commit the data due to an error transforming the data object into events - {}", err.to_string())

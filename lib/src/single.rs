@@ -37,4 +37,8 @@ impl<'a> ChainSingleUser<'a>
     pub fn repository(&self) -> Option<Arc<dyn ChainRepository>> {
         self.inside_sync.read().repository()
     }
+
+    pub fn disable_new_roots(&mut self) {
+        self.inside_async.disable_new_roots = true;
+    }
 }

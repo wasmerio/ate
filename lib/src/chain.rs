@@ -60,6 +60,7 @@ struct InboxPipe
 pub(crate) struct ChainProtectedAsync
 {
     pub(super) chain: ChainOfTrust,
+    pub(super) disable_new_roots: bool,
 }
 
 pub(crate) struct ChainListener
@@ -347,6 +348,7 @@ impl<'a> Chain
         // will have longer waits on it when there are writes occuring
         let mut inside_async = ChainProtectedAsync {
             chain,
+            disable_new_roots: false,
         };
         
         // Process all the events in the chain-of-trust
