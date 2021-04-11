@@ -49,6 +49,11 @@ This library is a way of working with data in modern distributed computing.
 ## Changelog
 
 ```
+0.4.0 - Passed the milestone of a fully authenticated and encrypted remote database
+        + Ate now has a fully functional command pattern that allows for RPC
+        + Authentication server with multi-factor auth is functional
+        + AteDB integrated with the authentication so all chains are owned by a user
+        + AteFS upgraded so that it supports full authentication and confidentiality
 0.3.5 - Finished the basics of the authentication server logic
 0.3.4 - Added error handling to the invocation function and fixed some serious bugs
 0.3.3 - Slight refactoring in order to improve the service invocation functionality
@@ -71,9 +76,6 @@ This library is a way of working with data in modern distributed computing.
         Tokera as authentication
 0.*.* - Estimated 1-month of work before enough bugs are solved and the API
         can be fully stabilised
-0.4.* - Will include functionality to execute commands remotely, will include
-        the authentication server support using a standardized object model
-        and implementation of the command pattern
 ```
 
 ## High Level Design
