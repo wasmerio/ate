@@ -49,7 +49,8 @@ struct SessionContextProtected {
 }
 
 struct SessionContext {
-    inside: StdMutex<SessionContextProtected>
+    inside: StdMutex<SessionContextProtected>,
+    conversation: Arc<ConversationSession>,
 }
 
 impl Default
@@ -59,7 +60,8 @@ for SessionContext {
             inside: StdMutex::new(SessionContextProtected {
                 chain: None,
                 locks: FxHashSet::default(),
-            })
+            }),
+            conversation: Arc::new(ConversationSession::default()),
         }
     }
 }
@@ -173,6 +175,10 @@ for ServerPipe
 
     fn set_next(&mut self, next: Arc<Box<dyn EventPipe>>) {
         let _ = std::mem::replace(&mut self.next, next);
+    }
+
+    fn conversation(&self) -> Option<Arc<ConversationSession>> {
+        None
     }
 }
 
@@ -325,7 +331,9 @@ async fn inbox_event(
     let ret = chain.pipe.feed(Transaction {
         scope: Scope::None,
         transmit: false,
-        events: evts
+        events: evts,
+        conversation: Some(Arc::clone(&context.conversation)),
+
     }).await;
 
     // Send the packet down to others

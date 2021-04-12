@@ -18,6 +18,8 @@ pub(crate) trait EventPipe: Send + Sync
     fn unlock_local(&self, key: PrimaryKey) -> Result<(), CommitError>;
 
     fn set_next(&mut self, next: Arc<Box<dyn EventPipe>>);
+
+    fn conversation(&self) -> Option<Arc<ConversationSession>>;
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -44,6 +46,8 @@ for NullPipe
     fn unlock_local(&self, _key: PrimaryKey) -> Result<(), CommitError> { Ok(()) }
 
     fn set_next(&mut self, _next: Arc<Box<dyn EventPipe>>) { }
+
+    fn conversation(&self) -> Option<Arc<ConversationSession>> { None }
 }
 
 #[derive(Clone)]
@@ -96,5 +100,16 @@ for DuelPipe
     fn set_next(&mut self, _next: Arc<Box<dyn EventPipe>>)
     {
 
+    }
+
+    fn conversation(&self) -> Option<Arc<ConversationSession>>
+    {
+        if let Some(ret) = self.first.conversation() {
+            return Some(ret);
+        }
+        if let Some(ret) = self.second.conversation() {
+            return Some(ret);
+        }
+        None
     }
 }

@@ -576,6 +576,7 @@ impl<'a> Chain
             scope: Scope::Full,
             transmit: true,
             events: Vec::new(),
+            conversation: None,
         };
 
         // Feed the transaction into the chain
@@ -683,6 +684,8 @@ for InboxPipe
 
     fn set_next(&mut self, _next: Arc<Box<dyn EventPipe>>) {
     }
+
+    fn conversation(&self) -> Option<Arc<ConversationSession>> { None }
 }
 
 

@@ -29,6 +29,7 @@ pub struct MeshSession
     chain: Weak<Chain>,
     commit: Arc<StdMutex<FxHashMap<u64, mpsc::Sender<Result<(), CommitError>>>>>,
     lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, LockRequest>>>,
+    conversation: Arc<ConversationSession>,
 }
 
 impl MeshSession
@@ -62,6 +63,7 @@ impl MeshSession
             pipe_rx.push(node_rx);
         }
         
+        let conversation = Arc::new(ConversationSession::default());
         let pipe = Box::new(
             SessionPipe {
                 key: chain_key.clone(),
@@ -69,6 +71,7 @@ impl MeshSession
                 next: NullPipe::new(),
                 commit: Arc::clone(&commit),
                 lock_requests: Arc::clone(&lock_requests),
+                conversation: Arc::clone(&conversation),
             }
         );
 
@@ -90,6 +93,7 @@ impl MeshSession
             commit,
             chain: Arc::downgrade(&chain),
             lock_requests,
+            conversation,
         });
 
         // Attach a mesh session to it
@@ -142,7 +146,8 @@ impl MeshSession
             key: chain.key().clone(),
             commit: Arc::new(StdMutex::new(FxHashMap::default())),
             lock_requests: Arc::new(StdMutex::new(FxHashMap::default())),
-            chain: Arc::downgrade(&chain)
+            chain: Arc::downgrade(&chain),
+            conversation: Arc::new(ConversationSession::default()),
         });
 
         chain.inside_sync.write().session = Some(Arc::clone(&ret));
@@ -174,7 +179,8 @@ impl MeshSession
             chain.pipe.feed(Transaction {
                 scope: Scope::None,
                 transmit: false,
-                events: feed_me
+                events: feed_me,
+                conversation: Some(Arc::clone(&self.conversation)),
             }).await?;
         }
 
@@ -396,6 +402,7 @@ struct SessionPipe
     next: Arc<Box<dyn EventPipe>>,
     commit: Arc<StdMutex<FxHashMap<u64, mpsc::Sender<Result<(), CommitError>>>>>,
     lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, LockRequest>>>,
+    conversation: Arc<ConversationSession>,
 }
 
 impl SessionPipe
@@ -537,5 +544,9 @@ for SessionPipe
 
     fn set_next(&mut self, next: Arc<Box<dyn EventPipe>>) {
         let _ = std::mem::replace(&mut self.next, next);
+    }
+
+    fn conversation(&self) -> Option<Arc<ConversationSession>> {
+        Some(Arc::clone(&self.conversation))
     }
 }

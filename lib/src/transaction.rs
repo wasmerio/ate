@@ -3,11 +3,14 @@ use tokio::sync::mpsc as mpsc;
 use std::sync::mpsc as smpsc;
 use crate::meta::MetaParent;
 use fxhash::FxHashMap;
+use std::sync::Arc;
 
 use super::event::*;
 use super::error::*;
 use super::meta::*;
 use super::header::*;
+use super::trust::*;
+use super::mesh::MeshSession;
 
 /// Represents the scope of `Dio` transaction for all the data
 /// it is gathering up locally. Once the user calls the `commit`
@@ -30,12 +33,19 @@ pub enum Scope
     Full
 }
 
+#[derive(Debug, Clone, Default)]
+pub(crate) struct ConversationSession
+{
+
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct Transaction
 {
     pub(crate) scope: Scope,
     pub(crate) transmit: bool,
     pub(crate) events: Vec<EventData>,
+    pub(crate) conversation: Option<Arc<ConversationSession>>,
 }
 
 impl Transaction
@@ -47,6 +57,7 @@ impl Transaction
             scope,
             transmit,
             events,
+            conversation: None,
         }
     }
 }

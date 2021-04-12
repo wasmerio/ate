@@ -116,6 +116,7 @@ where Self: Send + Sync
     pub(super) state: DioState,
     pub(super) session: &'a Session,
     pub(super) scope: Scope,
+    pub(super) conversation: Option<Arc<ConversationSession>>,
 }
 
 impl<'a> Dio<'a>
@@ -412,7 +413,8 @@ impl Chain
             state: DioState::new(),
             multi,
             session: session,
-            scope,            
+            scope,
+            conversation: self.pipe.conversation()
         }
     }
 }
@@ -562,6 +564,10 @@ impl<'a> Dio<'a>
             scope: self.scope.clone(),
             transmit: true,
             events: evts,
+            conversation: match &self.conversation {
+                Some(c) => Some(Arc::clone(c)),
+                None => None,
+            },
         };
         debug!("commit events={}", trans.events.len());
 
