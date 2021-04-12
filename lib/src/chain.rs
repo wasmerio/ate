@@ -113,13 +113,13 @@ where Self: Send + Sync
 impl ChainProtectedAsync
 {
     #[allow(dead_code)]
-    pub(super) fn process(&mut self, mut sync: StdRwLockWriteGuard<ChainProtectedSync>, headers: Vec<EventHeader>) -> Result<(), ProcessError>
+    pub(super) fn process(&mut self, mut sync: StdRwLockWriteGuard<ChainProtectedSync>, headers: Vec<EventHeader>, conversation: Option<&Arc<ConversationSession>>) -> Result<(), ProcessError>
     {
         let mut ret = ProcessError::default();
 
         for header in headers.into_iter()
         {
-            if let Result::Err(err) = sync.validate_event(&header) {
+            if let Result::Err(err) = sync.validate_event(&header, conversation) {
                 ret.validation_errors.push(err);
             }
 
@@ -142,7 +142,7 @@ impl ChainProtectedAsync
     }
 
     #[allow(dead_code)]
-    pub(super) async fn feed_async_internal(&mut self, sync: Arc<StdRwLock<ChainProtectedSync>>, evts: &Vec<EventData>)
+    pub(super) async fn feed_async_internal(&mut self, sync: Arc<StdRwLock<ChainProtectedSync>>, evts: &Vec<EventData>, conversation: Option<&Arc<ConversationSession>>)
         -> Result<Vec<EventHeader>, CommitError>
     {
         let mut errors = Vec::new();
@@ -152,7 +152,7 @@ impl ChainProtectedAsync
             for evt in evts.iter()
             {
                 let header = evt.as_header()?;
-                match sync.validate_event(&header) {
+                match sync.validate_event(&header, conversation) {
                     Err(err) => {
                         debug!("chain::feed-validation-err: {}", err);
                         errors.push(err);
@@ -193,19 +193,19 @@ impl ChainProtectedAsync
 impl ChainProtectedSync
 {
     #[allow(dead_code)]
-    pub(super) fn validate_event(&self, header: &EventHeader) -> Result<ValidationResult, ValidationError>
+    pub(super) fn validate_event(&self, header: &EventHeader, conversation: Option<&Arc<ConversationSession>>) -> Result<ValidationResult, ValidationError>
     {
         let mut is_deny = false;
         let mut is_allow = false;
         for validator in self.validators.iter() {
-            match validator.validate(header)? {
+            match validator.validate(header, conversation)? {
                 ValidationResult::Deny => is_deny = true,
                 ValidationResult::Allow => is_allow = true,
                 _ => {},
             }
         }
         for plugin in self.plugins.iter() {
-            match plugin.validate(header)? {
+            match plugin.validate(header, conversation)? {
                 ValidationResult::Deny => is_deny = true,
                 ValidationResult::Allow => is_allow = true,
                 _ => {}
@@ -353,12 +353,6 @@ impl<'a> Chain
 
         // Set the integrity mode on all the validators
         inside_sync.set_integrity_mode(builder.integrity);
-        for val in inside_sync.validators.iter_mut() {
-            val.set_integrity_mode(builder.integrity);
-        }
-        for val in inside_sync.plugins.iter_mut() {
-            val.set_integrity_mode(builder.integrity);
-        }
 
         // Add a tree authority plug if one is in the builder
         if let Some(tree) = builder.tree {
@@ -375,7 +369,8 @@ impl<'a> Chain
         };
         
         // Process all the events in the chain-of-trust
-        if let Err(err) = inside_async.process(inside_sync.write(), entries) {
+        let conversation = Arc::new(ConversationSession::default());
+        if let Err(err) = inside_async.process(inside_sync.write(), entries, Some(&conversation)) {
             if allow_process_errors == false {
                 return Err(ChainCreationError::ProcessError(err));
             }
@@ -716,7 +711,7 @@ impl<'a> Chain
 
             // Push the events into the chain of trust and release the lock on it before
             // we transmit the result so that there is less lock thrashing
-            let result = match lock.feed_async_internal(inside_sync.clone(), &trans.events).await {
+            let result = match lock.feed_async_internal(inside_sync.clone(), &trans.events, trans.conversation.as_ref()).await {
                 Ok(_) => Ok(()),
                 Err(err) => Err(err),
             };

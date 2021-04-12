@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 use log::{error, info, debug};
+use std::sync::Arc;
 
 use fxhash::FxHashSet;
 use crate::crypto::{Hash};
@@ -11,6 +12,7 @@ use super::sink::{EventSink};
 
 use super::event::*;
 use super::error::*;
+use super::transaction::ConversationSession;
 use super::plugin::*;
 use super::validator::ValidationResult;
 
@@ -47,7 +49,7 @@ for AntiReplayPlugin
 impl EventValidator
 for AntiReplayPlugin
 {
-    fn validate(&self, header: &EventHeader) -> Result<ValidationResult, ValidationError> {
+    fn validate(&self, header: &EventHeader, _conversation: Option<&Arc<ConversationSession>>) -> Result<ValidationResult, ValidationError> {
         match self.seen.contains(&header.raw.event_hash) {
             true => {
                 debug!("rejected event as it is a duplicate - {}", header.raw.event_hash);

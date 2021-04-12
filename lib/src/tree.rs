@@ -279,10 +279,10 @@ for TreeAuthorityPlugin
         Box::new(self.clone())
     }
 
-    fn validate(&self, header: &EventHeader) -> Result<ValidationResult, ValidationError>
+    fn validate(&self, header: &EventHeader, conversation: Option<&Arc<ConversationSession>>) -> Result<ValidationResult, ValidationError>
     {
         // We need to check all the signatures are valid
-        self.signature_plugin.validate(header)?;
+        self.signature_plugin.validate(header, conversation)?;
 
         // If it does not need a signature then accept it
         if header.meta.needs_signature() == false && header.raw.data_hash.is_none() {

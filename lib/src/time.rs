@@ -222,7 +222,7 @@ for TimestampEnforcer
         Box::new(self.clone())
     }
 
-    fn validate(&self, header: &EventHeader) -> Result<ValidationResult, ValidationError>
+    fn validate(&self, header: &EventHeader, _conversation: Option<&Arc<ConversationSession>>) -> Result<ValidationResult, ValidationError>
     {
         // If it does not have a timestamp then we can not accept it
         let time = match header.meta.get_timestamp() {

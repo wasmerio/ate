@@ -1,8 +1,11 @@
+use std::sync::Arc;
+
 use super::meta::*;
 use super::crypto::*;
 use super::event::*;
 use super::signature::MetaSignature;
 use super::error::*;
+use super::transaction::*;
 use super::trust::IntegrityMode;
 
 #[derive(Debug)]
@@ -15,7 +18,7 @@ pub enum ValidationResult {
 
 pub trait EventValidator: Send + Sync
 {
-    fn validate(&self, _header: &EventHeader) -> Result<ValidationResult, ValidationError> {
+    fn validate(&self, _header: &EventHeader, _conversation: Option<&Arc<ConversationSession>>) -> Result<ValidationResult, ValidationError> {
         Ok(ValidationResult::Abstain)
     }
 
@@ -37,7 +40,7 @@ for RubberStampValidator
     }
 
     #[allow(unused_variables)]
-    fn validate(&self, _header: &EventHeader) -> Result<ValidationResult, ValidationError>
+    fn validate(&self, _header: &EventHeader, _conversation: Option<&Arc<ConversationSession>>) -> Result<ValidationResult, ValidationError>
     {
         Ok(ValidationResult::Allow)
     }
@@ -67,7 +70,7 @@ for StaticSignatureValidator
     }
     
     #[allow(unused_variables)]
-    fn validate(&self, _header: &EventHeader) -> Result<ValidationResult, ValidationError>
+    fn validate(&self, _header: &EventHeader, _conversation: Option<&Arc<ConversationSession>>) -> Result<ValidationResult, ValidationError>
     {
         Ok(ValidationResult::Allow)
     }
