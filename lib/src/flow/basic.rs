@@ -12,23 +12,29 @@ use crate::error::ChainCreationError;
 
 pub struct OpenStaticBuilder
 {
-    temporal: bool
+    temporal: bool,
+    centralized_integrity: bool
 }
 
 impl OpenStaticBuilder
 {
-    fn new(temporal: bool) -> OpenStaticBuilder {
+    fn new(temporal: bool, centralized_integrity: bool) -> OpenStaticBuilder {
         OpenStaticBuilder {
-            temporal
+            temporal,
+            centralized_integrity
         }
     }
 
-    pub async fn all_persistent() -> OpenStaticBuilder {
-        OpenStaticBuilder::new(false)
+    pub async fn all_persistent_and_centralized() -> OpenStaticBuilder {
+        OpenStaticBuilder::new(false, true)
+    }
+
+    pub async fn all_persistent_and_distributed() -> OpenStaticBuilder {
+        OpenStaticBuilder::new(false, false)
     }
 
     pub async fn all_ethereal() -> OpenStaticBuilder {
-        OpenStaticBuilder::new(true)
+        OpenStaticBuilder::new(true, true)
     }
 }
 
@@ -38,6 +44,9 @@ for OpenStaticBuilder
 {
     async fn open(&self, builder: ChainOfTrustBuilder, key: &ChainKey) -> Result<OpenAction, ChainCreationError> {
         debug!("chain-builder: open: {}", key.to_string());
-        Ok(OpenAction::Chain(Arc::new(builder.temporal(self.temporal).build(key).await?)))
+        Ok(match &self.centralized_integrity {
+            true => OpenAction::CentralizedChain(Arc::new(builder.temporal(self.temporal).build(key).await?)),
+            false => OpenAction::DistributedChain(Arc::new(builder.temporal(self.temporal).build(key).await?)),
+        })
     }
 }

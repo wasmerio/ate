@@ -12,7 +12,7 @@ async fn main() -> Result<(), AteError>
     let cfg_mesh = ConfMesh::solo("127.0.0.1", 5000);
     let cfg_ate = ConfAte::default();
     info!("create a persistent server");
-    let _server = create_persistent_server(&cfg_ate, &cfg_mesh).await;
+    let _server = create_persistent_centralized_server(&cfg_ate, &cfg_mesh).await;
 
     info!("write some data to the server");    
 

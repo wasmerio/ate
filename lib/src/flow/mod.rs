@@ -14,8 +14,15 @@ pub enum OpenAction
 {
     /// The open request will be denied
     Deny(String),
-    /// The open action has resulted in a chain that can be consumed
-    Chain(Arc<Chain>),
+    /// The open action has resulted in a chain that can be consumed as a distributed chain
+    /// (distributed chains can be validated without the need for a central authority as the
+    ///  signatures are cryptographically signed)
+    DistributedChain(Arc<Chain>),
+    /// The open action has resulted in a chain that can be consumed as a centralized chain
+    /// (centralized chains are higher performance as signatures are not needed to verify the
+    ///  integrity of the tree however it requires the clients to trust the integrity checks
+    ///  of the server they are connecting to)
+    CentralizedChain(Arc<Chain>),
     /// The open action has resulted in a private chain that can only be consumed if
     /// the caller has a copy of the encryption key
     PrivateChain {
@@ -31,8 +38,12 @@ where Self: Send + Sync
     async fn open(&self, builder: ChainOfTrustBuilder, key: &ChainKey) -> Result<OpenAction, ChainCreationError>;
 }
 
-pub async fn all_persistent() -> Box<basic::OpenStaticBuilder> {
-    Box::new(basic::OpenStaticBuilder::all_persistent().await)
+pub async fn all_persistent_and_centralized() -> Box<basic::OpenStaticBuilder> {
+    Box::new(basic::OpenStaticBuilder::all_persistent_and_centralized().await)
+}
+
+pub async fn all_persistent_and_distributed() -> Box<basic::OpenStaticBuilder> {
+    Box::new(basic::OpenStaticBuilder::all_persistent_and_distributed().await)
 }
 
 pub async fn all_ethereal() -> Box<basic::OpenStaticBuilder> {

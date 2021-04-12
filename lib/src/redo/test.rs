@@ -90,7 +90,7 @@ fn test_redo_log() {
         {
             // Open the log once for writing
             println!("test_redo_log - creating the redo log");
-            let (mut rl, _) = RedoLog::open(&mock_cfg, &mock_chain_key, OpenFlags::create()).await.expect("Failed to load the redo log");
+            let (mut rl, _) = RedoLog::open(&mock_cfg, &mock_chain_key, OpenFlags::create_centralized()).await.expect("Failed to load the redo log");
             
             // Test that its empty
             println!("test_redo_log - confirming no more data");
@@ -157,7 +157,7 @@ fn test_redo_log() {
         {
             // Open it up again which should check that it loads data properly
             println!("test_redo_log - reopening the redo log");
-            let (mut rl, mut loader) = RedoLog::open(&mock_cfg, &mock_chain_key, OpenFlags::open()).await.expect("Failed to load the redo log");
+            let (mut rl, mut loader) = RedoLog::open(&mock_cfg, &mock_chain_key, OpenFlags::open_centralized()).await.expect("Failed to load the redo log");
             
             // Check that the correct data is read
             println!("test_redo_log - testing read result of blah1 (again)");

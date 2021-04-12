@@ -15,6 +15,7 @@ use super::lint::*;
 use super::transform::*;
 use super::plugin::*;
 use super::trust::ChainKey;
+use super::trust::IntegrityMode;
 use super::crypto::PublicSignKey;
 use super::crypto::KeySize;
 use super::error::*;
@@ -318,6 +319,7 @@ pub struct ChainOfTrustBuilder
     pub(super) tree: Option<TreeAuthorityPlugin>,
     pub(super) truncate: bool,
     pub(super) temporal: bool,
+    pub(super) integrity: IntegrityMode,
     pub(super) session: Session,
 }
 
@@ -339,6 +341,7 @@ for ChainOfTrustBuilder
             session: self.session.clone(),
             truncate: self.truncate,
             temporal: self.temporal,
+            integrity: self.integrity,
         }
     }
 }
@@ -361,6 +364,7 @@ impl ChainOfTrustBuilder
             session: Session::new(&cfg),
             truncate: false,
             temporal: false,
+            integrity: IntegrityMode::Distributed,
         }
         .with_defaults()
         .await
@@ -502,6 +506,12 @@ impl ChainOfTrustBuilder
     #[allow(dead_code)]
     pub fn temporal(mut self, val: bool) -> Self {
         self.temporal = val;
+        self
+    }
+
+    #[allow(dead_code)]
+    pub fn integrity(mut self, mode: IntegrityMode) -> Self {
+        self.integrity = mode;
         self
     }
 

@@ -77,11 +77,10 @@ This library is a way of working with data in modern distributed computing.
 0.*.* - Estimated 1-month of work before enough bugs are solved and the API
         can be fully stabilised
 0.4.0 - Remaining things to do...
-        + Fix the unit tests
         + Test why the performance is poor when writing remotely and tweak it
         + Implement logic that will resend partially sent local logs upon restart
         + Create a faster method of signing messages which is slightly less secure
-          but much better performance
+          but much better performant
         + AteAuth requires account access rights that also get added to the token
         + Connect up the 'chmod' commands to real commands in AteAuth
 0.4.1   + Create the ability to create a public file system

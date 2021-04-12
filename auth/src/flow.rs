@@ -47,7 +47,7 @@ for ChainFlow
             // Build a secure session and the chain
             let chain = Arc::new(chain);
 
-            return Ok(OpenAction::Chain(chain));
+            return Ok(OpenAction::DistributedChain(chain));
         }
         if self.regex_cmd.is_match(name)
         {

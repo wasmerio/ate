@@ -82,9 +82,14 @@ fn create_prepare<'a, 'b>(cfg_mesh: &'b ConfMesh) -> (Vec<MeshAddress>, Option<&
     (listen_root_addresses, listen_cluster)
 }
 
-pub async fn create_persistent_server(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Arc<MeshRoot<OpenStaticBuilder>>
+pub async fn create_persistent_centralized_server(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Arc<MeshRoot<OpenStaticBuilder>>
 {
-    create_server(cfg_ate, cfg_mesh, super::flow::all_persistent().await).await
+    create_server(cfg_ate, cfg_mesh, super::flow::all_persistent_and_centralized().await).await
+}
+
+pub async fn create_persistent_distributed_server(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Arc<MeshRoot<OpenStaticBuilder>>
+{
+    create_server(cfg_ate, cfg_mesh, super::flow::all_persistent_and_distributed().await).await
 }
 
 pub async fn create_ethereal_server(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Arc<MeshRoot<OpenStaticBuilder>>

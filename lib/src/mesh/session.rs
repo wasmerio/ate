@@ -221,9 +221,10 @@ impl MeshSession
         Ok(())
     }
 
-    async fn inbox_start_of_history(self: &Arc<MeshSession>, size: usize, loader: &mut Option<Box<impl Loader>>, root_keys: Vec<PublicSignKey>) -> Result<(), CommsError> {
+    async fn inbox_start_of_history(self: &Arc<MeshSession>, size: usize, loader: &mut Option<Box<impl Loader>>, root_keys: Vec<PublicSignKey>, integrity: IntegrityMode) -> Result<(), CommsError> {
         if let Some(chain) = self.chain.upgrade() {
             let mut lock = chain.inside_sync.write();
+            lock.integrity = integrity;
             for plugin in lock.plugins.iter_mut() {
                 plugin.set_root_keys(&root_keys);
             }
@@ -258,7 +259,7 @@ impl MeshSession
     {
         //debug!("inbox: packet size={}", pck.data.bytes.len());
         match pck.packet.msg {
-            Message::StartOfHistory { size, root_keys } => Self::inbox_start_of_history(self, size, loader, root_keys).await,
+            Message::StartOfHistory { size, root_keys, integrity } => Self::inbox_start_of_history(self, size, loader, root_keys, integrity).await,
             Message::Connected => Self::inbox_connected(self, pck.data).await,
             Message::Events { commit: _, evts } => Self::inbox_events(self, evts, loader).await,
             Message::Confirmed(id) => Self::inbox_confirmed(self, id).await,

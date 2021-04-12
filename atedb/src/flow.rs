@@ -61,7 +61,7 @@ for ChainFlow
             let chain = Arc::new(chain);
 
             // We have opened the chain
-            return Ok(OpenAction::Chain(chain));
+            return Ok(OpenAction::CentralizedChain(chain));
         }
 
         // Ask the authentication server for the public key for this user

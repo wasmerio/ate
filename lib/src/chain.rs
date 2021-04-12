@@ -71,6 +71,7 @@ pub(crate) struct ChainListener
 
 pub(crate) struct ChainProtectedSync
 {
+    pub(crate) integrity: IntegrityMode,
     pub(crate) default_session: Session,
     pub(super) sniffers: Vec<ChainSniffer>,
     pub(super) plugins: Vec<Box<dyn EventPlugin>>,
@@ -277,6 +278,7 @@ impl<'a> Chain
         let flags = OpenFlags {
             truncate: builder.truncate,
             temporal: builder.temporal,
+            integrity: builder.integrity,
         };
         
         // Create a redo log loader which will listen to all the events as they are
@@ -335,6 +337,7 @@ impl<'a> Chain
             session: None,
             repository: None,
             default_session: builder.session,
+            integrity: builder.integrity,
         };
 
         // Add a tree authority plug if one is in the builder

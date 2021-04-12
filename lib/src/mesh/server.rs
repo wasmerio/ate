@@ -272,7 +272,8 @@ where F: OpenFlow + 'static
             }
             chain
         }
-        OpenAction::Chain(c) => c,
+        OpenAction::DistributedChain(c) => c,
+        OpenAction::CentralizedChain(c) => c,
         OpenAction::Deny(reason) => {
             return Err(ChainCreationError::ServerRejected(reason));
         }
@@ -468,13 +469,16 @@ async fn inbox_stream_data(
 )
 -> Result<(), CommsError>
 {
-    // Extract the root keys
-    let root_keys = chain.inside_sync
-        .read()
-        .plugins
-        .iter()
-        .flat_map(|p| p.root_keys())
-        .collect::<Vec<_>>();
+    // Extract the root keys and integrity mode
+    let (integrity, root_keys) = {
+        let chain = chain.inside_sync.read();
+        let root_keys = chain
+            .plugins
+            .iter()
+            .flat_map(|p| p.root_keys())
+            .collect::<Vec<_>>();
+        (chain.integrity, root_keys)
+    };
     let size = chain.count().await;
 
     // Let the caller know we will be streaming them events
@@ -484,7 +488,8 @@ async fn inbox_stream_data(
     Message::StartOfHistory
         {
             size,
-            root_keys
+            root_keys,
+            integrity,
         }
     ).await?;
 

@@ -44,6 +44,13 @@ pub struct ChainKey {
     pub name: String,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
+pub enum IntegrityMode
+{
+    Centralized,
+    Distributed
+}
+
 impl ChainKey {
     #[allow(dead_code)]
     pub fn new(mut val: String) -> ChainKey {

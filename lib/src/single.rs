@@ -3,6 +3,7 @@ use parking_lot::RwLock as StdRwLock;
 use std::sync::Arc;
 
 use super::chain::*;
+use super::trust::IntegrityMode;
 use super::repository::*;
 
 /// Represents an exclusive lock on a chain-of-trust that allows the
@@ -40,5 +41,9 @@ impl<'a> ChainSingleUser<'a>
 
     pub fn disable_new_roots(&mut self) {
         self.inside_async.disable_new_roots = true;
+    }
+    
+    pub fn set_integrity(&self, mode: IntegrityMode) {
+        self.inside_sync.write().integrity = mode;
     }
 }

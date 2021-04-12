@@ -14,6 +14,7 @@ use crate::header::PrimaryKey;
 use crate::spec::*;
 use crate::session::Session;
 use crate::crypto::PublicSignKey;
+use crate::trust::IntegrityMode;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub(super) struct MessageEvent
@@ -93,6 +94,7 @@ pub(super) enum Message {
 
     StartOfHistory {
         size: usize,
+        integrity: IntegrityMode,
         root_keys: Vec<PublicSignKey>,
     },
     Events {
