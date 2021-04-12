@@ -3,8 +3,11 @@ use tokio::sync::mpsc as mpsc;
 use std::sync::mpsc as smpsc;
 use crate::meta::MetaParent;
 use fxhash::FxHashMap;
+use fxhash::FxHashSet;
 use std::sync::Arc;
+use parking_lot::RwLock as StdRwLock;
 
+use super::crypto::Hash as AteHash;
 use super::event::*;
 use super::error::*;
 use super::meta::*;
@@ -33,10 +36,10 @@ pub enum Scope
     Full
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Default)]
 pub struct ConversationSession
 {
-
+    pub signatures: StdRwLock<FxHashSet<AteHash>>,
 }
 
 #[derive(Debug, Clone)]

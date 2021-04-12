@@ -143,14 +143,13 @@ for SignaturePlugin
         Box::new(self.clone())
     }
 
-    fn metadata_lint_many<'a>(&self, raw: &Vec<LintData<'a>>, session: &Session, _conversation: Option<&Arc<ConversationSession>>) -> Result<Vec<CoreMetadata>, LintError>
+    fn metadata_lint_many<'a>(&self, raw: &Vec<LintData<'a>>, session: &Session, conversation: Option<&Arc<ConversationSession>>) -> Result<Vec<CoreMetadata>, LintError>
     {
         // If there is no data then we are already done
-        if raw.len() <= 0 {
-            return Ok(Vec::new());
-        }
-
         let mut ret = Vec::new();
+        if raw.len() <= 0 {
+            return Ok(ret);
+        }
 
         // Build a list of all the authorizations we need to write
         let mut auths = raw
@@ -160,6 +159,15 @@ for SignaturePlugin
             .collect::<Vec<_>>();
         auths.sort();
         auths.dedup();
+
+        // Check the fast path... if we are under centralized integrity and the destination
+        // has already got proof that we own the authentication key then we are done
+        if self.integrity == IntegrityMode::Centralized {
+            if let Some(conversation) = &conversation {
+                let lock = conversation.signatures.read();
+                auths.retain(|h| lock.contains(h) == false);
+            }
+        }
 
         // Loop through each unique write key that we need to write with
         for auth in auths.into_iter()
@@ -214,6 +222,15 @@ for SignaturePlugin
 
             // Push the signature
             ret.push(CoreMetadata::Signature(sig));
+
+            // Save signatures we have sent over this specific conversation so that future
+            // transmissions do not need to prove it again (this makes the fast path quicker)
+            if self.integrity == IntegrityMode::Centralized {
+                if let Some(conversation) = &conversation {
+                    let mut lock = conversation.signatures.write();
+                    lock.insert((*auth).clone());
+                }
+            }
         }
 
         // All ok
