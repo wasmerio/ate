@@ -224,7 +224,7 @@ impl MeshSession
     async fn inbox_start_of_history(self: &Arc<MeshSession>, size: usize, loader: &mut Option<Box<impl Loader>>, root_keys: Vec<PublicSignKey>, integrity: IntegrityMode) -> Result<(), CommsError> {
         if let Some(chain) = self.chain.upgrade() {
             let mut lock = chain.inside_sync.write();
-            lock.integrity = integrity;
+            lock.set_integrity_mode(integrity);
             for plugin in lock.plugins.iter_mut() {
                 plugin.set_root_keys(&root_keys);
             }

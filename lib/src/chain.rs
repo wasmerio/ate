@@ -247,6 +247,14 @@ impl ChainProtectedSync
             }
         }
     }
+
+    pub fn set_integrity_mode(&mut self, mode: IntegrityMode)
+    {
+        self.integrity = mode;
+        for val in self.validators.iter_mut() {
+            val.set_integrity_mode(mode);
+        }
+    }
 }
 
 struct ChainWork
@@ -339,6 +347,11 @@ impl<'a> Chain
             default_session: builder.session,
             integrity: builder.integrity,
         };
+
+        // Set the integrity mode on all the validators
+        for val in inside_sync.validators.iter_mut() {
+            val.set_integrity_mode(builder.integrity);
+        }
 
         // Add a tree authority plug if one is in the builder
         if let Some(tree) = builder.tree {

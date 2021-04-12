@@ -3,6 +3,7 @@ use super::crypto::*;
 use super::event::*;
 use super::signature::MetaSignature;
 use super::error::*;
+use super::trust::IntegrityMode;
 
 #[derive(Debug)]
 pub enum ValidationResult {
@@ -16,6 +17,9 @@ pub trait EventValidator: Send + Sync
 {
     fn validate(&self, _header: &EventHeader) -> Result<ValidationResult, ValidationError> {
         Ok(ValidationResult::Abstain)
+    }
+
+    fn set_integrity_mode(&mut self, _mode: IntegrityMode) {
     }
 
     fn clone_validator(&self) -> Box<dyn EventValidator>;

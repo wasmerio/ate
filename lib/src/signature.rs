@@ -12,6 +12,7 @@ use super::lint::EventMetadataLinter;
 use super::transform::EventDataTransformer;
 #[allow(unused_imports)]
 use super::sink::{EventSink};
+use super::trust::IntegrityMode;
 
 use super::event::*;
 use super::error::*;
@@ -38,6 +39,7 @@ pub struct SignaturePlugin
 {
     pk: FxHashMap<Hash, PublicSignKey>,
     sigs: MultiMap<Hash, Hash>,
+    integrity: IntegrityMode,
 }
 
 impl SignaturePlugin
@@ -47,6 +49,7 @@ impl SignaturePlugin
         SignaturePlugin {
             pk: FxHashMap::default(),
             sigs: MultiMap::default(),
+            integrity: IntegrityMode::Distributed,
         }
     }
 
@@ -124,6 +127,10 @@ for SignaturePlugin
 {
     fn clone_validator(&self) -> Box<dyn EventValidator> {
         Box::new(self.clone())
+    }
+
+    fn set_integrity_mode(&mut self, mode: IntegrityMode) {
+        self.integrity = mode;
     }
 }
 
