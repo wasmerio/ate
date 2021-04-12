@@ -153,7 +153,7 @@ pub async fn create_command(username: String, password: String, auth: Url) -> Re
 {
     // Open a command chain
     let chain_url = crate::helper::command_url(auth.clone());
-    let registry = ate::mesh::Registry::new(&conf_auth()).await;
+    let registry = ate::mesh::Registry::new(&conf_auth(), true).await;
     let chain = registry.open_by_url(&chain_url).await?;
 
     // Generate a read-key using the password and some seed data

@@ -50,7 +50,7 @@ pub async fn query_command(username: String, auth: Url) -> Result<QueryResponse,
 {
     // Open a command chain
     let chain_url = crate::helper::command_url(auth.clone());
-    let registry = ate::mesh::Registry::new(&conf_auth()).await;
+    let registry = ate::mesh::Registry::new(&conf_auth(), true).await;
     let chain = registry.open_by_url(&chain_url).await?;
     
     // Create the query command

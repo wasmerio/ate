@@ -36,8 +36,8 @@ async fn main() -> Result<(), AteError>
     debug!("connection two clients to the mesh server");
     cfg_mesh.force_listen = None;
     cfg_mesh.force_client_only = true;
-    let client_a = create_client(&cfg_ate, &cfg_mesh).await;
-    let client_b = create_client(&cfg_ate, &cfg_mesh).await;
+    let client_a = create_temporal_client(&cfg_ate, &cfg_mesh).await;
+    let client_b = create_temporal_client(&cfg_ate, &cfg_mesh).await;
 
     // Create a session
     let session = AteSession::new(&cfg_ate);

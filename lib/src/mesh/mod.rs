@@ -109,7 +109,17 @@ where F: OpenFlow + 'static
         open_flow).await
 }
 
-pub async fn create_client(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Arc<MeshClient>
+pub async fn create_client(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh, temporal: bool) -> Arc<MeshClient>
 {
-    MeshClient::new(&cfg_ate, &cfg_mesh).await
+    MeshClient::new(&cfg_ate, &cfg_mesh, temporal).await
+}
+
+pub async fn create_persistent_client(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Arc<MeshClient>
+{
+    MeshClient::new(&cfg_ate, &cfg_mesh, false).await
+}
+
+pub async fn create_temporal_client(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Arc<MeshClient>
+{
+    MeshClient::new(&cfg_ate, &cfg_mesh, true).await
 }

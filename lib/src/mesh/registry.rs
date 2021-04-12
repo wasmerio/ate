@@ -69,12 +69,13 @@ pub struct Registry
 {
     cfg_ate: ConfAte,
     dns: Mutex<DnsClient>,
+    temporal: bool,
     chains: Mutex<FxHashMap<String, Arc<MeshClient>>>,
 }
 
 impl Registry
 {
-    pub async fn new(cfg_ate: &ConfAte) -> Arc<Registry>
+    pub async fn new(cfg_ate: &ConfAte, temporal: bool) -> Arc<Registry>
     {
         debug!("using DNS server: {}", cfg_ate.dns_server);
         let addr: SocketAddr = (cfg_ate.dns_server.clone(), 53).to_socket_addrs().unwrap().next().unwrap();
@@ -104,6 +105,7 @@ impl Registry
             Registry {
                 cfg_ate: cfg_ate.clone(),
                 dns,
+                temporal,
                 chains: Mutex::new(FxHashMap::default()),
             }
         )
@@ -125,7 +127,7 @@ impl Registry
             },
             None => {
                 let cfg_mesh = self.cfg(url).await?;
-                let mesh = create_client(&self.cfg_ate, &cfg_mesh).await;
+                let mesh = create_client(&self.cfg_ate, &cfg_mesh, self.temporal).await;
                 lock.insert(domain.clone(), Arc::clone(&mesh));
                 Ok(mesh.open_ext(&key, Some(domain), loader_local, loader_remote).await?)
             }

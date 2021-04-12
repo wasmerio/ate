@@ -20,17 +20,19 @@ use crate::repository::ChainRepository;
 pub struct MeshClient {
     cfg_ate: ConfAte,
     lookup: MeshHashTable,
+    temporal: bool,
     sessions: Mutex<FxHashMap<ChainKey, Weak<Chain>>>,
 }
 
 impl MeshClient {
-    pub(super) async fn new(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Arc<MeshClient>
+    pub(super) async fn new(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh, temporal: bool) -> Arc<MeshClient>
     {
         Arc::new(
             MeshClient
             {
                 cfg_ate: cfg_ate.clone(),
                 lookup: MeshHashTable::new(cfg_mesh),
+                temporal,
                 sessions: Mutex::new(FxHashMap::default()),
             }
         )
@@ -56,11 +58,18 @@ impl MeshClient {
             return Err(ChainCreationError::NoRootFoundInConfig);
         }
         
-        let builder = ChainOfTrustBuilder::new(&self.cfg_ate).await;
+        let builder = ChainOfTrustBuilder::new(&self.cfg_ate).await
+            .temporal(self.temporal);
         let (_, chain) = MeshSession::connect(builder, key, domain, addrs, loader_local, loader_remote).await?;
         *record = Arc::downgrade(&chain);
 
         Ok(chain)
+    }
+
+    pub fn temporal(mut self, val: bool) -> Self
+    {
+        self.temporal = val;
+        self
     }
 }
 

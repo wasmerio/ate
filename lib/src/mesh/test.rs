@@ -34,13 +34,15 @@ async fn test_mesh()
         for n in (5100+port_offset)..(5105+port_offset) {
             cluster1.roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
         }
+        /*
         let mut cluster2 = ConfCluster::default();
         for n in (6100+port_offset)..(6105+port_offset) {
             cluster2.roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
         }
+        */
         let mut cfg_mesh = ConfMesh::default();
         cfg_mesh.clusters.push(cluster1);
-        cfg_mesh.clusters.push(cluster2);
+        //cfg_mesh.clusters.push(cluster2);
 
         let mut mesh_root_joins = Vec::new();
 
@@ -61,6 +63,7 @@ async fn test_mesh()
             index = index + 1;
         }
 
+        /*
         // Create the second cluster of mesh root nodes
         let mut index = 0;
         for n in (6100+port_offset)..(6105+port_offset) {
@@ -77,6 +80,7 @@ async fn test_mesh()
             mesh_root_joins.push((addr, join));
             index = index + 1;
         }
+        */
 
         // Just wait a second there!
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
@@ -90,8 +94,9 @@ async fn test_mesh()
     };
 
     debug!("create the mesh and connect to it with client 1");
-    let client_a = create_client(&cfg_ate, &cfg_mesh).await;
+    let client_a = create_temporal_client(&cfg_ate, &cfg_mesh).await;
     let chain_a = client_a.open_by_url(&url::Url::parse("tcp://127.0.0.1/test-chain").unwrap()).await.unwrap();
+    debug!("connected with client 1");
     let mut session_a = AteSession::new(&cfg_ate);
     session_a.add_write_key(&root_key);
     
@@ -115,7 +120,7 @@ async fn test_mesh()
         {
             cfg_mesh.force_listen = None;
             cfg_mesh.force_client_only = true;
-            let client_b = create_client(&cfg_ate, &cfg_mesh).await;
+            let client_b = create_temporal_client(&cfg_ate, &cfg_mesh).await;
 
             let chain_b = client_b.open_by_key(&ChainKey::new("test-chain".to_string())).await.unwrap();
             let mut session_b = AteSession::new(&cfg_ate);
@@ -133,9 +138,8 @@ async fn test_mesh()
                 
                 debug!("add to new sub objects to the vector");
                 dao2.push(&mut dio, dao2.inner, "test_string1".to_string()).unwrap();
+                dio.commit().await.unwrap();
                 dao2.push(&mut dio, dao2.inner, "test_string2".to_string()).unwrap();
-
-                debug!("commit the DIO");
                 dio.commit().await.unwrap();
             }
         }
@@ -170,7 +174,7 @@ async fn test_mesh()
     {
         cfg_mesh.force_listen = None;
         cfg_mesh.force_client_only = true;
-        let client = create_client(&cfg_ate, &cfg_mesh).await;
+        let client = create_temporal_client(&cfg_ate, &cfg_mesh).await;
 
         debug!("reconnecting the client");
         let chain = client.open_by_url(&url::Url::parse("tcp://127.0.0.1/test-chain").unwrap()).await.unwrap();

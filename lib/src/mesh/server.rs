@@ -110,7 +110,7 @@ where F: OpenFlow + 'static
                 },
                 chains: StdMutex::new(FxHashMap::default()),
                 chain_builder: open_flow,
-                remote_registry: Registry::new(&cfg_ate).await
+                remote_registry: Registry::new(&cfg_ate, true).await
             }
         );
 

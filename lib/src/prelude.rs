@@ -58,3 +58,5 @@ pub use crate::mesh::create_persistent_distributed_server;
 pub use crate::mesh::create_ethereal_server;
 pub use crate::mesh::create_server;
 pub use crate::mesh::create_client;
+pub use crate::mesh::create_temporal_client;
+pub use crate::mesh::create_persistent_client;

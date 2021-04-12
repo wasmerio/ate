@@ -17,7 +17,7 @@ async fn main() -> Result<(), AteError>
     info!("write some data to the server");    
 
     let key = {
-        let registry = Registry::new(&cfg_ate).await;
+        let registry = Registry::new(&cfg_ate, true).await;
         let chain = registry.open_by_url(&url::Url::from_str("tcp://localhost:5000/test-chain").unwrap()).await?;
         let session = AteSession::new(&cfg_ate);
         let mut dio = chain.dio_ext(&session, TransactionScope::Full).await;
@@ -29,7 +29,7 @@ async fn main() -> Result<(), AteError>
     info!("read it back again on a new client");
 
     {
-        let registry = Registry::new(&cfg_ate).await;
+        let registry = Registry::new(&cfg_ate, true).await;
         let chain = registry.open_by_url(&url::Url::from_str("tcp://localhost:5000/test-chain").unwrap()).await?;
         let session = AteSession::new(&cfg_ate);
         let mut dio = chain.dio_ext(&session, TransactionScope::Full).await;

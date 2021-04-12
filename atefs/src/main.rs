@@ -261,7 +261,7 @@ async fn main_mount(mount: Mount, conf: ConfAte, session: AteSession) -> Result<
             )
         },
         Some(remote) => {
-            registry = ate::mesh::Registry::new(&conf).await;
+            registry = ate::mesh::Registry::new(&conf, mount.temp).await;
             registry.open_ext(&remote, progress_local, progress_remote).await?
         },
     };

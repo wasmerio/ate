@@ -150,7 +150,7 @@ pub async fn login_command(username: String, password: String, code: Option<Stri
 {
     // Open a command chain
     let chain_url = crate::helper::command_url(auth);
-    let registry = ate::mesh::Registry::new(&conf_auth()).await;
+    let registry = ate::mesh::Registry::new(&conf_auth(), true).await;
     let chain = registry.open_by_url(&chain_url).await?;
 
     // Generate a read-key using the password and some seed data
@@ -193,7 +193,7 @@ pub async fn load_credentials(username: String, read_key: EncryptKey, _code: Opt
     let chain_url = crate::helper::auth_url(auth, &username);
 
     // Generate a chain key that matches this username on the authentication server
-    let registry = ate::mesh::Registry::new(&conf_auth()).await;
+    let registry = ate::mesh::Registry::new(&conf_auth(), true).await;
     let chain = registry.open_by_url(&chain_url).await?;
 
     // Load the user
