@@ -545,7 +545,7 @@ impl<'a> Dio<'a>
                     header: evt.as_header()?,
                 });
             }
-            let meta = multi_lock.metadata_lint_many(&lints, &self.session)?;
+            let meta = multi_lock.metadata_lint_many(&lints, &self.session, self.conversation.as_ref())?;
 
             // If it has data then insert it at the front of these events
             if meta.len() > 0 {

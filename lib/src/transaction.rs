@@ -34,7 +34,7 @@ pub enum Scope
 }
 
 #[derive(Debug, Clone, Default)]
-pub(crate) struct ConversationSession
+pub struct ConversationSession
 {
 
 }

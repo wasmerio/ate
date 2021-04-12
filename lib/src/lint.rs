@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use crate::session::{Session, SessionProperty};
 
 use super::error::*;
@@ -16,7 +17,7 @@ pub struct LintData<'a>
 pub trait EventMetadataLinter: Send + Sync
 {
     /// Called just before the metadata is pushed into the redo log
-    fn metadata_lint_many<'a>(&self, _lints: &Vec<LintData<'a>>, _session: &Session) -> Result<Vec<CoreMetadata>, LintError>
+    fn metadata_lint_many<'a>(&self, _lints: &Vec<LintData<'a>>, _session: &Session, _conversation: Option<&Arc<ConversationSession>>) -> Result<Vec<CoreMetadata>, LintError>
     {
         Ok(Vec::new())
     }

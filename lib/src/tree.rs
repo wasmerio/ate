@@ -18,6 +18,7 @@ use super::transaction::*;
 use bytes::Bytes;
 use fxhash::FxHashMap;
 use fxhash::FxHashSet;
+use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 pub struct TreeAuthorityPlugin
@@ -332,11 +333,11 @@ for TreeAuthorityPlugin
         Box::new(self.clone())
     }
 
-    fn metadata_lint_many<'a>(&self, headers: &Vec<LintData<'a>>, session: &Session) -> Result<Vec<CoreMetadata>, LintError>
+    fn metadata_lint_many<'a>(&self, headers: &Vec<LintData<'a>>, session: &Session, conversation: Option<&Arc<ConversationSession>>) -> Result<Vec<CoreMetadata>, LintError>
     {
         let mut ret = Vec::new();
 
-        let mut other = self.signature_plugin.metadata_lint_many(headers, session)?;
+        let mut other = self.signature_plugin.metadata_lint_many(headers, session, conversation)?;
         ret.append(&mut other);
 
         Ok(ret)

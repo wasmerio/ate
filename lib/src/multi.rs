@@ -84,9 +84,9 @@ impl ChainMultiUser
     }
 
     #[allow(dead_code)]
-    pub(crate) fn metadata_lint_many<'a>(&self, lints: &Vec<LintData<'a>>, session: &Session) -> Result<Vec<CoreMetadata>, LintError> {
+    pub(crate) fn metadata_lint_many<'a>(&self, lints: &Vec<LintData<'a>>, session: &Session, conversation: Option<&Arc<ConversationSession>>) -> Result<Vec<CoreMetadata>, LintError> {
         let guard = self.inside_sync.read();
-        guard.metadata_lint_many(lints, session)
+        guard.metadata_lint_many(lints, session, conversation)
     }
 
     #[allow(dead_code)]
@@ -124,13 +124,13 @@ impl ChainMultiUser
 }
 
 impl ChainProtectedSync {
-    pub(crate) fn metadata_lint_many<'a>(&self, lints: &Vec<LintData<'a>>, session: &Session) -> Result<Vec<CoreMetadata>, LintError> {
+    pub(crate) fn metadata_lint_many<'a>(&self, lints: &Vec<LintData<'a>>, session: &Session, conversation: Option<&Arc<ConversationSession>>) -> Result<Vec<CoreMetadata>, LintError> {
         let mut ret = Vec::new();
         for linter in self.linters.iter() {
-            ret.extend(linter.metadata_lint_many(lints, session)?);
+            ret.extend(linter.metadata_lint_many(lints, session, conversation)?);
         }
         for plugin in self.plugins.iter() {
-            ret.extend(plugin.metadata_lint_many(lints, session)?);
+            ret.extend(plugin.metadata_lint_many(lints, session, conversation)?);
         }
         Ok(ret)
     }

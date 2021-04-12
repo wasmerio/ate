@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use multimap::MultiMap;
 #[allow(unused_imports)]
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
@@ -19,6 +20,7 @@ use super::error::*;
 use super::plugin::*;
 use super::meta::*;
 use super::lint::*;
+use super::transaction::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MetaSignature
@@ -141,7 +143,7 @@ for SignaturePlugin
         Box::new(self.clone())
     }
 
-    fn metadata_lint_many<'a>(&self, raw: &Vec<LintData<'a>>, session: &Session) -> Result<Vec<CoreMetadata>, LintError>
+    fn metadata_lint_many<'a>(&self, raw: &Vec<LintData<'a>>, session: &Session, _conversation: Option<&Arc<ConversationSession>>) -> Result<Vec<CoreMetadata>, LintError>
     {
         // If there is no data then we are already done
         if raw.len() <= 0 {
