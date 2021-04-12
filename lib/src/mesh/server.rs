@@ -272,8 +272,14 @@ where F: OpenFlow + 'static
             }
             chain
         }
-        OpenAction::DistributedChain(c) => c,
-        OpenAction::CentralizedChain(c) => c,
+        OpenAction::DistributedChain(c) => {
+            c.single().await.set_integrity(IntegrityMode::Distributed);
+            c
+        },
+        OpenAction::CentralizedChain(c) => {
+            c.single().await.set_integrity(IntegrityMode::Centralized);
+            c
+        },
         OpenAction::Deny(reason) => {
             return Err(ChainCreationError::ServerRejected(reason));
         }
