@@ -47,10 +47,18 @@ pub async fn all_persistent_and_distributed() -> Box<basic::OpenStaticBuilder> {
     Box::new(basic::OpenStaticBuilder::all_persistent_and_distributed().await)
 }
 
-pub async fn all_ethereal_with_root_key(root_key: PublicSignKey) -> Box<basic::OpenStaticBuilder> {
-    Box::new(basic::OpenStaticBuilder::all_ethereal_with_root_key(root_key).await)
-}
-
 pub async fn all_ethereal() -> Box<basic::OpenStaticBuilder> {
     Box::new(basic::OpenStaticBuilder::all_ethereal().await)
+}
+
+pub async fn all_persistent_and_centralized_with_root_key(root_key: PublicSignKey) -> Box<basic::OpenStaticBuilder> {
+    Box::new(basic::OpenStaticBuilder::all_persistent_and_centralized_with_root_key(root_key).await)
+}
+
+pub async fn all_persistent_and_distributed_with_root_key(root_key: PublicSignKey) -> Box<basic::OpenStaticBuilder> {
+    Box::new(basic::OpenStaticBuilder::all_persistent_and_distributed_with_root_key(root_key).await)
+}
+
+pub async fn all_ethereal_with_root_key(root_key: PublicSignKey) -> Box<basic::OpenStaticBuilder> {
+    Box::new(basic::OpenStaticBuilder::all_ethereal_with_root_key(root_key).await)
 }

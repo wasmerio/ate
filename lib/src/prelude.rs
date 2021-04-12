@@ -22,6 +22,8 @@ pub use crate::flow::all_ethereal;
 pub use crate::flow::all_ethereal_with_root_key;
 pub use crate::flow::all_persistent_and_centralized;
 pub use crate::flow::all_persistent_and_distributed;
+pub use crate::flow::all_persistent_and_centralized_with_root_key;
+pub use crate::flow::all_persistent_and_distributed_with_root_key;
 
 pub use crate::chain::Chain;
 pub use crate::trust::ChainKey;

@@ -36,12 +36,20 @@ impl OpenStaticBuilder
         OpenStaticBuilder::new(false, false, None)
     }
 
-    pub async fn all_ethereal_with_root_key(root_key: PublicSignKey) -> OpenStaticBuilder {
-        OpenStaticBuilder::new(true, true, Some(root_key))
-    }
-
     pub async fn all_ethereal() -> OpenStaticBuilder {
         OpenStaticBuilder::new(true, true, None)
+    }
+
+    pub async fn all_persistent_and_centralized_with_root_key(root_key: PublicSignKey) -> OpenStaticBuilder {
+        OpenStaticBuilder::new(false, true, Some(root_key))
+    }
+
+    pub async fn all_persistent_and_distributed_with_root_key(root_key: PublicSignKey) -> OpenStaticBuilder {
+        OpenStaticBuilder::new(false, false, Some(root_key))
+    }
+
+    pub async fn all_ethereal_with_root_key(root_key: PublicSignKey) -> OpenStaticBuilder {
+        OpenStaticBuilder::new(true, true, Some(root_key))
     }
 }
 

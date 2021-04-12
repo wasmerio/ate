@@ -181,7 +181,7 @@ async fn test_mesh()
         let session = AteSession::new(&cfg_ate);
         {
             debug!("loading data object 1");
-            let mut dio = chain.dio_ext(&session, TransactionScope::Full).await;
+            let mut dio = chain.dio(&session).await;
             dio.load::<TestData>(&dao_key1).await.expect("The data did not survive between new sessions");
         }
     }
