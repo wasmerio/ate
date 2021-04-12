@@ -79,11 +79,11 @@ This library is a way of working with data in modern distributed computing.
 0.4.0 - Remaining things to do...
         + Fix the unit tests
         + Test why the performance is poor when writing remotely and tweak it
-        + Implement logic that will resend partially send local logs upon restart
+        + Implement logic that will resend partially sent local logs upon restart
         + Create a faster method of signing messages which is slightly less secure
           but much better performance
         + AteAuth requires account access rights that also get added to the token
-        + Connect up the 'chmod' and 'chown' commands to real commands in AteAuth
+        + Connect up the 'chmod' commands to real commands in AteAuth
 0.4.1   + Create the ability to create a public file system
         + Modify AteFS so that it creates nodes in a global file system tree for
           everyone in the world to see (but not actually have access to)

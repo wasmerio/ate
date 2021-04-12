@@ -427,6 +427,7 @@ where Self: Send + Sync,
     {
         let s = &mut self.ethereal;
         if s.state.dirty == true {
+            s.state.dirty = false;
 
             let state = &mut dio.state;
 
@@ -452,9 +453,6 @@ where Self: Send + Sync,
                 None => None,
             };
             state.dirty(&s.row.key, row_parent, row_data);
-
-            // Clear the flags
-            s.state.dirty = false;
         }
         Ok(())
     }
