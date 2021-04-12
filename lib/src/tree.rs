@@ -316,7 +316,6 @@ for TreeAuthorityPlugin
                 if self.integrity == IntegrityMode::Centralized {
                     if let Some(conversation) = conversation {
                         let lock = conversation.signatures.read();
-                        
                         let already = match &auth.write {
                             WriteOption::Specific(hash) => lock.contains(hash),
                             WriteOption::Group(hashes) => hashes.iter().any(|h| lock.contains(h)),

@@ -29,7 +29,8 @@ pub struct MeshSession
     chain: Weak<Chain>,
     commit: Arc<StdMutex<FxHashMap<u64, mpsc::Sender<Result<(), CommitError>>>>>,
     lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, LockRequest>>>,
-    conversation: Arc<ConversationSession>,
+    inbound_conversation: Arc<ConversationSession>,
+    outbound_conversation: Arc<ConversationSession>,
 }
 
 impl MeshSession
@@ -63,7 +64,8 @@ impl MeshSession
             pipe_rx.push(node_rx);
         }
         
-        let conversation = Arc::new(ConversationSession::default());
+        let inbound_conversation = Arc::new(ConversationSession::default());
+        let outbound_conversation = Arc::new(ConversationSession::default());
         let pipe = Box::new(
             SessionPipe {
                 key: chain_key.clone(),
@@ -71,7 +73,7 @@ impl MeshSession
                 next: NullPipe::new(),
                 commit: Arc::clone(&commit),
                 lock_requests: Arc::clone(&lock_requests),
-                conversation: Arc::clone(&conversation),
+                outbound_conversation: Arc::clone(&outbound_conversation),
             }
         );
 
@@ -93,7 +95,8 @@ impl MeshSession
             commit,
             chain: Arc::downgrade(&chain),
             lock_requests,
-            conversation,
+            inbound_conversation,
+            outbound_conversation,
         });
 
         // Attach a mesh session to it
@@ -147,7 +150,8 @@ impl MeshSession
             commit: Arc::new(StdMutex::new(FxHashMap::default())),
             lock_requests: Arc::new(StdMutex::new(FxHashMap::default())),
             chain: Arc::downgrade(&chain),
-            conversation: Arc::new(ConversationSession::default()),
+            inbound_conversation: Arc::new(ConversationSession::default()),
+            outbound_conversation: Arc::new(ConversationSession::default()),
         });
 
         chain.inside_sync.write().session = Some(Arc::clone(&ret));
@@ -180,7 +184,7 @@ impl MeshSession
                 scope: Scope::Local,
                 transmit: false,
                 events: feed_me,
-                conversation: Some(Arc::clone(&self.conversation)),
+                conversation: Some(Arc::clone(&self.inbound_conversation)),
             }).await?;
         }
 
@@ -402,7 +406,7 @@ struct SessionPipe
     next: Arc<Box<dyn EventPipe>>,
     commit: Arc<StdMutex<FxHashMap<u64, mpsc::Sender<Result<(), CommitError>>>>>,
     lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, LockRequest>>>,
-    conversation: Arc<ConversationSession>,
+    outbound_conversation: Arc<ConversationSession>,
 }
 
 impl SessionPipe
@@ -547,6 +551,6 @@ for SessionPipe
     }
 
     fn conversation(&self) -> Option<Arc<ConversationSession>> {
-        Some(Arc::clone(&self.conversation))
+        Some(Arc::clone(&self.outbound_conversation))
     }
 }

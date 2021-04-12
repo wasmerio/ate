@@ -132,6 +132,7 @@ async fn test_mesh()
 
                 debug!("store data object 1");
                 dao_key1 = dio.store(TestData::default()).unwrap().key().clone();
+                dio.commit().await.unwrap();
 
                 debug!("load data object 2");
                 let mut dao2: Dao<TestData> = dio.load(&dao_key2).await.expect("An earlier saved object should have loaded");
