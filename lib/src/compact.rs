@@ -1,9 +1,11 @@
+use std::sync::Arc;
 use fxhash::FxHashSet;
 use super::header::*;
 use super::meta::*;
 use super::event::*;
 use super::sink::*;
 use super::error::*;
+use super::transaction::ConversationSession;
 
 pub enum EventRelevance
 {
@@ -35,7 +37,7 @@ pub struct RemoveDuplicatesCompactor
 impl EventSink
 for RemoveDuplicatesCompactor
 {
-    fn feed(&mut self, header: &EventHeader) -> Result<(), SinkError> {
+    fn feed(&mut self, header: &EventHeader, _conversation: Option<&Arc<ConversationSession>>) -> Result<(), SinkError> {
         if let Some(key) = header.meta.get_data_key() {
             self.already.insert(key.clone());
         }
@@ -76,7 +78,7 @@ pub struct TombstoneCompactor
 impl EventSink
 for TombstoneCompactor
 {
-    fn feed(&mut self, header: &EventHeader) -> Result<(), SinkError> {
+    fn feed(&mut self, header: &EventHeader, _conversation: Option<&Arc<ConversationSession>>) -> Result<(), SinkError> {
         if let Some(key) = header.meta.get_tombstone() {
             self.tombstoned.insert(key.clone());
         }

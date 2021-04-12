@@ -74,7 +74,7 @@ impl SignaturePlugin
 impl EventSink
 for SignaturePlugin
 {
-    fn feed(&mut self, header: &EventHeader) -> Result<(), SinkError>
+    fn feed(&mut self, header: &EventHeader, conversation: Option<&Arc<ConversationSession>>) -> Result<(), SinkError>
     {
         // Store the public key and encrypt private keys into the index
         for m in header.meta.core.iter() {
@@ -109,6 +109,16 @@ for SignaturePlugin
                     // Add all the validated hashes
                     for data_hash in &sig.hashes {
                         self.sigs.insert(data_hash.clone(), sig.public_key_hash);
+                    }
+
+                    // If we in a conversation and integrity is centrally managed then update the
+                    // conversation so that we record that a signature was validated for a hash
+                    // which is clear proof of ownershp
+                    if self.integrity == IntegrityMode::Centralized {
+                        if let Some(conversation) = &conversation {
+                            let mut lock = conversation.signatures.write();
+                            lock.insert(sig.public_key_hash);
+                        }
                     }
                 }
                 _ => { }

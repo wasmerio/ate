@@ -183,7 +183,7 @@ for TimestampEnforcer
 impl EventSink
 for TimestampEnforcer
 {
-    fn feed(&mut self, header: &EventHeader) -> Result<(), SinkError>
+    fn feed(&mut self, header: &EventHeader, _conversation: Option<&Arc<ConversationSession>>) -> Result<(), SinkError>
     {
         if let Some(time) = header.meta.get_timestamp() {
             let time = Duration::from_millis(time.time_since_epoch_ms);

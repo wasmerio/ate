@@ -246,7 +246,7 @@ impl TreeAuthorityPlugin
 impl EventSink
 for TreeAuthorityPlugin
 {
-    fn feed(&mut self, header: &EventHeader) -> Result<(), SinkError>
+    fn feed(&mut self, header: &EventHeader, conversation: Option<&Arc<ConversationSession>>) -> Result<(), SinkError>
     {
         
         if let Some(key) = header.meta.get_tombstone() {
@@ -261,7 +261,7 @@ for TreeAuthorityPlugin
             self.auth.insert(key, auth);
         }
 
-        self.signature_plugin.feed(header)?;
+        self.signature_plugin.feed(header, conversation)?;
         Ok(())
     }
 
@@ -476,12 +476,12 @@ for TreeAuthorityPlugin
         Box::new(self.clone())
     }
 
-    fn rebuild(&mut self, headers: &Vec<EventHeader>) -> Result<(), SinkError>
+    fn rebuild(&mut self, headers: &Vec<EventHeader>, conversation: Option<&Arc<ConversationSession>>) -> Result<(), SinkError>
     {
         self.reset();
-        self.signature_plugin.rebuild(headers)?;
+        self.signature_plugin.rebuild(headers, conversation)?;
         for header in headers {
-            self.feed(header)?;
+            self.feed(header, conversation)?;
         }
         Ok(())
     }
@@ -511,7 +511,7 @@ pub struct TreeCompactor
 impl EventSink
 for TreeCompactor
 {
-    fn feed(&mut self, header: &EventHeader) -> Result<(), SinkError>
+    fn feed(&mut self, header: &EventHeader, _conversation: Option<&Arc<ConversationSession>>) -> Result<(), SinkError>
     {
         if let Some(parent) = header.meta.get_parent() {
             self.parent_needed.insert(parent.vec.parent_id);

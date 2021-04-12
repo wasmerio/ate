@@ -35,7 +35,7 @@ impl AntiReplayPlugin
 impl EventSink
 for AntiReplayPlugin
 {
-    fn feed(&mut self, header: &EventHeader) -> Result<(), SinkError>
+    fn feed(&mut self, header: &EventHeader, _conversation: Option<&Arc<ConversationSession>>) -> Result<(), SinkError>
     {
         self.seen.insert(header.raw.event_hash);
         Ok(())

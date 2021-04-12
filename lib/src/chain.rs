@@ -124,12 +124,12 @@ impl ChainProtectedAsync
             }
 
             for indexer in sync.indexers.iter_mut() {
-                if let Err(err) = indexer.feed(&header) {
+                if let Err(err) = indexer.feed(&header, conversation) {
                     ret.sink_errors.push(err);
                 }
             }
             for plugin in sync.plugins.iter_mut() {
-                if let Err(err) = plugin.feed(&header) {
+                if let Err(err) = plugin.feed(&header, conversation) {
                     ret.sink_errors.push(err);
                 }
             }
@@ -162,10 +162,10 @@ impl ChainProtectedAsync
                 }
 
                 for indexer in sync.indexers.iter_mut() {
-                    indexer.feed(&header)?;
+                    indexer.feed(&header, conversation)?;
                 }
                 for plugin in sync.plugins.iter_mut() {
-                    plugin.feed(&header)?;
+                    plugin.feed(&header, conversation)?;
                 }
 
                 validated_evts.push((evt, header));
@@ -471,6 +471,9 @@ impl<'a> Chain
                 compactors.push(compactor);
             }
 
+            // create an empty conversation
+            let conversation = Arc::new(ConversationSession::default());
+
             // build a list of the events that are actually relevant to a compacted log
             history_offset = guard_async.chain.history_offset;
             for (_, entry) in guard_async.chain.history.iter().rev()
@@ -489,7 +492,7 @@ impl<'a> Chain
                         EventRelevance::ForceDrop => is_force_drop = true,
                         EventRelevance::Abstain => { }
                     }
-                    compactor.feed(&header)?;
+                    compactor.feed(&header, Some(&conversation))?;
                 }
                 let keep = match is_force_keep {
                     true => true,
@@ -546,11 +549,12 @@ impl<'a> Chain
             chain.history = new_history;
 
             debug!("compact: rebuilding indexes");
+            let conversation = Arc::new(ConversationSession::default());
             for indexer in lock.indexers.iter_mut() {
                 indexer.rebuild(&new_events)?;
             }
             for plugin in lock.plugins.iter_mut() {
-                plugin.rebuild(&new_events)?;
+                plugin.rebuild(&new_events, Some(&conversation))?;
             }
         }
         

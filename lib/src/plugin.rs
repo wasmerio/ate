@@ -1,5 +1,6 @@
 #[allow(unused_imports)]
 use crate::{compact::EventCompactor, lint::EventMetadataLinter, transform::EventDataTransformer};
+use std::sync::Arc;
 
 #[allow(unused_imports)]
 use super::crypto::*;
@@ -10,15 +11,16 @@ use super::compact::*;
 use super::validator::*;
 #[allow(unused_imports)]
 use super::event::*;
+use super::transaction::ConversationSession;
 
 pub trait EventPlugin
 where Self: EventValidator + EventSink + EventMetadataLinter + EventDataTransformer + Send + Sync,
 {
-    fn rebuild(&mut self, headers: &Vec<EventHeader>) -> Result<(), SinkError>
+    fn rebuild(&mut self, headers: &Vec<EventHeader>, conversation: Option<&Arc<ConversationSession>>) -> Result<(), SinkError>
     {
         self.reset();
         for header in headers {
-            self.feed(header)?;
+            self.feed(header, conversation)?;
         }
         Ok(())
     }
