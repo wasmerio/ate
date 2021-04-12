@@ -79,13 +79,13 @@ This library is a way of working with data in modern distributed computing.
         Tokera as authentication
 0.*.* - Estimated 1-month of work before enough bugs are solved and the API
         can be fully stabilised
-0.4.0 - Remaining things to do...
+0.4.1 - Remaining things to do...
         + Implement logic that will resend partially sent local logs upon restart
-0.4.1   Next batch of functionality
+0.4.2   Next batch of functionality
         + Create the ability to create a public file system
         + Modify AteFS so that it creates nodes in a global file system tree for
           everyone in the world to see (but not actually have access to)
-0.4.2   Another batch this time we are approaching feature completeness
+0.4.3   Another batch this time we are approaching feature completeness
         + AteAuth requires account access rights that also get added to the token
         + Connect up the 'chmod' commands to real commands in AteAuth
 ```
