@@ -3,6 +3,7 @@ use log::{error, info, debug};
 use async_trait::async_trait;
 use std::sync::Arc;
 
+use crate::crypto::PublicSignKey;
 use crate::conf::ConfAte;
 use super::OpenAction;
 use super::OpenFlow;
@@ -13,28 +14,34 @@ use crate::error::ChainCreationError;
 pub struct OpenStaticBuilder
 {
     temporal: bool,
+    root_key: Option<PublicSignKey>,
     centralized_integrity: bool
 }
 
 impl OpenStaticBuilder
 {
-    fn new(temporal: bool, centralized_integrity: bool) -> OpenStaticBuilder {
+    fn new(temporal: bool, centralized_integrity: bool, root_key: Option<PublicSignKey>) -> OpenStaticBuilder {
         OpenStaticBuilder {
             temporal,
-            centralized_integrity
+            centralized_integrity,
+            root_key,
         }
     }
 
     pub async fn all_persistent_and_centralized() -> OpenStaticBuilder {
-        OpenStaticBuilder::new(false, true)
+        OpenStaticBuilder::new(false, true, None)
     }
 
     pub async fn all_persistent_and_distributed() -> OpenStaticBuilder {
-        OpenStaticBuilder::new(false, false)
+        OpenStaticBuilder::new(false, false, None)
+    }
+
+    pub async fn all_ethereal_with_root_key(root_key: PublicSignKey) -> OpenStaticBuilder {
+        OpenStaticBuilder::new(true, true, Some(root_key))
     }
 
     pub async fn all_ethereal() -> OpenStaticBuilder {
-        OpenStaticBuilder::new(true, true)
+        OpenStaticBuilder::new(true, true, None)
     }
 }
 
@@ -42,8 +49,13 @@ impl OpenStaticBuilder
 impl OpenFlow
 for OpenStaticBuilder
 {
-    async fn open(&self, builder: ChainOfTrustBuilder, key: &ChainKey) -> Result<OpenAction, ChainCreationError> {
+    async fn open(&self, mut builder: ChainOfTrustBuilder, key: &ChainKey) -> Result<OpenAction, ChainCreationError> {
         debug!("chain-builder: open: {}", key.to_string());
+
+        if let Some(root_key) = &self.root_key {
+            builder = builder.add_root_public_key(root_key);
+        }
+
         Ok(match &self.centralized_integrity {
             true => OpenAction::CentralizedChain(Arc::new(builder.temporal(self.temporal).build(key).await?)),
             false => OpenAction::DistributedChain(Arc::new(builder.temporal(self.temporal).build(key).await?)),

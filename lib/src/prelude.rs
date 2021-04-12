@@ -19,6 +19,7 @@ pub use crate::meta::WriteOption;
 pub use crate::flow::OpenFlow;
 pub use crate::flow::OpenAction;
 pub use crate::flow::all_ethereal;
+pub use crate::flow::all_ethereal_with_root_key;
 pub use crate::flow::all_persistent_and_centralized;
 pub use crate::flow::all_persistent_and_distributed;
 

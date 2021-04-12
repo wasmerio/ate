@@ -19,6 +19,9 @@ async fn test_mesh()
 
     let cfg_ate = crate::conf::mock_test_config();
 
+    // Create a root key that will protect the integrity of the chain
+    let root_key = crate::crypto::PrivateSignKey::generate(KeySize::Bit256);
+
     // We offset the ports so that we don't need port re-use between tests
     let port_offset = fastrand::u16(..1000);
     let port_offset = port_offset * 10;
@@ -50,8 +53,9 @@ async fn test_mesh()
             let mut cfg_mesh = cfg_mesh.clone();
             cfg_mesh.force_listen = Some(addr.clone());
 
+            let root_key = root_key.as_public_key();
             let join = tokio::spawn(async move {
-                create_server(&cfg_ate, &cfg_mesh, all_ethereal().await).await
+                create_server(&cfg_ate, &cfg_mesh, all_ethereal_with_root_key(root_key).await).await
             });
             mesh_root_joins.push((addr, join));
             index = index + 1;
@@ -66,8 +70,9 @@ async fn test_mesh()
             let mut cfg_mesh = cfg_mesh.clone();
             cfg_mesh.force_listen = Some(addr.clone());
 
+            let root_key = root_key.as_public_key();
             let join = tokio::spawn(async move {
-                create_server(&cfg_ate, &cfg_mesh, all_ethereal().await).await
+                create_server(&cfg_ate, &cfg_mesh, all_ethereal_with_root_key(root_key).await).await
             });
             mesh_root_joins.push((addr, join));
             index = index + 1;

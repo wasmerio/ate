@@ -3,6 +3,7 @@ use async_trait::async_trait;
 pub mod basic;
 use crate::{crypto::EncryptKey, session::Session};
 
+use super::crypto::PublicSignKey;
 use super::chain::Chain;
 use super::chain::ChainKey;
 use super::conf::ConfAte;
@@ -44,6 +45,10 @@ pub async fn all_persistent_and_centralized() -> Box<basic::OpenStaticBuilder> {
 
 pub async fn all_persistent_and_distributed() -> Box<basic::OpenStaticBuilder> {
     Box::new(basic::OpenStaticBuilder::all_persistent_and_distributed().await)
+}
+
+pub async fn all_ethereal_with_root_key(root_key: PublicSignKey) -> Box<basic::OpenStaticBuilder> {
+    Box::new(basic::OpenStaticBuilder::all_ethereal_with_root_key(root_key).await)
 }
 
 pub async fn all_ethereal() -> Box<basic::OpenStaticBuilder> {
