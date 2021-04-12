@@ -177,7 +177,7 @@ impl MeshSession
 
         if let Some(chain) = self.chain.upgrade() {
             chain.pipe.feed(Transaction {
-                scope: Scope::None,
+                scope: Scope::Local,
                 transmit: false,
                 events: feed_me,
                 conversation: Some(Arc::clone(&self.conversation)),
