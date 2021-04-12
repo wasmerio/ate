@@ -29,6 +29,7 @@ pub struct TreeAuthorityPlugin
     auth: FxHashMap<PrimaryKey, MetaAuthorization>,
     parents: FxHashMap<PrimaryKey, MetaParent>,
     signature_plugin: SignaturePlugin,
+    integrity: IntegrityMode,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -47,6 +48,7 @@ impl TreeAuthorityPlugin
             signature_plugin: SignaturePlugin::new(),
             auth: FxHashMap::default(),
             parents: FxHashMap::default(),
+            integrity: IntegrityMode::Distributed,
         }
     }
 
@@ -307,7 +309,26 @@ for TreeAuthorityPlugin
         // Make sure that it has a signature
         let verified_signatures = match self.signature_plugin.get_verified_signatures(&hash) {
             Some(a) => a,
-            None => { 
+            None =>
+            {
+                // If integrity is centrally managed and we have seen this public key before in this
+                // particular conversation then we can trust the rest of the integrity of the chain
+                if self.integrity == IntegrityMode::Centralized {
+                    if let Some(conversation) = conversation {
+                        let lock = conversation.signatures.read();
+                        
+                        let already = match &auth.write {
+                            WriteOption::Specific(hash) => lock.contains(hash),
+                            WriteOption::Group(hashes) => hashes.iter().any(|h| lock.contains(h)),
+                            _ => false
+                        };
+                        if already {
+                            return Ok(ValidationResult::Allow)
+                        }
+                    }
+                }
+                
+                // Otherwise fail
                 return Err(ValidationError::NoSignatures);
             },
         };
@@ -327,6 +348,7 @@ for TreeAuthorityPlugin
     }
 
     fn set_integrity_mode(&mut self, mode: IntegrityMode) {
+        self.integrity = mode;
         self.signature_plugin.set_integrity_mode(mode);
     }
 }
