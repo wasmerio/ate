@@ -573,8 +573,7 @@ impl LogFile
 
         // Flush the data to disk
         self.log_stream.flush().await?;
-        self.log_back.sync_all().await?;
-
+        //self.log_back.sync_all().await?; // This caused quite some performance issues
 
         // Move the cache lines into the write cache from the flush cache which
         // will cause them to be released after the TTL is reached

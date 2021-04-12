@@ -56,7 +56,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
             listen_on: Vec::new(),
             connect_to: Vec::new(),
             on_connect: None,
-            buffer_size: 1000,
+            buffer_size: 1,
             wire_format,
             wire_encryption: None,
         }
