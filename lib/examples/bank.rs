@@ -69,10 +69,10 @@ async fn main() -> Result<(), AteError>
 
     // The default configuration will store the redo log locally in the temporary folder
     let conf = ConfAte::default();
-    let builder = ChainBuilder::new(&conf).await;
+    let builder = ChainBuilder::new(&conf).await.build();
 
     // We create a chain with a specific key (this is used for the file name it creates)
-    let chain = Chain::new(builder, &ChainKey::from("bank")).await?;
+    let chain = builder.open(&ChainKey::from("bank")).await?;
 
     // Make a thousand bank accounts
     let mut generator = Generator::default();

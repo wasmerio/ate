@@ -18,11 +18,11 @@ async fn main() -> Result<(), AteError> {
     // The default configuration will store the redo log locally in the temporary folder
     let mut conf = ConfAte::default();
     conf.configured_for(ConfiguredFor::BestPerformance);
-    let builder = ChainBuilder::new(&conf).await;
+    let builder = ChainBuilder::new(&conf).await.build();
 
     {
         // We create a chain with a specific key (this is used for the file name it creates)
-        let chain = Chain::new(builder.clone(), &ChainKey::from("stress")).await?;
+        let chain = builder.open(&ChainKey::from("stress")).await?;
         
         // Prepare
         let session = AteSession::new(&conf);
@@ -51,7 +51,7 @@ async fn main() -> Result<(), AteError> {
 
     {
         // We create a chain with a specific key (this is used for the file name it creates)
-        let chain = Chain::new(builder.clone(), &ChainKey::from("stress")).await?;
+        let chain = builder.open(&ChainKey::from("stress")).await?;
 
         // Destroy the chain
         chain.single().await.destroy().await.unwrap();

@@ -104,7 +104,7 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
         let repo = match chain.repository() {
             Some(a) => a,
             None => {
-                warn!("service call failed - repository pointer is missing");
+                warn!("service call failed - repository pointer is missing which means the service was added to a chain that is itself detached from any repositories, this is not allowed.");
                 return Ok(());
             }
         };

@@ -19,8 +19,9 @@ async fn main() -> Result<(), AteError>
     let conf = ConfAte::default();
     let builder = ChainBuilder::new(&conf)
         .await
-        .add_root_public_key(&root.as_public_key());
-    let chain = Chain::new(builder, &ChainKey::from("universe")).await?;
+        .add_root_public_key(&root.as_public_key())
+        .build();
+    let chain = builder.open(&ChainKey::from("universe")).await?;
 
     // Our session needs the keys
     let mut session = AteSession::new(&conf);

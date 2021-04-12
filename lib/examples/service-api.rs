@@ -47,8 +47,8 @@ async fn main() -> Result<(), AteError>
 
     // Create the chain with a public/private key to protect its integrity
     let conf = ConfAte::default();
-    let builder = ChainBuilder::new(&conf).await;
-    let chain = Arc::new(Chain::new(builder, &ChainKey::from("cmd")).await?);
+    let builder = ChainBuilder::new(&conf).await.build();
+    let chain = builder.open(&ChainKey::from("cmd")).await?;
     
     debug!("start the service on the chain");
     let session = AteSession::new(&conf);

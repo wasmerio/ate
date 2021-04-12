@@ -54,6 +54,8 @@ This library is a way of working with data in modern distributed computing.
         + Authentication server with multi-factor auth is functional
         + AteDB integrated with the authentication so all chains are owned by a user
         + AteFS upgraded so that it supports full authentication and confidentiality
+        + Refactored the API so that users make less mistakes
+        + Added high performance write validation using centralized logs
 0.3.5 - Finished the basics of the authentication server logic
 0.3.4 - Added error handling to the invocation function and fixed some serious bugs
 0.3.3 - Slight refactoring in order to improve the service invocation functionality
@@ -79,8 +81,6 @@ This library is a way of working with data in modern distributed computing.
 0.4.0 - Remaining things to do...
         + Test why the performance is poor when writing remotely and tweak it
         + Implement logic that will resend partially sent local logs upon restart
-        + Create a faster method of signing messages which is slightly less secure
-          but much better performant
         + AteAuth requires account access rights that also get added to the token
         + Connect up the 'chmod' commands to real commands in AteAuth
 0.4.1   + Create the ability to create a public file system

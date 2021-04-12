@@ -50,8 +50,9 @@ fn test_trust_tree() -> Result<(), AteError>
             let builder = ChainBuilder::new(&conf)
                 .await
                 .add_root_public_key(&root_public_key)
-                .truncate(true);
-            let chain = Chain::new(builder, &ChainKey::from("trust")).await?;
+                .truncate(true)
+                .build();
+            let chain = builder.open(&ChainKey::from("trust")).await?;
 
             debug!("add the objects to the DIO");
             let mut dio = chain.dio(&session).await;
@@ -87,8 +88,9 @@ fn test_trust_tree() -> Result<(), AteError>
             conf.log_format.data = SerializationFormat::Json;
             let builder = ChainBuilder::new(&conf)
                 .await
-                .add_root_public_key(&root_public_key);
-            let chain = Chain::new(builder, &ChainKey::from("trust")).await?;
+                .add_root_public_key(&root_public_key)
+                .build();
+            let chain = builder.open(&ChainKey::from("trust")).await?;
 
             // Load the garage
             let mut dio = chain.dio(&session).await;

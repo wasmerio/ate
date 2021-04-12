@@ -516,14 +516,35 @@ impl ChainOfTrustBuilder
     }
 
     #[allow(dead_code)]
-    pub async fn build
+    pub fn build
     (
         self,
-        key: &ChainKey,
     )
-    -> Result<Chain, ChainCreationError>
+    -> Arc<ChainOfTrustBuilder>
     {
-        Chain::new(self, key).await
+        Arc::new(self)
+    }
+    
+    #[allow(dead_code)]
+    pub async fn open_by_url(self: &Arc<Self>, url: &Url) -> Result<Arc<Chain>, ChainCreationError>
+    {
+        let repo = Arc::clone(self);
+        let repo: Arc<dyn ChainRepository> = repo;
+        repo.open_by_url(url).await
+    }
+
+    #[allow(dead_code)]
+    pub async fn open_by_key(self: &Arc<Self>, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
+    {
+        let repo = Arc::clone(self);
+        let repo: Arc<dyn ChainRepository> = repo;
+        repo.open_by_key(key).await
+    }
+
+    #[allow(dead_code)]
+    pub async fn open(self: &Arc<Self>, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
+    {
+        self.open_by_key(key).await
     }
 }
 

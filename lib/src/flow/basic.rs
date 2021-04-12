@@ -9,6 +9,7 @@ use super::OpenAction;
 use super::OpenFlow;
 use crate::chain::ChainKey;
 use crate::conf::ChainOfTrustBuilder;
+use crate::repository::ChainRepository;
 use crate::error::ChainCreationError;
 
 pub struct OpenStaticBuilder
@@ -65,8 +66,8 @@ for OpenStaticBuilder
         }
 
         Ok(match &self.centralized_integrity {
-            true => OpenAction::CentralizedChain(Arc::new(builder.temporal(self.temporal).build(key).await?)),
-            false => OpenAction::DistributedChain(Arc::new(builder.temporal(self.temporal).build(key).await?)),
+            true => OpenAction::CentralizedChain(builder.temporal(self.temporal).build().open_by_key(&key).await?),
+            false => OpenAction::DistributedChain(builder.temporal(self.temporal).build().open_by_key(&key).await?),
         })
     }
 }

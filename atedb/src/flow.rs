@@ -54,11 +54,9 @@ for ChainFlow
 
             let chain = builder
                 .add_root_public_key(&root_key)
-                .build(key)
+                .build()
+                .open(key)
                 .await?;
-
-            // Build a secure session and the chain
-            let chain = Arc::new(chain);
 
             // We have opened the chain
             return Ok(OpenAction::CentralizedChain(chain));

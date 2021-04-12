@@ -12,13 +12,13 @@ fn rotate_test() -> Result<(), AteError>
         // The default configuration will store the redo log locally in the temporary folder
         let mut conf = ConfAte::default();
         conf.configured_for(ConfiguredFor::BestPerformance);
-        let builder = ChainBuilder::new(&conf).await;
+        let builder = ChainBuilder::new(&conf).await.build();
 
         let key1;
         let key2;
         {
             // We create a chain with a specific key (this is used for the file name it creates)
-            let mut chain = Chain::new(builder.clone(), &ChainKey::from("rotate")).await?;
+            let chain = builder.open(&ChainKey::from("rotate")).await?;
             let session = AteSession::new(&conf);
 
             {
@@ -44,7 +44,7 @@ fn rotate_test() -> Result<(), AteError>
         }
 
         {
-            let chain = Chain::new(builder.clone(), &ChainKey::from("rotate")).await?;
+            let chain = builder.open(&ChainKey::from("rotate")).await?;
 
             let session = AteSession::new(&conf);
             let mut dio = chain.dio(&session).await;

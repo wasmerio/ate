@@ -24,11 +24,11 @@ fn load_test() -> Result<(), AteError> {
         // The default configuration will store the redo log locally in the temporary folder
         let mut conf = ConfAte::default();
         conf.configured_for(ConfiguredFor::BestPerformance);
-        let builder = ChainBuilder::new(&conf).await;
+        let builder = ChainBuilder::new(&conf).await.build();
 
         {
             // We create a chain with a specific key (this is used for the file name it creates)
-            let chain = Chain::new(builder.clone(), &ChainKey::from("load")).await?;
+            let chain = builder.open(&ChainKey::from("load")).await?;
             
             // Prepare
             let session = AteSession::new(&conf);
@@ -59,7 +59,7 @@ fn load_test() -> Result<(), AteError> {
         {
             // We create a chain with a specific key (this is used for the file name it creates)
             info!("load::running");
-            let chain = Chain::new(builder.clone(), &ChainKey::from("load")).await?;
+            let chain = builder.open(&ChainKey::from("load")).await?;
             info!("load::finished");
 
             // Destroy the chain

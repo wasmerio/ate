@@ -273,7 +273,7 @@ struct ChainWork
 impl<'a> Chain
 {
     #[allow(dead_code)]
-    pub async fn new(
+    pub(crate) async fn new(
         builder: ChainOfTrustBuilder,
         key: &ChainKey,
     ) -> Result<Chain, ChainCreationError>
@@ -438,7 +438,7 @@ impl<'a> Chain
         self.default_format.clone()
     }
 
-    pub async fn rotate(&'a mut self) -> Result<(), tokio::io::Error>
+    pub async fn rotate(&'a self) -> Result<(), tokio::io::Error>
     {
         // Start a new log file
         let mut single = self.single().await;

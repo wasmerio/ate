@@ -41,11 +41,9 @@ for ChainFlow
             let chain = builder
                 .set_session(self.session.clone())
                 .add_root_public_key(&self.root_key.as_public_key())
-                .build(key)
+                .build()
+                .open(key)
                 .await?;
-
-            // Build a secure session and the chain
-            let chain = Arc::new(chain);
 
             return Ok(OpenAction::DistributedChain(chain));
         }
@@ -62,10 +60,10 @@ for ChainFlow
                 .set_session(cmd_session.clone())
                 .add_root_public_key(&session_root_key.as_public_key())
                 .temporal(true)
-                .build(key)
+                .build()
+                .open(key)
                 .await?;
-            let chain = Arc::new(chain);
-
+                
             // Add the services to this chain
             service_logins(&self.cfg, cmd_session.clone(), self.session.clone(), &Arc::clone(&chain)).await?;
 
