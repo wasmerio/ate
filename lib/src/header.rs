@@ -49,6 +49,12 @@ impl PrimaryKey {
         format!("{:X?}", self.key).to_string()
     }
 
+    pub fn as_fixed_hex_string(&self) -> String {
+        let hex = format!("{:016X?}", self.key).to_string();
+        let hex = hex.to_lowercase();
+        format!("{}", &hex[..16])
+    }
+
     pub fn as_u64(&self) -> u64 {
         self.key
     }
@@ -134,4 +140,11 @@ impl Metadata
         }
         self.core.push(CoreMetadata::Data(key));
     }
+}
+
+#[test]
+fn test_key_hex()
+{
+    let key = PrimaryKey::from(1 as u64);
+    assert_eq!(key.as_fixed_hex_string(), "0000000000000001".to_string());
 }

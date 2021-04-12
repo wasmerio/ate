@@ -24,9 +24,9 @@ pub fn auth_chain_key(path: String, email: &String) -> ChainKey
 
 pub fn command_url(auth: Url) -> Url
 {
-    let hex = PrimaryKey::generate().as_hex_string().to_lowercase();
+    let hex = PrimaryKey::generate().as_fixed_hex_string();
     let mut ret = auth.clone();
-    ret.set_path(format!("cmd-{}", &hex[..16]).as_str());
+    ret.set_path(format!("cmd-{}", hex).as_str());
     ret
 }
 
