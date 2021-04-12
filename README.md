@@ -56,6 +56,7 @@ This library is a way of working with data in modern distributed computing.
         + AteFS upgraded so that it supports full authentication and confidentiality
         + Refactored the API so that users make less mistakes
         + Added high performance write validation using centralized logs
+        + Major performance boost by optimizing a disk sync point
 0.3.5 - Finished the basics of the authentication server logic
 0.3.4 - Added error handling to the invocation function and fixed some serious bugs
 0.3.3 - Slight refactoring in order to improve the service invocation functionality
@@ -79,13 +80,14 @@ This library is a way of working with data in modern distributed computing.
 0.*.* - Estimated 1-month of work before enough bugs are solved and the API
         can be fully stabilised
 0.4.0 - Remaining things to do...
-        + Test why the performance is poor when writing remotely and tweak it
         + Implement logic that will resend partially sent local logs upon restart
-        + AteAuth requires account access rights that also get added to the token
-        + Connect up the 'chmod' commands to real commands in AteAuth
-0.4.1   + Create the ability to create a public file system
+0.4.1   Next batch of functionality
+        + Create the ability to create a public file system
         + Modify AteFS so that it creates nodes in a global file system tree for
           everyone in the world to see (but not actually have access to)
+0.4.2   Another batch this time we are approaching feature completeness
+        + AteAuth requires account access rights that also get added to the token
+        + Connect up the 'chmod' commands to real commands in AteAuth
 ```
 
 ## High Level Design
