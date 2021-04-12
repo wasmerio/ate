@@ -358,6 +358,30 @@ This mode of operation has the following benefits and disadvantages:
   at the in-memory materialized view. This disadvantage will diminish as the
   total system is scaled to medium sized deployments.
 
+## Centralized or Distributed Integrity
+
+ATE can operate in two modes when signing and validating the integrity of the
+chain, the two modes allow for the owner of the chain to optimize the performance
+vs denial-of-service threats. These are how the two modes work...
+
+Distributed Integrity:
+
+- Every writer signs all relevant events fed into the chain-of-trust
+- As all relevant events have a signature each one can be validated individually
+- There is no need for a central server as anyone can validate the chain-of-trust
+- Given each event requires a unqiue cryptographic signature this is quite slow
+
+Centralized Integrity:
+
+- The chain-of-trust is hosted at a central server(s) which is trusted.
+- Establishing a connection is secured via a secure cryptographic key exchange
+- After making a connection only the first few events are actually signed
+- Stateful connections and wire encryption ensure that the integrity is maintained
+  during a large number of writes meaning performance is much improved
+- If an attacker is able to break into the central server and modify the files
+  on the file-system then are may be able to inject their own records however
+  they will not be able to read any of the stored data there.
+
 ## Absolute Portability
 
 Better Portability reduces the cost of deploying, operating and testing applications
