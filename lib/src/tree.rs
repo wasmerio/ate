@@ -15,6 +15,7 @@ use super::plugin::*;
 use super::event::*;
 use super::header::*;
 use super::transaction::*;
+use super::trust::*;
 use bytes::Bytes;
 use fxhash::FxHashMap;
 use fxhash::FxHashSet;
@@ -323,6 +324,10 @@ for TreeAuthorityPlugin
         // as all the other possible routes for it to be accepted into the tree have failed
         debug!("rejected event as it is detached from the tree");
         Err(ValidationError::Detached)
+    }
+
+    fn set_integrity_mode(&mut self, mode: IntegrityMode) {
+        self.signature_plugin.set_integrity_mode(mode);
     }
 }
 

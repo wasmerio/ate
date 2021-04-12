@@ -92,7 +92,8 @@ async fn test_mesh()
     debug!("create the mesh and connect to it with client 1");
     let client_a = create_client(&cfg_ate, &cfg_mesh).await;
     let chain_a = client_a.open_by_url(&url::Url::parse("tcp://127.0.0.1/test-chain").unwrap()).await.unwrap();
-    let session_a = AteSession::new(&cfg_ate);
+    let mut session_a = AteSession::new(&cfg_ate);
+    session_a.add_write_key(&root_key);
     
     let dao_key1;
     let dao_key2;
@@ -104,6 +105,7 @@ async fn test_mesh()
             let mut dio = chain_a.dio_ext(&session_a, TransactionScope::Full).await;
             let dao2: Dao<TestData> = dio.store(TestData::default()).unwrap();
             dao_key2 = dao2.key().clone();
+            let _ = dio.store(TestData::default()).unwrap();
 
             bus = dao2.bus(&chain_a, dao2.inner);
             task = bus.recv(&session_a);
@@ -116,7 +118,9 @@ async fn test_mesh()
             let client_b = create_client(&cfg_ate, &cfg_mesh).await;
 
             let chain_b = client_b.open_by_key(&ChainKey::new("test-chain".to_string())).await.unwrap();
-            let session_b = AteSession::new(&cfg_ate);
+            let mut session_b = AteSession::new(&cfg_ate);
+            session_b.add_write_key(&root_key);
+
             {
                 debug!("start a DIO session for client B");
                 let mut dio = chain_b.dio_ext(&session_b, TransactionScope::Full).await;

@@ -254,6 +254,9 @@ impl ChainProtectedSync
         for val in self.validators.iter_mut() {
             val.set_integrity_mode(mode);
         }
+        for val in self.plugins.iter_mut() {
+            val.set_integrity_mode(mode);
+        }
     }
 }
 
@@ -349,7 +352,11 @@ impl<'a> Chain
         };
 
         // Set the integrity mode on all the validators
+        inside_sync.set_integrity_mode(builder.integrity);
         for val in inside_sync.validators.iter_mut() {
+            val.set_integrity_mode(builder.integrity);
+        }
+        for val in inside_sync.plugins.iter_mut() {
             val.set_integrity_mode(builder.integrity);
         }
 
