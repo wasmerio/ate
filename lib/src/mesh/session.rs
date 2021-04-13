@@ -328,10 +328,25 @@ struct RecoverableSessionPipe
     loader_remote: StdMutex<Option<Box<dyn Loader>>>,
 }
 
-impl RecoverableSessionPipe
+#[async_trait]
+impl EventPipe
+for RecoverableSessionPipe
 {
-    async fn create_active_pipe(&self) -> Result<Box<ActiveSessionPipe>, ChainCreationError>
+    async fn is_connected(&self) -> bool {
+        let lock = self.active.read().await;
+        if let Some(pipe) = lock.as_ref() {
+            return pipe.is_connected();
+        }
+        false
+    }
+
+    async fn connect(&self) -> Result<(), ChainCreationError>
     {
+        let mut lock = self.active.write().await;
+        if let Some(pipe) = lock.as_ref() {
+            if pipe.is_connected() == true { return Ok(()) };
+        }
+
         let commit
             = Arc::new(StdMutex::new(FxHashMap::default()));
         let lock_requests
@@ -357,11 +372,6 @@ impl RecoverableSessionPipe
             pipe_rx.push(node_rx);
         }
 
-        //building speedups: 98 days
-        //training speedups: 12 days
-        //healing speedups: 18 days
-        //general speedups: 39 days
-
         let inbound_conversation = Arc::new(ConversationSession::default());
         let outbound_conversation = Arc::new(ConversationSession::default());
 
@@ -385,6 +395,10 @@ impl RecoverableSessionPipe
                 outbound_conversation: Arc::clone(&outbound_conversation),
             }
         );
+
+        // Set the pipe and drop the lock so that events can be fed correctly
+        lock.replace(pipe);
+        drop(lock);
 
         // Run the loaders and the message procesor
         let mut loader = self.loader_remote.lock().take();
@@ -422,37 +436,7 @@ impl RecoverableSessionPipe
             }
         }
         debug!("loaded {}", self.key.to_string());
-
-        // Return the pipe
-        Ok(pipe)
-    }
-
-    fn set_chain(&self, chain: &Arc<Chain>) {
-        self.chain.lock().replace(Arc::downgrade(chain));
-    }
-}
-
-#[async_trait]
-impl EventPipe
-for RecoverableSessionPipe
-{
-    async fn is_connected(&self) -> bool {
-        let lock = self.active.read().await;
-        if let Some(pipe) = lock.as_ref() {
-            return pipe.is_connected();
-        }
-        false
-    }
-
-    async fn connect(&self) -> Result<(), ChainCreationError>
-    {
-        let mut lock = self.active.write().await;
-        if let Some(pipe) = lock.as_ref() {
-            if pipe.is_connected() == true { return Ok(()) };
-        }
         
-        let pipe = self.create_active_pipe().await?;
-        lock.replace(pipe);
         Ok(())
     }
 
