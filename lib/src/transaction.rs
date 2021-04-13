@@ -28,10 +28,7 @@ pub enum Scope
     /// Data must be flushed to local disk
     #[allow(dead_code)]
     Local,
-    /// One of the root servers must have the data flushed to local disk
-    #[allow(dead_code)]
-    One,
-    /// All the root servers must have data flushed to their local disks
+    /// The data must be flushed to the root server disks before the event is considered processed
     #[allow(dead_code)]
     Full
 }

@@ -44,9 +44,10 @@ use crate::dio::DaoObjEthereal;
 use crate::mesh::client::MeshClient;
 use crate::mesh::server::MeshRoot;
 
-pub(crate) use super::mesh::session::MeshSession;
+pub(crate) use session::MeshSession;
 pub use crate::mesh::registry::Registry;
 pub use crate::loader::Loader;
+pub use self::core::RecoveryMode;
 
 fn create_prepare<'a, 'b>(cfg_mesh: &'b ConfMesh) -> Vec<MeshAddress> {
     let mut hash_table = BTreeMap::new();

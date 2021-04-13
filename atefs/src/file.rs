@@ -41,7 +41,6 @@ pub struct RegularFile
     pub gid: u32,
     pub mode: u32,
     pub name: String,
-    pub scope: TransactionScope,
     pub size: SeqLock<u64>,
     pub state: Mutex<FileState>,
 }
@@ -69,7 +68,7 @@ impl FileState
         Ok(())
     }
 
-    pub async fn read_page(&mut self, chain: &Chain, session: &AteSession, mut offset: u64, mut size: u64, ret: &mut Cursor<&mut Vec<u8>>) -> Result<()>
+    pub async fn read_page(&mut self, chain: &Chain, session: &AteSession, scope: TransactionScope, mut offset: u64, mut size: u64, ret: &mut Cursor<&mut Vec<u8>>) -> Result<()>
     {
         // Compute the strides
         let stride_page = super::model::PAGE_SIZE as u64;
@@ -104,7 +103,7 @@ impl FileState
             },
             _ => {
                 // Cache-miss - load the bundle into the cacheline and return its pages
-                let mut dio = chain.dio_ext(session, TransactionScope::Local).await;                    
+                let mut dio = chain.dio_ext(session, scope).await;                    
                 let dao = conv_load(dio.load::<PageBundle>(&bundle).await)?;
                 
                 // We always commit changes to the bundles so no need to commit it here
@@ -142,7 +141,7 @@ impl FileState
             },
             _ => {
                 // Cache-miss - load the bundle into the cacheline and return its pages
-                let mut dio = chain.dio_ext(session, TransactionScope::Local).await;
+                let mut dio = chain.dio_ext(session, scope).await;
                 let dao = conv_load(dio.load::<Page>(&page).await)?;
                 
                 // Replace the cache-line - pages here are lazy-written so we might need to flush it
@@ -183,7 +182,7 @@ impl FileState
         Ok(())
     }
 
-    pub async fn write_page(&mut self, chain: &Chain, session: &AteSession, mut offset: u64, reader: &mut Cursor<&[u8]>, scope: TransactionScope) -> Result<()>
+    pub async fn write_page(&mut self, chain: &Chain, session: &AteSession, scope: TransactionScope, mut offset: u64, reader: &mut Cursor<&[u8]>) -> Result<()>
     {
         self.dirty = true;
 
@@ -348,10 +347,10 @@ impl FileState
         Ok(())
     }
 
-    pub async fn commit(&mut self, chain: &Chain, session: &AteSession) -> Result<()>
+    pub async fn commit(&mut self, chain: &Chain, session: &AteSession, scope: TransactionScope) -> Result<()>
     {
         if self.dirty {
-            let mut dio = chain.dio_ext(session, TransactionScope::Local).await;
+            let mut dio = chain.dio_ext(session, scope).await;
             for page in self.pages.iter_mut() {
                 if let Some(page) = page {
                     conv_serialization(page.commit(&mut dio))?;
@@ -376,7 +375,6 @@ impl RegularFile
             size: SeqLock::new(inode.size),
             created,
             updated,
-            scope: TransactionScope::Local,
             state: Mutex::new(FileState {
                 inode,
                 dirty: false,
@@ -435,7 +433,7 @@ for RegularFile
         self.updated
     }
 
-    async fn fallocate(&self, _chain: &Chain, _session: &AteSession, size: u64) -> Result<()>
+    async fn fallocate(&self, _chain: &Chain, _session: &AteSession, _scope: TransactionScope, size: u64) -> Result<()>
     {
         let mut lock = self.state.lock().await;
         lock.set_size(size)?;
@@ -443,7 +441,7 @@ for RegularFile
         Ok(())
     }
 
-    async fn read(&self, chain: &Chain, session: &AteSession, mut offset: u64, mut size: u64) -> Result<Bytes>
+    async fn read(&self, chain: &Chain, session: &AteSession, scope: TransactionScope, mut offset: u64, mut size: u64) -> Result<Bytes>
     {
         // Clip the read to the correct size (or return EOF)
         let mut state = self.state.lock().await;
@@ -467,7 +465,7 @@ for RegularFile
             let sub_offset = offset % stride_page;
             let sub_size = size.min(stride_page - sub_offset);
             if sub_size > 0 {
-                state.read_page(chain, session, offset, sub_size, &mut cursor).await?;
+                state.read_page(chain, session, scope, offset, sub_size, &mut cursor).await?;
             }
 
             // Move the data pointers and offsets
@@ -478,7 +476,7 @@ for RegularFile
         Ok(Bytes::from(ret))
     }
 
-    async fn write(&self, chain: &Chain, session: &AteSession, mut offset: u64, data: &[u8]) -> Result<u64>    
+    async fn write(&self, chain: &Chain, session: &AteSession, scope: TransactionScope, mut offset: u64, data: &[u8]) -> Result<u64>    
     {
         // Validate
         let mut size = data.len();
@@ -503,7 +501,7 @@ for RegularFile
             let sub_size = size.min(stride_page - sub_offset as usize);
             if sub_size > 0 {
                 let mut reader = Cursor::new(&data[data_offset..(data_offset+sub_size) as usize]);
-                state.write_page(chain, session, offset, &mut reader, self.scope).await?;
+                state.write_page(chain, session, scope, offset, &mut reader).await?;
             }
 
             // Move the data pointers and offsets
@@ -519,9 +517,9 @@ for RegularFile
         Ok(data.len() as u64)
     }
 
-    async fn commit(&self, chain: &Chain, session: &AteSession) -> Result<()> {
+    async fn commit(&self, chain: &Chain, session: &AteSession, scope: TransactionScope) -> Result<()> {
         let mut state = self.state.lock().await;
-        state.commit(chain, session).await?;
+        state.commit(chain, session, scope).await?;
         Ok(())
     }
 }

@@ -24,6 +24,7 @@ use super::spec::*;
 use super::pipe::*;
 use super::session::Session;
 use super::repository::ChainRepository;
+use super::mesh::RecoveryMode;
 
 /// Represents a target node within a mesh
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -96,6 +97,9 @@ pub struct ConfAte
 {
     /// Optimizes ATE for a specific group of usecases
     configured_for: ConfiguredFor,
+
+    /// Specified the recovery mode that the mesh will take
+    pub recovery_mode: RecoveryMode,
 
     /// Directory path that the redo logs will be stored.
     pub log_path: String,
@@ -185,6 +189,7 @@ for ConfAte
             log_path: "/tmp/ate".to_string(),
             dns_sec: false,
             dns_server: "8.8.8.8".to_string(),
+            recovery_mode: RecoveryMode::ReadOnlyAsync,
             ntp_sync: true,
             ntp_pool: "pool.ntp.org".to_string(),
             ntp_port: 123,

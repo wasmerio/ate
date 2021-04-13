@@ -36,7 +36,7 @@ pub struct MeshSession
 
 impl MeshSession
 {
-    pub(super) async fn connect(builder: ChainOfTrustBuilder, chain_key: &ChainKey, chain_domain: Option<String>, addr: MeshAddress, loader_local: Box<impl Loader>, loader_remote: Box<impl Loader>) -> Result<Arc<Chain>, ChainCreationError>
+    pub(super) async fn connect(builder: ChainOfTrustBuilder, chain_key: &ChainKey, chain_domain: Option<String>, addr: MeshAddress, mode: RecoveryMode, loader_local: Box<impl Loader>, loader_remote: Box<impl Loader>) -> Result<Arc<Chain>, ChainCreationError>
     {
         debug!("new: chain_key={}", chain_key.to_string());
 
@@ -52,6 +52,7 @@ impl MeshSession
         let session = RecoverableSessionPipe {
             next: NullPipe::new(),
             active: RwLock::new(None),
+            mode,
             addr,
             key: chain_key.clone(),
             builder,
@@ -317,7 +318,8 @@ struct RecoverableSessionPipe
 {
     // Passes onto the next pipe
     next: Arc<Box<dyn EventPipe>>,
-    active: RwLock<Option<Box<ActiveSessionPipe>>>,
+    active: RwLock<Option<ActiveSessionPipe>>,
+    mode: RecoveryMode,
 
     // Used to create new active pipes
     addr: MeshAddress,
@@ -328,25 +330,10 @@ struct RecoverableSessionPipe
     loader_remote: StdMutex<Option<Box<dyn Loader>>>,
 }
 
-#[async_trait]
-impl EventPipe
-for RecoverableSessionPipe
+impl RecoverableSessionPipe
 {
-    async fn is_connected(&self) -> bool {
-        let lock = self.active.read().await;
-        if let Some(pipe) = lock.as_ref() {
-            return pipe.is_connected();
-        }
-        false
-    }
-
-    async fn connect(&self) -> Result<(), ChainCreationError>
+    async fn create_active_pipe(&self) -> (ActiveSessionPipe, NodeRx<Message, ()>, Arc<MeshSession>)
     {
-        let mut lock = self.active.write().await;
-        if let Some(pipe) = lock.as_ref() {
-            if pipe.is_connected() == true { return Ok(()) };
-        }
-
         let commit
             = Arc::new(StdMutex::new(FxHashMap::default()));
         let lock_requests
@@ -378,7 +365,8 @@ for RecoverableSessionPipe
             outbound_conversation: Arc::clone(&outbound_conversation),
         });
         
-        let pipe = Box::new(
+        // Set the pipe and drop the lock so that events can be fed correctly
+        (
             ActiveSessionPipe {
                 key: self.key.clone(),
                 session: Arc::clone(&session),
@@ -386,10 +374,35 @@ for RecoverableSessionPipe
                 commit: Arc::clone(&commit),
                 lock_requests: Arc::clone(&lock_requests),
                 outbound_conversation: Arc::clone(&outbound_conversation),
-            }
-        );
+            },
+            node_rx,
+            session
+        )
+    }
+}
+
+#[async_trait]
+impl EventPipe
+for RecoverableSessionPipe
+{
+    async fn is_connected(&self) -> bool {
+        let lock = self.active.read().await;
+        if let Some(pipe) = lock.as_ref() {
+            return pipe.is_connected();
+        }
+        false
+    }
+
+    async fn connect(&self) -> Result<(), ChainCreationError>
+    {
+        let mut lock = self.active.write().await;
+        if let Some(pipe) = lock.as_ref() {
+            if pipe.is_connected() == true { return Ok(()) };
+        }
 
         // Set the pipe and drop the lock so that events can be fed correctly
+        let (pipe, node_rx, session)
+            = self.create_active_pipe().await;
         lock.replace(pipe);
         drop(lock);
 
@@ -405,6 +418,7 @@ for RecoverableSessionPipe
             composite_loader.loaders.push(loader);
         }
 
+        // Spawn a thread that will process new inbox messages
         tokio::spawn(
             MeshSession::inbox
             (
@@ -432,7 +446,15 @@ for RecoverableSessionPipe
         {
             let lock = self.active.read().await;
             if let Some(pipe) = lock.as_ref() {
-                pipe.feed(&mut trans).await?;
+                match pipe.is_connected() {
+                    true => {
+                        pipe.feed(&mut trans).await?;
+                    },
+                    false if self.mode.should_error_out() => {
+                        return Err(CommitError::CommsError(CommsError::Disconnected));
+                    },
+                    _ => { }
+                }
             }
         }
 
@@ -455,7 +477,18 @@ for RecoverableSessionPipe
 
         // Now process it in the active pipe        
         if let Some(pipe) = lock.as_ref() {
-            return pipe.try_lock(key).await;
+            match pipe.is_connected() {
+                true => {
+                    return pipe.try_lock(key).await;
+                },
+                false if self.mode.should_error_out() => {
+                    return Err(CommitError::CommsError(CommsError::Disconnected));
+                },
+                _ => {
+                    return Ok(true);
+                }
+            }
+            
         } else {
             return Ok(false);
         }
@@ -476,7 +509,15 @@ for RecoverableSessionPipe
         // Now unlock it at the server
         let lock = self.active.read().await;
         if let Some(pipe) = lock.as_ref() {
-            pipe.unlock(key).await?;
+            match pipe.is_connected() {
+                true => {
+                    pipe.unlock(key).await?
+                },
+                false if self.mode.should_error_out() => {
+                    return Err(CommitError::CommsError(CommsError::Disconnected));
+                },
+                _ => { }
+            }
         }
         Ok(())
     }
@@ -517,7 +558,7 @@ impl ActiveSessionPipe
         
         // If the scope requires synchronization with the remote server then allocate a commit ID
         let (commit, receiver) = match &trans.scope {
-            Scope::Full | Scope::One =>
+            Scope::Full =>
             {
                 // Generate a sender/receiver pair
                 let (sender, receiver) = mpsc::channel(1);

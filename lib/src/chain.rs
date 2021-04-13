@@ -633,7 +633,7 @@ for InboxPipe
     {
         // Determine if we are going to wait for the result or not
         match trans.scope {
-            Scope::Full | Scope::One | Scope::Local =>
+            Scope::Full | Scope::Local =>
             {
                 // Prepare the work
                 let (sender, mut receiver) = mpsc::channel(1);
@@ -730,7 +730,7 @@ impl<'a> Chain
 
             // If the scope requires it then we flush, otherwise we just drop the lock
             let late_flush = match trans.scope {
-                Scope::One | Scope::Full => {
+                Scope::Full => {
                     lock.chain.flush().await.unwrap();
                     false
                 },

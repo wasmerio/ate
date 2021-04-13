@@ -28,49 +28,6 @@ use fuse3::raw::prelude::*;
 use fuse3::{MountOptions};
 use clap::Clap;
 
-
-// Determines how the file-system will react while it is nominal and when it is
-// recovering from a communication failure (valid options are 'async', 'readonly-async',
-// 'readonly-sync' or 'sync')
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum RecoveryMode
-{
-    // Fully asynchronous mode which allows staging of all writes locally giving
-    // maximum availability however split-brain scenarios are the responsibility
-    // of the user
-    Async,
-    // While in a nominal state the file-system will make asynchronous writes however
-    // if a communication failure occurs the local file-system will switch to read-only
-    // mode and upon restoring the connectivity the last few writes that had not been
-    // sent will be retransmitted.
-    ReadOnlyAsync,
-    // While in a nominal state the file-system will make synchronous writes to the
-    // remote location however if a break in communication occurs the local file-system
-    // will switch to read-only mode until communication is restored.
-    ReadOnlySync,
-    // Fully synchonrous mode meaning all reads and all writes are committed to
-    // local and remote locations at all times. This gives maximum integrity however
-    // nominal writes will be considerable slower while reads will be blocked when in
-    // a disconnected state
-    Sync
-}
-
-impl std::str::FromStr
-for RecoveryMode
-{
-    type Err = &'static str;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "async" => Ok(RecoveryMode::Async),
-            "readonly-async" => Ok(RecoveryMode::ReadOnlyAsync),
-            "readonly-sync" => Ok(RecoveryMode::ReadOnlySync),
-            "sync" => Ok(RecoveryMode::Sync),
-            _ => Err("valid values are 'async', 'readonly-async', 'readonly-sync' and 'sync'"),
-        }
-    }
-}
-
 #[derive(Clap)]
 #[clap(version = "0.1", author = "John S. <johnathan.sharratt@gmail.com>")]
 struct Opts {
@@ -153,6 +110,11 @@ struct Mount {
     /// If this URL is not specified then data will only be stored locally
     #[clap(index=3)]
     remote: Option<Url>,
+    /// Determines how the file-system will react while it is nominal and when it is
+    /// recovering from a communication failure (valid options are 'async', 'readonly-async',
+    /// 'readonly-sync' or 'sync')
+    #[clap(long, default_value = "readonly-async")]
+    recovery_mode: RecoveryMode,
     /// Token used to access your encrypted file-system (if you do not supply a token then you will
     /// be prompted for a username and password)
     #[clap(short, long)]
@@ -253,6 +215,7 @@ async fn main_mount(mount: Mount, conf: ConfAte, session: AteSession) -> Result<
     conf.log_format.data = mount.data_format;
     conf.log_path = shellexpand::tilde(&mount.log_path).to_string();
     conf.wire_encryption = mount.wire_encryption;
+    conf.recovery_mode = mount.recovery_mode;
 
     info!("configured_for: {:?}", mount.configured_for);
     info!("meta_format: {:?}", mount.meta_format);
@@ -297,10 +260,16 @@ async fn main_mount(mount: Mount, conf: ConfAte, session: AteSession) -> Result<
         },
     };
 
+    // Compute the scope
+    let scope = match mount.recovery_mode.is_sync() {
+        true => TransactionScope::Full,
+        false => TransactionScope::Local,
+    };
+
     // Create the mount point
     let mount_path = mount.mount_path.clone();
     let mount_join = Session::new(mount_options)
-        .mount_with_unprivileged(AteFS::new(chain, session, mount.no_auth), mount.mount_path);
+        .mount_with_unprivileged(AteFS::new(chain, session, scope, mount.no_auth), mount.mount_path);
 
     // Install a ctrl-c command
     info!("mounting file-system and entering main loop");

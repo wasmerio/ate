@@ -47,6 +47,7 @@ where Self: Send + Sync
 {
     pub chain: Arc<Chain>,
     pub no_auth: bool,
+    pub scope: TransactionScope,
     pub session: AteSession,
     pub open_handles: Mutex<FxHashMap<u64, Arc<OpenHandle>>>,
     pub elapsed: std::time::Instant,
@@ -156,11 +157,12 @@ pub(crate) fn conv<T>(r: std::result::Result<T, AteError>) -> std::result::Resul
 
 impl AteFS
 {
-    pub fn new(chain: Arc<Chain>, session: AteSession, no_auth: bool) -> AteFS {
+    pub fn new(chain: Arc<Chain>, session: AteSession, scope: TransactionScope, no_auth: bool) -> AteFS {
         AteFS {
             chain,
             no_auth,
             session,
+            scope,
             open_handles: Mutex::new(FxHashMap::default()),
             elapsed: std::time::Instant::now(),
             last_elapsed: seqlock::SeqLock::new(0),
@@ -189,7 +191,7 @@ impl AteFS
     }
 
     pub async fn load<'a>(&'a self, inode: u64) -> Result<(Dao<Inode>, Dio<'a>)> {
-        let mut dio = self.chain.dio(&self.session).await;
+        let mut dio = self.chain.dio_ext(&self.session, self.scope).await;
         let dao = conv_load(dio.load::<Inode>(&PrimaryKey::from(inode)).await)?;
         Ok((dao, dio))
     }
@@ -197,7 +199,7 @@ impl AteFS
     async fn create_open_handle(&self, inode: u64) -> Result<OpenHandle>
     {
         let key = PrimaryKey::from(inode);
-        let mut dio = self.chain.dio(&self.session).await;
+        let mut dio = self.chain.dio_ext(&self.session, self.scope).await;
         let data = conv_load(dio.load::<Inode>(&key).await)?;
         let created = data.when_created();
         let updated = data.when_updated();
@@ -257,7 +259,7 @@ impl AteFS
     ) -> Result<(Dao<Inode>, Dio<'a>)> {
         
         let key = PrimaryKey::from(parent);
-        let mut dio = self.chain.dio_ext(&self.session, TransactionScope::Local).await;
+        let mut dio = self.chain.dio_ext(&self.session, self.scope).await;
         let mut data = conv_load(dio.load::<Inode>(&key).await)?;
 
         if data.spec_type != SpecType::Directory {
@@ -313,7 +315,7 @@ impl AteFS
                 .collect::<Vec<_>>()
         };
         for open in open_handles {
-            open.spec.commit(&self.chain, &self.session).await?;
+            open.spec.commit(&self.chain, &self.session, self.scope).await?;
         }
         Ok(())
     }
@@ -329,7 +331,7 @@ for AteFS
     async fn init(&self, req: Request) -> Result<()>
     {
         // Attempt to load the root node, if it does not exist then create it
-        let mut dio = self.chain.dio_ext(&self.session, Scope::Full).await;
+        let mut dio = self.chain.dio_ext(&self.session, self.scope).await;
         if let Err(LoadError::NotFound(_)) = dio.load::<Inode>(&PrimaryKey::from(1)).await {
             info!("atefs::creating-root-node");
             
@@ -413,7 +415,7 @@ for AteFS
         debug!("atefs::setattr inode={}", inode);
 
         let key = PrimaryKey::from(inode);
-        let mut dio = self.chain.dio(&self.session).await;
+        let mut dio = self.chain.dio_ext(&self.session, self.scope).await;
         let mut dao = conv_load(dio.load::<Inode>(&key).await)?;
 
         if let Some(mode) = set_attr.mode {
@@ -457,7 +459,7 @@ for AteFS
 
         let open = self.open_handles.lock().remove(&fh);
         if let Some(open) = open {
-            open.spec.commit(&self.chain, &self.session).await?
+            open.spec.commit(&self.chain, &self.session, self.scope).await?
         }
         Ok(())
     }
@@ -567,7 +569,7 @@ for AteFS
             }
         };
         if let Some(open) = open {
-            open.spec.commit(&self.chain, &self.session).await?
+            open.spec.commit(&self.chain, &self.session, self.scope).await?
         }
 
         conv_io(self.chain.flush().await)?;
@@ -592,7 +594,7 @@ for AteFS
         self.tick().await?;
         debug!("atefs::mkdir parent={}", parent);
 
-        let mut dio = self.chain.dio(&self.session).await;
+        let mut dio = self.chain.dio_ext(&self.session, self.scope).await;
         let mut data = conv_load(dio.load::<Inode>(&PrimaryKey::from(parent)).await)?;
         
         if data.spec_type != SpecType::Directory {
@@ -634,7 +636,7 @@ for AteFS
         if let Some(entry) = open.children_plus.iter().filter(|c| *c.name == *name).next() {
             debug!("atefs::rmdir parent={} name={}: found", parent, name.to_str().unwrap());
 
-            let mut dio = self.chain.dio(&self.session).await;
+            let mut dio = self.chain.dio_ext(&self.session, self.scope).await;
             conv_load(dio.delete::<Inode>(&PrimaryKey::from(entry.inode)).await)?;
             conv_commit(dio.commit().await)?;
             return Ok(())
@@ -719,7 +721,7 @@ for AteFS
         debug!("atefs::unlink parent={} name={}", parent, name.to_str().unwrap().to_string());
 
         let parent_key = PrimaryKey::from(parent);
-        let mut dio = self.chain.dio(&self.session).await;
+        let mut dio = self.chain.dio_ext(&self.session, self.scope).await;
 
         let data_parent = conv_load(dio.load::<Inode>(&parent_key).await)?;
 
@@ -759,7 +761,7 @@ for AteFS
         self.tick().await?;
         debug!("atefs::rename name={} new_name={}", name.to_str().unwrap().to_string(), new_name.to_str().unwrap().to_string());
         
-        let mut dio = self.chain.dio(&self.session).await;
+        let mut dio = self.chain.dio_ext(&self.session, self.scope).await;
         let parent_key = PrimaryKey::from(parent);
         let parent_data = conv_load(dio.load::<Inode>(&parent_key).await)?;
 
@@ -843,7 +845,7 @@ for AteFS
         
         let open = self.open_handles.lock().remove(&fh);
         if let Some(open) = open {
-            open.spec.commit(&self.chain, &self.session).await?
+            open.spec.commit(&self.chain, &self.session, self.scope).await?
         }
 
         if flush {
@@ -873,7 +875,7 @@ for AteFS
                 },
             }
         };
-        Ok(ReplyData { data: open.spec.read(&self.chain, &self.session, offset, size as u64).await?,  })
+        Ok(ReplyData { data: open.spec.read(&self.chain, &self.session, self.scope, offset, size as u64).await?,  })
     }
 
     async fn write(
@@ -899,7 +901,7 @@ for AteFS
             }
         };
 
-        let wrote = open.spec.write(&self.chain, &self.session, offset, data).await?;
+        let wrote = open.spec.write(&self.chain, &self.session, self.scope, offset, data).await?;
         if open.dirty.read() == false {
             *open.dirty.lock_write() = true;
         }
@@ -931,7 +933,7 @@ for AteFS
                 }
             };
             if let Some(open) = open {
-                open.spec.fallocate(&self.chain, &self.session, offset + length).await?;
+                open.spec.fallocate(&self.chain, &self.session, self.scope, offset + length).await?;
                 if open.dirty.read() == false {
                     *open.dirty.lock_write() = true;
                 }

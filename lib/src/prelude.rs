@@ -51,6 +51,7 @@ pub use crate::service::ServiceInstance;
 pub use crate::error::ServiceError;
 pub use crate::error::InvokeError;
 
+pub use crate::mesh::RecoveryMode;
 pub use crate::mesh::Registry;
 pub use crate::conf::MeshAddress;
 pub use std::{net::{IpAddr, Ipv4Addr, Ipv6Addr}, str::FromStr};
