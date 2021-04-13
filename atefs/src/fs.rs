@@ -146,8 +146,9 @@ pub(crate) fn conv<T>(r: std::result::Result<T, AteError>) -> std::result::Resul
         Err(err) => {
             error!("atefs::error {}", err);
             match err {
-                AteError::LoadError(LoadError::NotFound(_)) => Err(libc::ENOSYS.into()),
-                _ => Err(libc::ENOSYS.into())
+                AteError::LoadError(LoadError::NotFound(_)) => Err(libc::ENOENT.into()),
+                AteError::LoadError(LoadError::TransformationError(TransformError::MissingReadKey(_))) => Err(libc::EACCES.into()),
+                _ => Err(libc::EIO.into())
             }
         }
     }
@@ -663,6 +664,8 @@ for AteFS
 
         let (mut dao, mut dio) = self.mknod_internal(req, parent, name, mode, rdev).await?;
         conv_serialization(dao.commit(&mut dio))?;
+        conv_commit(dio.commit().await)?;
+
         let spec = Inode::as_file_spec(dao.key().as_u64(), dao.when_created(), dao.when_updated(), dao);
         Ok(ReplyEntry {
             ttl: FUSE_TTL,
@@ -699,9 +702,9 @@ for AteFS
         let fh = open.fh;
         let attr = open.attr.clone();
 
+        conv_commit(dio.commit().await)?;
         self.open_handles.lock().insert(open.fh, Arc::new(open));
 
-        conv_commit(dio.commit().await)?;
         Ok(ReplyCreated {
             ttl: FUSE_TTL,
             attr: attr,
