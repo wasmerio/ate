@@ -77,6 +77,23 @@ where C: Send + Sync + Default + 'static
         state.connected
     }
 
+    pub(crate) async fn on_disconnect(&self) -> Result<(), CommsError> {
+        match &self.direction {
+            TxDirection::Downcast(_) => {
+                return Err(CommsError::ShouldBlock);
+            },
+            TxDirection::UpcastOne(a) => {
+                a.outbox.closed().await;
+            },
+            TxDirection::UpcastMany(a) => {
+                for u in a.values() {
+                    u.outbox.closed().await;
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) fn is_closed(&self) -> bool {
         match &self.direction {
             TxDirection::Downcast(_) => {

@@ -148,6 +148,8 @@ for ServerPipe
         Ok(())
     }
 
+    async fn on_disconnect(&self) -> Result<(), CommsError> { Err(CommsError::ShouldBlock) }
+
     async fn feed(&self, trans: Transaction) -> Result<(), CommitError>
     {
         // If this packet is being broadcast then send it to all the other nodes too

@@ -11,6 +11,8 @@ pub(crate) trait EventPipe: Send + Sync
 {
     async fn is_connected(&self) -> bool;
 
+    async fn on_disconnect(&self) -> Result<(), CommsError>;
+
     async fn connect(&self) -> Result<(), ChainCreationError>;
 
     async fn feed(&self, mut trans: Transaction) -> Result<(), CommitError>;
@@ -42,6 +44,8 @@ impl EventPipe
 for NullPipe
 {
     async fn is_connected(&self) -> bool { true }
+
+    async fn on_disconnect(&self) -> Result<(), CommsError> { Err(CommsError::ShouldBlock) }
 
     async fn connect(&self) -> Result<(), ChainCreationError> { Ok(()) }
 
@@ -81,6 +85,21 @@ impl EventPipe
 for DuelPipe
 {
     async fn is_connected(&self) -> bool { true }
+
+    async fn on_disconnect(&self) -> Result<(), CommsError>
+    {
+        let ret1 = self.first.on_disconnect().await;
+        let ret2 = self.second.on_disconnect().await;
+        
+        if let Ok(_) = ret1 {
+            return Ok(())
+        }
+        if let Ok(_) = ret2 {
+            return Ok(())
+        }
+
+        Err(CommsError::ShouldBlock)
+    }
 
     async fn connect(&self) -> Result<(), ChainCreationError>
     {

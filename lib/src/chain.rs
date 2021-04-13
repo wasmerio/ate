@@ -628,6 +628,8 @@ for InboxPipe
         Ok(())
     }
 
+    async fn on_disconnect(&self) -> Result<(), CommsError> { Err(CommsError::ShouldBlock) }
+
     #[allow(dead_code)]
     async fn feed(&self, trans: Transaction) -> Result<(), CommitError>
     {

@@ -1032,6 +1032,7 @@ pub enum CommsError
     NoReplyChannel,
     NoWireFormat,
     Disconnected,
+    ShouldBlock,
     ValidationError(Vec<ValidationError>),
     #[allow(dead_code)]
     JoinError(JoinError),
@@ -1171,6 +1172,9 @@ for CommsError {
             CommsError::IO(err) => {
                 write!(f, "IO error while processing communication - {}", err)
             },
+            CommsError::ShouldBlock => {
+                write!(f, "Operation should have blocked but it didn't")
+            }
             CommsError::SendError(err) => {
                 write!(f, "Sending error while processing communication - {}", err)
             },
