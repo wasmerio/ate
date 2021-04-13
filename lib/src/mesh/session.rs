@@ -3,6 +3,7 @@ use log::{warn, debug, info};
 use parking_lot::Mutex as StdMutex;
 use std::{sync::Arc, sync::Weak};
 use tokio::sync::mpsc;
+use tokio::sync::RwLock;
 use std::sync::mpsc as smpsc;
 use fxhash::FxHashMap;
 use parking_lot::RwLock as StdRwLock;
@@ -35,49 +36,9 @@ pub struct MeshSession
 
 impl MeshSession
 {
-    pub(super) async fn connect(builder: ChainOfTrustBuilder, chain_key: &ChainKey, chain_domain: Option<String>, addrs: Vec<MeshAddress>, loader_local: Box<impl Loader>, loader_remote: Box<impl Loader>) -> Result<(Arc<MeshSession>, Arc<Chain>), ChainCreationError>
+    pub(super) async fn connect(builder: ChainOfTrustBuilder, chain_key: &ChainKey, chain_domain: Option<String>, addrs: Vec<MeshAddress>, loader_local: Box<impl Loader>, loader_remote: Box<impl Loader>) -> Result<Arc<Chain>, ChainCreationError>
     {
         debug!("new: chain_key={}", chain_key.to_string());
-
-        let commit
-            = Arc::new(StdMutex::new(FxHashMap::default()));
-        let lock_requests
-            = Arc::new(StdMutex::new(FxHashMap::default()));
-
-        // Create pipes to all the target root nodes
-        let mut pipe_rx = Vec::new();
-        let mut pipe_tx = Vec::new();
-        for addr in addrs.iter() {
-            
-            let node_cfg = NodeConfig::new(builder.cfg.wire_format)
-                .wire_encryption(builder.cfg.wire_encryption)
-                .connect_to(addr.ip, addr.port)
-                .on_connect(Message::Connected)
-                .buffer_size(builder.cfg.buffer_size_client);
-            let (node_tx, node_rx)
-                = crate::comms::connect::<Message, ()>
-                (
-                    &node_cfg, 
-                    chain_domain.clone()
-                ).await;
-            pipe_tx.push(node_tx);
-            pipe_rx.push(node_rx);
-        }
-        
-        let session_store = Arc::new(StdMutex::new(None));
-        let inbound_conversation = Arc::new(ConversationSession::default());
-        let outbound_conversation = Arc::new(ConversationSession::default());
-        let pipe = Box::new(
-            ActiveSessionPipe {
-                key: chain_key.clone(),
-                session: Arc::clone(&session_store),
-                tx: pipe_tx,
-                next: NullPipe::new(),
-                commit: Arc::clone(&commit),
-                lock_requests: Arc::clone(&lock_requests),
-                outbound_conversation: Arc::clone(&outbound_conversation),
-            }
-        );
 
         // Open the chain and make a sample of the last items so that we can
         // speed up the synchronization by skipping already loaded items
@@ -86,62 +47,29 @@ impl MeshSession
             Chain::new_ext(builder.clone(), chain_key, Some(loader_local), true).await?
         };
 
-        // Cement the chain with a pipe
-        chain.proxy(pipe);
+        // Create a session pipe
+        let chain_store = Arc::new(StdMutex::new(None));
+        let session = RecoverableSessionPipe {
+            next: NullPipe::new(),
+            active: RwLock::new(None),
+            addrs,
+            key: chain_key.clone(),
+            builder,
+            chain_domain,
+            chain: Arc::clone(&chain_store),
+            loader_remote: StdMutex::new(Some(loader_remote)),
+        };
+        
+        // Add the pipe to the chain and cement it
+        chain.proxy(Box::new(session));
         let chain = Arc::new(chain);
 
-        // Create the session
-        let session = Arc::new(MeshSession {
-            addrs: addrs.clone(),
-            key: chain_key.clone(),
-            commit,
-            chain: Arc::downgrade(&chain),
-            lock_requests,
-            inbound_conversation,
-            outbound_conversation,
-        });
+        // Set a reference to the chain and trigger it to connect!
+        chain_store.lock().replace(Arc::downgrade(&chain));
+        chain.pipe.connect().await?;
 
-        // Attach a mesh session to it
-        session_store.lock().replace(Arc::clone(&session));
-
-        // Run the loaders and the message procesor
-        let mut loader = Some(loader_remote);
-        let mut wait_for_me = Vec::new();
-        for node_rx in pipe_rx {
-            let (loaded_sender, loaded_receiver)
-                = mpsc::channel(1);
-            
-            let notify_loaded = Box::new(crate::loader::NotificationLoader::new(loaded_sender));
-            let mut composite_loader = crate::loader::CompositionLoader::default();
-            composite_loader.loaders.push(notify_loaded);
-            if let Some(loader) = loader.take() {
-                composite_loader.loaders.push(loader);
-            }
-
-            tokio::spawn(
-                MeshSession::inbox
-                (
-                    Arc::clone(&session),
-                    node_rx,
-                    Some(Box::new(composite_loader))
-                )
-            );
-            wait_for_me.push(loaded_receiver);
-        };
-
-        // Wait for all the messages to load before we give it to the caller
-        debug!("loading {}", chain_key.to_string());
-        for mut wait in wait_for_me {
-            match wait.recv().await {
-                Some(result) => result?,
-                None => {
-                    return Err(ChainCreationError::ServerRejected("Server disconnected before it loaded the chain.".to_string()));
-                }
-            }
-        }
-        debug!("loaded {}", chain_key.to_string());
-
-        Ok((session, chain))
+        // Ok we are good!
+        Ok(chain)
     }
 
     async fn inbox_connected(self: &Arc<MeshSession>, pck: PacketData) -> Result<(), CommsError> {
@@ -385,24 +313,182 @@ impl LockRequest
     }
 }
 
-struct InactiveSessionPipe
+struct RecoverableSessionPipe
 {
+    // Passes onto the next pipe
     next: Arc<Box<dyn EventPipe>>,
-    session: Arc<MeshSession>,
+    active: RwLock<Option<Box<ActiveSessionPipe>>>,
+
+    // Used to create new active pipes
+    addrs: Vec<MeshAddress>,
+    key: ChainKey,
+    builder: ChainOfTrustBuilder,
+    chain_domain: Option<String>,
+    chain: Arc<StdMutex<Option<Weak<Chain>>>>,
+    loader_remote: StdMutex<Option<Box<dyn Loader>>>,
+}
+
+impl RecoverableSessionPipe
+{
+    async fn create_active_pipe(&self) -> Result<Box<ActiveSessionPipe>, ChainCreationError>
+    {
+        let commit
+            = Arc::new(StdMutex::new(FxHashMap::default()));
+        let lock_requests
+            = Arc::new(StdMutex::new(FxHashMap::default()));
+
+        // Create pipes to all the target root nodes
+        let mut pipe_rx = Vec::new();
+        let mut pipe_tx = Vec::new();
+        for addr in self.addrs.iter() {
+            
+            let node_cfg = NodeConfig::new(self.builder.cfg.wire_format)
+                .wire_encryption(self.builder.cfg.wire_encryption)
+                .connect_to(addr.ip, addr.port)
+                .on_connect(Message::Connected)
+                .buffer_size(self.builder.cfg.buffer_size_client);
+            let (node_tx, node_rx)
+                = crate::comms::connect::<Message, ()>
+                (
+                    &node_cfg, 
+                    self.chain_domain.clone()
+                ).await;
+            pipe_tx.push(node_tx);
+            pipe_rx.push(node_rx);
+        }
+
+        //building speedups: 98 days
+        //training speedups: 12 days
+        //healing speedups: 18 days
+        //general speedups: 39 days
+
+        let inbound_conversation = Arc::new(ConversationSession::default());
+        let outbound_conversation = Arc::new(ConversationSession::default());
+
+        let session = Arc::new(MeshSession {
+            addrs: self.addrs.clone(),
+            key: self.key.clone(),
+            commit: Arc::clone(&commit),
+            chain: Weak::clone(self.chain.lock().as_ref().expect("You must call the 'set_chain' before invoking this method.")),
+            lock_requests: Arc::clone(&lock_requests),
+            inbound_conversation: Arc::clone(&inbound_conversation),
+            outbound_conversation: Arc::clone(&outbound_conversation),
+        });
+        
+        let pipe = Box::new(
+            ActiveSessionPipe {
+                key: self.key.clone(),
+                session: Arc::clone(&session),
+                tx: pipe_tx,
+                commit: Arc::clone(&commit),
+                lock_requests: Arc::clone(&lock_requests),
+                outbound_conversation: Arc::clone(&outbound_conversation),
+            }
+        );
+
+        // Run the loaders and the message procesor
+        let mut loader = self.loader_remote.lock().take();
+        let mut wait_for_me = Vec::new();
+        for node_rx in pipe_rx {
+            let (loaded_sender, loaded_receiver)
+                = mpsc::channel(1);
+            
+            let notify_loaded = Box::new(crate::loader::NotificationLoader::new(loaded_sender));
+            let mut composite_loader = crate::loader::CompositionLoader::default();
+            composite_loader.loaders.push(notify_loaded);
+            if let Some(loader) = loader.take() {
+                composite_loader.loaders.push(loader);
+            }
+
+            tokio::spawn(
+                MeshSession::inbox
+                (
+                    Arc::clone(&session),
+                    node_rx,
+                    Some(Box::new(composite_loader))
+                )
+            );
+            wait_for_me.push(loaded_receiver);
+        };
+
+        // Wait for all the messages to load before we give it to the caller
+        debug!("loading {}", self.key.to_string());
+        for mut wait in wait_for_me {
+            match wait.recv().await {
+                Some(result) => result?,
+                None => {
+                    return Err(ChainCreationError::ServerRejected("Server disconnected before it loaded the chain.".to_string()));
+                }
+            }
+        }
+        debug!("loaded {}", self.key.to_string());
+
+        // Return the pipe
+        Ok(pipe)
+    }
+
+    fn set_chain(&self, chain: &Arc<Chain>) {
+        self.chain.lock().replace(Arc::downgrade(chain));
+    }
 }
 
 #[async_trait]
 impl EventPipe
-for InactiveSessionPipe
+for RecoverableSessionPipe
 {
-    async fn feed(&self, trans: Transaction) -> Result<(), CommitError>
+    async fn is_connected(&self) -> bool {
+        let lock = self.active.read().await;
+        if let Some(pipe) = lock.as_ref() {
+            return pipe.is_connected();
+        }
+        false
+    }
+
+    async fn connect(&self) -> Result<(), ChainCreationError>
     {
+        let mut lock = self.active.write().await;
+        if let Some(pipe) = lock.as_ref() {
+            if pipe.is_connected() == true { return Ok(()) };
+        }
+        
+        let pipe = self.create_active_pipe().await?;
+        lock.replace(pipe);
+        Ok(())
+    }
+
+    async fn feed(&self, mut trans: Transaction) -> Result<(), CommitError>
+    {
+        {
+            let lock = self.active.read().await;
+            if let Some(pipe) = lock.as_ref() {
+                pipe.feed(&mut trans).await?;
+            }
+        }
+
         self.next.feed(trans).await
     }
 
     async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError>
     {
-        self.next.try_lock(key).await
+        // If we are not active then fail
+        let lock = self.active.read().await;
+        if lock.is_none() {
+            return Ok(false);
+        }
+
+        // First we do a lock locally so that we reduce the number of
+        // collisions on the main server itself
+        if self.next.try_lock(key).await? == false {
+            return Ok(false);
+        }
+
+        // Now process it in the active pipe        
+        if let Some(pipe) = lock.as_ref() {
+            return pipe.try_lock(key).await;
+        } else {
+            return Ok(false);
+        }
+
     }
 
     fn unlock_local(&self, key: PrimaryKey) -> Result<(), CommitError>
@@ -412,15 +498,28 @@ for InactiveSessionPipe
 
     async fn unlock(&self, key: PrimaryKey) -> Result<(), CommitError>
     {
-        self.next.unlock(key).await
+        // First we unlock any local locks so errors do not kill access
+        // to the data object
+        self.next.unlock(key).await?;
+
+        // Now unlock it at the server
+        let lock = self.active.read().await;
+        if let Some(pipe) = lock.as_ref() {
+            pipe.unlock(key).await?;
+        }
+        Ok(())
     }
 
     fn set_next(&mut self, next: Arc<Box<dyn EventPipe>>) {
         let _ = std::mem::replace(&mut self.next, next);
     }
 
-    fn conversation(&self) -> Option<Arc<ConversationSession>> {
-        self.next.conversation()
+    async fn conversation(&self) -> Option<Arc<ConversationSession>> {
+        let lock = self.active.read().await;
+        if let Some(pipe) = lock.as_ref() {
+            return pipe.conversation();
+        }
+        None
     }
 }
 
@@ -428,8 +527,7 @@ struct ActiveSessionPipe
 {
     key: ChainKey,
     tx: Vec<NodeTx<()>>,
-    session: Arc<StdMutex<Option<Arc<MeshSession>>>>,
-    next: Arc<Box<dyn EventPipe>>,
+    session: Arc<MeshSession>,
     commit: Arc<StdMutex<FxHashMap<u64, mpsc::Sender<Result<(), CommitError>>>>>,
     lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, LockRequest>>>,
     outbound_conversation: Arc<ConversationSession>,
@@ -437,6 +535,15 @@ struct ActiveSessionPipe
 
 impl ActiveSessionPipe
 {
+    fn is_connected(&self) -> bool {
+        for tx in self.tx.iter() {
+            if tx.is_closed() == false {
+                return true;
+            }
+        }
+        return false;
+    }
+
     async fn feed_internal(&self, trans: &mut Transaction) -> Result<Option<mpsc::Receiver<Result<(), CommitError>>>, CommitError>
     {
         // Convert the event data into message events
@@ -480,17 +587,15 @@ impl ActiveSessionPipe
     }
 }
 
-#[async_trait]
-impl EventPipe
-for ActiveSessionPipe
+impl ActiveSessionPipe
 {
-    async fn feed(&self, mut trans: Transaction) -> Result<(), CommitError>
+    async fn feed(&self, trans: &mut Transaction) -> Result<(), CommitError>
     {
         // Only transmit the packet if we are meant to
         if trans.transmit == true
         {
             // Feed the transaction into the pipe
-            let receiver = self.feed_internal(&mut trans).await?;
+            let receiver = self.feed_internal(trans).await?;
 
             // If we need to wait for the transaction to commit then do so
             if let Some(mut receiver) = receiver {
@@ -501,18 +606,11 @@ for ActiveSessionPipe
             }
         }
 
-        // Hand over to the next pipe as this transaction 
-        self.next.feed(trans).await
+        Ok(())
     }
 
     async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError>
     {
-        // First we do a lock locally so that we reduce the number of
-        // collisions on the main server itself
-        if self.next.try_lock(key).await? == false {
-            return Ok(false)
-        }
-
         // Build a list of nodes that are needed for the lock vote
         let mut voters = self.tx.iter().collect::<Vec<_>>();
         if voters.len() >= 2 && (voters.len() as u32 % 2) == 0 {
@@ -546,17 +644,8 @@ for ActiveSessionPipe
         Ok(rx.recv()?)
     }
 
-    fn unlock_local(&self, key: PrimaryKey) -> Result<(), CommitError>
-    {
-        self.next.unlock_local(key)
-    }
-
     async fn unlock(&self, key: PrimaryKey) -> Result<(), CommitError>
     {
-        // First we unlock any local locks so errors do not kill access
-        // to the data object
-        self.next.unlock(key).await?;
-
         // Send a message up to the main server asking for an unlock on the data object
         let mut joins = Vec::new();
         for tx in self.tx.iter() {
@@ -570,10 +659,6 @@ for ActiveSessionPipe
 
         // Success
         Ok(())
-    }
-
-    fn set_next(&mut self, next: Arc<Box<dyn EventPipe>>) {
-        let _ = std::mem::replace(&mut self.next, next);
     }
 
     fn conversation(&self) -> Option<Arc<ConversationSession>> {

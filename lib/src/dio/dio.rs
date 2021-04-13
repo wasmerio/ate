@@ -414,7 +414,7 @@ impl Chain
             multi,
             session: session,
             scope,
-            conversation: self.pipe.conversation()
+            conversation: self.pipe.conversation().await
         }
     }
 }

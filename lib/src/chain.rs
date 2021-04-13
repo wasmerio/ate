@@ -622,6 +622,12 @@ impl<'a> Chain
 impl EventPipe
 for InboxPipe
 {
+    async fn is_connected(&self) -> bool { true }
+
+    async fn connect(&self) -> Result<(), ChainCreationError> {
+        Ok(())
+    }
+
     #[allow(dead_code)]
     async fn feed(&self, trans: Transaction) -> Result<(), CommitError>
     {
@@ -693,7 +699,7 @@ for InboxPipe
     fn set_next(&mut self, _next: Arc<Box<dyn EventPipe>>) {
     }
 
-    fn conversation(&self) -> Option<Arc<ConversationSession>> { None }
+    async fn conversation(&self) -> Option<Arc<ConversationSession>> { None }
 }
 
 

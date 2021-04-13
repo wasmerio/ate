@@ -9,6 +9,10 @@ use std::sync::Arc;
 #[async_trait]
 pub(crate) trait EventPipe: Send + Sync
 {
+    async fn is_connected(&self) -> bool;
+
+    async fn connect(&self) -> Result<(), ChainCreationError>;
+
     async fn feed(&self, mut trans: Transaction) -> Result<(), CommitError>;
 
     async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError>;
@@ -19,7 +23,7 @@ pub(crate) trait EventPipe: Send + Sync
 
     fn set_next(&mut self, next: Arc<Box<dyn EventPipe>>);
 
-    fn conversation(&self) -> Option<Arc<ConversationSession>>;
+    async fn conversation(&self) -> Option<Arc<ConversationSession>>;
 }
 
 #[derive(Debug, Default, Clone, Copy)]
@@ -37,6 +41,10 @@ impl NullPipe
 impl EventPipe
 for NullPipe
 {
+    async fn is_connected(&self) -> bool { true }
+
+    async fn connect(&self) -> Result<(), ChainCreationError> { Ok(()) }
+
     async fn feed(&self, _trans: Transaction) -> Result<(), CommitError> { Ok(()) }
 
     async fn try_lock(&self, _key: PrimaryKey) -> Result<bool, CommitError> { Ok(false) }
@@ -47,7 +55,7 @@ for NullPipe
 
     fn set_next(&mut self, _next: Arc<Box<dyn EventPipe>>) { }
 
-    fn conversation(&self) -> Option<Arc<ConversationSession>> { None }
+    async fn conversation(&self) -> Option<Arc<ConversationSession>> { None }
 }
 
 #[derive(Clone)]
@@ -72,6 +80,15 @@ impl DuelPipe
 impl EventPipe
 for DuelPipe
 {
+    async fn is_connected(&self) -> bool { true }
+
+    async fn connect(&self) -> Result<(), ChainCreationError>
+    {
+        self.first.connect().await?;
+        self.second.connect().await?;
+        Ok(())
+    }
+
     async fn feed(&self, trans: Transaction) -> Result<(), CommitError>
     {
         self.first.feed(trans.clone()).await?;
@@ -102,12 +119,12 @@ for DuelPipe
 
     }
 
-    fn conversation(&self) -> Option<Arc<ConversationSession>>
+    async fn conversation(&self) -> Option<Arc<ConversationSession>>
     {
-        if let Some(ret) = self.first.conversation() {
+        if let Some(ret) = self.first.conversation().await {
             return Some(ret);
         }
-        if let Some(ret) = self.second.conversation() {
+        if let Some(ret) = self.second.conversation().await {
             return Some(ret);
         }
         None

@@ -50,11 +50,15 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
 
         upcast.insert(upstream.id, upstream);
     }
+    let upcast_cnt = upcast.len();
 
     // Return the mesh
     (
         NodeTx {
-            direction: TxDirection::Upcast(upcast),
+            direction: match upcast_cnt {
+                1 => TxDirection::UpcastOne(upcast.into_iter().map(|(_,v)| v).next().unwrap()),
+                _ => TxDirection::UpcastMany(upcast)
+            },
             state: Arc::clone(&state),
             wire_format: conf.wire_format,
             _marker: PhantomData

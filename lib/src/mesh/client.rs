@@ -60,7 +60,7 @@ impl MeshClient {
         
         let builder = ChainOfTrustBuilder::new(&self.cfg_ate).await
             .temporal(self.temporal);
-        let (_, chain) = MeshSession::connect(builder, key, domain, addrs, loader_local, loader_remote).await?;
+        let chain = MeshSession::connect(builder, key, domain, addrs, loader_local, loader_remote).await?;
         *record = Arc::downgrade(&chain);
 
         Ok(chain)

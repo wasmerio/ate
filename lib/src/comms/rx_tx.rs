@@ -22,7 +22,8 @@ use super::PacketWithContext;
 pub(crate) enum TxDirection
 {
     Downcast(Arc<broadcast::Sender<PacketData>>),
-    Upcast(FxHashMap<u64, Upstream>)
+    UpcastOne(Upstream),
+    UpcastMany(FxHashMap<u64, Upstream>)
 }
 
 #[derive(Debug)]
@@ -53,8 +54,11 @@ where C: Send + Sync + Default + 'static
             TxDirection::Downcast(a) => {
                 a.send(pck)?;
             },
-            TxDirection::Upcast(a) => {
-                let upcasts = a.values().collect::<Vec<_>>();
+            TxDirection::UpcastOne(a) => {
+                a.outbox.send(pck).await?;
+            },
+            TxDirection::UpcastMany(a) => {
+                let upcasts = a.values().filter(|u| u.outbox.is_closed() == false).collect::<Vec<_>>();
                 let upcast = upcasts.choose(&mut rand::thread_rng()).unwrap();
                 upcast.outbox.send(pck).await?;
             }
@@ -71,6 +75,20 @@ where C: Send + Sync + Default + 'static
     pub(crate) fn connected(&self) -> i32 {
         let state = self.state.lock();
         state.connected
+    }
+
+    pub(crate) fn is_closed(&self) -> bool {
+        match &self.direction {
+            TxDirection::Downcast(_) => {
+                false
+            },
+            TxDirection::UpcastOne(a) => {
+                a.outbox.is_closed()
+            },
+            TxDirection::UpcastMany(a) => {
+                a.values().any(|u| u.outbox.is_closed() == false) == false
+            }
+        }
     }
 }
 

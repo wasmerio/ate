@@ -145,6 +145,12 @@ struct ServerPipe
 impl EventPipe
 for ServerPipe
 {
+    async fn is_connected(&self) -> bool { true }
+
+    async fn connect(&self) -> Result<(), ChainCreationError> {
+        Ok(())
+    }
+
     async fn feed(&self, trans: Transaction) -> Result<(), CommitError>
     {
         // If this packet is being broadcast then send it to all the other nodes too
@@ -177,7 +183,7 @@ for ServerPipe
         let _ = std::mem::replace(&mut self.next, next);
     }
 
-    fn conversation(&self) -> Option<Arc<ConversationSession>> {
+    async fn conversation(&self) -> Option<Arc<ConversationSession>> {
         None
     }
 }
