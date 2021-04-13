@@ -28,6 +28,10 @@ use fuse3::raw::prelude::*;
 use fuse3::{MountOptions};
 use clap::Clap;
 
+
+// Determines how the file-system will react while it is nominal and when it is
+// recovering from a communication failure (valid options are 'async', 'readonly-async',
+// 'readonly-sync' or 'sync')
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum RecoveryMode
 {
@@ -166,11 +170,6 @@ struct Mount {
     /// No authentication or passcode will be used to protect this file-system
     #[clap(short, long)]
     no_auth: bool,
-    /// Determines how the file-system will react while it is nominal and when it is
-    /// recovering from a communication failure (valid options are 'async', 'readonly-async',
-    /// 'readonly-sync' or 'sync')
-    #[clap(long, default_value = "readonly-async")]
-    recovery_mode: RecoveryMode,
     /// Local redo log file will be deleted when the file system is unmounted, remotely stored data on
     /// any distributed commit log will be persisted. Effectively this setting only uses the local disk
     /// as a cache of the redo-log while it's being used.
