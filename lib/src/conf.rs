@@ -127,6 +127,10 @@ pub struct ConfAte
     pub ntp_pool: String,
     /// Port that the NTP server is listening on (defaults to 123)
     pub ntp_port: u16,
+    /// Flag that indicates if the time keeper will sync with NTP or not
+    /// (avoiding NTP sync means one can run fully offline but time drift
+    ///  will cause issues with multi factor authentication and timestamps)
+    pub ntp_sync: bool,
 
     /// Flag that determines if ATE will use DNSSec or just plain DNS
     pub dns_sec: bool,
@@ -202,6 +206,7 @@ for ConfAte
             log_path: "/tmp/ate".to_string(),
             dns_sec: false,
             dns_server: "8.8.8.8".to_string(),
+            ntp_sync: true,
             ntp_pool: "pool.ntp.org".to_string(),
             ntp_port: 123,
             wire_encryption: Some(KeySize::Bit128),
@@ -289,7 +294,7 @@ for ConfiguredFor
             "balanced" => Ok(ConfiguredFor::Balanced),
             "best_security" => Ok(ConfiguredFor::BestSecurity),
             "security" => Ok(ConfiguredFor::BestSecurity),
-            _ => Err("no match"),
+            _ => Err("valid values are 'raw', 'barebone', 'best_performance', 'performance', 'speed', 'best_compatibility', 'compatibility', 'balanced', 'best_security' and 'security'"),
         }
     }
 }

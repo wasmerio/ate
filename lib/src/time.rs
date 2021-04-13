@@ -35,7 +35,7 @@ pub struct TimestampEnforcer {
     pub tolerance: Duration,
     pub ntp_pool: String,
     pub ntp_port: u16,
-    pub(crate) ntp_worker: Arc<NtpWorker>,
+    pub(crate) ntp_worker: Option<Arc<NtpWorker>>,
 }
 
 #[derive(Debug)]
@@ -152,9 +152,24 @@ impl TimestampEnforcer
                 tolerance: tolerance,
                 ntp_pool: cfg.ntp_pool.clone(),
                 ntp_port: cfg.ntp_port,
-                ntp_worker: NtpWorker::create(cfg, tolerance_ms).await?,
+                ntp_worker: match cfg.ntp_sync {
+                    true => Some(NtpWorker::create(cfg, tolerance_ms).await?),
+                    false => None,
+                },
             }
         )
+    }
+
+    fn current_timestamp(&self) -> Result<Duration, TimeError> {
+        Ok(match &self.ntp_worker {
+            Some(worker) => worker.current_timestamp()?,
+            None => {
+                let start = SystemTime::now();
+                let since_the_epoch = start
+                    .duration_since(UNIX_EPOCH)?;
+                since_the_epoch
+            }
+        })        
     }
 }
 
@@ -172,7 +187,7 @@ for TimestampEnforcer
 
         ret.push(CoreMetadata::Timestamp(
             MetaTimestamp {
-                time_since_epoch_ms: self.ntp_worker.current_timestamp()?.as_millis() as u64,
+                time_since_epoch_ms: self.current_timestamp()?.as_millis() as u64,
             }
         ));
 
@@ -241,7 +256,7 @@ for TimestampEnforcer
         // Check its within the time range
         let timestamp = Duration::from_millis(time.time_since_epoch_ms);
         let min_timestamp = self.cursor - self.tolerance;
-        let max_timestamp = self.ntp_worker.current_timestamp()? + self.tolerance;
+        let max_timestamp = self.current_timestamp()? + self.tolerance;
         
         if timestamp < min_timestamp ||
            timestamp > max_timestamp

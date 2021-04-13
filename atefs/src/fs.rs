@@ -46,6 +46,7 @@ pub struct AteFS
 where Self: Send + Sync
 {
     pub chain: Arc<Chain>,
+    pub no_auth: bool,
     pub session: AteSession,
     pub open_handles: Mutex<FxHashMap<u64, Arc<OpenHandle>>>,
     pub elapsed: std::time::Instant,
@@ -143,7 +144,7 @@ pub(crate) fn conv<T>(r: std::result::Result<T, AteError>) -> std::result::Resul
     match r {
         Ok(a) => Ok(a),
         Err(err) => {
-            debug!("atefs::error {}", err);
+            error!("atefs::error {}", err);
             match err {
                 AteError::LoadError(LoadError::NotFound(_)) => Err(libc::ENOSYS.into()),
                 _ => Err(libc::ENOSYS.into())
@@ -154,9 +155,10 @@ pub(crate) fn conv<T>(r: std::result::Result<T, AteError>) -> std::result::Resul
 
 impl AteFS
 {
-    pub fn new(chain: Arc<Chain>, session: AteSession) -> AteFS {
+    pub fn new(chain: Arc<Chain>, session: AteSession, no_auth: bool) -> AteFS {
         AteFS {
             chain,
+            no_auth,
             session,
             open_handles: Mutex::new(FxHashMap::default()),
             elapsed: std::time::Instant::now(),
@@ -165,7 +167,7 @@ impl AteFS
         }
     }
 
-    fn get_read_key(&self) -> AteHash {
+    fn get_read_key(&self) -> Option<AteHash> {
         self.session.properties.iter().filter_map(|a| {
             match a {
                 AteSessionProperty::ReadKey(key) => Some(key.hash()),
@@ -173,7 +175,16 @@ impl AteFS
             }
         })
         .next()
-        .expect("Session does not have a read key embeddeed within it")
+    }
+
+    fn get_write_key(&self) -> Option<AteHash> {
+        self.session.properties.iter().filter_map(|a| {
+            match a {
+                AteSessionProperty::WriteKey(key) => Some(key.hash()),
+                _ => None,
+            }
+        })
+        .next()
     }
 
     pub async fn load<'a>(&'a self, inode: u64) -> Result<(Dao<Inode>, Dio<'a>)> {
@@ -323,12 +334,23 @@ for AteFS
             
             let root = Inode::new("/".to_string(), 0o755, req.uid, req.gid, SpecType::Directory);
             match dio.make_ext(root, self.session.log_format, Some(PrimaryKey::from(1))) {
-                Ok(mut root) => {
-                    root.auth_mut().read = ate::meta::ReadOption::Specific(self.get_read_key());
+                Ok(mut root) =>
+                {
+                    if let Some(key) = self.get_read_key() {
+                        root.auth_mut().read = ate::meta::ReadOption::Specific(key);
+                    } else if self.no_auth == false {
+                        error!("Session does not have a read key embedded within it");
+                        return Err(libc::EINVAL.into());
+                    }
+
+                    if let Some(key) = self.get_write_key() {
+                        root.auth_mut().write = ate::meta::WriteOption::Specific(key);
+                    }
+
                     conv_serialization(root.commit(&mut dio))?;
                 },
                 Err(err) => {
-                    error!("atefs::error {}", err);        
+                    error!("atefs::error {}", err);
                 }
             }     
         };

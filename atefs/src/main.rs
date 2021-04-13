@@ -28,6 +28,45 @@ use fuse3::raw::prelude::*;
 use fuse3::{MountOptions};
 use clap::Clap;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum RecoveryMode
+{
+    // Fully asynchronous mode which allows staging of all writes locally giving
+    // maximum availability however split-brain scenarios are the responsibility
+    // of the user
+    Async,
+    // While in a nominal state the file-system will make asynchronous writes however
+    // if a communication failure occurs the local file-system will switch to read-only
+    // mode and upon restoring the connectivity the last few writes that had not been
+    // sent will be retransmitted.
+    ReadOnlyAsync,
+    // While in a nominal state the file-system will make synchronous writes to the
+    // remote location however if a break in communication occurs the local file-system
+    // will switch to read-only mode until communication is restored.
+    ReadOnlySync,
+    // Fully synchonrous mode meaning all reads and all writes are committed to
+    // local and remote locations at all times. This gives maximum integrity however
+    // nominal writes will be considerable slower while reads will be blocked when in
+    // a disconnected state
+    Sync
+}
+
+impl std::str::FromStr
+for RecoveryMode
+{
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "async" => Ok(RecoveryMode::Async),
+            "readonly-async" => Ok(RecoveryMode::ReadOnlyAsync),
+            "readonly-sync" => Ok(RecoveryMode::ReadOnlySync),
+            "sync" => Ok(RecoveryMode::Sync),
+            _ => Err("valid values are 'async', 'readonly-async', 'readonly-sync' and 'sync'"),
+        }
+    }
+}
+
 #[derive(Clap)]
 #[clap(version = "0.1", author = "John S. <johnathan.sharratt@gmail.com>")]
 struct Opts {
@@ -38,6 +77,16 @@ struct Opts {
     /// URL where the user is authenticated
     #[clap(short, long, default_value = "tcp://auth.tokera.com:5001/auth")]
     auth: Url,
+    /// No NTP server will be used to synchronize the time thus the server time
+    /// will be used instead
+    #[clap(long)]
+    no_ntp: bool,
+    /// NTP server address that the file-system will synchronize with
+    #[clap(long)]
+    ntp_pool: Option<String>,
+    /// NTP server port that the file-system will synchronize with
+    #[clap(long)]
+    ntp_port: Option<u16>,
     /// Logs debug info to the console
     #[clap(short, long)]
     debug: bool,
@@ -108,6 +157,20 @@ struct Mount {
     /// file-system (if you do not supply a token then you will be prompted for a username and password)
     #[clap(long)]
     token_path: Option<String>,
+    /// User supplied passcode that will be used to encrypt the contents of this file-system
+    /// instead of using an authentication. Note that this can 'not' be used as combination
+    /// with a strong authentication system and hence implicitely implies the 'no-auth' option
+    /// as well.
+    #[clap(short, long)]
+    passcode: Option<String>,
+    /// No authentication or passcode will be used to protect this file-system
+    #[clap(short, long)]
+    no_auth: bool,
+    /// Determines how the file-system will react while it is nominal and when it is
+    /// recovering from a communication failure (valid options are 'async', 'readonly-async',
+    /// 'readonly-sync' or 'sync')
+    #[clap(long, default_value = "readonly-async")]
+    recovery_mode: RecoveryMode,
     /// Local redo log file will be deleted when the file system is unmounted, remotely stored data on
     /// any distributed commit log will be persisted. Effectively this setting only uses the local disk
     /// as a cache of the redo-log while it's being used.
@@ -135,7 +198,7 @@ struct Mount {
     #[clap(short, long)]
     write_back: bool,
     /// Allow fuse filesystem mount on a non-empty directory, default is not allowed.
-    #[clap(short, long)]
+    #[clap(long)]
     non_empty: bool,
     /// Configure the log file for <raw>, <barebone>, <speed>, <compatibility>, <balanced> or <security>
     #[clap(long, default_value = "speed")]
@@ -146,37 +209,6 @@ struct Mount {
     /// Format of the data in the log file as <bincode>, <json> or <mpack>
     #[clap(long, default_value = "bincode")]
     data_format: ate::spec::SerializationFormat,
-}
-
-#[allow(dead_code)]
-fn main_debug() -> Opts {
-    Opts {
-        verbose: 2,
-        debug: true,
-        dns_sec: false,
-        dns_server: "8.8.8.8".to_string(),
-        auth: Url::from_str("tcp://auth.tokera.com:5001/auth").unwrap(),
-        subcmd: SubCommand::Mount(Mount {
-            mount_path: "/mnt/test".to_string(),
-            log_path: "~/ate/fs".to_string(),
-            remote: Some(Url::from_str("tcp://ate.tokera.com/gmail.com/johnathan.sharratt/myfs").unwrap()),
-            token: None,
-            token_path: Some("~/token".to_string()),
-            //remote: None,
-            temp: false,
-            uid: None,
-            gid: None,
-            wire_encryption: None,
-            allow_root: false,
-            allow_other: false,
-            read_only: false,
-            write_back: false,
-            non_empty: false,
-            configured_for: ate::conf::ConfiguredFor::BestPerformance,
-            meta_format: ate::spec::SerializationFormat::Bincode,
-            data_format: ate::spec::SerializationFormat::Bincode,
-        }),
-    }
 }
 
 fn ctrl_channel() -> tokio::sync::watch::Receiver<bool> {
@@ -269,7 +301,7 @@ async fn main_mount(mount: Mount, conf: ConfAte, session: AteSession) -> Result<
     // Create the mount point
     let mount_path = mount.mount_path.clone();
     let mount_join = Session::new(mount_options)
-        .mount_with_unprivileged(AteFS::new(chain, session), mount.mount_path);
+        .mount_with_unprivileged(AteFS::new(chain, session, mount.no_auth), mount.mount_path);
 
     // Install a ctrl-c command
     info!("mounting file-system and entering main loop");
@@ -321,8 +353,7 @@ async fn main_mount(mount: Mount, conf: ConfAte, session: AteSession) -> Result<
 #[tokio::main]
 async fn main() -> Result<(), CommandError> {
     let opts: Opts = Opts::parse();
-    //let opts = main_debug();
-
+    
     let mut log_level = match opts.verbose {
         0 => "error",
         1 => "warn",
@@ -335,6 +366,13 @@ async fn main() -> Result<(), CommandError> {
     let mut conf = AteConfig::default();
     conf.dns_sec = opts.dns_sec;
     conf.dns_server = opts.dns_server;
+    conf.ntp_sync = opts.no_ntp == false;
+    if let Some(pool) = opts.ntp_pool {
+        conf.ntp_pool = pool;
+    }
+    if let Some(port) = opts.ntp_port {
+        conf.ntp_port = port;
+    }
     
     match opts.subcmd {
         SubCommand::CreateToken(login) => {
@@ -347,8 +385,38 @@ async fn main() -> Result<(), CommandError> {
         },
         SubCommand::Mount(mount) =>
         {
+            // Create a default empty session
+            let mut session = AteSession::default();
+
+            // If a passcode is supplied then use this
+            if let Some(pass) = &mount.passcode
+            {
+                if mount.token.is_some() || mount.token_path.is_some() {
+                    eprintln!("You can not supply both a passcode and a token, either drop the --token arguments or the --passcode argument");
+                    std::process::exit(1);
+                }
+                if mount.remote.is_some() {
+                    eprintln!("Using a passcode is not compatible with remotely hosted file-systems as the distributed databases need to make authentication checks");
+                    std::process::exit(1);
+                }
+
+                let prefix = "ate:".to_string();
+                let key = ate_auth::password_to_read_key(&prefix, &pass, 10);
+                session.add_read_key(&key);
+
+            } else if mount.no_auth {
+                if mount.remote.is_some() {
+                    eprintln!("In order to use remotely hosted file-systems you must use some form of authentication, without authentication the distributed databases will not be able to make the needed checks");
+                    std::process::exit(1);
+                }
+
+                // We do not put anything in the session as no authentication method nor a passcode was supplied
+            } else {
+                // Load the session via the token or the authentication server
+                session = ate_auth::main_session(mount.token.clone(), mount.token_path.clone(), Some(opts.auth)).await?;
+            }
+
             // Mount the file system
-            let session = ate_auth::main_session(mount.token.clone(), mount.token_path.clone(), Some(opts.auth)).await?;
             main_mount(mount, conf, session).await?;
         },
     }

@@ -28,7 +28,7 @@ for SerializationFormat
             "mpack" => Ok(SerializationFormat::MessagePack),
             "bincode" => Ok(SerializationFormat::Bincode),
             "bc" => Ok(SerializationFormat::Bincode),
-            _ => Err("no match"),
+            _ => Err("valid values are 'json', 'messagepack'/'mpack', 'bincode'/'bc'"),
         }
     }
 }

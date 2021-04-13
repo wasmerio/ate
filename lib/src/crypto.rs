@@ -77,7 +77,7 @@ for KeySize
             "128" => Ok(KeySize::Bit128),
             "192" => Ok(KeySize::Bit192),
             "256" => Ok(KeySize::Bit256),
-            _ => Err("no match"),
+            _ => Err("valid values are '128', '192', '256'"),
         }
     }
 }
