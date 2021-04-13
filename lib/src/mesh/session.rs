@@ -64,11 +64,13 @@ impl MeshSession
             pipe_rx.push(node_rx);
         }
         
+        let session_store = Arc::new(StdMutex::new(None));
         let inbound_conversation = Arc::new(ConversationSession::default());
         let outbound_conversation = Arc::new(ConversationSession::default());
         let pipe = Box::new(
-            SessionPipe {
+            ActiveSessionPipe {
                 key: chain_key.clone(),
+                session: Arc::clone(&session_store),
                 tx: pipe_tx,
                 next: NullPipe::new(),
                 commit: Arc::clone(&commit),
@@ -100,7 +102,7 @@ impl MeshSession
         });
 
         // Attach a mesh session to it
-        chain.inside_sync.write().session = Some(Arc::clone(&session));
+        session_store.lock().replace(Arc::clone(&session));
 
         // Run the loaders and the message procesor
         let mut loader = Some(loader_remote);
@@ -140,22 +142,6 @@ impl MeshSession
         debug!("loaded {}", chain_key.to_string());
 
         Ok((session, chain))
-    }
-
-    pub(super) fn retro_create(chain: Arc<Chain>) -> Arc<Chain>
-    {
-        let ret = Arc::new(MeshSession {
-            addrs: Vec::new(),
-            key: chain.key().clone(),
-            commit: Arc::new(StdMutex::new(FxHashMap::default())),
-            lock_requests: Arc::new(StdMutex::new(FxHashMap::default())),
-            chain: Arc::downgrade(&chain),
-            inbound_conversation: Arc::new(ConversationSession::default()),
-            outbound_conversation: Arc::new(ConversationSession::default()),
-        });
-
-        chain.inside_sync.write().session = Some(Arc::clone(&ret));
-        chain
     }
 
     async fn inbox_connected(self: &Arc<MeshSession>, pck: PacketData) -> Result<(), CommsError> {
@@ -399,17 +385,57 @@ impl LockRequest
     }
 }
 
-struct SessionPipe
+struct InactiveSessionPipe
+{
+    next: Arc<Box<dyn EventPipe>>,
+    session: Arc<MeshSession>,
+}
+
+#[async_trait]
+impl EventPipe
+for InactiveSessionPipe
+{
+    async fn feed(&self, trans: Transaction) -> Result<(), CommitError>
+    {
+        self.next.feed(trans).await
+    }
+
+    async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError>
+    {
+        self.next.try_lock(key).await
+    }
+
+    fn unlock_local(&self, key: PrimaryKey) -> Result<(), CommitError>
+    {
+        self.next.unlock_local(key)
+    }
+
+    async fn unlock(&self, key: PrimaryKey) -> Result<(), CommitError>
+    {
+        self.next.unlock(key).await
+    }
+
+    fn set_next(&mut self, next: Arc<Box<dyn EventPipe>>) {
+        let _ = std::mem::replace(&mut self.next, next);
+    }
+
+    fn conversation(&self) -> Option<Arc<ConversationSession>> {
+        self.next.conversation()
+    }
+}
+
+struct ActiveSessionPipe
 {
     key: ChainKey,
     tx: Vec<NodeTx<()>>,
+    session: Arc<StdMutex<Option<Arc<MeshSession>>>>,
     next: Arc<Box<dyn EventPipe>>,
     commit: Arc<StdMutex<FxHashMap<u64, mpsc::Sender<Result<(), CommitError>>>>>,
     lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, LockRequest>>>,
     outbound_conversation: Arc<ConversationSession>,
 }
 
-impl SessionPipe
+impl ActiveSessionPipe
 {
     async fn feed_internal(&self, trans: &mut Transaction) -> Result<Option<mpsc::Receiver<Result<(), CommitError>>>, CommitError>
     {
@@ -456,7 +482,7 @@ impl SessionPipe
 
 #[async_trait]
 impl EventPipe
-for SessionPipe
+for ActiveSessionPipe
 {
     async fn feed(&self, mut trans: Transaction) -> Result<(), CommitError>
     {
@@ -520,9 +546,9 @@ for SessionPipe
         Ok(rx.recv()?)
     }
 
-    fn unlock_local(&self, _key: PrimaryKey) -> Result<(), CommitError>
+    fn unlock_local(&self, key: PrimaryKey) -> Result<(), CommitError>
     {
-        Ok(())
+        self.next.unlock_local(key)
     }
 
     async fn unlock(&self, key: PrimaryKey) -> Result<(), CommitError>

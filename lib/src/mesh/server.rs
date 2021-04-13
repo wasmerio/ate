@@ -443,7 +443,7 @@ where F: OpenFlow + 'static
                     return Err(CommsError::RootServerError(err.to_string()));
                 }
             };
-            MeshSession::retro_create(chain)
+            chain
         }
     };
 

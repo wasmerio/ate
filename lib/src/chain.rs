@@ -81,7 +81,6 @@ pub(crate) struct ChainProtectedSync
     pub(super) validators: Vec<Box<dyn EventValidator>>,
     pub(super) listeners: MultiMap<MetaCollection, ChainListener>,
     pub(super) services: Vec<Arc<dyn Service>>,
-    pub(super) session: Option<Arc<MeshSession>>,
     pub(super) repository: Option<Weak<dyn ChainRepository>>,
 }
 
@@ -349,7 +348,6 @@ impl<'a> Chain
             transformers: builder.transformers,
             listeners: MultiMap::new(),
             services: Vec::new(),
-            session: None,
             repository: None,
             default_session: builder.session,
             integrity: builder.integrity,
