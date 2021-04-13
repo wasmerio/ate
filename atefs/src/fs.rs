@@ -147,6 +147,7 @@ pub(crate) fn conv<T>(r: std::result::Result<T, AteError>) -> std::result::Resul
         Err(err) => {
             error!("atefs::error {}", err);
             match err {
+                AteError::CommsError(CommsError::Disconnected) => Err(libc::EBUSY.into()),
                 AteError::LoadError(LoadError::NotFound(_)) => Err(libc::ENOENT.into()),
                 AteError::LoadError(LoadError::TransformationError(TransformError::MissingReadKey(_))) => Err(libc::EACCES.into()),
                 _ => Err(libc::EIO.into())
