@@ -26,9 +26,7 @@ async fn main() -> Result<(), AteError>
     let mut cfg_mesh = ConfMesh::default();
     let cfg_ate = ConfAte::default();
     let addr = MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), 5001);
-    let mut cluster = ConfCluster::default();
-    cluster.roots.push(addr.clone());
-    cfg_mesh.clusters.push(cluster);
+    cfg_mesh.roots.push(addr.clone());
     cfg_mesh.force_listen = Some(addr);
     let _root = create_ethereal_server(&cfg_ate,&cfg_mesh).await;
 

@@ -55,36 +55,17 @@ impl MeshAddress
     }
 }
 
-/// Represents all nodes within this replication cluster. All the chains
+/// Represents all nodes within this cluster. All the chains
 /// are spread evenly across the nodes within a cluster using a hashing
 /// algorithm. Care must be taken when added new addresses that the
 /// redo logs are not lost during a respreading of addresses. The recommended
-/// way to grow clusters is to add brand new clusters with the new addresses
-/// when a cluster is expanded and only remove the old ones when all the
-/// redo logs are synchronized, otherwise just make sure your cluster is
-/// big enought to start with.
-#[derive(Debug, Clone, Default)]
-pub struct ConfCluster
-{
-    /// List of all the addresses that the root nodes exists on
-    pub roots: Vec<MeshAddress>,
-    /// Offset to apply when lookup up which server has a particular
-    /// chain. This allows the mirrors to be on different servers
-    /// but share the same set of physical nodes (and their IP addresses)
-    pub offset: i32,
-}
-
-/// Configuration of a particular mesh that contains one of more chains
+/// way to grow clusters is to first run an ATE mirror on the new cluster
+/// nodes then once its running switch to an active cluster
 #[derive(Debug, Clone)]
 pub struct ConfMesh
 {
-    /// When running a distributed ATE datastore in a mesh configuration then
-    /// one more clusters can be specified here. Each cluster represents a
-    /// replication target hence scaling out clusters increasing capacity
-    /// while scaling _more_ clusters creates data replication for improved
-    /// resilience. If you do not specific any clusters ATE will run in
-    /// local machine mode.
-    pub clusters: Vec<ConfCluster>,
+    /// List of all the addresses that the root nodes exists on
+    pub roots: Vec<MeshAddress>,
     /// Forces ATE to act as a client even if its local IP address is one
     /// of the node machines in the clusters (normally ATE would automatically
     /// listen for connections)
@@ -102,9 +83,7 @@ impl ConfMesh
     {
         let mut cfg_mesh = ConfMesh::default();
         let addr = MeshAddress::new(IpAddr::from_str(addr).unwrap(), port);
-        let mut cluster = ConfCluster::default();
-        cluster.roots.push(addr.clone());
-        cfg_mesh.clusters.push(cluster);
+        cfg_mesh.roots.push(addr.clone());
         cfg_mesh.force_listen = Some(addr);
         cfg_mesh
     }
@@ -191,7 +170,7 @@ for ConfMesh
 {
     fn default() -> ConfMesh {
         ConfMesh {
-            clusters: Vec::new(),
+            roots: Vec::new(),
             force_client_only: false,
             force_listen: None,
         }
@@ -234,9 +213,7 @@ pub(crate) fn mock_test_config() -> ConfAte {
 #[cfg(test)]
 pub(crate) fn mock_test_mesh() -> ConfMesh {
     let mut ret = ConfMesh::default();
-    let mut cluster = ConfCluster::default();
-    cluster.roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), 4001));
-    ret.clusters.push(cluster);
+    ret.roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), 4001));
     ret
 }
 
@@ -577,5 +554,5 @@ fn test_config_mocking() {
     crate::utils::bootstrap_env();
 
     let cfg = mock_test_mesh();
-    assert_eq!(cfg.clusters.iter().flat_map(|a| a.roots.iter()).next().unwrap().ip.to_string(), "127.0.0.1");
+    assert_eq!(cfg.roots.iter().next().unwrap().ip.to_string(), "127.0.0.1");
 }

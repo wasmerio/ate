@@ -48,9 +48,9 @@ pub(crate) use super::mesh::session::MeshSession;
 pub use crate::mesh::registry::Registry;
 pub use crate::loader::Loader;
 
-fn create_prepare<'a, 'b>(cfg_mesh: &'b ConfMesh) -> (Vec<MeshAddress>, Option<&'b ConfCluster>) {
+fn create_prepare<'a, 'b>(cfg_mesh: &'b ConfMesh) -> Vec<MeshAddress> {
     let mut hash_table = BTreeMap::new();
-    for addr in cfg_mesh.clusters.iter().flat_map(|c| c.roots.iter()) {
+    for addr in cfg_mesh.roots.iter() {
         hash_table.insert(addr.hash(), addr.clone());
     }
 
@@ -60,26 +60,21 @@ fn create_prepare<'a, 'b>(cfg_mesh: &'b ConfMesh) -> (Vec<MeshAddress>, Option<&
         .map(|i| i.ip())
         .collect::<Vec<_>>();
 
-    let mut listen_cluster = cfg_mesh.clusters.iter().next();
     let mut listen_root_addresses = Vec::new();
     
     if let Some(addr) = &cfg_mesh.force_listen {
         listen_root_addresses.push(addr.clone());
-        listen_cluster = cfg_mesh.clusters.iter().filter(|c| c.roots.contains(addr)).next();
     } else if cfg_mesh.force_client_only == false {
         for local_ip in local_ips.iter() {
-            for cfg_cluster in cfg_mesh.clusters.iter() {
-                for root in cfg_cluster.roots.iter() {
-                    if root.ip == *local_ip {
-                        listen_cluster = Some(cfg_cluster);
-                        listen_root_addresses.push(root.clone());
-                    }
+            for root in cfg_mesh.roots.iter() {
+                if root.ip == *local_ip {
+                    listen_root_addresses.push(root.clone());
                 }
             }
         }
     }
 
-    (listen_root_addresses, listen_cluster)
+    listen_root_addresses
 }
 
 pub async fn create_persistent_centralized_server(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Arc<MeshRoot<OpenStaticBuilder>>
@@ -101,10 +96,10 @@ pub async fn create_server<F>(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh, open_flow:
 where F: OpenFlow + 'static
 {
     
-    let (listen_root_addresses, listen_cluster) = create_prepare(cfg_mesh);
+    let listen_root_addresses = create_prepare(cfg_mesh);
     MeshRoot::new(
         &cfg_ate,
-        listen_cluster,
+        cfg_mesh,
         listen_root_addresses,
         open_flow).await
 }

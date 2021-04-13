@@ -13,14 +13,13 @@ use crate::conf::*;
 use crate::mesh::MeshSession;
 
 #[derive(Default)]
-pub(super) struct MeshHashTableCluster
+pub struct MeshHashTable
 {
     pub(super) address_lookup: Vec<MeshAddress>,
     pub(super) hash_table: BTreeMap<Hash, usize>,
-    pub(super) offset: usize,
 }
 
-impl MeshHashTableCluster
+impl MeshHashTable
 {
     pub(crate) fn lookup(&self, key: &ChainKey) -> Option<MeshAddress> {
         let hash = key.hash();
@@ -42,7 +41,7 @@ impl MeshHashTableCluster
             pointer = Some(v.clone());
         }
         if let Some(a) = pointer {
-            let index = (a + self.offset) % self.address_lookup.len();
+            let index = a % self.address_lookup.len();
             if let Some(a) = self.address_lookup.get(index) {
                 return Some(a.clone());
             }
@@ -51,52 +50,20 @@ impl MeshHashTableCluster
         self.address_lookup.iter().map(|a| a.clone()).next()
     }
     #[allow(dead_code)]
-    pub(crate) fn new(cfg_cluster: &ConfCluster) -> MeshHashTableCluster
+    pub(crate) fn new(cfg_mesh: &ConfMesh) -> MeshHashTable
     {
         let mut index: usize = 0;
 
         let mut addresses = Vec::new();
         let mut hash_table = BTreeMap::new();            
-        for addr in cfg_cluster.roots.iter() {
+        for addr in cfg_mesh.roots.iter() {
             addresses.push(addr.clone());
             hash_table.insert(addr.hash(), index);
             index = index + 1;
         }
-        MeshHashTableCluster {
+        MeshHashTable {
             address_lookup: addresses,
             hash_table,
-            offset: cfg_cluster.offset as usize,
         }
-    }
-}
-
-pub(super) struct MeshHashTable
-{
-    clusters: Vec<MeshHashTableCluster>,
-}
-
-impl MeshHashTable
-{
-    #[allow(dead_code)]
-    pub(crate) fn new(cfg_mesh: &ConfMesh) -> MeshHashTable
-    {
-        let mut clusters = Vec::new();
-        for cfg_cluster in cfg_mesh.clusters.iter() {
-            clusters.push(MeshHashTableCluster::new(cfg_cluster));
-        }
-
-        MeshHashTable {
-            clusters,
-        }
-    }
-
-    pub(crate) fn lookup(&self, key: &ChainKey) -> Vec<MeshAddress> {
-        let mut ret = Vec::new();        
-        for cluster in self.clusters.iter() {
-            if let Some(a) = cluster.lookup(key) {
-                ret.push(a);
-            }
-        }
-        ret
     }
 }

@@ -30,19 +30,10 @@ async fn test_mesh()
     let mut cfg_mesh =
     {
         // Build the configuration file for the mesh
-        let mut cluster1 = ConfCluster::default();
-        for n in (5100+port_offset)..(5105+port_offset) {
-            cluster1.roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
-        }
-        /*
-        let mut cluster2 = ConfCluster::default();
-        for n in (6100+port_offset)..(6105+port_offset) {
-            cluster2.roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
-        }
-        */
         let mut cfg_mesh = ConfMesh::default();
-        cfg_mesh.clusters.push(cluster1);
-        //cfg_mesh.clusters.push(cluster2);
+        for n in (5100+port_offset)..(5105+port_offset) {
+            cfg_mesh.roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
+        }
 
         let mut mesh_root_joins = Vec::new();
 
@@ -62,25 +53,6 @@ async fn test_mesh()
             mesh_root_joins.push((addr, join));
             index = index + 1;
         }
-
-        /*
-        // Create the second cluster of mesh root nodes
-        let mut index = 0;
-        for n in (6100+port_offset)..(6105+port_offset) {
-            let addr = MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n);
-            let mut cfg_ate = cfg_ate.clone();
-            cfg_ate.log_path = format!("{}/s{}", cfg_ate.log_path, index);
-            let mut cfg_mesh = cfg_mesh.clone();
-            cfg_mesh.force_listen = Some(addr.clone());
-
-            let root_key = root_key.as_public_key();
-            let join = tokio::spawn(async move {
-                create_server(&cfg_ate, &cfg_mesh, all_ethereal_with_root_key(root_key).await).await
-            });
-            mesh_root_joins.push((addr, join));
-            index = index + 1;
-        }
-        */
 
         // Just wait a second there!
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;

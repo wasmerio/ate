@@ -53,14 +53,15 @@ impl MeshClient {
             return Ok(Arc::clone(&ret));
         }
 
-        let addrs = self.lookup.lookup(&key);
-        if addrs.len() <= 0 {
-            return Err(ChainCreationError::NoRootFoundInConfig);
-        }
+        let addr = self.lookup.lookup(&key);
+        let addr = match addr {
+            Some(a) => a,
+            None => { return Err(ChainCreationError::NoRootFoundInConfig); }
+        };
         
         let builder = ChainOfTrustBuilder::new(&self.cfg_ate).await
             .temporal(self.temporal);
-        let chain = MeshSession::connect(builder, key, domain, addrs, loader_local, loader_remote).await?;
+        let chain = MeshSession::connect(builder, key, domain, addr, loader_local, loader_remote).await?;
         *record = Arc::downgrade(&chain);
 
         Ok(chain)

@@ -9,7 +9,6 @@ use crate::chain::Chain;
 use crate::chain::ChainKey;
 use crate::mesh::*;
 use crate::error::*;
-use crate::conf::ConfCluster;
 use crate::loader;
 use crate::repository::ChainRepository;
 use std::{net::IpAddr, sync::Arc};
@@ -149,65 +148,45 @@ impl Registry
         ret.force_listen = None;
         ret.force_client_only = true;
 
-        for n in 0 as i32..10
-        {
-            // Build the DNS name we will query
-            let name_store;
-            let name = match url.domain() {
-                Some(a) => {
-                    match n {
-                        0 => a,
-                        n => {
-                            name_store = format!("{}{}", a, n);
-                            name_store.as_str()
-                        }
-                    }
-                },
-                None => { return Err(ChainCreationError::NoValidDomain(url.to_string())); }
-            };
-            
-            // Search DNS for entries for this server (Ipv6 takes prioity over Ipv4)
-            let (mut addrs, no_more) = self.dns_query(name).await?;
-            if addrs.len() <= 0 {
-                if n == 0 { debug!("no nodes found for {}", name); }
-                break;
-            }
-            if n > 0 { debug!("another cluster found at {}", name); }
-
-            addrs.sort();
-            for addr in addrs.iter() {
-                debug!("found node {}", addr);
-            }
-            
-            // Add the cluster to the configuration
-            let mut cluster = ConfCluster::default();
-            cluster.offset = n;
-            for addr in addrs {
-                let addr = MeshAddress::new(addr, port);
-                cluster.roots.push(addr);
-            }
-            ret.clusters.push(cluster);
-
-            // If we are not to process any more clusters then break from the loop
-            if no_more { break; }
+        // Build the DNS name we will query
+        let name = match url.domain() {
+            Some(a) => a,
+            None => { return Err(ChainCreationError::NoValidDomain(url.to_string())); }
+        };
+        
+        // Search DNS for entries for this server (Ipv6 takes prioity over Ipv4)
+        let mut addrs = self.dns_query(name).await?;
+        if addrs.len() <= 0 {
+            debug!("no nodes found for {}", name);
         }
 
-        if ret.clusters.len() <= 0 {
+        addrs.sort();
+        for addr in addrs.iter() {
+            debug!("found node {}", addr);
+        }
+        
+        // Add the cluster to the configuration
+        for addr in addrs {
+            let addr = MeshAddress::new(addr, port);
+            ret.roots.push(addr);
+        }
+
+        if ret.roots.len() <= 0 {
             return Err(ChainCreationError::NoRootFoundForUrl(url.to_string()));
         }
 
         Ok(ret)
     }
 
-    async fn dns_query(&self, name: &str) -> Result<(Vec<IpAddr>, bool), ClientError>
+    async fn dns_query(&self, name: &str) -> Result<Vec<IpAddr>, ClientError>
     {
         match name.to_lowercase().as_str() {
-            "localhost" => { return Ok((vec![IpAddr::V4(Ipv4Addr::from_str("127.0.0.1").unwrap())], true)) },
+            "localhost" => { return Ok(vec![IpAddr::V4(Ipv4Addr::from_str("127.0.0.1").unwrap())]) },
             _ => { }
         };
 
         if let Ok(ip) = IpAddr::from_str(name) {
-            return Ok((vec![ip], true));
+            return Ok(vec![ip]);
         }
 
         let mut client = self.dns.lock().await;
@@ -230,7 +209,7 @@ impl Registry
             }
         }
 
-        Ok((addrs, false))
+        Ok(addrs)
     }
 }
 

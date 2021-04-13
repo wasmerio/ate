@@ -35,7 +35,7 @@ where Self: ChainRepository,
       F: OpenFlow + 'static
 {
     cfg_ate: ConfAte,
-    lookup: MeshHashTableCluster,
+    lookup: MeshHashTable,
     addrs: Vec<MeshAddress>,
     chains: StdMutex<FxHashMap<ChainKey, Weak<Chain>>>,
     chain_builder: Mutex<Box<F>>,
@@ -81,7 +81,7 @@ impl<F> MeshRoot<F>
 where F: OpenFlow + 'static
 {
     #[allow(dead_code)]
-    pub(super) async fn new(cfg_ate: &ConfAte, cfg_cluster: Option<&ConfCluster>, listen_addrs: Vec<MeshAddress>, open_flow: Box<F>) -> Arc<Self>
+    pub(super) async fn new(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh, listen_addrs: Vec<MeshAddress>, open_flow: Box<F>) -> Arc<Self>
     {
         let mut node_cfg = NodeConfig::new(cfg_ate.wire_format)
             .wire_encryption(cfg_ate.wire_encryption)
@@ -104,10 +104,7 @@ where F: OpenFlow + 'static
             {
                 cfg_ate: cfg_ate.clone(),
                 addrs: listen_addrs,
-                lookup: match cfg_cluster {
-                    Some(c) => MeshHashTableCluster::new(c),
-                    None => MeshHashTableCluster::default(),
-                },
+                lookup: MeshHashTable::new(cfg_mesh),
                 chains: StdMutex::new(FxHashMap::default()),
                 chain_builder: open_flow,
                 remote_registry: Registry::new(&cfg_ate, true).await
