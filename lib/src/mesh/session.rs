@@ -10,6 +10,7 @@ use parking_lot::RwLock as StdRwLock;
 use std::ops::Rem;
 use std::time::Duration;
 use std::time::Instant;
+use tokio::sync::broadcast;
 
 use super::core::*;
 use crate::comms::*;
@@ -69,57 +70,13 @@ impl MeshSession
 
         // Set a reference to the chain and trigger it to connect!
         chain_store.lock().replace(Arc::downgrade(&chain));
-        chain.pipe.connect().await?;
+        let on_disconnect = chain.pipe.connect().await?;
 
         // Launch an automatic reconnect thread
-        tokio::spawn(MeshSession::auto_reconnect(Arc::downgrade(&chain)));
+        tokio::spawn(RecoverableSessionPipe::auto_reconnect(Arc::downgrade(&chain), on_disconnect));
 
         // Ok we are good!
         Ok(chain)
-    }
-
-    async fn auto_reconnect(chain: Weak<Chain>) -> Result<(), ChainCreationError>
-    {
-        // Enter a loop
-        let mut exp_backoff = 1;
-        loop {
-            // Upgrade to a full reference long enough to get a channel clone
-            // if we can not get a full reference then the chain has been destroyed
-            // and we should exit
-            let pipe = {
-                let chain = match Weak::upgrade(&chain) {
-                    Some(a) => a,
-                    None => { break; }
-                };
-                Arc::clone(&chain.pipe)
-            };
-
-            // Wait on it to disconnect
-            let now = Instant::now();
-            pipe.on_disconnect().await?;
-
-            // If we had a good run then reset the exponental backoff
-            if now.elapsed().as_secs() > 60 {
-                exp_backoff = 1;
-            }
-
-            // Try again to get a reference to the chain and then do a reconnect
-            let chain = match Weak::upgrade(&chain) {
-                Some(a) => a,
-                None => { break; }
-            };
-            chain.pipe.connect().await?;
-
-            // Wait a fix amount of time to prevent thrashing and increase the exp backoff
-            tokio::time::sleep(Duration::from_secs(exp_backoff)).await;
-            exp_backoff = (exp_backoff * 2) + 4;
-            if exp_backoff > 60 {
-                exp_backoff = 60;
-            }
-        }
-        
-        // Success
-        Ok(())
     }
 
     async fn inbox_connected(self: &Arc<MeshSession>, pck: PacketData) -> Result<(), CommsError> {
@@ -428,6 +385,51 @@ impl RecoverableSessionPipe
             session
         )
     }
+
+    async fn auto_reconnect(chain: Weak<Chain>, mut status_change: mpsc::Receiver<ConnectionStatusChange>) -> Result<(), ChainCreationError>
+    {
+        // Enter a loop
+        let mut exp_backoff = 1;
+        loop {
+            // Wait on it to disconnect
+            let now = Instant::now();
+            match status_change.recv().await {
+                Some(ConnectionStatusChange::Disconnected) => { },
+                None => {
+                    break;
+                }
+            }
+
+            // If we had a good run then reset the exponental backoff
+            if now.elapsed().as_secs() > 60 {
+                exp_backoff = 1;
+            }
+
+            // Upgrade to a full reference long enough to get a channel clone
+            // if we can not get a full reference then the chain has been destroyed
+            // and we should exit
+            let pipe = {
+                let chain = match Weak::upgrade(&chain) {
+                    Some(a) => a,
+                    None => { break; }
+                };
+                Arc::clone(&chain.pipe)
+            };
+
+            // Reconnect
+            status_change = pipe.connect().await?;
+
+            // Wait a fix amount of time to prevent thrashing and increase the exp backoff
+            tokio::time::sleep(Duration::from_secs(exp_backoff)).await;
+            exp_backoff = (exp_backoff * 2) + 4;
+            if exp_backoff > 60 {
+                exp_backoff = 60;
+            }
+        }
+        
+        // Success
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -451,18 +453,14 @@ for RecoverableSessionPipe
         Err(CommsError::ShouldBlock)
     }
 
-    async fn connect(&self) -> Result<(), ChainCreationError>
+    async fn connect(&self) -> Result<mpsc::Receiver<ConnectionStatusChange>, ChainCreationError>
     {
-        let mut lock = self.active.write().await;
-        if let Some(pipe) = lock.as_ref() {
-            if pipe.is_connected() == true { return Ok(()) };
-        }
+        // Destroy any existing connections
+        self.active.write().await.take();
 
         // Set the pipe and drop the lock so that events can be fed correctly
         let (pipe, node_rx, session)
             = self.create_active_pipe().await;
-        lock.replace(pipe);
-        drop(lock);
 
         // Run the loaders and the message procesor
         let mut loader = self.loader_remote.lock().take();
@@ -477,14 +475,23 @@ for RecoverableSessionPipe
         }
 
         // Spawn a thread that will process new inbox messages
-        tokio::spawn(
-            MeshSession::inbox
-            (
-                Arc::clone(&session),
-                node_rx,
-                Some(Box::new(composite_loader))
-            )
-        );
+        let (status_tx, status_rx) = mpsc::channel(1);
+        {
+            let session = Arc::clone(&session);
+            let loader = Some(Box::new(composite_loader));
+            tokio::spawn(
+                async move
+                {
+                    let _ = MeshSession::inbox
+                    (
+                        session,
+                        node_rx,
+                        loader
+                    ).await;
+                    let _ = status_tx.send(ConnectionStatusChange::Disconnected).await;
+                }
+            );
+        }
 
         // Wait for all the messages to load before we give it to the caller
         debug!("loading {}", self.key.to_string());
@@ -495,8 +502,11 @@ for RecoverableSessionPipe
             }
         }
         debug!("loaded {}", self.key.to_string());
+
+        // We replace the pipe at the last responsible moment
+        self.active.write().await.replace(pipe);
         
-        Ok(())
+        Ok(status_rx)
     }
 
     async fn feed(&self, mut trans: Transaction) -> Result<(), CommitError>
@@ -513,6 +523,8 @@ for RecoverableSessionPipe
                     },
                     _ => { }
                 }
+            } else if self.mode.should_error_out() {
+                return Err(CommitError::CommsError(CommsError::Disconnected));
             }
         }
 
@@ -546,7 +558,8 @@ for RecoverableSessionPipe
                     return Ok(true);
                 }
             }
-            
+        } else if self.mode.should_error_out() {
+            return Err(CommitError::CommsError(CommsError::Disconnected));
         } else {
             return Ok(false);
         }
@@ -576,6 +589,8 @@ for RecoverableSessionPipe
                 },
                 _ => { }
             }
+        } else if self.mode.should_error_out() {
+            return Err(CommitError::CommsError(CommsError::Disconnected));
         }
         Ok(())
     }

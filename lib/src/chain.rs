@@ -622,14 +622,6 @@ impl<'a> Chain
 impl EventPipe
 for InboxPipe
 {
-    async fn is_connected(&self) -> bool { true }
-
-    async fn connect(&self) -> Result<(), ChainCreationError> {
-        Ok(())
-    }
-
-    async fn on_disconnect(&self) -> Result<(), CommsError> { Err(CommsError::ShouldBlock) }
-
     #[allow(dead_code)]
     async fn feed(&self, trans: Transaction) -> Result<(), CommitError>
     {

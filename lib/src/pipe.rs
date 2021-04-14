@@ -5,16 +5,24 @@ use crate::meta::*;
 use super::error::*;
 use super::transaction::*;
 use std::sync::Arc;
+use tokio::sync::mpsc;
+
+pub enum ConnectionStatusChange
+{
+    Disconnected
+}
 
 #[async_trait]
 pub(crate) trait EventPipe: Send + Sync
 {
-    async fn is_connected(&self) -> bool;
+    async fn is_connected(&self) -> bool { true }
 
-    async fn on_disconnect(&self) -> Result<(), CommsError>;
+    async fn connect(&self) -> Result<mpsc::Receiver<ConnectionStatusChange>, ChainCreationError> {
+        Err(ChainCreationError::NotImplemented)
+    }
 
-    async fn connect(&self) -> Result<(), ChainCreationError>;
-
+    async fn on_disconnect(&self) -> Result<(), CommsError> { Err(CommsError::ShouldBlock) }
+    
     async fn feed(&self, mut trans: Transaction) -> Result<(), CommitError>;
 
     async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError>;
@@ -43,12 +51,6 @@ impl NullPipe
 impl EventPipe
 for NullPipe
 {
-    async fn is_connected(&self) -> bool { true }
-
-    async fn on_disconnect(&self) -> Result<(), CommsError> { Err(CommsError::ShouldBlock) }
-
-    async fn connect(&self) -> Result<(), ChainCreationError> { Ok(()) }
-
     async fn feed(&self, _trans: Transaction) -> Result<(), CommitError> { Ok(()) }
 
     async fn try_lock(&self, _key: PrimaryKey) -> Result<bool, CommitError> { Ok(false) }
@@ -84,7 +86,15 @@ impl DuelPipe
 impl EventPipe
 for DuelPipe
 {
-    async fn is_connected(&self) -> bool { true }
+    async fn is_connected(&self) -> bool {
+        if self.first.is_connected().await == false {
+            return false;
+        }
+        if self.second.is_connected().await == false {
+            return false;
+        }
+        true
+    }
 
     async fn on_disconnect(&self) -> Result<(), CommsError>
     {
@@ -101,11 +111,19 @@ for DuelPipe
         Err(CommsError::ShouldBlock)
     }
 
-    async fn connect(&self) -> Result<(), ChainCreationError>
+    async fn connect(&self) -> Result<mpsc::Receiver<ConnectionStatusChange>, ChainCreationError>
     {
-        self.first.connect().await?;
-        self.second.connect().await?;
-        Ok(())
+        match self.first.connect().await {
+            Ok(a) => { return Ok(a); },
+            Err(ChainCreationError::NotImplemented) => { }
+            Err(err) => { return Err(err); }
+        }
+        match self.second.connect().await {
+            Ok(a) => { return Ok(a); },
+            Err(ChainCreationError::NotImplemented) => { }
+            Err(err) => { return Err(err); }
+        }
+        Err(ChainCreationError::NotImplemented)
     }
 
     async fn feed(&self, trans: Transaction) -> Result<(), CommitError>
