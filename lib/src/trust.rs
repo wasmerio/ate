@@ -217,7 +217,7 @@ impl<'a> ChainOfTrust
 
 #[cfg(test)]
 pub(crate) async fn create_test_chain(mock_cfg: &mut ConfAte, chain_name: String, temp: bool, barebone: bool, root_public_key: Option<PublicSignKey>) ->
-    Chain
+    (Arc<Chain>, Arc<ChainOfTrustBuilder>)
 {
     // Create the chain-of-trust and a validator
     let mock_chain_key = match temp {
@@ -249,11 +249,13 @@ pub(crate) async fn create_test_chain(mock_cfg: &mut ConfAte, chain_name: String
     if let Some(key) = root_public_key {
         builder = builder.add_root_public_key(&key);
     }
-    
-    Chain::new(
-        builder,
-        &mock_chain_key)
-        .await.unwrap()
+
+    let builder = builder.build();
+
+    (
+        builder.open(&mock_chain_key).await.unwrap(),
+        builder
+    )
 }
 
 #[tokio::main]
@@ -272,7 +274,7 @@ async fn test_chain() {
     {
         debug!("creating test chain");
         let mut mock_cfg = crate::conf::mock_test_config();
-        let chain = create_test_chain(&mut mock_cfg, "test_chain".to_string(), true, true, None).await;
+        let (chain, _builder) = create_test_chain(&mut mock_cfg, "test_chain".to_string(), true, true, None).await;
         chain_name = chain.name().await;
         
         evt1 = EventData::new(key1.clone(), Bytes::from(vec!(1; 1)), mock_cfg.log_format);
@@ -316,7 +318,7 @@ async fn test_chain() {
         // Reload the chain from disk and check its integrity
         debug!("reloading the chain");
         let mut mock_cfg = crate::conf::mock_test_config();
-        let mut chain = create_test_chain(&mut mock_cfg, chain_name.clone(), false, true, None).await;
+        let (chain, _builder) = create_test_chain(&mut mock_cfg, chain_name.clone(), false, true, None).await;
             
         {
             let lock = chain.multi().await;
@@ -373,7 +375,7 @@ async fn test_chain() {
         // Reload the chain from disk and check its integrity
         debug!("reloading the chain");
         let mut mock_cfg = crate::conf::mock_test_config();
-        let mut chain = create_test_chain(&mut mock_cfg, chain_name.clone(), false, true, None).await;
+        let (chain, _builder) = create_test_chain(&mut mock_cfg, chain_name.clone(), false, true, None).await;
 
         {
             let lock = chain.multi().await;
@@ -426,7 +428,7 @@ async fn test_chain() {
         // Reload the chain from disk and check its integrity
         debug!("reloading the chain");
         let mut mock_cfg = crate::conf::mock_test_config();
-        let chain = create_test_chain(&mut mock_cfg, chain_name.clone(), false, true, None).await;
+        let (chain, _builder) = create_test_chain(&mut mock_cfg, chain_name.clone(), false, true, None).await;
 
         {
             let lock = chain.multi().await;

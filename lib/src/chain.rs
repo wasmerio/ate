@@ -444,7 +444,7 @@ impl<'a> Chain
         Ok(())
     }
 
-    pub async fn compact(&'a mut self) -> Result<(), CompactError>
+    pub async fn compact(&'a self) -> Result<(), CompactError>
     {
         // prepare
         let mut new_pointers = BinaryTreeIndexer::default();

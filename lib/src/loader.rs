@@ -96,13 +96,13 @@ for CompositionLoader
 
 pub struct NotificationLoader
 {
-    notify: mpsc::Sender<Result<(), ChainCreationError>>
+    notify: mpsc::Sender<Result<(), ChainCreationError>>,
 }
 
 impl NotificationLoader {
     pub fn new(notify: mpsc::Sender<Result<(), ChainCreationError>>) -> NotificationLoader {
         NotificationLoader {
-            notify
+            notify,
         }
     }
 }
@@ -111,6 +111,11 @@ impl NotificationLoader {
 impl Loader
 for NotificationLoader
 {
+    async fn start_of_history(&mut self, _size: usize)
+    {
+        let _ = self.notify.send(Ok(())).await;
+    }
+
     async fn end_of_history(&mut self)
     {
         let _ = self.notify.send(Ok(())).await;

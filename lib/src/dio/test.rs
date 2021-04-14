@@ -66,7 +66,7 @@ async fn test_dio()
     {
         debug!("creating the chain-of-trust");
         let mut mock_cfg = crate::conf::mock_test_config();
-        let chain = crate::trust::create_test_chain(&mut mock_cfg, chain_name.clone(), false, false, Some(root_public_key.clone())).await;
+        let (chain, _builder) = crate::trust::create_test_chain(&mut mock_cfg, chain_name.clone(), false, false, Some(root_public_key.clone())).await;
         //let mut chain = create_test_chain("test_dio".to_string(), true, false, None);
 
         // Write a value immediately from chain (this data will remain in the transaction)
@@ -189,7 +189,7 @@ async fn test_dio()
     {
         debug!("reloading the chain of trust");
         let mut mock_cfg = crate::conf::mock_test_config();
-        let chain = crate::trust::create_test_chain(&mut mock_cfg, chain_name.clone(), false, false, Some(root_public_key.clone())).await;
+        let (chain, _builder) = crate::trust::create_test_chain(&mut mock_cfg, chain_name.clone(), false, false, Some(root_public_key.clone())).await;
 
         {
             let mut dio = chain.dio(&session).await;

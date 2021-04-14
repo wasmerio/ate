@@ -375,6 +375,8 @@ impl RecoverableSessionPipe
         (
             ActiveSessionPipe {
                 key: self.key.clone(),
+                connected: false,
+                mode: self.mode,
                 session: Arc::clone(&session),
                 tx: node_tx,
                 commit: Arc::clone(&commit),
@@ -455,24 +457,33 @@ for RecoverableSessionPipe
 
     async fn connect(&self) -> Result<mpsc::Receiver<ConnectionStatusChange>, ChainCreationError>
     {
-        // Destroy any existing connections
+        // Remove the pipe which will mean if we are in a particular recovery
+        // mode then all write IO will be blocked
         self.active.write().await.take();
-
+        
         // Set the pipe and drop the lock so that events can be fed correctly
         let (pipe, node_rx, session)
             = self.create_active_pipe().await;
 
         // Run the loaders and the message procesor
         let mut loader = self.loader_remote.lock().take();
-        let (loaded_sender, mut loaded_receiver)
+        let (loading_sender, mut loading_receiver)
             = mpsc::channel(1);
         
-        let notify_loaded = Box::new(crate::loader::NotificationLoader::new(loaded_sender));
+        let notify_loaded = Box::new(crate::loader::NotificationLoader::new(loading_sender));
         let mut composite_loader = crate::loader::CompositionLoader::default();
         composite_loader.loaders.push(notify_loaded);
         if let Some(loader) = loader.take() {
             composite_loader.loaders.push(loader);
         }
+
+        // We replace the new pipe which will mean the chain becomes active again
+        // before its completed all the load operations however this is required
+        // as otherwise when events are received on the inbox they will not feed
+        // properly. A consequence of this is that write operations will succeed
+        // again (if they are ASYNC) however any confirmation will not be received
+        // until all the chain is loaded
+        self.active.write().await.replace(pipe);
 
         // Spawn a thread that will process new inbox messages
         let (status_tx, status_rx) = mpsc::channel(1);
@@ -494,8 +505,16 @@ for RecoverableSessionPipe
         }
 
         // Wait for all the messages to load before we give it to the caller
+        match loading_receiver.recv().await {
+            Some(result) => result?,
+            None => {
+                return Err(ChainCreationError::ServerRejected("Server disconnected before it started loading the chain.".to_string()));
+            }
+        }
         debug!("loading {}", self.key.to_string());
-        match loaded_receiver.recv().await {
+
+        // Wait for all the messages to load before we give it to the caller
+        match loading_receiver.recv().await {
             Some(result) => result?,
             None => {
                 return Err(ChainCreationError::ServerRejected("Server disconnected before it loaded the chain.".to_string()));
@@ -503,8 +522,13 @@ for RecoverableSessionPipe
         }
         debug!("loaded {}", self.key.to_string());
 
-        // We replace the pipe at the last responsible moment
-        self.active.write().await.replace(pipe);
+        // Mark the pipe as connected
+        {
+            let mut lock = self.active.write().await;
+            if let Some(pipe) = lock.as_mut() {
+                pipe.mark_connected();
+            }
+        }
         
         Ok(status_rx)
     }
@@ -514,15 +538,7 @@ for RecoverableSessionPipe
         {
             let lock = self.active.read().await;
             if let Some(pipe) = lock.as_ref() {
-                match pipe.is_connected() {
-                    true => {
-                        pipe.feed(&mut trans).await?;
-                    },
-                    false if self.mode.should_error_out() => {
-                        return Err(CommitError::CommsError(CommsError::Disconnected));
-                    },
-                    _ => { }
-                }
+                pipe.feed(&mut trans).await?;
             } else if self.mode.should_error_out() {
                 return Err(CommitError::CommsError(CommsError::Disconnected));
             }
@@ -547,17 +563,7 @@ for RecoverableSessionPipe
 
         // Now process it in the active pipe        
         if let Some(pipe) = lock.as_ref() {
-            match pipe.is_connected() {
-                true => {
-                    return pipe.try_lock(key).await;
-                },
-                false if self.mode.should_error_out() => {
-                    return Err(CommitError::CommsError(CommsError::Disconnected));
-                },
-                _ => {
-                    return Ok(true);
-                }
-            }
+            return pipe.try_lock(key).await;
         } else if self.mode.should_error_out() {
             return Err(CommitError::CommsError(CommsError::Disconnected));
         } else {
@@ -580,15 +586,7 @@ for RecoverableSessionPipe
         // Now unlock it at the server
         let lock = self.active.read().await;
         if let Some(pipe) = lock.as_ref() {
-            match pipe.is_connected() {
-                true => {
-                    pipe.unlock(key).await?
-                },
-                false if self.mode.should_error_out() => {
-                    return Err(CommitError::CommsError(CommsError::Disconnected));
-                },
-                _ => { }
-            }
+            pipe.unlock(key).await?
         } else if self.mode.should_error_out() {
             return Err(CommitError::CommsError(CommsError::Disconnected));
         }
@@ -612,7 +610,9 @@ struct ActiveSessionPipe
 {
     key: ChainKey,
     tx: NodeTx<()>,
+    mode: RecoveryMode,
     session: Arc<MeshSession>,
+    connected: bool,
     commit: Arc<StdMutex<FxHashMap<u64, mpsc::Sender<Result<(), CommitError>>>>>,
     lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, LockRequest>>>,
     outbound_conversation: Arc<ConversationSession>,
@@ -620,7 +620,12 @@ struct ActiveSessionPipe
 
 impl ActiveSessionPipe
 {
+    fn mark_connected(&mut self) {
+        self.connected = true;
+    }
+
     fn is_connected(&self) -> bool {
+        if self.connected == false { return false; }
         self.tx.is_closed() == false
     }
 
@@ -663,6 +668,15 @@ impl ActiveSessionPipe
         // Only transmit the packet if we are meant to
         if trans.transmit == true
         {
+            // If we are still connecting then don't do it
+            if self.connected == false {
+                if self.mode.should_error_out() {
+                    return Err(CommitError::CommsError(CommsError::Disconnected));
+                } else {
+                    return Ok(())
+                }
+            }
+
             // Feed the transaction into the pipe
             let receiver = self.feed_internal(trans).await?;
 
@@ -680,6 +694,11 @@ impl ActiveSessionPipe
 
     async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError>
     {
+        // If we are still connecting then don't do it
+        if self.connected == false {
+            return Err(CommitError::CommsError(CommsError::Disconnected));
+        }
+
         // Write an entry into the lookup table
         let (tx, rx) = smpsc::channel();
         let my_lock = LockRequest {
@@ -701,6 +720,11 @@ impl ActiveSessionPipe
 
     async fn unlock(&self, key: PrimaryKey) -> Result<(), CommitError>
     {
+        // If we are still connecting then don't do it
+        if self.connected == false {
+            return Err(CommitError::CommsError(CommsError::Disconnected));
+        }
+
         // Send a message up to the main server asking for an unlock on the data object
         self.tx.send(Message::Unlock {
             key: key.clone(),

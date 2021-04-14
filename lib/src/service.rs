@@ -459,7 +459,7 @@ mod tests
 
         debug!("creating test chain");
         let mut mock_cfg = crate::conf::mock_test_config();
-        let chain = Arc::new(crate::trust::create_test_chain(&mut mock_cfg, "test_chain".to_string(), true, true, None).await);
+        let (chain, _builder) = crate::trust::create_test_chain(&mut mock_cfg, "test_chain".to_string(), true, true, None).await;
         
         debug!("start the service on the chain");
         let session = Session::new(&mock_cfg);
