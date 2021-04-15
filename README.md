@@ -46,6 +46,21 @@ This library is a way of working with data in modern distributed computing.
 * ...encryption is highly resistant to quantum attacks and uses fine-grained tenant keys.
 * ...all this is integrated into a shared-nothing highly portable executable.
 
+## Examples
+
+- [Hello World](lib/examples/hello-world.rs)
+- [Server/Client](lib/examples/server-client.rs)
+- [Publish/Subscribe](lib/examples/bus-or-queue.rs)
+- [Service/API](lib/examples/service-api.rs)
+- [Exactly-Once Queue](lib/examples/bus-or-queue.rs)
+- [Crypto Currency](lib/examples/coin.rs)
+- [Banking Example](lib/examples/bank.rs)
+
+## Projects
+
+- [atedb](atedb/README.md)
+- [atefs](atefs/README.md)
+
 ## Typical Deployment Pattern
 
 ```
@@ -183,21 +198,6 @@ async fn main() -> Result<(), AteError>
     Ok(())
 }
 ```
-
-## Examples
-
-- [Hello World](lib/examples/hello-world.rs)
-- [Server/Client](lib/examples/server-client.rs)
-- [Publish/Subscribe](lib/examples/bus-or-queue.rs)
-- [Service/API](lib/examples/service-api.rs)
-- [Exactly-Once Queue](lib/examples/bus-or-queue.rs)
-- [Crypto Currency](lib/examples/coin.rs)
-- [Banking Example](lib/examples/bank.rs)
-
-## Projects
-
-- [atedb](atedb/README.md)
-- [atefs](atefs/README.md)
 
 ## Contribution
 
