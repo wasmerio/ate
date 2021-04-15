@@ -65,20 +65,159 @@ Features:
        |           Linux System Calls (e.g. read)          |
        +---------------------------------------------------+
 
-
-## QuickStart
-
-Run a server somewhere
+## Installation
 
 ```sh
-atedb solo
+apt install cargo make pkg-config openssl libssl-dev
+cargo install atefs
 ```
 
-Mount the distributed file-system
+## Manual
 
-```sh
-sudo apt install fuse3
-atefs mount /mnt/test ~/ate/fs tcp://localhost/myfs
+atefs 1.3
+
+```
+USAGE:
+    atefs [FLAGS] [OPTIONS] <SUBCOMMAND>
+
+FLAGS:
+    -d, --debug      Logs debug info to the console
+        --dns-sec    Determines if ATE will use DNSSec or just plain DNS
+    -h, --help       Prints help information
+    -n, --no-auth    No authentication or passcode will be used to protect this file-system
+        --no-ntp     No NTP server will be used to synchronize the time thus the server time will be
+                     used instead
+    -v, --verbose    Sets the level of log verbosity, can be used multiple times
+    -V, --version    Prints version information
+
+OPTIONS:
+    -a, --auth <auth>
+            URL where the user is authenticated [default: tcp://auth.tokera.com:5001/auth]
+
+        --dns-server <dns-server>
+            Address that DNS queries will be sent to [default: 8.8.8.8]
+
+        --ntp-pool <ntp-pool>
+            NTP server address that the file-system will synchronize with
+
+        --ntp-port <ntp-port>
+            NTP server port that the file-system will synchronize with
+
+    -t, --token <token>
+            Token used to access your encrypted file-system (if you do not supply a token then you
+            will be prompted for a username and password)
+
+        --token-path <token-path>
+            Token file to read that holds a previously created token to be used to access your
+            encrypted file-system (if you do not supply a token then you will be prompted for a
+            username and password)
+
+        --wire-encryption <wire-encryption>
+            Indicates if ATE will use quantum resistant wire encryption (possible values are 128,
+            192, 256). The default is not to use wire encryption meaning the encryption of the event
+            data itself is what protects the data
+
+
+SUBCOMMANDS:
+    create-token    Logs into the authentication server using the supplied credentials
+    create-user     Creates a new user and login credentials on the authentication server
+    help            Prints this message or the help of the given subcommand(s)
+    mount           Mounts a particular directory as an ATE file system
+```
+
+atefs-create-user 
+
+```
+Creates a new user and login credentials on the authentication server
+
+USAGE:
+    atefs create-user <email> [password]
+
+ARGS:
+    <email>       Email address of the user to be created
+    <password>    New password to be associated with this account
+
+FLAGS:
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+```
+
+atefs-create-token 
+
+```
+Logs into the authentication server using the supplied credentials
+
+USAGE:
+    atefs create-token <email> [ARGS]
+
+ARGS:
+    <email>       Email address that you wish to login using
+    <password>    Password associated with this account
+    <code>        Authenticator code from your google authenticator
+
+FLAGS:
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+```
+
+atefs-mount
+
+```
+Mounts a particular directory as an ATE file system
+
+USAGE:
+    atefs mount [FLAGS] [OPTIONS] <mount-path> [ARGS]
+
+ARGS:
+    <mount-path>    Path to directory that the file system will be mounted at
+    <log-path>      Location of the persistent redo log [default: ~/ate/fs]
+    <remote>        URL where the data is remotely stored on a distributed commit log (e.g.
+                    tcp://ate.tokera.com/myfs). If this URL is not specified then data will only
+                    be stored locally
+
+FLAGS:
+        --allow-other    Allow other users on the machine to have access to this file system
+        --allow-root     Allow the root user to have access to this file system
+    -h, --help           Prints help information
+        --non-empty      Allow fuse filesystem mount on a non-empty directory, default is not
+                         allowed
+    -r, --read-only      Mount the file system in readonly mode (`ro` mount option), default is
+                         disable
+        --temp           Local redo log file will be deleted when the file system is unmounted,
+                         remotely stored data on any distributed commit log will be persisted.
+                         Effectively this setting only uses the local disk as a cache of the redo-
+                         log while it's being used
+    -V, --version        Prints version information
+    -w, --write-back     Enable write back cache for buffered writes, default is disable
+
+OPTIONS:
+        --configured-for <configured-for>
+            Configure the log file for <raw>, <barebone>, <speed>, <compatibility>, <balanced> or
+            <security> [default: speed]
+
+        --data-format <data-format>
+            Format of the data in the log file as <bincode>, <json> or <mpack> [default: bincode]
+
+    -g, --gid <gid>
+            GID of the group that this file system will be mounted as
+
+        --meta-format <meta-format>
+            Format of the metadata in the log file as <bincode>, <json> or <mpack> [default:
+            bincode]
+
+    -p, --passcode <passcode>
+            User supplied passcode that will be used to encrypt the contents of this file-system
+            instead of using an authentication. Note that this can 'not' be used as combination with
+            a strong authentication system and hence implicitely implies the 'no-auth' option as
+            well
+
+        --recovery-mode <recovery-mode>
+            Determines how the file-system will react while it is nominal and when it is recovering
+            from a communication failure (valid options are 'async', 'readonly-async', 'readonly-
+            sync' or 'sync') [default: readonly-async]
+
+    -u, --uid <uid>
+            UID of the user that this file system will be mounted as
 ```
 
 ## Contribution
