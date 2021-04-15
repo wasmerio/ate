@@ -16,7 +16,7 @@ mod flow;
 use crate::flow::ChainFlow;
 
 #[derive(Clap)]
-#[clap(version = "0.1", author = "John S. <johnathan.sharratt@gmail.com>")]
+#[clap(version = "1.1", author = "John S. <johnathan.sharratt@gmail.com>")]
 struct Opts {
     /// Sets the level of log verbosity, can be used multiple times
     #[allow(dead_code)]
