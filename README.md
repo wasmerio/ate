@@ -39,12 +39,39 @@ What does that mean?
 This library is a way of working with data in modern distributed computing.
 * ...data is persisted to a distributed commit log.
 * ...partitions are divided into chains that shard data into physical domains.
-* ...streaming of data to the application occurs on demand during method invocation.
+* ...streaming of data to the application occurs on demand as the app needs it.
 * ...each chain is a crypto-graph with unique asymmetric keys at differentiating nodes.
-* ...the root of the chain-of-trust that validates the crypto-graph through various plugins.
+* ...the root of the chain-of-trust validates the crypto-graph through various plugins.
 * ...strong authentication and authorized is by design built into the data model.
 * ...encryption is highly resistant to quantum attacks and uses fine-grained tenant keys.
 * ...all this is integrated into a shared-nothing highly portable executable.
+
+## Typical Deployment Pattern
+
+```
+     .-------------.          .- - - - - - -.
+     |   Server    |              Server
+     |             | .. .. .. |             | .. .. ..
+     | >atedb solo |
+     '------|------'          '- - | - - - -'
+            |                      |
+        tcp://yourserver.com:5000/yourdb
+            |
+     .------|------.
+     |   Client    |
+     |             |                 
+     | >program    |
+     |  \ate.so    |
+     '-------------'
+
+- Server runs the 'atedb' process on some network reachable
+- Create several records for each IP address under the same A-record in your DNS
+- Build your model in RUST and add ATE as a dependency
+- Either create your own authentication server (auth-server) or use tcp://auth.tokera.com/
+- Create a user programatically or using 'atefs create-user' and 'atefs create-token'
+
+(See the 'atefs' source-code for examples on how to do all this)
+```
 
 ## Changelog
 
@@ -80,37 +107,18 @@ This library is a way of working with data in modern distributed computing.
 0.1.* - Alpha version with basic functionality and free bugs
 ```
 
-## Todo
-
-```
-1.0.* - First release of a production grade version of ATE with AteFS using
-        Tokera as authentication
-0.*.* - Estimated 1-month of work before enough bugs are solved and the API
-        can be fully stabilised
-0.4.1 - Remaining things to do...
-        + Implement logic that will resend partially sent local logs upon restart
-0.4.2   Next batch of functionality
-        + Create the ability to create a public file system
-        + Modify AteFS so that it creates nodes in a global file system tree for
-          everyone in the world to see (but not actually have access to)
-0.4.3   Another batch this time we are approaching feature completeness
-        + AteAuth requires account access rights that also get added to the token
-        + Connect up the 'chmod' commands to real commands in AteAuth
-```
-
 ## High Level Design
 
-    .--[   App  ]---. .--[   App  ]---. .--[   App  ]---.
-    |               | |               | |               |
-    |>local redo-log| |>local redo-log| |>local redo-log|
-    |.-------------.| |.-------------.| |.-------------.|
-    || Chain     1 || || Replica P1  || || Replica P1  ||
-    ||             || || Chain     2 || || Replica P2  ||
-    || Replica P3  || ||      ^      || || Chain     3 ||
-    |*-------------*| |*------|------*| |*-------------*|
-    |               |       subscribe                   
-    |                \________|__________________________
-    |                         |                          
+    .--[ atedb  ]---. .--[ atedb  ]---.      .-[auth-server]-.
+    |               | |               |      |               |
+    |>local redo-log| |>local redo-log|      |>local redo-log|
+    |.-------------.| |.-------------.|      |.-------------.|
+    || Chain     1 || ||             ||      ||    user     ||
+    ||             || || Chain     2 ||      ||   account   ||
+    |*-------------*| |*------|------*|      |*-----|-------*|
+    |               |       subscribe             login      
+    |                \________|_____________________|____
+    |                         |                     |    
     |  >local redo-log                                   
     |  >Crypto-Graph Materiaized View< (in memory)       
     |  .----------------------------------.      session 
@@ -120,8 +128,7 @@ This library is a way of working with data in modern distributed computing.
     |  |              \                   |   |  -keys    |
     |  |               dao                |   |  -timeout |
     |  |                                  |   *-----------*
-    |  +----------------------------------+----------------+
-    |  |                                                   |
+
 
 ## Quick Start
 
