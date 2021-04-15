@@ -68,13 +68,11 @@ Features:
 ## Installation
 
 ```sh
-apt install cargo make pkg-config openssl libssl-dev
+sudo apt install cargo make pkg-config libfuse-dev libfuse3-dev openssl libssl-dev
 cargo install atefs
 ```
 
 ## Manual
-
-atefs 1.3
 
 ```
 USAGE:
@@ -123,11 +121,9 @@ SUBCOMMANDS:
     create-user     Creates a new user and login credentials on the authentication server
     help            Prints this message or the help of the given subcommand(s)
     mount           Mounts a particular directory as an ATE file system
-```
 
-atefs-create-user 
+--------------------------------------------------------------------------
 
-```
 Creates a new user and login credentials on the authentication server
 
 USAGE:
@@ -140,11 +136,9 @@ ARGS:
 FLAGS:
     -h, --help       Prints help information
     -V, --version    Prints version information
-```
 
-atefs-create-token 
+--------------------------------------------------------------------------
 
-```
 Logs into the authentication server using the supplied credentials
 
 USAGE:
@@ -158,11 +152,9 @@ ARGS:
 FLAGS:
     -h, --help       Prints help information
     -V, --version    Prints version information
-```
 
-atefs-mount
+--------------------------------------------------------------------------
 
-```
 Mounts a particular directory as an ATE file system
 
 USAGE:
