@@ -1,17 +1,72 @@
 ```
-1.0.* - First release of a production grade version of ATE with AteFS using
-        Tokera as authentication
-0.*.* - Estimated 1-month of work before enough bugs are solved and the API
-        can be fully stabilised
-0.4.1 - Remaining things to do...
+0.4.2 - Resync Functionality
         + Implement logic that will resend partially sent local logs upon restart
-0.4.2   Next batch of functionality
-        + Create the ability to create a public file system
-        + Modify AteFS so that it creates nodes in a global file system tree for
-          everyone in the world to see (but not actually have access to)
-0.4.3   Another batch this time we are approaching feature completeness
+0.4.3   Account access rights
         + AteAuth requires account access rights that also get added to the token
-        + Connect up the 'chmod' commands to real commands in AteAuth
+        + Connect up the 'chmod' commands to real commands in AteAuth so that
+          actual ATE data object access rights reflect the linux permissions
+0.5.0   Very large file-system support
+        + Files larger than 20MB should be stored in a seperate chains
+        + Files larger than 200MB should be stored in extents that each have
+          their own chains
+0.5.1   Compacting chains
+        + AteDb should periodically compact itself without breaking things
+        + Events that are streamed to a compacted chain that predate the
+          compaction should be dropped.
+        + Deleting all the entries in a chain should also destroy the chain
+0.5.2   Snapshots and References
+        + Taking a snapshot of a file system should cause the chain to rotate
+          which makes it immutable (need an emulated folder to restore and
+          create those snapshots)
+0.6.0 - Remote Symbolic links
+        + Need to be able to create a symbolic link to another remote file system
+          (e.g. ln -s tcp://ate.tokera.com/myfs myfs)
+0.6.1   Advanced File-Systems
+        + Flag needed in AteFS that enables the 'advanced mode' (default: on)
+        + The root of the file-system is the users folder
+        + Add a symbolic link over to an account file system /acc
+        + Add a symbolic link over to a public file system /pub -> https://ate.tokera.com/pub
+          (this file-system is owned by Tokera with access granted on specific folders)
+0.7.0   Docker imports
+        + AteDocker needs to be created that hosts imported docker files
+          on demand as they are requested.
+        + Docker credentials should be stored in the authentication server
+          and used by AteDocker with appropriate encryption when the
+          image is private
+        + Importing a docker image will create snapshot chains for each step in
+          the docker image
+        + Users can load and modify docker images simply by creating a symbolic link to
+          its address on docker hub.
+0.8.0  Reverse Proxy
+        + When mounting a file-system within an AteFS location then a reverse
+          proxy should be started that then makes it visible for anyone who
+          accesses the file-system.
+0.8.1  Remote Process Call
+        + AteFs should have a mode that can be activated that allows for RPC.
+        + An RPC is an service endpoint that will execute a process locally
+          which reads from stdin and writes to stdout
+        + When running a process on one copy of AteFS it should then be possible
+          to see the output on another using this method.
+0.9.0  Ate Bootloader
+        + AteBoot needs to be created which holds an initrd.img, token and URL
+          of a file-system to boot to.
+        + On the public file-system a series of images should be created that
+          gives different flavors of systems one can boot too.
+        + One of the core bootloaders should do the following
+          1. Downloads the file-system locally using AteFS
+          2. AteFS runs with the RPC mode enabled
+          3. Mounts all the auxillary file-systems
+          4. Runs reverse proxies on all the mount points
+0.10.0  Tokera Coins
+        + Create wallets for accounts in Tokera
+        + Create PayPal exchange for wallets
+        + Add contracts
+0.11.0  Rentable Space
+        + Create a process that divides a bit of the machine up so that it can
+          rented out to the machine
+        + Process is pinned to CPU and runs under a cgroup for resource control
+        + Runs on public IPv6 address with strict firewalls
+        + Upon renting it will run a user defined bootloader and charge the customer
 ```
 
 ate-2.0
