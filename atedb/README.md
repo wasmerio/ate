@@ -139,6 +139,67 @@ atedb --dns 8.8.4.4 --auth tcp://127.0.0.1:5555/auth solo -l 0.0.0.0
 RUST_LOG=info atedb solo
 ```
 
+## Manual
+
+```
+USAGE:
+    atedb [FLAGS] [OPTIONS] <SUBCOMMAND>
+
+FLAGS:
+    -d, --debug                 Logs debug info to the console
+        --dns-sec               Determines if ATE will use DNSSec or just plain DNS
+    -h, --help                  Prints help information
+        --no-auth               Indicates no authentication server will be used meaning all new
+                                chains created by clients allow anyone to write new root nodes
+        --no-wire-encryption    Disbles wire encryption which would otherwise be turned on when
+                                running in 'centralized' mode
+    -v, --verbose               Sets the level of log verbosity, can be used multiple times
+    -V, --version               Prints version information
+
+OPTIONS:
+    -a, --auth <auth>
+            URL where the user is authenticated [default: tcp://auth.tokera.com:5001/auth]
+
+        --dns-server <dns-server>
+            Address that DNS queries will be sent to [default: 8.8.8.8]
+
+    -t, --trust <trust>
+            Trust mode that the database server will run under - valid values are either
+            'distributed' or 'centralized'. When running in 'distributed' mode the server itself
+            does not need to be trusted in order to trust the data it holds however it has a
+            significant performance impact on write operations while the 'centralized' mode gives
+            much higher performance but the server needs to be protected [default: centralized]
+
+        --wire-encryption <wire-encryption>
+            Indicates if ATE will use quantum resistant wire encryption (possible values are 128,
+            192, 256). When running in 'centralized' mode wire encryption will default to 128bit
+            however when running in 'distributed' mode wire encryption will default to off unless
+            explicitly turned on
+
+
+SUBCOMMANDS:
+    help    Prints this message or the help of the given subcommand(s)
+    solo    Runs a solo ATE database and listens for connections from clients
+
+
+
+
+USAGE:
+    atedb solo [OPTIONS] [logs-path]
+
+ARGS:
+    <logs-path>    Path to the log files where all the file system data is stored [default:
+                   /opt/ate]
+
+FLAGS:
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+
+OPTIONS:
+    -l, --listen <listen>    IP address that the database server will isten on [default: 0.0.0.0]
+    -p, --port <port>        Port that the database server will listen on [default: 5000]
+```
+
 ## Contribution
 
 If you would like to help setup a community to continue to develop this project

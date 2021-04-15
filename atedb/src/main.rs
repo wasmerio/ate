@@ -32,11 +32,10 @@ struct Opts {
     /// created by clients allow anyone to write new root nodes.
     #[clap(long)]
     no_auth: bool,
-    /// Indicates if ATE will use quantum resistant wire encryption (possible values are 128, 192, 256).
-    /// The default is not to use wire encryption meaning the encryption of the event data itself is
-    /// what protects the data. When running in 'centralized' mode wire encryption will default to 128bit
-    /// however when running in 'distributed' mode wire encryption will default to off unless explicitly
-    /// turned on.
+    /// Indicates if ATE will use quantum resistant wire encryption (possible values
+    /// are 128, 192, 256). When running in 'centralized' mode wire encryption will
+    /// default to 128bit however when running in 'distributed' mode wire encryption
+    /// will default to off unless explicitly turned on.
     #[clap(long)]
     wire_encryption: Option<KeySize>,
     /// Disbles wire encryption which would otherwise be turned on when running in 'centralized' mode.
