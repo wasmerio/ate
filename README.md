@@ -49,6 +49,14 @@ This library is a way of working with data in modern distributed computing.
 ## Changelog
 
 ```
+0.4.1 - Incremental release focused on improving stability and recovery
+        + Clients will now automatically reconnect using an exponential backoff
+        + Added recovery mode settings on the AteFS implementation which shows
+          how to operate ATE in both async and sync modes with different failure
+          behaviours.
+        + Ate chains can now be configured in 'distributed' or 'centralized' trust
+          modes so that a wider range of use-cases can be met
+        + Updates the AteDB documentation and added more commandline arguments
 0.4.0 - Passed the milestone of a fully authenticated and encrypted remote database
         + Ate now has a fully functional command pattern that allows for RPC
         + Authentication server with multi-factor auth is functional
