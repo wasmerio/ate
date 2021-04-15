@@ -23,25 +23,19 @@ Other projects use this backend for persistent storage - projects such as
 
 ## How it works
 
-AteDB will store its log files on a local file-system using a naming convention that
-follows the URL path of connecting clients.
-
-Log files are loaded and updated on-demand as consumers connect, feed events and disconnect
-
-AteDB will listen on a TCP port (default: 5000) with both IPv4 and IPv6 protocols unless
-otherwise specified
-
-When a client attempts to access a chain-key that does not exist AteDB will create a new
-chain and associated log files.
-
-When AteDB creates new chains it will will query an authentication server for a public key
-of who should have access to write root events into the chain based on a naming convention.
-
-e.g. tcp://server.com/domain.com/name/mydb => mydb chain for user with email name@domain.com.
-
-If you specify the --no-auth command then chains will be created without making any authentication
-checks which means anyone can create new chains on a first-come-first-served basis and no authentcation
-server is required.
+- AteDB will store its log files on a local file-system using a naming convention that
+  follows the URL path of connecting clients.
+- Log files are loaded and updated on-demand as consumers connect, feed events and disconnect
+- AteDB will listen on a TCP port (default: 5000) with both IPv4 and IPv6 protocols unless
+  otherwise specified
+- When a client attempts to access a chain-key that does not exist AteDB will create a new
+  chain and associated log files.
+- When AteDB creates new chains it will will query an authentication server for a public key
+  of who should have access to write root events into the chain based on a naming convention.  
+  e.g. tcp://server.com/domain.com/name/mydb => mydb chain for user with email name@domain.com.
+- If you specify the --no-auth command then chains will be created without making any authentication
+  checks which means anyone can create new chains on a first-come-first-served basis and no authentcation
+  server is required.
 
 By default all wire messages are clear text but the events that are confidential are encrypted
 thus giving a good balance between security and speed however you may also increase the security
