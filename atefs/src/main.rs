@@ -29,7 +29,7 @@ use fuse3::{MountOptions};
 use clap::Clap;
 
 #[derive(Clap)]
-#[clap(version = "0.1", author = "John S. <johnathan.sharratt@gmail.com>")]
+#[clap(version = "1.3", author = "John S. <johnathan.sharratt@gmail.com>")]
 struct Opts {
     /// Sets the level of log verbosity, can be used multiple times
     #[allow(dead_code)]
@@ -38,6 +38,17 @@ struct Opts {
     /// URL where the user is authenticated
     #[clap(short, long, default_value = "tcp://auth.tokera.com:5001/auth")]
     auth: Url,
+    /// No authentication or passcode will be used to protect this file-system
+    #[clap(short, long)]
+    no_auth: bool,
+    /// Token used to access your encrypted file-system (if you do not supply a token then you will
+    /// be prompted for a username and password)
+    #[clap(short, long)]
+    token: Option<String>,
+    /// Token file to read that holds a previously created token to be used to access your encrypted
+    /// file-system (if you do not supply a token then you will be prompted for a username and password)
+    #[clap(long)]
+    token_path: Option<String>,
     /// No NTP server will be used to synchronize the time thus the server time
     /// will be used instead
     #[clap(long)]
@@ -57,6 +68,11 @@ struct Opts {
     /// Address that DNS queries will be sent to
     #[clap(long, default_value = "8.8.8.8")]
     dns_server: String,
+    /// Indicates if ATE will use quantum resistant wire encryption (possible values are 128, 192, 256).
+    /// The default is not to use wire encryption meaning the encryption of the event data itself is
+    /// what protects the data
+    #[clap(long)]
+    wire_encryption: Option<KeySize>,
     #[clap(subcommand)]
     subcmd: SubCommand,
 }
@@ -115,31 +131,17 @@ struct Mount {
     /// 'readonly-sync' or 'sync')
     #[clap(long, default_value = "readonly-async")]
     recovery_mode: RecoveryMode,
-    /// Token used to access your encrypted file-system (if you do not supply a token then you will
-    /// be prompted for a username and password)
-    #[clap(short, long)]
-    token: Option<String>,
-    /// Token file to read that holds a previously created token to be used to access your encrypted
-    /// file-system (if you do not supply a token then you will be prompted for a username and password)
-    #[clap(long)]
-    token_path: Option<String>,
     /// User supplied passcode that will be used to encrypt the contents of this file-system
     /// instead of using an authentication. Note that this can 'not' be used as combination
     /// with a strong authentication system and hence implicitely implies the 'no-auth' option
     /// as well.
     #[clap(short, long)]
     passcode: Option<String>,
-    /// No authentication or passcode will be used to protect this file-system
-    #[clap(short, long)]
-    no_auth: bool,
     /// Local redo log file will be deleted when the file system is unmounted, remotely stored data on
     /// any distributed commit log will be persisted. Effectively this setting only uses the local disk
     /// as a cache of the redo-log while it's being used.
     #[clap(long)]
     temp: bool,
-    /// Indicates if ATE will use quantum resistant wire encryption (possible values are 128, 192, 256).
-    #[clap(long)]
-    wire_encryption: Option<KeySize>,
     /// UID of the user that this file system will be mounted as
     #[clap(short, long)]
     uid: Option<u32>,
@@ -180,7 +182,7 @@ fn ctrl_channel() -> tokio::sync::watch::Receiver<bool> {
     receiver
 }
 
-async fn main_mount(mount: Mount, conf: ConfAte, session: AteSession) -> Result<(), AteError>
+async fn main_mount(mount: Mount, conf: ConfAte, session: AteSession, no_auth: bool) -> Result<(), AteError>
 {
     let uid = match mount.uid {
         Some(a) => a,
@@ -214,7 +216,6 @@ async fn main_mount(mount: Mount, conf: ConfAte, session: AteSession) -> Result<
     conf.log_format.meta = mount.meta_format;
     conf.log_format.data = mount.data_format;
     conf.log_path = shellexpand::tilde(&mount.log_path).to_string();
-    conf.wire_encryption = mount.wire_encryption;
     conf.recovery_mode = mount.recovery_mode;
 
     info!("configured_for: {:?}", mount.configured_for);
@@ -269,7 +270,7 @@ async fn main_mount(mount: Mount, conf: ConfAte, session: AteSession) -> Result<
     // Create the mount point
     let mount_path = mount.mount_path.clone();
     let mount_join = Session::new(mount_options)
-        .mount_with_unprivileged(AteFS::new(chain, session, scope, mount.no_auth), mount.mount_path);
+        .mount_with_unprivileged(AteFS::new(chain, session, scope, no_auth), mount.mount_path);
 
     // Install a ctrl-c command
     info!("mounting file-system and entering main loop");
@@ -335,6 +336,8 @@ async fn main() -> Result<(), CommandError> {
     conf.dns_sec = opts.dns_sec;
     conf.dns_server = opts.dns_server;
     conf.ntp_sync = opts.no_ntp == false;
+    conf.wire_encryption = opts.wire_encryption;
+    
     if let Some(pool) = opts.ntp_pool {
         conf.ntp_pool = pool;
     }
@@ -359,7 +362,7 @@ async fn main() -> Result<(), CommandError> {
             // If a passcode is supplied then use this
             if let Some(pass) = &mount.passcode
             {
-                if mount.token.is_some() || mount.token_path.is_some() {
+                if opts.token.is_some() || opts.token_path.is_some() {
                     eprintln!("You can not supply both a passcode and a token, either drop the --token arguments or the --passcode argument");
                     std::process::exit(1);
                 }
@@ -372,7 +375,7 @@ async fn main() -> Result<(), CommandError> {
                 let key = ate_auth::password_to_read_key(&prefix, &pass, 10);
                 session.add_read_key(&key);
 
-            } else if mount.no_auth {
+            } else if opts.no_auth {
                 if mount.remote.is_some() {
                     eprintln!("In order to use remotely hosted file-systems you must use some form of authentication, without authentication the distributed databases will not be able to make the needed checks");
                     std::process::exit(1);
@@ -381,11 +384,11 @@ async fn main() -> Result<(), CommandError> {
                 // We do not put anything in the session as no authentication method nor a passcode was supplied
             } else {
                 // Load the session via the token or the authentication server
-                session = ate_auth::main_session(mount.token.clone(), mount.token_path.clone(), Some(opts.auth)).await?;
+                session = ate_auth::main_session(opts.token.clone(), opts.token_path.clone(), Some(opts.auth)).await?;
             }
 
             // Mount the file system
-            main_mount(mount, conf, session).await?;
+            main_mount(mount, conf, session, opts.no_auth).await?;
         },
     }
 

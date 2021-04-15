@@ -11,6 +11,27 @@ use super::conf::ChainOfTrustBuilder;
 use super::error::ChainCreationError;
 use std::sync::Arc;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum TrustMode
+{
+    Distributed,
+    Centralized
+}
+
+impl std::str::FromStr
+for TrustMode
+{
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "distributed" => Ok(TrustMode::Distributed),
+            "centralized" => Ok(TrustMode::Centralized),
+            _ => Err("valid values are 'distributed', 'centralized'"),
+        }
+    }
+}
+
 pub enum OpenAction
 {
     /// The open request will be denied

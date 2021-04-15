@@ -9,15 +9,17 @@ use ate::{error::ChainCreationError, prelude::*};
 pub struct ChainFlow {
     cfg: ConfAte,
     regex: Regex,
-    auth: url::Url,
+    mode: TrustMode,
+    auth: Option<url::Url>,
 }
 
 impl ChainFlow
 {
-    pub fn new(cfg: &ConfAte, auth: url::Url) -> Self {        
+    pub fn new(cfg: &ConfAte, auth: Option<url::Url>, mode: TrustMode) -> Self {        
         ChainFlow {
             cfg: cfg.clone(),
             regex: Regex::new("^/([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})/([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})/([a-zA-Z0-9_]{1,})$").unwrap(),
+            mode,
             auth,
         }
     }
@@ -27,7 +29,7 @@ impl ChainFlow
 impl OpenFlow
 for ChainFlow
 {
-    async fn open(&self, builder: ChainBuilder, key: &ChainKey) -> Result<OpenAction, ChainCreationError>
+    async fn open(&self, mut builder: ChainBuilder, key: &ChainKey) -> Result<OpenAction, ChainCreationError>
     {
         // Extract the identity from the supplied path (we can only create chains that are actually
         // owned by the specific user)
@@ -44,22 +46,27 @@ for ChainFlow
             }
 
             // Grab the public write key from the authentication server for this user
-            let advert = match ate_auth::query_command(email.clone(), self.auth.clone()).await {
-                Ok(a) => a.advert,
-                Err(err) => {
-                    return Ok(OpenAction::Deny(format!("Failed to create the chain as the query to the authentication server failed - {}.", err.to_string()).to_string()));
-                }
-            };
-            let root_key = advert.auth;
-
+            if let Some(auth) = &self.auth {
+                let advert = match ate_auth::query_command(email.clone(), auth.clone()).await {
+                    Ok(a) => a.advert,
+                    Err(err) => {
+                        return Ok(OpenAction::Deny(format!("Failed to create the chain as the query to the authentication server failed - {}.", err.to_string()).to_string()));
+                    }
+                };
+                let root_key = advert.auth;
+                builder = builder.add_root_public_key(&root_key);
+            }
+            
             let chain = builder
-                .add_root_public_key(&root_key)
                 .build()
                 .open(key)
                 .await?;
 
             // We have opened the chain
-            return Ok(OpenAction::CentralizedChain(chain));
+            return match self.mode {
+                TrustMode::Centralized => Ok(OpenAction::CentralizedChain(chain)),
+                TrustMode::Distributed => Ok(OpenAction::DistributedChain(chain)),
+            };
         }
 
         // Ask the authentication server for the public key for this user

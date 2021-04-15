@@ -51,6 +51,7 @@ pub use crate::service::ServiceInstance;
 pub use crate::error::ServiceError;
 pub use crate::error::InvokeError;
 
+pub use crate::flow::TrustMode;
 pub use crate::mesh::RecoveryMode;
 pub use crate::mesh::Registry;
 pub use crate::conf::MeshAddress;

@@ -10,7 +10,4 @@ ATE library reference guide
 
 ## Table of Contents
 
-1. [Maven](#maven) 
-2. [Bootstrap Application](#bootstrap-application)
-3. [Data Access Objects](#data-access-objects)
-4. [ATE common interface](#ate-common-interface)
+TODO
