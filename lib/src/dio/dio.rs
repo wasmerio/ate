@@ -422,7 +422,7 @@ impl Chain
             multi,
             session: session,
             scope,
-            transmit: false,
+            transmit: true,
             conversation: self.pipe.conversation().await
         }
     }
