@@ -1,16 +1,22 @@
 use async_trait::async_trait;
+use log::{info, warn, debug, error};
 use serde::{Serialize, Deserialize};
 use std::{collections::BTreeMap, sync::Arc};
 use crate::{header::PrimaryKey, meta::Metadata, pipe::EventPipe};
 use bytes::Bytes;
+use tokio::sync::mpsc;
 
 use crate::crypto::*;
 use crate::event::*;
 use crate::trust::*;
 use crate::chain::*;
 use crate::error::*;
+use crate::index::*;
 use crate::conf::*;
+use crate::mesh::msg::*;
 use crate::mesh::MeshSession;
+use crate::comms::PacketData;
+use crate::spec::SerializationFormat;
 
 // Determines how the file-system will react while it is nominal and when it is
 // recovering from a communication failure (valid options are 'async', 'readonly-async',
@@ -138,4 +144,83 @@ impl MeshHashTable
             hash_table,
         }
     }
+}
+
+pub(crate) async fn locate_offset_of_sync(chain: &Arc<Chain>, history_sample: Vec<Hash>) -> Option<(u64, Hash)> {
+    let multi = chain.multi().await;
+    let guard = multi.inside_async.read().await;
+    match history_sample.iter().filter_map(|t| guard.chain.history_reverse.get(t)).next() {
+        Some(a) => {
+            let sync_from = guard.chain.history.get(a).map(|h| h.event_hash).unwrap();
+            debug!("resuming from offset {}", a);
+            Some((a.clone(), sync_from))
+        },
+        None => {
+            debug!("streaming entire history");
+            guard.chain.history.iter().map(|(k, v)| (k.clone(), v.event_hash.clone())).next()
+        },
+    }
+}
+
+pub(crate) async fn sync_data(chain: &Arc<Chain>, send_to: &mpsc::Sender<PacketData>, wire_format: SerializationFormat, cur: u64)
+    -> Result<(), CommsError>
+{
+    // Declare vars
+    let multi = chain.multi().await;
+    let mut cur = Some(cur);
+    
+    // We work in batches of 2000 events releasing the lock between iterations so that the
+    // server has time to process new events (capped at 2MB of data per send)
+    let max_send: usize = 2 * 1024 * 1024;
+    while let Some(start) = cur {
+        let mut leafs = Vec::new();
+        {
+            let guard = multi.inside_async.read().await;
+            let mut iter = guard.chain.history.range(start..);
+
+            let mut amount = 0 as usize;
+            for _ in 0..2000 {
+                match iter.next() {
+                    Some((k, v)) => {
+                        cur = Some(k.clone());
+                        leafs.push(EventLeaf {
+                            record: v.event_hash,
+                            created: 0,
+                            updated: 0,
+                        });
+
+                        amount = amount + v.meta_bytes.len() + v.data_size;
+                        if amount > max_send {
+                            break;
+                        }
+                    },
+                    None => {
+                        cur = None;
+                        break;
+                    }
+                }
+            }
+        }
+        let mut evts = Vec::new();
+        for leaf in leafs {
+            let evt = multi.load(leaf).await?;
+            let evt = MessageEvent {
+                meta: evt.data.meta.clone(),
+                data_hash: evt.header.data_hash.clone(),
+                data: match evt.data.data_bytes {
+                    Some(a) => Some(a.to_vec()),
+                    None => None,
+                },
+                format: evt.header.format,
+            };
+            evts.push(evt);
+        }
+        debug!("sending {} events @{}", evts.len(), start);
+        PacketData::reply_at(Some(&send_to), wire_format, Message::Events {
+            commit: None,
+            evts
+        }).await?;
+    }
+
+    Ok(())
 }

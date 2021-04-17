@@ -101,7 +101,9 @@ pub(super) enum Message {
         commit: Option<u64>,
         evts: Vec<MessageEvent>
     },
-    EndOfHistory,
+    EndOfHistory {
+        sync_from: Option<Hash>,
+    },
     
     /// Asks to confirm all events are up-to-date for transaction keeping purposes
     Confirmed(u64),

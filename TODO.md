@@ -61,12 +61,16 @@
         + Create wallets for accounts in Tokera
         + Create PayPal exchange for wallets
         + Add contracts
-0.11.0  Rentable Space
-        + Create a process that divides a bit of the machine up so that it can
-          rented out to the machine
-        + Process is pinned to CPU and runs under a cgroup for resource control
-        + Runs on public IPv6 address with strict firewalls
-        + Upon renting it will run a user defined bootloader and charge the customer
+0.11.0  Rentable Server
+        + Assume that bootloader can be compromised and thus it should not have
+          any elevated rights into the account
+        + Ate bootloader that goes into an advertising state which publishes the
+          machine and its specs on an open market.
+        + Buyers can run test loads on an advertised machine to see if they are
+          happy with how it respondes before they commit
+        + Once purchased the server can run one of more virtual machines off
+          customer supplied file-systems with init processes.
+        + Test it as a virtual machine.
 ```
 
 ate-2.0

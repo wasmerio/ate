@@ -166,8 +166,27 @@ impl MeshSession
         Ok(())
     }
 
-    async fn inbox_end_of_history(loader: &mut Option<Box<impl Loader>>) -> Result<(), CommsError> {
+    async fn inbox_end_of_history(self: &Arc<MeshSession>, pck: PacketWithContext<Message, ()>, loader: &mut Option<Box<impl Loader>>, sync_from: Option<Hash>) -> Result<(), CommsError> {
         debug!("inbox: end_of_history");
+
+        // We may need to send our locally stored events back up to the server
+        if let Some(chain) = self.chain.upgrade()
+        {
+            // Locate where we will do the sync
+            if let Some(sync_from) = sync_from {
+                if let Some(offset) = locate_offset_of_sync(&chain, vec![sync_from]).await
+                {
+                    // Launch a process that will synchronize the local data back to the server
+                    if let Some(reply_to) = &pck.data.reply_here {
+                        sync_data(&chain, reply_to, pck.data.wire_format, offset.0).await?;
+                    }
+                }
+            }            
+        }
+
+        // The end of the history means that the chain can now be actively used, its likely that
+        // a loader is waiting for this important event which will then release some caller who
+        // wanted to use the data but is waiting for it to load first.
         if let Some(mut loader) = loader.take() {
             loader.end_of_history().await;
         }
@@ -196,7 +215,7 @@ impl MeshSession
             Message::Confirmed(id) => Self::inbox_confirmed(self, id).await,
             Message::CommitError { id, err } => Self::inbox_commit_error(self, id, err).await,
             Message::LockResult { key, is_locked } => Self::inbox_lock_result(self, key, is_locked),
-            Message::EndOfHistory => Self::inbox_end_of_history(loader).await,
+            Message::EndOfHistory { sync_from } => Self::inbox_end_of_history(self, pck, loader, sync_from).await,
             Message::SecuredWith(session) => Self::inbox_secure_with(self, session).await,
             Message::Disconnected => { return Err(CommsError::Disconnected); },
             Message::FatalTerminate { err } => {

@@ -492,9 +492,14 @@ async fn inbox_stream_data(
     };
     let size = chain.count().await;
 
+    // Find what offset we will start streaming the events back to the caller
+    // (we work backwards from the consumers last known position till we find a match
+    //  otherwise we just start from the front - duplicate records will be deleted anyway)
+    debug!("searching for sync point in chain (samples={})", history_sample.len());
+    let offset = locate_offset_of_sync(&chain, history_sample).await;
+    
     // Let the caller know we will be streaming them events
     debug!("sending start-of-history (size={})", size);
-    let multi = chain.multi().await;
     PacketData::reply_at(Some(&reply_at), wire_format,
     Message::StartOfHistory
         {
@@ -503,80 +508,19 @@ async fn inbox_stream_data(
             integrity,
         }
     ).await?;
-
-    // Find what offset we will start streaming the events back to the caller
-    // (we work backwards from the consumers last known position till we find a match
-    //  otherwise we just start from the front - duplicate records will be deleted anyway)
-    let mut cur = {
-        let guard = multi.inside_async.read().await;
-        match history_sample.iter().filter_map(|t| guard.chain.history_reverse.get(t)).next() {
-            Some(a) => {
-                debug!("resuming from offset {}", a);
-                Some(a.clone())
-            },
-            None => {
-                debug!("streaming entire history");
-                guard.chain.history.keys().map(|t| t.clone()).next()
-            },
-        }
-    };
     
-    // We work in batches of 2000 events releasing the lock between iterations so that the
-    // server has time to process new events (capped at 2MB of data per send)
-    let max_send: usize = 2 * 1024 * 1024;
-    while let Some(start) = cur {
-        let mut leafs = Vec::new();
-        {
-            let guard = multi.inside_async.read().await;
-            let mut iter = guard.chain.history.range(start..);
-
-            let mut amount = 0 as usize;
-            for _ in 0..2000 {
-                match iter.next() {
-                    Some((k, v)) => {
-                        cur = Some(k.clone());
-                        leafs.push(EventLeaf {
-                            record: v.event_hash,
-                            created: 0,
-                            updated: 0,
-                        });
-
-                        amount = amount + v.meta_bytes.len() + v.data_size;
-                        if amount > max_send {
-                            break;
-                        }
-                    },
-                    None => {
-                        cur = None;
-                        break;
-                    }
-                }
-            }
-        }
-        let mut evts = Vec::new();
-        for leaf in leafs {
-            let evt = multi.load(leaf).await?;
-            let evt = MessageEvent {
-                meta: evt.data.meta.clone(),
-                data_hash: evt.header.data_hash.clone(),
-                data: match evt.data.data_bytes {
-                    Some(a) => Some(a.to_vec()),
-                    None => None,
-                },
-                format: evt.header.format,
-            };
-            evts.push(evt);
-        }
-        debug!("sending {} events @{}/{}", evts.len(), start, size);
-        PacketData::reply_at(Some(&reply_at), wire_format, Message::Events {
-            commit: None,
-            evts
-        }).await?;
+    // Sync the data
+    let mut sync_from = None;
+    if let Some((cur, cur_hash)) = offset {
+        sync_data(&chain, &reply_at, wire_format, cur).await?;
+        sync_from = Some(cur_hash);
     }
 
     // Let caller know we have sent all the events that were requested
     debug!("sending end-of-history");
-    PacketData::reply_at(Some(&reply_at), wire_format, Message::EndOfHistory).await?;
+    PacketData::reply_at(Some(&reply_at), wire_format, Message::EndOfHistory {
+        sync_from,
+    }).await?;
     Ok(())
 }
 
