@@ -37,7 +37,6 @@ where Self: Send + Sync
     pub(super) locked: FxHashSet<PrimaryKey>,
     pub(super) deleted: FxHashSet<PrimaryKey>,
     pub(super) pipe_unlock: FxHashSet<PrimaryKey>,
-    pub(super) extra_core_meta: Vec<CoreMetadata>,
 }
 
 impl DioState
@@ -87,7 +86,6 @@ impl DioState
     fn new() -> DioState {
         DioState {
             store: Vec::new(),
-            extra_core_meta: Vec::new(),
             cache_store_primary: FxHashMap::default(),
             cache_store_secondary: MultiMap::new(),
             cache_load: FxHashMap::default(),
@@ -118,7 +116,6 @@ where Self: Send + Sync
     pub(super) state: DioState,
     pub(super) session: &'a Session,
     pub(super) scope: Scope,
-    pub(super) transmit: bool,
     pub(super) conversation: Option<Arc<ConversationSession>>,
 }
 
@@ -412,17 +409,11 @@ impl Chain
     #[allow(dead_code)]
     pub async fn dio_ext<'a>(&'a self, session: &'a Session, scope: Scope) -> Dio<'a> {
         let multi = self.multi().await;
-        self.dio_ext_from_multi(session, scope, multi).await
-    }
-
-    #[allow(dead_code)]
-    pub(crate) async fn dio_ext_from_multi<'a>(&'a self, session: &'a Session, scope: Scope, multi: ChainMultiUser) -> Dio<'a> {
         Dio {
             state: DioState::new(),
             multi,
             session: session,
             scope,
-            transmit: true,
             conversation: self.pipe.conversation().await
         }
     }
@@ -433,35 +424,24 @@ impl<'a> Dio<'a>
     pub fn has_uncommitted(&self) -> bool
     {
         let state = &self.state;
-        if state.store.is_empty() && state.deleted.is_empty() && state.extra_core_meta.is_empty() {
+        if state.store.is_empty() && state.deleted.is_empty() {
             return false;
         }
         return true;
-    }
-
-    pub fn no_transmit(&mut self)
-    {
-        self.transmit = false;
     }
 
     pub fn cancel(&mut self)
     {
         let state = &mut self.state;
         state.store.clear();   
-        state.extra_core_meta.clear();
         state.deleted.clear();
-    }
-
-    pub fn add_extra_core_meta(&mut self, meta :CoreMetadata) {
-        let state = &mut self.state;
-        state.extra_core_meta.push(meta);
     }
 
     pub async fn commit(&mut self) -> Result<(), CommitError>
     {
         // If we have dirty records
         let state = &mut self.state;
-        if state.store.is_empty() && state.deleted.is_empty() && state.extra_core_meta.is_empty() {
+        if state.store.is_empty() && state.deleted.is_empty() {
             return Ok(())
         }
 
@@ -476,18 +456,6 @@ impl<'a> Dio<'a>
             Some(a) => a,
             None => self.multi.default_format
         };
-
-        // Add any special meta data
-        if state.extra_core_meta.is_empty() == false {
-            let mut meta = Metadata::default();
-            meta.core.append(&mut state.extra_core_meta);
-            let evt = EventData {
-                meta: meta,
-                data_bytes: None,
-                format,
-            };
-            evts.push(evt);
-        }
         
         {
             // Take all the locks we need to perform the commit actions
@@ -594,7 +562,7 @@ impl<'a> Dio<'a>
         // Create the transaction
         let trans = Transaction {
             scope: self.scope.clone(),
-            transmit: self.transmit,
+            transmit: true,
             events: evts,
             conversation: match &self.conversation {
                 Some(c) => Some(Arc::clone(c)),
