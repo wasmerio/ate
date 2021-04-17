@@ -177,7 +177,7 @@ impl MeshSession
         Ok(())
     }
 
-    async fn inbox_end_of_history(self: &Arc<MeshSession>, pck: PacketWithContext<Message, ()>, loader: &mut Option<Box<impl Loader>>, _sync_from: Option<Hash>) -> Result<(), CommsError> {
+    async fn inbox_end_of_history(self: &Arc<MeshSession>, _pck: PacketWithContext<Message, ()>, loader: &mut Option<Box<impl Loader>>, _sync_from: Option<Hash>) -> Result<(), CommsError> {
         debug!("inbox: end_of_history");
 
         // The end of the history means that the chain can now be actively used, its likely that

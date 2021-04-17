@@ -6,6 +6,7 @@ use url::Url;
 use std::ops::Deref;
 use qrcode::QrCode;
 use qrcode::render::unicode;
+use std::sync::Arc;
 
 use ate::prelude::*;
 use ate::error::LoadError;
@@ -46,11 +47,10 @@ impl AuthService
     }
 }
 
-pub async fn query_command(username: String, auth: Url) -> Result<QueryResponse, QueryError>
+pub async fn query_command(registry: Arc<ate::mesh::Registry>, username: String, auth: Url) -> Result<QueryResponse, QueryError>
 {
     // Open a command chain
     let chain_url = crate::helper::command_url(auth.clone());
-    let registry = ate::mesh::Registry::new(&conf_auth(), true).await;
     let chain = registry.open_by_url(&chain_url).await?;
     
     // Create the query command
@@ -88,6 +88,8 @@ pub async fn main_query(
         }
     };
 
-    let result = query_command(username, auth).await?;
+
+    let registry = ate::mesh::Registry::new(&conf_auth(), true).await;
+    let result = query_command(registry, username, auth).await?;
     Ok(result.advert)
 }

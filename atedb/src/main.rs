@@ -137,7 +137,7 @@ async fn main_solo(solo: Solo, mut cfg_ate: ConfAte, auth: Option<url::Url>, tru
     cfg_ate.log_path = shellexpand::tilde(&solo.logs_path).to_string();
 
     // Create the chain flow and generate configuration
-    let flow = ChainFlow::new(&cfg_ate, auth, trust);
+    let flow = ChainFlow::new(&cfg_ate, auth, trust).await;
 
     // Create the server and listen on port 5000
     let cfg_mesh = ConfMesh::solo(solo.listen.as_str(), solo.port);

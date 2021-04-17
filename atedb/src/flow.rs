@@ -11,16 +11,18 @@ pub struct ChainFlow {
     regex: Regex,
     mode: TrustMode,
     auth: Option<url::Url>,
+    registry: Arc<Registry>,
 }
 
 impl ChainFlow
 {
-    pub fn new(cfg: &ConfAte, auth: Option<url::Url>, mode: TrustMode) -> Self {        
+    pub async fn new(cfg: &ConfAte, auth: Option<url::Url>, mode: TrustMode) -> Self {        
         ChainFlow {
             cfg: cfg.clone(),
             regex: Regex::new("^/([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})/([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})/([a-zA-Z0-9_]{1,})$").unwrap(),
             mode,
             auth,
+            registry: ate::mesh::Registry::new(cfg, true).await
         }
     }
 }
@@ -47,7 +49,7 @@ for ChainFlow
 
             // Grab the public write key from the authentication server for this user
             if let Some(auth) = &self.auth {
-                let advert = match ate_auth::query_command(email.clone(), auth.clone()).await {
+                let advert = match ate_auth::query_command(Arc::clone(&self.registry), email.clone(), auth.clone()).await {
                     Ok(a) => a.advert,
                     Err(err) => {
                         return Ok(OpenAction::Deny(format!("Failed to create the chain as the query to the authentication server failed - {}.", err.to_string()).to_string()));
