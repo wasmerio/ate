@@ -274,7 +274,7 @@ where F: OpenFlow + 'static
                 PacketData::reply_at(ctx.reply_at, ctx.tx.wire_format, Message::SecuredWith(session)).await?;
             }
             chain
-        }
+        },
         OpenAction::DistributedChain(c) => {
             c.single().await.set_integrity(IntegrityMode::Distributed);
             c
