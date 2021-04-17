@@ -177,23 +177,8 @@ impl MeshSession
         Ok(())
     }
 
-    async fn inbox_end_of_history(self: &Arc<MeshSession>, pck: PacketWithContext<Message, ()>, loader: &mut Option<Box<impl Loader>>, sync_from: Option<Hash>) -> Result<(), CommsError> {
+    async fn inbox_end_of_history(self: &Arc<MeshSession>, pck: PacketWithContext<Message, ()>, loader: &mut Option<Box<impl Loader>>, _sync_from: Option<Hash>) -> Result<(), CommsError> {
         debug!("inbox: end_of_history");
-
-        // We may need to send our locally stored events back up to the server
-        if let Some(chain) = self.chain.upgrade()
-        {
-            // Locate where we will do the sync
-            if let Some(sync_from) = sync_from {
-                if let Some(offset) = locate_offset_of_sync(&chain, vec![sync_from]).await
-                {
-                    // Launch a process that will synchronize the local data back to the server
-                    if let Some(reply_to) = &pck.data.reply_here {
-                        sync_data(&chain, reply_to, pck.data.wire_format, offset.0).await?;
-                    }
-                }
-            }            
-        }
 
         // The end of the history means that the chain can now be actively used, its likely that
         // a loader is waiting for this important event which will then release some caller who
