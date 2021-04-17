@@ -151,9 +151,9 @@ pub(crate) async fn locate_offset_of_sync(chain: &Arc<Chain>, history_sample: Ve
     let guard = multi.inside_async.read().await;
     match history_sample.iter().filter_map(|t| guard.chain.history_reverse.get(t)).next() {
         Some(a) => {
-            let sync_from = guard.chain.history.get(a).map(|h| h.event_hash).unwrap();
-            debug!("resuming from offset {}", a);
-            Some((a.clone(), sync_from))
+            debug!("resuming from after offset {}", a);
+            let a = *a + 1;
+            guard.chain.history.range(a..).map(|(k, v)| (k.clone(), v.event_hash)).next()
         },
         None => {
             debug!("streaming entire history");
