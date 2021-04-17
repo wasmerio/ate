@@ -92,8 +92,12 @@ pub(super) enum Message {
         is_locked: bool
     },
 
+    SyncWithMe {
+        sync_from: Hash,
+    },
     StartOfHistory {
         size: usize,
+        sync_from: Option<Hash>,
         integrity: IntegrityMode,
         root_keys: Vec<PublicSignKey>,
     },

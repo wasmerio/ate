@@ -25,6 +25,8 @@ use crate::header::*;
 use crate::spec::*;
 use crate::loader::*;
 use crate::crypto::*;
+use crate::meta::*;
+use crate::session::*;
 
 pub struct MeshSession
 {
@@ -152,17 +154,26 @@ impl MeshSession
         Ok(())
     }
 
-    async fn inbox_start_of_history(self: &Arc<MeshSession>, size: usize, loader: &mut Option<Box<impl Loader>>, root_keys: Vec<PublicSignKey>, integrity: IntegrityMode) -> Result<(), CommsError> {
-        if let Some(chain) = self.chain.upgrade() {
+    async fn inbox_start_of_history(self: &Arc<MeshSession>, size: usize, _sync_from: Option<Hash>, loader: &mut Option<Box<impl Loader>>, root_keys: Vec<PublicSignKey>, integrity: IntegrityMode) -> Result<(), CommsError>
+    {
+        // Declare variables
+        let size = size;
+
+        if let Some(chain) = self.chain.upgrade()
+        {
+            // Setup the chain based on the properties given to us
             let mut lock = chain.inside_sync.write();
             lock.set_integrity_mode(integrity);
             for plugin in lock.plugins.iter_mut() {
                 plugin.set_root_keys(&root_keys);
             }
         }
+        
+        // Tell the loader that we will be starting the load process of the history
         if let Some(loader) = loader {
             loader.start_of_history(size).await;
         }
+
         Ok(())
     }
 
@@ -209,7 +220,7 @@ impl MeshSession
     {
         //debug!("inbox: packet size={}", pck.data.bytes.len());
         match pck.packet.msg {
-            Message::StartOfHistory { size, root_keys, integrity } => Self::inbox_start_of_history(self, size, loader, root_keys, integrity).await,
+            Message::StartOfHistory { size, sync_from, root_keys, integrity } => Self::inbox_start_of_history(self, size, sync_from, loader, root_keys, integrity).await,
             Message::Connected => Self::inbox_connected(self, pck.data).await,
             Message::Events { commit: _, evts } => Self::inbox_events(self, evts, loader).await,
             Message::Confirmed(id) => Self::inbox_confirmed(self, id).await,

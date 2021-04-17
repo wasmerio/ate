@@ -504,6 +504,10 @@ async fn inbox_stream_data(
     Message::StartOfHistory
         {
             size,
+            sync_from: match offset {
+                Some((_, b)) => Some(b),
+                None => None,
+            },
             root_keys,
             integrity,
         }

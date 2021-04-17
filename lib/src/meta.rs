@@ -153,6 +153,14 @@ pub struct MetaType
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MetaDelayedSync
+{
+    pub complete: bool,
+    pub from: Hash,
+    pub to: Hash,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum CoreMetadata
 {
     None,
