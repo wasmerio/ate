@@ -22,7 +22,7 @@ impl ChainFlow
             regex: Regex::new("^/([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})/([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})/([a-zA-Z0-9_]{1,})$").unwrap(),
             mode,
             auth,
-            registry: ate::mesh::Registry::new(&ate_auth::conf_auth(), true).await
+            registry: ate::mesh::Registry::new(cfg, true).await
         }
     }
 }

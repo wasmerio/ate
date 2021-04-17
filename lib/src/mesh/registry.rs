@@ -192,11 +192,13 @@ impl Registry
         let mut client = self.dns.lock().await;
 
         let mut addrs = Vec::new();
-        let response
-            = client.query(Name::from_str(name).unwrap(), DNSClass::IN, RecordType::AAAA).await?;
-        for answer in response.answers() {
-            if let RData::AAAA(ref address) = *answer.rdata() {
-                addrs.push(IpAddr::V6(address.clone()));
+        if let Some(response)
+            = client.query(Name::from_str(name).unwrap(), DNSClass::IN, RecordType::AAAA).await.ok()
+        {
+            for answer in response.answers() {
+                if let RData::AAAA(ref address) = *answer.rdata() {
+                    addrs.push(IpAddr::V6(address.clone()));
+                }
             }
         }
         if addrs.len() <= 0 {
