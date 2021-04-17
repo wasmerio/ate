@@ -49,8 +49,7 @@ for ChainFlow
 
             // Grab the public write key from the authentication server for this user
             if let Some(auth) = &self.auth {
-                let registry = ate::mesh::Registry::new(&ate_auth::conf_auth(), true).await;
-                let advert = match ate_auth::query_command(Arc::clone(&registry), email.clone(), auth.clone()).await {
+                let advert = match ate_auth::query_command(Arc::clone(&self.registry), email.clone(), auth.clone()).await {
                     Ok(a) => a.advert,
                     Err(err) => {
                         return Ok(OpenAction::Deny(format!("Failed to create the chain as the query to the authentication server failed - {}.", err.to_string()).to_string()));
