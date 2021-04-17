@@ -44,6 +44,7 @@ impl MeshSession
     pub(super) async fn connect(builder: ChainOfTrustBuilder, chain_key: &ChainKey, chain_domain: Option<String>, addr: MeshAddress, mode: RecoveryMode, loader_local: Box<impl Loader>, loader_remote: Box<impl Loader>) -> Result<Arc<Chain>, ChainCreationError>
     {
         debug!("new: chain_key={}", chain_key.to_string());
+        let temporal = builder.temporal;
 
         // Open the chain and make a sample of the last items so that we can
         // speed up the synchronization by skipping already loaded items
@@ -75,7 +76,9 @@ impl MeshSession
         let on_disconnect = chain.pipe.connect().await?;
 
         // Launch an automatic reconnect thread
-        tokio::spawn(RecoverableSessionPipe::auto_reconnect(Arc::downgrade(&chain), on_disconnect));
+        if temporal == false {
+            tokio::spawn(RecoverableSessionPipe::auto_reconnect(Arc::downgrade(&chain), on_disconnect));
+        }
 
         // Ok we are good!
         Ok(chain)
