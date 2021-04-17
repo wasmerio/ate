@@ -182,7 +182,7 @@ pub(crate) async fn sync_data(chain: &Arc<Chain>, send_to: &mpsc::Sender<PacketD
             for _ in 0..2000 {
                 match iter.next() {
                     Some((k, v)) => {
-                        cur = Some(k.clone());
+                        cur = Some(k.clone() + 1);
                         leafs.push(EventLeaf {
                             record: v.event_hash,
                             created: 0,
