@@ -837,10 +837,11 @@ for TimeError {
             TimeError::NoTimestamp => {
                 write!(f, "The data object has no timestamp metadata attached to it")
             },
-            TimeError::OutOfBounds(dur) => {
-                let time = std::time::UNIX_EPOCH + *dur;
-                let datetime: chrono::DateTime<chrono::Utc> = time.into();
-                write!(f, "The network latency is beyond tolerance to synchronize the clocks - {}", datetime.format("%d/%m/%Y %T"))
+            TimeError::OutOfBounds(duration) => {
+                let seconds = duration.as_secs() % 60;
+                let minutes = (duration.as_secs() / 60) % 60;
+                let hours = (duration.as_secs() / 60) / 60;
+                write!(f, "The network latency is out of bounds - {}", format!("{}:{}:{}", hours, minutes, seconds))
             },
         }
     }
