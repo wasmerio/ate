@@ -498,6 +498,8 @@ async fn inbox_samples_of_history(
             debug!("inbox: pivot has moved forward (pivot={}, offset={})", hash, offset);
             PacketData::reply_at(reply_at, wire_format, Message::SampleRightOf(hash)).await?;
             return Ok(());
+        } else {
+            debug!("inbox: pivot has settled (pivot={}, offset={})", hash, offset);
         }
     }
 
