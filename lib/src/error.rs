@@ -841,7 +841,7 @@ for TimeError {
                 let seconds = duration.as_secs() % 60;
                 let minutes = (duration.as_secs() / 60) % 60;
                 let hours = (duration.as_secs() / 60) / 60;
-                write!(f, "The network latency is out of bounds - {}", format!("{}:{}:{}", hours, minutes, seconds))
+                write!(f, "The network latency is out of bounds - {}", format!("{}H:{}M:{}s", hours, minutes, seconds))
             },
         }
     }

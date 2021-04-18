@@ -255,13 +255,13 @@ for TimestampEnforcer
 
         // Check its within the time range
         let timestamp = Duration::from_millis(time.time_since_epoch_ms);
-        let min_timestamp = self.cursor - self.tolerance;
+        //let min_timestamp = self.cursor - self.tolerance;
         let max_timestamp = self.current_timestamp()? + self.tolerance;
         
-        if timestamp < min_timestamp ||
+        if //timestamp < min_timestamp ||
            timestamp > max_timestamp
         {
-            debug!("rejected event due to out-of-bounds timestamp ({:?} vs {:?})", self.cursor, timestamp);
+            debug!("rejected event {:?} due to out-of-bounds timestamp ({:?} vs {:?})", header, self.cursor, timestamp);
             return Err(ValidationError::Trust(TrustError::Time(TimeError::OutOfBounds(self.cursor - timestamp))));
         }
 
