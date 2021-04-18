@@ -46,7 +46,6 @@ impl<'a> ChainSingleUser<'a>
     }
     
     pub fn set_integrity(&self, mode: IntegrityMode) {
-        debug!("switching to {:?} for {}", mode, self.inside_async.chain.name());
         let mut lock = self.inside_sync.write();
         lock.set_integrity_mode(mode);
     }

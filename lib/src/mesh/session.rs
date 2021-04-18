@@ -502,6 +502,9 @@ impl RecoverableSessionPipe
                 Arc::clone(&chain.pipe)
             };
 
+            // Invoke the disconnected callback
+            pipe.on_disconnect().await?;
+
             // Reconnect
             status_change = pipe.connect().await?;
 
