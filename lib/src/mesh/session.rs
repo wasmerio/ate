@@ -46,12 +46,22 @@ impl MeshSession
         debug!("new: chain_key={}", chain_key.to_string());
         let temporal = builder.temporal;
 
+        // While we load the data on disk we run in centralized mode
+        // as otherwise there could be errors loading the redo log
+        let mut builder = builder.clone();
+        builder = builder.integrity(IntegrityMode::Centralized);
+
         // Open the chain and make a sample of the last items so that we can
         // speed up the synchronization by skipping already loaded items
         let mut chain = {
             let chain_key = chain_key.clone();
             Chain::new_ext(builder.clone(), chain_key, Some(loader_local), true).await?
         };
+
+        // While we are running offline we run in full distributed mode until
+        // we are reconnect as otherwise if the server is in distributed mode
+        // it will immediately reject everything
+        chain.single().await.set_integrity(IntegrityMode::Distributed);
 
         // Create a session pipe
         let chain_store = Arc::new(StdMutex::new(None));
