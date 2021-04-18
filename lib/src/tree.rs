@@ -315,6 +315,10 @@ for TreeAuthorityPlugin
                 // particular conversation then we can trust the rest of the integrity of the chain
                 if self.integrity == IntegrityMode::Centralized {
                     if let Some(conversation) = conversation {
+                        if conversation.other_end_is_server {
+                            return Ok(ValidationResult::Allow)
+                        }
+
                         let lock = conversation.signatures.read();
                         let already = match &auth.write {
                             WriteOption::Specific(hash) => lock.contains(hash),
@@ -328,6 +332,7 @@ for TreeAuthorityPlugin
                 }
                 
                 // Otherwise fail
+                debug!("rejected event as it has no signatures");
                 return Err(ValidationError::NoSignatures);
             },
         };

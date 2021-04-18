@@ -36,7 +36,16 @@ pub enum Scope
 #[derive(Debug, Default)]
 pub struct ConversationSession
 {
+    pub other_end_is_server: bool,
     pub signatures: StdRwLock<FxHashSet<AteHash>>,
+}
+
+impl ConversationSession {
+    pub fn new(other_end_is_server: bool) -> ConversationSession {
+        let mut ret = ConversationSession::default();
+        ret.other_end_is_server = other_end_is_server;
+        ret
+    }
 }
 
 #[derive(Debug, Clone)]

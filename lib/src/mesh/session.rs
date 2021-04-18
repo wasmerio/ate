@@ -97,7 +97,6 @@ impl MeshSession
 
         if let Some(chain) = self.chain.upgrade() {
             let samples = chain.get_samples_to_right_of_pivot(pivot).await;
-            debug!("{:?}", samples);
             pck.reply(Message::SamplesOfHistory {
                 pivot,
                 samples
@@ -433,8 +432,8 @@ impl RecoverableSessionPipe
                 self.chain_domain.clone()
             ).await;
 
-        let inbound_conversation = Arc::new(ConversationSession::default());
-        let outbound_conversation = Arc::new(ConversationSession::default());
+        let inbound_conversation = Arc::new(ConversationSession::new(true));
+        let outbound_conversation = Arc::new(ConversationSession::new(true));
 
         let session = Arc::new(MeshSession {
             addr: self.addr.clone(),
