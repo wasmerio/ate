@@ -685,20 +685,25 @@ impl<'a> Chain
         for _ in 0..8 {
             match iter.next() {
                 Some(header) => sample.push(header.event_hash.clone()),
-                None => { return sample; }
+                None => {
+                    return sample;
+                }
             }
         }
         loop {
-            for _ in 0..2 {
-                match iter.next() {
-                    Some(header) => sample.push(header.event_hash.clone()),
-                    None => { return sample; }
-                }
+            match iter.next() {
+                Some(header) => sample.push(header.event_hash.clone()),
+                None => { return sample; }
             }
+            let mut last = None;
             for _ in 1..stride {
-                if iter.next().is_none() {
-                    return sample;
-                }
+                match iter.next() {
+                    Some(a) => last = Some(a),
+                    None => break
+                }                
+            }
+            if let Some(last) = last {
+                sample.push(last.event_hash.clone());
             }
             stride = stride * 2;
         }

@@ -501,6 +501,8 @@ async fn inbox_samples_of_history(
         } else {
             debug!("inbox: pivot has settled (pivot={}, offset={})", hash, offset);
         }
+    } else {
+        debug!("inbox: pivot has settled (pivot={})", pivot);
     }
 
     // We have got as close as we can - lets start the history sending process now
