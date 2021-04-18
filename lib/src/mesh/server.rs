@@ -29,6 +29,7 @@ use crate::flow::OpenAction;
 use crate::spec::SerializationFormat;
 use crate::repository::ChainRepository;
 use crate::comms::TxDirection;
+use crate::crypto::Hash;
 
 pub struct MeshRoot<F>
 where Self: ChainRepository,
@@ -402,7 +403,6 @@ async fn inbox_unlock(
 async fn inbox_subscribe<F>(
     root: Arc<MeshRoot<F>>,
     chain_key: ChainKey,
-    history_sample: Vec<crate::crypto::Hash>,
     reply_at: Option<&mpsc::Sender<PacketData>>,
     session_context: Arc<SessionContext>,
     wire_format: SerializationFormat,
@@ -455,13 +455,55 @@ where F: OpenFlow + 'static
         guard.chain.replace(Arc::clone(&chain));
     }
 
-    // Stream the data (if a reply target is given)
+    // Grab the first sample point (if we have no history then we are done)
+    let guard = chain.multi().await;
+    let guard = guard.inside_async.read().await;
+    match guard.range(..).next() {
+        Some(a) => {
+            PacketData::reply_at(reply_at, wire_format, Message::SampleRightOf(a.event_hash)).await?;
+        },
+        None => {
+            PacketData::reply_at(reply_at, wire_format, Message::EndOfHistory).await?;
+        }
+    };
+
+    Ok(())
+}
+
+async fn inbox_samples_of_history(
+    context: Arc<SessionContext>,
+    pivot: Hash,
+    history_sample: Vec<Hash>,
+    reply_at: Option<&mpsc::Sender<PacketData>>,
+    wire_format: SerializationFormat,
+)
+-> Result<(), CommsError>
+{
+    debug!("inbox: inbox_samples_of_history (pivot={}, samples={})", pivot, history_sample.len());
+
+    // Get the chain
+    let chain = match context.inside.lock().chain.clone() {
+        Some(a) => a,
+        None => { return Ok(()); }
+    };
+
+    // See if the pivot point gets closer to the end of the history - if it does not then
+    // keep taking samples
+    if let Some((_, hash)) = locate_offset_of_sync(&chain, history_sample).await {
+        if hash != pivot {
+            debug!("inbox: pivot has moved forward (pivot={})", hash);
+            PacketData::reply_at(reply_at, wire_format, Message::SampleRightOf(hash)).await?;
+        }
+    }
+
+    // We have got as close as we can - lets start the history sending process now
     if let Some(reply_at) = reply_at
     {
         // Stream the data back to the client
+        debug!("inbox: starting the streaming process");
         tokio::spawn(inbox_stream_data(
             Arc::clone(&chain), 
-            history_sample, 
+            pivot, 
             reply_at.clone(),
             wire_format,
         ));
@@ -474,7 +516,7 @@ where F: OpenFlow + 'static
 
 async fn inbox_stream_data(
     chain: Arc<Chain>,
-    history_sample: Vec<crate::crypto::Hash>,
+    pivot: Hash,
     reply_at: mpsc::Sender<PacketData>,
     wire_format: SerializationFormat,
 )
@@ -490,44 +532,53 @@ async fn inbox_stream_data(
             .collect::<Vec<_>>();
         (chain.integrity, root_keys)
     };
-    let mut size = 0usize;
+    
+    debug!("syncing from pivot point in chain (hash={})", pivot);
+
+    // Determine how many more events are left to sync
+    let size = {
+        let guard = chain.multi().await;
+        let guard = guard.inside_async.read().await;
+        guard.range(pivot..).count()
+    };
+
+    // If there are none left we are done
+    if size <= 0 {
+        debug!("nothing left to send - notifying the client");
+        PacketData::reply_at(Some(&reply_at), wire_format, Message::EndOfHistory).await?;
+        return Ok(())
+    }
 
     // Find what offset we will start streaming the events back to the caller
     // (we work backwards from the consumers last known position till we find a match
     //  otherwise we just start from the front - duplicate records will be deleted anyway)
-    debug!("searching for sync point in chain (samples={})", history_sample.len());
-    let offset = locate_offset_of_sync(&chain, history_sample).await;
-    if let Some((_, _, s)) = offset {
-        size = s;
-    }
-    
+    let offset = match locate_offset_of_sync(&chain, vec![pivot]).await {
+        Some(a) => a,
+        None => {
+            debug!("could not locate anymore to send - notifying the client");
+            PacketData::reply_at(Some(&reply_at), wire_format, Message::EndOfHistory).await?;
+            return Ok(())
+        }
+    };
+
     // Let the caller know we will be streaming them events
     debug!("sending start-of-history (size={})", size);
     PacketData::reply_at(Some(&reply_at), wire_format,
     Message::StartOfHistory
         {
             size,
-            sync_from: match offset {
-                Some((_, b, _)) => Some(b),
-                None => None,
-            },
+            pivot,
             root_keys,
             integrity,
         }
     ).await?;
     
     // Sync the data
-    let mut sync_from = None;
-    if let Some((cur, cur_hash, _)) = offset {
-        sync_data(&chain, &reply_at, wire_format, cur).await?;
-        sync_from = Some(cur_hash);
-    }
-
+    sync_data(&chain, &reply_at, wire_format, offset.0).await?;
+    
     // Let caller know we have sent all the events that were requested
     debug!("sending end-of-history");
-    PacketData::reply_at(Some(&reply_at), wire_format, Message::EndOfHistory {
-        sync_from,
-    }).await?;
+    PacketData::reply_at(Some(&reply_at), wire_format, Message::EndOfHistory).await?;
     Ok(())
 }
 
@@ -550,8 +601,10 @@ where F: OpenFlow + 'static
     let reply_at = reply_at_owner.as_ref();
     
     match pck.msg {
-        Message::Subscribe { chain_key, history_sample }
-            => inbox_subscribe(root, chain_key, history_sample, reply_at, context, wire_format, tx).await,
+        Message::Subscribe { chain_key }
+            => inbox_subscribe(root, chain_key, reply_at, context, wire_format, tx).await,
+        Message::SamplesOfHistory { pivot, samples }
+            => inbox_samples_of_history(context, pivot, samples, reply_at, wire_format).await,
         Message::Events { commit, evts }
             => inbox_event(reply_at, context, commit, evts, tx, pck_data).await,
         Message::Lock { key }

@@ -87,12 +87,21 @@ impl MeshSession
     async fn inbox_connected(self: &Arc<MeshSession>, pck: PacketData) -> Result<(), CommsError> {
         debug!("inbox: connected pck.size={}", pck.bytes.len());
 
+        pck.reply(Message::Subscribe {
+            chain_key: self.key.clone(),
+        }).await
+    }
+
+    async fn inbox_sample_right_of(self: &Arc<MeshSession>, pivot: Hash, pck: PacketData) -> Result<(), CommsError> {
+        debug!("inbox: sample_right_of [pivot.size={}]", pivot);
+
         if let Some(chain) = self.chain.upgrade() {
-            pck.reply(Message::Subscribe {
-                chain_key: self.key.clone(),
-                history_sample: chain.get_ending_sample().await,
+            pck.reply(Message::SamplesOfHistory {
+                pivot,
+                samples: chain.get_samples_to_right_of_pivot(pivot).await
             }).await?;
         }
+
         Ok(())
     }
 
@@ -157,17 +166,17 @@ impl MeshSession
         Ok(())
     }
 
-    async fn record_delayed_upload(chain: &Arc<Chain>, sync_from: Hash) -> Result<(), CommsError>
+    async fn record_delayed_upload(chain: &Arc<Chain>, pivot: Hash) -> Result<(), CommsError>
     {
         let mut guard = chain.inside_async.write().await;
-        let from = guard.range(sync_from..).map(|h| h.event_hash).next();
+        let from = guard.range(pivot..).map(|h| h.event_hash).next();
         if let Some(from) =  from
         {
             if let Some(_) = guard.chain.pointers.get_delayed_upload(from) {
                 return Ok(());
             }
 
-            let to = guard.range(sync_from..).map(|h| h.event_hash).next_back();
+            let to = guard.range(pivot..).map(|h| h.event_hash).next_back();
             if let Some(to) = to {
                 debug!("delayed_upload: {}..{}", from, to);
                 guard.feed_meta_data(&chain.inside_sync, Metadata {
@@ -183,7 +192,7 @@ impl MeshSession
         Ok(())
     }
 
-    async fn inbox_start_of_history(self: &Arc<MeshSession>, size: usize, sync_from: Option<Hash>, loader: &mut Option<Box<impl Loader>>, root_keys: Vec<PublicSignKey>, integrity: IntegrityMode) -> Result<(), CommsError>
+    async fn inbox_start_of_history(self: &Arc<MeshSession>, size: usize, pivot: Hash, loader: &mut Option<Box<impl Loader>>, root_keys: Vec<PublicSignKey>, integrity: IntegrityMode) -> Result<(), CommsError>
     {
         // Declare variables
         let size = size;
@@ -201,9 +210,7 @@ impl MeshSession
 
             // If we are synchronizing from an earlier point in the tree then
             // add all the events into a redo log that will be shippped
-            if let Some(sync_from) = sync_from {
-                MeshSession::record_delayed_upload(&chain, sync_from).await?;
-            }
+            MeshSession::record_delayed_upload(&chain, pivot).await?;
         }
         
         // Tell the loader that we will be starting the load process of the history
@@ -214,7 +221,7 @@ impl MeshSession
         Ok(())
     }
 
-    async fn inbox_end_of_history(self: &Arc<MeshSession>, _pck: PacketWithContext<Message, ()>, loader: &mut Option<Box<impl Loader>>, _sync_from: Option<Hash>) -> Result<(), CommsError> {
+    async fn inbox_end_of_history(self: &Arc<MeshSession>, _pck: PacketWithContext<Message, ()>, loader: &mut Option<Box<impl Loader>>) -> Result<(), CommsError> {
         debug!("inbox: end_of_history");
 
         // The end of the history means that the chain can now be actively used, its likely that
@@ -242,8 +249,10 @@ impl MeshSession
     {
         //debug!("inbox: packet size={}", pck.data.bytes.len());
         match pck.packet.msg {
-            Message::StartOfHistory { size, sync_from, root_keys, integrity }
-                => Self::inbox_start_of_history(self, size, sync_from, loader, root_keys, integrity).await,
+            Message::StartOfHistory { size, pivot, root_keys, integrity }
+                => Self::inbox_start_of_history(self, size, pivot, loader, root_keys, integrity).await,
+            Message::SampleRightOf(pivot)
+                => Self::inbox_sample_right_of(self, pivot, pck.data).await,
             Message::Connected
                 => Self::inbox_connected(self, pck.data).await,
             Message::Events { commit: _, evts }
@@ -254,8 +263,8 @@ impl MeshSession
                 => Self::inbox_commit_error(self, id, err).await,
             Message::LockResult { key, is_locked }
                 => Self::inbox_lock_result(self, key, is_locked),
-            Message::EndOfHistory { sync_from }
-                => Self::inbox_end_of_history(self, pck, loader, sync_from).await,
+            Message::EndOfHistory
+                => Self::inbox_end_of_history(self, pck, loader).await,
             Message::SecuredWith(session)
                 => Self::inbox_secure_with(self, session).await,
             Message::Disconnected

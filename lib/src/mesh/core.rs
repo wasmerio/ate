@@ -146,7 +146,7 @@ impl MeshHashTable
     }
 }
 
-pub(crate) async fn locate_offset_of_sync(chain: &Arc<Chain>, history_sample: Vec<Hash>) -> Option<(u64, Hash, usize)> {
+pub(crate) async fn locate_offset_of_sync(chain: &Arc<Chain>, history_sample: Vec<Hash>) -> Option<(u64, Hash)> {
     let multi = chain.multi().await;
     let guard = multi.inside_async.read().await;
     match history_sample.iter().filter_map(|t| guard.chain.history_reverse.get(t)).next() {
@@ -154,31 +154,12 @@ pub(crate) async fn locate_offset_of_sync(chain: &Arc<Chain>, history_sample: Ve
             let a = *a + 1;
             debug!("resuming from after offset {}", a);
             let mut range = guard.chain.history.range(a..).map(|(k, v)| (k.clone(), v.event_hash));
-
-            let mut first = None;
-            let mut count = 0usize;
-            while let Some(range) = range.next() {
-                debug!("blah: {:?}", range);
-                if first.is_none() {
-                    first = Some(range);
-                }
-                count = count + 1;
-            }
-            match first {
-                Some((a, b)) => {
-                    Some((a, b, count))
-                },
-                None => None
-            }            
+            range.next()
         },
         None => {
             debug!("streaming entire history");
-            match guard.chain.history.iter().map(|(k, v)| (k.clone(), v.event_hash.clone())).next() {
-                Some((a, b)) => {
-                    Some((a, b, guard.chain.pointers.count()))
-                },
-                None => None
-            }
+            let mut range = guard.chain.history.iter().map(|(k, v)| (k.clone(), v.event_hash.clone()));
+            range.next()
         },
     }
 }

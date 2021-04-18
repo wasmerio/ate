@@ -661,14 +661,14 @@ impl<'a> Chain
         Ok(())
     }
 
-    pub(crate) async fn get_ending_sample(&self) -> Vec<Hash> {
+    pub(crate) async fn get_samples_to_right_of_pivot(&self, pivot: Hash) -> Vec<Hash> {
         let guard = self.inside_async.read().await;
         let mut sample = Vec::new();
 
-        let mut iter = guard.chain.history.iter().rev();
+        let mut iter = guard.range(pivot..);
         let mut stride = 1;
-        while let Some((_, v)) = iter.next() {
-            sample.push(v.event_hash.clone());
+        while let Some(header) = iter.next() {
+            sample.push(header.event_hash.clone());
             for _ in 1..stride {
                 iter.next();
             }

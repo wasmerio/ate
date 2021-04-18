@@ -73,7 +73,6 @@ pub(super) enum Message {
     Disconnected,
 
     Subscribe {
-        history_sample: Vec<Hash>,
         chain_key: ChainKey,
     },
     
@@ -92,12 +91,14 @@ pub(super) enum Message {
         is_locked: bool
     },
 
-    SyncWithMe {
-        sync_from: Hash,
+    SampleRightOf(Hash),
+    SamplesOfHistory {
+        pivot: Hash,
+        samples: Vec<Hash>,
     },
     StartOfHistory {
         size: usize,
-        sync_from: Option<Hash>,
+        pivot: Hash,
         integrity: IntegrityMode,
         root_keys: Vec<PublicSignKey>,
     },
@@ -105,9 +106,7 @@ pub(super) enum Message {
         commit: Option<u64>,
         evts: Vec<MessageEvent>
     },
-    EndOfHistory {
-        sync_from: Option<Hash>,
-    },
+    EndOfHistory,
     
     /// Asks to confirm all events are up-to-date for transaction keeping purposes
     Confirmed(u64),
