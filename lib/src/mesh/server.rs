@@ -463,7 +463,11 @@ where F: OpenFlow + 'static
             PacketData::reply_at(reply_at, wire_format, Message::SampleRightOf(a.event_hash)).await?;
         },
         None => {
-            PacketData::reply_at(reply_at, wire_format, Message::EndOfHistory).await?;
+            if let Some(reply_at) = reply_at {
+                inbox_stream_data(chain, None, reply_at.clone(), wire_format).await?;
+            } else {
+                debug!("no reply address for this subscribe");
+            }
         }
     };
 
@@ -493,6 +497,7 @@ async fn inbox_samples_of_history(
         if hash != pivot {
             debug!("inbox: pivot has moved forward (pivot={})", hash);
             PacketData::reply_at(reply_at, wire_format, Message::SampleRightOf(hash)).await?;
+            return Ok(());
         }
     }
 
@@ -503,12 +508,12 @@ async fn inbox_samples_of_history(
         debug!("inbox: starting the streaming process");
         tokio::spawn(inbox_stream_data(
             Arc::clone(&chain), 
-            pivot, 
+            Some(pivot), 
             reply_at.clone(),
             wire_format,
         ));
     } else {
-        debug!("no reply address for this subscribe");
+        debug!("no reply address for this streaming of data");
     }
 
     Ok(())
@@ -516,7 +521,7 @@ async fn inbox_samples_of_history(
 
 async fn inbox_stream_data(
     chain: Arc<Chain>,
-    pivot: Hash,
+    pivot: Option<Hash>,
     reply_at: mpsc::Sender<PacketData>,
     wire_format: SerializationFormat,
 )
@@ -533,31 +538,18 @@ async fn inbox_stream_data(
         (chain.integrity, root_keys)
     };
     
-    debug!("syncing from pivot point in chain (hash={})", pivot);
-
     // Determine how many more events are left to sync
-    let size = {
-        let guard = chain.multi().await;
-        let guard = guard.inside_async.read().await;
-        guard.range(pivot..).count()
-    };
-
-    // If there are none left we are done
-    if size <= 0 {
-        debug!("nothing left to send - notifying the client");
-        PacketData::reply_at(Some(&reply_at), wire_format, Message::EndOfHistory).await?;
-        return Ok(())
-    }
-
-    // Find what offset we will start streaming the events back to the caller
-    // (we work backwards from the consumers last known position till we find a match
-    //  otherwise we just start from the front - duplicate records will be deleted anyway)
-    let offset = match locate_offset_of_sync(&chain, vec![pivot]).await {
-        Some(a) => a,
+    let size = match pivot
+    {
+        Some(pivot) => {
+            debug!("syncing from pivot point in chain (hash={})", pivot);
+            let guard = chain.multi().await;
+            let guard = guard.inside_async.read().await;
+            guard.range(pivot..).count()
+        },
         None => {
-            debug!("could not locate anymore to send - notifying the client");
-            PacketData::reply_at(Some(&reply_at), wire_format, Message::EndOfHistory).await?;
-            return Ok(())
+            debug!("no chain to sync so an easy sync");
+            0
         }
     };
 
@@ -572,9 +564,32 @@ async fn inbox_stream_data(
             integrity,
         }
     ).await?;
-    
-    // Sync the data
-    sync_data(&chain, &reply_at, wire_format, offset.0).await?;
+
+    // If there are none left we are done
+    if size <= 0 {
+        debug!("nothing left to send - notifying the client");
+        PacketData::reply_at(Some(&reply_at), wire_format, Message::EndOfHistory).await?;
+        return Ok(())
+    }
+
+    // If a pivot point was found then we send the data
+    if let Some(pivot) = pivot
+    {
+        // Find what offset we will start streaming the events back to the caller
+        // (we work backwards from the consumers last known position till we find a match
+        //  otherwise we just start from the front - duplicate records will be deleted anyway)
+        let offset = match locate_offset_of_sync(&chain, vec![pivot]).await {
+            Some(a) => a,
+            None => {
+                debug!("could not locate anymore to send - notifying the client");
+                PacketData::reply_at(Some(&reply_at), wire_format, Message::EndOfHistory).await?;
+                return Ok(())
+            }
+        };
+        
+        // Sync the data
+        sync_data(&chain, &reply_at, wire_format, offset.0).await?;
+    }
     
     // Let caller know we have sent all the events that were requested
     debug!("sending end-of-history");

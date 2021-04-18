@@ -170,7 +170,7 @@ impl MeshSession
     {
         let mut guard = chain.inside_async.write().await;
         let from = guard.range(pivot..).map(|h| h.event_hash).next();
-        if let Some(from) =  from
+        if let Some(from) = from
         {
             if let Some(_) = guard.chain.pointers.get_delayed_upload(from) {
                 return Ok(());
@@ -192,7 +192,7 @@ impl MeshSession
         Ok(())
     }
 
-    async fn inbox_start_of_history(self: &Arc<MeshSession>, size: usize, pivot: Hash, loader: &mut Option<Box<impl Loader>>, root_keys: Vec<PublicSignKey>, integrity: IntegrityMode) -> Result<(), CommsError>
+    async fn inbox_start_of_history(self: &Arc<MeshSession>, size: usize, pivot: Option<Hash>, loader: &mut Option<Box<impl Loader>>, root_keys: Vec<PublicSignKey>, integrity: IntegrityMode) -> Result<(), CommsError>
     {
         // Declare variables
         let size = size;
@@ -210,7 +210,9 @@ impl MeshSession
 
             // If we are synchronizing from an earlier point in the tree then
             // add all the events into a redo log that will be shippped
-            MeshSession::record_delayed_upload(&chain, pivot).await?;
+            if let Some(pivot) = pivot {
+                MeshSession::record_delayed_upload(&chain, pivot).await?;
+            }
         }
         
         // Tell the loader that we will be starting the load process of the history
