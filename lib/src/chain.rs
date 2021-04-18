@@ -267,17 +267,27 @@ impl ChainProtectedSync
         let mut is_deny = false;
         let mut is_allow = false;
         for validator in self.validators.iter() {
-            match validator.validate(header, conversation)? {
-                ValidationResult::Deny => is_deny = true,
-                ValidationResult::Allow => is_allow = true,
-                _ => {},
+            match validator.validate(header, conversation) {
+                Ok(ValidationResult::Deny) => is_deny = true,
+                Ok(ValidationResult::Allow) => is_allow = true,
+                Ok(ValidationResult::Abstain) => { },
+                Err(ValidationError::Denied) => is_deny = true,
+                Err(ValidationError::Detached) => is_deny = true,
+                Err(ValidationError::Trust(_)) => is_deny = true,
+                Err(ValidationError::AllAbstained) => is_deny = true,
+                Err(ValidationError::NoSignatures) => is_deny = true,
             }
         }
         for plugin in self.plugins.iter() {
-            match plugin.validate(header, conversation)? {
-                ValidationResult::Deny => is_deny = true,
-                ValidationResult::Allow => is_allow = true,
-                _ => {}
+            match plugin.validate(header, conversation) {
+                Ok(ValidationResult::Deny) => is_deny = true,
+                Ok(ValidationResult::Allow) => is_allow = true,
+                Ok(ValidationResult::Abstain) => { },
+                Err(ValidationError::Denied) => is_deny = true,
+                Err(ValidationError::Detached) => is_deny = true,
+                Err(ValidationError::Trust(_)) => is_deny = true,
+                Err(ValidationError::AllAbstained) => is_deny = true,
+                Err(ValidationError::NoSignatures) => is_deny = true,
             }
         }
 

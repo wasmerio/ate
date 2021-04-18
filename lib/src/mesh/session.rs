@@ -96,9 +96,11 @@ impl MeshSession
         debug!("inbox: sample_right_of [pivot.size={}]", pivot);
 
         if let Some(chain) = self.chain.upgrade() {
+            let samples = chain.get_samples_to_right_of_pivot(pivot).await;
+            debug!("{:?}", samples);
             pck.reply(Message::SamplesOfHistory {
                 pivot,
-                samples: chain.get_samples_to_right_of_pivot(pivot).await
+                samples
             }).await?;
         }
 
