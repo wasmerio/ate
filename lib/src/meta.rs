@@ -249,7 +249,8 @@ impl Metadata
                 CoreMetadata::PublicKey(_) => {},
                 CoreMetadata::Signature(_) => {},
                 CoreMetadata::EncryptedPrivateKey(_) => {},
-                CoreMetadata::Confidentiality(_) => {},                
+                CoreMetadata::Confidentiality(_) => {},
+                CoreMetadata::DelayedUpload(_) => {},
                 _ => { return true; }
             }
         }
