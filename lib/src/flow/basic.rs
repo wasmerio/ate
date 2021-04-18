@@ -66,8 +66,14 @@ for OpenStaticBuilder
             builder = builder.add_root_public_key(root_key);
         }
         builder = builder.integrity(match &self.centralized_integrity {
-            true => IntegrityMode::Centralized,
-            false => IntegrityMode::Distributed
+            true => {
+                debug!("chain-builder: centralized integrity");
+                IntegrityMode::Centralized
+            },
+            false => {
+                debug!("chain-builder: distributed integrity");
+                IntegrityMode::Distributed
+            }
         });
 
         Ok(match &self.centralized_integrity {
