@@ -51,6 +51,16 @@ pub enum IntegrityMode
     Distributed
 }
 
+impl std::fmt::Display
+for IntegrityMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            IntegrityMode::Centralized => write!(f, "centralized"),
+            IntegrityMode::Distributed => write!(f, "distributed")
+        }
+    }
+}
+
 impl ChainKey {
     #[allow(dead_code)]
     pub fn new(mut val: String) -> ChainKey {

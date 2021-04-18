@@ -329,6 +329,8 @@ impl ChainProtectedSync
 
     pub fn set_integrity_mode(&mut self, mode: IntegrityMode)
     {
+        debug!("switching to {}", mode);
+
         self.integrity = mode;
         for val in self.validators.iter_mut() {
             val.set_integrity_mode(mode);
