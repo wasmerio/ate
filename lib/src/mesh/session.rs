@@ -183,13 +183,14 @@ impl MeshSession
         let from = guard.range(pivot..).map(|h| h.event_hash).next();
         if let Some(from) = from
         {
-            if let Some(_) = guard.chain.pointers.get_delayed_upload(from) {
+            if let Some(a) = guard.chain.pointers.get_delayed_upload(from) {
+                debug!("delayed_upload exists: {}..{}", a.from, a.to);
                 return Ok(());
             }
 
             let to = guard.range(pivot..).map(|h| h.event_hash).next_back();
             if let Some(to) = to {
-                debug!("delayed_upload: {}..{}", from, to);
+                debug!("delayed_upload new: {}..{}", from, to);
                 guard.feed_meta_data(&chain.inside_sync, Metadata {
                     core: vec![CoreMetadata::DelayedUpload(MetaDelayedUpload {
                         complete: false,
@@ -197,7 +198,11 @@ impl MeshSession
                         to
                     })]
                 }).await?;
+            } else {
+                debug!("delayed_upload: {}..error", from);
             }
+        } else {
+            debug!("delayed_upload: error..error");
         }
 
         Ok(())
