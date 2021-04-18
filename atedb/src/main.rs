@@ -126,7 +126,7 @@ async fn main() -> Result<(), AteError> {
         }
     }
 
-    info!("atefs::shutdown");
+    info!("atedb::shutdown");
 
     Ok(())
 }

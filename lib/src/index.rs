@@ -148,6 +148,11 @@ impl BinaryTreeIndexer
     {
         self.uploads.get(&from).map(|e| e.clone())
     }
+
+    pub(crate) fn get_pending_uploads(&self) -> Vec<MetaDelayedUpload>
+    {
+        self.uploads.values().filter(|d| d.complete == false).map(|d| d.clone()).collect::<Vec<_>>()
+    }
 }
 
 #[derive(Default, Debug)]

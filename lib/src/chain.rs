@@ -709,6 +709,12 @@ impl<'a> Chain
         }
     }
 
+    pub(crate) async fn get_pending_uploads(&self) -> Vec<MetaDelayedUpload>
+    {
+        let guard = self.inside_async.read().await;
+        guard.chain.pointers.get_pending_uploads()
+    }
+
     pub fn repository(&self) -> Option<Arc<dyn ChainRepository>>
     {
         self.inside_sync.read().repository()

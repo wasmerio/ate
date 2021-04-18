@@ -596,7 +596,7 @@ for RecoverableSessionPipe
             );
         }
 
-        // Wait for all the messages to load before we give it to the caller
+        // Wait for all the messages to start loading
         match loading_receiver.recv().await {
             Some(result) => result?,
             None => {
@@ -613,6 +613,18 @@ for RecoverableSessionPipe
             }
         }
         debug!("loaded {}", self.key.to_string());
+
+        // Now we need to send all the events over that have been delayed
+        let chain = self.chain.lock().as_ref().map(|a| a.upgrade());
+        if let Some(Some(chain)) = chain {
+            for delayed_upload in chain.get_pending_uploads().await {
+                debug!("sending pending upload [{}..{}]", delayed_upload.from, delayed_upload.to);
+
+                todo!("First we need to send the data - best to reuse code here");
+                todo!("We need to wait for the response to the send of the data");
+                todo!("Next we need to clear the pending upload by writing a new event to the chain");
+            }
+        }
 
         // Mark the pipe as connected
         {
