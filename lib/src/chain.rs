@@ -667,15 +667,27 @@ impl<'a> Chain
 
         let mut iter = guard.range(pivot..);
         let mut stride = 1;
-        while let Some(header) = iter.next() {
-            sample.push(header.event_hash.clone());
+
+        for _ in 0..8 {
+            match iter.next() {
+                Some(header) => sample.push(header.event_hash.clone()),
+                None => { return sample; }
+            }
+        }
+        loop {
+            for _ in 0..2 {
+                match iter.next() {
+                    Some(header) => sample.push(header.event_hash.clone()),
+                    None => { return sample; }
+                }
+            }
             for _ in 1..stride {
-                iter.next();
+                if iter.next().is_none() {
+                    return sample;
+                }
             }
             stride = stride * 2;
         }
-
-        sample
     }
 
     pub fn repository(&self) -> Option<Arc<dyn ChainRepository>>
