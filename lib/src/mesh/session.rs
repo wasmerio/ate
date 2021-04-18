@@ -157,18 +157,52 @@ impl MeshSession
         Ok(())
     }
 
-    async fn inbox_start_of_history(self: &Arc<MeshSession>, size: usize, _sync_from: Option<Hash>, loader: &mut Option<Box<impl Loader>>, root_keys: Vec<PublicSignKey>, integrity: IntegrityMode) -> Result<(), CommsError>
+    async fn record_delayed_upload(chain: &Arc<Chain>, sync_from: Hash) -> Result<(), CommsError>
+    {
+        let mut guard = chain.inside_async.write().await;
+        let from = guard.range(sync_from..).map(|h| h.event_hash).next();
+        if let Some(from) =  from
+        {
+            if let Some(_) = guard.chain.pointers.get_delayed_upload(from) {
+                return Ok(());
+            }
+
+            let to = guard.range(sync_from..).map(|h| h.event_hash).next_back();
+            if let Some(to) = to {
+                debug!("delayed_upload: {}..{}", from, to);
+                guard.feed_meta_data(&chain.inside_sync, Metadata {
+                    core: vec![CoreMetadata::DelayedUpload(MetaDelayedUpload {
+                        complete: false,
+                        from,
+                        to
+                    })]
+                }).await?;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn inbox_start_of_history(self: &Arc<MeshSession>, size: usize, sync_from: Option<Hash>, loader: &mut Option<Box<impl Loader>>, root_keys: Vec<PublicSignKey>, integrity: IntegrityMode) -> Result<(), CommsError>
     {
         // Declare variables
         let size = size;
 
         if let Some(chain) = self.chain.upgrade()
         {
-            // Setup the chain based on the properties given to us
-            let mut lock = chain.inside_sync.write();
-            lock.set_integrity_mode(integrity);
-            for plugin in lock.plugins.iter_mut() {
-                plugin.set_root_keys(&root_keys);
+            {
+                // Setup the chain based on the properties given to us
+                let mut lock = chain.inside_sync.write();
+                lock.set_integrity_mode(integrity);
+                for plugin in lock.plugins.iter_mut() {
+                    plugin.set_root_keys(&root_keys);
+                }
+            }
+
+            // If we are synchronizing from an earlier point in the tree then
+            // add all the events into a redo log that will be shippped
+            if let Some(sync_from) = sync_from {
+                MeshSession::record_delayed_upload(&chain, sync_from).await;
             }
         }
         
@@ -208,22 +242,32 @@ impl MeshSession
     {
         //debug!("inbox: packet size={}", pck.data.bytes.len());
         match pck.packet.msg {
-            Message::StartOfHistory { size, sync_from, root_keys, integrity } => Self::inbox_start_of_history(self, size, sync_from, loader, root_keys, integrity).await,
-            Message::Connected => Self::inbox_connected(self, pck.data).await,
-            Message::Events { commit: _, evts } => Self::inbox_events(self, evts, loader).await,
-            Message::Confirmed(id) => Self::inbox_confirmed(self, id).await,
-            Message::CommitError { id, err } => Self::inbox_commit_error(self, id, err).await,
-            Message::LockResult { key, is_locked } => Self::inbox_lock_result(self, key, is_locked),
-            Message::EndOfHistory { sync_from } => Self::inbox_end_of_history(self, pck, loader, sync_from).await,
-            Message::SecuredWith(session) => Self::inbox_secure_with(self, session).await,
-            Message::Disconnected => { return Err(CommsError::Disconnected); },
-            Message::FatalTerminate { err } => {
-                if let Some(mut loader) = loader.take() {
-                    loader.failed(ChainCreationError::ServerRejected(err.clone())).await;
-                }
-                warn!("mesh-session-err: {}", err);
-                return Err(CommsError::Disconnected);
-            },
+            Message::StartOfHistory { size, sync_from, root_keys, integrity }
+                => Self::inbox_start_of_history(self, size, sync_from, loader, root_keys, integrity).await,
+            Message::Connected
+                => Self::inbox_connected(self, pck.data).await,
+            Message::Events { commit: _, evts }
+                => Self::inbox_events(self, evts, loader).await,
+            Message::Confirmed(id)
+                => Self::inbox_confirmed(self, id).await,
+            Message::CommitError { id, err }
+                => Self::inbox_commit_error(self, id, err).await,
+            Message::LockResult { key, is_locked }
+                => Self::inbox_lock_result(self, key, is_locked),
+            Message::EndOfHistory { sync_from }
+                => Self::inbox_end_of_history(self, pck, loader, sync_from).await,
+            Message::SecuredWith(session)
+                => Self::inbox_secure_with(self, session).await,
+            Message::Disconnected
+                => { return Err(CommsError::Disconnected); },
+            Message::FatalTerminate { err }
+                => {
+                    if let Some(mut loader) = loader.take() {
+                        loader.failed(ChainCreationError::ServerRejected(err.clone())).await;
+                    }
+                    warn!("mesh-session-err: {}", err);
+                    return Err(CommsError::Disconnected);
+                },
             _ => Ok(())
         }
     }

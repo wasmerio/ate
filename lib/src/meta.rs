@@ -153,7 +153,7 @@ pub struct MetaType
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct MetaDelayedSync
+pub struct MetaDelayedUpload
 {
     pub complete: bool,
     pub from: Hash,
@@ -179,6 +179,7 @@ pub enum CoreMetadata
     Author(String),
     Type(MetaType),
     Reply(PrimaryKey),
+    DelayedUpload(MetaDelayedUpload),
 }
 
 impl Default for CoreMetadata {

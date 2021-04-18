@@ -27,6 +27,7 @@ use parking_lot::RwLockWriteGuard as StdRwLockWriteGuard;
 use parking_lot::RwLockReadGuard as StdRwLockReadGuard;
 use tokio::sync::mpsc;
 use std::sync::mpsc as smpsc;
+use std::ops::*;
 
 use super::redo::*;
 use super::conf::*;
@@ -37,8 +38,8 @@ use super::multi::*;
 use super::pipe::*;
 use super::lint::*;
 use super::transform::*;
+use super::meta::*;
 use super::header::PrimaryKey;
-use super::meta::MetaCollection;
 use super::spec::*;
 use super::loader::*;
 use super::service::*;
@@ -111,7 +112,6 @@ where Self: Send + Sync
 
 impl ChainProtectedAsync
 {
-    #[allow(dead_code)]
     pub(super) fn process(&mut self, mut sync: StdRwLockWriteGuard<ChainProtectedSync>, headers: Vec<EventHeader>, conversation: Option<&Arc<ConversationSession>>) -> Result<(), ProcessError>
     {
         let mut ret = ProcessError::default();
@@ -140,8 +140,23 @@ impl ChainProtectedAsync
         ret.as_result()
     }
 
-    #[allow(dead_code)]
-    pub(super) async fn feed_async_internal(&mut self, sync: Arc<StdRwLock<ChainProtectedSync>>, evts: &Vec<EventData>, conversation: Option<&Arc<ConversationSession>>)
+    pub(super) async fn feed_meta_data(&mut self, sync: &Arc<StdRwLock<ChainProtectedSync>>, meta: Metadata)
+        -> Result<Vec<EventHeader>, CommitError>
+    {
+        let data = EventData {
+            meta,
+            data_bytes: None,
+            format: MessageFormat {
+                meta: SerializationFormat::Json,
+                data: SerializationFormat::Json,
+            },
+        };
+        let evts = vec![data];
+
+        self.feed_async_internal(sync, &evts, None).await
+    }
+
+    pub(super) async fn feed_async_internal(&mut self, sync: &Arc<StdRwLock<ChainProtectedSync>>, evts: &Vec<EventData>, conversation: Option<&Arc<ConversationSession>>)
         -> Result<Vec<EventHeader>, CommitError>
     {
         let mut errors = Vec::new();
@@ -190,6 +205,57 @@ impl ChainProtectedAsync
         }
 
         Ok(ret)
+    }
+
+    pub fn range<'a, R>(&'a self, range: R) -> impl DoubleEndedIterator<Item = &'a EventHeaderRaw>
+    where R: RangeBounds<Hash>
+    {
+        // Grab the starting point        
+        let start = range.start_bound();
+        let start = match start {
+            Bound::Unbounded => None,
+            Bound::Included(a) | Bound::Excluded(a) => {
+                match self.chain.history_reverse.get(a) {
+                    Some(a) => {
+                        if let Bound::Excluded(_) = start {
+                            Some(*a + 1)
+                        } else {
+                            Some(*a)
+                        }
+                    },
+                    None => None
+                }
+            },
+        };
+        let start = match start {
+            Some(a) => a,
+            None => self.chain.history.iter().next().map_or_else(|| 0, |e| e.0.clone())
+        };
+
+        // Grab the ending point        
+        let end = range.end_bound();
+        let end = match end {
+            Bound::Unbounded => None,
+            Bound::Included(a) | Bound::Excluded(a) => {
+                match self.chain.history_reverse.get(a) {
+                    Some(a) => {
+                        if let Bound::Excluded(_) = end {
+                            Some(*a - 1)
+                        } else {
+                            Some(*a)
+                        }
+                    },
+                    None => None
+                }
+            },
+        };
+        let end = match end {
+            Some(a) => a,
+            None => self.chain.history.iter().next_back().map_or_else(|| u64::MAX, |e| e.0.clone()),
+        };
+        
+        // Stream in all the events
+        self.chain.history.range(start..end).map(|e| e.1)
     }
 }
 
@@ -717,7 +783,7 @@ impl<'a> Chain
 
             // Push the events into the chain of trust and release the lock on it before
             // we transmit the result so that there is less lock thrashing
-            let result = match lock.feed_async_internal(inside_sync.clone(), &trans.events, trans.conversation.as_ref()).await {
+            let result = match lock.feed_async_internal(&inside_sync, &trans.events, trans.conversation.as_ref()).await {
                 Ok(_) => Ok(()),
                 Err(err) => Err(err),
             };
