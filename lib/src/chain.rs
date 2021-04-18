@@ -429,13 +429,15 @@ impl<'a> Chain
             integrity: builder.integrity,
         };
 
-        // Set the integrity mode on all the validators
-        inside_sync.set_integrity_mode(builder.integrity);
-
         // Add a tree authority plug if one is in the builder
         if let Some(tree) = builder.tree {
             inside_sync.plugins.push(Box::new(tree));
         }
+
+        // Set the integrity mode on all the validators
+        inside_sync.set_integrity_mode(builder.integrity);
+
+        // Wrap the sync object
         let inside_sync
             = Arc::new(StdRwLock::new(inside_sync));
 
