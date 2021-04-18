@@ -493,9 +493,9 @@ async fn inbox_samples_of_history(
 
     // See if the pivot point gets closer to the end of the history - if it does not then
     // keep taking samples
-    if let Some((_, hash)) = locate_offset_of_sync(&chain, history_sample).await {
+    if let Some((offset, hash)) = locate_offset_of_sync(&chain, history_sample).await {
         if hash != pivot {
-            debug!("inbox: pivot has moved forward (pivot={})", hash);
+            debug!("inbox: pivot has moved forward (pivot={}, offset={})", hash, offset);
             PacketData::reply_at(reply_at, wire_format, Message::SampleRightOf(hash)).await?;
             return Ok(());
         }
