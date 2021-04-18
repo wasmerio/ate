@@ -5,6 +5,7 @@ use regex::Regex;
 
 use async_trait::async_trait;
 use ate::{error::ChainCreationError, prelude::*};
+use ate::trust::IntegrityMode;
 
 pub struct ChainFlow {
     cfg: ConfAte,
@@ -58,6 +59,17 @@ for ChainFlow
                 let root_key = advert.auth;
                 builder = builder.add_root_public_key(&root_key);
             }
+
+            builder = builder.integrity(match self.mode {
+                TrustMode::Centralized => {
+                    debug!("centralized integrity for {}", key.to_string());
+                    IntegrityMode::Centralized
+                },
+                TrustMode::Distributed => {
+                    debug!("distributed integrity for {}", key.to_string());
+                    IntegrityMode::Distributed
+                }
+            });
             
             let chain = builder
                 .build()

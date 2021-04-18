@@ -5,6 +5,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use regex::Regex;
 use ate::{error::ChainCreationError, prelude::*};
+use ate::trust::IntegrityMode;
 
 use crate::service::*;
 
@@ -57,6 +58,7 @@ for ChainFlow
 
             // Build the chain
             let chain = builder
+                .integrity(IntegrityMode::Distributed)
                 .set_session(cmd_session.clone())
                 .add_root_public_key(&session_root_key.as_public_key())
                 .temporal(true)
