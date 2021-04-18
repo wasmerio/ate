@@ -714,6 +714,14 @@ impl ActiveSessionPipe
     }
 
     async fn on_disconnect(&self) -> Result<(), CommsError> {
+        // Switch over to a distributed integrity mode as while we are in an offline
+        // state we need to make sure we sign all the records. Its only the server
+        // and the fact we trust it that we can omit signatures
+        if let Some(chain) = self.session.chain.upgrade() {
+            chain.single().await.set_integrity(IntegrityMode::Distributed);
+        }
+
+        // Let anyone know that we are closed
         self.tx.on_disconnect().await
     }
 

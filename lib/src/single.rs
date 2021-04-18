@@ -1,3 +1,5 @@
+#[allow(unused_imports)]
+use log::{warn, debug, info};
 use tokio::sync::RwLockWriteGuard;
 use parking_lot::RwLock as StdRwLock;
 use std::sync::Arc;
@@ -44,6 +46,7 @@ impl<'a> ChainSingleUser<'a>
     }
     
     pub fn set_integrity(&self, mode: IntegrityMode) {
+        debug!("switching to {:?} for {}", mode, self.inside_async.chain.name());
         let mut lock = self.inside_sync.write();
         lock.set_integrity_mode(mode);
     }
