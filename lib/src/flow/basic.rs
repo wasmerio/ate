@@ -11,6 +11,7 @@ use crate::chain::ChainKey;
 use crate::conf::ChainOfTrustBuilder;
 use crate::repository::ChainRepository;
 use crate::error::ChainCreationError;
+use crate::trust::IntegrityMode;
 
 pub struct OpenStaticBuilder
 {
@@ -64,6 +65,10 @@ for OpenStaticBuilder
         if let Some(root_key) = &self.root_key {
             builder = builder.add_root_public_key(root_key);
         }
+        builder = builder.integrity(match &self.centralized_integrity {
+            true => IntegrityMode::Centralized,
+            false => IntegrityMode::Distributed
+        });
 
         Ok(match &self.centralized_integrity {
             true => OpenAction::CentralizedChain(builder.temporal(self.temporal).build().open_by_key(&key).await?),

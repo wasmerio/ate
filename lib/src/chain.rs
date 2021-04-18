@@ -447,7 +447,7 @@ impl<'a> Chain
         };
         
         // Process all the events in the chain-of-trust
-        let conversation = Arc::new(ConversationSession::default());
+        let conversation = Arc::new(ConversationSession::new(true));
         if let Err(err) = inside_async.process(inside_sync.write(), entries, Some(&conversation)) {
             if allow_process_errors == false {
                 return Err(ChainCreationError::ProcessError(err));
