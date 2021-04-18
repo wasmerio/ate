@@ -490,13 +490,16 @@ async fn inbox_stream_data(
             .collect::<Vec<_>>();
         (chain.integrity, root_keys)
     };
-    let size = chain.count().await;
+    let mut size = chain.count().await;
 
     // Find what offset we will start streaming the events back to the caller
     // (we work backwards from the consumers last known position till we find a match
     //  otherwise we just start from the front - duplicate records will be deleted anyway)
     debug!("searching for sync point in chain (samples={})", history_sample.len());
     let offset = locate_offset_of_sync(&chain, history_sample).await;
+    if let Some((_, _, s)) = offset {
+        size = s;
+    }
     
     // Let the caller know we will be streaming them events
     debug!("sending start-of-history (size={})", size);
@@ -505,7 +508,7 @@ async fn inbox_stream_data(
         {
             size,
             sync_from: match offset {
-                Some((_, b)) => Some(b),
+                Some((_, b, _)) => Some(b),
                 None => None,
             },
             root_keys,
@@ -515,7 +518,7 @@ async fn inbox_stream_data(
     
     // Sync the data
     let mut sync_from = None;
-    if let Some((cur, cur_hash)) = offset {
+    if let Some((cur, cur_hash, _)) = offset {
         sync_data(&chain, &reply_at, wire_format, cur).await?;
         sync_from = Some(cur_hash);
     }
