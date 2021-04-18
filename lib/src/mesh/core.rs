@@ -175,7 +175,7 @@ pub(crate) async fn locate_offset_of_sync(chain: &Arc<Chain>, history_sample: Ve
             debug!("streaming entire history");
             match guard.chain.history.iter().map(|(k, v)| (k.clone(), v.event_hash.clone())).next() {
                 Some((a, b)) => {
-                    Some((a, b, multi.count().await))
+                    Some((a, b, guard.chain.pointers.count()))
                 },
                 None => None
             }

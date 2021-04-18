@@ -490,7 +490,7 @@ async fn inbox_stream_data(
             .collect::<Vec<_>>();
         (chain.integrity, root_keys)
     };
-    let mut size = chain.count().await;
+    let mut size = 0usize;
 
     // Find what offset we will start streaming the events back to the caller
     // (we work backwards from the consumers last known position till we find a match
