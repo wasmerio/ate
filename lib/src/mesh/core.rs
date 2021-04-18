@@ -151,13 +151,14 @@ pub(crate) async fn locate_offset_of_sync(chain: &Arc<Chain>, history_sample: Ve
     let guard = multi.inside_async.read().await;
     match history_sample.iter().filter_map(|t| guard.chain.history_reverse.get(t)).next() {
         Some(a) => {
-            debug!("resuming from after offset {}", a);
             let a = *a + 1;
+            debug!("resuming from after offset {}", a);
             let mut range = guard.chain.history.range(a..).map(|(k, v)| (k.clone(), v.event_hash));
 
             let mut first = None;
             let mut count = 0usize;
             while let Some(range) = range.next() {
+                debug!("blah: {:?}", range);
                 if first.is_none() {
                     first = Some(range);
                 }
