@@ -146,10 +146,10 @@ impl MeshHashTable
     }
 }
 
-pub(crate) async fn locate_offset_of_sync(chain: &Arc<Chain>, history_sample: Vec<Hash>) -> Option<(u64, Hash)> {
+pub(crate) async fn locate_offset_of_sync(chain: &Arc<Chain>, pivot: Hash) -> Option<(u64, Hash)> {
     let multi = chain.multi().await;
     let guard = multi.inside_async.read().await;
-    match history_sample.iter().filter_map(|t| guard.chain.history_reverse.get(t)).next_back() {
+    match guard.chain.history_reverse.get(&pivot) {
         Some(a) => {
             let a = *a + 1;
             let mut range = guard.chain.history.range(a..).map(|(k, v)| (k.clone(), v.event_hash));
@@ -157,6 +157,12 @@ pub(crate) async fn locate_offset_of_sync(chain: &Arc<Chain>, history_sample: Ve
         },
         None => None
     }
+}
+
+pub(crate) async fn locate_pivot_within_history(chain: &Arc<Chain>, history_sample: Vec<Hash>) -> Option<Hash> {
+    let multi = chain.multi().await;
+    let guard = multi.inside_async.read().await;
+    history_sample.iter().filter(|t| guard.chain.history_reverse.contains_key(t)).map(|h| h.clone()).next_back()
 }
 
 pub(crate) async fn sync_data(chain: &Arc<Chain>, send_to: &mpsc::Sender<PacketData>, wire_format: SerializationFormat, cur: u64)

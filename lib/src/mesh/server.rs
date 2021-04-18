@@ -493,16 +493,16 @@ async fn inbox_samples_of_history(
 
     // See if the pivot point gets closer to the end of the history - if it does not then
     // keep taking samples
-    if let Some((offset, hash)) = locate_offset_of_sync(&chain, history_sample).await {
+    if let Some(hash) = locate_pivot_within_history(&chain, history_sample).await {
         if hash != pivot {
-            debug!("inbox: pivot has moved forward (pivot={}, offset={})", hash, offset);
+            debug!("inbox: pivot is still moving forward (pivot={})", hash);
             PacketData::reply_at(reply_at, wire_format, Message::SampleRightOf(hash)).await?;
             return Ok(());
         } else {
-            debug!("inbox: pivot has settled (pivot={}, offset={})", hash, offset);
+            debug!("inbox: pivot has settled in the middle (pivot={})", hash);
         }
     } else {
-        debug!("inbox: pivot has settled (pivot={})", pivot);
+        debug!("inbox: pivot has settled at the end (pivot={})", pivot);
     }
 
     // We have got as close as we can - lets start the history sending process now
@@ -582,7 +582,7 @@ async fn inbox_stream_data(
         // Find what offset we will start streaming the events back to the caller
         // (we work backwards from the consumers last known position till we find a match
         //  otherwise we just start from the front - duplicate records will be deleted anyway)
-        let offset = match locate_offset_of_sync(&chain, vec![pivot]).await {
+        let offset = match locate_offset_of_sync(&chain, pivot).await {
             Some(a) => a,
             None => {
                 debug!("could not locate anymore to send - notifying the client");
