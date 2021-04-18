@@ -98,8 +98,8 @@ impl BinaryTreeIndexer
                         }
                     }
                 },
-                CoreMetadata::UploadEvents(upload) => {
-                    self.uploads.insert(upload.from, upload);
+                CoreMetadata::DelayedUpload(upload) => {
+                    self.uploads.insert(upload.from, upload.clone());
                 }
                 _ => { },
             }
@@ -146,7 +146,7 @@ impl BinaryTreeIndexer
 
     pub(crate) fn get_delayed_upload(&self, from: Hash) -> Option<MetaDelayedUpload>
     {
-        self.uploads.get(from)
+        self.uploads.get(&from).map(|e| e.clone())
     }
 }
 

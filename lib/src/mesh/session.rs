@@ -202,7 +202,7 @@ impl MeshSession
             // If we are synchronizing from an earlier point in the tree then
             // add all the events into a redo log that will be shippped
             if let Some(sync_from) = sync_from {
-                MeshSession::record_delayed_upload(&chain, sync_from).await;
+                MeshSession::record_delayed_upload(&chain, sync_from).await?;
             }
         }
         
