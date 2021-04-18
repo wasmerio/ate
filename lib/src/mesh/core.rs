@@ -149,7 +149,7 @@ impl MeshHashTable
 pub(crate) async fn locate_offset_of_sync(chain: &Arc<Chain>, history_sample: Vec<Hash>) -> Option<(u64, Hash)> {
     let multi = chain.multi().await;
     let guard = multi.inside_async.read().await;
-    match history_sample.iter().filter_map(|t| guard.chain.history_reverse.get(t)).next() {
+    match history_sample.iter().filter_map(|t| guard.chain.history_reverse.get(t)).next_back() {
         Some(a) => {
             let a = *a + 1;
             debug!("resuming from after offset {}", a);
