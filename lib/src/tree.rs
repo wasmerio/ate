@@ -329,10 +329,12 @@ for TreeAuthorityPlugin
                             return Ok(ValidationResult::Allow)
                         }
                     }
+                    debug!("rejected event as it has no signatures (centralized)");
+                } else {
+                    debug!("rejected event as it has no signatures (distributed)");
                 }
                 
                 // Otherwise fail
-                debug!("rejected event as it has no signatures");
                 return Err(ValidationError::NoSignatures);
             },
         };
