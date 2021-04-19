@@ -316,13 +316,10 @@ where R: RangeBounds<Hash>
     };
     
     // Determine how many more events are left to sync
-    let size = match range.start_bound() {
-        Bound::Unbounded => 0,
-        _ => {
-            let guard = chain.multi().await;
-            let guard = guard.inside_async.read().await;
-            guard.range((range.start_bound(), range.end_bound())).count()
-        },
+    let size = {
+        let guard = chain.multi().await;
+        let guard = guard.inside_async.read().await;
+        guard.range((range.start_bound(), range.end_bound())).count()
     };
 
     // Let the caller know we will be streaming them events
