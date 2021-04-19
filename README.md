@@ -91,6 +91,14 @@ This library is a way of working with data in modern distributed computing.
 ## Changelog
 
 ```
+0.5.0 - Implemented clientside resync functionality
+        + This new release (which is not backwards compatible) makes a significant
+          improvement on the recovery mechanisms. When a client disconnects from
+          the server and makes local writes, those writes will be stored locally and
+          then reuploaded to the chain-of-trust merged in with the changes other
+          clients have made when it reconnects. This means clients can now
+          run in a disconnected state for a prolonged period of time as long and
+          remain consistent.
 0.4.1 - Incremental release focused on improving stability and recovery
         + Clients will now automatically reconnect using an exponential backoff
         + Added recovery mode settings on the AteFS implementation which shows

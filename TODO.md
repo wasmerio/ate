@@ -1,20 +1,20 @@
 ```
-0.4.2 - Resync Functionality
+0.5.0 - Resync Functionality
         + Implement logic that will resend partially sent local logs upon restart
-0.4.3   Account access rights
+0.5.1   Account access rights
         + AteAuth requires account access rights that also get added to the token
         + Connect up the 'chmod' commands to real commands in AteAuth so that
           actual ATE data object access rights reflect the linux permissions
-0.5.0   Very large file-system support
+0.5.2   Very large file-system support
         + Files larger than 20MB should be stored in a seperate chains
         + Files larger than 200MB should be stored in extents that each have
           their own chains
-0.5.1   Compacting chains
+0.5.3   Compacting chains
         + AteDb should periodically compact itself without breaking things
         + Events that are streamed to a compacted chain that predate the
           compaction should be dropped.
         + Deleting all the entries in a chain should also destroy the chain
-0.5.2   Snapshots and References
+0.5.4   Snapshots and References
         + Taking a snapshot of a file system should cause the chain to rotate
           which makes it immutable (need an emulated folder to restore and
           create those snapshots)
