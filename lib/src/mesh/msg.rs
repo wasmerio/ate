@@ -98,7 +98,8 @@ pub(super) enum Message {
     },
     StartOfHistory {
         size: usize,
-        pivot: Option<Hash>,
+        from: Option<Hash>,
+        to: Option<Hash>,
         integrity: IntegrityMode,
         root_keys: Vec<PublicSignKey>,
     },

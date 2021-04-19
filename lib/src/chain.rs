@@ -210,6 +210,12 @@ impl ChainProtectedAsync
     pub fn range<'a, R>(&'a self, range: R) -> impl DoubleEndedIterator<Item = &'a EventHeaderRaw>
     where R: RangeBounds<Hash>
     {
+        self.range_internal(range).map(|e| e.1)
+    }
+
+    fn range_internal<'a, R>(&'a self, range: R) -> std::collections::btree_map::Range<u64, EventHeaderRaw>
+    where R: RangeBounds<Hash>
+    {
         // Grab the starting point        
         let start = range.start_bound();
         let start = match start {
@@ -223,7 +229,7 @@ impl ChainProtectedAsync
                             Some(*a)
                         }
                     },
-                    None => None
+                    None => { return self.chain.history.range(u64::MAX..); }
                 }
             },
         };
@@ -251,11 +257,14 @@ impl ChainProtectedAsync
         };
         let end = match end {
             Some(a) => a,
-            None => self.chain.history.iter().next_back().map_or_else(|| u64::MAX, |e| e.0.clone()),
+            None => self.chain.history
+                        .iter()
+                        .next_back()
+                        .map_or_else(|| u64::MAX, |e| e.0.clone()),
         };
         
         // Stream in all the events
-        self.chain.history.range(start..end).map(|e| e.1)
+        self.chain.history.range(start..end)
     }
 }
 

@@ -5,6 +5,7 @@ use std::{collections::BTreeMap, sync::Arc};
 use crate::{header::PrimaryKey, meta::Metadata, pipe::EventPipe};
 use bytes::Bytes;
 use tokio::sync::mpsc;
+use std::ops::*;
 
 use crate::crypto::*;
 use crate::event::*;
@@ -146,10 +147,10 @@ impl MeshHashTable
     }
 }
 
-pub(crate) async fn locate_offset_of_sync(chain: &Arc<Chain>, pivot: Hash) -> Option<(u64, Hash)> {
+pub(crate) async fn locate_offset_of_sync(chain: &Arc<Chain>, pivot: &Hash) -> Option<(u64, Hash)> {
     let multi = chain.multi().await;
     let guard = multi.inside_async.read().await;
-    match guard.chain.history_reverse.get(&pivot) {
+    match guard.chain.history_reverse.get(pivot) {
         Some(a) => {
             let a = *a + 1;
             let mut range = guard.chain.history.range(a..).map(|(k, v)| (k.clone(), v.event_hash));
@@ -165,42 +166,64 @@ pub(crate) async fn locate_pivot_within_history(chain: &Arc<Chain>, history_samp
     history_sample.iter().filter(|t| guard.chain.history_reverse.contains_key(t)).map(|h| h.clone()).next_back()
 }
 
-pub(crate) async fn sync_data(chain: &Arc<Chain>, send_to: &mpsc::Sender<PacketData>, wire_format: SerializationFormat, cur: u64)
-    -> Result<(), CommsError>
+async fn stream_events<R>(
+    chain: &Arc<Chain>,
+    range: R,
+    send_to: &mpsc::Sender<PacketData>,
+    wire_format: SerializationFormat,
+)
+-> Result<(), CommsError>
+where R: RangeBounds<Hash>
 {
     // Declare vars
     let multi = chain.multi().await;
-    let mut cur = Some(cur);
+    let mut cur = match range.start_bound() {
+        Bound::Unbounded => {
+            let guard = multi.inside_async.read().await;
+            match guard.chain.history.iter().map(|a| a.1.event_hash).next() {
+                Some(a) => Bound::Included(a),
+                None => { return Ok(()) }
+            }
+        },
+        Bound::Included(a) => Bound::Included(a.clone()),
+        Bound::Excluded(a) => Bound::Excluded(a.clone()),
+    };
+
+    // Compute the end bound
+    let end = match range.end_bound() {
+        Bound::Unbounded => Bound::Unbounded,
+        Bound::Included(a) => Bound::Included(a.clone()),
+        Bound::Excluded(a) => Bound::Excluded(a.clone()),
+    };
     
     // We work in batches of 2000 events releasing the lock between iterations so that the
     // server has time to process new events (capped at 2MB of data per send)
     let max_send: usize = 2 * 1024 * 1024;
-    while let Some(start) = cur {
+    loop {
         let mut leafs = Vec::new();
         {
             let guard = multi.inside_async.read().await;
-            let mut iter = guard.chain.history.range(start..);
-
+            let mut iter = guard
+                .range((cur, end))
+                .take(2000);
+            
             let mut amount = 0 as usize;
-            for _ in 0..2000 {
-                match iter.next() {
-                    Some((k, v)) => {
-                        cur = Some(k.clone() + 1);
-                        leafs.push(EventLeaf {
-                            record: v.event_hash,
-                            created: 0,
-                            updated: 0,
-                        });
+            match iter.next() {
+                Some(v) => {
+                    cur = Bound::Excluded(v.event_hash);
+                    leafs.push(EventLeaf {
+                        record: v.event_hash,
+                        created: 0,
+                        updated: 0,
+                    });
 
-                        amount = amount + v.meta_bytes.len() + v.data_size;
-                        if amount > max_send {
-                            break;
-                        }
-                    },
-                    None => {
-                        cur = None;
+                    amount = amount + v.meta_bytes.len() + v.data_size;
+                    if amount > max_send {
                         break;
                     }
+                },
+                None => {
+                    return Ok(())
                 }
             }
         }
@@ -218,12 +241,75 @@ pub(crate) async fn sync_data(chain: &Arc<Chain>, send_to: &mpsc::Sender<PacketD
             };
             evts.push(evt);
         }
-        debug!("sending {} events @{}", evts.len(), start);
+        debug!("sending {} events", evts.len());
         PacketData::reply_at(Some(&send_to), wire_format, Message::Events {
             commit: None,
             evts
         }).await?;
     }
 
+    Ok(())
+}
+
+pub(super) async fn stream_history<R>(
+    chain: Arc<Chain>,
+    range: R,
+    reply_at: mpsc::Sender<PacketData>,
+    wire_format: SerializationFormat,
+)
+-> Result<(), CommsError>
+where R: RangeBounds<Hash>
+{
+    // Extract the root keys and integrity mode
+    let (integrity, root_keys) = {
+        let chain = chain.inside_sync.read();
+        let root_keys = chain
+            .plugins
+            .iter()
+            .flat_map(|p| p.root_keys())
+            .collect::<Vec<_>>();
+        (chain.integrity, root_keys)
+    };
+    
+    // Determine how many more events are left to sync
+    let size = match range.start_bound() {
+        Bound::Unbounded => 0,
+        _ => {
+            let guard = chain.multi().await;
+            let guard = guard.inside_async.read().await;
+            guard.range((range.start_bound(), range.end_bound())).count()
+        },
+    };
+
+    // Let the caller know we will be streaming them events
+    debug!("sending start-of-history (size={})", size);
+    PacketData::reply_at(Some(&reply_at), wire_format,
+    Message::StartOfHistory
+        {
+            size,
+            from: match range.start_bound() {
+                Bound::Unbounded => None,
+                Bound::Included(a) | Bound::Excluded(a) => Some(a.clone())
+            },
+            to: match range.end_bound() {
+                Bound::Unbounded => None,
+                Bound::Included(a) | Bound::Excluded(a) => Some(a.clone())
+            },
+            root_keys,
+            integrity,
+        }
+    ).await?;
+
+    // Only if there are things to send
+    if size > 0
+    {
+        // Sync the events
+        debug!("streaming requested events");
+        stream_events(&chain, range, &reply_at, wire_format).await?;
+    }
+
+    // Let caller know we have sent all the events that were requested
+    debug!("sending end-of-history");
+    PacketData::reply_at(Some(&reply_at), wire_format, Message::EndOfHistory).await?;
     Ok(())
 }

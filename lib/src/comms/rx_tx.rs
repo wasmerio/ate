@@ -66,6 +66,23 @@ where C: Send + Sync + Default + 'static
         Ok(())
     }
 
+    pub(crate) fn get_unicast_sender(&self) -> Option<mpsc::Sender<PacketData>>
+    {
+        match &self.direction {
+            TxDirection::Downcast(_) => {
+                None
+            },
+            TxDirection::UpcastOne(a) => {
+                Some(a.outbox.clone())
+            },
+            TxDirection::UpcastMany(a) => {
+                let upcasts = a.values().filter(|u| u.outbox.is_closed() == false).collect::<Vec<_>>();
+                let upcast = upcasts.choose(&mut rand::thread_rng()).unwrap();
+                Some(upcast.outbox.clone())
+            }
+        }
+    }
+
     pub(crate) async fn send<M>(&self, msg: M) -> Result<(), CommsError>
     where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default
     {

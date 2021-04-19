@@ -208,7 +208,20 @@ impl MeshSession
         Ok(())
     }
 
-    async fn inbox_start_of_history(self: &Arc<MeshSession>, size: usize, pivot: Option<Hash>, loader: &mut Option<Box<impl Loader>>, root_keys: Vec<PublicSignKey>, integrity: IntegrityMode) -> Result<(), CommsError>
+    async fn complete_delayed_upload(chain: &Arc<Chain>, from: Hash, to: Hash) -> Result<(), CommsError>
+    {
+        let mut guard = chain.inside_async.write().await;
+        let _ = guard.feed_meta_data(&chain.inside_sync, Metadata {
+            core: vec![CoreMetadata::DelayedUpload(MetaDelayedUpload {
+                complete: true,
+                from,
+                to
+            })]
+        }).await?;
+        Ok(())
+    }
+
+    async fn inbox_start_of_history(self: &Arc<MeshSession>, size: usize, from: Option<Hash>, _to: Option<Hash>, loader: &mut Option<Box<impl Loader>>, root_keys: Vec<PublicSignKey>, integrity: IntegrityMode) -> Result<(), CommsError>
     {
         // Declare variables
         let size = size;
@@ -226,8 +239,8 @@ impl MeshSession
 
             // If we are synchronizing from an earlier point in the tree then
             // add all the events into a redo log that will be shippped
-            if let Some(pivot) = pivot {
-                MeshSession::record_delayed_upload(&chain, pivot).await?;
+            if let Some(from) = from {
+                MeshSession::record_delayed_upload(&chain, from).await?;
             }
         }
         
@@ -267,8 +280,8 @@ impl MeshSession
     {
         //debug!("inbox: packet size={}", pck.data.bytes.len());
         match pck.packet.msg {
-            Message::StartOfHistory { size, pivot, root_keys, integrity }
-                => Self::inbox_start_of_history(self, size, pivot, loader, root_keys, integrity).await,
+            Message::StartOfHistory { size, from, to, root_keys, integrity }
+                => Self::inbox_start_of_history(self, size, from, to, loader, root_keys, integrity).await,
             Message::SampleRightOf(pivot)
                 => Self::inbox_sample_right_of(self, pivot, pck.data).await,
             Message::Connected
@@ -557,6 +570,10 @@ for RecoverableSessionPipe
         let (pipe, node_rx, session)
             = self.create_active_pipe().await;
 
+        // Clone some parameters out of the pipe that we use later
+        let pipe_tx = pipe.tx.get_unicast_sender();
+        let wire_format = pipe.tx.wire_format;
+
         // Run the loaders and the message procesor
         let mut loader = self.loader_remote.lock().take();
         let (loading_sender, mut loading_receiver)
@@ -618,11 +635,35 @@ for RecoverableSessionPipe
         let chain = self.chain.lock().as_ref().map(|a| a.upgrade());
         if let Some(Some(chain)) = chain {
             for delayed_upload in chain.get_pending_uploads().await {
-                debug!("sending pending upload [{}..{}]", delayed_upload.from, delayed_upload.to);
+                
+                if let Some(reply_at) = &pipe_tx {
+                    debug!("sending pending upload [{}..{}]", delayed_upload.from, delayed_upload.to);
 
-                todo!("First we need to send the data - best to reuse code here");
-                todo!("We need to wait for the response to the send of the data");
-                todo!("Next we need to clear the pending upload by writing a new event to the chain");
+                    // We send all the events for this delayed upload to the server by streaming
+                    // it in a controlled and throttled way
+                    stream_history(
+                        Arc::clone(&chain), 
+                        delayed_upload.from..delayed_upload.to, 
+                        reply_at.clone(),
+                        wire_format,
+                    ).await?;
+
+                    // We complete a dummy transaction to confirm that all the data has been
+                    // successfully received by the server and processed before we clear our flag
+                    match chain.multi().await.sync().await {
+                        Ok(()) =>
+                        {
+                            // Finally we clear the pending upload by writing a record for it
+                            MeshSession::complete_delayed_upload(&chain, delayed_upload.from, delayed_upload.to).await?;
+                        },
+                        Err(err) =>
+                        {
+                            debug!("failed sending pending upload - {}", err);
+                        }
+                    };
+                } else {
+                    debug!("failed sending pending upload - no pipe sender");
+                }
             }
         }
 

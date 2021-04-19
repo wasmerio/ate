@@ -121,6 +121,21 @@ impl ChainMultiUser
             inside_sync: self.inside_sync.read()
         }        
     }
+
+    pub async fn sync(&self) -> Result<(), CommitError>
+    {
+        // Create the transaction
+        let trans = Transaction {
+            scope: Scope::Full,
+            transmit: true,
+            events: Vec::new(),
+            conversation: None,
+        };
+
+        // Process the transaction in the chain using its pipe
+        self.pipe.feed(trans).await?;
+        Ok(())
+    }
 }
 
 impl ChainProtectedSync {

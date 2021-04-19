@@ -464,7 +464,7 @@ where F: OpenFlow + 'static
         },
         None => {
             if let Some(reply_at) = reply_at {
-                inbox_stream_data(chain, None, reply_at.clone(), wire_format).await?;
+                stream_history(chain, .., reply_at.clone(), wire_format).await?;
             } else {
                 debug!("no reply address for this subscribe");
             }
@@ -510,9 +510,9 @@ async fn inbox_samples_of_history(
     {
         // Stream the data back to the client
         debug!("inbox: starting the streaming process");
-        tokio::spawn(inbox_stream_data(
+        tokio::spawn(stream_history(
             Arc::clone(&chain), 
-            Some(pivot), 
+            pivot.., 
             reply_at.clone(),
             wire_format,
         ));
@@ -520,84 +520,6 @@ async fn inbox_samples_of_history(
         debug!("no reply address for this streaming of data");
     }
 
-    Ok(())
-}
-
-async fn inbox_stream_data(
-    chain: Arc<Chain>,
-    pivot: Option<Hash>,
-    reply_at: mpsc::Sender<PacketData>,
-    wire_format: SerializationFormat,
-)
--> Result<(), CommsError>
-{
-    // Extract the root keys and integrity mode
-    let (integrity, root_keys) = {
-        let chain = chain.inside_sync.read();
-        let root_keys = chain
-            .plugins
-            .iter()
-            .flat_map(|p| p.root_keys())
-            .collect::<Vec<_>>();
-        (chain.integrity, root_keys)
-    };
-    
-    // Determine how many more events are left to sync
-    let size = match pivot
-    {
-        Some(pivot) => {
-            debug!("syncing from pivot point in chain (hash={})", pivot);
-            let guard = chain.multi().await;
-            let guard = guard.inside_async.read().await;
-            guard.range(pivot..).count()
-        },
-        None => {
-            debug!("no chain to sync so an easy sync");
-            0
-        }
-    };
-
-    // Let the caller know we will be streaming them events
-    debug!("sending start-of-history (size={})", size);
-    PacketData::reply_at(Some(&reply_at), wire_format,
-    Message::StartOfHistory
-        {
-            size,
-            pivot,
-            root_keys,
-            integrity,
-        }
-    ).await?;
-
-    // If there are none left we are done
-    if size <= 0 {
-        debug!("nothing left to send - notifying the client");
-        PacketData::reply_at(Some(&reply_at), wire_format, Message::EndOfHistory).await?;
-        return Ok(())
-    }
-
-    // If a pivot point was found then we send the data
-    if let Some(pivot) = pivot
-    {
-        // Find what offset we will start streaming the events back to the caller
-        // (we work backwards from the consumers last known position till we find a match
-        //  otherwise we just start from the front - duplicate records will be deleted anyway)
-        let offset = match locate_offset_of_sync(&chain, pivot).await {
-            Some(a) => a,
-            None => {
-                debug!("could not locate anymore to send - notifying the client");
-                PacketData::reply_at(Some(&reply_at), wire_format, Message::EndOfHistory).await?;
-                return Ok(())
-            }
-        };
-        
-        // Sync the data
-        sync_data(&chain, &reply_at, wire_format, offset.0).await?;
-    }
-    
-    // Let caller know we have sent all the events that were requested
-    debug!("sending end-of-history");
-    PacketData::reply_at(Some(&reply_at), wire_format, Message::EndOfHistory).await?;
     Ok(())
 }
 
