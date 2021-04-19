@@ -238,25 +238,22 @@ impl ChainProtectedAsync
             None => self.chain.history.iter().next().map_or_else(|| 0, |e| e.0.clone())
         };
 
-        // Grab the ending point        
-        let end = range.end_bound();
-        let end = match end {
-            Bound::Unbounded => None,
-            Bound::Included(a) | Bound::Excluded(a) => {
-                match self.chain.history_reverse.get(a) {
-                    Some(a) => {
-                        if let Bound::Excluded(_) = end {
-                            Some(*a - 1)
-                        } else {
-                            Some(*a)
-                        }
-                    },
-                    None => None
-                }
+        // Grab the ending point
+        let mut inclusive_end = false;
+        let end = match range.end_bound() {
+            Bound::Unbounded => {
+                return self.chain.history.range(start..);
+            },
+            Bound::Included(a) => {
+                inclusive_end = true;
+                self.chain.history_reverse.get(a)
+            },
+            Bound::Excluded(a) => {
+                self.chain.history_reverse.get(a)
             },
         };
         let end = match end {
-            Some(a) => a,
+            Some(a) => a.clone(),
             None => self.chain.history
                         .iter()
                         .next_back()
@@ -264,7 +261,10 @@ impl ChainProtectedAsync
         };
         
         // Stream in all the events
-        self.chain.history.range(start..end)
+        match inclusive_end {
+            true => self.chain.history.range(start..=end),
+            false => self.chain.history.range(start..end)
+        }        
     }
 }
 
