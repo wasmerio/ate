@@ -134,7 +134,7 @@ impl ChainProtectedAsync
             }
 
             self.chain.pointers.feed(&header);
-            self.chain.add_history(header.raw);
+            self.chain.add_history(&header);
         }
 
         ret.as_result()
@@ -196,7 +196,7 @@ impl ChainProtectedAsync
                 .write(evt).await?;
 
             self.chain.pointers.feed(&header);
-            self.chain.add_history(header.raw.clone());
+            self.chain.add_history(&header);
             ret.push(header);
         }
 

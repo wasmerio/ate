@@ -357,4 +357,11 @@ impl Metadata
         )
         .next()
     }
+
+    pub fn include_in_history(&self) -> bool {
+        if self.get_delayed_upload().is_some() {
+            return false;
+        }
+        true
+    }
 }

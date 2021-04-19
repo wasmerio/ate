@@ -246,7 +246,6 @@ impl MeshSession
                     let guard = multi.inside_async.read().await;
                     let mut iter = guard
                         .range(to..)
-                        .filter(|e| e.as_header().ok().map_or_else(|| true, |h| h.meta.get_delayed_upload().is_none()))
                         .map(|e| e.event_hash);
                     iter.next();
                     iter.next()

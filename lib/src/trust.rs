@@ -217,11 +217,14 @@ impl<'a> ChainOfTrust
         self.key.name.clone()
     }
 
-    pub(crate) fn add_history(&mut self, header: EventHeaderRaw) {
-        let offset = self.history_offset;
-        self.history_offset = self.history_offset + 1;
-        self.history_reverse.insert(header.event_hash.clone(), offset);
-        self.history.insert(offset, header);
+    pub(crate) fn add_history(&mut self, header: &EventHeader) {
+        let raw = header.raw.clone();
+        if header.meta.include_in_history() {
+            let offset = self.history_offset;
+            self.history_offset = self.history_offset + 1;
+            self.history_reverse.insert(raw.event_hash.clone(), offset);
+            self.history.insert(offset, raw);
+        }
     }
 }
 
