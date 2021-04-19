@@ -222,7 +222,7 @@ impl MeshSession
         Ok(())
     }
 
-    async fn inbox_start_of_history(self: &Arc<MeshSession>, size: usize, from: Option<Hash>, _to: Option<Hash>, loader: &mut Option<Box<impl Loader>>, root_keys: Vec<PublicSignKey>, integrity: IntegrityMode) -> Result<(), CommsError>
+    async fn inbox_start_of_history(self: &Arc<MeshSession>, size: usize, _from: Option<Hash>, to: Option<Hash>, loader: &mut Option<Box<impl Loader>>, root_keys: Vec<PublicSignKey>, integrity: IntegrityMode) -> Result<(), CommsError>
     {
         // Declare variables
         let size = size;
@@ -240,8 +240,17 @@ impl MeshSession
 
             // If we are synchronizing from an earlier point in the tree then
             // add all the events into a redo log that will be shippped
-            if let Some(from) = from {
-                MeshSession::record_delayed_upload(&chain, from).await?;
+            if let Some(to) = to {
+                let next = {
+                    let multi = chain.multi().await;
+                    let guard = multi.inside_async.read().await;
+                    let mut iter = guard.range(to..).map(|e| e.event_hash);
+                    iter.next();
+                    iter.next()
+                };
+                if let Some(next) = next {
+                    MeshSession::record_delayed_upload(&chain, next).await?;
+                }
             }
         }
         

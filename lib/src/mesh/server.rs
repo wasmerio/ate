@@ -464,7 +464,7 @@ where F: OpenFlow + 'static
         },
         None => {
             if let Some(reply_at) = reply_at {
-                stream_empty_history(chain, reply_at.clone(), wire_format).await?;
+                stream_empty_history(chain, None, reply_at.clone(), wire_format).await?;
             } else {
                 debug!("no reply address for this subscribe");
             }
@@ -525,14 +525,14 @@ async fn inbox_samples_of_history(
             iter.next();
             iter.next()
         };
-        let pivot = match next {
+        let next = match next {
             Some(a) => {
                 debug!("inbox: pivot has settled in the middle (pivot={})", pivot);
                 a
             },
             None => {
                 debug!("inbox: pivot has settled at the eof");
-                stream_empty_history(Arc::clone(&chain), reply_at.clone(), wire_format).await?;
+                stream_empty_history(Arc::clone(&chain), Some(pivot), reply_at.clone(), wire_format).await?;
                 return Ok(())
             }
         };
@@ -541,7 +541,7 @@ async fn inbox_samples_of_history(
         debug!("inbox: starting the streaming process");
         tokio::spawn(stream_history_range(
             Arc::clone(&chain), 
-            pivot.., 
+            next.., 
             reply_at.clone(),
             wire_format,
         ));

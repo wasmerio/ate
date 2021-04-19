@@ -260,6 +260,7 @@ where R: RangeBounds<Hash>
 
 pub(super) async fn stream_empty_history(
     chain: Arc<Chain>,
+    to: Option<Hash>,
     reply_at: mpsc::Sender<PacketData>,
     wire_format: SerializationFormat,
 )
@@ -283,7 +284,7 @@ pub(super) async fn stream_empty_history(
         {
             size: 0,
             from: None,
-            to: None,
+            to,
             root_keys,
             integrity,
         }
