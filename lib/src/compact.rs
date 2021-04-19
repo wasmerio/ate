@@ -121,7 +121,6 @@ for TombstoneCompactor
 
 impl Metadata
 {
-    #[allow(dead_code)]
     pub fn get_tombstone(&self) -> Option<PrimaryKey> {
         self.core.iter().filter_map(
             |m| {
@@ -135,7 +134,6 @@ impl Metadata
         .next()
     }
 
-    #[allow(dead_code)]
     pub fn add_tombstone(&mut self, key: PrimaryKey) {
         let has = self.core.iter().any(
             |m| {

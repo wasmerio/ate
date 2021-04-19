@@ -344,4 +344,17 @@ impl Metadata
             })
             .next()
     }
+
+    pub fn get_delayed_upload(&self) -> Option<MetaDelayedUpload> {
+        self.core.iter().filter_map(
+            |m| {
+                match m
+                {
+                    CoreMetadata::DelayedUpload(k) => Some(k.clone()),
+                     _ => None
+                }
+            }
+        )
+        .next()
+    }
 }
