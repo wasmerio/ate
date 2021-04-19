@@ -62,8 +62,6 @@
         + Create PayPal exchange for wallets
         + Add contracts
 0.11.0  Rentable Server
-        + Assume that bootloader can be compromised and thus it should not have
-          any elevated rights into the account
         + Ate bootloader that goes into an advertising state which publishes the
           machine and its specs on an open market.
         + Buyers can run test loads on an advertised machine to see if they are
