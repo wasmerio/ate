@@ -235,7 +235,10 @@ impl ChainProtectedAsync
         };
         let start = match start {
             Some(a) => a,
-            None => self.chain.history.iter().next().map_or_else(|| 0, |e| e.0.clone())
+            None => self.chain.history
+                .iter()
+                .next()
+                .map_or_else(|| 0, |e| e.0.clone())
         };
 
         // Grab the ending point

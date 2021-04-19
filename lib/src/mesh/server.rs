@@ -514,8 +514,6 @@ async fn inbox_samples_of_history(
                 debug!("inbox: pivot is still moving forward (pivot={})", hash);
                 PacketData::reply_at(Some(&reply_at), wire_format, Message::SampleRightOf(hash)).await?;
                 return Ok(());
-            } else {
-                debug!("inbox: pivot has settled in the middle (pivot={})", hash);
             }
         }
 
@@ -523,11 +521,15 @@ async fn inbox_samples_of_history(
         let next = {
             let multi = chain.multi().await;
             let guard = multi.inside_async.read().await;
-            let ret = guard.range(pivot..).map(|e| e.event_hash).next();
-            ret
+            let mut iter = guard.range(pivot..).map(|e| e.event_hash);
+            iter.next();
+            iter.next()
         };
         let pivot = match next {
-            Some(a) => a,
+            Some(a) => {
+                debug!("inbox: pivot has settled in the middle (pivot={})", pivot);
+                a
+            },
             None => {
                 debug!("inbox: pivot has settled at the eof");
                 stream_empty_history(Arc::clone(&chain), reply_at.clone(), wire_format).await?;
