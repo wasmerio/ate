@@ -14,7 +14,7 @@ links = "fuse"
 
 [dependencies]
 ate = { version = "0.5.*", path = "../lib" }
-ate-auth = { version = "1.2.*", path = "../auth" }
+ate-auth = { version = "1.3.*", path = "../auth" }
 tokio = { version = "1.3.*", features = ["full", "signal", "process"] }
 serde = { version = "1.0.*", features = ["derive"] }
 log = { version = "0.4.*", features = [ "release_max_level_info" ] }
