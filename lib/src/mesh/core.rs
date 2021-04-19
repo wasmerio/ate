@@ -208,23 +208,29 @@ where R: RangeBounds<Hash>
                 .take(2000);
             
             let mut amount = 0 as usize;
-            match iter.next() {
-                Some(v) => {
-                    cur = Bound::Excluded(v.event_hash);
-                    leafs.push(EventLeaf {
-                        record: v.event_hash,
-                        created: 0,
-                        updated: 0,
-                    });
+            loop {
+                match iter.next() {
+                    Some(v) => {
+                        cur = Bound::Excluded(v.event_hash);
+                        leafs.push(EventLeaf {
+                            record: v.event_hash,
+                            created: 0,
+                            updated: 0,
+                        });
 
-                    amount = amount + v.meta_bytes.len() + v.data_size;
-                    if amount > max_send {
+                        amount = amount + v.meta_bytes.len() + v.data_size;
+                        if amount > max_send {
+                            break;
+                        }
+                    },
+                    None => {
                         break;
                     }
-                },
-                None => {
-                    return Ok(())
                 }
+            }
+
+            if amount <= 0 {
+                return Ok(());
             }
         }
         let mut evts = Vec::new();
@@ -247,8 +253,6 @@ where R: RangeBounds<Hash>
             evts
         }).await?;
     }
-
-    Ok(())
 }
 
 pub(super) async fn stream_history<R>(
