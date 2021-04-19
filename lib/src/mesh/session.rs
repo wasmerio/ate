@@ -210,6 +210,7 @@ impl MeshSession
 
     async fn complete_delayed_upload(chain: &Arc<Chain>, from: Hash, to: Hash) -> Result<(), CommsError>
     {
+        debug!("delayed_upload complete: {}..{}", from, to);
         let mut guard = chain.inside_async.write().await;
         let _ = guard.feed_meta_data(&chain.inside_sync, Metadata {
             core: vec![CoreMetadata::DelayedUpload(MetaDelayedUpload {
@@ -641,7 +642,7 @@ for RecoverableSessionPipe
 
                     // We send all the events for this delayed upload to the server by streaming
                     // it in a controlled and throttled way
-                    stream_history(
+                    stream_history_range(
                         Arc::clone(&chain), 
                         delayed_upload.from..delayed_upload.to, 
                         reply_at.clone(),

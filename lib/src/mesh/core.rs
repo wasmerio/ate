@@ -255,7 +255,44 @@ where R: RangeBounds<Hash>
     }
 }
 
-pub(super) async fn stream_history<R>(
+pub(super) async fn stream_empty_history(
+    chain: Arc<Chain>,
+    reply_at: mpsc::Sender<PacketData>,
+    wire_format: SerializationFormat,
+)
+-> Result<(), CommsError>
+{
+    // Extract the root keys and integrity mode
+    let (integrity, root_keys) = {
+        let chain = chain.inside_sync.read();
+        let root_keys = chain
+            .plugins
+            .iter()
+            .flat_map(|p| p.root_keys())
+            .collect::<Vec<_>>();
+        (chain.integrity, root_keys)
+    };
+
+    // Let the caller know we will be streaming them events
+    debug!("sending start-of-history (size={})", 0);
+    PacketData::reply_at(Some(&reply_at), wire_format,
+    Message::StartOfHistory
+        {
+            size: 0,
+            from: None,
+            to: None,
+            root_keys,
+            integrity,
+        }
+    ).await?;
+
+    // Let caller know we have sent all the events that were requested
+    debug!("sending end-of-history");
+    PacketData::reply_at(Some(&reply_at), wire_format, Message::EndOfHistory).await?;
+    Ok(())
+}
+
+pub(super) async fn stream_history_range<R>(
     chain: Arc<Chain>,
     range: R,
     reply_at: mpsc::Sender<PacketData>,
