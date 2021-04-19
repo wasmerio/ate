@@ -494,6 +494,19 @@ async fn inbox_samples_of_history(
             None => { return Ok(()); }
         };
 
+        // If no samples were supplied at all then just send the entire history as they dont have
+        // anything at all (or we lost sync)
+        if history_sample.len() <= 0 {
+            debug!("inbox: streaming the entire history");
+            tokio::spawn(stream_history_range(
+                Arc::clone(&chain), 
+                .., 
+                reply_at.clone(),
+                wire_format,
+            ));
+            return Ok(())
+        }
+
         // See if the pivot point gets closer to the end of the history - if it does not then
         // keep taking samples
         if let Some(hash) = locate_pivot_within_history(&chain, history_sample).await {
@@ -504,19 +517,32 @@ async fn inbox_samples_of_history(
             } else {
                 debug!("inbox: pivot has settled in the middle (pivot={})", hash);
             }
-
-            // Stream the data back to the client
-            debug!("inbox: starting the streaming process");
-            tokio::spawn(stream_history_range(
-                Arc::clone(&chain), 
-                pivot.., 
-                reply_at.clone(),
-                wire_format,
-            ));
-        } else {
-            debug!("inbox: pivot has settled at the eof");
-            stream_empty_history(Arc::clone(&chain), reply_at.clone(), wire_format).await?;
         }
+
+        // Move to the right of the pivot point
+        let next = {
+            let multi = chain.multi().await;
+            let guard = multi.inside_async.read().await;
+            let ret = guard.range(pivot..).map(|e| e.event_hash).next();
+            ret
+        };
+        let pivot = match next {
+            Some(a) => a,
+            None => {
+                debug!("inbox: pivot has settled at the eof");
+                stream_empty_history(Arc::clone(&chain), reply_at.clone(), wire_format).await?;
+                return Ok(())
+            }
+        };
+
+        // Stream the data back to the client
+        debug!("inbox: starting the streaming process");
+        tokio::spawn(stream_history_range(
+            Arc::clone(&chain), 
+            pivot.., 
+            reply_at.clone(),
+            wire_format,
+        ));
     } else {
         debug!("no reply address for this streaming of data");
     }
