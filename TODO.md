@@ -1,6 +1,4 @@
 ```
-0.5.0 - Resync Functionality
-        + Implement logic that will resend partially sent local logs upon restart
 0.5.1   Account access rights
         + AteAuth requires account access rights that also get added to the token
         + Connect up the 'chmod' commands to real commands in AteAuth so that

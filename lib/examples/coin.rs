@@ -25,9 +25,9 @@ async fn main() -> Result<(), AteError>
 
     // Our session needs the keys
     let mut session = AteSession::new(&conf);
-    session.add_write_key(&root);
-    session.add_write_key(&sk);
-    session.add_read_key(&ek);
+    session.add_write_key(None, AteRolePurpose::Owner, &root);
+    session.add_write_key(None, AteRolePurpose::Owner, &sk);
+    session.add_read_key(None, AteRolePurpose::Owner, &ek);
 
     let key =
     {
@@ -45,8 +45,8 @@ async fn main() -> Result<(), AteError>
 
     // Build a new session that does not have the root key
     let mut session = AteSession::new(&conf);
-    session.add_write_key(&sk);
-    session.add_read_key(&ek);
+    session.add_write_key(None, AteRolePurpose::Owner, &sk);
+    session.add_read_key(None, AteRolePurpose::Owner, &ek);
     
     {
         // Only we can read or write this record (and anything attached to it) in the chain-of-trust

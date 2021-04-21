@@ -183,14 +183,7 @@ for SignaturePlugin
         for auth in auths.into_iter()
         {
             // Find the session key for it (if one does not exist we have a problem!)
-            let sk = match session.properties
-                .iter()
-                .filter_map(|p| {
-                    match p {
-                        SessionProperty::WriteKey(key) => Some(key),
-                        _ => None,
-                    }
-                })
+            let sk = match session.write_keys()
                 .filter(|k| k.hash() == *auth)
                 .next()
             {

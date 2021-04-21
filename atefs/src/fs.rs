@@ -173,23 +173,11 @@ impl AteFS
     }
 
     fn get_read_key(&self) -> Option<AteHash> {
-        self.session.properties.iter().filter_map(|a| {
-            match a {
-                AteSessionProperty::ReadKey(key) => Some(key.hash()),
-                _ => None,
-            }
-        })
-        .next()
+        self.session.user.read_keys().map(|a| a.hash()).next()
     }
 
     fn get_write_key(&self) -> Option<AteHash> {
-        self.session.properties.iter().filter_map(|a| {
-            match a {
-                AteSessionProperty::WriteKey(key) => Some(key.hash()),
-                _ => None,
-            }
-        })
-        .next()
+        self.session.user.write_keys().map(|a| a.hash()).next()
     }
 
     pub async fn load<'a>(&'a self, inode: u64) -> Result<(Dao<Inode>, Dio<'a>)> {
@@ -282,7 +270,7 @@ impl AteFS
             SpecType::RegularFile,
         );
 
-        let child = conv_serialization(data.push(&mut dio, data.children, child))?;
+        let child = conv_serialization(data.push_store(&mut dio, data.children, child))?;
         return Ok((child, dio));
     }
 
@@ -611,7 +599,7 @@ for AteFS
             SpecType::Directory,
         );
 
-        let mut child = conv_serialization(data.push(&mut dio, data.children, child))?;
+        let mut child = conv_serialization(data.push_store(&mut dio, data.children, child))?;
 
         conv_serialization(child.commit(&mut dio))?;
         let child_spec = Inode::as_file_spec(child.key().as_u64(), child.when_created(), child.when_updated(), child);

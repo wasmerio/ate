@@ -18,10 +18,15 @@ use crate::helper::*;
 
 impl AuthService
 {
+    pub(crate) fn master_key(&self) -> Option<EncryptKey>
+    {
+        self.master_session.read_keys().map(|a| a.clone()).next()
+    }
+
     pub(crate) fn compute_super_key(&self, secret: EncryptKey) -> Option<EncryptKey>
     {
         // Create a session with crypto keys based off the username and password
-        let master_key = match self.master_session.read_keys().into_iter().next() {
+        let master_key = match self.master_session.read_keys().next() {
             Some(a) => a.clone(),
             None => { return None; }
         };
@@ -38,8 +43,8 @@ impl AuthService
             Some(a) => a,
             None => { return Err(ServiceError::Reply(LoginFailed::NoMasterKey)); }
         };
-        let mut session = AteSession::default();
-        session.add_read_key(&super_key);
+        let mut super_session = AteSession::default();
+        super_session.user.add_read_key(&super_key);
 
         // Compute which chain the user should exist within
         let user_chain_key = auth_chain_key("auth".to_string(), &request.email);
@@ -49,14 +54,14 @@ impl AuthService
         let user =
         {
             // Attempt to load the object (if it fails we will tell the caller)
-            let mut dio = chain.dio(&session).await;
+            let mut dio = chain.dio(&super_session).await;
             let user = match dio.load::<User>(&user_key).await {
                 Ok(a) => a,
                 Err(LoadError::NotFound(_)) => {
-                    return Err(ServiceError::Reply(LoginFailed::NotFound));
+                    return Err(ServiceError::Reply(LoginFailed::UserNotFound));
                 },
                 Err(LoadError::TransformationError(TransformError::MissingReadKey(_))) => {
-                    return Err(ServiceError::Reply(LoginFailed::NotFound));
+                    return Err(ServiceError::Reply(LoginFailed::UserNotFound));
                 },
                 Err(err) => {
                     return Err(ServiceError::LoadError(err));
@@ -79,31 +84,32 @@ impl AuthService
         };
 
         // Add all the authorizations
-        let mut session = compute_user_auth(&user, session);
+        let mut session = compute_user_auth(&user);
 
         // If a google authenticator code has been supplied then we need to try and load the
         // extra permissions from elevated rights
         if let Some(code) = request.code {
             let super_super_key = match self.compute_super_key(super_key.clone()) {
                 Some(a) => a,
-                None => { return Err(ServiceError::Reply(LoginFailed::NotFound)); }
+                None => { return Err(ServiceError::Reply(LoginFailed::UserNotFound)); }
             };
-            session.add_read_key(&super_super_key);
+            super_session.user.add_read_key(&super_super_key);
 
             // Load the sudo object
-            let mut dio = chain.dio(&session).await;
+            let mut dio = chain.dio(&super_session).await;
             if let Some(sudo) = match user.sudo.load(&mut dio).await {
                 Ok(a) => a,
                 Err(LoadError::NotFound(_)) => {
-                    return Err(ServiceError::Reply(LoginFailed::NotFound));
+                    return Err(ServiceError::Reply(LoginFailed::UserNotFound));
                 },
                 Err(LoadError::TransformationError(TransformError::MissingReadKey(_))) => {
-                    return Err(ServiceError::Reply(LoginFailed::NotFound));
+                    return Err(ServiceError::Reply(LoginFailed::UserNotFound));
                 },
                 Err(err) => {
                     return Err(ServiceError::LoadError(err))
                 }
             }
+
             {
                 // Check the code matches the authenticator code
                 let time = self.ntp_worker.current_timestamp().unwrap();
@@ -116,20 +122,10 @@ impl AuthService
                 }
 
                 // Add the extra authentication objects from the sudo
-                let session = compute_sudo_auth(&sudo.take(), session.clone());
-
-                // Return the session that can be used to access this user
-                return Ok(LoginResponse {
-                    user_key,
-                    nominal_read: user.nominal_read,
-                    nominal_write: user.nominal_write,
-                    sudo_read: user.sudo_read,
-                    sudo_write: user.sudo_write,
-                    authority: session.properties.clone()
-                });
-
+                session = compute_sudo_auth(&sudo.take(), session);
+                
             } else {
-                return Err(ServiceError::Reply(LoginFailed::NotFound));
+                return Err(ServiceError::Reply(LoginFailed::UserNotFound));
             }
         }
 
@@ -140,13 +136,13 @@ impl AuthService
             nominal_write: user.nominal_write,
             sudo_read: user.sudo_read,
             sudo_write: user.sudo_write,
-            authority: session.properties.clone()
+            authority: session
         })
     }
 }
 
 #[allow(dead_code)]
-pub async fn login_command(username: String, password: String, code: Option<String>, auth: Url) -> Result<AteSession, LoginError>
+pub async fn login_command(username: String, password: String, code: Option<String>, group: Option<String>, auth: Url) -> Result<AteSession, LoginError>
 {
     // Open a command chain
     let chain_url = crate::helper::command_url(auth);
@@ -163,6 +159,7 @@ pub async fn login_command(username: String, password: String, code: Option<Stri
     let login = LoginRequest {
         email: username.clone(),
         secret: read_key,
+        group,
         code,
     };
 
@@ -170,14 +167,11 @@ pub async fn login_command(username: String, password: String, code: Option<Stri
     let response: Result<LoginResponse, InvokeError<LoginFailed>> = chain.invoke(login).await;
     match response {
         Err(InvokeError::Reply(LoginFailed::AccountLocked)) => Err(LoginError::AccountLocked),
-        Err(InvokeError::Reply(LoginFailed::NotFound)) => Err(LoginError::NotFound(username)),
+        Err(InvokeError::Reply(LoginFailed::UserNotFound)) => Err(LoginError::NotFound(username)),
         Err(InvokeError::Reply(err)) => Err(LoginError::ServerError(err.to_string())),
         result => {
-            let mut result = result?;
-
-            let mut session = AteSession::default();
-            session.properties.append(&mut result.authority);
-            Ok(session)
+            let result = result?;
+            Ok(result.authority)
         }
     }
 }
@@ -187,7 +181,7 @@ pub async fn load_credentials(username: String, read_key: EncryptKey, _code: Opt
     // Prepare for the load operation
     let key = PrimaryKey::from(username.clone());
     let mut session = AteSession::new(&conf_auth());
-    session.add_read_key(&read_key);
+    session.user.add_read_key(&read_key);
 
     // Compute which chain our user exists in
     let chain_url = crate::helper::auth_url(auth, &username);
@@ -203,12 +197,8 @@ pub async fn load_credentials(username: String, read_key: EncryptKey, _code: Opt
     // Build a new session
     let mut session = AteSession::new(&conf_auth());
     for access in user.access.iter() {
-        if let Some(read) = &access.read {
-            session.add_read_key(read);
-        }
-        if let Some(write) = &access.write {
-            session.add_write_key(write);
-        }
+        session.user.add_read_key(&access.read);
+        session.user.add_write_key(&access.write);
     }
     Ok(session)
 }
@@ -239,7 +229,7 @@ pub async fn main_session(token_string: Option<String>, token_file_path: Option<
     // If we don't have a session but an authentication server was provided then lets use that to get one
     if session.is_none() {
         if let Some(auth) = auth_url {
-            session = Some(main_login(None, None, None, auth).await?);
+            session = Some(main_login(None, None, None, None, auth).await?);
         }
     }
 
@@ -256,6 +246,7 @@ pub async fn main_login(
     username: Option<String>,
     password: Option<String>,
     code: Option<String>,
+    group: Option<String>,
     auth: Url
 ) -> Result<AteSession, LoginError>
 {
@@ -283,6 +274,6 @@ pub async fn main_login(
     };
 
     // Login using the authentication server which will give us a session with all the tokens
-    let session = login_command(username, password, code, auth).await?;
+    let session = login_command(username, password, code, group, auth).await?;
     Ok(session)
 }

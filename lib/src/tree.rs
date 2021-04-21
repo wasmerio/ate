@@ -178,31 +178,24 @@ impl TreeAuthorityPlugin
                 Ok(None)
             },
             ReadOption::Specific(key_hash) => {
-                for prop in session.properties.iter() {
-                    if let SessionProperty::ReadKey(key) = prop {
-                        if key.hash() == *key_hash {
-                            return Ok(Some((
-                                InitializationVector::generate(),
-                                key.clone()
-                            )));
-                        }
+                for key in session.read_keys() {
+                    if key.hash() == *key_hash {
+                        return Ok(Some((
+                            InitializationVector::generate(),
+                            key.clone()
+                        )));
                     }
                 }
-
-                for prop in session.properties.iter() {
-                    if let SessionProperty::PublicReadKey(key) = prop {
-                        if key.hash() == *key_hash {
-                            let (iv, key) = key.encapsulate();
-                            return Ok(Some((iv, key)));
-                        }
+                for key in session.public_read_keys() {
+                    if key.hash() == *key_hash {
+                        let (iv, key) = key.encapsulate();
+                        return Ok(Some((iv, key)));
                     }
                 }
-                for prop in session.properties.iter() {
-                    if let SessionProperty::PrivateReadKey(key) = prop {
-                        if key.hash() == *key_hash {
-                            let (iv, key) = key.as_public_key().encapsulate();
-                            return Ok(Some((iv, key)));
-                        }
+                for key in session.private_read_keys() {
+                    if key.hash() == *key_hash {
+                        let (iv, key) = key.as_public_key().encapsulate();
+                        return Ok(Some((iv, key)));
                     }
                 }
                 Err(TransformError::MissingReadKey(key_hash.clone()))
@@ -220,22 +213,18 @@ impl TreeAuthorityPlugin
                 Ok(None)
             },
             ReadOption::Specific(key_hash) => {
-                for prop in session.properties.iter() {
-                    if let SessionProperty::ReadKey(key) = prop {
-                        if key.hash() == *key_hash {
-                            return Ok(Some(key.clone()));
-                        }
+                for key in session.read_keys() {
+                    if key.hash() == *key_hash {
+                        return Ok(Some(key.clone()));
                     }
                 }
                 if let Some(iv) = iv {
-                    for prop in session.properties.iter() {
-                        if let SessionProperty::PrivateReadKey(key) = prop {
-                            if key.hash() == *key_hash {
-                                return Ok(Some(match key.decapsulate(iv) {
-                                    Some(a) => a,
-                                    None => { continue; }
-                                }));
-                            }
+                    for key in session.private_read_keys() {
+                        if key.hash() == *key_hash {
+                            return Ok(Some(match key.decapsulate(iv) {
+                                Some(a) => a,
+                                None => { continue; }
+                            }));
                         }
                     }
                 }
@@ -389,7 +378,7 @@ for TreeAuthorityPlugin
                 for write_hash in auth.write.vals().iter()
                 {
                     // Make sure we actually own the key that it wants to write with
-                    let sk = session.properties
+                    let sk = session.user.properties
                         .iter()
                         .filter_map(|p| {
                             match p {

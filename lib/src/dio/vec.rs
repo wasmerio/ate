@@ -79,8 +79,18 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
             )
         )
     }
-    
+
+    #[deprecated(
+        since = "0.5.1",
+        note = "This method has been replaced by push_store and push_make - use one of these instead."
+    )]
     pub fn push<C>(&mut self, dio: &mut Dio, vec: DaoVec<C>, data: C) -> Result<Dao<C>, SerializationError>
+    where C: Serialize + DeserializeOwned + Clone + Send + Sync
+    {
+        Ok(self.push_store(dio, vec, data)?)
+    }
+    
+    pub fn push_store<C>(&mut self, dio: &mut Dio, vec: DaoVec<C>, data: C) -> Result<Dao<C>, SerializationError>
     where C: Serialize + DeserializeOwned + Clone + Send + Sync
     {
         if self.is_dirty() {
@@ -89,6 +99,17 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
         let mut ret = dio.make_ext(data, Some(self.ethereal.row.format), None)?;
         ret.attach(self, vec);
         Ok(ret.commit(dio)?)
+    }
+    
+    pub fn push_make<C>(&mut self, dio: &mut Dio, vec: DaoVec<C>, data: C) -> Result<DaoEthereal<C>, SerializationError>
+    where C: Serialize + DeserializeOwned + Clone + Send + Sync
+    {
+        if self.is_dirty() {
+            self.commit(dio)?;
+        }
+        let mut ret = dio.make_ext(data, Some(self.ethereal.row.format), None)?;
+        ret.attach(self, vec);
+        Ok(ret)
     }
 }
 

@@ -1,5 +1,6 @@
 #![allow(unused_imports, dead_code)]
 use serde::*;
+use fxhash::FxHashMap;
 use ate::prelude::*;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -99,7 +100,6 @@ pub enum UserRole {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct User {
     pub person: DaoRef<Person>,
-    pub account: DaoRef<Account>,
     pub role: UserRole,    
     pub status: UserStatus,
     pub last_login: Option<chrono::naive::NaiveDate>,
@@ -118,6 +118,7 @@ pub struct Sudo {
     pub secret: String,
     pub qr_code: String,
     pub access: Vec<Authorization>,
+    pub groups: Vec<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -128,30 +129,26 @@ pub struct Advert {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Authorization {
-    pub name: String,
-    pub read: Option<EncryptKey>,
-    pub write: Option<PrivateSignKey>,
+    pub read: EncryptKey,
+    pub write: PrivateSignKey,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct AccountCore {
-    pub email: String,
-    pub name: String,
-    pub access: Vec<Authorization>,
-    pub foreign: DaoForeign
+pub struct Role {
+    pub purpose: AteRolePurpose,
+    pub access: MultiEncryptedSecureData<Authorization>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct AccountPersonal
-{
-    pub core: AccountCore,
-    pub user: DaoRef<User>,
-    pub person: DaoRef<Person>,
+pub struct Group {
+    pub name: String,
+    pub roles: Vec<Role>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Company
 {
+    pub domain: String,
     pub registration_no: String,
     pub tax_id: String,
     pub phone_number: String,
@@ -159,28 +156,4 @@ pub struct Company
     pub do_business_as: String,
     pub legal_business_name: String,
     pub share_holders: DaoVec<Person>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct AccountCompany
-{
-    pub core: AccountCore,
-    pub users: DaoVec<User>,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum Account
-{
-    Company(AccountCompany),
-    Personal(AccountPersonal)
-}
-
-impl Account
-{
-    pub fn core(&self) -> &AccountCore {
-        match self {
-            Account::Company(a) => &a.core,
-            Account::Personal(a) => &a.core,
-        }
-    }
 }

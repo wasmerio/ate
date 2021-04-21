@@ -92,6 +92,7 @@ pub enum CreateError
 {
     IO(tokio::io::Error),
     AteError(AteError),
+    MissingReadKey,
     AlreadyExists
 }
 
@@ -148,6 +149,9 @@ for CreateError {
             },
             CreateError::AlreadyExists => {
                 write!(f, "Create failed as the account already exists")
+            },
+            CreateError::MissingReadKey => {
+                write!(f, "Create failed as the session is missing a read key")
             },
         }
     }

@@ -52,10 +52,10 @@ async fn test_dio()
     debug!("building the session");
     let cfg = ConfAte::default();
     let mut session = AteSession::new(&cfg);
-    session.properties.push(AteSessionProperty::WriteKey(write_key.clone()));
-    session.properties.push(AteSessionProperty::WriteKey(write_key2.clone()));
-    session.properties.push(AteSessionProperty::ReadKey(read_key.clone()));
-    session.properties.push(AteSessionProperty::Identity("author@here.com".to_string()));
+    session.user.properties.push(AteSessionProperty::WriteKey(write_key.clone()));
+    session.user.properties.push(AteSessionProperty::WriteKey(write_key2.clone()));
+    session.user.properties.push(AteSessionProperty::ReadKey(read_key.clone()));
+    session.user.properties.push(AteSessionProperty::Identity("author@here.com".to_string()));
     debug!("{}", session);
 
     let key1;
@@ -79,7 +79,7 @@ async fn test_dio()
                 mock_dao.hidden = "This text should be hidden".to_string();
                 
                 let mut dao1 = dio.store(mock_dao).unwrap();
-                let mut dao3 = dao1.push(&mut dio, dao1.inner, TestEnumDao::Blah1).unwrap();
+                let mut dao3 = dao1.push_store(&mut dio, dao1.inner, TestEnumDao::Blah1).unwrap();
 
                 key1 = dao1.key().clone();
                 debug!("key1: {}", key1.as_hex_string());

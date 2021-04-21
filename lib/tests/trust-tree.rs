@@ -41,10 +41,10 @@ fn test_trust_tree() -> Result<(), AteError>
         {
             debug!("building the session");
             let mut session = AteSession::new(&conf);    
-            session.properties.push(AteSessionProperty::WriteKey(write_key.clone()));
-            session.properties.push(AteSessionProperty::WriteKey(write_key2.clone()));
-            session.properties.push(AteSessionProperty::PublicReadKey(read_key.as_public_key().clone()));
-            session.properties.push(AteSessionProperty::Identity("author@here.com".to_string()));
+            session.user.properties.push(AteSessionProperty::WriteKey(write_key.clone()));
+            session.user.properties.push(AteSessionProperty::WriteKey(write_key2.clone()));
+            session.user.properties.push(AteSessionProperty::PublicReadKey(read_key.as_public_key().clone()));
+            session.user.properties.push(AteSessionProperty::Identity("author@here.com".to_string()));
 
             debug!("creating the chain-of-trust");
             let builder = ChainBuilder::new(&conf)
@@ -66,7 +66,7 @@ fn test_trust_tree() -> Result<(), AteError>
                 let mut car = Car::default();
                 car.name = name.clone();
                 
-                let car = garage.push(&mut dio, garage.cars, car)?;
+                let car = garage.push_store(&mut dio, garage.cars, car)?;
                 assert_eq!(car.name, name);
             }
             garage.commit(&mut dio)?;
@@ -78,9 +78,9 @@ fn test_trust_tree() -> Result<(), AteError>
         {
             debug!("building the session");
             let mut session = AteSession::new(&conf);    
-            session.properties.push(AteSessionProperty::WriteKey(write_key2.clone()));
-            session.properties.push(AteSessionProperty::PrivateReadKey(read_key.clone()));
-            session.properties.push(AteSessionProperty::Identity("author@here.com".to_string()));
+            session.user.properties.push(AteSessionProperty::WriteKey(write_key2.clone()));
+            session.user.properties.push(AteSessionProperty::PrivateReadKey(read_key.clone()));
+            session.user.properties.push(AteSessionProperty::Identity("author@here.com".to_string()));
 
             debug!("loading the chain-of-trust again");
             let mut conf = ConfAte::default();

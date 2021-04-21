@@ -115,8 +115,8 @@ async fn main() -> Result<(), AteError>
             let mut cfg_ate = ate_auth::conf_auth();
             cfg_ate.log_path = shellexpand::tilde(&run.logs_path).to_string();
             let mut session = AteSession::new(&cfg_ate);
-            session.add_read_key(&root_read_key);
-            session.add_write_key(&root_write_key);
+            session.user.add_read_key(&root_read_key);
+            session.user.add_write_key(&root_write_key);
 
             // Create the chain flow and generate configuration
             let flow = ChainFlow::new(&cfg_ate, root_write_key, session);

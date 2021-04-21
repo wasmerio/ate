@@ -29,12 +29,22 @@ for AuthService
 }
 
 #[async_trait]
-impl ServiceHandler<CreateRequest, CreateResponse, CreateFailed>
+impl ServiceHandler<CreateUserRequest, CreateUserResponse, CreateUserFailed>
 for AuthService
 {
-    async fn process<'a>(&self, request: CreateRequest, context: InvocationContext<'a>) -> Result<CreateResponse, ServiceError<CreateFailed>>
+    async fn process<'a>(&self, request: CreateUserRequest, context: InvocationContext<'a>) -> Result<CreateUserResponse, ServiceError<CreateUserFailed>>
     {
-        self.process_create(request, context).await
+        self.process_create_user(request, context).await
+    }
+}
+
+#[async_trait]
+impl ServiceHandler<CreateGroupRequest, CreateGroupResponse, CreateGroupFailed>
+for AuthService
+{
+    async fn process<'a>(&self, request: CreateGroupRequest, context: InvocationContext<'a>) -> Result<CreateGroupResponse, ServiceError<CreateGroupFailed>>
+    {
+        self.process_create_group(request, context).await
     }
 }
 
@@ -68,7 +78,13 @@ pub async fn service_logins(cfg: &ConfAte, cmd_session: AteSession, auth_session
 
     {
         let service = Arc::clone(&service);
-        let service: ServiceInstance<CreateRequest, CreateResponse, CreateFailed> = service;
+        let service: ServiceInstance<CreateUserRequest, CreateUserResponse, CreateUserFailed> = service;
+        chain.add_service(cmd_session.clone(), service);
+    }
+
+    {
+        let service = Arc::clone(&service);
+        let service: ServiceInstance<CreateGroupRequest, CreateGroupResponse, CreateGroupFailed> = service;
         chain.add_service(cmd_session.clone(), service);
     }
 

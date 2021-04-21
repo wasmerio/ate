@@ -10,6 +10,7 @@ pub struct LoginRequest
     pub email: String,
     pub secret: EncryptKey,
     pub code: Option<String>,
+    pub group: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -20,13 +21,14 @@ pub struct LoginResponse
     pub nominal_write: PublicSignKey,
     pub sudo_read: ate::crypto::Hash,
     pub sudo_write: PublicSignKey,
-    pub authority: Vec<AteSessionProperty>
+    pub authority: AteSession
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum LoginFailed
 {
-    NotFound,
+    UserNotFound,
+    GroupNotFound,
     WrongPassword,
     WrongCode,
     AccountLocked,
@@ -38,8 +40,11 @@ impl std::fmt::Display
 for LoginFailed {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            LoginFailed::NotFound => {
-                write!(f, "The account could not be found")
+            LoginFailed::UserNotFound => {
+                write!(f, "The user could not be found")
+            },
+            LoginFailed::GroupNotFound => {
+                write!(f, "The group could not be found")
             },
             LoginFailed::WrongPassword => {
                 write!(f, "The account password is incorrect")
@@ -61,7 +66,7 @@ for LoginFailed {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct CreateRequest
+pub struct CreateUserRequest
 {
     pub auth: String,
     pub email: String,
@@ -69,28 +74,28 @@ pub struct CreateRequest
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct CreateResponse
+pub struct CreateUserResponse
 {
     pub key: PrimaryKey,
     pub qr_code: Option<String>,
-    pub authority: Vec<AteSessionProperty>
+    pub authority: AteSession
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum CreateFailed
+pub enum CreateUserFailed
 {
     AlreadyExists,
     NoMasterKey,
 }
 
 impl std::fmt::Display
-for CreateFailed {
+for CreateUserFailed {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            CreateFailed::AlreadyExists => {
-                write!(f, "The account already exists")
+            CreateUserFailed::AlreadyExists => {
+                write!(f, "The user already exists")
             },
-            CreateFailed::NoMasterKey => {
+            CreateUserFailed::NoMasterKey => {
                 write!(f, "Authentication server has not been properly initialized")
             },
         }
@@ -129,6 +134,41 @@ for QueryFailed {
             },
             QueryFailed::Suspended => {
                 write!(f, "The account has been suspended")
+            },
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CreateGroupRequest
+{
+    pub name: String,
+    pub read_key: EncryptKey,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CreateGroupResponse
+{
+    pub key: PrimaryKey,
+    pub session: AteSession,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum CreateGroupFailed
+{
+    AlreadyExists,
+    NoMasterKey,
+}
+
+impl std::fmt::Display
+for CreateGroupFailed {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            CreateGroupFailed::AlreadyExists => {
+                write!(f, "The group already exists")
+            },
+            CreateGroupFailed::NoMasterKey => {
+                write!(f, "Authentication server has not been properly initialized")
             },
         }
     }

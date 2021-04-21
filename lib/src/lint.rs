@@ -45,7 +45,7 @@ for EventAuthorLinter
     fn metadata_lint_event(&self, _meta: &Metadata, session: &Session, _trans_meta: &TransactionMetadata)-> Result<Vec<CoreMetadata>, LintError> {
         let mut ret = Vec::new();
 
-        for core in &session.properties {
+        for core in &session.user.properties {
             if let SessionProperty::Identity(name) = core {
                 ret.push(CoreMetadata::Author(name.clone()));
             }

@@ -1,11 +1,12 @@
 #![allow(unused_imports)]
+use fxhash::FxHashMap;
 use pqcrypto_falcon::ffi;
 use serde::{Serialize, Deserialize};
 use super::meta::*;
 use super::error::*;
 use rand::{RngCore, SeedableRng, rngs::adapter::ReseedingRng};
 use rand_chacha::{ChaCha20Core, ChaCha20Rng};
-use std::{cell::RefCell, io::ErrorKind};
+use std::{cell::RefCell, io::ErrorKind, marker::PhantomData};
 use std::sync::{Mutex, MutexGuard};
 use once_cell::sync::Lazy;
 use std::result::Result;
@@ -865,6 +866,115 @@ impl EncryptedPrivateKey
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct EncryptedSecureData<T>
+where T: serde::Serialize + serde::de::DeserializeOwned
+{
+    ek_hash: Hash,
+    sd_iv: InitializationVector,
+    sd_encrypted: Vec<u8>,
+    _marker: std::marker::PhantomData<T>,
+}
+
+impl<T> EncryptedSecureData<T>
+where T: serde::Serialize + serde::de::DeserializeOwned
+{
+    pub fn new(encrypt_key: &EncryptKey, data: T) -> Result<EncryptedSecureData<T>, std::io::Error> {
+        let data = match serde_json::to_vec(&data) {
+            Ok(a) => a,
+            Err(err) => { return Err(std::io::Error::new(ErrorKind::Other, err.to_string())); }
+        };
+        let result = encrypt_key.encrypt(&data[..])?;
+        
+        Ok(
+            EncryptedSecureData {
+                ek_hash: encrypt_key.hash(),
+                sd_iv: result.iv,
+                sd_encrypted: result.data,
+                _marker: PhantomData,
+            }
+        )
+    }
+
+    pub fn unwrap(&self, key: &EncryptKey) -> Result<T, std::io::Error> {
+        let data = key.decrypt(&self.sd_iv, &self.sd_encrypted[..])?;
+        Ok(match serde_json::from_slice::<T>(&data[..]) {
+            Ok(a) => a,
+            Err(err) => { return Err(std::io::Error::new(ErrorKind::Other, err.to_string())); }
+        })
+    }
+
+    pub fn ek_hash(&self) -> Hash {
+        self.ek_hash
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MultiEncryptedSecureData<T>
+where T: serde::Serialize + serde::de::DeserializeOwned
+{
+    members: FxHashMap<Hash, EncryptedSecureData<EncryptKey>>,
+    sd_iv: InitializationVector,
+    sd_encrypted: Vec<u8>,
+    _marker: std::marker::PhantomData<T>,
+}
+
+impl<T> MultiEncryptedSecureData<T>
+where T: serde::Serialize + serde::de::DeserializeOwned
+{
+    pub fn new(encrypt_key: &EncryptKey, data: T) -> Result<MultiEncryptedSecureData<T>, std::io::Error> {
+        let shared_key = EncryptKey::generate(encrypt_key.size());
+        let mut members = FxHashMap::default();
+        members.insert(encrypt_key.hash(), EncryptedSecureData::new(encrypt_key, shared_key)?);
+
+        let data = match serde_json::to_vec(&data) {
+            Ok(a) => a,
+            Err(err) => { return Err(std::io::Error::new(ErrorKind::Other, err.to_string())); }
+        };
+        let result = shared_key.encrypt(&data[..])?;
+        
+        Ok(
+            MultiEncryptedSecureData {
+                members,
+                sd_iv: result.iv,
+                sd_encrypted: result.data,
+                _marker: PhantomData,
+            }
+        )
+    }
+
+    pub fn unwrap(&self, key: &EncryptKey) -> Result<Option<T>, std::io::Error> {
+        Ok(
+            match self.members.get(&key.hash()) {
+                Some(a) => {
+                    let shared_key = a.unwrap(key)?;
+                    let data = shared_key.decrypt(&self.sd_iv, &self.sd_encrypted[..])?;
+                    Some(match serde_json::from_slice::<T>(&data[..]) {
+                        Ok(a) => a,
+                        Err(err) => { return Err(std::io::Error::new(ErrorKind::Other, err.to_string())); }
+                    })
+                },
+                None => None
+            }
+        )
+    }
+
+    pub fn add(&mut self, encrypt_key: &EncryptKey, referrer: &EncryptKey) -> Result<bool, std::io::Error> {
+        match self.members.get(&referrer.hash()) {
+            Some(a) => {
+                let shared_key = a.unwrap(referrer)?;
+                self.members.insert(encrypt_key.hash(), EncryptedSecureData::new(encrypt_key, shared_key)?);
+                Ok(true)
+            },
+            None => Ok(false)
+        }
+    }
+
+    pub fn remove(&mut self, what: &Hash) {
+        self.members.remove(what);
+    }
+}
+
 /// Private encryption keys provide the ability to decrypt a secret
 /// that was encrypted using a Public Key - this capability is
 /// useful for key-exchange and trust validation in the crypto chain.
@@ -1217,6 +1327,32 @@ fn test_ntru_encrypt() -> Result<(), AteError>
         let plain_test2 = String::from_utf8(sk.decrypt(&cipher_text.iv, &cipher_text.data)?).unwrap();
 
         assert_eq!(plain_text1, plain_test2);
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_multi_encrypt() -> Result<(), AteError>
+{
+    crate::utils::bootstrap_env();
+
+    static KEY_SIZES: [KeySize; 3] = [KeySize::Bit128, KeySize::Bit192, KeySize::Bit256];
+    for key_size in KEY_SIZES.iter() {
+        let client1 = EncryptKey::generate(key_size.clone());
+        let client2 = EncryptKey::generate(key_size.clone());
+        let client3 = EncryptKey::generate(key_size.clone());
+        
+        let plain_text1 = "the cat ran up the wall".to_string();
+        let mut multi = MultiEncryptedSecureData::new(&client1, plain_text1.clone())?;
+        multi.add(&client2, &client1)?;
+
+        let plain_text2 = multi.unwrap(&client1)?.expect("Should have decrypted.");
+        assert_eq!(plain_text1, plain_text2);
+        let plain_text2 = multi.unwrap(&client2)?.expect("Should have decrypted.");
+        assert_eq!(plain_text1, plain_text2);
+        let plain_text2 = multi.unwrap(&client3)?;
+        assert!(plain_text2.is_none(), "The last client should not load anything");
     }
 
     Ok(())

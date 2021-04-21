@@ -70,7 +70,7 @@ async fn test_mesh()
     let chain_a = client_a.open_by_url(&url::Url::parse("tcp://127.0.0.1/test-chain").unwrap()).await.unwrap();
     debug!("connected with client 1");
     let mut session_a = AteSession::new(&cfg_ate);
-    session_a.add_write_key(&root_key);
+    session_a.add_write_key(None, AteRolePurpose::Owner, &root_key);
     
     let dao_key1;
     let dao_key2;
@@ -96,7 +96,7 @@ async fn test_mesh()
 
             let chain_b = client_b.open_by_key(&ChainKey::new("test-chain".to_string())).await.unwrap();
             let mut session_b = AteSession::new(&cfg_ate);
-            session_b.add_write_key(&root_key);
+            session_b.add_write_key(None, AteRolePurpose::Owner, &root_key);
 
             {
                 debug!("start a DIO session for client B");
@@ -110,9 +110,9 @@ async fn test_mesh()
                 let mut dao2: Dao<TestData> = dio.load(&dao_key2).await.expect("An earlier saved object should have loaded");
                 
                 debug!("add to new sub objects to the vector");
-                dao2.push(&mut dio, dao2.inner, "test_string1".to_string()).unwrap();
+                dao2.push_store(&mut dio, dao2.inner, "test_string1".to_string()).unwrap();
                 dio.commit().await.unwrap();
-                dao2.push(&mut dio, dao2.inner, "test_string2".to_string()).unwrap();
+                dao2.push_store(&mut dio, dao2.inner, "test_string2".to_string()).unwrap();
                 dio.commit().await.unwrap();
             }
         }

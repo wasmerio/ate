@@ -54,7 +54,7 @@ async fn make_account<'a>(conf: &ConfAte, chain: &'a Chain, generator: &mut Gene
             description: generator.next().unwrap(),
             amount: Decimal::from_i64(10).unwrap(),
         };
-        acc.push(&mut dio, acc.transactions, trans).unwrap();
+        acc.push_store(&mut dio, acc.transactions, trans).unwrap();
     }
 
     acc.commit(&mut dio)?;

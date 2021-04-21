@@ -53,8 +53,8 @@ for ChainFlow
             // Build a secure session
             let session_root_key = PrivateSignKey::generate(KeySize::Bit128);
             let mut cmd_session = AteSession::default();
-            cmd_session.add_read_key(&EncryptKey::generate(KeySize::Bit128));
-            cmd_session.add_write_key(&session_root_key);
+            cmd_session.user.add_read_key(&EncryptKey::generate(KeySize::Bit128));
+            cmd_session.user.add_write_key(&session_root_key);
 
             // Build the chain
             let chain = builder

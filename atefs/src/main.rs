@@ -84,6 +84,8 @@ enum SubCommand {
     #[clap()]
     CreateUser(CreateUser),
     #[clap()]
+    CreateGroup(CreateGroup),
+    #[clap()]
     CreateToken(CreateToken),
 }
 
@@ -98,7 +100,10 @@ struct CreateToken {
     password: Option<String>,
     /// Authenticator code from your google authenticator
     #[clap(index = 3)]
-    code: Option<String>
+    code: Option<String>,
+    /// Group to also login against using the rights of the user
+    #[clap(short, long)]
+    group: Option<String>,
 }
 
 
@@ -111,6 +116,14 @@ struct CreateUser {
     /// New password to be associated with this account
     #[clap(index = 2)]
     password: Option<String>,
+}
+
+/// Creates a new group using the login credentials provided or prompted for
+#[derive(Clap)]
+struct CreateGroup {
+    /// Email address of the user to be created
+    #[clap(index = 1)]
+    name: String,
 }
 
 /// Mounts a particular directory as an ATE file system
@@ -347,12 +360,21 @@ async fn main() -> Result<(), CommandError> {
     
     match opts.subcmd {
         SubCommand::CreateToken(login) => {
-            let session = ate_auth::main_login(Some(login.email), login.password, login.code, opts.auth).await?;
+            let session = ate_auth::main_login(Some(login.email), login.password, login.code, login.group, opts.auth).await?;
             eprintln!("The token string below can be used to secure your file system.\n");
             println!("{}", ate_auth::session_to_b64(session.clone()).unwrap());
         },
         SubCommand::CreateUser(create) => {
-            let _session = ate_auth::main_create(Some(create.email), create.password, opts.auth).await?;
+            let _session = ate_auth::main_create_user(Some(create.email), create.password, opts.auth).await?;
+        },
+        SubCommand::CreateGroup(create) => {
+            if opts.no_auth {
+                eprintln!("In order to create groups you must use some form of authentication.");
+                std::process::exit(1);
+            }
+
+            let session = ate_auth::main_session(opts.token.clone(), opts.token_path.clone(), Some(opts.auth.clone())).await?;
+            let _session = ate_auth::main_create_group(Some(create.name), opts.auth, &session).await?;
         },
         SubCommand::Mount(mount) =>
         {
@@ -373,7 +395,7 @@ async fn main() -> Result<(), CommandError> {
 
                 let prefix = "ate:".to_string();
                 let key = ate_auth::password_to_read_key(&prefix, &pass, 10);
-                session.add_read_key(&key);
+                session.user.add_read_key(&key);
 
             } else if opts.no_auth {
                 if mount.remote.is_some() {

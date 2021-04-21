@@ -279,7 +279,7 @@ impl MeshSession
     async fn inbox_secure_with(self: &Arc<MeshSession>, mut session: crate::session::Session) -> Result<(), CommsError> {
         if let Some(chain) = self.chain.upgrade() {
             debug!("received 'secure_with' secrets");
-            chain.inside_sync.write().default_session.properties.append(&mut session.properties);
+            chain.inside_sync.write().default_session.user.properties.append(&mut session.user.properties);
         }
         Ok(())
     }

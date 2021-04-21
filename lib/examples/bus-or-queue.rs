@@ -69,8 +69,8 @@ async fn main() -> Result<(), AteError>
         debug!("writing two records ('balls') onto the earlier saved record 'table' from client 2");
         let mut dio = chain_b.dio_ext(&session, TransactionScope::Full).await;
         let mut dao = dio.load::<Table>(&key).await?;
-        dao.push(&mut dio, dao.ball, BallSound::Ping)?;
-        dao.push(&mut dio, dao.ball, BallSound::Ping)?;
+        dao.push_store(&mut dio, dao.ball, BallSound::Ping)?;
+        dao.push_store(&mut dio, dao.ball, BallSound::Ping)?;
         dao.commit(&mut dio)?;
         dio.commit().await?;
     }
