@@ -33,7 +33,7 @@ impl AuthService
             Some(a) => a,
             None => { return Err(ServiceError::Reply(CreateUserFailed::NoMasterKey)); }
         };
-        let mut super_session = AteSession::default();
+        let mut super_session = self.master_session.clone();
         super_session.user.add_read_key(&super_key);
         super_session.user.add_read_key(&super_super_key);
 

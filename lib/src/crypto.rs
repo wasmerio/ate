@@ -25,7 +25,7 @@ use sha3::Keccak256;
 use sha3::Digest;
 use std::convert::TryInto;
 use crate::conf::HashRoutine;
-
+use crate::spec::SerializationFormat;
 
 /// Size of a cryptographic key, smaller keys are still very secure but
 /// have less room in the future should new attacks be found against the
@@ -870,9 +870,11 @@ impl EncryptedPrivateKey
 pub struct EncryptedSecureData<T>
 where T: serde::Serialize + serde::de::DeserializeOwned
 {
+    format: SerializationFormat,
     ek_hash: Hash,
     sd_iv: InitializationVector,
     sd_encrypted: Vec<u8>,
+    #[serde(skip)]
     _marker: std::marker::PhantomData<T>,
 }
 
@@ -880,7 +882,8 @@ impl<T> EncryptedSecureData<T>
 where T: serde::Serialize + serde::de::DeserializeOwned
 {
     pub fn new(encrypt_key: &EncryptKey, data: T) -> Result<EncryptedSecureData<T>, std::io::Error> {
-        let data = match serde_json::to_vec(&data) {
+        let format = SerializationFormat::Bincode;
+        let data = match format.serialize(&data) {
             Ok(a) => a,
             Err(err) => { return Err(std::io::Error::new(ErrorKind::Other, err.to_string())); }
         };
@@ -888,6 +891,7 @@ where T: serde::Serialize + serde::de::DeserializeOwned
         
         Ok(
             EncryptedSecureData {
+                format,
                 ek_hash: encrypt_key.hash(),
                 sd_iv: result.iv,
                 sd_encrypted: result.data,
@@ -898,7 +902,7 @@ where T: serde::Serialize + serde::de::DeserializeOwned
 
     pub fn unwrap(&self, key: &EncryptKey) -> Result<T, std::io::Error> {
         let data = key.decrypt(&self.sd_iv, &self.sd_encrypted[..])?;
-        Ok(match serde_json::from_slice::<T>(&data[..]) {
+        Ok(match self.format.deserialize(&data[..]) {
             Ok(a) => a,
             Err(err) => { return Err(std::io::Error::new(ErrorKind::Other, err.to_string())); }
         })
@@ -913,9 +917,11 @@ where T: serde::Serialize + serde::de::DeserializeOwned
 pub struct MultiEncryptedSecureData<T>
 where T: serde::Serialize + serde::de::DeserializeOwned
 {
-    members: FxHashMap<Hash, EncryptedSecureData<EncryptKey>>,
+    format: SerializationFormat,
+    members: FxHashMap<String, EncryptedSecureData<EncryptKey>>,
     sd_iv: InitializationVector,
     sd_encrypted: Vec<u8>,
+    #[serde(skip)]
     _marker: std::marker::PhantomData<T>,
 }
 
@@ -923,11 +929,12 @@ impl<T> MultiEncryptedSecureData<T>
 where T: serde::Serialize + serde::de::DeserializeOwned
 {
     pub fn new(encrypt_key: &EncryptKey, data: T) -> Result<MultiEncryptedSecureData<T>, std::io::Error> {
+        let format = SerializationFormat::Bincode;
         let shared_key = EncryptKey::generate(encrypt_key.size());
         let mut members = FxHashMap::default();
-        members.insert(encrypt_key.hash(), EncryptedSecureData::new(encrypt_key, shared_key)?);
+        members.insert(encrypt_key.hash().to_hex_string(), EncryptedSecureData::new(encrypt_key, shared_key)?);
 
-        let data = match serde_json::to_vec(&data) {
+        let data = match format.serialize(&data) {
             Ok(a) => a,
             Err(err) => { return Err(std::io::Error::new(ErrorKind::Other, err.to_string())); }
         };
@@ -935,6 +942,7 @@ where T: serde::Serialize + serde::de::DeserializeOwned
         
         Ok(
             MultiEncryptedSecureData {
+                format,
                 members,
                 sd_iv: result.iv,
                 sd_encrypted: result.data,
@@ -945,11 +953,11 @@ where T: serde::Serialize + serde::de::DeserializeOwned
 
     pub fn unwrap(&self, key: &EncryptKey) -> Result<Option<T>, std::io::Error> {
         Ok(
-            match self.members.get(&key.hash()) {
+            match self.members.get(&key.hash().to_hex_string()) {
                 Some(a) => {
                     let shared_key = a.unwrap(key)?;
                     let data = shared_key.decrypt(&self.sd_iv, &self.sd_encrypted[..])?;
-                    Some(match serde_json::from_slice::<T>(&data[..]) {
+                    Some(match self.format.deserialize::<T>(&data[..]) {
                         Ok(a) => a,
                         Err(err) => { return Err(std::io::Error::new(ErrorKind::Other, err.to_string())); }
                     })
@@ -960,10 +968,10 @@ where T: serde::Serialize + serde::de::DeserializeOwned
     }
 
     pub fn add(&mut self, encrypt_key: &EncryptKey, referrer: &EncryptKey) -> Result<bool, std::io::Error> {
-        match self.members.get(&referrer.hash()) {
+        match self.members.get(&referrer.hash().to_hex_string()) {
             Some(a) => {
                 let shared_key = a.unwrap(referrer)?;
-                self.members.insert(encrypt_key.hash(), EncryptedSecureData::new(encrypt_key, shared_key)?);
+                self.members.insert(encrypt_key.hash().to_hex_string(), EncryptedSecureData::new(encrypt_key, shared_key)?);
                 Ok(true)
             },
             None => Ok(false)
@@ -971,7 +979,7 @@ where T: serde::Serialize + serde::de::DeserializeOwned
     }
 
     pub fn remove(&mut self, what: &Hash) {
-        self.members.remove(what);
+        self.members.remove(&what.to_hex_string());
     }
 }
 

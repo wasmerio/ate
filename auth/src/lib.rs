@@ -6,6 +6,7 @@ mod service;
 mod create;
 mod query;
 mod group;
+mod test;
 pub mod error;
 pub mod commands;
 pub mod prelude;
