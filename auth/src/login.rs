@@ -142,7 +142,7 @@ impl AuthService
 }
 
 #[allow(dead_code)]
-pub async fn login_command(username: String, password: String, code: Option<String>, group: Option<String>, auth: Url) -> Result<AteSession, LoginError>
+pub async fn login_command(username: String, password: String, code: Option<String>, auth: Url) -> Result<AteSession, LoginError>
 {
     // Open a command chain
     let chain_url = crate::helper::command_url(auth);
@@ -159,7 +159,6 @@ pub async fn login_command(username: String, password: String, code: Option<Stri
     let login = LoginRequest {
         email: username.clone(),
         secret: read_key,
-        group,
         code,
     };
 
@@ -229,7 +228,7 @@ pub async fn main_session(token_string: Option<String>, token_file_path: Option<
     // If we don't have a session but an authentication server was provided then lets use that to get one
     if session.is_none() {
         if let Some(auth) = auth_url {
-            session = Some(main_login(None, None, None, None, auth).await?);
+            session = Some(main_login(None, None, None, auth).await?);
         }
     }
 
@@ -246,7 +245,6 @@ pub async fn main_login(
     username: Option<String>,
     password: Option<String>,
     code: Option<String>,
-    group: Option<String>,
     auth: Url
 ) -> Result<AteSession, LoginError>
 {
@@ -274,6 +272,6 @@ pub async fn main_login(
     };
 
     // Login using the authentication server which will give us a session with all the tokens
-    let session = login_command(username, password, code, group, auth).await?;
+    let session = login_command(username, password, code, auth).await?;
     Ok(session)
 }

@@ -88,6 +88,92 @@ for AteError
 }
 
 #[derive(Debug)]
+pub enum GatherError
+{
+    IO(tokio::io::Error),
+    Timeout,
+    NotFound(String),
+    NoAccess,
+    ServerError(String),
+    AteError(AteError)
+}
+
+impl From<tokio::io::Error>
+for GatherError
+{
+    fn from(err: tokio::io::Error) -> GatherError {
+        GatherError::IO(err)
+    }
+}
+
+impl From<AteError>
+for GatherError
+{
+    fn from(err: AteError) -> GatherError {
+        GatherError::AteError(err)
+    }
+}
+
+impl From<ChainCreationError>
+for GatherError
+{
+    fn from(err: ChainCreationError) -> GatherError {
+        GatherError::AteError(AteError::ChainCreationError(err))
+    }
+}
+
+impl From<SerializationError>
+for GatherError
+{
+    fn from(err: SerializationError) -> GatherError {
+        GatherError::AteError(AteError::SerializationError(err))
+    }
+}
+
+impl<E> From<InvokeError<E>>
+for GatherError
+where E: std::fmt::Debug
+{
+    fn from(err: InvokeError<E>) -> GatherError {
+        GatherError::AteError(AteError::InvokeError(err.to_string()))
+    }
+}
+
+impl std::fmt::Display
+for GatherError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            GatherError::Timeout => {
+                write!(f, "Login failed due to a timeout")
+            },
+            GatherError::NoAccess => {
+                write!(f, "Gather failed as the session has no access to this group")
+            },
+            GatherError::IO(err) => {
+                write!(f, "Gather failed due to an IO error ({})", err)
+            },
+            GatherError::NotFound(group) => {
+                write!(f, "Gather failed as the group does not exist ({})", group)
+            },
+            GatherError::AteError(err) => {
+                write!(f, "Gather failed ({})", err.to_string())
+            },
+            GatherError::ServerError(err) => {
+                write!(f, "Gather failed due to an error on the server({})", err)
+            },
+        }
+    }
+}
+
+impl From<GatherError>
+for AteError
+{
+    fn from(err: GatherError) -> AteError {
+        AteError::ServiceError(err.to_string())
+    }
+}
+
+#[derive(Debug)]
 pub enum CreateError
 {
     IO(tokio::io::Error),
@@ -154,6 +240,14 @@ for CreateError {
                 write!(f, "Create failed as the session is missing a read key")
             },
         }
+    }
+}
+
+impl From<CreateError>
+for AteError
+{
+    fn from(err: CreateError) -> AteError {
+        AteError::ServiceError(err.to_string())
     }
 }
 
@@ -228,5 +322,13 @@ for QueryError {
                 write!(f, "Create failed as the user has been suspended")
             },
         }
+    }
+}
+
+impl From<QueryError>
+for AteError
+{
+    fn from(err: QueryError) -> AteError {
+        AteError::ServiceError(err.to_string())
     }
 }

@@ -101,11 +101,7 @@ struct CreateToken {
     /// Authenticator code from your google authenticator
     #[clap(index = 3)]
     code: Option<String>,
-    /// Group to also login against using the rights of the user
-    #[clap(short, long)]
-    group: Option<String>,
 }
-
 
 /// Creates a new user and login credentials on the authentication server
 #[derive(Clap)]
@@ -360,7 +356,7 @@ async fn main() -> Result<(), CommandError> {
     
     match opts.subcmd {
         SubCommand::CreateToken(login) => {
-            let session = ate_auth::main_login(Some(login.email), login.password, login.code, login.group, opts.auth).await?;
+            let session = ate_auth::main_login(Some(login.email), login.password, login.code, opts.auth).await?;
             eprintln!("The token string below can be used to secure your file system.\n");
             println!("{}", ate_auth::session_to_b64(session.clone()).unwrap());
         },

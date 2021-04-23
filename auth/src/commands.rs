@@ -10,7 +10,6 @@ pub struct LoginRequest
     pub email: String,
     pub secret: EncryptKey,
     pub code: Option<String>,
-    pub group: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -28,7 +27,6 @@ pub struct LoginResponse
 pub enum LoginFailed
 {
     UserNotFound,
-    GroupNotFound,
     WrongPassword,
     WrongCode,
     AccountLocked,
@@ -43,9 +41,6 @@ for LoginFailed {
             LoginFailed::UserNotFound => {
                 write!(f, "The user could not be found")
             },
-            LoginFailed::GroupNotFound => {
-                write!(f, "The group could not be found")
-            },
             LoginFailed::WrongPassword => {
                 write!(f, "The account password is incorrect")
             },
@@ -59,6 +54,45 @@ for LoginFailed {
                 write!(f, "The account has not yet been verified")
             },
             LoginFailed::NoMasterKey => {
+                write!(f, "Authentication server has not been properly initialized")
+            },
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GatherRequest
+{
+    pub session: AteSession,
+    pub group: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GatherResponse
+{
+    pub group_key: PrimaryKey,
+    pub authority: AteSession
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum GatherFailed
+{
+    GroupNotFound,
+    NoAccess,
+    NoMasterKey,
+}
+
+impl std::fmt::Display
+for GatherFailed {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            GatherFailed::GroupNotFound => {
+                write!(f, "The group could not be found")
+            },
+            GatherFailed::NoAccess => {
+                write!(f, "No access available to this group")
+            },
+            GatherFailed::NoMasterKey => {
                 write!(f, "Authentication server has not been properly initialized")
             },
         }

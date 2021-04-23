@@ -1,0 +1,126 @@
+#![allow(unused_imports)]
+use log::{info, error, debug};
+use std::{io::stdout, path::Path};
+use std::io::Write;
+use url::Url;
+use std::ops::Deref;
+
+use ate::prelude::*;
+use ate::error::LoadError;
+use ate::error::TransformError;
+
+use crate::conf_auth;
+use crate::prelude::*;
+use crate::commands::*;
+use crate::service::AuthService;
+use crate::helper::*;
+use crate::error::*;
+use crate::helper::*;
+
+impl AuthService
+{
+    pub async fn process_gather<'a>(&self, request: GatherRequest, context: InvocationContext<'a>) -> Result<GatherResponse, ServiceError<GatherFailed>>
+    {
+        info!("gather attempt: {}", request.group);
+
+        // Load the master key which will be used to encrypt the group so that only
+        // the authentication server can access it
+        let master_key = match self.master_key() {
+            Some(a) => a,
+            None => { return Err(ServiceError::Reply(GatherFailed::NoMasterKey)); }
+        };
+
+        // Access to read the 
+        let mut super_session = request.session.clone();
+        super_session.user.add_read_key(&master_key);
+        for read_key in request.session.read_keys() {
+            let super_key = match self.compute_super_key(read_key.clone()) {
+                Some(a) => a,
+                None => { return Err(ServiceError::Reply(GatherFailed::NoMasterKey)); }
+            };        
+            super_session.user.add_read_key(&super_key);
+        }
+
+        // Compute which chain the group should exist within
+        let group_chain_key = auth_chain_key("auth".to_string(), &request.group);
+        let chain = context.repository.open_by_key(&group_chain_key).await?;
+        
+        // If it already exists then fail
+        let group_key = PrimaryKey::from(request.group.clone());
+        let mut dio = chain.dio(&self.master_session).await;
+        let group = match dio.load::<Group>(&group_key).await {
+            Ok(a) => a,
+            Err(LoadError::NotFound(_)) => {
+                return Err(ServiceError::Reply(GatherFailed::GroupNotFound));
+            },
+            Err(LoadError::TransformationError(TransformError::MissingReadKey(_))) => {
+                return Err(ServiceError::Reply(GatherFailed::NoMasterKey));
+            },
+            Err(err) => {
+                return Err(ServiceError::LoadError(err));
+            }
+        };
+
+        // Now go into a loading loop on the session
+        let session = complete_group_auth(group.deref(), super_session.clone())?;
+
+        // Build the composite result
+        let mut ret = request.session.clone();
+        ret.append(session);
+        
+        // Return the session that can be used to access this user
+        Ok(GatherResponse {
+            group_key: group.key().clone(),
+            authority: ret
+        })
+    }
+}
+
+#[allow(dead_code)]
+pub async fn gather_command(group: String, session: AteSession, auth: Url) -> Result<AteSession, GatherError>
+{
+    // Open a command chain
+    let chain_url = crate::helper::command_url(auth);
+    let registry = ate::mesh::Registry::new(&conf_auth(), true).await;
+    let chain = registry.open_by_url(&chain_url).await?;
+    
+    // Create the gather command
+    let gather = GatherRequest {
+        group: group.clone(),
+        session,
+    };
+
+    // Attempt the gather request with a 10 second timeout
+    let response: Result<GatherResponse, InvokeError<GatherFailed>> = chain.invoke(gather).await;
+    match response {
+        Err(InvokeError::Reply(GatherFailed::NoAccess)) => Err(GatherError::NoAccess),
+        Err(InvokeError::Reply(GatherFailed::GroupNotFound)) => Err(GatherError::NotFound(group)),
+        Err(InvokeError::Reply(err)) => Err(GatherError::ServerError(err.to_string())),
+        result => {
+            let result = result?;
+            Ok(result.authority)
+        }
+    }
+}
+
+pub async fn main_gather(
+    group: Option<String>,
+    session: AteSession,
+    auth: Url
+) -> Result<AteSession, GatherError>
+{
+    let group = match group {
+        Some(a) => a,
+        None => {
+            eprint!("Group: ");
+            stdout().lock().flush()?;
+            let mut s = String::new();
+            std::io::stdin().read_line(&mut s).expect("Did not enter a valid group");
+            s.trim().to_string()
+        }
+    };
+
+    // Gather using the authentication server which will give us a new session with the extra tokens
+    let session = gather_command(group, session, auth).await?;
+    Ok(session)
+}

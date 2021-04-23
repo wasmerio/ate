@@ -46,9 +46,9 @@ impl AuthService
         let chain = context.repository.open_by_key(&group_chain_key).await?;
         
         // If it already exists then fail
-        let user_key = PrimaryKey::from(request.name.clone());
+        let group_key = PrimaryKey::from(request.name.clone());
         let mut dio = chain.dio(&super_session).await;
-        if dio.exists(&user_key).await {
+        if dio.exists(&group_key).await {
             return Err(ServiceError::Reply(CreateGroupFailed::AlreadyExists));
         }
 
@@ -67,7 +67,7 @@ impl AuthService
             name: request.name,
             roles: Vec::new(),
         };
-        let mut group = Dao::make(user_key.clone(), chain.default_format(), group);
+        let mut group = Dao::make(group_key.clone(), chain.default_format(), group);
 
         // Add the other roles
         for purpose in vec![
