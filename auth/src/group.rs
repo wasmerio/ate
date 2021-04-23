@@ -103,7 +103,7 @@ impl AuthService
             }
 
             // Add the rights to the session we will return
-            let role = session.get_or_create_group_role(Some(request.name.clone()), purpose.clone());
+            let role = session.get_or_create_group_role(&request.name, &purpose);
             role.add_read_key(&role_read.clone());
             role.add_private_read_key(&role_private_read.clone());
             role.add_write_key(&role_write.clone());
@@ -267,7 +267,7 @@ pub async fn group_add_command(group: String, purpose: AteRolePurpose, username:
 
     // Extract the read key from the session that will be used for the owner
     // key on the file-system
-    let read_key = match session.get_group_role(Some(group.clone()), RolePurpose::Owner).iter().flat_map(|r| r.private_read_keys()).next() {
+    let read_key = match session.get_group_role(&group, &RolePurpose::Owner).iter().flat_map(|r| r.private_read_keys()).next() {
         Some(a) => a.clone(),
         None => {
             debug!("Session is missing private read key for group ({}) with Ownership role", group);

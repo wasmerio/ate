@@ -142,39 +142,39 @@ pub struct Group
 
 impl Group
 {
-    pub fn get_role<'a>(&'a self, purpose: RolePurpose) -> Option<&'a GroupRole>
+    pub fn get_role<'a>(&'a self, purpose: &RolePurpose) -> Option<&'a GroupRole>
     {
-        self.roles.iter().filter(|r| r.purpose == purpose).next()
+        self.roles.iter().filter(|r| r.purpose == *purpose).next()
     }
 
-    pub fn get_or_create_role<'a>(&'a mut self, purpose: RolePurpose) -> &'a mut GroupRole
+    pub fn get_or_create_role<'a>(&'a mut self, purpose: &RolePurpose) -> &'a mut GroupRole
     {
-        if self.roles.iter().any(|r| r.purpose == purpose) == false {
+        if self.roles.iter().any(|r| r.purpose == *purpose) == false {
             self.roles.push(GroupRole {
                 purpose: purpose.clone(),
                 properties: Vec::new()
             });
         }
 
-        self.roles.iter_mut().filter(|r| r.purpose == purpose).next().expect("It should not be possible for this call to fail as the line above just added the item we are searching for")
+        self.roles.iter_mut().filter(|r| r.purpose == *purpose).next().expect("It should not be possible for this call to fail as the line above just added the item we are searching for")
     }
     
-    pub fn add_read_key(&mut self, purpose: RolePurpose, key: &EncryptKey) {
+    pub fn add_read_key(&mut self, purpose: &RolePurpose, key: &EncryptKey) {
         let role = self.get_or_create_role(purpose);
         role.properties.push(SessionProperty::ReadKey(key.clone()));
     }
 
-    pub fn add_private_read_key(&mut self, purpose: RolePurpose, key: &PrivateEncryptKey) {
+    pub fn add_private_read_key(&mut self, purpose: &RolePurpose, key: &PrivateEncryptKey) {
         let role = self.get_or_create_role(purpose);
         role.properties.push(SessionProperty::PrivateReadKey(key.clone()));
     }
 
-    pub fn add_write_key(&mut self, purpose: RolePurpose, key: &PrivateSignKey) {
+    pub fn add_write_key(&mut self, purpose: &RolePurpose, key: &PrivateSignKey) {
         let role = self.get_or_create_role(purpose);
         role.properties.push(SessionProperty::WriteKey(key.clone()));
     }
 
-    pub fn add_identity(&mut self, purpose: RolePurpose, identity: String) {
+    pub fn add_identity(&mut self, purpose: &RolePurpose, identity: String) {
         let role = self.get_or_create_role(purpose);
         role.properties.push(SessionProperty::Identity(identity));
     }
@@ -328,76 +328,106 @@ impl Session
         ret
     }
 
-    pub fn get_group_role<'a>(&'a self, group: Option<String>, purpose: RolePurpose) -> Option<&'a GroupRole>
+    pub fn get_group_role<'a>(&'a self, group: &String, purpose: &RolePurpose) -> Option<&'a GroupRole>
     {
-        let group = match group {
-            Some(a) => a,
-            None => {
-                return Some(&self.user);
-            }
-        };
-
-        self.groups.iter().filter(|r| r.name == group).next()
+        self.groups.iter().filter(|r| r.name == *group).next()
             .map(|a| a.get_role(purpose))
             .flatten()
     }
 
-    pub fn get_or_create_group_role<'a>(&'a mut self, group: Option<String>, purpose: RolePurpose) -> &'a mut GroupRole
+    pub fn get_or_create_group_role<'a>(&'a mut self, group: &String, purpose: &RolePurpose) -> &'a mut GroupRole
     {
-        // Special case (self or user group)
-        let group = match group {
-            Some(a) => a,
-            None => {
-                return &mut self.user;
-            }
-        };
-
-        if self.groups.iter().any(|r| r.name == group) == false {
+        if self.groups.iter().any(|r| r.name == *group) == false {
             self.groups.push(Group {
                 name: group.clone(),
                 roles: Vec::new()
             });
         }
 
-        self.groups.iter_mut().filter(|r| r.name == group).next()
+        self.groups.iter_mut().filter(|r| r.name == *group).next()
             .expect("It should not be possible for this call to fail as the line above just added the item we are searching for")
             .get_or_create_role(purpose)
     }
 
-    pub fn get_group<'a>(&'a mut self, group: String) -> Option<&'a mut Group>
+    pub fn get_group<'a>(&'a mut self, group: &String) -> Option<&'a mut Group>
     {
-        self.groups.iter_mut().filter(|r| r.name == group).next()
+        self.groups.iter_mut().filter(|r| r.name == *group).next()
     }
 
-    pub fn get_or_create_group<'a>(&'a mut self, group: String) -> &'a mut Group
+    pub fn get_or_create_group<'a>(&'a mut self, group: &String) -> &'a mut Group
     {
-        if self.groups.iter().any(|r| r.name == group) == false {
+        if self.groups.iter().any(|r| r.name == *group) == false {
             self.groups.push(Group {
                 name: group.clone(),
                 roles: Vec::new()
             });
         }
 
-        self.groups.iter_mut().filter(|r| r.name == group).next()
+        self.groups.iter_mut().filter(|r| r.name == *group).next()
             .expect("It should not be possible for this call to fail as the line above just added the item we are searching for")
     }
 
-    pub fn add_read_key(&mut self, group: Option<String>, purpose: RolePurpose, key: &EncryptKey) {
+    pub fn get_or_create_sudo<'a>(&'a mut self) -> &'a mut GroupRole
+    {
+        if self.sudo.is_none() {
+            self.sudo.replace(GroupRole {
+                purpose: RolePurpose::Owner,
+                properties: Vec::new()
+            });
+        }
+
+        self.sudo.iter_mut().next()
+            .expect("It should not be possible for this call to fail as the line above just added the item we are searching for")
+    }
+
+    pub fn add_user_read_key(&mut self, key: &EncryptKey) {
+        self.user.add_read_key(key)
+    }
+
+    pub fn add_user_private_read_key(&mut self, key: &PrivateEncryptKey) {
+        self.user.add_private_read_key(key)
+    }
+
+    pub fn add_user_write_key(&mut self, key: &PrivateSignKey) {
+        self.user.add_write_key(key)
+    }
+
+    pub fn add_user_identity(&mut self, identity: String) {
+        self.user.add_identity(identity)
+    }
+
+    pub fn add_sudo_read_key(&mut self, key: &EncryptKey) {
+        self.get_or_create_sudo().add_read_key(key)
+    }
+
+    pub fn add_sudo_private_read_key(&mut self, key: &PrivateEncryptKey) {
+        self.get_or_create_sudo().add_private_read_key(key)
+    }
+
+    pub fn add_sudo_write_key(&mut self, key: &PrivateSignKey) {
+        self.get_or_create_sudo().add_write_key(key)
+    }
+
+    pub fn add_sudo_identity(&mut self, identity: String) {
+        self.get_or_create_sudo().add_identity(identity)
+    }
+
+    pub fn add_group_read_key(&mut self, group: &String, purpose: &RolePurpose, key: &EncryptKey) {
         let role = self.get_or_create_group_role(group, purpose);
         role.add_read_key(key)
     }
 
-    pub fn add_private_read_key(&mut self, group: Option<String>, purpose: RolePurpose, key: &PrivateEncryptKey) {
+    pub fn add_group_private_read_key(&mut self, group: &String, purpose: &RolePurpose, key: &PrivateEncryptKey) {
         let role = self.get_or_create_group_role(group, purpose);
         role.add_private_read_key(key)
     }
 
-    pub fn add_write_key(&mut self, group: Option<String>, purpose: RolePurpose, key: &PrivateSignKey) {
+    pub fn add_group_write_key(&mut self, group: &String, purpose: &RolePurpose, key: &PrivateSignKey) {
         let role = self.get_or_create_group_role(group, purpose);
         role.add_write_key(key)
     }
 
-    pub fn add_identity(&mut self, group: Option<String>, purpose: RolePurpose, identity: String) {
+    pub fn add_group_identity(&mut self, group: &String, purpose: &RolePurpose, identity: String) {
         let role = self.get_or_create_group_role(group, purpose);
         role.add_identity(identity)
     }
@@ -459,9 +489,9 @@ impl Session
         }
 
         for group in other.groups {
-            self.get_or_create_group(group.name.clone());
+            self.get_or_create_group(&group.name);
             for mut role in group.roles {
-                let b = self.get_or_create_group_role(Some(group.name.clone()), role.purpose);
+                let b = self.get_or_create_group_role(&group.name, &role.purpose);
                 b.properties.append(&mut role.properties);
             }
         }

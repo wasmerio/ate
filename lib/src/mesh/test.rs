@@ -70,7 +70,7 @@ async fn test_mesh()
     let chain_a = client_a.open_by_url(&url::Url::parse("tcp://127.0.0.1/test-chain").unwrap()).await.unwrap();
     debug!("connected with client 1");
     let mut session_a = AteSession::new(&cfg_ate);
-    session_a.add_write_key(None, AteRolePurpose::Owner, &root_key);
+    session_a.add_user_write_key(&root_key);
     
     let dao_key1;
     let dao_key2;
@@ -96,7 +96,7 @@ async fn test_mesh()
 
             let chain_b = client_b.open_by_key(&ChainKey::new("test-chain".to_string())).await.unwrap();
             let mut session_b = AteSession::new(&cfg_ate);
-            session_b.add_write_key(None, AteRolePurpose::Owner, &root_key);
+            session_b.add_user_write_key(&root_key);
 
             {
                 debug!("start a DIO session for client B");

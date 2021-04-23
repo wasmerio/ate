@@ -51,7 +51,7 @@ pub async fn test_create_user_and_group() -> Result<(), AteError>
     let session = crate::main_gather(Some(group.clone()), session, auth.clone()).await?;
 
     // Make sure its got the permission
-    let _group_read = session.get_group_role(Some(group.clone()), AteRolePurpose::Owner)
+    let _group_read = session.get_group_role(&group, &AteRolePurpose::Owner)
         .expect("Should have the owner role")
         .private_read_keys()
         .next()
@@ -67,7 +67,7 @@ pub async fn test_create_user_and_group() -> Result<(), AteError>
     let friend = crate::main_gather(Some(group.clone()), friend, auth.clone()).await?;
 
     // Make sure its got the permission
-    let _group_read = friend.get_group_role(Some(group.clone()), AteRolePurpose::Contributor)
+    let _group_read = friend.get_group_role(&group, &AteRolePurpose::Contributor)
         .expect("Should have the contributor role")
         .private_read_keys()
         .next()

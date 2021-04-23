@@ -103,7 +103,7 @@ pub(crate) fn complete_group_auth(group: &Group, mut session: AteSession)
                 if let Some(a) = role.access.unwrap(&read_key)?
                 {
                     // Add access rights to the session                    
-                    let b = session.get_or_create_group_role(Some(group.name.clone()), role.purpose.clone());
+                    let b = session.get_or_create_group_role(&group.name, &role.purpose);
                     b.add_read_key(&a.read);
                     b.add_private_read_key(&a.private_read);
                     b.add_write_key(&a.write);
