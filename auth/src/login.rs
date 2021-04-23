@@ -153,7 +153,7 @@ pub async fn login_command(username: String, password: String, code: Option<Stri
     // (this read-key will be mixed with entropy on the server side to decrypt the row
     //  which means that neither the client nor the server can get at the data alone)
     let prefix = format!("remote-login:{}:", username);
-    let read_key = super::password_to_read_key(&prefix, &password, 10);
+    let read_key = super::password_to_read_key(&prefix, &password, 15, KeySize::Bit192);
     
     // Create the login command
     let login = LoginRequest {

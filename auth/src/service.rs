@@ -68,6 +68,15 @@ for AuthService
     }
 }
 
+#[async_trait]
+impl ServiceHandler<GroupAddRequest, GroupAddResponse, GroupAddFailed>
+for AuthService
+{
+    async fn process<'a>(&self, request: GroupAddRequest, context: InvocationContext<'a>) -> Result<GroupAddResponse, ServiceError<GroupAddFailed>>
+    {
+        self.process_group_add(request, context).await
+    }
+}
 
 pub async fn service_logins(cfg: &ConfAte, cmd_session: AteSession, auth_session: AteSession, chain: &Arc<Chain>)
 -> Result<(), TimeError>
@@ -107,6 +116,12 @@ pub async fn service_logins(cfg: &ConfAte, cmd_session: AteSession, auth_session
     {
         let service = Arc::clone(&service);
         let service: ServiceInstance<GatherRequest, GatherResponse, GatherFailed> = service;
+        chain.add_service(cmd_session.clone(), service);
+    }
+
+    {
+        let service = Arc::clone(&service);
+        let service: ServiceInstance<GroupAddRequest, GroupAddResponse, GroupAddFailed> = service;
         chain.add_service(cmd_session.clone(), service);
     }
 

@@ -25,6 +25,7 @@ impl AuthService
         info!("create user: {}", request.email);
 
         // Compute the super_key, super_super_key (elevated rights) and the super_session
+        let key_size = request.secret.size();
         let super_key = match self.compute_super_key(request.secret) {
             Some(a) => a,
             None => { return Err(ServiceError::Reply(CreateUserFailed::NoMasterKey)); }
@@ -38,17 +39,20 @@ impl AuthService
         super_session.user.add_read_key(&super_super_key);
 
         // Create the access object
-        let read_key = EncryptKey::generate(KeySize::Bit256);
-        let write_key = PrivateSignKey::generate(KeySize::Bit256);
+        let read_key = EncryptKey::generate(key_size);
+        let private_read_key = PrivateEncryptKey::generate(key_size);
+        let write_key = PrivateSignKey::generate(key_size);
         let mut access = Vec::new();
         access.push(Authorization {
             read: read_key.clone(),
+            private_read: private_read_key.clone(),
             write: write_key.clone()
         });
 
         // Create an aggregation session
         let mut session = self.master_session.clone();
         session.user.add_read_key(&read_key);
+        session.user.add_private_read_key(&private_read_key);
         session.user.add_write_key(&write_key);
 
         // Compute which chain the user should exist within
@@ -68,11 +72,13 @@ impl AuthService
         let google_auth_secret = format!("otpauth://totp/{}:{}?secret={}", request.auth.to_string(), request.email, secret);
 
         // Create all the sudo keys
-        let sudo_read_key = EncryptKey::generate(KeySize::Bit256);
-        let sudo_write_key = PrivateSignKey::generate(KeySize::Bit256);
+        let sudo_read_key = EncryptKey::generate(key_size);
+        let sudo_private_read_key = PrivateEncryptKey::generate(key_size);
+        let sudo_write_key = PrivateSignKey::generate(key_size);
         let mut sudo_access = Vec::new();
         sudo_access.push(Authorization {
             read: sudo_read_key.clone(),
+            private_read: sudo_private_read_key.clone(),
             write: sudo_write_key.clone()
         });
     
@@ -86,8 +92,10 @@ impl AuthService
             foreign: DaoForeign::default(),
             sudo: DaoRef::default(),
             nominal_read: read_key.hash(),
+            nominal_public_read: private_read_key.as_public_key(),
             nominal_write: write_key.as_public_key(),
             sudo_read: sudo_read_key.hash(),
+            sudo_public_read: sudo_private_read_key.as_public_key(),
             sudo_write: sudo_write_key.as_public_key()
         };
         let mut user = Dao::make(user_key.clone(), chain.default_format(), user);
@@ -122,6 +130,7 @@ impl AuthService
         let advert_key = PrimaryKey::from(advert_key_entropy);
         let advert = Advert {
             email: request.email.clone(),
+            encrypt: private_read_key.as_public_key(),
             auth: write_key.as_public_key(),
         };
         let mut advert = Dao::make(advert_key, chain.default_format(), advert);
@@ -158,7 +167,7 @@ pub async fn create_user_command(username: String, password: String, auth: Url) 
     // (this read-key will be mixed with entropy on the server side to decrypt the row
     //  which means that neither the client nor the server can get at the data alone)
     let prefix = format!("remote-login:{}:", username);
-    let read_key = super::password_to_read_key(&prefix, &password, 10);
+    let read_key = super::password_to_read_key(&prefix, &password, 15, KeySize::Bit192);
     
     // Create the login command
     let auth = match auth.domain() {

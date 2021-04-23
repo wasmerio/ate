@@ -24,7 +24,24 @@ for RolePurpose
             RolePurpose::Delegate => write!(f, "delegate"),
             RolePurpose::Contributor => write!(f, "contributor"),
             RolePurpose::Observer => write!(f, "observer"),
-            RolePurpose::Other(a) => write!(f, "other({})", a),
+            RolePurpose::Other(a) => write!(f, "other-{}", a),
+        }
+    }
+}
+
+impl std::str::FromStr
+for RolePurpose
+{
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "owner" => Ok(RolePurpose::Owner),
+            "delegate" => Ok(RolePurpose::Delegate),
+            "contributor" => Ok(RolePurpose::Contributor),
+            "observer" => Ok(RolePurpose::Observer),
+            a if a.starts_with("other-") && a.len() > 6 => Ok(RolePurpose::Other(a["other-".len()..].to_string())),
+            _ => Err("valid values are 'owner', 'delegate', 'contributor', 'observer' and 'other-'"),
         }
     }
 }
@@ -125,6 +142,11 @@ pub struct Group
 
 impl Group
 {
+    pub fn get_role<'a>(&'a self, purpose: RolePurpose) -> Option<&'a GroupRole>
+    {
+        self.roles.iter().filter(|r| r.purpose == purpose).next()
+    }
+
     pub fn get_or_create_role<'a>(&'a mut self, purpose: RolePurpose) -> &'a mut GroupRole
     {
         if self.roles.iter().any(|r| r.purpose == purpose) == false {
@@ -219,7 +241,7 @@ for Group
             write!(f, ",")?;
             role.fmt(f)?;
         }
-        write!(f, "]")
+        write!(f, ")")
     }
 }
 
@@ -306,6 +328,20 @@ impl Session
         ret
     }
 
+    pub fn get_group_role<'a>(&'a self, group: Option<String>, purpose: RolePurpose) -> Option<&'a GroupRole>
+    {
+        let group = match group {
+            Some(a) => a,
+            None => {
+                return Some(&self.user);
+            }
+        };
+
+        self.groups.iter().filter(|r| r.name == group).next()
+            .map(|a| a.get_role(purpose))
+            .flatten()
+    }
+
     pub fn get_or_create_group_role<'a>(&'a mut self, group: Option<String>, purpose: RolePurpose) -> &'a mut GroupRole
     {
         // Special case (self or user group)
@@ -326,6 +362,11 @@ impl Session
         self.groups.iter_mut().filter(|r| r.name == group).next()
             .expect("It should not be possible for this call to fail as the line above just added the item we are searching for")
             .get_or_create_role(purpose)
+    }
+
+    pub fn get_group<'a>(&'a mut self, group: String) -> Option<&'a mut Group>
+    {
+        self.groups.iter_mut().filter(|r| r.name == group).next()
     }
 
     pub fn get_or_create_group<'a>(&'a mut self, group: String) -> &'a mut Group

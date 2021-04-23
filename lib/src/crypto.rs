@@ -1,4 +1,5 @@
 #![allow(unused_imports)]
+use log::{info, error, debug};
 use fxhash::FxHashMap;
 use pqcrypto_falcon::ffi;
 use serde::{Serialize, Deserialize};
@@ -881,7 +882,7 @@ where T: serde::Serialize + serde::de::DeserializeOwned
 impl<T> EncryptedSecureData<T>
 where T: serde::Serialize + serde::de::DeserializeOwned
 {
-    pub fn new(encrypt_key: &EncryptKey, data: T) -> Result<EncryptedSecureData<T>, std::io::Error> {
+    pub fn new(encrypt_key: &PublicEncryptKey, data: T) -> Result<EncryptedSecureData<T>, std::io::Error> {
         let format = SerializationFormat::Bincode;
         let data = match format.serialize(&data) {
             Ok(a) => a,
@@ -900,7 +901,7 @@ where T: serde::Serialize + serde::de::DeserializeOwned
         )
     }
 
-    pub fn unwrap(&self, key: &EncryptKey) -> Result<T, std::io::Error> {
+    pub fn unwrap(&self, key: &PrivateEncryptKey) -> Result<T, std::io::Error> {
         let data = key.decrypt(&self.sd_iv, &self.sd_encrypted[..])?;
         Ok(match self.format.deserialize(&data[..]) {
             Ok(a) => a,
@@ -928,7 +929,7 @@ where T: serde::Serialize + serde::de::DeserializeOwned
 impl<T> MultiEncryptedSecureData<T>
 where T: serde::Serialize + serde::de::DeserializeOwned
 {
-    pub fn new(encrypt_key: &EncryptKey, data: T) -> Result<MultiEncryptedSecureData<T>, std::io::Error> {
+    pub fn new(encrypt_key: &PublicEncryptKey, data: T) -> Result<MultiEncryptedSecureData<T>, std::io::Error> {
         let format = SerializationFormat::Bincode;
         let shared_key = EncryptKey::generate(encrypt_key.size());
         let mut members = FxHashMap::default();
@@ -951,7 +952,7 @@ where T: serde::Serialize + serde::de::DeserializeOwned
         )
     }
 
-    pub fn unwrap(&self, key: &EncryptKey) -> Result<Option<T>, std::io::Error> {
+    pub fn unwrap(&self, key: &PrivateEncryptKey) -> Result<Option<T>, std::io::Error> {
         Ok(
             match self.members.get(&key.hash().to_hex_string()) {
                 Some(a) => {
@@ -967,7 +968,7 @@ where T: serde::Serialize + serde::de::DeserializeOwned
         )
     }
 
-    pub fn add(&mut self, encrypt_key: &EncryptKey, referrer: &EncryptKey) -> Result<bool, std::io::Error> {
+    pub fn add(&mut self, encrypt_key: &PublicEncryptKey, referrer: &PrivateEncryptKey) -> Result<bool, std::io::Error> {
         match self.members.get(&referrer.hash().to_hex_string()) {
             Some(a) => {
                 let shared_key = a.unwrap(referrer)?;
@@ -1001,7 +1002,7 @@ pub enum PrivateEncryptKey {
     Ntru256 {
         pk: Vec<u8>,
         sk: Vec<u8>,
-    }
+    },
 }
 
 impl PrivateEncryptKey
@@ -1117,6 +1118,14 @@ impl PrivateEncryptKey
         };
         ek.decrypt(iv, data)
     }
+
+    pub fn size(&self) -> KeySize {
+        match &self {
+            PrivateEncryptKey::Ntru128 { pk: _, sk: _ } => KeySize::Bit128,
+            PrivateEncryptKey::Ntru192 { pk: _, sk: _ } => KeySize::Bit192,
+            PrivateEncryptKey::Ntru256 { pk: _, sk: _ } => KeySize::Bit256,
+        }
+    }
 }
 
 impl std::fmt::Display
@@ -1211,6 +1220,14 @@ impl PublicEncryptKey
                 data,
             }
         )
+    }
+
+    pub fn size(&self) -> KeySize {
+        match &self {
+            PublicEncryptKey::Ntru128 { pk: _ } => KeySize::Bit128,
+            PublicEncryptKey::Ntru192 { pk: _ } => KeySize::Bit192,
+            PublicEncryptKey::Ntru256 { pk: _ } => KeySize::Bit256,
+        }
     }
 }
 
@@ -1347,13 +1364,13 @@ fn test_multi_encrypt() -> Result<(), AteError>
 
     static KEY_SIZES: [KeySize; 3] = [KeySize::Bit128, KeySize::Bit192, KeySize::Bit256];
     for key_size in KEY_SIZES.iter() {
-        let client1 = EncryptKey::generate(key_size.clone());
-        let client2 = EncryptKey::generate(key_size.clone());
-        let client3 = EncryptKey::generate(key_size.clone());
+        let client1 = PrivateEncryptKey::generate(key_size.clone());
+        let client2 = PrivateEncryptKey::generate(key_size.clone());
+        let client3 = PrivateEncryptKey::generate(key_size.clone());
         
         let plain_text1 = "the cat ran up the wall".to_string();
-        let mut multi = MultiEncryptedSecureData::new(&client1, plain_text1.clone())?;
-        multi.add(&client2, &client1)?;
+        let mut multi = MultiEncryptedSecureData::new(&client1.as_public_key(), plain_text1.clone())?;
+        multi.add(&client2.as_public_key(), &client1)?;
 
         let plain_text2 = multi.unwrap(&client1)?.expect("Should have decrypted.");
         assert_eq!(plain_text1, plain_text2);

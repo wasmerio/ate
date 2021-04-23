@@ -377,34 +377,20 @@ for TreeAuthorityPlugin
             {
                 for write_hash in auth.write.vals().iter()
                 {
-                    // Make sure we actually own the key that it wants to write with
-                    let sk = session.user.properties
-                        .iter()
-                        .filter_map(|p| {
-                            match p {
-                                SessionProperty::WriteKey(w) => {
-                                    if w.hash() == *write_hash {
-                                        Some(w)
-                                    } else {
-                                        None
-                                    }
-                                }
-                                _ => None,
-                            }
-                        })
-                        .next();
-
-                    // If we have the key then we can write to the chain
-                    if let Some(sk) = sk {
-                        sign_with.push(sk.hash());
-                    }
+                    // Add any signing keys that we have
+                    sign_with.append(
+                        &mut session.write_keys()
+                            .filter(|p| p.hash() == *write_hash)
+                            .map(|p| p.hash())
+                            .collect::<Vec<_>>()
+                    );
                 }
 
                 if meta.needs_signature() && sign_with.len() <= 0
                 {
                     // This record has no authorization
                     return match meta.get_data_key() {
-                        Some(key) => Err(LintError::Trust(TrustError::NoAuthorization(key))),
+                        Some(key) => Err(LintError::Trust(TrustError::NoAuthorization(key, auth.write))),
                         None => Err(LintError::Trust(TrustError::NoAuthorizationOrphan))
                     };
                 }

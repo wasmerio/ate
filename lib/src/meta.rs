@@ -86,6 +86,39 @@ for WriteOption
     }
 }
 
+impl std::fmt::Display
+for WriteOption {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            WriteOption::Everyone => {
+                write!(f, "everyone")
+            },
+            WriteOption::Group(vec) => {
+                write!(f, "(")?;
+                let mut first = true;
+                for hash in vec {
+                    if first == true {
+                        first = false;
+                    } else {
+                        write!(f, ",")?;
+                    }
+                    write!(f, "{}", hash)?;
+                }
+                write!(f, ")")
+            },
+            WriteOption::Inherit => {
+                write!(f, "inherit")
+            },
+            WriteOption::Nobody => {
+                write!(f, "nobody")
+            },
+            WriteOption::Specific(hash) => {
+                write!(f, "{}", hash)
+            },
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
 pub struct MetaAuthorization
 {

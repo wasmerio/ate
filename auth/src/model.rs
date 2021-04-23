@@ -107,8 +107,10 @@ pub struct User {
     pub foreign: DaoForeign,
     pub sudo: DaoRef<Sudo>,
     pub nominal_read: ate::crypto::Hash,
+    pub nominal_public_read: PublicEncryptKey,
     pub nominal_write: PublicSignKey,
     pub sudo_read: ate::crypto::Hash,
+    pub sudo_public_read: PublicEncryptKey,
     pub sudo_write: PublicSignKey,
 }
 
@@ -124,12 +126,14 @@ pub struct Sudo {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Advert {
     pub email: String,
+    pub encrypt: PublicEncryptKey,
     pub auth: PublicSignKey,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Authorization {
     pub read: EncryptKey,
+    pub private_read: PrivateEncryptKey,
     pub write: PrivateSignKey,
 }
 

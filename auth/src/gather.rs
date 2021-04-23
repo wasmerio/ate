@@ -30,22 +30,14 @@ impl AuthService
             None => { return Err(ServiceError::Reply(GatherFailed::NoMasterKey)); }
         };
 
-        // Access to read the 
         let mut super_session = request.session.clone();
         super_session.user.add_read_key(&master_key);
-        for read_key in request.session.read_keys() {
-            let super_key = match self.compute_super_key(read_key.clone()) {
-                Some(a) => a,
-                None => { return Err(ServiceError::Reply(GatherFailed::NoMasterKey)); }
-            };        
-            super_session.user.add_read_key(&super_key);
-        }
 
         // Compute which chain the group should exist within
         let group_chain_key = auth_chain_key("auth".to_string(), &request.group);
         let chain = context.repository.open_by_key(&group_chain_key).await?;
         
-        // If it already exists then fail
+        // Load the group
         let group_key = PrimaryKey::from(request.group.clone());
         let mut dio = chain.dio(&self.master_session).await;
         let group = match dio.load::<Group>(&group_key).await {
@@ -62,16 +54,12 @@ impl AuthService
         };
 
         // Now go into a loading loop on the session
-        let session = complete_group_auth(group.deref(), super_session.clone())?;
-
-        // Build the composite result
-        let mut ret = request.session.clone();
-        ret.append(session);
+        let session = complete_group_auth(group.deref(), request.session.clone())?;
         
         // Return the session that can be used to access this user
         Ok(GatherResponse {
             group_key: group.key().clone(),
-            authority: ret
+            authority: session
         })
     }
 }

@@ -390,7 +390,7 @@ async fn main() -> Result<(), CommandError> {
                 }
 
                 let prefix = "ate:".to_string();
-                let key = ate_auth::password_to_read_key(&prefix, &pass, 10);
+                let key = ate_auth::password_to_read_key(&prefix, &pass, 15, KeySize::Bit192);
                 session.user.add_read_key(&key);
 
             } else if opts.no_auth {

@@ -625,7 +625,7 @@ for ChainCreationError
 #[derive(Debug)]
 pub enum TrustError
 {
-    NoAuthorization(PrimaryKey),
+    NoAuthorization(PrimaryKey, crate::meta::WriteOption),
     NoAuthorizationOrphan,
     MissingParent(PrimaryKey),
     Time(TimeError),
@@ -644,8 +644,8 @@ impl std::fmt::Display
 for TrustError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            TrustError::NoAuthorization(key) => {
-                write!(f, "Data object with key ({}) has no write authorization in its metadata", key.as_hex_string())
+            TrustError::NoAuthorization(key, write) => {
+                write!(f, "Data object with key ({}) could not be written as the current session has no key for this authorization ({})", key.as_hex_string(), write)
             },
             TrustError::MissingParent(key) => {
                 write!(f, "Data object references a parent object that does not exist ({})", key.as_hex_string())

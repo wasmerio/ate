@@ -1,6 +1,6 @@
 ```
-0.5.1   Account access rights
-        + AteAuth requires account access rights that also get added to the token
+0.5.1   Group access rights
+        + AteAuth requires group access rights that also get added to the token
         + Connect up the 'chmod' commands to real commands in AteAuth so that
           actual ATE data object access rights reflect the linux permissions
 0.5.2   Very large file-system support

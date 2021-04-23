@@ -252,6 +252,100 @@ for AteError
 }
 
 #[derive(Debug)]
+pub enum GroupAddError
+{
+    IO(tokio::io::Error),
+    AteError(AteError),
+    InvalidPurpose(String),
+    QueryError(QueryError),
+    NoAccess,
+    NoMasterKey
+}
+
+impl From<tokio::io::Error>
+for GroupAddError
+{
+    fn from(err: tokio::io::Error) -> GroupAddError {
+        GroupAddError::IO(err)
+    }
+}
+
+impl From<ChainCreationError>
+for GroupAddError
+{
+    fn from(err: ChainCreationError) -> GroupAddError {
+        GroupAddError::AteError(AteError::ChainCreationError(err))
+    }
+}
+
+impl From<SerializationError>
+for GroupAddError
+{
+    fn from(err: SerializationError) -> GroupAddError {
+        GroupAddError::AteError(AteError::SerializationError(err))
+    }
+}
+
+impl From<AteError>
+for GroupAddError
+{
+    fn from(err: AteError) -> GroupAddError {
+        GroupAddError::AteError(err)
+    }
+}
+
+impl From<QueryError>
+for GroupAddError
+{
+    fn from(err: QueryError) -> GroupAddError {
+        GroupAddError::QueryError(err)
+    }
+}
+
+impl<E> From<InvokeError<E>>
+for GroupAddError
+where E: std::fmt::Debug
+{
+    fn from(err: InvokeError<E>) -> GroupAddError {
+        GroupAddError::AteError(AteError::InvokeError(err.to_string()))
+    }
+}
+
+impl std::fmt::Display
+for GroupAddError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            GroupAddError::AteError(err) => {
+                write!(f, "Group add failed ({})", err.to_string())
+            },
+            GroupAddError::QueryError(err) => {
+                write!(f, "Group add failed while performing a query for the user ({})", err.to_string())
+            },
+            GroupAddError::IO(err) => {
+                write!(f, "Group add failed due to an IO error ({})", err)
+            },
+            GroupAddError::NoMasterKey => {
+                write!(f, "Group add failed as the server has not been properly initialized")
+            },
+            GroupAddError::InvalidPurpose(err) => {
+                write!(f, "Group add failed as the role purpose was invalid - {}", err)
+            },
+            GroupAddError::NoAccess => {
+                write!(f, "Group add failed as the referrer has no access to this group")
+            },
+        }
+    }
+}
+
+impl From<GroupAddError>
+for AteError
+{
+    fn from(err: GroupAddError) -> AteError {
+        AteError::ServiceError(err.to_string())
+    }
+}
+
+#[derive(Debug)]
 pub enum QueryError
 {
     IO(tokio::io::Error),

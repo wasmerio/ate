@@ -1,3 +1,5 @@
+#[allow(unused_imports)]
+use log::{info, error, debug};
 use url::Url;
 
 use ate::prelude::*;
@@ -30,7 +32,7 @@ pub fn command_url(auth: Url) -> Url
     ret
 }
 
-pub fn password_to_read_key(seed: &String, password: &String, repeat: i32) -> EncryptKey
+pub fn password_to_read_key(seed: &String, password: &String, repeat: i32, key_size: KeySize) -> EncryptKey
 {
     let mut bytes = Vec::from(seed.as_bytes());
     bytes.extend(Vec::from(password.as_bytes()).iter());
@@ -38,7 +40,7 @@ pub fn password_to_read_key(seed: &String, password: &String, repeat: i32) -> En
         bytes.push(0);
     }
     let hash = AteHash::from_bytes_sha3(password.as_bytes(), repeat);
-    EncryptKey::from_seed_bytes(hash.to_bytes(), KeySize::Bit256)
+    EncryptKey::from_seed_bytes(hash.to_bytes(), key_size)
 }
 
 pub fn conf_auth() -> ConfAte
@@ -56,6 +58,7 @@ pub(crate) fn compute_user_auth(user: &User) -> AteSession
     let mut session = AteSession::default();
     for auth in user.access.iter() {
         session.user.add_read_key(&auth.read);
+        session.user.add_private_read_key(&auth.private_read);
         session.user.add_write_key(&auth.write);
     }
 
@@ -72,6 +75,7 @@ pub(crate) fn compute_sudo_auth(sudo: &Sudo, session: AteSession) -> AteSession
     };
     for auth in sudo.access.iter() {
         role.add_read_key(&auth.read);
+        role.add_private_read_key(&auth.private_read);
         role.add_write_key(&auth.write);
     }
     session.sudo.replace(role);
@@ -79,18 +83,9 @@ pub(crate) fn compute_sudo_auth(sudo: &Sudo, session: AteSession) -> AteSession
     session
 }
 
-pub(crate) fn complete_group_auth(group: &Group, mut super_session: AteSession)
+pub(crate) fn complete_group_auth(group: &Group, mut session: AteSession)
     -> Result<AteSession, LoadError>
-{
-    // Create a group that will represent the authorizations we have and add
-    // it to a dummy session. The dummy session can be appended to other sessions
-    let mut session = AteSession::default();
-    let session_group = AteGroup {
-        name: group.name.clone(),
-        roles: Vec::new()
-    };
-    session.groups.push(session_group);
-    
+{    
     // Enter a recursive loop that will expand its authorizations of the roles until
     // it expands no more or all the roles are gained.
     let mut roles = group.roles.iter().collect::<Vec<_>>();
@@ -99,7 +94,7 @@ pub(crate) fn complete_group_auth(group: &Group, mut super_session: AteSession)
         let mut next = Vec::new();
 
         // Process all the roles
-        let super_keys = super_session.read_keys().map(|a| a.clone()).collect::<Vec<_>>();
+        let super_keys = session.private_read_keys().map(|a| a.clone()).collect::<Vec<_>>();
         for role in roles.into_iter()
         {
             // Attempt to gain access to the role using the access rights of the super session
@@ -107,11 +102,10 @@ pub(crate) fn complete_group_auth(group: &Group, mut super_session: AteSession)
             for read_key in super_keys.iter() {
                 if let Some(a) = role.access.unwrap(&read_key)?
                 {
-                    // Add access rights to the session and the super session
-                    super_session.user.add_read_key(&a.read);
-                    
+                    // Add access rights to the session                    
                     let b = session.get_or_create_group_role(Some(group.name.clone()), role.purpose.clone());
                     b.add_read_key(&a.read);
+                    b.add_private_read_key(&a.private_read);
                     b.add_write_key(&a.write);
                     added = true;
                     break;

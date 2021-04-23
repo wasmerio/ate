@@ -177,7 +177,16 @@ for QueryFailed {
 pub struct CreateGroupRequest
 {
     pub name: String,
-    pub read_key: EncryptKey,
+    pub read_key: PublicEncryptKey,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GroupAddRequest
+{
+    pub group: String,
+    pub referrer: PrivateEncryptKey,
+    pub who: PublicEncryptKey,
+    pub purpose: AteRolePurpose
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -185,6 +194,12 @@ pub struct CreateGroupResponse
 {
     pub key: PrimaryKey,
     pub session: AteSession,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GroupAddResponse
+{
+    pub key: PrimaryKey,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -202,6 +217,31 @@ for CreateGroupFailed {
                 write!(f, "The group already exists")
             },
             CreateGroupFailed::NoMasterKey => {
+                write!(f, "Authentication server has not been properly initialized")
+            },
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum GroupAddFailed
+{
+    GroupNotFound,
+    NoMasterKey,
+    NoAccess
+}
+
+impl std::fmt::Display
+for GroupAddFailed {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            GroupAddFailed::GroupNotFound => {
+                write!(f, "The group does not exist")
+            },
+            GroupAddFailed::NoAccess => {
+                write!(f, "The referrer does not have access to this group")
+            },
+            GroupAddFailed::NoMasterKey => {
                 write!(f, "Authentication server has not been properly initialized")
             },
         }
