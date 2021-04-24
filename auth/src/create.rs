@@ -217,7 +217,17 @@ pub async fn main_create_user(
         None => {
             print!("Password: ");
             stdout().lock().flush()?;
-            rpassword::read_password().unwrap()
+            let ret1 = rpassword::read_password().unwrap();
+
+            print!("Password Again: ");
+            stdout().lock().flush()?;
+            let ret2 = rpassword::read_password().unwrap();
+
+            if ret1 != ret2 {
+                return Err(CreateError::PasswordMismatch);
+            }
+
+            ret2
         }
     };
 

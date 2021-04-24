@@ -356,7 +356,7 @@ async fn main() -> Result<(), CommandError> {
     
     match opts.subcmd {
         SubCommand::CreateToken(login) => {
-            let session = ate_auth::main_login(Some(login.email), login.password, login.code, opts.auth).await?;
+            let session = ate_auth::main_sudo(Some(login.email), login.password, login.code, opts.auth).await?;
             eprintln!("The token string below can be used to secure your file system.\n");
             println!("{}", ate_auth::session_to_b64(session.clone()).unwrap());
         },
@@ -369,7 +369,7 @@ async fn main() -> Result<(), CommandError> {
                 std::process::exit(1);
             }
 
-            let session = ate_auth::main_session(opts.token.clone(), opts.token_path.clone(), Some(opts.auth.clone())).await?;
+            let session = ate_auth::main_session(opts.token.clone(), opts.token_path.clone(), Some(opts.auth.clone()), true).await?;
             let _session = ate_auth::main_create_group(Some(create.name), opts.auth, session.user.identity().map(|i| i.clone())).await?;
         },
         SubCommand::Mount(mount) =>
@@ -402,7 +402,7 @@ async fn main() -> Result<(), CommandError> {
                 // We do not put anything in the session as no authentication method nor a passcode was supplied
             } else {
                 // Load the session via the token or the authentication server
-                session = ate_auth::main_session(opts.token.clone(), opts.token_path.clone(), Some(opts.auth)).await?;
+                session = ate_auth::main_session(opts.token.clone(), opts.token_path.clone(), Some(opts.auth), false).await?;
             }
 
             // Mount the file system

@@ -179,6 +179,7 @@ pub enum CreateError
     IO(tokio::io::Error),
     AteError(AteError),
     MissingReadKey,
+    PasswordMismatch,
     AlreadyExists,
     QueryError(QueryError)
 }
@@ -247,6 +248,9 @@ for CreateError {
             },
             CreateError::AlreadyExists => {
                 write!(f, "Create failed as the account already exists")
+            },
+            CreateError::PasswordMismatch => {
+                write!(f, "Create failed as the passwords did not match")
             },
             CreateError::MissingReadKey => {
                 write!(f, "Create failed as the session is missing a read key")

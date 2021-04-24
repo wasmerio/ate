@@ -202,7 +202,7 @@ pub async fn load_credentials(username: String, read_key: EncryptKey, _code: Opt
     Ok(session)
 }
 
-pub async fn main_session(token_string: Option<String>, token_file_path: Option<String>, auth_url: Option<url::Url>) -> Result<AteSession, LoginError>
+pub async fn main_session(token_string: Option<String>, token_file_path: Option<String>, auth_url: Option<url::Url>, sudo: bool) -> Result<AteSession, LoginError>
 {
     // The session might come from a token_file
     let mut session = None;
@@ -228,7 +228,10 @@ pub async fn main_session(token_string: Option<String>, token_file_path: Option<
     // If we don't have a session but an authentication server was provided then lets use that to get one
     if session.is_none() {
         if let Some(auth) = auth_url {
-            session = Some(main_login(None, None, None, auth).await?);
+            session = match sudo {
+                false => Some(main_login(None, None, auth).await?),
+                true => Some(main_sudo(None, None, None, auth).await?)
+            };
         }
     }
 
@@ -244,7 +247,6 @@ pub async fn main_session(token_string: Option<String>, token_file_path: Option<
 pub async fn main_login(
     username: Option<String>,
     password: Option<String>,
-    code: Option<String>,
     auth: Url
 ) -> Result<AteSession, LoginError>
 {
@@ -272,6 +274,53 @@ pub async fn main_login(
     };
 
     // Login using the authentication server which will give us a session with all the tokens
-    let session = login_command(username, password, code, auth).await?;
+    let session = login_command(username, password, None, auth).await?;
+    Ok(session)
+}
+
+pub async fn main_sudo(
+    username: Option<String>,
+    password: Option<String>,
+    code: Option<String>,
+    auth: Url
+) -> Result<AteSession, LoginError>
+{
+    let username = match username {
+        Some(a) => a,
+        None => {
+            eprint!("Username: ");
+            stdout().lock().flush()?;
+            let mut s = String::new();
+            std::io::stdin().read_line(&mut s).expect("Did not enter a valid username");
+            s.trim().to_string()
+        }
+    };
+
+    let password = match password {
+        Some(a) => a,
+        None => {
+            // When no password is supplied we will ask for it
+            eprint!("Password: ");
+            stdout().lock().flush()?;
+            let pass = rpassword::read_password().unwrap();
+
+            pass.trim().to_string()
+        }
+    };
+
+    let code = match code {
+        Some(a) => a,
+        None => {
+            // When no code is supplied we will ask for it
+            eprint!("Code: ");
+            stdout().lock().flush()?;
+            let mut s = String::new();
+            std::io::stdin().read_line(&mut s).expect("Did not enter a valid code");
+            s.trim().to_string()
+        }
+    };
+
+    // Login using the authentication server which will give us a session with all the tokens
+    let session = login_command(username, password, Some(code), auth).await?;
     Ok(session)
 }

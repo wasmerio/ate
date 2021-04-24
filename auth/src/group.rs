@@ -51,10 +51,15 @@ impl AuthService
         let owner_private_read = PrivateEncryptKey::generate(key_size);
         let owner_write = PrivateSignKey::generate(key_size);
 
-        // Generate the owner encryption keys used to protect this role
+        // Generate the delegate encryption keys used to protect this role
         let delegate_read = EncryptKey::generate(key_size);
         let delegate_private_read = PrivateEncryptKey::generate(key_size);
         let delegate_write = PrivateSignKey::generate(key_size);
+
+        // Generate the contributor encryption keys used to protect this role
+        let contributor_read = EncryptKey::generate(key_size);
+        let contributor_private_read = PrivateEncryptKey::generate(key_size);
+        let contributor_write = PrivateSignKey::generate(key_size);
 
         // The super session needs the owner keys so that it can save the records
         let mut super_session = self.master_session.clone();
@@ -99,6 +104,11 @@ impl AuthService
                     role_private_read = delegate_private_read.clone();
                     role_write = delegate_write.clone();
                 },
+                RolePurpose::Contributor => {
+                    role_read = contributor_read.clone();
+                    role_private_read = contributor_private_read.clone();
+                    role_write = contributor_write.clone();
+                },
                 _ => {
                     role_read = EncryptKey::generate(key_size);
                     role_private_read = PrivateEncryptKey::generate(key_size);
@@ -116,6 +126,9 @@ impl AuthService
                 access.add(&request.sudo_read_key, &owner_private_read)?;
             } else if let RolePurpose::Delegate = purpose {
                 access.add(&request.nominal_read_key, &owner_private_read)?;
+            } else if let RolePurpose::Observer = purpose {
+                access.add(&delegate_private_read.as_public_key(), &owner_private_read)?;
+                access.add(&contributor_private_read.as_public_key(), &owner_private_read)?;
             } else {
                 access.add(&delegate_private_read.as_public_key(), &owner_private_read)?;
             }
@@ -457,7 +470,7 @@ pub async fn group_user_remove_command(group: String, purpose: AteRolePurpose, u
     }
 }
 
-pub async fn main_group_add(
+pub async fn main_group_user_add(
     group: Option<String>,
     purpose: Option<AteRolePurpose>,
     username: Option<String>,
@@ -509,7 +522,7 @@ pub async fn main_group_add(
     Ok(())
 }
 
-pub async fn main_group_remove(
+pub async fn main_group_user_remove(
     group: Option<String>,
     purpose: Option<AteRolePurpose>,
     username: Option<String>,

@@ -54,7 +54,7 @@ pub async fn test_create_user_and_group() -> Result<(), AteError>
     let code = google_auth.get_code(response.qr_secret.as_str(), ntp.current_timestamp()?.as_secs() / 30).unwrap();
 
     // Login to the main user and gather the rights to the group (full sudo rights)
-    let session = crate::main_login(Some(username.clone()), Some(password.clone()), Some(code), auth.clone()).await?;
+    let session = crate::main_sudo(Some(username.clone()), Some(password.clone()), Some(code), auth.clone()).await?;
     let session = crate::main_gather(Some(group.clone()), session, auth.clone()).await?;
 
     // Make sure its got the permission
@@ -66,7 +66,7 @@ pub async fn test_create_user_and_group() -> Result<(), AteError>
         .private_read_keys().next().expect("Should have a private key for the delegate role");
 
     // Login to the main user and gather the rights to the group (we do not have sudo rights)
-    let session = crate::main_login(Some(username.clone()), Some(password.clone()), None, auth.clone()).await?;
+    let session = crate::main_login(Some(username.clone()), Some(password.clone()), auth.clone()).await?;
     let session = crate::main_gather(Some(group.clone()), session, auth.clone()).await?;
 
     // Make sure its got the permission
@@ -79,7 +79,7 @@ pub async fn test_create_user_and_group() -> Result<(), AteError>
     let friend = crate::main_create_user(Some(friend_username.clone()), Some(password.clone()), auth.clone()).await?;
     let friend_session = friend.authority;
 
-    crate::main_group_add(Some(group.clone()), Some(AteRolePurpose::Contributor), Some(friend_username.clone()), auth.clone(), &session).await?;
+    crate::main_group_user_add(Some(group.clone()), Some(AteRolePurpose::Contributor), Some(friend_username.clone()), auth.clone(), &session).await?;
 
     // Gather the extra rights for the friend
     let friend = crate::main_gather(Some(group.clone()), friend_session.clone(), auth.clone()).await?;
@@ -90,7 +90,7 @@ pub async fn test_create_user_and_group() -> Result<(), AteError>
         .private_read_keys().next().expect("Should have a private key for the owner role");
 
     // Remove user the role
-    crate::main_group_remove(Some(group.clone()), Some(AteRolePurpose::Contributor), Some(friend_username.clone()), auth.clone(), &session).await?;
+    crate::main_group_user_remove(Some(group.clone()), Some(AteRolePurpose::Contributor), Some(friend_username.clone()), auth.clone(), &session).await?;
 
     // Make sure its got the permission
     let friend = crate::main_gather(Some(group.clone()), friend_session.clone(), auth.clone()).await?;
