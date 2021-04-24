@@ -54,6 +54,9 @@ enum UserAction {
     /// Creates a new user
     #[clap()]
     Create(CreateUser),
+    /// Returns all the details about a specific user
+    #[clap()]
+    Details,
 }
 
 /// Creates a new user and login credentials on the authentication server
@@ -193,6 +196,17 @@ async fn main() -> Result<(), AteError>
                 UserAction::Create(action) => {
                     let _session = ate_auth::main_create_user(action.email, action.password, opts.auth).await?;
                 },
+                UserAction::Details => {
+                    let session = ate_auth::main_session(opts.token.clone(), opts.token_path.clone(), Some(opts.auth.clone()), false).await?;
+                    let identity = match session.user.identity() {
+                        Some(a) => a.clone(),
+                        None => {
+                            eprintln!("Could not find an identity for the user");
+                            std::process::exit(1);
+                        }
+                    };
+                    println!("identity: {}", identity);
+                }
             }
         },
         SubCommand::Group(opts_group) => {
