@@ -69,8 +69,8 @@ impl AuthService
         // Generate a QR code
         let google_auth = google_authenticator::GoogleAuthenticator::new();
         let secret = google_auth.create_secret(32);
-        let google_auth_secret = format!("otpauth://totp/{}:{}?secret={}", request.auth.to_string(), request.email, secret);
-
+        let google_auth_secret = format!("otpauth://totp/{}:{}?secret={}", request.auth.to_string(), request.email, secret.clone());
+        
         // Create all the sudo keys
         let sudo_read_key = EncryptKey::generate(key_size);
         let sudo_private_read_key = PrivateEncryptKey::generate(key_size);
@@ -114,7 +114,7 @@ impl AuthService
         // Create the sudo object and save it using another elevation of the key
         let sudo = Sudo {
             google_auth: google_auth_secret,
-            secret,
+            secret: secret.clone(),
             groups: Vec::new(),
             access: sudo_access,
             qr_code: qr_code.clone(),
@@ -130,8 +130,10 @@ impl AuthService
         let advert_key = PrimaryKey::from(advert_key_entropy);
         let advert = Advert {
             email: request.email.clone(),
-            encrypt: private_read_key.as_public_key(),
-            auth: write_key.as_public_key(),
+            nominal_encrypt: private_read_key.as_public_key(),
+            nominal_auth: write_key.as_public_key(),
+            sudo_encrypt: sudo_private_read_key.as_public_key(),
+            sudo_auth: sudo_write_key.as_public_key()
         };
         let mut advert = Dao::make(advert_key, chain.default_format(), advert);
         advert.auth_mut().read = ReadOption::Everyone;
@@ -149,7 +151,8 @@ impl AuthService
         // Return success to the caller
         Ok(CreateUserResponse {
             key: user.key().clone(),
-            qr_code: Some(qr_code),
+            qr_code: qr_code,
+            qr_secret: secret.clone(),
             authority: session,
         })
     }
@@ -196,7 +199,7 @@ pub async fn main_create_user(
     username: Option<String>,
     password: Option<String>,
     auth: Url
-) -> Result<AteSession, CreateError>
+) -> Result<CreateUserResponse, CreateError>
 {
     let username = match username {
         Some(a) => a,
@@ -222,14 +225,12 @@ pub async fn main_create_user(
     let result = create_user_command(username, password, auth).await?;
     println!("User created (id={})", result.key);
 
-    // If it has a QR code then display it
-    if let Some(code) = result.qr_code {
-        println!("");
-        println!("Below is your Google Authenticator QR code - scan it on your phone and");
-        println!("save it as this code is the only way you can recover the account.");
-        println!("");
-        println!("{}", code);
-    }
+    // Display the QR code
+    println!("");
+    println!("Below is your Google Authenticator QR code - scan it on your phone and");
+    println!("save it as this code is the only way you can recover the account.");
+    println!("");
+    println!("{}", result.qr_code);
 
-    Ok(result.authority)
+    Ok(result)
 }

@@ -111,7 +111,8 @@ pub struct CreateUserRequest
 pub struct CreateUserResponse
 {
     pub key: PrimaryKey,
-    pub qr_code: Option<String>,
+    pub qr_code: String,
+    pub qr_secret: String,
     pub authority: AteSession
 }
 
@@ -176,16 +177,26 @@ for QueryFailed {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CreateGroupRequest
 {
-    pub name: String,
-    pub read_key: PublicEncryptKey,
+    pub group: String,
+    pub nominal_read_key: PublicEncryptKey,
+    pub sudo_read_key: PublicEncryptKey,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct GroupAddRequest
+pub struct GroupUserAddRequest
 {
     pub group: String,
-    pub referrer: PrivateEncryptKey,
+    pub session: AteSession,
     pub who: PublicEncryptKey,
+    pub purpose: AteRolePurpose
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GroupUserRemoveRequest
+{
+    pub group: String,
+    pub session: AteSession,
+    pub who: AteHash,
     pub purpose: AteRolePurpose
 }
 
@@ -197,7 +208,13 @@ pub struct CreateGroupResponse
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct GroupAddResponse
+pub struct GroupUserAddResponse
+{
+    pub key: PrimaryKey,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GroupUserRemoveResponse
 {
     pub key: PrimaryKey,
 }
@@ -224,7 +241,7 @@ for CreateGroupFailed {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum GroupAddFailed
+pub enum GroupUserAddFailed
 {
     GroupNotFound,
     NoMasterKey,
@@ -232,16 +249,49 @@ pub enum GroupAddFailed
 }
 
 impl std::fmt::Display
-for GroupAddFailed {
+for GroupUserAddFailed {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            GroupAddFailed::GroupNotFound => {
+            GroupUserAddFailed::GroupNotFound => {
                 write!(f, "The group does not exist")
             },
-            GroupAddFailed::NoAccess => {
+            GroupUserAddFailed::NoAccess => {
                 write!(f, "The referrer does not have access to this group")
             },
-            GroupAddFailed::NoMasterKey => {
+            GroupUserAddFailed::NoMasterKey => {
+                write!(f, "Authentication server has not been properly initialized")
+            },
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum GroupUserRemoveFailed
+{
+    GroupNotFound,
+    RoleNotFound,
+    NothingToRemove,
+    NoMasterKey,
+    NoAccess
+}
+
+impl std::fmt::Display
+for GroupUserRemoveFailed {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            GroupUserRemoveFailed::GroupNotFound => {
+                write!(f, "The group does not exist")
+            },
+            GroupUserRemoveFailed::RoleNotFound => {
+                write!(f, "The group role does not exist")
+            },
+            GroupUserRemoveFailed::NothingToRemove => {
+                write!(f, "The user is not a member of the group")
+            },
+            GroupUserRemoveFailed::NoAccess => {
+                write!(f, "The referrer does not have access to this group")
+            },
+            GroupUserRemoveFailed::NoMasterKey => {
                 write!(f, "Authentication server has not been properly initialized")
             },
         }

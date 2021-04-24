@@ -179,7 +179,8 @@ pub enum CreateError
     IO(tokio::io::Error),
     AteError(AteError),
     MissingReadKey,
-    AlreadyExists
+    AlreadyExists,
+    QueryError(QueryError)
 }
 
 impl From<tokio::io::Error>
@@ -214,6 +215,14 @@ for CreateError
     }
 }
 
+impl From<QueryError>
+for CreateError
+{
+    fn from(err: QueryError) -> CreateError {
+        CreateError::QueryError(err)
+    }
+}
+
 impl<E> From<InvokeError<E>>
 for CreateError
 where E: std::fmt::Debug
@@ -228,6 +237,9 @@ for CreateError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             CreateError::AteError(err) => {
+                write!(f, "Create failed ({})", err.to_string())
+            },
+            CreateError::QueryError(err) => {
                 write!(f, "Create failed ({})", err.to_string())
             },
             CreateError::IO(err) => {
@@ -252,7 +264,7 @@ for AteError
 }
 
 #[derive(Debug)]
-pub enum GroupAddError
+pub enum GroupUserAddError
 {
     IO(tokio::io::Error),
     AteError(AteError),
@@ -263,84 +275,190 @@ pub enum GroupAddError
 }
 
 impl From<tokio::io::Error>
-for GroupAddError
+for GroupUserAddError
 {
-    fn from(err: tokio::io::Error) -> GroupAddError {
-        GroupAddError::IO(err)
+    fn from(err: tokio::io::Error) -> GroupUserAddError {
+        GroupUserAddError::IO(err)
     }
 }
 
 impl From<ChainCreationError>
-for GroupAddError
+for GroupUserAddError
 {
-    fn from(err: ChainCreationError) -> GroupAddError {
-        GroupAddError::AteError(AteError::ChainCreationError(err))
+    fn from(err: ChainCreationError) -> GroupUserAddError {
+        GroupUserAddError::AteError(AteError::ChainCreationError(err))
     }
 }
 
 impl From<SerializationError>
-for GroupAddError
+for GroupUserAddError
 {
-    fn from(err: SerializationError) -> GroupAddError {
-        GroupAddError::AteError(AteError::SerializationError(err))
+    fn from(err: SerializationError) -> GroupUserAddError {
+        GroupUserAddError::AteError(AteError::SerializationError(err))
     }
 }
 
 impl From<AteError>
-for GroupAddError
+for GroupUserAddError
 {
-    fn from(err: AteError) -> GroupAddError {
-        GroupAddError::AteError(err)
+    fn from(err: AteError) -> GroupUserAddError {
+        GroupUserAddError::AteError(err)
     }
 }
 
 impl From<QueryError>
-for GroupAddError
+for GroupUserAddError
 {
-    fn from(err: QueryError) -> GroupAddError {
-        GroupAddError::QueryError(err)
+    fn from(err: QueryError) -> GroupUserAddError {
+        GroupUserAddError::QueryError(err)
     }
 }
 
 impl<E> From<InvokeError<E>>
-for GroupAddError
+for GroupUserAddError
 where E: std::fmt::Debug
 {
-    fn from(err: InvokeError<E>) -> GroupAddError {
-        GroupAddError::AteError(AteError::InvokeError(err.to_string()))
+    fn from(err: InvokeError<E>) -> GroupUserAddError {
+        GroupUserAddError::AteError(AteError::InvokeError(err.to_string()))
     }
 }
 
 impl std::fmt::Display
-for GroupAddError {
+for GroupUserAddError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            GroupAddError::AteError(err) => {
-                write!(f, "Group add failed ({})", err.to_string())
+            GroupUserAddError::AteError(err) => {
+                write!(f, "Group user add failed ({})", err.to_string())
             },
-            GroupAddError::QueryError(err) => {
-                write!(f, "Group add failed while performing a query for the user ({})", err.to_string())
+            GroupUserAddError::QueryError(err) => {
+                write!(f, "Group user add failed while performing a query for the user ({})", err.to_string())
             },
-            GroupAddError::IO(err) => {
-                write!(f, "Group add failed due to an IO error ({})", err)
+            GroupUserAddError::IO(err) => {
+                write!(f, "Group user add failed due to an IO error ({})", err)
             },
-            GroupAddError::NoMasterKey => {
-                write!(f, "Group add failed as the server has not been properly initialized")
+            GroupUserAddError::NoMasterKey => {
+                write!(f, "Group user add failed as the server has not been properly initialized")
             },
-            GroupAddError::InvalidPurpose(err) => {
-                write!(f, "Group add failed as the role purpose was invalid - {}", err)
+            GroupUserAddError::InvalidPurpose(err) => {
+                write!(f, "Group user add failed as the role purpose was invalid - {}", err)
             },
-            GroupAddError::NoAccess => {
-                write!(f, "Group add failed as the referrer has no access to this group")
+            GroupUserAddError::NoAccess => {
+                write!(f, "Group user add failed as the referrer has no access to this group")
             },
         }
     }
 }
 
-impl From<GroupAddError>
+impl From<GroupUserAddError>
 for AteError
 {
-    fn from(err: GroupAddError) -> AteError {
+    fn from(err: GroupUserAddError) -> AteError {
+        AteError::ServiceError(err.to_string())
+    }
+}
+
+#[derive(Debug)]
+pub enum GroupUserRemoveError
+{
+    IO(tokio::io::Error),
+    AteError(AteError),
+    InvalidPurpose(String),
+    QueryError(QueryError),
+    NoAccess,
+    NoMasterKey,
+    GroupNotFound,
+    RoleNotFound,
+    NothingToRemove,
+}
+
+impl From<tokio::io::Error>
+for GroupUserRemoveError
+{
+    fn from(err: tokio::io::Error) -> GroupUserRemoveError {
+        GroupUserRemoveError::IO(err)
+    }
+}
+
+impl From<ChainCreationError>
+for GroupUserRemoveError
+{
+    fn from(err: ChainCreationError) -> GroupUserRemoveError {
+        GroupUserRemoveError::AteError(AteError::ChainCreationError(err))
+    }
+}
+
+impl From<SerializationError>
+for GroupUserRemoveError
+{
+    fn from(err: SerializationError) -> GroupUserRemoveError {
+        GroupUserRemoveError::AteError(AteError::SerializationError(err))
+    }
+}
+
+impl From<AteError>
+for GroupUserRemoveError
+{
+    fn from(err: AteError) -> GroupUserRemoveError {
+        GroupUserRemoveError::AteError(err)
+    }
+}
+
+impl From<QueryError>
+for GroupUserRemoveError
+{
+    fn from(err: QueryError) -> GroupUserRemoveError {
+        GroupUserRemoveError::QueryError(err)
+    }
+}
+
+impl<E> From<InvokeError<E>>
+for GroupUserRemoveError
+where E: std::fmt::Debug
+{
+    fn from(err: InvokeError<E>) -> GroupUserRemoveError {
+        GroupUserRemoveError::AteError(AteError::InvokeError(err.to_string()))
+    }
+}
+
+impl std::fmt::Display
+for GroupUserRemoveError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            GroupUserRemoveError::AteError(err) => {
+                write!(f, "Group user remove failed ({})", err.to_string())
+            },
+            GroupUserRemoveError::QueryError(err) => {
+                write!(f, "Group user remove failed while performing a query for the user ({})", err.to_string())
+            },
+            GroupUserRemoveError::IO(err) => {
+                write!(f, "Group user remove failed due to an IO error ({})", err)
+            },
+            GroupUserRemoveError::NoMasterKey => {
+                write!(f, "Group user remove failed as the server has not been properly initialized")
+            },
+            GroupUserRemoveError::InvalidPurpose(err) => {
+                write!(f, "Group user remove failed as the role purpose was invalid - {}", err)
+            },
+            GroupUserRemoveError::NoAccess => {
+                write!(f, "Group user remove failed as the referrer has no access to this group")
+            },
+            GroupUserRemoveError::GroupNotFound => {
+                write!(f, "Group user remove failed as the group does not exist")
+            },
+            GroupUserRemoveError::RoleNotFound => {
+                write!(f, "Group user remove failed as the group role does not exist")
+            },
+            GroupUserRemoveError::NothingToRemove => {
+                write!(f, "Group user remove failed as the user is not a member of this group role")
+            },
+        }
+    }
+}
+
+impl From<GroupUserRemoveError>
+for AteError
+{
+    fn from(err: GroupUserRemoveError) -> AteError {
         AteError::ServiceError(err.to_string())
     }
 }

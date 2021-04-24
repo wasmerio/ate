@@ -118,6 +118,19 @@ impl GroupRole
                 }
             )
     }
+
+    pub fn identity<'a>(&'a self) -> Option<&'a String> {
+        self.properties
+            .iter()
+            .filter_map(
+                |p| match p
+                {
+                    SessionProperty::Identity(k) => Some(k),
+                    _ => None
+                }
+            )
+            .next()
+    }
 }
 
 impl std::fmt::Display
@@ -310,7 +323,7 @@ for Session
     fn default() -> Session {
         Session {
             user: GroupRole {
-                purpose: RolePurpose::Owner,
+                purpose: RolePurpose::Delegate,
                 properties: Vec::new()
             },
             sudo: None,

@@ -24,6 +24,7 @@ pub use login::main_login;
 pub use create::main_create_user;
 pub use group::main_create_group;
 pub use group::main_group_add;
+pub use group::main_group_remove;
 pub use login::main_session;
 pub use query::main_query;
 pub use gather::main_gather;

@@ -979,8 +979,13 @@ where T: serde::Serialize + serde::de::DeserializeOwned
         }
     }
 
-    pub fn remove(&mut self, what: &Hash) {
-        self.members.remove(&what.to_hex_string());
+    pub fn remove(&mut self, what: &Hash) -> bool {
+        self.members.remove(&what.to_hex_string()).is_some()
+    }
+
+    pub fn exists(&mut self, what: &Hash) -> bool {
+        let what = what.to_hex_string();
+        self.members.contains_key(&what)
     }
 }
 

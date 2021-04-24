@@ -69,12 +69,22 @@ for AuthService
 }
 
 #[async_trait]
-impl ServiceHandler<GroupAddRequest, GroupAddResponse, GroupAddFailed>
+impl ServiceHandler<GroupUserAddRequest, GroupUserAddResponse, GroupUserAddFailed>
 for AuthService
 {
-    async fn process<'a>(&self, request: GroupAddRequest, context: InvocationContext<'a>) -> Result<GroupAddResponse, ServiceError<GroupAddFailed>>
+    async fn process<'a>(&self, request: GroupUserAddRequest, context: InvocationContext<'a>) -> Result<GroupUserAddResponse, ServiceError<GroupUserAddFailed>>
     {
-        self.process_group_add(request, context).await
+        self.process_group_user_add(request, context).await
+    }
+}
+
+#[async_trait]
+impl ServiceHandler<GroupUserRemoveRequest, GroupUserRemoveResponse, GroupUserRemoveFailed>
+for AuthService
+{
+    async fn process<'a>(&self, request: GroupUserRemoveRequest, context: InvocationContext<'a>) -> Result<GroupUserRemoveResponse, ServiceError<GroupUserRemoveFailed>>
+    {
+        self.process_group_user_remove(request, context).await
     }
 }
 
@@ -121,7 +131,13 @@ pub async fn service_logins(cfg: &ConfAte, cmd_session: AteSession, auth_session
 
     {
         let service = Arc::clone(&service);
-        let service: ServiceInstance<GroupAddRequest, GroupAddResponse, GroupAddFailed> = service;
+        let service: ServiceInstance<GroupUserAddRequest, GroupUserAddResponse, GroupUserAddFailed> = service;
+        chain.add_service(cmd_session.clone(), service);
+    }
+
+    {
+        let service = Arc::clone(&service);
+        let service: ServiceInstance<GroupUserRemoveRequest, GroupUserRemoveResponse, GroupUserRemoveFailed> = service;
         chain.add_service(cmd_session.clone(), service);
     }
 

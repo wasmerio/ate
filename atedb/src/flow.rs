@@ -56,7 +56,7 @@ for ChainFlow
                         return Ok(OpenAction::Deny(format!("Failed to create the chain as the query to the authentication server failed - {}.", err.to_string()).to_string()));
                     }
                 };
-                let root_key = advert.auth;
+                let root_key = advert.nominal_auth;
                 builder = builder.add_root_public_key(&root_key);
             }
 

@@ -370,7 +370,7 @@ async fn main() -> Result<(), CommandError> {
             }
 
             let session = ate_auth::main_session(opts.token.clone(), opts.token_path.clone(), Some(opts.auth.clone())).await?;
-            let _session = ate_auth::main_create_group(Some(create.name), opts.auth, &session).await?;
+            let _session = ate_auth::main_create_group(Some(create.name), opts.auth, session.user.identity().map(|i| i.clone())).await?;
         },
         SubCommand::Mount(mount) =>
         {

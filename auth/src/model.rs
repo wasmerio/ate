@@ -126,8 +126,10 @@ pub struct Sudo {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Advert {
     pub email: String,
-    pub encrypt: PublicEncryptKey,
-    pub auth: PublicSignKey,
+    pub nominal_encrypt: PublicEncryptKey,
+    pub nominal_auth: PublicSignKey,
+    pub sudo_encrypt: PublicEncryptKey,
+    pub sudo_auth: PublicSignKey,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
