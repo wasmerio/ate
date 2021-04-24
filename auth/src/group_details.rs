@@ -68,6 +68,7 @@ impl AuthService
         let mut roles = Vec::new();
         for role in group.roles.iter() {
             roles.push(GroupDetailsRoleResponse {
+                purpose: role.purpose.clone(),
                 name: role.purpose.to_string(),
                 read: role.read.clone(),
                 private_read: role.private_read.clone(),

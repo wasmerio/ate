@@ -7,6 +7,7 @@ use url::Url;
 use std::ops::Deref;
 use qrcode::QrCode;
 use qrcode::render::unicode;
+use regex::Regex;
 
 use ate::prelude::*;
 use ate::error::LoadError;
@@ -26,6 +27,16 @@ impl AuthService
     pub async fn process_create_group<'a>(&self, request: CreateGroupRequest, context: InvocationContext<'a>) -> Result<CreateGroupResponse, ServiceError<CreateGroupFailed>>
     {
         info!("create group: {}", request.group);
+
+        // Make sure the group matches the regex and is valid
+        let regex = Regex::new("^/{0,1}([a-zA-Z0-9_]{0,})$").unwrap();
+        if let Some(_captures) = regex.captures(request.group.as_str()) {
+            if request.group.len() <= 0 {
+                return Err(ServiceError::Reply(CreateGroupFailed::InvalidGroupName));    
+            }
+        } else {
+            return Err(ServiceError::Reply(CreateGroupFailed::InvalidGroupName));
+        }
 
         // Load the master key which will be used to encrypt the group so that only
         // the authentication server can access it
@@ -198,6 +209,7 @@ pub async fn create_group_command(group: String, auth: Url, username: String) ->
     let response: Result<CreateGroupResponse, InvokeError<CreateGroupFailed>> = chain.invoke(create).await;
     match response {
         Err(InvokeError::Reply(CreateGroupFailed::AlreadyExists)) => Err(CreateError::AlreadyExists),
+        Err(InvokeError::Reply(CreateGroupFailed::InvalidGroupName)) => Err(CreateError::InvalidName),
         result => {
             let result = result?;
             debug!("key: {}", result.key);

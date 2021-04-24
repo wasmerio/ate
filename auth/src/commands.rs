@@ -231,6 +231,7 @@ pub struct GroupUserRemoveResponse
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GroupDetailsRoleResponse
 {
+    pub purpose: AteRolePurpose,
     pub name: String,
     pub read: AteHash,
     pub private_read: PublicEncryptKey,
@@ -252,6 +253,7 @@ pub enum CreateGroupFailed
 {
     AlreadyExists,
     NoMasterKey,
+    InvalidGroupName
 }
 
 impl std::fmt::Display
@@ -263,6 +265,9 @@ for CreateGroupFailed {
             },
             CreateGroupFailed::NoMasterKey => {
                 write!(f, "Authentication server has not been properly initialized")
+            },
+            CreateGroupFailed::InvalidGroupName => {
+                write!(f, "The specified group name is not supported")
             },
         }
     }
