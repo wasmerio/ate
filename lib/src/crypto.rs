@@ -994,7 +994,7 @@ where T: serde::Serialize + serde::de::DeserializeOwned
         ret
     }
 
-    pub fn exists(&mut self, what: &Hash) -> bool {
+    pub fn exists(&self, what: &Hash) -> bool {
         let what = what.to_hex_string();
         self.members.contains_key(&what)
     }
@@ -1002,6 +1002,10 @@ where T: serde::Serialize + serde::de::DeserializeOwned
     pub fn meta<'a>(&'a self, what: &Hash) -> Option<&'a String> {
         let index = what.to_hex_string();
         self.metadata.get(&index)
+    }
+
+    pub fn meta_list<'a>(&'a self) -> impl Iterator<Item = &'a String> {
+        self.metadata.values()
     }
 }
 

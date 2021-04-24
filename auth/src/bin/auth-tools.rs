@@ -88,6 +88,9 @@ enum GroupAction {
     /// Removes a user from an existing group
     #[clap()]
     RemoveUser(GroupRemoveUser),
+    /// Display the details about a particular group
+    #[clap()]
+    Details(GroupDetails),
 }
 
 /// Creates a new group using the login credentials provided or prompted for
@@ -130,6 +133,14 @@ struct GroupRemoveUser {
     /// Username that will be removed to the group role
     #[clap(index = 3)]
     username: String,
+}
+
+/// Display the details about a particular group
+#[derive(Clap)]
+struct GroupDetails {
+    /// Name of the group to query
+    #[clap(index = 1)]
+    group: String,
 }
 
 #[derive(Clap)]
@@ -223,6 +234,10 @@ async fn main() -> Result<(), AteError>
                     let session = ate_auth::main_session(opts.token.clone(), opts.token_path.clone(), Some(opts.auth.clone()), true).await?;
                     let _session = ate_auth::main_group_user_remove(Some(action.group), Some(action.role), Some(action.username), opts.auth, &session).await?;
                 },
+                GroupAction::Details(action) => {
+                    let session = ate_auth::main_session(opts.token.clone(), opts.token_path.clone(), Some(opts.auth.clone()), false).await?;
+                    ate_auth::main_group_details(Some(action.group), opts.auth, &session).await?;
+                }
             }
         },
         SubCommand::Token(opts_token) => {

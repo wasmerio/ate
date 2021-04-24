@@ -89,6 +89,9 @@ pub async fn test_create_user_and_group() -> Result<(), AteError>
         .expect("Should have the contributor role")
         .private_read_keys().next().expect("Should have a private key for the owner role");
 
+    // Load the details of the group
+    crate::main_group_details(Some(group.clone()), auth.clone(), &session).await?;
+
     // Remove user the role
     crate::main_group_user_remove(Some(group.clone()), Some(AteRolePurpose::Contributor), Some(friend_username.clone()), auth.clone(), &session).await?;
 

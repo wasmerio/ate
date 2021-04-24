@@ -203,6 +203,13 @@ pub struct GroupUserRemoveRequest
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GroupDetailsRequest
+{
+    pub group: String,
+    pub session: AteSession,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CreateGroupResponse
 {
     pub key: PrimaryKey,
@@ -222,6 +229,21 @@ pub struct GroupUserRemoveResponse
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GroupDetailsRoleResponse
+{
+    pub name: String,
+    pub members: Vec<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct GroupDetailsResponse
+{
+    pub key: PrimaryKey,
+    pub name: String,
+    pub roles: Vec<GroupDetailsRoleResponse>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum CreateGroupFailed
 {
     AlreadyExists,
@@ -237,6 +259,31 @@ for CreateGroupFailed {
             },
             CreateGroupFailed::NoMasterKey => {
                 write!(f, "Authentication server has not been properly initialized")
+            },
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum GroupDetailsFailed
+{
+    GroupNotFound,
+    NoMasterKey,
+    NoAccess,
+}
+
+impl std::fmt::Display
+for GroupDetailsFailed {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            GroupDetailsFailed::GroupNotFound => {
+                write!(f, "The group does not exist")
+            },
+            GroupDetailsFailed::NoMasterKey => {
+                write!(f, "Authentication server has not been properly initialized")
+            },
+            GroupDetailsFailed::NoAccess => {
+                write!(f, "Access to this group is denied")
             },
         }
     }

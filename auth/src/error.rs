@@ -362,6 +362,84 @@ for AteError
 }
 
 #[derive(Debug)]
+pub enum GroupDetailsError
+{
+    IO(tokio::io::Error),
+    AteError(AteError),
+    GroupNotFound,
+    NoAccess,
+}
+
+impl From<tokio::io::Error>
+for GroupDetailsError
+{
+    fn from(err: tokio::io::Error) -> GroupDetailsError {
+        GroupDetailsError::IO(err)
+    }
+}
+
+impl From<ChainCreationError>
+for GroupDetailsError
+{
+    fn from(err: ChainCreationError) -> GroupDetailsError {
+        GroupDetailsError::AteError(AteError::ChainCreationError(err))
+    }
+}
+
+impl From<SerializationError>
+for GroupDetailsError
+{
+    fn from(err: SerializationError) -> GroupDetailsError {
+        GroupDetailsError::AteError(AteError::SerializationError(err))
+    }
+}
+
+impl From<AteError>
+for GroupDetailsError
+{
+    fn from(err: AteError) -> GroupDetailsError {
+        GroupDetailsError::AteError(err)
+    }
+}
+
+impl<E> From<InvokeError<E>>
+for GroupDetailsError
+where E: std::fmt::Debug
+{
+    fn from(err: InvokeError<E>) -> GroupDetailsError {
+        GroupDetailsError::AteError(AteError::InvokeError(err.to_string()))
+    }
+}
+
+impl std::fmt::Display
+for GroupDetailsError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            GroupDetailsError::AteError(err) => {
+                write!(f, "Group details failed ({})", err.to_string())
+            },
+            GroupDetailsError::IO(err) => {
+                write!(f, "Group user add failed due to an IO error ({})", err)
+            },
+            GroupDetailsError::GroupNotFound => {
+                write!(f, "Group details failed as the group does not exist")
+            },
+            GroupDetailsError::NoAccess => {
+                write!(f, "Group details failed as the referrer has no access to this group")
+            },
+        }
+    }
+}
+
+impl From<GroupDetailsError>
+for AteError
+{
+    fn from(err: GroupDetailsError) -> AteError {
+        AteError::ServiceError(err.to_string())
+    }
+}
+
+#[derive(Debug)]
 pub enum GroupUserRemoveError
 {
     IO(tokio::io::Error),
