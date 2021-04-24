@@ -373,7 +373,18 @@ async fn main() -> Result<(), CommandError> {
                 // We do not put anything in the session as no authentication method nor a passcode was supplied
             } else {
                 // Load the session via the token or the authentication server
-                session = ate_auth::main_session(opts.token.clone(), opts.token_path.clone(), Some(opts.auth), false).await?;
+                session = ate_auth::main_session(opts.token.clone(), opts.token_path.clone(), Some(opts.auth.clone()), false).await?;
+
+                // Attempt to grab additional permissions for the group (if it has any)
+                if let Some(remote) = &mount.remote {
+                    session = match ate_auth::main_gather(Some(remote.path().to_string()), session.clone(), opts.auth).await {
+                        Ok(a) => a,
+                        Err(err) => {
+                            debug!("Group authentication failed: {}", err);
+                            session
+                        }
+                    };
+                }
             }
 
             // Mount the file system
