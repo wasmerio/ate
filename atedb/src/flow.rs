@@ -110,13 +110,13 @@ for ChainFlow
             let advert = match advert {
                 Ok(a) => a,
                 Err(InvokeError::Reply(GroupDetailsFailed::NoAccess)) => {
-                    return Ok(OpenAction::Deny(format!("Failed to create the chain as the caller has no access to the group({}).", path)));
+                    return Ok(OpenAction::Deny(format!("Failed to create the chain as the caller has no access to the authorization group({}), contact the owner of the group to add this user to the delegate role of that group.", path)));
                 },
                 Err(InvokeError::Reply(GroupDetailsFailed::GroupNotFound)) => {
-                    return Ok(OpenAction::Deny(format!("Failed to create the chain as no group exists with the same name({}).", path)));
+                    return Ok(OpenAction::Deny(format!("Failed to create the chain as no authorization group exists with the same name({}), please create one and try again.", path)));
                 },
                 Err(err) => {
-                    return Ok(OpenAction::Deny(format!("Failed to create the chain as the group query failed - {}.", err)));
+                    return Ok(OpenAction::Deny(format!("Failed to create the chain as the authentication group query failed - {}.", err)));
                 }
             };
 
