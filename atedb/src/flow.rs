@@ -109,6 +109,12 @@ for ChainFlow
             }).await;
             let advert = match advert {
                 Ok(a) => a,
+                Err(InvokeError::Reply(GroupDetailsFailed::NoAccess)) => {
+                    return Ok(OpenAction::Deny(format!("Failed to create the chain as the caller has no access to the group({}).", path)));
+                },
+                Err(InvokeError::Reply(GroupDetailsFailed::GroupNotFound)) => {
+                    return Ok(OpenAction::Deny(format!("Failed to create the chain as no group exists with the same name({}).", path)));
+                },
                 Err(err) => {
                     return Ok(OpenAction::Deny(format!("Failed to create the chain as the group query failed - {}.", err)));
                 }
@@ -131,9 +137,10 @@ for ChainFlow
                 }
             });
             
+            let key = ChainKey::new(format!("group.{}", key.name).to_string());
             let chain = builder
                 .build()
-                .open(key)
+                .open(&key)
                 .await?;
 
             // We have opened the chain
@@ -144,6 +151,6 @@ for ChainFlow
         }
 
         // Ask the authentication server for the public key for this user
-        return Ok(OpenAction::Deny(format!("The chain-key ({}) does not match a valid pattern - for private file systems it must be in the format of /gmail.com/joe.blogs/mydb where the owner of this chain is the user joe.blogs@gmail.com. - for shared file systems you must first create a group with the same name.", key.to_string()).to_string()));
+        return Ok(OpenAction::Deny(format!("The chain-key ({}) does not match a valid pattern - for private databases it must be in the format of /gmail.com/joe.blogs/mydb where the owner of this chain is the user joe.blogs@gmail.com. - for shared databases you must first create a group with the same name.", key.to_string()).to_string()));
     }
 }
