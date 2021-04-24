@@ -67,6 +67,33 @@ impl GroupRole
         self.properties.push(SessionProperty::WriteKey(key.clone()));
     }
 
+    pub fn clear_read_keys(&mut self) {
+        self.properties.retain(|p| {
+            if let SessionProperty::ReadKey(_) = p {
+                return false;
+            }
+            return true;
+        });
+    }
+
+    pub fn clear_private_read_keys(&mut self) {
+        self.properties.retain(|p| {
+            if let SessionProperty::PrivateReadKey(_) = p {
+                return false;
+            }
+            return true;
+        });
+    }
+
+    pub fn clear_write_keys(&mut self) {
+        self.properties.retain(|p| {
+            if let SessionProperty::WriteKey(_) = p {
+                return false;
+            }
+            return true;
+        });
+    }
+
     pub fn add_identity(&mut self, identity: String) {
         self.properties.push(SessionProperty::Identity(identity));
     }
