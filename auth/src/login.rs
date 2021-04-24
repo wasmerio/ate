@@ -245,6 +245,19 @@ pub async fn main_session(token_string: Option<String>, token_file_path: Option<
     )
 }
 
+pub async fn main_user_details(session: AteSession) -> Result<(), LoginError>
+{
+    let identity = match session.user.identity() {
+        Some(a) => a.clone(),
+        None => {
+            eprintln!("Could not find an identity for the user");
+            std::process::exit(1);
+        }
+    };
+    println!("identity: {}", identity);
+    Ok(())
+}
+
 pub async fn main_login(
     username: Option<String>,
     password: Option<String>,

@@ -2,6 +2,7 @@
 use log::{info, error, debug};
 use ate::prelude::*;
 use ate_auth::prelude::*;
+use ate_auth::opts::*;
 use std::env;
 use std::io::ErrorKind;
 use directories::BaseDirs;
@@ -79,47 +80,18 @@ struct Opts {
 
 #[derive(Clap)]
 enum SubCommand {
+    /// Mounts a local or remote file system
     #[clap()]
     Mount(Mount),
+    /// Users are needed to access any remote file systems
     #[clap()]
-    CreateUser(CreateUser),
+    User(OptsUser),
+    /// Groups are collections of users that share same remote file system
     #[clap()]
-    CreateGroup(CreateGroup),
+    Group(OptsGroup),
+    /// Tokens are needed to mount file systems without prompting for credentials
     #[clap()]
-    CreateToken(CreateToken),
-}
-
-/// Logs into the authentication server using the supplied credentials
-#[derive(Clap)]
-struct CreateToken {
-    /// Email address that you wish to login using
-    #[clap(index = 1)]
-    email: String,
-    /// Password associated with this account
-    #[clap(index = 2)]
-    password: Option<String>,
-    /// Authenticator code from your google authenticator
-    #[clap(index = 3)]
-    code: Option<String>,
-}
-
-/// Creates a new user and login credentials on the authentication server
-#[derive(Clap)]
-struct CreateUser {
-    /// Email address of the user to be created
-    #[clap(index = 1)]
-    email: String,
-    /// New password to be associated with this account
-    #[clap(index = 2)]
-    password: Option<String>,
-}
-
-/// Creates a new group using the login credentials provided or prompted for
-#[derive(Clap)]
-struct CreateGroup {
-    /// Email address of the user to be created
-    #[clap(index = 1)]
-    name: String,
+    Token(OptsToken),
 }
 
 /// Mounts a particular directory as an ATE file system
@@ -355,22 +327,18 @@ async fn main() -> Result<(), CommandError> {
     }
     
     match opts.subcmd {
-        SubCommand::CreateToken(login) => {
-            let session = ate_auth::main_sudo(Some(login.email), login.password, login.code, opts.auth).await?;
-            eprintln!("The token string below can be used to secure your file system.\n");
-            println!("{}", ate_auth::session_to_b64(session.clone()).unwrap());
+        SubCommand::Token(opts_token) => {
+            ate_auth::main_opts_token(opts_token, opts.auth).await?;
         },
-        SubCommand::CreateUser(create) => {
-            let _session = ate_auth::main_create_user(Some(create.email), create.password, opts.auth).await?;
+        SubCommand::User(opts_user) => {
+            ate_auth::main_opts_user(opts_user, opts.token, opts.token_path, opts.auth).await?;
         },
-        SubCommand::CreateGroup(create) => {
+        SubCommand::Group(opts_group) => {
             if opts.no_auth {
                 eprintln!("In order to create groups you must use some form of authentication.");
                 std::process::exit(1);
             }
-
-            let session = ate_auth::main_session(opts.token.clone(), opts.token_path.clone(), Some(opts.auth.clone()), true).await?;
-            let _session = ate_auth::main_create_group(Some(create.name), opts.auth, session.user.identity().map(|i| i.clone())).await?;
+            ate_auth::main_opts_group(opts_group, opts.token, opts.token_path, opts.auth).await?;
         },
         SubCommand::Mount(mount) =>
         {
