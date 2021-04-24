@@ -31,13 +31,9 @@ impl AuthService
         let group_chain_key = auth_chain_key("auth".to_string(), &request.group);
         let chain = context.repository.open_by_key(&group_chain_key).await?;
 
-        // Create the super session that has all the rights we need
-        let mut super_session = self.master_session.clone();
-        super_session.append(request.session.clone());
-
         // Load the group
         let group_key = PrimaryKey::from(request.group.clone());
-        let mut dio = chain.dio(&super_session).await;
+        let mut dio = chain.dio(&self.master_session).await;
         let group = match dio.load::<Group>(&group_key).await {
             Ok(a) => a,
             Err(LoadError::NotFound(_)) => {
@@ -52,26 +48,35 @@ impl AuthService
         };       
 
         // Check that we actually have the rights to view the details of this group
-        let hashes = request.session.private_read_keys().map(|k| k.hash()).collect::<Vec<_>>();
-        if group.roles.iter().filter(|r| r.purpose == AteRolePurpose::Owner || r.purpose == AteRolePurpose::Delegate)
-            .any(|r| {
-                for hash in hashes.iter() {
-                    if r.access.exists(hash) {
-                        return true;
-                    }
-                }
-                return false;
-            }) == false
-        {
-            return Err(ServiceError::Reply(GroupDetailsFailed::NoAccess));
-        }
+        let has_access = match &request.session {
+            Some(session) => {
+                let hashes = session.private_read_keys().map(|k| k.hash()).collect::<Vec<_>>();
+                group.roles.iter().filter(|r| r.purpose == AteRolePurpose::Owner || r.purpose == AteRolePurpose::Delegate)
+                    .any(|r| {
+                        for hash in hashes.iter() {
+                            if r.access.exists(hash) {
+                                return true;
+                            }
+                        }
+                        return false;
+                    })
+            },
+            None => false
+        };
 
         // Build the list of roles in this group
         let mut roles = Vec::new();
         for role in group.roles.iter() {
             roles.push(GroupDetailsRoleResponse {
                 name: role.purpose.to_string(),
-                members: role.access.meta_list().map(|m| m.clone()).collect::<Vec<_>>()
+                read: role.read.clone(),
+                private_read: role.private_read.clone(),
+                write: role.write.clone(),
+                hidden: has_access == false,
+                members: match has_access {
+                    true => role.access.meta_list().map(|m| m.clone()).collect::<Vec<_>>(),
+                    false => Vec::new(),
+                }
             });
         }
 
@@ -84,7 +89,7 @@ impl AuthService
     }
 }
 
-pub async fn group_details_command(group: String, auth: Url, session: &AteSession) -> Result<GroupDetailsResponse, GroupDetailsError>
+pub async fn group_details_command(group: String, auth: Url, session: Option<&AteSession>) -> Result<GroupDetailsResponse, GroupDetailsError>
 {
     // Open a command chain
     let chain_url = crate::helper::command_url(auth.clone());
@@ -94,7 +99,7 @@ pub async fn group_details_command(group: String, auth: Url, session: &AteSessio
     // Make the create request and fire it over to the authentication server
     let create = GroupDetailsRequest {
         group,
-        session: session.clone(),
+        session: session.map(|s| s.clone()),
     };
 
     let response: Result<GroupDetailsResponse, InvokeError<GroupDetailsFailed>> = chain.invoke(create).await;
@@ -112,7 +117,7 @@ pub async fn group_details_command(group: String, auth: Url, session: &AteSessio
 pub async fn main_group_details(
     group: Option<String>,
     auth: Url,
-    session: &AteSession
+    session: Option<&AteSession>
 ) -> Result<(), GroupDetailsError>
 {
     let group = match group {
@@ -139,8 +144,17 @@ pub async fn main_group_details(
     for role in result.roles {
         println!("## {}", role.name);
         println!("");
-        for member in role.members {
-            println!("- {}", member);
+        println!("read: {}", role.read);
+        println!("pread: {}", role.private_read);
+        println!("write: {}", role.write);
+        println!("");
+        if role.hidden {
+            println!("[membership hidden]")
+        } else {
+            println!("[membership]");
+            for member in role.members {
+                println!("- {}", member);
+            }
         }
         println!("");
     }

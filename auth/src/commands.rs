@@ -206,7 +206,7 @@ pub struct GroupUserRemoveRequest
 pub struct GroupDetailsRequest
 {
     pub group: String,
-    pub session: AteSession,
+    pub session: Option<AteSession>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -232,6 +232,10 @@ pub struct GroupUserRemoveResponse
 pub struct GroupDetailsRoleResponse
 {
     pub name: String,
+    pub read: AteHash,
+    pub private_read: PublicEncryptKey,
+    pub write: PublicSignKey,
+    pub hidden: bool,
     pub members: Vec<String>,
 }
 

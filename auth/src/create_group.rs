@@ -144,6 +144,9 @@ impl AuthService
             // server can run in a distributed mode it is a centralized authority)
             let role = Role {
                 purpose: purpose.clone(),
+                read: role_read.hash(),
+                private_read: role_private_read.as_public_key(),
+                write: role_write.as_public_key(),
                 access,
             };
             group.roles.push(role);

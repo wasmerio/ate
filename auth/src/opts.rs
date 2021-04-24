@@ -85,7 +85,7 @@ pub enum GroupAction {
     /// Removes a user from an existing group
     #[clap()]
     RemoveUser(GroupRemoveUser),
-    /// Display the details about a particular group
+    /// Display the details about a particular group (token is required to see role membership)
     #[clap()]
     Details(GroupDetails),
 }
@@ -210,8 +210,12 @@ pub async fn main_opts_group(opts_group: OptsGroup, token: Option<String>, token
             let _session = crate::main_group_user_remove(Some(action.group), Some(action.role), Some(action.username), auth, &session).await?;
         },
         GroupAction::Details(action) => {
-            let session = crate::main_session(token.clone(), token_path.clone(), Some(auth.clone()), false).await?;
-            crate::main_group_details(Some(action.group), auth, &session).await?;
+            if token.is_some() || token_path.is_some() {
+                let session = crate::main_session(token.clone(), token_path.clone(), Some(auth.clone()), false).await?;
+                crate::main_group_details(Some(action.group), auth, Some(&session)).await?;
+            } else {
+                crate::main_group_details(Some(action.group), auth, None).await?;
+            }
         }
     }
     Ok(())

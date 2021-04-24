@@ -86,14 +86,22 @@ impl AuthService
                 }
             };
 
+            // Generate the role keys
+            let role_read = EncryptKey::generate(key_size);
+            let role_private_read = PrivateEncryptKey::generate(key_size);
+            let role_write = PrivateSignKey::generate(key_size);
+
             // Add this customer role and attach it back to the delegate role
             group.roles.push(Role {
                 purpose: request.purpose.clone(),
                 access: MultiEncryptedSecureData::new(&delegate_write.as_public_key(), referrer_identity, Authorization {
-                    read: EncryptKey::generate(key_size),
-                    private_read: PrivateEncryptKey::generate(key_size),
-                    write: PrivateSignKey::generate(key_size)
-                })?
+                    read: role_read.clone(),
+                    private_read: role_private_read.clone(),
+                    write: role_write.clone()
+                })?,
+                read: role_read.hash(),
+                private_read: role_private_read.as_public_key(),
+                write: role_write.as_public_key(),
             })
         }
 
