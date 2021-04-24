@@ -137,7 +137,14 @@ for ChainFlow
                 }
             });
             
-            let key = ChainKey::new(format!("group.{}", key.name).to_string());
+            // Generate a better key name
+            let mut key_name = key.name.clone();
+            if key_name.starts_with("/") {
+                key_name = key_name[1..].to_string();
+            }
+            let key = ChainKey::new(format!("group.{}", key_name).to_string());
+
+            // Create the chain
             let chain = builder
                 .build()
                 .open(&key)
