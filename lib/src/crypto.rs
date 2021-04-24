@@ -920,20 +920,25 @@ where T: serde::Serialize + serde::de::DeserializeOwned
 {
     format: SerializationFormat,
     members: FxHashMap<String, EncryptedSecureData<EncryptKey>>,
+    metadata: FxHashMap<String, String>,
     sd_iv: InitializationVector,
     sd_encrypted: Vec<u8>,
     #[serde(skip)]
-    _marker: std::marker::PhantomData<T>,
+    _marker2: std::marker::PhantomData<T>,
 }
 
 impl<T> MultiEncryptedSecureData<T>
 where T: serde::Serialize + serde::de::DeserializeOwned
 {
-    pub fn new(encrypt_key: &PublicEncryptKey, data: T) -> Result<MultiEncryptedSecureData<T>, std::io::Error> {
+    pub fn new(encrypt_key: &PublicEncryptKey, meta: String, data: T) -> Result<MultiEncryptedSecureData<T>, std::io::Error> {
         let format = SerializationFormat::Bincode;
         let shared_key = EncryptKey::generate(encrypt_key.size());
+        
+        let index = encrypt_key.hash().to_hex_string();
         let mut members = FxHashMap::default();
-        members.insert(encrypt_key.hash().to_hex_string(), EncryptedSecureData::new(encrypt_key, shared_key)?);
+        members.insert(index.clone(), EncryptedSecureData::new(encrypt_key, shared_key)?);
+        let mut metadata = FxHashMap::default();
+        metadata.insert(index, meta);
 
         let data = match format.serialize(&data) {
             Ok(a) => a,
@@ -945,9 +950,10 @@ where T: serde::Serialize + serde::de::DeserializeOwned
             MultiEncryptedSecureData {
                 format,
                 members,
+                metadata,
                 sd_iv: result.iv,
                 sd_encrypted: result.data,
-                _marker: PhantomData,
+                _marker2: PhantomData,
             }
         )
     }
@@ -968,11 +974,13 @@ where T: serde::Serialize + serde::de::DeserializeOwned
         )
     }
 
-    pub fn add(&mut self, encrypt_key: &PublicEncryptKey, referrer: &PrivateEncryptKey) -> Result<bool, std::io::Error> {
+    pub fn add(&mut self, encrypt_key: &PublicEncryptKey, meta: String, referrer: &PrivateEncryptKey) -> Result<bool, std::io::Error> {
         match self.members.get(&referrer.hash().to_hex_string()) {
             Some(a) => {
                 let shared_key = a.unwrap(referrer)?;
-                self.members.insert(encrypt_key.hash().to_hex_string(), EncryptedSecureData::new(encrypt_key, shared_key)?);
+                let index = encrypt_key.hash().to_hex_string();
+                self.members.insert(index.clone(), EncryptedSecureData::new(encrypt_key, shared_key)?);
+                self.metadata.insert(index, meta);
                 Ok(true)
             },
             None => Ok(false)
@@ -980,12 +988,20 @@ where T: serde::Serialize + serde::de::DeserializeOwned
     }
 
     pub fn remove(&mut self, what: &Hash) -> bool {
-        self.members.remove(&what.to_hex_string()).is_some()
+        let index = what.to_hex_string();
+        let ret = self.members.remove(&index).is_some();
+        self.metadata.remove(&index);
+        ret
     }
 
     pub fn exists(&mut self, what: &Hash) -> bool {
         let what = what.to_hex_string();
         self.members.contains_key(&what)
+    }
+
+    pub fn meta<'a>(&'a self, what: &Hash) -> Option<&'a String> {
+        let index = what.to_hex_string();
+        self.metadata.get(&index)
     }
 }
 
@@ -1374,8 +1390,8 @@ fn test_multi_encrypt() -> Result<(), AteError>
         let client3 = PrivateEncryptKey::generate(key_size.clone());
         
         let plain_text1 = "the cat ran up the wall".to_string();
-        let mut multi = MultiEncryptedSecureData::new(&client1.as_public_key(), plain_text1.clone())?;
-        multi.add(&client2.as_public_key(), &client1)?;
+        let mut multi = MultiEncryptedSecureData::new(&client1.as_public_key(), "meta".to_string(), plain_text1.clone())?;
+        multi.add(&client2.as_public_key(), "another_meta".to_string(), &client1)?;
 
         let plain_text2 = multi.unwrap(&client1)?.expect("Should have decrypted.");
         assert_eq!(plain_text1, plain_text2);

@@ -117,20 +117,20 @@ impl AuthService
             }
 
             // Create the access object
-            let mut access = MultiEncryptedSecureData::new(&owner_private_read.as_public_key(), Authorization {
+            let mut access = MultiEncryptedSecureData::new(&owner_private_read.as_public_key(), "owner".to_string(), Authorization {
                 read: role_read.clone(),
                 private_read: role_private_read.clone(),
                 write: role_write.clone()
             })?;
             if let RolePurpose::Owner = purpose {
-                access.add(&request.sudo_read_key, &owner_private_read)?;
+                access.add(&request.sudo_read_key, request.identity.clone(), &owner_private_read)?;
             } else if let RolePurpose::Delegate = purpose {
-                access.add(&request.nominal_read_key, &owner_private_read)?;
+                access.add(&request.nominal_read_key, request.identity.clone(), &owner_private_read)?;
             } else if let RolePurpose::Observer = purpose {
-                access.add(&delegate_private_read.as_public_key(), &owner_private_read)?;
-                access.add(&contributor_private_read.as_public_key(), &owner_private_read)?;
+                access.add(&delegate_private_read.as_public_key(), "delegate".to_string(), &owner_private_read)?;
+                access.add(&contributor_private_read.as_public_key(), "contributor".to_string(), &owner_private_read)?;
             } else {
-                access.add(&delegate_private_read.as_public_key(), &owner_private_read)?;
+                access.add(&delegate_private_read.as_public_key(), "delegate".to_string(), &owner_private_read)?;
             }
 
             // Add the rights to the session we will return
@@ -176,7 +176,7 @@ impl AuthService
         // Load the master key which will be used to encrypt the group so that only
         // the authentication server can access it
         let key_size = request.session.read_keys().map(|k| k.size()).next().unwrap_or_else(|| KeySize::Bit256);
-        
+
         // Compute which chain the group should exist within
         let group_chain_key = auth_chain_key("auth".to_string(), &request.group);
         let chain = context.repository.open_by_key(&group_chain_key).await?;
@@ -224,10 +224,18 @@ impl AuthService
         // If the role does not exist then add it
         if group.roles.iter().any(|r| r.purpose == request.purpose) == false
         {
+            // Get our own identity
+            let referrer_identity = match request.session.user.identity() {
+                Some(a) => a.clone(),
+                None => {
+                    return Err(ServiceError::Reply(GroupUserAddFailed::UnknownIdentity));
+                }
+            };
+
             // Add this customer role and attach it back to the delegate role
             group.roles.push(Role {
                 purpose: request.purpose.clone(),
-                access: MultiEncryptedSecureData::new(&delegate_write.as_public_key(), Authorization {
+                access: MultiEncryptedSecureData::new(&delegate_write.as_public_key(), referrer_identity, Authorization {
                     read: EncryptKey::generate(key_size),
                     private_read: PrivateEncryptKey::generate(key_size),
                     write: PrivateSignKey::generate(key_size)
@@ -237,7 +245,7 @@ impl AuthService
 
         // Perform the operation that will add the other user to the specific group role
         for role in group.roles.iter_mut().filter(|r| r.purpose == request.purpose) {
-            role.access.add(&request.who, &delegate_write)?;
+            role.access.add(&request.who_key, request.who_name.clone(), &delegate_write)?;
         }
 
         // Commit
@@ -336,7 +344,7 @@ pub async fn create_group_command(group: String, auth: Url, username: String) ->
     let chain = Arc::clone(&registry).open_by_url(&chain_url).await?;
 
     // First we query the user that needs to be added so that we can get their public encrypt key
-    let query = crate::query_command(Arc::clone(&registry), username, auth).await?;
+    let query = crate::query_command(Arc::clone(&registry), username.clone(), auth).await?;
 
     // Extract the read key(s) from the query
     let nominal_read_key = query.advert.nominal_encrypt;
@@ -345,6 +353,7 @@ pub async fn create_group_command(group: String, auth: Url, username: String) ->
     // Make the create request and fire it over to the authentication server
     let create = CreateGroupRequest {
         group,
+        identity: username.clone(),
         nominal_read_key,
         sudo_read_key,
     };
@@ -403,10 +412,10 @@ pub async fn group_user_add_command(group: String, purpose: AteRolePurpose, user
     let chain = Arc::clone(&registry).open_by_url(&chain_url).await?;
     
     // First we query the user that needs to be added so that we can get their public encrypt key
-    let query = crate::query_command(Arc::clone(&registry), username, auth).await?;
+    let query = crate::query_command(Arc::clone(&registry), username.clone(), auth).await?;
 
     // Determine what level of authentication we will associate the role with
-    let who = match purpose {
+    let who_key = match purpose {
         RolePurpose::Owner => query.advert.sudo_encrypt,
         _ => query.advert.nominal_encrypt
     };
@@ -415,7 +424,8 @@ pub async fn group_user_add_command(group: String, purpose: AteRolePurpose, user
     let create = GroupUserAddRequest {
         group,
         session: session.clone(),
-        who,
+        who_name: username.clone(),
+        who_key,
         purpose,
     };
 

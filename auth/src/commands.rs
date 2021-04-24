@@ -178,6 +178,7 @@ for QueryFailed {
 pub struct CreateGroupRequest
 {
     pub group: String,
+    pub identity: String,
     pub nominal_read_key: PublicEncryptKey,
     pub sudo_read_key: PublicEncryptKey,
 }
@@ -187,7 +188,8 @@ pub struct GroupUserAddRequest
 {
     pub group: String,
     pub session: AteSession,
-    pub who: PublicEncryptKey,
+    pub who_key: PublicEncryptKey,
+    pub who_name: String,
     pub purpose: AteRolePurpose
 }
 
@@ -245,7 +247,8 @@ pub enum GroupUserAddFailed
 {
     GroupNotFound,
     NoMasterKey,
-    NoAccess
+    NoAccess,
+    UnknownIdentity
 }
 
 impl std::fmt::Display
@@ -260,6 +263,9 @@ for GroupUserAddFailed {
             },
             GroupUserAddFailed::NoMasterKey => {
                 write!(f, "Authentication server has not been properly initialized")
+            },
+            GroupUserAddFailed::UnknownIdentity => {
+                write!(f, "Ther referrers identity is not known")
             },
         }
     }
