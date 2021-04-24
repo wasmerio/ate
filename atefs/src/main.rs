@@ -285,14 +285,17 @@ async fn main_mount(mount: Mount, conf: ConfAte, session: AteSession, no_auth: b
                         return Ok(())
                     }
                     error!("{}", err);
+                    let _ = umount::unmount(std::path::Path::new(mount_path.as_str()));
                     std::process::exit(1);
                 }
                 Err(err) => {
                     error!("{}", err);
+                    let _ = umount::unmount(std::path::Path::new(mount_path.as_str()));
                     std::process::exit(1);
                 }
                 _ => {
                     eprintln!("Shutdown");
+                    let _ = umount::unmount(std::path::Path::new(mount_path.as_str()));
                     return Ok(());
                 }
             }
