@@ -55,6 +55,15 @@ impl MeshSession
         // speed up the synchronization by skipping already loaded items
         let mut chain = {
             let chain_key = chain_key.clone();
+            
+            // Generate a better key name
+            let mut key_name = chain_key.name.clone();
+            if key_name.starts_with("/") {
+                key_name = key_name[1..].to_string();
+            }
+            let chain_key = ChainKey::new(format!("redo.{}", key_name).to_string());
+
+            // Generate the chain object
             Chain::new_ext(builder.clone(), chain_key, Some(loader_local), true).await?
         };
 

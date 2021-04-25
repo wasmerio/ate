@@ -73,10 +73,18 @@ for ChainFlow
                     IntegrityMode::Distributed
                 }
             });
+
+            // Prefix the name with 'redo'
+            let mut key_name = key.name.clone();
+            if key_name.starts_with("/") {
+                key_name = key_name[1..].to_string();
+            }
+            let key = ChainKey::new(format!("redo.{}", key_name).to_string());
             
+            // Create the chain
             let chain = builder
                 .build()
-                .open(key)
+                .open(&key)
                 .await?;
 
             // We have opened the chain
@@ -137,12 +145,12 @@ for ChainFlow
                 }
             });
             
-            // Generate a better key name
+            // Prefix the name with 'redo'
             let mut key_name = key.name.clone();
             if key_name.starts_with("/") {
                 key_name = key_name[1..].to_string();
             }
-            let key = ChainKey::new(format!("group.{}", key_name).to_string());
+            let key = ChainKey::new(format!("redo.{}", key_name).to_string());
 
             // Create the chain
             let chain = builder
