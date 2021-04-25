@@ -378,13 +378,8 @@ async fn main() -> Result<(), CommandError> {
                 // Attempt to grab additional permissions for the group (if it has any)
                 if let Some(remote) = &mount.remote {
                     session = match ate_auth::main_gather(Some(remote.path().to_string()), session.clone(), opts.auth).await {
-                        Ok(mut a) =>
+                        Ok(a) =>
                         {
-                            // If we managed to load a group for this target file system then we should
-                            // clear all the user permissions as we will be using the group ones instead
-                            a.user.clear_read_keys();
-                            a.user.clear_private_read_keys();
-                            a.user.clear_write_keys();
                             a
                         },
                         Err(err) => {

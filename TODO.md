@@ -3,71 +3,105 @@
         + AteAuth requires group access rights that also get added to the token
         + Connect up the 'chmod' commands to real commands in AteAuth so that
           actual ATE data object access rights reflect the linux permissions
-0.5.2   Very large file-system support
-        + Files larger than 20MB should be stored in a seperate chains
-        + Files larger than 200MB should be stored in extents that each have
-          their own chains
-0.5.3   Compacting chains
+0.5.2   Compacting chains
         + AteDb should periodically compact itself without breaking things
         + Events that are streamed to a compacted chain that predate the
           compaction should be dropped.
         + Deleting all the entries in a chain should also destroy the chain
-0.5.4   Snapshots and References
-        + Taking a snapshot of a file system should cause the chain to rotate
-          which makes it immutable (need an emulated folder to restore and
-          create those snapshots)
-0.6.0 - Remote Symbolic links
-        + Need to be able to create a symbolic link to another remote file system
-          (e.g. ln -s tcp://ate.tokera.com/myfs myfs)
-0.6.1   Advanced File-Systems
-        + Flag needed in AteFS that enables the 'advanced mode' (default: on)
-        + The root of the file-system is the users folder
-        + Add a symbolic link over to an account file system /acc
-        + Add a symbolic link over to a public file system /pub -> https://ate.tokera.com/pub
-          (this file-system is owned by Tokera with access granted on specific folders)
+0.5.3   Linked File-System
+        + Any folder created within AteFS should be able to 'link' with another
+          file-system using the 'atefs link {remote}' commands.
+        + The working directory is taken as the folder you wish to union however
+          you can specify this in the command line as an argument instead.
+        + Internally AteFS downloads and operates on a different file-system
+          as if it had been directly mounted.
+        + Hook the 'ln -s' file-system command to make this more seamless
+        + Removing the folder destroys the link within killing the remote chain itself
+0.5.4   Union File-Systsem
+        + Any linked folder 'atefs link' can be forked instead of linked using
+          the 'atefs fork {remote}' command.
+        + Union'ed folders behave like linked folders except all changes made are
+          stored in the 'local' chain instead of the 'remote' chain
+        + Only read-only access is required to the 'remote' chain'
+        + Local files and folders take preference over remote files
+        + Deleted files and folders use a whiteout marker (.wh.{file}).
 0.7.0   Docker imports
         + AteDocker needs to be created that hosts imported docker files
           on demand as they are requested.
-        + Docker credentials should be stored in the authentication server
-          and used by AteDocker with appropriate encryption when the
-          image is private
-        + Importing a docker image will create snapshot chains for each step in
-          the docker image
-        + Users can load and modify docker images simply by creating a symbolic link to
-          its address on docker hub.
-0.8.0  Reverse Proxy
-        + When mounting a file-system within an AteFS location then a reverse
-          proxy should be started that then makes it visible for anyone who
-          accesses the file-system.
-0.8.1  Remote Process Call
-        + AteFs should have a mode that can be activated that allows for RPC.
-        + An RPC is an service endpoint that will execute a process locally
-          which reads from stdin and writes to stdout
-        + When running a process on one copy of AteFS it should then be possible
-          to see the output on another using this method.
-0.9.0  Ate Bootloader
-        + AteBoot needs to be created which holds an initrd.img, token and URL
-          of a file-system to boot to.
-        + On the public file-system a series of images should be created that
-          gives different flavors of systems one can boot too.
-        + One of the core bootloaders should do the following
-          1. Downloads the file-system locally using AteFS
-          2. AteFS runs with the RPC mode enabled
-          3. Mounts all the auxillary file-systems
-          4. Runs reverse proxies on all the mount points
-0.10.0  Tokera Coins
+        + AteDocker will run at 'tcp://docker.tokera.com/'
+        + Docker credentials should be passed in the command-line, only public
+          containers are supported at Tokera - private containers require
+          one to run their own instance of AteDocker.
+        + The command to run on the docker image is stored in a file called 'init'
+          at the root of the file-system (unless the file already exists)
+        + Users can load and modify docker images simply by using the 'atefs union'
+          and 'atefs fork' commands.
+0.9.4   Process Dispatch Point
+        + So called PDP 'process dispatch points' can be created within AteFS which
+          when running on a specific machine will serve RPC(Remote Process Calls)
+        + The dispatch point uses a hardware identity scan locally to determine
+          if it is the owner of the PDP.
+        + Every PDP has a unique user attached to it that has specific access
+          rights - the authentication is a combination of a secret embedded in the parent
+          file-system plus the hardware identity hash.
+        + The PDP waits for commands and then executes a process locally streaming
+          the results back to the caller - it follows these steps.
+          1. bind all mount points to the folder
+          2. wait for a command to be received over ATE
+          3. chroot to the folder and execute the command
+          4. stream the stdout and stderr back to the caller
+          5. if no other processes are running then clean up the mount points
+        + If the folder that has been turned into an PDP holds a /init file then
+          this file is launched automatically (restarting it if it fails)
+0.9.5   Remote Process Calls
+        + All executables after a PDP on mounts that are not running as a server
+          are replaced by a fake executable that proxies the command to the server.
+        + Remote operators should be able to simply CHROOT to the folder to perform any
+          action as if they were on the remote server/client.
+0.8.0   Ate Bootloader
+        + Bootloader created and stored in the public ate repository that others
+          can download onto USB sticks.
+        + Bootloader does the following...
+          1. Creates a ext4 file system across all the block devices
+          2. Downloads the file-system locally using AteFS
+          3. AteFS runs on a specfied file system
+          4. Mounts all the auxillary file-systems
+          5. Creates a PDP on the folder (if one does not exist)
+0.9.0   Tokera Coins
         + Create wallets for accounts in Tokera
         + Create PayPal exchange for wallets
         + Add contracts
-0.11.0  Rentable Server
+0.10.0  Rentable Baremetal
         + Ate bootloader that goes into an advertising state which publishes the
           machine and its specs on an open market.
         + Buyers can run test loads on an advertised machine to see if they are
           happy with how it respondes before they commit
-        + Once purchased the server can run one of more virtual machines off
-          customer supplied file-systems with init processes.
-        + Test it as a virtual machine.
+        + Once purchased the server will chain over to another file-system which
+          the renter has specified
+        + PDP will take care of automatically running stuff when the machine boots
+        + Remote operations is all done via the AteFS and PDP
+0.11.0  9P Emulation
+        + Any mount point within the file system can be attached via the
+          single UNIX socket - should be able to remount atefs endpoints
+          using a 9p mount command either from within or outside a VM.
+0.12.0  Rentable Hypervisor
+        + Another Ate bootloader but this one will launch bootloaders as virtual
+          machines that carve up the machine.
+        + KVM workloads can run off the 9P emulated file system directly
+        + Block devices point to files on an EXT4 partition however the
+          earlier bootloader is used in combinated with 9P
+        + PDP will take care of automatically running stuff when the machine boots
+        + Remote operations is all done via the AteFS and PDP
+0.13.0  Virtualized Networking
+        + All networking are abstracted behind virtual machines that are attached
+          to a local only bridge.
+        + Networks are peered together via configuration and firewall inforced IPv6
+          tunnels with 'ipsec'.
+        + External connectivity is managed by load-balancer on the public IP address
 ```
+
+parked
+======
 
 ate-2.0
 =======
