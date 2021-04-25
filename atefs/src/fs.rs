@@ -490,6 +490,7 @@ for AteFS
             dao.dentry.gid = gid;
         }
         conv_serialization(dao.commit(&mut dio))?;
+        conv_commit(dio.commit().await)?;
 
         let spec = Inode::as_file_spec(inode, dao.when_created(), dao.when_updated(), dao);
         Ok(ReplyAttr {
