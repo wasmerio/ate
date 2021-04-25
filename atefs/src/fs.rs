@@ -74,8 +74,8 @@ where Self: Send + Sync
 
 impl OpenHandle
 {
-    fn add_child(&mut self, spec: &FileSpec) {
-        let attr = spec_as_attr(spec).clone();
+    fn add_child(&mut self, spec: &FileSpec, uid: u32, gid: u32) {
+        let attr = spec_as_attr(spec, uid, gid).clone();
 
         self.children.push(DirectoryEntry {
             inode: spec.ino(),
@@ -94,7 +94,7 @@ impl OpenHandle
     }
 }
 
-pub fn spec_as_attr(spec: &FileSpec) -> FileAttr {
+pub fn spec_as_attr(spec: &FileSpec, uid: u32, gid: u32) -> FileAttr {
     let size = spec.size();
     let blksize = super::model::PAGE_SIZE as u64;
 
@@ -109,8 +109,8 @@ pub fn spec_as_attr(spec: &FileSpec) -> FileAttr {
         kind: spec.kind(),
         perm: fuse3::perm_from_mode_and_kind(spec.kind(), spec.mode()),
         nlink: 0,
-        uid: spec.uid(),
-        gid: spec.gid(),
+        uid,
+        gid,
         rdev: 0,
         blksize: blksize as u32,
     }
@@ -176,36 +176,61 @@ impl AteFS
         }
     }
 
-    fn get_group_read_key(&self) -> Option<AteHash> {
+    fn get_group_gid(&self) -> Option<u32> {
         if let Some(group) = &self.group {
-            self.session.get_group_role(group, &AteRolePurpose::Observer)
+            self.session.get_group(group)
                 .iter()
-                .flat_map(|r| r.read_keys())
-                .map(|k| k.hash())
+                .flat_map(|g| g.roles.iter())
+                .filter_map(|r| r.gid())
+                .map(|gid| gid.clone())
                 .next()
         } else {
             None
         }
     }
 
-    fn get_group_write_key(&self) -> Option<AteHash> {
-        if let Some(group) = &self.group {
-            self.session.get_group_role(group, &AteRolePurpose::Contributor)
-                .iter()
-                .flat_map(|r| r.write_keys())
-                .map(|k| k.hash())
-                .next()
-        } else {
-            None
-        }
+    fn get_group_read_key(&self, gid: u32) -> Option<AteHash> {
+        self.session.groups.iter()
+            .flat_map(|g| g.roles.iter())
+            .filter(|r| r.purpose == AteRolePurpose::Observer)
+            .filter(|g| g.gid().iter().any(|gid2| *gid2 == gid))
+            .flat_map(|r| r.read_keys())
+            .map(|k| k.hash())
+            .next()
     }
 
-    fn get_user_read_key(&self) -> Option<AteHash> {
-        self.session.user.read_keys().map(|a| a.hash()).next()
+    fn get_group_write_key(&self, gid: u32) -> Option<AteHash> {
+        self.session.groups.iter()
+            .flat_map(|g| g.roles.iter())
+            .filter(|r| r.purpose == AteRolePurpose::Contributor)
+            .filter(|g| g.gid().iter().any(|gid2| *gid2 == gid))
+            .flat_map(|r| r.write_keys())
+            .map(|k| k.hash())
+            .next()
     }
 
-    fn get_user_write_key(&self) -> Option<AteHash> {
-        self.session.user.write_keys().map(|a| a.hash()).next()
+    fn get_user_read_key(&self, uid: u32) -> Option<AteHash> {
+        match self.session.user.uid() {
+            Some(a) if a == uid => {
+                self.session.user
+                    .read_keys()
+                    .map(|a| a.hash())
+                    .next()
+            },
+            _ => None
+        }        
+    }
+
+    fn get_user_write_key(&self, uid: u32) -> Option<AteHash> {
+        match self.session.user.uid() {
+            Some(a) if a == uid => {
+                self.session.user
+                    .write_keys()
+                    .map(|a| a.hash())
+                    .next()
+            },
+            _ => None
+        } 
     }
 
     pub async fn load<'a>(&'a self, inode: u64) -> Result<(Dao<Inode>, Dio<'a>)> {
@@ -214,7 +239,7 @@ impl AteFS
         Ok((dao, dio))
     }
 
-    async fn create_open_handle(&self, inode: u64) -> Result<OpenHandle>
+    async fn create_open_handle(&self, inode: u64, req: &Request) -> Result<OpenHandle>
     {
         let key = PrimaryKey::from(inode);
         let mut dio = self.chain.dio_ext(&self.session, self.scope).await;
@@ -227,15 +252,15 @@ impl AteFS
 
         let mut children = Vec::new();
         let fixed = FixedFile::new(key.as_u64(), ".".to_string(), FileType::Directory)
-            .uid(uid)
-            .gid(gid)
+            .uid(self.reverse_uid(uid, req))
+            .gid(self.reverse_gid(gid, req))
             .created(created)
             .updated(updated);
         children.push(FileSpec::FixedFile(fixed));
 
         let fixed = FixedFile::new(key.as_u64(), "..".to_string(), FileType::Directory)
-            .uid(uid)
-            .gid(gid)
+            .uid(self.reverse_uid(uid, req))
+            .gid(self.reverse_gid(gid, req))
             .created(created)
             .updated(updated);
         children.push(FileSpec::FixedFile(fixed));
@@ -250,7 +275,7 @@ impl AteFS
         let mut open = OpenHandle {
             inode,
             fh: fastrand::u64(..),
-            attr: spec_as_attr(&spec),
+            attr: spec_as_attr(&spec, self.reverse_uid(spec.uid(), req), self.reverse_gid(spec.uid(), req)),
             spec: spec,
             children: Vec::new(),
             children_plus: Vec::new(),
@@ -258,7 +283,7 @@ impl AteFS
         };
 
         for child in children.into_iter() {
-            open.add_child(&child);
+            open.add_child(&child, self.reverse_uid(child.uid(), req), self.reverse_gid(child.gid(), req));
         }
 
         Ok(open)
@@ -290,16 +315,18 @@ impl AteFS
             return Err(libc::EEXIST.into());
         }
 
+        let uid = self.translate_uid(req.uid, &req);
+        let gid = self.translate_gid(req.gid, &req);
         let child = Inode::new(
             name.to_str().unwrap().to_string(),
             mode, 
-            req.uid,
-            req.gid,
+            uid,
+            gid,
             SpecType::RegularFile,
         );
 
         let mut child = conv_serialization(data.push_make(&mut dio, data.children, child))?;
-        self.update_auth(mode, child.auth_mut())?;
+        self.update_auth(mode, uid, gid, child.auth_mut())?;
         let child = conv_serialization(child.commit(&mut dio))?;
         return Ok((child, dio));
     }
@@ -340,24 +367,24 @@ impl AteFS
         Ok(())
     }
 
-    fn update_auth(&self, mode: u32, auth: &mut MetaAuthorization) -> Result<()> {
+    fn update_auth(&self, mode: u32, uid: u32, gid: u32, auth: &mut MetaAuthorization) -> Result<()> {
         if mode & 0o004 != 0 {
             auth.read = ate::meta::ReadOption::Everyone;
         } else if mode & 0o040 != 0 {
-            if let Some(key) = self.get_group_read_key() {
+            if let Some(key) = self.get_group_read_key(gid) {
                 auth.read = ate::meta::ReadOption::Specific(key);
             } else if self.no_auth == false {
-                error!("Session does not have a read key embedded within it");
-                return Err(libc::EINVAL.into());
+                error!("Session does not have the required group read key embedded within it");
+                return Err(libc::EACCES.into());
             } else {
                 auth.read = ate::meta::ReadOption::Inherit;
             }
         } else {
-            if let Some(key) = self.get_user_read_key() {
+            if let Some(key) = self.get_user_read_key(uid) {
                 auth.read = ate::meta::ReadOption::Specific(key);
             } else if self.no_auth == false {
-                error!("Session does not have a read key embedded within it");
-                return Err(libc::EINVAL.into());
+                error!("Session does not have the required user read key embedded within it");
+                return Err(libc::EACCES.into());
             } else {
                 auth.read = ate::meta::ReadOption::Inherit;
             }
@@ -366,26 +393,64 @@ impl AteFS
         if mode & 0o002 != 0 {
             auth.write = ate::meta::WriteOption::Everyone;
         } else if mode & 0o020 != 0 {
-            if let Some(key) = self.get_group_write_key() {
+            if let Some(key) = self.get_group_write_key(gid) {
                 auth.write = ate::meta::WriteOption::Specific(key);
             } else if self.no_auth == false {
-                error!("Session does not have a rwrite key embedded within it");
-                return Err(libc::EINVAL.into());
+                error!("Session does not have the required group rwrite key embedded within it");
+                return Err(libc::EACCES.into());
             } else {
                 auth.write = ate::meta::WriteOption::Inherit;
             }
         } else {
-            if let Some(key) = self.get_user_write_key() {
+            if let Some(key) = self.get_user_write_key(uid) {
                 auth.write = ate::meta::WriteOption::Specific(key);
             } else if self.no_auth == false {
-                error!("Session does not have a write key embedded within it");
-                return Err(libc::EINVAL.into());
+                error!("Session does not have the required user write key embedded within it");
+                return Err(libc::EACCES.into());
             } else {
                 auth.write = ate::meta::WriteOption::Inherit;
             }
         }
 
         Ok(())
+    }
+
+    fn translate_uid(&self, uid: u32, req: &Request) -> u32 {
+        if uid == 0 || uid == req.uid {
+            return self.session.user.uid().unwrap_or_else(|| uid);
+        }
+        uid
+    }
+
+    fn translate_gid(&self, gid: u32, req: &Request) -> u32 {
+        if gid == 0 || gid == req.gid {
+            return self.get_group_gid().unwrap_or_else(|| gid);
+        }
+        gid
+    }
+
+    fn reverse_uid(&self, uid: u32, req: &Request) -> u32 {
+        if let Some(uid2) = self.session.user.uid() {
+            if uid == uid2 {
+                return req.uid;
+            }
+        }
+        uid
+    }
+
+    fn reverse_gid(&self, gid: u32, req: &Request) -> u32 {
+        if let Some(gid2) = self.get_group_gid() {
+            if gid == gid2 {
+                return req.gid;
+            }
+        }
+        gid
+    }
+
+    fn spec_as_attr_reverse(&self, spec: &FileSpec, req: &Request) -> FileAttr {
+        let uid = self.reverse_uid(spec.uid(), req);
+        let gid = self.reverse_gid(spec.gid(), req);
+        spec_as_attr(spec, uid, gid)
     }
 }
 
@@ -404,11 +469,19 @@ for AteFS
             info!("atefs::creating-root-node");
             
             let mode = 0o755;
-            let root = Inode::new("/".to_string(), mode, req.uid, req.gid, SpecType::Directory);
+            let uid = self.translate_uid(req.uid, &req);
+            let gid = self.translate_gid(req.gid, &req);
+            let root = Inode::new(
+                "/".to_string(),
+                mode,
+                uid,
+                gid,
+                SpecType::Directory
+            );
             match dio.make_ext(root, self.session.log_format, Some(PrimaryKey::from(1))) {
                 Ok(mut root) =>
                 {
-                    self.update_auth(mode, root.auth_mut())?;
+                    self.update_auth(mode, uid, gid, root.auth_mut())?;
                     conv_serialization(root.commit(&mut dio))?;
                 },
                 Err(err) => {
@@ -437,7 +510,7 @@ for AteFS
 
     async fn getattr(
         &self,
-        _req: Request,
+        req: Request,
         inode: u64,
         fh: Option<u64>,
         _flags: u32,
@@ -459,13 +532,13 @@ for AteFS
         let spec = Inode::as_file_spec(inode, dao.when_created(), dao.when_updated(), dao);
         Ok(ReplyAttr {
             ttl: FUSE_TTL,
-            attr: spec_as_attr(&spec),
+            attr: self.spec_as_attr_reverse(&spec, &req),
         })
     }
 
     async fn setattr(
         &self,
-        _req: Request,
+        req: Request,
         inode: u64,
         _fh: Option<u64>,
         set_attr: SetAttr,
@@ -477,33 +550,46 @@ for AteFS
         let mut dio = self.chain.dio_ext(&self.session, self.scope).await;
         let mut dao = conv_load(dio.load::<Inode>(&key).await)?;
 
+        let mut changed = false;
         if let Some(mode) = set_attr.mode {
             if dao.dentry.mode != mode {
-                self.update_auth(mode, dao.auth_mut())?;
                 dao.dentry.mode = mode;
+                changed = true;
             }
         }
         if let Some(uid) = set_attr.uid {
-            dao.dentry.uid = uid;
+            let new_uid = self.translate_uid(uid, &req);
+            if dao.dentry.uid != new_uid {
+                dao.dentry.uid = new_uid;
+                changed = true;
+            }
         }
         if let Some(gid) = set_attr.gid {
-            dao.dentry.gid = gid;
+            let new_gid = self.translate_gid(gid, &req);
+            if dao.dentry.gid != new_gid {
+                dao.dentry.gid = new_gid;
+                changed = true;
+            }
         }
+        if changed == true {
+            self.update_auth(dao.dentry.mode, dao.dentry.uid, dao.dentry.gid, dao.auth_mut())?;
+        }
+
         conv_serialization(dao.commit(&mut dio))?;
         conv_commit(dio.commit().await)?;
 
         let spec = Inode::as_file_spec(inode, dao.when_created(), dao.when_updated(), dao);
         Ok(ReplyAttr {
             ttl: FUSE_TTL,
-            attr: spec_as_attr(&spec),
+            attr: self.spec_as_attr_reverse(&spec, &req),
         })
     }
 
-    async fn opendir(&self, _req: Request, inode: u64, _flags: u32) -> Result<ReplyOpen> {
+    async fn opendir(&self, req: Request, inode: u64, _flags: u32) -> Result<ReplyOpen> {
         self.tick().await?;
         debug!("atefs::opendir inode={}", inode);
 
-        let open = self.create_open_handle(inode).await?;
+        let open = self.create_open_handle(inode, &req).await?;
 
         if open.attr.kind != FileType::Directory {
             debug!("atefs::opendir not-a-directory");
@@ -529,7 +615,7 @@ for AteFS
 
     async fn readdirplus(
         &self,
-        _req: Request,
+        req: Request,
         parent: u64,
         fh: u64,
         offset: u64,
@@ -539,7 +625,7 @@ for AteFS
         debug!("atefs::readdirplus id={} offset={}", parent, offset);
 
         if fh == 0 {
-            let open = self.create_open_handle(parent).await?;
+            let open = self.create_open_handle(parent, &req).await?;
             let entries = open.children_plus.iter().skip(offset as usize).map(|a| Ok(a.clone())).collect::<Vec<_>>();
             return Ok(ReplyDirectoryPlus {
                 entries: stream::iter(entries.into_iter())
@@ -559,7 +645,7 @@ for AteFS
 
     async fn readdir(
         &self,
-        _req: Request,
+        req: Request,
         parent: u64,
         fh: u64,
         offset: i64,
@@ -568,7 +654,7 @@ for AteFS
         debug!("atefs::readdir parent={}", parent);
 
         if fh == 0 {
-            let open = self.create_open_handle(parent).await?;
+            let open = self.create_open_handle(parent, &req).await?;
             let entries = open.children.iter().skip(offset as usize).map(|a| Ok(a.clone())).collect::<Vec<_>>();
             return Ok(ReplyDirectory {
                 entries: stream::iter(entries.into_iter())
@@ -586,9 +672,9 @@ for AteFS
         }
     }
 
-    async fn lookup(&self, _req: Request, parent: u64, name: &OsStr) -> Result<ReplyEntry> {
+    async fn lookup(&self, req: Request, parent: u64, name: &OsStr) -> Result<ReplyEntry> {
         self.tick().await?;
-        let open = self.create_open_handle(parent).await?;
+        let open = self.create_open_handle(parent, &req).await?;
 
         if open.attr.kind != FileType::Directory {
             debug!("atefs::lookup parent={} not-a-directory", parent);
@@ -701,16 +787,16 @@ for AteFS
 
         Ok(ReplyEntry {
             ttl: FUSE_TTL,
-            attr: spec_as_attr(&child_spec),
+            attr: self.spec_as_attr_reverse(&child_spec, &req),
             generation: 0,
         })
     }
 
-    async fn rmdir(&self, _req: Request, parent: u64, name: &OsStr) -> Result<()> {
+    async fn rmdir(&self, req: Request, parent: u64, name: &OsStr) -> Result<()> {
         self.tick().await?;
         debug!("atefs::rmdir parent={}", parent);
 
-        let open = self.create_open_handle(parent).await?;
+        let open = self.create_open_handle(parent, &req).await?;
 
         if open.attr.kind != FileType::Directory {
             debug!("atefs::rmdir parent={} not-a-directory", parent);
@@ -755,7 +841,7 @@ for AteFS
         let spec = Inode::as_file_spec(dao.key().as_u64(), dao.when_created(), dao.when_updated(), dao);
         Ok(ReplyEntry {
             ttl: FUSE_TTL,
-            attr: spec_as_attr(&spec),
+            attr: self.spec_as_attr_reverse(&spec, &req),
             generation: 0,
         })
     }
@@ -778,7 +864,7 @@ for AteFS
         let open = OpenHandle {
             inode: spec.ino(),
             fh: fastrand::u64(..),
-            attr: spec_as_attr(&spec),
+            attr: self.spec_as_attr_reverse(&spec, &req),
             spec: spec,
             children: Vec::new(),
             children_plus: Vec::new(),
@@ -897,11 +983,11 @@ for AteFS
         Err(libc::ENOENT.into())
     }
 
-    async fn open(&self, _req: Request, inode: u64, flags: u32) -> Result<ReplyOpen> {
+    async fn open(&self, req: Request, inode: u64, flags: u32) -> Result<ReplyOpen> {
         self.tick().await?;
         debug!("atefs::open inode={}", inode);
 
-        let open = self.create_open_handle(inode).await?;
+        let open = self.create_open_handle(inode, &req).await?;
 
         if open.attr.kind == FileType::Directory {
             debug!("atefs::open is-a-directory");
@@ -1085,7 +1171,7 @@ for AteFS
         
         Ok(ReplyEntry {
             ttl: FUSE_TTL,
-            attr: spec_as_attr(&spec),
+            attr: self.spec_as_attr_reverse(&spec, &req),
             generation: 0,
         })
     }

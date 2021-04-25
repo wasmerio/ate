@@ -58,6 +58,8 @@ impl AuthService
         
         // Return the session that can be used to access this user
         Ok(GatherResponse {
+            group_name: request.group.clone(),
+            gid: group.gid,
             group_key: group.key().clone(),
             authority: session
         })

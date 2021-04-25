@@ -22,6 +22,8 @@ pub use helper::conf_auth;
 pub use helper::password_to_read_key;
 pub use helper::b64_to_session;
 pub use helper::session_to_b64;
+pub use helper::estimate_user_name_as_uid;
+pub use helper::estimate_group_name_as_gid;
 pub use login::load_credentials;
 pub use query::query_command;
 pub use login::main_login;

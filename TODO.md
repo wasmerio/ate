@@ -1,8 +1,17 @@
 ```
 0.5.1   Group access rights
-        + AteAuth requires group access rights that also get added to the token
-        + Connect up the 'chmod' commands to real commands in AteAuth so that
-          actual ATE data object access rights reflect the linux permissions
+       D+ AteAuth requires group access rights that also get added to the token
+       D+ Connect up the 'chmod' commands to real commands in AteAuth so that
+       D  actual ATE data object access rights reflect the linux permissions
+        + All users and groups should be contained to primary keys within 32bits so
+          that they work with uid and gid with the highest bit set.
+        + Lists files and folders should ignore those that you do not have access to
+          rather than throwing an error
+        + File-systems should record the correct uid and gid within ATE but change it
+          to the actual user when mounted if it matches. Using the chown command
+          should allow the object to be given to other users and other groups.
+        + When attempting to access a group that is not this group it should attempt
+          to get the latest permissions from the authentication server.
 0.5.2   Compacting chains
         + AteDb should periodically compact itself without breaking things
         + Events that are streamed to a compacted chain that predate the

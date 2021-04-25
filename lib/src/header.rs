@@ -58,6 +58,17 @@ impl PrimaryKey {
     pub fn as_u64(&self) -> u64 {
         self.key
     }
+
+    pub fn from_ext(val: Hash, min: u64, max: u64) -> PrimaryKey {
+        let v = val.val;
+        let bytes = [v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7]];
+
+        let range = max - min;
+        let key = (u64::from_be_bytes(bytes) % range) + min;
+        PrimaryKey {
+            key,
+        }
+    }
 }
 
 impl From<Hash>

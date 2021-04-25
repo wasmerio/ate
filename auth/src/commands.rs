@@ -70,6 +70,8 @@ pub struct GatherRequest
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct GatherResponse
 {
+    pub group_name: String,
+    pub gid: u32,
     pub group_key: PrimaryKey,
     pub authority: AteSession
 }
@@ -120,6 +122,7 @@ pub struct CreateUserResponse
 pub enum CreateUserFailed
 {
     AlreadyExists,
+    NoMoreRoom,
     NoMasterKey,
 }
 
@@ -129,6 +132,9 @@ for CreateUserFailed {
         match self {
             CreateUserFailed::AlreadyExists => {
                 write!(f, "The user already exists")
+            },
+            CreateUserFailed::NoMoreRoom => {
+                write!(f, "There is no more room for this user - try another name")
             },
             CreateUserFailed::NoMasterKey => {
                 write!(f, "Authentication server has not been properly initialized")
@@ -252,6 +258,7 @@ pub struct GroupDetailsResponse
 pub enum CreateGroupFailed
 {
     AlreadyExists,
+    NoMoreRoom,
     NoMasterKey,
     InvalidGroupName
 }
@@ -262,6 +269,9 @@ for CreateGroupFailed {
         match self {
             CreateGroupFailed::AlreadyExists => {
                 write!(f, "The group already exists")
+            },
+            CreateGroupFailed::NoMoreRoom => {
+                write!(f, "No more space for this group, try a different name")
             },
             CreateGroupFailed::NoMasterKey => {
                 write!(f, "Authentication server has not been properly initialized")

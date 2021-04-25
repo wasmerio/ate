@@ -49,10 +49,28 @@ impl AuthService
         // Compute which chain the group should exist within
         let group_chain_key = auth_chain_key("auth".to_string(), &request.group);
         let chain = context.repository.open_by_key(&group_chain_key).await?;
+        let mut dio = chain.dio(&self.master_session).await;
+
+        // Try and find a free GID
+        let mut gid = None;
+        for n in 0u32..50u32 {
+            let gid_test = estimate_group_name_as_gid(request.group.clone()) + n;
+            if gid_test < 1000 { continue; }
+            if dio.exists(&PrimaryKey::from(gid_test as u64)).await {
+                continue;
+            }
+            gid = Some(gid_test);
+            break;
+        }
+        let gid = match gid {
+            Some(a) => a,
+            None => {
+                return Err(ServiceError::Reply(CreateGroupFailed::NoMoreRoom));
+            }
+        };
         
         // If it already exists then fail
         let group_key = PrimaryKey::from(request.group.clone());
-        let mut dio = chain.dio(&self.master_session).await;
         if dio.exists(&group_key).await {
             return Err(ServiceError::Reply(CreateGroupFailed::AlreadyExists));
         }
@@ -72,6 +90,11 @@ impl AuthService
         let contributor_private_read = PrivateEncryptKey::generate(key_size);
         let contributor_write = PrivateSignKey::generate(key_size);
 
+        // Generate the observer encryption keys used to protect this role
+        let observer_read = EncryptKey::generate(key_size);
+        let observer_private_read = PrivateEncryptKey::generate(key_size);
+        let observer_write = PrivateSignKey::generate(key_size);
+
         // The super session needs the owner keys so that it can save the records
         let mut super_session = self.master_session.clone();
         super_session.user.add_read_key(&owner_read);
@@ -85,6 +108,7 @@ impl AuthService
         // Create the group and save it
         let group = Group {
             name: request.group.clone(),
+            gid,
             roles: Vec::new(),
         };
         let mut group = Dao::make(group_key.clone(), chain.default_format(), group);
@@ -119,6 +143,11 @@ impl AuthService
                     role_read = contributor_read.clone();
                     role_private_read = contributor_private_read.clone();
                     role_write = contributor_write.clone();
+                },
+                RolePurpose::Observer => {
+                    role_read = observer_read.clone();
+                    role_private_read = observer_private_read.clone();
+                    role_write = observer_write.clone();
                 },
                 _ => {
                     role_read = EncryptKey::generate(key_size);
@@ -209,6 +238,7 @@ pub async fn create_group_command(group: String, auth: Url, username: String) ->
     let response: Result<CreateGroupResponse, InvokeError<CreateGroupFailed>> = chain.invoke(create).await;
     match response {
         Err(InvokeError::Reply(CreateGroupFailed::AlreadyExists)) => Err(CreateError::AlreadyExists),
+        Err(InvokeError::Reply(CreateGroupFailed::NoMoreRoom)) => Err(CreateError::NoMoreRoom),
         Err(InvokeError::Reply(CreateGroupFailed::InvalidGroupName)) => Err(CreateError::InvalidName),
         result => {
             let result = result?;

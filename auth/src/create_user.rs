@@ -60,6 +60,24 @@ impl AuthService
         let chain = context.repository.open_by_key(&user_chain_key).await?;
         let mut dio = chain.dio(&super_session).await;
 
+        // Try and find a free UID
+        let mut uid = None;
+        for n in 0u32..50u32 {
+            let uid_test = estimate_user_name_as_uid(request.email.clone()) + n;
+            if uid_test < 1000 { continue; }
+            if dio.exists(&PrimaryKey::from(uid_test as u64)).await {
+                continue;
+            }
+            uid = Some(uid_test);
+            break;
+        }
+        let uid = match uid {
+            Some(a) => a,
+            None => {
+                return Err(ServiceError::Reply(CreateUserFailed::NoMoreRoom));
+            }
+        };
+
         // If it already exists then fail
         let user_key = PrimaryKey::from(request.email.clone());
         if dio.exists(&user_key).await {
@@ -85,6 +103,8 @@ impl AuthService
         // Create the user and save it
         let user = User {
             person: DaoRef::default(),
+            email: request.email.clone(),
+            uid,
             role: UserRole::Human,
             status: UserStatus::Nominal,
             last_login: None,
@@ -113,6 +133,8 @@ impl AuthService
 
         // Create the sudo object and save it using another elevation of the key
         let sudo = Sudo {
+            email: request.email.clone(),
+            uid,
             google_auth: google_auth_secret,
             secret: secret.clone(),
             groups: Vec::new(),
@@ -130,6 +152,7 @@ impl AuthService
         let advert_key = PrimaryKey::from(advert_key_entropy);
         let advert = Advert {
             email: request.email.clone(),
+            uid,
             nominal_encrypt: private_read_key.as_public_key(),
             nominal_auth: write_key.as_public_key(),
             sudo_encrypt: sudo_private_read_key.as_public_key(),
@@ -187,6 +210,7 @@ pub async fn create_user_command(username: String, password: String, auth: Url) 
     let response: Result<CreateUserResponse, InvokeError<CreateUserFailed>> = chain.invoke(request).await;
     match response {
         Err(InvokeError::Reply(CreateUserFailed::AlreadyExists)) => Err(CreateError::AlreadyExists),
+        Err(InvokeError::Reply(CreateUserFailed::NoMoreRoom)) => Err(CreateError::NoMoreRoom),
         result => {
             let result = result?;
             debug!("key: {}", result.key);

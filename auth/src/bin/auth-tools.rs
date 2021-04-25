@@ -30,7 +30,7 @@ async fn main() -> Result<(), AteError>
             ate_auth::main_opts_group(opts_group, opts.token, opts.token_path, opts.auth).await?;
         },
         SubCommand::Token(opts_token) => {
-            ate_auth::main_opts_token(opts_token, opts.auth).await?;
+            ate_auth::main_opts_token(opts_token, opts.token, opts.token_path, opts.auth).await?;
         }
     }
 

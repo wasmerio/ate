@@ -98,6 +98,14 @@ impl GroupRole
         self.properties.push(SessionProperty::Identity(identity));
     }
 
+    pub fn add_uid(&mut self, uid: u32) {
+        self.properties.push(SessionProperty::Uid(uid));
+    }
+
+    pub fn add_gid(&mut self, gid: u32) {
+        self.properties.push(SessionProperty::Gid(gid));
+    }
+
     pub fn read_keys<'a>(&'a self) -> impl Iterator<Item = &'a EncryptKey> {
         self.properties
             .iter()
@@ -153,6 +161,32 @@ impl GroupRole
                 |p| match p
                 {
                     SessionProperty::Identity(k) => Some(k),
+                    _ => None
+                }
+            )
+            .next()
+    }
+
+    pub fn uid<'a>(&'a self) -> Option<u32> {
+        self.properties
+            .iter()
+            .filter_map(
+                |p| match p
+                {
+                    SessionProperty::Uid(k) => Some(k.clone()),
+                    _ => None
+                }
+            )
+            .next()
+    }
+
+    pub fn gid<'a>(&'a self) -> Option<u32> {
+        self.properties
+            .iter()
+            .filter_map(
+                |p| match p
+                {
+                    SessionProperty::Gid(k) => Some(k.clone()),
                     _ => None
                 }
             )
@@ -295,6 +329,8 @@ pub enum SessionProperty
     PublicReadKey(PublicEncryptKey),
     WriteKey(PrivateSignKey),
     Identity(String),
+    Uid(u32),
+    Gid(u32)
 }
 
 impl Default for SessionProperty {
@@ -314,6 +350,8 @@ for SessionProperty
             SessionProperty::PublicReadKey(a) => write!(f, "public-read-key:{}", a),
             SessionProperty::WriteKey(a) => write!(f, "write-key:{}", a),
             SessionProperty::Identity(a) => write!(f, "identity:{}", a),
+            SessionProperty::Uid(a) => write!(f, "uid:{}", a),
+            SessionProperty::Gid(a) => write!(f, "gid:{}", a),
         }
     }
 }
@@ -389,9 +427,9 @@ impl Session
             .get_or_create_role(purpose)
     }
 
-    pub fn get_group<'a>(&'a mut self, group: &String) -> Option<&'a mut Group>
+    pub fn get_group<'a>(&'a self, group: &String) -> Option<&'a Group>
     {
-        self.groups.iter_mut().filter(|r| r.name == *group).next()
+        self.groups.iter().filter(|r| r.name == *group).next()
     }
 
     pub fn get_or_create_group<'a>(&'a mut self, group: &String) -> &'a mut Group
@@ -436,6 +474,10 @@ impl Session
         self.user.add_identity(identity)
     }
 
+    pub fn add_user_uid(&mut self, uid: u32) {
+        self.user.add_uid(uid)
+    }
+
     pub fn add_sudo_read_key(&mut self, key: &EncryptKey) {
         self.get_or_create_sudo().add_read_key(key)
     }
@@ -470,6 +512,11 @@ impl Session
     pub fn add_group_identity(&mut self, group: &String, purpose: &RolePurpose, identity: String) {
         let role = self.get_or_create_group_role(group, purpose);
         role.add_identity(identity)
+    }
+
+    pub fn add_group_gid(&mut self, group: &String, purpose: &RolePurpose, gid: u32) {
+        let role = self.get_or_create_group_role(group, purpose);
+        role.add_gid(gid)
     }
 
     pub fn read_keys<'a>(&'a self) -> impl Iterator<Item = &'a EncryptKey> {

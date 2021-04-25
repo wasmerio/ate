@@ -155,6 +155,9 @@ pub enum TokenAction {
     /// Generate a token with extra permissions with elevated rights to modify groups and other higher risk actions
     #[clap()]
     Sudo(CreateTokenSudo),
+    /// Gather the permissions needed to access a specific group into the token using either another supplied token or the prompted credentials
+    #[clap()]
+    Gather(GatherPermissions),
 }
 
 /// Logs into the authentication server using the supplied credentials
@@ -180,6 +183,14 @@ pub struct CreateTokenSudo {
     /// Authenticator code from your google authenticator
     #[clap(index = 3)]
     pub code: Option<String>,
+}
+
+/// Gathers the permissions needed to access a specific group into the token using either another supplied token or the prompted credentials
+#[derive(Clap)]
+pub struct GatherPermissions {
+    /// Name of the group to gather the permissions for
+    #[clap(index = 1)]
+    pub group: Option<String>,
 }
 
 pub async fn main_opts_user(opts_user: OptsUser, token: Option<String>, token_path: Option<String>, auth: url::Url) -> Result<(), AteError>{
@@ -221,7 +232,7 @@ pub async fn main_opts_group(opts_group: OptsGroup, token: Option<String>, token
     Ok(())
 }
 
-pub async fn main_opts_token(opts_token: OptsToken, auth: url::Url) -> Result<(), AteError>{
+pub async fn main_opts_token(opts_token: OptsToken, token: Option<String>, token_path: Option<String>, auth: url::Url) -> Result<(), AteError>{
     match opts_token.action {
         TokenAction::Generate(action) => {
             let session = crate::main_login(action.email, action.password, auth).await?;
@@ -230,6 +241,12 @@ pub async fn main_opts_token(opts_token: OptsToken, auth: url::Url) -> Result<()
         },
         TokenAction::Sudo(action) => {
             let session = crate::main_sudo(action.email, action.password, action.code, auth).await?;
+            eprintln!("The token string below can be used to secure your file system.\n");
+            println!("{}", crate::session_to_b64(session.clone()).unwrap());
+        },
+        TokenAction::Gather(action) => {
+            let session = crate::main_session(token.clone(), token_path.clone(), Some(auth.clone()), false).await?;
+            let session = crate::main_gather(action.group, session, auth).await?;
             eprintln!("The token string below can be used to secure your file system.\n");
             println!("{}", crate::session_to_b64(session.clone()).unwrap());
         },

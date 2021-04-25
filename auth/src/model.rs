@@ -99,7 +99,9 @@ pub enum UserRole {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct User {
+    pub email: String,
     pub person: DaoRef<Person>,
+    pub uid: u32,
     pub role: UserRole,    
     pub status: UserStatus,
     pub last_login: Option<chrono::naive::NaiveDate>,
@@ -116,6 +118,8 @@ pub struct User {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Sudo {
+    pub email: String,
+    pub uid: u32,
     pub google_auth: String,
     pub secret: String,
     pub qr_code: String,
@@ -126,6 +130,7 @@ pub struct Sudo {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Advert {
     pub email: String,
+    pub uid: u32,
     pub nominal_encrypt: PublicEncryptKey,
     pub nominal_auth: PublicSignKey,
     pub sudo_encrypt: PublicEncryptKey,
@@ -151,6 +156,7 @@ pub struct Role {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Group {
     pub name: String,
+    pub gid: u32,
     pub roles: Vec<Role>,
 }
 

@@ -331,7 +331,7 @@ async fn main() -> Result<(), CommandError> {
     
     match opts.subcmd {
         SubCommand::Token(opts_token) => {
-            ate_auth::main_opts_token(opts_token, opts.auth).await?;
+            ate_auth::main_opts_token(opts_token, opts.token, opts.token_path, opts.auth).await?;
         },
         SubCommand::User(opts_user) => {
             ate_auth::main_opts_user(opts_user, opts.token, opts.token_path, opts.auth).await?;
