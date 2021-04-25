@@ -95,7 +95,7 @@
 0.13.0  Virtualized Networking
         + All networking are abstracted behind virtual machines that are attached
           to a local only bridge.
-        + Networks are peered together via configuration and firewall inforced IPv6
+        + Networks are peered together via configuration and firewall enforced IPv6
           tunnels with 'ipsec'.
         + External connectivity is managed by load-balancer on the public IP address
 ```

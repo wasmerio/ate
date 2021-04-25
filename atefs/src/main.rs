@@ -163,7 +163,7 @@ fn ctrl_channel() -> tokio::sync::watch::Receiver<bool> {
     receiver
 }
 
-async fn main_mount(mount: Mount, conf: ConfAte, session: AteSession, no_auth: bool) -> Result<(), AteError>
+async fn main_mount(mount: Mount, conf: ConfAte, group: Option<String>, session: AteSession, no_auth: bool) -> Result<(), AteError>
 {
     let uid = match mount.uid {
         Some(a) => a,
@@ -251,7 +251,7 @@ async fn main_mount(mount: Mount, conf: ConfAte, session: AteSession, no_auth: b
     // Create the mount point
     let mount_path = mount.mount_path.clone();
     let mount_join = Session::new(mount_options)
-        .mount_with_unprivileged(AteFS::new(chain, session, scope, no_auth), mount.mount_path);
+        .mount_with_unprivileged(AteFS::new(chain, group, session, scope, no_auth), mount.mount_path);
 
     // Install a ctrl-c command
     info!("mounting file-system and entering main loop");
@@ -346,6 +346,7 @@ async fn main() -> Result<(), CommandError> {
         SubCommand::Mount(mount) =>
         {
             // Create a default empty session
+            let mut group = None;
             let mut session = AteSession::default();
 
             // If a passcode is supplied then use this
@@ -377,7 +378,8 @@ async fn main() -> Result<(), CommandError> {
 
                 // Attempt to grab additional permissions for the group (if it has any)
                 if let Some(remote) = &mount.remote {
-                    session = match ate_auth::main_gather(Some(remote.path().to_string()), session.clone(), opts.auth).await {
+                    group = Some(remote.path().to_string());
+                    session = match ate_auth::main_gather(group.clone(), session.clone(), opts.auth).await {
                         Ok(a) =>
                         {
                             a
@@ -391,7 +393,7 @@ async fn main() -> Result<(), CommandError> {
             }
 
             // Mount the file system
-            main_mount(mount, conf, session, opts.no_auth).await?;
+            main_mount(mount, conf, group, session, opts.no_auth).await?;
         },
     }
 

@@ -21,6 +21,8 @@ use ate::session::Session as AteSession;
 use ate::header::PrimaryKey;
 use ate::prelude::AteHash;
 use ate::prelude::AteSessionProperty;
+use ate::prelude::AteRolePurpose;
+use ate::meta::MetaAuthorization;
 use crate::fixed::FixedFile;
 
 use super::dir::Directory;
@@ -48,6 +50,7 @@ where Self: Send + Sync
     pub chain: Arc<Chain>,
     pub no_auth: bool,
     pub scope: TransactionScope,
+    pub group: Option<String>,
     pub session: AteSession,
     pub open_handles: Mutex<FxHashMap<u64, Arc<OpenHandle>>>,
     pub elapsed: std::time::Instant,
@@ -159,10 +162,11 @@ pub(crate) fn conv<T>(r: std::result::Result<T, AteError>) -> std::result::Resul
 
 impl AteFS
 {
-    pub fn new(chain: Arc<Chain>, session: AteSession, scope: TransactionScope, no_auth: bool) -> AteFS {
+    pub fn new(chain: Arc<Chain>, group: Option<String>, session: AteSession, scope: TransactionScope, no_auth: bool) -> AteFS {
         AteFS {
             chain,
             no_auth,
+            group,
             session,
             scope,
             open_handles: Mutex::new(FxHashMap::default()),
@@ -172,11 +176,35 @@ impl AteFS
         }
     }
 
-    fn get_read_key(&self) -> Option<AteHash> {
+    fn get_group_read_key(&self) -> Option<AteHash> {
+        if let Some(group) = &self.group {
+            self.session.get_group_role(group, &AteRolePurpose::Observer)
+                .iter()
+                .flat_map(|r| r.read_keys())
+                .map(|k| k.hash())
+                .next()
+        } else {
+            None
+        }
+    }
+
+    fn get_group_write_key(&self) -> Option<AteHash> {
+        if let Some(group) = &self.group {
+            self.session.get_group_role(group, &AteRolePurpose::Contributor)
+                .iter()
+                .flat_map(|r| r.write_keys())
+                .map(|k| k.hash())
+                .next()
+        } else {
+            None
+        }
+    }
+
+    fn get_user_read_key(&self) -> Option<AteHash> {
         self.session.user.read_keys().map(|a| a.hash()).next()
     }
 
-    fn get_write_key(&self) -> Option<AteHash> {
+    fn get_user_write_key(&self) -> Option<AteHash> {
         self.session.user.write_keys().map(|a| a.hash()).next()
     }
 
@@ -270,7 +298,9 @@ impl AteFS
             SpecType::RegularFile,
         );
 
-        let child = conv_serialization(data.push_store(&mut dio, data.children, child))?;
+        let mut child = conv_serialization(data.push_make(&mut dio, data.children, child))?;
+        self.update_auth(mode, child.auth_mut())?;
+        let child = conv_serialization(child.commit(&mut dio))?;
         return Ok((child, dio));
     }
 
@@ -309,6 +339,54 @@ impl AteFS
         }
         Ok(())
     }
+
+    fn update_auth(&self, mode: u32, auth: &mut MetaAuthorization) -> Result<()> {
+        if mode & 0o004 != 0 {
+            auth.read = ate::meta::ReadOption::Everyone;
+        } else if mode & 0o040 != 0 {
+            if let Some(key) = self.get_group_read_key() {
+                auth.read = ate::meta::ReadOption::Specific(key);
+            } else if self.no_auth == false {
+                error!("Session does not have a read key embedded within it");
+                return Err(libc::EINVAL.into());
+            } else {
+                auth.read = ate::meta::ReadOption::Inherit;
+            }
+        } else {
+            if let Some(key) = self.get_user_read_key() {
+                auth.read = ate::meta::ReadOption::Specific(key);
+            } else if self.no_auth == false {
+                error!("Session does not have a read key embedded within it");
+                return Err(libc::EINVAL.into());
+            } else {
+                auth.read = ate::meta::ReadOption::Inherit;
+            }
+        }
+
+        if mode & 0o002 != 0 {
+            auth.write = ate::meta::WriteOption::Everyone;
+        } else if mode & 0o020 != 0 {
+            if let Some(key) = self.get_group_write_key() {
+                auth.write = ate::meta::WriteOption::Specific(key);
+            } else if self.no_auth == false {
+                error!("Session does not have a rwrite key embedded within it");
+                return Err(libc::EINVAL.into());
+            } else {
+                auth.write = ate::meta::WriteOption::Inherit;
+            }
+        } else {
+            if let Some(key) = self.get_user_write_key() {
+                auth.write = ate::meta::WriteOption::Specific(key);
+            } else if self.no_auth == false {
+                error!("Session does not have a write key embedded within it");
+                return Err(libc::EINVAL.into());
+            } else {
+                auth.write = ate::meta::WriteOption::Inherit;
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -325,21 +403,12 @@ for AteFS
         if let Err(LoadError::NotFound(_)) = dio.load::<Inode>(&PrimaryKey::from(1)).await {
             info!("atefs::creating-root-node");
             
-            let root = Inode::new("/".to_string(), 0o755, req.uid, req.gid, SpecType::Directory);
+            let mode = 0o755;
+            let root = Inode::new("/".to_string(), mode, req.uid, req.gid, SpecType::Directory);
             match dio.make_ext(root, self.session.log_format, Some(PrimaryKey::from(1))) {
                 Ok(mut root) =>
                 {
-                    if let Some(key) = self.get_read_key() {
-                        root.auth_mut().read = ate::meta::ReadOption::Specific(key);
-                    } else if self.no_auth == false {
-                        error!("Session does not have a read key embedded within it");
-                        return Err(libc::EINVAL.into());
-                    }
-
-                    if let Some(key) = self.get_write_key() {
-                        root.auth_mut().write = ate::meta::WriteOption::Specific(key);
-                    }
-
+                    self.update_auth(mode, root.auth_mut())?;
                     conv_serialization(root.commit(&mut dio))?;
                 },
                 Err(err) => {
@@ -409,7 +478,10 @@ for AteFS
         let mut dao = conv_load(dio.load::<Inode>(&key).await)?;
 
         if let Some(mode) = set_attr.mode {
-            dao.dentry.mode = mode;
+            if dao.dentry.mode != mode {
+                self.update_auth(mode, dao.auth_mut())?;
+                dao.dentry.mode = mode;
+            }
         }
         if let Some(uid) = set_attr.uid {
             dao.dentry.uid = uid;
@@ -566,11 +638,32 @@ for AteFS
         Ok(())
     }
 
-    async fn access(&self, _req: Request, inode: u64, _mask: u32) -> Result<()> {
+    async fn access(&self, req: Request, inode: u64, mask: u32) -> Result<()> {
         self.tick().await?;
         debug!("atefs::access inode={}", inode);
         
-        Ok(())
+        let (dao, _dio) = self.load(inode).await?;
+
+        if (dao.dentry.mode & mask) != 0
+        {
+            return Ok(());
+        }
+        if req.uid == dao.dentry.uid {
+            let mask_shift = mask << 3;
+            if (dao.dentry.mode & mask_shift) != 0
+            {
+                return Ok(());
+            }
+        }
+        if req.gid == dao.dentry.gid {
+            let mask_shift = mask << 6;
+            if (dao.dentry.mode & mask_shift) != 0
+            {
+                return Ok(());
+            }
+        }
+
+        Err(libc::EACCES.into())
     }
 
     async fn mkdir(
