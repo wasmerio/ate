@@ -28,6 +28,23 @@ for ReadOption
     }
 }
 
+impl std::fmt::Display
+for ReadOption {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            ReadOption::Everyone => {
+                write!(f, "everyone")
+            },
+            ReadOption::Inherit => {
+                write!(f, "inherit")
+            },
+            ReadOption::Specific(hash) => {
+                write!(f, "specifc({})", hash)
+            },
+        }
+    }
+}
+
 /// Determines who is allowed to attach events records to this part of the
 /// chain-of-trust key. Only users who have the `PrivateKey` in their session
 /// will be able to write these records to the chain. The hash of the `PublicKey`
@@ -39,7 +56,7 @@ pub enum WriteOption
     Everyone,
     Nobody,
     Specific(Hash),
-    Group(Vec<Hash>)
+    Any(Vec<Hash>)
 }
 
 impl WriteOption
@@ -48,7 +65,7 @@ impl WriteOption
         let mut ret = FxHashSet::default();
         match self {
             WriteOption::Specific(a) => { ret.insert(a.clone()); }
-            WriteOption::Group(hashes) => {
+            WriteOption::Any(hashes) => {
                 for a in hashes {
                     ret.insert(a.clone());
                 }
@@ -61,17 +78,21 @@ impl WriteOption
     pub fn or(self, other: &WriteOption) -> WriteOption {
         match other {
             WriteOption::Inherit => self,
-            WriteOption::Group(keys) => {
+            WriteOption::Any(keys) => {
                 let mut vals = self.vals();
                 for a in keys {
                     vals.insert(a.clone());
                 }
-                WriteOption::Group(vals.iter().map(|k| k.clone()).collect::<Vec<_>>())
+                WriteOption::Any(vals.iter().map(|k| k.clone()).collect::<Vec<_>>())
             },
             WriteOption::Specific(hash) => {
                 let mut vals = self.vals();
                 vals.insert(hash.clone());
-                WriteOption::Group(vals.iter().map(|k| k.clone()).collect::<Vec<_>>())
+                let vals = vals.iter().map(|k| k.clone()).collect::<Vec<_>>();
+                match vals.len() {
+                    1 => WriteOption::Specific(vals.into_iter().next().unwrap()),
+                    _ => WriteOption::Any(vals)
+                }
             },
             a => a.clone(),
         }
@@ -93,8 +114,8 @@ for WriteOption {
             WriteOption::Everyone => {
                 write!(f, "everyone")
             },
-            WriteOption::Group(vec) => {
-                write!(f, "(")?;
+            WriteOption::Any(vec) => {
+                write!(f, "any(")?;
                 let mut first = true;
                 for hash in vec {
                     if first == true {
@@ -113,7 +134,7 @@ for WriteOption {
                 write!(f, "nobody")
             },
             WriteOption::Specific(hash) => {
-                write!(f, "{}", hash)
+                write!(f, "specifc({})", hash)
             },
         }
     }
@@ -147,8 +168,8 @@ for MetaAuthorization
             WriteOption::Nobody => "nobody".to_string(),
             WriteOption::Inherit => "inherit".to_string(),
             WriteOption::Specific(a) => format!("specific-{}", a),
-            WriteOption::Group(a) => {
-                let mut r = "group".to_string();
+            WriteOption::Any(a) => {
+                let mut r = "any".to_string();
                 for a in a {
                     r.push_str("-");
                     r.push_str(a.to_string().as_str());

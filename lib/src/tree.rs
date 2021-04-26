@@ -56,7 +56,7 @@ impl TreeAuthorityPlugin
     pub fn add_root_public_key(&mut self, key: &PublicSignKey)
     {
         self.root_keys.insert(key.hash(), key.clone());
-        self.root = WriteOption::Group(self.root_keys.keys().map(|k| k.clone()).collect::<Vec<_>>());
+        self.root = WriteOption::Any(self.root_keys.keys().map(|k| k.clone()).collect::<Vec<_>>());
     }
 
     fn compute_auth(&self, meta: &Metadata, trans_meta: &TransactionMetadata, phase: ComputePhase) -> Result<MetaAuthorization, TrustError>
@@ -314,7 +314,7 @@ for TreeAuthorityPlugin
                         let lock = conversation.signatures.read();
                         let already = match &auth.write {
                             WriteOption::Specific(hash) => lock.contains(hash),
-                            WriteOption::Group(hashes) => hashes.iter().any(|h| lock.contains(h)),
+                            WriteOption::Any(hashes) => hashes.iter().any(|h| lock.contains(h)),
                             _ => false
                         };
                         if already {
@@ -376,7 +376,7 @@ for TreeAuthorityPlugin
         // Signatures a done using the authorizations before its attached
         let auth = self.compute_auth(meta, trans_meta, ComputePhase::BeforeStore)?;
         match auth.write {
-            WriteOption::Specific(_) | WriteOption::Group(_) =>
+            WriteOption::Specific(_) | WriteOption::Any(_) =>
             {
                 for write_hash in auth.write.vals().iter()
                 {
