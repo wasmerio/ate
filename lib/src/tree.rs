@@ -172,25 +172,25 @@ impl TreeAuthorityPlugin
             ReadOption::Everyone(_key) => {
                 Ok(None)
             },
-            ReadOption::Specific(key_hash, _derived) => {
+            ReadOption::Specific(key_hash, derived) => {
                 for key in session.read_keys() {
                     if key.hash() == *key_hash {
                         return Ok(Some((
                             InitializationVector::generate(),
-                            key.clone()
+                            derived.transmute(key)
                         )));
                     }
                 }
                 for key in session.public_read_keys() {
                     if key.hash() == *key_hash {
                         let (iv, key) = key.encapsulate();
-                        return Ok(Some((iv, key)));
+                        return Ok(Some((iv, derived.transmute(&key))));
                     }
                 }
                 for key in session.private_read_keys() {
                     if key.hash() == *key_hash {
                         let (iv, key) = key.as_public_key().encapsulate();
-                        return Ok(Some((iv, key)));
+                        return Ok(Some((iv, derived.transmute(&key))));
                     }
                 }
                 Err(TransformError::MissingReadKey(key_hash.clone()))
