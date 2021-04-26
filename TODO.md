@@ -1,12 +1,14 @@
 ```
 bugs   Found Bugs
-       + Modified files are still showing zeros at the end
+      D+ Modified files are still showing zeros at the end
        + Changing the permissions on a parent is not reflected in the children as inherited
          rows that are encrypted do not automatically gain the new keys of the parent. Will
          need to store a read-key in the parent which the children use when they are in
          inheritance mode
        + Still need to fix the writing actions when a user attempts to change an object
        + Fixed a bug where files opened with truncate flag were not actually truncating
+       + Fixed a bug where parents were not inheriting permissions properly when the parent
+         tree exceeded 1 levels
 0.5.1  Group access rights
        D+ AteAuth requires group access rights that also get added to the token
        D+ Connect up the 'chmod' commands to real commands in AteAuth so that

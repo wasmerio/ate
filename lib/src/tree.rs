@@ -139,12 +139,7 @@ impl TreeAuthorityPlugin
                     }
                     match r {
                         Some(a) => Some(a),
-                        None => {
-                            if trans_meta.auth.contains_key(&a.vec.parent_id) || self.auth.contains_key(&a.vec.parent_id) {
-                                break;
-                            }
-                            return Err(TrustError::MissingParent(a.vec.parent_id.clone()));
-                        }
+                        None => { break; }
                     }
                 },
                 None => unreachable!(),
@@ -242,6 +237,7 @@ for TreeAuthorityPlugin
         
         if let Some(key) = header.meta.get_tombstone() {
             self.auth.remove(&key);
+            self.parents.remove(&key);
         }
         else if let Some(key) = header.meta.get_data_key() {
             self.auth.insert(key, match header.meta.get_authorization() {
@@ -253,6 +249,10 @@ for TreeAuthorityPlugin
                     }
                 }
             });
+
+            if let Some(parent) = header.meta.get_parent() {
+                self.parents.insert(key, parent.clone());
+            }
         }
 
         self.signature_plugin.feed(header, conversation)?;
