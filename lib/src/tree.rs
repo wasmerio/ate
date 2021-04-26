@@ -244,12 +244,15 @@ for TreeAuthorityPlugin
             self.auth.remove(&key);
         }
         else if let Some(key) = header.meta.get_data_key() {
-            let dummy_trans_meta = TransactionMetadata::default();
-            
-            let auth
-                = self.compute_auth(&header.meta, &dummy_trans_meta, ComputePhase::AfterStore)?;
-            
-            self.auth.insert(key, auth);
+            self.auth.insert(key, match header.meta.get_authorization() {
+                Some(a) => a.clone(),
+                None => {
+                    MetaAuthorization {
+                        read: ReadOption::Inherit,
+                        write: WriteOption::Inherit
+                    }
+                }
+            });
         }
 
         self.signature_plugin.feed(header, conversation)?;

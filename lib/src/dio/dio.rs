@@ -279,7 +279,13 @@ impl<'a> Dio<'a>
         }
     }
 
-    pub(crate) async fn children<D>(&mut self, parent_id: PrimaryKey, collection_id: u64) -> Result<Vec<Dao<D>>, LoadError>
+    pub async fn children<D>(&mut self, parent_id: PrimaryKey, collection_id: u64) -> Result<Vec<Dao<D>>, LoadError>
+    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
+    {
+        self.children_ext(parent_id, collection_id, false).await
+    }
+
+    pub async fn children_ext<D>(&mut self, parent_id: PrimaryKey, collection_id: u64, allow_missing_keys: bool) -> Result<Vec<Dao<D>>, LoadError>
     where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
         // Build the secondary index key
@@ -358,7 +364,19 @@ impl<'a> Dio<'a>
             }
 
             evt.data.data_bytes = match evt.data.data_bytes {
-                Some(data) => Some(self.multi.data_as_overlay(&mut header.meta, data, &self.session)?),
+                Some(data) => {
+                    let data = match self.multi.data_as_overlay(&mut header.meta, data, &self.session) {
+                        Ok(a) => a,
+                        Err(TransformError::MissingReadKey(hash)) if allow_missing_keys => {
+                            debug!("Missing read key {} - ignoring row", hash);
+                            continue;
+                        }
+                        Err(err) => {
+                            return Err(LoadError::TransformationError(err));
+                        }
+                    };
+                    Some(data)
+                },
                 None => { continue; },
             };
 

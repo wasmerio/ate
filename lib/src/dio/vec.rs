@@ -69,13 +69,18 @@ for DaoVec<D>
 impl<D> Dao<D>
 where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
-    #[allow(dead_code)]
     pub async fn iter<'a, C>(&self, dio: &mut Dio<'a>, vec: DaoVec<C>) -> Result<Iter<C>, LoadError>
+    where C: Serialize + DeserializeOwned + Clone + Send + Sync
+    {
+        self.iter_ext(dio, vec, false).await
+    }
+
+    pub async fn iter_ext<'a, C>(&self, dio: &mut Dio<'a>, vec: DaoVec<C>, allow_missing_keys: bool) -> Result<Iter<C>, LoadError>
     where C: Serialize + DeserializeOwned + Clone + Send + Sync
     {
         Ok(
             Iter::new(
-                dio.children(self.key().clone(), vec.vec_id).await?
+                dio.children_ext(self.key().clone(), vec.vec_id, allow_missing_keys).await?
             )
         )
     }
