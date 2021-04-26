@@ -121,7 +121,7 @@ impl AuthService
         let mut user = Dao::make(user_key.clone(), chain.default_format(), user);
         
         // Set the authorizations amd commit the user to the tree
-        user.auth_mut().read = ReadOption::from_key(&super_key);
+        user.auth_mut().read = ReadOption::from_key(&super_key)?;
         user.auth_mut().write = WriteOption::Inherit;
 
         // Build the QR image
@@ -142,7 +142,7 @@ impl AuthService
             qr_code: qr_code.clone(),
         };
         let mut sudo = dio.make(sudo)?;
-        sudo.auth_mut().read = ReadOption::from_key(&super_super_key);
+        sudo.auth_mut().read = ReadOption::from_key(&super_super_key)?;
         sudo.auth_mut().write = WriteOption::Inherit;
         let sudo = sudo.commit(&mut dio)?;
         user.sudo.set_id(sudo.key().clone());

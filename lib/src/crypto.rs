@@ -116,6 +116,14 @@ impl DerivedEncryptKey
         )
     }
 
+    pub fn reverse(key: &EncryptKey, inner: &EncryptKey) -> Result<DerivedEncryptKey, std::io::Error> {
+        Ok(
+            DerivedEncryptKey {
+                inner: key.encrypt(inner.value())?
+            }
+        )
+    }
+
     pub fn transmute(&self, key: &EncryptKey) -> Result<EncryptKey, std::io::Error>
     {
         // Decrypt the derived key

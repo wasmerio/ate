@@ -195,7 +195,7 @@ impl AuthService
         // Set all the permissions and save the group. While the group is readable by everyone
         // the data held within the structure is itself encrypted using the MultiEncryptedSecureData
         // object which allows one to multiplex the access to the keys
-        group.auth_mut().read = ReadOption::from_key(&master_key);
+        group.auth_mut().read = ReadOption::from_key(&master_key)?;
         group.auth_mut().write = WriteOption::Inherit;
 
         // Commit

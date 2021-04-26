@@ -23,6 +23,7 @@ use ate::header::PrimaryKey;
 use ate::prelude::AteHash;
 use ate::prelude::AteSessionProperty;
 use ate::prelude::AteRolePurpose;
+use ate::prelude::ReadOption;
 use ate::meta::MetaAuthorization;
 use crate::fixed::FixedFile;
 
@@ -386,13 +387,24 @@ impl AteFS
 
     fn update_auth(&self, mode: u32, uid: u32, gid: u32, auth: &mut MetaAuthorization) -> Result<()> {
         let old_key = {
-            match auth.read {
-                ReadOption::Inherit => 
+            match &auth.read {
+                ReadOption::Inherit => { return Err(libc::EINVAL.into()); },
+                ReadOption::Everyone(old) => old.clone(),
+                ReadOption::Specific(hash, derived) => {
+                    let key = match self.session.read_keys()
+                        .filter(|k| k.hash() == *hash)
+                        .next()
+                    {
+                        Some(a) => a.clone(),
+                        None => { return Err(libc::EACCES.into()); }
+                    };
+                    Some(derived.transmute(&key)?)
+                }
             }
-        }
+        };
 
         if mode & 0o004 != 0 {
-            auth.read.rotate_to_everyone(old_key);
+            auth.read = ReadOption::Everyone(old_key);
         } else {
             let key = {
                 if mode & 0o040 != 0 {
@@ -402,7 +414,11 @@ impl AteFS
                 }
             };
             if let Some(key) = key {
-                auth.read.rotate_to_specific(old_key, key.clone());
+                let old_key = match old_key {
+                    Some(a) => a,
+                    None => EncryptKey::generate(key.size())
+                };
+                auth.read = ReadOption::Specific(key.hash(), DerivedEncryptKey::reverse(key, &old_key)?);
             } else if self.no_auth == false {
                 error!("Session does not have the required group ({}) read key embedded within it", gid);
                 return Err(libc::EACCES.into());
