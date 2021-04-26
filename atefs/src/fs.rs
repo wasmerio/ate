@@ -374,7 +374,7 @@ impl AteFS
             if let Some(key) = self.get_group_read_key(gid) {
                 auth.read = ate::meta::ReadOption::Specific(key);
             } else if self.no_auth == false {
-                error!("Session does not have the required group read key embedded within it");
+                error!("Session does not have the required group ({}) read key embedded within it", gid);
                 return Err(libc::EACCES.into());
             } else {
                 auth.read = ate::meta::ReadOption::Inherit;
@@ -383,7 +383,7 @@ impl AteFS
             if let Some(key) = self.get_user_read_key(uid) {
                 auth.read = ate::meta::ReadOption::Specific(key);
             } else if self.no_auth == false {
-                error!("Session does not have the required user read key embedded within it");
+                error!("Session does not have the required user ({}) read key embedded within it", uid);
                 return Err(libc::EACCES.into());
             } else {
                 auth.read = ate::meta::ReadOption::Inherit;
@@ -396,7 +396,7 @@ impl AteFS
             if let Some(key) = self.get_group_write_key(gid) {
                 auth.write = ate::meta::WriteOption::Specific(key);
             } else if self.no_auth == false {
-                error!("Session does not have the required group rwrite key embedded within it");
+                error!("Session does not have the required group ({}) rwrite key embedded within it", gid);
                 return Err(libc::EACCES.into());
             } else {
                 auth.write = ate::meta::WriteOption::Inherit;
@@ -405,7 +405,7 @@ impl AteFS
             if let Some(key) = self.get_user_write_key(uid) {
                 auth.write = ate::meta::WriteOption::Specific(key);
             } else if self.no_auth == false {
-                error!("Session does not have the required user write key embedded within it");
+                error!("Session does not have the required user ({}) write key embedded within it", uid);
                 return Err(libc::EACCES.into());
             } else {
                 auth.write = ate::meta::WriteOption::Inherit;
@@ -779,18 +779,21 @@ for AteFS
             return Err(libc::ENOTDIR.into());
         }
 
+        let uid = self.translate_uid(req.uid, &req);
+        let gid = self.translate_gid(req.gid, &req);
         let child = Inode::new(
             name.to_str().unwrap().to_string(),
             mode, 
-            req.uid,
-            req.gid,
+            uid,
+            gid,
             SpecType::Directory,
         );
 
-        let mut child = conv_serialization(data.push_store(&mut dio, data.children, child))?;
+        let mut child = conv_serialization(data.push_make(&mut dio, data.children, child))?;
         child.auto_cancel();
-
-        conv_serialization(child.commit(&mut dio))?;
+        self.update_auth(mode, uid, gid, child.auth_mut())?;
+        let child = conv_serialization(child.commit(&mut dio))?;
+        
         let child_spec = Inode::as_file_spec(child.key().as_u64(), child.when_created(), child.when_updated(), child);
         conv_commit(dio.commit().await)?;
 
@@ -1181,7 +1184,7 @@ for AteFS
             let (mut dao, mut dio) = self.mknod_internal(req, parent, name, 0o755, 0).await?;
             dio.auto_cancel();
             dao.auto_cancel();
-            
+
             dao.spec_type = SpecType::SymLink;
             dao.link = Some(link);
             conv_serialization(dao.commit(&mut dio))?;

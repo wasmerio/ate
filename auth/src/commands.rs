@@ -252,6 +252,7 @@ pub struct GroupDetailsResponse
     pub key: PrimaryKey,
     pub name: String,
     pub roles: Vec<GroupDetailsRoleResponse>,
+    pub gid: u32,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

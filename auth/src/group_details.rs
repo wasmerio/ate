@@ -85,6 +85,7 @@ impl AuthService
         Ok(GroupDetailsResponse {
             key: group.key().clone(),
             name: group.name.clone(),
+            gid: group.gid,
             roles,
         })
     }
@@ -137,8 +138,9 @@ pub async fn main_group_details(
 
     println!("# Group Details");
     println!("");
-    println!("ID: {}", result.key);
+    println!("Key: {}", result.key);
     println!("Name: {}", result.name);
+    println!("GID: {}", result.gid);
     println!("");
     println!("# Roles");
     println!("");
