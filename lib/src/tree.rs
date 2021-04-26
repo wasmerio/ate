@@ -212,17 +212,17 @@ impl TreeAuthorityPlugin
                 }
                 Ok(None)
             },
-            ReadOption::Specific(key_hash, _derived) => {
+            ReadOption::Specific(key_hash, derived) => {
                 for key in session.read_keys() {
                     if key.hash() == *key_hash {
-                        return Ok(Some(key.clone()));
+                        return Ok(Some(derived.transmute(key)));
                     }
                 }
                 if let Some(iv) = iv {
                     for key in session.private_read_keys() {
                         if key.hash() == *key_hash {
                             return Ok(Some(match key.decapsulate(iv) {
-                                Some(a) => a,
+                                Some(a) => derived.transmute(&a),
                                 None => { continue; }
                             }));
                         }
