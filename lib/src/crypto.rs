@@ -131,10 +131,25 @@ impl DerivedEncryptKey
         Ok(EncryptKey::from_bytes(&bytes[..])?)
     }
 
+    pub fn transmute_private(&self, key: &PrivateEncryptKey) -> Result<EncryptKey, std::io::Error>
+    {
+        // Decrypt the derived key
+        let bytes = key.decrypt(&self.inner.iv, &self.inner.data[..])?;
+        Ok(EncryptKey::from_bytes(&bytes[..])?)
+    }
+
     pub fn change(&mut self, old: &EncryptKey, new: &EncryptKey) -> Result<(), std::io::Error>
     {
         // First derive the key, then replace the inner with a newly encrypted value
         let inner = self.transmute(old)?;
+        self.inner = new.encrypt(inner.value())?;
+        Ok(())
+    }
+
+    pub fn change_private(&mut self, old: &PrivateEncryptKey, new: &PublicEncryptKey) -> Result<(), std::io::Error>
+    {
+        // First derive the key, then replace the inner with a newly encrypted value
+        let inner = self.transmute_private(old)?;
         self.inner = new.encrypt(inner.value())?;
         Ok(())
     }

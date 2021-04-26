@@ -181,16 +181,12 @@ impl TreeAuthorityPlugin
                         )));
                     }
                 }
-                for key in session.public_read_keys() {
-                    if key.hash() == *key_hash {
-                        let (iv, key) = key.encapsulate();
-                        return Ok(Some((iv, derived.transmute(&key)?)));
-                    }
-                }
                 for key in session.private_read_keys() {
                     if key.hash() == *key_hash {
-                        let (iv, key) = key.as_public_key().encapsulate();
-                        return Ok(Some((iv, derived.transmute(&key)?)));
+                        return Ok(Some((
+                            InitializationVector::generate(),
+                            derived.transmute_private(key)?
+                        )));
                     }
                 }
                 Err(TransformError::MissingReadKey(key_hash.clone()))
@@ -218,14 +214,9 @@ impl TreeAuthorityPlugin
                         return Ok(Some(derived.transmute(key)?));
                     }
                 }
-                if let Some(iv) = iv {
-                    for key in session.private_read_keys() {
-                        if key.hash() == *key_hash {
-                            return Ok(Some(match key.decapsulate(iv) {
-                                Some(a) => derived.transmute(&a)?,
-                                None => { continue; }
-                            }));
-                        }
+                for key in session.private_read_keys() {
+                    if key.hash() == *key_hash {
+                        return Ok(Some(derived.transmute_private(key)?));
                     }
                 }
                 Err(TransformError::MissingReadKey(key_hash.clone()))
