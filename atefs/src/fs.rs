@@ -388,7 +388,7 @@ impl AteFS
     fn update_auth(&self, mode: u32, uid: u32, gid: u32, auth: &mut MetaAuthorization) -> Result<()> {
         let old_key = {
             match &auth.read {
-                ReadOption::Inherit => { return Err(libc::EINVAL.into()); },
+                ReadOption::Inherit => None,
                 ReadOption::Everyone(old) => old.clone(),
                 ReadOption::Specific(hash, derived) => {
                     let key = match self.session.read_keys()

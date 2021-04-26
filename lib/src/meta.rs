@@ -232,6 +232,13 @@ pub struct MetaDelayedUpload
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MetaConfidentiality
+{
+    pub auth: ReadOption,
+    pub inner: Option<Hash>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum CoreMetadata
 {
     None,
@@ -241,7 +248,7 @@ pub enum CoreMetadata
     InitializationVector(InitializationVector),
     PublicKey(PublicSignKey),
     EncryptedPrivateKey(EncryptedPrivateKey),
-    Confidentiality(ReadOption),
+    Confidentiality(MetaConfidentiality),
     Collection(MetaCollection),
     Parent(MetaParent),
     Timestamp(MetaTimestamp),
@@ -303,7 +310,7 @@ impl Metadata
         ret
     }
 
-    pub fn get_confidentiality(&self) -> Option<&ReadOption>
+    pub fn get_confidentiality(&self) -> Option<&MetaConfidentiality>
     {
         for core in &self.core {
             if let CoreMetadata::Confidentiality(a) = core {

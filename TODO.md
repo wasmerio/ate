@@ -1,10 +1,10 @@
 ```
 bugs   Found Bugs
        D+ Modified files are still showing zeros at the end
-        + Changing the permissions on a parent is not reflected in the children as inherited
-          rows that are encrypted do not automatically gain the new keys of the parent. Will
-          need to store a read-key in the parent which the children use when they are in
-          inheritance mode
+       D+ Changing the permissions on a parent is not reflected in the children as inherited
+       D  rows that are encrypted do not automatically gain the new keys of the parent. Will
+       D  need to store a read-key in the parent which the children use when they are in
+       D  inheritance mode
        D+ Still need to fix the writing actions when a user attempts to change an object
        D+ Fixed a bug where files opened with truncate flag were not actually truncating
        D+ Fixed a bug where parents were not inheriting permissions properly when the parent
@@ -16,11 +16,13 @@ bugs   Found Bugs
        D  actual ATE data object access rights reflect the linux permissions
        D+ All users and groups should be contained to primary keys within 32bits so
        D  that they work with uid and gid with the highest bit set.
-        + Lists files and folders should ignore those that you do not have access to
-          rather than throwing an error
-        + File-systems should record the correct uid and gid within ATE but change it
-          to the actual user when mounted if it matches. Using the chown command
-          should allow the object to be given to other users and other groups.
+       D+ Lists files and folders should ignore those that you do not have access to
+       D  rather than throwing an error
+       D+ File-systems should record the correct uid and gid within ATE but change it
+       D  to the actual user when mounted if it matches. Using the chown command
+       D  should allow the object to be given to other users and other groups.
+        + Changing the access rights from a private group to everyone should then
+          allow the data to be read by everyone without having to resave all the data
         + When attempting to access a group that is not this group it should attempt
           to get the latest permissions from the authentication server.
 

@@ -194,8 +194,10 @@ impl TreeAuthorityPlugin
         }
     }
 
-    fn get_encrypt_key(auth: &ReadOption, iv: Option<&InitializationVector>, session: &Session) -> Result<Option<EncryptKey>, TransformError>
+    fn get_encrypt_key(confidentiality: &MetaConfidentiality, iv: Option<&InitializationVector>, session: &Session) -> Result<Option<EncryptKey>, TransformError>
     {
+        let auth = &confidentiality.auth;
+
         match auth {
             ReadOption::Inherit => {
                 Err(TransformError::UnspecifiedReadability)
@@ -217,6 +219,17 @@ impl TreeAuthorityPlugin
                 for key in session.private_read_keys() {
                     if key.hash() == *key_hash {
                         return Ok(Some(derived.transmute_private(key)?));
+                    }
+                }
+                if let Some(expected_inner) = &confidentiality.inner {
+                    for key in session.read_keys() {
+                        let inner = match derived.transmute(key) {
+                            Ok(a) => a,
+                            Err(_) => { continue; }
+                        };
+                        if inner.hash() == *expected_inner {
+                            return Ok(Some(inner));
+                        }
                     }
                 }
                 Err(TransformError::MissingReadKey(key_hash.clone()))
@@ -410,8 +423,31 @@ for TreeAuthorityPlugin
 
         // Now lets add all the encryption keys
         let auth = self.compute_auth(meta, trans_meta, ComputePhase::AfterStore)?;
-        ret.push(CoreMetadata::Confidentiality(auth.read));
-        
+        let key_hash = match &auth.read {
+            ReadOption::Specific(read_hash, derived) =>
+            {
+                let mut ret = session.read_keys()
+                        .filter(|p| p.hash() == *read_hash)
+                        .filter_map(|p| derived.transmute(p).ok())
+                        .map(|p| p.hash())
+                        .next();
+                if ret.is_none() {
+                    ret = session.read_keys()
+                        .filter(|p| p.hash() == *read_hash)
+                        .filter_map(|p| derived.transmute(p).ok())
+                        .map(|p| p.hash())
+                        .next();
+                }
+                ret
+            },
+            ReadOption::Inherit => None,
+            ReadOption::Everyone(key) => key.map(|k| k.hash()),
+        };
+        ret.push(CoreMetadata::Confidentiality(MetaConfidentiality {
+            auth: auth.read,
+            inner: key_hash
+        }));
+
         // Now run the signature plugin
         ret.extend(self.signature_plugin.metadata_lint_event(meta, session, trans_meta)?);
 
@@ -437,7 +473,7 @@ for TreeAuthorityPlugin
             None => { return Err(TransformError::UnspecifiedReadability); }
         };
 
-        if let Some((iv, key)) = TreeAuthorityPlugin::generate_encrypt_key(read_option, session)? {
+        if let Some((iv, key)) = TreeAuthorityPlugin::generate_encrypt_key(&read_option.auth, session)? {
             let encrypted = key.encrypt_with_iv(&iv, &with[..])?;
             meta.core.push(CoreMetadata::InitializationVector(iv));
             with = Bytes::from(encrypted);
