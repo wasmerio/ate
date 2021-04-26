@@ -1,4 +1,6 @@
 #![allow(dead_code)]
+#![allow(unused_imports)]
+use log::{info, error, debug};
 use std::ops::DerefMut;
 use async_trait::async_trait;
 use crate::api::FileApi;
@@ -131,6 +133,7 @@ impl FileState
         };
 
         // Use the cache-line to load the page
+        let mut page_store;
         let cache_index = page.as_u64() as usize % CACHED_PAGES;
         let cache_line = &mut self.pages[cache_index];
         let page = match cache_line {
@@ -147,10 +150,24 @@ impl FileState
                 // Replace the cache-line - pages here are lazy-written so we might need to flush it
                 let old = cache_line.replace(dao);
                 if let Some(mut old) = old {
-                    conv_serialization(old.commit(&mut dio))?;
+                    match old.commit(&mut dio) {
+                        Ok(_) => {
+                            conv_commit(dio.commit().await)?;
+                            cache_line.as_mut().unwrap()
+                        },
+                        Err(err) => {
+                            error!("failed to flush cache-line - {}", err);
+
+                            // Swap the old page back into the cache-line and return the loaded page
+                            // (this will cause a significant performance drop on loads however at
+                            //  least it will keep working)
+                            page_store = cache_line.replace(old).unwrap();
+                            &mut page_store
+                        }
+                    }
+                } else {
+                    cache_line.as_mut().unwrap()
                 }
-                conv_commit(dio.commit().await)?;
-                cache_line.as_mut().unwrap()
             }
         };
 
@@ -211,12 +228,16 @@ impl FileState
             None => {
                 // Create the bundle
                 let mut dio = chain.dio_ext(session, scope).await;
+                dio.auto_cancel();
+
                 let mut bundle = conv_serialization(dio.make_ext( 
-                PageBundle {
-                        pages: Vec::new(),
-                    }, Some(format), None
-                ))?;
+                    PageBundle {
+                            pages: Vec::new(),
+                        }, Some(format), None
+                    ))?;
+                bundle.auto_cancel();
                 bundle.attach_orphaned(&inode_key);
+                
                 let bundle = conv_serialization(bundle.commit(&mut dio))?;
                 let key = bundle.key().clone();
 
@@ -225,8 +246,12 @@ impl FileState
                 let cache_index = bundle.key().as_u64() as usize % CACHED_BUNDLES;
                 let cache_line = &mut self.bundles[cache_index];
                 if let Some(mut old) = cache_line.replace(bundle) {
-                    if old.is_dirty() {
-                        conv_serialization(old.commit(&mut dio))?;
+                    match old.commit(&mut dio) {
+                        Ok(_) => { },
+                        Err(err) => {
+                            cache_line.replace(old);
+                            conv_serialization(Err(err))?;
+                        }
                     }
                 }
 
@@ -274,11 +299,14 @@ impl FileState
             None => {
                 // Create the page (and commit it for reference integrity)
                 let mut dio = chain.dio_ext(session, scope).await;
+                dio.auto_cancel();
+
                 let mut page = conv_serialization(dio.make_ext(Page {
                         buf: Vec::new(),
                     },
                     None, None
                 ))?;
+                page.auto_cancel();
                 page.attach_orphaned(&bundle_key);
                 let page = conv_serialization(page.commit(&mut dio))?;
                 let key = page.key().clone();
@@ -288,8 +316,12 @@ impl FileState
                 let cache_index = page.key().as_u64() as usize % CACHED_BUNDLES;
                 let cache_line = &mut self.pages[cache_index];
                 if let Some(mut old) = cache_line.replace(page) {
-                    if old.is_dirty() {
-                        conv_serialization(old.commit(&mut dio))?;
+                    match old.commit(&mut dio) {
+                        Ok(_) => { },
+                        Err(err) => {
+                            cache_line.replace(old);
+                            conv_serialization(Err(err))?
+                        }
                     }
                 }
 
@@ -303,16 +335,16 @@ impl FileState
         // Now its time to commit all the metadata updates (if there were any)
         if bundle.is_dirty() || self.inode.is_dirty() {
             let mut dio = chain.dio_ext(session, scope).await;
-            if self.inode.is_dirty() {
-                conv_serialization(bundle.commit(&mut dio))?;    
-            }
-            if self.inode.is_dirty() {
-                conv_serialization(self.inode.commit(&mut dio))?;
-            }
+            dio.auto_cancel();
+            bundle.auto_cancel();
+            
+            conv_serialization(bundle.commit(&mut dio))?;    
+            conv_serialization(self.inode.commit(&mut dio))?;
             conv_commit(dio.commit().await)?
         }
 
         // Use the cache-line to load the page
+        let mut page_store;
         let cache_index = page.as_u64() as usize % CACHED_BUNDLES;
         let cache_line = &mut self.pages[cache_index];
         let page = match cache_line {
@@ -328,10 +360,24 @@ impl FileState
                 
                 // We always commit changes to the bundles so no need to commit it here
                 if let Some(mut old) = cache_line.replace(dao) {
-                    conv_serialization(old.commit(&mut dio))?;
-                    conv_commit(dio.commit().await)?;
+                    match old.commit(&mut dio) {
+                        Ok(_) => {
+                            conv_commit(dio.commit().await)?;
+                            cache_line.as_mut().unwrap()
+                        },
+                        Err(err) => {
+                            error!("failed to flush cache-line - {}", err);
+
+                            // Swap the old page back into the cache-line and return the loaded page
+                            // (this will cause a significant performance drop on writes however at
+                            //  least it will keep working)
+                            page_store = cache_line.replace(old).unwrap();
+                            &mut page_store
+                        }
+                    }
+                } else {
+                    cache_line.as_mut().unwrap()
                 }
-                cache_line.as_mut().unwrap()
             }
         };
 
@@ -351,8 +397,11 @@ impl FileState
     {
         if self.dirty {
             let mut dio = chain.dio_ext(session, scope).await;
+            dio.auto_cancel();
+
             for page in self.pages.iter_mut() {
                 if let Some(page) = page {
+                    page.auto_cancel();
                     conv_serialization(page.commit(&mut dio))?;
                 }
             }
@@ -365,7 +414,8 @@ impl FileState
 
 impl RegularFile
 {
-    pub fn new(inode: Dao<Inode>, created: u64, updated: u64) -> RegularFile {
+    pub fn new(mut inode: Dao<Inode>, created: u64, updated: u64) -> RegularFile {
+        inode.auto_cancel();
         RegularFile {
             uid: inode.dentry.uid,
             gid: inode.dentry.gid,

@@ -465,6 +465,8 @@ for AteFS
     {
         // Attempt to load the root node, if it does not exist then create it
         let mut dio = self.chain.dio_ext(&self.session, self.scope).await;
+        dio.auto_cancel();
+
         if let Err(LoadError::NotFound(_)) = dio.load::<Inode>(&PrimaryKey::from(1)).await {
             info!("atefs::creating-root-node");
             
@@ -481,6 +483,7 @@ for AteFS
             match dio.make_ext(root, self.session.log_format, Some(PrimaryKey::from(1))) {
                 Ok(mut root) =>
                 {
+                    root.auto_cancel();
                     self.update_auth(mode, uid, gid, root.auth_mut())?;
                     conv_serialization(root.commit(&mut dio))?;
                 },
@@ -549,6 +552,9 @@ for AteFS
         let key = PrimaryKey::from(inode);
         let mut dio = self.chain.dio_ext(&self.session, self.scope).await;
         let mut dao = conv_load(dio.load::<Inode>(&key).await)?;
+
+        dio.auto_cancel();
+        dao.auto_cancel();
 
         let mut changed = false;
         if let Some(mode) = set_attr.mode {
@@ -765,6 +771,8 @@ for AteFS
         debug!("atefs::mkdir parent={}", parent);
 
         let mut dio = self.chain.dio_ext(&self.session, self.scope).await;
+        dio.auto_cancel();
+
         let mut data = conv_load(dio.load::<Inode>(&PrimaryKey::from(parent)).await)?;
         
         if data.spec_type != SpecType::Directory {
@@ -780,6 +788,7 @@ for AteFS
         );
 
         let mut child = conv_serialization(data.push_store(&mut dio, data.children, child))?;
+        child.auto_cancel();
 
         conv_serialization(child.commit(&mut dio))?;
         let child_spec = Inode::as_file_spec(child.key().as_u64(), child.when_created(), child.when_updated(), child);
@@ -807,6 +816,7 @@ for AteFS
             debug!("atefs::rmdir parent={} name={}: found", parent, name.to_str().unwrap());
 
             let mut dio = self.chain.dio_ext(&self.session, self.scope).await;
+            dio.auto_cancel();
             conv_load(dio.delete::<Inode>(&PrimaryKey::from(entry.inode)).await)?;
             conv_commit(dio.commit().await)?;
             return Ok(())
@@ -835,6 +845,9 @@ for AteFS
         debug!("atefs::mknod parent={} name={}", parent, name.to_str().unwrap().to_string());
 
         let (mut dao, mut dio) = self.mknod_internal(req, parent, name, mode, rdev).await?;
+        dio.auto_cancel();
+        dao.auto_cancel();
+
         conv_serialization(dao.commit(&mut dio))?;
         conv_commit(dio.commit().await)?;
 
@@ -858,6 +871,9 @@ for AteFS
         debug!("atefs::create parent={} name={}", parent, name.to_str().unwrap().to_string());
 
         let (mut data, mut dio) = self.mknod_internal(req, parent, name, mode, 0).await?;
+        dio.auto_cancel();
+        data.auto_cancel();
+
         conv_serialization(data.commit(&mut dio))?;
         let spec = Inode::as_file_spec(data.key().as_u64(), data.when_created(), data.when_updated(), data);
 
@@ -892,6 +908,7 @@ for AteFS
 
         let parent_key = PrimaryKey::from(parent);
         let mut dio = self.chain.dio_ext(&self.session, self.scope).await;
+        dio.auto_cancel();
 
         let data_parent = conv_load(dio.load::<Inode>(&parent_key).await)?;
 
@@ -1162,6 +1179,9 @@ for AteFS
         let link = link.to_str().unwrap().to_string();
         let spec = {
             let (mut dao, mut dio) = self.mknod_internal(req, parent, name, 0o755, 0).await?;
+            dio.auto_cancel();
+            dao.auto_cancel();
+            
             dao.spec_type = SpecType::SymLink;
             dao.link = Some(link);
             conv_serialization(dao.commit(&mut dio))?;

@@ -37,6 +37,7 @@ where Self: Send + Sync
     pub(super) locked: FxHashSet<PrimaryKey>,
     pub(super) deleted: FxHashSet<PrimaryKey>,
     pub(super) pipe_unlock: FxHashSet<PrimaryKey>,
+    pub(super) auto_cancel: bool,
 }
 
 impl DioState
@@ -92,6 +93,7 @@ impl DioState
             locked: FxHashSet::default(),
             deleted: FxHashSet::default(),
             pipe_unlock: FxHashSet::default(),
+            auto_cancel: false,
         }
     }
 }
@@ -437,6 +439,12 @@ impl<'a> Dio<'a>
         state.deleted.clear();
     }
 
+    pub fn auto_cancel(&mut self)
+    {
+        let state = &mut self.state;
+        state.auto_cancel = true;
+    }
+
     pub async fn commit(&mut self) -> Result<(), CommitError>
     {
         // If we have dirty records
@@ -593,6 +601,12 @@ for Dio<'a>
 {
     fn drop(&mut self)
     {
+        // Check if auto-cancel is enabled
+        if self.has_uncommitted() & self.state.auto_cancel {
+            debug!("Data objects have been discarded due to auto-cancel and uncommitted changes");
+            self.cancel();
+        }
+
         // If the DIO has uncommitted changes then warn the caller
         debug_assert!(self.has_uncommitted() == false, "dio-has-uncommitted - the DIO has uncommitted data in it - call the .commit() method before the DIO goes out of scope.");
     }

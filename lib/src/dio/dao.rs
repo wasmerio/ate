@@ -153,6 +153,7 @@ where Self: Send + Sync,
 {
     pub(super) lock: DaoLock,
     pub(super) dirty: bool,
+    pub(super) auto_cancel: bool,
 }
 
 pub trait DaoObjEthereal
@@ -168,6 +169,8 @@ pub trait DaoObjEthereal
     fn is_dirty(&self) -> bool;
 
     fn cancel(&mut self);
+
+    fn auto_cancel(&mut self);
 }
 
 pub trait DaoObjReal
@@ -215,6 +218,7 @@ where Self: Send + Sync,
             state: DaoState {
                 lock: DaoLock::Unlocked,
                 dirty: false,
+                auto_cancel: false,
             },
             row: row,
         }
@@ -225,6 +229,7 @@ where Self: Send + Sync,
             state: DaoState {
                 lock: DaoLock::Unlocked,
                 dirty: true,
+                auto_cancel: false,
             },
             row: Row {
                 key,
@@ -332,6 +337,10 @@ where Self: Send + Sync,
         &mut self.row.auth
     }
 
+    fn auto_cancel(&mut self) {
+        self.state.auto_cancel = true;
+    }
+
     fn add_extra_metadata(&mut self, meta: CoreMetadata) {
         self.state.dirty = true;
         self.row.extra_meta.push(meta);
@@ -349,7 +358,7 @@ where Self: Send + Sync,
     }
 
     fn cancel(&mut self) {
-        self.state.dirty = false;
+        self.state.cancel();
     }
 }
 
@@ -509,6 +518,10 @@ where Self: Send + Sync,
     fn cancel(&mut self) {
         self.ethereal.cancel()
     }
+
+    fn auto_cancel(&mut self) {
+        self.ethereal.auto_cancel()
+    }
 }
 
 pub(crate) fn delete_internal<D>(dao: &Dao<D>, state: &mut DioState)
@@ -557,10 +570,23 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     }
 }
 
+impl DaoState
+{
+    fn cancel(&mut self) {
+        self.dirty = false;
+    }
+}
+
 impl Drop for DaoState
 {
     fn drop(&mut self)
     {
+        // Check if auto-cancel is enabled
+        if self.dirty & self.auto_cancel {
+            debug!("Data objects have been discarded due to auto-cancel and uncommitted changes");
+            self.cancel();
+        }
+
         // If the DAO is dirty and was not committed then assert an error
         debug_assert!(self.dirty == false, "dao-is-dirty - the DAO is dirty due to mutations thus you must call .commit() or .cancel()");
     }
