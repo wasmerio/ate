@@ -167,7 +167,7 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
 
         // If the session has an encryption key then use it
         if let Some(key) = self.session.read_keys().into_iter().map(|a| a.clone()).next() {
-            res.auth_mut().read = ReadOption::Specific(key.hash(), DerivedEncryptKey::new(key.size()));
+            res.auth_mut().read = ReadOption::from_key(&key)?;
         }
 
         // Add the metadata
@@ -214,7 +214,7 @@ impl Chain
         
         // Add an encryption key on the command (if the session has one)
         if let Some(key) = session.read_keys().into_iter().next() {
-            cmd.auth_mut().read = ReadOption::Specific(key.hash(), DerivedEncryptKey::new(key.size()));
+            cmd.auth_mut().read = ReadOption::from_key(key)?;
         }
 
         // Add the extra metadata about the type so the other side can find it

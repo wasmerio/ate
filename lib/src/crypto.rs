@@ -99,37 +99,36 @@ for KeySize
 /// Encrypt key material is used to transform an encryption key using
 /// derivation which should allow encryption keys to be changed without
 /// having to decrypt and reencrypt the data itself.
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct DerivedEncryptKey
 {
-    inner: EncryptKey
+    pub(crate) inner: EncryptResult
 }
 
 impl DerivedEncryptKey
 {
-    pub fn new(size: KeySize) -> DerivedEncryptKey {
-        DerivedEncryptKey {
-            inner: EncryptKey::generate(size)
-        }
+    pub fn new(key: &EncryptKey) -> Result<DerivedEncryptKey, std::io::Error> {
+        let inner = EncryptKey::generate(key.size());
+        Ok(
+            DerivedEncryptKey {
+                inner: key.encrypt(inner.value())?
+            }
+        )
     }
 
-    pub fn transmute(&self, key: &EncryptKey) -> EncryptKey
+    pub fn transmute(&self, key: &EncryptKey) -> Result<EncryptKey, std::io::Error>
     {
-        // First resize the input key to match the material size, then XOR it and return the result
-        let key = key.resize(self.inner.size());
-        EncryptKey::xor(&self.inner, &key)
+        // Decrypt the derived key
+        let bytes = key.decrypt(&self.inner.iv, &self.inner.data[..])?;
+        Ok(EncryptKey::from_bytes(&bytes[..])?)
     }
 
-    pub fn change(&mut self, old: &EncryptKey, new: &EncryptKey)
+    pub fn change(&mut self, old: &EncryptKey, new: &EncryptKey) -> Result<(), std::io::Error>
     {
-        // First derive the key, then replace the inner with an XOR of the new key
-        let key = self.transmute(old);
-        let new = new.resize(key.size());
-        self.inner = EncryptKey::xor(&key, &new);
-    }
-
-    pub fn size(&self) -> KeySize {
-        self.inner.size()
+        // First derive the key, then replace the inner with a newly encrypted value
+        let inner = self.transmute(old)?;
+        self.inner = new.encrypt(inner.value())?;
+        Ok(())
     }
 }
 
@@ -371,6 +370,7 @@ for EncryptKey
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct EncryptResult {
     pub iv: InitializationVector,
     pub data: Vec<u8>
@@ -614,7 +614,7 @@ impl Default for EncryptKey {
 /// to create entropy and help prevent rainbow table attacks. These
 /// vectors are also used as the exchange medium during a key exchange
 /// so that two parties can established a shared secret key
-#[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct InitializationVector
 {
     pub bytes: Vec<u8>,
@@ -1450,40 +1450,38 @@ fn test_derived_keys() -> Result<(), AteError>
     static KEY_SIZES: [KeySize; 3] = [KeySize::Bit128, KeySize::Bit192, KeySize::Bit256];
     for key_size1 in KEY_SIZES.iter() {
         for key_size2 in KEY_SIZES.iter() {
-            for key_size3 in KEY_SIZES.iter() {
-    
-                // Generate a derived key and encryption key
-                let mut key1 = DerivedEncryptKey::new(*key_size1);
-                let key2 = EncryptKey::generate(*key_size2);
 
-                // Encrypt some data
-                let plain_text1 = "the cat ran up the wall".to_string();
-                let encrypted_text1 = key1.transmute(&key2).encrypt(plain_text1.as_bytes())?;
+            // Generate a derived key and encryption key
+            let key2 = EncryptKey::generate(*key_size1);
+            let mut key1 = DerivedEncryptKey::new(&key2)?;
 
-                // Check that it decrypts properly
-                let plain_text2 = String::from_utf8(key1.transmute(&key2).decrypt(&encrypted_text1.iv, &encrypted_text1.data[..])?).unwrap();
-                assert_eq!(plain_text1, plain_text2);
+            // Encrypt some data
+            let plain_text1 = "the cat ran up the wall".to_string();
+            let encrypted_text1 = key1.transmute(&key2)?.encrypt(plain_text1.as_bytes())?;
 
-                // Now change the key
-                let key3 = EncryptKey::generate(*key_size3);
-                key1.change(&key2, &key3);
+            // Check that it decrypts properly
+            let plain_text2 = String::from_utf8(key1.transmute(&key2)?.decrypt(&encrypted_text1.iv, &encrypted_text1.data[..])?).unwrap();
+            assert_eq!(plain_text1, plain_text2);
 
-                // The decryption with the old key which should now fail
-                let plain_text2 = match key1.transmute(&key2).decrypt(&encrypted_text1.iv, &encrypted_text1.data[..]) {
-                    Ok(a) => {
-                        match String::from_utf8(a) {
-                            Ok(a) => a,
-                            Err(_) => "nothing".to_string()
-                        }
-                    },
-                    Err(_) => "nothing".to_string()
-                };
-                assert_ne!(plain_text1, plain_text2);
+            // Now change the key
+            let key3 = EncryptKey::generate(*key_size2);
+            key1.change(&key2, &key3)?;
 
-                // Check that it decrypts properly with the new key
-                let plain_text2 = String::from_utf8(key1.transmute(&key3).decrypt(&encrypted_text1.iv, &encrypted_text1.data[..])?).unwrap();
-                assert_eq!(plain_text1, plain_text2);
-            }
+            // The decryption with the old key which should now fail
+            let plain_text2 = match key1.transmute(&key2)?.decrypt(&encrypted_text1.iv, &encrypted_text1.data[..]) {
+                Ok(a) => {
+                    match String::from_utf8(a) {
+                        Ok(a) => a,
+                        Err(_) => "nothing".to_string()
+                    }
+                },
+                Err(_) => "nothing".to_string()
+            };
+            assert_ne!(plain_text1, plain_text2);
+
+            // Check that it decrypts properly with the new key
+            let plain_text2 = String::from_utf8(key1.transmute(&key3)?.decrypt(&encrypted_text1.iv, &encrypted_text1.data[..])?).unwrap();
+            assert_eq!(plain_text1, plain_text2);
         }
     }
 

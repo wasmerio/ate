@@ -22,8 +22,28 @@ pub enum ReadOption
 
 impl ReadOption
 {
-    pub fn from_key(key: &EncryptKey) -> ReadOption {
-        ReadOption::Specific(key.hash(), DerivedEncryptKey::new(key.size()))
+    pub fn from_key(key: &EncryptKey) -> Result<ReadOption, std::io::Error> {
+        Ok(ReadOption::Specific(key.hash(), DerivedEncryptKey::new(key)?))
+    }
+
+    pub fn rotate_to_inhert(self) -> ReadOption {
+        ReadOption::Inherit
+    }
+
+    pub fn rotate_to_everyone(self, old: Option<EncryptKey>) -> ReadOption {
+        ReadOption::Everyone(old)
+    }
+
+    pub fn rotate_to_specific(self, old: Option<EncryptKey>, new: &EncryptKey) -> Result<ReadOption, std::io::Error> {
+        let inner = match old {
+            Some(a) => a,
+            None => EncryptKey::generate(new.size())
+        };
+        Ok(
+            ReadOption::Specific(new.hash(), DerivedEncryptKey {
+                inner: new.encrypt(inner.value())?
+            })
+        )
     }
 }
 
@@ -32,14 +52,6 @@ for ReadOption
 {
     fn default() -> ReadOption {
         ReadOption::Inherit
-    }
-}
-
-impl From<EncryptKey>
-for ReadOption
-{
-    fn from(key: EncryptKey) -> ReadOption {
-        ReadOption::from_key(&key)
     }
 }
 
@@ -57,8 +69,8 @@ for ReadOption {
             ReadOption::Inherit => {
                 write!(f, "inherit")
             },
-            ReadOption::Specific(hash, derived) => {
-                write!(f, "specifc({}@{})", hash, derived.size())
+            ReadOption::Specific(hash, _derived) => {
+                write!(f, "specifc({})", hash)
             },
         }
     }
@@ -186,7 +198,7 @@ for MetaAuthorization
                 }
             },
             ReadOption::Inherit => "inherit".to_string(),
-            ReadOption::Specific(a, derived) => format!("specific-{}@{}", a, derived.size()),
+            ReadOption::Specific(a, _derived) => format!("specific-{}", a),
         };
         let w = match &self.write {
             WriteOption::Everyone => "everyone".to_string(),

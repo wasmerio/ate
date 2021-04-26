@@ -17,9 +17,9 @@ use ate::dio::DaoObjEthereal;
 use ate::dio::DaoObjReal;
 use ate::error::*;
 use ate::chain::*;
+use ate::crypto::*;
 use ate::session::Session as AteSession;
 use ate::header::PrimaryKey;
-use ate::crypto::KeySize;
 use ate::prelude::AteHash;
 use ate::prelude::AteSessionProperty;
 use ate::prelude::AteRolePurpose;
@@ -192,44 +192,40 @@ impl AteFS
         }
     }
 
-    fn get_group_read_key(&self, gid: u32) -> Option<AteHash> {
+    fn get_group_read_key<'a>(&'a self, gid: u32) -> Option<&'a EncryptKey> {
         self.session.groups.iter()
             .flat_map(|g| g.roles.iter())
             .filter(|r| r.purpose == AteRolePurpose::Observer)
             .filter(|g| g.gid().iter().any(|gid2| *gid2 == gid))
             .flat_map(|r| r.read_keys())
-            .map(|k| k.hash())
             .next()
     }
 
-    fn get_group_write_key(&self, gid: u32) -> Option<AteHash> {
+    fn get_group_write_key<'a>(&'a self, gid: u32) -> Option<&'a PrivateSignKey> {
         self.session.groups.iter()
             .flat_map(|g| g.roles.iter())
             .filter(|r| r.purpose == AteRolePurpose::Contributor)
             .filter(|g| g.gid().iter().any(|gid2| *gid2 == gid))
             .flat_map(|r| r.write_keys())
-            .map(|k| k.hash())
             .next()
     }
 
-    fn get_user_read_key(&self, uid: u32) -> Option<AteHash> {
+    fn get_user_read_key<'a>(&'a self, uid: u32) -> Option<&'a EncryptKey> {
         match self.session.user.uid() {
             Some(a) if a == uid => {
                 self.session.user
                     .read_keys()
-                    .map(|a| a.hash())
                     .next()
             },
             _ => None
         }        
     }
 
-    fn get_user_write_key(&self, uid: u32) -> Option<AteHash> {
+    fn get_user_write_key<'a>(&'a self, uid: u32) -> Option<&'a PrivateSignKey> {
         match self.session.user.uid() {
             Some(a) if a == uid => {
                 self.session.user
                     .write_keys()
-                    .map(|a| a.hash())
                     .next()
             },
             _ => None
@@ -389,22 +385,26 @@ impl AteFS
     }
 
     fn update_auth(&self, mode: u32, uid: u32, gid: u32, auth: &mut MetaAuthorization) -> Result<()> {
+        let old_key = {
+            match auth.read {
+                ReadOption::Inherit => 
+            }
+        }
+
         if mode & 0o004 != 0 {
-            auth.read = ate::meta::ReadOption::Everyone(None);
-        } else if mode & 0o040 != 0 {
-            if let Some(key) = self.get_group_read_key(gid) {
-                auth.read = ate::meta::ReadOption::Specific(key, DerivedEncryptKey::new(KeySize::Bit128));
+            auth.read.rotate_to_everyone(old_key);
+        } else {
+            let key = {
+                if mode & 0o040 != 0 {
+                    self.get_group_read_key(gid)
+                } else {
+                    self.get_user_read_key(uid)
+                }
+            };
+            if let Some(key) = key {
+                auth.read.rotate_to_specific(old_key, key.clone());
             } else if self.no_auth == false {
                 error!("Session does not have the required group ({}) read key embedded within it", gid);
-                return Err(libc::EACCES.into());
-            } else {
-                auth.read = ate::meta::ReadOption::Inherit;
-            }
-        } else {
-            if let Some(key) = self.get_user_read_key(uid) {
-                auth.read = ate::meta::ReadOption::Specific(key, DerivedEncryptKey::new(KeySize::Bit128));
-            } else if self.no_auth == false {
-                error!("Session does not have the required user ({}) read key embedded within it", uid);
                 return Err(libc::EACCES.into());
             } else {
                 auth.read = ate::meta::ReadOption::Inherit;
@@ -415,7 +415,7 @@ impl AteFS
             auth.write = ate::meta::WriteOption::Everyone;
         } else if mode & 0o020 != 0 {
             if let Some(key) = self.get_group_write_key(gid) {
-                auth.write = ate::meta::WriteOption::Specific(key);
+                auth.write = ate::meta::WriteOption::Specific(key.hash());
             } else if self.no_auth == false {
                 error!("Session does not have the required group ({}) rwrite key embedded within it", gid);
                 return Err(libc::EACCES.into());
@@ -424,7 +424,7 @@ impl AteFS
             }
         } else {
             if let Some(key) = self.get_user_write_key(uid) {
-                auth.write = ate::meta::WriteOption::Specific(key);
+                auth.write = ate::meta::WriteOption::Specific(key.hash());
             } else if self.no_auth == false {
                 error!("Session does not have the required user ({}) write key embedded within it", uid);
                 return Err(libc::EACCES.into());

@@ -36,7 +36,7 @@ async fn main() -> Result<(), AteError>
         let mut dao = dio.store(TrustedRecord {
             hidden_data: "Secret data".to_string(),
         })?;
-        dao.auth_mut().read = ReadOption::Specific(ek.hash(), DerivedEncryptKey::new(ek.size()));
+        dao.auth_mut().read = ReadOption::from_key(&ek)?;
         dao.auth_mut().write = WriteOption::Specific(sk.hash());
         dao.commit(&mut dio)?;
         dio.commit().await?;

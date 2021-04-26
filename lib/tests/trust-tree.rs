@@ -30,7 +30,7 @@ fn test_trust_tree() -> Result<(), AteError>
         debug!("generating crypto keys");
         let write_key = PrivateSignKey::generate(KeySize::Bit192);
         let write_key2 = PrivateSignKey::generate(KeySize::Bit256);
-        let read_key = PrivateEncryptKey::generate(KeySize::Bit256);
+        let read_key = EncryptKey::generate(KeySize::Bit256);
         let root_public_key = write_key.as_public_key();
         
         let mut conf = ConfAte::default();
@@ -43,7 +43,7 @@ fn test_trust_tree() -> Result<(), AteError>
             let mut session = AteSession::new(&conf);    
             session.user.properties.push(AteSessionProperty::WriteKey(write_key.clone()));
             session.user.properties.push(AteSessionProperty::WriteKey(write_key2.clone()));
-            session.user.properties.push(AteSessionProperty::PublicReadKey(read_key.as_public_key().clone()));
+            session.user.properties.push(AteSessionProperty::ReadKey(read_key.clone()));
             session.user.properties.push(AteSessionProperty::Identity("author@here.com".to_string()));
 
             debug!("creating the chain-of-trust");
@@ -57,7 +57,7 @@ fn test_trust_tree() -> Result<(), AteError>
             debug!("add the objects to the DIO");
             let mut dio = chain.dio(&session).await;
             let mut garage = dio.store(Garage::default())?;
-            garage.auth_mut().read = ReadOption::Specific(read_key.hash(), DerivedEncryptKey::new(read_key.size()));
+            garage.auth_mut().read = ReadOption::from_key(&read_key)?;
             garage.auth_mut().write = WriteOption::Specific(write_key2.hash());
             
             for n in 0..100 {
@@ -79,7 +79,7 @@ fn test_trust_tree() -> Result<(), AteError>
             debug!("building the session");
             let mut session = AteSession::new(&conf);    
             session.user.properties.push(AteSessionProperty::WriteKey(write_key2.clone()));
-            session.user.properties.push(AteSessionProperty::PrivateReadKey(read_key.clone()));
+            session.user.properties.push(AteSessionProperty::ReadKey(read_key.clone()));
             session.user.properties.push(AteSessionProperty::Identity("author@here.com".to_string()));
 
             debug!("loading the chain-of-trust again");

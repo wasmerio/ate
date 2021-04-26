@@ -1396,6 +1396,7 @@ for LockError
 #[derive(Debug)]
 pub enum InvokeError<E>
 {
+    IO(std::io::Error),
     Reply(E),
     LoadError(LoadError),
     SerializationError(SerializationError),
@@ -1405,6 +1406,14 @@ pub enum InvokeError<E>
     ServiceError(String),
     Timeout,
     Aborted
+}
+
+impl<E> From<std::io::Error>
+for InvokeError<E>
+{
+    fn from(err: std::io::Error) -> InvokeError<E> {
+        InvokeError::IO(err)
+    }   
 }
 
 impl<E> From<SerializationError>
@@ -1461,6 +1470,9 @@ where E: std::fmt::Debug
 {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
+            InvokeError::IO(err) => {
+                write!(f, "Command failed - {}", err)
+            }
             InvokeError::LoadError(err) => {
                 write!(f, "Command failed - {}", err)
             },

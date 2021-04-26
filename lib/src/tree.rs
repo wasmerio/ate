@@ -177,20 +177,20 @@ impl TreeAuthorityPlugin
                     if key.hash() == *key_hash {
                         return Ok(Some((
                             InitializationVector::generate(),
-                            derived.transmute(key)
+                            derived.transmute(key)?
                         )));
                     }
                 }
                 for key in session.public_read_keys() {
                     if key.hash() == *key_hash {
                         let (iv, key) = key.encapsulate();
-                        return Ok(Some((iv, derived.transmute(&key))));
+                        return Ok(Some((iv, derived.transmute(&key)?)));
                     }
                 }
                 for key in session.private_read_keys() {
                     if key.hash() == *key_hash {
                         let (iv, key) = key.as_public_key().encapsulate();
-                        return Ok(Some((iv, derived.transmute(&key))));
+                        return Ok(Some((iv, derived.transmute(&key)?)));
                     }
                 }
                 Err(TransformError::MissingReadKey(key_hash.clone()))
@@ -215,14 +215,14 @@ impl TreeAuthorityPlugin
             ReadOption::Specific(key_hash, derived) => {
                 for key in session.read_keys() {
                     if key.hash() == *key_hash {
-                        return Ok(Some(derived.transmute(key)));
+                        return Ok(Some(derived.transmute(key)?));
                     }
                 }
                 if let Some(iv) = iv {
                     for key in session.private_read_keys() {
                         if key.hash() == *key_hash {
                             return Ok(Some(match key.decapsulate(iv) {
-                                Some(a) => derived.transmute(&a),
+                                Some(a) => derived.transmute(&a)?,
                                 None => { continue; }
                             }));
                         }
