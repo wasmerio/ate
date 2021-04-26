@@ -56,6 +56,7 @@ where Self: Send + Sync
     pub elapsed: std::time::Instant,
     pub last_elapsed: seqlock::SeqLock<u64>,
     pub commit_lock: tokio::sync::Mutex<()>,
+    pub impersonate_uid: bool,
 }
 
 pub struct OpenHandle
@@ -162,7 +163,7 @@ pub(crate) fn conv<T>(r: std::result::Result<T, AteError>) -> std::result::Resul
 
 impl AteFS
 {
-    pub fn new(chain: Arc<Chain>, group: Option<String>, session: AteSession, scope: TransactionScope, no_auth: bool) -> AteFS {
+    pub fn new(chain: Arc<Chain>, group: Option<String>, session: AteSession, scope: TransactionScope, no_auth: bool, impersonate_uid: bool) -> AteFS {
         AteFS {
             chain,
             no_auth,
@@ -173,6 +174,7 @@ impl AteFS
             elapsed: std::time::Instant::now(),
             last_elapsed: seqlock::SeqLock::new(0),
             commit_lock: tokio::sync::Mutex::new(()),
+            impersonate_uid,
         }
     }
 
@@ -246,21 +248,21 @@ impl AteFS
         let data = conv_load(dio.load::<Inode>(&key).await)?;
         let created = data.when_created();
         let updated = data.when_updated();
-        
+
         let uid = data.dentry.uid;
         let gid = data.dentry.gid;
 
         let mut children = Vec::new();
         let fixed = FixedFile::new(key.as_u64(), ".".to_string(), FileType::Directory)
-            .uid(self.reverse_uid(uid, req))
-            .gid(self.reverse_gid(gid, req))
+            .uid(uid)
+            .gid(gid)
             .created(created)
             .updated(updated);
         children.push(FileSpec::FixedFile(fixed));
 
         let fixed = FixedFile::new(key.as_u64(), "..".to_string(), FileType::Directory)
-            .uid(self.reverse_uid(uid, req))
-            .gid(self.reverse_gid(gid, req))
+            .uid(uid)
+            .gid(gid)
             .created(created)
             .updated(updated);
         children.push(FileSpec::FixedFile(fixed));
@@ -275,7 +277,7 @@ impl AteFS
         let mut open = OpenHandle {
             inode,
             fh: fastrand::u64(..),
-            attr: spec_as_attr(&spec, self.reverse_uid(spec.uid(), req), self.reverse_gid(spec.uid(), req)),
+            attr: self.spec_as_attr_reverse(&spec, req),
             spec: spec,
             children: Vec::new(),
             children_plus: Vec::new(),
@@ -283,7 +285,17 @@ impl AteFS
         };
 
         for child in children.into_iter() {
-            open.add_child(&child, self.reverse_uid(child.uid(), req), self.reverse_gid(child.gid(), req));
+            let (uid, gid) = match self.impersonate_uid {
+                true => {
+                    let uid = self.reverse_uid(child.uid(), req);
+                    let gid = self.reverse_gid(child.gid(), req);
+                    (uid, gid)
+                },
+                false => {
+                    (child.uid(), child.gid())
+                }
+            };            
+            open.add_child(&child, uid, gid);
         }
 
         Ok(open)
@@ -535,7 +547,10 @@ for AteFS
         let spec = Inode::as_file_spec(inode, dao.when_created(), dao.when_updated(), dao);
         Ok(ReplyAttr {
             ttl: FUSE_TTL,
-            attr: self.spec_as_attr_reverse(&spec, &req),
+            attr: match self.impersonate_uid {
+                true => self.spec_as_attr_reverse(&spec, &req),
+                false => spec_as_attr(&spec, spec.uid(), spec.gid())
+            },
         })
     }
 
@@ -733,29 +748,37 @@ for AteFS
 
     async fn access(&self, req: Request, inode: u64, mask: u32) -> Result<()> {
         self.tick().await?;
-        debug!("atefs::access inode={}", inode);
+        debug!("atefs::access inode={} mask={:#02x}", inode, mask);
         
         let (dao, _dio) = self.load(inode).await?;
 
         if (dao.dentry.mode & mask) != 0
         {
+            debug!("atefs::access mode={:#02x} - ok", dao.dentry.mode);
             return Ok(());
         }
-        if req.uid == dao.dentry.uid {
+
+        let uid = self.translate_uid(req.uid, &req);
+        if uid == dao.dentry.uid {
             let mask_shift = mask << 3;
             if (dao.dentry.mode & mask_shift) != 0
             {
-                return Ok(());
-            }
-        }
-        if req.gid == dao.dentry.gid {
-            let mask_shift = mask << 6;
-            if (dao.dentry.mode & mask_shift) != 0
-            {
+                debug!("atefs::access mode={:#02x} - ok", dao.dentry.mode);
                 return Ok(());
             }
         }
 
+        let gid = self.translate_gid(req.gid, &req);
+        if gid == dao.dentry.gid && self.session.groups.iter().any(|g| g.roles.iter().any(|r| r.gid().iter().any(|gid2| *gid2 == gid))) {
+            let mask_shift = mask << 6;
+            if (dao.dentry.mode & mask_shift) != 0
+            {
+                debug!("atefs::access mode={:#02x} - ok", dao.dentry.mode);
+                return Ok(());
+            }
+        }
+
+        debug!("atefs::access mode={:#02x} - EACCES", dao.dentry.mode);
         Err(libc::EACCES.into())
     }
 
@@ -793,7 +816,7 @@ for AteFS
         child.auto_cancel();
         self.update_auth(mode, uid, gid, child.auth_mut())?;
         let child = conv_serialization(child.commit(&mut dio))?;
-        
+
         let child_spec = Inode::as_file_spec(child.key().as_u64(), child.when_created(), child.when_updated(), child);
         conv_commit(dio.commit().await)?;
 

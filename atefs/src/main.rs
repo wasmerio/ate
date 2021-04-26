@@ -144,6 +144,9 @@ struct Mount {
     /// Allow fuse filesystem mount on a non-empty directory, default is not allowed.
     #[clap(long)]
     non_empty: bool,
+    /// For files and directories that the authenticated user owns, translate the UID and GID to the local machine ids instead of the global ones.
+    #[clap(short, long)]
+    impersonate_uid: bool, 
     /// Configure the log file for <raw>, <barebone>, <speed>, <compatibility>, <balanced> or <security>
     #[clap(long, default_value = "speed")]
     configured_for: ate::conf::ConfiguredFor,
@@ -251,7 +254,7 @@ async fn main_mount(mount: Mount, conf: ConfAte, group: Option<String>, session:
     // Create the mount point
     let mount_path = mount.mount_path.clone();
     let mount_join = Session::new(mount_options)
-        .mount_with_unprivileged(AteFS::new(chain, group, session, scope, no_auth), mount.mount_path);
+        .mount_with_unprivileged(AteFS::new(chain, group, session, scope, no_auth, mount.impersonate_uid), mount.mount_path);
 
     // Install a ctrl-c command
     info!("mounting file-system and entering main loop");

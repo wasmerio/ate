@@ -47,7 +47,7 @@ for Directory
     }
 
     fn gid(&self) -> u32 {
-        self.inode.dentry.uid
+        self.inode.dentry.gid
     }
 
     fn size(&self) -> u64 {
