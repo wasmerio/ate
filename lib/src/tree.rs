@@ -67,7 +67,7 @@ impl TreeAuthorityPlugin
             None => {
                 return Ok(
                     MetaAuthorization {
-                        read: ReadOption::Everyone,
+                        read: ReadOption::Everyone(None),
                         write: self.root.clone(),
                     }
                 );
@@ -149,7 +149,7 @@ impl TreeAuthorityPlugin
         // If we are at the top of the walk and its still inherit then we inherit the
         // permissions of a root node
         if read == ReadOption::Inherit {
-            read = ReadOption::Everyone;
+            read = ReadOption::Everyone(None);
         }
         if write == WriteOption::Inherit {
             write = self.root.clone();
@@ -169,10 +169,10 @@ impl TreeAuthorityPlugin
             ReadOption::Inherit => {
                 Err(TransformError::UnspecifiedReadability)
             },
-            ReadOption::Everyone => {
+            ReadOption::Everyone(_key) => {
                 Ok(None)
             },
-            ReadOption::Specific(key_hash) => {
+            ReadOption::Specific(key_hash, _derived) => {
                 for key in session.read_keys() {
                     if key.hash() == *key_hash {
                         return Ok(Some((
@@ -204,10 +204,15 @@ impl TreeAuthorityPlugin
             ReadOption::Inherit => {
                 Err(TransformError::UnspecifiedReadability)
             },
-            ReadOption::Everyone => {
+            ReadOption::Everyone(key) => {
+                if let Some(_iv) = iv {
+                    if let Some(key) = key {
+                        return Ok(Some(key.clone()));
+                    }
+                }
                 Ok(None)
             },
-            ReadOption::Specific(key_hash) => {
+            ReadOption::Specific(key_hash, _derived) => {
                 for key in session.read_keys() {
                     if key.hash() == *key_hash {
                         return Ok(Some(key.clone()));

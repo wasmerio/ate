@@ -6,6 +6,7 @@ pub use crate::header::PrimaryKey;
 pub use crate::error::AteError;
 
 pub use crate::crypto::EncryptKey;
+pub use crate::crypto::DerivedEncryptKey;
 pub use crate::crypto::PublicSignKey;
 pub use crate::crypto::PrivateSignKey;
 pub use crate::crypto::PublicEncryptKey;

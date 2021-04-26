@@ -16,8 +16,15 @@ use super::signature::MetaSignature;
 pub enum ReadOption
 {
     Inherit,
-    Everyone,
-    Specific(Hash)
+    Everyone(Option<EncryptKey>),
+    Specific(Hash, DerivedEncryptKey)
+}
+
+impl ReadOption
+{
+    pub fn from_key(key: &EncryptKey) -> ReadOption {
+        ReadOption::Specific(key.hash(), DerivedEncryptKey::new(key.size()))
+    }
 }
 
 impl Default
@@ -28,18 +35,30 @@ for ReadOption
     }
 }
 
+impl From<EncryptKey>
+for ReadOption
+{
+    fn from(key: EncryptKey) -> ReadOption {
+        ReadOption::from_key(&key)
+    }
+}
+
 impl std::fmt::Display
 for ReadOption {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            ReadOption::Everyone => {
-                write!(f, "everyone")
+            ReadOption::Everyone(key) => {
+                if let Some(key) = key {
+                    write!(f, "everyone({})", key.hash())
+                } else {
+                    write!(f, "everyone")
+                }
             },
             ReadOption::Inherit => {
                 write!(f, "inherit")
             },
-            ReadOption::Specific(hash) => {
-                write!(f, "specifc({})", hash)
+            ReadOption::Specific(hash, derived) => {
+                write!(f, "specifc({}@{})", hash, derived.size())
             },
         }
     }
@@ -159,9 +178,15 @@ for MetaAuthorization
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let r = match &self.read {
-            ReadOption::Everyone => "everyone".to_string(),
+            ReadOption::Everyone(key) => {
+                if let Some(key) = key {
+                    format!("everyone({})", key.hash())
+                } else {
+                    "everyone".to_string()
+                }
+            },
             ReadOption::Inherit => "inherit".to_string(),
-            ReadOption::Specific(a) => format!("specific-{}", a),
+            ReadOption::Specific(a, derived) => format!("specific-{}@{}", a, derived.size()),
         };
         let w = match &self.write {
             WriteOption::Everyone => "everyone".to_string(),

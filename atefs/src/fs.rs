@@ -10,7 +10,7 @@ use std::time::{Duration, SystemTime};
 use std::vec::IntoIter;
 use parking_lot::Mutex;
 
-use ate::prelude::TransactionScope;
+use ate::{crypto::DerivedEncryptKey, prelude::TransactionScope};
 use ate::dio::Dio;
 use ate::dio::Dao;
 use ate::dio::DaoObjEthereal;
@@ -19,6 +19,7 @@ use ate::error::*;
 use ate::chain::*;
 use ate::session::Session as AteSession;
 use ate::header::PrimaryKey;
+use ate::crypto::KeySize;
 use ate::prelude::AteHash;
 use ate::prelude::AteSessionProperty;
 use ate::prelude::AteRolePurpose;
@@ -389,10 +390,10 @@ impl AteFS
 
     fn update_auth(&self, mode: u32, uid: u32, gid: u32, auth: &mut MetaAuthorization) -> Result<()> {
         if mode & 0o004 != 0 {
-            auth.read = ate::meta::ReadOption::Everyone;
+            auth.read = ate::meta::ReadOption::Everyone(None);
         } else if mode & 0o040 != 0 {
             if let Some(key) = self.get_group_read_key(gid) {
-                auth.read = ate::meta::ReadOption::Specific(key);
+                auth.read = ate::meta::ReadOption::Specific(key, DerivedEncryptKey::new(KeySize::Bit128));
             } else if self.no_auth == false {
                 error!("Session does not have the required group ({}) read key embedded within it", gid);
                 return Err(libc::EACCES.into());
@@ -401,7 +402,7 @@ impl AteFS
             }
         } else {
             if let Some(key) = self.get_user_read_key(uid) {
-                auth.read = ate::meta::ReadOption::Specific(key);
+                auth.read = ate::meta::ReadOption::Specific(key, DerivedEncryptKey::new(KeySize::Bit128));
             } else if self.no_auth == false {
                 error!("Session does not have the required user ({}) read key embedded within it", uid);
                 return Err(libc::EACCES.into());

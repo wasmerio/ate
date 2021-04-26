@@ -96,10 +96,47 @@ for KeySize
     }
 }
 
+/// Encrypt key material is used to transform an encryption key using
+/// derivation which should allow encryption keys to be changed without
+/// having to decrypt and reencrypt the data itself.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct DerivedEncryptKey
+{
+    inner: EncryptKey
+}
+
+impl DerivedEncryptKey
+{
+    pub fn new(size: KeySize) -> DerivedEncryptKey {
+        DerivedEncryptKey {
+            inner: EncryptKey::generate(size)
+        }
+    }
+
+    pub fn transmute(&self, key: &EncryptKey) -> EncryptKey
+    {
+        // First resize the input key to match the material size, then XOR it and return the result
+        let key = key.resize(self.inner.size());
+        EncryptKey::xor(&self.inner, &key)
+    }
+
+    pub fn change(&mut self, old: &EncryptKey, new: &EncryptKey)
+    {
+        // First derive the key, then replace the inner with an XOR of the new key
+        let key = self.transmute(old);
+        let new = new.resize(key.size());
+        self.inner = EncryptKey::xor(&key, &new);
+    }
+
+    pub fn size(&self) -> KeySize {
+        self.inner.size()
+    }
+}
+
 /// Represents an encryption key that will give confidentiality to
 /// data stored within the redo-log. Note this does not give integrity
 /// which comes from the `PrivateKey` crypto instead.
-#[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EncryptKey {
     Aes128([u8; 16]),
     Aes192([u8; 24]),
@@ -159,6 +196,31 @@ impl EncryptKey {
             KeySize::Bit256 => {
                 let mut aes_key = [0; 32];
                 rng.fill_bytes(&mut aes_key);
+                EncryptKey::Aes256(aes_key)
+            }
+        }
+    }
+
+    pub fn resize(&self, size: KeySize) -> EncryptKey
+    {
+        // Pad the current key out to 256 bytes (with zeros)
+        let mut bytes = self.value().iter().map(|a| *a).collect::<Vec<_>>();
+        while bytes.len() < 32 {
+            bytes.push(0u8);
+        }
+
+        // Build a new key from the old key using these bytes
+        match size {
+            KeySize::Bit128 => {
+                let aes_key: [u8; 16] = bytes.into_iter().take(16).collect::<Vec<_>>().try_into().unwrap();
+                EncryptKey::Aes128(aes_key)
+            },
+            KeySize::Bit192 => {
+                let aes_key: [u8; 24] = bytes.into_iter().take(24).collect::<Vec<_>>().try_into().unwrap();
+                EncryptKey::Aes192(aes_key)
+            },
+            KeySize::Bit256 => {
+                let aes_key: [u8; 32] = bytes.into_iter().take(32).collect::<Vec<_>>().try_into().unwrap();
                 EncryptKey::Aes256(aes_key)
             }
         }
@@ -284,7 +346,7 @@ impl EncryptKey {
         }
     }
 
-    pub fn xor(ek1: EncryptKey, ek2: EncryptKey) -> Result<EncryptKey, std::io::Error>
+    pub fn xor(ek1: &EncryptKey, ek2: &EncryptKey) -> EncryptKey
     {
         let mut ek1_bytes = ek1.as_bytes();
         let ek2_bytes = ek2.as_bytes();
@@ -293,7 +355,7 @@ impl EncryptKey {
             .zip(ek2_bytes.iter())
             .for_each(|(x1, x2)| *x1 ^= *x2);
 
-        EncryptKey::from_bytes(&ek1_bytes[..])
+        EncryptKey::from_bytes(&ek1_bytes[..]).expect("Internal error while attempting to XOR encryption keys")
     }
 }
 
@@ -1377,6 +1439,52 @@ fn test_ntru_encrypt() -> Result<(), AteError>
         let plain_test2 = String::from_utf8(sk.decrypt(&cipher_text.iv, &cipher_text.data)?).unwrap();
 
         assert_eq!(plain_text1, plain_test2);
+    }
+
+    Ok(())
+}
+
+#[test]
+fn test_derived_keys() -> Result<(), AteError>
+{
+    static KEY_SIZES: [KeySize; 3] = [KeySize::Bit128, KeySize::Bit192, KeySize::Bit256];
+    for key_size1 in KEY_SIZES.iter() {
+        for key_size2 in KEY_SIZES.iter() {
+            for key_size3 in KEY_SIZES.iter() {
+    
+                // Generate a derived key and encryption key
+                let mut key1 = DerivedEncryptKey::new(*key_size1);
+                let key2 = EncryptKey::generate(*key_size2);
+
+                // Encrypt some data
+                let plain_text1 = "the cat ran up the wall".to_string();
+                let encrypted_text1 = key1.transmute(&key2).encrypt(plain_text1.as_bytes())?;
+
+                // Check that it decrypts properly
+                let plain_text2 = String::from_utf8(key1.transmute(&key2).decrypt(&encrypted_text1.iv, &encrypted_text1.data[..])?).unwrap();
+                assert_eq!(plain_text1, plain_text2);
+
+                // Now change the key
+                let key3 = EncryptKey::generate(*key_size3);
+                key1.change(&key2, &key3);
+
+                // The decryption with the old key which should now fail
+                let plain_text2 = match key1.transmute(&key2).decrypt(&encrypted_text1.iv, &encrypted_text1.data[..]) {
+                    Ok(a) => {
+                        match String::from_utf8(a) {
+                            Ok(a) => a,
+                            Err(_) => "nothing".to_string()
+                        }
+                    },
+                    Err(_) => "nothing".to_string()
+                };
+                assert_ne!(plain_text1, plain_text2);
+
+                // Check that it decrypts properly with the new key
+                let plain_text2 = String::from_utf8(key1.transmute(&key3).decrypt(&encrypted_text1.iv, &encrypted_text1.data[..])?).unwrap();
+                assert_eq!(plain_text1, plain_text2);
+            }
+        }
     }
 
     Ok(())

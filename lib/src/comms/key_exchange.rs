@@ -46,7 +46,7 @@ pub(super) async fn mesh_key_exchange_sender(stream: &mut TcpStream, key_size: K
     
     // Merge the two halfs to make one shared secret
     debug!("client shared secret established");
-    Ok(EncryptKey::xor(ek1, ek2)?)
+    Ok(EncryptKey::xor(&ek1, &ek2))
 }
 
 pub(super) async fn mesh_key_exchange_receiver(stream: &mut TcpStream, key_size: KeySize) -> Result<EncryptKey, CommsError>
@@ -87,5 +87,5 @@ pub(super) async fn mesh_key_exchange_receiver(stream: &mut TcpStream, key_size:
     
     // Merge the two halfs to make one shared secret
     debug!("server shared secret established");
-    Ok(EncryptKey::xor(ek1, ek2)?)
+    Ok(EncryptKey::xor(&ek1, &ek2))
 }

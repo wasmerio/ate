@@ -90,7 +90,7 @@ async fn test_dio()
                 debug!("loading data object 1");
                 
                 debug!("setting read and write crypto keys");
-                dao1.auth_mut().read = ReadOption::Specific(read_key.hash());
+                dao1.auth_mut().read = ReadOption::Specific(read_key.hash(), DerivedEncryptKey::new(read_key.size()));
                 dao1.auth_mut().write = WriteOption::Specific(write_key2.hash());
 
                 dao1.commit(&mut dio).unwrap();

@@ -543,7 +543,7 @@ impl<'a> Dio<'a>
             for key in state.deleted.drain() {
                 let mut meta = Metadata::default();
                 meta.core.push(CoreMetadata::Authorization(MetaAuthorization {
-                    read: ReadOption::Everyone,
+                    read: ReadOption::Everyone(None),
                     write: WriteOption::Nobody,
                 }));
                 if let Some(parent) = multi_lock.inside_async.chain.lookup_parent(&key) {

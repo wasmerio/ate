@@ -1,14 +1,15 @@
 ```
 bugs   Found Bugs
-      D+ Modified files are still showing zeros at the end
-       + Changing the permissions on a parent is not reflected in the children as inherited
-         rows that are encrypted do not automatically gain the new keys of the parent. Will
-         need to store a read-key in the parent which the children use when they are in
-         inheritance mode
-       + Still need to fix the writing actions when a user attempts to change an object
-       + Fixed a bug where files opened with truncate flag were not actually truncating
-       + Fixed a bug where parents were not inheriting permissions properly when the parent
-         tree exceeded 1 levels
+       D+ Modified files are still showing zeros at the end
+        + Changing the permissions on a parent is not reflected in the children as inherited
+          rows that are encrypted do not automatically gain the new keys of the parent. Will
+          need to store a read-key in the parent which the children use when they are in
+          inheritance mode
+       D+ Still need to fix the writing actions when a user attempts to change an object
+       D+ Fixed a bug where files opened with truncate flag were not actually truncating
+       D+ Fixed a bug where parents were not inheriting permissions properly when the parent
+       D  tree exceeded 1 levels
+
 0.5.1  Group access rights
        D+ AteAuth requires group access rights that also get added to the token
        D+ Connect up the 'chmod' commands to real commands in AteAuth so that
@@ -22,11 +23,13 @@ bugs   Found Bugs
           should allow the object to be given to other users and other groups.
         + When attempting to access a group that is not this group it should attempt
           to get the latest permissions from the authentication server.
+
 0.5.2   Compacting chains
         + AteDb should periodically compact itself without breaking things
         + Events that are streamed to a compacted chain that predate the
           compaction should be dropped.
         + Deleting all the entries in a chain should also destroy the chain
+
 0.5.3   Linked File-System
         + Any folder created within AteFS should be able to 'link' with another
           file-system using the 'atefs link {remote}' commands.
@@ -36,6 +39,7 @@ bugs   Found Bugs
           as if it had been directly mounted.
         + Hook the 'ln -s' file-system command to make this more seamless
         + Removing the folder destroys the link within killing the remote chain itself
+
 0.5.4   Union File-Systsem
         + Any linked folder 'atefs link' can be forked instead of linked using
           the 'atefs fork {remote}' command.
@@ -44,6 +48,7 @@ bugs   Found Bugs
         + Only read-only access is required to the 'remote' chain'
         + Local files and folders take preference over remote files
         + Deleted files and folders use a whiteout marker (.wh.{file}).
+
 0.7.0   Docker imports
         + AteDocker needs to be created that hosts imported docker files
           on demand as they are requested.
@@ -55,7 +60,8 @@ bugs   Found Bugs
           at the root of the file-system (unless the file already exists)
         + Users can load and modify docker images simply by using the 'atefs union'
           and 'atefs fork' commands.
-0.9.4   Process Dispatch Point
+
+0.8.0   Process Dispatch Point
         + So called PDP 'process dispatch points' can be created within AteFS which
           when running on a specific machine will serve RPC(Remote Process Calls)
         + The dispatch point uses a hardware identity scan locally to determine
@@ -72,12 +78,14 @@ bugs   Found Bugs
           5. if no other processes are running then clean up the mount points
         + If the folder that has been turned into an PDP holds a /init file then
           this file is launched automatically (restarting it if it fails)
-0.9.5   Remote Process Calls
+
+0.8.1   Remote Process Calls
         + All executables after a PDP on mounts that are not running as a server
           are replaced by a fake executable that proxies the command to the server.
         + Remote operators should be able to simply CHROOT to the folder to perform any
           action as if they were on the remote server/client.
-0.8.0   Ate Bootloader
+
+0.9.0   Ate Bootloader
         + Bootloader created and stored in the public ate repository that others
           can download onto USB sticks.
         + Bootloader does the following...
@@ -86,10 +94,12 @@ bugs   Found Bugs
           3. AteFS runs on a specfied file system
           4. Mounts all the auxillary file-systems
           5. Creates a PDP on the folder (if one does not exist)
-0.9.0   Tokera Coins
+
+0.9.1   Tokera Coins
         + Create wallets for accounts in Tokera
         + Create PayPal exchange for wallets
         + Add contracts
+
 0.10.0  Rentable Baremetal
         + Ate bootloader that goes into an advertising state which publishes the
           machine and its specs on an open market.
@@ -99,10 +109,12 @@ bugs   Found Bugs
           the renter has specified
         + PDP will take care of automatically running stuff when the machine boots
         + Remote operations is all done via the AteFS and PDP
+
 0.11.0  9P Emulation
         + Any mount point within the file system can be attached via the
           single UNIX socket - should be able to remount atefs endpoints
           using a 9p mount command either from within or outside a VM.
+
 0.12.0  Rentable Hypervisor
         + Another Ate bootloader but this one will launch bootloaders as virtual
           machines that carve up the machine.
@@ -111,6 +123,7 @@ bugs   Found Bugs
           earlier bootloader is used in combinated with 9P
         + PDP will take care of automatically running stuff when the machine boots
         + Remote operations is all done via the AteFS and PDP
+
 0.13.0  Virtualized Networking
         + All networking are abstracted behind virtual machines that are attached
           to a local only bridge.

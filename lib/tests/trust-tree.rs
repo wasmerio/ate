@@ -57,7 +57,7 @@ fn test_trust_tree() -> Result<(), AteError>
             debug!("add the objects to the DIO");
             let mut dio = chain.dio(&session).await;
             let mut garage = dio.store(Garage::default())?;
-            garage.auth_mut().read = ReadOption::Specific(read_key.hash());
+            garage.auth_mut().read = ReadOption::Specific(read_key.hash(), DerivedEncryptKey::new(read_key.size()));
             garage.auth_mut().write = WriteOption::Specific(write_key2.hash());
             
             for n in 0..100 {
