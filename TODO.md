@@ -1,10 +1,16 @@
 ```
-0.5.1   Group access rights
+bugs   Found Bugs
+       + Modified files are still showing zeros at the end
+       + Changing the permissions on a parent is not reflected in the children as inherited
+         rows that are encrypted do not automatically gain the new keys of the parent. Will
+         need to store a read-key in the parent which the children use when they are in
+         inheritance mode
+0.5.1  Group access rights
        D+ AteAuth requires group access rights that also get added to the token
        D+ Connect up the 'chmod' commands to real commands in AteAuth so that
        D  actual ATE data object access rights reflect the linux permissions
-        + All users and groups should be contained to primary keys within 32bits so
-          that they work with uid and gid with the highest bit set.
+       D+ All users and groups should be contained to primary keys within 32bits so
+       D  that they work with uid and gid with the highest bit set.
         + Lists files and folders should ignore those that you do not have access to
           rather than throwing an error
         + File-systems should record the correct uid and gid within ATE but change it

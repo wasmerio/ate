@@ -241,7 +241,7 @@ impl AteFS
         Ok((dao, dio))
     }
 
-    async fn create_open_handle(&self, inode: u64, req: &Request) -> Result<OpenHandle>
+    async fn create_open_handle(&self, inode: u64, req: &Request, flags: i32) -> Result<OpenHandle>
     {
         let key = PrimaryKey::from(inode);
         let mut dio = self.chain.dio_ext(&self.session, self.scope).await;
@@ -252,27 +252,35 @@ impl AteFS
         let uid = data.dentry.uid;
         let gid = data.dentry.gid;
 
+        let mut dirty = false;
+        
         let mut children = Vec::new();
-        let fixed = FixedFile::new(key.as_u64(), ".".to_string(), FileType::Directory)
-            .uid(uid)
-            .gid(gid)
-            .created(created)
-            .updated(updated);
-        children.push(FileSpec::FixedFile(fixed));
+        if data.spec_type == SpecType::Directory {
+            let fixed = FixedFile::new(key.as_u64(), ".".to_string(), FileType::Directory)
+                .uid(uid)
+                .gid(gid)
+                .created(created)
+                .updated(updated);
+            children.push(FileSpec::FixedFile(fixed));
 
-        let fixed = FixedFile::new(key.as_u64(), "..".to_string(), FileType::Directory)
-            .uid(uid)
-            .gid(gid)
-            .created(created)
-            .updated(updated);
-        children.push(FileSpec::FixedFile(fixed));
+            let fixed = FixedFile::new(key.as_u64(), "..".to_string(), FileType::Directory)
+                .uid(uid)
+                .gid(gid)
+                .created(created)
+                .updated(updated);
+            children.push(FileSpec::FixedFile(fixed));
 
-        for child in conv_load(data.iter_ext(&mut dio, data.children, true).await)? {
-            let child_spec = Inode::as_file_spec(child.key().as_u64(), child.when_created(), child.when_updated(), child);
-            children.push(child_spec);
+            for child in conv_load(data.iter_ext(&mut dio, data.children, true).await)? {
+                let child_spec = Inode::as_file_spec(child.key().as_u64(), child.when_created(), child.when_updated(), child);
+                children.push(child_spec);
+            }
         }
-
+        
         let spec = Inode::as_file_spec(key.as_u64(), created, updated, data);
+        if flags & libc::O_TRUNC != 0 {
+            spec.fallocate(&self.chain, &self.session, self.scope, 0).await?;
+            dirty = true;
+        }
 
         let mut open = OpenHandle {
             inode,
@@ -281,7 +289,7 @@ impl AteFS
             spec: spec,
             children: Vec::new(),
             children_plus: Vec::new(),
-            dirty: seqlock::SeqLock::new(false),
+            dirty: seqlock::SeqLock::new(dirty),
         };
 
         for child in children.into_iter() {
@@ -606,11 +614,11 @@ for AteFS
         })
     }
 
-    async fn opendir(&self, req: Request, inode: u64, _flags: u32) -> Result<ReplyOpen> {
+    async fn opendir(&self, req: Request, inode: u64, flags: u32) -> Result<ReplyOpen> {
         self.tick().await?;
         debug!("atefs::opendir inode={}", inode);
 
-        let open = self.create_open_handle(inode, &req).await?;
+        let open = self.create_open_handle(inode, &req, flags as i32).await?;
 
         if open.attr.kind != FileType::Directory {
             debug!("atefs::opendir not-a-directory");
@@ -646,7 +654,7 @@ for AteFS
         debug!("atefs::readdirplus id={} offset={}", parent, offset);
 
         if fh == 0 {
-            let open = self.create_open_handle(parent, &req).await?;
+            let open = self.create_open_handle(parent, &req, libc::O_RDONLY).await?;
             let entries = open.children_plus.iter().skip(offset as usize).map(|a| Ok(a.clone())).collect::<Vec<_>>();
             return Ok(ReplyDirectoryPlus {
                 entries: stream::iter(entries.into_iter())
@@ -675,7 +683,7 @@ for AteFS
         debug!("atefs::readdir parent={}", parent);
 
         if fh == 0 {
-            let open = self.create_open_handle(parent, &req).await?;
+            let open = self.create_open_handle(parent, &req, libc::O_RDONLY).await?;
             let entries = open.children.iter().skip(offset as usize).map(|a| Ok(a.clone())).collect::<Vec<_>>();
             return Ok(ReplyDirectory {
                 entries: stream::iter(entries.into_iter())
@@ -695,7 +703,7 @@ for AteFS
 
     async fn lookup(&self, req: Request, parent: u64, name: &OsStr) -> Result<ReplyEntry> {
         self.tick().await?;
-        let open = self.create_open_handle(parent, &req).await?;
+        let open = self.create_open_handle(parent, &req, libc::O_RDONLY).await?;
 
         if open.attr.kind != FileType::Directory {
             debug!("atefs::lookup parent={} not-a-directory", parent);
@@ -831,7 +839,7 @@ for AteFS
         self.tick().await?;
         debug!("atefs::rmdir parent={}", parent);
 
-        let open = self.create_open_handle(parent, &req).await?;
+        let open = self.create_open_handle(parent, &req, libc::O_RDONLY).await?;
 
         if open.attr.kind != FileType::Directory {
             debug!("atefs::rmdir parent={} not-a-directory", parent);
@@ -1030,7 +1038,7 @@ for AteFS
         self.tick().await?;
         debug!("atefs::open inode={}", inode);
 
-        let open = self.create_open_handle(inode, &req).await?;
+        let open = self.create_open_handle(inode, &req, flags as i32).await?;
 
         if open.attr.kind == FileType::Directory {
             debug!("atefs::open is-a-directory");
