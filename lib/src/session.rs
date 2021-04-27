@@ -591,6 +591,10 @@ for Session
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "[user=")?;
         self.user.fmt(f)?;
+        if let Some(sudo) = &self.sudo {
+            write!(f, ",sudo=")?;
+            sudo.fmt(f)?;
+        }
         for group in self.groups.iter() {
             write!(f, ",")?;
             group.fmt(f)?;

@@ -71,6 +71,7 @@ impl AuthService
         {
             Some(a) => a.clone(),
             None => {
+                debug!("group-user-add-failed with {}", request.session);
                 return Err(ServiceError::Reply(GroupUserAddFailed::NoAccess));
             }
         };
