@@ -70,6 +70,7 @@ where Self: Send + Sync
     pub fh: u64,
     pub attr: FileAttr,
     pub spec: FileSpec,
+    pub read_only: bool,
     
     pub children: Vec<DirectoryEntry>,
     pub children_plus: Vec<DirectoryEntryPlus>,
@@ -241,11 +242,19 @@ impl AteFS
 
     async fn create_open_handle(&self, inode: u64, req: &Request, flags: i32) -> Result<OpenHandle>
     {
+        if flags & libc::O_TRUNC != 0 || flags & libc::O_RDWR != 0 || flags & libc::O_WRONLY != 0 {
+            self.access_internal(&req, inode, 0o2).await?;
+        }
+        if flags & libc::O_RDWR != 0 || flags & libc::O_RDONLY != 0 {
+            self.access_internal(&req, inode, 0o4).await?;
+        }
+
         let key = PrimaryKey::from(inode);
         let mut dio = self.chain.dio_ext(&self.session, self.scope).await;
         let data = conv_load(dio.load::<Inode>(&key).await)?;
         let created = data.when_created();
         let updated = data.when_updated();
+        let read_only = flags & libc::O_RDONLY != 0;
 
         let uid = data.dentry.uid;
         let gid = data.dentry.gid;
@@ -282,6 +291,7 @@ impl AteFS
 
         let mut open = OpenHandle {
             inode,
+            read_only,
             fh: fastrand::u64(..),
             attr: self.spec_as_attr_reverse(&spec, req),
             spec: spec,
@@ -386,7 +396,7 @@ impl AteFS
     }
 
     fn update_auth(&self, mode: u32, uid: u32, gid: u32, auth: &mut MetaAuthorization) -> Result<()> {
-        let old_key = {
+        let inner_key = {
             match &auth.read {
                 ReadOption::Inherit => None,
                 ReadOption::Everyone(old) => old.clone(),
@@ -404,23 +414,28 @@ impl AteFS
         };
 
         if mode & 0o004 != 0 {
-            auth.read = ReadOption::Everyone(old_key);
+            auth.read = ReadOption::Everyone(inner_key);
         } else {
-            let key = {
+            let new_key = {
                 if mode & 0o040 != 0 {
                     self.get_group_read_key(gid)
                 } else {
                     self.get_user_read_key(uid)
                 }
             };
-            if let Some(key) = key {
-                let old_key = match old_key {
-                    Some(a) => a,
-                    None => EncryptKey::generate(key.size())
+            if let Some(inner_key) = inner_key {
+                let new_key = match new_key {
+                    Some(a) => a.clone(),
+                    None => EncryptKey::generate(inner_key.size())
                 };
-                auth.read = ReadOption::Specific(key.hash(), DerivedEncryptKey::reverse(key, &old_key)?);
+                auth.read = ReadOption::Specific(new_key.hash(), DerivedEncryptKey::reverse(&new_key, &inner_key)?);
             } else if self.no_auth == false {
-                error!("Session does not have the required group ({}) read key embedded within it", gid);
+                if mode & 0o040 != 0 {
+                    error!("Session does not have the required group ({}) read key embedded within it", gid);
+                } else {
+                    error!("Session does not have the required user ({}) read key embedded within it", uid);
+                }
+                debug!("...we have...{}", self.session);
                 return Err(libc::EACCES.into());
             } else {
                 auth.read = ate::meta::ReadOption::Inherit;
@@ -429,20 +444,23 @@ impl AteFS
 
         if mode & 0o002 != 0 {
             auth.write = ate::meta::WriteOption::Everyone;
-        } else if mode & 0o020 != 0 {
-            if let Some(key) = self.get_group_write_key(gid) {
-                auth.write = ate::meta::WriteOption::Specific(key.hash());
-            } else if self.no_auth == false {
-                error!("Session does not have the required group ({}) rwrite key embedded within it", gid);
-                return Err(libc::EACCES.into());
-            } else {
-                auth.write = ate::meta::WriteOption::Inherit;
-            }
         } else {
-            if let Some(key) = self.get_user_write_key(uid) {
+            let new_key = {
+                if mode & 0o020 != 0 {
+                    self.get_group_write_key(gid)
+                } else {
+                    self.get_user_write_key(uid)
+                }
+            };
+            if let Some(key) = new_key {
                 auth.write = ate::meta::WriteOption::Specific(key.hash());
             } else if self.no_auth == false {
-                error!("Session does not have the required user ({}) write key embedded within it", uid);
+                if mode & 0o020 != 0 {
+                    error!("Session does not have the required group ({}) write key embedded within it", gid);
+                } else {
+                    error!("Session does not have the required user ({}) write key embedded within it", uid);
+                }
+                debug!("...we have...{}", self.session);
                 return Err(libc::EACCES.into());
             } else {
                 auth.write = ate::meta::WriteOption::Inherit;
@@ -488,6 +506,44 @@ impl AteFS
         let uid = self.reverse_uid(spec.uid(), req);
         let gid = self.reverse_gid(spec.gid(), req);
         spec_as_attr(spec, uid, gid)
+    }
+
+    async fn access_internal(&self, req: &Request, inode: u64, mask: u32) -> Result<()> {
+        self.tick().await?;
+        debug!("atefs::access inode={} mask={:#02x}", inode, mask);
+        
+        let (dao, _dio) = self.load(inode).await?;
+
+        if (dao.dentry.mode & mask) != 0
+        {
+            debug!("atefs::access mode={:#02x} - ok", dao.dentry.mode);
+            return Ok(());
+        }
+
+        let uid = self.translate_uid(req.uid, &req);
+        if uid == dao.dentry.uid {
+            debug!("atefs::access has_user");
+            let mask_shift = mask << 6;
+            if (dao.dentry.mode & mask_shift) != 0
+            {
+                debug!("atefs::access mode={:#02x} - ok", dao.dentry.mode);
+                return Ok(());
+            }
+        }
+
+        let gid = self.translate_gid(req.gid, &req);
+        if gid == dao.dentry.gid && self.session.groups.iter().any(|g| g.roles.iter().any(|r| r.gid().iter().any(|gid2| *gid2 == gid))) {
+            debug!("atefs::access has_group");
+            let mask_shift = mask << 3;
+            if (dao.dentry.mode & mask_shift) != 0
+            {
+                debug!("atefs::access mode={:#02x} - ok", dao.dentry.mode);
+                return Ok(());
+            }
+        }
+
+        debug!("atefs::access mode={:#02x} - EACCES", dao.dentry.mode);
+        Err(libc::EACCES.into())
     }
 }
 
@@ -597,12 +653,6 @@ for AteFS
         dao.auto_cancel();
 
         let mut changed = false;
-        if let Some(mode) = set_attr.mode {
-            if dao.dentry.mode != mode {
-                dao.dentry.mode = mode;
-                changed = true;
-            }
-        }
         if let Some(uid) = set_attr.uid {
             let new_uid = self.translate_uid(uid, &req);
             if dao.dentry.uid != new_uid {
@@ -614,6 +664,13 @@ for AteFS
             let new_gid = self.translate_gid(gid, &req);
             if dao.dentry.gid != new_gid {
                 dao.dentry.gid = new_gid;
+                changed = true;
+            }
+        }
+        if let Some(mode) = set_attr.mode {
+            if dao.dentry.mode != mode {
+                dao.dentry.mode = mode;
+                dao.dentry.uid = self.translate_uid(req.uid, &req);
                 changed = true;
             }
         }
@@ -772,39 +829,7 @@ for AteFS
     }
 
     async fn access(&self, req: Request, inode: u64, mask: u32) -> Result<()> {
-        self.tick().await?;
-        debug!("atefs::access inode={} mask={:#02x}", inode, mask);
-        
-        let (dao, _dio) = self.load(inode).await?;
-
-        if (dao.dentry.mode & mask) != 0
-        {
-            debug!("atefs::access mode={:#02x} - ok", dao.dentry.mode);
-            return Ok(());
-        }
-
-        let uid = self.translate_uid(req.uid, &req);
-        if uid == dao.dentry.uid {
-            let mask_shift = mask << 3;
-            if (dao.dentry.mode & mask_shift) != 0
-            {
-                debug!("atefs::access mode={:#02x} - ok", dao.dentry.mode);
-                return Ok(());
-            }
-        }
-
-        let gid = self.translate_gid(req.gid, &req);
-        if gid == dao.dentry.gid && self.session.groups.iter().any(|g| g.roles.iter().any(|r| r.gid().iter().any(|gid2| *gid2 == gid))) {
-            let mask_shift = mask << 6;
-            if (dao.dentry.mode & mask_shift) != 0
-            {
-                debug!("atefs::access mode={:#02x} - ok", dao.dentry.mode);
-                return Ok(());
-            }
-        }
-
-        debug!("atefs::access mode={:#02x} - EACCES", dao.dentry.mode);
-        Err(libc::EACCES.into())
+        self.access_internal(&req, inode, mask).await
     }
 
     async fn mkdir(
@@ -930,6 +955,7 @@ for AteFS
 
         let open = OpenHandle {
             inode: spec.ino(),
+            read_only: false,
             fh: fastrand::u64(..),
             attr: self.spec_as_attr_reverse(&spec, &req),
             spec: spec,
@@ -1139,6 +1165,10 @@ for AteFS
             }
         };
 
+        if open.read_only {
+            return Err(libc::EPERM.into());
+        }
+
         let wrote = open.spec.write(&self.chain, &self.session, self.scope, offset, data).await?;
         if open.dirty.read() == false {
             *open.dirty.lock_write() = true;
@@ -1171,6 +1201,10 @@ for AteFS
                 }
             };
             if let Some(open) = open {
+                if open.read_only {
+                    return Err(libc::EPERM.into());
+                }
+                
                 open.spec.fallocate(&self.chain, &self.session, self.scope, offset + length).await?;
                 if open.dirty.read() == false {
                     *open.dirty.lock_write() = true;
