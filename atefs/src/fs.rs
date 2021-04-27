@@ -683,7 +683,6 @@ for AteFS
             if dao.dentry.mode != mode {
                 dao.dentry.mode = mode;
                 dao.dentry.uid = self.translate_uid(req.uid, &req);
-                dao.dentry.gid = self.translate_gid(req.gid, &req);
                 changed = true;
             }
         }
