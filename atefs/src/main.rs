@@ -100,13 +100,13 @@ struct Mount {
     /// Path to directory that the file system will be mounted at
     #[clap(index=1)]
     mount_path: String,
-    /// Location of the persistent redo log
-    #[clap(index=2, default_value = "~/ate/fs")]
-    log_path: String,
-    /// URL where the data is remotely stored on a distributed commit log (e.g. tcp://ate.tokera.com/myfs).
+    /// URL where the data is remotely stored on a distributed commit log (e.g. tcp://ate.tokera.com/).
     /// If this URL is not specified then data will only be stored locally
-    #[clap(index=3)]
+    #[clap(index=2)]
     remote: Option<Url>,
+    /// Location of the persistent redo log
+    #[clap(index=3, default_value = "~/ate/fs")]
+    log_path: String,
     /// Determines how the file-system will react while it is nominal and when it is
     /// recovering from a communication failure (valid options are 'async', 'readonly-async',
     /// 'readonly-sync' or 'sync')
