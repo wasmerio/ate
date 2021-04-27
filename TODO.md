@@ -1,11 +1,11 @@
 ```
-0.5.2   Compacting chains
+0.6.1   Compacting chains
         + AteDb should periodically compact itself without breaking things
         + Events that are streamed to a compacted chain that predate the
           compaction should be dropped.
         + Deleting all the entries in a chain should also destroy the chain
 
-0.5.3   Linked File-System
+0.6.2   Linked File-System
         + Any folder created within AteFS should be able to 'link' with another
           file-system using the 'atefs link {remote}' commands.
         + The working directory is taken as the folder you wish to union however
@@ -15,7 +15,7 @@
         + Hook the 'ln -s' file-system command to make this more seamless
         + Removing the folder destroys the link within killing the remote chain itself
 
-0.5.4   Union File-Systsem
+0.6.3   Union File-Systsem
         + Any linked folder 'atefs link' can be forked instead of linked using
           the 'atefs fork {remote}' command.
         + Union'ed folders behave like linked folders except all changes made are
