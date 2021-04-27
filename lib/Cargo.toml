@@ -12,7 +12,7 @@ readme = "../README.md"
 
 [features]
 default = ["all"]
-verbose = []
+verbose = ["backtrace"]
 hash_blake3 = []
 hash_sha3 = []
 all = ["hash_blake3", "hash_sha3"]
@@ -59,6 +59,7 @@ async-executor = "1.4.*"
 url = "2.2.*"
 trust-dns-proto = { version = "0.20.*" }
 trust-dns-client = { version = "0.20.*", features = ["dnssec"] }
+backtrace = { version = "0.3.*", optional = true }
 
 [dev-dependencies]
 ctor = "0.1.*"

@@ -673,6 +673,7 @@ impl<'a> Chain
     {
         // Create the transaction
         let trans = Transaction {
+            chain: self.key(),
             scope: Scope::Full,
             transmit: true,
             events: Vec::new(),

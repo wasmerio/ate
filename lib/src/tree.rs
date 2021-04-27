@@ -163,6 +163,8 @@ impl TreeAuthorityPlugin
             read = ReadOption::Everyone(None);
         }
         if write == WriteOption::Inherit {
+            #[cfg(feature = "verbose")]
+            debug!("compute_auth(): using_root_read={}", self.root);
             write = self.root.clone();
         }
         #[cfg(feature = "verbose")]

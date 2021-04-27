@@ -130,3 +130,20 @@ for Message
         Message::Noop
     }
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub(super) struct ChainMessage {
+    pub chain: Option<ChainKey>,
+    pub msg: Message,
+}
+
+impl Default
+for ChainMessage
+{
+    fn default() -> ChainMessage {
+        ChainMessage {
+            msg: Message::Noop,
+            chain: None,
+        }
+    }
+}

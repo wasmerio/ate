@@ -148,7 +148,10 @@ for ServerPipe
         // If this packet is being broadcast then send it to all the other nodes too
         if trans.transmit {
             let evts = MessageEvent::convert_to(&trans.events);
-            let pck = Packet::from(Message::Events{ commit: None, evts: evts.clone(), }).to_packet_data(self.wire_format)?;
+            let pck = Packet::from(ChainMessage {
+                chain: Some(trans.chain.clone()),
+                msg: Message::Events{ commit: None, evts: evts.clone(), }
+            }).to_packet_data(self.wire_format)?;
             self.downcast.send(pck)?;
         }
 
@@ -333,6 +336,7 @@ async fn inbox_event(
     // Feed the events into the chain of trust
     let evts = MessageEvent::convert_from(evts);
     let ret = chain.pipe.feed(Transaction {
+        chain: chain.key(),
         scope: Scope::None,
         transmit: false,
         events: evts,
@@ -560,7 +564,7 @@ async fn inbox_samples_of_history(
 
 async fn inbox_packet<F>(
     root: Arc<MeshRoot<F>>,
-    pck: PacketWithContext<Message, SessionContext>,
+    pck: PacketWithContext<ChainMessage, SessionContext>,
     tx: &NodeTx<SessionContext>
 )
 -> Result<(), CommsError>
@@ -576,7 +580,7 @@ where F: OpenFlow + 'static
     let reply_at_owner = pck_data.reply_here.take();
     let reply_at = reply_at_owner.as_ref();
     
-    match pck.msg {
+    match pck.msg.msg {
         Message::Subscribe { chain_key }
             => inbox_subscribe(root, chain_key, reply_at, context, wire_format, tx).await,
         Message::SamplesOfHistory { pivot, samples }
@@ -593,7 +597,7 @@ where F: OpenFlow + 'static
 
 async fn inbox<F>(
     root: Arc<MeshRoot<F>>,
-    mut rx: NodeRx<Message, SessionContext>,
+    mut rx: NodeRx<ChainMessage, SessionContext>,
     tx: NodeTx<SessionContext>
 ) -> Result<(), CommsError>
 where F: OpenFlow + 'static
