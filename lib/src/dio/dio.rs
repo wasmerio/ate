@@ -532,7 +532,6 @@ impl<'a> Dio<'a>
                 let data = multi_lock.data_as_underlay(&mut meta, row.data.clone(), &self.session, &trans_meta)?;
                 
                 // Only once all the rows are processed will we ship it to the redo log
-                #[cfg(feature = "verbose")]
                 let evt = EventData {
                     meta: meta,
                     data_bytes: Some(data),
