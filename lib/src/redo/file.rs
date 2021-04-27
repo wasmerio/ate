@@ -262,7 +262,7 @@ impl LogFile
             loop {
                 match LogFile::read_once_internal(&mut reader).await {
                     Ok(Some(head)) => {
-                        #[cfg(feature = "verbose")]
+                        #[cfg(feature = "super_verbose")]
                         debug!("log-read: {:?}", head);
 
                         lookup.insert(head.header.event_hash, LogLookup{

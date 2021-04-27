@@ -9,6 +9,8 @@ bugs   Found Bugs
        D+ Fixed a bug where files opened with truncate flag were not actually truncating
        D+ Fixed a bug where parents were not inheriting permissions properly when the parent
        D  tree exceeded 1 levels
+       D+ Fixed a major bug which was causing events to be sent to all other connections on
+       D  the ATE servers even if they were for other chains!
 
 0.5.1  Group access rights
        D+ AteAuth requires group access rights that also get added to the token
