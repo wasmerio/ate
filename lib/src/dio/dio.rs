@@ -528,7 +528,7 @@ impl<'a> Dio<'a>
                 }
                 
                 // Perform any transformation (e.g. data encryption and compression)
-                let data = multi_lock.data_as_underlay(&mut meta, row.data.clone(), &self.session)?;
+                let data = multi_lock.data_as_underlay(&mut meta, row.data.clone(), &self.session, &trans_meta)?;
                 
                 // Only once all the rows are processed will we ship it to the redo log
                 let evt = EventData {

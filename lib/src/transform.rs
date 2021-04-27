@@ -2,6 +2,7 @@ use super::error::*;
 use super::crypto::*;
 use super::session::*;
 use super::meta::*;
+use super::transaction::TransactionMetadata;
 use snap::read::FrameDecoder;
 use snap::read::FrameEncoder;
 use bytes::{Bytes, Buf};
@@ -14,7 +15,7 @@ use super::conf::ConfAte;
 pub trait EventDataTransformer: Send + Sync
 {
     /// Callback when data is stored in the event 
-    fn data_as_underlay(&self, _meta: &mut Metadata, with: Bytes, _session: &Session) -> Result<Bytes, TransformError> {
+    fn data_as_underlay(&self, _meta: &mut Metadata, with: Bytes, _session: &Session, _trans_meta: &TransactionMetadata) -> Result<Bytes, TransformError> {
         Ok(with)
     }
 
@@ -39,7 +40,7 @@ for CompressorWithSnapTransformer
     }
 
     #[allow(unused_variables)]
-    fn data_as_underlay(&self, meta: &mut Metadata, with: Bytes, _session: &Session) -> Result<Bytes, TransformError> {
+    fn data_as_underlay(&self, meta: &mut Metadata, with: Bytes, _session: &Session, _trans_meta: &TransactionMetadata) -> Result<Bytes, TransformError> {
         let mut reader = FrameEncoder::new(with.reader());
         let mut compressed = Vec::new();
         std::io::copy(&mut reader, &mut compressed)?;
@@ -79,7 +80,7 @@ for StaticEncryptionTransformer
     }
     
     #[allow(unused_variables)]
-    fn data_as_underlay(&self, meta: &mut Metadata, with: Bytes, _session: &Session) -> Result<Bytes, TransformError>
+    fn data_as_underlay(&self, meta: &mut Metadata, with: Bytes, _session: &Session, _trans_meta: &TransactionMetadata) -> Result<Bytes, TransformError>
     {
         let iv = meta.generate_iv();
         let encrypted = self.key.encrypt_with_iv(&iv, &with[..])?;
@@ -104,9 +105,10 @@ fn test_encrypter()
     let encrypter = StaticEncryptionTransformer::new(&key);
     let cfg = ConfAte::default();
 
+    let trans_meta = TransactionMetadata::default();
     let test_bytes = Bytes::from_static(b"Some Crypto Text");
     let mut meta = Metadata::default();
-    let encrypted = encrypter.data_as_underlay(&mut meta, test_bytes.clone(), &Session::new(&cfg)).unwrap();
+    let encrypted = encrypter.data_as_underlay(&mut meta, test_bytes.clone(), &Session::new(&cfg), &trans_meta).unwrap();
 
     println!("metadata: {:?}", meta);
     println!("data_test: {:X}", &test_bytes);
@@ -127,9 +129,10 @@ fn test_compressor()
     let compressor = CompressorWithSnapTransformer::default();
     let cfg = ConfAte::default();
 
+    let trans_meta = TransactionMetadata::default();
     let test_bytes = Bytes::from("test".as_bytes());
     let mut meta = Metadata::default();
-    let compressed = compressor.data_as_underlay(&mut meta, test_bytes.clone(), &Session::new(&cfg)).unwrap();
+    let compressed = compressor.data_as_underlay(&mut meta, test_bytes.clone(), &Session::new(&cfg), &trans_meta).unwrap();
 
     println!("metadata: {:?}", meta);
     println!("data_test: {:X}", &test_bytes);

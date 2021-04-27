@@ -56,6 +56,7 @@ pub enum TransformError {
     EncryptionError(openssl::error::ErrorStack),
     IO(std::io::Error),
     CryptoError(CryptoError),
+    TrustError(TrustError),
     MissingReadKey(Hash),
     UnspecifiedReadability,
 }
@@ -84,6 +85,15 @@ for TransformError
     }
 }
 
+impl From<TrustError>
+for TransformError
+{
+    fn from(err: TrustError) -> TransformError {
+        TransformError::TrustError(err)
+    }
+}
+
+
 impl std::fmt::Display
 for TransformError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
@@ -96,6 +106,9 @@ for TransformError {
             },
             TransformError::CryptoError(err) => {
                 write!(f, "Cryptography error while transforming event data - {}", err)
+            },
+            TransformError::TrustError(err) => {
+                write!(f, "Trust error while transforming event data - {}", err)
             },
             TransformError::MissingReadKey(key) => {
                 write!(f, "Missing the read key ({}) needed to encrypt/decrypt this data object", key.to_string())
@@ -625,7 +638,8 @@ for ChainCreationError
 #[derive(Debug)]
 pub enum TrustError
 {
-    NoAuthorization(PrimaryKey, crate::meta::WriteOption),
+    NoAuthorizationWrite(PrimaryKey, crate::meta::WriteOption),
+    NoAuthorizationRead(PrimaryKey, crate::meta::ReadOption),
     NoAuthorizationOrphan,
     MissingParent(PrimaryKey),
     Time(TimeError),
@@ -644,8 +658,11 @@ impl std::fmt::Display
 for TrustError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            TrustError::NoAuthorization(key, write) => {
-                write!(f, "Data object with key ({}) could not be written as the current session has no key for this authorization ({})", key.as_hex_string(), write)
+            TrustError::NoAuthorizationWrite(key, write) => {
+                write!(f, "Data object with key ({}) could not be written as the current session has no signature key for this authorization ({})", key.as_hex_string(), write)
+            },
+            TrustError::NoAuthorizationRead(key, read) => {
+                write!(f, "Data object with key ({}) could not be written as the current session has no encryption key for this authorization ({})", key.as_hex_string(), read)
             },
             TrustError::MissingParent(key) => {
                 write!(f, "Data object references a parent object that does not exist ({})", key.as_hex_string())

@@ -102,9 +102,9 @@ impl ChainMultiUser
     }
 
     #[allow(dead_code)]
-    pub(crate) fn data_as_underlay(&self, meta: &mut Metadata, data: Bytes, session: &Session) -> Result<Bytes, TransformError> {
+    pub(crate) fn data_as_underlay(&self, meta: &mut Metadata, data: Bytes, session: &Session, trans_meta: &TransactionMetadata) -> Result<Bytes, TransformError> {
         let guard = self.inside_sync.read();
-        guard.data_as_underlay(meta, data, session)
+        guard.data_as_underlay(meta, data, session, trans_meta)
     }
     
     pub async fn count(&self) -> usize {
@@ -172,13 +172,13 @@ impl ChainProtectedSync {
         Ok(ret)
     }
 
-    pub(crate) fn data_as_underlay(&self, meta: &mut Metadata, data: Bytes, session: &Session) -> Result<Bytes, TransformError> {
+    pub(crate) fn data_as_underlay(&self, meta: &mut Metadata, data: Bytes, session: &Session, trans_meta: &TransactionMetadata) -> Result<Bytes, TransformError> {
         let mut ret = data;
         for transformer in self.transformers.iter() {
-            ret = transformer.data_as_underlay(meta, ret, session)?;
+            ret = transformer.data_as_underlay(meta, ret, session, trans_meta)?;
         }
         for plugin in self.plugins.iter() {
-            ret = plugin.data_as_underlay(meta, ret, session)?;
+            ret = plugin.data_as_underlay(meta, ret, session, trans_meta)?;
         }
         Ok(ret)
     }

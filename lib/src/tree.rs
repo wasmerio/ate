@@ -163,7 +163,7 @@ impl TreeAuthorityPlugin
         Ok(auth)
     }
 
-    fn generate_encrypt_key(auth: &ReadOption, session: &Session) -> Result<Option<(InitializationVector, EncryptKey)>, TransformError>
+    fn generate_encrypt_key(&self, auth: &ReadOption, session: &Session) -> Result<Option<(InitializationVector, EncryptKey)>, TransformError>
     {
         match auth {
             ReadOption::Inherit => {
@@ -194,9 +194,17 @@ impl TreeAuthorityPlugin
         }
     }
 
-    fn get_encrypt_key(confidentiality: &MetaConfidentiality, iv: Option<&InitializationVector>, session: &Session) -> Result<Option<EncryptKey>, TransformError>
+    fn get_encrypt_key(&self, meta: &Metadata, confidentiality: &MetaConfidentiality, iv: Option<&InitializationVector>, session: &Session) -> Result<Option<EncryptKey>, TransformError>
     {
-        let auth = &confidentiality.auth;
+        let trans_meta = TransactionMetadata::default();
+        let auth_store;
+        let auth = match &confidentiality._cache {
+            Some(a) => a,
+            None => {
+                auth_store = self.compute_auth(meta, &trans_meta, ComputePhase::AfterStore)?;
+                &auth_store.read
+            }
+        };
 
         match auth {
             ReadOption::Inherit => {
@@ -213,21 +221,16 @@ impl TreeAuthorityPlugin
             ReadOption::Specific(key_hash, derived) => {
                 for key in session.read_keys() {
                     if key.hash() == *key_hash {
-                        return Ok(Some(derived.transmute(key)?));
+                        let inner = derived.transmute(key)?;
+                        if inner.short_hash() == confidentiality.hash {
+                            return Ok(Some(inner));
+                        }
                     }
                 }
                 for key in session.private_read_keys() {
                     if key.hash() == *key_hash {
-                        return Ok(Some(derived.transmute_private(key)?));
-                    }
-                }
-                if let Some(expected_inner) = &confidentiality.inner {
-                    for key in session.read_keys() {
-                        let inner = match derived.transmute(key) {
-                            Ok(a) => a,
-                            Err(_) => { continue; }
-                        };
-                        if inner.hash() == *expected_inner {
+                        let inner = derived.transmute_private(key)?;
+                        if inner.short_hash() == confidentiality.hash {
                             return Ok(Some(inner));
                         }
                     }
@@ -402,7 +405,7 @@ for TreeAuthorityPlugin
                 {
                     // This record has no authorization
                     return match meta.get_data_key() {
-                        Some(key) => Err(LintError::Trust(TrustError::NoAuthorization(key, auth.write))),
+                        Some(key) => Err(LintError::Trust(TrustError::NoAuthorizationWrite(key, auth.write))),
                         None => Err(LintError::Trust(TrustError::NoAuthorizationOrphan))
                     };
                 }
@@ -424,28 +427,41 @@ for TreeAuthorityPlugin
         // Now lets add all the encryption keys
         let auth = self.compute_auth(meta, trans_meta, ComputePhase::AfterStore)?;
         let key_hash = match &auth.read {
+            ReadOption::Everyone(key) => {
+                match key {
+                    Some(a) => Some(a.short_hash()),
+                    None => None,
+                }
+            }
             ReadOption::Specific(read_hash, derived) =>
             {
                 let mut ret = session.read_keys()
                         .filter(|p| p.hash() == *read_hash)
                         .filter_map(|p| derived.transmute(p).ok())
-                        .map(|p| p.hash())
+                        .map(|p| p.short_hash())
                         .next();
                 if ret.is_none() {
                     ret = session.private_read_keys()
                         .filter(|p| p.hash() == *read_hash)
                         .filter_map(|p| derived.transmute_private(p).ok())
-                        .map(|p| p.hash())
+                        .map(|p| p.short_hash())
                         .next();
+                }
+                if ret.is_none() {
+                    if let Some(key) = meta.get_data_key() {
+                        return Err(LintError::Trust(TrustError::NoAuthorizationRead(key, auth.read)));
+                    }
                 }
                 ret
             },
             _ => None,
         };
-        ret.push(CoreMetadata::Confidentiality(MetaConfidentiality {
-            auth: auth.read,
-            inner: key_hash
-        }));
+        if let Some(key_hash) = key_hash {
+            ret.push(CoreMetadata::Confidentiality(MetaConfidentiality {
+                hash: key_hash,
+                _cache: Some(auth.read)
+            }));
+        }
 
         // Now run the signature plugin
         ret.extend(self.signature_plugin.metadata_lint_event(meta, session, trans_meta)?);
@@ -463,16 +479,25 @@ for TreeAuthorityPlugin
     }
 
     #[allow(unused_variables)]
-    fn data_as_underlay(&self, meta: &mut Metadata, with: Bytes, session: &Session) -> Result<Bytes, TransformError>
+    fn data_as_underlay(&self, meta: &mut Metadata, with: Bytes, session: &Session, trans_meta: &TransactionMetadata) -> Result<Bytes, TransformError>
     {
-        let mut with = self.signature_plugin.data_as_underlay(meta, with, session)?;
+        let mut with = self.signature_plugin.data_as_underlay(meta, with, session, trans_meta)?;
 
-        let read_option = match meta.get_confidentiality() {
-            Some(a) => a,
-            None => { return Err(TransformError::UnspecifiedReadability); }
+        let cache = match meta.get_confidentiality() {
+            Some(a) => a._cache.as_ref(),
+            None => None,
         };
 
-        if let Some((iv, key)) = TreeAuthorityPlugin::generate_encrypt_key(&read_option.auth, session)? {
+        let auth_store;
+        let auth = match &cache {
+            Some(a) => a,
+            None => {
+                auth_store = self.compute_auth(meta, trans_meta, ComputePhase::AfterStore)?;
+                &auth_store.read
+            }
+        };
+
+        if let Some((iv, key)) = self.generate_encrypt_key(auth, session)? {
             let encrypted = key.encrypt_with_iv(&iv, &with[..])?;
             meta.core.push(CoreMetadata::InitializationVector(iv));
             with = Bytes::from(encrypted);
@@ -486,21 +511,23 @@ for TreeAuthorityPlugin
     {
         let mut with = self.signature_plugin.data_as_overlay(meta, with, session)?;
 
-        let read_option = match meta.get_confidentiality() {
-            Some(a) => a,
-            None => { return Err(TransformError::UnspecifiedReadability); }
-        };
-
-        
         let iv = meta.get_iv().ok();
-        if let Some(key) = TreeAuthorityPlugin::get_encrypt_key(read_option, iv, session)? {
-            let iv = match iv {
-                Some(a) => a,
-                None => { return Err(TransformError::CryptoError(CryptoError::NoIvPresent)); }
-            };
-            let decrypted = key.decrypt(&iv, &with[..])?;
-            with = Bytes::from(decrypted);
-        }
+        match meta.get_confidentiality() {
+            Some(confidentiality) => {
+                if let Some(key) = self.get_encrypt_key(meta, confidentiality, iv, session)? {
+                    let iv = match iv {
+                        Some(a) => a,
+                        None => { return Err(TransformError::CryptoError(CryptoError::NoIvPresent)); }
+                    };
+                    let decrypted = key.decrypt(&iv, &with[..])?;
+                    with = Bytes::from(decrypted);
+                }
+            },
+            None if iv.is_some() => { return Err(TransformError::UnspecifiedReadability); }
+            None => {
+
+            }
+        };
 
         Ok(with)
     }

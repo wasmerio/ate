@@ -234,8 +234,9 @@ pub struct MetaDelayedUpload
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MetaConfidentiality
 {
-    pub auth: ReadOption,
-    pub inner: Option<Hash>,
+    pub hash: ShortHash,
+    #[serde(skip)]
+    pub _cache: Option<ReadOption>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
