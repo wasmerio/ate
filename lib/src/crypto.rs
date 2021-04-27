@@ -472,6 +472,7 @@ impl Hash {
         ret.val.copy_from_slice(&result[..16]);
         ret
     }
+
     fn from_bytes_twice_blake3(input1: &[u8], input2: &[u8]) -> Hash {
         let mut hasher = blake3::Hasher::new();
         hasher.update(input1);
@@ -482,6 +483,12 @@ impl Hash {
         };
         ret.val.copy_from_slice(&result[..16]);
         ret
+    }
+
+    pub fn to_u64(&self) -> u64 {
+        let mut val = [0u8; 8];
+        val.copy_from_slice(&self.val[..8]);
+        u64::from_be_bytes(val)
     }
 
     pub fn to_hex_string(&self) -> String {

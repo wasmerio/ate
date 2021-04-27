@@ -16,12 +16,13 @@ use super::conf::Upstream;
 use super::conf::NodeState;
 use super::Packet;
 use super::PacketData;
+use super::BroadcastPacketData;
 use super::PacketWithContext;
 
 #[derive(Debug)]
 pub(crate) enum TxDirection
 {
-    Downcast(Arc<broadcast::Sender<PacketData>>),
+    Downcast(Arc<broadcast::Sender<BroadcastPacketData>>),
     UpcastOne(Upstream),
     UpcastMany(FxHashMap<u64, Upstream>)
 }
@@ -49,18 +50,18 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone,
 impl<C> NodeTx<C>
 where C: Send + Sync + Default + 'static
 {
-    pub(crate) async fn send_packet(&self, pck: PacketData) -> Result<(), CommsError> {
+    pub(crate) async fn send_packet(&self, pck: BroadcastPacketData) -> Result<(), CommsError> {
         match &self.direction {
             TxDirection::Downcast(a) => {
                 a.send(pck)?;
             },
             TxDirection::UpcastOne(a) => {
-                a.outbox.send(pck).await?;
+                a.outbox.send(pck.data).await?;
             },
             TxDirection::UpcastMany(a) => {
                 let upcasts = a.values().filter(|u| u.outbox.is_closed() == false).collect::<Vec<_>>();
                 let upcast = upcasts.choose(&mut rand::thread_rng()).unwrap();
-                upcast.outbox.send(pck).await?;
+                upcast.outbox.send(pck.data).await?;
             }
         };
         Ok(())
@@ -83,10 +84,13 @@ where C: Send + Sync + Default + 'static
         }
     }
 
-    pub(crate) async fn send<M>(&self, msg: M) -> Result<(), CommsError>
+    pub(crate) async fn send<M>(&self, msg: M, broadcast_group: Option<u64>) -> Result<(), CommsError>
     where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default
     {
-        self.send_packet(Packet::from(msg).to_packet_data(self.wire_format)?).await
+        self.send_packet(BroadcastPacketData {
+            group: broadcast_group,
+            data: Packet::from(msg).to_packet_data(self.wire_format)?
+        }).await
     }
 
     pub(crate) fn connected(&self) -> i32 {

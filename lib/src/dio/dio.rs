@@ -114,7 +114,6 @@ impl DioState
 pub struct Dio<'a>
 where Self: Send + Sync
 {
-    pub(super) chain: ChainKey,
     pub(super) multi: ChainMultiUser,
     pub(super) state: DioState,
     pub(super) session: &'a Session,
@@ -431,7 +430,6 @@ impl Chain
     pub async fn dio_ext<'a>(&'a self, session: &'a Session, scope: Scope) -> Dio<'a> {
         let multi = self.multi().await;
         Dio {
-            chain: self.key(),
             state: DioState::new(),
             multi,
             session: session,
@@ -598,7 +596,6 @@ impl<'a> Dio<'a>
 
         // Create the transaction
         let trans = Transaction {
-            chain: self.chain.clone(),
             scope: self.scope.clone(),
             transmit: true,
             events: evts,

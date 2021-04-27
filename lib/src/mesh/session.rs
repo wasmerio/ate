@@ -113,11 +113,8 @@ impl MeshSession
     async fn inbox_connected(self: &Arc<MeshSession>, pck: PacketData) -> Result<(), CommsError> {
         debug!("inbox: connected pck.size={}", pck.bytes.len());
 
-        pck.reply(ChainMessage {
-            chain: Some(self.key.clone()),
-            msg: Message::Subscribe {
-                chain_key: self.key.clone(),
-            }
+        pck.reply(Message::Subscribe {
+            chain_key: self.key.clone(),
         }).await
     }
 
@@ -126,12 +123,9 @@ impl MeshSession
 
         if let Some(chain) = self.chain.upgrade() {
             let samples = chain.get_samples_to_right_of_pivot(pivot).await;
-            pck.reply(ChainMessage {
-                chain: Some(chain.key()),
-                msg: Message::SamplesOfHistory {
-                    pivot,
-                    samples
-                }
+            pck.reply(Message::SamplesOfHistory {
+                pivot,
+                samples
             }).await?;
         }
 
@@ -149,7 +143,6 @@ impl MeshSession
 
         if let Some(chain) = self.chain.upgrade() {
             chain.pipe.feed(Transaction {
-                chain: chain.key(),
                 scope: Scope::Local,
                 transmit: false,
                 events: feed_me,
@@ -290,7 +283,7 @@ impl MeshSession
         Ok(())
     }
 
-    async fn inbox_end_of_history(self: &Arc<MeshSession>, _pck: PacketWithContext<ChainMessage, ()>, loader: &mut Option<Box<impl Loader>>) -> Result<(), CommsError> {
+    async fn inbox_end_of_history(self: &Arc<MeshSession>, _pck: PacketWithContext<Message, ()>, loader: &mut Option<Box<impl Loader>>) -> Result<(), CommsError> {
         debug!("inbox: end_of_history");
 
         // The end of the history means that the chain can now be actively used, its likely that
@@ -313,13 +306,13 @@ impl MeshSession
     async fn inbox_packet(
         self: &Arc<MeshSession>,
         loader: &mut Option<Box<impl Loader>>,
-        pck: PacketWithContext<ChainMessage, ()>,
+        pck: PacketWithContext<Message, ()>,
     ) -> Result<(), CommsError>
     {
         #[cfg(feature = "super_verbose")]
         debug!("inbox: packet size={}", pck.data.bytes.len());
 
-        match pck.packet.msg.msg {
+        match pck.packet.msg {
             Message::StartOfHistory { size, from, to, root_keys, integrity }
                 => Self::inbox_start_of_history(self, size, from, to, loader, root_keys, integrity).await,
             Message::SampleRightOf(pivot)
@@ -352,7 +345,7 @@ impl MeshSession
         }
     }
 
-    async fn inbox(session: Arc<MeshSession>, mut rx: NodeRx<ChainMessage, ()>, mut loader: Option<Box<impl Loader>>)
+    async fn inbox(session: Arc<MeshSession>, mut rx: NodeRx<Message, ()>, mut loader: Option<Box<impl Loader>>)
         -> Result<(), CommsError>
     {
         let addr = session.addr.clone();
@@ -480,7 +473,7 @@ struct RecoverableSessionPipe
 
 impl RecoverableSessionPipe
 {
-    async fn create_active_pipe(&self) -> (ActiveSessionPipe, NodeRx<ChainMessage, ()>, Arc<MeshSession>)
+    async fn create_active_pipe(&self) -> (ActiveSessionPipe, NodeRx<Message, ()>, Arc<MeshSession>)
     {
         let commit
             = Arc::new(StdMutex::new(FxHashMap::default()));
@@ -491,13 +484,10 @@ impl RecoverableSessionPipe
         let node_cfg = NodeConfig::new(self.builder.cfg.wire_format)
             .wire_encryption(self.builder.cfg.wire_encryption)
             .connect_to(self.addr.ip, self.addr.port)
-            .on_connect(ChainMessage {
-                chain: None,
-                msg: Message::Connected
-            })
+            .on_connect(Message::Connected)
             .buffer_size(self.builder.cfg.buffer_size_client);
         let (node_tx, node_rx)
-            = crate::comms::connect::<ChainMessage, ()>
+            = crate::comms::connect::<Message, ()>
             (
                 &node_cfg, 
                 self.chain_domain.clone()
@@ -850,11 +840,11 @@ impl ActiveSessionPipe
         };
 
         // Send the same packet to all the transmit nodes (if there is only one then don't clone)
-        let pck = Packet::from(ChainMessage {
-            chain: Some(trans.chain.clone()),
-            msg: Message::Events{ commit, evts, }
-        }).to_packet_data(self.tx.wire_format)?;
-        self.tx.send_packet(pck).await?;
+        let pck = Packet::from(Message::Events{ commit, evts, }).to_packet_data(self.tx.wire_format)?;
+        self.tx.send_packet(BroadcastPacketData {
+            group: Some(self.key.hash64()),
+            data: pck
+        }).await?;
 
         Ok(receiver)
     }
@@ -909,12 +899,9 @@ impl ActiveSessionPipe
         self.lock_requests.lock().insert(key.clone(), my_lock);
 
         // Send a message up to the main server asking for a lock on the data object
-        self.tx.send(ChainMessage {
-            chain: Some(self.key.clone()),
-            msg: Message::Lock {
-                key: key.clone(),
-            }
-        }).await?;
+        self.tx.send(Message::Lock {
+            key: key.clone(),
+        }, Some(self.key.hash64())).await?;
 
         // Wait for the response from the server
         Ok(rx.recv()?)
@@ -928,12 +915,9 @@ impl ActiveSessionPipe
         }
 
         // Send a message up to the main server asking for an unlock on the data object
-        self.tx.send(ChainMessage {
-            chain: Some(self.key.clone()),
-            msg: Message::Unlock {
-                key: key.clone(),
-            }
-        }).await?;
+        self.tx.send(Message::Unlock {
+            key: key.clone(),
+        }, Some(self.key.hash64())).await?;
 
         // Success
         Ok(())

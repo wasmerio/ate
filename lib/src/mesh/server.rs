@@ -50,14 +50,28 @@ struct SessionContextProtected {
 }
 
 struct SessionContext {
+    group: std::sync::atomic::AtomicU64,
     inside: StdMutex<SessionContextProtected>,
     conversation: Arc<ConversationSession>,
+}
+
+impl BroadcastContext
+for SessionContext {
+    fn broadcast_group(&self) -> Option<u64>
+    {
+        let ret = self.group.load(std::sync::atomic::Ordering::Relaxed);
+        match ret {
+            0 => None,
+            a => Some(a)
+        }
+    }
 }
 
 impl Default
 for SessionContext {
     fn default() -> SessionContext {
         SessionContext {
+            group: std::sync::atomic::AtomicU64::new(0),
             inside: StdMutex::new(SessionContextProtected {
                 chain: None,
                 locks: FxHashSet::default(),
@@ -134,7 +148,8 @@ fn disconnected(mut context: SessionContextProtected) -> Result<(), CommsError> 
 
 struct ServerPipe
 {
-    downcast: Arc<tokio::sync::broadcast::Sender<PacketData>>,
+    chain_key: ChainKey,
+    downcast: Arc<tokio::sync::broadcast::Sender<BroadcastPacketData>>,
     wire_format: SerializationFormat,
     next: Arc<Box<dyn EventPipe>>,
 }
@@ -148,11 +163,11 @@ for ServerPipe
         // If this packet is being broadcast then send it to all the other nodes too
         if trans.transmit {
             let evts = MessageEvent::convert_to(&trans.events);
-            let pck = Packet::from(ChainMessage {
-                chain: Some(trans.chain.clone()),
-                msg: Message::Events{ commit: None, evts: evts.clone(), }
-            }).to_packet_data(self.wire_format)?;
-            self.downcast.send(pck)?;
+            let pck = Packet::from(Message::Events{ commit: None, evts: evts.clone(), }).to_packet_data(self.wire_format)?;
+            self.downcast.send(BroadcastPacketData {
+                group: Some(self.chain_key.hash64()),
+                data: pck
+            })?;
         }
 
         // Hand over to the next pipe as this transaction 
@@ -262,6 +277,7 @@ where F: OpenFlow + 'static
     if let Some(ctx) = &context {
         if let TxDirection::Downcast(downcast) = &ctx.tx.direction {
             let pipe = Box::new(ServerPipe {
+                chain_key: key.clone(),
                 downcast: downcast.clone(),
                 wire_format: ctx.tx.wire_format.clone(),
                 next: crate::pipe::NullPipe::new()
@@ -275,10 +291,7 @@ where F: OpenFlow + 'static
     let new_chain = match chain_builder_flow.open(builder, &key).await? {
         OpenAction::PrivateChain { chain, session} => {
             if let Some(ctx) = &context {
-                PacketData::reply_at(ctx.reply_at, ctx.tx.wire_format, ChainMessage {
-                    chain: Some(chain.key()),
-                    msg: Message::SecuredWith(session)
-                }).await?;
+                PacketData::reply_at(ctx.reply_at, ctx.tx.wire_format, Message::SecuredWith(session)).await?;
             }
             chain
         },
@@ -339,7 +352,6 @@ async fn inbox_event(
     // Feed the events into the chain of trust
     let evts = MessageEvent::convert_from(evts);
     let ret = chain.pipe.feed(Transaction {
-        chain: chain.key(),
         scope: Scope::None,
         transmit: false,
         events: evts,
@@ -351,7 +363,10 @@ async fn inbox_event(
     let wire_format = pck_data.wire_format;
     let downcast_err = match &ret {
         Ok(_) => {
-            tx.send_packet(pck_data).await?;
+            tx.send_packet(BroadcastPacketData {
+                group: Some(chain.key().hash64()),
+                data: pck_data
+            }).await?;
             Ok(())
         },
         Err(err) => Err(CommsError::InternalError(format!("feed-failed - {}", err.to_string())))
@@ -360,16 +375,10 @@ async fn inbox_event(
     // If the operation has a commit to transmit the response
     if let Some(id) = commit {
         match &ret {
-            Ok(_) => PacketData::reply_at(reply_at, wire_format, ChainMessage {
-                chain: Some(chain.key()),
-                msg: Message::Confirmed(id.clone())
-            }).await?,
-            Err(err) => PacketData::reply_at(reply_at, wire_format, ChainMessage {
-                chain: Some(chain.key()),
-                msg: Message::CommitError{
-                    id: id.clone(),
-                    err: err.to_string(),
-                }
+            Ok(_) => PacketData::reply_at(reply_at, wire_format, Message::Confirmed(id.clone())).await?,
+            Err(err) => PacketData::reply_at(reply_at, wire_format, Message::CommitError{
+                id: id.clone(),
+                err: err.to_string(),
             }).await?
         };
     }
@@ -393,18 +402,11 @@ async fn inbox_lock(
     };
 
     let is_locked = chain.pipe.try_lock(key.clone()).await?;
-    let chain_key = {
-        let mut lock = context.inside.lock();
-        lock.locks.insert(key.clone());
-        lock.chain.as_ref().map(|c| c.key())
-    };
+    context.inside.lock().locks.insert(key.clone());
     
-    PacketData::reply_at(reply_at, wire_format, ChainMessage {
-        chain: chain_key,
-        msg: Message::LockResult {
-            key: key.clone(),
-            is_locked
-        }
+    PacketData::reply_at(reply_at, wire_format, Message::LockResult {
+        key: key.clone(),
+        is_locked
     }).await
 }
 
@@ -449,28 +451,19 @@ where F: OpenFlow + 'static
     // If we can't find a chain for this subscription then fail and tell the caller
     let chain = match open_internal(Arc::clone(&root), chain_key.clone(), Some(open_context)).await {
         Err(ChainCreationError::NotThisRoot) => {
-            PacketData::reply_at(reply_at, wire_format, ChainMessage {
-                chain: None,
-                msg: Message::NotThisRoot
-            }).await?;
+            PacketData::reply_at(reply_at, wire_format, Message::NotThisRoot).await?;
             return Ok(());
         },
         Err(ChainCreationError::NoRootFoundInConfig) => {
-            PacketData::reply_at(reply_at, wire_format, ChainMessage {
-                chain: None,
-                msg: Message::NotThisRoot
-            }).await?;
+            PacketData::reply_at(reply_at, wire_format, Message::NotThisRoot).await?;
             return Ok(());
         }
         a => {
             let chain = match a {
                 Ok(a) => a,
                 Err(err) => {
-                    PacketData::reply_at(reply_at, wire_format, ChainMessage {
-                        chain: None,
-                        msg: Message::FatalTerminate {
-                            err: err.to_string()
-                        }
+                    PacketData::reply_at(reply_at, wire_format, Message::FatalTerminate {
+                        err: err.to_string()
                     }).await?;
                     return Err(CommsError::RootServerError(err.to_string()));
                 }
@@ -488,6 +481,7 @@ where F: OpenFlow + 'static
     {
         let mut guard = session_context.inside.lock();
         guard.chain.replace(Arc::clone(&chain));
+        session_context.group.store(chain.key().hash64(), std::sync::atomic::Ordering::Relaxed);
     }
 
     // Grab the first sample point (if we have no history then we are done)
@@ -495,10 +489,7 @@ where F: OpenFlow + 'static
     let guard = guard.inside_async.read().await;
     match guard.range(..).next() {
         Some(a) => {
-            PacketData::reply_at(reply_at, wire_format, ChainMessage {
-                chain: Some(chain.key()),
-                msg: Message::SampleRightOf(a.event_hash)
-            }).await?;
+            PacketData::reply_at(reply_at, wire_format, Message::SampleRightOf(a.event_hash)).await?;
         },
         None => {
             if let Some(reply_at) = reply_at {
@@ -508,6 +499,20 @@ where F: OpenFlow + 'static
             }
         }
     };
+
+    Ok(())
+}
+
+async fn inbox_unsubscribe<F>(
+    _root: Arc<MeshRoot<F>>,
+    chain_key: ChainKey,
+    _reply_at: Option<&mpsc::Sender<PacketData>>,
+    _session_context: Arc<SessionContext>,
+)
+-> Result<(), CommsError>
+where F: OpenFlow + 'static
+{
+    debug!("inbox: unsubscribe: {}", chain_key.to_string());
 
     Ok(())
 }
@@ -550,10 +555,7 @@ async fn inbox_samples_of_history(
         if let Some(hash) = locate_pivot_within_history(&chain, history_sample).await {
             if hash != pivot {
                 debug!("inbox: pivot is still moving forward (pivot={})", hash);
-                PacketData::reply_at(Some(&reply_at), wire_format, ChainMessage {
-                    chain: Some(chain.key()),
-                    msg: Message::SampleRightOf(hash)
-                }).await?;
+                PacketData::reply_at(Some(&reply_at), wire_format, Message::SampleRightOf(hash)).await?;
                 return Ok(());
             }
         }
@@ -595,7 +597,7 @@ async fn inbox_samples_of_history(
 
 async fn inbox_packet<F>(
     root: Arc<MeshRoot<F>>,
-    pck: PacketWithContext<ChainMessage, SessionContext>,
+    pck: PacketWithContext<Message, SessionContext>,
     tx: &NodeTx<SessionContext>
 )
 -> Result<(), CommsError>
@@ -611,7 +613,7 @@ where F: OpenFlow + 'static
     let reply_at_owner = pck_data.reply_here.take();
     let reply_at = reply_at_owner.as_ref();
     
-    match pck.msg.msg {
+    match pck.msg {
         Message::Subscribe { chain_key }
             => inbox_subscribe(root, chain_key, reply_at, context, wire_format, tx).await,
         Message::SamplesOfHistory { pivot, samples }
@@ -628,7 +630,7 @@ where F: OpenFlow + 'static
 
 async fn inbox<F>(
     root: Arc<MeshRoot<F>>,
-    mut rx: NodeRx<ChainMessage, SessionContext>,
+    mut rx: NodeRx<Message, SessionContext>,
     tx: NodeTx<SessionContext>
 ) -> Result<(), CommsError>
 where F: OpenFlow + 'static

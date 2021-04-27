@@ -53,7 +53,7 @@ impl ChainMultiUser
     pub(crate) async fn new(accessor: &Chain) -> ChainMultiUser
     {
         ChainMultiUser {
-            chain: accessor.key(),
+            chain: accessor.key().clone(),
             inside_async: Arc::clone(&accessor.inside_async),
             inside_sync: Arc::clone(&accessor.inside_sync),
             pipe: Arc::clone(&accessor.pipe),
@@ -128,7 +128,6 @@ impl ChainMultiUser
     {
         // Create the transaction
         let trans = Transaction {
-            chain: self.chain.clone(),
             scope: Scope::Full,
             transmit: true,
             events: Vec::new(),

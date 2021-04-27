@@ -42,6 +42,8 @@ use super::spec::*;
 #[derive(Serialize, Deserialize, Debug, Clone, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ChainKey {
     pub name: String,
+    #[serde(skip)]
+    pub hash: Option<Hash>,
 }
 
 impl std::fmt::Display
@@ -74,7 +76,9 @@ impl ChainKey {
         if val.starts_with("/") == false {
             val = format!("/{}", val);
         }
+        
         ChainKey {
+            hash: Some(Hash::from_bytes(val.as_bytes())),
             name: val,
         }
     }
@@ -97,7 +101,18 @@ impl ChainKey {
 
     pub fn hash(&self) -> Hash
     {
-        Hash::from_bytes(&self.name.clone().into_bytes())
+        match &self.hash {
+            Some(a) => a.clone(),
+            None => Hash::from_bytes(self.name.as_bytes())
+        }
+    }
+
+    pub fn hash64(&self) -> u64
+    {
+        match &self.hash {
+            Some(a) => a.to_u64(),
+            None => Hash::from_bytes(self.name.as_bytes()).to_u64()
+        }
     }
 
     pub fn to_string(&self) -> String
@@ -310,7 +325,7 @@ async fn test_chain() {
             evts.push(evt2.clone());
 
             debug!("feeding two events into the chain");
-            let trans = Transaction::from_events(chain.key(), evts, Scope::Local, false);
+            let trans = Transaction::from_events(evts, Scope::Local, false);
             lock.pipe.feed(trans).await.expect("The event failed to be accepted");
             
             drop(lock);
@@ -361,7 +376,7 @@ async fn test_chain() {
             debug!("feeding new version of event1 into the chain");
             let mut evts = Vec::new();
             evts.push(evt1.clone());
-            let trans = Transaction::from_events(chain.key(), evts, Scope::Local, false);
+            let trans = Transaction::from_events(evts, Scope::Local, false);
             lock.pipe.feed(trans).await.expect("The event failed to be accepted");
 
             drop(lock);
@@ -423,7 +438,7 @@ async fn test_chain() {
             debug!("feeding the tombstone into the chain");
             let mut evts = Vec::new();
             evts.push(evt2.clone());
-            let trans = Transaction::from_events(chain.key(), evts, Scope::Local, false);
+            let trans = Transaction::from_events(evts, Scope::Local, false);
             lock.pipe.feed(trans).await.expect("The event failed to be accepted");
             
             // Number of events should have gone up by one even though there should be one less item

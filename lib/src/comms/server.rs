@@ -13,7 +13,8 @@ use crate::crypto::KeySize;
 use crate::spec::*;
 use std::{marker::PhantomData};
 
-use super::PacketData;
+use super::BroadcastContext;
+use super::BroadcastPacketData;
 use super::PacketWithContext;
 use super::conf::*;
 use super::rx_tx::*;
@@ -22,7 +23,7 @@ use super::key_exchange;
 
 pub(crate) async fn listen<M, C>(conf: &NodeConfig<M>) -> (NodeTx<C>, NodeRx<M, C>)
 where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
-      C: Send + Sync + Default + 'static
+      C: Send + Sync + BroadcastContext + Default + 'static
 {
     // Setup the communication pipes for the server
     let (inbox_tx, inbox_rx) = mpsc::channel(conf.buffer_size);
@@ -65,14 +66,14 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
 
 pub(super) async fn listen_on<M, C>(addr: SocketAddr,
                            inbox: mpsc::Sender<PacketWithContext<M, C>>,
-                           outbox: Arc<broadcast::Sender<PacketData>>,
+                           outbox: Arc<broadcast::Sender<BroadcastPacketData>>,
                            buffer_size: usize,
                            state: Arc<StdMutex<NodeState>>,
                            wire_format: SerializationFormat,
                            wire_encryption: Option<KeySize>,
                         )
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
-      C: Send + Sync + Default + 'static
+      C: Send + Sync + BroadcastContext + Default + 'static,
 {
     let listener = TcpListener::bind(addr.clone()).await
         .expect(&format!("Failed to bind listener to address ({})", addr.clone()));
@@ -135,12 +136,13 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
             let reply_tx1 = reply_tx.clone();
             let reply_tx2 = reply_tx.clone();
 
+            let worker_context = Arc::clone(&context);
             let worker_state = Arc::clone(&worker_state);
             let worker_inbox = inbox.clone();
             let worker_terminate_tx = terminate_tx.clone();
             let worker_terminate_rx = terminate_tx.subscribe();
             tokio::spawn(async move {
-                match process_inbox::<M, C>(rx, reply_tx1, worker_inbox, sender, context, wire_format, ek1, worker_terminate_rx).await {
+                match process_inbox::<M, C>(rx, reply_tx1, worker_inbox, sender, worker_context, wire_format, ek1, worker_terminate_rx).await {
                     Ok(_) => { },
                     Err(CommsError::IO(err)) if err.kind() == std::io::ErrorKind::UnexpectedEof => { },
                     Err(err) => {
@@ -167,11 +169,12 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                 let _ = worker_terminate_tx.send(true);
             });
 
+            let worker_context = Arc::clone(&context);
             let worker_outbox = outbox.subscribe();
             let worker_terminate_tx = terminate_tx.clone();
             let worker_terminate_rx = terminate_tx.subscribe();
             tokio::spawn(async move {
-                match process_downcast::<M>(reply_tx2, worker_outbox, sender, worker_terminate_rx).await {
+                match process_downcast::<M, C>(reply_tx2, worker_outbox, sender, worker_context, worker_terminate_rx).await {
                     Ok(_) => { },
                     Err(err) => {
                         warn!("connection-failed: {}", err.to_string());

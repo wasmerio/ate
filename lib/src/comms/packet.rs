@@ -9,6 +9,11 @@ use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use bytes::Bytes;
 use crate::spec::*;
 
+pub(crate) trait BroadcastContext
+{
+    fn broadcast_group(&self) -> Option<u64>;
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct PacketData
 {
@@ -16,6 +21,13 @@ pub(crate) struct PacketData
     pub reply_here: Option<mpsc::Sender<PacketData>>,
     pub skip_here: Option<u64>,
     pub wire_format: SerializationFormat,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct BroadcastPacketData
+{
+    pub group: Option<u64>,
+    pub data: PacketData,   
 }
 
 #[derive(Debug)]

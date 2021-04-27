@@ -508,8 +508,8 @@ impl<'a> Chain
         let _ = std::mem::replace(&mut self.pipe, proxy);
     }
 
-    pub fn key(&'a self) -> ChainKey {
-        self.key.clone()
+    pub fn key(&'a self) -> &'a ChainKey {
+        &self.key
     }
 
     pub async fn single(&'a self) -> ChainSingleUser<'a> {
@@ -673,7 +673,6 @@ impl<'a> Chain
     {
         // Create the transaction
         let trans = Transaction {
-            chain: self.key(),
             scope: Scope::Full,
             transmit: true,
             events: Vec::new(),

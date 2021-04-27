@@ -17,6 +17,8 @@ use crate::error::*;
 use super::Packet;
 use super::PacketData;
 use super::PacketWithContext;
+use super::BroadcastContext;
+use super::BroadcastPacketData;
 
 pub(super) fn setup_tcp_stream(stream: &TcpStream) -> io::Result<()> {
     stream.set_nodelay(true)?;
@@ -146,13 +148,15 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone,
 }
 
 #[allow(unused_variables)]
-pub(super) async fn process_downcast<M>(
+pub(super) async fn process_downcast<M, C>(
     tx: mpsc::Sender<PacketData>,
-    mut outbox: broadcast::Receiver<PacketData>,
+    mut outbox: broadcast::Receiver<BroadcastPacketData>,
     sender: u64,
+    context: Arc<C>,
     mut terminate: tokio::sync::broadcast::Receiver<bool>
 ) -> Result<(), CommsError>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone,
+      C: Send + Sync + BroadcastContext,
 {
     loop
     {
@@ -160,12 +164,24 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone,
             pck = outbox.recv() => {
                 let pck = pck?;
 
-                if let Some(skip) = pck.skip_here {
+                if let Some(broadcast_group) = context.broadcast_group() {
+                    if let Some(packet_group) = pck.group {
+                        if broadcast_group != packet_group {
+                            continue;
+                        }
+                    }
+                } else {
+                    if pck.group.is_some() {
+                        continue;
+                    }
+                }
+
+                if let Some(skip) = pck.data.skip_here {
                     if sender == skip {
                         continue;
                     }
                 }
-                tx.send(pck).await?;
+                tx.send(pck.data).await?;
             },
             exit = terminate.recv() => {
                 if exit? { break; }

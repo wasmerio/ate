@@ -4,6 +4,7 @@ use crate::crypto::{EncryptKey, PrivateEncryptKey, PublicEncryptKey, Initializat
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use crate::prelude::*;
 use super::NodeConfig;
+use crate::comms::BroadcastContext;
 
 #[cfg(test)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -24,6 +25,17 @@ for TestMessage
     }
 }
 
+#[derive(Default)]
+struct DummyContext {
+}
+
+impl BroadcastContext
+for DummyContext {
+    fn broadcast_group(&self) -> Option<u64> {
+        None
+    }
+}
+
 #[tokio::main]
 #[test]
 async fn test_server_client_for_comms() {
@@ -37,7 +49,7 @@ async fn test_server_client_for_comms() {
             .wire_encryption(Some(KeySize::Bit256))
             .listen_on(IpAddr::from_str("127.0.0.1")
             .unwrap(), 4001);
-        let (_, mut server_rx) = super::listen::<TestMessage, ()>(&cfg).await;
+        let (_, mut server_rx) = super::listen::<TestMessage, DummyContext>(&cfg).await;
 
         // Create a background thread that will respond to pings with pong
         info!("creating server worker thread");
@@ -98,7 +110,7 @@ async fn test_server_client_for_comms() {
         {
             // Send a ping
             let test = format!("hello! {}", n);
-            client_tx.send(TestMessage::Ping(test.clone())).await.unwrap();
+            client_tx.send(TestMessage::Ping(test.clone()), None).await.unwrap();
 
             // Wait for the pong
             let pong = client_rx.recv().await.unwrap();

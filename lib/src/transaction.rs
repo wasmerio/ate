@@ -51,7 +51,6 @@ impl ConversationSession {
 #[derive(Debug, Clone)]
 pub(crate) struct Transaction
 {
-    pub(crate) chain: ChainKey,
     pub(crate) scope: Scope,
     pub(crate) transmit: bool,
     pub(crate) events: Vec<EventData>,
@@ -61,10 +60,9 @@ pub(crate) struct Transaction
 impl Transaction
 {
     #[allow(dead_code)]
-    pub(crate) fn from_events(chain: ChainKey, events: Vec<EventData>, scope: Scope, transmit: bool) -> Transaction
+    pub(crate) fn from_events(events: Vec<EventData>, scope: Scope, transmit: bool) -> Transaction
     {
         Transaction {
-            chain,
             scope,
             transmit,
             events,

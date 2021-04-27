@@ -251,12 +251,9 @@ where R: RangeBounds<Hash>
             evts.push(evt);
         }
         debug!("sending {} events", evts.len());
-        PacketData::reply_at(Some(&send_to), wire_format, ChainMessage {
-            chain: Some(chain.key()),
-            msg: Message::Events {
-                commit: None,
-                evts
-            }
+        PacketData::reply_at(Some(&send_to), wire_format, Message::Events {
+            commit: None,
+            evts
         }).await?;
     }
 }
@@ -282,26 +279,18 @@ pub(super) async fn stream_empty_history(
 
     // Let the caller know we will be streaming them events
     debug!("sending start-of-history (size={})", 0);
-    PacketData::reply_at(Some(&reply_at), wire_format,
-    ChainMessage {
-            chain: Some(chain.key()),
-            msg: Message::StartOfHistory
-            {
-                size: 0,
-                from: None,
-                to,
-                root_keys,
-                integrity,
-            }
-        }
-    ).await?;
+    PacketData::reply_at(Some(&reply_at), wire_format,Message::StartOfHistory
+        {
+            size: 0,
+            from: None,
+            to,
+            root_keys,
+            integrity,
+        }).await?;
 
     // Let caller know we have sent all the events that were requested
     debug!("sending end-of-history");
-    PacketData::reply_at(Some(&reply_at), wire_format, ChainMessage {
-        chain: Some(chain.key()),
-        msg: Message::EndOfHistory
-    }).await?;
+    PacketData::reply_at(Some(&reply_at), wire_format, Message::EndOfHistory).await?;
     Ok(())
 }
 
@@ -335,9 +324,7 @@ where R: RangeBounds<Hash>
     // Let the caller know we will be streaming them events
     debug!("sending start-of-history (size={})", size);
     PacketData::reply_at(Some(&reply_at), wire_format,
-    ChainMessage {
-        chain: Some(chain.key()),
-        msg: Message::StartOfHistory
+    Message::StartOfHistory
         {
             size,
             from: match range.start_bound() {
@@ -350,8 +337,7 @@ where R: RangeBounds<Hash>
             },
             root_keys,
             integrity,
-        }
-    }).await?;
+        }).await?;
 
     // Only if there are things to send
     if size > 0
@@ -363,9 +349,6 @@ where R: RangeBounds<Hash>
 
     // Let caller know we have sent all the events that were requested
     debug!("sending end-of-history");
-    PacketData::reply_at(Some(&reply_at), wire_format, ChainMessage {
-        chain: Some(chain.key()),
-        msg: Message::EndOfHistory
-    }).await?;
+    PacketData::reply_at(Some(&reply_at), wire_format, Message::EndOfHistory).await?;
     Ok(())
 }
