@@ -399,7 +399,19 @@ impl AteFS
         let inner_key = {
             match &auth.read {
                 ReadOption::Inherit => None,
-                ReadOption::Everyone(old) => old.clone(),
+                ReadOption::Everyone(old) => match old.clone() {
+                    Some(a) => Some(a),
+                    None => {
+                        let keysize = match self.get_group_read_key(gid) {
+                            Some(a) => a.size(),
+                            None => match self.get_user_read_key(uid) {
+                                Some(a) => a.size(),
+                                None => KeySize::Bit192,
+                            }
+                        };
+                        Some(EncryptKey::generate(keysize))
+                    },
+                },
                 ReadOption::Specific(hash, derived) => {
                     let key = match self.session.read_keys()
                         .filter(|k| k.hash() == *hash)
@@ -671,6 +683,7 @@ for AteFS
             if dao.dentry.mode != mode {
                 dao.dentry.mode = mode;
                 dao.dentry.uid = self.translate_uid(req.uid, &req);
+                dao.dentry.gid = self.translate_gid(req.gid, &req);
                 changed = true;
             }
         }
