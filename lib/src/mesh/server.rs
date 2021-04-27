@@ -275,7 +275,10 @@ where F: OpenFlow + 'static
     let new_chain = match chain_builder_flow.open(builder, &key).await? {
         OpenAction::PrivateChain { chain, session} => {
             if let Some(ctx) = &context {
-                PacketData::reply_at(ctx.reply_at, ctx.tx.wire_format, Message::SecuredWith(session)).await?;
+                PacketData::reply_at(ctx.reply_at, ctx.tx.wire_format, ChainMessage {
+                    chain: Some(chain.key()),
+                    msg: Message::SecuredWith(session)
+                }).await?;
             }
             chain
         },
@@ -357,10 +360,16 @@ async fn inbox_event(
     // If the operation has a commit to transmit the response
     if let Some(id) = commit {
         match &ret {
-            Ok(_) => PacketData::reply_at(reply_at, wire_format, Message::Confirmed(id.clone())).await?,
-            Err(err) => PacketData::reply_at(reply_at, wire_format, Message::CommitError{
-                id: id.clone(),
-                err: err.to_string(),
+            Ok(_) => PacketData::reply_at(reply_at, wire_format, ChainMessage {
+                chain: Some(chain.key()),
+                msg: Message::Confirmed(id.clone())
+            }).await?,
+            Err(err) => PacketData::reply_at(reply_at, wire_format, ChainMessage {
+                chain: Some(chain.key()),
+                msg: Message::CommitError{
+                    id: id.clone(),
+                    err: err.to_string(),
+                }
             }).await?
         };
     }
@@ -384,11 +393,18 @@ async fn inbox_lock(
     };
 
     let is_locked = chain.pipe.try_lock(key.clone()).await?;
-    context.inside.lock().locks.insert(key.clone());
+    let chain_key = {
+        let mut lock = context.inside.lock();
+        lock.locks.insert(key.clone());
+        lock.chain.as_ref().map(|c| c.key())
+    };
     
-    PacketData::reply_at(reply_at, wire_format, Message::LockResult {
-        key: key.clone(),
-        is_locked
+    PacketData::reply_at(reply_at, wire_format, ChainMessage {
+        chain: chain_key,
+        msg: Message::LockResult {
+            key: key.clone(),
+            is_locked
+        }
     }).await
 }
 
@@ -433,19 +449,28 @@ where F: OpenFlow + 'static
     // If we can't find a chain for this subscription then fail and tell the caller
     let chain = match open_internal(Arc::clone(&root), chain_key.clone(), Some(open_context)).await {
         Err(ChainCreationError::NotThisRoot) => {
-            PacketData::reply_at(reply_at, wire_format, Message::NotThisRoot).await?;
+            PacketData::reply_at(reply_at, wire_format, ChainMessage {
+                chain: None,
+                msg: Message::NotThisRoot
+            }).await?;
             return Ok(());
         },
         Err(ChainCreationError::NoRootFoundInConfig) => {
-            PacketData::reply_at(reply_at, wire_format, Message::NotThisRoot).await?;
+            PacketData::reply_at(reply_at, wire_format, ChainMessage {
+                chain: None,
+                msg: Message::NotThisRoot
+            }).await?;
             return Ok(());
         }
         a => {
             let chain = match a {
                 Ok(a) => a,
                 Err(err) => {
-                    PacketData::reply_at(reply_at, wire_format, Message::FatalTerminate {
-                        err: err.to_string()
+                    PacketData::reply_at(reply_at, wire_format, ChainMessage {
+                        chain: None,
+                        msg: Message::FatalTerminate {
+                            err: err.to_string()
+                        }
                     }).await?;
                     return Err(CommsError::RootServerError(err.to_string()));
                 }
@@ -470,7 +495,10 @@ where F: OpenFlow + 'static
     let guard = guard.inside_async.read().await;
     match guard.range(..).next() {
         Some(a) => {
-            PacketData::reply_at(reply_at, wire_format, Message::SampleRightOf(a.event_hash)).await?;
+            PacketData::reply_at(reply_at, wire_format, ChainMessage {
+                chain: Some(chain.key()),
+                msg: Message::SampleRightOf(a.event_hash)
+            }).await?;
         },
         None => {
             if let Some(reply_at) = reply_at {
@@ -522,7 +550,10 @@ async fn inbox_samples_of_history(
         if let Some(hash) = locate_pivot_within_history(&chain, history_sample).await {
             if hash != pivot {
                 debug!("inbox: pivot is still moving forward (pivot={})", hash);
-                PacketData::reply_at(Some(&reply_at), wire_format, Message::SampleRightOf(hash)).await?;
+                PacketData::reply_at(Some(&reply_at), wire_format, ChainMessage {
+                    chain: Some(chain.key()),
+                    msg: Message::SampleRightOf(hash)
+                }).await?;
                 return Ok(());
             }
         }

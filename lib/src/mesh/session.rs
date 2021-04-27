@@ -113,8 +113,11 @@ impl MeshSession
     async fn inbox_connected(self: &Arc<MeshSession>, pck: PacketData) -> Result<(), CommsError> {
         debug!("inbox: connected pck.size={}", pck.bytes.len());
 
-        pck.reply(Message::Subscribe {
-            chain_key: self.key.clone(),
+        pck.reply(ChainMessage {
+            chain: Some(self.key.clone()),
+            msg: Message::Subscribe {
+                chain_key: self.key.clone(),
+            }
         }).await
     }
 
@@ -123,9 +126,12 @@ impl MeshSession
 
         if let Some(chain) = self.chain.upgrade() {
             let samples = chain.get_samples_to_right_of_pivot(pivot).await;
-            pck.reply(Message::SamplesOfHistory {
-                pivot,
-                samples
+            pck.reply(ChainMessage {
+                chain: Some(chain.key()),
+                msg: Message::SamplesOfHistory {
+                    pivot,
+                    samples
+                }
             }).await?;
         }
 
@@ -903,8 +909,11 @@ impl ActiveSessionPipe
         self.lock_requests.lock().insert(key.clone(), my_lock);
 
         // Send a message up to the main server asking for a lock on the data object
-        self.tx.send(Message::Lock {
-            key: key.clone(),
+        self.tx.send(ChainMessage {
+            chain: Some(self.key.clone()),
+            msg: Message::Lock {
+                key: key.clone(),
+            }
         }).await?;
 
         // Wait for the response from the server
@@ -919,8 +928,11 @@ impl ActiveSessionPipe
         }
 
         // Send a message up to the main server asking for an unlock on the data object
-        self.tx.send(Message::Unlock {
-            key: key.clone(),
+        self.tx.send(MessageChain {
+            chain: Some(self.key.clone()),
+            msg: Message::Unlock {
+                key: key.clone(),
+            }
         }).await?;
 
         // Success
