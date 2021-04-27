@@ -1,11 +1,11 @@
 [package]
 name = "ate"
-version = "0.6.0"
+version = "0.6.1"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "Distributed immutable data store with strong encryption and authentication"
 license = "MIT OR Apache-2.0"
-keywords = ["immutable", "database", "blockchain", "nosql", "materialized"]
+keywords = ["immutable", "database", "crypto", "nosql", "async"]
 categories = ["asynchronous", "caching", "cryptography", "database-implementations"]
 repository = "https://github.com/john-sharratt/ate"
 readme = "../README.md"

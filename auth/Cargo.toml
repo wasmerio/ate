@@ -1,12 +1,12 @@
 [package]
 name = "ate-auth"
-version = "1.4.0"
+version = "1.4.1"
 authors = ["Johnathan Sharratt <johnathan.sharratt@gmail.com>"]
 edition = "2018"
 description = "Represents a standardized data model and API for authenticating an ATE chain-of-trust"
 license = "MIT OR Apache-2.0"
-keywords = ["immutable", "authentication" ]
-categories = ["data-structures"]
+keywords = [ "authentication", "cli", "authorization", "crypto" ]
+categories = [ "data-structures", "command-line-utilities", "authentication", "cryptography" ]
 repository = "https://github.com/john-sharratt/ate/auth"
 readme = "README.md"
 
