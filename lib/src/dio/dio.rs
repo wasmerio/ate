@@ -491,6 +491,7 @@ impl<'a> Dio<'a>
             for row in state.store.drain(..)
             {
                 // Debug output
+                #[cfg(feature = "verbose")]
                 debug!("store: {}@{}", row.type_name, row.key.as_hex_string());
 
                 // Build a new clean metadata header
@@ -531,6 +532,7 @@ impl<'a> Dio<'a>
                 let data = multi_lock.data_as_underlay(&mut meta, row.data.clone(), &self.session, &trans_meta)?;
                 
                 // Only once all the rows are processed will we ship it to the redo log
+                #[cfg(feature = "verbose")]
                 let evt = EventData {
                     meta: meta,
                     data_bytes: Some(data),
@@ -582,6 +584,13 @@ impl<'a> Dio<'a>
                     data_bytes: None,
                     format,
                 });
+            }
+        }
+
+        #[cfg(feature = "verbose")]
+        {
+            for evt in evts.iter() {
+                debug!("event: {}", evt.meta);
             }
         }
 

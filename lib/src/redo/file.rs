@@ -294,10 +294,10 @@ impl LogFile
 
     async fn read_once_internal(archive: &mut LogArchiveReader) -> std::result::Result<Option<LoadData>, SerializationError>
     {
+        let offset = archive.log_off;
+        
         #[cfg(feature = "verbose")]
         info!("log-read-event: offset={}", offset);
-
-        let offset = archive.log_off;
 
         // Read the log event
         let evt = match LogVersion::read(archive).await? {
@@ -368,9 +368,9 @@ impl LogFile
         };
         self.lookup.insert(header.event_hash, lookup);
 
-        //#[cfg(feature = "verbose")]
-        debug!("log-write: {} - {:?}", header.event_hash, lookup);
         #[cfg(feature = "verbose")]
+        debug!("log-write: {} - {:?}", header.event_hash, lookup);
+        #[cfg(feature = "super_verbose")]
         debug!("log-write: {:?} - {:?}", header, evt);
 
         // Cache the data

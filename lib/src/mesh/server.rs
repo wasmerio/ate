@@ -317,6 +317,12 @@ async fn inbox_event(
 -> Result<(), CommsError>
 {
     debug!("inbox: events: cnt={}", evts.len());
+    #[cfg(feature = "verbose")]
+    {
+        for evt in evts.iter() {
+            debug!("event: {}", evt.meta);
+        }
+    }
 
     let chain = match context.inside.lock().chain.clone() {
         Some(a) => a,

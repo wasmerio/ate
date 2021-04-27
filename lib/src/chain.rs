@@ -167,7 +167,7 @@ impl ChainProtectedAsync
             {
                 let header = evt.as_header()?;
 
-                #[cfg(verbose)]
+                #[cfg(feature = "verbose")]
                 debug!("chain::evt[key={}]", header.meta.get_data_key().map_or_else(|| "none".to_string(), |h| h.to_string()));
 
                 match sync.validate_event(&header, conversation) {

@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-use log::{error, info, debug};
+use log::{error, info, warn, debug};
 
 use super::crypto::*;
 use super::signature::*;
@@ -73,13 +73,15 @@ impl TreeAuthorityPlugin
                 );
             }
         };
+        #[cfg(feature = "verbose")]
+        debug!("compute_auth(): key={}", key);
 
         // Get the authorization of this node itself (if its post phase)
         let mut auth = match phase {
             ComputePhase::BeforeStore => None,
             ComputePhase::AfterStore => meta.get_authorization(),
         };
-
+        
         // In the scenarios that this is before the record is saved or
         // if no authorization is attached to the record then we fall
         // back to whatever is the value in the existing chain of trust
@@ -96,6 +98,8 @@ impl TreeAuthorityPlugin
             Some(a) => (a.read.clone(), a.write.clone()),
             None => (ReadOption::Inherit, WriteOption::Inherit),
         };
+        #[cfg(feature = "verbose")]
+        debug!("compute_auth(): read={}, write={}", read, write);
 
         // Resolve any inheritance through recursive queries
         let mut parent = meta.get_parent();
@@ -107,6 +111,8 @@ impl TreeAuthorityPlugin
                     Some(a) => a.vec.parent_id,
                     None => unreachable!(),
                 };
+                #[cfg(feature = "verbose")]
+                debug!("compute_auth(): parent={}", parent);
 
                 // Get the authorization for this parent (if there is one)
                 let mut parent_auth = trans_meta.auth.get(&parent);
@@ -116,6 +122,8 @@ impl TreeAuthorityPlugin
                 let parent_auth = match parent_auth {
                     Some(a) => a,
                     None => {
+                        #[cfg(feature = "verbose")]
+                        debug!("compute_auth(): missing_parent={}", parent);
                         return Err(TrustError::MissingParent(parent));
                     }
                 };
@@ -128,6 +136,9 @@ impl TreeAuthorityPlugin
                 if write == WriteOption::Inherit {
                     write = parent_auth.write.clone();
                 }
+
+                #[cfg(feature = "verbose")]
+                debug!("compute_auth(): read={}, write={}", read, write);
             }
 
             // Walk up the tree until we have a resolved inheritance or there are no more parents
@@ -154,6 +165,9 @@ impl TreeAuthorityPlugin
         if write == WriteOption::Inherit {
             write = self.root.clone();
         }
+        #[cfg(feature = "verbose")]
+        debug!("compute_auth(): read={}, write={}", read, write);
+
         let auth = MetaAuthorization {
             read,
             write,
@@ -296,7 +310,7 @@ for TreeAuthorityPlugin
         }
 
         // If it has data then we need to check it - otherwise we ignore it
-        let hash = match header.raw.data_hash {
+        let data_hash = match header.raw.data_hash {
             Some(a) => DoubleHash::from_hashes(&header.raw.meta_hash, &a).hash(),
             None => header.raw.meta_hash.clone()
         };
@@ -311,7 +325,7 @@ for TreeAuthorityPlugin
         }
         
         // Make sure that it has a signature
-        let verified_signatures = match self.signature_plugin.get_verified_signatures(&hash) {
+        let verified_signatures = match self.signature_plugin.get_verified_signatures(&data_hash) {
             Some(a) => a,
             None =>
             {
@@ -347,13 +361,22 @@ for TreeAuthorityPlugin
         let auth_write = auth.write.vals();
         for hash in verified_signatures.iter() {
             if auth_write.contains(hash) {
+                //debug!("- verified data ({}) with ({})", header.meta.get_data_key().unwrap(), hash);
                 return Ok(ValidationResult::Allow);
             }
         }
 
         // If we get this far then any data events must be denied
         // as all the other possible routes for it to be accepted into the tree have failed
-        debug!("rejected event as it is detached from the tree");
+        #[cfg(feature = "verbose")]
+        {
+            warn!("rejected event as it is detached from the tree with auth.write = ({})", auth.write);
+            for hash in verified_signatures.iter() {
+                warn!("- supplied hash signature ({})", hash);
+            }
+        }
+        #[cfg(not(feature = "verbose"))]
+        warn!("rejected event as it is detached from the tree");
         Err(ValidationError::Detached)
     }
 

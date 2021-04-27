@@ -205,10 +205,34 @@ pub struct MetaCollection
     pub collection_id: u64,
 }
 
+impl std::fmt::Display
+for MetaCollection
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.parent_id)?;
+        if self.collection_id > 1 {
+            write!(f, ".{}", self.collection_id)?;
+        }
+        Ok(())
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct MetaParent
 {
     pub vec: MetaCollection,
+}
+
+impl std::fmt::Display
+for MetaParent
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.vec.parent_id)?;
+        if self.vec.collection_id > 1 {
+            write!(f, ".{}", self.vec.collection_id)?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -217,10 +241,26 @@ pub struct MetaTimestamp
     pub time_since_epoch_ms: u64,
 }
 
+impl std::fmt::Display
+for MetaTimestamp
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}ms", self.time_since_epoch_ms)
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MetaType
 {
     pub type_name: String,
+}
+
+impl std::fmt::Display
+for MetaType
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.type_name)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -231,12 +271,34 @@ pub struct MetaDelayedUpload
     pub to: Hash,
 }
 
+impl std::fmt::Display
+for MetaDelayedUpload
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "from-{}-to-{}", self.from, self.to)?;
+        if self.complete {
+            write!(f, "-complete")?;
+        } else {
+            write!(f, "-incomplete")?;
+        }
+        Ok(())
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MetaConfidentiality
 {
     pub hash: ShortHash,
     #[serde(skip)]
     pub _cache: Option<ReadOption>,
+}
+
+impl std::fmt::Display
+for MetaConfidentiality
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.hash)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -267,10 +329,54 @@ impl Default for CoreMetadata {
     }
 }
 
+impl std::fmt::Display
+for CoreMetadata
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CoreMetadata::None => write!(f, "none"),
+            CoreMetadata::Data(a) => write!(f, "data-{}", a),
+            CoreMetadata::Tombstone(a) => write!(f, "tombstone-{}", a),
+            CoreMetadata::Authorization(a) => write!(f, "auth({})", a),
+            CoreMetadata::InitializationVector(a) => write!(f, "iv({})", a),
+            CoreMetadata::PublicKey(a) => write!(f, "public_key({})", a.hash()),
+            CoreMetadata::EncryptedPrivateKey(a) => write!(f, "encrypt_private_key({})", a.as_public_key().hash()),
+            CoreMetadata::Confidentiality(a) => write!(f, "confidentiality-{}", a),
+            CoreMetadata::Collection(a) => write!(f, "collection-{}", a ),
+            CoreMetadata::Parent(a) => write!(f, "parent-{}", a),
+            CoreMetadata::Timestamp(a) => write!(f, "timestamp-{}", a),
+            CoreMetadata::Signature(a) => write!(f, "signature-{}", a),
+            CoreMetadata::SignWith(a) => write!(f, "sign_with({})", a),
+            CoreMetadata::Author(a) => write!(f, "author-{}", a),
+            CoreMetadata::Type(a) => write!(f, "type-{}", a),
+            CoreMetadata::Reply(a) => write!(f, "reply-{}", a),
+            CoreMetadata::DelayedUpload(a) => write!(f, "delayed_upload-{}", a),
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Default, Clone)]
 pub struct Metadata
 {
     pub core: Vec<CoreMetadata>,
+}
+
+impl std::fmt::Display
+for Metadata
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut first = true;
+        write!(f, "meta[")?;
+        for core in self.core.iter() {
+            if first {
+                first = false;
+            } else {
+                write!(f, ",")?;
+            }
+            core.fmt(f)?;
+        }
+        write!(f, "]")
+    }
 }
 
 impl Metadata

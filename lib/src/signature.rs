@@ -30,10 +30,44 @@ pub struct MetaSignature
     pub public_key_hash: Hash,
 }
 
+impl std::fmt::Display
+for MetaSignature
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut first = true;
+        for hash in self.hashes.iter() {
+            if first {
+                first = false;
+            } else {
+                write!(f, "+")?;
+            }
+            write!(f, "{}", hash)?;
+        }
+        write!(f, "={}", self.public_key_hash)
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MetaSignWith
 {
     pub keys: Vec<Hash>,
+}
+
+impl std::fmt::Display
+for MetaSignWith
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut first = true;
+        for key in self.keys.iter() {
+            if first {
+                first = false;
+            } else {
+                write!(f, ",")?;
+            }
+            write!(f, "{}", key)?;
+        }
+        Ok(())
+    }
 }
 
 #[derive(Debug, Clone)]

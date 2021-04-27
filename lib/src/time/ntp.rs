@@ -420,10 +420,10 @@ pub(crate) async fn query_ntp_retry(pool: &String, port: u16, tolerance_ms: u32,
             None => Duration::from_millis(tolerance_ms as u64),
         };
 
-        #[cfg(verbose)]
+        #[cfg(feature = "verbose")]
         debug!("ntp request timeout={}ms", timeout.as_millis());
         if let Ok(ret) = request(pool.as_str(), port, timeout).await {
-            #[cfg(verbose)]
+            #[cfg(feature = "verbose")]
             debug!("ntp response roundtrip={}, offset={}", ret.roundtrip, ret.offset);
 
             let current_ping = match &best {
