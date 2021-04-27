@@ -26,6 +26,10 @@ impl AuthService
     pub async fn process_group_user_remove<'a>(&self, request: GroupUserRemoveRequest, context: InvocationContext<'a>) -> Result<GroupUserRemoveResponse, ServiceError<GroupUserRemoveFailed>>
     {
         info!("group ({}) user remove", request.group);
+
+        // Copy the request session
+        let request_purpose = request.purpose;
+        let request_session = request.session;
         
         // Compute which chain the group should exist within
         let group_chain_key = auth_chain_key("auth".to_string(), &request.group);
@@ -33,7 +37,7 @@ impl AuthService
 
         // Create the super session that has all the rights we need
         let mut super_session = self.master_session.clone();
-        super_session.append(request.session.clone());
+        super_session.append(request_session.clone());
 
         // Load the group
         let group_key = PrimaryKey::from(request.group.clone());
@@ -52,20 +56,15 @@ impl AuthService
         };
 
         // Determine what role is needed to adjust the group
-        let needed_role = match request.purpose {
+        let needed_role = match request_purpose {
             RolePurpose::Owner => RolePurpose::Owner,
             RolePurpose::Delegate => RolePurpose::Owner,
             _ => RolePurpose::Delegate
         };
 
         // Extract the controlling role as this is what we will use to create the role
-        let delegate_write = match request.session
-            .get_group_role(&request.group, &needed_role)
-            .iter()
-            .flat_map(|r| r.private_read_keys())
-            .next()
-        {
-            Some(a) => a.clone(),
+        let (delegate_write, _request_session) = match AuthService::get_delegate_write(request_session, group.deref(), needed_role)? {
+            Some((a, b)) => (a, b),
             None => {
                 return Err(ServiceError::Reply(GroupUserRemoveFailed::NoAccess));
             }
@@ -73,7 +72,7 @@ impl AuthService
         let delegate_write_hash = delegate_write.as_public_key().hash();
 
         // Get the group role
-        let role = match group.roles.iter_mut().filter(|r| r.purpose == request.purpose).next() {
+        let role = match group.roles.iter_mut().filter(|r| r.purpose == request_purpose).next() {
             Some(a) => a,
             None => {
                 return Err(ServiceError::Reply(GroupUserRemoveFailed::RoleNotFound));
