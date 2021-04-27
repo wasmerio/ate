@@ -1,33 +1,4 @@
 ```
-bugs   Found Bugs
-       D+ Modified files are still showing zeros at the end
-       D+ Changing the permissions on a parent is not reflected in the children as inherited
-       D  rows that are encrypted do not automatically gain the new keys of the parent. Will
-       D  need to store a read-key in the parent which the children use when they are in
-       D  inheritance mode
-       D+ Still need to fix the writing actions when a user attempts to change an object
-       D+ Fixed a bug where files opened with truncate flag were not actually truncating
-       D+ Fixed a bug where parents were not inheriting permissions properly when the parent
-       D  tree exceeded 1 levels
-       D+ Fixed a major bug which was causing events to be sent to all other connections on
-       D  the ATE servers even if they were for other chains!
-
-0.5.1  Group access rights
-       D+ AteAuth requires group access rights that also get added to the token
-       D+ Connect up the 'chmod' commands to real commands in AteAuth so that
-       D  actual ATE data object access rights reflect the linux permissions
-       D+ All users and groups should be contained to primary keys within 32bits so
-       D  that they work with uid and gid with the highest bit set.
-       D+ Lists files and folders should ignore those that you do not have access to
-       D  rather than throwing an error
-       D+ File-systems should record the correct uid and gid within ATE but change it
-       D  to the actual user when mounted if it matches. Using the chown command
-       D  should allow the object to be given to other users and other groups.
-        + Changing the access rights from a private group to everyone should then
-          allow the data to be read by everyone without having to resave all the data
-        + When attempting to access a group that is not this group it should attempt
-          to get the latest permissions from the authentication server.
-
 0.5.2   Compacting chains
         + AteDb should periodically compact itself without breaking things
         + Events that are streamed to a compacted chain that predate the

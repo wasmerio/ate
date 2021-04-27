@@ -91,43 +91,37 @@ This library is a way of working with data in modern distributed computing.
 ## Changelog
 
 ```
-0.5.0 - Implemented clientside resync functionality
-        + This new release (which is not backwards compatible) makes a significant
-          improvement on the recovery mechanisms. When a client disconnects from
-          the server and makes local writes, those writes will be stored locally and
-          then reuploaded to the chain-of-trust merged in with the changes other
-          clients have made when it reconnects. This means clients can now
-          run in a disconnected state for a prolonged period of time as long and
-          remain consistent.
-0.4.1 - Incremental release focused on improving stability and recovery
-        + Clients will now automatically reconnect using an exponential backoff
-        + Added recovery mode settings on the AteFS implementation which shows
-          how to operate ATE in both async and sync modes with different failure
-          behaviours.
-        + Ate chains can now be configured in 'distributed' or 'centralized' trust
-          modes so that a wider range of use-cases can be met
-        + Updates the AteDB documentation and added more commandline arguments
-0.4.0 - Passed the milestone of a fully authenticated and encrypted remote database
-        + Ate now has a fully functional command pattern that allows for RPC
-        + Authentication server with multi-factor auth is functional
-        + AteDB integrated with the authentication so all chains are owned by a user
-        + AteFS upgraded so that it supports full authentication and confidentiality
-        + Refactored the API so that users make less mistakes
-        + Added high performance write validation using centralized logs
-        + Major performance boost by optimizing a disk sync point
-0.3.5 - Finished the basics of the authentication server logic
-0.3.4 - Added error handling to the invocation function and fixed some serious bugs
-0.3.3 - Slight refactoring in order to improve the service invocation functionality
-0.3.2 - Added beta service invocation functionality - see the new example
-0.3.1 - AteDB is now functional allowing AteFS to store its files in the replicated
-        redo log, also this helped find and solve a whole bunch of bugs.
-0.3.0 - New API changes to cater for future releases with many fixes for critical bugs
-        + Improvements to the log file format to support forward compatibility
-        + Added wire encryption as another layer of defence using perfect-forward-secrecy
-        + Modified the hash routines to reduce changes of collisions on key generation
-        + Many bug fixes and performance optimizations
-0.2.* - Alpha version with API changes
-0.1.* - Alpha version with basic functionality and free bugs
+0.6.0  -= Group access rights =-
+       + Authentication server now has full group membership support with various
+         roles and permission functionality - see auth-tools for details!
+       + AteFS now mirrors the chain-of-trust permissions and encryption keys with
+         the 'chmod' linux permissions allowing users to easily protect their data
+         but share securely with others
+       + Lists files and folders should ignore those that you do not have access to
+         rather than throwing an error, this means you can partially access file
+         systems you only have moderate access to.
+       + File-systems should record the correct uid and gid within ATE but change it
+         to the actual user when mounted if it matches. Using the chown command
+         should allow the object to be given to other users and other groups.
+       
+       -= Bug Fixes =-
+       + Changing the access rights from a private group to everyone should then
+         allow the data to be read by everyone without having to resave all the data.
+         Effectively this is automatic key-rotation.
+       + When attempting to access a group that is not this group AteFS will now
+         automatically gather the permissions it needs from the authentication server.
+       + Modified files no longer show zeros at the end of the file without actually
+         writing the data itself.
+       + Changing the permissions on a parent was not reflected in the children as inherited
+         rows that are encrypted did not automatically gain the new keys of the parent. Will
+         need to store a read-key in the parent which the children use when they are in
+         inheritance mode
+       + Fixed a bug where files opened with truncate flag were not actually truncating
+       + Fixed a major bug where parents were not inheriting permissions properly when the
+         parent tree exceeded 1 levels in the chain-of-trust.
+       + Fixed a major bug which was causing events to be sent to all other connections on
+         the ATE servers even if they were for other chains!
+<=0.5.0 See commit history
 ```
 
 ## High Level Design
@@ -161,7 +155,7 @@ Add ate, serde and tokio to your dependency list in Cargo.toml
 [dependencies]
 tokio = { version = "*", features = ["full", "signal", "process"] }
 serde = { version = "*", features = ["derive"] }
-ate = "*"
+ate = { version = "*", features = ["all"] }
 ```
 
 Create a main.rs file
