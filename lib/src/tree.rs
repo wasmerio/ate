@@ -432,16 +432,15 @@ for TreeAuthorityPlugin
                         .map(|p| p.hash())
                         .next();
                 if ret.is_none() {
-                    ret = session.read_keys()
+                    ret = session.private_read_keys()
                         .filter(|p| p.hash() == *read_hash)
-                        .filter_map(|p| derived.transmute(p).ok())
+                        .filter_map(|p| derived.transmute_private(p).ok())
                         .map(|p| p.hash())
                         .next();
                 }
                 ret
             },
-            ReadOption::Inherit => None,
-            ReadOption::Everyone(key) => key.map(|k| k.hash()),
+            _ => None,
         };
         ret.push(CoreMetadata::Confidentiality(MetaConfidentiality {
             auth: auth.read,
