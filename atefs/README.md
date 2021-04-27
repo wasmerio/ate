@@ -75,6 +75,9 @@ cargo install atefs
 ## Manual
 
 ```
+atefs 1.3
+John S. <johnathan.sharratt@gmail.com>
+
 USAGE:
     atefs [FLAGS] [OPTIONS] <SUBCOMMAND>
 
@@ -117,70 +120,96 @@ OPTIONS:
 
 
 SUBCOMMANDS:
-    create-token    Logs into the authentication server using the supplied credentials
-    create-user     Creates a new user and login credentials on the authentication server
-    help            Prints this message or the help of the given subcommand(s)
-    mount           Mounts a particular directory as an ATE file system
+    group    Groups are collections of users that share same remote file system
+    help     Prints this message or the help of the given subcommand(s)
+    mount    Mounts a local or remote file system
+    token    Tokens are needed to mount file systems without prompting for credentials
+    user     Users are needed to access any remote file systems
 
 --------------------------------------------------------------------------
 
-Creates a new user and login credentials on the authentication server
+Users are needed to access any remote file systems
 
 USAGE:
-    atefs create-user <email> [password]
-
-ARGS:
-    <email>       Email address of the user to be created
-    <password>    New password to be associated with this account
+    atefs user <SUBCOMMAND>
 
 FLAGS:
     -h, --help       Prints help information
     -V, --version    Prints version information
 
+SUBCOMMANDS:
+    create     Creates a new user and generates login credentials
+    details    Returns all the details about a specific user
+    help       Prints this message or the help of the given subcommand(s)
+
 --------------------------------------------------------------------------
 
-Logs into the authentication server using the supplied credentials
+Groups are collections of users that share same remote file system
 
 USAGE:
-    atefs create-token <email> [ARGS]
-
-ARGS:
-    <email>       Email address that you wish to login using
-    <password>    Password associated with this account
-    <code>        Authenticator code from your google authenticator
+    atefs group <SUBCOMMAND>
 
 FLAGS:
     -h, --help       Prints help information
     -V, --version    Prints version information
 
+SUBCOMMANDS:
+    add-user       Adds another user to an existing group
+    create         Creates a new group
+    details        Display the details about a particular group (token is required to see role
+                   membership)
+    help           Prints this message or the help of the given subcommand(s)
+    remove-user    Removes a user from an existing group
+
 --------------------------------------------------------------------------
 
-Mounts a particular directory as an ATE file system
+Tokens are needed to mount file systems without prompting for credentials
+
+USAGE:
+    atefs token <SUBCOMMAND>
+
+FLAGS:
+    -h, --help       Prints help information
+    -V, --version    Prints version information
+
+SUBCOMMANDS:
+    gather      Gather the permissions needed to access a specific group into the token using
+                either another supplied token or the prompted credentials
+    generate    Generate a token with normal permissions from the supplied username and password
+    help        Prints this message or the help of the given subcommand(s)
+    sudo        Generate a token with extra permissions with elevated rights to modify groups
+                and other higher risk actions
+
+--------------------------------------------------------------------------
+
+Mounts a local or remote file system
 
 USAGE:
     atefs mount [FLAGS] [OPTIONS] <mount-path> [ARGS]
 
 ARGS:
     <mount-path>    Path to directory that the file system will be mounted at
-    <log-path>      Location of the persistent redo log [default: ~/ate/fs]
     <remote>        URL where the data is remotely stored on a distributed commit log (e.g.
-                    tcp://ate.tokera.com/myfs). If this URL is not specified then data will only
-                    be stored locally
+                    tcp://ate.tokera.com/). If this URL is not specified then data will only be
+                    stored locally
+    <log-path>      Location of the persistent redo log [default: ~/ate/fs]
 
 FLAGS:
-        --allow-other    Allow other users on the machine to have access to this file system
-        --allow-root     Allow the root user to have access to this file system
-    -h, --help           Prints help information
-        --non-empty      Allow fuse filesystem mount on a non-empty directory, default is not
-                         allowed
-    -r, --read-only      Mount the file system in readonly mode (`ro` mount option), default is
-                         disable
-        --temp           Local redo log file will be deleted when the file system is unmounted,
-                         remotely stored data on any distributed commit log will be persisted.
-                         Effectively this setting only uses the local disk as a cache of the redo-
-                         log while it's being used
-    -V, --version        Prints version information
-    -w, --write-back     Enable write back cache for buffered writes, default is disable
+        --allow-other        Allow other users on the machine to have access to this file system
+        --allow-root         Allow the root user to have access to this file system
+    -h, --help               Prints help information
+    -i, --impersonate-uid    For files and directories that the authenticated user owns, translate
+                             the UID and GID to the local machine ids instead of the global ones
+        --non-empty          Allow fuse filesystem mount on a non-empty directory, default is not
+                             allowed
+    -r, --read-only          Mount the file system in readonly mode (`ro` mount option), default is
+                             disable
+        --temp               Local redo log file will be deleted when the file system is unmounted,
+                             remotely stored data on any distributed commit log will be persisted.
+                             Effectively this setting only uses the local disk as a cache of the
+                             redo-log while it's being used
+    -V, --version            Prints version information
+    -w, --write-back         Enable write back cache for buffered writes, default is disable
 
 OPTIONS:
         --configured-for <configured-for>
