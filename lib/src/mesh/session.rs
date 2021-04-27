@@ -928,7 +928,7 @@ impl ActiveSessionPipe
         }
 
         // Send a message up to the main server asking for an unlock on the data object
-        self.tx.send(MessageChain {
+        self.tx.send(ChainMessage {
             chain: Some(self.key.clone()),
             msg: Message::Unlock {
                 key: key.clone(),
