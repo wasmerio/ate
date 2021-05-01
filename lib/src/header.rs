@@ -3,7 +3,7 @@ use serde::{Serialize, Deserialize};
 #[allow(unused_imports)]
 use fastrand::u64;
 use std::{mem::size_of};
-use crate::crypto::Hash;
+use crate::crypto::AteHash;
 #[allow(unused_imports)]
 use super::meta::*;
 
@@ -59,7 +59,7 @@ impl PrimaryKey {
         self.key
     }
 
-    pub fn from_ext(val: Hash, min: u64, max: u64) -> PrimaryKey {
+    pub fn from_ext(val: AteHash, min: u64, max: u64) -> PrimaryKey {
         let v = val.val;
         let bytes = [v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7]];
 
@@ -71,10 +71,10 @@ impl PrimaryKey {
     }
 }
 
-impl From<Hash>
+impl From<AteHash>
 for PrimaryKey
 {
-    fn from(val: Hash) -> PrimaryKey {
+    fn from(val: AteHash) -> PrimaryKey {
         let v = val.val;
         let bytes = [v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7]];
         PrimaryKey {
@@ -87,7 +87,7 @@ impl From<String>
 for PrimaryKey
 {
     fn from(val: String) -> PrimaryKey {
-        PrimaryKey::from(Hash::from(val))
+        PrimaryKey::from(AteHash::from(val))
     }
 }
 
@@ -95,7 +95,7 @@ impl From<&'static str>
 for PrimaryKey
 {
     fn from(val: &'static str) -> PrimaryKey {
-        PrimaryKey::from(Hash::from(val))
+        PrimaryKey::from(AteHash::from(val))
     }
 }
 

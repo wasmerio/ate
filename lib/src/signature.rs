@@ -4,9 +4,9 @@ use multimap::MultiMap;
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use fxhash::FxHashMap;
 #[allow(unused_imports)]
-use crate::crypto::{EncryptedPrivateKey, Hash, DoubleHash, PublicSignKey};
+use crate::crypto::{EncryptedPrivateKey, AteHash, DoubleHash, PublicSignKey};
 #[allow(unused_imports)]
-use crate::session::{Session, SessionProperty};
+use crate::session::{AteSession, AteSessionProperty};
 
 use super::validator::EventValidator;
 use super::lint::EventMetadataLinter;
@@ -25,9 +25,9 @@ use super::transaction::*;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MetaSignature
 {
-    pub hashes: Vec<Hash>,
+    pub hashes: Vec<AteHash>,
     pub signature: Vec<u8>,
-    pub public_key_hash: Hash,
+    pub public_key_hash: AteHash,
 }
 
 impl std::fmt::Display
@@ -50,7 +50,7 @@ for MetaSignature
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MetaSignWith
 {
-    pub keys: Vec<Hash>,
+    pub keys: Vec<AteHash>,
 }
 
 impl std::fmt::Display
@@ -73,8 +73,8 @@ for MetaSignWith
 #[derive(Debug, Clone)]
 pub struct SignaturePlugin
 {
-    pk: FxHashMap<Hash, PublicSignKey>,
-    sigs: MultiMap<Hash, Hash>,
+    pk: FxHashMap<AteHash, PublicSignKey>,
+    sigs: MultiMap<AteHash, AteHash>,
     integrity: IntegrityMode,
 }
 
@@ -90,7 +90,7 @@ impl SignaturePlugin
     }
 
     #[allow(dead_code)]
-    pub fn get_verified_signatures(&self, data_hash: &Hash) -> Option<&Vec<Hash>>
+    pub fn get_verified_signatures(&self, data_hash: &AteHash) -> Option<&Vec<AteHash>>
     {
         match self.sigs.get_vec(data_hash) {
             Some(a) => Some(a),
@@ -99,7 +99,7 @@ impl SignaturePlugin
     }
 
     #[allow(dead_code)]
-    pub fn has_public_key(&self, key_hash: &Hash) -> bool
+    pub fn has_public_key(&self, key_hash: &AteHash) -> bool
     {
         self.pk.contains_key(&key_hash)
     }
@@ -131,7 +131,7 @@ for SignaturePlugin
                     };
 
                     let hashes_bytes: Vec<u8> = sig.hashes.iter().flat_map(|h| { Vec::from(h.val).into_iter() }).collect();
-                    let hash_of_hashes = Hash::from_bytes(&hashes_bytes[..]);
+                    let hash_of_hashes = AteHash::from_bytes(&hashes_bytes[..]);
                     let result = match pk.verify(&hash_of_hashes.val[..], &sig.signature[..]) {
                         Ok(r) => r,
                         Err(err) => { return Result::Err(SinkError::InvalidSignature { hash: sig.public_key_hash, err: Some(err) }); },
@@ -187,7 +187,7 @@ for SignaturePlugin
         Box::new(self.clone())
     }
 
-    fn metadata_lint_many<'a>(&self, raw: &Vec<LintData<'a>>, session: &Session, conversation: Option<&Arc<ConversationSession>>) -> Result<Vec<CoreMetadata>, LintError>
+    fn metadata_lint_many<'a>(&self, raw: &Vec<LintData<'a>>, session: &AteSession, conversation: Option<&Arc<ConversationSession>>) -> Result<Vec<CoreMetadata>, LintError>
     {
         // If there is no data then we are already done
         let mut ret = Vec::new();
@@ -242,7 +242,7 @@ for SignaturePlugin
                 .iter()
                 .flat_map(|h| { Vec::from(h.clone().val).into_iter() })
                 .collect::<Vec<_>>();
-            let hash_of_hashes = Hash::from_bytes(&hashes_bytes[..]);
+            let hash_of_hashes = AteHash::from_bytes(&hashes_bytes[..]);
             
             // Add the public key side into the chain-of-trust if it is not present yet
             if let None = self.pk.get(&auth) {

@@ -18,7 +18,7 @@ use ate::dio::DaoObjReal;
 use ate::error::*;
 use ate::chain::*;
 use ate::crypto::*;
-use ate::session::Session as AteSession;
+use ate::session::AteSession;
 use ate::header::PrimaryKey;
 use ate::prelude::AteHash;
 use ate::prelude::AteSessionProperty;

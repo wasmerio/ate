@@ -24,7 +24,7 @@ use crate::error::*;
 use crate::lint::*;
 
 use crate::crypto::{EncryptedPrivateKey, PrivateSignKey};
-use crate::{crypto::EncryptKey, session::{Session, SessionProperty}};
+use crate::{crypto::EncryptKey, session::{AteSession, AteSessionProperty}};
 
 #[derive(Debug)]
 pub(crate) struct DioState
@@ -116,8 +116,8 @@ where Self: Send + Sync
 {
     pub(super) multi: ChainMultiUser,
     pub(super) state: DioState,
-    pub(super) session: &'a Session,
-    pub(super) scope: Scope,
+    pub(super) session: &'a AteSession,
+    pub(super) scope: TransactionScope,
     pub(super) conversation: Option<Arc<ConversationSession>>,
 }
 
@@ -422,12 +422,12 @@ impl<'a> Dio<'a>
 impl Chain
 {
     #[allow(dead_code)]
-    pub async fn dio<'a>(&'a self, session: &'a Session) -> Dio<'a> {
-        self.dio_ext(session, Scope::Local).await
+    pub async fn dio<'a>(&'a self, session: &'a AteSession) -> Dio<'a> {
+        self.dio_ext(session, TransactionScope::Local).await
     }
 
     #[allow(dead_code)]
-    pub async fn dio_ext<'a>(&'a self, session: &'a Session, scope: Scope) -> Dio<'a> {
+    pub async fn dio_ext<'a>(&'a self, session: &'a AteSession, scope: TransactionScope) -> Dio<'a> {
         let multi = self.multi().await;
         Dio {
             state: DioState::new(),

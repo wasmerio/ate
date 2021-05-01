@@ -7,7 +7,7 @@ use fxhash::FxHashSet;
 use std::sync::Arc;
 use parking_lot::RwLock as StdRwLock;
 
-use super::crypto::Hash as AteHash;
+use super::crypto::AteHash;
 use super::event::*;
 use super::error::*;
 use super::meta::*;
@@ -20,7 +20,7 @@ use super::mesh::MeshSession;
 /// method it will push the data into the redo log following one
 /// of the behaviours defined in this enum.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum Scope
+pub enum TransactionScope
 {
     /// The thread will not wait for any data storage confirmation
     #[allow(dead_code)]
@@ -51,7 +51,7 @@ impl ConversationSession {
 #[derive(Debug, Clone)]
 pub(crate) struct Transaction
 {
-    pub(crate) scope: Scope,
+    pub(crate) scope: TransactionScope,
     pub(crate) transmit: bool,
     pub(crate) events: Vec<EventData>,
     pub(crate) conversation: Option<Arc<ConversationSession>>,
@@ -60,7 +60,7 @@ pub(crate) struct Transaction
 impl Transaction
 {
     #[allow(dead_code)]
-    pub(crate) fn from_events(events: Vec<EventData>, scope: Scope, transmit: bool) -> Transaction
+    pub(crate) fn from_events(events: Vec<EventData>, scope: TransactionScope, transmit: bool) -> Transaction
     {
         Transaction {
             scope,

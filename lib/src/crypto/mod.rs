@@ -331,11 +331,11 @@ impl EncryptKey {
         }
     }
 
-    pub fn hash(&self) -> Hash {
+    pub fn hash(&self) -> AteHash {
         match &self {
-            EncryptKey::Aes128(a) => Hash::from_bytes(a),
-            EncryptKey::Aes192(a) => Hash::from_bytes(a),
-            EncryptKey::Aes256(a) => Hash::from_bytes(a),
+            EncryptKey::Aes128(a) => AteHash::from_bytes(a),
+            EncryptKey::Aes192(a) => AteHash::from_bytes(a),
+            EncryptKey::Aes256(a) => AteHash::from_bytes(a),
         }
     }
 
@@ -408,30 +408,30 @@ pub struct EncryptResult {
 /// that it can be used for integrity but small enough that it does not bloat
 /// the redo log metadata.
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq, Ord, PartialOrd)]
-pub struct Hash {
+pub struct AteHash {
     pub val: [u8; 16]
 }
 
-impl Hash {
-    pub fn from_bytes(input: &[u8]) -> Hash {
+impl AteHash {
+    pub fn from_bytes(input: &[u8]) -> AteHash {
         Self::from_bytes_by_routine(input, crate::HASH_ROUTINE)
     }
-    pub fn from_bytes_twice(input1: &[u8], input2: &[u8]) -> Hash {
+    pub fn from_bytes_twice(input1: &[u8], input2: &[u8]) -> AteHash {
         Self::from_bytes_twice_by_routine(input1, input2, crate::HASH_ROUTINE)
     }
-    fn from_bytes_by_routine(input: &[u8], routine: HashRoutine) -> Hash {
+    fn from_bytes_by_routine(input: &[u8], routine: HashRoutine) -> AteHash {
         match routine {
-            HashRoutine::Blake3 => Hash::from_bytes_blake3(input),
-            HashRoutine::Sha3 => Hash::from_bytes_sha3(input, 1),
+            HashRoutine::Blake3 => AteHash::from_bytes_blake3(input),
+            HashRoutine::Sha3 => AteHash::from_bytes_sha3(input, 1),
         }
     }
-    fn from_bytes_twice_by_routine(input1: &[u8], input2: &[u8], routine: HashRoutine) -> Hash {
+    fn from_bytes_twice_by_routine(input1: &[u8], input2: &[u8], routine: HashRoutine) -> AteHash {
         match routine {
-            HashRoutine::Blake3 => Hash::from_bytes_twice_blake3(input1, input2),
-            HashRoutine::Sha3 => Hash::from_bytes_twice_sha3(input1, input2),
+            HashRoutine::Blake3 => AteHash::from_bytes_twice_blake3(input1, input2),
+            HashRoutine::Sha3 => AteHash::from_bytes_twice_sha3(input1, input2),
         }
     }
-    pub fn from_bytes_sha3(input: &[u8], repeat: i32) -> Hash {
+    pub fn from_bytes_sha3(input: &[u8], repeat: i32) -> AteHash {
         let mut hasher = sha3::Keccak384::new();
         for _ in 0..repeat {
             hasher.update(input);
@@ -444,11 +444,11 @@ impl Hash {
             .try_into()
             .expect("The hash should fit into 16 bytes!");
 
-        Hash {
+        AteHash {
             val: result,
         }
     }
-    fn from_bytes_twice_sha3(input1: &[u8], input2: &[u8]) -> Hash {
+    fn from_bytes_twice_sha3(input1: &[u8], input2: &[u8]) -> AteHash {
         let mut hasher = sha3::Keccak384::new();
         hasher.update(input1);
         hasher.update(input2);
@@ -460,25 +460,25 @@ impl Hash {
             .try_into()
             .expect("The hash should fit into 16 bytes!");
 
-        Hash {
+        AteHash {
             val: result,
         }
     }
-    pub fn from_bytes_blake3(input: &[u8]) -> Hash {
+    pub fn from_bytes_blake3(input: &[u8]) -> AteHash {
         let result: [u8; 32] = blake3::hash(input).into();
-        let mut ret = Hash {
+        let mut ret = AteHash {
             val: Default::default(),
         };
         ret.val.copy_from_slice(&result[..16]);
         ret
     }
 
-    fn from_bytes_twice_blake3(input1: &[u8], input2: &[u8]) -> Hash {
+    fn from_bytes_twice_blake3(input1: &[u8], input2: &[u8]) -> AteHash {
         let mut hasher = blake3::Hasher::new();
         hasher.update(input1);
         hasher.update(input2);
         let result: [u8; 32] = hasher.finalize().into();
-        let mut ret = Hash {
+        let mut ret = AteHash {
             val: Default::default(),
         };
         ret.val.copy_from_slice(&result[..16]);
@@ -505,30 +505,30 @@ impl Hash {
 }
 
 impl From<String>
-for Hash
+for AteHash
 {
-    fn from(val: String) -> Hash {
-        Hash::from_bytes(val.as_bytes())
+    fn from(val: String) -> AteHash {
+        AteHash::from_bytes(val.as_bytes())
     }
 }
 
 impl From<&'static str>
-for Hash
+for AteHash
 {
-    fn from(val: &'static str) -> Hash {
-        Hash::from(val.to_string())
+    fn from(val: &'static str) -> AteHash {
+        AteHash::from(val.to_string())
     }
 }
 
 impl From<u64>
-for Hash
+for AteHash
 {
-    fn from(val: u64) -> Hash {
-        Hash::from_bytes(&val.to_be_bytes())
+    fn from(val: u64) -> AteHash {
+        AteHash::from_bytes(&val.to_be_bytes())
     }
 }
 
-impl std::fmt::Display for Hash {
+impl std::fmt::Display for AteHash {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.to_string())
     }
@@ -669,21 +669,21 @@ impl std::fmt::Display for ShortHash {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, Hash, Eq, PartialEq)]
 pub(crate) struct DoubleHash {
-    hash1: Hash,
-    hash2: Hash,
+    hash1: AteHash,
+    hash2: AteHash,
 }
 
 impl DoubleHash {
     #[allow(dead_code)]
-    pub fn from_hashes(hash1: &Hash, hash2: &Hash) -> DoubleHash {
+    pub fn from_hashes(hash1: &AteHash, hash2: &AteHash) -> DoubleHash {
         DoubleHash {
             hash1: hash1.clone(),
             hash2: hash2.clone(),
         }
     }
 
-    pub fn hash(&self) -> Hash {
-        Hash::from_bytes_twice(&self.hash1.val[..], &self.hash2.val[..])
+    pub fn hash(&self) -> AteHash {
+        AteHash::from_bytes_twice(&self.hash1.val[..], &self.hash2.val[..])
     }
 }
 
@@ -903,10 +903,10 @@ impl PrivateSignKey
     }
 
     #[allow(dead_code)]
-    pub fn hash(&self) -> Hash {
+    pub fn hash(&self) -> AteHash {
         match &self {
-            PrivateSignKey::Falcon512 { pk, sk: _ } => Hash::from_bytes(&pk[..]),
-            PrivateSignKey::Falcon1024 { pk, sk: _ } => Hash::from_bytes(&pk[..]),
+            PrivateSignKey::Falcon512 { pk, sk: _ } => AteHash::from_bytes(&pk[..]),
+            PrivateSignKey::Falcon1024 { pk, sk: _ } => AteHash::from_bytes(&pk[..]),
         }
     }
 
@@ -990,10 +990,10 @@ impl PublicSignKey
     }
 
     #[allow(dead_code)]
-    pub fn hash(&self) -> Hash {
+    pub fn hash(&self) -> AteHash {
         match &self {
-            PublicSignKey::Falcon512 { pk } => Hash::from_bytes(&pk[..]),
-            PublicSignKey::Falcon1024 { pk } => Hash::from_bytes(&pk[..]),
+            PublicSignKey::Falcon512 { pk } => AteHash::from_bytes(&pk[..]),
+            PublicSignKey::Falcon1024 { pk } => AteHash::from_bytes(&pk[..]),
         }
     }
     
@@ -1030,7 +1030,7 @@ for PublicSignKey
 #[derive(Serialize, Deserialize, Debug, Clone, Hash, Eq, PartialEq)]
 pub struct EncryptedPrivateKey {
     pk: PublicSignKey,
-    ek_hash: Hash,
+    ek_hash: AteHash,
     sk_iv: InitializationVector,
     sk_encrypted: Vec<u8>
 }
@@ -1087,7 +1087,7 @@ impl EncryptedPrivateKey
     }
 
     #[allow(dead_code)]
-    pub fn pk_hash(&self) -> Hash {
+    pub fn pk_hash(&self) -> AteHash {
         self.pk.hash()
     }
 
@@ -1102,7 +1102,7 @@ pub struct EncryptedSecureData<T>
 where T: serde::Serialize + serde::de::DeserializeOwned
 {
     format: SerializationFormat,
-    ek_hash: Hash,
+    ek_hash: AteHash,
     sd_iv: InitializationVector,
     sd_encrypted: Vec<u8>,
     #[serde(skip)]
@@ -1139,7 +1139,7 @@ where T: serde::Serialize + serde::de::DeserializeOwned
         })
     }
 
-    pub fn ek_hash(&self) -> Hash {
+    pub fn ek_hash(&self) -> AteHash {
         self.ek_hash
     }
 }
@@ -1217,19 +1217,19 @@ where T: serde::Serialize + serde::de::DeserializeOwned
         }
     }
 
-    pub fn remove(&mut self, what: &Hash) -> bool {
+    pub fn remove(&mut self, what: &AteHash) -> bool {
         let index = what.to_hex_string();
         let ret = self.members.remove(&index).is_some();
         self.metadata.remove(&index);
         ret
     }
 
-    pub fn exists(&self, what: &Hash) -> bool {
+    pub fn exists(&self, what: &AteHash) -> bool {
         let what = what.to_hex_string();
         self.members.contains_key(&what)
     }
 
-    pub fn meta<'a>(&'a self, what: &Hash) -> Option<&'a String> {
+    pub fn meta<'a>(&'a self, what: &AteHash) -> Option<&'a String> {
         let index = what.to_hex_string();
         self.metadata.get(&index)
     }
@@ -1311,11 +1311,11 @@ impl PrivateEncryptKey
     }
 
     #[allow(dead_code)]
-    pub fn hash(&self) -> Hash {
+    pub fn hash(&self) -> AteHash {
         match &self {
-            PrivateEncryptKey::Ntru128 { pk, sk: _ } => Hash::from_bytes(&pk[..]),
-            PrivateEncryptKey::Ntru192 { pk, sk: _ } => Hash::from_bytes(&pk[..]),
-            PrivateEncryptKey::Ntru256 { pk, sk: _ } => Hash::from_bytes(&pk[..]),
+            PrivateEncryptKey::Ntru128 { pk, sk: _ } => AteHash::from_bytes(&pk[..]),
+            PrivateEncryptKey::Ntru192 { pk, sk: _ } => AteHash::from_bytes(&pk[..]),
+            PrivateEncryptKey::Ntru256 { pk, sk: _ } => AteHash::from_bytes(&pk[..]),
         }
     }
 
@@ -1434,11 +1434,11 @@ impl PublicEncryptKey
     }
 
     #[allow(dead_code)]
-    pub fn hash(&self) -> Hash {
+    pub fn hash(&self) -> AteHash {
         match &self {
-            PublicEncryptKey::Ntru128 { pk } => Hash::from_bytes(&pk[..]),
-            PublicEncryptKey::Ntru192 { pk } => Hash::from_bytes(&pk[..]),
-            PublicEncryptKey::Ntru256 { pk } => Hash::from_bytes(&pk[..]),
+            PublicEncryptKey::Ntru128 { pk } => AteHash::from_bytes(&pk[..]),
+            PublicEncryptKey::Ntru192 { pk } => AteHash::from_bytes(&pk[..]),
+            PublicEncryptKey::Ntru256 { pk } => AteHash::from_bytes(&pk[..]),
         }
     }
 

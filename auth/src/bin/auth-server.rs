@@ -27,7 +27,7 @@ enum SubCommand {
     Generate(Generate),
 }
 
-/// Runs the login server
+/// Runs the login authentication and authorization server
 #[derive(Clap)]
 struct Run {
     /// Path to the log files where all the authentication data is stored

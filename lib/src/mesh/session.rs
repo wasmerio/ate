@@ -41,7 +41,7 @@ pub struct MeshSession
 
 impl MeshSession
 {
-    pub(super) async fn connect(builder: ChainOfTrustBuilder, chain_key: &ChainKey, chain_domain: Option<String>, addr: MeshAddress, mode: RecoveryMode, loader_local: Box<impl Loader>, loader_remote: Box<impl Loader>) -> Result<Arc<Chain>, ChainCreationError>
+    pub(super) async fn connect(builder: ChainBuilder, chain_key: &ChainKey, chain_domain: Option<String>, addr: MeshAddress, mode: RecoveryMode, loader_local: Box<impl Loader>, loader_remote: Box<impl Loader>) -> Result<Arc<Chain>, ChainCreationError>
     {
         debug!("new: chain_key={}", chain_key.to_string());
 
@@ -118,7 +118,7 @@ impl MeshSession
         }).await
     }
 
-    async fn inbox_sample_right_of(self: &Arc<MeshSession>, pivot: Hash, pck: PacketData) -> Result<(), CommsError> {
+    async fn inbox_sample_right_of(self: &Arc<MeshSession>, pivot: AteHash, pck: PacketData) -> Result<(), CommsError> {
         debug!("inbox: sample_right_of [pivot.size={}]", pivot);
 
         if let Some(chain) = self.chain.upgrade() {
@@ -143,7 +143,7 @@ impl MeshSession
 
         if let Some(chain) = self.chain.upgrade() {
             chain.pipe.feed(Transaction {
-                scope: Scope::Local,
+                scope: TransactionScope::Local,
                 transmit: false,
                 events: feed_me,
                 conversation: Some(Arc::clone(&self.inbound_conversation)),
@@ -193,7 +193,7 @@ impl MeshSession
         Ok(())
     }
 
-    async fn record_delayed_upload(chain: &Arc<Chain>, pivot: Hash) -> Result<(), CommsError>
+    async fn record_delayed_upload(chain: &Arc<Chain>, pivot: AteHash) -> Result<(), CommsError>
     {
         let mut guard = chain.inside_async.write().await;
         let from = guard.range(pivot..).map(|h| h.event_hash).next();
@@ -224,7 +224,7 @@ impl MeshSession
         Ok(())
     }
 
-    async fn complete_delayed_upload(chain: &Arc<Chain>, from: Hash, to: Hash) -> Result<(), CommsError>
+    async fn complete_delayed_upload(chain: &Arc<Chain>, from: AteHash, to: AteHash) -> Result<(), CommsError>
     {
         debug!("delayed_upload complete: {}..{}", from, to);
         let mut guard = chain.inside_async.write().await;
@@ -238,7 +238,7 @@ impl MeshSession
         Ok(())
     }
 
-    async fn inbox_start_of_history(self: &Arc<MeshSession>, size: usize, _from: Option<Hash>, to: Option<Hash>, loader: &mut Option<Box<impl Loader>>, root_keys: Vec<PublicSignKey>, integrity: IntegrityMode) -> Result<(), CommsError>
+    async fn inbox_start_of_history(self: &Arc<MeshSession>, size: usize, _from: Option<AteHash>, to: Option<AteHash>, loader: &mut Option<Box<impl Loader>>, root_keys: Vec<PublicSignKey>, integrity: IntegrityMode) -> Result<(), CommsError>
     {
         // Declare variables
         let size = size;
@@ -295,7 +295,7 @@ impl MeshSession
         Ok(())
     }
 
-    async fn inbox_secure_with(self: &Arc<MeshSession>, mut session: crate::session::Session) -> Result<(), CommsError> {
+    async fn inbox_secure_with(self: &Arc<MeshSession>, mut session: crate::session::AteSession) -> Result<(), CommsError> {
         if let Some(chain) = self.chain.upgrade() {
             debug!("received 'secure_with' secrets");
             chain.inside_sync.write().default_session.user.properties.append(&mut session.user.properties);
@@ -465,7 +465,7 @@ struct RecoverableSessionPipe
     // Used to create new active pipes
     addr: MeshAddress,
     key: ChainKey,
-    builder: ChainOfTrustBuilder,
+    builder: ChainBuilder,
     chain_domain: Option<String>,
     chain: Arc<StdMutex<Option<Weak<Chain>>>>,
     loader_remote: StdMutex<Option<Box<dyn Loader>>>,
@@ -826,7 +826,7 @@ impl ActiveSessionPipe
         
         // If the scope requires synchronization with the remote server then allocate a commit ID
         let (commit, receiver) = match &trans.scope {
-            Scope::Full =>
+            TransactionScope::Full =>
             {
                 // Generate a sender/receiver pair
                 let (sender, receiver) = mpsc::channel(1);

@@ -1,6 +1,6 @@
 use bytes::Bytes;
 
-use crate::crypto::{DoubleHash, Hash};
+use crate::crypto::{DoubleHash, AteHash};
 
 use super::header::*;
 use super::meta::*;
@@ -11,11 +11,11 @@ use super::spec::*;
 #[derive(Debug, Clone)]
 pub struct EventHeaderRaw
 {
-    pub meta_hash: super::crypto::Hash,
+    pub meta_hash: super::crypto::AteHash,
     pub meta_bytes: Bytes,
-    pub data_hash: Option<super::crypto::Hash>,
+    pub data_hash: Option<super::crypto::AteHash>,
     pub data_size: usize,
-    pub event_hash: super::crypto::Hash,
+    pub event_hash: super::crypto::AteHash,
     pub format: MessageFormat,
 }
 
@@ -29,7 +29,7 @@ for EventHeaderRaw
 
 impl EventHeaderRaw
 {
-    pub(crate) fn new(meta_hash: super::crypto::Hash, meta_bytes: Bytes, data_hash: Option<super::crypto::Hash>, data_size: usize, format: MessageFormat) -> EventHeaderRaw
+    pub(crate) fn new(meta_hash: super::crypto::AteHash, meta_bytes: Bytes, data_hash: Option<super::crypto::AteHash>, data_size: usize, format: MessageFormat) -> EventHeaderRaw
     {
         EventHeaderRaw {
             event_hash: match &data_hash {
@@ -62,7 +62,7 @@ pub struct EventHeader
 }
 
 impl EventHeader {
-    pub fn hash(&self) -> Hash {
+    pub fn hash(&self) -> AteHash {
         self.raw.event_hash
     }
 }
@@ -90,7 +90,7 @@ impl EventData
 
     pub(crate) fn as_header_raw(&self) -> Result<EventHeaderRaw, SerializationError> {
         let data_hash = match &self.data_bytes {
-            Some(d) => Some(Hash::from_bytes(&d[..])),
+            Some(d) => Some(AteHash::from_bytes(&d[..])),
             None => None,
         };
         let data_size = match &self.data_bytes {
@@ -98,7 +98,7 @@ impl EventData
             None => 0
         };
         let meta_bytes = Bytes::from(self.format.meta.serialize(&self.meta)?);
-        let meta_hash = Hash::from_bytes(&meta_bytes[..]);
+        let meta_hash = AteHash::from_bytes(&meta_bytes[..]);
 
         Ok(
             EventHeaderRaw::new(meta_hash, meta_bytes, data_hash, data_size, self.format)

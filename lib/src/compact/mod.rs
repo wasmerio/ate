@@ -1,3 +1,5 @@
+mod mode;
+
 use std::sync::Arc;
 use fxhash::FxHashSet;
 use super::header::*;
@@ -6,6 +8,10 @@ use super::event::*;
 use super::sink::*;
 use super::error::*;
 use super::transaction::ConversationSession;
+
+pub use mode::CompactMode;
+pub(crate) use mode::CompactState;
+pub(crate) use mode::CompactNotifications;
 
 pub enum EventRelevance
 {

@@ -4,7 +4,7 @@ use log::{error, info, warn, debug};
 use async_trait::async_trait;
 use tokio::io::Result;
 
-use crate::{crypto::Hash};
+use crate::{crypto::AteHash};
 use crate::event::*;
 use crate::error::*;
 
@@ -55,7 +55,7 @@ impl FlippedLogFile
     }
 
     #[allow(dead_code)]
-    pub(crate) async fn copy_event(&mut self, from_log: &RedoLog, from_pointer: Hash) -> std::result::Result<u64, LoadError> {
+    pub(crate) async fn copy_event(&mut self, from_log: &RedoLog, from_pointer: AteHash) -> std::result::Result<u64, LoadError> {
         Ok(self.log_file.copy_event(&from_log.log_file, from_pointer).await?)
     }
 }

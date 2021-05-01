@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use crate::session::{Session, SessionProperty};
+use crate::session::{AteSession, AteSessionProperty};
 
 use super::error::*;
 use super::meta::*;
@@ -17,13 +17,13 @@ pub struct LintData<'a>
 pub trait EventMetadataLinter: Send + Sync
 {
     /// Called just before the metadata is pushed into the redo log
-    fn metadata_lint_many<'a>(&self, _lints: &Vec<LintData<'a>>, _session: &Session, _conversation: Option<&Arc<ConversationSession>>) -> Result<Vec<CoreMetadata>, LintError>
+    fn metadata_lint_many<'a>(&self, _lints: &Vec<LintData<'a>>, _session: &AteSession, _conversation: Option<&Arc<ConversationSession>>) -> Result<Vec<CoreMetadata>, LintError>
     {
         Ok(Vec::new())
     }
 
     // Lint an exact event
-    fn metadata_lint_event(&self, _meta: &Metadata, _session: &Session, _trans_meta: &TransactionMetadata)-> Result<Vec<CoreMetadata>, LintError>
+    fn metadata_lint_event(&self, _meta: &Metadata, _session: &AteSession, _trans_meta: &TransactionMetadata)-> Result<Vec<CoreMetadata>, LintError>
     {
         Ok(Vec::new())
     }
@@ -42,11 +42,11 @@ for EventAuthorLinter
         Box::new(self.clone())
     }
 
-    fn metadata_lint_event(&self, _meta: &Metadata, session: &Session, _trans_meta: &TransactionMetadata)-> Result<Vec<CoreMetadata>, LintError> {
+    fn metadata_lint_event(&self, _meta: &Metadata, session: &AteSession, _trans_meta: &TransactionMetadata)-> Result<Vec<CoreMetadata>, LintError> {
         let mut ret = Vec::new();
 
         for core in &session.user.properties {
-            if let SessionProperty::Identity(name) = core {
+            if let AteSessionProperty::Identity(name) = core {
                 ret.push(CoreMetadata::Author(name.clone()));
             }
         }

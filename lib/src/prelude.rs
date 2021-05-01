@@ -13,7 +13,7 @@ pub use crate::crypto::PublicEncryptKey;
 pub use crate::crypto::PrivateEncryptKey;
 pub use crate::crypto::EncryptedSecureData;
 pub use crate::crypto::MultiEncryptedSecureData;
-pub use crate::crypto::Hash as AteHash;
+pub use crate::crypto::AteHash;
 pub use crate::crypto::KeySize;
 pub use crate::meta::ReadOption;
 pub use crate::meta::WriteOption;
@@ -29,7 +29,7 @@ pub use crate::flow::all_persistent_and_distributed_with_root_key;
 
 pub use crate::chain::Chain;
 pub use crate::trust::ChainKey;
-pub use crate::conf::ChainOfTrustBuilder as ChainBuilder;
+pub use crate::conf::ChainBuilder;
 
 pub use crate::dio::DaoForeign;
 pub use crate::dio::DaoVec;
@@ -44,12 +44,12 @@ pub use crate::spec::SerializationFormat;
 pub use crate::repository::ChainRepository;
 pub use crate::multi::ChainMultiUser;
 pub use crate::single::ChainSingleUser;
-pub use crate::session::Session as AteSession;
-pub use crate::session::SessionProperty as AteSessionProperty;
-pub use crate::session::Group as AteGroup;
-pub use crate::session::GroupRole as AteGroupRole;
-pub use crate::session::RolePurpose as AteRolePurpose;
-pub use crate::transaction::Scope as TransactionScope;
+pub use crate::session::AteSession;
+pub use crate::session::AteSessionProperty;
+pub use crate::session::Group;
+pub use crate::session::GroupRole;
+pub use crate::session::RolePurpose;
+pub use crate::transaction::TransactionScope;
 
 pub use crate::service::InvocationContext;
 pub use crate::service::ServiceHandler;

@@ -4,7 +4,7 @@ use bytes::Bytes;
 use std::sync::Arc;
 
 use crate::{crypto::{PrivateEncryptKey, PrivateSignKey}, meta::Metadata};
-use crate::crypto::Hash;
+use crate::crypto::AteHash;
 use crate::event::*;
 use crate::chain::ChainKey;
 use crate::pipe::EventPipe;
@@ -12,7 +12,7 @@ use crate::chain::Chain;
 use crate::error::*;
 use crate::header::PrimaryKey;
 use crate::spec::*;
-use crate::session::Session;
+use crate::session::AteSession;
 use crate::crypto::PublicSignKey;
 use crate::trust::IntegrityMode;
 
@@ -20,7 +20,7 @@ use crate::trust::IntegrityMode;
 pub(super) struct MessageEvent
 {
     pub(crate) meta: Metadata,
-    pub(crate) data_hash: Option<Hash>,
+    pub(crate) data_hash: Option<AteHash>,
     pub(crate) data: Option<Vec<u8>>,
     pub(crate) format: MessageFormat,
 }
@@ -34,7 +34,7 @@ impl MessageEvent
             let evt = MessageEvent {
                     meta: evt.meta.clone(),
                     data_hash: match &evt.data_bytes {
-                        Some(d) => Some(Hash::from_bytes(&d[..])),
+                        Some(d) => Some(AteHash::from_bytes(&d[..])),
                         None => None,
                     },
                     data: match &evt.data_bytes {
@@ -91,15 +91,15 @@ pub(super) enum Message {
         is_locked: bool
     },
 
-    SampleRightOf(Hash),
+    SampleRightOf(AteHash),
     SamplesOfHistory {
-        pivot: Hash,
-        samples: Vec<Hash>,
+        pivot: AteHash,
+        samples: Vec<AteHash>,
     },
     StartOfHistory {
         size: usize,
-        from: Option<Hash>,
-        to: Option<Hash>,
+        from: Option<AteHash>,
+        to: Option<AteHash>,
         integrity: IntegrityMode,
         root_keys: Vec<PublicSignKey>,
     },
@@ -120,7 +120,7 @@ pub(super) enum Message {
         err: String
     },
 
-    SecuredWith(Session),
+    SecuredWith(AteSession),
 }
 
 impl Default

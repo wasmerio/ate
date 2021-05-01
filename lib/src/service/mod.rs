@@ -24,7 +24,7 @@ pub type ServiceInstance<REQ, RES, ERR> = Arc<dyn ServiceHandler<REQ, RES, ERR> 
 
 pub struct InvocationContext<'a>
 {
-    pub session: &'a Session,
+    pub session: &'a AteSession,
     pub chain: Arc<Chain>,
     pub repository: Arc<dyn ChainRepository>
 }
@@ -44,7 +44,7 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
       ERR: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized
 {
     chain: Weak<Chain>,
-    session: Session,
+    session: AteSession,
     handler: ServiceInstance<REQ, RES, ERR>,
     request_type_name: String,
     response_type_name: String,
@@ -56,7 +56,7 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
       RES: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
       ERR: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized
 {
-    pub(crate) fn new(chain: &Arc<Chain>, session: Session, handler: ServiceInstance<REQ, RES, ERR>) -> ServiceHook<REQ, RES, ERR> {
+    pub(crate) fn new(chain: &Arc<Chain>, session: AteSession, handler: ServiceInstance<REQ, RES, ERR>) -> ServiceHook<REQ, RES, ERR> {
         ServiceHook {
             chain: Arc::downgrade(chain),
             session: session.clone(),
@@ -193,7 +193,7 @@ impl Chain
         self.invoke_ext(None, request, std::time::Duration::from_secs(30)).await
     }
 
-    pub async fn invoke_ext<REQ, RES, ERR>(self: Arc<Self>, session: Option<&Session>, request: REQ, timeout: Duration) -> Result<RES, InvokeError<ERR>>
+    pub async fn invoke_ext<REQ, RES, ERR>(self: Arc<Self>, session: Option<&AteSession>, request: REQ, timeout: Duration) -> Result<RES, InvokeError<ERR>>
     where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
           RES: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
           ERR: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
@@ -281,7 +281,7 @@ impl Chain
     }
 
     #[allow(dead_code)]
-    pub fn add_service<REQ, RES, ERR>(self: &Arc<Self>, session: Session, handler: ServiceInstance<REQ, RES, ERR>)
+    pub fn add_service<REQ, RES, ERR>(self: &Arc<Self>, session: AteSession, handler: ServiceInstance<REQ, RES, ERR>)
     where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized + 'static,
           RES: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized + 'static,
           ERR: std::fmt::Debug + Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized + 'static,
@@ -463,7 +463,7 @@ mod tests
         let (chain, _builder) = crate::trust::create_test_chain(&mut mock_cfg, "test_chain".to_string(), true, true, None).await;
         
         debug!("start the service on the chain");
-        let session = Session::new(&mock_cfg);
+        let session = AteSession::new(&mock_cfg);
         chain.add_service(session.clone(), Arc::new(PingPongTable::default()));
         
         debug!("sending ping");

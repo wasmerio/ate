@@ -25,7 +25,7 @@ use std::sync::Arc;
 pub struct TreeAuthorityPlugin
 {
     root: WriteOption,
-    root_keys: FxHashMap<Hash, PublicSignKey>,
+    root_keys: FxHashMap<AteHash, PublicSignKey>,
     auth: FxHashMap<PrimaryKey, MetaAuthorization>,
     parents: FxHashMap<PrimaryKey, MetaParent>,
     signature_plugin: SignaturePlugin,
@@ -179,7 +179,7 @@ impl TreeAuthorityPlugin
         Ok(auth)
     }
 
-    fn generate_encrypt_key(&self, auth: &ReadOption, session: &Session) -> Result<Option<(InitializationVector, EncryptKey)>, TransformError>
+    fn generate_encrypt_key(&self, auth: &ReadOption, session: &AteSession) -> Result<Option<(InitializationVector, EncryptKey)>, TransformError>
     {
         match auth {
             ReadOption::Inherit => {
@@ -210,7 +210,7 @@ impl TreeAuthorityPlugin
         }
     }
 
-    fn get_encrypt_key(&self, meta: &Metadata, confidentiality: &MetaConfidentiality, iv: Option<&InitializationVector>, session: &Session) -> Result<Option<EncryptKey>, TransformError>
+    fn get_encrypt_key(&self, meta: &Metadata, confidentiality: &MetaConfidentiality, iv: Option<&InitializationVector>, session: &AteSession) -> Result<Option<EncryptKey>, TransformError>
     {
         let trans_meta = TransactionMetadata::default();
         let auth_store;
@@ -395,7 +395,7 @@ for TreeAuthorityPlugin
         Box::new(self.clone())
     }
 
-    fn metadata_lint_many<'a>(&self, headers: &Vec<LintData<'a>>, session: &Session, conversation: Option<&Arc<ConversationSession>>) -> Result<Vec<CoreMetadata>, LintError>
+    fn metadata_lint_many<'a>(&self, headers: &Vec<LintData<'a>>, session: &AteSession, conversation: Option<&Arc<ConversationSession>>) -> Result<Vec<CoreMetadata>, LintError>
     {
         let mut ret = Vec::new();
 
@@ -405,7 +405,7 @@ for TreeAuthorityPlugin
         Ok(ret)
     }
 
-    fn metadata_lint_event(&self, meta: &Metadata, session: &Session, trans_meta: &TransactionMetadata) -> Result<Vec<CoreMetadata>, LintError>
+    fn metadata_lint_event(&self, meta: &Metadata, session: &AteSession, trans_meta: &TransactionMetadata) -> Result<Vec<CoreMetadata>, LintError>
     {
         let mut ret = Vec::new();
         let mut sign_with = Vec::new();
@@ -504,7 +504,7 @@ for TreeAuthorityPlugin
     }
 
     #[allow(unused_variables)]
-    fn data_as_underlay(&self, meta: &mut Metadata, with: Bytes, session: &Session, trans_meta: &TransactionMetadata) -> Result<Bytes, TransformError>
+    fn data_as_underlay(&self, meta: &mut Metadata, with: Bytes, session: &AteSession, trans_meta: &TransactionMetadata) -> Result<Bytes, TransformError>
     {
         let mut with = self.signature_plugin.data_as_underlay(meta, with, session, trans_meta)?;
 
@@ -532,7 +532,7 @@ for TreeAuthorityPlugin
     }
 
     #[allow(unused_variables)]
-    fn data_as_overlay(&self, meta: &Metadata, with: Bytes, session: &Session) -> Result<Bytes, TransformError>
+    fn data_as_overlay(&self, meta: &Metadata, with: Bytes, session: &AteSession) -> Result<Bytes, TransformError>
     {
         let mut with = self.signature_plugin.data_as_overlay(meta, with, session)?;
 
@@ -586,6 +586,8 @@ for TreeAuthorityPlugin
         self.root = WriteOption::Everyone;
 
         for root_key in root_keys {
+            #[cfg(feature = "verbose")]
+            debug!("old_chain_root_key: {}", self.root);
             debug!("chain_root_key: {}", root_key.hash().to_string());
             self.add_root_public_key(root_key);
         }

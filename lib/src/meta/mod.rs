@@ -17,7 +17,7 @@ pub enum ReadOption
 {
     Inherit,
     Everyone(Option<EncryptKey>),
-    Specific(Hash, DerivedEncryptKey)
+    Specific(AteHash, DerivedEncryptKey)
 }
 
 impl ReadOption
@@ -66,13 +66,13 @@ pub enum WriteOption
     Inherit,
     Everyone,
     Nobody,
-    Specific(Hash),
-    Any(Vec<Hash>)
+    Specific(AteHash),
+    Any(Vec<AteHash>)
 }
 
 impl WriteOption
 {
-    pub fn vals(&self) -> FxHashSet<Hash> {
+    pub fn vals(&self) -> FxHashSet<AteHash> {
         let mut ret = FxHashSet::default();
         match self {
             WriteOption::Specific(a) => { ret.insert(a.clone()); }
@@ -267,8 +267,8 @@ for MetaType
 pub struct MetaDelayedUpload
 {
     pub complete: bool,
-    pub from: Hash,
-    pub to: Hash,
+    pub from: AteHash,
+    pub to: AteHash,
 }
 
 impl std::fmt::Display

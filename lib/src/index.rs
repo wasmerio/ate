@@ -6,7 +6,7 @@ use super::header::*;
 use super::meta::*;
 use super::sink::*;
 use super::error::*;
-use super::crypto::Hash;
+use super::crypto::AteHash;
 
 pub trait EventIndexer
 where Self: EventSink + Send + Sync + std::fmt::Debug,
@@ -21,7 +21,7 @@ where Self: EventSink + Send + Sync + std::fmt::Debug,
 #[derive(Debug, Copy, Clone)]
 pub struct EventLeaf
 {
-    pub record: super::crypto::Hash,
+    pub record: super::crypto::AteHash,
     pub created: u64,
     pub updated: u64,
 }
@@ -32,7 +32,7 @@ pub(crate) struct BinaryTreeIndexer
     primary: FxHashMap<PrimaryKey, EventLeaf>,
     secondary: MultiMap<MetaCollection, PrimaryKey>,
     parents: FxHashMap<PrimaryKey, MetaParent>,
-    uploads: FxHashMap<Hash, MetaDelayedUpload>,
+    uploads: FxHashMap<AteHash, MetaDelayedUpload>,
 }
 
 impl BinaryTreeIndexer
@@ -72,7 +72,7 @@ impl BinaryTreeIndexer
                     }
                     let when = entry.meta.get_timestamp();
                     let v = self.primary.entry(key.clone()).or_insert(EventLeaf {
-                        record: crate::crypto::Hash { val: [0; 16] },
+                        record: crate::crypto::AteHash { val: [0; 16] },
                         created: match when { Some(t) => t.time_since_epoch_ms, None => 0 },
                         updated: 0,
                     });
@@ -144,7 +144,7 @@ impl BinaryTreeIndexer
         }
     }
 
-    pub(crate) fn get_delayed_upload(&self, from: Hash) -> Option<MetaDelayedUpload>
+    pub(crate) fn get_delayed_upload(&self, from: AteHash) -> Option<MetaDelayedUpload>
     {
         self.uploads.get(&from).map(|e| e.clone())
     }

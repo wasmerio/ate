@@ -50,26 +50,26 @@ for RolePurpose
 pub struct GroupRole
 {
     pub purpose: RolePurpose,
-    pub properties: Vec<SessionProperty>,
+    pub properties: Vec<AteSessionProperty>,
 }
 
 impl GroupRole
 {
     pub fn add_read_key(&mut self, key: &EncryptKey) {
-        self.properties.push(SessionProperty::ReadKey(key.clone()));
+        self.properties.push(AteSessionProperty::ReadKey(key.clone()));
     }
 
     pub fn add_private_read_key(&mut self, key: &PrivateEncryptKey) {
-        self.properties.push(SessionProperty::PrivateReadKey(key.clone()));
+        self.properties.push(AteSessionProperty::PrivateReadKey(key.clone()));
     }
 
     pub fn add_write_key(&mut self, key: &PrivateSignKey) {
-        self.properties.push(SessionProperty::WriteKey(key.clone()));
+        self.properties.push(AteSessionProperty::WriteKey(key.clone()));
     }
 
     pub fn clear_read_keys(&mut self) {
         self.properties.retain(|p| {
-            if let SessionProperty::ReadKey(_) = p {
+            if let AteSessionProperty::ReadKey(_) = p {
                 return false;
             }
             return true;
@@ -78,7 +78,7 @@ impl GroupRole
 
     pub fn clear_private_read_keys(&mut self) {
         self.properties.retain(|p| {
-            if let SessionProperty::PrivateReadKey(_) = p {
+            if let AteSessionProperty::PrivateReadKey(_) = p {
                 return false;
             }
             return true;
@@ -87,7 +87,7 @@ impl GroupRole
 
     pub fn clear_write_keys(&mut self) {
         self.properties.retain(|p| {
-            if let SessionProperty::WriteKey(_) = p {
+            if let AteSessionProperty::WriteKey(_) = p {
                 return false;
             }
             return true;
@@ -95,15 +95,15 @@ impl GroupRole
     }
 
     pub fn add_identity(&mut self, identity: String) {
-        self.properties.push(SessionProperty::Identity(identity));
+        self.properties.push(AteSessionProperty::Identity(identity));
     }
 
     pub fn add_uid(&mut self, uid: u32) {
-        self.properties.push(SessionProperty::Uid(uid));
+        self.properties.push(AteSessionProperty::Uid(uid));
     }
 
     pub fn add_gid(&mut self, gid: u32) {
-        self.properties.push(SessionProperty::Gid(gid));
+        self.properties.push(AteSessionProperty::Gid(gid));
     }
 
     pub fn read_keys<'a>(&'a self) -> impl Iterator<Item = &'a EncryptKey> {
@@ -112,7 +112,7 @@ impl GroupRole
             .filter_map(
                 |p| match p
                 {
-                    SessionProperty::ReadKey(k) => Some(k),
+                    AteSessionProperty::ReadKey(k) => Some(k),
                     _ => None
                 }
             )
@@ -124,7 +124,7 @@ impl GroupRole
             .filter_map(
                 |p| match p
                 {
-                    SessionProperty::WriteKey(k) => Some(k),
+                    AteSessionProperty::WriteKey(k) => Some(k),
                     _ => None
                 }
             )
@@ -136,7 +136,7 @@ impl GroupRole
             .filter_map(
                 |p| match p
                 {
-                    SessionProperty::PublicReadKey(k) => Some(k),
+                    AteSessionProperty::PublicReadKey(k) => Some(k),
                     _ => None
                 }
             )
@@ -148,7 +148,7 @@ impl GroupRole
             .filter_map(
                 |p| match p
                 {
-                    SessionProperty::PrivateReadKey(k) => Some(k),
+                    AteSessionProperty::PrivateReadKey(k) => Some(k),
                     _ => None
                 }
             )
@@ -160,7 +160,7 @@ impl GroupRole
             .filter_map(
                 |p| match p
                 {
-                    SessionProperty::Identity(k) => Some(k),
+                    AteSessionProperty::Identity(k) => Some(k),
                     _ => None
                 }
             )
@@ -173,7 +173,7 @@ impl GroupRole
             .filter_map(
                 |p| match p
                 {
-                    SessionProperty::Uid(k) => Some(k.clone()),
+                    AteSessionProperty::Uid(k) => Some(k.clone()),
                     _ => None
                 }
             )
@@ -186,7 +186,7 @@ impl GroupRole
             .filter_map(
                 |p| match p
                 {
-                    SessionProperty::Gid(k) => Some(k.clone()),
+                    AteSessionProperty::Gid(k) => Some(k.clone()),
                     _ => None
                 }
             )
@@ -235,22 +235,22 @@ impl Group
     
     pub fn add_read_key(&mut self, purpose: &RolePurpose, key: &EncryptKey) {
         let role = self.get_or_create_role(purpose);
-        role.properties.push(SessionProperty::ReadKey(key.clone()));
+        role.properties.push(AteSessionProperty::ReadKey(key.clone()));
     }
 
     pub fn add_private_read_key(&mut self, purpose: &RolePurpose, key: &PrivateEncryptKey) {
         let role = self.get_or_create_role(purpose);
-        role.properties.push(SessionProperty::PrivateReadKey(key.clone()));
+        role.properties.push(AteSessionProperty::PrivateReadKey(key.clone()));
     }
 
     pub fn add_write_key(&mut self, purpose: &RolePurpose, key: &PrivateSignKey) {
         let role = self.get_or_create_role(purpose);
-        role.properties.push(SessionProperty::WriteKey(key.clone()));
+        role.properties.push(AteSessionProperty::WriteKey(key.clone()));
     }
 
     pub fn add_identity(&mut self, purpose: &RolePurpose, identity: String) {
         let role = self.get_or_create_role(purpose);
-        role.properties.push(SessionProperty::Identity(identity));
+        role.properties.push(AteSessionProperty::Identity(identity));
     }
 
     pub fn read_keys<'a>(&'a self) -> impl Iterator<Item = &'a EncryptKey> {
@@ -260,7 +260,7 @@ impl Group
             .filter_map(
                 |p| match p
                 {
-                    SessionProperty::ReadKey(k) => Some(k),
+                    AteSessionProperty::ReadKey(k) => Some(k),
                     _ => None
                 }
             )
@@ -273,7 +273,7 @@ impl Group
             .filter_map(
                 |p| match p
                 {
-                    SessionProperty::WriteKey(k) => Some(k),
+                    AteSessionProperty::WriteKey(k) => Some(k),
                     _ => None
                 }
             )
@@ -286,7 +286,7 @@ impl Group
             .filter_map(
                 |p| match p
                 {
-                    SessionProperty::PublicReadKey(k) => Some(k),
+                    AteSessionProperty::PublicReadKey(k) => Some(k),
                     _ => None
                 }
             )
@@ -299,7 +299,7 @@ impl Group
             .filter_map(
                 |p| match p
                 {
-                    SessionProperty::PrivateReadKey(k) => Some(k),
+                    AteSessionProperty::PrivateReadKey(k) => Some(k),
                     _ => None
                 }
             )
@@ -321,7 +321,7 @@ for Group
 
 #[allow(dead_code)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum SessionProperty
+pub enum AteSessionProperty
 {
     None,
     ReadKey(EncryptKey),
@@ -333,25 +333,25 @@ pub enum SessionProperty
     Gid(u32)
 }
 
-impl Default for SessionProperty {
+impl Default for AteSessionProperty {
     fn default() -> Self {
-        SessionProperty::None
+        AteSessionProperty::None
     }
 }
 
 impl std::fmt::Display
-for SessionProperty
+for AteSessionProperty
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SessionProperty::None => write!(f, "none"),
-            SessionProperty::ReadKey(a) => write!(f, "read-key:{}", a),
-            SessionProperty::PrivateReadKey(a) => write!(f, "private-read-key:{}", a),
-            SessionProperty::PublicReadKey(a) => write!(f, "public-read-key:{}", a),
-            SessionProperty::WriteKey(a) => write!(f, "write-key:{}", a),
-            SessionProperty::Identity(a) => write!(f, "identity:{}", a),
-            SessionProperty::Uid(a) => write!(f, "uid:{}", a),
-            SessionProperty::Gid(a) => write!(f, "gid:{}", a),
+            AteSessionProperty::None => write!(f, "none"),
+            AteSessionProperty::ReadKey(a) => write!(f, "read-key:{}", a),
+            AteSessionProperty::PrivateReadKey(a) => write!(f, "private-read-key:{}", a),
+            AteSessionProperty::PublicReadKey(a) => write!(f, "public-read-key:{}", a),
+            AteSessionProperty::WriteKey(a) => write!(f, "write-key:{}", a),
+            AteSessionProperty::Identity(a) => write!(f, "identity:{}", a),
+            AteSessionProperty::Uid(a) => write!(f, "uid:{}", a),
+            AteSessionProperty::Gid(a) => write!(f, "gid:{}", a),
         }
     }
 }
@@ -373,7 +373,7 @@ for SessionProperty
 /// duration that you use them for security reasons.
 #[allow(dead_code)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct Session
+pub struct AteSession
 where Self: Send + Sync
 {
     pub log_format: Option<MessageFormat>,
@@ -383,10 +383,10 @@ where Self: Send + Sync
 }
 
 impl Default
-for Session
+for AteSession
 {
-    fn default() -> Session {
-        Session {
+    fn default() -> AteSession {
+        AteSession {
             user: GroupRole {
                 purpose: RolePurpose::Delegate,
                 properties: Vec::new()
@@ -398,10 +398,10 @@ for Session
     }
 }
 
-impl Session
+impl AteSession
 {
-    pub fn new(cfg: &ConfAte) -> Session {
-        let mut ret = Session::default();
+    pub fn new(cfg: &ConfAte) -> AteSession {
+        let mut ret = AteSession::default();
         ret.log_format = Some(cfg.log_format);
         ret
     }
@@ -559,7 +559,7 @@ impl Session
         ret1.chain(ret2).chain(ret3)
     }
 
-    pub fn append(&mut self, mut other: Session) {
+    pub fn append(&mut self, mut other: AteSession) {
 
         if self.log_format.is_none() {
             self.log_format = other.log_format;
@@ -586,7 +586,7 @@ impl Session
 }
 
 impl std::fmt::Display
-for Session
+for AteSession
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "[user=")?;

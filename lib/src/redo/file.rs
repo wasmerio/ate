@@ -35,9 +35,9 @@ pub(crate) struct LogLookup
 
 pub(crate) struct LogFileCache
 {
-    pub(crate) flush: FxHashMap<Hash, LoadData>,
-    pub(crate) write: TimedSizedCache<Hash, LoadData>,
-    pub(crate) read: TimedSizedCache<Hash, LoadData>,
+    pub(crate) flush: FxHashMap<AteHash, LoadData>,
+    pub(crate) write: TimedSizedCache<AteHash, LoadData>,
+    pub(crate) read: TimedSizedCache<AteHash, LoadData>,
 }
 
 pub(super) struct LogFile
@@ -50,7 +50,7 @@ pub(super) struct LogFile
     pub(crate) log_count: u64,
     pub(crate) log_index: u32,
     pub(crate) cache: MutexSync<LogFileCache>,
-    pub(crate) lookup: FxHashMap<Hash, LogLookup>,
+    pub(crate) lookup: FxHashMap<AteHash, LogLookup>,
     pub(crate) archives: FxHashMap<u32, LogArchive>,
 }
 
@@ -310,7 +310,7 @@ impl LogFile
         // Deserialize the meta bytes into a metadata object
         let meta = evt.header.format.meta.deserialize(&evt.meta[..])?;
         let data_hash = match &evt.data {
-            Some(a) => Some(Hash::from_bytes(&a[..])),
+            Some(a) => Some(AteHash::from_bytes(&a[..])),
             None => None,
         };
         let data_size = match &evt.data {
@@ -324,7 +324,7 @@ impl LogFile
 
         // Record the lookup map
         let header = EventHeaderRaw::new(
-            Hash::from_bytes(&evt.meta[..]),
+            AteHash::from_bytes(&evt.meta[..]),
             Bytes::from(evt.meta),
             data_hash,
             data_size,
@@ -388,7 +388,7 @@ impl LogFile
         Ok(log_header.offset)
     }
 
-    pub(super) async fn copy_event(&mut self, from_log: &LogFile, hash: Hash) -> std::result::Result<u64, LoadError>
+    pub(super) async fn copy_event(&mut self, from_log: &LogFile, hash: AteHash) -> std::result::Result<u64, LoadError>
     {
         // Load the data from the log file
         let result = from_log.load(hash).await?;
@@ -425,7 +425,7 @@ impl LogFile
         Ok(log_header.offset)
     }
 
-    pub(super) async fn load(&self, hash: Hash) -> std::result::Result<LoadData, LoadError>
+    pub(super) async fn load(&self, hash: AteHash) -> std::result::Result<LoadData, LoadError>
     {
         // Check the caches
         {
@@ -469,7 +469,7 @@ impl LogFile
         
         // Hash body
         let data_hash = match &result.data {
-            Some(data) => Some(Hash::from_bytes(&data[..])),
+            Some(data) => Some(AteHash::from_bytes(&data[..])),
             None => None,
         };
         let data_size = match &result.data {
@@ -485,7 +485,7 @@ impl LogFile
         let meta = result.header.format.meta.deserialize(&result.meta[..])?;
         let ret = LoadData {
             header: EventHeaderRaw::new(
-                Hash::from_bytes(&result.meta[..]),
+                AteHash::from_bytes(&result.meta[..]),
                 Bytes::from(result.meta),
                 data_hash,
                 data_size,

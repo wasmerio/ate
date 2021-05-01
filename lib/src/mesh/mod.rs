@@ -24,7 +24,7 @@ use bytes::Bytes;
 use std::sync::Weak;
 
 use super::flow::*;
-use super::crypto::Hash;
+use super::crypto::AteHash;
 use super::event::*;
 use super::comms::*;
 use super::trust::*;

@@ -21,7 +21,7 @@ TESTS
 */
 
 #[cfg(test)]
-async fn test_write_data(log: &mut dyn LogWritable, key: PrimaryKey, body: Option<Vec<u8>>, flush: bool, format: MessageFormat) -> Hash
+async fn test_write_data(log: &mut dyn LogWritable, key: PrimaryKey, body: Option<Vec<u8>>, flush: bool, format: MessageFormat) -> AteHash
 {
     let mut meta = Metadata::for_data(key);
     meta.core.push(CoreMetadata::Author("test@nowhere.com".to_string()));
@@ -49,7 +49,7 @@ async fn test_write_data(log: &mut dyn LogWritable, key: PrimaryKey, body: Optio
 }
 
 #[cfg(test)]
-async fn test_read_data(log: &mut RedoLog, read_header: Hash, test_key: PrimaryKey, test_body: Option<Vec<u8>>, format: MessageFormat)
+async fn test_read_data(log: &mut RedoLog, read_header: AteHash, test_key: PrimaryKey, test_body: Option<Vec<u8>>, format: MessageFormat)
 {
     let result = log.load(read_header)
         .await

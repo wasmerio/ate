@@ -3,7 +3,7 @@ use log::{error, info, debug};
 use std::sync::Arc;
 
 use fxhash::FxHashSet;
-use crate::crypto::{Hash};
+use crate::crypto::{AteHash};
 
 use super::validator::EventValidator;
 use super::lint::EventMetadataLinter;
@@ -19,7 +19,7 @@ use super::validator::ValidationResult;
 #[derive(Debug, Default, Clone)]
 pub struct AntiReplayPlugin
 {
-    seen: FxHashSet<Hash>,
+    seen: FxHashSet<AteHash>,
 }
 
 impl AntiReplayPlugin

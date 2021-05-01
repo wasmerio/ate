@@ -1,13 +1,13 @@
 #![allow(unused_imports)]
 use async_trait::async_trait;
 pub mod basic;
-use crate::{crypto::EncryptKey, session::Session};
+use crate::{crypto::EncryptKey, session::AteSession};
 
 use super::crypto::PublicSignKey;
 use super::chain::Chain;
 use super::chain::ChainKey;
 use super::conf::ConfAte;
-use super::conf::ChainOfTrustBuilder;
+use super::conf::ChainBuilder;
 use super::error::ChainCreationError;
 use std::sync::Arc;
 
@@ -49,7 +49,7 @@ pub enum OpenAction
     /// the caller has a copy of the encryption key
     PrivateChain {
         chain: Arc<Chain>,
-        session: Session
+        session: AteSession
     },
 }
 
@@ -57,7 +57,7 @@ pub enum OpenAction
 pub trait OpenFlow
 where Self: Send + Sync
 {
-    async fn open(&self, builder: ChainOfTrustBuilder, key: &ChainKey) -> Result<OpenAction, ChainCreationError>;
+    async fn open(&self, builder: ChainBuilder, key: &ChainKey) -> Result<OpenAction, ChainCreationError>;
 }
 
 pub async fn all_persistent_and_centralized() -> Box<basic::OpenStaticBuilder> {

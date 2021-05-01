@@ -9,13 +9,13 @@ use std::sync::Arc;
 use parking_lot::{Mutex, MutexGuard};
 
 use crate::crypto::{EncryptedPrivateKey, PrivateSignKey};
-use crate::{crypto::EncryptKey, session::{Session, SessionProperty}};
+use crate::{crypto::EncryptKey, session::{AteSession, AteSessionProperty}};
 
 use crate::header::*;
 use crate::event::*;
 use crate::meta::*;
 use crate::error::*;
-use crate::crypto::Hash;
+use crate::crypto::AteHash;
 use crate::dio::*;
 use crate::spec::*;
 use crate::index::*;
@@ -98,7 +98,7 @@ where Self: Send + Sync,
     pub(crate) fn as_row_data(&self) -> std::result::Result<RowData, SerializationError> {
         let data = Bytes::from(self.format.data.serialize(&self.data)?);
             
-        let data_hash = Hash::from_bytes(&data[..]);
+        let data_hash = AteHash::from_bytes(&data[..]);
         Ok
         (
             RowData {
@@ -126,7 +126,7 @@ where Self: Send + Sync
     pub type_name: &'static str,
     pub format: MessageFormat,
     pub parent: Option<MetaParent>,
-    pub data_hash: Hash,
+    pub data_hash: AteHash,
     pub data: Bytes,
     pub auth: MetaAuthorization,
     pub collections: FxHashSet<MetaCollection>,

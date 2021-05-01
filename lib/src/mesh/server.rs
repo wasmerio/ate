@@ -29,7 +29,7 @@ use crate::flow::OpenAction;
 use crate::spec::SerializationFormat;
 use crate::repository::ChainRepository;
 use crate::comms::TxDirection;
-use crate::crypto::Hash;
+use crate::crypto::AteHash;
 
 pub struct MeshRoot<F>
 where Self: ChainRepository,
@@ -270,7 +270,7 @@ where F: OpenFlow + 'static
     }
 
     // Create a chain builder
-    let mut builder = ChainOfTrustBuilder::new(&root.cfg_ate)
+    let mut builder = ChainBuilder::new(&root.cfg_ate)
         .await;
 
     // Add a pipe that will broadcast message to the connected clients
@@ -352,7 +352,7 @@ async fn inbox_event(
     // Feed the events into the chain of trust
     let evts = MessageEvent::convert_from(evts);
     let ret = chain.pipe.feed(Transaction {
-        scope: Scope::None,
+        scope: TransactionScope::None,
         transmit: false,
         events: evts,
         conversation: Some(Arc::clone(&context.conversation)),
@@ -519,8 +519,8 @@ where F: OpenFlow + 'static
 
 async fn inbox_samples_of_history(
     context: Arc<SessionContext>,
-    pivot: Hash,
-    history_sample: Vec<Hash>,
+    pivot: AteHash,
+    history_sample: Vec<AteHash>,
     reply_at: Option<&mpsc::Sender<PacketData>>,
     wire_format: SerializationFormat,
 )

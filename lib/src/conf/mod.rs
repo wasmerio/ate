@@ -19,10 +19,10 @@ use super::trust::IntegrityMode;
 use super::crypto::PublicSignKey;
 use super::crypto::KeySize;
 use super::error::*;
-use super::crypto::Hash;
+use super::crypto::AteHash;
 use super::spec::*;
 use super::pipe::*;
-use super::session::Session;
+use super::session::AteSession;
 use super::repository::ChainRepository;
 use super::mesh::RecoveryMode;
 
@@ -44,13 +44,13 @@ impl MeshAddress
         }
     }
 
-    pub fn hash(&self) -> Hash {
+    pub fn hash(&self) -> AteHash {
         match self.ip {
             IpAddr::V4(ip) => {
-                Hash::from_bytes_twice(&ip.octets(), &self.port.to_be_bytes())
+                AteHash::from_bytes_twice(&ip.octets(), &self.port.to_be_bytes())
             },
             IpAddr::V6(ip) => {
-                Hash::from_bytes_twice(&ip.octets(), &self.port.to_be_bytes())
+                AteHash::from_bytes_twice(&ip.octets(), &self.port.to_be_bytes())
             }
         }
     }
@@ -292,7 +292,7 @@ for ConfiguredFor
 /// Building class used to construct a chain-of-trust with
 /// its user defined plugins and configuration. Nearly always
 /// this builder will be used to create and load your chains.
-pub struct ChainOfTrustBuilder
+pub struct ChainBuilder
 {
     pub(super) cfg: ConfAte, 
     pub(super) configured_for: ConfiguredFor,
@@ -307,14 +307,14 @@ pub struct ChainOfTrustBuilder
     pub(super) truncate: bool,
     pub(super) temporal: bool,
     pub(super) integrity: IntegrityMode,
-    pub(super) session: Session,
+    pub(super) session: AteSession,
 }
 
 impl Clone
-for ChainOfTrustBuilder
+for ChainBuilder
 {
     fn clone(&self) -> Self {
-        ChainOfTrustBuilder {
+        ChainBuilder {
             cfg: self.cfg.clone(),
             configured_for: self.configured_for.clone(),
             validators: self.validators.iter().map(|a| a.clone_validator()).collect::<Vec<_>>(),
@@ -333,11 +333,11 @@ for ChainOfTrustBuilder
     }
 }
 
-impl ChainOfTrustBuilder
+impl ChainBuilder
 {
     #[allow(dead_code)]
-    pub async fn new(cfg: &ConfAte) -> ChainOfTrustBuilder {
-        ChainOfTrustBuilder {
+    pub async fn new(cfg: &ConfAte) -> ChainBuilder {
+        ChainBuilder {
             cfg: cfg.clone(),
             configured_for: cfg.configured_for.clone(),
             validators: Vec::new(),
@@ -348,7 +348,7 @@ impl ChainOfTrustBuilder
             plugins: Vec::new(),
             pipes: None,
             tree: None,
-            session: Session::new(&cfg),
+            session: AteSession::new(&cfg),
             truncate: false,
             temporal: false,
             integrity: IntegrityMode::Distributed,
@@ -479,7 +479,7 @@ impl ChainOfTrustBuilder
     }
 
     #[allow(dead_code)]
-    pub fn set_session(mut self, session: Session) -> Self {
+    pub fn set_session(mut self, session: AteSession) -> Self {
         self.session = session;
         self
     }
@@ -507,7 +507,7 @@ impl ChainOfTrustBuilder
     (
         self,
     )
-    -> Arc<ChainOfTrustBuilder>
+    -> Arc<ChainBuilder>
     {
         Arc::new(self)
     }
@@ -537,7 +537,7 @@ impl ChainOfTrustBuilder
 
 #[async_trait]
 impl ChainRepository
-for ChainOfTrustBuilder
+for ChainBuilder
 {
     async fn open_by_url(self: Arc<Self>, url: &Url) -> Result<Arc<Chain>, ChainCreationError>
     {

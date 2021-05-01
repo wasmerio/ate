@@ -3,7 +3,7 @@ use log::{info, error, debug};
 
 use serde::{Serialize, Deserialize};
 
-use crate::session::{Session, SessionProperty};
+use crate::session::{AteSession, AteSessionProperty};
 
 use super::crypto::*;
 use super::compact::*;
@@ -30,7 +30,7 @@ use super::redo::*;
 use bytes::Bytes;
 
 use super::event::*;
-use super::crypto::Hash;
+use super::crypto::AteHash;
 use fxhash::FxHashMap;
 use super::spec::*;
 
@@ -43,7 +43,7 @@ use super::spec::*;
 pub struct ChainKey {
     pub name: String,
     #[serde(skip)]
-    pub hash: Option<Hash>,
+    pub hash: Option<AteHash>,
 }
 
 impl std::fmt::Display
@@ -78,7 +78,7 @@ impl ChainKey {
         }
         
         ChainKey {
-            hash: Some(Hash::from_bytes(val.as_bytes())),
+            hash: Some(AteHash::from_bytes(val.as_bytes())),
             name: val,
         }
     }
@@ -99,11 +99,11 @@ impl ChainKey {
         ret
     }
 
-    pub fn hash(&self) -> Hash
+    pub fn hash(&self) -> AteHash
     {
         match &self.hash {
             Some(a) => a.clone(),
-            None => Hash::from_bytes(self.name.as_bytes())
+            None => AteHash::from_bytes(self.name.as_bytes())
         }
     }
 
@@ -111,7 +111,7 @@ impl ChainKey {
     {
         match &self.hash {
             Some(a) => a.to_u64(),
-            None => Hash::from_bytes(self.name.as_bytes()).to_u64()
+            None => AteHash::from_bytes(self.name.as_bytes()).to_u64()
         }
     }
 
@@ -156,7 +156,7 @@ pub(crate) struct ChainOfTrust
     pub(super) key: ChainKey,
     pub(super) redo: RedoLog,
     pub(super) history_offset: u64,
-    pub(super) history_reverse: FxHashMap<Hash, u64>,
+    pub(super) history_reverse: FxHashMap<AteHash, u64>,
     pub(super) history: BTreeMap<u64, EventHeaderRaw>,
     pub(super) pointers: BinaryTreeIndexer,
     pub(super) compactors: Vec<Box<dyn EventCompactor>>,
@@ -252,7 +252,7 @@ impl<'a> ChainOfTrust
 
 #[cfg(test)]
 pub(crate) async fn create_test_chain(mock_cfg: &mut ConfAte, chain_name: String, temp: bool, barebone: bool, root_public_key: Option<PublicSignKey>) ->
-    (Arc<Chain>, Arc<ChainOfTrustBuilder>)
+    (Arc<Chain>, Arc<ChainBuilder>)
 {
     // Create the chain-of-trust and a validator
     let mock_chain_key = match temp {
@@ -266,7 +266,7 @@ pub(crate) async fn create_test_chain(mock_cfg: &mut ConfAte, chain_name: String
             mock_cfg.log_format.meta = SerializationFormat::Bincode;
             mock_cfg.log_format.data = SerializationFormat::Json;
 
-            ChainOfTrustBuilder::new(&mock_cfg)
+            ChainBuilder::new(&mock_cfg)
                 .await
                 .add_validator(Box::new(RubberStampValidator::default()))
                 .add_data_transformer(Box::new(StaticEncryptionTransformer::new(&EncryptKey::from_seed_string("test".to_string(), KeySize::Bit192))))
@@ -277,7 +277,7 @@ pub(crate) async fn create_test_chain(mock_cfg: &mut ConfAte, chain_name: String
             mock_cfg.log_format.meta = SerializationFormat::Json;
             mock_cfg.log_format.data = SerializationFormat::Json;
 
-            ChainOfTrustBuilder::new(&mock_cfg).await
+            ChainBuilder::new(&mock_cfg).await
         }
     };        
 
@@ -325,7 +325,7 @@ async fn test_chain() {
             evts.push(evt2.clone());
 
             debug!("feeding two events into the chain");
-            let trans = Transaction::from_events(evts, Scope::Local, false);
+            let trans = Transaction::from_events(evts, TransactionScope::Local, false);
             lock.pipe.feed(trans).await.expect("The event failed to be accepted");
             
             drop(lock);
@@ -376,7 +376,7 @@ async fn test_chain() {
             debug!("feeding new version of event1 into the chain");
             let mut evts = Vec::new();
             evts.push(evt1.clone());
-            let trans = Transaction::from_events(evts, Scope::Local, false);
+            let trans = Transaction::from_events(evts, TransactionScope::Local, false);
             lock.pipe.feed(trans).await.expect("The event failed to be accepted");
 
             drop(lock);
@@ -438,7 +438,7 @@ async fn test_chain() {
             debug!("feeding the tombstone into the chain");
             let mut evts = Vec::new();
             evts.push(evt2.clone());
-            let trans = Transaction::from_events(evts, Scope::Local, false);
+            let trans = Transaction::from_events(evts, TransactionScope::Local, false);
             lock.pipe.feed(trans).await.expect("The event failed to be accepted");
             
             // Number of events should have gone up by one even though there should be one less item

@@ -95,7 +95,7 @@ for RecoveryMode
 pub struct MeshHashTable
 {
     pub(super) address_lookup: Vec<MeshAddress>,
-    pub(super) hash_table: BTreeMap<Hash, usize>,
+    pub(super) hash_table: BTreeMap<AteHash, usize>,
 }
 
 impl MeshHashTable
@@ -147,7 +147,7 @@ impl MeshHashTable
     }
 }
 
-pub(crate) async fn locate_offset_of_sync(chain: &Arc<Chain>, pivot: &Hash) -> Option<(u64, Hash)> {
+pub(crate) async fn locate_offset_of_sync(chain: &Arc<Chain>, pivot: &AteHash) -> Option<(u64, AteHash)> {
     let multi = chain.multi().await;
     let guard = multi.inside_async.read().await;
     match guard.chain.history_reverse.get(pivot) {
@@ -160,7 +160,7 @@ pub(crate) async fn locate_offset_of_sync(chain: &Arc<Chain>, pivot: &Hash) -> O
     }
 }
 
-pub(crate) async fn locate_pivot_within_history(chain: &Arc<Chain>, history_sample: Vec<Hash>) -> Option<Hash> {
+pub(crate) async fn locate_pivot_within_history(chain: &Arc<Chain>, history_sample: Vec<AteHash>) -> Option<AteHash> {
     let multi = chain.multi().await;
     let guard = multi.inside_async.read().await;
     history_sample
@@ -176,7 +176,7 @@ async fn stream_events<R>(
     wire_format: SerializationFormat,
 )
 -> Result<(), CommsError>
-where R: RangeBounds<Hash>
+where R: RangeBounds<AteHash>
 {
     // Declare vars
     let multi = chain.multi().await;
@@ -260,7 +260,7 @@ where R: RangeBounds<Hash>
 
 pub(super) async fn stream_empty_history(
     chain: Arc<Chain>,
-    to: Option<Hash>,
+    to: Option<AteHash>,
     reply_at: mpsc::Sender<PacketData>,
     wire_format: SerializationFormat,
 )
@@ -301,7 +301,7 @@ pub(super) async fn stream_history_range<R>(
     wire_format: SerializationFormat,
 )
 -> Result<(), CommsError>
-where R: RangeBounds<Hash>
+where R: RangeBounds<AteHash>
 {
     // Extract the root keys and integrity mode
     let (integrity, root_keys) = {

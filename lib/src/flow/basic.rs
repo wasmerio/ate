@@ -8,7 +8,7 @@ use crate::conf::ConfAte;
 use super::OpenAction;
 use super::OpenFlow;
 use crate::chain::ChainKey;
-use crate::conf::ChainOfTrustBuilder;
+use crate::conf::ChainBuilder;
 use crate::repository::ChainRepository;
 use crate::error::ChainCreationError;
 use crate::trust::IntegrityMode;
@@ -59,7 +59,7 @@ impl OpenStaticBuilder
 impl OpenFlow
 for OpenStaticBuilder
 {
-    async fn open(&self, mut builder: ChainOfTrustBuilder, key: &ChainKey) -> Result<OpenAction, ChainCreationError> {
+    async fn open(&self, mut builder: ChainBuilder, key: &ChainKey) -> Result<OpenAction, ChainCreationError> {
         debug!("chain-builder: open: {}", key.to_string());
 
         if let Some(root_key) = &self.root_key {

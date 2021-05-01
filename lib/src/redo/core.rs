@@ -114,7 +114,7 @@ impl RedoLog
         }
     }
 
-    pub async fn load(&self, hash: Hash) -> std::result::Result<LoadData, LoadError> {
+    pub async fn load(&self, hash: AteHash) -> std::result::Result<LoadData, LoadError> {
         Ok(self.log_file.load(hash).await?)
     }
 

@@ -62,7 +62,7 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     }
 
     #[allow(dead_code)]
-    pub async fn recv(&mut self, session: &Session) -> Result<D, BusError> {
+    pub async fn recv(&mut self, session: &AteSession) -> Result<D, BusError> {
         while let Some(mut evt) = self.receiver.recv().await {
 
             let multi = self.chain.multi().await;

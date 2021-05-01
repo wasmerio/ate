@@ -5,7 +5,7 @@ use std::sync::mpsc as smpsc;
 #[allow(unused_imports)]
 use std::sync::{Weak, Arc};
 
-use crate::session::{Session};
+use crate::session::{AteSession};
 
 use super::meta::*;
 use super::error::*;
@@ -86,25 +86,25 @@ impl ChainMultiUser
     }
 
     #[allow(dead_code)]
-    pub(crate) fn metadata_lint_many<'a>(&self, lints: &Vec<LintData<'a>>, session: &Session, conversation: Option<&Arc<ConversationSession>>) -> Result<Vec<CoreMetadata>, LintError> {
+    pub(crate) fn metadata_lint_many<'a>(&self, lints: &Vec<LintData<'a>>, session: &AteSession, conversation: Option<&Arc<ConversationSession>>) -> Result<Vec<CoreMetadata>, LintError> {
         let guard = self.inside_sync.read();
         guard.metadata_lint_many(lints, session, conversation)
     }
 
     #[allow(dead_code)]
-    pub(crate) fn metadata_lint_event(&self, meta: &mut Metadata, session: &Session, trans_meta: &TransactionMetadata) -> Result<Vec<CoreMetadata>, LintError> {
+    pub(crate) fn metadata_lint_event(&self, meta: &mut Metadata, session: &AteSession, trans_meta: &TransactionMetadata) -> Result<Vec<CoreMetadata>, LintError> {
         let guard = self.inside_sync.read();
         guard.metadata_lint_event(meta, session, trans_meta)
     }
 
     #[allow(dead_code)]
-    pub(crate) fn data_as_overlay(&self, meta: &Metadata, data: Bytes, session: &Session) -> Result<Bytes, TransformError> {
+    pub(crate) fn data_as_overlay(&self, meta: &Metadata, data: Bytes, session: &AteSession) -> Result<Bytes, TransformError> {
         let guard = self.inside_sync.read();
         guard.data_as_overlay(meta, data, session)
     }
 
     #[allow(dead_code)]
-    pub(crate) fn data_as_underlay(&self, meta: &mut Metadata, data: Bytes, session: &Session, trans_meta: &TransactionMetadata) -> Result<Bytes, TransformError> {
+    pub(crate) fn data_as_underlay(&self, meta: &mut Metadata, data: Bytes, session: &AteSession, trans_meta: &TransactionMetadata) -> Result<Bytes, TransformError> {
         let guard = self.inside_sync.read();
         guard.data_as_underlay(meta, data, session, trans_meta)
     }
@@ -128,7 +128,7 @@ impl ChainMultiUser
     {
         // Create the transaction
         let trans = Transaction {
-            scope: Scope::Full,
+            scope: TransactionScope::Full,
             transmit: true,
             events: Vec::new(),
             conversation: None,
@@ -141,7 +141,7 @@ impl ChainMultiUser
 }
 
 impl ChainProtectedSync {
-    pub(crate) fn metadata_lint_many<'a>(&self, lints: &Vec<LintData<'a>>, session: &Session, conversation: Option<&Arc<ConversationSession>>) -> Result<Vec<CoreMetadata>, LintError> {
+    pub(crate) fn metadata_lint_many<'a>(&self, lints: &Vec<LintData<'a>>, session: &AteSession, conversation: Option<&Arc<ConversationSession>>) -> Result<Vec<CoreMetadata>, LintError> {
         let mut ret = Vec::new();
         for linter in self.linters.iter() {
             ret.extend(linter.metadata_lint_many(lints, session, conversation)?);
@@ -152,7 +152,7 @@ impl ChainProtectedSync {
         Ok(ret)
     }
 
-    pub(crate) fn metadata_lint_event(&self, meta: &mut Metadata, session: &Session, trans_meta: &TransactionMetadata) -> Result<Vec<CoreMetadata>, LintError> {
+    pub(crate) fn metadata_lint_event(&self, meta: &mut Metadata, session: &AteSession, trans_meta: &TransactionMetadata) -> Result<Vec<CoreMetadata>, LintError> {
         let mut ret = Vec::new();
         for linter in self.linters.iter() {
             ret.extend(linter.metadata_lint_event(meta, session, trans_meta)?);
@@ -163,7 +163,7 @@ impl ChainProtectedSync {
         Ok(ret)
     }
 
-    pub(crate) fn data_as_overlay(&self, meta: &Metadata, data: Bytes, session: &Session) -> Result<Bytes, TransformError> {
+    pub(crate) fn data_as_overlay(&self, meta: &Metadata, data: Bytes, session: &AteSession) -> Result<Bytes, TransformError> {
         let mut ret = data;
         for plugin in self.plugins.iter().rev() {
             ret = plugin.data_as_overlay(meta, ret, session)?;
@@ -174,7 +174,7 @@ impl ChainProtectedSync {
         Ok(ret)
     }
 
-    pub(crate) fn data_as_underlay(&self, meta: &mut Metadata, data: Bytes, session: &Session, trans_meta: &TransactionMetadata) -> Result<Bytes, TransformError> {
+    pub(crate) fn data_as_underlay(&self, meta: &mut Metadata, data: Bytes, session: &AteSession, trans_meta: &TransactionMetadata) -> Result<Bytes, TransformError> {
         let mut ret = data;
         for transformer in self.transformers.iter() {
             ret = transformer.data_as_underlay(meta, ret, session, trans_meta)?;
