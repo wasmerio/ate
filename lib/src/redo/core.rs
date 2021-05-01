@@ -57,15 +57,19 @@ impl RedoLog
                 let path_flip = format!("{}.flip", self.log_path);
 
                 let flip = {
-                    let cache = self.log_file.cache.lock();
-                    FlippedLogFile {
-                        log_file: LogFile::new(
+                    let log_file = {
+                        let cache = self.log_file.cache.lock();
+                        LogFile::new(
                             self.log_temp, 
                             path_flip, 
                             true, 
                             cache.read.cache_capacity().unwrap(), 
                             cache.read.cache_lifespan().unwrap(),
-                        ).await?,
+                        )
+                    };
+                    
+                    FlippedLogFile {
+                        log_file: log_file.await?,
                         event_summary: Vec::new(),
                     }
                 };
@@ -120,6 +124,10 @@ impl RedoLog
 
     pub fn count(&self) -> usize {
         self.log_file.count()
+    }
+
+    pub fn size(&self) -> usize {
+        self.log_file.size()
     }
 
     pub async fn open(cfg: &ConfAte, key: &ChainKey, flags: OpenFlags) -> std::result::Result<(RedoLog, VecDeque<LoadData>), SerializationError>

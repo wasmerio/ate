@@ -589,9 +589,12 @@ impl LogFile
         Ok(())
     }
 
-    #[allow(dead_code)]
     pub(super) fn count(&self) -> usize {
         self.log_count as usize
+    }
+
+    pub(super) fn size(&self) -> usize {
+        self.log_off as usize
     }
 
     pub(super) fn destroy(&mut self) -> Result<()>

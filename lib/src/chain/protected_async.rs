@@ -22,6 +22,7 @@ use super::*;
 pub(crate) struct ChainProtectedAsync
 {
     pub(crate) chain: ChainOfTrust,
+    pub(crate) default_format: MessageFormat,
     pub(crate) disable_new_roots: bool,
 }
 
@@ -56,7 +57,7 @@ impl ChainProtectedAsync
     }
 
     pub(crate) async fn feed_meta_data(&mut self, sync: &Arc<StdRwLock<ChainProtectedSync>>, meta: Metadata)
-        -> Result<Vec<EventHeader>, CommitError>
+        -> Result<(Vec<EventHeader>, u64), CommitError>
     {
         let data = EventData {
             meta,
@@ -72,7 +73,7 @@ impl ChainProtectedAsync
     }
 
     pub(super) async fn feed_async_internal(&mut self, sync: &Arc<StdRwLock<ChainProtectedSync>>, evts: &Vec<EventData>, conversation: Option<&Arc<ConversationSession>>)
-        -> Result<Vec<EventHeader>, CommitError>
+        -> Result<(Vec<EventHeader>, u64), CommitError>
     {
         let mut errors = Vec::new();
         let mut validated_evts = Vec::new();
@@ -105,9 +106,10 @@ impl ChainProtectedAsync
             }
         }
 
+        let mut last_offset = self.chain.redo.size() as u64;
         let mut ret = Vec::new();
         for (evt, header) in validated_evts.into_iter() {
-            let _ = self.chain.redo
+            last_offset = self.chain.redo
                 .write(evt).await?;
 
             self.chain.pointers.feed(&header);
@@ -119,7 +121,7 @@ impl ChainProtectedAsync
             return Err(CommitError::ValidationError(errors));
         }
 
-        Ok(ret)
+        Ok((ret, last_offset))
     }
 
     pub fn range<'a, R>(&'a self, range: R) -> impl DoubleEndedIterator<Item = &'a EventHeaderRaw>

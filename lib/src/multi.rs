@@ -60,6 +60,18 @@ impl ChainMultiUser
             default_format: accessor.default_format
         }
     }
+
+    pub(crate) async fn new_ext(inside_async: &Arc<RwLock<ChainProtectedAsync>>, inside_sync: &Arc<StdRwLock<ChainProtectedSync>>, pipe: &Arc<Box<dyn EventPipe>>) -> ChainMultiUser
+    {
+        let guard = inside_async.read().await;
+        ChainMultiUser {
+            chain: guard.chain.key.clone(),
+            inside_async: Arc::clone(inside_async),
+            inside_sync: Arc::clone(inside_sync),
+            pipe: Arc::clone(pipe),
+            default_format: guard.default_format
+        }
+    }
  
     pub async fn load(&self, leaf: EventLeaf) -> Result<LoadResult, LoadError> {
         self.inside_async.read().await.chain.load(leaf).await

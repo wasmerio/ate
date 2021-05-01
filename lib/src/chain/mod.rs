@@ -4,7 +4,7 @@ mod listener;
 mod new;
 mod protected_async;
 mod protected_sync;
-mod work;
+mod workers;
 mod compact;
 
 pub use self::core::*;

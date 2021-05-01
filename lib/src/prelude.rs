@@ -2,6 +2,7 @@ pub use crate::conf::ConfAte as AteConfig;
 pub use crate::conf::ConfAte;
 pub use crate::conf::ConfMesh;
 pub use crate::conf::ConfiguredFor;
+pub use crate::compact::CompactMode;
 pub use crate::header::PrimaryKey;
 pub use crate::error::AteError;
 

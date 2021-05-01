@@ -114,6 +114,7 @@ async fn main() -> Result<(), AteError>
             // Build a session for service
             let mut cfg_ate = ate_auth::conf_auth();
             cfg_ate.log_path = shellexpand::tilde(&run.logs_path).to_string();
+            cfg_ate.compact_mode = CompactMode::Never;
             let mut session = AteSession::new(&cfg_ate);
             session.user.add_read_key(&root_read_key);
             session.user.add_write_key(&root_write_key);

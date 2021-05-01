@@ -1,11 +1,12 @@
 #![allow(unused_imports, dead_code)]
 use log::{info, error, debug};
-use ate::prelude::*;
+use ate::{compact::CompactMode, prelude::*};
 use std::env;
 use std::io::ErrorKind;
 use directories::BaseDirs;
 use std::sync::Arc;
 use std::ops::Deref;
+use std::time::Duration;
 use url::Url;
 use tokio::select;
 
@@ -76,6 +77,18 @@ struct Solo {
     /// Port that the database server will listen on
     #[clap(short, long, default_value = "5000")]
     port: u16,
+    /// Mode that the compaction will run under (valid modes are 'never', 'modified', 'timer', 'factor', 'size', 'factor-or-timer', 'size-or-timer')
+    #[clap(long, default_value = "growth-or-timer")]
+    compact_mode: CompactMode,
+    /// Time in seconds between compactions of the log file (default: 1 hour) - this argument is ignored if you select a compact_mode that has no timer
+    #[clap(long, default_value = "3600")]
+    compact_timer: u64,
+    /// Factor growth in the log file which will trigger compaction (default: 0.2) - this argument is ignored if you select a compact_mode that has no growth trigger
+    #[clap(long, default_value = "0.2")]
+    compact_threshold_factor: f32,
+    /// Size of growth in bytes in the log file which will trigger compaction (default: 100MB) - this argument is ignored if you select a compact_mode that has no growth trigger
+    #[clap(long, default_value = "104857600")]
+    compact_threshold_size: u64,
 }
 
 fn ctrl_channel() -> tokio::sync::watch::Receiver<bool> {
@@ -135,6 +148,10 @@ async fn main_solo(solo: Solo, mut cfg_ate: ConfAte, auth: Option<url::Url>, tru
 {
     // Create the chain flow and generate configuration
     cfg_ate.log_path = shellexpand::tilde(&solo.logs_path).to_string();
+    cfg_ate.compact_mode = solo.compact_mode
+        .with_growth_factor(solo.compact_threshold_factor)
+        .with_growth_size(solo.compact_threshold_size)
+        .with_timer_value(Duration::from_secs(solo.compact_timer));
 
     // Create the chain flow and generate configuration
     let flow = ChainFlow::new(&cfg_ate, auth, trust).await;

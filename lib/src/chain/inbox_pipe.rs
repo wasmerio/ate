@@ -12,7 +12,7 @@ use crate::pipe::*;
 use crate::header::PrimaryKey;
 use crate::transaction::*;
 
-use super::work::*;
+use super::workers::*;
 
 pub(super) struct InboxPipe
 {

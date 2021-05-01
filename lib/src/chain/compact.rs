@@ -1,25 +1,35 @@
 #[allow(unused_imports)]
 use log::{info, error, debug};
+use std::sync::{Arc};
+use fxhash::{FxHashMap};
+use std::collections::BTreeMap;
+use tokio::sync::RwLock;
+use parking_lot::RwLock as StdRwLock;
 
 use crate::compact::*;
 use crate::error::*;
-
 use crate::index::*;
 use crate::transaction::*;
-
-use std::sync::{Arc};
-use fxhash::{FxHashMap};
-
 use crate::redo::*;
-
-use std::collections::BTreeMap;
+use crate::pipe::EventPipe;
+use crate::single::ChainSingleUser;
+use crate::multi::ChainMultiUser;
 
 use super::*;
 
 impl<'a> Chain
 {
-    pub async fn compact(&'a self) -> Result<(), CompactError>
+    pub async fn compact(self: &'a Chain) -> Result<(), CompactError>
     {
+        Chain::compact_ext(Arc::clone(&self.inside_async), Arc::clone(&self.inside_sync), Arc::clone(&self.pipe)).await
+    }
+
+    pub(crate) async fn compact_ext(inside_async: Arc<RwLock<ChainProtectedAsync>>, inside_sync: Arc<StdRwLock<ChainProtectedSync>>, pipe: Arc<Box<dyn EventPipe>>) -> Result<(), CompactError>
+    {
+        {
+            info!("compacting chain: {}", inside_async.read().await.chain.key.to_string());
+        }
+
         // prepare
         let mut new_pointers = BinaryTreeIndexer::default();
         let mut keepers = Vec::new();
@@ -28,15 +38,15 @@ impl<'a> Chain
         
         // create the flip
         let mut flip = {
-            let mut single = self.single().await;
+            let mut single = ChainSingleUser::new_ext(&inside_async, &inside_sync).await;
             let ret = single.inside_async.chain.redo.begin_flip().await?;
             single.inside_async.chain.redo.flush().await?;
             ret
         };
 
-        let mut history_offset;
+        let mut history_index;
         {
-            let multi = self.multi().await;
+            let multi = ChainMultiUser::new_ext(&inside_async, &inside_sync, &pipe).await;
             let guard_async = multi.inside_async.read().await;
 
             // step1 - reset all the compactors
@@ -51,7 +61,7 @@ impl<'a> Chain
             let conversation = Arc::new(ConversationSession::default());
 
             // build a list of the events that are actually relevant to a compacted log
-            history_offset = guard_async.chain.history_offset;
+            history_index = guard_async.chain.history_index;
             for (_, entry) in guard_async.chain.history.iter().rev()
             {
                 let header = entry.as_header()?;
@@ -90,22 +100,22 @@ impl<'a> Chain
 
                 flip.copy_event(&guard_async.chain.redo, header.raw.event_hash).await?;
 
-                new_history_reverse.insert(header.raw.event_hash.clone(), history_offset);
-                new_history.insert(history_offset, header.raw.clone());
-                history_offset = history_offset + 1;
+                new_history_reverse.insert(header.raw.event_hash.clone(), history_index);
+                new_history.insert(history_index, header.raw.clone());
+                history_index = history_index + 1;
             }
         }
 
         // Opening this lock will prevent writes while we are flipping
-        let mut single = self.single().await;
+        let mut single = ChainSingleUser::new_ext(&inside_async, &inside_sync).await;
 
         // finish the flips
         debug!("compact: finished the flip");
         let new_events = single.inside_async.chain.redo.finish_flip(flip, |h| {
             new_pointers.feed(h);
-            new_history_reverse.insert(h.raw.event_hash.clone(), history_offset);
-            new_history.insert(history_offset, h.raw.clone());
-            history_offset = history_offset + 1;
+            new_history_reverse.insert(h.raw.event_hash.clone(), history_index);
+            new_history.insert(history_index, h.raw.clone());
+            history_index = history_index + 1;
         })
         .await?;
 
@@ -120,7 +130,7 @@ impl<'a> Chain
             // Flip all the indexes
             let chain = &mut single.inside_async.chain;
             chain.pointers = new_pointers;
-            chain.history_offset = history_offset;
+            chain.history_index = history_index;
             chain.history_reverse = new_history_reverse;
             chain.history = new_history;
 

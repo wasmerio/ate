@@ -1,5 +1,6 @@
 #[allow(unused_imports)]
 use log::{warn, debug, info};
+use tokio::sync::RwLock;
 use tokio::sync::RwLockWriteGuard;
 use parking_lot::RwLock as StdRwLock;
 use std::sync::Arc;
@@ -13,17 +14,22 @@ use super::repository::*;
 /// impact on other users.
 pub struct ChainSingleUser<'a>
 {
-    pub(super) inside_async: RwLockWriteGuard<'a, ChainProtectedAsync>,
-    pub(super) inside_sync: Arc<StdRwLock<ChainProtectedSync>>,
+    pub(crate) inside_async: RwLockWriteGuard<'a, ChainProtectedAsync>,
+    pub(crate) inside_sync: Arc<StdRwLock<ChainProtectedSync>>,
 }
 
 impl<'a> ChainSingleUser<'a>
 {
     pub(crate) async fn new(accessor: &'a Chain) -> ChainSingleUser<'a>
     {
+        Self::new_ext(&accessor.inside_async, &accessor.inside_sync).await
+    }
+
+    pub(crate) async fn new_ext(inside_async: &'a Arc<RwLock<ChainProtectedAsync>>, inside_sync: &'a Arc<StdRwLock<ChainProtectedSync>>) -> ChainSingleUser<'a>
+    {
         ChainSingleUser {
-            inside_async: accessor.inside_async.write().await,
-            inside_sync: Arc::clone(&accessor.inside_sync),
+            inside_async: inside_async.write().await,
+            inside_sync: Arc::clone(&inside_sync),
         }
     }
 

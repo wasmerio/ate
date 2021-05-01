@@ -19,7 +19,7 @@ pub(crate) struct ChainOfTrust
 {
     pub(crate) key: ChainKey,
     pub(crate) redo: RedoLog,
-    pub(crate) history_offset: u64,
+    pub(crate) history_index: u64,
     pub(crate) history_reverse: FxHashMap<AteHash, u64>,
     pub(crate) history: BTreeMap<u64, EventHeaderRaw>,
     pub(crate) pointers: BinaryTreeIndexer,
@@ -95,10 +95,10 @@ impl<'a> ChainOfTrust
     pub(crate) fn add_history(&mut self, header: &EventHeader) {
         let raw = header.raw.clone();
         if header.meta.include_in_history() {
-            let offset = self.history_offset;
-            self.history_offset = self.history_offset + 1;
-            self.history_reverse.insert(raw.event_hash.clone(), offset);
-            self.history.insert(offset, raw);
+            let index = self.history_index;
+            self.history_index = self.history_index + 1;
+            self.history_reverse.insert(raw.event_hash.clone(), index);
+            self.history.insert(index, raw);
         }
     }
 }

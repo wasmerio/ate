@@ -7,6 +7,7 @@ use crate::error::*;
 use crate::conf::*;
 use crate::index::*;
 use crate::transaction::*;
+use crate::compact::*;
 
 use std::sync::{Arc};
 use parking_lot::Mutex as StdMutex;
@@ -52,6 +53,7 @@ impl<'a> Chain
             temporal: builder.temporal,
             integrity: builder.integrity,
         };
+        let compact_mode = builder.cfg.compact_mode;
         
         // Create a redo log loader which will listen to all the events as they are
         // streamed in and extract the event headers
@@ -88,7 +90,7 @@ impl<'a> Chain
         let chain = ChainOfTrust {
             key: key.clone(),
             redo: redo_log,
-            history_offset: 0,
+            history_index: 0,
             history_reverse: FxHashMap::default(),
             history: BTreeMap::new(),
             pointers: BinaryTreeIndexer::default(),
@@ -127,6 +129,7 @@ impl<'a> Chain
         // will have longer waits on it when there are writes occuring
         let mut inside_async = ChainProtectedAsync {
             chain,
+            default_format: builder.cfg.log_format,
             disable_new_roots: false,
         };
         
@@ -136,7 +139,12 @@ impl<'a> Chain
             if allow_process_errors == false {
                 return Err(ChainCreationError::ProcessError(err));
             }
-        }        
+        }
+
+        // Create the compaction state (which later we will pass to the compaction thread)
+        let (compact_tx, compact_rx) = CompactState::new(compact_mode, inside_async.chain.redo.size() as u64);
+
+        // Make the inside async immutable
         let inside_async = Arc::new(RwLock::new(inside_async));
 
         // We create a channel that will be used to feed events from the inbox pipe into
@@ -148,7 +156,7 @@ impl<'a> Chain
         // The worker thread processes events that come in
         let worker_inside_async = Arc::clone(&inside_async);
         let worker_inside_sync = Arc::clone(&inside_sync);
-        tokio::task::spawn(Chain::worker(worker_inside_async, worker_inside_sync, receiver));
+        tokio::task::spawn(Chain::worker_receiver(worker_inside_async, worker_inside_sync, receiver, compact_tx));
 
         // The inbox pipe intercepts requests to and processes them
         let mut pipe: Arc<Box<dyn EventPipe>> = Arc::new(Box::new(InboxPipe {
@@ -159,6 +167,13 @@ impl<'a> Chain
             pipe = Arc::new(Box::new(DuelPipe::new(second, pipe)));
         };
 
+        // Start the compactor on the chain
+        let worker_inside_async = Arc::clone(&inside_async);
+        let worker_inside_sync = Arc::clone(&inside_sync);
+        let worker_pipe = Arc::clone(&pipe);
+        tokio::task::spawn(Chain::worker_compactor(worker_inside_async, worker_inside_sync, worker_pipe, compact_rx));
+
+        // Create the chain
         Ok(
             Chain {
                 key: key.clone(),

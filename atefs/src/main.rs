@@ -8,6 +8,7 @@ use std::io::ErrorKind;
 use directories::BaseDirs;
 use std::sync::Arc;
 use std::ops::Deref;
+use std::time::Duration;
 use url::Url;
 use tokio::select;
 
@@ -24,6 +25,7 @@ mod umount;
 
 use crate::fs::AteFS;
 use crate::error::CommandError;
+use ate::compact::CompactMode;
 
 use fuse3::raw::prelude::*;
 use fuse3::{MountOptions};
@@ -201,6 +203,7 @@ async fn main_mount(mount: Mount, conf: ConfAte, group: Option<String>, session:
     conf.log_format.data = mount.data_format;
     conf.log_path = shellexpand::tilde(&mount.log_path).to_string();
     conf.recovery_mode = mount.recovery_mode;
+    conf.compact_mode = CompactMode::GrowthFactorOrTimer { growth: 0.2f32, timer: Duration::from_secs(3600) };
 
     info!("configured_for: {:?}", mount.configured_for);
     info!("meta_format: {:?}", mount.meta_format);

@@ -1,9 +1,11 @@
 #[allow(unused_imports)]
 use log::{info, error, debug};
+use std::time::Duration;
 
 use crate::crypto::KeySize;
 use crate::spec::*;
 use crate::mesh::RecoveryMode;
+use crate::compact::CompactMode;
 
 use super::*;
 
@@ -15,8 +17,11 @@ pub struct ConfAte
     /// Optimizes ATE for a specific group of usecases
     pub(super) configured_for: ConfiguredFor,
 
-    /// Specified the recovery mode that the mesh will take
+    /// Specifies the recovery mode that the mesh will take
     pub recovery_mode: RecoveryMode,
+
+    /// Specifies the log compaction mode for the redo log
+    pub compact_mode: CompactMode,
 
     /// Directory path that the redo logs will be stored.
     pub log_path: String,
@@ -72,6 +77,7 @@ for ConfAte
             dns_sec: false,
             dns_server: "8.8.8.8".to_string(),
             recovery_mode: RecoveryMode::ReadOnlyAsync,
+            compact_mode: CompactMode::GrowthFactorOrTimer { growth: 0.2f32, timer: Duration::from_secs(3600) },
             ntp_sync: true,
             ntp_pool: "pool.ntp.org".to_string(),
             ntp_port: 123,
