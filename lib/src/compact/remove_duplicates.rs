@@ -1,0 +1,51 @@
+use std::sync::Arc;
+use fxhash::FxHashSet;
+
+use crate::header::*;
+use crate::event::*;
+use crate::sink::*;
+use crate::error::*;
+use crate::transaction::ConversationSession;
+
+use super::*;
+
+#[derive(Default, Clone)]
+pub struct RemoveDuplicatesCompactor
+{
+    already: FxHashSet<PrimaryKey>,
+}
+
+impl EventSink
+for RemoveDuplicatesCompactor
+{
+    fn feed(&mut self, header: &EventHeader, _conversation: Option<&Arc<ConversationSession>>) -> Result<(), SinkError> {
+        if let Some(key) = header.meta.get_data_key() {
+            self.already.insert(key.clone());
+        }
+        Ok(())
+    }
+
+    fn reset(&mut self) {
+        self.already.clear();
+    }
+}
+
+impl EventCompactor
+for RemoveDuplicatesCompactor
+{
+    fn clone_compactor(&self) -> Box<dyn EventCompactor> {
+        Box::new(self.clone())
+    }
+    
+    fn relevance(&mut self, header: &EventHeader) -> EventRelevance
+    {
+        let key = match header.meta.get_data_key() {
+            Some(key) => key,
+            None => { return EventRelevance::Abstain; }
+        };
+        match self.already.contains(&key) {
+            true => EventRelevance::Drop,
+            false => EventRelevance::Keep,
+        }
+    }
+}
