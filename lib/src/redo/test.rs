@@ -5,7 +5,6 @@ use tokio::runtime::Runtime;
 use bytes::Bytes;
 
 use crate::crypto::*;
-use crate::conf::*;
 use crate::chain::*;
 use crate::header::*;
 use crate::event::*;
