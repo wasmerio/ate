@@ -83,7 +83,7 @@ fn test_redo_log() {
     let blah7 = PrimaryKey::generate();
 
     rt.block_on(async {
-        let mock_cfg = mock_test_config();
+        let mock_cfg = crate::conf::tests::mock_test_config();
         let mock_chain_key = ChainKey::default()
             .with_temp_name("test_redo".to_string());
             

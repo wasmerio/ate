@@ -11,7 +11,7 @@ use qrcode::render::unicode;
 use ate::prelude::*;
 use ate::error::LoadError;
 use ate::error::TransformError;
-use ate::session::RolePurpose;
+use ate::session::AteRolePurpose;
 
 use crate::conf_auth;
 use crate::prelude::*;
@@ -57,9 +57,9 @@ impl AuthService
 
         // Determine what role is needed to adjust the group
         let needed_role = match request_purpose {
-            RolePurpose::Owner => RolePurpose::Owner,
-            RolePurpose::Delegate => RolePurpose::Owner,
-            _ => RolePurpose::Delegate
+            AteRolePurpose::Owner => AteRolePurpose::Owner,
+            AteRolePurpose::Delegate => AteRolePurpose::Owner,
+            _ => AteRolePurpose::Delegate
         };
 
         // Extract the controlling role as this is what we will use to create the role
@@ -112,7 +112,7 @@ pub async fn group_user_remove_command(group: String, purpose: AteRolePurpose, u
 
     // Determine what level of authentication we will associate the role with
     let who = match purpose {
-        RolePurpose::Owner => query.advert.sudo_encrypt,
+        AteRolePurpose::Owner => query.advert.sudo_encrypt,
         _ => query.advert.nominal_encrypt
     };
     
@@ -165,7 +165,7 @@ pub async fn main_group_user_remove(
             stdout().lock().flush()?;
             let mut s = String::new();
             std::io::stdin().read_line(&mut s).expect("Did not enter a valid role purpose");
-            match RolePurpose::from_str(s.trim()) {
+            match AteRolePurpose::from_str(s.trim()) {
                 Ok(a) => a,
                 Err(err) => { return Err(GroupUserRemoveError::InvalidPurpose(err.to_string())); }
             }

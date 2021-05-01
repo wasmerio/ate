@@ -17,7 +17,7 @@ async fn test_mesh()
 {
     crate::utils::bootstrap_env();
 
-    let cfg_ate = crate::conf::mock_test_config();
+    let cfg_ate = crate::conf::tests::mock_test_config();
 
     // Create a root key that will protect the integrity of the chain
     let root_key = crate::crypto::PrivateSignKey::generate(KeySize::Bit256);

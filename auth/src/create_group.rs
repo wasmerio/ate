@@ -12,7 +12,7 @@ use regex::Regex;
 use ate::prelude::*;
 use ate::error::LoadError;
 use ate::error::TransformError;
-use ate::session::RolePurpose;
+use ate::session::AteRolePurpose;
 
 use crate::conf_auth;
 use crate::prelude::*;
@@ -129,22 +129,22 @@ impl AuthService
             let role_private_read;
             let role_write;
             match purpose {
-                RolePurpose::Owner => {
+                AteRolePurpose::Owner => {
                     role_read = owner_read.clone();
                     role_private_read = owner_private_read.clone();
                     role_write = owner_write.clone();
                 },
-                RolePurpose::Delegate => {
+                AteRolePurpose::Delegate => {
                     role_read = delegate_read.clone();
                     role_private_read = delegate_private_read.clone();
                     role_write = delegate_write.clone();
                 },
-                RolePurpose::Contributor => {
+                AteRolePurpose::Contributor => {
                     role_read = contributor_read.clone();
                     role_private_read = contributor_private_read.clone();
                     role_write = contributor_write.clone();
                 },
-                RolePurpose::Observer => {
+                AteRolePurpose::Observer => {
                     role_read = observer_read.clone();
                     role_private_read = observer_private_read.clone();
                     role_write = observer_write.clone();
@@ -162,11 +162,11 @@ impl AuthService
                 private_read: role_private_read.clone(),
                 write: role_write.clone()
             })?;
-            if let RolePurpose::Owner = purpose {
+            if let AteRolePurpose::Owner = purpose {
                 access.add(&request.sudo_read_key, request.identity.clone(), &owner_private_read)?;
-            } else if let RolePurpose::Delegate = purpose {
+            } else if let AteRolePurpose::Delegate = purpose {
                 access.add(&request.nominal_read_key, request.identity.clone(), &owner_private_read)?;
-            } else if let RolePurpose::Observer = purpose {
+            } else if let AteRolePurpose::Observer = purpose {
                 access.add(&delegate_private_read.as_public_key(), "delegate".to_string(), &owner_private_read)?;
                 access.add(&contributor_private_read.as_public_key(), "contributor".to_string(), &owner_private_read)?;
             } else {

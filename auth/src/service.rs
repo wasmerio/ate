@@ -3,9 +3,9 @@ use log::{info, error, debug};
 use async_trait::async_trait;
 use std::sync::Arc;
 
-use ate::prelude::*;
-use ate::error::*;
-use ate::time::NtpWorker;
+use ::ate::prelude::*;
+use ::ate::error::*;
+use ::ate::time::NtpWorker;
 
 use crate::commands::*;
 use crate::helper::*;

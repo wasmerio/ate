@@ -11,7 +11,7 @@ use qrcode::render::unicode;
 use ate::prelude::*;
 use ate::error::LoadError;
 use ate::error::TransformError;
-use ate::session::RolePurpose;
+use ate::session::AteRolePurpose;
 
 use crate::conf_auth;
 use crate::prelude::*;

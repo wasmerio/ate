@@ -10,21 +10,21 @@ use std::time::{Duration, SystemTime};
 use std::vec::IntoIter;
 use parking_lot::Mutex;
 
-use ate::{crypto::DerivedEncryptKey, prelude::TransactionScope};
-use ate::dio::Dio;
-use ate::dio::Dao;
-use ate::dio::DaoObjEthereal;
-use ate::dio::DaoObjReal;
-use ate::error::*;
-use ate::chain::*;
-use ate::crypto::*;
-use ate::session::AteSession;
-use ate::header::PrimaryKey;
-use ate::prelude::AteHash;
-use ate::prelude::AteSessionProperty;
-use ate::prelude::AteRolePurpose;
-use ate::prelude::ReadOption;
-use ate::meta::MetaAuthorization;
+use ::ate::{crypto::DerivedEncryptKey, prelude::TransactionScope};
+use ::ate::dio::Dio;
+use ::ate::dio::Dao;
+use ::ate::dio::DaoObjEthereal;
+use ::ate::dio::DaoObjReal;
+use ::ate::error::*;
+use ::ate::chain::*;
+use ::ate::crypto::*;
+use ::ate::session::AteSession;
+use ::ate::header::PrimaryKey;
+use ::ate::prelude::*;
+use ::ate::prelude::AteSessionProperty;
+use ::ate::prelude::AteRolePurpose;
+use ::ate::prelude::ReadOption;
+use ::ate::meta::MetaAuthorization;
 use crate::fixed::FixedFile;
 
 use super::dir::Directory;
@@ -450,12 +450,12 @@ impl AteFS
                 debug!("...we have...{}", self.session);
                 return Err(libc::EACCES.into());
             } else {
-                auth.read = ate::meta::ReadOption::Inherit;
+                auth.read = ReadOption::Inherit;
             }
         }
 
         if mode & 0o002 != 0 {
-            auth.write = ate::meta::WriteOption::Everyone;
+            auth.write = WriteOption::Everyone;
         } else {
             let new_key = {
                 if mode & 0o020 != 0 {
@@ -465,7 +465,7 @@ impl AteFS
                 }
             };
             if let Some(key) = new_key {
-                auth.write = ate::meta::WriteOption::Specific(key.hash());
+                auth.write = WriteOption::Specific(key.hash());
             } else if self.no_auth == false {
                 if mode & 0o020 != 0 {
                     error!("Session does not have the required group ({}) write key embedded within it", gid);
@@ -475,7 +475,7 @@ impl AteFS
                 debug!("...we have...{}", self.session);
                 return Err(libc::EACCES.into());
             } else {
-                auth.write = ate::meta::WriteOption::Inherit;
+                auth.write = WriteOption::Inherit;
             }
         }
 

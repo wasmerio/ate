@@ -108,10 +108,10 @@ pub struct User {
     pub access: Vec<Authorization>,
     pub foreign: DaoForeign,
     pub sudo: DaoRef<Sudo>,
-    pub nominal_read: ate::crypto::Hash,
+    pub nominal_read: ate::crypto::AteHash,
     pub nominal_public_read: PublicEncryptKey,
     pub nominal_write: PublicSignKey,
-    pub sudo_read: ate::crypto::Hash,
+    pub sudo_read: ate::crypto::AteHash,
     pub sudo_public_read: PublicEncryptKey,
     pub sudo_write: PublicSignKey,
 }

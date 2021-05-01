@@ -65,7 +65,7 @@ async fn test_dio() -> Result<(), AteError>
 
     {
         debug!("creating the chain-of-trust");
-        let mut mock_cfg = crate::conf::mock_test_config();
+        let mut mock_cfg = crate::conf::tests::mock_test_config();
         let (chain, _builder) = crate::trust::create_test_chain(&mut mock_cfg, chain_name.clone(), false, false, Some(root_public_key.clone())).await;
         //let mut chain = create_test_chain("test_dio".to_string(), true, false, None);
 
@@ -188,7 +188,7 @@ async fn test_dio() -> Result<(), AteError>
 
     {
         debug!("reloading the chain of trust");
-        let mut mock_cfg = crate::conf::mock_test_config();
+        let mut mock_cfg = crate::conf::tests::mock_test_config();
         let (chain, _builder) = crate::trust::create_test_chain(&mut mock_cfg, chain_name.clone(), false, false, Some(root_public_key.clone())).await;
 
         {

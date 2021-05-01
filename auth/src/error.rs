@@ -1,5 +1,5 @@
-use ate::prelude::*;
-use ate::error::*;
+use ::ate::prelude::*;
+use ::ate::error::*;
 
 #[derive(Debug)]
 pub enum LoginError

@@ -8,12 +8,12 @@
 /// - feature = "use_version1"
 /// - feature = "use_version2"
 
-pub const HASH_ROUTINE: conf::HashRoutine = if cfg!(feature = "use_blake3") {
-    conf::HashRoutine::Blake3
+pub const HASH_ROUTINE: crypto::HashRoutine = if cfg!(feature = "use_blake3") {
+    crypto::HashRoutine::Blake3
 } else if cfg!(feature = "use_sha3") {
-    conf::HashRoutine::Sha3
+    crypto::HashRoutine::Sha3
 } else {
-    conf::HashRoutine::Blake3
+    crypto::HashRoutine::Blake3
 };
 
 pub const LOG_VERSION: spec::LogVersion = spec::LogVersion::V2;

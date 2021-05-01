@@ -11,7 +11,7 @@ use qrcode::render::unicode;
 use ate::prelude::*;
 use ate::error::LoadError;
 use ate::error::TransformError;
-use ate::session::RolePurpose;
+use ate::session::AteRolePurpose;
 
 use crate::conf_auth;
 use crate::prelude::*;
@@ -23,7 +23,7 @@ use crate::model::*;
 
 impl AuthService
 {
-    pub fn get_delegate_write(mut request_session: AteSession, group: &Group, needed_role: RolePurpose) -> Result<Option<(PrivateEncryptKey, AteSession)>, LoadError>
+    pub fn get_delegate_write(mut request_session: AteSession, group: &Group, needed_role: AteRolePurpose) -> Result<Option<(PrivateEncryptKey, AteSession)>, LoadError>
     {
         let group_name = group.name.clone();
         let mut delegate_check_first_time = true;
@@ -101,9 +101,9 @@ impl AuthService
 
         // Determine what role is needed to adjust the group
         let needed_role = match &request_purpose {
-            RolePurpose::Owner => RolePurpose::Owner,
-            RolePurpose::Delegate => RolePurpose::Owner,
-            _ => RolePurpose::Delegate
+            AteRolePurpose::Owner => AteRolePurpose::Owner,
+            AteRolePurpose::Delegate => AteRolePurpose::Owner,
+            _ => AteRolePurpose::Delegate
         };
 
         // Get the delegate write key
@@ -172,7 +172,7 @@ pub async fn group_user_add_command(group: String, purpose: AteRolePurpose, user
 
     // Determine what level of authentication we will associate the role with
     let who_key = match purpose {
-        RolePurpose::Owner => query.advert.sudo_encrypt,
+        AteRolePurpose::Owner => query.advert.sudo_encrypt,
         _ => query.advert.nominal_encrypt
     };
     
@@ -223,7 +223,7 @@ pub async fn main_group_user_add(
             stdout().lock().flush()?;
             let mut s = String::new();
             std::io::stdin().read_line(&mut s).expect("Did not enter a valid role purpose");
-            match RolePurpose::from_str(s.trim()) {
+            match AteRolePurpose::from_str(s.trim()) {
                 Ok(a) => a,
                 Err(err) => { return Err(GroupUserAddError::InvalidPurpose(err.to_string())); }
             }

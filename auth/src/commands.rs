@@ -16,9 +16,9 @@ pub struct LoginRequest
 pub struct LoginResponse
 {
     pub user_key: PrimaryKey,
-    pub nominal_read: ate::crypto::Hash,
+    pub nominal_read: ate::crypto::AteHash,
     pub nominal_write: PublicSignKey,
-    pub sudo_read: ate::crypto::Hash,
+    pub sudo_read: ate::crypto::AteHash,
     pub sudo_write: PublicSignKey,
     pub authority: AteSession
 }

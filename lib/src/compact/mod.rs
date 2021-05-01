@@ -10,8 +10,6 @@ use super::error::*;
 use super::transaction::ConversationSession;
 
 pub use mode::CompactMode;
-pub(crate) use mode::CompactState;
-pub(crate) use mode::CompactNotifications;
 
 pub enum EventRelevance
 {

@@ -46,9 +46,9 @@ pub use crate::multi::ChainMultiUser;
 pub use crate::single::ChainSingleUser;
 pub use crate::session::AteSession;
 pub use crate::session::AteSessionProperty;
-pub use crate::session::Group;
-pub use crate::session::GroupRole;
-pub use crate::session::RolePurpose;
+pub use crate::session::AteGroup;
+pub use crate::session::AteGroupRole;
+pub use crate::session::AteRolePurpose;
 pub use crate::transaction::TransactionScope;
 
 pub use crate::service::InvocationContext;
