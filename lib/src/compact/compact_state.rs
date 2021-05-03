@@ -7,6 +7,8 @@ use tokio::select;
 
 use super::CompactMode;
 
+const GROWTH_FACTOR_IGNORE_SMALLER_THAN_SIZE: u64 = 2097152;
+
 pub(crate) struct CompactNotifications
 {
     pub log_size: watch::Sender<u64>,
@@ -97,7 +99,8 @@ impl CompactState
                 CompactMode::GrowthFactor(target) => {
                     let target = 1.0f32 + target;
                     let target = (initial_size as f32 * target) as u64;
-                    if *self.log_size.borrow() >= target {
+                    let cur = *self.log_size.borrow();
+                    if cur >= GROWTH_FACTOR_IGNORE_SMALLER_THAN_SIZE && cur >= target {
                         break;
                     }
                     self.log_size.changed().await?;
@@ -120,7 +123,8 @@ impl CompactState
                 CompactMode::GrowthFactorOrTimer { growth, timer } => {
                     let target = 1.0f32 + growth;
                     let target = (initial_size as f32 * target) as u64;
-                    if *self.log_size.borrow() >= target {
+                    let cur = *self.log_size.borrow();
+                    if cur >= GROWTH_FACTOR_IGNORE_SMALLER_THAN_SIZE && cur >= target {
                         break;
                     }
                     let deadtime = deadtime(timer);

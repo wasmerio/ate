@@ -60,10 +60,10 @@ pub fn test_compact_state_machine() -> Result<(), AteError> {
         // Test the growth size trigger (negative II)
         let (tx, mut rx) = CompactState::new(CompactMode::GrowthSize(500), 1000);
         let wait = rx.wait_for_compact();
-        tx.log_size.send(100u64)?;
+        tx.log_size.send(1000u64)?;
         let _tx = tokio::spawn(async move { tokio::time::sleep(Duration::from_millis(10)).await; let _ = tx.log_size.send(1100u64); tx });
         timeout(Duration::from_millis(50), wait).await
-            .expect_err("The modify event should not be triggered");
+            .expect_err("The growth size event should not be triggered");
 
         // Test the growth size trigger (positive)
         let (tx, mut rx) = CompactState::new(CompactMode::GrowthSize(500), 1000);

@@ -14,6 +14,7 @@ use crate::header::*;
 use crate::validator::*;
 use crate::event::*;
 use crate::spec::*;
+use crate::compact::*;
 
 use super::*;
 
@@ -75,6 +76,7 @@ async fn test_chain() {
     {
         debug!("creating test chain");
         let mut mock_cfg = crate::conf::tests::mock_test_config();
+        mock_cfg.compact_mode = CompactMode::Never;
         let (chain, _builder) = create_test_chain(&mut mock_cfg, "test_chain".to_string(), true, true, None).await;
         chain_name = chain.name().await;
         
@@ -119,6 +121,7 @@ async fn test_chain() {
         // Reload the chain from disk and check its integrity
         debug!("reloading the chain");
         let mut mock_cfg = crate::conf::tests::mock_test_config();
+        mock_cfg.compact_mode = CompactMode::Never;
         let (chain, _builder) = create_test_chain(&mut mock_cfg, chain_name.clone(), false, true, None).await;
             
         {
@@ -176,6 +179,7 @@ async fn test_chain() {
         // Reload the chain from disk and check its integrity
         debug!("reloading the chain");
         let mut mock_cfg = crate::conf::tests::mock_test_config();
+        mock_cfg.compact_mode = CompactMode::Never;
         let (chain, _builder) = create_test_chain(&mut mock_cfg, chain_name.clone(), false, true, None).await;
 
         {
@@ -229,6 +233,7 @@ async fn test_chain() {
         // Reload the chain from disk and check its integrity
         debug!("reloading the chain");
         let mut mock_cfg = crate::conf::tests::mock_test_config();
+        mock_cfg.compact_mode = CompactMode::Never;
         let (chain, _builder) = create_test_chain(&mut mock_cfg, chain_name.clone(), false, true, None).await;
 
         {
