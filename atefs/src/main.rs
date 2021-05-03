@@ -158,6 +158,9 @@ struct Mount {
     /// Format of the data in the log file as <bincode>, <json> or <mpack>
     #[clap(long, default_value = "bincode")]
     data_format: ate::spec::SerializationFormat,
+    /// Forces the compaction of the local redo-log before it streams in the latest values
+    #[clap(long)]
+    compact_now: bool,
 }
 
 fn ctrl_channel() -> tokio::sync::watch::Receiver<bool> {
@@ -204,6 +207,7 @@ async fn main_mount(mount: Mount, conf: ConfAte, group: Option<String>, session:
     conf.log_path = shellexpand::tilde(&mount.log_path).to_string();
     conf.recovery_mode = mount.recovery_mode;
     conf.compact_mode = CompactMode::GrowthFactorOrTimer { growth: 0.2f32, timer: Duration::from_secs(3600) };
+    conf.compact_bootstrap = mount.compact_now;
 
     info!("configured_for: {:?}", mount.configured_for);
     info!("meta_format: {:?}", mount.meta_format);

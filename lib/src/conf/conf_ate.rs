@@ -14,14 +14,17 @@ use super::*;
 #[derive(Debug, Clone)]
 pub struct ConfAte
 {
-    /// Optimizes ATE for a specific group of usecases
+    /// Optimizes ATE for a specific group of usecases.
     pub(super) configured_for: ConfiguredFor,
 
-    /// Specifies the recovery mode that the mesh will take
+    /// Specifies the recovery mode that the mesh will take.
     pub recovery_mode: RecoveryMode,
 
-    /// Specifies the log compaction mode for the redo log
+    /// Specifies the log compaction mode for the redo log.
     pub compact_mode: CompactMode,
+
+    /// Compacts the redo log on bootstrapping of the program.
+    pub compact_bootstrap: bool,
 
     /// Directory path that the redo logs will be stored.
     pub log_path: String,
@@ -78,6 +81,7 @@ for ConfAte
             dns_server: "8.8.8.8".to_string(),
             recovery_mode: RecoveryMode::ReadOnlyAsync,
             compact_mode: CompactMode::GrowthFactorOrTimer { growth: 0.2f32, timer: Duration::from_secs(3600) },
+            compact_bootstrap: false,
             ntp_sync: true,
             ntp_pool: "pool.ntp.org".to_string(),
             ntp_port: 123,

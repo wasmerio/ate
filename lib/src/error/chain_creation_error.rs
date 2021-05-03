@@ -14,6 +14,7 @@ pub enum ChainCreationError {
     ProcessError(ProcessError),
     IO(tokio::io::Error),
     SerializationError(SerializationError),
+    CompactError(CompactError),
     NoRootFoundInConfig,
     NoRootFoundForUrl(String),
     UnsupportedProtocol,
@@ -69,6 +70,14 @@ for ChainCreationError
 {
     fn from(err: CommsError) -> ChainCreationError {
         ChainCreationError::CommsError(err)
+    }   
+}
+
+impl From<CompactError>
+for ChainCreationError
+{
+    fn from(err: CompactError) -> ChainCreationError {
+        ChainCreationError::CompactError(err)
     }   
 }
 
@@ -132,6 +141,9 @@ for ChainCreationError {
             },
             ChainCreationError::CommsError(err) => {
                 write!(f, "Failed to create chain-of-trust due to a communication error - {}", err)
+            },
+            ChainCreationError::CompactError(err) => {
+                write!(f, "Failed to create chain-of-trust due issue compacting the redo log - {}", err)
             },
             ChainCreationError::NoValidDomain(err) => {
                 write!(f, "Failed to create chain-of-trust as the address does not have a valid domain name [{}]", err)

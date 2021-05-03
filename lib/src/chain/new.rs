@@ -54,6 +54,7 @@ impl<'a> Chain
             integrity: builder.integrity,
         };
         let compact_mode = builder.cfg.compact_mode;
+        let compact_bootstrap = builder.cfg.compact_bootstrap;
         
         // Create a redo log loader which will listen to all the events as they are
         // streamed in and extract the event headers
@@ -167,21 +168,29 @@ impl<'a> Chain
             pipe = Arc::new(Box::new(DuelPipe::new(second, pipe)));
         };
 
-        // Start the compactor on the chain
-        let worker_inside_async = Arc::clone(&inside_async);
-        let worker_inside_sync = Arc::clone(&inside_sync);
-        let worker_pipe = Arc::clone(&pipe);
+        // Create the chain that will be returned to thecaller
+        let chain = Chain {
+            key: key.clone(),
+            default_format: builder.cfg.log_format,
+            inside_sync,
+            inside_async,
+            pipe,
+        };
+
+        // If we are to compact the log on bootstrap then do so
+        if compact_bootstrap {
+            chain.compact().await?;
+        }
+
+        // Start the compactor worker thread on the chain
+        let worker_inside_async = Arc::clone(&chain.inside_async);
+        let worker_inside_sync = Arc::clone(&chain.inside_sync);
+        let worker_pipe = Arc::clone(&chain.pipe);
         tokio::task::spawn(Chain::worker_compactor(worker_inside_async, worker_inside_sync, worker_pipe, compact_rx));
 
         // Create the chain
         Ok(
-            Chain {
-                key: key.clone(),
-                default_format: builder.cfg.log_format,
-                inside_sync,
-                inside_async,
-                pipe,
-            }
+            chain
         )
     }
 }
