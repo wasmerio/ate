@@ -2,7 +2,6 @@
 use log::{error, info, warn, debug};
 use std::sync::Arc;
 
-use crate::crypto::*;
 use crate::error::*;
 use crate::meta::*;
 use crate::validator::*;
@@ -30,10 +29,7 @@ for TreeAuthorityPlugin
         }
 
         // If it has data then we need to check it - otherwise we ignore it
-        let data_hash = match header.raw.data_hash {
-            Some(a) => DoubleHash::from_hashes(&header.raw.meta_hash, &a).hash(),
-            None => header.raw.meta_hash.clone()
-        };
+        let data_hash = header.raw.sig_hash();
 
         // It might be the case that everyone is allowed to write freely
         let dummy_trans_meta = TransactionMetadata::default();

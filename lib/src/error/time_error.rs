@@ -1,6 +1,8 @@
 #[allow(unused_imports)]
 use log::{info, error, debug};
-use std::error::Error;
+use std::{error::Error, time::SystemTime};
+use chrono::Utc;
+use chrono::DateTime;
 
 extern crate rmp_serde as rmps;
 
@@ -13,7 +15,7 @@ pub enum TimeError
     SystemTimeError(SystemTimeError),
     BeyondTolerance(u32),
     NoTimestamp,
-    OutOfBounds(std::time::Duration),
+    OutOfBounds{ cursor: SystemTime, timestamp: SystemTime},
 }
 
 impl From<std::io::Error>
@@ -48,11 +50,10 @@ for TimeError {
             TimeError::NoTimestamp => {
                 write!(f, "The data object has no timestamp metadata attached to it")
             },
-            TimeError::OutOfBounds(duration) => {
-                let seconds = duration.as_secs() % 60;
-                let minutes = (duration.as_secs() / 60) % 60;
-                let hours = (duration.as_secs() / 60) / 60;
-                write!(f, "The network latency is out of bounds - {}", format!("{}H:{}M:{}s", hours, minutes, seconds))
+            TimeError::OutOfBounds{ cursor, timestamp} => {
+                let cursor = DateTime::<Utc>::from(*cursor).format("%Y-%m-%d %H:%M:%S.%f").to_string();
+                let timestamp = DateTime::<Utc>::from(*timestamp).format("%Y-%m-%d %H:%M:%S.%f").to_string();
+                write!(f, "The network latency is out of bounds - cursor:{}, timestamp:{}", cursor, timestamp)
             },
         }
     }

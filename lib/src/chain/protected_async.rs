@@ -88,6 +88,7 @@ impl ChainProtectedAsync
 
                 match sync.validate_event(&header, conversation) {
                     Err(err) => {
+                        #[cfg(feature = "verbose")]
                         debug!("chain::feed-validation-err: {}", err);
                         errors.push(err);
                         continue;

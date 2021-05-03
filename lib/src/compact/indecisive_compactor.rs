@@ -26,4 +26,8 @@ for IndecisiveCompactor
     {
         EventRelevance::Abstain
     }
+
+    fn name(&self) -> &str {
+        "indecisive-compactor"
+    }
 }

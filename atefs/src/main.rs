@@ -161,6 +161,18 @@ struct Mount {
     /// Forces the compaction of the local redo-log before it streams in the latest values
     #[clap(long)]
     compact_now: bool,
+    /// Mode that the compaction will run under (valid modes are 'never', 'modified', 'timer', 'factor', 'size', 'factor-or-timer', 'size-or-timer')
+    #[clap(long, default_value = "factor-or-timer")]
+    compact_mode: CompactMode,
+    /// Time in seconds between compactions of the log file (default: 1 hour) - this argument is ignored if you select a compact_mode that has no timer
+    #[clap(long, default_value = "3600")]
+    compact_timer: u64,
+    /// Factor growth in the log file which will trigger compaction (default: 0.2) - this argument is ignored if you select a compact_mode that has no growth trigger
+    #[clap(long, default_value = "0.2")]
+    compact_threshold_factor: f32,
+    /// Size of growth in bytes in the log file which will trigger compaction (default: 100MB) - this argument is ignored if you select a compact_mode that has no growth trigger
+    #[clap(long, default_value = "104857600")]
+    compact_threshold_size: u64,
 }
 
 fn ctrl_channel() -> tokio::sync::watch::Receiver<bool> {
@@ -206,8 +218,11 @@ async fn main_mount(mount: Mount, conf: ConfAte, group: Option<String>, session:
     conf.log_format.data = mount.data_format;
     conf.log_path = shellexpand::tilde(&mount.log_path).to_string();
     conf.recovery_mode = mount.recovery_mode;
-    conf.compact_mode = CompactMode::GrowthFactorOrTimer { growth: 0.2f32, timer: Duration::from_secs(3600) };
     conf.compact_bootstrap = mount.compact_now;
+    conf.compact_mode = mount.compact_mode
+        .with_growth_factor(mount.compact_threshold_factor)
+        .with_growth_size(mount.compact_threshold_size)
+        .with_timer_value(Duration::from_secs(mount.compact_timer));
 
     info!("configured_for: {:?}", mount.configured_for);
     info!("meta_format: {:?}", mount.meta_format);

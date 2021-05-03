@@ -6,6 +6,7 @@ use crate::event::*;
 use crate::sink::*;
 use crate::error::*;
 use crate::transaction::ConversationSession;
+use crate::meta::CoreMetadata;
 
 use super::*;
 
@@ -19,8 +20,10 @@ impl EventSink
 for RemoveDuplicatesCompactor
 {
     fn feed(&mut self, header: &EventHeader, _conversation: Option<&Arc<ConversationSession>>) -> Result<(), SinkError> {
-        if let Some(key) = header.meta.get_data_key() {
-            self.already.insert(key.clone());
+        for meta in header.meta.core.iter() {
+            if let CoreMetadata::Data(key) = meta {
+                self.already.insert(key.clone());
+            }
         }
         Ok(())
     }
@@ -44,8 +47,12 @@ for RemoveDuplicatesCompactor
             None => { return EventRelevance::Abstain; }
         };
         match self.already.contains(&key) {
-            true => EventRelevance::Drop,
-            false => EventRelevance::Keep,
+            true => EventRelevance::ForceDrop,
+            false => EventRelevance::Abstain,
         }
+    }
+
+    fn name(&self) -> &str {
+        "remove-duplicates-compactor"
     }
 }

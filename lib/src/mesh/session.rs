@@ -365,7 +365,7 @@ impl MeshSession
                     break;
                 }
                 Err(CommsError::ValidationError(errs)) => {
-                    debug!("mesh-session-debug: {}", CommsError::ValidationError(errs).to_string());
+                    debug!("mesh-session-debug: {} validation errors", errs.len());
                     continue;
                 }
                 Err(err) => {

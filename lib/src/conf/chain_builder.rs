@@ -109,6 +109,7 @@ impl ChainBuilder
             return self;
         }
 
+        self.compactors.push(Box::new(KeepDataCompactor::default()));
         self.compactors.push(Box::new(RemoveDuplicatesCompactor::default()));
         self.compactors.push(Box::new(TombstoneCompactor::default()));
         self.plugins.push(Box::new(AntiReplayPlugin::default()));

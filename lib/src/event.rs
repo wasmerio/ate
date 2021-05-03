@@ -43,6 +43,14 @@ impl EventHeaderRaw
             format,
         }
     }
+
+    pub(crate) fn sig_hash(&self) -> AteHash {
+        match &self.data_hash {
+            Some(d) => DoubleHash::from_hashes(&self.meta_hash, d).hash(),
+            None => self.meta_hash
+        }
+    }
+
     pub(crate) fn as_header(&self) -> Result<EventHeader, SerializationError> {
         Ok(
             EventHeader {

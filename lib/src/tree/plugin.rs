@@ -58,7 +58,12 @@ for TreeAuthorityPlugin
         self.reset();
         self.signature_plugin.rebuild(headers, conversation)?;
         for header in headers {
-            self.feed(header, conversation)?;
+            match self.feed(header, conversation) {
+                Ok(_) => { },
+                Err(err) => {
+                    debug!("feed error: {}", err);
+                }
+            }
         }
         Ok(())
     }

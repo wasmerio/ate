@@ -83,7 +83,7 @@ impl Metadata
     }
 
     #[allow(dead_code)]
-    pub fn get_signature(&self) -> Option<MetaSignature> {
+    pub fn get_signature<'a>(&'a self) -> Option<&'a MetaSignature> {
         None
     }
 }

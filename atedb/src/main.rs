@@ -78,7 +78,7 @@ struct Solo {
     #[clap(short, long, default_value = "5000")]
     port: u16,
     /// Mode that the compaction will run under (valid modes are 'never', 'modified', 'timer', 'factor', 'size', 'factor-or-timer', 'size-or-timer')
-    #[clap(long, default_value = "growth-or-timer")]
+    #[clap(long, default_value = "factor-or-timer")]
     compact_mode: CompactMode,
     /// Time in seconds between compactions of the log file (default: 1 hour) - this argument is ignored if you select a compact_mode that has no timer
     #[clap(long, default_value = "3600")]

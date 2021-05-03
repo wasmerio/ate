@@ -261,8 +261,13 @@ for TimestampEnforcer
         if //timestamp < min_timestamp ||
            timestamp > max_timestamp
         {
-            debug!("rejected event {:?} due to out-of-bounds timestamp ({:?} vs {:?})", header, self.cursor, timestamp);
-            return Err(ValidationError::Trust(TrustError::Time(TimeError::OutOfBounds(self.cursor - timestamp))));
+            let cursor = UNIX_EPOCH + self.cursor;
+            let timestamp = UNIX_EPOCH + timestamp;
+
+            let cursor_str = chrono::DateTime::<chrono::Utc>::from(cursor).format("%Y-%m-%d %H:%M:%S.%f").to_string();
+            let timestamp_str = chrono::DateTime::<chrono::Utc>::from(timestamp).format("%Y-%m-%d %H:%M:%S.%f").to_string();
+            debug!("rejected event {:?} due to out-of-bounds timestamp ({} vs {})", header, cursor_str, timestamp_str);
+            return Err(ValidationError::Trust(TrustError::Time(TimeError::OutOfBounds{cursor, timestamp})));
         }
 
         // All good

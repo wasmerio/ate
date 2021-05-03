@@ -230,11 +230,7 @@ for SignaturePlugin
             for e in raw.iter() {
                 if let Some(a) = e.data.meta.get_sign_with() {
                     if a.keys.contains(&auth) == true {
-                        let hash = match &e.header.raw.data_hash {
-                            Some(d) => DoubleHash::from_hashes(&e.header.raw.meta_hash, d).hash(),
-                            None => e.header.raw.meta_hash
-                        };
-                        data_hashes.push(hash);
+                        data_hashes.push(e.header.raw.sig_hash());
                     }
                 }
             }

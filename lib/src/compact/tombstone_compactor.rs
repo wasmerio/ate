@@ -26,6 +26,13 @@ for TombstoneCompactor
         Ok(())
     }
 
+    fn anti_feed(&mut self, header: &EventHeader, _conversation: Option<&Arc<ConversationSession>>) -> Result<(), SinkError> {
+        if let Some(key) = header.meta.get_tombstone() {
+            self.tombstoned.insert(key.clone());
+        }
+        Ok(())
+    }
+
     fn reset(&mut self) {
         self.tombstoned.clear();
     }
@@ -40,23 +47,19 @@ for TombstoneCompactor
     
     fn relevance(&mut self, header: &EventHeader) -> EventRelevance
     {
-        match header.meta.get_tombstone() {
-            Some(_) => {
-                return EventRelevance::ForceDrop;
-            },
-            None =>
-            {
-                let key = match header.meta.get_data_key() {
-                    Some(key) => key,
-                    None => { return EventRelevance::Abstain; }
-                };
+        let key = match header.meta.get_data_key() {
+            Some(key) => key,
+            None => { return EventRelevance::Abstain; }
+        };
 
-                match self.tombstoned.contains(&key) {
-                    true => EventRelevance::Drop,
-                    false => EventRelevance::Abstain,
-                }
-            }
+        match self.tombstoned.contains(&key) {
+            true => EventRelevance::ForceDrop,
+            false => EventRelevance::Abstain,
         }        
+    }
+    
+    fn name(&self) -> &str {
+        "tombstone-compactor"
     }
 }
 

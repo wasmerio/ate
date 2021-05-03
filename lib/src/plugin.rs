@@ -1,15 +1,14 @@
 #[allow(unused_imports)]
-use crate::{compact::EventCompactor, lint::EventMetadataLinter, transform::EventDataTransformer};
+use log::{error, info, warn, debug};
 use std::sync::Arc;
 
-#[allow(unused_imports)]
+use crate::lint::EventMetadataLinter;
+use crate::transform::EventDataTransformer;
+
 use super::crypto::*;
 use super::sink::*;
 use super::error::*;
-#[allow(unused_imports)]
-use super::compact::*;
 use super::validator::*;
-#[allow(unused_imports)]
 use super::event::*;
 use super::transaction::ConversationSession;
 
@@ -20,7 +19,12 @@ where Self: EventValidator + EventSink + EventMetadataLinter + EventDataTransfor
     {
         self.reset();
         for header in headers {
-            self.feed(header, conversation)?;
+            match self.feed(header, conversation) {
+                Ok(_) => { },
+                Err(err) => {
+                    debug!("feed error: {}", err);
+                }
+            }
         }
         Ok(())
     }

@@ -61,39 +61,64 @@ impl<'a> Chain
             let conversation = Arc::new(ConversationSession::default());
 
             // build a list of the events that are actually relevant to a compacted log
+            let mut total: u64 = 0; 
             history_index = guard_async.chain.history_index;
             for (_, entry) in guard_async.chain.history.iter().rev()
             {
                 let header = entry.as_header()?;
                 
+                // Determine if we should drop of keep the value
                 let mut is_force_keep = false;
                 let mut is_keep = false;
                 let mut is_drop = false;
                 let mut is_force_drop = false;
                 for compactor in compactors.iter_mut() {
-                    match compactor.relevance(&header) {
+                    let relevance = compactor.relevance(&header);
+                    //debug!("{} on {} for {}", relevance, compactor.name(), header.meta);
+                    match relevance {
                         EventRelevance::ForceKeep => is_force_keep = true,
                         EventRelevance::Keep => is_keep = true,
                         EventRelevance::Drop => is_drop = true,
                         EventRelevance::ForceDrop => is_force_drop = true,
                         EventRelevance::Abstain => { }
                     }
-                    compactor.feed(&header, Some(&conversation))?;
                 }
+                
+                // Keep takes priority over drop and force takes priority over nominal indicators
+                // (default is to drop unless someone indicates we should keep it)
                 let keep = match is_force_keep {
                     true => true,
                     false if is_force_drop == true => false,
                     _ if is_keep == true => true,
-                    _ if is_drop == false => true,
+                    _ if is_drop == true => false,
                     _ => false
                 };
-                if keep == true {
+
+                if keep == true
+                {
+                    // Feed the event into the compactors as we will be keeping this one
+                    for compactor in compactors.iter_mut() {
+                        compactor.feed(&header, Some(&conversation))?;
+                    }
+
+                    // Record it as a keeper which means it will be replicated into the flipped
+                    // new redo log
                     keepers.push(header);
                 }
+                else
+                {
+                    // Anti feeds occur so that any house keeping needed on negative operations
+                    // should also be done
+                    // Feed the event into the compactors as we will be keeping this one
+                    for compactor in compactors.iter_mut() {
+                        compactor.anti_feed(&header, Some(&conversation))?;
+                    }
+                }
+                total = total + 1;
             }
 
             // write the events out only loading the ones that are actually needed
-            debug!("compact: copying {} events", keepers.len());
+            debug!("compact: kept {} events of {} events", keepers.len(), total);
             for header in keepers.into_iter() {
                 new_pointers.feed(&header);
                 flip.event_summary.push(header.raw.clone());
