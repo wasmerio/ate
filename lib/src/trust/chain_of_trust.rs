@@ -14,7 +14,6 @@ use crate::crypto::AteHash;
 
 use super::*;
 
-#[allow(dead_code)]
 pub(crate) struct ChainOfTrust
 {
     pub(crate) key: ChainKey,

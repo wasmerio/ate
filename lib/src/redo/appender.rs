@@ -1,16 +1,15 @@
 use tokio::io::BufStream;
 use tokio::fs::File;
 use tokio::fs::OpenOptions;
-use tokio::io::ErrorKind;
 use tokio::io::{AsyncReadExt, AsyncWriteExt, AsyncSeekExt};
 use std::mem::size_of;
 use async_trait::async_trait;
 use tokio::io::Result;
 use std::io::SeekFrom;
 
-use super::REDO_MAGIC;
 use super::LogLookup;
 use super::archive::*;
+use super::magic::*;
 
 use crate::spec::LogApi;
 use crate::event::*;
@@ -23,6 +22,7 @@ pub(crate) struct LogAppender
     file: File,
     stream: BufStream<File>,
     offset: u64,
+    header: Vec<u8>,
     pub(crate) index: u32,
 }
 
@@ -44,22 +44,22 @@ impl LogAppender
             file: log_back,
             offset: 0,
             index,
+            header: Vec::new(),
         };
         
         // If it does not have a magic then add one - otherwise read it and check the value
-        match appender.read_u32().await {
-            Ok(a) if a != REDO_MAGIC => {
-                return Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("File magic header does not match {:?} vs {:?}", a, REDO_MAGIC)));
-            },
-            Ok(_) => { },
-            Err(err) if err.kind() == ErrorKind::UnexpectedEof => {
-                let _ = appender.write_u32(REDO_MAGIC).await?;
+        let version: RedoHeader = match RedoHeader::read(&mut appender).await? {
+            Some(a) => a,
+            None => {
+                let magic = RedoHeader::new(RedoMagic::V1);
+                let _ = magic.write(&mut appender).await?;
                 appender.sync().await?;
-            },
-            Err(err) => {
-                return Err(err);
+                magic
             }
         };
+
+        // Update the header as reading it from the log file may have updated it
+        appender.header = Vec::from(version.inner().clone());
         
         // Create the archive
         let archive = LogArchive::new(path_log, index).await?;
@@ -83,6 +83,7 @@ impl LogAppender
                 stream: BufStream::new(self.file.try_clone().await?),
                 offset: self.offset,
                 index: self.index,
+                header: self.header.clone(),
             }
         )
     }
@@ -112,6 +113,10 @@ impl LogAppender
     pub(crate) fn path(&self) -> &String
     {
         &self.path
+    }
+
+    pub(crate) fn header(&self) -> &[u8] {
+        &self.header[..]
     }
 
     pub(super) async fn flush(&mut self) -> Result<()>

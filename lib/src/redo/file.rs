@@ -1,6 +1,7 @@
 #[allow(unused_imports)]
 use log::{error, info, warn, debug};
 
+use serde::*;
 use cached::Cached;
 use tokio::io::Result;
 use tokio::io::ErrorKind;
@@ -15,9 +16,7 @@ use crate::error::*;
 use crate::spec::*;
 use crate::loader::*;
 
-use super::REDO_MAGIC;
-
-use super::archive::LogArchive;
+use super::{archive::LogArchive, magic::*};
 use super::archive::LogArchiveGuard;
 use super::appender::LogAppender;
 
@@ -100,10 +99,10 @@ impl LogFile
         // Flush and close and increment the log index
         self.appender.sync().await?;
         let next_index = self.appender.index  + 1;
-
+        
         // Create a new appender and write the header
-        let (mut new_appender , new_archive) = LogAppender::new(self.path.clone(), false, next_index).await?;
-        new_appender.write_u32(REDO_MAGIC).await?;
+        let (mut new_appender, new_archive) = LogAppender::new(self.path.clone(), false, next_index).await?;
+        RedoHeader::new(RedoMagic::V1).write(&mut new_appender).await?;
 
         // Set the new appender
         self.archives.insert(next_index , new_archive);
@@ -159,18 +158,12 @@ impl LogFile
         {
             let mut lock = archive.lock_at(0).await?;
 
-            match lock.read_u32().await
-            {
-                Ok(a) if a != REDO_MAGIC => {
-                    error!("log-read-error: invalid log file magic header {} vs {}", a, REDO_MAGIC);
-                    continue;    
-                },
-                Ok(_) => { },
-                Err(err) if err.kind() == ErrorKind::UnexpectedEof => {
+            let version = match RedoHeader::read(&mut lock).await? {
+                Some(a) => a,
+                None => {
                     warn!("log-read-error: log file is empty");
                     continue;
-                },
-                Err(err) => { return Err(SerializationError::IO(err)); },
+                }
             };
 
             loop {
@@ -210,7 +203,7 @@ impl LogFile
         info!("log-read-event: offset={}", offset);
 
         // Read the log event
-        let evt = match LogVersion::read(guard).await? {
+        let evt = match EventVersion::read(guard).await? {
             Some(e) => e,
             None => {
                 return Ok(None);
@@ -347,7 +340,7 @@ impl LogFile
         // First read all the data into a buffer
         let result = {
             let mut loader = archive.lock_at(offset).await?;
-            match LogVersion::read(&mut loader).await? {
+            match EventVersion::read(&mut loader).await? {
                 Some(a) => a,
                 None => { return Err(LoadError::NotFoundByHash(hash)); }
             }
@@ -479,6 +472,11 @@ impl LogFile
 
     pub(super) fn size(&self) -> usize {
         self.appender.offset() as usize
+    }
+
+    #[allow(dead_code)]
+    pub(super) fn header(&self) -> &[u8] {
+        self.appender.header()
     }
 
     pub(super) fn destroy(&mut self) -> Result<()>

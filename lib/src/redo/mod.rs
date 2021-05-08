@@ -5,13 +5,12 @@ mod api;
 mod file;
 mod flags;
 mod flip;
+mod magic;
 mod appender;
 mod loader;
 mod archive;
 mod core;
 mod test;
-
-static REDO_MAGIC: u32 = u32::from_be_bytes(*b"REDO");
 
 pub use flags::OpenFlags;
 pub use loader::RedoLogLoader;

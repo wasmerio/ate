@@ -16,7 +16,7 @@ pub const HASH_ROUTINE: crypto::HashRoutine = if cfg!(feature = "use_blake3") {
     crypto::HashRoutine::Blake3
 };
 
-pub const LOG_VERSION: spec::LogVersion = spec::LogVersion::V2;
+pub const LOG_VERSION: spec::EventVersion = spec::EventVersion::V2;
 
 pub mod utils;
 pub mod error;

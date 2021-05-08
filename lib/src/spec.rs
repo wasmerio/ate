@@ -125,7 +125,7 @@ pub struct LogEntry
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, IntoPrimitive, TryFromPrimitive)]
 #[repr(u8)]
-pub enum LogVersion
+pub enum EventVersion
 {
     /*
     #[deprecated(
@@ -137,7 +137,7 @@ pub enum LogVersion
     V2 = b'1',
 }
 
-impl LogVersion
+impl EventVersion
 {
     async fn read_byte(api: &mut impl LogApi) -> std::result::Result<Option<u8>, SerializationError>
     {
@@ -151,10 +151,10 @@ impl LogVersion
         }
     }
 
-    async fn read_version(api: &mut impl LogApi) -> std::result::Result<Option<LogVersion>, SerializationError>
+    async fn read_version(api: &mut impl LogApi) -> std::result::Result<Option<EventVersion>, SerializationError>
     {
         let mut n = 0;
-        while let Some(cur) = LogVersion::read_byte(api).await? {
+        while let Some(cur) = EventVersion::read_byte(api).await? {
             loop {
                 if n < LOG_MAGIC.len() {
                     if cur == LOG_MAGIC[n] {
@@ -168,7 +168,7 @@ impl LogVersion
                     break;
                 }
 
-                match LogVersion::try_from(cur) {
+                match EventVersion::try_from(cur) {
                     Ok(a) => { return Ok(Some(a)); },
                     _ => { 
                         n = 0;
@@ -183,7 +183,7 @@ impl LogVersion
 
     async fn read_blob_size(&self, api: &mut impl LogApi) -> Result<usize, SerializationError> {
         match self {
-            LogVersion::V2 => {
+            EventVersion::V2 => {
                 match BlobSize::try_from(api.read_u8().await?) {
                     Ok(BlobSize::U8) => Ok(api.read_u8().await? as usize),
                     Ok(BlobSize::U16) => Ok(api.read_u16().await? as usize),
@@ -199,7 +199,7 @@ impl LogVersion
 
     async fn write_blob_size(&self, api: &mut impl LogApi, val: usize) -> Result<(), SerializationError> {
         match self {
-            LogVersion::V2 => {
+            EventVersion::V2 => {
                 let blob_size = match val {
                     _ if val < u8::MAX as usize => BlobSize::U8,
                     _ if val < u16::MAX as usize => BlobSize::U16,
@@ -229,7 +229,7 @@ impl LogVersion
 
     async fn write_format(&self, api: &mut impl LogApi, format: SerializationFormat) -> Result<(), SerializationError> {
         match self {
-            LogVersion::V2 => {
+            EventVersion::V2 => {
                 match api.write_u8(format.into()).await {
                     Ok(_) => Ok(()),
                     Err(err) => Err(SerializationError::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to write data at 0x{:x} - {}", api.offset(), err))))

@@ -21,11 +21,12 @@ use super::flip::FlippedLogFile;
 use super::loader::RedoLogLoader;
 use super::api::LogWritable;
 
-pub struct RedoLog {
+pub struct RedoLog
+{
     log_temp: bool,
     log_path: String,
-    pub(super) log_file: LogFile,
     flip: Option<RedoLogFlip>,
+    pub(super) log_file: LogFile,
 }
 
 impl RedoLog
@@ -36,7 +37,13 @@ impl RedoLog
         let mut ret = RedoLog {
             log_temp: flags.temporal,
             log_path: path_log.clone(),
-            log_file: LogFile::new(flags.temporal, path_log.clone(), flags.truncate, cache_size, cache_ttl).await?,
+            log_file: LogFile::new(
+                    flags.temporal,
+                    path_log.clone(),
+                    flags.truncate,
+                    cache_size,
+                    cache_ttl,
+                ).await?,
             flip: None,
         };
         let cnt = ret.log_file.read_all(loader).await?;

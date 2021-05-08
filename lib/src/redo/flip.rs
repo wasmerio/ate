@@ -1,6 +1,5 @@
 #[allow(unused_imports)]
 use log::{error, info, warn, debug};
-
 use async_trait::async_trait;
 use tokio::io::Result;
 
@@ -12,7 +11,8 @@ use super::file::LogFile;
 use super::api::LogWritable;
 use super::core::RedoLog;
 
-pub struct FlippedLogFile {
+pub struct FlippedLogFile
+{
     pub(super) log_file: LogFile,
     pub(crate) event_summary: Vec<EventHeaderRaw>,
 }
