@@ -76,11 +76,17 @@ impl<'a> Chain
         self.default_format.clone()
     }
 
-    pub async fn rotate(&'a self) -> Result<(), tokio::io::Error>
+    pub async fn rotate(&'a self) -> Result<(), SerializationError>
     {
         // Start a new log file
         let mut single = self.single().await;
-        single.inside_async.chain.redo.rotate(Vec::new()).await?;
+
+        // Build the header
+        let header = single.inside_async.chain.header.clone();
+        let header_bytes = SerializationFormat::Json.serialize(&header)?;
+
+        // Rotate the log
+        single.inside_async.chain.redo.rotate(header_bytes).await?;
         Ok(())
     }
 

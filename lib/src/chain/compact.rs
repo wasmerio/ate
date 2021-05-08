@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 use tokio::sync::RwLock;
 use parking_lot::RwLock as StdRwLock;
 
+use crate::spec::*;
 use crate::compact::*;
 use crate::error::*;
 use crate::index::*;
@@ -35,11 +36,17 @@ impl<'a> Chain
         let mut keepers = Vec::new();
         let mut new_history_reverse = FxHashMap::default();
         let mut new_history = BTreeMap::new();
-        
+
         // create the flip
         let mut flip = {
             let mut single = ChainSingleUser::new_ext(&inside_async, &inside_sync).await;
-            let ret = single.inside_async.chain.redo.begin_flip(Vec::new()).await?;
+
+            // Build the header
+            let header = single.inside_async.chain.header.clone();
+            let header_bytes = SerializationFormat::Json.serialize(&header)?;
+
+            // Now start the flip
+            let ret = single.inside_async.chain.redo.begin_flip(header_bytes).await?;
             single.inside_async.chain.redo.flush().await?;
             ret
         };

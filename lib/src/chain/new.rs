@@ -17,6 +17,7 @@ use parking_lot::RwLock as StdRwLock;
 use tokio::sync::mpsc;
 
 use crate::redo::*;
+use crate::spec::SerializationFormat;
 
 use crate::trust::*;
 use crate::pipe::*;
@@ -66,6 +67,10 @@ impl<'a> Chain
         if let Some(a) = extra_loader {
             composite_loader.loaders.push(a);
         }
+
+        // Build the header
+        let header = ChainHeader::default();
+        let header_bytes = SerializationFormat::Json.serialize(&header)?;
         
         // Create the redo log itself which will open the files and stream in the events
         // in a background thread
@@ -73,7 +78,7 @@ impl<'a> Chain
             let key = key.clone();
             let builder = builder.clone();
             tokio::spawn(async move {
-                RedoLog::open_ext(&builder.cfg, &key, flags, composite_loader, Vec::new()).await
+                RedoLog::open_ext(&builder.cfg, &key, flags, composite_loader, header_bytes).await
             })
         };
         
@@ -92,6 +97,7 @@ impl<'a> Chain
             key: key.clone(),
             redo: redo_log,
             history_index: 0,
+            header,
             history_reverse: FxHashMap::default(),
             history: BTreeMap::new(),
             pointers: BinaryTreeIndexer::default(),

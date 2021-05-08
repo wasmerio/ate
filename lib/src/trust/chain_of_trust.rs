@@ -1,5 +1,6 @@
 #[allow(unused_imports)]
 use log::{info, error, debug};
+use serde::*;
 use std::collections::BTreeMap;
 use fxhash::FxHashMap;
 
@@ -14,10 +15,20 @@ use crate::crypto::AteHash;
 
 use super::*;
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub(crate) struct ChainHeader
+{
+    // This value is used to seed a chains offsets relative to
+    // all other chains and thus allows compacted chains to both
+    // remember their position but also to retain integrity
+    pub seed: u64,
+}
+
 pub(crate) struct ChainOfTrust
 {
     pub(crate) key: ChainKey,
     pub(crate) redo: RedoLog,
+    pub(crate) header: ChainHeader,
     pub(crate) history_index: u64,
     pub(crate) history_reverse: FxHashMap<AteHash, u64>,
     pub(crate) history: BTreeMap<u64, EventHeaderRaw>,
