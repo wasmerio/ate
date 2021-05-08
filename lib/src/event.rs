@@ -96,6 +96,15 @@ impl EventData
         }
     }
 
+    #[allow(dead_code)]
+    pub(crate) fn barebone(format: MessageFormat) -> EventData {        
+        EventData {
+            meta: Metadata::default(),
+            data_bytes: None,
+            format,
+        }
+    }
+
     pub(crate) fn as_header_raw(&self) -> Result<EventHeaderRaw, SerializationError> {
         let data_hash = match &self.data_bytes {
             Some(d) => Some(AteHash::from_bytes(&d[..])),

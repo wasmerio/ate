@@ -91,6 +91,9 @@ static LOG_MAGIC: &'static [u8; 3] = b"Ate";
 pub trait LogApi
 {
     fn offset(&self) -> u64;
+
+    async fn len(&self) -> Result<u64, tokio::io::Error>;
+    async fn seek(&mut self, off: u64) -> Result<(), tokio::io::Error>;
     
     async fn read_u8(&mut self) -> Result<u8, tokio::io::Error>;
     async fn read_u16(&mut self) -> Result<u16, tokio::io::Error>;

@@ -13,3 +13,10 @@ pub trait LogWritable {
     async fn write(&mut self, evt: &EventData) -> std::result::Result<u64, SerializationError>;
     async fn flush(&mut self) -> Result<()>;
 }
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct LogLookup
+{
+    pub(crate) index: u32,
+    pub(crate) offset: u64,
+}

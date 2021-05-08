@@ -31,7 +31,7 @@ impl<'a> ChainOfTrust
     pub(crate) async fn load(&self, leaf: EventLeaf) -> Result<LoadResult, LoadError> {
         let data = self.redo.load(leaf.record.clone()).await?;
         Ok(LoadResult {
-            offset: data.offset,
+            lookup: data.lookup,
             header: data.header,
             data: data.data,
             leaf: leaf,
@@ -51,7 +51,7 @@ impl<'a> ChainOfTrust
         for (join, leaf) in futures.into_iter() {
             let data = join.await?;
             ret.push(LoadResult {
-                offset: data.offset,
+                lookup: data.lookup,
                 header: data.header,
                 data: data.data,
                 leaf,

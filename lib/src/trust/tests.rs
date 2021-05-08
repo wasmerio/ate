@@ -70,9 +70,6 @@ async fn test_chain() {
     let key2 = PrimaryKey::generate();
     let chain_name;
 
-    let mut evt1;
-    let mut evt2;
-
     {
         debug!("creating test chain");
         let mut mock_cfg = crate::conf::tests::mock_test_config();
@@ -80,17 +77,17 @@ async fn test_chain() {
         let (chain, _builder) = create_test_chain(&mut mock_cfg, "test_chain".to_string(), true, true, None).await;
         chain_name = chain.name().await;
         
-        evt1 = EventData::new(key1.clone(), Bytes::from(vec!(1; 1)), mock_cfg.log_format);
-        evt2 = EventData::new(key2.clone(), Bytes::from(vec!(2; 1)), mock_cfg.log_format);
-
         {
             let lock = chain.multi().await;
             assert_eq!(0, lock.count().await);
+
+            let evt1 = EventData::new(key1.clone(), Bytes::from(vec!(1; 1)), mock_cfg.log_format);
+            let evt2 = EventData::new(key2.clone(), Bytes::from(vec!(2; 1)), mock_cfg.log_format);
             
             // Push the first events into the chain-of-trust
             let mut evts = Vec::new();
-            evts.push(evt1.clone());
-            evts.push(evt2.clone());
+            evts.push(evt1);
+            evts.push(evt2);
 
             debug!("feeding two events into the chain");
             let trans = Transaction::from_events(evts, TransactionScope::Local, false);
@@ -140,11 +137,11 @@ async fn test_chain() {
             assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(2; 1))));
 
             // Duplicate one of the event so the compactor has something to clean
-            evt1.data_bytes = Some(Bytes::from(vec!(10; 1)));
+            let evt1 = EventData::new(key1.clone(), Bytes::from(vec!(10; 1)), mock_cfg.log_format);
             
             debug!("feeding new version of event1 into the chain");
             let mut evts = Vec::new();
-            evts.push(evt1.clone());
+            evts.push(evt1);
             let trans = Transaction::from_events(evts, TransactionScope::Local, false);
             lock.pipe.feed(trans).await.expect("The event failed to be accepted");
 
@@ -182,6 +179,8 @@ async fn test_chain() {
         mock_cfg.compact_mode = CompactMode::Never;
         let (chain, _builder) = create_test_chain(&mut mock_cfg, chain_name.clone(), false, true, None).await;
 
+        assert_eq!(2, chain.count().await);
+
         {
             let lock = chain.multi().await;
 
@@ -203,11 +202,12 @@ async fn test_chain() {
 
             // Now lets tombstone the second event
             debug!("tombstoning event2");
-            evt2.meta.add_tombstone(key2);
+            let mut evt3 = EventData::barebone(mock_cfg.log_format);
+            evt3.meta.add_tombstone(key2);
             
             debug!("feeding the tombstone into the chain");
             let mut evts = Vec::new();
-            evts.push(evt2.clone());
+            evts.push(evt3.clone());
             let trans = Transaction::from_events(evts, TransactionScope::Local, false);
             lock.pipe.feed(trans).await.expect("The event failed to be accepted");
             
@@ -225,8 +225,10 @@ async fn test_chain() {
         
         // Now compact the chain-of-trust which should remove one of the events and its tombstone
         debug!("compacting the chain");
+        let before = chain.count().await;
         chain.compact().await.expect("Failed to compact the log");
-        assert_eq!(1, chain.count().await);
+        let after = chain.count().await;
+        assert_eq!(1, chain.count().await, "failed - before: {} - after: {}", before, after);
     }
 
     {

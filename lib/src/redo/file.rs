@@ -1,37 +1,25 @@
 #[allow(unused_imports)]
 use log::{error, info, warn, debug};
 
-use async_trait::async_trait;
 use cached::Cached;
-use std::{io::SeekFrom};
-use tokio::{io::{AsyncReadExt, AsyncWriteExt, AsyncSeekExt}};
 use tokio::io::Result;
-use tokio::io::BufStream;
 use tokio::io::ErrorKind;
 use bytes::Bytes;
-use std::mem::size_of;
-use tokio::sync::Mutex as MutexAsync;
 use cached::*;
 use fxhash::FxHashMap;
 use parking_lot::Mutex as MutexSync;
 
-use crate::crypto::*;
+use crate::{crypto::*, redo::LogLookup};
 use crate::event::*;
 use crate::error::*;
 use crate::spec::*;
 use crate::loader::*;
 
 use super::REDO_MAGIC;
-use super::reader::LogArchive;
-use super::reader::LogArchiveReader;
-use super::seeker::SpecificLogLoader;
 
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct LogLookup
-{
-    pub(crate) index: u32,
-    pub(crate) offset: u64,
-}
+use super::archive::LogArchive;
+use super::archive::LogArchiveGuard;
+use super::appender::LogAppender;
 
 pub(crate) struct LogFileCache
 {
@@ -42,87 +30,54 @@ pub(crate) struct LogFileCache
 
 pub(super) struct LogFile
 {
-    pub(crate) log_path: String,
-    pub(crate) log_back: tokio::fs::File,
-    pub(crate) log_stream: BufStream<tokio::fs::File>,
-    pub(crate) log_off: u64,
-    pub(crate) log_temp: bool,
-    pub(crate) log_count: u64,
-    pub(crate) log_index: u32,
-    pub(crate) cache: MutexSync<LogFileCache>,
-    pub(crate) lookup: FxHashMap<AteHash, LogLookup>,
+    pub(crate) path: String,
+    pub(crate) temp: bool,
+    pub(crate) appender: LogAppender,
     pub(crate) archives: FxHashMap<u32, LogArchive>,
+    pub(crate) lookup: FxHashMap<AteHash, LogLookup>,
+    pub(crate) cache: MutexSync<LogFileCache>,
 }
 
 impl LogFile
 {
     pub(super) async fn new(temp_file: bool, path_log: String, truncate: bool, cache_size: usize, cache_ttl: u64) -> Result<LogFile>
     {
-        // Compute the log file name
-        let log_back_path = format!("{}.{}", path_log.clone(), 0);
-        let mut log_back = match truncate {
-            true => tokio::fs::OpenOptions::new().read(true).write(true).truncate(true).create(true).open(log_back_path.clone()).await?,
-               _ => tokio::fs::OpenOptions::new().read(true).write(true).create(true).open(log_back_path.clone()).await?,
-        };
-        
-        // If it does not have a magic then add one - otherwise read it and check the value
-        let mut magic_buf = [0 as u8; 4];
-        match log_back.read_exact(&mut magic_buf[..]).await {
-            Ok(a) if a > 0 && magic_buf != *REDO_MAGIC => {
-                return Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("File magic header does not match {:?} vs {:?}", magic_buf, *REDO_MAGIC)));
-            },
-            Ok(a) if a != REDO_MAGIC.len() => {
-                return Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("File magic header could not be read")));
-            },
-            Ok(_) => { },
-            Err(err) if err.kind() == ErrorKind::UnexpectedEof => {
-                let _ = log_back.write_all(&REDO_MAGIC[..]).await?;
-                log_back.sync_all().await?;
-            },
-            Err(err) => {
-                return Err(err);
-            }
-        };
-                
-        // Make a note of the last log file
-        let mut last_log_path = path_log.clone();
-        let mut last_log_index = 0;
-
         // Load all the archives
         let mut archives = FxHashMap::default();
         let mut n = 0 as u32;
-        loop {
-            let log_back_path = format!("{}.{}", path_log.clone(), n);
-            if std::path::Path::new(log_back_path.as_str()).exists()
-            {
-                last_log_path = log_back_path.clone();
-                last_log_index = n;
-
-                let log_random_access = tokio::fs::OpenOptions::new().read(true).open(log_back_path.clone()).await?;
-                archives.insert(n , LogArchive {
-                    log_index: n,
-                    log_path: log_back_path,
-                    log_random_access: MutexAsync::new(log_random_access),
-                });
-            } else {
+        
+        loop
+        {
+            // If the next file does not exist then there are no more archives
+            let test = format!("{}.{}", path_log.clone(), n + 1);
+            if std::path::Path::new(test.as_str()).exists() == false {
                 break;
             }
+
+            // If its a temp file then fail as this would be unsupported behaviour
+            if temp_file {
+                return Err(tokio::io::Error::new(ErrorKind::AlreadyExists, "Can not start a temporary redo log when there are existing archives."));
+            }
+            
+            // Add the file as pure archive with no appender
+            archives.insert(n , LogArchive::new(path_log.clone(), n).await?);
             n = n + 1;
         }
 
-        // Seek to the end of the file and create a buffered stream on it
-        let log_off = log_back.seek(SeekFrom::End(0)).await?;
-        let log_stream = BufStream::new(log_back.try_clone().await.unwrap());
+        // Create the log appender
+        let (appender, archive) = LogAppender::new(path_log.clone(), truncate, n).await?;
+        archives.insert(n, archive);
 
+        // If we are temporary log file then kill the file
+        if temp_file {
+            let _ = std::fs::remove_file(appender.path());
+        }
         
+        // Log file
         let ret = LogFile {
-            log_path: path_log.clone(),
-            log_stream,
-            log_back,
-            log_off,
-            log_temp: temp_file,
-            log_count: 0,
-            log_index: last_log_index,
+            path: path_log,
+            temp: temp_file,
+            appender,
             cache: MutexSync::new(LogFileCache {
                 flush: FxHashMap::default(),
                 read: TimedSizedCache::with_size_and_lifespan(cache_size, cache_ttl),
@@ -132,43 +87,27 @@ impl LogFile
             archives,
         };
 
-        if temp_file {
-            let _ = std::fs::remove_file(last_log_path);
-        }
-
         Ok(ret)
     }
 
     pub(super) async fn rotate(&mut self) -> Result<()>
     {
-        // Flush and close
-        self.log_stream.flush().await?;
-        self.log_back.sync_all().await?;
+        // If this a temporary file then fail
+        if self.temp {
+            return Err(tokio::io::Error::new(ErrorKind::PermissionDenied, "Can not rotate a temporary redo log - only persistent logs support this behaviour."));
+        }
 
-        // Create a new log file (with the next index)
-        let log_index = self.log_index  + 1;
-        let log_back_path = format!("{}.{}", self.log_path, log_index);
+        // Flush and close and increment the log index
+        self.appender.sync().await?;
+        let next_index = self.appender.index  + 1;
 
-        // Create a new file
-        let mut log_back = tokio::fs::OpenOptions::new().read(true).write(true).create(true).open(log_back_path.clone()).await?;
-        let log_stream = BufStream::new(log_back.try_clone().await.unwrap());
+        // Create a new appender and write the header
+        let (mut new_appender , new_archive) = LogAppender::new(self.path.clone(), false, next_index).await?;
+        new_appender.write_u32(REDO_MAGIC).await?;
 
-        // Add the magic header
-        log_back.write_all(&REDO_MAGIC[..]).await?;
-
-        // Add the file to the archive
-        let log_random_access = tokio::fs::OpenOptions::new().read(true).open(log_back_path.clone()).await?;
-        self.archives.insert(log_index , LogArchive {
-            log_index: log_index,
-            log_path: log_back_path,
-            log_random_access: MutexAsync::new(log_random_access),
-        });
-
-        // Set the new log file, stream and index
-        self.log_index = log_index;
-        self.log_back = log_back;
-        self.log_stream = log_stream;
-        self.log_count = self.log_count + 1;
+        // Set the new appender
+        self.archives.insert(next_index , new_archive);
+        self.appender = new_appender;
 
         // Success
         Ok(())
@@ -176,21 +115,10 @@ impl LogFile
 
     pub(super) async fn copy(&mut self) -> Result<LogFile>
     {
-        // We have to flush the stream in-case there is outstanding IO that is not yet written to the backing disk
-        self.log_stream.flush().await?;
-
-        // Copy the file handles
-        let log_back = self.log_back.try_clone().await?;
-
         // Copy all the archives
         let mut log_archives = FxHashMap::default();
         for (k, v) in self.archives.iter() {
-            let log_back = v.log_random_access.lock().await.try_clone().await?;
-            log_archives.insert(k.clone(), LogArchive {
-                log_index: v.log_index,
-                log_path: v.log_path.clone(),
-                log_random_access: MutexAsync::new(log_back),                
-            });
+            log_archives.insert(k.clone(), v.clone().await?);
         }
 
         let cache = {
@@ -204,13 +132,9 @@ impl LogFile
 
         Ok(
             LogFile {
-                log_path: self.log_path.clone(),
-                log_stream: BufStream::new(log_back.try_clone().await?),
-                log_back: log_back,
-                log_off: self.log_off,
-                log_temp: self.log_temp,
-                log_count: self.log_count,
-                log_index: self.log_index,
+                path: self.path.clone(),
+                temp: self.temp,
+                appender: self.appender.clone().await?,
                 cache,
                 lookup: self.lookup.clone(),
                 archives: log_archives,
@@ -218,6 +142,7 @@ impl LogFile
         )
     }
 
+    /// Read all the log files from all the archives including the current one representing the appender
     pub(super) async fn read_all(&mut self, mut loader: Box<impl Loader>) -> std::result::Result<usize, SerializationError> {
         let mut lookup = FxHashMap::default();
 
@@ -225,57 +150,43 @@ impl LogFile
 
         let mut total: usize = 0;
         for archive in archives.iter() {
-            let lock = archive.log_random_access.lock().await;
-            total = total + lock.metadata().await.unwrap().len() as usize;
+            total = total + archive.len().await? as usize;
         }
         loader.start_of_history(total).await;
 
         let mut cnt: usize = 0;
         for archive in archives
         {
-            let lock = archive.log_random_access.lock().await;
-            let mut file = lock.try_clone().await.unwrap();
-            file.seek(SeekFrom::Start(0)).await?;
-            
-            let mut log_stream = BufStream::new(file);
-            let mut magic_buf = [0 as u8; 4];
-            let read = match log_stream.read_exact(&mut magic_buf[..]).await
+            let mut lock = archive.lock_at(0).await?;
+
+            match lock.read_u32().await
             {
-                Ok(a) => a as u64,
+                Ok(a) if a != REDO_MAGIC => {
+                    error!("log-read-error: invalid log file magic header {} vs {}", a, REDO_MAGIC);
+                    continue;    
+                },
+                Ok(_) => { },
                 Err(err) if err.kind() == ErrorKind::UnexpectedEof => {
                     warn!("log-read-error: log file is empty");
                     continue;
                 },
-                Err(err) => { return Err(SerializationError::IO(err)); }
+                Err(err) => { return Err(SerializationError::IO(err)); },
             };
-            if magic_buf != *REDO_MAGIC {
-                error!("log-read-error: invalid log file magic header {:?} vs {:?}", magic_buf, *REDO_MAGIC);
-                continue;
-            }
 
-            let log_off = read;
-            let mut reader = LogArchiveReader {
-                log_index: archive.log_index,
-                log_off,
-                log_stream,
-            };
             loop {
-                match LogFile::read_once_internal(&mut reader).await {
+                match LogFile::read_once_internal(&mut lock).await {
                     Ok(Some(head)) => {
                         #[cfg(feature = "super_verbose")]
                         debug!("log-read: {:?}", head);
 
-                        lookup.insert(head.header.event_hash, LogLookup{
-                            index: head.index,
-                            offset: head.offset,
-                        });
+                        lookup.insert(head.header.event_hash, head.lookup);
 
                         loader.feed_load_data(head).await;
                         cnt = cnt + 1;
                     },
                     Ok(None) => break,
                     Err(err) => {
-                        debug!("log-load-error: {} at {}", err.to_string(), self.log_off);
+                        debug!("log-load-error: {}", err.to_string());
                         continue;
                     }
                 }
@@ -283,7 +194,6 @@ impl LogFile
         }
 
         for (v, k) in lookup.into_iter() {
-            self.log_count = self.log_count + 1;
             self.lookup.insert(v, k);
         }
 
@@ -292,15 +202,15 @@ impl LogFile
         Ok(cnt)
     }
 
-    async fn read_once_internal(archive: &mut LogArchiveReader) -> std::result::Result<Option<LoadData>, SerializationError>
+    async fn read_once_internal(guard: &mut LogArchiveGuard<'_>) -> std::result::Result<Option<LoadData>, SerializationError>
     {
-        let offset = archive.log_off;
+        let offset = guard.offset();
         
         #[cfg(feature = "verbose")]
         info!("log-read-event: offset={}", offset);
 
         // Read the log event
-        let evt = match LogVersion::read(archive).await? {
+        let evt = match LogVersion::read(guard).await? {
             Some(e) => e,
             None => {
                 return Ok(None);
@@ -340,8 +250,10 @@ impl LogFile
                         data_bytes: data,
                         format: evt.header.format,
                     },
-                    index: archive.log_index,
-                    offset,
+                    lookup: LogLookup {
+                        index: guard.index(),
+                        offset,
+                    },
                 }
             )
         )
@@ -349,23 +261,11 @@ impl LogFile
 
     pub(super) async fn write(&mut self, evt: &EventData) -> std::result::Result<u64, SerializationError>
     {
+        // Write the appender
         let header = evt.as_header_raw()?;
-        let log_header = crate::LOG_VERSION.write(
-            self, 
-            &header.meta_bytes[..], 
-            match &evt.data_bytes {
-                Some(d) => Some(&d[..]),
-                None => None
-            },
-            evt.format
-        ).await?;
-        self.log_count = self.log_count + 1;
+        let lookup = self.appender.write(evt, &header).await?;
         
         // Record the lookup map
-        let lookup = LogLookup {
-            index: self.log_index,
-            offset: log_header.offset
-        };
         self.lookup.insert(header.event_hash, lookup);
 
         #[cfg(feature = "verbose")]
@@ -377,15 +277,14 @@ impl LogFile
         {
             let mut cache = self.cache.lock();
             cache.flush.insert(header.event_hash, LoadData {
-                offset: log_header.offset,
+                lookup,
                 header,
-                index: self.log_index,
                 data: evt.clone(),
             });
         }
 
-        // Return the log pointer
-        Ok(log_header.offset)
+        // Return the result
+        Ok(lookup.offset)
     }
 
     pub(super) async fn copy_event(&mut self, from_log: &LogFile, hash: AteHash) -> std::result::Result<u64, LoadError>
@@ -394,35 +293,22 @@ impl LogFile
         let result = from_log.load(hash).await?;
 
         // Write it to the local log
-        let log_header = crate::LOG_VERSION.write(
-            self, 
-            &result.header.meta_bytes[..], 
-            match &result.data.data_bytes {
-                Some(a) => Some(&a[..]),
-                None => None,
-            },
-            result.data.format,
-        ).await?;
-        self.log_count = self.log_count + 1;
+        let lookup = self.appender.write(&result.data, &result.header).await?;
 
         // Record the lookup map
-        self.lookup.insert(hash.clone(), LogLookup {
-            index: result.index,
-            offset: log_header.offset
-        });
+        self.lookup.insert(hash.clone(), lookup);
 
         // Cache the data
         {
             let mut cache = self.cache.lock();
             cache.flush.insert(hash.clone(), LoadData {
                 header: result.header,
-                offset: log_header.offset,
-                index: result.index,
+                lookup,
                 data: result.data,
             });
         }
 
-        Ok(log_header.offset)
+        Ok(lookup.offset)
     }
 
     pub(super) async fn load(&self, hash: AteHash) -> std::result::Result<LoadData, LoadError>
@@ -460,7 +346,7 @@ impl LogFile
 
         // First read all the data into a buffer
         let result = {
-            let mut loader = SpecificLogLoader::new(&archive.log_random_access, offset).await?;
+            let mut loader = archive.lock_at(offset).await?;
             match LogVersion::read(&mut loader).await? {
                 Some(a) => a,
                 None => { return Err(LoadError::NotFoundByHash(hash)); }
@@ -496,8 +382,7 @@ impl LogFile
                 data_bytes: data,
                 format: result.header.format,
             },
-            index: lookup.index,
-            offset,
+            lookup,
         };
         assert_eq!(hash.to_string(), ret.header.event_hash.to_string());
 
@@ -514,7 +399,7 @@ impl LogFile
 
     pub(super) fn move_log_file(&mut self, new_path: &String) -> Result<()>
     {
-        if self.log_temp == false
+        if self.temp == false
         {
             // First rename the orginal logs as a backup
             let mut n = 0;
@@ -533,7 +418,7 @@ impl LogFile
             // Move the flipped logs over to replace the originals
             let mut n = 0;
             loop {
-                let path_from = format!("{}.{}", self.log_path.clone(), n);
+                let path_from = format!("{}.{}", self.path.clone(), n);
                 let path_to = format!("{}.{}", new_path, n);
 
                 if std::path::Path::new(path_from.as_str()).exists() == false {
@@ -556,7 +441,7 @@ impl LogFile
                 n = n + 1;
             }
         }
-        self.log_path = new_path.clone();
+        self.path = new_path.clone();
         Ok(())
     }
 
@@ -572,8 +457,7 @@ impl LogFile
         }
 
         // Flush the data to disk
-        self.log_stream.flush().await?;
-        //self.log_back.sync_all().await?; // This caused quite some performance issues
+        self.appender.flush().await?;
 
         // Move the cache lines into the write cache from the flush cache which
         // will cause them to be released after the TTL is reached
@@ -590,11 +474,11 @@ impl LogFile
     }
 
     pub(super) fn count(&self) -> usize {
-        self.log_count as usize
+        self.lookup.values().len()
     }
 
     pub(super) fn size(&self) -> usize {
-        self.log_off as usize
+        self.appender.offset() as usize
     }
 
     pub(super) fn destroy(&mut self) -> Result<()>
@@ -602,7 +486,7 @@ impl LogFile
         // Now delete all the log files
         let mut n = 0;
         loop {
-            let path_old = format!("{}.{}", self.log_path, n);
+            let path_old = format!("{}.{}", self.path, n);
             if std::path::Path::new(path_old.as_str()).exists() == true {
                 std::fs::remove_file(path_old)?;
             } else {
@@ -611,83 +495,5 @@ impl LogFile
             n = n + 1;
         }
         Ok(())
-    }
-}
-
-#[async_trait]
-impl LogApi
-for LogFile
-{
-    fn offset(&self) -> u64 {
-        self.log_off
-    }
-    
-    async fn read_u8(&mut self) -> Result<u8> {
-        let ret = self.log_stream.read_u8().await?;
-        self.log_off = self.log_off + size_of::<u8>() as u64;
-        Ok(ret)
-    }
-
-    async fn read_u16(&mut self) -> Result<u16> {
-        let ret = self.log_stream.read_u16().await?;
-        self.log_off = self.log_off + size_of::<u16>() as u64;
-        Ok(ret)
-    }
-
-    async fn read_u32(&mut self) -> Result<u32> {
-        let ret = self.log_stream.read_u32().await?;
-        self.log_off = self.log_off + size_of::<u32>() as u64;
-        Ok(ret)
-    }
-
-    async fn read_u64(&mut self) -> Result<u64> {
-        let ret = self.log_stream.read_u64().await?;
-        self.log_off = self.log_off + size_of::<u64>() as u64;
-        Ok(ret)
-    }
-
-    async fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
-        let amt = self.log_stream.read_exact(&mut buf[..]).await?;
-        self.log_off = self.log_off + amt as u64;
-        Ok(())
-    }
-
-    async fn write_u8(&mut self, val: u8) -> Result<()> {
-        self.log_stream.write_u8(val).await?;
-        self.log_off = self.log_off + size_of::<u8>() as u64;
-        Ok(())
-    }
-
-    async fn write_u16(&mut self, val: u16) -> Result<()> {
-        self.log_stream.write_u16(val).await?;
-        self.log_off = self.log_off + size_of::<u16>() as u64;
-        Ok(())
-    }
-
-    async fn write_u32(&mut self, val: u32) -> Result<()> {
-        self.log_stream.write_u32(val).await?;
-        self.log_off = self.log_off + size_of::<u32>() as u64;
-        Ok(())
-    }
-
-    async fn write_u64(&mut self, val: u64) -> Result<()> {
-        self.log_stream.write_u64(val).await?;
-        self.log_off = self.log_off + size_of::<u64>() as u64;
-        Ok(())
-    }
-
-    async fn write_exact(&mut self, buf: &[u8]) -> Result<()> {
-        self.log_stream.write_all(&buf[..]).await?;
-        self.log_off = self.log_off + buf.len() as u64;
-        Ok(())
-    }
-}
-
-impl Drop
-for LogFile
-{
-    fn drop(&mut self) {
-        let exec = async_executor::LocalExecutor::default();
-        let _ = futures::executor::block_on(exec.run(self.log_stream.shutdown()));
     }
 }

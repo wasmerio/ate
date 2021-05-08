@@ -3,12 +3,12 @@ use tokio::sync::mpsc;
 
 use crate::event::*;
 use crate::error::*;
+use crate::redo::LogLookup;
 
 #[derive(Debug, Clone)]
 pub struct LoadData
 {
-    pub(crate) index: u32,
-    pub(crate) offset: u64,
+    pub(crate) lookup: LogLookup,
     pub header: EventHeaderRaw,
     pub data: EventData,
 }
