@@ -1,7 +1,6 @@
 #[allow(unused_imports)]
 use log::{error, info, warn, debug};
 
-use serde::*;
 use cached::Cached;
 use tokio::io::Result;
 use tokio::io::ErrorKind;
@@ -39,7 +38,7 @@ pub(super) struct LogFile
 
 impl LogFile
 {
-    pub(super) async fn new(temp_file: bool, path_log: String, truncate: bool, cache_size: usize, cache_ttl: u64) -> Result<LogFile>
+    pub(super) async fn new(temp_file: bool, path_log: String, truncate: bool, cache_size: usize, cache_ttl: u64, header_bytes: Vec<u8>) -> Result<LogFile>
     {
         // Load all the archives
         let mut archives = FxHashMap::default();
@@ -64,7 +63,12 @@ impl LogFile
         }
 
         // Create the log appender
-        let (appender, archive) = LogAppender::new(path_log.clone(), truncate, n).await?;
+        let (appender, archive) = LogAppender::new(
+            path_log.clone(),
+            truncate,
+            n,
+            &header_bytes[..]
+        ).await?;
         archives.insert(n, archive);
 
         // If we are temporary log file then kill the file
@@ -89,7 +93,7 @@ impl LogFile
         Ok(ret)
     }
 
-    pub(super) async fn rotate(&mut self) -> Result<()>
+    pub(super) async fn rotate(&mut self, header_bytes: Vec<u8>) -> Result<()>
     {
         // If this a temporary file then fail
         if self.temp {
@@ -100,10 +104,14 @@ impl LogFile
         self.appender.sync().await?;
         let next_index = self.appender.index  + 1;
         
-        // Create a new appender and write the header
-        let (mut new_appender, new_archive) = LogAppender::new(self.path.clone(), false, next_index).await?;
-        RedoHeader::new(RedoMagic::V1).write(&mut new_appender).await?;
-
+        // Create a new appender
+        let (new_appender, new_archive) = LogAppender::new(
+            self.path.clone(),
+            false,
+            next_index,
+            &header_bytes[..]
+        ).await?;
+    
         // Set the new appender
         self.archives.insert(next_index , new_archive);
         self.appender = new_appender;
@@ -158,7 +166,7 @@ impl LogFile
         {
             let mut lock = archive.lock_at(0).await?;
 
-            let version = match RedoHeader::read(&mut lock).await? {
+            let _version = match RedoHeader::read(&mut lock).await? {
                 Some(a) => a,
                 None => {
                     warn!("log-read-error: log file is empty");

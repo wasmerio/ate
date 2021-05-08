@@ -80,7 +80,7 @@ impl<'a> Chain
     {
         // Start a new log file
         let mut single = self.single().await;
-        single.inside_async.chain.redo.rotate().await?;
+        single.inside_async.chain.redo.rotate(Vec::new()).await?;
         Ok(())
     }
 

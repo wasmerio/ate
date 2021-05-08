@@ -39,7 +39,7 @@ impl<'a> Chain
         // create the flip
         let mut flip = {
             let mut single = ChainSingleUser::new_ext(&inside_async, &inside_sync).await;
-            let ret = single.inside_async.chain.redo.begin_flip().await?;
+            let ret = single.inside_async.chain.redo.begin_flip(Vec::new()).await?;
             single.inside_async.chain.redo.flush().await?;
             ret
         };

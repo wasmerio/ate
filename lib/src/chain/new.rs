@@ -73,7 +73,7 @@ impl<'a> Chain
             let key = key.clone();
             let builder = builder.clone();
             tokio::spawn(async move {
-                RedoLog::open_ext(&builder.cfg, &key, flags, composite_loader).await
+                RedoLog::open_ext(&builder.cfg, &key, flags, composite_loader, Vec::new()).await
             })
         };
         

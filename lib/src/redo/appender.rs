@@ -28,7 +28,7 @@ pub(crate) struct LogAppender
 
 impl LogAppender
 {
-    pub async fn new(path_log: String, truncate: bool, index: u32) -> Result<(LogAppender, LogArchive)>
+    pub async fn new(path_log: String, truncate: bool, index: u32, header_bytes: &[u8]) -> Result<(LogAppender, LogArchive)>
     {
         // Compute the log file name
         let log_back_path = format!("{}.{}", path_log.clone(), index);
@@ -48,18 +48,18 @@ impl LogAppender
         };
         
         // If it does not have a magic then add one - otherwise read it and check the value
-        let version: RedoHeader = match RedoHeader::read(&mut appender).await? {
-            Some(a) => a,
+        match RedoHeader::read(&mut appender).await? {
+            Some(a) => {
+                appender.header = Vec::from(a.inner().clone());
+            },
             None => {
-                let magic = RedoHeader::new(RedoMagic::V1);
+                let mut magic = RedoHeader::new(RedoMagic::V2);
+                magic.set_inner(header_bytes);
                 let _ = magic.write(&mut appender).await?;
                 appender.sync().await?;
-                magic
+                appender.header = Vec::from(header_bytes);
             }
         };
-
-        // Update the header as reading it from the log file may have updated it
-        appender.header = Vec::from(version.inner().clone());
         
         // Create the archive
         let archive = LogArchive::new(path_log, index).await?;

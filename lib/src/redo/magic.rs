@@ -96,7 +96,7 @@ impl RedoHeader
         return Ok(None);
     }
 
-    pub async fn write(&self, api: &mut impl LogApi) -> Result<(), tokio::io::Error> {
+    pub async fn write(self, api: &mut impl LogApi) -> Result<(), tokio::io::Error> {
         api.write_exact(&LOG_MAGIC[..]).await?;
         api.write_u8(self.magic.into()).await?;
 
@@ -113,5 +113,9 @@ impl RedoHeader
 
     pub fn inner(&self) -> &[u8] {
         &self.inner[..]
+    }
+
+    pub fn set_inner(&mut self, val: &[u8]) {
+        self.inner = Vec::from(val);
     }
 }

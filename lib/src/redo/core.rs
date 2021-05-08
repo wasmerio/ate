@@ -31,7 +31,7 @@ pub struct RedoLog
 
 impl RedoLog
 {
-    async fn new(path_log: String, flags: OpenFlags, cache_size: usize, cache_ttl: u64, loader: Box<impl Loader>) -> std::result::Result<RedoLog, SerializationError>
+    async fn new(path_log: String, flags: OpenFlags, cache_size: usize, cache_ttl: u64, loader: Box<impl Loader>, header_bytes: Vec<u8>) -> std::result::Result<RedoLog, SerializationError>
     {
         // Now load the real thing
         let mut ret = RedoLog {
@@ -43,6 +43,7 @@ impl RedoLog
                     flags.truncate,
                     cache_size,
                     cache_ttl,
+                    header_bytes,
                 ).await?,
             flip: None,
         };
@@ -52,11 +53,11 @@ impl RedoLog
         Ok(ret)
     }
 
-    pub async fn rotate(&mut self) -> Result<()> {
-        Ok(self.log_file.rotate().await?)
+    pub async fn rotate(&mut self, header_bytes: Vec<u8>) -> Result<()> {
+        Ok(self.log_file.rotate(header_bytes).await?)
     }
 
-    pub async fn begin_flip(&mut self) -> Result<FlippedLogFile> {
+    pub async fn begin_flip(&mut self, header_bytes: Vec<u8>) -> Result<FlippedLogFile> {
         
         match self.flip
         {
@@ -72,6 +73,7 @@ impl RedoLog
                             true, 
                             cache.read.cache_capacity().unwrap(), 
                             cache.read.cache_lifespan().unwrap(),
+                            header_bytes,
                         )
                     };
                     
@@ -137,7 +139,7 @@ impl RedoLog
         self.log_file.size()
     }
 
-    pub async fn open(cfg: &ConfAte, key: &ChainKey, flags: OpenFlags) -> std::result::Result<(RedoLog, VecDeque<LoadData>), SerializationError>
+    pub async fn open(cfg: &ConfAte, key: &ChainKey, flags: OpenFlags, header_bytes: Vec<u8>) -> std::result::Result<(RedoLog, VecDeque<LoadData>), SerializationError>
     {
         let mut ret = VecDeque::new();
         let (loader, mut rx) = RedoLogLoader::new();
@@ -145,7 +147,13 @@ impl RedoLog
         let cfg = cfg.clone();
         let key = key.clone();
         let log = tokio::spawn(async move {
-            RedoLog::open_ext(&cfg, &key, flags, loader).await
+            RedoLog::open_ext(
+                &cfg,
+                &key,
+                flags,
+                loader,
+                header_bytes
+            ).await
         });
 
         while let Some(evt) = rx.recv().await {
@@ -156,7 +164,7 @@ impl RedoLog
         Ok((log, ret))
     }
 
-    pub async fn open_ext(cfg: &ConfAte, key: &ChainKey, flags: OpenFlags, loader: Box<impl Loader>) -> std::result::Result<RedoLog, SerializationError> {
+    pub async fn open_ext(cfg: &ConfAte, key: &ChainKey, flags: OpenFlags, loader: Box<impl Loader>, header_bytes: Vec<u8>) -> std::result::Result<RedoLog, SerializationError> {
         let mut key_name = key.name.clone();
         if key_name.starts_with("/") {
             key_name = key_name[1..].to_string();
@@ -179,6 +187,7 @@ impl RedoLog
             cfg.load_cache_size,
             cfg.load_cache_ttl,
             loader,
+            header_bytes,
         ).await?;
 
         Ok(log)
