@@ -8,6 +8,7 @@ mod parent;
 mod timestamp;
 mod read_option;
 mod write_option;
+mod entropy;
 
 pub use authorization::*;
 pub use confidentiality::*;
@@ -19,3 +20,4 @@ pub use parent::*;
 pub use read_option::*;
 pub use timestamp::*;
 pub use write_option::*;
+pub use entropy::*;

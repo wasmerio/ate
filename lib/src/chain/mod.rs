@@ -6,6 +6,7 @@ mod protected_async;
 mod protected_sync;
 mod workers;
 mod compact;
+mod rotate;
 
 pub use self::core::*;
 pub use new::*;

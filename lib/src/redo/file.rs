@@ -260,7 +260,7 @@ impl LogFile
         )
     }
 
-    pub(super) async fn write(&mut self, evt: &EventData) -> std::result::Result<u64, SerializationError>
+    pub(super) async fn write(&mut self, evt: &EventData) -> std::result::Result<LogLookup, SerializationError>
     {
         // Write the appender
         let header = evt.as_header_raw()?;
@@ -285,10 +285,10 @@ impl LogFile
         }
 
         // Return the result
-        Ok(lookup.offset)
+        Ok(lookup)
     }
 
-    pub(super) async fn copy_event(&mut self, from_log: &LogFile, hash: AteHash) -> std::result::Result<u64, LoadError>
+    pub(super) async fn copy_event(&mut self, from_log: &LogFile, hash: AteHash) -> std::result::Result<LogLookup, LoadError>
     {
         // Load the data from the log file
         let result = from_log.load(hash).await?;
@@ -309,7 +309,7 @@ impl LogFile
             });
         }
 
-        Ok(lookup.offset)
+        Ok(lookup)
     }
 
     pub(super) async fn load(&self, hash: AteHash) -> std::result::Result<LoadData, LoadError>
@@ -478,13 +478,24 @@ impl LogFile
         self.lookup.values().len()
     }
 
-    pub(super) fn size(&self) -> usize {
-        self.appender.offset() as usize
+    pub(super) fn size(&self) -> u64 {
+        self.appender.offset() - self.appender.header().len() as u64
     }
 
-    #[allow(dead_code)]
-    pub(super) fn header(&self) -> &[u8] {
-        self.appender.header()
+    pub(super) fn offset(&self) -> u64 {
+        self.appender.offset() as u64
+    }
+
+    pub(super) fn header(&self, index: u32) -> Vec<u8> {
+        if index == u32::MAX || index == self.appender.index {
+            return Vec::from(self.appender.header());
+        }
+
+        if let Some(a) = self.archives.get(&index) {
+            Vec::from(a.header())
+        } else {
+            Vec::new()
+        }
     }
 
     pub(super) fn destroy(&mut self) -> Result<()>

@@ -4,6 +4,7 @@ use log::{info, error, debug};
 use std::sync::Arc;
 use bytes::Bytes;
 
+use crate::error::*;
 use crate::crypto::*;
 use crate::lint::*;
 use crate::transform::*;
@@ -62,7 +63,7 @@ pub(crate) async fn create_test_chain(mock_cfg: &mut ConfAte, chain_name: String
 
 #[tokio::main]
 #[test]
-async fn test_chain() {
+async fn test_chain() -> Result<(), AteError> {
     crate::utils::bootstrap_env();
     //env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug")).init();
 
@@ -109,9 +110,12 @@ async fn test_chain() {
             // The other event we added should also still be there
             debug!("checking event2 is in the chain");
             let test_data = lock.lookup_primary(&key2).await.expect("Failed to find the entry after the compact");
-            let test_data = lock.load(test_data.clone()).await.unwrap();
+            let test_data = lock.load(test_data.clone()).await?;
             assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(2; 1))));
         }
+
+        // Fliush the chain
+        chain.flush().await?;
     }
 
     {
@@ -161,13 +165,13 @@ async fn test_chain() {
             // Read the event and make sure its the second one that results after compaction
             debug!("checking event1 is in the chain");
             let test_data = lock.lookup_primary(&key1).await.expect("Failed to find the entry after the compact");
-            let test_data = lock.load(test_data.clone()).await.unwrap();
+            let test_data = lock.load(test_data.clone()).await?;
             assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(10; 1))));
 
             // The other event we added should also still be there
             debug!("checking event2 is in the chain");
             let test_data = lock.lookup_primary(&key2).await.expect("Failed to find the entry after the compact");
-            let test_data = lock.load(test_data.clone()).await.unwrap();
+            let test_data = lock.load(test_data.clone()).await?;
             assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(2; 1))));
         }
     }
@@ -187,13 +191,13 @@ async fn test_chain() {
             // Read the event and make sure its the second one that results after compaction
             debug!("checking event1 is in the chain");
             let test_data = lock.lookup_primary(&key1).await.expect("Failed to find the entry after the compact");
-            let test_data = lock.load(test_data.clone()).await.unwrap();
+            let test_data = lock.load(test_data.clone()).await?;
             assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(10; 1))));
 
             // The other event we added should also still be there
             debug!("checking event2 is in the chain");
             let test_data = lock.lookup_primary(&key2).await.expect("Failed to find the entry after the compact");
-            let test_data = lock.load(test_data.clone()).await.unwrap();
+            let test_data = lock.load(test_data.clone()).await?;
             assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(2; 1))));
         }
 
@@ -244,12 +248,14 @@ async fn test_chain() {
             // Read the event and make sure its the second one that results after compaction
             debug!("checking event1 is in the chain");
             let test_data = lock.lookup_primary(&key1).await.expect("Failed to find the entry after we reloaded the chain");
-            let test_data = lock.load(test_data).await.unwrap();
+            let test_data = lock.load(test_data).await?;
             assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(10; 1))));
         }
 
         // Destroy the chain
         debug!("destroying the chain");
-        chain.single().await.destroy().await.unwrap();
+        chain.single().await.destroy().await?;
     }
+
+    Ok(())
 }

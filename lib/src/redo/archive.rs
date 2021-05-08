@@ -11,13 +11,15 @@ use tokio::sync::Mutex as Mutex;
 use tokio::sync::MutexGuard;
 
 use crate::spec::*;
+use super::magic::*;
 
 #[derive(Debug)]
 pub(crate) struct LogArchive
 {
-    pub(crate) log_index: u32,
-    pub(crate) log_path: String,
-    log_file: Mutex<File>,
+    pub(crate) index: u32,
+    pub(crate) path: String,
+    file: Mutex<File>,
+    header: Vec<u8>,
 }
 
 impl LogArchive
@@ -26,34 +28,49 @@ impl LogArchive
     {
         let path = format!("{}.{}", path.clone(), index);
         let log_random_access = tokio::fs::OpenOptions::new().read(true).open(path.clone()).await?;
+
+        let mut ret = LogArchive {
+            index,
+            path,
+            header: Vec::new(),
+            file: Mutex::new(log_random_access),
+        };
+
+        ret.header = {
+            let mut guard = ret.lock_at(0).await?;
+            let r = match RedoHeader::read(&mut guard).await? {
+                Some(a) => Vec::from(a.inner().clone()),
+                None => Vec::new(),
+            };
+            guard.seek(0).await?;
+            r
+        };
+
         Ok(
-            LogArchive {
-                log_index: index,
-                log_path: path,
-                log_file: Mutex::new(log_random_access),
-            }
+            ret
         )
     }
 
     pub async fn clone(&self) -> Result<LogArchive>
     {
-        let log_back = self.log_file.lock().await.try_clone().await?;
+        let log_back = self.file.lock().await.try_clone().await?;
         Ok(
             LogArchive {
-                log_index: self.log_index,
-                log_path: self.log_path.clone(),
-                log_file: Mutex::new(log_back),                
+                index: self.index,
+                path: self.path.clone(),
+                header: self.header.clone(),
+                file: Mutex::new(log_back),                
             }
         )
     }
 
     pub async fn lock_at(&self, off: u64) -> Result<LogArchiveGuard<'_>>
     {
-        let mut file = self.log_file.lock().await;
+        let mut file = self.file.lock().await;
         file.seek(SeekFrom::Start(off)).await?;
         Ok(
             LogArchiveGuard {
-                index: self.log_index,
+                index: self.index,
                 offset: off,
                 file,
             }
@@ -61,7 +78,11 @@ impl LogArchive
     }
 
     pub async fn len(&self) -> Result<u64> {
-        Ok(self.log_file.lock().await.metadata().await?.len())
+        Ok(self.file.lock().await.metadata().await?.len())
+    }
+
+    pub(crate) fn header(&self) -> &[u8] {
+        &self.header[..]
     }
 }
 

@@ -199,7 +199,7 @@ impl MeshSession
         let from = guard.range(pivot..).map(|h| h.event_hash).next();
         if let Some(from) = from
         {
-            if let Some(a) = guard.chain.pointers.get_delayed_upload(from) {
+            if let Some(a) = guard.chain.timeline.pointers.get_delayed_upload(from) {
                 debug!("delayed_upload exists: {}..{}", a.from, a.to);
                 return Ok(());
             }

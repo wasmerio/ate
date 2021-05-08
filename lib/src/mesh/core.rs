@@ -18,6 +18,7 @@ use crate::mesh::msg::*;
 use crate::mesh::MeshSession;
 use crate::comms::PacketData;
 use crate::spec::SerializationFormat;
+use crate::redo::LogLookup;
 
 // Determines how the file-system will react while it is nominal and when it is
 // recovering from a communication failure (valid options are 'async', 'readonly-async',
@@ -147,13 +148,13 @@ impl MeshHashTable
     }
 }
 
-pub(crate) async fn locate_offset_of_sync(chain: &Arc<Chain>, pivot: &AteHash) -> Option<(u64, AteHash)> {
+pub(crate) async fn locate_offset_of_sync(chain: &Arc<Chain>, pivot: &AteHash) -> Option<(ChainEntropy, AteHash)> {
     let multi = chain.multi().await;
     let guard = multi.inside_async.read().await;
-    match guard.chain.history_reverse.get(pivot) {
+    match guard.chain.timeline.history_reverse.get(pivot) {
         Some(a) => {
-            let a = *a + 1;
-            let mut range = guard.chain.history.range(a..).map(|(k, v)| (k.clone(), v.event_hash));
+            let a = ChainEntropy::from(a.entropy + 1);
+            let mut range = guard.chain.timeline.history.range(a..).map(|(k, v)| (k.clone(), v.event_hash));
             range.next()
         },
         None => None
@@ -165,7 +166,7 @@ pub(crate) async fn locate_pivot_within_history(chain: &Arc<Chain>, history_samp
     let guard = multi.inside_async.read().await;
     history_sample
         .iter()
-        .filter(|t| guard.chain.history_reverse.contains_key(t)).map(|h| h.clone())
+        .filter(|t| guard.chain.timeline.history_reverse.contains_key(t)).map(|h| h.clone())
         .next_back()
 }
 
@@ -183,7 +184,7 @@ where R: RangeBounds<AteHash>
     let mut cur = match range.start_bound() {
         Bound::Unbounded => {
             let guard = multi.inside_async.read().await;
-            match guard.chain.history.iter().map(|a| a.1.event_hash).next() {
+            match guard.chain.timeline.history.iter().map(|a| a.1.event_hash).next() {
                 Some(a) => Bound::Included(a),
                 None => { return Ok(()) }
             }

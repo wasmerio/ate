@@ -2,6 +2,7 @@
 use log::{info, error, debug};
 
 use multimap::MultiMap;
+use btreemultimap::BTreeMultiMap;
 
 use crate::error::*;
 use crate::conf::*;
@@ -22,7 +23,6 @@ use crate::spec::SerializationFormat;
 use crate::trust::*;
 use crate::pipe::*;
 use crate::loader::*;
-use std::collections::BTreeMap;
 
 use crate::trust::ChainKey;
 
@@ -84,24 +84,37 @@ impl<'a> Chain
         
         // While the events are streamed in we build a list of all the event headers
         // but we strip off the data itself
-        let mut entries = Vec::new();
+        let mut headers = Vec::new();
         while let Some(result) = rx.recv().await {
-            entries.push(result.header.as_header()?);
+            headers.push(result.header.as_header()?);
         }
 
         // Join the redo log thread earlier after the events were successfully streamed in
         let redo_log = redo_log.await.unwrap()?;
 
+        // Load the latest entropy from the chain header (if there is none the events will
+        // themselves increase the entropy)
+        let entropy = {
+            let header_bytes = redo_log.header(u32::MAX);
+            let header = if header_bytes.len() > 0 {
+                SerializationFormat::Json.deserialize(&header_bytes[..])?
+            } else {
+                ChainHeader::default()
+            };
+            header.entropy
+        };
+
         // Construnct the chain-of-trust on top of the redo-log
         let chain = ChainOfTrust {
             key: key.clone(),
             redo: redo_log,
-            history_index: 0,
-            header,
-            history_reverse: FxHashMap::default(),
-            history: BTreeMap::new(),
-            pointers: BinaryTreeIndexer::default(),
-            compactors: builder.compactors,
+            timeline: ChainTimeline {
+                entropy,
+                history_reverse: FxHashMap::default(),
+                history: BTreeMultiMap::new(),
+                pointers: BinaryTreeIndexer::default(),
+                compactors: builder.compactors,
+            },
         };
 
         // Construct all the protected fields that are behind a synchronous critical section
@@ -142,9 +155,9 @@ impl<'a> Chain
         
         // Process all the events in the chain-of-trust
         let conversation = Arc::new(ConversationSession::new(true));
-        if let Err(err) = inside_async.process(inside_sync.write(), entries, Some(&conversation)) {
+        if let Err(err) = inside_async.process(inside_sync.write(), headers, Some(&conversation)) {
             if allow_process_errors == false {
-                return Err(ChainCreationError::ProcessError(err));
+                return Err(err);
             }
         }
 

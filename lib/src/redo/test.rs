@@ -136,7 +136,7 @@ fn test_redo_log() {
             
             // End the flip operation
             println!("test_redo_log - finishing the flip operation");
-            rl.finish_flip(flip, |_| {}).await.expect("Failed to end the flip operation");
+            rl.finish_flip(flip, |_,_| {}).await.expect("Failed to end the flip operation");
             assert_eq!(3, rl.count());
 
             // Write some more data

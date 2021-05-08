@@ -76,20 +76,6 @@ impl<'a> Chain
         self.default_format.clone()
     }
 
-    pub async fn rotate(&'a self) -> Result<(), SerializationError>
-    {
-        // Start a new log file
-        let mut single = self.single().await;
-
-        // Build the header
-        let header = single.inside_async.chain.header.clone();
-        let header_bytes = SerializationFormat::Json.serialize(&header)?;
-
-        // Rotate the log
-        single.inside_async.chain.redo.rotate(header_bytes).await?;
-        Ok(())
-    }
-
     pub async fn count(&'a self) -> usize {
         self.inside_async.read().await.chain.redo.count()
     }
@@ -155,7 +141,7 @@ impl<'a> Chain
     pub(crate) async fn get_pending_uploads(&self) -> Vec<MetaDelayedUpload>
     {
         let guard = self.inside_async.read().await;
-        guard.chain.pointers.get_pending_uploads()
+        guard.chain.timeline.pointers.get_pending_uploads()
     }
 
     pub fn repository(&self) -> Option<Arc<dyn ChainRepository>>

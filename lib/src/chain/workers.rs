@@ -41,8 +41,9 @@ impl<'a> Chain
             // Push the events into the chain of trust and release the lock on it before
             // we transmit the result so that there is less lock thrashing
             let result = match lock.feed_async_internal(&inside_sync, &trans.events, trans.conversation.as_ref()).await {
-                Ok((_, offset)) => {
-                    let _ = compact_tx.log_size.send(offset);
+                Ok(_) => {
+                    let log_size = lock.chain.redo.size() as u64;
+                    let _ = compact_tx.log_size.send(log_size);
                     Ok(())
                 },
                 Err(err) => Err(err),

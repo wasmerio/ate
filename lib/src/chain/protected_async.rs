@@ -1,6 +1,7 @@
 #[allow(unused_imports)]
 use log::{info, error, debug};
 
+use crate::redo::LogWritable;
 use crate::crypto::AteHash;
 use crate::error::*;
 use crate::event::*;
@@ -10,8 +11,6 @@ use std::sync::{Arc};
 use parking_lot::RwLock as StdRwLock;
 use parking_lot::RwLockWriteGuard as StdRwLockWriteGuard;
 use std::ops::*;
-
-use crate::redo::*;
 
 use crate::trust::*;
 use crate::meta::*;
@@ -28,7 +27,7 @@ pub(crate) struct ChainProtectedAsync
 
 impl ChainProtectedAsync
 {
-    pub(super) fn process(&mut self, mut sync: StdRwLockWriteGuard<ChainProtectedSync>, headers: Vec<EventHeader>, conversation: Option<&Arc<ConversationSession>>) -> Result<(), ProcessError>
+    pub(super) fn process(&mut self, mut sync: StdRwLockWriteGuard<ChainProtectedSync>, headers: Vec<EventHeader>, conversation: Option<&Arc<ConversationSession>>) -> Result<(), ChainCreationError>
     {
         let mut ret = ProcessError::default();
 
@@ -49,15 +48,17 @@ impl ChainProtectedAsync
                 }
             }
 
-            self.chain.pointers.feed(&header);
             self.chain.add_history(&header);
         }
 
-        ret.as_result()
+        match ret.as_result() {
+            Ok(a) => Ok(a),
+            Err(err) => Err(ChainCreationError::ProcessError(err))
+        }
     }
 
     pub(crate) async fn feed_meta_data(&mut self, sync: &Arc<StdRwLock<ChainProtectedSync>>, meta: Metadata)
-        -> Result<(Vec<EventHeader>, u64), CommitError>
+        -> Result<Vec<EventHeader>, CommitError>
     {
         let data = EventData {
             meta,
@@ -73,7 +74,7 @@ impl ChainProtectedAsync
     }
 
     pub(super) async fn feed_async_internal(&mut self, sync: &Arc<StdRwLock<ChainProtectedSync>>, evts: &Vec<EventData>, conversation: Option<&Arc<ConversationSession>>)
-        -> Result<(Vec<EventHeader>, u64), CommitError>
+        -> Result<Vec<EventHeader>, CommitError>
     {
         let mut errors = Vec::new();
         let mut validated_evts = Vec::new();
@@ -107,13 +108,9 @@ impl ChainProtectedAsync
             }
         }
 
-        let mut last_offset = self.chain.redo.size() as u64;
         let mut ret = Vec::new();
         for (evt, header) in validated_evts.into_iter() {
-            last_offset = self.chain.redo
-                .write(evt).await?;
-
-            self.chain.pointers.feed(&header);
+            let _lookup = self.chain.redo.write(evt).await?;
             self.chain.add_history(&header);
             ret.push(header);
         }
@@ -122,7 +119,7 @@ impl ChainProtectedAsync
             return Err(CommitError::ValidationError(errors));
         }
 
-        Ok((ret, last_offset))
+        Ok(ret)
     }
 
     pub fn range<'a, R>(&'a self, range: R) -> impl DoubleEndedIterator<Item = &'a EventHeaderRaw>
@@ -131,7 +128,7 @@ impl ChainProtectedAsync
         self.range_internal(range).map(|e| e.1)
     }
 
-    fn range_internal<'a, R>(&'a self, range: R) -> std::collections::btree_map::Range<u64, EventHeaderRaw>
+    fn range_internal<'a, R>(&'a self, range: R) -> btreemultimap::MultiRange<ChainEntropy, EventHeaderRaw>
     where R: RangeBounds<AteHash>
     {
         // Grab the starting point        
@@ -139,52 +136,55 @@ impl ChainProtectedAsync
         let start = match start {
             Bound::Unbounded => None,
             Bound::Included(a) | Bound::Excluded(a) => {
-                match self.chain.history_reverse.get(a) {
+                match self.chain.timeline.history_reverse.get(a) {
                     Some(a) => {
                         if let Bound::Excluded(_) = start {
-                            Some(*a + 1)
+                            Some(ChainEntropy::from(a.entropy + 1))
                         } else {
                             Some(*a)
                         }
                     },
-                    None => { return self.chain.history.range(u64::MAX..); }
+                    None => {
+                        let cursor_max = ChainEntropy::from(u64::MAX);
+                        return self.chain.timeline.history.range(cursor_max..);
+                    }
                 }
             },
         };
         let start = match start {
             Some(a) => a,
-            None => self.chain.history
+            None => self.chain.timeline.history
                 .iter()
                 .next()
-                .map_or_else(|| 0, |e| e.0.clone())
+                .map_or_else(|| ChainEntropy::from(0u64), |e| e.0.clone())
         };
 
         // Grab the ending point
         let mut inclusive_end = false;
         let end = match range.end_bound() {
             Bound::Unbounded => {
-                return self.chain.history.range(start..);
+                return self.chain.timeline.history.range(start..);
             },
             Bound::Included(a) => {
                 inclusive_end = true;
-                self.chain.history_reverse.get(a)
+                self.chain.timeline.history_reverse.get(a)
             },
             Bound::Excluded(a) => {
-                self.chain.history_reverse.get(a)
+                self.chain.timeline.history_reverse.get(a)
             },
         };
         let end = match end {
             Some(a) => a.clone(),
-            None => self.chain.history
+            None => self.chain.timeline.history
                         .iter()
                         .next_back()
-                        .map_or_else(|| u64::MAX, |e| e.0.clone()),
+                        .map_or_else(|| ChainEntropy::from(u64::MAX), |e| e.0.clone()),
         };
         
         // Stream in all the events
         match inclusive_end {
-            true => self.chain.history.range(start..=end),
-            false => self.chain.history.range(start..end)
+            true => self.chain.timeline.history.range(start..=end),
+            false => self.chain.timeline.history.range(start..end)
         }        
     }
 }

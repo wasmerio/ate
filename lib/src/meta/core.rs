@@ -5,6 +5,7 @@ use crate::crypto::*;
 use crate::error::CryptoError;
 use crate::header::*;
 use crate::signature::MetaSignature;
+use crate::trust::ChainEntropy;
 
 use super::*;
 
@@ -28,6 +29,7 @@ pub enum CoreMetadata
     Type(MetaType),
     Reply(PrimaryKey),
     DelayedUpload(MetaDelayedUpload),
+    Entropy(MetaEntropy),
 }
 
 impl Default for CoreMetadata {
@@ -58,6 +60,7 @@ for CoreMetadata
             CoreMetadata::Type(a) => write!(f, "type-{}", a),
             CoreMetadata::Reply(a) => write!(f, "reply-{}", a),
             CoreMetadata::DelayedUpload(a) => write!(f, "delayed_upload-{}", a),
+            CoreMetadata::Entropy(a) => write!(f, "entropy-{}", a),
         }
     }
 }
@@ -107,6 +110,17 @@ impl Metadata
         for core in &self.core {
             if let CoreMetadata::Parent(a) = core {
                 return Some(a);
+            }
+        }
+        
+        None
+    }
+
+    pub fn get_entropy(&self) -> Option<ChainEntropy>
+    {
+        for core in &self.core {
+            if let CoreMetadata::Entropy(a) = core {
+                return Some(a.entropy);
             }
         }
         

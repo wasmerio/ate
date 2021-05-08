@@ -7,7 +7,7 @@ use crate::{crypto::AteHash};
 use crate::event::*;
 use crate::error::*;
 
-use super::file::LogFile;
+use super::{LogLookup, file::LogFile};
 use super::api::LogWritable;
 use super::core::RedoLog;
 
@@ -22,7 +22,7 @@ impl LogWritable
 for FlippedLogFile
 {
     #[allow(dead_code)]
-    async fn write(&mut self, evt: &EventData) -> std::result::Result<u64, SerializationError> {
+    async fn write(&mut self, evt: &EventData) -> std::result::Result<LogLookup, SerializationError> {
         let ret = self.log_file.write(evt).await?;
         self.event_summary.push(evt.as_header_raw()?);
         Ok(ret)
@@ -55,7 +55,7 @@ impl FlippedLogFile
     }
 
     #[allow(dead_code)]
-    pub(crate) async fn copy_event(&mut self, from_log: &RedoLog, from_pointer: AteHash) -> std::result::Result<u64, LoadError> {
+    pub(crate) async fn copy_event(&mut self, from_log: &RedoLog, from_pointer: AteHash) -> std::result::Result<LogLookup, LoadError> {
         Ok(self.log_file.copy_event(&from_log.log_file, from_pointer).await?)
     }
 }

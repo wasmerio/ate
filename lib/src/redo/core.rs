@@ -7,12 +7,13 @@ use tokio::io::Result;
 use tokio::io::Error;
 use tokio::io::ErrorKind;
 
-use crate::crypto::*;
+use crate::{crypto::*, spec::LogApi};
 use crate::conf::*;
 use crate::chain::*;
 use crate::event::*;
 use crate::error::*;
 use crate::loader::*;
+use crate::redo::LogLookup;
 
 use super::file::LogFile;
 use super::flip::RedoLogFlip;
@@ -95,7 +96,7 @@ impl RedoLog
         }
     }
 
-    pub async fn finish_flip(&mut self, mut flip: FlippedLogFile, mut deferred_write_callback: impl FnMut(&mut EventHeader)) -> std::result::Result<Vec<EventHeaderRaw>, SerializationError>
+    pub async fn finish_flip(&mut self, mut flip: FlippedLogFile, mut deferred_write_callback: impl FnMut(LogLookup, &EventHeader)) -> std::result::Result<Vec<EventHeaderRaw>, SerializationError>
     {
         match &mut self.flip
         {
@@ -104,12 +105,13 @@ impl RedoLog
                 let mut event_summary = flip.drain_events();
                 let mut new_log_file = flip.copy_log_file().await?;
 
-                for d in inside.deferred.drain(..) {
-                    let mut header = d.as_header()?;
-                    deferred_write_callback(&mut header);
-
-                    event_summary.push(header.raw);
-                    let _ = new_log_file.write(&d).await?;
+                for d in inside.deferred.drain(..)
+                {
+                    let header = d.as_header()?;
+                    event_summary.push(header.raw.clone());
+                    let lookup = new_log_file.write(&d).await?;
+    
+                    deferred_write_callback(lookup, &header);
                 }
                 
                 new_log_file.flush().await?;
@@ -135,8 +137,19 @@ impl RedoLog
         self.log_file.count()
     }
 
-    pub fn size(&self) -> usize {
+    pub fn size(&self) -> u64 {
         self.log_file.size()
+    }
+
+    pub fn offset(&self) -> u64 {
+        self.log_file.offset()
+    }
+
+    pub fn end(&self) -> LogLookup {
+        LogLookup {
+            index: self.log_file.appender.index,
+            offset: self.log_file.appender.offset()
+        }
     }
 
     pub async fn open(cfg: &ConfAte, key: &ChainKey, flags: OpenFlags, header_bytes: Vec<u8>) -> std::result::Result<(RedoLog, VecDeque<LoadData>), SerializationError>
@@ -196,13 +209,17 @@ impl RedoLog
     pub fn destroy(&mut self) -> Result<()> {
         self.log_file.destroy()
     }
+
+    pub fn header(&self, index: u32) -> Vec<u8> {
+        self.log_file.header(index)
+    }
 }
 
 #[async_trait]
 impl LogWritable
 for RedoLog
 {
-    async fn write(&mut self, evt: &EventData) -> std::result::Result<u64, SerializationError> {
+    async fn write(&mut self, evt: &EventData) -> std::result::Result<LogLookup, SerializationError> {
         if let Some(flip) = &mut self.flip {
             flip.deferred.push(evt.clone());
         }
