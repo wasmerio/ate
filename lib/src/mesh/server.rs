@@ -431,6 +431,7 @@ async fn inbox_unlock(
 async fn inbox_subscribe<F>(
     root: Arc<MeshRoot<F>>,
     chain_key: ChainKey,
+    entropy: ChainEntropy,
     reply_at: Option<&mpsc::Sender<PacketData>>,
     session_context: Arc<SessionContext>,
     wire_format: SerializationFormat,
@@ -484,21 +485,18 @@ where F: OpenFlow + 'static
         session_context.group.store(chain.key().hash64(), std::sync::atomic::Ordering::Relaxed);
     }
 
-    // Grab the first sample point (if we have no history then we are done)
-    let guard = chain.multi().await;
-    let guard = guard.inside_async.read().await;
-    match guard.range(..).next() {
-        Some(a) => {
-            PacketData::reply_at(reply_at, wire_format, Message::SampleRightOf(a.event_hash)).await?;
-        },
-        None => {
-            if let Some(reply_at) = reply_at {
-                stream_empty_history(chain, None, reply_at.clone(), wire_format).await?;
-            } else {
-                debug!("no reply address for this subscribe");
-            }
-        }
-    };
+    // Stream the data back to the client
+    if let Some(reply_at) = reply_at {
+        debug!("inbox: starting the streaming process");
+        tokio::spawn(stream_history_range(
+            Arc::clone(&chain), 
+            entropy.., 
+            reply_at.clone(),
+            wire_format,
+        ));
+    } else {
+        debug!("no reply address for this subscribe");
+    }
 
     Ok(())
 }
@@ -513,84 +511,6 @@ async fn inbox_unsubscribe<F>(
 where F: OpenFlow + 'static
 {
     debug!("inbox: unsubscribe: {}", chain_key.to_string());
-
-    Ok(())
-}
-
-async fn inbox_samples_of_history(
-    context: Arc<SessionContext>,
-    pivot: AteHash,
-    history_sample: Vec<AteHash>,
-    reply_at: Option<&mpsc::Sender<PacketData>>,
-    wire_format: SerializationFormat,
-)
--> Result<(), CommsError>
-{
-    debug!("inbox: inbox_samples_of_history (pivot={}, samples={})", pivot, history_sample.len());
-
-    // We have got as close as we can - lets start the history sending process now
-    if let Some(reply_at) = reply_at
-    {
-        // Get the chain
-        let chain = match context.inside.lock().chain.clone() {
-            Some(a) => a,
-            None => { return Ok(()); }
-        };
-
-        // If no samples were supplied at all then just send the entire history as they dont have
-        // anything at all (or we lost sync)
-        if history_sample.len() <= 0 {
-            debug!("inbox: streaming the entire history");
-            tokio::spawn(stream_history_range(
-                Arc::clone(&chain), 
-                .., 
-                reply_at.clone(),
-                wire_format,
-            ));
-            return Ok(())
-        }
-
-        // See if the pivot point gets closer to the end of the history - if it does not then
-        // keep taking samples
-        if let Some(hash) = locate_pivot_within_history(&chain, history_sample).await {
-            if hash != pivot {
-                debug!("inbox: pivot is still moving forward (pivot={})", hash);
-                PacketData::reply_at(Some(&reply_at), wire_format, Message::SampleRightOf(hash)).await?;
-                return Ok(());
-            }
-        }
-
-        // Move to the right of the pivot point
-        let next = {
-            let multi = chain.multi().await;
-            let guard = multi.inside_async.read().await;
-            let mut iter = guard.range(pivot..).map(|e| e.event_hash);
-            iter.next();
-            iter.next()
-        };
-        let next = match next {
-            Some(a) => {
-                debug!("inbox: pivot has settled in the middle (pivot={})", pivot);
-                a
-            },
-            None => {
-                debug!("inbox: pivot has settled at the eof");
-                stream_empty_history(Arc::clone(&chain), Some(pivot), reply_at.clone(), wire_format).await?;
-                return Ok(())
-            }
-        };
-
-        // Stream the data back to the client
-        debug!("inbox: starting the streaming process");
-        tokio::spawn(stream_history_range(
-            Arc::clone(&chain), 
-            next.., 
-            reply_at.clone(),
-            wire_format,
-        ));
-    } else {
-        debug!("no reply address for this streaming of data");
-    }
 
     Ok(())
 }
@@ -614,10 +534,8 @@ where F: OpenFlow + 'static
     let reply_at = reply_at_owner.as_ref();
     
     match pck.msg {
-        Message::Subscribe { chain_key }
-            => inbox_subscribe(root, chain_key, reply_at, context, wire_format, tx).await,
-        Message::SamplesOfHistory { pivot, samples }
-            => inbox_samples_of_history(context, pivot, samples, reply_at, wire_format).await,
+        Message::Subscribe { chain_key, entropy }
+            => inbox_subscribe(root, chain_key, entropy, reply_at, context, wire_format, tx).await,
         Message::Events { commit, evts }
             => inbox_event(reply_at, context, commit, evts, tx, pck_data).await,
         Message::Lock { key }

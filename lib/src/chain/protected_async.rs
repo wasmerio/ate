@@ -2,7 +2,6 @@
 use log::{info, error, debug};
 
 use crate::redo::LogWritable;
-use crate::crypto::AteHash;
 use crate::error::*;
 use crate::event::*;
 use crate::transaction::*;
@@ -23,6 +22,7 @@ pub(crate) struct ChainProtectedAsync
     pub(crate) chain: ChainOfTrust,
     pub(crate) default_format: MessageFormat,
     pub(crate) disable_new_roots: bool,
+    pub(crate) run: bool,
 }
 
 impl ChainProtectedAsync
@@ -122,69 +122,24 @@ impl ChainProtectedAsync
         Ok(ret)
     }
 
-    pub fn range<'a, R>(&'a self, range: R) -> impl DoubleEndedIterator<Item = &'a EventHeaderRaw>
-    where R: RangeBounds<AteHash>
+    pub fn range<'a, R>(&'a self, range: R) -> impl DoubleEndedIterator<Item = (&'a ChainEntropy, &'a EventHeaderRaw)>
+    where R: RangeBounds<ChainEntropy>
     {
-        self.range_internal(range).map(|e| e.1)
+        self.chain.timeline.history.range(range)
     }
 
-    fn range_internal<'a, R>(&'a self, range: R) -> btreemultimap::MultiRange<ChainEntropy, EventHeaderRaw>
-    where R: RangeBounds<AteHash>
+    pub fn range_keys<'a, R>(&'a self, range: R) -> impl DoubleEndedIterator<Item = ChainEntropy> + 'a
+    where R: RangeBounds<ChainEntropy>
     {
-        // Grab the starting point        
-        let start = range.start_bound();
-        let start = match start {
-            Bound::Unbounded => None,
-            Bound::Included(a) | Bound::Excluded(a) => {
-                match self.chain.timeline.history_reverse.get(a) {
-                    Some(a) => {
-                        if let Bound::Excluded(_) = start {
-                            Some(ChainEntropy::from(a.entropy + 1))
-                        } else {
-                            Some(*a)
-                        }
-                    },
-                    None => {
-                        let cursor_max = ChainEntropy::from(u64::MAX);
-                        return self.chain.timeline.history.range(cursor_max..);
-                    }
-                }
-            },
-        };
-        let start = match start {
-            Some(a) => a,
-            None => self.chain.timeline.history
-                .iter()
-                .next()
-                .map_or_else(|| ChainEntropy::from(0u64), |e| e.0.clone())
-        };
+        let mut ret = self.range(range).map(|e| e.0).collect::<Vec<_>>();
+        ret.dedup();
+        ret.into_iter().map(|a| a.clone())
+    }
 
-        // Grab the ending point
-        let mut inclusive_end = false;
-        let end = match range.end_bound() {
-            Bound::Unbounded => {
-                return self.chain.timeline.history.range(start..);
-            },
-            Bound::Included(a) => {
-                inclusive_end = true;
-                self.chain.timeline.history_reverse.get(a)
-            },
-            Bound::Excluded(a) => {
-                self.chain.timeline.history_reverse.get(a)
-            },
-        };
-        let end = match end {
-            Some(a) => a.clone(),
-            None => self.chain.timeline.history
-                        .iter()
-                        .next_back()
-                        .map_or_else(|| ChainEntropy::from(u64::MAX), |e| e.0.clone()),
-        };
-        
-        // Stream in all the events
-        match inclusive_end {
-            true => self.chain.timeline.history.range(start..=end),
-            false => self.chain.timeline.history.range(start..end)
-        }        
+    #[allow(dead_code)]
+    pub fn range_values<'a, R>(&'a self, range: R) -> impl DoubleEndedIterator<Item = &'a EventHeaderRaw>
+    where R: RangeBounds<ChainEntropy>
+    {
+        self.range(range).map(|e| e.1)
     }
 }

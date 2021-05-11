@@ -113,23 +113,19 @@ impl MeshSession
     async fn inbox_connected(self: &Arc<MeshSession>, pck: PacketData) -> Result<(), CommsError> {
         debug!("inbox: connected pck.size={}", pck.bytes.len());
 
+        let entropy = {
+            if let Some(chain) = self.chain.upgrade() {
+                let lock = chain.inside_async.read().await;
+                lock.chain.timeline.entropy
+            } else {
+                ChainEntropy::default()
+            }
+        };
+
         pck.reply(Message::Subscribe {
             chain_key: self.key.clone(),
+            entropy
         }).await
-    }
-
-    async fn inbox_sample_right_of(self: &Arc<MeshSession>, pivot: AteHash, pck: PacketData) -> Result<(), CommsError> {
-        debug!("inbox: sample_right_of [pivot.size={}]", pivot);
-
-        if let Some(chain) = self.chain.upgrade() {
-            let samples = chain.get_samples_to_right_of_pivot(pivot).await;
-            pck.reply(Message::SamplesOfHistory {
-                pivot,
-                samples
-            }).await?;
-        }
-
-        Ok(())
     }
 
     async fn inbox_events(self: &Arc<MeshSession>, evts: Vec<MessageEvent>, loader: &mut Option<Box<impl Loader>>) -> Result<(), CommsError> {
@@ -193,10 +189,10 @@ impl MeshSession
         Ok(())
     }
 
-    async fn record_delayed_upload(chain: &Arc<Chain>, pivot: AteHash) -> Result<(), CommsError>
+    async fn record_delayed_upload(chain: &Arc<Chain>, pivot: ChainEntropy) -> Result<(), CommsError>
     {
         let mut guard = chain.inside_async.write().await;
-        let from = guard.range(pivot..).map(|h| h.event_hash).next();
+        let from = guard.range_keys(pivot..).next();
         if let Some(from) = from
         {
             if let Some(a) = guard.chain.timeline.pointers.get_delayed_upload(from) {
@@ -204,14 +200,14 @@ impl MeshSession
                 return Ok(());
             }
 
-            let to = guard.range(pivot..).map(|h| h.event_hash).next_back();
+            let to = guard.range_keys(from..).next_back();
             if let Some(to) = to {
                 debug!("delayed_upload new: {}..{}", from, to);
                 guard.feed_meta_data(&chain.inside_sync, Metadata {
                     core: vec![CoreMetadata::DelayedUpload(MetaDelayedUpload {
                         complete: false,
-                        from,
-                        to
+                        from: from.clone(),
+                        to: to.clone()
                     })]
                 }).await?;
             } else {
@@ -224,7 +220,7 @@ impl MeshSession
         Ok(())
     }
 
-    async fn complete_delayed_upload(chain: &Arc<Chain>, from: AteHash, to: AteHash) -> Result<(), CommsError>
+    async fn complete_delayed_upload(chain: &Arc<Chain>, from: ChainEntropy, to: ChainEntropy) -> Result<(), CommsError>
     {
         debug!("delayed_upload complete: {}..{}", from, to);
         let mut guard = chain.inside_async.write().await;
@@ -238,7 +234,7 @@ impl MeshSession
         Ok(())
     }
 
-    async fn inbox_start_of_history(self: &Arc<MeshSession>, size: usize, _from: Option<AteHash>, to: Option<AteHash>, loader: &mut Option<Box<impl Loader>>, root_keys: Vec<PublicSignKey>, integrity: IntegrityMode) -> Result<(), CommsError>
+    async fn inbox_start_of_history(self: &Arc<MeshSession>, size: usize, _from: Option<ChainEntropy>, to: Option<ChainEntropy>, loader: &mut Option<Box<impl Loader>>, root_keys: Vec<PublicSignKey>, integrity: IntegrityMode) -> Result<(), CommsError>
     {
         // Declare variables
         let size = size;
@@ -264,8 +260,7 @@ impl MeshSession
                     let multi = chain.multi().await;
                     let guard = multi.inside_async.read().await;
                     let mut iter = guard
-                        .range(to..)
-                        .map(|e| e.event_hash);
+                        .range_keys(to..);
                     iter.next();
                     iter.next()
                 };
@@ -315,8 +310,6 @@ impl MeshSession
         match pck.packet.msg {
             Message::StartOfHistory { size, from, to, root_keys, integrity }
                 => Self::inbox_start_of_history(self, size, from, to, loader, root_keys, integrity).await,
-            Message::SampleRightOf(pivot)
-                => Self::inbox_sample_right_of(self, pivot, pck.data).await,
             Message::Connected
                 => Self::inbox_connected(self, pck.data).await,
             Message::Events { commit: _, evts }

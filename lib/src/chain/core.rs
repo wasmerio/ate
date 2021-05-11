@@ -1,8 +1,6 @@
 #[allow(unused_imports)]
 use log::{info, error, debug};
 
-use crate::crypto::AteHash;
-
 use crate::error::*;
 
 use crate::transaction::*;
@@ -102,40 +100,6 @@ impl<'a> Chain
 
         // Success!
         Ok(())
-    }
-
-    pub(crate) async fn get_samples_to_right_of_pivot(&self, pivot: AteHash) -> Vec<AteHash> {
-        let guard = self.inside_async.read().await;
-        let mut sample = Vec::new();
-
-        let mut iter = guard.range(pivot..);
-        let mut stride = 1;
-
-        for _ in 0..8 {
-            match iter.next() {
-                Some(header) => sample.push(header.event_hash.clone()),
-                None => {
-                    return sample;
-                }
-            }
-        }
-        loop {
-            match iter.next() {
-                Some(header) => sample.push(header.event_hash.clone()),
-                None => { return sample; }
-            }
-            let mut last = None;
-            for _ in 1..stride {
-                match iter.next() {
-                    Some(a) => last = Some(a),
-                    None => break
-                }                
-            }
-            if let Some(last) = last {
-                sample.push(last.event_hash.clone());
-            }
-            stride = stride * 2;
-        }
     }
 
     pub(crate) async fn get_pending_uploads(&self) -> Vec<MetaDelayedUpload>

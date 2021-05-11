@@ -10,6 +10,7 @@ use std::sync::{Arc};
 use tokio::sync::RwLock;
 use parking_lot::RwLock as StdRwLock;
 use tokio::sync::mpsc;
+use std::time::Duration;
 
 use crate::transaction::TransactionScope;
 
@@ -49,7 +50,7 @@ impl<'a> Chain
                 Err(err) => Err(err),
             };
 
-            // If the scope requires it then we flush, otherwise we just drop the lock
+            // If the scope requires it then we flush
             let late_flush = match trans.scope {
                 TransactionScope::Full => {
                     lock.chain.flush().await.unwrap();
@@ -57,6 +58,9 @@ impl<'a> Chain
                 },
                 _ => true
             };
+
+            // Increment the entropy and drop the lock
+            lock.chain.add_entropy();
             drop(lock);
 
             // We send the result of a feed operation back to the caller, if the send
@@ -88,6 +92,10 @@ impl<'a> Chain
             // Yield so the other async events get time
             tokio::task::yield_now().await;
         }
+
+        // Clear the run flag
+        let mut lock = inside_async.write().await;
+        lock.run = false;
     }
 
     pub(super) async fn worker_compactor(inside_async: Arc<RwLock<ChainProtectedAsync>>, inside_sync: Arc<StdRwLock<ChainProtectedSync>>, pipe: Arc<Box<dyn EventPipe>>, mut compact_state: CompactState) -> Result<(), CompactError>
@@ -99,6 +107,32 @@ impl<'a> Chain
             let inside_sync = Arc::clone(&inside_sync);
             let pipe = Arc::clone(&pipe);
             Chain::compact_ext(inside_async, inside_sync, pipe).await?;
+        }
+    }
+
+    pub(super) async fn worker_entropy(inside_async: Arc<RwLock<ChainProtectedAsync>>)
+    {
+        // We record the entropy as we only increment it every second if someone
+        // else has not themselves incremented it
+        let mut last_entropy = {
+            let lock = inside_async.read().await;
+            lock.chain.timeline.entropy
+        };
+
+        loop {
+            // Entropy is added every second
+            tokio::time::sleep(Duration::from_secs(1)).await;
+
+            // Enter a lock and check if we need to exit
+            let mut lock = inside_async.write().await;
+            if lock.run == false {
+                break;
+            }
+
+            // Increase the entropy
+            if last_entropy == lock.chain.timeline.entropy {
+                last_entropy = lock.chain.add_entropy();
+            }
         }
     }
 }

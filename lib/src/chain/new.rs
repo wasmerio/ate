@@ -12,7 +12,7 @@ use crate::compact::*;
 
 use std::sync::{Arc};
 use parking_lot::Mutex as StdMutex;
-use fxhash::{FxHashMap, FxHashSet};
+use fxhash::{FxHashSet};
 use tokio::sync::RwLock;
 use parking_lot::RwLock as StdRwLock;
 use tokio::sync::mpsc;
@@ -110,7 +110,6 @@ impl<'a> Chain
             redo: redo_log,
             timeline: ChainTimeline {
                 entropy,
-                history_reverse: FxHashMap::default(),
                 history: BTreeMultiMap::new(),
                 pointers: BinaryTreeIndexer::default(),
                 compactors: builder.compactors,
@@ -151,6 +150,7 @@ impl<'a> Chain
             chain,
             default_format: builder.cfg.log_format,
             disable_new_roots: false,
+            run: true,
         };
         
         // Process all the events in the chain-of-trust
@@ -206,6 +206,10 @@ impl<'a> Chain
         let worker_inside_sync = Arc::clone(&chain.inside_sync);
         let worker_pipe = Arc::clone(&chain.pipe);
         tokio::task::spawn(Chain::worker_compactor(worker_inside_async, worker_inside_sync, worker_pipe, compact_rx));
+
+        // Start a process that will constantly add entropy to the chain-of-trust
+        let worker_inside_async = Arc::clone(&chain.inside_async);
+        tokio::task::spawn(Chain::worker_entropy(worker_inside_async));
 
         // Create the chain
         Ok(

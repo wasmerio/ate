@@ -6,7 +6,7 @@ use super::header::*;
 use super::meta::*;
 use super::sink::*;
 use super::error::*;
-use super::crypto::AteHash;
+use super::trust::ChainEntropy;
 
 pub trait EventIndexer
 where Self: EventSink + Send + Sync + std::fmt::Debug,
@@ -32,7 +32,7 @@ pub(crate) struct BinaryTreeIndexer
     primary: FxHashMap<PrimaryKey, EventLeaf>,
     secondary: MultiMap<MetaCollection, PrimaryKey>,
     parents: FxHashMap<PrimaryKey, MetaParent>,
-    uploads: FxHashMap<AteHash, MetaDelayedUpload>,
+    uploads: FxHashMap<ChainEntropy, MetaDelayedUpload>,
 }
 
 impl BinaryTreeIndexer
@@ -144,7 +144,7 @@ impl BinaryTreeIndexer
         }
     }
 
-    pub(crate) fn get_delayed_upload(&self, from: AteHash) -> Option<MetaDelayedUpload>
+    pub(crate) fn get_delayed_upload(&self, from: ChainEntropy) -> Option<MetaDelayedUpload>
     {
         self.uploads.get(&from).map(|e| e.clone())
     }

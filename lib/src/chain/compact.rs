@@ -2,7 +2,6 @@ use btreemultimap::BTreeMultiMap;
 #[allow(unused_imports)]
 use log::{info, error, debug};
 use std::sync::{Arc};
-use fxhash::{FxHashMap};
 use tokio::sync::RwLock;
 use parking_lot::RwLock as StdRwLock;
 
@@ -37,7 +36,6 @@ impl<'a> Chain
         // prepare
         let mut new_timeline = ChainTimeline {
             entropy: ChainEntropy::default(),
-            history_reverse: FxHashMap::default(),
             history: BTreeMultiMap::new(),
             pointers: BinaryTreeIndexer::default(),
             compactors: Vec::new(),

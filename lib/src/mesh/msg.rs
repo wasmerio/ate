@@ -3,6 +3,7 @@ use serde::{Serialize, Deserialize};
 use bytes::Bytes;
 use std::sync::Arc;
 
+use crate::trust::ChainEntropy;
 use crate::{crypto::{PrivateEncryptKey, PrivateSignKey}, meta::Metadata};
 use crate::crypto::AteHash;
 use crate::event::*;
@@ -74,6 +75,7 @@ pub(super) enum Message {
 
     Subscribe {
         chain_key: ChainKey,
+        entropy: ChainEntropy
     },
     
     NotYetSubscribed,
@@ -91,15 +93,10 @@ pub(super) enum Message {
         is_locked: bool
     },
 
-    SampleRightOf(AteHash),
-    SamplesOfHistory {
-        pivot: AteHash,
-        samples: Vec<AteHash>,
-    },
     StartOfHistory {
         size: usize,
-        from: Option<AteHash>,
-        to: Option<AteHash>,
+        from: Option<ChainEntropy>,
+        to: Option<ChainEntropy>,
         integrity: IntegrityMode,
         root_keys: Vec<PublicSignKey>,
     },

@@ -432,7 +432,7 @@ impl Chain
         Dio {
             state: DioState::new(),
             multi,
-            session: session,
+            session,
             scope,
             conversation: self.pipe.conversation().await
         }
@@ -496,6 +496,7 @@ impl<'a> Dio<'a>
 
                 // Build a new clean metadata header
                 let mut meta = Metadata::for_data(row.key);
+                meta.core.push(CoreMetadata::Entropy(MetaEntropy { entropy: multi_lock.inside_async.chain.timeline.entropy }));
                 if row.auth.is_relevant() {
                     meta.core.push(CoreMetadata::Authorization(row.auth.clone()));
                 }
@@ -543,6 +544,7 @@ impl<'a> Dio<'a>
             // Build events that will represent tombstones on all these records (they will be sent after the writes)
             for key in state.deleted.drain() {
                 let mut meta = Metadata::default();
+                meta.core.push(CoreMetadata::Entropy(MetaEntropy { entropy: multi_lock.inside_async.chain.timeline.entropy }));
                 meta.core.push(CoreMetadata::Authorization(MetaAuthorization {
                     read: ReadOption::Everyone(None),
                     write: WriteOption::Nobody,

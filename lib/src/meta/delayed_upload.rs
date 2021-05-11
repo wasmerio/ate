@@ -1,13 +1,13 @@
 use serde::{Serialize, Deserialize};
 
-use crate::crypto::*;
+use crate::trust::ChainEntropy;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct MetaDelayedUpload
 {
     pub complete: bool,
-    pub from: AteHash,
-    pub to: AteHash,
+    pub from: ChainEntropy,
+    pub to: ChainEntropy,
 }
 
 impl std::fmt::Display

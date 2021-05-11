@@ -148,28 +148,6 @@ impl MeshHashTable
     }
 }
 
-pub(crate) async fn locate_offset_of_sync(chain: &Arc<Chain>, pivot: &AteHash) -> Option<(ChainEntropy, AteHash)> {
-    let multi = chain.multi().await;
-    let guard = multi.inside_async.read().await;
-    match guard.chain.timeline.history_reverse.get(pivot) {
-        Some(a) => {
-            let a = ChainEntropy::from(a.entropy + 1);
-            let mut range = guard.chain.timeline.history.range(a..).map(|(k, v)| (k.clone(), v.event_hash));
-            range.next()
-        },
-        None => None
-    }
-}
-
-pub(crate) async fn locate_pivot_within_history(chain: &Arc<Chain>, history_sample: Vec<AteHash>) -> Option<AteHash> {
-    let multi = chain.multi().await;
-    let guard = multi.inside_async.read().await;
-    history_sample
-        .iter()
-        .filter(|t| guard.chain.timeline.history_reverse.contains_key(t)).map(|h| h.clone())
-        .next_back()
-}
-
 async fn stream_events<R>(
     chain: &Arc<Chain>,
     range: R,
@@ -177,27 +155,28 @@ async fn stream_events<R>(
     wire_format: SerializationFormat,
 )
 -> Result<(), CommsError>
-where R: RangeBounds<AteHash>
+where R: RangeBounds<ChainEntropy>
 {
     // Declare vars
     let multi = chain.multi().await;
-    let mut cur = match range.start_bound() {
+    let mut skip = 0usize;
+    let mut start = match range.start_bound() {
         Bound::Unbounded => {
             let guard = multi.inside_async.read().await;
-            match guard.chain.timeline.history.iter().map(|a| a.1.event_hash).next() {
-                Some(a) => Bound::Included(a),
-                None => { return Ok(()) }
-            }
+            let r = match guard.range(..).map(|a| a.0).next() {
+                Some(a) => a.clone(),
+                None => return Ok(())
+            };
+            drop(guard);
+            r
         },
-        Bound::Included(a) => Bound::Included(a.clone()),
-        Bound::Excluded(a) => Bound::Excluded(a.clone()),
+        Bound::Included(a) => a.clone(),
+        Bound::Excluded(a) => ChainEntropy::from(a.entropy + 1)
     };
-
-    // Compute the end bound
     let end = match range.end_bound() {
         Bound::Unbounded => Bound::Unbounded,
         Bound::Included(a) => Bound::Included(a.clone()),
-        Bound::Excluded(a) => Bound::Excluded(a.clone()),
+        Bound::Excluded(a) => Bound::Excluded(a.clone())
     };
     
     // We work in batches of 2000 events releasing the lock between iterations so that the
@@ -208,28 +187,28 @@ where R: RangeBounds<AteHash>
         {
             let guard = multi.inside_async.read().await;
             let mut iter = guard
-                .range((cur, end))
+                .range((Bound::Included(start), end))
+                .skip(skip)
                 .take(2000);
             
-            let mut amount = 0 as usize;
-            loop {
-                match iter.next() {
-                    Some(v) => {
-                        cur = Bound::Excluded(v.event_hash);
-                        leafs.push(EventLeaf {
-                            record: v.event_hash,
-                            created: 0,
-                            updated: 0,
-                        });
+            let mut amount = 0usize;
+            while let Some((k, v)) = iter.next() {
+                if *k != start {
+                    start = k.clone();
+                    skip = 1;
+                } else {
+                    skip = skip + 1;
+                }
+                
+                leafs.push(EventLeaf {
+                    record: v.event_hash,
+                    created: 0,
+                    updated: 0,
+                });
 
-                        amount = amount + v.meta_bytes.len() + v.data_size;
-                        if amount > max_send {
-                            break;
-                        }
-                    },
-                    None => {
-                        break;
-                    }
+                amount = amount + v.meta_bytes.len() + v.data_size;
+                if amount > max_send {
+                    break;
                 }
             }
 
@@ -237,9 +216,9 @@ where R: RangeBounds<AteHash>
                 return Ok(());
             }
         }
+
         let mut evts = Vec::new();
-        for leaf in leafs {
-            let evt = multi.load(leaf).await?;
+        for evt in multi.load_many(leafs).await? {
             let evt = MessageEvent {
                 meta: evt.data.meta.clone(),
                 data_hash: evt.header.data_hash.clone(),
@@ -251,6 +230,7 @@ where R: RangeBounds<AteHash>
             };
             evts.push(evt);
         }
+
         debug!("sending {} events", evts.len());
         PacketData::reply_at(Some(&send_to), wire_format, Message::Events {
             commit: None,
@@ -261,7 +241,7 @@ where R: RangeBounds<AteHash>
 
 pub(super) async fn stream_empty_history(
     chain: Arc<Chain>,
-    to: Option<AteHash>,
+    to: Option<ChainEntropy>,
     reply_at: mpsc::Sender<PacketData>,
     wire_format: SerializationFormat,
 )
@@ -302,7 +282,7 @@ pub(super) async fn stream_history_range<R>(
     wire_format: SerializationFormat,
 )
 -> Result<(), CommsError>
-where R: RangeBounds<AteHash>
+where R: RangeBounds<ChainEntropy>
 {
     // Extract the root keys and integrity mode
     let (integrity, root_keys) = {

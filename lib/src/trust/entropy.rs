@@ -2,10 +2,18 @@
 use log::{info, error, debug};
 use serde::*;
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, Hash, Serialize, Deserialize, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ChainEntropy
 {
     pub entropy: u64,
+}
+
+impl ChainEntropy
+{
+    pub fn add_entropy(&mut self) -> ChainEntropy {
+        self.entropy = self.entropy + 1;
+        self.clone()
+    }
 }
 
 impl Default

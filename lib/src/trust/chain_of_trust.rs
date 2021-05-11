@@ -91,4 +91,8 @@ impl<'a> ChainOfTrust
     pub(crate) fn add_history(&mut self, header: &EventHeader) {
         self.timeline.add_history(header)
     }
+
+    pub(crate) fn add_entropy(&mut self) -> ChainEntropy {
+        self.timeline.add_entropy()
+    }
 }
