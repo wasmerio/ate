@@ -11,7 +11,8 @@ use std::net::{SocketAddr, ToSocketAddrs};
 use std::str;
 use std::time;
 use std::time::Duration;
-use super::TimeError;
+
+use crate::error::TimeError;
 
 const MODE_MASK: u8 = 0b0000_0111;
 const MODE_SHIFT: u8 = 0;

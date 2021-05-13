@@ -25,6 +25,7 @@ pub enum CommitError
     PipeError(String),
     RootError(String),
     CommsError(CommsError),
+    TimeError(TimeError),
 }
 
 impl From<TransformError>
@@ -82,6 +83,14 @@ for CommitError
 {
     fn from(err: SerializationError) -> CommitError {
         CommitError::SerializationError(err)
+    }   
+}
+
+impl From<TimeError>
+for CommitError
+{
+    fn from(err: TimeError) -> CommitError {
+        CommitError::TimeError(err)
     }   
 }
 
@@ -143,6 +152,9 @@ for CommitError {
             },
             CommitError::LintError(err) => {
                 write!(f, "Failed to commit the data due to an error linting the data object events - {}", err.to_string())
+            },
+            CommitError::TimeError(err) => {
+                write!(f, "Failed to commit the data due to an error in time keeping - {}", err.to_string())
             },
             CommitError::SinkError(err) => {
                 write!(f, "Failed to commit the data due to an error accepting the event into a sink - {}", err.to_string())

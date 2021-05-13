@@ -7,13 +7,12 @@ use crate::meta::*;
 use crate::header::*;
 use crate::event::*;
 use crate::index::*;
-
-use super::*;
+use crate::time::*;
 
 pub(crate) struct ChainTimeline
 {
-    pub(crate) entropy: ChainEntropy,
-    pub(crate) history: BTreeMultiMap<ChainEntropy, EventHeaderRaw>,
+    pub(crate) cursor: ChainTimestamp,
+    pub(crate) history: BTreeMultiMap<ChainTimestamp, EventHeaderRaw>,
     pub(crate) pointers: BinaryTreeIndexer,
     pub(crate) compactors: Vec<Box<dyn EventCompactor>>,
 }
@@ -47,26 +46,25 @@ impl<'a> ChainTimeline
 
         let raw = header.raw.clone();
 
-        let entropy = {
-            if let Some(a) = header.meta.get_entropy() {
-                if a > self.entropy {
-                    self.entropy = a;
-                }
-                a
-            } else {
-                self.entropy
-            }
-        };
-
         #[cfg(feature = "verbose")]
         debug!("add_history::evt[key={},entropy={}]", header.meta.get_data_key().map_or_else(|| "none".to_string(), |h| h.to_string()), entropy);
 
-        if header.meta.include_in_history() {
-            self.history.insert(entropy, raw);
+        let timestamp = match header.meta.get_timestamp() {
+            Some(a) => a.clone(),
+            None => match self.history.iter().next_back() {
+                Some(a) => a.0.clone(),
+                None => ChainTimestamp::from(0u64),
+            }
+        };
+
+        if header.meta.is_committed() {
+            if timestamp > self.cursor {
+                self.cursor = timestamp;
+            }
         }
-    }
-    
-    pub(crate) fn add_entropy(&mut self) -> ChainEntropy {
-        self.entropy.add_entropy()
+
+        if header.meta.include_in_history() {
+            self.history.insert(timestamp, raw);
+        }
     }
 }

@@ -16,7 +16,6 @@ impl<'a> Chain
 
         // Build the header
         let header = ChainHeader {
-            entropy: single.inside_async.chain.timeline.entropy
         };
         let header_bytes = SerializationFormat::Json.serialize(&header)?;
 

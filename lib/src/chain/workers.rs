@@ -5,14 +5,12 @@ use crate::error::*;
 use crate::transaction::*;
 use crate::compact::*;
 use crate::pipe::*;
+use crate::transaction::TransactionScope;
 
 use std::sync::{Arc};
 use tokio::sync::RwLock;
 use parking_lot::RwLock as StdRwLock;
 use tokio::sync::mpsc;
-use std::time::Duration;
-
-use crate::transaction::TransactionScope;
 
 use super::*;
 
@@ -59,8 +57,7 @@ impl<'a> Chain
                 _ => true
             };
 
-            // Increment the entropy and drop the lock
-            lock.chain.add_entropy();
+            // Drop the lock
             drop(lock);
 
             // We send the result of a feed operation back to the caller, if the send
@@ -107,32 +104,6 @@ impl<'a> Chain
             let inside_sync = Arc::clone(&inside_sync);
             let pipe = Arc::clone(&pipe);
             Chain::compact_ext(inside_async, inside_sync, pipe).await?;
-        }
-    }
-
-    pub(super) async fn worker_entropy(inside_async: Arc<RwLock<ChainProtectedAsync>>)
-    {
-        // We record the entropy as we only increment it every second if someone
-        // else has not themselves incremented it
-        let mut last_entropy = {
-            let lock = inside_async.read().await;
-            lock.chain.timeline.entropy
-        };
-
-        loop {
-            // Entropy is added every second
-            tokio::time::sleep(Duration::from_secs(1)).await;
-
-            // Enter a lock and check if we need to exit
-            let mut lock = inside_async.write().await;
-            if lock.run == false {
-                break;
-            }
-
-            // Increase the entropy
-            if last_entropy == lock.chain.timeline.entropy {
-                last_entropy = lock.chain.add_entropy();
-            }
         }
     }
 }

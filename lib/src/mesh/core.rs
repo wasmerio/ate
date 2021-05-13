@@ -19,6 +19,7 @@ use crate::mesh::MeshSession;
 use crate::comms::PacketData;
 use crate::spec::SerializationFormat;
 use crate::redo::LogLookup;
+use crate::time::ChainTimestamp;
 
 // Determines how the file-system will react while it is nominal and when it is
 // recovering from a communication failure (valid options are 'async', 'readonly-async',
@@ -155,7 +156,7 @@ async fn stream_events<R>(
     wire_format: SerializationFormat,
 )
 -> Result<(), CommsError>
-where R: RangeBounds<ChainEntropy>
+where R: RangeBounds<ChainTimestamp>
 {
     // Declare vars
     let multi = chain.multi().await;
@@ -171,7 +172,7 @@ where R: RangeBounds<ChainEntropy>
             r
         },
         Bound::Included(a) => a.clone(),
-        Bound::Excluded(a) => ChainEntropy::from(a.entropy + 1)
+        Bound::Excluded(a) => ChainTimestamp::from(a.time_since_epoch_ms + 1u64)
     };
     let end = match range.end_bound() {
         Bound::Unbounded => Bound::Unbounded,
@@ -241,7 +242,7 @@ where R: RangeBounds<ChainEntropy>
 
 pub(super) async fn stream_empty_history(
     chain: Arc<Chain>,
-    to: Option<ChainEntropy>,
+    to: Option<ChainTimestamp>,
     reply_at: mpsc::Sender<PacketData>,
     wire_format: SerializationFormat,
 )
@@ -282,7 +283,7 @@ pub(super) async fn stream_history_range<R>(
     wire_format: SerializationFormat,
 )
 -> Result<(), CommsError>
-where R: RangeBounds<ChainEntropy>
+where R: RangeBounds<ChainTimestamp>
 {
     // Extract the root keys and integrity mode
     let (integrity, root_keys) = {

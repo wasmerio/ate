@@ -14,6 +14,7 @@ use std::ops::*;
 use crate::trust::*;
 use crate::meta::*;
 use crate::spec::*;
+use crate::time::*;
 
 use super::*;
 
@@ -122,14 +123,14 @@ impl ChainProtectedAsync
         Ok(ret)
     }
 
-    pub fn range<'a, R>(&'a self, range: R) -> impl DoubleEndedIterator<Item = (&'a ChainEntropy, &'a EventHeaderRaw)>
-    where R: RangeBounds<ChainEntropy>
+    pub fn range<'a, R>(&'a self, range: R) -> impl DoubleEndedIterator<Item = (&'a ChainTimestamp, &'a EventHeaderRaw)>
+    where R: RangeBounds<ChainTimestamp>
     {
         self.chain.timeline.history.range(range)
     }
 
-    pub fn range_keys<'a, R>(&'a self, range: R) -> impl DoubleEndedIterator<Item = ChainEntropy> + 'a
-    where R: RangeBounds<ChainEntropy>
+    pub fn range_keys<'a, R>(&'a self, range: R) -> impl DoubleEndedIterator<Item = ChainTimestamp> + 'a
+    where R: RangeBounds<ChainTimestamp>
     {
         let mut ret = self.range(range).map(|e| e.0).collect::<Vec<_>>();
         ret.dedup();
@@ -138,7 +139,7 @@ impl ChainProtectedAsync
 
     #[allow(dead_code)]
     pub fn range_values<'a, R>(&'a self, range: R) -> impl DoubleEndedIterator<Item = &'a EventHeaderRaw>
-    where R: RangeBounds<ChainEntropy>
+    where R: RangeBounds<ChainTimestamp>
     {
         self.range(range).map(|e| e.1)
     }

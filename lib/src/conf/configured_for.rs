@@ -34,6 +34,17 @@ pub enum ConfiguredFor
     BestSecurity,
 }
 
+impl ConfiguredFor
+{
+    pub fn ntp_tolerance(&self) -> u32 {
+        match self {
+            ConfiguredFor::BestPerformance => 4000u32,
+            ConfiguredFor::BestSecurity => 1000u32,
+            _ => 2000u32,
+        }
+    }
+}
+
 impl std::str::FromStr
 for ConfiguredFor
 {

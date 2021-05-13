@@ -138,11 +138,7 @@ impl ChainBuilder
             self.tree = Some(crate::tree::TreeAuthorityPlugin::new());
             self.compactors.push(Box::new(TreeCompactor::default()));
 
-            let tolerance = match self.configured_for {
-                ConfiguredFor::BestPerformance => 4000,
-                ConfiguredFor::BestSecurity => 1000,
-                _ => 2000,
-            };
+            let tolerance = self.configured_for.ntp_tolerance();
             self.plugins.push(Box::new(TimestampEnforcer::new(&self.cfg, tolerance).await.unwrap()));
         }
 

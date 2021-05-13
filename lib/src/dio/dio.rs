@@ -22,6 +22,7 @@ use crate::comms::*;
 use crate::spec::*;
 use crate::error::*;
 use crate::lint::*;
+use crate::time::*;
 
 use crate::crypto::{EncryptedPrivateKey, PrivateSignKey};
 use crate::{crypto::EncryptKey, session::{AteSession, AteSessionProperty}};
@@ -119,6 +120,7 @@ where Self: Send + Sync
     pub(super) session: &'a AteSession,
     pub(super) scope: TransactionScope,
     pub(super) conversation: Option<Arc<ConversationSession>>,
+    pub(super) time: Arc<TimeKeeper>,
 }
 
 impl<'a> Dio<'a>
@@ -434,7 +436,8 @@ impl Chain
             multi,
             session,
             scope,
-            conversation: self.pipe.conversation().await
+            conversation: self.pipe.conversation().await,
+            time: Arc::clone(&self.time),
         }
     }
 }
@@ -496,7 +499,7 @@ impl<'a> Dio<'a>
 
                 // Build a new clean metadata header
                 let mut meta = Metadata::for_data(row.key);
-                meta.core.push(CoreMetadata::Entropy(MetaEntropy { entropy: multi_lock.inside_async.chain.timeline.entropy }));
+                meta.core.push(CoreMetadata::Timestamp(self.time.current_timestamp()?));
                 if row.auth.is_relevant() {
                     meta.core.push(CoreMetadata::Authorization(row.auth.clone()));
                 }
@@ -544,7 +547,7 @@ impl<'a> Dio<'a>
             // Build events that will represent tombstones on all these records (they will be sent after the writes)
             for key in state.deleted.drain() {
                 let mut meta = Metadata::default();
-                meta.core.push(CoreMetadata::Entropy(MetaEntropy { entropy: multi_lock.inside_async.chain.timeline.entropy }));
+                meta.core.push(CoreMetadata::Timestamp(self.time.current_timestamp()?));
                 meta.core.push(CoreMetadata::Authorization(MetaAuthorization {
                     read: ReadOption::Everyone(None),
                     write: WriteOption::Nobody,

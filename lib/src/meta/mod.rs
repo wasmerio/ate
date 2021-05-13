@@ -5,10 +5,8 @@ mod core;
 mod delayed_upload;
 mod meta_type;
 mod parent;
-mod timestamp;
 mod read_option;
 mod write_option;
-mod entropy;
 
 pub use authorization::*;
 pub use confidentiality::*;
@@ -18,6 +16,4 @@ pub use delayed_upload::*;
 pub use meta_type::*;
 pub use parent::*;
 pub use read_option::*;
-pub use timestamp::*;
 pub use write_option::*;
-pub use entropy::*;

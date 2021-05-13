@@ -15,6 +15,7 @@ use crate::redo::*;
 use crate::pipe::EventPipe;
 use crate::single::ChainSingleUser;
 use crate::multi::ChainMultiUser;
+use crate::time::*;
 
 use super::*;
 
@@ -35,7 +36,7 @@ impl<'a> Chain
 
         // prepare
         let mut new_timeline = ChainTimeline {
-            entropy: ChainEntropy::default(),
+            cursor: ChainTimestamp::default(),
             history: BTreeMultiMap::new(),
             pointers: BinaryTreeIndexer::default(),
             compactors: Vec::new(),
@@ -49,7 +50,6 @@ impl<'a> Chain
 
             // Build the header
             let header = ChainHeader {
-                entropy: single.inside_async.chain.timeline.entropy
             };
             let header_bytes = SerializationFormat::Json.serialize(&header)?;
             

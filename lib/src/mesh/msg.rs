@@ -3,7 +3,6 @@ use serde::{Serialize, Deserialize};
 use bytes::Bytes;
 use std::sync::Arc;
 
-use crate::trust::ChainEntropy;
 use crate::{crypto::{PrivateEncryptKey, PrivateSignKey}, meta::Metadata};
 use crate::crypto::AteHash;
 use crate::event::*;
@@ -16,6 +15,7 @@ use crate::spec::*;
 use crate::session::AteSession;
 use crate::crypto::PublicSignKey;
 use crate::trust::IntegrityMode;
+use crate::time::ChainTimestamp;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub(super) struct MessageEvent
@@ -75,7 +75,7 @@ pub(super) enum Message {
 
     Subscribe {
         chain_key: ChainKey,
-        entropy: ChainEntropy
+        from: ChainTimestamp
     },
     
     NotYetSubscribed,
@@ -95,8 +95,8 @@ pub(super) enum Message {
 
     StartOfHistory {
         size: usize,
-        from: Option<ChainEntropy>,
-        to: Option<ChainEntropy>,
+        from: Option<ChainTimestamp>,
+        to: Option<ChainTimestamp>,
         integrity: IntegrityMode,
         root_keys: Vec<PublicSignKey>,
     },

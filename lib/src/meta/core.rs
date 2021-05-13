@@ -5,7 +5,7 @@ use crate::crypto::*;
 use crate::error::CryptoError;
 use crate::header::*;
 use crate::signature::MetaSignature;
-use crate::trust::ChainEntropy;
+use crate::time::*;
 
 use super::*;
 
@@ -22,14 +22,14 @@ pub enum CoreMetadata
     Confidentiality(MetaConfidentiality),
     Collection(MetaCollection),
     Parent(MetaParent),
-    Timestamp(MetaTimestamp),
+    Timestamp(ChainTimestamp),
     Signature(MetaSignature),
     SignWith(MetaSignWith),
     Author(String),
     Type(MetaType),
     Reply(PrimaryKey),
     DelayedUpload(MetaDelayedUpload),
-    Entropy(MetaEntropy),
+    Committed,
 }
 
 impl Default for CoreMetadata {
@@ -60,7 +60,7 @@ for CoreMetadata
             CoreMetadata::Type(a) => write!(f, "type-{}", a),
             CoreMetadata::Reply(a) => write!(f, "reply-{}", a),
             CoreMetadata::DelayedUpload(a) => write!(f, "delayed_upload-{}", a),
-            CoreMetadata::Entropy(a) => write!(f, "entropy-{}", a),
+            CoreMetadata::Committed => write!(f, "committed"),
         }
     }
 }
@@ -110,17 +110,6 @@ impl Metadata
         for core in &self.core {
             if let CoreMetadata::Parent(a) = core {
                 return Some(a);
-            }
-        }
-        
-        None
-    }
-
-    pub fn get_entropy(&self) -> Option<ChainEntropy>
-    {
-        for core in &self.core {
-            if let CoreMetadata::Entropy(a) = core {
-                return Some(a.entropy);
             }
         }
         
@@ -195,21 +184,17 @@ impl Metadata
             if let CoreMetadata::SignWith(a) = core {
                 return Some(a);
             }
-        }
-        
+        }        
         None
     }
 
-    pub fn get_timestamp(&self) -> Option<&MetaTimestamp> {
-        self.core
-            .iter()
-            .filter_map(|m| {
-                match m {
-                    CoreMetadata::Timestamp(time) => Some(time),
-                    _ => None,
-                }
-            })
-            .next()
+    pub fn get_timestamp(&self) -> Option<&ChainTimestamp> {
+        for core in &self.core {
+            if let CoreMetadata::Timestamp(a) = core {
+                return Some(a);
+            }
+        }        
+        None
     }
 
     pub fn get_type_name(&self) -> Option<&MetaType> {
@@ -238,6 +223,15 @@ impl Metadata
             return m.type_name == std::any::type_name::<T>().to_string()
         }
 
+        false
+    }
+
+    pub fn is_committed(&self) -> bool {
+        for core in &self.core {
+            if let CoreMetadata::Committed = core {
+                return true;
+            }
+        }        
         false
     }
 

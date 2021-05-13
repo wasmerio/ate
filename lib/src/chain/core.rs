@@ -15,9 +15,11 @@ use crate::pipe::*;
 use crate::meta::*;
 use crate::spec::*;
 use crate::repository::ChainRepository;
-
+use crate::redo::RedoLog;
+use crate::time::TimeKeeper;
 use crate::transaction::TransactionScope;
 use crate::trust::ChainKey;
+use crate::trust::ChainHeader;
 
 use super::*;
 
@@ -44,6 +46,7 @@ where Self: Send + Sync
     pub(crate) inside_sync: Arc<StdRwLock<ChainProtectedSync>>,
     pub(crate) inside_async: Arc<RwLock<ChainProtectedAsync>>,
     pub(crate) pipe: Arc<Box<dyn EventPipe>>,
+    pub(crate) time: Arc<TimeKeeper>,
 }
 
 impl<'a> Chain
@@ -111,5 +114,22 @@ impl<'a> Chain
     pub fn repository(&self) -> Option<Arc<dyn ChainRepository>>
     {
         self.inside_sync.read().repository()
+    }
+}
+
+impl RedoLog
+{
+    #[allow(dead_code)]
+    pub(super) fn read_chain_header(&self) -> Result<ChainHeader, SerializationError>
+    {
+        let header_bytes = self.header(u32::MAX);
+        Ok
+        (
+            if header_bytes.len() > 0 {
+                SerializationFormat::Json.deserialize(&header_bytes[..])?
+            } else {
+                ChainHeader::default()
+            }
+        )
     }
 }

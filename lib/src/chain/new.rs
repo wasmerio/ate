@@ -19,9 +19,10 @@ use tokio::sync::mpsc;
 
 use crate::redo::*;
 use crate::spec::SerializationFormat;
-
+use crate::time::TimeKeeper;
 use crate::trust::*;
 use crate::pipe::*;
+use crate::time::*;
 use crate::loader::*;
 
 use crate::trust::ChainKey;
@@ -92,24 +93,12 @@ impl<'a> Chain
         // Join the redo log thread earlier after the events were successfully streamed in
         let redo_log = redo_log.await.unwrap()?;
 
-        // Load the latest entropy from the chain header (if there is none the events will
-        // themselves increase the entropy)
-        let entropy = {
-            let header_bytes = redo_log.header(u32::MAX);
-            let header = if header_bytes.len() > 0 {
-                SerializationFormat::Json.deserialize(&header_bytes[..])?
-            } else {
-                ChainHeader::default()
-            };
-            header.entropy
-        };
-
         // Construnct the chain-of-trust on top of the redo-log
         let chain = ChainOfTrust {
             key: key.clone(),
             redo: redo_log,
             timeline: ChainTimeline {
-                entropy,
+                cursor: ChainTimestamp::default(),
                 history: BTreeMultiMap::new(),
                 pointers: BinaryTreeIndexer::default(),
                 compactors: builder.compactors,
@@ -187,6 +176,10 @@ impl<'a> Chain
             pipe = Arc::new(Box::new(DuelPipe::new(second, pipe)));
         };
 
+        // Create the NTP worker thats needed to build the timeline
+        let tolerance = builder.configured_for.ntp_tolerance();
+        let time = Arc::new(TimeKeeper::new(&builder.cfg, tolerance).await?);
+
         // Create the chain that will be returned to thecaller
         let chain = Chain {
             key: key.clone(),
@@ -194,6 +187,7 @@ impl<'a> Chain
             inside_sync,
             inside_async,
             pipe,
+            time,
         };
 
         // If we are to compact the log on bootstrap then do so
@@ -206,10 +200,6 @@ impl<'a> Chain
         let worker_inside_sync = Arc::clone(&chain.inside_sync);
         let worker_pipe = Arc::clone(&chain.pipe);
         tokio::task::spawn(Chain::worker_compactor(worker_inside_async, worker_inside_sync, worker_pipe, compact_rx));
-
-        // Start a process that will constantly add entropy to the chain-of-trust
-        let worker_inside_async = Arc::clone(&chain.inside_async);
-        tokio::task::spawn(Chain::worker_entropy(worker_inside_async));
 
         // Create the chain
         Ok(

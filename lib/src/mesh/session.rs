@@ -27,6 +27,7 @@ use crate::loader::*;
 use crate::crypto::*;
 use crate::meta::*;
 use crate::session::*;
+use crate::time::*;
 
 pub struct MeshSession
 {
@@ -41,7 +42,17 @@ pub struct MeshSession
 
 impl MeshSession
 {
-    pub(super) async fn connect(builder: ChainBuilder, chain_key: &ChainKey, chain_domain: Option<String>, addr: MeshAddress, mode: RecoveryMode, loader_local: Box<impl Loader>, loader_remote: Box<impl Loader>) -> Result<Arc<Chain>, ChainCreationError>
+    pub(super) async fn connect
+    (
+        builder: ChainBuilder,
+        chain_key: &ChainKey,
+        chain_domain: Option<String>,
+        addr: MeshAddress,
+        mode: RecoveryMode,
+        loader_local: Box<impl Loader>,
+        loader_remote: Box<impl Loader>
+    )
+    -> Result<Arc<Chain>, ChainCreationError>
     {
         debug!("new: chain_key={}", chain_key.to_string());
 
@@ -113,18 +124,18 @@ impl MeshSession
     async fn inbox_connected(self: &Arc<MeshSession>, pck: PacketData) -> Result<(), CommsError> {
         debug!("inbox: connected pck.size={}", pck.bytes.len());
 
-        let entropy = {
+        let cursor = {
             if let Some(chain) = self.chain.upgrade() {
                 let lock = chain.inside_async.read().await;
-                lock.chain.timeline.entropy
+                lock.chain.timeline.cursor
             } else {
-                ChainEntropy::default()
+                ChainTimestamp::from(0u64)
             }
         };
 
         pck.reply(Message::Subscribe {
             chain_key: self.key.clone(),
-            entropy
+            from: cursor
         }).await
     }
 
@@ -189,7 +200,7 @@ impl MeshSession
         Ok(())
     }
 
-    async fn record_delayed_upload(chain: &Arc<Chain>, pivot: ChainEntropy) -> Result<(), CommsError>
+    async fn record_delayed_upload(chain: &Arc<Chain>, pivot: ChainTimestamp) -> Result<(), CommsError>
     {
         let mut guard = chain.inside_async.write().await;
         let from = guard.range_keys(pivot..).next();
@@ -220,7 +231,7 @@ impl MeshSession
         Ok(())
     }
 
-    async fn complete_delayed_upload(chain: &Arc<Chain>, from: ChainEntropy, to: ChainEntropy) -> Result<(), CommsError>
+    async fn complete_delayed_upload(chain: &Arc<Chain>, from: ChainTimestamp, to: ChainTimestamp) -> Result<(), CommsError>
     {
         debug!("delayed_upload complete: {}..{}", from, to);
         let mut guard = chain.inside_async.write().await;
@@ -234,7 +245,7 @@ impl MeshSession
         Ok(())
     }
 
-    async fn inbox_start_of_history(self: &Arc<MeshSession>, size: usize, _from: Option<ChainEntropy>, to: Option<ChainEntropy>, loader: &mut Option<Box<impl Loader>>, root_keys: Vec<PublicSignKey>, integrity: IntegrityMode) -> Result<(), CommsError>
+    async fn inbox_start_of_history(self: &Arc<MeshSession>, size: usize, _from: Option<ChainTimestamp>, to: Option<ChainTimestamp>, loader: &mut Option<Box<impl Loader>>, root_keys: Vec<PublicSignKey>, integrity: IntegrityMode) -> Result<(), CommsError>
     {
         // Declare variables
         let size = size;

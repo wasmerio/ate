@@ -48,18 +48,7 @@ impl LogAppender
         };
         
         // If it does not have a magic then add one - otherwise read it and check the value
-        match RedoHeader::read(&mut appender).await? {
-            Some(a) => {
-                appender.header = Vec::from(a.inner().clone());
-            },
-            None => {
-                let mut magic = RedoHeader::new(RedoMagic::V2);
-                magic.set_inner(header_bytes);
-                let _ = magic.write(&mut appender).await?;
-                appender.sync().await?;
-                appender.header = Vec::from(header_bytes);
-            }
-        };
+        appender.header = RedoHeader::load(&mut appender, header_bytes).await?;
         
         // Create the archive
         let archive = LogArchive::new(path_log, index).await?;

@@ -30,6 +30,7 @@ use crate::spec::SerializationFormat;
 use crate::repository::ChainRepository;
 use crate::comms::TxDirection;
 use crate::crypto::AteHash;
+use crate::time::ChainTimestamp;
 
 pub struct MeshRoot<F>
 where Self: ChainRepository,
@@ -431,7 +432,7 @@ async fn inbox_unlock(
 async fn inbox_subscribe<F>(
     root: Arc<MeshRoot<F>>,
     chain_key: ChainKey,
-    entropy: ChainEntropy,
+    from: ChainTimestamp,
     reply_at: Option<&mpsc::Sender<PacketData>>,
     session_context: Arc<SessionContext>,
     wire_format: SerializationFormat,
@@ -490,7 +491,7 @@ where F: OpenFlow + 'static
         debug!("inbox: starting the streaming process");
         tokio::spawn(stream_history_range(
             Arc::clone(&chain), 
-            entropy.., 
+            from.., 
             reply_at.clone(),
             wire_format,
         ));
@@ -534,8 +535,8 @@ where F: OpenFlow + 'static
     let reply_at = reply_at_owner.as_ref();
     
     match pck.msg {
-        Message::Subscribe { chain_key, entropy }
-            => inbox_subscribe(root, chain_key, entropy, reply_at, context, wire_format, tx).await,
+        Message::Subscribe { chain_key, from }
+            => inbox_subscribe(root, chain_key, from, reply_at, context, wire_format, tx).await,
         Message::Events { commit, evts }
             => inbox_event(reply_at, context, commit, evts, tx, pck_data).await,
         Message::Lock { key }

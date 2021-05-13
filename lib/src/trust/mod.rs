@@ -3,7 +3,6 @@ pub mod chain_of_trust;
 pub mod integrity_mode;
 pub mod load_result;
 pub mod tests;
-pub mod entropy;
 pub mod header;
 pub mod timeline;
 
@@ -17,4 +16,3 @@ pub use chain_key::*;
 pub use integrity_mode::*;
 pub use load_result::*;
 pub use header::*;
-pub use entropy::*;
