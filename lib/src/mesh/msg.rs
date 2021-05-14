@@ -3,7 +3,7 @@ use serde::{Serialize, Deserialize};
 use bytes::Bytes;
 use std::sync::Arc;
 
-use crate::{crypto::{PrivateEncryptKey, PrivateSignKey}, meta::Metadata};
+use crate::{crypto::{PrivateEncryptKey, PrivateSignKey}, meta::{CoreMetadata, Metadata}};
 use crate::crypto::AteHash;
 use crate::event::*;
 use crate::chain::ChainKey;

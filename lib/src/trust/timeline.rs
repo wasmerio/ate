@@ -57,9 +57,9 @@ impl<'a> ChainTimeline
             }
         };
 
-        if header.meta.is_committed() {
-            if timestamp > self.cursor {
-                self.cursor = timestamp;
+        if let Some(a) = header.meta.get_last_received() {
+            if a > self.cursor {
+                self.cursor = a;
             }
         }
 

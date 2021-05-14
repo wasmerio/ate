@@ -29,7 +29,7 @@ pub enum CoreMetadata
     Type(MetaType),
     Reply(PrimaryKey),
     DelayedUpload(MetaDelayedUpload),
-    Committed,
+    LastReceived(ChainTimestamp),
 }
 
 impl Default for CoreMetadata {
@@ -60,7 +60,7 @@ for CoreMetadata
             CoreMetadata::Type(a) => write!(f, "type-{}", a),
             CoreMetadata::Reply(a) => write!(f, "reply-{}", a),
             CoreMetadata::DelayedUpload(a) => write!(f, "delayed_upload-{}", a),
-            CoreMetadata::Committed => write!(f, "committed"),
+            CoreMetadata::LastReceived(a) => write!(f, "last_received-{}", a),
         }
     }
 }
@@ -226,15 +226,6 @@ impl Metadata
         false
     }
 
-    pub fn is_committed(&self) -> bool {
-        for core in &self.core {
-            if let CoreMetadata::Committed = core {
-                return true;
-            }
-        }        
-        false
-    }
-
     pub fn set_type_name<T: ?Sized>(&mut self) {
         let type_name = std::any::type_name::<T>().to_string();
         
@@ -282,6 +273,19 @@ impl Metadata
         )
         .next()
     }
+
+    pub fn get_last_received(&self) -> Option<ChainTimestamp> {
+        self.core.iter().filter_map(
+            |m| {
+                match m
+                {
+                    CoreMetadata::LastReceived(k) => Some(k.clone()),
+                     _ => None
+                }
+            }
+        )
+        .next()
+    }    
 
     pub fn include_in_history(&self) -> bool {
         if self.get_delayed_upload().is_some() {

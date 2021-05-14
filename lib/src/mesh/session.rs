@@ -139,16 +139,31 @@ impl MeshSession
         }).await
     }
 
-    async fn inbox_events(self: &Arc<MeshSession>, evts: Vec<MessageEvent>, loader: &mut Option<Box<impl Loader>>) -> Result<(), CommsError> {
+    async fn inbox_events(self: &Arc<MeshSession>, mut evts: Vec<MessageEvent>, loader: &mut Option<Box<impl Loader>>) -> Result<(), CommsError> {
         debug!("inbox: events cnt={}", evts.len());
 
-        let feed_me = MessageEvent::convert_from(evts);
+        if let Some(chain) = self.chain.upgrade()
+        {
+            if let Some(last_timestamp) = evts.iter()
+                .filter_map(|e| e.meta.get_last_received())
+                .max()
+            {
+                evts.push(MessageEvent {
+                    meta: Metadata {
+                        core: vec![CoreMetadata::LastReceived(last_timestamp)],
+                    },
+                    data_hash: None,
+                    data: None,
+                    format: chain.default_format,
+                });
+            }
 
-        if let Some(loader) = loader {
-            loader.feed_events(&feed_me).await;
-        }
+            let feed_me = MessageEvent::convert_from(evts);
 
-        if let Some(chain) = self.chain.upgrade() {
+            if let Some(loader) = loader {
+                loader.feed_events(&feed_me).await;
+            }
+        
             chain.pipe.feed(Transaction {
                 scope: TransactionScope::Local,
                 transmit: false,
@@ -241,6 +256,16 @@ impl MeshSession
                 from,
                 to
             })]
+        }).await?;
+        Ok(())
+    }
+
+    async fn commit_last_received(chain: &Arc<Chain>, last: ChainTimestamp) -> Result<(), CommsError>
+    {
+        debug!("commit_last_received: {}", last);
+        let mut guard = chain.inside_async.write().await;
+        let _ = guard.feed_meta_data(&chain.inside_sync, Metadata {
+            core: vec![CoreMetadata::LastReceived(last)]
         }).await?;
         Ok(())
     }
