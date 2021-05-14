@@ -51,9 +51,9 @@ impl<'a> Chain
         let mut flip = {
             let mut single = ChainSingleUser::new_ext(&inside_async, &inside_sync).await;
 
-            // Build the header
+            // Build the header - The cut-off can not be higher than the actual history
             let header = ChainHeader {
-                cut_off,
+                cut_off: cut_off.min(single.inside_async.chain.timeline.end()),
             };
             let header_bytes = SerializationFormat::Json.serialize(&header)?;
             
