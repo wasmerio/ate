@@ -125,7 +125,11 @@ impl MeshSession
     async fn inbox_connected(self: &Arc<MeshSession>, pck: PacketData) -> Result<(), CommsError> {
         debug!("inbox: connected pck.size={}", pck.bytes.len());
 
-        let end = {
+        // Compute an end time that we will sync from based off whats already in the
+        // chain-of-trust minus a small tolerance that helps in edge-cases - this will
+        // cause a minor number duplicate events to be ignored but it is needed to
+        // reduce the chances of data loss.
+        let from = {
             let tolerance_ms = self.sync_tolerance.as_millis() as u64;
             if let Some(chain) = self.chain.upgrade() {
                 let lock = chain.inside_async.read().await;
@@ -133,15 +137,25 @@ impl MeshSession
                 if ret.time_since_epoch_ms > tolerance_ms {
                     ret.time_since_epoch_ms = ret.time_since_epoch_ms - tolerance_ms;
                 }
+
+                // If the chain has a cut-off value then the subscription point must be less than
+                // this value to avoid the situation where a compacted chain reloads values that
+                // have already been deleted
+                let chain_header = lock.chain.redo.read_chain_header()?;
+                if chain_header.cut_off > ret {
+                    ret = chain_header.cut_off;
+                }
+
                 ret
             } else {
                 ChainTimestamp::from(1u64)
             }
         };
 
+        // Now we subscribe to the chain
         pck.reply(Message::Subscribe {
             chain_key: self.key.clone(),
-            from: end
+            from,
         }).await
     }
 

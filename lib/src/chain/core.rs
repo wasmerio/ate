@@ -119,8 +119,7 @@ impl<'a> Chain
 
 impl RedoLog
 {
-    #[allow(dead_code)]
-    pub(super) fn read_chain_header(&self) -> Result<ChainHeader, SerializationError>
+    pub(crate) fn read_chain_header(&self) -> Result<ChainHeader, SerializationError>
     {
         let header_bytes = self.header(u32::MAX);
         Ok
