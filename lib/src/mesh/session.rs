@@ -126,10 +126,13 @@ impl MeshSession
         debug!("inbox: connected pck.size={}", pck.bytes.len());
 
         let end = {
+            let tolerance_ms = self.sync_tolerance.as_millis() as u64;
             if let Some(chain) = self.chain.upgrade() {
                 let lock = chain.inside_async.read().await;
                 let mut ret = lock.chain.timeline.end();
-                ret.time_since_epoch_ms = ret.time_since_epoch_ms - (self.sync_tolerance.as_millis() as u64);
+                if ret.time_since_epoch_ms > tolerance_ms {
+                    ret.time_since_epoch_ms = ret.time_since_epoch_ms - tolerance_ms;
+                }
                 ret
             } else {
                 ChainTimestamp::from(1u64)
