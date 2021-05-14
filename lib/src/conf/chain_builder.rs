@@ -55,7 +55,7 @@ for ChainBuilder
             cfg: self.cfg.clone(),
             configured_for: self.configured_for.clone(),
             validators: self.validators.iter().map(|a| a.clone_validator()).collect::<Vec<_>>(),
-            compactors: self.compactors.iter().map(|a| a.clone_compactor()).collect::<Vec<_>>(),
+            compactors: self.compactors.iter().filter_map(|a| a.clone_compactor()).collect::<Vec<_>>(),
             linters: self.linters.iter().map(|a| a.clone_linter()).collect::<Vec<_>>(),
             transformers: self.transformers.iter().map(|a| a.clone_transformer()).collect::<Vec<_>>(),
             indexers: self.indexers.iter().map(|a| a.clone_indexer()).collect::<Vec<_>>(),

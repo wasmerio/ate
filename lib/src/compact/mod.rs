@@ -5,6 +5,7 @@ pub mod indecisive_compactor;
 pub mod remove_duplicates;
 pub mod tombstone_compactor;
 pub mod keep_data_compactor;
+pub mod cut_off_compactor;
 mod tests;
 
 pub(crate) use compact_state::*;
@@ -15,3 +16,4 @@ pub use indecisive_compactor::*;
 pub use remove_duplicates::*;
 pub use tombstone_compactor::*;
 pub use keep_data_compactor::*;
+pub use cut_off_compactor::*;

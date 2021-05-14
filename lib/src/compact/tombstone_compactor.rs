@@ -41,8 +41,8 @@ for TombstoneCompactor
 impl EventCompactor
 for TombstoneCompactor
 {
-    fn clone_compactor(&self) -> Box<dyn EventCompactor> {
-        Box::new(self.clone())
+    fn clone_compactor(&self) -> Option<Box<dyn EventCompactor>> {
+        Some(Box::new(self.clone()))
     }
     
     fn relevance(&mut self, header: &EventHeader) -> EventRelevance

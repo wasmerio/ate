@@ -16,6 +16,7 @@ impl<'a> Chain
 
         // Build the header
         let header = ChainHeader {
+            cut_off: single.inside_async.chain.timeline.end(),
         };
         let header_bytes = SerializationFormat::Json.serialize(&header)?;
 

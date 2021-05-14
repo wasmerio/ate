@@ -18,8 +18,8 @@ for IndecisiveCompactor
 impl EventCompactor
 for IndecisiveCompactor
 {
-    fn clone_compactor(&self) -> Box<dyn EventCompactor> {
-        Box::new(self.clone())
+    fn clone_compactor(&self) -> Option<Box<dyn EventCompactor>> {
+        Some(Box::new(self.clone()))
     }
     
     fn relevance(&mut self, _: &EventHeader) -> EventRelevance

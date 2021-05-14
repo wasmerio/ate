@@ -45,6 +45,14 @@ pub struct ConfAte
     /// DNS server that queries will be made do by the chain registry
     pub dns_server: String,
 
+    /// Synchronization tolerance whereby event duplication during connection phases
+    /// and compaction efficiency are impacted. Greater tolerance will reduce the
+    /// possibility of data lose on specific edge-cases while shorter tolerance will
+    /// improve space and network efficiency. It is not recommended to select a value
+    /// lower than a few seconds while increasing the value to days will impact performance.
+    /// (default=30 seconds)
+    pub sync_tolerance: Duration,
+
     /// Flag that indicates if encryption will be used for the underlying
     /// connections over the wire. When using a ATE's in built encryption
     /// and quantum resistant signatures it is not mandatory to use
@@ -82,6 +90,7 @@ for ConfAte
             recovery_mode: RecoveryMode::ReadOnlyAsync,
             compact_mode: CompactMode::GrowthFactorOrTimer { growth: 0.2f32, timer: Duration::from_secs(3600) },
             compact_bootstrap: false,
+            sync_tolerance: Duration::from_secs(30),
             ntp_sync: true,
             ntp_pool: "pool.ntp.org".to_string(),
             ntp_port: 123,

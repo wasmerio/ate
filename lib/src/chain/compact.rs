@@ -1,9 +1,9 @@
-use btreemultimap::BTreeMultiMap;
 #[allow(unused_imports)]
 use log::{info, error, debug};
 use std::sync::{Arc};
 use tokio::sync::RwLock;
 use parking_lot::RwLock as StdRwLock;
+use btreemultimap::BTreeMultiMap;
 
 use crate::trust::*;
 use crate::spec::*;
@@ -15,21 +15,27 @@ use crate::redo::*;
 use crate::pipe::EventPipe;
 use crate::single::ChainSingleUser;
 use crate::multi::ChainMultiUser;
+use crate::time::*;
 use super::*;
 
 impl<'a> Chain
 {
     pub async fn compact(self: &'a Chain) -> Result<(), CompactError>
     {
-        Chain::compact_ext(Arc::clone(&self.inside_async), Arc::clone(&self.inside_sync), Arc::clone(&self.pipe)).await
+        Chain::compact_ext(Arc::clone(&self.inside_async), Arc::clone(&self.inside_sync), Arc::clone(&self.pipe), Arc::clone(&self.time)).await
     }
 
-    pub(crate) async fn compact_ext(inside_async: Arc<RwLock<ChainProtectedAsync>>, inside_sync: Arc<StdRwLock<ChainProtectedSync>>, pipe: Arc<Box<dyn EventPipe>>) -> Result<(), CompactError>
+    pub(crate) async fn compact_ext(inside_async: Arc<RwLock<ChainProtectedAsync>>, inside_sync: Arc<StdRwLock<ChainProtectedSync>>, pipe: Arc<Box<dyn EventPipe>>, time: Arc<TimeKeeper>) -> Result<(), CompactError>
     {
-        let _chain_key = {
-            let key = inside_async.read().await.chain.key.to_string();
-            info!("compacting chain: {}", key);
-            key
+        // compute a cut-off using the current time and the sync tolerance
+        let cut_off = {
+            let guard = inside_async.read().await;
+            let key = guard.chain.key.to_string();
+            
+            let cut_off = time.current_timestamp()?.time_since_epoch_ms - guard.sync_tolerance.as_millis() as u64;
+            let cut_off = ChainTimestamp::from(cut_off);
+            info!("compacting chain: {} till {}", key, cut_off);
+            cut_off
         };
 
         // prepare
@@ -47,6 +53,7 @@ impl<'a> Chain
 
             // Build the header
             let header = ChainHeader {
+                cut_off,
             };
             let header_bytes = SerializationFormat::Json.serialize(&header)?;
             
@@ -62,10 +69,15 @@ impl<'a> Chain
 
             // step1 - reset all the compact
             for compactor in &guard_async.chain.timeline.compactors {
-                let mut compactor = compactor.clone_compactor();
-                compactor.reset();
-                new_timeline.compactors.push(compactor);
+                if let Some(mut compactor) = compactor.clone_compactor() {
+                    compactor.reset();
+                    new_timeline.compactors.push(compactor);
+                }
             }
+
+            // add a compactor that will add all events close to the current time within a particular
+            // tolerance as multi-consumers could be in need of these events
+            new_timeline.compactors.push(Box::new(CutOffCompactor::new(cut_off)));
 
             // create an empty conversation
             let conversation = Arc::new(ConversationSession::default());
@@ -145,6 +157,11 @@ impl<'a> Chain
             new_timeline.add_history(h);
         })
         .await?;
+
+        // We reset the compactors so they take up less space the memory
+        for compactor in new_timeline.compactors.iter_mut() {
+            compactor.reset();
+        }
 
         // complete the transaction under another lock
         {

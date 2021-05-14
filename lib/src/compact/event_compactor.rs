@@ -33,7 +33,7 @@ pub trait EventCompactor: Send + Sync + EventSink
         EventRelevance::Abstain
     }
 
-    fn clone_compactor(&self) -> Box<dyn EventCompactor>;
+    fn clone_compactor(&self) -> Option<Box<dyn EventCompactor>>;
 
     fn name(&self) -> &str {
         "unnamed-compactor"

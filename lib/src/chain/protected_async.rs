@@ -10,6 +10,7 @@ use std::sync::{Arc};
 use parking_lot::RwLock as StdRwLock;
 use parking_lot::RwLockWriteGuard as StdRwLockWriteGuard;
 use std::ops::*;
+use std::time::Duration;
 
 use crate::trust::*;
 use crate::meta::*;
@@ -23,6 +24,7 @@ pub(crate) struct ChainProtectedAsync
     pub(crate) chain: ChainOfTrust,
     pub(crate) default_format: MessageFormat,
     pub(crate) disable_new_roots: bool,
+    pub(crate) sync_tolerance: Duration,
     pub(crate) run: bool,
 }
 

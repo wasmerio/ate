@@ -33,6 +33,7 @@ pub struct MeshSession
 {
     addr: MeshAddress,
     key: ChainKey,
+    sync_tolerance: Duration,
     chain: Weak<Chain>,
     commit: Arc<StdMutex<FxHashMap<u64, mpsc::Sender<Result<(), CommitError>>>>>,
     lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, LockRequest>>>,
@@ -128,7 +129,7 @@ impl MeshSession
             if let Some(chain) = self.chain.upgrade() {
                 let lock = chain.inside_async.read().await;
                 let mut ret = lock.chain.timeline.end();
-                ret.time_since_epoch_ms = ret.time_since_epoch_ms + 1;
+                ret.time_since_epoch_ms = ret.time_since_epoch_ms - (self.sync_tolerance.as_millis() as u64);
                 ret
             } else {
                 ChainTimestamp::from(1u64)
@@ -506,6 +507,7 @@ impl RecoverableSessionPipe
         let session = Arc::new(MeshSession {
             addr: self.addr.clone(),
             key: self.key.clone(),
+            sync_tolerance: self.builder.cfg.sync_tolerance,
             commit: Arc::clone(&commit),
             chain: Weak::clone(self.chain.lock().as_ref().expect("You must call the 'set_chain' before invoking this method.")),
             lock_requests: Arc::clone(&lock_requests),
@@ -648,6 +650,8 @@ for RecoverableSessionPipe
                         node_rx,
                         loader
                     ).await;
+
+                    // We should only get here if the inbound connection is shutdown or fails
                     let _ = status_tx.send(ConnectionStatusChange::Disconnected).await;
                 }
             );

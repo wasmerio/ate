@@ -13,6 +13,7 @@ pub enum CompactError {
     IO(tokio::io::Error),
     LoadError(LoadError),
     WatchError(String),
+    TimeError(TimeError),
     SerializationError(SerializationError),
 }
 
@@ -34,6 +35,13 @@ impl From<LoadError>
 for CompactError {
     fn from(err: LoadError) -> CompactError {
         CompactError::LoadError(err)
+    }
+}
+
+impl From<TimeError>
+for CompactError {
+    fn from(err: TimeError) -> CompactError {
+        CompactError::TimeError(err)
     }
 }
 
@@ -78,6 +86,9 @@ for CompactError {
             },
             CompactError::LoadError(err) => {
                 write!(f, "Failed to compact the chain due to an error loaded on event - {}", err)
+            },
+            CompactError::TimeError(err) => {
+                write!(f, "Failed to compact the chain due to an error in the time keeper - {}", err)
             },
         }
     }

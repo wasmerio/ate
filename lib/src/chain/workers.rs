@@ -6,6 +6,7 @@ use crate::transaction::*;
 use crate::compact::*;
 use crate::pipe::*;
 use crate::transaction::TransactionScope;
+use crate::time::*;
 
 use std::sync::{Arc};
 use tokio::sync::RwLock;
@@ -95,7 +96,7 @@ impl<'a> Chain
         lock.run = false;
     }
 
-    pub(super) async fn worker_compactor(inside_async: Arc<RwLock<ChainProtectedAsync>>, inside_sync: Arc<StdRwLock<ChainProtectedSync>>, pipe: Arc<Box<dyn EventPipe>>, mut compact_state: CompactState) -> Result<(), CompactError>
+    pub(super) async fn worker_compactor(inside_async: Arc<RwLock<ChainProtectedAsync>>, inside_sync: Arc<StdRwLock<ChainProtectedSync>>, pipe: Arc<Box<dyn EventPipe>>, time: Arc<TimeKeeper>, mut compact_state: CompactState) -> Result<(), CompactError>
     {
         loop {
             compact_state.wait_for_compact().await?;
@@ -103,7 +104,8 @@ impl<'a> Chain
             let inside_async = Arc::clone(&inside_async);
             let inside_sync = Arc::clone(&inside_sync);
             let pipe = Arc::clone(&pipe);
-            Chain::compact_ext(inside_async, inside_sync, pipe).await?;
+            let time = Arc::clone(&time);
+            Chain::compact_ext(inside_async, inside_sync, pipe, time).await?;
         }
     }
 }

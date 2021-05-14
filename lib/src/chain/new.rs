@@ -137,6 +137,7 @@ impl<'a> Chain
             chain,
             default_format: builder.cfg.log_format,
             disable_new_roots: false,
+            sync_tolerance: builder.cfg.sync_tolerance,
             run: true,
         };
         
@@ -197,7 +198,8 @@ impl<'a> Chain
         let worker_inside_async = Arc::clone(&chain.inside_async);
         let worker_inside_sync = Arc::clone(&chain.inside_sync);
         let worker_pipe = Arc::clone(&chain.pipe);
-        tokio::task::spawn(Chain::worker_compactor(worker_inside_async, worker_inside_sync, worker_pipe, compact_rx));
+        let time = Arc::clone(&chain.time);
+        tokio::task::spawn(Chain::worker_compactor(worker_inside_async, worker_inside_sync, worker_pipe, time, compact_rx));
 
         // Create the chain
         Ok(
