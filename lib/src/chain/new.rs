@@ -22,7 +22,6 @@ use crate::spec::SerializationFormat;
 use crate::time::TimeKeeper;
 use crate::trust::*;
 use crate::pipe::*;
-use crate::time::*;
 use crate::loader::*;
 
 use crate::trust::ChainKey;
@@ -98,7 +97,6 @@ impl<'a> Chain
             key: key.clone(),
             redo: redo_log,
             timeline: ChainTimeline {
-                cursor: ChainTimestamp::default(),
                 history: BTreeMultiMap::new(),
                 pointers: BinaryTreeIndexer::default(),
                 compactors: builder.compactors,

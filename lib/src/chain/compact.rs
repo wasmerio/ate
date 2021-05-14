@@ -15,8 +15,6 @@ use crate::redo::*;
 use crate::pipe::EventPipe;
 use crate::single::ChainSingleUser;
 use crate::multi::ChainMultiUser;
-use crate::time::*;
-
 use super::*;
 
 impl<'a> Chain
@@ -36,7 +34,6 @@ impl<'a> Chain
 
         // prepare
         let mut new_timeline = ChainTimeline {
-            cursor: ChainTimestamp::default(),
             history: BTreeMultiMap::new(),
             pointers: BinaryTreeIndexer::default(),
             compactors: Vec::new(),

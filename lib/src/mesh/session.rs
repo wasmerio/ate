@@ -124,40 +124,28 @@ impl MeshSession
     async fn inbox_connected(self: &Arc<MeshSession>, pck: PacketData) -> Result<(), CommsError> {
         debug!("inbox: connected pck.size={}", pck.bytes.len());
 
-        let cursor = {
+        let end = {
             if let Some(chain) = self.chain.upgrade() {
                 let lock = chain.inside_async.read().await;
-                lock.chain.timeline.cursor
+                let mut ret = lock.chain.timeline.end();
+                ret.time_since_epoch_ms = ret.time_since_epoch_ms + 1;
+                ret
             } else {
-                ChainTimestamp::from(0u64)
+                ChainTimestamp::from(1u64)
             }
         };
 
         pck.reply(Message::Subscribe {
             chain_key: self.key.clone(),
-            from: cursor
+            from: end
         }).await
     }
 
-    async fn inbox_events(self: &Arc<MeshSession>, mut evts: Vec<MessageEvent>, loader: &mut Option<Box<impl Loader>>) -> Result<(), CommsError> {
+    async fn inbox_events(self: &Arc<MeshSession>, evts: Vec<MessageEvent>, loader: &mut Option<Box<impl Loader>>) -> Result<(), CommsError> {
         debug!("inbox: events cnt={}", evts.len());
 
         if let Some(chain) = self.chain.upgrade()
         {
-            if let Some(last_timestamp) = evts.iter()
-                .filter_map(|e| e.meta.get_last_received())
-                .max()
-            {
-                evts.push(MessageEvent {
-                    meta: Metadata {
-                        core: vec![CoreMetadata::LastReceived(last_timestamp)],
-                    },
-                    data_hash: None,
-                    data: None,
-                    format: chain.default_format,
-                });
-            }
-
             let feed_me = MessageEvent::convert_from(evts);
 
             if let Some(loader) = loader {
@@ -256,16 +244,6 @@ impl MeshSession
                 from,
                 to
             })]
-        }).await?;
-        Ok(())
-    }
-
-    async fn commit_last_received(chain: &Arc<Chain>, last: ChainTimestamp) -> Result<(), CommsError>
-    {
-        debug!("commit_last_received: {}", last);
-        let mut guard = chain.inside_async.write().await;
-        let _ = guard.feed_meta_data(&chain.inside_sync, Metadata {
-            core: vec![CoreMetadata::LastReceived(last)]
         }).await?;
         Ok(())
     }

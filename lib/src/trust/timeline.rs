@@ -11,7 +11,6 @@ use crate::time::*;
 
 pub(crate) struct ChainTimeline
 {
-    pub(crate) cursor: ChainTimestamp,
     pub(crate) history: BTreeMultiMap<ChainTimestamp, EventHeaderRaw>,
     pub(crate) pointers: BinaryTreeIndexer,
     pub(crate) compactors: Vec<Box<dyn EventCompactor>>,
@@ -47,7 +46,7 @@ impl<'a> ChainTimeline
         let raw = header.raw.clone();
 
         #[cfg(feature = "verbose")]
-        debug!("add_history::evt[key={},entropy={}]", header.meta.get_data_key().map_or_else(|| "none".to_string(), |h| h.to_string()), entropy);
+        debug!("add_history::evt[{}]", header.meta);
 
         let timestamp = match header.meta.get_timestamp() {
             Some(a) => a.clone(),
@@ -57,14 +56,26 @@ impl<'a> ChainTimeline
             }
         };
 
-        if let Some(a) = header.meta.get_last_received() {
-            if a > self.cursor {
-                self.cursor = a;
-            }
-        }
-
         if header.meta.include_in_history() {
             self.history.insert(timestamp, raw);
+        }
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn start(&self) -> ChainTimestamp {
+        let last = self.history.iter().next();
+        match last {
+            Some(a) => a.0.clone(),
+            None => ChainTimestamp::from(0u64)
+        }
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn end(&self) -> ChainTimestamp {
+        let last = self.history.iter().next_back();
+        match last {
+            Some(a) => a.0.clone(),
+            None => ChainTimestamp::from(0u64)
         }
     }
 }
