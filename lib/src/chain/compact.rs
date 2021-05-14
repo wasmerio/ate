@@ -53,7 +53,7 @@ impl<'a> Chain
 
             // Build the header - The cut-off can not be higher than the actual history
             let header = ChainHeader {
-                cut_off: cut_off.min(single.inside_async.chain.timeline.end()),
+                cut_off: cut_off.min(single.inside_async.chain.timeline.end().inc()),
             };
             let header_bytes = SerializationFormat::Json.serialize(&header)?;
             

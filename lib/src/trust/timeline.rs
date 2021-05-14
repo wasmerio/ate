@@ -70,7 +70,6 @@ impl<'a> ChainTimeline
         }
     }
 
-    #[allow(dead_code)]
     pub(crate) fn end(&self) -> ChainTimestamp {
         let last = self.history.iter().next_back();
         match last {

@@ -6,6 +6,15 @@ pub struct ChainTimestamp
     pub time_since_epoch_ms: u64
 }
 
+impl ChainTimestamp
+{
+    pub fn inc(mut self) -> Self
+    {
+        self.time_since_epoch_ms = self.time_since_epoch_ms + 1;
+        self
+    }
+}
+
 impl From<u64>
 for ChainTimestamp
 {
