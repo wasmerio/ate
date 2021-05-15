@@ -49,6 +49,10 @@ impl LogAppender
         
         // If it does not have a magic then add one - otherwise read it and check the value
         appender.header = RedoHeader::load(&mut appender, header_bytes).await?;
+
+        // Reload the offset and buffer stream (apparently without this causes a bug without it)
+        appender.offset = appender.file.seek(SeekFrom::Current(0)).await?;
+        appender.stream = BufStream::new(appender.file.try_clone().await.unwrap());
         
         // Create the archive
         let archive = LogArchive::new(path_log, index).await?;
