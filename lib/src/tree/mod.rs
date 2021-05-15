@@ -1,4 +1,3 @@
-pub mod compactor;
 pub mod compute;
 pub mod sink;
 pub mod get_encrypt_key;
@@ -8,7 +7,6 @@ pub mod plugin;
 pub mod transformer;
 pub mod validator;
 
-pub use compactor::*;
 pub use sink::*;
 pub use get_encrypt_key::*;
 pub use generate_encrypt_key::*;

@@ -38,15 +38,8 @@ for TombstoneCompactor
         Some(Box::new(self.clone()))
     }
     
-    fn relevance(&mut self, header: &EventHeader) -> EventRelevance
+    fn relevance(&self, header: &EventHeader) -> EventRelevance
     {
-        // If it has parent thats tombstoned then its gone
-        if let Some(parent) = header.meta.get_parent() {
-            if self.tombstoned.contains(&parent.vec.parent_id) {
-                return EventRelevance::ForceDrop;
-            }
-        }
-
         let key = match header.meta.get_data_key() {
             Some(key) => key,
             None => { return EventRelevance::Abstain; }

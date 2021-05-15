@@ -72,15 +72,15 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     pub async fn iter<'a, C>(&self, dio: &mut Dio<'a>, vec: DaoVec<C>) -> Result<Iter<C>, LoadError>
     where C: Serialize + DeserializeOwned + Clone + Send + Sync
     {
-        self.iter_ext(dio, vec, false).await
+        self.iter_ext(dio, vec, false, false).await
     }
 
-    pub async fn iter_ext<'a, C>(&self, dio: &mut Dio<'a>, vec: DaoVec<C>, allow_missing_keys: bool) -> Result<Iter<C>, LoadError>
+    pub async fn iter_ext<'a, C>(&self, dio: &mut Dio<'a>, vec: DaoVec<C>, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Iter<C>, LoadError>
     where C: Serialize + DeserializeOwned + Clone + Send + Sync
     {
         Ok(
             Iter::new(
-                dio.children_ext(self.key().clone(), vec.vec_id, allow_missing_keys).await?
+                dio.children_ext(self.key().clone(), vec.vec_id, allow_missing_keys, allow_serialization_error).await?
             )
         )
     }

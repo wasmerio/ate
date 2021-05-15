@@ -33,7 +33,7 @@ for CutOffCompactor
         None
     }
     
-    fn relevance(&mut self, header: &EventHeader) -> EventRelevance
+    fn relevance(&self, header: &EventHeader) -> EventRelevance
     {
         if let Some(timestamp) = header.meta.get_timestamp() {
             if *timestamp >= self.cut_off {

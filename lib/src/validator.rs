@@ -82,8 +82,16 @@ impl Metadata
     pub fn add_signature(&mut self, _sig: MetaSignature) {
     }
 
-    #[allow(dead_code)]
     pub fn get_signature<'a>(&'a self) -> Option<&'a MetaSignature> {
-        None
+        self.core.iter().filter_map(
+            |m| {
+                match m
+                {
+                    CoreMetadata::Signature(k) => Some(k),
+                     _ => None
+                }
+            }
+        )
+        .next()
     }
 }

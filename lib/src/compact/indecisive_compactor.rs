@@ -22,7 +22,7 @@ for IndecisiveCompactor
         Some(Box::new(self.clone()))
     }
     
-    fn relevance(&mut self, _: &EventHeader) -> EventRelevance
+    fn relevance(&self, _: &EventHeader) -> EventRelevance
     {
         EventRelevance::Abstain
     }

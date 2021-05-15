@@ -89,7 +89,6 @@ impl SignaturePlugin
         }
     }
 
-    #[allow(dead_code)]
     pub fn get_verified_signatures(&self, data_hash: &AteHash) -> Option<&Vec<AteHash>>
     {
         match self.sigs.get_vec(data_hash) {
@@ -141,8 +140,8 @@ for SignaturePlugin
                     }
 
                     // Add all the validated hashes
-                    for data_hash in &sig.hashes {
-                        self.sigs.insert(data_hash.clone(), sig.public_key_hash);
+                    for sig_hash in &sig.hashes {
+                        self.sigs.insert(sig_hash.clone(), sig.public_key_hash);
                     }
 
                     // If we in a conversation and integrity is centrally managed then update the

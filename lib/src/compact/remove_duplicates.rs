@@ -46,7 +46,7 @@ for RemoveDuplicatesCompactor
         Some(Box::new(self.clone()))
     }
     
-    fn relevance(&mut self, header: &EventHeader) -> EventRelevance
+    fn relevance(&self, header: &EventHeader) -> EventRelevance
     {
         let key = match header.meta.get_data_key() {
             Some(key) => key,

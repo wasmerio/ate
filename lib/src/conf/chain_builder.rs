@@ -8,7 +8,6 @@ use crate::anti_replay::AntiReplayPlugin;
 use crate::chain::Chain;
 use crate::time::TimestampEnforcer;
 use crate::tree::TreeAuthorityPlugin;
-use crate::tree::TreeCompactor;
 use crate::validator::*;
 use crate::compact::*;
 use crate::index::*;
@@ -110,6 +109,7 @@ impl ChainBuilder
         }
 
         self.compactors.push(Box::new(KeepDataCompactor::default()));
+        self.compactors.push(Box::new(SignatureCompactor::default()));
         self.compactors.push(Box::new(RemoveDuplicatesCompactor::default()));
         self.compactors.push(Box::new(TombstoneCompactor::default()));
         self.plugins.push(Box::new(AntiReplayPlugin::default()));
@@ -136,7 +136,6 @@ impl ChainBuilder
         else
         {
             self.tree = Some(crate::tree::TreeAuthorityPlugin::new());
-            self.compactors.push(Box::new(TreeCompactor::default()));
 
             let tolerance = self.configured_for.ntp_tolerance();
             self.plugins.push(Box::new(TimestampEnforcer::new(&self.cfg, tolerance).await.unwrap()));

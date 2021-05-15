@@ -277,7 +277,7 @@ impl AteFS
                 .updated(updated);
             children.push(FileSpec::FixedFile(fixed));
 
-            for child in conv_load(data.iter_ext(&mut dio, data.children, true).await)? {
+            for child in conv_load(data.iter_ext(&mut dio, data.children, true, true).await)? {
                 let child_spec = Inode::as_file_spec(child.key().as_u64(), child.when_created(), child.when_updated(), child);
                 children.push(child_spec);
             }

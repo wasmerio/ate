@@ -85,6 +85,10 @@ impl<'a> Chain
             for compactor in &guard_async.chain.timeline.compactors {
                 if let Some(mut compactor) = compactor.clone_compactor() {
                     compactor.reset();
+
+                    #[cfg(feature = "verbose")]
+                    debug!("compactor: {}", compactor.name());
+
                     new_timeline.compactors.push(compactor);
                 }
             }
@@ -126,8 +130,24 @@ impl<'a> Chain
                 total = total + 1;
             }
 
-            // create an another empty conversation
+            // We perform a pre-phase of relevance checks so that dependent events such as
+            // signatures have a chance to be registered
             let conversation = Arc::new(ConversationSession::default());
+            for (_, entry) in guard_async.chain.timeline.history.iter() {
+                let header = entry.as_header()?;
+                
+                // Check if we should keep this event or not
+                let mut keep = crate::compact::compute_relevance(new_timeline.compactors.iter(), &header);
+                if let Err(_) = sync.validate_event(&header, Some(&conversation)) {
+                    keep = false;
+                }
+
+                // Inform all the compactors of our decision so that they can make better choices
+                // around which events to keep or not
+                for compactor in new_timeline.compactors.iter_mut() {
+                    compactor.post_feed(&header, keep);
+                }
+            }
 
             // build a list of the events that are actually relevant to a compacted log            
             let mut how_many_keepers: u64 = 0;
@@ -135,47 +155,12 @@ impl<'a> Chain
                 let header = entry.as_header()?;
                 
                 // Determine if we should drop of keep the value
-                let mut is_force_keep = false;
-                let mut is_keep = false;
-                let mut is_drop = false;
-                let mut is_force_drop = false;
-                for compactor in new_timeline.compactors.iter_mut() {
-                    let relevance = compactor.relevance(&header);
-                    #[cfg(feature = "super_verbose")]
-                    debug!("{} on {} for {}", relevance, compactor.name(), header.meta);
-                    match relevance {
-                        EventRelevance::ForceKeep => is_force_keep = true,
-                        EventRelevance::Keep => is_keep = true,
-                        EventRelevance::Drop => is_drop = true,
-                        EventRelevance::ForceDrop => is_force_drop = true,
-                        EventRelevance::Abstain => { }
-                    }
-                }
-                
-                // Keep takes priority over drop and force takes priority over nominal indicators
-                // (default is to drop unless someone indicates we should keep it)
-                if match is_force_keep {
-                    true => true,
-                    false if is_force_drop == true => false,
-                    _ if is_keep == true => true,
-                    _ if is_drop == true => false,
-                    _ => false
-                } == false {
+                if crate::compact::compute_relevance(new_timeline.compactors.iter(), &header) == false {
                     continue;
-                }
-
-                // Next we need to check all the validators and feed the plugins
-                if let Err(err) = sync.validate_event(&header, Some(&conversation)) {
-                    #[cfg(feature = "verbose")]
-                    debug!("chain::feed-validation-err: {}", err);
-                    continue;
-                }
-                for plugin in sync.plugins.iter_mut() {
-                    plugin.feed(&header, Some(&conversation))?;
                 }
 
                 #[cfg(feature = "verbose")]
-                debug!("kept(@{})+(meta:{})+(data:{})", a, header.meta, header.raw.data_size);
+                debug!("kept(@{})+(meta:{})+(data:{})+(hash:{})", a, header.meta, header.raw.data_size, header.raw.sig_hash());
 
                 // This event is retained so we will add it to the new history
                 flip.event_summary.push(header.raw.clone());

@@ -284,10 +284,10 @@ impl<'a> Dio<'a>
     pub async fn children<D>(&mut self, parent_id: PrimaryKey, collection_id: u64) -> Result<Vec<Dao<D>>, LoadError>
     where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
-        self.children_ext(parent_id, collection_id, false).await
+        self.children_ext(parent_id, collection_id, false, false).await
     }
 
-    pub async fn children_ext<D>(&mut self, parent_id: PrimaryKey, collection_id: u64, allow_missing_keys: bool) -> Result<Vec<Dao<D>>, LoadError>
+    pub async fn children_ext<D>(&mut self, parent_id: PrimaryKey, collection_id: u64, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Vec<Dao<D>>, LoadError>
     where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
         // Build the secondary index key
@@ -382,7 +382,16 @@ impl<'a> Dio<'a>
                 None => { continue; },
             };
 
-            let row = Row::from_event(&evt.data, evt.leaf.created, evt.leaf.updated)?;
+            let row = match Row::from_event(&evt.data, evt.leaf.created, evt.leaf.updated) {
+                Ok(a) => a,
+                Err(err) => {
+                    if allow_serialization_error {
+                        debug!("Serialization error {} - ignoring row", err);
+                        continue;
+                    }
+                    return Err(LoadError::SerializationError(err));
+                }
+            };
             state.cache_load.insert(row.key.clone(), (Arc::new(evt.data), evt.leaf));
 
             already.insert(row.key.clone());

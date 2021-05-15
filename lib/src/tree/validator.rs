@@ -29,7 +29,7 @@ for TreeAuthorityPlugin
         }
 
         // If it has data then we need to check it - otherwise we ignore it
-        let data_hash = header.raw.sig_hash();
+        let sig_hash = header.raw.sig_hash();
 
         // It might be the case that everyone is allowed to write freely
         let dummy_trans_meta = TransactionMetadata::default();
@@ -41,7 +41,7 @@ for TreeAuthorityPlugin
         }
         
         // Make sure that it has a signature
-        let verified_signatures = match self.signature_plugin.get_verified_signatures(&data_hash) {
+        let verified_signatures = match self.signature_plugin.get_verified_signatures(&sig_hash) {
             Some(a) => a,
             None =>
             {
