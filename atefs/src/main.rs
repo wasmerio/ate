@@ -374,8 +374,8 @@ fn test_opts() -> Opts {
 
 #[tokio::main]
 async fn main() -> Result<(), CommandError> {
-    //let opts: Opts = Opts::parse();
-    let opts = test_opts();
+    let opts: Opts = Opts::parse();
+    //let opts = test_opts();
     
     let mut log_level = match opts.verbose {
         0 => "error",
