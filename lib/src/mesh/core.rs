@@ -222,7 +222,6 @@ where R: RangeBounds<ChainTimestamp>
         for evt in multi.load_many(leafs).await? {
             let evt = MessageEvent {
                 meta: evt.data.meta.clone(),
-                data_hash: evt.header.data_hash.clone(),
                 data: match evt.data.data_bytes {
                     Some(a) => Some(a.to_vec()),
                     None => None,

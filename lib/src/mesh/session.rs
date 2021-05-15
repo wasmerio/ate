@@ -164,12 +164,34 @@ impl MeshSession
 
         if let Some(chain) = self.chain.upgrade()
         {
-            let feed_me = MessageEvent::convert_from(evts);
+            // Convert the events but we do this differently depending on on if we are
+            // in a loading phase or a running phase
+            let feed_me = match loader.as_mut() {
+                Some(l) =>
+                {
+                    // When we are running then we proactively remove any duplicates to reduce noise
+                    // or the likelihood of errors
+                    let feed_me = evts.into_iter()
+                        .map(|e| MessageEvent::convert_from_single(e))
+                        .filter(|e| {
+                            l.relevance_check(e) == false
+                        })
+                        .collect::<Vec<_>>();
 
-            if let Some(loader) = loader {
-                loader.feed_events(&feed_me).await;
-            }
+                    // Feeding the events into the loader lets proactive feedback to be given back to
+                    // the user such as progress bars
+                    l.feed_events(&feed_me);
+
+                    feed_me
+                },
+                None => {
+                    // Simply convert the events from wire format to log format
+                    MessageEvent::convert_from(evts.into_iter())
+                }
+            };
         
+            // We only feed the transactions into the local chain otherwise this will
+            // reflect events back into the chain-of-trust running on the server
             chain.pipe.feed(Transaction {
                 scope: TransactionScope::Local,
                 transmit: false,

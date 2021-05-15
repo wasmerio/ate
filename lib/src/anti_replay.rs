@@ -14,6 +14,7 @@ use super::event::*;
 use super::error::*;
 use super::transaction::ConversationSession;
 use super::plugin::*;
+use super::loader::*;
 use super::validator::ValidationResult;
 
 #[derive(Debug, Default, Clone)]
@@ -87,5 +88,20 @@ for AntiReplayPlugin
 {
     fn clone_plugin(&self) -> Box<dyn EventPlugin> {
         Box::new(self.clone())
+    }
+}
+
+impl Loader
+for AntiReplayPlugin
+{
+    fn relevance_check(&mut self, header: &EventData) -> bool {
+        match header.as_header_raw() {
+            Ok(a) => {
+                let ret = self.seen.contains(&a.event_hash);
+                self.seen.insert(a.event_hash);
+                ret
+            },
+            _ => false
+        }
     }
 }

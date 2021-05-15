@@ -351,7 +351,7 @@ async fn inbox_event(
     let commit = commit.clone();
     
     // Feed the events into the chain of trust
-    let evts = MessageEvent::convert_from(evts);
+    let evts = MessageEvent::convert_from(evts.into_iter());
     let ret = chain.pipe.feed(Transaction {
         scope: TransactionScope::None,
         transmit: false,

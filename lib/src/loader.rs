@@ -20,7 +20,7 @@ pub trait Loader: Send + Sync + 'static
     async fn start_of_history(&mut self, _size: usize) { }
 
     /// Events are being processed
-    async fn feed_events(&mut self, _evts: &Vec<EventData>) { }
+    fn feed_events(&mut self, _evts: &Vec<EventData>) { }
 
     /// Load data is being processed
     async fn feed_load_data(&mut self, _data: LoadData) { }
@@ -32,6 +32,10 @@ pub trait Loader: Send + Sync + 'static
     async fn failed(&mut self, err: ChainCreationError) -> Option<ChainCreationError>
     {
         Some(err)
+    }
+
+    fn relevance_check(&mut self, _header: &EventData) -> bool {
+        false
     }
 }
 
@@ -58,10 +62,10 @@ for CompositionLoader
         }
     }
 
-    async fn feed_events(&mut self, evts: &Vec<EventData>)
+    fn feed_events(&mut self, evts: &Vec<EventData>)
     {
         for loader in self.loaders.iter_mut() {
-            loader.feed_events(evts).await;
+            loader.feed_events(evts);
         }
     }
 
@@ -91,6 +95,15 @@ for CompositionLoader
             };
         }
         Some(err)
+    }
+
+    fn relevance_check(&mut self, header: &EventData) -> bool {
+        for loader in self.loaders.iter_mut() {
+            if loader.relevance_check(header) {
+                return true;
+            }
+        }
+        false
     }
 }
 

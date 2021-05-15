@@ -44,7 +44,7 @@ for LoadProgress
         self.bar.replace(pb);
     }
 
-    async fn feed_events(&mut self, evts: &Vec<EventData>)
+    fn feed_events(&mut self, evts: &Vec<EventData>)
     {
         if let Some(pb) = &mut self.bar {
             pb.add(evts.len() as u64);

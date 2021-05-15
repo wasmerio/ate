@@ -21,7 +21,6 @@ use crate::time::ChainTimestamp;
 pub(super) struct MessageEvent
 {
     pub(crate) meta: Metadata,
-    pub(crate) data_hash: Option<AteHash>,
     pub(crate) data: Option<Vec<u8>>,
     pub(crate) format: MessageFormat,
 }
@@ -34,10 +33,6 @@ impl MessageEvent
         for evt in evts {
             let evt = MessageEvent {
                     meta: evt.meta.clone(),
-                    data_hash: match &evt.data_bytes {
-                        Some(d) => Some(AteHash::from_bytes(&d[..])),
-                        None => None,
-                    },
                     data: match &evt.data_bytes {
                         Some(d) => Some(d.to_vec()),
                         None => None,
@@ -49,21 +44,32 @@ impl MessageEvent
         feed_me
     }
 
-    pub(crate) fn convert_from(evts: Vec<MessageEvent>) -> Vec<EventData>
+    pub(crate) fn convert_from_single(evt: MessageEvent) -> EventData
+    {
+        EventData {
+            meta: evt.meta.clone(),
+            data_bytes: match evt.data {
+                Some(d) => Some(Bytes::from(d)),
+                None => None,
+            },
+            format: evt.format,
+        }
+    }
+
+    pub(crate) fn convert_from(evts: impl Iterator<Item=MessageEvent>) -> Vec<EventData>
     {
         let mut feed_me = Vec::new();
-        for evt in evts.into_iter() {
-            let evt = EventData {
-                meta: evt.meta.clone(),
-                data_bytes: match evt.data {
-                    Some(d) => Some(Bytes::from(d)),
-                    None => None,
-                },
-                format: evt.format,
-            };
-            feed_me.push(evt);
+        for evt in evts {
+            feed_me.push(MessageEvent::convert_from_single(evt));
         }
         feed_me
+    }
+
+    pub(crate) fn data_hash(&self) -> Option<AteHash> {
+        match self.data.as_ref() {
+            Some(d) => Some(AteHash::from_bytes(&d[..])),
+            None => None,
+        }
     }
 }
 
