@@ -130,20 +130,33 @@ impl<'a> Chain
                 total = total + 1;
             }
 
-            // We perform a pre-phase of relevance checks so that dependent events such as
-            // signatures have a chance to be registered
+            // We first do a round of notifying the compactors so that signature events are
+            // then included in the chain of trust
+            for (_, entry) in guard_async.chain.timeline.history.iter() {
+                let header = entry.as_header()?;
+                let keep = crate::compact::compute_relevance(new_timeline.compactors.iter(), &header);
+                for compactor in new_timeline.compactors.iter_mut() {
+                    compactor.post_feed(&header, keep);
+                }
+            }
+
+            // We perform the checks again but this time we run them through the full suite
+            // of validators which will remove any orphans
             let conversation = Arc::new(ConversationSession::default());
             for (_, entry) in guard_async.chain.timeline.history.iter() {
                 let header = entry.as_header()?;
-                
-                // Check if we should keep this event or not
+
                 let mut keep = crate::compact::compute_relevance(new_timeline.compactors.iter(), &header);
                 if let Err(_) = sync.validate_event(&header, Some(&conversation)) {
                     keep = false;
                 }
-
-                // Inform all the compactors of our decision so that they can make better choices
-                // around which events to keep or not
+                if keep == true {
+                    for plugin in sync.plugins.iter_mut() {
+                        if let Err(_) = plugin.feed(&header, Some(&conversation)) {
+                            keep = false;
+                        }
+                    }
+                }
                 for compactor in new_timeline.compactors.iter_mut() {
                     compactor.post_feed(&header, keep);
                 }
