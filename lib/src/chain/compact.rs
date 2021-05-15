@@ -4,6 +4,7 @@ use std::sync::{Arc};
 use tokio::sync::RwLock;
 use parking_lot::RwLock as StdRwLock;
 use btreemultimap::BTreeMultiMap;
+use multimap::MultiMap;
 
 use crate::trust::*;
 use crate::spec::*;
@@ -16,6 +17,7 @@ use crate::pipe::EventPipe;
 use crate::single::ChainSingleUser;
 use crate::multi::ChainMultiUser;
 use crate::time::*;
+use crate::session::*;
 use super::*;
 
 impl<'a> Chain
@@ -28,16 +30,28 @@ impl<'a> Chain
     pub(crate) async fn compact_ext(inside_async: Arc<RwLock<ChainProtectedAsync>>, inside_sync: Arc<StdRwLock<ChainProtectedSync>>, pipe: Arc<Box<dyn EventPipe>>, time: Arc<TimeKeeper>) -> Result<(), CompactError>
     {
         // compute a cut-off using the current time and the sync tolerance
-        let (min_cut_off, max_cut_off) = {
+        let cut_off = {
             let guard = inside_async.read().await;
             let key = guard.chain.key.to_string();
 
+            // Compute the minimum cut off which is whatever is recorded in the header
+            // as otherwise the repeated compaction would reload data
             let min_cut_off = guard.chain.redo.read_chain_header()?.cut_off;
             
+            // The maximum cut off is to prevent very recent events from being lost
+            // due to a compaction which creates a hard cut off while events are still
+            // being streamed
             let max_cut_off = time.current_timestamp()?.time_since_epoch_ms - guard.sync_tolerance.as_millis() as u64;
             let max_cut_off = ChainTimestamp::from(max_cut_off);
             info!("compacting chain: {} min {} max {}", key, min_cut_off, max_cut_off);
-            (min_cut_off, max_cut_off)
+            
+            // The cut-off can not be higher than the actual history
+            let mut end = guard.chain.timeline.end();
+            if end > ChainTimestamp::from(0u64) {
+                end = end.inc();
+            }
+
+            min_cut_off.max(max_cut_off.min(end))
         };
 
         // prepare
@@ -47,21 +61,13 @@ impl<'a> Chain
             compactors: Vec::new(),
         };
 
-        let mut keepers = Vec::new();
-
         // create the flip
         let mut flip = {
             let mut single = ChainSingleUser::new_ext(&inside_async, &inside_sync).await;
 
-            // The cut-off can not be higher than the actual history
-            let mut end = single.inside_async.chain.timeline.end();
-            if end > ChainTimestamp::from(0u64) {
-                end = end.inc();
-            }
-
             // Build the header
             let header = ChainHeader {
-                cut_off: min_cut_off.max(max_cut_off.min(end)),
+                cut_off,
             };
             let header_bytes = SerializationFormat::Json.serialize(&header)?;
             
@@ -85,15 +91,47 @@ impl<'a> Chain
 
             // add a compactor that will add all events close to the current time within a particular
             // tolerance as multi-consumers could be in need of these events
-            new_timeline.compactors.push(Box::new(CutOffCompactor::new(max_cut_off)));
+            new_timeline.compactors.push(Box::new(CutOffCompactor::new(cut_off)));
+
+            // create a fake sync that will be used by the validators
+            let mut sync = {
+                let guard_sync = multi.inside_sync.read();
+                ChainProtectedSync {
+                    sniffers: Vec::new(),
+                    indexers: Vec::new(),
+                    plugins: guard_sync.plugins.iter().map(|a| a.clone_plugin()).collect::<Vec<_>>(),
+                    linters: Vec::new(),
+                    validators: guard_sync.validators.iter().map(|a| a.clone_validator()).collect::<Vec<_>>(),
+                    transformers: Vec::new(),
+                    listeners: MultiMap::new(),
+                    services: Vec::new(),
+                    repository: None,
+                    default_session: AteSession::default(),
+                    integrity: guard_sync.integrity,
+                }
+            };
+            sync.plugins.iter_mut().for_each(|a| a.reset());
 
             // create an empty conversation
             let conversation = Arc::new(ConversationSession::default());
 
-            // build a list of the events that are actually relevant to a compacted log
+            // first we feed all the events into the compactors so they charged up and ready to make decisions
             let mut total: u64 = 0;
-            for (_, entry) in guard_async.chain.timeline.history.iter().rev()
-            {
+            for (_, entry) in guard_async.chain.timeline.history.iter().rev() {
+                let header = entry.as_header()?;
+
+                for compactor in new_timeline.compactors.iter_mut() {
+                    compactor.feed(&header, Some(&conversation))?;
+                }
+                total = total + 1;
+            }
+
+            // create an another empty conversation
+            let conversation = Arc::new(ConversationSession::default());
+
+            // build a list of the events that are actually relevant to a compacted log            
+            let mut how_many_keepers: u64 = 0;
+            for (a, entry) in guard_async.chain.timeline.history.iter() {
                 let header = entry.as_header()?;
                 
                 // Determine if we should drop of keep the value
@@ -103,7 +141,8 @@ impl<'a> Chain
                 let mut is_force_drop = false;
                 for compactor in new_timeline.compactors.iter_mut() {
                     let relevance = compactor.relevance(&header);
-                    //debug!("{} on {} for {}", relevance, compactor.name(), header.meta);
+                    #[cfg(feature = "super_verbose")]
+                    debug!("{} on {} for {}", relevance, compactor.name(), header.meta);
                     match relevance {
                         EventRelevance::ForceKeep => is_force_keep = true,
                         EventRelevance::Keep => is_keep = true,
@@ -115,45 +154,40 @@ impl<'a> Chain
                 
                 // Keep takes priority over drop and force takes priority over nominal indicators
                 // (default is to drop unless someone indicates we should keep it)
-                let keep = match is_force_keep {
+                if match is_force_keep {
                     true => true,
                     false if is_force_drop == true => false,
                     _ if is_keep == true => true,
                     _ if is_drop == true => false,
                     _ => false
-                };
-
-                if keep == true
-                {
-                    // Feed the event into the compactors as we will be keeping this one
-                    for compactor in new_timeline.compactors.iter_mut() {
-                        compactor.feed(&header, Some(&conversation))?;
-                    }
-
-                    // Record it as a keeper which means it will be replicated into the flipped
-                    // new redo log
-                    keepers.push(header);
+                } == false {
+                    continue;
                 }
-                else
-                {
-                    // Anti feeds occur so that any house keeping needed on negative operations
-                    // should also be done
-                    // Feed the event into the compactors as we will be keeping this one
-                    for compactor in new_timeline.compactors.iter_mut() {
-                        compactor.anti_feed(&header, Some(&conversation))?;
-                    }
+
+                // Next we need to check all the validators and feed the plugins
+                if let Err(err) = sync.validate_event(&header, Some(&conversation)) {
+                    #[cfg(feature = "verbose")]
+                    debug!("chain::feed-validation-err: {}", err);
+                    continue;
                 }
-                total = total + 1;
+                for plugin in sync.plugins.iter_mut() {
+                    plugin.feed(&header, Some(&conversation))?;
+                }
+
+                #[cfg(feature = "verbose")]
+                debug!("kept(@{})+(meta:{})+(data:{})", a, header.meta, header.raw.data_size);
+
+                // This event is retained so we will add it to the new history
+                flip.event_summary.push(header.raw.clone());
+                let _lookup = flip.copy_event(&guard_async.chain.redo, header.raw.event_hash).await?;
+                new_timeline.add_history(&header);
+
+                // Metrics are recorded for logging reasons
+                how_many_keepers = how_many_keepers + 1;
             }
 
             // write the events out only loading the ones that are actually needed
-            debug!("compact: kept {} events of {} events", keepers.len(), total);
-            for header in keepers.into_iter().rev() {
-                flip.event_summary.push(header.raw.clone());
-
-                let _lookup = flip.copy_event(&guard_async.chain.redo, header.raw.event_hash).await?;
-                new_timeline.add_history(&header);
-            }
+            debug!("compact: kept {} events of {} events for cut-off {}", how_many_keepers, total, cut_off);
         }
 
         // Opening this lock will prevent writes while we are flipping

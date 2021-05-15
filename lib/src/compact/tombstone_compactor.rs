@@ -26,13 +26,6 @@ for TombstoneCompactor
         Ok(())
     }
 
-    fn anti_feed(&mut self, header: &EventHeader, _conversation: Option<&Arc<ConversationSession>>) -> Result<(), SinkError> {
-        if let Some(key) = header.meta.get_tombstone() {
-            self.tombstoned.insert(key.clone());
-        }
-        Ok(())
-    }
-
     fn reset(&mut self) {
         self.tombstoned.clear();
     }
@@ -47,6 +40,13 @@ for TombstoneCompactor
     
     fn relevance(&mut self, header: &EventHeader) -> EventRelevance
     {
+        // If it has parent thats tombstoned then its gone
+        if let Some(parent) = header.meta.get_parent() {
+            if self.tombstoned.contains(&parent.vec.parent_id) {
+                return EventRelevance::ForceDrop;
+            }
+        }
+
         let key = match header.meta.get_data_key() {
             Some(key) => key,
             None => { return EventRelevance::Abstain; }

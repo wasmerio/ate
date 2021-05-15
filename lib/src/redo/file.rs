@@ -207,7 +207,7 @@ impl LogFile
     {
         let offset = guard.offset();
         
-        #[cfg(feature = "verbose")]
+        #[cfg(feature = "super_verbose")]
         info!("log-read-event: offset={}", offset);
 
         // Read the log event

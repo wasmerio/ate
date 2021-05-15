@@ -7,12 +7,14 @@ use crate::sink::*;
 use crate::error::*;
 use crate::transaction::ConversationSession;
 use crate::meta::CoreMetadata;
+use crate::crypto::AteHash;
 
 use super::*;
 
 #[derive(Default, Clone)]
 pub struct RemoveDuplicatesCompactor
 {
+    keep: FxHashSet<AteHash>,
     already: FxHashSet<PrimaryKey>,
 }
 
@@ -22,7 +24,10 @@ for RemoveDuplicatesCompactor
     fn feed(&mut self, header: &EventHeader, _conversation: Option<&Arc<ConversationSession>>) -> Result<(), SinkError> {
         for meta in header.meta.core.iter() {
             if let CoreMetadata::Data(key) = meta {
-                self.already.insert(key.clone());
+                if self.already.contains(key) == false {
+                    self.already.insert(key.clone());
+                    self.keep.insert(header.raw.event_hash);
+                }
             }
         }
         Ok(())
@@ -30,6 +35,7 @@ for RemoveDuplicatesCompactor
 
     fn reset(&mut self) {
         self.already.clear();
+        self.keep.clear();
     }
 }
 
@@ -47,7 +53,12 @@ for RemoveDuplicatesCompactor
             None => { return EventRelevance::Abstain; }
         };
         match self.already.contains(&key) {
-            true => EventRelevance::ForceDrop,
+            true => {
+                match self.keep.contains(&header.raw.event_hash) {
+                    true => EventRelevance::Abstain,
+                    false => EventRelevance::ForceDrop,
+                }                
+            },
             false => EventRelevance::Abstain,
         }
     }

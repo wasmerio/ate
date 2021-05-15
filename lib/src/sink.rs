@@ -10,10 +10,6 @@ pub trait EventSink
         Ok(())
     }
 
-    fn anti_feed(&mut self, _header: &EventHeader, _conversation: Option<&Arc<ConversationSession>>) -> Result<(), SinkError> {
-        Ok(())
-    }
-
     fn reset(&mut self) {
     }
 }
