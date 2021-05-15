@@ -164,7 +164,7 @@ impl<'a> Chain
 
             // build a list of the events that are actually relevant to a compacted log            
             let mut how_many_keepers: u64 = 0;
-            for (a, entry) in guard_async.chain.timeline.history.iter() {
+            for (_a, entry) in guard_async.chain.timeline.history.iter() {
                 let header = entry.as_header()?;
                 
                 // Determine if we should drop of keep the value
@@ -173,7 +173,7 @@ impl<'a> Chain
                 }
 
                 #[cfg(feature = "verbose")]
-                debug!("kept(@{})+(meta:{})+(data:{})+(hash:{})", a, header.meta, header.raw.data_size, header.raw.sig_hash());
+                debug!("kept(@{})+(meta:{})+(data:{})+(hash:{})", _a, header.meta, header.raw.data_size, header.raw.sig_hash());
 
                 // This event is retained so we will add it to the new history
                 flip.event_summary.push(header.raw.clone());
