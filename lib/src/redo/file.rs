@@ -274,6 +274,13 @@ impl LogFile
         #[cfg(feature = "super_verbose")]
         debug!("log-write: {:?} - {:?}", header, evt);
 
+        // If we are in debug mode then do some extra checks
+        #[cfg(feature = "extra_checks")]
+        {
+            self.appender.flush().await?;
+            self.load(header.event_hash).await.expect("Failed to load!");
+        }
+
         // Cache the data
         {
             let mut cache = self.cache.lock();

@@ -15,8 +15,11 @@ default = ["all"]
 verbose = ["backtrace"]
 hash_blake3 = []
 hash_sha3 = []
-all = ["hash_blake3", "hash_sha3"]
+extra_checks = []
+buffered = []
+#all = ["hash_blake3", "hash_sha3", "buffered"]
 #all = ["hash_blake3", "hash_sha3", "verbose"]
+all = ["hash_blake3", "hash_sha3", "verbose", "extra_checks"]
 
 [dependencies]
 uuid = { version = "0.8.*", features = ["serde", "v4"] }
