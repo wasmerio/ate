@@ -13,7 +13,7 @@ use std::time::Instant;
 use tokio::sync::broadcast;
 
 use super::core::*;
-use crate::comms::*;
+use crate::{anti_replay::AntiReplayPlugin, comms::*};
 use crate::trust::*;
 use crate::chain::*;
 use crate::error::*;
@@ -137,7 +137,7 @@ impl MeshSession
                 if ret.time_since_epoch_ms > tolerance_ms {
                     ret.time_since_epoch_ms = ret.time_since_epoch_ms - tolerance_ms;
                 }
-
+                
                 // If the chain has a cut-off value then the subscription point must be less than
                 // this value to avoid the situation where a compacted chain reloads values that
                 // have already been deleted
@@ -148,9 +148,10 @@ impl MeshSession
 
                 ret
             } else {
-                ChainTimestamp::from(1u64)
+                ChainTimestamp::from(0u64)
             }
         };
+        debug!("connected: sync.from={}", from);
 
         // Now we subscribe to the chain
         pck.reply(Message::Subscribe {
@@ -166,28 +167,23 @@ impl MeshSession
         {
             // Convert the events but we do this differently depending on on if we are
             // in a loading phase or a running phase
+            let feed_me = MessageEvent::convert_from(evts.into_iter());
             let feed_me = match loader.as_mut() {
                 Some(l) =>
                 {
-                    // When we are running then we proactively remove any duplicates to reduce noise
-                    // or the likelihood of errors
-                    let feed_me = evts.into_iter()
-                        .map(|e| MessageEvent::convert_from_single(e))
-                        .filter(|e| {
-                            l.relevance_check(e) == false
-                        })
-                        .collect::<Vec<_>>();
-
                     // Feeding the events into the loader lets proactive feedback to be given back to
                     // the user such as progress bars
                     l.feed_events(&feed_me);
 
-                    feed_me
+                    // When we are running then we proactively remove any duplicates to reduce noise
+                    // or the likelihood of errors
+                    feed_me.into_iter()
+                        .filter(|e| {
+                            l.relevance_check(e) == false
+                        })
+                        .collect::<Vec<_>>()
                 },
-                None => {
-                    // Simply convert the events from wire format to log format
-                    MessageEvent::convert_from(evts.into_iter())
-                }
+                None => feed_me
             };
         
             // We only feed the transactions into the local chain otherwise this will
@@ -655,6 +651,21 @@ for RecoverableSessionPipe
         let pipe_tx = pipe.tx.get_unicast_sender();
         let wire_format = pipe.tx.wire_format;
 
+        // We build a anti replay loader and fill it with the events we already have
+        // This is because the sync design has a tolerance in what it replays back
+        // to the consumer meaning duplicate events will be received from the remote
+        // chain
+        let mut anti_replay = Box::new(AntiReplayPlugin::default());
+        {
+            let chain = self.chain.lock().as_ref().map(|a| a.upgrade());
+            if let Some(Some(chain)) = chain {
+                let guard = chain.inside_async.read().await;
+                for evt in guard.chain.timeline.history.iter() {
+                    anti_replay.push(evt.1.event_hash);
+                }
+            }
+        }
+
         // Run the loaders and the message procesor
         let mut loader = self.loader_remote.lock().take();
         let (loading_sender, mut loading_receiver)
@@ -662,6 +673,7 @@ for RecoverableSessionPipe
         
         let notify_loaded = Box::new(crate::loader::NotificationLoader::new(loading_sender));
         let mut composite_loader = crate::loader::CompositionLoader::default();
+        composite_loader.loaders.push(anti_replay);
         composite_loader.loaders.push(notify_loaded);
         if let Some(loader) = loader.take() {
             composite_loader.loaders.push(loader);

@@ -28,14 +28,16 @@ impl<'a> Chain
     pub(crate) async fn compact_ext(inside_async: Arc<RwLock<ChainProtectedAsync>>, inside_sync: Arc<StdRwLock<ChainProtectedSync>>, pipe: Arc<Box<dyn EventPipe>>, time: Arc<TimeKeeper>) -> Result<(), CompactError>
     {
         // compute a cut-off using the current time and the sync tolerance
-        let cut_off = {
+        let (min_cut_off, max_cut_off) = {
             let guard = inside_async.read().await;
             let key = guard.chain.key.to_string();
+
+            let min_cut_off = guard.chain.redo.read_chain_header()?.cut_off;
             
-            let cut_off = time.current_timestamp()?.time_since_epoch_ms - guard.sync_tolerance.as_millis() as u64;
-            let cut_off = ChainTimestamp::from(cut_off);
-            info!("compacting chain: {} till {}", key, cut_off);
-            cut_off
+            let max_cut_off = time.current_timestamp()?.time_since_epoch_ms - guard.sync_tolerance.as_millis() as u64;
+            let max_cut_off = ChainTimestamp::from(max_cut_off);
+            info!("compacting chain: {} min {} max {}", key, min_cut_off, max_cut_off);
+            (min_cut_off, max_cut_off)
         };
 
         // prepare
@@ -51,9 +53,15 @@ impl<'a> Chain
         let mut flip = {
             let mut single = ChainSingleUser::new_ext(&inside_async, &inside_sync).await;
 
-            // Build the header - The cut-off can not be higher than the actual history
+            // The cut-off can not be higher than the actual history
+            let mut end = single.inside_async.chain.timeline.end();
+            if end > ChainTimestamp::from(0u64) {
+                end = end.inc();
+            }
+
+            // Build the header
             let header = ChainHeader {
-                cut_off: cut_off.min(single.inside_async.chain.timeline.end().inc()),
+                cut_off: min_cut_off.max(max_cut_off.min(end)),
             };
             let header_bytes = SerializationFormat::Json.serialize(&header)?;
             
@@ -77,7 +85,7 @@ impl<'a> Chain
 
             // add a compactor that will add all events close to the current time within a particular
             // tolerance as multi-consumers could be in need of these events
-            new_timeline.compactors.push(Box::new(CutOffCompactor::new(cut_off)));
+            new_timeline.compactors.push(Box::new(CutOffCompactor::new(max_cut_off)));
 
             // create an empty conversation
             let conversation = Arc::new(ConversationSession::default());
@@ -140,7 +148,7 @@ impl<'a> Chain
 
             // write the events out only loading the ones that are actually needed
             debug!("compact: kept {} events of {} events", keepers.len(), total);
-            for header in keepers.into_iter() {
+            for header in keepers.into_iter().rev() {
                 flip.event_summary.push(header.raw.clone());
 
                 let _lookup = flip.copy_event(&guard_async.chain.redo, header.raw.event_hash).await?;

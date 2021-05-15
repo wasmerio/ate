@@ -30,7 +30,7 @@ impl TreeAuthorityPlugin
                 );
             }
         };
-        #[cfg(feature = "verbose")]
+        #[cfg(feature = "super_verbose")]
         debug!("compute_auth(): key={}", key);
 
         // Get the authorization of this node itself (if its post phase)
@@ -55,7 +55,7 @@ impl TreeAuthorityPlugin
             Some(a) => (a.read.clone(), a.write.clone()),
             None => (ReadOption::Inherit, WriteOption::Inherit),
         };
-        #[cfg(feature = "verbose")]
+        #[cfg(feature = "super_verbose")]
         debug!("compute_auth(): read={}, write={}", read, write);
 
         // Resolve any inheritance through recursive queries
@@ -68,7 +68,7 @@ impl TreeAuthorityPlugin
                     Some(a) => a.vec.parent_id,
                     None => unreachable!(),
                 };
-                #[cfg(feature = "verbose")]
+                #[cfg(feature = "super_verbose")]
                 debug!("compute_auth(): parent={}", parent);
 
                 // Get the authorization for this parent (if there is one)
@@ -79,7 +79,7 @@ impl TreeAuthorityPlugin
                 let parent_auth = match parent_auth {
                     Some(a) => a,
                     None => {
-                        #[cfg(feature = "verbose")]
+                        #[cfg(feature = "super_verbose")]
                         debug!("compute_auth(): missing_parent={}", parent);
                         return Err(TrustError::MissingParent(parent));
                     }
@@ -94,7 +94,7 @@ impl TreeAuthorityPlugin
                     write = parent_auth.write.clone();
                 }
 
-                #[cfg(feature = "verbose")]
+                #[cfg(feature = "super_verbose")]
                 debug!("compute_auth(): read={}, write={}", read, write);
             }
 
@@ -120,11 +120,11 @@ impl TreeAuthorityPlugin
             read = ReadOption::Everyone(None);
         }
         if write == WriteOption::Inherit {
-            #[cfg(feature = "verbose")]
+            #[cfg(feature = "super_verbose")]
             debug!("compute_auth(): using_root_read={}", self.root);
             write = self.root.clone();
         }
-        #[cfg(feature = "verbose")]
+        #[cfg(feature = "super_verbose")]
         debug!("compute_auth(): read={}, write={}", read, write);
 
         let auth = MetaAuthorization {

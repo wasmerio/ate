@@ -31,6 +31,11 @@ impl AntiReplayPlugin
             seen: FxHashSet::default(),
         }
     }
+
+    pub fn push(&mut self, hash: AteHash)
+    {
+        self.seen.insert(hash);
+    }
 }
 
 impl EventSink
