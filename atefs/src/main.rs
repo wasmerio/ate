@@ -284,9 +284,12 @@ async fn main_mount(mount: Mount, conf: ConfAte, group: Option<String>, session:
 
     // Add a panic hook that will unmount
     {
+        let orig_hook = std::panic::take_hook();
         let mount_path = mount_path.clone();
-        std::panic::set_hook(Box::new(move |_| {
+        std::panic::set_hook(Box::new(move |panic_info| {
             let _ = umount::unmount(std::path::Path::new(mount_path.as_str()));
+            orig_hook(panic_info);
+            std::process::exit(1);
         }));
     }
 
@@ -328,9 +331,51 @@ async fn main_mount(mount: Mount, conf: ConfAte, group: Option<String>, session:
     }
 }
 
+fn test_opts() -> Opts {
+    Opts {
+        verbose: 0,
+        auth: Url::parse("tcp://auth.tokera.com:5001/auth").unwrap(),
+        no_auth: false,
+        token: None,
+        token_path: Some("~/token".to_string()),
+        no_ntp: false,
+        ntp_pool: None,
+        ntp_port: None,
+        debug: false,
+        dns_sec: false,
+        dns_server: "8.8.8.8".to_string(),
+        wire_encryption: None,
+        subcmd: SubCommand::Mount(Mount {
+            mount_path: "/mnt/ate".to_string(),
+            remote: Some(Url::parse("tcp://ate.tokera.com/").unwrap()),
+            log_path: "~/ate/fs".to_string(),
+            recovery_mode: RecoveryMode::ReadOnlyAsync,
+            passcode: None,
+            temp: false,
+            uid: None,
+            gid: None,
+            allow_root: false,
+            allow_other: false,
+            read_only: false,
+            write_back: false,
+            non_empty: false,
+            impersonate_uid: true,
+            configured_for: ate::conf::ConfiguredFor::BestPerformance,
+            meta_format: SerializationFormat::Bincode,
+            data_format: SerializationFormat::Bincode,
+            compact_now: false,
+            compact_mode: CompactMode::Never,
+            compact_timer: 3600,
+            compact_threshold_factor: 0.2,
+            compact_threshold_size: 104857600
+        })
+    }
+}
+
 #[tokio::main]
 async fn main() -> Result<(), CommandError> {
-    let opts: Opts = Opts::parse();
+    //let opts: Opts = Opts::parse();
+    let opts = test_opts();
     
     let mut log_level = match opts.verbose {
         0 => "error",
