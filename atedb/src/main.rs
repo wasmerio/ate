@@ -147,10 +147,7 @@ async fn main() -> Result<(), AteError> {
 async fn main_solo(solo: Solo, mut cfg_ate: ConfAte, auth: Option<url::Url>, trust: TrustMode) -> Result<(), AteError>
 {
     // Create the chain flow and generate configuration
-    #[cfg(feature = "local_fs")]
-    {
-        cfg_ate.log_path = shellexpand::tilde(&solo.logs_path).to_string();
-    }
+    cfg_ate.log_path = Some(shellexpand::tilde(&solo.logs_path).to_string());
     cfg_ate.compact_mode = solo.compact_mode
         .with_growth_factor(solo.compact_threshold_factor)
         .with_growth_size(solo.compact_threshold_size)
