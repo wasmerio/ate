@@ -14,7 +14,7 @@ pub trait LogWritable {
     async fn flush(&mut self) -> Result<()>;
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct LogLookup
 {
     pub(crate) index: u32,

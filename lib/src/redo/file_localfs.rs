@@ -2,11 +2,11 @@
 use log::{error, info, warn, debug};
 
 use cached::Cached;
-use tokio::io::Result;
+use tokio::io::{Result};
 use tokio::io::ErrorKind;
 use bytes::Bytes;
 use cached::*;
-use fxhash::FxHashMap;
+use fxhash::{FxHashMap};
 use parking_lot::Mutex as MutexSync;
 
 use crate::{crypto::*, redo::LogLookup};
@@ -15,9 +15,9 @@ use crate::error::*;
 use crate::spec::*;
 use crate::loader::*;
 
-use super::{archive::LogArchive, magic::*};
-use super::archive::LogArchiveGuard;
-use super::appender::LogAppender;
+use super::magic::*;
+use super::archive::*;
+use super::appender::*;
 
 pub(crate) struct LogFileCache
 {
@@ -30,15 +30,15 @@ pub(super) struct LogFile
 {
     pub(crate) path: String,
     pub(crate) temp: bool,
+    pub(crate) lookup: FxHashMap<AteHash, LogLookup>,
     pub(crate) appender: LogAppender,
     pub(crate) archives: FxHashMap<u32, LogArchive>,
-    pub(crate) lookup: FxHashMap<AteHash, LogLookup>,
     pub(crate) cache: MutexSync<LogFileCache>,
 }
 
 impl LogFile
 {
-    pub(super) async fn new(temp_file: bool, path_log: String, truncate: bool, cache_size: usize, cache_ttl: u64, header_bytes: Vec<u8>) -> Result<LogFile>
+    pub(super) async fn new(temp_file: bool, path_log: String, truncate: bool, _cache_size: usize, _cache_ttl: u64, header_bytes: Vec<u8>) -> Result<LogFile>
     {
         // Load all the archives
         let mut archives = FxHashMap::default();
@@ -80,13 +80,13 @@ impl LogFile
         let ret = LogFile {
             path: path_log,
             temp: temp_file,
+            lookup: FxHashMap::default(),
             appender,
             cache: MutexSync::new(LogFileCache {
                 flush: FxHashMap::default(),
-                read: TimedSizedCache::with_size_and_lifespan(cache_size, cache_ttl),
-                write: TimedSizedCache::with_size_and_lifespan(cache_size, cache_ttl),
+                read: TimedSizedCache::with_size_and_lifespan(_cache_size, _cache_ttl),
+                write: TimedSizedCache::with_size_and_lifespan(_cache_size, _cache_ttl),
             }),
-            lookup: FxHashMap::default(),
             archives,
         };
 
@@ -141,9 +141,9 @@ impl LogFile
             LogFile {
                 path: self.path.clone(),
                 temp: self.temp,
+                lookup: self.lookup.clone(),
                 appender: self.appender.clone().await?,
                 cache,
-                lookup: self.lookup.clone(),
                 archives: log_archives,
             }
         )
@@ -264,6 +264,7 @@ impl LogFile
     {
         // Write the appender
         let header = evt.as_header_raw()?;
+        #[cfg(feature = "local_fs")]
         let lookup = self.appender.write(evt, &header).await?;
         
         // Record the lookup map
@@ -342,7 +343,7 @@ impl LogFile
                 return Err(LoadError::NotFoundByHash(hash));
             }
         };
-        let offset = lookup.offset;
+        let _offset = lookup.offset;
 
         // Load the archive
         let archive = match self.archives.get(&lookup.index) {
@@ -354,7 +355,7 @@ impl LogFile
 
         // First read all the data into a buffer
         let result = {
-            let mut loader = archive.lock_at(offset).await?;
+            let mut loader = archive.lock_at(_offset).await?;
             match EventVersion::read(&mut loader).await? {
                 Some(a) => a,
                 None => { return Err(LoadError::NotFoundByHash(hash)); }

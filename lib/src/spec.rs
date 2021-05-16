@@ -106,6 +106,8 @@ pub trait LogApi
     async fn write_u32(&mut self, val: u32) -> Result<(), tokio::io::Error>;
     async fn write_u64(&mut self, val: u64) -> Result<(), tokio::io::Error>;
     async fn write_exact(&mut self, buf: &[u8]) -> Result<(), tokio::io::Error>;
+
+    async fn sync(&mut self) -> Result<(), tokio::io::Error>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]

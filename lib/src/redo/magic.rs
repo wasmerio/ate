@@ -4,7 +4,6 @@ use std::convert::TryFrom;
 use tokio::io::ErrorKind;
 
 use crate::spec::LogApi;
-use crate::redo::appender::LogAppender;
 
 static LOG_MAGIC: &'static [u8; 3] = b"RED";
 
@@ -41,6 +40,7 @@ async fn read_byte(api: &mut impl LogApi) -> std::result::Result<Option<u8>, tok
 
 impl RedoHeader
 {
+    #[allow(dead_code)]
     pub fn new(magic: RedoMagic) -> RedoHeader
     {
         RedoHeader {
@@ -49,17 +49,18 @@ impl RedoHeader
         }
     }
 
-    pub(crate) async fn load(appender: &mut LogAppender, default_header_bytes: &[u8]) -> Result<Vec<u8>, tokio::io::Error> {
+    #[allow(dead_code)]
+    pub(crate) async fn load(api: &mut impl LogApi, default_header_bytes: &[u8]) -> Result<Vec<u8>, tokio::io::Error> {
         Ok(
-            match RedoHeader::read(appender).await? {
+            match RedoHeader::read(api).await? {
                 Some(a) => {
                     Vec::from(a.inner().clone())
                 },
                 None => {
                     let mut magic = RedoHeader::new(RedoMagic::V2);
                     magic.set_inner(default_header_bytes);
-                    let _ = magic.write(appender).await?;
-                    appender.sync().await?;
+                    let _ = magic.write(api).await?;
+                    api.sync().await?;
                     Vec::from(default_header_bytes)
                 }
             }

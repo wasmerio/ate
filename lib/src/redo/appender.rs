@@ -20,10 +20,10 @@ use crate::error::*;
 pub(crate) struct LogAppender
 {
     path: String,
-    file: File,
+    pub(super) file: File,
     #[cfg(feature = "buffered")]
     stream: BufStream<File>,
-    offset: u64,
+    pub(super) offset: u64,
     header: Vec<u8>,
     pub(crate) index: u32,
 }
@@ -118,13 +118,6 @@ impl LogAppender
     {
         #[cfg(feature = "buffered")]
         self.stream.flush().await?;
-        Ok(())
-    }
-
-    pub(super) async fn sync(&mut self) -> Result<()>
-    {
-        self.flush().await?;
-        self.file.sync_all().await?;
         Ok(())
     }
 }
@@ -240,6 +233,13 @@ for LogAppender
         #[cfg(not(feature = "buffered"))]
         self.file.write_all(&buf[..]).await?;
         self.offset = self.offset + buf.len() as u64;
+        Ok(())
+    }
+
+    async fn sync(&mut self) -> Result<()>
+    {
+        self.flush().await?;
+        self.file.sync_all().await?;
         Ok(())
     }
 }

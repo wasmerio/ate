@@ -178,4 +178,9 @@ for LogArchiveGuard<'a>
         self.offset = self.offset + buf.len() as u64;
         Ok(())
     }
+
+    async fn sync(&mut self) -> Result<()> {
+        self.file.sync_all().await?;
+        Ok(())
+    }
 }

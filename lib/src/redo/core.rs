@@ -1,13 +1,16 @@
 #[allow(unused_imports)]
 use log::{error, info, warn, debug};
 use async_trait::async_trait;
+#[cfg(feature = "local_fs")]
 use cached::Cached;
 use std::{collections::VecDeque};
 use tokio::io::Result;
 use tokio::io::Error;
 use tokio::io::ErrorKind;
 
-use crate::{crypto::*, spec::LogApi};
+#[cfg(feature = "local_fs")]
+use crate::spec::LogApi;
+use crate::{crypto::*};
 use crate::conf::*;
 use crate::chain::*;
 use crate::event::*;
@@ -32,9 +35,10 @@ pub struct RedoLog
 
 impl RedoLog
 {
-    async fn new(path_log: String, flags: OpenFlags, cache_size: usize, cache_ttl: u64, loader: Box<impl Loader>, header_bytes: Vec<u8>) -> std::result::Result<RedoLog, SerializationError>
+    async fn new(path_log: String, flags: OpenFlags, cache_size: usize, cache_ttl: u64, _loader: Box<impl Loader>, header_bytes: Vec<u8>) -> std::result::Result<RedoLog, SerializationError>
     {
         // Now load the real thing
+        #[allow(unused_mut)]
         let mut ret = RedoLog {
             log_temp: flags.temporal,
             log_path: path_log.clone(),
@@ -48,9 +52,11 @@ impl RedoLog
                 ).await?,
             flip: None,
         };
-        let cnt = ret.log_file.read_all(loader).await?;
-
-        info!("redo-log: loaded {} events from {} files", cnt, ret.log_file.archives.len());
+        #[cfg(feature = "local_fs")]
+        {
+            let cnt = ret.log_file.read_all(_loader).await?;
+            info!("redo-log: loaded {} events from {} files", cnt, ret.log_file.archives.len());
+        }
         Ok(ret)
     }
 
@@ -66,6 +72,7 @@ impl RedoLog
                 let path_flip = format!("{}.flip", self.log_path);
 
                 let flip = {
+                    #[cfg(feature = "local_fs")]
                     let log_file = {
                         let cache = self.log_file.cache.lock();
                         LogFile::new(
@@ -74,6 +81,18 @@ impl RedoLog
                             true, 
                             cache.read.cache_capacity().unwrap(), 
                             cache.read.cache_lifespan().unwrap(),
+                            header_bytes,
+                        )
+                    };
+
+                    #[cfg(not(feature = "local_fs"))]
+                    let log_file = {
+                        LogFile::new(
+                            self.log_temp, 
+                            path_flip, 
+                            true, 
+                            0, 
+                            0,
                             header_bytes,
                         )
                     };
@@ -145,10 +164,19 @@ impl RedoLog
         self.log_file.offset()
     }
 
+    #[cfg(feature = "local_fs")]
     pub fn end(&self) -> LogLookup {
         LogLookup {
             index: self.log_file.appender.index,
-            offset: self.log_file.appender.offset()
+            offset: self.log_file.appender.offset(),
+        }
+    }
+
+    #[cfg(not(feature = "local_fs"))]
+    pub fn end(&self) -> LogLookup {
+        LogLookup {
+            index: 0u32,
+            offset: self.log_file.offset()
         }
     }
 

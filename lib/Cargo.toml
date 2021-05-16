@@ -17,9 +17,17 @@ hash_blake3 = []
 hash_sha3 = []
 extra_checks = []
 buffered = []
-#all = ["hash_blake3", "hash_sha3", "buffered"]
+local_fs = []
+#all = ["hash_blake3", "hash_sha3"]
+all = ["hash_blake3", "hash_sha3", "buffered", "local_fs"]
 #all = ["hash_blake3", "hash_sha3", "verbose"]
-all = ["hash_blake3", "hash_sha3", "verbose", "extra_checks"]
+#all = ["hash_blake3", "hash_sha3", "verbose", "extra_checks"]
+
+#- memdb works nicely fixes the corruption issue but does not scale with huge log files
+#- it would seem the conversation logic is working however the server side is dropping
+#  events received that omit the signature (oh no!)
+#- could restore the loading logic with the buffer and try and simulate the failure again
+#  (perhaps reloading the load file on failure will fix it meaning its an accounting issue?)
 
 [dependencies]
 uuid = { version = "0.8.*", features = ["serde", "v4"] }
