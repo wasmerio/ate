@@ -211,21 +211,22 @@ impl<'a> Chain
         };
 
         // If we are to compact the log on bootstrap then do so
+        debug!("compact-now: {}", compact_bootstrap);
         if compact_bootstrap {
             chain.compact().await?;
         }
 
-        // Output the compaction mode
-        #[cfg(feature = "verbose")]
-        debug!("compact-mode: {}", builder.cfg.compact_mode);
-
         // Start the compactor worker thread on the chain
         if builder.cfg.compact_mode != CompactMode::Never {
+            debug!("compact-mode-on: {}", builder.cfg.compact_mode);
+
             let worker_inside_async = Arc::clone(&chain.inside_async);
             let worker_inside_sync = Arc::clone(&chain.inside_sync);
             let worker_pipe = Arc::clone(&chain.pipe);
             let time = Arc::clone(&chain.time);
             tokio::task::spawn(Chain::worker_compactor(worker_inside_async, worker_inside_sync, worker_pipe, time, compact_rx));
+        } else {
+            debug!("compact-mode-off: {}", builder.cfg.compact_mode);
         }
 
         // Create the chain
