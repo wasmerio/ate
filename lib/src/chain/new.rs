@@ -100,7 +100,7 @@ impl<'a> Chain
         while let Some(result) = rx.recv().await {
             headers.push(result.header.as_header()?);
         }
-
+        
         // Join the redo log thread earlier after the events were successfully streamed in
         let redo_log = redo_log.await.unwrap()?;
 
@@ -169,7 +169,7 @@ impl<'a> Chain
                 return Err(err);
             }
         }
-
+        
         // Create the compaction state (which later we will pass to the compaction thread)
         let (compact_tx, compact_rx) = CompactState::new(compact_mode, inside_async.chain.redo.size() as u64);
 
