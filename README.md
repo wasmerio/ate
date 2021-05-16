@@ -91,37 +91,32 @@ This library is a way of working with data in modern distributed computing.
 ## Changelog
 
 ```
-0.6.0  -= Group access rights =-
-       + Authentication server now has full group membership support with various
-         roles and permission functionality - see auth-tools for details!
-       + AteFS now mirrors the chain-of-trust permissions and encryption keys with
-         the 'chmod' linux permissions allowing users to easily protect their data
-         but share securely with others
-       + Lists files and folders should ignore those that you do not have access to
-         rather than throwing an error, this means you can partially access file
-         systems you only have moderate access to.
-       + File-systems should record the correct uid and gid within ATE but change it
-         to the actual user when mounted if it matches. Using the chown command
-         should allow the object to be given to other users and other groups.
+0.7.0  -= Compacting Chains =-
+
+       + ATE now fully supports compacting chains - compacting chains works both
+         client side and server side completely independently which allows either
+         the server or client to compress down redo-logs by removing all duplicate
+         events and anything that has been tombstoned (a bit like Kafka compacting
+         topics do but with more inteligence in the process)
+       + Made the local file storage of redo logs optional rather than mandatory
+         thus uses of ATE can now run entirely in memory (this is in preparation
+         for refactoring ATE for use in WebAssembly)
+       + Chain history now uses the NTP clock for building its timelines thus
+         with a bit of tolerance added into the mix it becomes possible to make
+         a more stand sync process between multiple clients and servers
        
        -= Bug Fixes =-
-       + Changing the access rights from a private group to everyone should then
-         allow the data to be read by everyone without having to resave all the data.
-         Effectively this is automatic key-rotation.
-       + When attempting to access a group that is not this group AteFS will now
-         automatically gather the permissions it needs from the authentication server.
-       + Modified files no longer show zeros at the end of the file without actually
-         writing the data itself.
-       + Changing the permissions on a parent was not reflected in the children as inherited
-         rows that are encrypted did not automatically gain the new keys of the parent. Will
-         need to store a read-key in the parent which the children use when they are in
-         inheritance mode
-       + Fixed a bug where files opened with truncate flag were not actually truncating
-       + Fixed a major bug where parents were not inheriting permissions properly when the
-         parent tree exceeded 1 levels in the chain-of-trust.
-       + Fixed a major bug which was causing events to be sent to all other connections on
-         the ATE servers even if they were for other chains!
-<=0.5.0 See commit history
+
+       + Fixed a bug where connections were left open even when the chains went out
+         of scope (e.g. short commands)
+       + Fixed a major bug where the redo-logs would become corrupted in specific
+         scenarios where the log is reloaded but the offsets were not updated.
+       + Fixed various other minor bugs
+       + Fixed a security flaw in the events streamed from the servers which
+         included the computed hash for the data however this needs to be recomputed
+         in case someone tries to spoof the event.
+
+<=0.6.0 See commit history
 ```
 
 ## High Level Design

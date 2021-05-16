@@ -3,7 +3,7 @@ use clap::Clap;
 use url::Url;
 
 #[derive(Clap)]
-#[clap(version = "0.1", author = "John S. <johnathan.sharratt@gmail.com>")]
+#[clap(version = "1.5", author = "John S. <johnathan.sharratt@gmail.com>")]
 pub struct Opts {
     /// Sets the level of log verbosity, can be used multiple times
     #[clap(short, long, parse(from_occurrences))]

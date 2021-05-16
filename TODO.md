@@ -1,10 +1,4 @@
 ```
-0.6.1   Compacting chains
-        + AteDb should periodically compact itself without breaking things
-        + Events that are streamed to a compacted chain that predate the
-          compaction should be dropped.
-        + Deleting all the entries in a chain should also destroy the chain
-
 0.6.2   Linked File-System
         + Any folder created within AteFS should be able to 'link' with another
           file-system using the 'atefs link {remote}' commands.
@@ -109,6 +103,8 @@
 
 parked
 ======
+
+        + Deleting all the entries in a chain should also destroy the chain
 
 ate-2.0
 =======

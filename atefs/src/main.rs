@@ -32,7 +32,7 @@ use fuse3::{MountOptions};
 use clap::Clap;
 
 #[derive(Clap)]
-#[clap(version = "1.3", author = "John S. <johnathan.sharratt@gmail.com>")]
+#[clap(version = "1.6", author = "John S. <johnathan.sharratt@gmail.com>")]
 struct Opts {
     /// Sets the level of log verbosity, can be used multiple times
     #[allow(dead_code)]
@@ -106,7 +106,7 @@ struct Mount {
     /// If this URL is not specified then data will only be stored locally
     #[clap(index=2)]
     remote: Option<Url>,
-    /// Location of the persistent redo log (e.g. ~/ate/fs)
+    /// (Optional) Location of the local persistent redo log (e.g. ~/ate/fs)
     #[clap(index=3)]
     log_path: Option<String>,
     /// Determines how the file-system will react while it is nominal and when it is
@@ -167,7 +167,7 @@ struct Mount {
     /// Time in seconds between compactions of the log file (default: 1 hour) - this argument is ignored if you select a compact_mode that has no timer
     #[clap(long, default_value = "3600")]
     compact_timer: u64,
-    /// Factor growth in the log file which will trigger compaction (default: 0.2) - this argument is ignored if you select a compact_mode that has no growth trigger
+    /// Factor growth in the log file which will trigger compaction - this argument is ignored if you select a compact_mode that has no growth trigger
     #[clap(long, default_value = "0.4")]
     compact_threshold_factor: f32,
     /// Size of growth in bytes in the log file which will trigger compaction (default: 100MB) - this argument is ignored if you select a compact_mode that has no growth trigger

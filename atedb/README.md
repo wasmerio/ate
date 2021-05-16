@@ -175,8 +175,9 @@ SUBCOMMANDS:
     help    Prints this message or the help of the given subcommand(s)
     solo    Runs a solo ATE database and listens for connections from clients
 
+--------------------------------------------------------------------------
 
-
+Runs a solo ATE database and listens for connections from clients
 
 USAGE:
     atedb solo [OPTIONS] [logs-path]
@@ -190,8 +191,31 @@ FLAGS:
     -V, --version    Prints version information
 
 OPTIONS:
-    -l, --listen <listen>    IP address that the database server will isten on [default: 0.0.0.0]
-    -p, --port <port>        Port that the database server will listen on [default: 5000]
+        --compact-mode <compact-mode>
+            Mode that the compaction will run under (valid modes are 'never', 'modified', 'timer',
+            'factor', 'size', 'factor-or-timer', 'size-or-timer') [default: growth-or-timer]
+
+        --compact-threshold-factor <compact-threshold-factor>
+            Factor growth in the log file which will trigger compaction - this
+            argument is ignored if you select a compact_mode that has no growth trigger [default:
+            0.4]
+
+        --compact-threshold-size <compact-threshold-size>
+            Size of growth in bytes in the log file which will trigger compaction (default: 100MB) -
+            this argument is ignored if you select a compact_mode that has no growth trigger
+            [default: 104857600]
+
+        --compact-timer <compact-timer>
+            Time in seconds between compactions of the log file (default: 1 hour) - this argument is
+            ignored if you select a compact_mode that has no timer [default: 3600]
+
+    -l, --listen <listen>
+            IP address that the database server will isten on [default: 0.0.0.0]
+
+    -p, --port <port>
+            Port that the database server will listen on [default: 5000]
+
+
 ```
 
 ## Contribution

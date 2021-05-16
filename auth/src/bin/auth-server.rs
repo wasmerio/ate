@@ -7,7 +7,7 @@ use clap::Clap;
 use std::fs::File;
 
 #[derive(Clap)]
-#[clap(version = "0.1", author = "John S. <johnathan.sharratt@gmail.com>")]
+#[clap(version = "1.5", author = "John S. <johnathan.sharratt@gmail.com>")]
 struct Opts {
     /// Sets the level of log verbosity, can be used multiple times
     #[clap(short, long, parse(from_occurrences))]

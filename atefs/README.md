@@ -192,11 +192,13 @@ ARGS:
     <remote>        URL where the data is remotely stored on a distributed commit log (e.g.
                     tcp://ate.tokera.com/). If this URL is not specified then data will only be
                     stored locally
-    <log-path>      Location of the persistent redo log [default: ~/ate/fs]
+    <log-path>      (Optional) Location of the local persistent redo log (e.g. ~/ate/fs)
 
 FLAGS:
         --allow-other        Allow other users on the machine to have access to this file system
         --allow-root         Allow the root user to have access to this file system
+        --compact-now        Forces the compaction of the local redo-log before it streams in the
+                             latest values
     -h, --help               Prints help information
     -i, --impersonate-uid    For files and directories that the authenticated user owns, translate
                              the UID and GID to the local machine ids instead of the global ones
@@ -212,6 +214,24 @@ FLAGS:
     -w, --write-back         Enable write back cache for buffered writes, default is disable
 
 OPTIONS:
+        --compact-mode <compact-mode>
+            Mode that the compaction will run under (valid modes are 'never', 'modified', 'timer',
+            'factor', 'size', 'factor-or-timer', 'size-or-timer') [default: factor-or-timer]
+
+        --compact-threshold-factor <compact-threshold-factor>
+            Factor growth in the log file which will trigger compaction - this
+            argument is ignored if you select a compact_mode that has no growth trigger [default:
+            0.4]
+
+        --compact-threshold-size <compact-threshold-size>
+            Size of growth in bytes in the log file which will trigger compaction (default: 100MB) -
+            this argument is ignored if you select a compact_mode that has no growth trigger
+            [default: 104857600]
+
+        --compact-timer <compact-timer>
+            Time in seconds between compactions of the log file (default: 1 hour) - this argument is
+            ignored if you select a compact_mode that has no timer [default: 3600]
+
         --configured-for <configured-for>
             Configure the log file for <raw>, <barebone>, <speed>, <compatibility>, <balanced> or
             <security> [default: speed]
@@ -239,6 +259,7 @@ OPTIONS:
 
     -u, --uid <uid>
             UID of the user that this file system will be mounted as
+
 ```
 
 ## Contribution
