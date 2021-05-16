@@ -20,7 +20,7 @@ impl Drop
 for Upstream
 {
     fn drop(&mut self) {
-        self.terminate.send(true);
+        let _ = self.terminate.send(true);
     }
 }
 
