@@ -6,7 +6,7 @@ use std::time::Duration;
 /// of states has been reached.
 
 // Specifies when a compaction event on a chain will occur.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CompactMode
 {
     // Compaction will never occur which effectivily means this chain is immutable

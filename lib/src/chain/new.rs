@@ -60,10 +60,12 @@ impl<'a> Chain
         
         // Create a redo log loader which will listen to all the events as they are
         // streamed in and extract the event headers
+        #[cfg(feature = "local_fs")]
         let (loader, mut rx) = RedoLogLoader::new();
 
         // We create a composite loader that includes any user defined loader
         let mut composite_loader = Box::new(crate::loader::CompositionLoader::default());
+        #[cfg(feature = "local_fs")]
         composite_loader.loaders.push(loader);
         if let Some(a) = extra_loader {
             composite_loader.loaders.push(a);
@@ -92,7 +94,9 @@ impl<'a> Chain
         
         // While the events are streamed in we build a list of all the event headers
         // but we strip off the data itself
+        #[allow(unused_mut)]
         let mut headers = Vec::new();
+        #[cfg(feature = "local_fs")]
         while let Some(result) = rx.recv().await {
             headers.push(result.header.as_header()?);
         }
@@ -203,11 +207,13 @@ impl<'a> Chain
         }
 
         // Start the compactor worker thread on the chain
-        let worker_inside_async = Arc::clone(&chain.inside_async);
-        let worker_inside_sync = Arc::clone(&chain.inside_sync);
-        let worker_pipe = Arc::clone(&chain.pipe);
-        let time = Arc::clone(&chain.time);
-        tokio::task::spawn(Chain::worker_compactor(worker_inside_async, worker_inside_sync, worker_pipe, time, compact_rx));
+        if builder.cfg.compact_mode != CompactMode::Never {
+            let worker_inside_async = Arc::clone(&chain.inside_async);
+            let worker_inside_sync = Arc::clone(&chain.inside_sync);
+            let worker_pipe = Arc::clone(&chain.pipe);
+            let time = Arc::clone(&chain.time);
+            tokio::task::spawn(Chain::worker_compactor(worker_inside_async, worker_inside_sync, worker_pipe, time, compact_rx));
+        }
 
         // Create the chain
         Ok(

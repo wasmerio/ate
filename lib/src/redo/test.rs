@@ -184,12 +184,17 @@ fn test_redo_log() {
             // Write some data to the redo log and the backing redo log
             println!("test_redo_log - writing test data to log - blah7");
             let halb7 = test_write_data(&mut rl, blah7, Some(vec![7; 10]), true, mock_cfg.log_format).await;
+
+            #[cfg(feature = "local_fs")]
             assert_eq!(5, rl.count());
+            #[cfg(not(feature = "local_fs"))]
+            assert_eq!(1, rl.count());
     
             // Read the test data again
             println!("test_redo_log - testing read result of blah7");
             test_read_data(&mut rl, halb7, blah7, Some(vec![7; 10]), mock_cfg.log_format).await;
             println!("test_redo_log - confirming no more data");
+            #[cfg(feature = "local_fs")]
             assert_eq!(5, rl.count());
 
             rl.destroy().unwrap();
