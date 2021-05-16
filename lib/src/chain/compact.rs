@@ -94,8 +94,11 @@ impl<'a> Chain
                 .collect::<Vec<_>>();
             let total = headers.len() as u64;
 
-            #[cfg(feature = "verbose")]
+            #[cfg(feature = "super_verbose")]
             {
+                debug!("step-p");
+                headers.iter().for_each(|a| debug!("=> [{}]", a.0.meta));
+
                 debug!("step0");
                 headers.iter().for_each(|a| debug!("[{}]->{}", a.1, a.0.raw.event_hash));
             }
@@ -132,7 +135,7 @@ impl<'a> Chain
                     }
                 }
 
-                #[cfg(feature = "verbose")]
+                #[cfg(feature = "super_verbose")]
                 {
                     debug!("step3");
                     headers.iter().for_each(|a| debug!("[{}]->{}", a.1, a.0.raw.event_hash));
@@ -181,7 +184,7 @@ impl<'a> Chain
                 }
             }
 
-            #[cfg(feature = "verbose")]
+            #[cfg(feature = "super_verbose")]
             {
                 debug!("step5");
                 headers.iter().for_each(|a| debug!("[{}]->{}", a.1, a.0.raw.event_hash));

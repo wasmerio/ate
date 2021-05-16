@@ -73,10 +73,8 @@ for RemoveDuplicatesCompactor
 
         if keep {
             self.keep.insert(header.raw.event_hash);
-            self.drop.remove(&header.raw.event_hash);
         } else {
             self.drop.insert(header.raw.event_hash);
-            self.keep.remove(&header.raw.event_hash);
         }
     }
 
