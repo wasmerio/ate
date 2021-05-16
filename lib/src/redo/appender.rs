@@ -53,6 +53,9 @@ impl LogAppender
         // If it does not have a magic then add one - otherwise read it and check the value
         appender.header = RedoHeader::load(&mut appender, header_bytes).await?;
         appender.flush().await?;
+
+        // Seek to the end of the appender
+        appender.seek_to_end().await?;
         
         // Create the archive
         let archive = LogArchive::new(path_log, index).await?;
@@ -118,6 +121,18 @@ impl LogAppender
     {
         #[cfg(feature = "buffered")]
         self.stream.flush().await?;
+        Ok(())
+    }
+
+    pub(super) async fn seek_to_end(&mut self) -> Result<()>
+    {
+        #[cfg(feature = "buffered")]
+        self.stream.flush().await?;
+        self.offset = self.file.seek(SeekFrom::End(0)).await?;
+        #[cfg(feature = "buffered")]
+        {
+            self.stream = BufStream::new(self.file.try_clone().await?);
+        }
         Ok(())
     }
 }

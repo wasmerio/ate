@@ -161,6 +161,12 @@ impl<'a> Chain
             }
         }
 
+        // Check all the process events
+        #[cfg(feature = "verbose")]
+        for a in inside_async.chain.timeline.history.iter() {
+            debug!("loaded: {}", a.1.event_hash);
+        }
+
         // Create the compaction state (which later we will pass to the compaction thread)
         let (compact_tx, compact_rx) = CompactState::new(compact_mode, inside_async.chain.redo.size() as u64);
 

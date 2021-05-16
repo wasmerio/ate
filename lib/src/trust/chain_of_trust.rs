@@ -19,7 +19,11 @@ pub(crate) struct ChainOfTrust
 
 impl<'a> ChainOfTrust
 {
-    pub(crate) async fn load(&self, leaf: EventLeaf) -> Result<LoadResult, LoadError> {
+    pub(crate) async fn load(&self, leaf: EventLeaf) -> Result<LoadResult, LoadError>
+    {
+        #[cfg(feature = "verbose")]
+        debug!("loading: {}", leaf.record);
+        
         let data = self.redo.load(leaf.record.clone()).await?;
         Ok(LoadResult {
             lookup: data.lookup,
