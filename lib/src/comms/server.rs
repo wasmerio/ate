@@ -107,7 +107,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
             let wire_encryption = match super::hello::mesh_hello_exchange_receiver(&mut stream, wire_encryption, wire_format).await {
                 Ok(a) => a,
                 Err(err) => {
-                    warn!("connection-failed: {}", err.to_string());
+                    warn!("connection-failed: {} - say-hello", err.to_string());
                     continue;
                 }
             };
@@ -118,7 +118,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                     match key_exchange::mesh_key_exchange_receiver(&mut stream, key_size).await {
                         Ok(a) => a,
                         Err(err) => {
-                            warn!("connection-failed: {}", err.to_string());
+                            warn!("connection-failed: {} - exchange-secrets", err.to_string());
                             continue;
                         }
                     }),
@@ -146,7 +146,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                     Ok(_) => { },
                     Err(CommsError::IO(err)) if err.kind() == std::io::ErrorKind::UnexpectedEof => { },
                     Err(err) => {
-                        warn!("connection-failed: {}", err.to_string());
+                        warn!("connection-failed: {} - inbox", err.to_string());
                     },
                 };
                 info!("disconnected: {}", sock_addr.to_string());
@@ -163,7 +163,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                 match process_outbox::<M>(tx, reply_rx, sender, ek2, worker_terminate_rx).await {
                     Ok(_) => { },
                     Err(err) => {
-                        warn!("connection-failed: {}", err.to_string());
+                        warn!("connection-failed: {} - outbox", err.to_string());
                     },
                 };
                 let _ = worker_terminate_tx.send(true);
@@ -177,7 +177,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                 match process_downcast::<M, C>(reply_tx2, worker_outbox, sender, worker_context, worker_terminate_rx).await {
                     Ok(_) => { },
                     Err(err) => {
-                        warn!("connection-failed: {}", err.to_string());
+                        warn!("connection-failed: {} - downcast", err.to_string());
                     },
                 };
                 let _ = worker_terminate_tx.send(true);

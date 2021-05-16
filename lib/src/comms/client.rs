@@ -183,7 +183,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                     None
                 },
             };
-            #[cfg(feature = "verbose")]
+            //#[cfg(feature = "verbose")]
             debug!("disconnected-outbox: {}", addr.to_string());
             let _ = worker_terminate_tx.send(true);
             ret
@@ -206,7 +206,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                     warn!("connection-failed: {}", err.to_string());
                 },
             };
-            #[cfg(feature = "verbose")]
+            //#[cfg(feature = "verbose")]
             debug!("disconnected-inbox: {}", addr.to_string());
             let _ = worker_terminate_tx.send(true);
 
