@@ -235,6 +235,7 @@ for RecoverableSessionPipe
         // Spawn a thread that will process new inbox messages
         let (status_tx, status_rx) = mpsc::channel(1);
         {
+            let _addr = self.addr.clone();
             let session = Arc::clone(&session);
             let loader = Some(Box::new(composite_loader));
             tokio::spawn(
@@ -247,7 +248,7 @@ for RecoverableSessionPipe
                         loader
                     ).await;
 
-                    info!("disconnected: {}", self.addr);
+                    info!("disconnected: {}", _addr);
 
                     // We should only get here if the inbound connection is shutdown or fails
                     let _ = status_tx.send(ConnectionStatusChange::Disconnected).await;
