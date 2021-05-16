@@ -151,6 +151,15 @@ impl RecoverableSessionPipe
     }
 }
 
+impl Drop
+for RecoverableSessionPipe
+{
+    fn drop(&mut self)
+    {
+        debug!("drop {} @ {}", self.key.to_string(), self.addr);
+    }
+}
+
 #[async_trait]
 impl EventPipe
 for RecoverableSessionPipe

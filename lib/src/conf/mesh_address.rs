@@ -34,3 +34,10 @@ impl MeshAddress
         }
     }
 }
+
+impl std::fmt::Display
+for MeshAddress {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{}:{}", self.ip, self.port)
+    }
+}
