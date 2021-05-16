@@ -247,6 +247,8 @@ for RecoverableSessionPipe
                         loader
                     ).await;
 
+                    info!("disconnected: {}", self.addr);
+
                     // We should only get here if the inbound connection is shutdown or fails
                     let _ = status_tx.send(ConnectionStatusChange::Disconnected).await;
                 }
