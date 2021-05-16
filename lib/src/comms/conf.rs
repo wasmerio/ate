@@ -13,6 +13,15 @@ pub(crate) struct Upstream
 {
     pub id: u64,
     pub outbox: mpsc::Sender<PacketData>,
+    pub terminate: tokio::sync::broadcast::Sender<bool>,
+}
+
+impl Drop
+for Upstream
+{
+    fn drop(&mut self) {
+        self.terminate.send(true);
+    }
 }
 
 #[derive(Debug)]

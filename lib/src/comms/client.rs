@@ -80,7 +80,8 @@ pub(super) async fn mesh_connect_to<M, C>
     buffer_size: usize,
     state: Arc<StdMutex<NodeState>>,
     wire_encryption: Option<KeySize>,
-) -> Upstream
+)
+-> Upstream
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
       C: Send + Sync + Default + 'static,
 {
@@ -88,9 +89,11 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
     let reply_tx: mpsc::Sender<PacketData> = reply_tx;
     let reply_rx: mpsc::Receiver<PacketData> = reply_rx;
     let reply_tx0 = reply_tx.clone();
+    let (terminate_tx, _) = tokio::sync::broadcast::channel::<bool>(1);
 
     let sender = fastrand::u64(..);
     
+    let worker_terminate_tx = terminate_tx.clone();
     tokio::task::spawn(
         mesh_connect_worker::<M, C>
         (
@@ -98,6 +101,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
             domain,
             reply_rx,
             reply_tx,
+            worker_terminate_tx,
             inbox,
             sender,
             on_connect,
@@ -109,6 +113,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
     Upstream {
         id: sender,
         outbox: reply_tx0,
+        terminate: terminate_tx,
     }
 }
 
@@ -118,6 +123,7 @@ async fn mesh_connect_worker<M, C>
     domain: Option<String>,
     reply_rx: mpsc::Receiver<PacketData>,
     reply_tx: mpsc::Sender<PacketData>,
+    terminate_tx: tokio::sync::broadcast::Sender<bool>,
     inbox: mpsc::Sender<PacketWithContext<M, C>>,
     sender: u64,
     on_connect: Option<M>,
@@ -171,7 +177,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         let (rx, tx) = stream.into_split();
 
         let reply_tx1 = reply_tx.clone();
-        let (terminate_tx, _) = tokio::sync::broadcast::channel::<bool>(1);
         
         let worker_terminate_tx = terminate_tx.clone();
         let worker_terminate_rx = terminate_tx.subscribe();
@@ -183,8 +188,10 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                     None
                 },
             };
-            //#[cfg(feature = "verbose")]
+            
+            #[cfg(feature = "verbose")]
             debug!("disconnected-outbox: {}", addr.to_string());
+            
             let _ = worker_terminate_tx.send(true);
             ret
         });

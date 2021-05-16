@@ -147,7 +147,7 @@ where C: Send + Sync
 {
     fn drop(&mut self)
     {
-        //#[cfg(feature = "super_verbose")]
+        #[cfg(feature = "super_verbose")]
         debug!("drop");
     }
 }
