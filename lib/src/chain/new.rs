@@ -220,6 +220,12 @@ impl<'a> Chain
         if builder.cfg.compact_mode != CompactMode::Never {
             debug!("compact-mode-on: {}", builder.cfg.compact_mode);
 
+            #[cfg(feature = "verbose")]
+            {
+                let bt = backtrace::Backtrace::new();
+                debug!("{:?}", bt);
+            }
+
             let worker_inside_async = Arc::clone(&chain.inside_async);
             let worker_inside_sync = Arc::clone(&chain.inside_sync);
             let worker_pipe = Arc::clone(&chain.pipe);
