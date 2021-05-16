@@ -21,7 +21,7 @@ buffered = []
 local_fs = []
 rotate = []
 caching = []
-all = [ "basics", "buffered", "local_fs", "rotate", "caching" ]
+all = [ "basics", "buffered", "local_fs", "rotate", "caching", "verbose" ]
 #all = [ "basics", "buffered", "local_fs", "rotate", "verbose" ]
 
 #- memdb works nicely fixes the corruption issue but does not scale with huge log files
