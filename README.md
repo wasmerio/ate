@@ -97,24 +97,24 @@ This library is a way of working with data in modern distributed computing.
          client side and server side completely independently which allows either
          the server or client to compress down redo-logs by removing all duplicate
          events and anything that has been tombstoned (a bit like Kafka compacting
-         topics do but with more inteligence in the process)
+         topics does but with more intelligence in the process - e.g. validators)
        + Made the local file storage of redo logs optional rather than mandatory
-         thus uses of ATE can now run entirely in memory (this is in preparation
+         thus users of ATE can now run entirely in memory (this is in preparation
          for refactoring ATE for use in WebAssembly)
        + Chain history now uses the NTP clock for building its timelines thus
          with a bit of tolerance added into the mix it becomes possible to make
-         a more stand sync process between multiple clients and servers
+         a more stable sync process between multiple clients and servers
        
        -= Bug Fixes =-
 
        + Fixed a bug where connections were left open even when the chains went out
-         of scope (e.g. short commands)
+         of scope (e.g. short commands) - this was leaking thus hurted stability
        + Fixed a major bug where the redo-logs would become corrupted in specific
          scenarios where the log is reloaded but the offsets were not updated.
-       + Fixed various other minor bugs
        + Fixed a security flaw in the events streamed from the servers which
          included the computed hash for the data however this needs to be recomputed
-         in case someone tries to spoof the event.
+         client-side in case someone tries to spoof the event.
+       + Fixed various other minor bugs
 
 <=0.6.0 See commit history
 ```
