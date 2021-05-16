@@ -176,3 +176,13 @@ impl ActiveSessionPipe
         Some(Arc::clone(&self.outbound_conversation))
     }
 }
+
+impl Drop
+for ActiveSessionPipe
+{
+    fn drop(&mut self)
+    {
+        //#[cfg(feature = "verbose")]
+        debug!("drop {}", self.key.to_string());
+    }
+}

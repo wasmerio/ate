@@ -156,6 +156,7 @@ for RecoverableSessionPipe
 {
     fn drop(&mut self)
     {
+        #[cfg(feature = "verbose")]
         debug!("drop {} @ {}", self.key.to_string(), self.addr);
     }
 }
