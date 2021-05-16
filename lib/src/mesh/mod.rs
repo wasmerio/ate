@@ -9,6 +9,9 @@ mod client;
 mod session;
 mod registry;
 mod test;
+mod lock_request;
+mod recoverable_session_pipe;
+mod active_session_pipe;
 
 use async_trait::async_trait;
 use serde::{Serialize, Deserialize};

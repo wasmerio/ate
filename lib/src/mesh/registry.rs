@@ -132,7 +132,7 @@ pub struct Registry
     cfg_ate: ConfAte,
     dns: Mutex<DnsClient>,
     temporal: bool,
-    chains: Mutex<FxHashMap<String, Weak<MeshClient>>>,
+    chains: Mutex<FxHashMap<String, Arc<MeshClient>>>,
 }
 
 impl Registry
@@ -162,14 +162,14 @@ impl Registry
         };
 
         let key = ChainKey::from_url(&url);
-        match lock.get(&domain).map(|a| Weak::upgrade(a)) {
-            Some(Some(a)) => {
+        match lock.get(&domain) {
+            Some(a) => {
                 Ok(a.open_ext(&key, Some(domain), loader_local, loader_remote).await?)
             },
-            _ => {
+            None => {
                 let cfg_mesh = self.cfg(url).await?;
                 let mesh = create_client(&self.cfg_ate, &cfg_mesh, self.temporal).await;
-                lock.insert(domain.clone(), Arc::downgrade(&mesh));
+                lock.insert(domain.clone(), Arc::clone(&mesh));
                 Ok(mesh.open_ext(&key, Some(domain), loader_local, loader_remote).await?)
             }
         }
