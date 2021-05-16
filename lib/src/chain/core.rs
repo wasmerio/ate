@@ -117,6 +117,15 @@ impl<'a> Chain
     }
 }
 
+impl Drop
+for Chain
+{
+    fn drop(&mut self)
+    {
+        debug!("drop {}", self.key.to_string());
+    }
+}
+
 impl RedoLog
 {
     pub(crate) fn read_chain_header(&self) -> Result<ChainHeader, SerializationError>
