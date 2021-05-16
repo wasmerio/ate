@@ -6,8 +6,12 @@ use std::{net::IpAddr, str::FromStr};
 use super::*;
 
 pub(crate) fn mock_test_config() -> ConfAte {
+    #[allow(unused_mut)]
     let mut ret = ConfAte::default();
-    ret.log_path = "/tmp/ate".to_string();
+    #[cfg(feature = "local_fs")]
+    {
+        ret.log_path = "/tmp/ate".to_string();
+    }
     return ret;
 }
 

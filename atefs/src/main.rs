@@ -107,7 +107,9 @@ struct Mount {
     #[clap(index=2)]
     remote: Option<Url>,
     /// Location of the persistent redo log
-    #[clap(index=3, default_value = "~/ate/fs")]
+    #[cfg_attr(feature = "local_fs", clap(index=3, default_value = "~/ate/fs"))]
+    #[cfg_attr(not(feature = "local_fs"), clap(long = "_unused_logs_path", hidden = true, default_value = "/_unused_path/"))]
+    #[allow(dead_code)]
     log_path: String,
     /// Determines how the file-system will react while it is nominal and when it is
     /// recovering from a communication failure (valid options are 'async', 'readonly-async',
@@ -216,7 +218,10 @@ async fn main_mount(mount: Mount, conf: ConfAte, group: Option<String>, session:
     conf.configured_for(mount.configured_for);
     conf.log_format.meta = mount.meta_format;
     conf.log_format.data = mount.data_format;
-    conf.log_path = shellexpand::tilde(&mount.log_path).to_string();
+    #[cfg(feature = "local_fs")]
+    {
+        conf.log_path = shellexpand::tilde(&mount.log_path).to_string();
+    }
     conf.recovery_mode = mount.recovery_mode;
     conf.compact_bootstrap = mount.compact_now;
     conf.compact_mode = mount.compact_mode
@@ -227,6 +232,7 @@ async fn main_mount(mount: Mount, conf: ConfAte, group: Option<String>, session:
     info!("configured_for: {:?}", mount.configured_for);
     info!("meta_format: {:?}", mount.meta_format);
     info!("data_format: {:?}", mount.data_format);
+    #[cfg(feature = "local_fs")]
     info!("log_path: {}", conf.log_path);
     info!("log_temp: {}", mount.temp);
     info!("mount_path: {}", mount.mount_path);

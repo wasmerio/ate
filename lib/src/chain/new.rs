@@ -49,6 +49,7 @@ impl<'a> Chain
     ) -> Result<Chain, ChainCreationError>
     {
         // Compute the open flags
+        #[cfg(feature = "local_fs")]
         let flags = OpenFlags {
             truncate: builder.truncate,
             temporal: builder.temporal,
@@ -74,11 +75,18 @@ impl<'a> Chain
         
         // Create the redo log itself which will open the files and stream in the events
         // in a background thread
+        #[cfg(feature = "local_fs")]
         let redo_log = {
             let key = key.clone();
             let builder = builder.clone();
             tokio::spawn(async move {
                 RedoLog::open_ext(&builder.cfg, &key, flags, composite_loader, header_bytes).await
+            })
+        };
+        #[cfg(not(feature = "local_fs"))]
+        let redo_log = {
+            tokio::spawn(async move {
+                RedoLog::open(header_bytes).await
             })
         };
         

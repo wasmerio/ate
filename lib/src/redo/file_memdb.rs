@@ -12,8 +12,6 @@ use crate::loader::*;
 
 pub(super) struct LogFile
 {
-    pub(crate) path: String,
-    pub(crate) temp: bool,
     pub(crate) offset: u64,
     pub(crate) lookup: FxHashMap<AteHash, LogLookup>,
     pub(crate) memdb: FxHashMap<LogLookup, LogEntry>,
@@ -22,12 +20,10 @@ pub(super) struct LogFile
 
 impl LogFile
 {
-    pub(super) async fn new(temp_file: bool, path_log: String, _truncate: bool, _cache_size: usize, _cache_ttl: u64, header_bytes: Vec<u8>) -> Result<LogFile>
+    pub(super) async fn new(header_bytes: Vec<u8>) -> Result<LogFile>
     {
         // Log file
         let ret = LogFile {
-            path: path_log,
-            temp: temp_file,
             offset: 0u64,
             lookup: FxHashMap::default(),
             memdb: FxHashMap::default(),
@@ -47,8 +43,6 @@ impl LogFile
     {
         Ok(
             LogFile {
-                path: self.path.clone(),
-                temp: self.temp,
                 offset: self.offset,
                 lookup: self.lookup.clone(),
                 memdb: self.memdb.clone(),
@@ -170,12 +164,6 @@ impl LogFile
         Ok(
             ret
         )
-    }
-
-    pub(super) fn move_log_file(&mut self, new_path: &String) -> Result<()>
-    {
-        self.path = new_path.clone();
-        Ok(())
     }
 
     pub(super) async fn flush(&mut self) -> Result<()>

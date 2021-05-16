@@ -10,8 +10,14 @@ categories = ["database", "cryptography", "database-implementations", "asynchron
 repository = "https://github.com/john-sharratt/ate/atedb"
 readme = "README.md"
 
+[features]
+#default = [ "all" ]
+default = []
+local_fs = [ "ate/local_fs" ]
+all = [ "local_fs" ]
+
 [dependencies]
-ate = { version = "0.6.*", path = "../lib" }
+ate = { version = "0.6.*", default-features = false, path = "../lib", features = [ "basics" ] }
 ate-auth = { version = "1.4.*", path = "../auth" }
 tokio = { version = "1.3.*", features = ["full", "signal", "process"] }
 serde = { version = "1.0.*", features = ["derive"] }

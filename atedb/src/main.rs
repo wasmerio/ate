@@ -69,7 +69,9 @@ enum SubCommand {
 #[derive(Clap)]
 struct Solo {
     /// Path to the log files where all the file system data is stored
-    #[clap(index = 1, default_value = "/opt/ate")]
+    #[cfg_attr(feature = "local_fs", clap(index = 1, default_value = "/opt/ate"))]
+    #[cfg_attr(not(feature = "local_fs"), clap(long = "_unused_logs_path", hidden = true, default_value = "/_unused_path/"))]
+    #[allow(dead_code)]
     logs_path: String,
     /// IP address that the database server will isten on
     #[clap(short, long, default_value = "0.0.0.0")]
@@ -147,7 +149,10 @@ async fn main() -> Result<(), AteError> {
 async fn main_solo(solo: Solo, mut cfg_ate: ConfAte, auth: Option<url::Url>, trust: TrustMode) -> Result<(), AteError>
 {
     // Create the chain flow and generate configuration
-    cfg_ate.log_path = shellexpand::tilde(&solo.logs_path).to_string();
+    #[cfg(feature = "local_fs")]
+    {
+        cfg_ate.log_path = shellexpand::tilde(&solo.logs_path).to_string();
+    }
     cfg_ate.compact_mode = solo.compact_mode
         .with_growth_factor(solo.compact_threshold_factor)
         .with_growth_size(solo.compact_threshold_size)

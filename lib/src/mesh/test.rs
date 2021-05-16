@@ -38,11 +38,16 @@ async fn test_mesh()
         let mut mesh_root_joins = Vec::new();
 
         // Create the first cluster of mesh root nodes
+        #[allow(unused_variables)]
         let mut index = 0;
         for n in (5100+port_offset)..(5105+port_offset) {
             let addr = MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n);
+            #[allow(unused_mut)]
             let mut cfg_ate = cfg_ate.clone();
-            cfg_ate.log_path = format!("{}/p{}", cfg_ate.log_path, index);
+            #[cfg(feature = "local_fs")]
+            {
+                cfg_ate.log_path = format!("{}/p{}", cfg_ate.log_path, index);
+            }
             let mut cfg_mesh = cfg_mesh.clone();
             cfg_mesh.force_listen = Some(addr.clone());
 

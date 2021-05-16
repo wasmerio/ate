@@ -13,6 +13,7 @@ use crate::spec::*;
 
 use super::api::LogWritable;
 use super::core::RedoLog;
+#[cfg(feature = "local_fs")]
 use super::flags::OpenFlags;
 
 /* 
@@ -83,13 +84,17 @@ fn test_redo_log() {
 
     rt.block_on(async {
         let mock_cfg = crate::conf::tests::mock_test_config();
+        #[allow(unused_variables)]
         let mock_chain_key = ChainKey::default()
             .with_temp_name("test_redo".to_string());
             
         {
             // Open the log once for writing
             println!("test_redo_log - creating the redo log");
+            #[cfg(feature = "local_fs")]
             let (mut rl, _) = RedoLog::open(&mock_cfg, &mock_chain_key, OpenFlags::create_centralized(), Vec::new()).await.expect("Failed to load the redo log");
+            #[cfg(not(feature = "local_fs"))]
+            let mut rl = RedoLog::open(Vec::new()).await.expect("Failed to load the redo log");
             
             // Test that its empty
             println!("test_redo_log - confirming no more data");
@@ -156,19 +161,25 @@ fn test_redo_log() {
         {
             // Open it up again which should check that it loads data properly
             println!("test_redo_log - reopening the redo log");
+            #[cfg(feature = "local_fs")]
             let (mut rl, mut loader) = RedoLog::open(&mock_cfg, &mock_chain_key, OpenFlags::open_centralized(), Vec::new()).await.expect("Failed to load the redo log");
+            #[cfg(not(feature = "local_fs"))]
+            let mut rl = RedoLog::open(Vec::new()).await.expect("Failed to load the redo log");
             
-            // Check that the correct data is read
-            println!("test_redo_log - testing read result of blah1 (again)");
-            test_read_data(&mut rl, loader.pop_front().unwrap().header.event_hash, blah1, Some(vec![10; 10]), mock_cfg.log_format).await;
-            println!("test_redo_log - testing read result of blah4");
-            test_read_data(&mut rl, loader.pop_front().unwrap().header.event_hash, blah4, Some(vec![4; 10]), mock_cfg.log_format).await;
-            println!("test_redo_log - testing read result of blah5");
-            test_read_data(&mut rl, loader.pop_front().unwrap().header.event_hash, blah5, Some(vec![5; 10]), mock_cfg.log_format).await;
-            println!("test_redo_log - testing read result of blah6");
-            test_read_data(&mut rl, loader.pop_front().unwrap().header.event_hash, blah6, Some(vec![6; 10]), mock_cfg.log_format).await;
-            println!("test_redo_log - confirming no more data");
-            assert_eq!(loader.pop_front().is_none(), true);
+            #[cfg(feature = "local_fs")]
+            {
+                // Check that the correct data is read
+                println!("test_redo_log - testing read result of blah1 (again)");
+                test_read_data(&mut rl, loader.pop_front().unwrap().header.event_hash, blah1, Some(vec![10; 10]), mock_cfg.log_format).await;
+                println!("test_redo_log - testing read result of blah4");
+                test_read_data(&mut rl, loader.pop_front().unwrap().header.event_hash, blah4, Some(vec![4; 10]), mock_cfg.log_format).await;
+                println!("test_redo_log - testing read result of blah5");
+                test_read_data(&mut rl, loader.pop_front().unwrap().header.event_hash, blah5, Some(vec![5; 10]), mock_cfg.log_format).await;
+                println!("test_redo_log - testing read result of blah6");
+                test_read_data(&mut rl, loader.pop_front().unwrap().header.event_hash, blah6, Some(vec![6; 10]), mock_cfg.log_format).await;
+                println!("test_redo_log - confirming no more data");
+                assert_eq!(loader.pop_front().is_none(), true);
+            }
 
             // Write some data to the redo log and the backing redo log
             println!("test_redo_log - writing test data to log - blah7");

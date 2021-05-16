@@ -3,6 +3,7 @@ use log::{error, info, warn, debug};
 use async_trait::async_trait;
 #[cfg(feature = "local_fs")]
 use cached::Cached;
+#[cfg(feature = "local_fs")]
 use std::{collections::VecDeque};
 use tokio::io::Result;
 use tokio::io::Error;
@@ -11,7 +12,9 @@ use tokio::io::ErrorKind;
 #[cfg(feature = "local_fs")]
 use crate::spec::LogApi;
 use crate::{crypto::*};
+#[cfg(feature = "local_fs")]
 use crate::conf::*;
+#[cfg(feature = "local_fs")]
 use crate::chain::*;
 use crate::event::*;
 use crate::error::*;
@@ -20,14 +23,18 @@ use crate::redo::LogLookup;
 
 use super::file::LogFile;
 use super::flip::RedoLogFlip;
+#[cfg(feature = "local_fs")]
 use super::flags::OpenFlags;
 use super::flip::FlippedLogFile;
+#[cfg(feature = "local_fs")]
 use super::loader::RedoLogLoader;
 use super::api::LogWritable;
 
 pub struct RedoLog
 {
+    #[cfg(feature = "local_fs")]
     log_temp: bool,
+    #[cfg(feature = "local_fs")]
     log_path: String,
     flip: Option<RedoLogFlip>,
     pub(super) log_file: LogFile,
@@ -35,6 +42,7 @@ pub struct RedoLog
 
 impl RedoLog
 {
+    #[cfg(feature = "local_fs")]
     async fn new(path_log: String, flags: OpenFlags, cache_size: usize, cache_ttl: u64, _loader: Box<impl Loader>, header_bytes: Vec<u8>) -> std::result::Result<RedoLog, SerializationError>
     {
         // Now load the real thing
@@ -52,11 +60,19 @@ impl RedoLog
                 ).await?,
             flip: None,
         };
-        #[cfg(feature = "local_fs")]
-        {
-            let cnt = ret.log_file.read_all(_loader).await?;
-            info!("redo-log: loaded {} events from {} files", cnt, ret.log_file.archives.len());
-        }
+        let cnt = ret.log_file.read_all(_loader).await?;
+        info!("redo-log: loaded {} events from {} files", cnt, ret.log_file.archives.len());
+        Ok(ret)
+    }
+
+    #[cfg(not(feature = "local_fs"))]
+    async fn new(header_bytes: Vec<u8>) -> std::result::Result<RedoLog, SerializationError>
+    {
+        // Now load the real thing
+        let ret = RedoLog {
+            log_file: LogFile::new(header_bytes).await?,
+            flip: None,
+        };
         Ok(ret)
     }
 
@@ -64,6 +80,7 @@ impl RedoLog
         Ok(self.log_file.rotate(header_bytes).await?)
     }
 
+    #[cfg(feature = "local_fs")]
     pub async fn begin_flip(&mut self, header_bytes: Vec<u8>) -> Result<FlippedLogFile> {
         
         match self.flip
@@ -72,7 +89,6 @@ impl RedoLog
                 let path_flip = format!("{}.flip", self.log_path);
 
                 let flip = {
-                    #[cfg(feature = "local_fs")]
                     let log_file = {
                         let cache = self.log_file.cache.lock();
                         LogFile::new(
@@ -84,15 +100,34 @@ impl RedoLog
                             header_bytes,
                         )
                     };
+                    
+                    FlippedLogFile {
+                        log_file: log_file.await?,
+                        event_summary: Vec::new(),
+                    }
+                };
+                
+                self.flip = Some(RedoLogFlip {
+                    deferred: Vec::new(),
+                });
 
-                    #[cfg(not(feature = "local_fs"))]
+                Ok(flip)
+            },
+            Some(_) => {
+                Result::Err(Error::new(ErrorKind::Other, "Flip operation is already underway"))
+            },
+        }
+    }
+
+    #[cfg(not(feature = "local_fs"))]
+    pub async fn begin_flip(&mut self, header_bytes: Vec<u8>) -> Result<FlippedLogFile> {
+        
+        match self.flip
+        {
+            None => {
+                let flip = {
                     let log_file = {
                         LogFile::new(
-                            self.log_temp, 
-                            path_flip, 
-                            true, 
-                            0, 
-                            0,
                             header_bytes,
                         )
                     };
@@ -134,6 +169,7 @@ impl RedoLog
                 }
                 
                 new_log_file.flush().await?;
+                #[cfg(feature = "local_fs")]
                 new_log_file.move_log_file(&self.log_path)?;
 
                 self.log_file = new_log_file;
@@ -180,6 +216,7 @@ impl RedoLog
         }
     }
 
+    #[cfg(feature = "local_fs")]
     pub async fn open(cfg: &ConfAte, key: &ChainKey, flags: OpenFlags, header_bytes: Vec<u8>) -> std::result::Result<(RedoLog, VecDeque<LoadData>), SerializationError>
     {
         let mut ret = VecDeque::new();
@@ -205,6 +242,7 @@ impl RedoLog
         Ok((log, ret))
     }
 
+    #[cfg(feature = "local_fs")]
     pub async fn open_ext(cfg: &ConfAte, key: &ChainKey, flags: OpenFlags, loader: Box<impl Loader>, header_bytes: Vec<u8>) -> std::result::Result<RedoLog, SerializationError> {
         let mut key_name = key.name.clone();
         if key_name.starts_with("/") {
@@ -220,16 +258,28 @@ impl RedoLog
             let _ = std::fs::create_dir_all(path.parent().unwrap().clone());
         }
 
-        info!("open at {}", path_log);   
+        let log = {
+            info!("open at {}", path_log);
+            RedoLog::new(
+                path_log.clone(),
+                flags,
+                cfg.load_cache_size,
+                cfg.load_cache_ttl,
+                loader,
+                header_bytes,
+            ).await?
+        };
 
-        let log = RedoLog::new(
-            path_log.clone(),
-            flags,
-            cfg.load_cache_size,
-            cfg.load_cache_ttl,
-            loader,
-            header_bytes,
-        ).await?;
+        Ok(log)
+    }
+
+    #[cfg(not(feature = "local_fs"))]
+    pub async fn open(header_bytes: Vec<u8>) -> std::result::Result<RedoLog, SerializationError> {
+        let log = {
+            RedoLog::new(
+                header_bytes,
+            ).await?
+        };
 
         Ok(log)
     }
