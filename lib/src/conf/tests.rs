@@ -10,7 +10,7 @@ pub(crate) fn mock_test_config() -> ConfAte {
     let mut ret = ConfAte::default();
     #[cfg(feature = "local_fs")]
     {
-        ret.log_path = "/tmp/ate".to_string();
+        ret.log_path = Some("/tmp/ate".to_string());
     }
     return ret;
 }

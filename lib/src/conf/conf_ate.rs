@@ -28,7 +28,7 @@ pub struct ConfAte
 
     /// Directory path that the redo logs will be stored.
     #[cfg(feature = "local_fs")]
-    pub log_path: String,
+    pub log_path: Option<String>,
 
     /// NTP pool server which ATE will synchronize its clocks with, its
     /// important to have synchronized clocks with ATE as it uses time as
@@ -88,7 +88,7 @@ for ConfAte
     fn default() -> ConfAte {
         ConfAte {
             #[cfg(feature = "local_fs")]
-            log_path: "/tmp/ate".to_string(),
+            log_path: None,
             dns_sec: false,
             dns_server: "8.8.8.8".to_string(),
             recovery_mode: RecoveryMode::ReadOnlyAsync,

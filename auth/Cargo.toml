@@ -10,13 +10,8 @@ categories = [ "data-structures", "command-line-utilities", "authentication", "c
 repository = "https://github.com/john-sharratt/ate/auth"
 readme = "README.md"
 
-[features]
-default = [ "all" ]
-local_fs = [ "ate/local_fs" ]
-all = [ "local_fs" ]
-
 [dependencies]
-ate = { version = "0.6.*", default-features = false, path = "../lib", features = [ "basics" ] }
+ate = { version = "0.6.*", path = "../lib" }
 tokio = { version = "1.3.*", features = ["full", "signal", "process"] }
 serde = { version = "1.0.*", features = ["derive"] }
 log = { version = "0.4.*", features = [ "release_max_level_info" ] }

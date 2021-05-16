@@ -2,16 +2,12 @@
 use log::{error, info, warn, debug};
 use async_trait::async_trait;
 #[cfg(feature = "local_fs")]
-use cached::Cached;
-#[cfg(feature = "local_fs")]
 use std::{collections::VecDeque};
 use tokio::io::Result;
 use tokio::io::Error;
 use tokio::io::ErrorKind;
 
-#[cfg(feature = "local_fs")]
-use crate::spec::LogApi;
-use crate::{crypto::*};
+use crate::crypto::*;
 #[cfg(feature = "local_fs")]
 use crate::conf::*;
 #[cfg(feature = "local_fs")]
@@ -21,7 +17,7 @@ use crate::error::*;
 use crate::loader::*;
 use crate::redo::LogLookup;
 
-use super::file::LogFile;
+use super::*;
 use super::flip::RedoLogFlip;
 #[cfg(feature = "local_fs")]
 use super::flags::OpenFlags;
@@ -29,39 +25,45 @@ use super::flip::FlippedLogFile;
 #[cfg(feature = "local_fs")]
 use super::loader::RedoLogLoader;
 use super::api::LogWritable;
+#[cfg(feature = "local_fs")]
+use super::file_localfs::LogFileLocalFs;
+use super::file_memdb::LogFileMemDb;
 
 pub struct RedoLog
 {
     #[cfg(feature = "local_fs")]
-    log_temp: bool,
-    #[cfg(feature = "local_fs")]
-    log_path: String,
+    log_path: Option<String>,
     flip: Option<RedoLogFlip>,
-    pub(super) log_file: LogFile,
+    pub(super) log_file: Box<dyn LogFile>,
 }
 
 impl RedoLog
 {
     #[cfg(feature = "local_fs")]
-    async fn new(path_log: String, flags: OpenFlags, cache_size: usize, cache_ttl: u64, _loader: Box<impl Loader>, header_bytes: Vec<u8>) -> std::result::Result<RedoLog, SerializationError>
+    async fn new(path_log: Option<String>, flags: OpenFlags, cache_size: usize, cache_ttl: u64, loader: Box<impl Loader>, header_bytes: Vec<u8>) -> std::result::Result<RedoLog, SerializationError>
     {
         // Now load the real thing
-        #[allow(unused_mut)]
-        let mut ret = RedoLog {
-            log_temp: flags.temporal,
+        let ret = RedoLog {
             log_path: path_log.clone(),
-            log_file: LogFile::new(
-                    flags.temporal,
-                    path_log.clone(),
-                    flags.truncate,
-                    cache_size,
-                    cache_ttl,
-                    header_bytes,
-                ).await?,
+            log_file: match path_log {
+                Some(path_log) => {
+                    let mut log_file = LogFileLocalFs::new(
+                        flags.temporal,
+                        path_log,
+                        flags.truncate,
+                        cache_size,
+                        cache_ttl,
+                        header_bytes,
+                    ).await?;
+
+                    let cnt = log_file.read_all(loader).await?;
+                    info!("redo-log: loaded {} events from {} files", cnt, log_file.archives.len());
+                    log_file
+                },
+                None => LogFileMemDb::new(header_bytes).await?
+            },
             flip: None,
         };
-        let cnt = ret.log_file.read_all(_loader).await?;
-        info!("redo-log: loaded {} events from {} files", cnt, ret.log_file.archives.len());
         Ok(ret)
     }
 
@@ -70,70 +72,25 @@ impl RedoLog
     {
         // Now load the real thing
         let ret = RedoLog {
-            log_file: LogFile::new(header_bytes).await?,
+            log_file: LogFileMemDb::new(header_bytes).await?,
             flip: None,
         };
         Ok(ret)
     }
 
+    #[cfg(feature = "rotate")]
     pub async fn rotate(&mut self, header_bytes: Vec<u8>) -> Result<()> {
         Ok(self.log_file.rotate(header_bytes).await?)
     }
 
-    #[cfg(feature = "local_fs")]
-    pub async fn begin_flip(&mut self, header_bytes: Vec<u8>) -> Result<FlippedLogFile> {
-        
-        match self.flip
-        {
-            None => {
-                let path_flip = format!("{}.flip", self.log_path);
-
-                let flip = {
-                    let log_file = {
-                        let cache = self.log_file.cache.lock();
-                        LogFile::new(
-                            self.log_temp, 
-                            path_flip, 
-                            true, 
-                            cache.read.cache_capacity().unwrap(), 
-                            cache.read.cache_lifespan().unwrap(),
-                            header_bytes,
-                        )
-                    };
-                    
-                    FlippedLogFile {
-                        log_file: log_file.await?,
-                        event_summary: Vec::new(),
-                    }
-                };
-                
-                self.flip = Some(RedoLogFlip {
-                    deferred: Vec::new(),
-                });
-
-                Ok(flip)
-            },
-            Some(_) => {
-                Result::Err(Error::new(ErrorKind::Other, "Flip operation is already underway"))
-            },
-        }
-    }
-
-    #[cfg(not(feature = "local_fs"))]
     pub async fn begin_flip(&mut self, header_bytes: Vec<u8>) -> Result<FlippedLogFile> {
         
         match self.flip
         {
             None => {
                 let flip = {
-                    let log_file = {
-                        LogFile::new(
-                            header_bytes,
-                        )
-                    };
-                    
                     FlippedLogFile {
-                        log_file: log_file.await?,
+                        log_file: self.log_file.begin_flip(header_bytes).await?,
                         event_summary: Vec::new(),
                     }
                 };
@@ -169,8 +126,11 @@ impl RedoLog
                 }
                 
                 new_log_file.flush().await?;
+                
                 #[cfg(feature = "local_fs")]
-                new_log_file.move_log_file(&self.log_path)?;
+                if let Some(a) = self.log_path.as_ref() {
+                    new_log_file.move_log_file(a)?;
+                }
 
                 self.log_file = new_log_file;
                 self.flip = None;
@@ -200,19 +160,10 @@ impl RedoLog
         self.log_file.offset()
     }
 
-    #[cfg(feature = "local_fs")]
     pub fn end(&self) -> LogLookup {
         LogLookup {
-            index: self.log_file.appender.index,
-            offset: self.log_file.appender.offset(),
-        }
-    }
-
-    #[cfg(not(feature = "local_fs"))]
-    pub fn end(&self) -> LogLookup {
-        LogLookup {
-            index: 0u32,
-            offset: self.log_file.offset()
+            index: self.log_file.index(),
+            offset: self.log_file.offset(),
         }
     }
 
@@ -248,18 +199,18 @@ impl RedoLog
         if key_name.starts_with("/") {
             key_name = key_name[1..].to_string();
         }
-        let path_log = match cfg.log_path.ends_with("/") {
-            true => format!("{}{}.log", cfg.log_path, key_name),
-            false => format!("{}/{}.log", cfg.log_path, key_name)
+        let path_log = match cfg.log_path.as_ref() {
+            Some(a) if a.ends_with("/") => Some(format!("{}{}.log", a, key_name)),
+            Some(a) => Some(format!("{}/{}.log", a, key_name)),
+            None => None,
         };
         
-        {
-            let path = std::path::Path::new(&path_log);
+        if let Some(path_log) = path_log.as_ref() {
+            let path = std::path::Path::new(path_log);
             let _ = std::fs::create_dir_all(path.parent().unwrap().clone());
         }
 
         let log = {
-            info!("open at {}", path_log);
             RedoLog::new(
                 path_log.clone(),
                 flags,

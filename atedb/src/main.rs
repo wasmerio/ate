@@ -69,9 +69,7 @@ enum SubCommand {
 #[derive(Clap)]
 struct Solo {
     /// Path to the log files where all the file system data is stored
-    #[cfg_attr(feature = "local_fs", clap(index = 1, default_value = "/opt/ate"))]
-    #[cfg_attr(not(feature = "local_fs"), clap(long = "_unused_logs_path", hidden = true, default_value = "/_unused_path/"))]
-    #[allow(dead_code)]
+    #[clap(index = 1, default_value = "/opt/ate")]
     logs_path: String,
     /// IP address that the database server will isten on
     #[clap(short, long, default_value = "0.0.0.0")]

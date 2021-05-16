@@ -11,8 +11,7 @@ repository = "https://github.com/john-sharratt/ate"
 readme = "../README.md"
 
 [features]
-default = [ "basics" ]
-#default = [ "all", "verbose" ]
+default = [ "all" ]
 basics = [ "hash_blake3", "hash_sha3" ]
 verbose = ["backtrace"]
 hash_blake3 = []
@@ -20,7 +19,8 @@ hash_sha3 = []
 extra_checks = []
 buffered = []
 local_fs = []
-all = [ "basics", "buffered", "local_fs"]
+rotate = []
+all = [ "basics", "buffered", "local_fs", "rotate" ]
 
 #- memdb works nicely fixes the corruption issue but does not scale with huge log files
 #- it would seem the conversation logic is working however the server side is dropping

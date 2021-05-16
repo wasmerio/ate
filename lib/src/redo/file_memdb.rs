@@ -1,5 +1,6 @@
 #[allow(unused_imports)]
 use log::{error, info, warn, debug};
+use async_trait::async_trait;
 use fxhash::FxHashMap;
 use bytes::*;
 use tokio::io::Result;
@@ -10,7 +11,9 @@ use crate::error::*;
 use crate::spec::*;
 use crate::loader::*;
 
-pub(super) struct LogFile
+use super::*;
+
+pub(super) struct LogFileMemDb
 {
     pub(crate) offset: u64,
     pub(crate) lookup: FxHashMap<AteHash, LogLookup>,
@@ -18,40 +21,46 @@ pub(super) struct LogFile
     pub(crate) header: Vec<u8>,
 }
 
-impl LogFile
+impl LogFileMemDb
 {
-    pub(super) async fn new(header_bytes: Vec<u8>) -> Result<LogFile>
+    pub(super) async fn new(header_bytes: Vec<u8>) -> Result<Box<LogFileMemDb>>
     {
         // Log file
-        let ret = LogFile {
+        let ret = LogFileMemDb {
             offset: 0u64,
             lookup: FxHashMap::default(),
             memdb: FxHashMap::default(),
             header: header_bytes,
         };
 
-        Ok(ret)
+        Ok(Box::new(ret))
     }
+}
 
-    pub(super) async fn rotate(&mut self, header_bytes: Vec<u8>) -> Result<()>
+#[async_trait]
+impl LogFile
+for LogFileMemDb
+{
+    #[cfg(feature = "rotate")]
+    async fn rotate(&mut self, header_bytes: Vec<u8>) -> Result<()>
     {
         self.header = header_bytes;
         Ok(())
     }
 
-    pub(super) async fn copy(&mut self) -> Result<LogFile>
+    async fn copy(&mut self) -> Result<Box<dyn LogFile>>
     {
         Ok(
-            LogFile {
+            Box::new(LogFileMemDb {
                 offset: self.offset,
                 lookup: self.lookup.clone(),
                 memdb: self.memdb.clone(),
                 header: self.header.clone(),
-            }
+            })
         )
     }
 
-    pub(super) async fn write(&mut self, evt: &EventData) -> std::result::Result<LogLookup, SerializationError>
+    async fn write(&mut self, evt: &EventData) -> std::result::Result<LogLookup, SerializationError>
     {
         // Write the appender
         let header = evt.as_header_raw()?;
@@ -83,7 +92,7 @@ impl LogFile
         Ok(lookup)
     }
 
-    pub(super) async fn copy_event(&mut self, from_log: &LogFile, hash: AteHash) -> std::result::Result<LogLookup, LoadError>
+    async fn copy_event(&mut self, from_log: &Box<dyn LogFile>, hash: AteHash) -> std::result::Result<LogLookup, LoadError>
     {
         // Load the data from the log file
         let result = from_log.load(hash).await?;
@@ -111,7 +120,7 @@ impl LogFile
         Ok(lookup)
     }
 
-    pub(super) async fn load(&self, hash: AteHash) -> std::result::Result<LoadData, LoadError>
+    async fn load(&self, hash: AteHash) -> std::result::Result<LoadData, LoadError>
     {
         // Lookup the record in the redo log
         let lookup = match self.lookup.get(&hash) {
@@ -166,29 +175,42 @@ impl LogFile
         )
     }
 
-    pub(super) async fn flush(&mut self) -> Result<()>
+    async fn flush(&mut self) -> Result<()>
     {
         Ok(())
     }
 
-    pub(super) fn count(&self) -> usize {
+    fn count(&self) -> usize {
         self.lookup.values().len()
     }
 
-    pub(super) fn size(&self) -> u64 {
+    fn size(&self) -> u64 {
         self.offset as u64
     }
 
-    pub(super) fn offset(&self) -> u64 {
+    fn index(&self) -> u32 {
+        0u32
+    }
+
+    fn offset(&self) -> u64 {
         self.offset as u64
     }
 
-    pub(super) fn header(&self, _index: u32) -> Vec<u8> {
+    fn header(&self, _index: u32) -> Vec<u8> {
         self.header.clone()
     }
 
-    pub(super) fn destroy(&mut self) -> Result<()>
+    fn destroy(&mut self) -> Result<()>
     {
         Ok(())
+    }
+
+    fn move_log_file(&mut self, _new_path: &String) -> Result<()>
+    {
+        Ok(())
+    }
+
+    async fn begin_flip(&self, header_bytes: Vec<u8>) -> Result<Box<dyn LogFile>> {
+        Ok(LogFileMemDb::new(header_bytes).await?)
     }
 }

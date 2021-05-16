@@ -34,9 +34,7 @@ struct Run {
     #[clap(index = 1, default_value = "~/ate/auth.key")]
     key_path: String,
     /// Path to the log files where all the authentication data is stored
-    #[cfg_attr(feature = "local_fs", clap(index = 2, default_value = "~/ate/auth"))]
-    #[cfg_attr(not(feature = "local_fs"), clap(long = "_unused_logs_path", hidden = true, default_value = "/_unused_path/"))]
-    #[allow(dead_code)]
+    #[clap(index = 2, default_value = "~/ate/auth")]
     logs_path: String,
     /// IP address that the authentication server will isten on
     #[clap(short, long, default_value = "0.0.0.0")]
@@ -115,10 +113,7 @@ async fn main() -> Result<(), AteError>
             
             // Build a session for service
             let mut cfg_ate = ate_auth::conf_auth();
-            #[cfg(feature = "local_fs")]
-            {
-                cfg_ate.log_path = shellexpand::tilde(&run.logs_path).to_string();
-            }
+            cfg_ate.log_path = Some(shellexpand::tilde(&run.logs_path).to_string());
             cfg_ate.compact_mode = CompactMode::Never;
             let mut session = AteSession::new(&cfg_ate);
             session.user.add_read_key(&root_read_key);

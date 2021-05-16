@@ -14,11 +14,8 @@ pub async fn test_create_user_and_group() -> Result<(), AteError>
     // Create the configuration
     #[allow(unused_mut)]
     let mut cfg_ate = crate::conf_auth();
-    #[cfg(feature = "local_fs")]
-    {
-        cfg_ate.log_path = format!("/tmp/ate/test/{}", fastrand::u64(..));
-    }
-
+    cfg_ate.log_path = Some(format!("/tmp/ate/test/{}", fastrand::u64(..)));
+    
     // Build a session for service
     let root_read_key = EncryptKey::generate(KeySize::Bit256);
     let root_write_key = PrivateSignKey::generate(KeySize::Bit256);

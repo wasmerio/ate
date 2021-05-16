@@ -13,7 +13,7 @@ use super::core::RedoLog;
 
 pub struct FlippedLogFile
 {
-    pub(super) log_file: LogFile,
+    pub(super) log_file: Box<dyn LogFile>,
     pub(crate) event_summary: Vec<EventHeaderRaw>,
 }
 
@@ -35,7 +35,7 @@ for FlippedLogFile
 
 impl FlippedLogFile
 {
-    pub(super) async fn copy_log_file(&mut self) -> Result<LogFile> {
+    pub(super) async fn copy_log_file(&mut self) -> Result<Box<dyn LogFile>> {
         let new_log_file = self.log_file.copy().await?;
         Ok(new_log_file)
     }

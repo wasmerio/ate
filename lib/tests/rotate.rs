@@ -1,7 +1,8 @@
-#![cfg(feature = "local_fs")]
+#![allow(unused_imports)]
 use ate::prelude::*;
 use tokio::runtime::Runtime;
 
+#[cfg(feature = "rotate")]
 #[test]
 fn rotate_test() -> Result<(), AteError>
 {
@@ -12,6 +13,10 @@ fn rotate_test() -> Result<(), AteError>
 
         // The default configuration will store the redo log locally in the temporary folder
         let mut conf = ConfAte::default();
+        #[cfg(feature = "local_fs")]
+        {
+            conf.log_path = Some("/tmp/ate".to_string());
+        }
         conf.configured_for(ConfiguredFor::BestPerformance);
         let builder = ChainBuilder::new(&conf).await.build();
 

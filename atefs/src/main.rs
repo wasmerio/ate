@@ -106,11 +106,9 @@ struct Mount {
     /// If this URL is not specified then data will only be stored locally
     #[clap(index=2)]
     remote: Option<Url>,
-    /// Location of the persistent redo log
-    #[cfg_attr(feature = "local_fs", clap(index=3, default_value = "~/ate/fs"))]
-    #[cfg_attr(not(feature = "local_fs"), clap(long = "_unused_logs_path", hidden = true, default_value = "/_unused_path/"))]
-    #[allow(dead_code)]
-    log_path: String,
+    /// Location of the persistent redo log (e.g. ~/ate/fs)
+    #[clap(index=3)]
+    log_path: Option<String>,
     /// Determines how the file-system will react while it is nominal and when it is
     /// recovering from a communication failure (valid options are 'async', 'readonly-async',
     /// 'readonly-sync' or 'sync')
@@ -232,8 +230,10 @@ async fn main_mount(mount: Mount, conf: ConfAte, group: Option<String>, session:
     info!("configured_for: {:?}", mount.configured_for);
     info!("meta_format: {:?}", mount.meta_format);
     info!("data_format: {:?}", mount.data_format);
-    #[cfg(feature = "local_fs")]
-    info!("log_path: {}", conf.log_path);
+    info!("log_path: {}", match conf.log_path.as_ref() {
+        Some(a) => a.as_str(),
+        None => "(memory)"
+    });
     info!("log_temp: {}", mount.temp);
     info!("mount_path: {}", mount.mount_path);
     match &mount.remote {
@@ -354,7 +354,7 @@ fn test_opts() -> Opts {
         subcmd: SubCommand::Mount(Mount {
             mount_path: "/mnt/ate".to_string(),
             remote: Some(Url::parse("tcp://ate.tokera.com/").unwrap()),
-            log_path: "~/ate/fs".to_string(),
+            log_path: Some("~/ate/fs".to_string()),
             recovery_mode: RecoveryMode::ReadOnlyAsync,
             passcode: None,
             temp: false,

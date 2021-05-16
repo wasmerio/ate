@@ -1,5 +1,6 @@
 #[allow(unused_imports)]
 use log::{error, info, warn, debug};
+use async_trait::async_trait;
 
 use cached::Cached;
 use tokio::io::{Result};
@@ -15,6 +16,7 @@ use crate::error::*;
 use crate::spec::*;
 use crate::loader::*;
 
+use super::*;
 use super::magic::*;
 use super::archive::*;
 use super::appender::*;
@@ -26,7 +28,7 @@ pub(crate) struct LogFileCache
     pub(crate) read: TimedSizedCache<AteHash, LoadData>,
 }
 
-pub(super) struct LogFile
+pub(super) struct LogFileLocalFs
 {
     pub(crate) path: String,
     pub(crate) temp: bool,
@@ -36,10 +38,12 @@ pub(super) struct LogFile
     pub(crate) cache: MutexSync<LogFileCache>,
 }
 
-impl LogFile
+impl LogFileLocalFs
 {
-    pub(super) async fn new(temp_file: bool, path_log: String, truncate: bool, _cache_size: usize, _cache_ttl: u64, header_bytes: Vec<u8>) -> Result<LogFile>
+    pub(super) async fn new(temp_file: bool, path_log: String, truncate: bool, _cache_size: usize, _cache_ttl: u64, header_bytes: Vec<u8>) -> Result<Box<LogFileLocalFs>>
     {
+        info!("open at {}", path_log);
+        
         // Load all the archives
         let mut archives = FxHashMap::default();
         let mut n = 0 as u32;
@@ -77,7 +81,7 @@ impl LogFile
         }
         
         // Log file
-        let ret = LogFile {
+        let ret = LogFileLocalFs {
             path: path_log,
             temp: temp_file,
             lookup: FxHashMap::default(),
@@ -90,63 +94,7 @@ impl LogFile
             archives,
         };
 
-        Ok(ret)
-    }
-
-    pub(super) async fn rotate(&mut self, header_bytes: Vec<u8>) -> Result<()>
-    {
-        // If this a temporary file then fail
-        if self.temp {
-            return Err(tokio::io::Error::new(ErrorKind::PermissionDenied, "Can not rotate a temporary redo log - only persistent logs support this behaviour."));
-        }
-
-        // Flush and close and increment the log index
-        self.appender.sync().await?;
-        let next_index = self.appender.index  + 1;
-        
-        // Create a new appender
-        let (new_appender, new_archive) = LogAppender::new(
-            self.path.clone(),
-            false,
-            next_index,
-            &header_bytes[..]
-        ).await?;
-    
-        // Set the new appender
-        self.archives.insert(next_index , new_archive);
-        self.appender = new_appender;
-
-        // Success
-        Ok(())
-    }
-
-    pub(super) async fn copy(&mut self) -> Result<LogFile>
-    {
-        // Copy all the archives
-        let mut log_archives = FxHashMap::default();
-        for (k, v) in self.archives.iter() {
-            log_archives.insert(k.clone(), v.clone().await?);
-        }
-
-        let cache = {
-            let cache = self.cache.lock();
-            MutexSync::new(LogFileCache {
-                flush: cache.flush.clone(),
-                read: cached::TimedSizedCache::with_size_and_lifespan(cache.read.cache_capacity().unwrap(), cache.read.cache_lifespan().unwrap()),
-                write: cached::TimedSizedCache::with_size_and_lifespan(cache.write.cache_capacity().unwrap(), cache.write.cache_lifespan().unwrap()),
-            })
-        };
-
-        Ok(
-            LogFile {
-                path: self.path.clone(),
-                temp: self.temp,
-                lookup: self.lookup.clone(),
-                appender: self.appender.clone().await?,
-                cache,
-                archives: log_archives,
-            }
-        )
+        Ok(Box::new(ret))
     }
 
     /// Read all the log files from all the archives including the current one representing the appender
@@ -175,7 +123,7 @@ impl LogFile
             };
 
             loop {
-                match LogFile::read_once_internal(&mut lock).await {
+                match LogFileLocalFs::read_once_internal(&mut lock).await {
                     Ok(Some(head)) => {
                         #[cfg(feature = "super_verbose")]
                         debug!("log-read: {:?}", head);
@@ -259,8 +207,70 @@ impl LogFile
             )
         )
     }
+}
 
-    pub(super) async fn write(&mut self, evt: &EventData) -> std::result::Result<LogLookup, SerializationError>
+#[async_trait]
+impl LogFile
+for LogFileLocalFs
+{
+    #[cfg(feature = "rotate")]
+    async fn rotate(&mut self, header_bytes: Vec<u8>) -> Result<()>
+    {
+        // If this a temporary file then fail
+        if self.temp {
+            return Err(tokio::io::Error::new(ErrorKind::PermissionDenied, "Can not rotate a temporary redo log - only persistent logs support this behaviour."));
+        }
+
+        // Flush and close and increment the log index
+        self.appender.sync().await?;
+        let next_index = self.appender.index  + 1;
+        
+        // Create a new appender
+        let (new_appender, new_archive) = LogAppender::new(
+            self.path.clone(),
+            false,
+            next_index,
+            &header_bytes[..]
+        ).await?;
+    
+        // Set the new appender
+        self.archives.insert(next_index , new_archive);
+        self.appender = new_appender;
+
+        // Success
+        Ok(())
+    }
+
+    async fn copy(&mut self) -> Result<Box<dyn LogFile>>
+    {
+        // Copy all the archives
+        let mut log_archives = FxHashMap::default();
+        for (k, v) in self.archives.iter() {
+            log_archives.insert(k.clone(), v.clone().await?);
+        }
+
+        let cache = {
+            let cache = self.cache.lock();
+            MutexSync::new(LogFileCache {
+                flush: cache.flush.clone(),
+                read: cached::TimedSizedCache::with_size_and_lifespan(cache.read.cache_capacity().unwrap(), cache.read.cache_lifespan().unwrap()),
+                write: cached::TimedSizedCache::with_size_and_lifespan(cache.write.cache_capacity().unwrap(), cache.write.cache_lifespan().unwrap()),
+            })
+        };
+
+        Ok(
+            Box::new(LogFileLocalFs {
+                path: self.path.clone(),
+                temp: self.temp,
+                lookup: self.lookup.clone(),
+                appender: self.appender.clone().await?,
+                cache,
+                archives: log_archives,
+            })
+        )
+    }
+
+    async fn write(&mut self, evt: &EventData) -> std::result::Result<LogLookup, SerializationError>
     {
         // Write the appender
         let header = evt.as_header_raw()?;
@@ -296,7 +306,7 @@ impl LogFile
         Ok(lookup)
     }
 
-    pub(super) async fn copy_event(&mut self, from_log: &LogFile, hash: AteHash) -> std::result::Result<LogLookup, LoadError>
+    async fn copy_event(&mut self, from_log: &Box<dyn LogFile>, hash: AteHash) -> std::result::Result<LogLookup, LoadError>
     {
         // Load the data from the log file
         let result = from_log.load(hash).await?;
@@ -320,7 +330,7 @@ impl LogFile
         Ok(lookup)
     }
 
-    pub(super) async fn load(&self, hash: AteHash) -> std::result::Result<LoadData, LoadError>
+    async fn load(&self, hash: AteHash) -> std::result::Result<LoadData, LoadError>
     {
         // Check the caches
         {
@@ -406,7 +416,7 @@ impl LogFile
         )
     }
 
-    pub(super) fn move_log_file(&mut self, new_path: &String) -> Result<()>
+    fn move_log_file(&mut self, new_path: &String) -> Result<()>
     {
         if self.temp == false
         {
@@ -454,7 +464,7 @@ impl LogFile
         Ok(())
     }
 
-    pub(super) async fn flush(&mut self) -> Result<()>
+    async fn flush(&mut self) -> Result<()>
     {
         // Make a note of all the cache lines we need to move
         let mut keys = Vec::new();
@@ -482,19 +492,23 @@ impl LogFile
         Ok(())
     }
 
-    pub(super) fn count(&self) -> usize {
+    fn count(&self) -> usize {
         self.lookup.values().len()
     }
 
-    pub(super) fn size(&self) -> u64 {
+    fn size(&self) -> u64 {
         self.appender.offset() - self.appender.header().len() as u64
     }
 
-    pub(super) fn offset(&self) -> u64 {
+    fn index(&self) -> u32 {
+        self.appender.index
+    }
+
+    fn offset(&self) -> u64 {
         self.appender.offset() as u64
     }
 
-    pub(super) fn header(&self, index: u32) -> Vec<u8> {
+    fn header(&self, index: u32) -> Vec<u8> {
         if index == u32::MAX || index == self.appender.index {
             return Vec::from(self.appender.header());
         }
@@ -506,7 +520,7 @@ impl LogFile
         }
     }
 
-    pub(super) fn destroy(&mut self) -> Result<()>
+    fn destroy(&mut self) -> Result<()>
     {
         // Now delete all the log files
         let mut n = 0;
@@ -520,5 +534,26 @@ impl LogFile
             n = n + 1;
         }
         Ok(())
+    }
+
+    async fn begin_flip(&self, header_bytes: Vec<u8>) -> Result<Box<dyn LogFile>> {
+        let ret = {
+            let path_flip = format!("{}.flip", self.path);
+
+            let cache = self.cache.lock();
+            let cache_size = cache.read.cache_capacity().unwrap();
+            let cache_ttl = cache.read.cache_lifespan().unwrap();
+
+            LogFileLocalFs::new(
+                self.temp, 
+                path_flip, 
+                true, 
+                cache_size, 
+                cache_ttl,
+                header_bytes,
+            )
+        };
+
+        Ok(ret.await?)
     }
 }
