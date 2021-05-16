@@ -1,5 +1,4 @@
 use crate::event::*;
-use crate::sink::*;
 
 use super::*;
 use crate::time::ChainTimestamp;
@@ -16,13 +15,6 @@ impl CutOffCompactor
         CutOffCompactor {
             cut_off: after
         }
-    }
-}
-
-impl EventSink
-for CutOffCompactor
-{
-    fn reset(&mut self) {
     }
 }
 

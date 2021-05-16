@@ -27,27 +27,24 @@ for EventHeaderRaw
     }
 }
 
+pub(crate) fn event_sig_hash(meta_hash: &super::crypto::AteHash, data_hash: &Option<super::crypto::AteHash>) -> AteHash {
+    match data_hash {
+        Some(d) => DoubleHash::from_hashes(&meta_hash, d).hash(),
+        None => meta_hash.clone()
+    }
+}
+
 impl EventHeaderRaw
 {
     pub(crate) fn new(meta_hash: super::crypto::AteHash, meta_bytes: Bytes, data_hash: Option<super::crypto::AteHash>, data_size: usize, format: MessageFormat) -> EventHeaderRaw
     {
         EventHeaderRaw {
-            event_hash: match &data_hash {
-                Some(data_hash) => DoubleHash::from_hashes(&meta_hash, &data_hash).hash(),
-                None => meta_hash.clone(),
-            },
+            event_hash: event_sig_hash(&meta_hash, &data_hash),
             meta_hash,
             meta_bytes,
             data_hash,
             data_size,
             format,
-        }
-    }
-
-    pub(crate) fn sig_hash(&self) -> AteHash {
-        match &self.data_hash {
-            Some(d) => DoubleHash::from_hashes(&self.meta_hash, d).hash(),
-            None => self.meta_hash
         }
     }
 

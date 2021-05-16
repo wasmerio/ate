@@ -8,7 +8,7 @@ use super::*;
 
 #[derive(Debug)]
 pub enum ValidationError {
-    Denied,
+    Denied(String),
     AllAbstained,
     Detached,
     NoSignatures,
@@ -38,8 +38,8 @@ for ValidationError {
             ValidationError::AllAbstained => {
                 write!(f, "None of the validators approved this data object event")
             },
-            ValidationError::Denied => {
-                write!(f, "The data was rejected by one of the validators")
+            ValidationError::Denied(err) => {
+                write!(f, "The data was rejected by one of the validators - {}", err)
             },
             ValidationError::Detached => {
                 write!(f, "The data object event is detached from the chain of trust")

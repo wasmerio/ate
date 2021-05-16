@@ -43,35 +43,69 @@ impl ChainProtectedSync
     #[allow(dead_code)]
     pub(super) fn validate_event(&self, header: &EventHeader, conversation: Option<&Arc<ConversationSession>>) -> Result<ValidationResult, ValidationError>
     {
+        let mut deny_reason = String::default();
         let mut is_deny = false;
         let mut is_allow = false;
+
         for validator in self.validators.iter() {
             match validator.validate(header, conversation) {
-                Ok(ValidationResult::Deny) => is_deny = true,
+                Ok(ValidationResult::Deny) => {
+                    if deny_reason.is_empty() == false { deny_reason.push_str(" + "); };
+                    deny_reason.push_str(format!("denied by validator({})", validator.validator_name()).as_str());
+                    is_deny = true
+                },
                 Ok(ValidationResult::Allow) => is_allow = true,
                 Ok(ValidationResult::Abstain) => { },
-                Err(ValidationError::Denied) => is_deny = true,
+                Err(ValidationError::Denied(reason)) => {
+                    if deny_reason.is_empty() == false { deny_reason.push_str(" + "); };
+                    deny_reason.push_str(reason.as_str());
+                    is_deny = true
+                },
                 Err(ValidationError::Detached) => is_deny = true,
-                Err(ValidationError::Trust(_)) => is_deny = true,
-                Err(ValidationError::AllAbstained) => is_deny = true,
-                Err(ValidationError::NoSignatures) => is_deny = true,
+                Err(ValidationError::Trust(reason)) => {
+                    if deny_reason.is_empty() == false { deny_reason.push_str(" + "); };
+                    deny_reason.push_str(reason.to_string().as_str());
+                    is_deny = true
+                },
+                Err(ValidationError::AllAbstained) => { },
+                Err(ValidationError::NoSignatures) => {
+                    if deny_reason.is_empty() == false { deny_reason.push_str(" + "); };
+                    deny_reason.push_str("no signatures");
+                    is_deny = true
+                },
             }
         }
         for plugin in self.plugins.iter() {
             match plugin.validate(header, conversation) {
-                Ok(ValidationResult::Deny) => is_deny = true,
+                Ok(ValidationResult::Deny) => {
+                    if deny_reason.is_empty() == false { deny_reason.push_str(" + "); };
+                    deny_reason.push_str(format!("denied by validator({})", plugin.validator_name()).as_str());
+                    is_deny = true
+                },
                 Ok(ValidationResult::Allow) => is_allow = true,
                 Ok(ValidationResult::Abstain) => { },
-                Err(ValidationError::Denied) => is_deny = true,
+                Err(ValidationError::Denied(reason)) => {
+                    if deny_reason.is_empty() == false { deny_reason.push_str(" + "); };
+                    deny_reason.push_str(reason.as_str());
+                    is_deny = true
+                },
                 Err(ValidationError::Detached) => is_deny = true,
-                Err(ValidationError::Trust(_)) => is_deny = true,
-                Err(ValidationError::AllAbstained) => is_deny = true,
-                Err(ValidationError::NoSignatures) => is_deny = true,
+                Err(ValidationError::Trust(reason)) => {
+                    if deny_reason.is_empty() == false { deny_reason.push_str(" + "); };
+                    deny_reason.push_str(reason.to_string().as_str());
+                    is_deny = true
+                },
+                Err(ValidationError::AllAbstained) => { },
+                Err(ValidationError::NoSignatures) => {
+                    if deny_reason.is_empty() == false { deny_reason.push_str(" + "); };
+                    deny_reason.push_str("no signatures");
+                    is_deny = true
+                },
             }
         }
 
         if is_deny == true {
-            return Err(ValidationError::Denied)
+            return Err(ValidationError::Denied(deny_reason))
         }
         if is_allow == false {
             return Err(ValidationError::AllAbstained);

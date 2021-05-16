@@ -1,41 +1,24 @@
-use std::sync::Arc;
 use fxhash::FxHashSet;
 
 use crate::header::*;
 use crate::meta::*;
 use crate::event::*;
-use crate::sink::*;
-use crate::error::*;
-use crate::transaction::ConversationSession;
+use crate::crypto::AteHash;
 
 use super::*;
 
 #[derive(Default, Clone)]
 pub struct TombstoneCompactor
 {
+    ignored: FxHashSet<AteHash>,
     tombstoned: FxHashSet<PrimaryKey>,
-}
-
-impl EventSink
-for TombstoneCompactor
-{
-    fn feed(&mut self, header: &EventHeader, _conversation: Option<&Arc<ConversationSession>>) -> Result<(), SinkError> {
-        if let Some(key) = header.meta.get_tombstone() {
-            self.tombstoned.insert(key.clone());
-        }
-        Ok(())
-    }
-
-    fn reset(&mut self) {
-        self.tombstoned.clear();
-    }
 }
 
 impl EventCompactor
 for TombstoneCompactor
 {
     fn clone_compactor(&self) -> Option<Box<dyn EventCompactor>> {
-        Some(Box::new(self.clone()))
+        Some(Box::new(Self::default()))
     }
     
     fn relevance(&self, header: &EventHeader) -> EventRelevance
@@ -45,10 +28,24 @@ for TombstoneCompactor
             None => { return EventRelevance::Abstain; }
         };
 
+        if self.ignored.contains(&header.raw.event_hash) {
+            return EventRelevance::Abstain;
+        }
+
         match self.tombstoned.contains(&key) {
             true => EventRelevance::ForceDrop,
             false => EventRelevance::Abstain,
         }        
+    }
+
+    fn feed(&mut self, header: &EventHeader, _keep: bool) {
+        if let Some(key) = header.meta.get_tombstone() {
+            self.tombstoned.insert(key.clone());
+        } else if let Some(key) = header.meta.get_data_key() {
+            if self.tombstoned.contains(&key) == false {
+                self.ignored.insert(header.raw.event_hash);
+            }
+        }
     }
     
     fn name(&self) -> &str {

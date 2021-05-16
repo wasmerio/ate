@@ -152,6 +152,15 @@ impl<'a> Chain
             sync_tolerance: builder.cfg.sync_tolerance,
             run: true,
         };
+
+        // Check all the process events
+        #[cfg(feature = "verbose")]
+        for a in headers.iter() {
+            match a.meta.get_data_key() {
+                Some(key) => debug!("loaded: {} data {}", a.raw.event_hash, key),
+                None => debug!("loaded: {}", a.raw.event_hash)
+            }
+        }
         
         // Process all the events in the chain-of-trust
         let conversation = Arc::new(ConversationSession::new(true));
@@ -159,12 +168,6 @@ impl<'a> Chain
             if allow_process_errors == false {
                 return Err(err);
             }
-        }
-
-        // Check all the process events
-        #[cfg(feature = "verbose")]
-        for a in inside_async.chain.timeline.history.iter() {
-            debug!("loaded: {}", a.1.event_hash);
         }
 
         // Create the compaction state (which later we will pass to the compaction thread)
@@ -211,6 +214,10 @@ impl<'a> Chain
         if compact_bootstrap {
             chain.compact().await?;
         }
+
+        // Output the compaction mode
+        #[cfg(feature = "verbose")]
+        debug!("compact-mode: {}", builder.cfg.compact_mode);
 
         // Start the compactor worker thread on the chain
         if builder.cfg.compact_mode != CompactMode::Never {

@@ -1,65 +1,82 @@
-use std::sync::Arc;
 use fxhash::FxHashSet;
 
-use crate::header::*;
+use crate::{header::*, meta::MetaAuthorization};
 use crate::event::*;
-use crate::sink::*;
-use crate::error::*;
-use crate::transaction::ConversationSession;
-use crate::meta::CoreMetadata;
 use crate::crypto::AteHash;
 
 use super::*;
+
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+pub struct UniqueEvent
+{
+    key: PrimaryKey,
+    auth: Option<MetaAuthorization>,
+}
 
 #[derive(Default, Clone)]
 pub struct RemoveDuplicatesCompactor
 {
     keep: FxHashSet<AteHash>,
-    already: FxHashSet<PrimaryKey>,
-}
-
-impl EventSink
-for RemoveDuplicatesCompactor
-{
-    fn feed(&mut self, header: &EventHeader, _conversation: Option<&Arc<ConversationSession>>) -> Result<(), SinkError> {
-        for meta in header.meta.core.iter() {
-            if let CoreMetadata::Data(key) = meta {
-                if self.already.contains(key) == false {
-                    self.already.insert(key.clone());
-                    self.keep.insert(header.raw.event_hash);
-                }
-            }
-        }
-        Ok(())
-    }
-
-    fn reset(&mut self) {
-        self.already.clear();
-        self.keep.clear();
-    }
+    drop: FxHashSet<AteHash>,
+    already: FxHashSet<UniqueEvent>,
+    parent_override: FxHashSet<PrimaryKey>,
 }
 
 impl EventCompactor
 for RemoveDuplicatesCompactor
 {
     fn clone_compactor(&self) -> Option<Box<dyn EventCompactor>> {
-        Some(Box::new(self.clone()))
+        Some(Box::new(Self::default()))
     }
     
     fn relevance(&self, header: &EventHeader) -> EventRelevance
     {
+        if self.keep.contains(&header.raw.event_hash) {
+            return EventRelevance::Keep;
+        }
+        if self.drop.contains(&header.raw.event_hash) {
+            return EventRelevance::Drop;
+        }
+
+        if header.meta.get_data_key().is_some() {
+            return EventRelevance::Keep;
+        } else {
+            return EventRelevance::Abstain;
+        }
+    }
+
+    fn feed(&mut self, header: &EventHeader, _keep: bool)
+    {
         let key = match header.meta.get_data_key() {
             Some(key) => key,
-            None => { return EventRelevance::Abstain; }
+            None => { return; }
         };
-        match self.already.contains(&key) {
-            true => {
-                match self.keep.contains(&header.raw.event_hash) {
-                    true => EventRelevance::Abstain,
-                    false => EventRelevance::ForceDrop,
-                }                
-            },
-            false => EventRelevance::Abstain,
+
+        if let Some(parent) = header.meta.get_parent() {
+            self.parent_override.insert(parent.vec.parent_id);
+        }
+
+        let unique = UniqueEvent {
+            key,
+            auth: header.meta.get_authorization().map(|a| a.clone()),
+        };
+
+        let keep = if self.already.contains(&unique) == false {
+            self.already.insert(unique);
+            self.parent_override.remove(&key);
+            true
+        } else if self.parent_override.remove(&key) {
+            true
+        } else {
+            false
+        };
+
+        if keep {
+            self.keep.insert(header.raw.event_hash);
+            self.drop.remove(&header.raw.event_hash);
+        } else {
+            self.drop.insert(header.raw.event_hash);
+            self.keep.remove(&header.raw.event_hash);
         }
     }
 

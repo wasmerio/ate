@@ -14,8 +14,7 @@ impl EventSink
 for TreeAuthorityPlugin
 {
     fn feed(&mut self, header: &EventHeader, conversation: Option<&Arc<ConversationSession>>) -> Result<(), SinkError>
-    {
-        
+    {        
         if let Some(key) = header.meta.get_tombstone() {
             self.auth.remove(&key);
             self.parents.remove(&key);

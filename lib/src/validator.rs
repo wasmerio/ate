@@ -26,6 +26,8 @@ pub trait EventValidator: Send + Sync
     }
 
     fn clone_validator(&self) -> Box<dyn EventValidator>;
+
+    fn validator_name(&self) -> &str;
 }
 
 #[derive(Default, Clone)]
@@ -43,6 +45,10 @@ for RubberStampValidator
     fn validate(&self, _header: &EventHeader, _conversation: Option<&Arc<ConversationSession>>) -> Result<ValidationResult, ValidationError>
     {
         Ok(ValidationResult::Allow)
+    }
+
+    fn validator_name(&self) -> &str {
+        "rubber-stamp-validator"
     }
 }
 
@@ -73,6 +79,10 @@ for StaticSignatureValidator
     fn validate(&self, _header: &EventHeader, _conversation: Option<&Arc<ConversationSession>>) -> Result<ValidationResult, ValidationError>
     {
         Ok(ValidationResult::Allow)
+    }
+
+    fn validator_name(&self) -> &str {
+        "static-signature-validator"
     }
 }
 

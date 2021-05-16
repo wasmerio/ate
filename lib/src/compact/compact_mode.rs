@@ -73,6 +73,21 @@ impl CompactMode
     }
 }
 
+impl std::fmt::Display
+for CompactMode {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            CompactMode::Never => write!(f, "never"),
+            CompactMode::Modified => write!(f, "modified"),
+            CompactMode::Timer(a) => write!(f, "timer({}ms)", a.as_millis()),
+            CompactMode::GrowthFactor(a) => write!(f, "factor({})", a),
+            CompactMode::GrowthFactorOrTimer { growth, timer} => write!(f, "factor({})-or-timer({}ms)", growth, timer.as_millis()),
+            CompactMode::GrowthSize(a) => write!(f, "size({})", a),
+            CompactMode::GrowthSizeOrTimer { growth, timer } => write!(f, "size({})-or-timer({}ms)", growth, timer.as_millis())
+        }
+    }
+}
+
 impl std::str::FromStr
 for CompactMode
 {

@@ -139,6 +139,10 @@ for TimestampEnforcer
         // All good
         Ok(ValidationResult::Abstain)
     }
+
+    fn validator_name(&self) -> &str {
+        "timestamp-validator"
+    }
 }
 
 impl EventPlugin

@@ -2,7 +2,7 @@ use serde::{Serialize, Deserialize};
 
 use super::*;
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, Hash, PartialEq, Eq)]
 pub struct MetaAuthorization
 {
     pub read: ReadOption,

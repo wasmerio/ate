@@ -70,6 +70,10 @@ for AntiReplayPlugin
     fn clone_validator(&self) -> Box<dyn EventValidator> {
         Box::new(self.clone())
     }
+
+    fn validator_name(&self) -> &str {
+        "anti-reply-validator"
+    }
 }
 
 impl EventMetadataLinter

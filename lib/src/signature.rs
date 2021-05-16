@@ -177,6 +177,10 @@ for SignaturePlugin
     fn set_integrity_mode(&mut self, mode: IntegrityMode) {
         self.integrity = mode;
     }
+
+    fn validator_name(&self) -> &str {
+        "signature-validator"
+    }
 }
 
 impl EventMetadataLinter
@@ -229,7 +233,7 @@ for SignaturePlugin
             for e in raw.iter() {
                 if let Some(a) = e.data.meta.get_sign_with() {
                     if a.keys.contains(&auth) == true {
-                        data_hashes.push(e.header.raw.sig_hash());
+                        data_hashes.push(e.header.raw.event_hash);
                     }
                 }
             }

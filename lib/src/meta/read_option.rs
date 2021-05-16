@@ -8,7 +8,7 @@ use crate::crypto::*;
 /// the encryption key in their session when accessing these
 /// data records of which the hash of the encryption key must
 /// match this record.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ReadOption
 {
     Inherit,

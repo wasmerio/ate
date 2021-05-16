@@ -7,7 +7,7 @@ use crate::crypto::*;
 /// chain-of-trust key. Only users who have the `PrivateKey` in their session
 /// will be able to write these records to the chain. The hash of the `PublicKey`
 /// side is stored in this enum.
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Serialize, Deserialize, Debug, Clone, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub enum WriteOption
 {
     Inherit,

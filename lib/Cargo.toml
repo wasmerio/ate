@@ -14,6 +14,7 @@ readme = "../README.md"
 default = [ "all" ]
 basics = [ "hash_blake3", "hash_sha3" ]
 verbose = ["backtrace"]
+super_verbose = [ "verbose" ]
 hash_blake3 = []
 hash_sha3 = []
 extra_checks = []
@@ -21,8 +22,8 @@ buffered = []
 local_fs = []
 rotate = []
 caching = []
-all = [ "basics", "buffered", "local_fs", "rotate", "caching" ]
-#all = [ "basics", "buffered", "local_fs", "rotate", "verbose" ]
+all = [ "basics", "buffered", "local_fs", "rotate", "caching", "verbose" ]
+#all = [ "basics", "buffered", "local_fs", "rotate", "caching" ]
 
 #- memdb works nicely fixes the corruption issue but does not scale with huge log files
 #- it would seem the conversation logic is working however the server side is dropping

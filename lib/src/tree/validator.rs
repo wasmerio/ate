@@ -29,7 +29,7 @@ for TreeAuthorityPlugin
         }
 
         // If it has data then we need to check it - otherwise we ignore it
-        let sig_hash = header.raw.sig_hash();
+        let sig_hash = header.raw.event_hash;
 
         // It might be the case that everyone is allowed to write freely
         let dummy_trans_meta = TransactionMetadata::default();
@@ -99,5 +99,9 @@ for TreeAuthorityPlugin
     fn set_integrity_mode(&mut self, mode: IntegrityMode) {
         self.integrity = mode;
         self.signature_plugin.set_integrity_mode(mode);
+    }
+
+    fn validator_name(&self) -> &str {
+        "tree-authority-validator"
     }
 }

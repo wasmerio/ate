@@ -1,18 +1,10 @@
 use crate::event::*;
-use crate::sink::*;
 
 use super::*;
 
 #[derive(Default, Clone)]
 pub struct IndecisiveCompactor
 {
-}
-
-impl EventSink
-for IndecisiveCompactor
-{
-    fn reset(&mut self) {
-    }
 }
 
 impl EventCompactor

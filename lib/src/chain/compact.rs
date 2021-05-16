@@ -81,23 +81,71 @@ impl<'a> Chain
             let multi = ChainMultiUser::new_ext(&inside_async, &inside_sync, &pipe).await;
             let guard_async = multi.inside_async.read().await;
 
-            // step1 - reset all the compact
+            // step0 - zip up the headers with keep status flags
+            let mut headers = guard_async.chain.timeline.history
+                .iter()
+                .filter_map(|a| {
+                    if let Some(header) = a.1.as_header().ok() {
+                        Some((header, false))
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+            let total = headers.len() as u64;
+
+            #[cfg(feature = "verbose")]
+            {
+                debug!("step0");
+                headers.iter().for_each(|a| debug!("[{}]->{}", a.1, a.0.raw.event_hash));
+            }
+
+            // step1 - reset all the compactors
             for compactor in &guard_async.chain.timeline.compactors {
-                if let Some(mut compactor) = compactor.clone_compactor() {
-                    compactor.reset();
-
-                    #[cfg(feature = "verbose")]
-                    debug!("compactor: {}", compactor.name());
-
+                if let Some(compactor) = compactor.clone_compactor() {
                     new_timeline.compactors.push(compactor);
                 }
             }
 
-            // add a compactor that will add all events close to the current time within a particular
-            // tolerance as multi-consumers could be in need of these events
+            // step2 - add a compactor that will add all events close to the current time within a particular
+            //         tolerance as multi-consumers could be in need of these events
             new_timeline.compactors.push(Box::new(CutOffCompactor::new(cut_off)));
+            
+            // step3 - feed all the events into the compactors so they charged up and ready to make decisions
+            //         (we keep looping until the keep status stops changing which means we have reached equilibrium)
+            loop {
+                let mut changed = false;
+                
+                // We feed the events into the compactors in reverse order
+                for (header, keep) in headers.iter_mut().rev() {
+                    for compactor in new_timeline.compactors.iter_mut() {
+                        compactor.feed(&header, *keep);
+                    }
+                }
 
-            // create a fake sync that will be used by the validators
+                // Next we update all the keep status flags and detect if the state changed at all
+                for (header, keep) in headers.iter_mut() {
+                    let test = crate::compact::compute_relevance(new_timeline.compactors.iter(), header);
+                    if *keep != test {
+                        *keep = test;
+                        changed = true;
+                    }
+                }
+
+                #[cfg(feature = "verbose")]
+                {
+                    debug!("step3");
+                    headers.iter().for_each(|a| debug!("[{}]->{}", a.1, a.0.raw.event_hash));
+                }
+                
+                // If nother changed on this run then we have reached equilibrum
+                if changed == false { break; }
+
+                // Yield some time for other things to happend in the background
+                tokio::task::yield_now().await;
+            }
+
+            // step4 - create a fake sync that will be used by the validators
             let mut sync = {
                 let guard_sync = multi.inside_sync.read();
                 ChainProtectedSync {
@@ -116,75 +164,38 @@ impl<'a> Chain
             };
             sync.plugins.iter_mut().for_each(|a| a.reset());
 
-            // create an empty conversation
-            let conversation = Arc::new(ConversationSession::default());
-
-            // first we feed all the events into the compactors so they charged up and ready to make decisions
-            let mut total: u64 = 0;
-            for (_, entry) in guard_async.chain.timeline.history.iter().rev() {
-                let header = entry.as_header()?;
-
-                for compactor in new_timeline.compactors.iter_mut() {
-                    compactor.feed(&header, Some(&conversation))?;
-                }
-                total = total + 1;
-            }
-
-            // We first do a round of notifying the compactors so that signature events are
-            // then included in the chain of trust
-            for (_, entry) in guard_async.chain.timeline.history.iter() {
-                let header = entry.as_header()?;
-                let keep = crate::compact::compute_relevance(new_timeline.compactors.iter(), &header);
-                for compactor in new_timeline.compactors.iter_mut() {
-                    compactor.post_feed(&header, keep);
-                }
-            }
-
-            // We perform the checks again but this time we run them through the full suite
-            // of validators which will remove any orphans
-            let conversation = Arc::new(ConversationSession::default());
-            for (_, entry) in guard_async.chain.timeline.history.iter() {
-                let header = entry.as_header()?;
-
-                let mut keep = crate::compact::compute_relevance(new_timeline.compactors.iter(), &header);
-                if let Err(_) = sync.validate_event(&header, Some(&conversation)) {
-                    keep = false;
-                }
-                if keep == true {
+            // step5 - run all the validators over the events to make sure only a valid
+            //         chain of trust will be stored
+            let conversation = Arc::new(ConversationSession::new(true));
+            for (header, keep) in headers.iter_mut().filter(|a| a.1) {
+                if let Ok(_err) = sync.validate_event(&header, Some(&conversation)) {
                     for plugin in sync.plugins.iter_mut() {
-                        if let Err(_) = plugin.feed(&header, Some(&conversation)) {
-                            keep = false;
+                        let _r = plugin.feed(&header, Some(&conversation));
+                        #[cfg(feature = "verbose")]
+                        if let Err(_err) = _r {
+                            debug!("err-while-compacting: {}", _err);
                         }
-                    }
-                }
-                for compactor in new_timeline.compactors.iter_mut() {
-                    compactor.post_feed(&header, keep);
+                    }                    
+                } else {
+                    *keep = false;
                 }
             }
 
-            // build a list of the events that are actually relevant to a compacted log            
-            let mut how_many_keepers: u64 = 0;
-            for (_a, entry) in guard_async.chain.timeline.history.iter() {
-                let header = entry.as_header()?;
-                
-                // Determine if we should drop of keep the value
-                if crate::compact::compute_relevance(new_timeline.compactors.iter(), &header) == false {
-                    continue;
-                }
+            #[cfg(feature = "verbose")]
+            {
+                debug!("step5");
+                headers.iter().for_each(|a| debug!("[{}]->{}", a.1, a.0.raw.event_hash));
+            }
 
-                #[cfg(feature = "verbose")]
-                debug!("kept(@{})+(meta:{})+(data:{})+(hash:{})", _a, header.meta, header.raw.data_size, header.raw.sig_hash());
-
-                // This event is retained so we will add it to the new history
+            // step6 - build a list of the events that are actually relevant to a compacted log
+            for header in headers.iter().filter(|a| a.1).map(|a| &a.0) {
                 flip.event_summary.push(header.raw.clone());
                 let _lookup = flip.copy_event(&guard_async.chain.redo, header.raw.event_hash).await?;
                 new_timeline.add_history(&header);
-
-                // Metrics are recorded for logging reasons
-                how_many_keepers = how_many_keepers + 1;
             }
 
             // write the events out only loading the ones that are actually needed
+            let how_many_keepers = headers.iter().filter(|a| a.1).count();
             debug!("compact: kept {} events of {} events for cut-off {}", how_many_keepers, total, cut_off);
         }
 
@@ -197,11 +208,6 @@ impl<'a> Chain
             new_timeline.add_history(h);
         })
         .await?;
-
-        // We reset the compactors so they take up less space the memory
-        for compactor in new_timeline.compactors.iter_mut() {
-            compactor.reset();
-        }
 
         // complete the transaction under another lock
         {

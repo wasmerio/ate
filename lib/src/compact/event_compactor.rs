@@ -1,13 +1,13 @@
-use crate::event::*;
-use crate::sink::*;
+#[allow(unused_imports)]
+use log::{info, error, debug};
 
-#[derive(Debug, Clone, Copy)]
+use crate::event::*;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum EventRelevance
 {
-    #[allow(dead_code)]
     ForceKeep,      // Force the event to be kept
     Keep,           // This event should be kept
-    #[allow(dead_code)]
     Abstain,        // Do not have an opinion on this event
     Drop,           // The event should be dropped
     ForceDrop,      // Force the event to drop
@@ -26,14 +26,14 @@ for EventRelevance {
     }
 }
 
-pub trait EventCompactor: Send + Sync + EventSink
+pub trait EventCompactor: Send + Sync
 {
     // Decision making time - in order of back to front we now decide if we keep or drop an event
     fn relevance(&self, _header: &EventHeader) -> EventRelevance {
         EventRelevance::Abstain
     }
 
-    fn post_feed(&mut self, _header: &EventHeader, _keep: bool) {
+    fn feed(&mut self, _header: &EventHeader, _keep: bool) {
     }
 
     fn clone_compactor(&self) -> Option<Box<dyn EventCompactor>>;
@@ -52,8 +52,12 @@ pub fn compute_relevance<'a>(compactors: impl Iterator<Item=&'a Box<dyn EventCom
     let mut is_force_drop = false;
     for compactor in compactors {
         let relevance = compactor.relevance(&header);
-        #[cfg(feature = "super_verbose")]
-        debug!("{} on {} for {}", relevance, compactor.name(), header.meta);
+
+        #[cfg(feature = "verbose")]
+        if relevance != EventRelevance::Abstain && relevance != EventRelevance::ForceKeep && relevance != EventRelevance::Keep {
+            debug!("{} on {} for {}", relevance, compactor.name(), header.meta);
+        }
+
         match relevance {
             EventRelevance::ForceKeep => is_force_keep = true,
             EventRelevance::Keep => is_keep = true,
@@ -61,6 +65,10 @@ pub fn compute_relevance<'a>(compactors: impl Iterator<Item=&'a Box<dyn EventCom
             EventRelevance::ForceDrop => is_force_drop = true,
             EventRelevance::Abstain => { }
         }
+    }
+    #[cfg(feature = "verbose")]
+    if is_force_keep == false && is_keep == false && is_drop == false && is_force_drop == false {
+        debug!("abstain-all for {}", header.meta);
     }
     
     // Keep takes priority over drop and force takes priority over nominal indicators
