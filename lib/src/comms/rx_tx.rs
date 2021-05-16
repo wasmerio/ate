@@ -140,3 +140,14 @@ where C: Send + Sync + Default + 'static,
         self.rx.recv().await
     }
 }
+
+impl<C> Drop
+for NodeTx<C>
+where C: Send + Sync
+{
+    fn drop(&mut self)
+    {
+        //#[cfg(feature = "super_verbose")]
+        debug!("drop");
+    }
+}

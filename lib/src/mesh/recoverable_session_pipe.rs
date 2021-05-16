@@ -248,6 +248,7 @@ for RecoverableSessionPipe
                         loader
                     ).await;
 
+                    #[cfg(feature = "verbose")]
                     info!("disconnected: {}", _addr);
 
                     // We should only get here if the inbound connection is shutdown or fails
