@@ -11,6 +11,7 @@ use std::ops::Rem;
 use std::time::Duration;
 use std::time::Instant;
 use tokio::sync::broadcast;
+use tokio::time::timeout;
 
 use super::core::*;
 use crate::{anti_replay::AntiReplayPlugin, comms::*};
@@ -395,25 +396,32 @@ impl MeshSession
         let weak = Arc::downgrade(&session);
         drop(session);
 
-        while let Some(pck) = rx.recv().await {
+        loop {
+            let rcv = timeout(Duration::from_secs(1), rx.recv()).await;
             let session = match weak.upgrade() {
                 Some(a) => a,
                 None => { break; }
             };
-            match MeshSession::inbox_packet(&session, &mut loader, pck).await {
-                Ok(_) => { },
-                Err(CommsError::Disconnected) => { break; }
-                Err(CommsError::SendError(err)) => {
-                    warn!("mesh-session-err: {}", err);
-                    break;
-                }
-                Err(CommsError::ValidationError(errs)) => {
-                    debug!("mesh-session-debug: {} validation errors", errs.len());
-                    continue;
-                }
-                Err(err) => {
-                    warn!("mesh-session-err: {}", err.to_string());
-                    continue;
+            if let Ok(rcv) = rcv {
+                let pck = match rcv {
+                    Some(a) => a,
+                    None => { break; }
+                };
+                match MeshSession::inbox_packet(&session, &mut loader, pck).await {
+                    Ok(_) => { },
+                    Err(CommsError::Disconnected) => { break; }
+                    Err(CommsError::SendError(err)) => {
+                        warn!("mesh-session-err: {}", err);
+                        break;
+                    }
+                    Err(CommsError::ValidationError(errs)) => {
+                        debug!("mesh-session-debug: {} validation errors", errs.len());
+                        continue;
+                    }
+                    Err(err) => {
+                        warn!("mesh-session-err: {}", err.to_string());
+                        continue;
+                    }
                 }
             }
         }

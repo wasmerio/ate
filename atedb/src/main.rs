@@ -83,8 +83,8 @@ struct Solo {
     /// Time in seconds between compactions of the log file (default: 1 hour) - this argument is ignored if you select a compact_mode that has no timer
     #[clap(long, default_value = "3600")]
     compact_timer: u64,
-    /// Factor growth in the log file which will trigger compaction (default: 0.2) - this argument is ignored if you select a compact_mode that has no growth trigger
-    #[clap(long, default_value = "0.2")]
+    /// Factor growth in the log file which will trigger compaction (default: 0.4) - this argument is ignored if you select a compact_mode that has no growth trigger
+    #[clap(long, default_value = "0.4")]
     compact_threshold_factor: f32,
     /// Size of growth in bytes in the log file which will trigger compaction (default: 100MB) - this argument is ignored if you select a compact_mode that has no growth trigger
     #[clap(long, default_value = "104857600")]
