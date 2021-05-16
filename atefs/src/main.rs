@@ -216,10 +216,7 @@ async fn main_mount(mount: Mount, conf: ConfAte, group: Option<String>, session:
     conf.configured_for(mount.configured_for);
     conf.log_format.meta = mount.meta_format;
     conf.log_format.data = mount.data_format;
-    #[cfg(feature = "local_fs")]
-    {
-        conf.log_path = shellexpand::tilde(&mount.log_path).to_string();
-    }
+    conf.log_path = mount.log_path.as_ref().map(|a| shellexpand::tilde(a).to_string());
     conf.recovery_mode = mount.recovery_mode;
     conf.compact_bootstrap = mount.compact_now;
     conf.compact_mode = mount.compact_mode
