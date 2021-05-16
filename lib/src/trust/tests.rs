@@ -69,14 +69,21 @@ async fn test_chain() -> Result<(), AteError> {
 
     let key1 = PrimaryKey::generate();
     let key2 = PrimaryKey::generate();
+    #[allow(unused_variables)]
     let chain_name;
+
+    #[cfg(not(feature = "local_fs"))]
+    #[allow(unused_variables, unused_assignments)]
+    let mut stored_chain = None;
 
     {
         debug!("creating test chain");
         let mut mock_cfg = crate::conf::tests::mock_test_config();
         mock_cfg.compact_mode = CompactMode::Never;
         let (chain, _builder) = create_test_chain(&mut mock_cfg, "test_chain".to_string(), true, true, None).await;
+        
         chain_name = chain.name().await;
+        debug!("chain-name: {}", chain_name);
         
         {
             let lock = chain.multi().await;
@@ -116,6 +123,11 @@ async fn test_chain() -> Result<(), AteError> {
 
         // Fliush the chain
         chain.flush().await?;
+
+        // Store the chain if we are in memory mode as there is no persistence
+        #[cfg(not(feature = "local_fs"))] {            
+            stored_chain = Some(chain);
+        }
     }
 
     {
@@ -123,7 +135,11 @@ async fn test_chain() -> Result<(), AteError> {
         debug!("reloading the chain");
         let mut mock_cfg = crate::conf::tests::mock_test_config();
         mock_cfg.compact_mode = CompactMode::Never;
+
+        #[cfg(feature = "local_fs")]
         let (chain, _builder) = create_test_chain(&mut mock_cfg, chain_name.clone(), false, true, None).await;
+        #[cfg(not(feature = "local_fs"))]
+        let chain = stored_chain.take().unwrap();
             
         {
             let lock = chain.multi().await;
@@ -174,6 +190,11 @@ async fn test_chain() -> Result<(), AteError> {
             let test_data = lock.load(test_data.clone()).await?;
             assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(2; 1))));
         }
+
+        // Store the chain if we are in memory mode as there is no persistence
+        #[cfg(not(feature = "local_fs"))] {            
+            stored_chain = Some(chain);
+        }
     }
 
     {
@@ -181,7 +202,10 @@ async fn test_chain() -> Result<(), AteError> {
         debug!("reloading the chain");
         let mut mock_cfg = crate::conf::tests::mock_test_config();
         mock_cfg.compact_mode = CompactMode::Never;
+        #[cfg(feature = "local_fs")]
         let (chain, _builder) = create_test_chain(&mut mock_cfg, chain_name.clone(), false, true, None).await;
+        #[cfg(not(feature = "local_fs"))]
+        let chain = stored_chain.take().unwrap();
 
         assert_eq!(2, chain.count().await);
 
@@ -233,6 +257,11 @@ async fn test_chain() -> Result<(), AteError> {
         chain.compact().await.expect("Failed to compact the log");
         let after = chain.count().await;
         assert_eq!(1, chain.count().await, "failed - before: {} - after: {}", before, after);
+
+        // Store the chain if we are in memory mode as there is no persistence
+        #[cfg(not(feature = "local_fs"))] {            
+            stored_chain = Some(chain);
+        }
     }
 
     {
@@ -240,7 +269,10 @@ async fn test_chain() -> Result<(), AteError> {
         debug!("reloading the chain");
         let mut mock_cfg = crate::conf::tests::mock_test_config();
         mock_cfg.compact_mode = CompactMode::Never;
+        #[cfg(feature = "local_fs")]
         let (chain, _builder) = create_test_chain(&mut mock_cfg, chain_name.clone(), false, true, None).await;
+        #[cfg(not(feature = "local_fs"))]
+        let chain = stored_chain.take().unwrap();
 
         {
             let lock = chain.multi().await;

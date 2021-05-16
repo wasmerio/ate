@@ -62,6 +62,10 @@ async fn test_dio() -> Result<(), AteError>
     let key2;
     let key3;
     let chain_name = format!("test_dio_{}", PrimaryKey::generate().to_string());
+    
+    #[cfg(not(feature = "local_fs"))]
+    #[allow(unused_variables, unused_assignments)]
+    let mut stored_chain = None;
 
     {
         debug!("creating the chain-of-trust");
@@ -184,12 +188,22 @@ async fn test_dio() -> Result<(), AteError>
 
             dio.commit().await.expect("The DIO should commit");
         }
+
+        // Store the chain if we are in memory mode as there is no persistence
+        #[cfg(not(feature = "local_fs"))] {            
+            stored_chain = Some(chain);
+        }
     }
 
     {
         debug!("reloading the chain of trust");
+        #[cfg(feature = "local_fs")]
         let mut mock_cfg = crate::conf::tests::mock_test_config();
+
+        #[cfg(feature = "local_fs")]
         let (chain, _builder) = crate::trust::create_test_chain(&mut mock_cfg, chain_name.clone(), false, false, Some(root_public_key.clone())).await;
+        #[cfg(not(feature = "local_fs"))]
+        let chain = stored_chain.take().unwrap();
 
         {
             let mut dio = chain.dio(&session).await;

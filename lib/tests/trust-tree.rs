@@ -37,6 +37,10 @@ fn test_trust_tree() -> Result<(), AteError>
         conf.log_format.meta = SerializationFormat::Json;
         conf.log_format.data = SerializationFormat::Json;
 
+        #[cfg(not(feature = "local_fs"))]
+        #[allow(unused_variables, unused_assignments)]
+        let mut stored_chain = None;
+
         let key1;
         {
             debug!("building the session");
@@ -71,8 +75,14 @@ fn test_trust_tree() -> Result<(), AteError>
             }
             garage.commit(&mut dio)?;
             dio.commit().await?;
+            drop(dio);
 
             key1 = garage.key().clone();
+
+            // Store the chain if we are in memory mode as there is no persistence
+            #[cfg(not(feature = "local_fs"))] {            
+                stored_chain = Some(chain);
+            }
         }
 
         {
@@ -82,15 +92,20 @@ fn test_trust_tree() -> Result<(), AteError>
             session.user.properties.push(AteSessionProperty::ReadKey(read_key.clone()));
             session.user.properties.push(AteSessionProperty::Identity("author@here.com".to_string()));
 
-            debug!("loading the chain-of-trust again");
-            let mut conf = ConfAte::default();
-            conf.log_format.meta = SerializationFormat::Json;
-            conf.log_format.data = SerializationFormat::Json;
-            let builder = ChainBuilder::new(&conf)
-                .await
-                .add_root_public_key(&root_public_key)
-                .build();
-            let chain = builder.open(&ChainKey::from("trust")).await?;
+            #[cfg(feature = "local_fs")]
+            let chain = {
+                debug!("loading the chain-of-trust again");
+                let mut conf = ConfAte::default();
+                conf.log_format.meta = SerializationFormat::Json;
+                conf.log_format.data = SerializationFormat::Json;
+                let builder = ChainBuilder::new(&conf)
+                    .await
+                    .add_root_public_key(&root_public_key)
+                    .build();
+                builder.open(&ChainKey::from("trust")).await?
+            };
+            #[cfg(not(feature = "local_fs"))]
+            let chain = stored_chain.take().unwrap();
 
             // Load the garage
             let mut dio = chain.dio(&session).await;

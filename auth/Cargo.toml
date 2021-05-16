@@ -11,7 +11,7 @@ repository = "https://github.com/john-sharratt/ate/auth"
 readme = "README.md"
 
 [features]
-default = []
+default = [ "all" ]
 local_fs = [ "ate/local_fs" ]
 all = [ "local_fs" ]
 

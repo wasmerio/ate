@@ -1,3 +1,4 @@
+#![cfg(feature = "local_fs")]
 use ate::prelude::*;
 use tokio::runtime::Runtime;
 
