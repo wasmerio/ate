@@ -101,7 +101,6 @@ impl<'a> Chain
         let inside_async = Arc::downgrade(&inside_async);
         let inside_sync = Arc::downgrade(&inside_sync);
         let pipe = Arc::downgrade(&pipe);
-        let time = Arc::downgrade(&time);
 
         loop {
             compact_state.wait_for_compact().await?;
@@ -110,22 +109,16 @@ impl<'a> Chain
                 Some(a) => a,
                 None => { break; }
             };
-
             let inside_sync = match Weak::upgrade(&inside_sync) {
                 Some(a) => a,
                 None => { break; }
             };
-
             let pipe = match Weak::upgrade(&pipe) {
                 Some(a) => a,
                 None => { break; }
             };
+            let time = Arc::clone(&time);
 
-            let time = match Weak::upgrade(&time) {
-                Some(a) => a,
-                None => { break; }
-            };
-            
             Chain::compact_ext(inside_async, inside_sync, pipe, time).await?;
         }
 
