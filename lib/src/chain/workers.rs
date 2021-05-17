@@ -1,16 +1,16 @@
 #[allow(unused_imports)]
 use log::{info, error, debug};
 
-use crate::error::*;
+use crate::transaction::TransactionScope;
 use crate::transaction::*;
 use crate::compact::*;
+use crate::error::*;
 use crate::pipe::*;
-use crate::transaction::TransactionScope;
 use crate::time::*;
 
-use std::sync::{Arc, Weak};
-use tokio::sync::RwLock;
 use parking_lot::RwLock as StdRwLock;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 use tokio::sync::mpsc;
 use tokio::sync::broadcast;
 use tokio::select;
@@ -23,12 +23,24 @@ pub(super) struct ChainWork
     pub(super) notify: Option<mpsc::Sender<Result<(), CommitError>>>,
 }
 
+struct ChainExitNotifier
+{
+    exit: broadcast::Sender<()>    
+}
+
+impl Drop
+for ChainExitNotifier {
+    fn drop(&mut self) {
+        let _ = self.exit.send(());
+    }
+}
+
 impl<'a> Chain
 {
     pub(super) async fn worker_receiver(inside_async: Arc<RwLock<ChainProtectedAsync>>, inside_sync: Arc<StdRwLock<ChainProtectedSync>>, mut receiver: mpsc::Receiver<ChainWork>, compact_tx: CompactNotifications, mut exit: broadcast::Receiver<()>)
     {
-        let inside_async = Arc::downgrade(&inside_async);
-        let inside_sync = Arc::downgrade(&inside_sync);
+        // When the worker thread exits it should trigger the broadcast
+        let _exit = ChainExitNotifier { exit: inside_async.write().await.exit.clone() };
 
         // Wait for the next transaction to be processed
         loop
@@ -42,16 +54,6 @@ impl<'a> Chain
                         None => { break; }
                     }
                 }
-            };
-
-            // Upgrade all the pointers
-            let inside_async = match Weak::upgrade(&inside_async) {
-                Some(a) => a,
-                None => { break; }
-            };
-            let inside_sync = match Weak::upgrade(&inside_sync) {
-                Some(a) => a,
-                None => { break; }
             };
 
             // Extract the variables
@@ -116,20 +118,10 @@ impl<'a> Chain
             // Yield so the other async events get time
             tokio::task::yield_now().await;
         }
-
-        // Clear the run flag
-        if let Some(inside_async) = Weak::upgrade(&inside_async) {
-            let lock = inside_async.read().await;
-            let _ = lock.exit.send(());
-        }
     }
 
     pub(super) async fn worker_compactor(inside_async: Arc<RwLock<ChainProtectedAsync>>, inside_sync: Arc<StdRwLock<ChainProtectedSync>>, pipe: Arc<Box<dyn EventPipe>>, time: Arc<TimeKeeper>, mut compact_state: CompactState, mut exit: broadcast::Receiver<()>) -> Result<(), CompactError>
     {
-        let inside_async = Arc::downgrade(&inside_async);
-        let inside_sync = Arc::downgrade(&inside_sync);
-        let pipe = Arc::downgrade(&pipe);
-
         loop {
             select! {
                 a = compact_state.wait_for_compact() => { a?; },
@@ -139,18 +131,9 @@ impl<'a> Chain
                 }
             }
 
-            let inside_async = match Weak::upgrade(&inside_async) {
-                Some(a) => a,
-                None => { break; }
-            };
-            let inside_sync = match Weak::upgrade(&inside_sync) {
-                Some(a) => a,
-                None => { break; }
-            };
-            let pipe = match Weak::upgrade(&pipe) {
-                Some(a) => a,
-                None => { break; }
-            };
+            let inside_async = Arc::clone(&inside_async);
+            let inside_sync = Arc::clone(&inside_sync);
+            let pipe = Arc::clone(&pipe);
             let time = Arc::clone(&time);
 
             Chain::compact_ext(inside_async, inside_sync, pipe, time).await?;
