@@ -1,4 +1,18 @@
 ```
+0.8.0   Tokera Coins
+        + Create wallets for accounts in Tokera
+        + Create PayPal exchange for wallets
+        + Add contracts that are redeemable after a fixed piece of buisness logic
+          executes that validates the completeness of the contract
+        + Modify AteDB so that it is able to charge wallets for databases for
+          both ongoing usable and for persistant storage.
+        + It must be possible for a Wallet to be tied to other peoples databases
+          that get created for them (this is so middleman sites can be created)
+
+0.9.0   WebAssembly
+        + Convert ATE so that it works within WebAssembly
+        + Build a Login and Wallet page for Tokera
+
 0.6.2   Linked File-System
         + Any folder created within AteFS should be able to 'link' with another
           file-system using the 'atefs link {remote}' commands.
@@ -63,11 +77,6 @@
           3. AteFS runs on a specfied file system
           4. Mounts all the auxillary file-systems
           5. Creates a PDP on the folder (if one does not exist)
-
-0.9.1   Tokera Coins
-        + Create wallets for accounts in Tokera
-        + Create PayPal exchange for wallets
-        + Add contracts
 
 0.10.0  Rentable Baremetal
         + Ate bootloader that goes into an advertising state which publishes the
