@@ -36,6 +36,7 @@ pub enum TransactionScope
 #[derive(Debug, Default)]
 pub struct ConversationSession
 {
+    pub force_centralized_mode: bool,
     pub other_end_is_server: bool,
     pub signatures: StdRwLock<FxHashSet<AteHash>>,
 }

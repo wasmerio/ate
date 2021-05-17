@@ -24,7 +24,12 @@ impl<'a> Chain
 {
     pub async fn compact(self: &'a Chain) -> Result<(), CompactError>
     {
-        Chain::compact_ext(Arc::clone(&self.inside_async), Arc::clone(&self.inside_sync), Arc::clone(&self.pipe), Arc::clone(&self.time)).await
+        Chain::compact_ext(
+            Arc::clone(&self.inside_async),
+            Arc::clone(&self.inside_sync),
+            Arc::clone(&self.pipe),
+            Arc::clone(&self.time)
+        ).await
     }
 
     pub(crate) async fn compact_ext(inside_async: Arc<RwLock<ChainProtectedAsync>>, inside_sync: Arc<StdRwLock<ChainProtectedSync>>, pipe: Arc<Box<dyn EventPipe>>, time: Arc<TimeKeeper>) -> Result<(), CompactError>
@@ -169,7 +174,9 @@ impl<'a> Chain
 
             // step5 - run all the validators over the events to make sure only a valid
             //         chain of trust will be stored
-            let conversation = Arc::new(ConversationSession::new(true));
+            let mut conversation = ConversationSession::new(true);
+            conversation.force_centralized_mode = true;
+            let conversation = Arc::new(conversation);
             for (header, keep) in headers.iter_mut().filter(|a| a.1) {
                 if let Ok(_err) = sync.validate_event(&header, Some(&conversation)) {
                     for plugin in sync.plugins.iter_mut() {

@@ -45,10 +45,11 @@ for TreeAuthorityPlugin
             Some(a) => a,
             None =>
             {
-                // If integrity is centrally managed and we have seen this public key before in this
-                // particular conversation then we can trust the rest of the integrity of the chain
-                if self.integrity == IntegrityMode::Centralized {
-                    if let Some(conversation) = conversation {
+                if let Some(conversation) = conversation
+                {
+                    // If integrity is centrally managed and we have seen this public key before in this
+                    // particular conversation then we can trust the rest of the integrity of the chain
+                    if self.integrity == IntegrityMode::Centralized || conversation.force_centralized_mode {
                         if conversation.other_end_is_server {
                             return Ok(ValidationResult::Allow)
                         }
@@ -63,12 +64,10 @@ for TreeAuthorityPlugin
                             return Ok(ValidationResult::Allow)
                         }
                     }
-                    debug!("rejected event as it has no signatures (centralized)");
-                } else {
-                    debug!("rejected event as it has no signatures (distributed)");
                 }
                 
                 // Otherwise fail
+                debug!("rejected event as it has no signatures (distributed)");
                 return Err(ValidationError::NoSignatures);
             },
         };

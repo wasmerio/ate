@@ -205,7 +205,7 @@ impl<'a> Chain
         let tolerance = builder.configured_for.ntp_tolerance();
         let time = Arc::new(TimeKeeper::new(&builder.cfg, tolerance).await?);
 
-        // Create the chain that will be returned to thecaller
+        // Create the chain that will be returned to the caller
         let chain = Chain {
             key: key.clone(),
             default_format: builder.cfg.log_format,
