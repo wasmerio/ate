@@ -8,7 +8,7 @@ use crate::pipe::*;
 use crate::transaction::TransactionScope;
 use crate::time::*;
 
-use std::sync::{Arc};
+use std::sync::{Arc, Weak};
 use tokio::sync::RwLock;
 use parking_lot::RwLock as StdRwLock;
 use tokio::sync::mpsc;
@@ -98,14 +98,37 @@ impl<'a> Chain
 
     pub(super) async fn worker_compactor(inside_async: Arc<RwLock<ChainProtectedAsync>>, inside_sync: Arc<StdRwLock<ChainProtectedSync>>, pipe: Arc<Box<dyn EventPipe>>, time: Arc<TimeKeeper>, mut compact_state: CompactState) -> Result<(), CompactError>
     {
+        let inside_async = Arc::downgrade(&inside_async);
+        let inside_sync = Arc::downgrade(&inside_sync);
+        let pipe = Arc::downgrade(&pipe);
+        let time = Arc::downgrade(&time);
+
         loop {
             compact_state.wait_for_compact().await?;
 
-            let inside_async = Arc::clone(&inside_async);
-            let inside_sync = Arc::clone(&inside_sync);
-            let pipe = Arc::clone(&pipe);
-            let time = Arc::clone(&time);
+            let inside_async = match Weak::upgrade(&inside_async) {
+                Some(a) => a,
+                None => { break; }
+            };
+
+            let inside_sync = match Weak::upgrade(&inside_sync) {
+                Some(a) => a,
+                None => { break; }
+            };
+
+            let pipe = match Weak::upgrade(&pipe) {
+                Some(a) => a,
+                None => { break; }
+            };
+
+            let time = match Weak::upgrade(&time) {
+                Some(a) => a,
+                None => { break; }
+            };
+            
             Chain::compact_ext(inside_async, inside_sync, pipe, time).await?;
         }
+
+        Ok(())
     }
 }
