@@ -7,6 +7,7 @@ use crate::transaction::*;
 
 use std::sync::{Arc};
 use tokio::sync::RwLock;
+use tokio::sync::broadcast;
 use parking_lot::RwLock as StdRwLock;
 
 use crate::single::*;
@@ -47,6 +48,7 @@ where Self: Send + Sync
     pub(crate) inside_async: Arc<RwLock<ChainProtectedAsync>>,
     pub(crate) pipe: Arc<Box<dyn EventPipe>>,
     pub(crate) time: Arc<TimeKeeper>,
+    pub(crate) exit: broadcast::Sender<()>,
 }
 
 impl<'a> Chain
@@ -123,6 +125,7 @@ for Chain
     fn drop(&mut self)
     {
         debug!("drop {}", self.key.to_string());
+        let _ = self.exit.send(());
     }
 }
 

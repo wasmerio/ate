@@ -3,6 +3,7 @@ use log::{info, error, debug};
 
 use multimap::MultiMap;
 use btreemultimap::BTreeMultiMap;
+use tokio::sync::broadcast;
 
 use crate::error::*;
 use crate::conf::*;
@@ -143,6 +144,9 @@ impl<'a> Chain
         let inside_sync
             = Arc::new(StdRwLock::new(inside_sync));
 
+        // Create an exit watcher
+        let (exit_tx, _) = broadcast::channel(1);
+
         // The asynchronous critical section protects the chain-of-trust itself and
         // will have longer waits on it when there are writes occuring
         let mut inside_async = ChainProtectedAsync {
@@ -150,7 +154,7 @@ impl<'a> Chain
             default_format: builder.cfg.log_format,
             disable_new_roots: false,
             sync_tolerance: builder.cfg.sync_tolerance,
-            run: true,
+            exit: exit_tx.clone(),
         };
 
         // Check all the process events
@@ -183,9 +187,10 @@ impl<'a> Chain
              = mpsc::channel(builder.cfg.buffer_size_client);
 
         // The worker thread processes events that come in
+        let worker_exit = exit_tx.subscribe();
         let worker_inside_async = Arc::clone(&inside_async);
         let worker_inside_sync = Arc::clone(&inside_sync);
-        tokio::task::spawn(Chain::worker_receiver(worker_inside_async, worker_inside_sync, receiver, compact_tx));
+        tokio::task::spawn(Chain::worker_receiver(worker_inside_async, worker_inside_sync, receiver, compact_tx, worker_exit));
 
         // The inbox pipe intercepts requests to and processes them
         let mut pipe: Arc<Box<dyn EventPipe>> = Arc::new(Box::new(InboxPipe {
@@ -208,6 +213,7 @@ impl<'a> Chain
             inside_async,
             pipe,
             time,
+            exit: exit_tx.clone(),
         };
 
         // If we are to compact the log on bootstrap then do so
@@ -220,11 +226,12 @@ impl<'a> Chain
         if builder.cfg.compact_mode != CompactMode::Never {
             debug!("compact-mode-on: {}", builder.cfg.compact_mode);
 
+            let worker_exit = exit_tx.subscribe();
             let worker_inside_async = Arc::clone(&chain.inside_async);
             let worker_inside_sync = Arc::clone(&chain.inside_sync);
             let worker_pipe = Arc::clone(&chain.pipe);
             let time = Arc::clone(&chain.time);
-            tokio::task::spawn(Chain::worker_compactor(worker_inside_async, worker_inside_sync, worker_pipe, time, compact_rx));
+            tokio::task::spawn(Chain::worker_compactor(worker_inside_async, worker_inside_sync, worker_pipe, time, compact_rx, worker_exit));
         } else {
             debug!("compact-mode-off: {}", builder.cfg.compact_mode);
         }

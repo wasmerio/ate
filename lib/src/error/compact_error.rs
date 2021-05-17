@@ -1,7 +1,8 @@
 #[allow(unused_imports)]
 use log::{info, error, debug};
 use std::error::Error;
-use tokio::sync::watch::error::*;
+use tokio::sync::watch;
+use tokio::sync::broadcast;
 
 extern crate rmp_serde as rmps;
 
@@ -13,8 +14,10 @@ pub enum CompactError {
     IO(tokio::io::Error),
     LoadError(LoadError),
     WatchError(String),
+    BroadcastError(String),
     TimeError(TimeError),
     SerializationError(SerializationError),
+    Aborted,
 }
 
 impl From<tokio::io::Error>
@@ -52,19 +55,35 @@ for CompactError {
     }
 }
 
-impl From<RecvError>
+impl From<watch::error::RecvError>
 for CompactError {
-    fn from(err: RecvError) -> CompactError {
+    fn from(err: watch::error::RecvError) -> CompactError {
         CompactError::WatchError(err.to_string())
     }
 }
 
-impl<T> From<SendError<T>>
+impl<T> From<watch::error::SendError<T>>
 for CompactError
 where T: std::fmt::Debug
 {
-    fn from(err: SendError<T>) -> CompactError {
+    fn from(err: watch::error::SendError<T>) -> CompactError {
         CompactError::WatchError(err.to_string())
+    }
+}
+
+impl From<broadcast::error::RecvError>
+for CompactError {
+    fn from(err: broadcast::error::RecvError) -> CompactError {
+        CompactError::BroadcastError(err.to_string())
+    }
+}
+
+impl<T> From<broadcast::error::SendError<T>>
+for CompactError
+where T: std::fmt::Debug
+{
+    fn from(err: broadcast::error::SendError<T>) -> CompactError {
+        CompactError::BroadcastError(err.to_string())
     }
 }
 
@@ -84,11 +103,17 @@ for CompactError {
             CompactError::WatchError(err) => {
                 write!(f, "Failed to compact the chain due to an error in watch notification - {}", err)
             },
+            CompactError::BroadcastError(err) => {
+                write!(f, "Failed to compact the chain due to an error in broadcast notification - {}", err)
+            },
             CompactError::LoadError(err) => {
                 write!(f, "Failed to compact the chain due to an error loaded on event - {}", err)
             },
             CompactError::TimeError(err) => {
                 write!(f, "Failed to compact the chain due to an error in the time keeper - {}", err)
+            },
+            CompactError::Aborted => {
+                write!(f, "Compacting has been aborted")
             },
         }
     }

@@ -12,6 +12,8 @@ use std::sync::{Arc, Weak};
 use tokio::sync::RwLock;
 use parking_lot::RwLock as StdRwLock;
 use tokio::sync::mpsc;
+use tokio::sync::broadcast;
+use tokio::select;
 
 use super::*;
 
@@ -23,11 +25,35 @@ pub(super) struct ChainWork
 
 impl<'a> Chain
 {
-    pub(super) async fn worker_receiver(inside_async: Arc<RwLock<ChainProtectedAsync>>, inside_sync: Arc<StdRwLock<ChainProtectedSync>>, mut receiver: mpsc::Receiver<ChainWork>, compact_tx: CompactNotifications)
+    pub(super) async fn worker_receiver(inside_async: Arc<RwLock<ChainProtectedAsync>>, inside_sync: Arc<StdRwLock<ChainProtectedSync>>, mut receiver: mpsc::Receiver<ChainWork>, compact_tx: CompactNotifications, mut exit: broadcast::Receiver<()>)
     {
+        let inside_async = Arc::downgrade(&inside_async);
+        let inside_sync = Arc::downgrade(&inside_sync);
+
         // Wait for the next transaction to be processed
-        while let Some(work) = receiver.recv().await
+        loop
         {
+            // Wait for the exit command or for some data to be received
+            let work: ChainWork = select! {
+                _ = exit.recv() => { break; },
+                work = receiver.recv() => {
+                    match work {
+                        Some(a) => a,
+                        None => { break; }
+                    }
+                }
+            };
+
+            // Upgrade all the pointers
+            let inside_async = match Weak::upgrade(&inside_async) {
+                Some(a) => a,
+                None => { break; }
+            };
+            let inside_sync = match Weak::upgrade(&inside_sync) {
+                Some(a) => a,
+                None => { break; }
+            };
+
             // Extract the variables
             let trans = work.trans;
             let work_notify = work.notify;
@@ -92,18 +118,26 @@ impl<'a> Chain
         }
 
         // Clear the run flag
-        let mut lock = inside_async.write().await;
-        lock.run = false;
+        if let Some(inside_async) = Weak::upgrade(&inside_async) {
+            let lock = inside_async.read().await;
+            let _ = lock.exit.send(());
+        }
     }
 
-    pub(super) async fn worker_compactor(inside_async: Arc<RwLock<ChainProtectedAsync>>, inside_sync: Arc<StdRwLock<ChainProtectedSync>>, pipe: Arc<Box<dyn EventPipe>>, time: Arc<TimeKeeper>, mut compact_state: CompactState) -> Result<(), CompactError>
+    pub(super) async fn worker_compactor(inside_async: Arc<RwLock<ChainProtectedAsync>>, inside_sync: Arc<StdRwLock<ChainProtectedSync>>, pipe: Arc<Box<dyn EventPipe>>, time: Arc<TimeKeeper>, mut compact_state: CompactState, mut exit: broadcast::Receiver<()>) -> Result<(), CompactError>
     {
         let inside_async = Arc::downgrade(&inside_async);
         let inside_sync = Arc::downgrade(&inside_sync);
         let pipe = Arc::downgrade(&pipe);
 
         loop {
-            compact_state.wait_for_compact().await?;
+            select! {
+                a = compact_state.wait_for_compact() => { a?; },
+                a = exit.recv() => {
+                    a?;
+                    break;
+                }
+            }
 
             let inside_async = match Weak::upgrade(&inside_async) {
                 Some(a) => a,
