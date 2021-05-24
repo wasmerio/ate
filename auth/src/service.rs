@@ -12,10 +12,10 @@ use crate::helper::*;
 use crate::model::*;
 
 #[derive(Debug)]
-pub(crate) struct AuthService
+pub struct AuthService
 {
     pub master_session: AteSession,
-    pub(crate) ntp_worker: Arc<NtpWorker>,
+    pub ntp_worker: Arc<NtpWorker>,
 }
 
 #[async_trait]
@@ -98,16 +98,25 @@ for AuthService
     }
 }
 
+impl AuthService
+{
+    pub async fn new(cfg: &ConfAte, auth_session: AteSession) -> Result<Arc<AuthService>, TimeError>
+    {
+        let service = Arc::new(
+            AuthService
+            {
+                master_session: auth_session,
+                ntp_worker:  NtpWorker::create(cfg, 30000).await?
+            }
+        );
+        Ok(service)
+    }
+}
+
 pub async fn service_logins(cfg: &ConfAte, cmd_session: AteSession, auth_session: AteSession, chain: &Arc<Chain>)
 -> Result<(), TimeError>
 {
-    let service = Arc::new(
-        AuthService
-        {
-            master_session: auth_session,
-            ntp_worker:  NtpWorker::create(cfg, 30000).await?
-        }
-    );
+    let service = AuthService::new(cfg, auth_session).await?;
 
     {
         let service = Arc::clone(&service);

@@ -93,7 +93,6 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
             let context = InvocationContext
             {
                 session: &self.session,
-                chain: Arc::clone(&chain),
                 repository: repo,
             };
 

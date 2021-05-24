@@ -1,10 +1,8 @@
 #[allow(unused_imports)]
 use log::{info, warn, debug, error};
-use serde::*;
 use ate::{prelude::*};
 use ate_auth::prelude::*;
 use clap::Clap;
-use std::fs::File;
 
 #[derive(Clap)]
 #[clap(version = "1.5", author = "John S. <johnathan.sharratt@gmail.com>")]
@@ -55,31 +53,6 @@ struct Generate {
     strength: KeySize,
 }
 
-fn load_key<T>(key_path: String, postfix: &str) -> T
-where T: serde::de::DeserializeOwned
-{
-    let key_path = format!("{}{}", key_path, postfix).to_string();
-    let path = shellexpand::tilde(&key_path).to_string();
-    let path = std::path::Path::new(&path);
-    let _ = std::fs::create_dir_all(path.parent().unwrap().clone());
-    let file = File::open(path).unwrap();
-    bincode::deserialize_from(&file).unwrap()
-}
-
-fn save_key<T>(key_path: String, key: T, postfix: &str)
-where T: Serialize
-{
-    let key_path = format!("{}{}", key_path, postfix).to_string();
-    let path = shellexpand::tilde(&key_path).to_string();
-    let path = std::path::Path::new(&path);
-    let _ = std::fs::create_dir_all(path.parent().unwrap().clone());
-    let mut file = File::create(path).unwrap();
-    
-    print!("Generating secret key at {}...", key_path);
-    bincode::serialize_into(&mut file, &key).unwrap();
-    println!("Done");
-}
-
 fn ctrl_channel() -> tokio::sync::watch::Receiver<bool> {
     let (sender, receiver) = tokio::sync::watch::channel(false);
     ctrlc::set_handler(move || {
@@ -108,8 +81,8 @@ async fn main() -> Result<(), AteError>
         SubCommand::Run(run) =>
         {
             // Open the key file
-            let root_write_key: PrivateSignKey = load_key(run.key_path.clone(), ".write");
-            let root_read_key: EncryptKey = load_key(run.key_path.clone(), ".read");
+            let root_write_key: PrivateSignKey = ate_auth::load_key(run.key_path.clone(), ".write");
+            let root_read_key: EncryptKey = ate_auth::load_key(run.key_path.clone(), ".read");
             
             // Build a session for service
             let mut cfg_ate = ate_auth::conf_auth();
@@ -136,10 +109,10 @@ async fn main() -> Result<(), AteError>
 
         SubCommand::Generate(generate) => {
             let read_key = EncryptKey::generate(generate.strength);
-            save_key(generate.key_path.clone(), read_key, ".read");
+            ate_auth::save_key(generate.key_path.clone(), read_key, ".read");
 
             let write_key = PrivateSignKey::generate(generate.strength);
-            save_key(generate.key_path.clone(), write_key, ".write");
+            ate_auth::save_key(generate.key_path.clone(), write_key, ".write");
         },
     }
 
