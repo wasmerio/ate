@@ -431,6 +431,7 @@ impl MeshSession
         info!("disconnected: {}:{}", addr.ip, addr.port);
         if let Some(session) = weak.upgrade() {
             session.cancel_commits().await;
+            session.cancel_sniffers();
             session.cancel_locks();
         }
         Ok(())
@@ -460,6 +461,14 @@ impl MeshSession
             sender.cancel();
         }
     }
+
+    pub(super) fn cancel_sniffers(&self)
+    {
+        if let Some(guard) = self.chain.upgrade() {
+            let mut lock = guard.inside_sync.write();
+            lock.sniffers.clear();
+        }
+    }
 }
 
 impl Drop
@@ -469,5 +478,6 @@ for MeshSession
     {
         debug!("drop {}", self.key.to_string());
         self.cancel_locks();
+        self.cancel_sniffers();
     }
 }
