@@ -89,6 +89,7 @@ impl ActiveSessionPipe
         };
 
         // Send the same packet to all the transmit nodes (if there is only one then don't clone)
+        debug!("tx wire_format={}", self.tx.wire_format);
         let pck = Packet::from(Message::Events{ commit, evts, }).to_packet_data(self.tx.wire_format)?;
         self.tx.send_packet(BroadcastPacketData {
             group: Some(self.key.hash64()),

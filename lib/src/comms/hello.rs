@@ -45,6 +45,7 @@ pub(super) async fn mesh_hello_exchange_sender(stream: &mut TcpStream, domain: O
             return Err(CommsError::NoWireFormat);
         }
     };
+    debug!("client wire_format={}", wire_format);
     
     Ok((
         key_size,
@@ -65,7 +66,7 @@ pub(super) async fn mesh_hello_exchange_receiver(stream: &mut TcpStream, mut key
     key_size = mesh_hello_upgrade_key(key_size, hello_client.key_size);
 
     // Send over the hello message and wait for a response
-    debug!("server sending hello");
+    debug!("server sending hello (wire_format={})", wire_format);
     let hello_server = Hello {
         domain: None,
         key_size,

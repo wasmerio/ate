@@ -51,7 +51,7 @@ pub(super) struct RecoverableSessionPipe
 
 impl RecoverableSessionPipe
 {
-    pub(super) async fn create_active_pipe(&self) -> (ActiveSessionPipe, NodeRx<Message, ()>, Arc<MeshSession>)
+    pub(super) async fn create_active_pipe(&self) -> Result<(ActiveSessionPipe, NodeRx<Message, ()>, Arc<MeshSession>), CommsError>
     {
         let commit
             = Arc::new(StdMutex::new(FxHashMap::default()));
@@ -69,7 +69,7 @@ impl RecoverableSessionPipe
             (
                 &node_cfg, 
                 self.chain_domain.clone()
-            ).await;
+            ).await?;
 
         let inbound_conversation = Arc::new(ConversationSession::new(true));
         let outbound_conversation = Arc::new(ConversationSession::new(true));
@@ -86,7 +86,7 @@ impl RecoverableSessionPipe
         });
         
         // Set the pipe and drop the lock so that events can be fed correctly
-        (
+        Ok((
             ActiveSessionPipe {
                 key: self.key.clone(),
                 connected: false,
@@ -99,7 +99,7 @@ impl RecoverableSessionPipe
             },
             node_rx,
             session
-        )
+        ))
     }
 
     pub(super) async fn auto_reconnect(chain: Weak<Chain>, mut status_change: mpsc::Receiver<ConnectionStatusChange>) -> Result<(), ChainCreationError>
@@ -190,7 +190,7 @@ for RecoverableSessionPipe
         
         // Set the pipe and drop the lock so that events can be fed correctly
         let (pipe, node_rx, session)
-            = self.create_active_pipe().await;
+            = self.create_active_pipe().await?;
 
         // Clone some parameters out of the pipe that we use later
         let pipe_tx = pipe.tx.get_unicast_sender();

@@ -68,6 +68,17 @@ impl SerializationFormat
     }
 }
 
+impl std::fmt::Display
+for SerializationFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            SerializationFormat::Bincode => write!(f, "bincode"),
+            SerializationFormat::Json => write!(f, "json"),
+            SerializationFormat::MessagePack => write!(f, "mpack")
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct MessageFormat
 {

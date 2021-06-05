@@ -38,7 +38,7 @@ for DummyContext {
 
 #[tokio::main]
 #[test]
-async fn test_server_client_for_comms() {
+async fn test_server_client_for_comms() -> Result<(), AteError> {
     crate::utils::bootstrap_env();
     
     let wire_format = SerializationFormat::MessagePack;
@@ -102,7 +102,7 @@ async fn test_server_client_for_comms() {
             .connect_to(IpAddr::from_str("127.0.0.1")
             .unwrap(), 4001);
         let (client_tx, mut client_rx) = super::connect::<TestMessage, ()>(&cfg, None)
-            .await;
+            .await?;
 
         // We need to test it alot
         info!("send lots of hellos");
@@ -122,4 +122,6 @@ async fn test_server_client_for_comms() {
             }
         }
     }
+
+    Ok(())
 }

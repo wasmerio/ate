@@ -13,6 +13,7 @@ pub(crate) struct Upstream
 {
     pub id: u64,
     pub outbox: mpsc::Sender<PacketData>,
+    pub wire_format: SerializationFormat,
     pub terminate: tokio::sync::broadcast::Sender<bool>,
 }
 
