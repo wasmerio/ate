@@ -6,6 +6,7 @@ use url::Url;
 use std::ops::Deref;
 use qrcode::QrCode;
 use qrcode::render::unicode;
+use regex::Regex;
 
 use ate::prelude::*;
 use ate::error::LoadError;
@@ -23,6 +24,12 @@ impl AuthService
     pub async fn process_create_user<'a>(&self, request: CreateUserRequest, context: InvocationContext<'a>) -> Result<CreateUserResponse, ServiceError<CreateUserFailed>>
     {
         info!("create user: {}", request.email);
+
+        // Check the username matches the regex
+        let regex = Regex::new("^([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})@([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,}).([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})$").unwrap();
+        if regex.is_match(request.email.as_str()) == false {
+            return Err(ServiceError::Reply(CreateUserFailed::InvalidEmail));
+        }
 
         // Compute the super_key, super_super_key (elevated rights) and the super_session
         let key_size = request.secret.size();

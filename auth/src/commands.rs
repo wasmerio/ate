@@ -122,6 +122,7 @@ pub struct CreateUserResponse
 pub enum CreateUserFailed
 {
     AlreadyExists,
+    InvalidEmail,
     NoMoreRoom,
     NoMasterKey,
 }
@@ -132,6 +133,9 @@ for CreateUserFailed {
         match self {
             CreateUserFailed::AlreadyExists => {
                 write!(f, "The user already exists")
+            },
+            CreateUserFailed::InvalidEmail => {
+                write!(f, "The supplied email address is invalid")
             },
             CreateUserFailed::NoMoreRoom => {
                 write!(f, "There is no more room for this user - try another name")
