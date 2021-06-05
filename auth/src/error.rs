@@ -181,6 +181,7 @@ pub enum CreateError
     MissingReadKey,
     PasswordMismatch,
     AlreadyExists,
+    InvalidEmail,
     NoMoreRoom,
     InvalidName,
     QueryError(QueryError)
@@ -250,6 +251,9 @@ for CreateError {
             },
             CreateError::AlreadyExists => {
                 write!(f, "Create failed as the account or group already exists")
+            },
+            CreateError::InvalidEmail => {
+                write!(f, "Create failed as the email address is invalid")
             },
             CreateError::NoMoreRoom => {
                 write!(f, "Create failed as the account or group as there is no more room - try a different name")
