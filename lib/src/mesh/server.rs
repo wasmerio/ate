@@ -101,6 +101,7 @@ where F: OpenFlow + 'static
     {
         let mut node_cfg = NodeConfig::new(cfg_ate.wire_format)
             .wire_encryption(cfg_ate.wire_encryption)
+            .timeout(cfg_ate.connect_timeout)
             .buffer_size(cfg_ate.buffer_size_server);
         let mut listen_ports = listen_addrs
             .iter()

@@ -47,6 +47,14 @@ for CommsError
     }   
 }
 
+impl From<tokio::time::error::Elapsed>
+for CommsError
+{
+    fn from(_err: tokio::time::error::Elapsed) -> CommsError {
+        CommsError::IO(std::io::Error::new(std::io::ErrorKind::TimedOut, format!("Timeout while waiting for communication channel").to_string()))
+    }   
+}
+
 impl<T> From<mpsc::error::SendError<T>>
 for CommsError
 {

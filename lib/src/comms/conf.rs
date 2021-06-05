@@ -7,6 +7,7 @@ use crate::crypto::KeySize;
 use crate::spec::*;
 use tokio::sync::mpsc;
 use super::PacketData;
+use std::time::Duration;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Upstream
@@ -52,6 +53,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
 {
     pub listen_on: Vec<SocketAddr>,
     pub connect_to: Vec<SocketAddr>,
+    pub connect_timeout: Duration,
     pub on_connect: Option<M>,
     pub buffer_size: usize,
     pub wire_format: SerializationFormat,
@@ -65,6 +67,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
         NodeConfig {
             listen_on: Vec::new(),
             connect_to: Vec::new(),
+            connect_timeout: Duration::from_secs(30),
             on_connect: None,
             buffer_size: 1,
             wire_format,
@@ -94,6 +97,11 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
 
     pub(crate) fn on_connect(mut self, msg: M) -> Self {
         self.on_connect = Some(msg);
+        self
+    }
+
+    pub(crate) fn timeout(mut self, timeout: Duration) -> Self {
+        self.connect_timeout = timeout;
         self
     }
 }

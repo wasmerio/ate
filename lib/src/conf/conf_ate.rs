@@ -80,6 +80,9 @@ pub struct ConfAte
     pub log_format: MessageFormat,
     /// Serialization format of the data on the network pipes between nodes and clients
     pub wire_format: SerializationFormat,
+
+    /// Time to wait for a connection to a server before it times out
+    pub connect_timeout: Duration,
 }
 
 impl Default
@@ -111,6 +114,7 @@ for ConfAte
                 data: SerializationFormat::Json,
             },
             wire_format: SerializationFormat::Bincode,
+            connect_timeout: Duration::from_secs(30),
         }
     }
 }

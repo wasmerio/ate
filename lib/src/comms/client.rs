@@ -49,6 +49,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
             conf.buffer_size,
             Arc::clone(&state),
             conf.wire_encryption,
+            conf.connect_timeout
         ).await?;
         wire_format = upstream.wire_format;
 
@@ -84,6 +85,7 @@ pub(super) async fn mesh_connect_to<M, C>
     buffer_size: usize,
     state: Arc<StdMutex<NodeState>>,
     wire_encryption: Option<KeySize>,
+    timeout: Duration,
 )
 -> Result<Upstream, CommsError>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
@@ -99,18 +101,19 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
     
     let worker_terminate_tx = terminate_tx.clone();
     let worker_connect = mesh_connect_prepare::<M, C>
-        (
-            addr,
-            domain,
-            reply_rx,
-            reply_tx,
-            worker_terminate_tx,
-            inbox,
-            sender,
-            on_connect,
-            state,
-            wire_encryption,
-        ).await?;
+    (
+        addr,
+        domain,
+        reply_rx,
+        reply_tx,
+        worker_terminate_tx,
+        inbox,
+        sender,
+        on_connect,
+        state,
+        wire_encryption,
+    );
+    let worker_connect = tokio::time::timeout(timeout, worker_connect).await??;
     let wire_format = worker_connect.wire_format;
 
     tokio::task::spawn(
