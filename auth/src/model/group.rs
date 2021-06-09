@@ -1,6 +1,7 @@
 #[allow(unused_imports)]
 use log::{info, warn, debug, error};
 use serde::*;
+use ate::prelude::*;
 
 use super::*;
 
@@ -9,4 +10,5 @@ pub struct Group {
     pub name: String,
     pub gid: u32,
     pub roles: Vec<Role>,
+    pub foreign: DaoForeign,
 }

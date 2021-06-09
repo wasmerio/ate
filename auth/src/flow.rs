@@ -67,7 +67,7 @@ for ChainFlow
                 .await?;
                 
             // Add the services to this chain
-            service_logins(&self.cfg, cmd_session.clone(), self.session.clone(), &Arc::clone(&chain)).await?;
+            service_auth_handlers(&self.cfg, cmd_session.clone(), self.session.clone(), &Arc::clone(&chain)).await?;
 
             // Return the chain to the caller
             return Ok(OpenAction::PrivateChain

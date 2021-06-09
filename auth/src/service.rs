@@ -113,7 +113,7 @@ impl AuthService
     }
 }
 
-pub async fn service_logins(cfg: &ConfAte, cmd_session: AteSession, auth_session: AteSession, chain: &Arc<Chain>)
+pub async fn service_auth_handlers(cfg: &ConfAte, cmd_session: AteSession, auth_session: AteSession, chain: &Arc<Chain>)
 -> Result<(), TimeError>
 {
     let service = AuthService::new(cfg, auth_session).await?;

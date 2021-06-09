@@ -21,7 +21,9 @@ pub enum LoadError {
     AlreadyDeleted(PrimaryKey),
     Tombstoned(PrimaryKey),
     SerializationError(SerializationError),
+    ChainCreationError(String),
     TransformationError(TransformError),
+    NoRepository,
     IO(tokio::io::Error),
     #[allow(dead_code)]
     CollectionDetached,
@@ -48,6 +50,14 @@ for LoadError
 {
     fn from(err: TransformError) -> LoadError {
         LoadError::TransformationError(err)
+    }   
+}
+
+impl From<ChainCreationError>
+for LoadError
+{
+    fn from(err: ChainCreationError) -> LoadError {
+        LoadError::ChainCreationError(err.to_string())
     }   
 }
 
@@ -95,6 +105,12 @@ for LoadError {
             },
             LoadError::TransformationError(err) => {
                 write!(f, "Transformation error while attempting to load data object - {}", err)
+            },
+            LoadError::ChainCreationError(err) => {
+                write!(f, "Chain creation error while attempting to load data object - {}", err)
+            },
+            LoadError::NoRepository => {
+                write!(f, "Chain has no repository thus could not load foreign object")
             },
             LoadError::IO(err) => {
                 write!(f, "IO error while attempting to load data object - {}", err)

@@ -217,6 +217,7 @@ pub async fn create_user_command(username: String, password: String, auth: Url) 
     let response: Result<CreateUserResponse, InvokeError<CreateUserFailed>> = chain.invoke(request).await;
     match response {
         Err(InvokeError::Reply(CreateUserFailed::AlreadyExists)) => Err(CreateError::AlreadyExists),
+        Err(InvokeError::Reply(CreateUserFailed::InvalidEmail)) => Err(CreateError::InvalidEmail),
         Err(InvokeError::Reply(CreateUserFailed::NoMoreRoom)) => Err(CreateError::NoMoreRoom),
         result => {
             let result = result?;

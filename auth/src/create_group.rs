@@ -108,6 +108,7 @@ impl AuthService
         // Create the group and save it
         let group = Group {
             name: request.group.clone(),
+            foreign: DaoForeign::default(),
             gid,
             roles: Vec::new(),
         };

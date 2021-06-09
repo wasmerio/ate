@@ -1,6 +1,7 @@
 mod dao;
 mod vec;
 mod obj;
+mod obj_foreign;
 mod bus;
 mod foreign;
 mod test;
@@ -12,6 +13,7 @@ pub use crate::dio::dao::DaoEthereal;
 pub use crate::dio::dao::DaoObjEthereal;
 pub use crate::dio::dao::DaoObjReal;
 pub use crate::dio::obj::DaoRef;
+pub use crate::dio::obj_foreign::DaoRefForeign;
 pub use crate::dio::foreign::DaoForeign;
 pub use super::dio::dio::Dio;
 pub(crate) use super::dio::dio::DioState;
