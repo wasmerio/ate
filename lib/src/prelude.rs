@@ -35,6 +35,7 @@ pub use crate::conf::ChainBuilder;
 pub use crate::dio::DaoForeign;
 pub use crate::dio::DaoVec;
 pub use crate::dio::DaoRef;
+pub use crate::dio::DaoRefForeign;
 pub use crate::dio::DaoObjReal;
 pub use crate::dio::DaoObjEthereal;
 pub use crate::dio::Dao;
