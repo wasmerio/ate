@@ -130,10 +130,7 @@ async fn main() -> Result<(), CommandError> {
                 if let Some(remote) = &mount.remote {
                     group = Some(remote.path().to_string());
                     session = match ate_auth::main_gather(group.clone(), session.clone(), opts.auth).await {
-                        Ok(a) =>
-                        {
-                            a
-                        },
+                        Ok(a) => a,
                         Err(err) => {
                             debug!("Group authentication failed: {} - falling back to user level authorization", err);
                             session
