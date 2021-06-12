@@ -29,6 +29,7 @@ pub enum AteError
     TransformError(TransformError),
     InvokeError(String),
     ServiceError(String),
+    UrlError(url::ParseError),
     NotImplemented,
 }
 
@@ -152,6 +153,14 @@ for AteError
     }   
 }
 
+impl From<url::ParseError>
+for AteError
+{
+    fn from(err: url::ParseError) -> AteError {
+        AteError::UrlError(err)
+    }   
+}
+
 impl From<tokio::sync::watch::error::RecvError>
 for AteError
 {
@@ -225,6 +234,9 @@ for AteError {
                 write!(f, "{}", err)
             },
             AteError::SinkError(err) => {
+                write!(f, "{}", err)
+            },
+            AteError::UrlError(err) => {
                 write!(f, "{}", err)
             },
             AteError::TimeError(err) => {

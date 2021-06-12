@@ -1,8 +1,7 @@
 use std::io;
-use std::ffi::{CString, CStr, OsStr};
-use std::path::{PathBuf, Path};
-use libc::{self, c_int, c_void, size_t, c_char};
-use log::error;
+use std::ffi::{CString, CStr};
+use std::path::{Path};
+use libc::{self, c_int, c_char};
 
 extern "C" {
     // *_compat25 functions were introduced in FUSE 2.6 when function signatures changed.

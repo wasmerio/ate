@@ -31,7 +31,7 @@ use super::dir::Directory;
 use super::file::RegularFile;
 use super::model::*;
 use super::api::*;
-use crate::ConfAte;
+use ate::conf::ConfAte;
 
 use async_trait::async_trait;
 use bytes::{Buf, BytesMut};

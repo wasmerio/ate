@@ -1,7 +1,5 @@
 use async_trait::async_trait;
 use crate::api::FileApi;
-use ate::header::PrimaryKey;
-use serde::*;
 use fuse3::FileType;
 use super::model::*;
 use super::api::SpecType;

@@ -5,11 +5,10 @@ use super::dir::Directory;
 use super::file::RegularFile;
 use super::fixed::FixedFile;
 use super::symlink::SymLink;
-use ate::dio::Dio;
 use fuse3::FileType;
 use bytes::Bytes;
 use ate::prelude::*;
-use fuse3::{Errno, Result};
+use fuse3::{Result};
 
 #[enum_dispatch(FileApi)]
 #[derive(Debug)]
