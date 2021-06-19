@@ -267,12 +267,16 @@ where Self: Send + Sync,
     }
 
     pub fn attach_orphaned(&mut self, parent: &PrimaryKey) {
+        self.attach_orphaned_ext(parent.clone(), 0u64)
+    }
+
+    pub fn attach_orphaned_ext(&mut self, parent: PrimaryKey, collection_id: u64) {
         self.state.dirty = true;
         self.row.parent = Some(
             MetaParent {
                 vec: MetaCollection {
-                    parent_id: parent.clone(),
-                    collection_id: 0,
+                    parent_id: parent,
+                    collection_id,
                 },
             }
         );

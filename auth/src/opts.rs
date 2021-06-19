@@ -158,6 +158,9 @@ pub enum TokenAction {
     /// Gather the permissions needed to access a specific group into the token using either another supplied token or the prompted credentials
     #[clap()]
     Gather(GatherPermissions),
+    /// Views the contents of the supplied token
+    #[clap()]
+    View(ViewToken),
 }
 
 /// Logs into the authentication server using the supplied credentials
@@ -183,6 +186,11 @@ pub struct CreateTokenSudo {
     /// Authenticator code from your google authenticator
     #[clap(index = 3)]
     pub code: Option<String>,
+}
+
+/// Views the contents of the current token
+#[derive(Clap)]
+pub struct ViewToken {
 }
 
 /// Gathers the permissions needed to access a specific group into the token using either another supplied token or the prompted credentials
@@ -249,6 +257,11 @@ pub async fn main_opts_token(opts_token: OptsToken, token: Option<String>, token
             let session = crate::main_gather(action.group, session, auth).await?;
             eprintln!("The token string below can be used to secure your file system.\n");
             println!("{}", crate::session_to_b64(session.clone()).unwrap());
+        },
+        TokenAction::View(_action) => {
+            let session = crate::main_session(token.clone(), token_path.clone(), Some(auth.clone()), false).await?;
+            eprintln!("The token contains the following claims.\n");
+            println!("{}", session);
         },
     }
     Ok(())
