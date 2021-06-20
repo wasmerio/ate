@@ -184,6 +184,7 @@ pub enum CreateError
     InvalidEmail,
     NoMoreRoom,
     InvalidName,
+    NoMasterKey,
     QueryError(QueryError)
 }
 
@@ -257,6 +258,9 @@ for CreateError {
             },
             CreateError::NoMoreRoom => {
                 write!(f, "Create failed as the account or group as there is no more room - try a different name")
+            },
+            CreateError::NoMasterKey => {
+                write!(f, "Create failed as the server does not possess the master key")
             },
             CreateError::InvalidName => {
                 write!(f, "Create failed as the account or group name is invalid")
