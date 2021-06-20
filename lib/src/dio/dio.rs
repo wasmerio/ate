@@ -428,6 +428,10 @@ impl<'a> Dio<'a>
 
         Ok(ret)
     }
+
+    pub fn session(&'a self) -> &'a AteSession {
+        self.session
+    }
 }
 
 impl Chain

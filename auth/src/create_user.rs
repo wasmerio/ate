@@ -31,6 +31,14 @@ impl AuthService
             return Err(ServiceError::Reply(CreateUserFailed::InvalidEmail));
         }
 
+        // Get the master write key
+        let master_write_key = match self.master_session.write_keys().next() {
+            Some(a) => a.clone(),
+            None => {
+                return Err(ServiceError::Reply(CreateUserFailed::NoMasterKey));
+            }
+        };
+
         // Compute the super_key, super_super_key (elevated rights) and the super_session
         let key_size = request.secret.size();
         let super_key = match self.compute_super_key(request.secret) {
@@ -129,7 +137,7 @@ impl AuthService
         
         // Set the authorizations amd commit the user to the tree
         user.auth_mut().read = ReadOption::from_key(&super_key)?;
-        user.auth_mut().write = WriteOption::Inherit;
+        user.auth_mut().write = WriteOption::Any(vec![master_write_key.hash(), sudo_write_key.hash()]);
 
         // Build the QR image
         let qr_code = QrCode::new(google_auth_secret.as_bytes()).unwrap()
@@ -150,7 +158,7 @@ impl AuthService
         };
         let mut sudo = dio.make(sudo)?;
         sudo.auth_mut().read = ReadOption::from_key(&super_super_key)?;
-        sudo.auth_mut().write = WriteOption::Inherit;
+        sudo.auth_mut().write = WriteOption::Any(vec![master_write_key.hash(), sudo_write_key.hash()]);
         let sudo = sudo.commit(&mut dio)?;
         user.sudo.set_id(sudo.key().clone());
 

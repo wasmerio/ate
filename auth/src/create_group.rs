@@ -38,6 +38,14 @@ impl AuthService
             return Err(ServiceError::Reply(CreateGroupFailed::InvalidGroupName));
         }
 
+        // Get the master write key
+        let master_write_key = match self.master_session.write_keys().next() {
+            Some(a) => a.clone(),
+            None => {
+                return Err(ServiceError::Reply(CreateGroupFailed::NoMasterKey));
+            }
+        };
+
         // Load the master key which will be used to encrypt the group so that only
         // the authentication server can access it
         let key_size = request.nominal_read_key.size();
@@ -197,7 +205,7 @@ impl AuthService
         // the data held within the structure is itself encrypted using the MultiEncryptedSecureData
         // object which allows one to multiplex the access to the keys
         group.auth_mut().read = ReadOption::from_key(&master_key)?;
-        group.auth_mut().write = WriteOption::Inherit;
+        group.auth_mut().write = WriteOption::Any(vec![master_write_key.hash(), owner_write.hash()]);
 
         // Commit
         let group = group.commit(&mut dio)?;
