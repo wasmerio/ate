@@ -191,3 +191,15 @@ fn test_multi_encrypt() -> Result<(), AteError>
 
     Ok(())
 }
+
+#[test]
+fn test_signed_protected_data() -> Result<(), AteError>
+{
+    let sign_key = PrivateSignKey::generate(KeySize::Bit256);
+    let data = "test data".to_string();
+
+    let test = SignedProtectedData::new(&sign_key, data)?;
+    assert!(test.verify(&sign_key.as_public_key())?, "Failed to verify the protected data");
+
+    Ok(())
+}

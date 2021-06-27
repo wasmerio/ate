@@ -35,6 +35,7 @@ pub use create_group::main_create_group;
 pub use group_user_add::main_group_user_add;
 pub use group_user_remove::main_group_user_remove;
 pub use group_details::main_group_details;
+pub use group_details::group_details_command;
 pub use login::main_session;
 pub use login::main_user_details;
 pub use query::main_query;

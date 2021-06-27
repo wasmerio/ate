@@ -105,6 +105,25 @@ for ServiceError<E>
     } 
 }
 
+impl<E> From<InvokeError<E>>
+for ServiceError<E>
+{
+    fn from(err: InvokeError<E>) -> ServiceError<E> {
+        match err {
+            InvokeError::IO(a) => ServiceError::IO(a),
+            InvokeError::Reply(a) => ServiceError::Reply(a),
+            InvokeError::LoadError(a) => ServiceError::LoadError(a),
+            InvokeError::SerializationError(a) => ServiceError::SerializationError(a),
+            InvokeError::CommitError(a) => ServiceError::CommitError(a),
+            InvokeError::LockError(a) => ServiceError::LockError(a),
+            InvokeError::PipeError(a) => ServiceError::PipeError(a),
+            InvokeError::ServiceError(a) => ServiceError::ServiceError(a),
+            InvokeError::Timeout => ServiceError::Timeout,
+            InvokeError::Aborted => ServiceError::Aborted,
+        }
+    } 
+}
+
 impl<E> ServiceError<E>
 {
     pub fn as_reply(self) -> (ServiceErrorReply<E>, ServiceError<()>)
