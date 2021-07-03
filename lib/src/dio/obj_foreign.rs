@@ -22,9 +22,9 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 impl<D> DaoRefForeign<D>
 where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
-    pub fn new() -> DaoRefForeign<D> {
+    pub fn new(chain_key: ChainKey, key: PrimaryKey) -> DaoRefForeign<D> {
         DaoRefForeign {
-            target: None,
+            target: Some((chain_key, key)),
             _phantom1: PhantomData,
         }
     }
@@ -130,6 +130,9 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     fn default() -> DaoRefForeign<D>
     {
-        DaoRefForeign::new()
+        DaoRefForeign {
+            target: None,
+            _phantom1: PhantomData,
+        }
     }
 }

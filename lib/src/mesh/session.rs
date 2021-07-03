@@ -83,7 +83,7 @@ impl MeshSession
             if key_name.starts_with("/") {
                 key_name = key_name[1..].to_string();
             }
-            let chain_key = ChainKey::new(format!("redo.{}", key_name).to_string());
+            let chain_key = ChainKey::new(format!("{}", key_name).to_string());
 
             // Generate the chain object
             Chain::new_ext(builder.clone(), chain_key, Some(loader_local), true).await?
