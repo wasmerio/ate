@@ -10,12 +10,24 @@ use ::ate::error::*;
 
 use crate::model::*;
 
-pub fn auth_url(auth: Url, identity: &String) -> Url
+pub fn ate_url(auth: Url, default_path: &str, identity: &String) -> Url
 {
     let hash = AteHash::from(identity.clone());
     let hex = hash.to_hex_string().to_lowercase();
     let mut ret = auth.clone();
-    ret.set_path(format!("{}-{}", ret.path(), &hex[..4]).as_str());
+
+    let path = match auth.path() {
+        a if a.len() >= 1 && a.eq("/") == false => a.to_string(),
+        _ => {
+            match default_path {
+                a if a.len() <= 0 => "/".to_string(),
+                a if a.starts_with("/") => a.to_string(),
+                a => format!("/{}", a).to_string()
+            }
+        }
+    };
+
+    ret.set_path(format!("{}-{}", path.as_str(), &hex[..4]).as_str());
     ret
 }
 
@@ -66,6 +78,7 @@ pub fn conf_auth() -> ConfAte
     cfg_ate.log_format.meta = SerializationFormat::Json;
     cfg_ate.log_format.data = SerializationFormat::Json;
     cfg_ate.wire_format = SerializationFormat::Json;
+    cfg_ate.default_port = 5001;
     cfg_ate
 }
 
@@ -191,8 +204,8 @@ where T: serde::de::DeserializeOwned
 {
     let key_path = format!("{}{}", key_path, postfix).to_string();
     let path = shellexpand::tilde(&key_path).to_string();
+    debug!("loading key: {}", path);
     let path = std::path::Path::new(&path);
-    let _ = std::fs::create_dir_all(path.parent().unwrap().clone());
     let file = File::open(path).unwrap();
     bincode::deserialize_from(&file).unwrap()
 }
@@ -202,6 +215,7 @@ where T: Serialize
 {
     let key_path = format!("{}{}", key_path, postfix).to_string();
     let path = shellexpand::tilde(&key_path).to_string();
+    debug!("saving key: {}", path);
     let path = std::path::Path::new(&path);
     let _ = std::fs::create_dir_all(path.parent().unwrap().clone());
     let mut file = File::create(path).unwrap();

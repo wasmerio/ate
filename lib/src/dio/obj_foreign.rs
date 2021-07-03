@@ -10,7 +10,6 @@ use crate::chain::ChainKey;
 
 /// Rerepresents a reference to another data object that resides in
 /// another chain-of-trust with strong type linting
-///
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DaoRefForeign<D>
 where D: Serialize + DeserializeOwned + Clone + Send + Sync,

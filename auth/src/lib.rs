@@ -16,7 +16,7 @@ pub mod error;
 pub mod commands;
 pub mod prelude;
 
-pub use helper::auth_url;
+pub use helper::ate_url;
 pub use helper::command_url;
 pub use helper::conf_auth;
 pub use helper::password_to_read_key;

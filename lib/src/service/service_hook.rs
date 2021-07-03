@@ -80,6 +80,7 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
         let ret = {
             // Load the object
             let mut dio = chain.dio(&self.session).await;
+            dio.auto_cancel();
             let mut req = dio.load::<REQ>(&key).await?;
 
             // Attempt to lock (later delete) the request - if that fails then someone else
@@ -129,6 +130,7 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
     {
         // Turn it into a data object to be stored on commit
         let mut dio = chain.dio(&self.session).await;
+        dio.auto_cancel();
         let mut res = dio.make_ext(res, self.session.log_format.clone(), None)?;
 
         // If the session has an encryption key then use it

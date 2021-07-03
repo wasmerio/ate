@@ -9,7 +9,7 @@ pub struct Opts {
     #[clap(short, long, parse(from_occurrences))]
     pub verbose: i32,
     /// URL where the user is authenticated
-    #[clap(short, long, default_value = "tcp://auth.tokera.com:5001/auth")]
+    #[clap(short, long, default_value = "tcp://auth.tokera.com/auth")]
     pub auth: Url,
     /// Token used to access your encrypted file-system (if you do not supply a token then you will
     /// be prompted for a username and password)

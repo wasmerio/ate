@@ -234,6 +234,10 @@ impl ChainBuilder
         self
     }
 
+    pub fn cfg(&self) -> &ConfAte {
+        &self.cfg
+    }
+
     #[allow(dead_code)]
     pub fn build
     (

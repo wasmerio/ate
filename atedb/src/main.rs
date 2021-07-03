@@ -26,8 +26,8 @@ struct Opts {
     /// Logs debug info to the console
     #[clap(short, long)]
     debug: bool,
-    /// URL where the user is authenticated
-    #[clap(short, long, default_value = "tcp://auth.tokera.com:5001/auth")]
+    /// URL where the user is authenticated (default port=5001)
+    #[clap(short, long, default_value = "tcp://auth.tokera.com/")]
     auth: Url,
     /// Indicates no authentication server will be used meaning all new chains
     /// created by clients allow anyone to write new root nodes.

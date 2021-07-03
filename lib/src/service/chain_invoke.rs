@@ -40,6 +40,7 @@ impl Chain
 
         // Build the command object
         let mut dio = self.dio(session).await;
+        dio.auto_cancel();
         let mut cmd = dio.make_ext(request, session.log_format, None)?;
         
         // Add an encryption key on the command (if the session has one)

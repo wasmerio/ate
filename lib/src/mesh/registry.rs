@@ -183,7 +183,7 @@ impl Registry
 
         let port = match url.port() {
             Some(a) => a,
-            None => 5000,
+            None => self.cfg_ate.default_port,
         };
 
         let mut ret = ConfMesh::default();

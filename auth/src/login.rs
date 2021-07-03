@@ -184,7 +184,7 @@ pub async fn load_credentials(username: String, read_key: EncryptKey, _code: Opt
     session.user.add_read_key(&read_key);
 
     // Compute which chain our user exists in
-    let chain_url = crate::helper::auth_url(auth, &username);
+    let chain_url = crate::helper::ate_url(auth, "auth", &username);
 
     // Generate a chain key that matches this username on the authentication server
     let registry = ate::mesh::Registry::new(&conf_auth(), true).await;
