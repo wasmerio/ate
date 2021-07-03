@@ -31,7 +31,9 @@ for TreeAuthorityPlugin
             });
 
             if let Some(parent) = header.meta.get_parent() {
-                self.parents.insert(key, parent.clone());
+                if parent.vec.parent_id != key {
+                    self.parents.insert(key, parent.clone());
+                }
             }
         }
 

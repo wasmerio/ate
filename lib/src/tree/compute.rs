@@ -103,7 +103,10 @@ impl TreeAuthorityPlugin
                 Some(a) => {
                     let mut r = trans_meta.parents.get(&a.vec.parent_id);
                     if r.is_none() {
-                        r = self.parents.get(&a.vec.parent_id);
+                        r = match self.parents.get(&a.vec.parent_id) {
+                            Some(b) if b.vec.parent_id != a.vec.parent_id => Some(b),
+                            _ => None,
+                        };
                     }
                     match r {
                         Some(a) => Some(a),
