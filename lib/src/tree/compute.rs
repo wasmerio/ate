@@ -109,8 +109,8 @@ impl TreeAuthorityPlugin
                         };
                     }
                     match r {
-                        Some(a) => Some(a),
-                        None => { break; }
+                        Some(b) if b.vec.parent_id != a.vec.parent_id => Some(a),
+                        _ => { break; }
                     }
                 },
                 None => unreachable!(),

@@ -541,7 +541,9 @@ impl<'a> Dio<'a>
                         }
                     });
                     if let Some(parent) = meta.get_parent() {
-                        trans_meta.parents.insert(key, parent.clone());
+                        if parent.vec.parent_id != key {
+                            trans_meta.parents.insert(key, parent.clone());
+                        }
                     }
                 }
                 
