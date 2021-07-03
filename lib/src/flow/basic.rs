@@ -60,7 +60,7 @@ impl OpenFlow
 for OpenStaticBuilder
 {
     async fn open(&self, mut builder: ChainBuilder, key: &ChainKey) -> Result<OpenAction, ChainCreationError> {
-        debug!("chain-builder: open: {}", key.to_string());
+        debug!("open_static: {}", key.to_string());
 
         if let Some(root_key) = &self.root_key {
             builder = builder.add_root_public_key(root_key);

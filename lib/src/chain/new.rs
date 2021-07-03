@@ -49,6 +49,8 @@ impl<'a> Chain
         allow_process_errors: bool,
     ) -> Result<Chain, ChainCreationError>
     {
+        debug!("open: {}", key);
+
         // Compute the open flags
         #[cfg(feature = "local_fs")]
         let flags = OpenFlags {

@@ -248,7 +248,7 @@ struct OpenContext<'a>
 async fn open_internal<'a, F>(root: Arc<MeshRoot<F>>, key: ChainKey, context: Option<OpenContext<'a>>) -> Result<Arc<Chain>, ChainCreationError>
 where F: OpenFlow + 'static
 {
-    debug!("open {}", key.to_string());
+    debug!("open_internal {}", key.to_string());
 
     {
         let chains = root.chains.lock();
@@ -290,6 +290,7 @@ where F: OpenFlow + 'static
     }
 
     // Create the chain using the chain flow builder
+    debug!("open_flow: {}", std::any::type_name::<F>());
     let new_chain = match chain_builder_flow.open(builder, &key).await? {
         OpenAction::PrivateChain { chain, session} => {
             if let Some(ctx) = &context {

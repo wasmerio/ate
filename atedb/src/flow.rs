@@ -37,6 +37,8 @@ for ChainFlow
 {
     async fn open(&self, mut builder: ChainBuilder, key: &ChainKey) -> Result<OpenAction, ChainCreationError>
     {
+        debug!("open_db: {}", key);
+
         // Extract the identity from the supplied path (we can only create chains that are actually
         // owned by the specific user)
         let path = key.name.clone();
@@ -79,7 +81,7 @@ for ChainFlow
             if key_name.starts_with("/") {
                 key_name = key_name[1..].to_string();
             }
-            let key = ChainKey::new(format!("redo.{}", key_name).to_string());
+            let key = ChainKey::new(format!("{}", key_name).to_string());
             
             // Create the chain
             let chain = builder
@@ -150,7 +152,7 @@ for ChainFlow
             if key_name.starts_with("/") {
                 key_name = key_name[1..].to_string();
             }
-            let key = ChainKey::new(format!("redo.{}", key_name).to_string());
+            let key = ChainKey::new(format!("{}", key_name).to_string());
 
             // Create the chain
             let chain = builder

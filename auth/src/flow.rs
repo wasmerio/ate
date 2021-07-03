@@ -36,6 +36,8 @@ for ChainFlow
 {
     async fn open(&self, builder: ChainBuilder, key: &ChainKey) -> Result<OpenAction, ChainCreationError>
     {
+        debug!("open_auth: {}", key);
+
         let name = key.name.clone();
         let name = name.as_str();
         if self.regex_auth.is_match(name) {

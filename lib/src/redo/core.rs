@@ -199,10 +199,17 @@ impl RedoLog
         if key_name.starts_with("/") {
             key_name = key_name[1..].to_string();
         }
-        let path_log = match cfg.log_path.as_ref() {
-            Some(a) if a.ends_with("/") => Some(format!("{}{}.log", a, key_name)),
-            Some(a) => Some(format!("{}/{}.log", a, key_name)),
-            None => None,
+
+        let path_log = match flags.temporal
+        {
+            false => {
+                match cfg.log_path.as_ref() {
+                    Some(a) if a.ends_with("/") => Some(format!("{}{}.log", a, key_name)),
+                    Some(a) => Some(format!("{}/{}.log", a, key_name)),
+                    None => None,
+                }
+            },
+            true => None,
         };
         
         if let Some(path_log) = path_log.as_ref() {

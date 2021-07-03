@@ -41,7 +41,7 @@ impl MeshClient {
     pub async fn open_ext<'a>(&'a self, key: &ChainKey, domain: Option<String>, loader_local: Box<impl Loader>, loader_remote: Box<impl Loader>)
         -> Result<Arc<Chain>, ChainCreationError>
     {
-        debug!("open {}", key.to_string());
+        debug!("client open {}", key.to_string());
 
         let mut sessions = self.sessions.lock().await;
         let record = match sessions.entry(key.clone()) {
