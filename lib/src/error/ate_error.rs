@@ -105,6 +105,14 @@ for AteError
     }   
 }
 
+impl From<serde_json::Error>
+for AteError
+{
+    fn from(err: serde_json::Error) -> AteError {
+        AteError::SerializationError(SerializationError::SerdeError(err.to_string()))
+    } 
+}
+
 impl From<SinkError>
 for AteError
 {

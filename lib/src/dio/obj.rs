@@ -29,6 +29,13 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
         }
     }
 
+    pub fn from_key(key: PrimaryKey) -> DaoRef<D> {
+        DaoRef {
+            id: Some(key),
+            _phantom1: PhantomData,
+        }
+    }
+
     pub fn get_id(&self) -> Option<PrimaryKey> {
         self.id
     }

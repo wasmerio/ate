@@ -291,21 +291,74 @@ impl<'a> Dio<'a>
     where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
         // Build the secondary index key
-        let key = MetaCollection {
+        let collection_key = MetaCollection {
             parent_id,
             collection_id,
         };
 
+        // Build a list of keys
+        let keys = match self.multi.lookup_secondary_raw(&collection_key).await {
+            Some(a) => a,
+            None => return Ok(Vec::new())
+        };
+
+        // Load all the objects
+        let mut ret: Vec<Dao<D>> = self.load_many_ext(keys.into_iter(), allow_missing_keys, allow_serialization_error).await?;
+
+        // Build an already loaded list
+        let mut already = FxHashSet::default();
+        for a in ret.iter() {
+            already.insert(a.key().clone());
+        }
+
+        // Now we search the secondary local index so any objects we have
+        // added in this transaction scope are returned
+        let state = &self.state;
+        if let Some(vec) = state.cache_store_secondary.get_vec(&collection_key) {
+            for a in vec {
+                // This is an OR of two lists so its likely that the object
+                // may already be in the return list
+                if already.contains(a) {
+                    continue;
+                }
+                if state.deleted.contains(a) {
+                    continue;
+                }
+
+                // If its still locked then that is a problem
+                if state.is_locked(a) {
+                    return Result::Err(LoadError::ObjectStillLocked(a.clone()));
+                }
+
+                if let Some(dao) = state.cache_store_primary.get(a) {
+                    let row = Row::from_row_data(dao.deref())?;
+    
+                    already.insert(row.key.clone());
+                    ret.push(Dao::new(DaoEthereal::new(row)));
+                }
+            }
+        }
+
+        Ok(ret)
+    }
+
+    pub async fn load_many<D>(&mut self, keys: impl Iterator<Item=PrimaryKey>) -> Result<Vec<Dao<D>>, LoadError>
+    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
+    {
+        self.load_many_ext(keys, false, false).await
+    }
+
+    pub async fn load_many_ext<D>(&mut self, keys: impl Iterator<Item=PrimaryKey>, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Vec<Dao<D>>, LoadError>
+    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
+    {
         // This is the main return list
         let mut already = FxHashSet::default();
         let mut ret = Vec::new();
 
         // We either find existing objects in the cache or build a list of objects to load
         let mut to_load = Vec::new();
-        for key in match self.multi.lookup_secondary_raw(&key).await {
-            Some(a) => a,
-            None => return Ok(Vec::new())
-        } {
+        for key in keys
+        {
             {
                 let state = &self.state;
                 if state.is_locked(&key) {
@@ -396,34 +449,6 @@ impl<'a> Dio<'a>
 
             already.insert(row.key.clone());
             ret.push(Dao::new(DaoEthereal::new(row)));
-        }
-
-        // Now we search the secondary local index so any objects we have
-        // added in this transaction scope are returned
-        let state = &self.state;
-        if let Some(vec) = state.cache_store_secondary.get_vec(&key) {
-            for a in vec {
-                // This is an OR of two lists so its likely that the object
-                // may already be in the return list
-                if already.contains(a) {
-                    continue;
-                }
-                if state.deleted.contains(a) {
-                    continue;
-                }
-
-                // If its still locked then that is a problem
-                if state.is_locked(a) {
-                    return Result::Err(LoadError::ObjectStillLocked(a.clone()));
-                }
-
-                if let Some(dao) = state.cache_store_primary.get(a) {
-                    let row = Row::from_row_data(dao.deref())?;
-    
-                    already.insert(row.key.clone());
-                    ret.push(Dao::new(DaoEthereal::new(row)));
-                }
-            }
         }
 
         Ok(ret)

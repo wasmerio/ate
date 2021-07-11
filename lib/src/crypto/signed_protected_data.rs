@@ -48,6 +48,14 @@ where T: serde::Serialize
             }
         }
     }
+
+    pub fn sig64(&self) -> String {
+        base64::encode(&self.sig)
+    }
+
+    pub fn sig_hash64(&self) -> String {
+        AteHash::from_bytes(&self.sig[..]).to_string()
+    }
 }
 
 impl<T> std::ops::Deref

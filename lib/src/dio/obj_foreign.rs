@@ -19,6 +19,16 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     _phantom1: PhantomData<D>,
 }
 
+impl<D, E> PartialEq<DaoRefForeign<E>>
+for DaoRefForeign<D>
+where D: Serialize + DeserializeOwned + Clone + Send + Sync,
+      E: Serialize + DeserializeOwned + Clone + Send + Sync,
+{
+    fn eq(&self, other: &DaoRefForeign<E>) -> bool {
+        self.target == other.target
+    }
+}
+
 impl<D> DaoRefForeign<D>
 where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {

@@ -116,6 +116,13 @@ impl PrivateSignKey
         
         Ok(ret)
     }
+
+    pub fn size(&self) -> KeySize {
+        match &self {
+            PrivateSignKey::Falcon512 { pk: _, sk: _ } => KeySize::Bit192,
+            PrivateSignKey::Falcon1024 { pk: _, sk: _ } => KeySize::Bit256,
+        }
+    }
 }
 
 impl std::fmt::Display

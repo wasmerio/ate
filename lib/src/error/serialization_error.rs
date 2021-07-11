@@ -21,6 +21,7 @@ pub enum SerializationError
     BincodeError(bincode::Error),
     #[allow(dead_code)]
     CollectionDetached,
+    SerdeError(String),
 }
 
 impl From<RmpEncodeError>
@@ -90,6 +91,9 @@ for SerializationError {
             },
             SerializationError::CollectionDetached => {
                 write!(f, "Collection is detached from a parent")
+            },
+            SerializationError::SerdeError(err) => {
+                write!(f, "Serde error during serialization - {}", err)
             },
         }
     }

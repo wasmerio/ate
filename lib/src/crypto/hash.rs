@@ -106,6 +106,10 @@ impl AteHash {
         self.to_hex_string()
     }
 
+    pub fn to_base64(&self) -> String {
+        base64::encode(&self.val[..])
+    }
+
     pub fn to_bytes(&self) -> &[u8; 16] {
         &self.val
     }

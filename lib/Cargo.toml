@@ -74,6 +74,7 @@ trust-dns-proto = { version = "0.20.*" }
 trust-dns-client = { version = "0.20.*", features = ["dnssec"] }
 backtrace = { version = "0.3.*", optional = true }
 btreemultimap = { version = "0.1.*" }
+base64 = "0.13.*"
 
 [dev-dependencies]
 ctor = "0.1.*"
