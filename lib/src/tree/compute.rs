@@ -109,7 +109,7 @@ impl TreeAuthorityPlugin
                         };
                     }
                     match r {
-                        Some(b) if b.vec.parent_id != a.vec.parent_id => Some(a),
+                        Some(b) if b.vec.parent_id != a.vec.parent_id => Some(b),
                         _ => { break; }
                     }
                 },

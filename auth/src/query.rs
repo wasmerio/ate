@@ -23,15 +23,15 @@ impl AuthService
 {
     pub async fn process_query<'a>(&self, request: QueryRequest, context: InvocationContext<'a>) -> Result<QueryResponse, ServiceError<QueryFailed>>
     {
-        info!("query user: {}", request.email);
+        info!("query user/group: {}", request.identity);
 
         // Compute which chain the user should exist within
-        let user_chain_key = auth_chain_key("auth".to_string(), &request.email);
+        let user_chain_key = auth_chain_key("auth".to_string(), &request.identity);
         let chain = context.repository.open_by_key(&user_chain_key).await?;
         let mut dio = chain.dio(&self.master_session).await;
 
         // If it does not exist then fail
-        let user_key_entropy = format!("advert@{}", request.email).to_string();
+        let user_key_entropy = format!("advert@{}", request.identity).to_string();
         let user_key = PrimaryKey::from(user_key_entropy);
         if dio.exists(&user_key).await == false {
             return Err(ServiceError::Reply(QueryFailed::NotFound));
@@ -55,7 +55,7 @@ pub async fn query_command(registry: Arc<ate::mesh::Registry>, username: String,
     
     // Create the query command
     let query = QueryRequest {
-        email: username.clone(),
+        identity: username.clone(),
     };
 
     // Attempt the login request with a 10 second timeout

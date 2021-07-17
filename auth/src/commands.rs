@@ -150,7 +150,7 @@ for CreateUserFailed {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct QueryRequest
 {
-    pub email: String,
+    pub identity: String,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
