@@ -1,12 +1,12 @@
 ```
 
-0.7.1   Better Consistency
+0.7.2   Better Consistency
         + Values uploaded the server redo log should always postfix onto the end of the chain-of-trust
           with the ChainTimestamp returned to the caller
         + Logs should be staged in a seperate file rather than using 'delayed-upload' markers.
         + When staged events are accepted by the server they should move the events from the staging
           log file over to the real-log using the flip functionality and just the event hashes.
-        + Delete the delayed upload functionality as it will be superceeded by the 
+        + Delete the delayed upload functionality as it will be superceeded by this
 
 0.8.0   Tokera Coins
         + Create wallets for accounts in Tokera

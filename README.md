@@ -91,6 +91,28 @@ This library is a way of working with data in modern distributed computing.
 ## Changelog
 
 ```
+0.8.0  -= Stability Release =-
+
+       + Fixed an infinite loop and locked-up bug for certain scenarios that have
+         a tree structure of data objects
+       + Added more helper functions that make the library more extendable
+       + Removed the log file ".redo" prefix, this may require you to rename your
+         log files after upgrading
+       + Added default ports on all the URL's to reduce boiletplate and help
+         prevent easily avoidable configuration errors
+       + Some minor changes in the structure of the library to help with extendability
+       + Improved DaoRef object that works across chains
+       + Added additional error handling for certain failure modes
+       + Fixed a bug where commands were not aborting when the connection fails with the server
+       + Refactoring of the data model behind ATE's key authentication objects
+       + Added a regex to check the email address is valid
+       + The wire-format of connections will now properly negotiate even if they are
+         configured differently between server and client.
+       + Fixed a bug where compacting events would sometimes lose data in scenarios where
+         connectivity was lost during the compact processing.
+       + Fixed a bug where worker threads were not properly exiting which prevented a
+         graceful shutdown of the process.
+
 0.7.0  -= Compacting Chains =-
 
        + ATE now fully supports compacting chains - compacting chains works both
