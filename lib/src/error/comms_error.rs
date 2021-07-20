@@ -27,6 +27,12 @@ pub enum CommsError
     LoadError(LoadError),
     RootServerError(String),
     InternalError(String),
+    UrlError(url::ParseError),
+    #[cfg(feature="websockets")]
+    WebSocketError(tokio_tungstenite::tungstenite::Error),
+    #[cfg(feature="websockets")]
+    WebSocketInternalError(String),
+    UnsupportedProtocolError(String),
 }
 
 impl From<SerializationError>
@@ -42,6 +48,14 @@ for CommsError
 {
     fn from(err: std::io::Error) -> CommsError {
         CommsError::IO(err)
+    }   
+}
+
+impl From<url::ParseError>
+for CommsError
+{
+    fn from(err: url::ParseError) -> CommsError {
+        CommsError::UrlError(err)
     }   
 }
 
@@ -82,6 +96,15 @@ for CommsError
 {
     fn from(err: smpsc::SendError<T>) -> CommsError {
         CommsError::SendError(err.to_string())
+    }   
+}
+
+#[cfg(feature="websockets")]
+impl From<tokio_tungstenite::tungstenite::Error>
+for CommsError
+{
+    fn from(err: tokio_tungstenite::tungstenite::Error) -> CommsError {
+        CommsError::WebSocketError(err)
     }   
 }
 
@@ -199,11 +222,25 @@ for CommsError {
             CommsError::LoadError(err) => {
                 write!(f, "Load error occured while processing communication - {}", err)
             },
+            CommsError::UrlError(err) => {
+                write!(f, "Failed to parse the URL - {}", err)
+            },
             CommsError::RootServerError(err) => {
                 write!(f, "Error at the root server while processing communication - {}", err)
             },
+            #[cfg(feature="websockets")]
+            CommsError::WebSocketError(err) => {
+                write!(f, "Web socket error - {}", err.to_string())
+            },
+            #[cfg(feature="websockets")]
+            CommsError::WebSocketInternalError(err) => {
+                write!(f, "Web socket internal error - {}", err)
+            },
             CommsError::InternalError(err) => {
                 write!(f, "Internal comms error - {}", err)
+            },
+            CommsError::UnsupportedProtocolError(proto) => {
+                write!(f, "Unsupport protocol ({})", proto)
             },
         }
     }

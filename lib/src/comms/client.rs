@@ -23,8 +23,10 @@ use super::rx_tx::*;
 use super::helper::*;
 use super::hello;
 use super::key_exchange;
+use super::Stream;
 use super::StreamRx;
 use super::StreamTx;
+use super::StreamProtocol;
 
 pub(crate) async fn connect<M, C>(conf: &NodeConfig<M>, domain: Option<String>) -> Result<(NodeTx<C>, NodeRx<M, C>), CommsError>
 where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
@@ -39,6 +41,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
     }));
     
     // Create all the outbound connections
+    let wire_protocol = conf.wire_protocol;
     let mut wire_format = conf.wire_format;
     let mut upcast = FxHashMap::default();
     for target in conf.connect_to.iter()
@@ -50,6 +53,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
             conf.on_connect.clone(),
             conf.buffer_size,
             Arc::clone(&state),
+            conf.wire_protocol,
             conf.wire_encryption,
             conf.connect_timeout
         ).await?;
@@ -67,6 +71,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
                 _ => TxDirection::UpcastMany(upcast)
             },
             state: Arc::clone(&state),
+            wire_protocol,
             wire_format,
             _marker: PhantomData
         },
@@ -86,6 +91,7 @@ pub(super) async fn mesh_connect_to<M, C>
     on_connect: Option<M>,
     buffer_size: usize,
     state: Arc<StdMutex<NodeState>>,
+    wire_protocol: StreamProtocol,
     wire_encryption: Option<KeySize>,
     timeout: Duration,
 )
@@ -113,6 +119,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         sender,
         on_connect,
         state,
+        wire_protocol,
         wire_encryption,
     );
     let worker_connect = tokio::time::timeout(timeout, worker_connect).await??;
@@ -159,6 +166,7 @@ async fn mesh_connect_prepare<M, C>
     sender: u64,
     on_connect: Option<M>,
     state: Arc<StdMutex<NodeState>>,
+    wire_protocol: StreamProtocol,
     wire_encryption: Option<KeySize>,
 )
 -> Result<MeshConnectContext<M, C>, CommsError>
@@ -187,12 +195,11 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         // Setup the TCP stream
         setup_tcp_stream(&stream)?;
 
-        #[cfg(feature="websockets")]
+        // Convert the TCP stream into the right protocol
+        let stream = Stream::Tcp(stream);
         let stream = {
-            // Convert the TCP stream into a WebSocket stream
-            let stream = tokio_tungstenite::accept_async(stream)
-                .await?;
-            stream
+            let url = wire_protocol.make_url(domain.clone())?;
+            stream.upgrade_client(wire_protocol, url).await?
         };
 
         {
@@ -202,7 +209,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         }
 
         // Say hello
-        let (mut stream_rx, mut stream_tx) = stream.into_split();
+        let (mut stream_rx, mut stream_tx) = stream.split();
         let (wire_encryption, wire_format) = hello::mesh_hello_exchange_sender(&mut stream_rx, &mut stream_tx, domain.clone(), wire_encryption).await?;
 
         // Return the result

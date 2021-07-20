@@ -161,30 +161,30 @@ impl Registry
             None => { return Err(ChainCreationError::NoValidDomain(url.to_string())); }
         };
 
+        let protocol = StreamProtocol::parse(url)?;
+
         let key = ChainKey::from_url(&url);
         match lock.get(&domain) {
             Some(a) => {
-                Ok(a.open_ext(&key, Some(domain), loader_local, loader_remote).await?)
+                Ok(a.open_ext(&key, protocol, Some(domain), loader_local, loader_remote).await?)
             },
             None => {
                 let cfg_mesh = self.cfg(url).await?;
                 let mesh = create_client(&self.cfg_ate, &cfg_mesh, self.temporal).await;
                 lock.insert(domain.clone(), Arc::clone(&mesh));
-                Ok(mesh.open_ext(&key, Some(domain), loader_local, loader_remote).await?)
+                Ok(mesh.open_ext(&key, protocol, Some(domain), loader_local, loader_remote).await?)
             }
         }
     }
 
     async fn cfg(&self, url: &Url) -> Result<ConfMesh, ChainCreationError>
     {
-        if url.scheme().to_lowercase().trim() != "tcp" {
-            return Err(ChainCreationError::UnsupportedProtocol);
-        }
-
         let port = match url.port() {
             Some(a) => a,
             None => self.cfg_ate.default_port,
         };
+
+        let _protocol = StreamProtocol::parse(url)?;
 
         let mut ret = ConfMesh::default();
         ret.force_listen = None;

@@ -11,6 +11,7 @@ use serde::{Serialize, de::DeserializeOwned};
 
 use crate::error::*;
 use crate::spec::*;
+use crate::comms::StreamProtocol;
 
 use super::conf::Upstream;
 use super::conf::NodeState;
@@ -33,6 +34,7 @@ where C: Send + Sync
 {
     pub direction: TxDirection,
     pub state: Arc<StdMutex<NodeState>>,
+    pub wire_protocol: StreamProtocol,
     pub wire_format: SerializationFormat,
     pub _marker: PhantomData<C>,
 }

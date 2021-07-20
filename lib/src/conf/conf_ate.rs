@@ -6,6 +6,7 @@ use crate::crypto::KeySize;
 use crate::spec::*;
 use crate::mesh::RecoveryMode;
 use crate::compact::CompactMode;
+use crate::comms::StreamProtocol;
 
 use super::*;
 
@@ -53,6 +54,11 @@ pub struct ConfAte
     /// lower than a few seconds while increasing the value to days will impact performance.
     /// (default=30 seconds)
     pub sync_tolerance: Duration,
+
+    /// The transport protocol that will be used for communication. When compiled
+    /// with the right features this will allow the caller to specify different
+    /// underlying communication channels
+    pub wire_protocol: StreamProtocol,
 
     /// Flag that indicates if encryption will be used for the underlying
     /// connections over the wire. When using a ATE's in built encryption
@@ -116,6 +122,7 @@ for ConfAte
                 meta: SerializationFormat::Bincode,
                 data: SerializationFormat::Json,
             },
+            wire_protocol: StreamProtocol::Tcp,
             wire_format: SerializationFormat::Bincode,
             connect_timeout: Duration::from_secs(30),
             default_port: 5000,

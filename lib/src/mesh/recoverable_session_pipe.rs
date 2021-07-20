@@ -59,7 +59,7 @@ impl RecoverableSessionPipe
             = Arc::new(StdMutex::new(FxHashMap::default()));
 
         // Create pipes to all the target root nodes
-        let node_cfg = NodeConfig::new(self.builder.cfg.wire_format)
+        let node_cfg = NodeConfig::new(self.builder.cfg.wire_protocol, self.builder.cfg.wire_format)
             .wire_encryption(self.builder.cfg.wire_encryption)
             .connect_to(self.addr.ip, self.addr.port)
             .on_connect(Message::Connected)

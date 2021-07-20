@@ -99,7 +99,7 @@ where F: OpenFlow + 'static
     #[allow(dead_code)]
     pub(super) async fn new(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh, listen_addrs: Vec<MeshAddress>, open_flow: Box<F>) -> Arc<Self>
     {
-        let mut node_cfg = NodeConfig::new(cfg_ate.wire_format)
+        let mut node_cfg = NodeConfig::new(cfg_ate.wire_protocol, cfg_ate.wire_format)
             .wire_encryption(cfg_ate.wire_encryption)
             .timeout(cfg_ate.connect_timeout)
             .buffer_size(cfg_ate.buffer_size_server);
@@ -216,6 +216,7 @@ where F: OpenFlow + 'static
 
     async fn open_by_key(self: Arc<Self>, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
     {
+        let proto = self.cfg_ate.wire_protocol;
         let addr = match self.lookup.lookup(key) {
             Some(a) => a,
             None => {
@@ -229,7 +230,7 @@ where F: OpenFlow + 'static
         let weak = Arc::downgrade(&self);
         let ret = {
             if is_local {
-                open_internal(self, key.clone(), None).await
+                open_internal(self, proto, key.clone(), None).await
             } else {
                 return Err(ChainCreationError::NotThisRoot);
             }
@@ -245,7 +246,7 @@ struct OpenContext<'a>
     reply_at: Option<&'a mpsc::Sender<PacketData>>,
 }
 
-async fn open_internal<'a, F>(root: Arc<MeshRoot<F>>, key: ChainKey, context: Option<OpenContext<'a>>) -> Result<Arc<Chain>, ChainCreationError>
+async fn open_internal<'a, F>(root: Arc<MeshRoot<F>>, proto: StreamProtocol, key: ChainKey, context: Option<OpenContext<'a>>) -> Result<Arc<Chain>, ChainCreationError>
 where F: OpenFlow + 'static
 {
     debug!("open_internal {}", key.to_string());
@@ -274,6 +275,9 @@ where F: OpenFlow + 'static
     // Create a chain builder
     let mut builder = ChainBuilder::new(&root.cfg_ate)
         .await;
+
+    // Set the protocol
+    builder.cfg.wire_protocol = proto;
 
     // Add a pipe that will broadcast message to the connected clients
     if let Some(ctx) = &context {
@@ -437,6 +441,7 @@ async fn inbox_subscribe<F>(
     from: ChainTimestamp,
     reply_at: Option<&mpsc::Sender<PacketData>>,
     session_context: Arc<SessionContext>,
+    wire_protocol: StreamProtocol,
     wire_format: SerializationFormat,
     tx: &NodeTx<SessionContext>
 )
@@ -453,7 +458,7 @@ where F: OpenFlow + 'static
     };
 
     // If we can't find a chain for this subscription then fail and tell the caller
-    let chain = match open_internal(Arc::clone(&root), chain_key.clone(), Some(open_context)).await {
+    let chain = match open_internal(Arc::clone(&root), wire_protocol, chain_key.clone(), Some(open_context)).await {
         Err(ChainCreationError::NotThisRoot) => {
             PacketData::reply_at(reply_at, wire_format, Message::NotThisRoot).await?;
             return Ok(());
@@ -528,6 +533,7 @@ where F: OpenFlow + 'static
 {
     //debug!("inbox: packet size={}", pck.data.bytes.len());
 
+    let wire_protocol = tx.wire_protocol;
     let wire_format = pck.data.wire_format;
     let context = pck.context.clone();
     let mut pck_data = pck.data;
@@ -538,7 +544,7 @@ where F: OpenFlow + 'static
     
     match pck.msg {
         Message::Subscribe { chain_key, from }
-            => inbox_subscribe(root, chain_key, from, reply_at, context, wire_format, tx).await,
+            => inbox_subscribe(root, chain_key, from, reply_at, context, wire_protocol, wire_format, tx).await,
         Message::Events { commit, evts }
             => inbox_event(reply_at, context, commit, evts, tx, pck_data).await,
         Message::Lock { key }

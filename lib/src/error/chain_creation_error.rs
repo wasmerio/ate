@@ -15,7 +15,7 @@ pub enum ChainCreationError {
     CompactError(CompactError),
     NoRootFoundInConfig,
     NoRootFoundForUrl(String),
-    UnsupportedProtocol,
+    UnsupportedProtocol(String),
     UrlInvalid(url::ParseError),
     NotSupported,
     #[allow(dead_code)]
@@ -131,8 +131,8 @@ for ChainCreationError {
             ChainCreationError::NoRootFoundForUrl(url) => {
                 write!(f, "Failed to create chain-of-trust as the root node is not found in the URL [{}]", url)
             },
-            ChainCreationError::UnsupportedProtocol => {
-                write!(f, "Failed to create chain-of-trust as the protocol is not supported (only TCP is supported)")
+            ChainCreationError::UnsupportedProtocol(proto) => {
+                write!(f, "Failed to create chain-of-trust as the protocol is not supported ({})", proto)
             },
             ChainCreationError::NotThisRoot => {
                 write!(f, "Failed to create chain-of-trust as this is the wrong root node")

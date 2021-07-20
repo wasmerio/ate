@@ -20,6 +20,8 @@ use super::conf::*;
 use super::rx_tx::*;
 use super::helper::*;
 use super::key_exchange;
+use super::Stream;
+use super::StreamProtocol;
 
 pub(crate) async fn listen<M, C>(conf: &NodeConfig<M>) -> (NodeTx<C>, NodeRx<M, C>)
 where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
@@ -43,6 +45,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
             Arc::clone(&downcast_tx),
             conf.buffer_size,
             Arc::clone(&state),
+            conf.wire_protocol,
             conf.wire_format,
             conf.wire_encryption,
         ).await;
@@ -53,6 +56,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
         NodeTx {
             direction: TxDirection::Downcast(downcast_tx),
             state: Arc::clone(&state),
+            wire_protocol: conf.wire_protocol,
             wire_format: conf.wire_format,
             _marker: PhantomData
         },
@@ -69,6 +73,7 @@ pub(super) async fn listen_on<M, C>(addr: SocketAddr,
                            outbox: Arc<broadcast::Sender<BroadcastPacketData>>,
                            buffer_size: usize,
                            state: Arc<StdMutex<NodeState>>,
+                           wire_protocol: StreamProtocol,
                            wire_format: SerializationFormat,
                            wire_encryption: Option<KeySize>,
                         )
@@ -103,16 +108,18 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                 guard.connected = guard.connected + 1;
             }
 
-            #[cfg(feature="websockets")]
-            let stream = {
-                // Convert the TCP stream into a WebSocket stream
-                let stream = tokio_tungstenite::accept_async(stream)
-                    .await?;
-                stream
+            // Convert the TCP stream into the right protocol
+            let mut stream = Stream::Tcp(stream);
+            stream = match stream.upgrade_server(wire_protocol).await {
+                Ok(a) => a,
+                Err(err) => {
+                    warn!("connection-failed: {} - accept websocket", err.to_string());
+                    continue;
+                }
             };
 
             // Split the stream
-            let (mut stream_rx, mut stream_tx) = stream.into_split();
+            let (mut stream_rx, mut stream_tx) = stream.split();
 
             // Say hello
             let wire_encryption = match super::hello::mesh_hello_exchange_receiver(&mut stream_rx, &mut stream_tx, wire_encryption, wire_format).await {

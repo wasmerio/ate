@@ -16,6 +16,7 @@ use crate::transaction::*;
 use super::msg::*;
 use crate::loader::Loader;
 use crate::repository::ChainRepository;
+use crate::comms::StreamProtocol;
 
 pub struct MeshClient {
     cfg_ate: ConfAte,
@@ -38,7 +39,7 @@ impl MeshClient {
         )
     }
 
-    pub async fn open_ext<'a>(&'a self, key: &ChainKey, domain: Option<String>, loader_local: Box<impl Loader>, loader_remote: Box<impl Loader>)
+    pub async fn open_ext<'a>(&'a self, key: &ChainKey, protocol: StreamProtocol, domain: Option<String>, loader_local: Box<impl Loader>, loader_remote: Box<impl Loader>)
         -> Result<Arc<Chain>, ChainCreationError>
     {
         debug!("client open {}", key.to_string());
@@ -59,8 +60,10 @@ impl MeshClient {
             None => { return Err(ChainCreationError::NoRootFoundInConfig); }
         };
         
-        let builder = ChainBuilder::new(&self.cfg_ate).await
+        let mut builder = ChainBuilder::new(&self.cfg_ate).await
             .temporal(self.temporal);
+        builder.cfg.wire_protocol = protocol;
+
         let chain = MeshSession::connect(builder, key, domain, addr, self.cfg_ate.recovery_mode, loader_local, loader_remote).await?;
         *record = Arc::downgrade(&chain);
 
@@ -93,17 +96,19 @@ for MeshClient
         let weak = Arc::downgrade(&self);
         let loader_local  = Box::new(crate::loader::DummyLoader::default());
         let loader_remote  = Box::new(crate::loader::DummyLoader::default());
-        let ret = self.open_ext(&key, domain, loader_local, loader_remote).await?;
+        let protocol = StreamProtocol::parse(url)?;
+        let ret = self.open_ext(&key, protocol, domain, loader_local, loader_remote).await?;
         ret.inside_sync.write().repository = Some(weak);
         Ok(ret)
     }
 
     async fn open_by_key(self: Arc<Self>, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
     {
+        let proto = self.cfg_ate.wire_protocol;
         let weak = Arc::downgrade(&self);
         let loader_local  = Box::new(crate::loader::DummyLoader::default());
         let loader_remote  = Box::new(crate::loader::DummyLoader::default());
-        let ret = self.open_ext(key, None, loader_local, loader_remote).await?;
+        let ret = self.open_ext(key, proto, None, loader_local, loader_remote).await?;
         ret.inside_sync.write().repository = Some(weak);
         Ok(ret)
     }

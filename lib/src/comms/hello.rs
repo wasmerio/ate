@@ -30,13 +30,10 @@ pub(super) async fn mesh_hello_exchange_sender(stream_rx: &mut StreamRx, stream_
         wire_format: None,
     };
     let hello_client_bytes = serde_json::to_vec(&hello_client)?;
-    stream_tx.write_u16(hello_client_bytes.len() as u16).await?;
-    stream_tx.write_all(&hello_client_bytes[..]).await?;
+    stream_tx.write_16bit(hello_client_bytes).await?;
 
     // Read the hello message from the other side
-    let hello_server_bytes_len = stream_rx.read_u16().await?;
-    let mut hello_server_bytes = vec![0 as u8; hello_server_bytes_len as usize];
-    stream_rx.read_exact(&mut hello_server_bytes).await?;
+    let hello_server_bytes = stream_rx.read_16bit().await?;
     debug!("client received hello from server");
     let hello_server: Hello = serde_json::from_slice(&hello_server_bytes[..])?;
 
@@ -60,9 +57,7 @@ pub(super) async fn mesh_hello_exchange_sender(stream_rx: &mut StreamRx, stream_
 pub(super) async fn mesh_hello_exchange_receiver(stream_rx: &mut StreamRx, stream_tx: &mut StreamTx, mut key_size: Option<KeySize>, wire_format: SerializationFormat) -> Result<Option<KeySize>, CommsError>
 {
     // Read the hello message from the other side
-    let hello_client_bytes_len = stream_rx.read_u16().await?;
-    let mut hello_client_bytes = vec![0 as u8; hello_client_bytes_len as usize];
-    stream_rx.read_exact(&mut hello_client_bytes).await?;
+    let hello_client_bytes = stream_rx.read_16bit().await?;
     debug!("server received hello from client");
     let hello_client: Hello = serde_json::from_slice(&hello_client_bytes[..])?;
 
@@ -77,8 +72,7 @@ pub(super) async fn mesh_hello_exchange_receiver(stream_rx: &mut StreamRx, strea
         wire_format: Some(wire_format),
     };
     let hello_server_bytes = serde_json::to_vec(&hello_server)?;
-    stream_tx.write_u16(hello_server_bytes.len() as u16).await?;
-    stream_tx.write_all(&hello_server_bytes[..]).await?;
+    stream_tx.write_16bit(hello_server_bytes).await?;
 
     Ok(key_size)
 }

@@ -7,7 +7,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use tokio::{net::{TcpStream}};
 use bytes::Bytes;
 use tokio::select;
-use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
+use tokio::io::{self};
 
 use crate::spec::*;
 use crate::crypto::*;
@@ -45,27 +45,21 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
         let buf = match wire_encryption {
             Some(key) => {
                 // Read the initialization vector
-                let iv_len = rx.read_u8().await? as usize;
-                let mut iv_bytes = vec![0 as u8; iv_len];
-                let n = rx.read_exact(&mut iv_bytes[0..iv_len]).await?;
-                if n == 0 { break; }
+                let iv_bytes = rx.read_8bit().await?;
+                if iv_bytes.len() == 0 { break; }
                 let iv = InitializationVector::from_bytes(iv_bytes);
 
                 // Read the cipher text
-                let cipher_len = rx.read_u32().await? as usize;
-                let mut cipher_bytes = vec![0 as u8; cipher_len];
-                let n = rx.read_exact(&mut cipher_bytes[0..cipher_len]).await?;
-                if n == 0 { break; }
+                let cipher_bytes = rx.read_32bit().await?;
+                if cipher_bytes.len() == 0 { break; }
 
                 // Decrypt the message
                 key.decrypt(&iv, &cipher_bytes)?
             },
             None => {
                 // Read the next message
-                let buf_len = rx.read_u32().await? as usize;
-                let mut buf = vec![0 as u8; buf_len];
-                let n = rx.read_exact(&mut buf[0..buf_len]).await?;
-                if n == 0 { break; }
+                let buf = rx.read_32bit().await?;
+                if buf.len() == 0 { break; }
                 buf
             }
         };
@@ -124,20 +118,14 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone,
                             let enc = key.encrypt(&buf.bytes[..])?;
         
                             // Write the initialization vector
-                            #[cfg(not(feature = "websockets"))]
-                            tx.write_u8(enc.iv.bytes.len() as u8).await?;
-                            tx.write_all(&enc.iv.bytes[..]).await?;
-        
+                            tx.write_8bit(enc.iv.bytes).await?;
+                            
                             // Write the cipher text
-                            #[cfg(not(feature = "websockets"))]
-                            tx.write_u32(enc.data.len() as u32).await?;
-                            tx.write_all(&enc.data[..]).await?;
+                            tx.write_32bit(enc.data).await?;
                         },
                         None => {
                             // Write the bytes down the pipe
-                            #[cfg(not(feature = "websockets"))]
-                            tx.write_u32(buf.bytes.len() as u32).await?;
-                            tx.write_all(&buf.bytes).await?;
+                            tx.write_32bit(buf.bytes.to_vec()).await?;
                         }
                     };
                 } else {

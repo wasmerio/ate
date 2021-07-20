@@ -8,6 +8,7 @@ use crate::spec::*;
 use tokio::sync::mpsc;
 use super::PacketData;
 use std::time::Duration;
+use super::StreamProtocol;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Upstream
@@ -57,13 +58,14 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
     pub on_connect: Option<M>,
     pub buffer_size: usize,
     pub wire_format: SerializationFormat,
+    pub wire_protocol: StreamProtocol,
     pub wire_encryption: Option<KeySize>,
 }
 
 impl<M> NodeConfig<M>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone
 {
-    pub(crate) fn new(wire_format: SerializationFormat) -> NodeConfig<M> {
+    pub(crate) fn new(wire_protocol: StreamProtocol, wire_format: SerializationFormat) -> NodeConfig<M> {
         NodeConfig {
             listen_on: Vec::new(),
             connect_to: Vec::new(),
@@ -71,8 +73,15 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
             on_connect: None,
             buffer_size: 1,
             wire_format,
+            wire_protocol,
             wire_encryption: None,
         }
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn wire_protocol(mut self, protocol: StreamProtocol) -> Self {
+        self.wire_protocol = protocol;
+        self
     }
 
     pub(crate) fn wire_encryption(mut self, key_size: Option<KeySize>) -> Self {

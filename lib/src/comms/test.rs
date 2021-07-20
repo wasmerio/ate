@@ -41,11 +41,12 @@ for DummyContext {
 async fn test_server_client_for_comms() -> Result<(), AteError> {
     crate::utils::bootstrap_env();
     
+    let wire_protocol = StreamProtocol::Tcp;
     let wire_format = SerializationFormat::MessagePack;
     {
         // Start the server
         info!("starting listen server on 127.0.0.1");
-        let cfg = NodeConfig::new(wire_format)
+        let cfg = NodeConfig::new(wire_protocol, wire_format)
             .wire_encryption(Some(KeySize::Bit256))
             .listen_on(IpAddr::from_str("127.0.0.1")
             .unwrap(), 4001);
@@ -97,7 +98,7 @@ async fn test_server_client_for_comms() -> Result<(), AteError> {
     {
         // Start the client
         info!("start another client that will connect to the relay");
-        let cfg = NodeConfig::new(wire_format)
+        let cfg = NodeConfig::new(wire_protocol, wire_format)
             .wire_encryption(Some(KeySize::Bit256))
             .connect_to(IpAddr::from_str("127.0.0.1")
             .unwrap(), 4001);
