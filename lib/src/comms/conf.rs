@@ -57,6 +57,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
     pub connect_timeout: Duration,
     pub on_connect: Option<M>,
     pub buffer_size: usize,
+    pub path_filter: String,
     pub wire_format: SerializationFormat,
     pub wire_protocol: StreamProtocol,
     pub wire_encryption: Option<KeySize>,
@@ -72,10 +73,17 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
             connect_timeout: Duration::from_secs(30),
             on_connect: None,
             buffer_size: 1,
+            path_filter: "/".to_string(),
             wire_format,
             wire_protocol,
             wire_encryption: None,
         }
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn path_filter(mut self, path: &str) -> Self {
+        self.path_filter = path.to_string();
+        self
     }
 
     #[allow(dead_code)]

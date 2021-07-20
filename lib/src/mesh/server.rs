@@ -103,6 +103,12 @@ where F: OpenFlow + 'static
             .wire_encryption(cfg_ate.wire_encryption)
             .timeout(cfg_ate.connect_timeout)
             .buffer_size(cfg_ate.buffer_size_server);
+
+        #[cfg(feature = "http_ws")]
+        {
+            node_cfg.path_filter = cfg_ate.uri_path.clone();
+        }
+
         let mut listen_ports = listen_addrs
             .iter()
             .map(|a| a.port)
@@ -217,6 +223,7 @@ where F: OpenFlow + 'static
     async fn open_by_key(self: Arc<Self>, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
     {
         let proto = self.cfg_ate.wire_protocol;
+        let uri_path = self.cfg_ate.uri_path.clone();
         let addr = match self.lookup.lookup(key) {
             Some(a) => a,
             None => {
@@ -230,7 +237,7 @@ where F: OpenFlow + 'static
         let weak = Arc::downgrade(&self);
         let ret = {
             if is_local {
-                open_internal(self, proto, key.clone(), None).await
+                open_internal(self, proto, uri_path, key.clone(), None).await
             } else {
                 return Err(ChainCreationError::NotThisRoot);
             }
@@ -246,7 +253,7 @@ struct OpenContext<'a>
     reply_at: Option<&'a mpsc::Sender<PacketData>>,
 }
 
-async fn open_internal<'a, F>(root: Arc<MeshRoot<F>>, proto: StreamProtocol, key: ChainKey, context: Option<OpenContext<'a>>) -> Result<Arc<Chain>, ChainCreationError>
+async fn open_internal<'a, F>(root: Arc<MeshRoot<F>>, proto: StreamProtocol, uri_path: String, key: ChainKey, context: Option<OpenContext<'a>>) -> Result<Arc<Chain>, ChainCreationError>
 where F: OpenFlow + 'static
 {
     debug!("open_internal {}", key.to_string());
@@ -278,6 +285,7 @@ where F: OpenFlow + 'static
 
     // Set the protocol
     builder.cfg.wire_protocol = proto;
+    builder.cfg.uri_path = uri_path;
 
     // Add a pipe that will broadcast message to the connected clients
     if let Some(ctx) = &context {
@@ -458,7 +466,8 @@ where F: OpenFlow + 'static
     };
 
     // If we can't find a chain for this subscription then fail and tell the caller
-    let chain = match open_internal(Arc::clone(&root), wire_protocol, chain_key.clone(), Some(open_context)).await {
+    let uri_path = root.cfg_ate.uri_path.clone();
+    let chain = match open_internal(Arc::clone(&root), wire_protocol, uri_path, chain_key.clone(), Some(open_context)).await {
         Err(ChainCreationError::NotThisRoot) => {
             PacketData::reply_at(reply_at, wire_format, Message::NotThisRoot).await?;
             return Ok(());

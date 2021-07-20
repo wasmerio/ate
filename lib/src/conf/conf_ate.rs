@@ -55,6 +55,12 @@ pub struct ConfAte
     /// (default=30 seconds)
     pub sync_tolerance: Duration,
 
+    /// Optional path that the server will connect with and/or filter connection
+    /// attempts on when serving request via the HTTP upgrade protocol. The default
+    /// is to use '/' as the allowed path
+    #[cfg(feature = "http_ws")]
+    pub uri_path: String,
+
     /// The transport protocol that will be used for communication. When compiled
     /// with the right features this will allow the caller to specify different
     /// underlying communication channels
@@ -122,6 +128,7 @@ for ConfAte
                 meta: SerializationFormat::Bincode,
                 data: SerializationFormat::Json,
             },
+            uri_path: "/".to_string(),
             wire_protocol: StreamProtocol::Tcp,
             wire_format: SerializationFormat::Bincode,
             connect_timeout: Duration::from_secs(30),

@@ -28,9 +28,9 @@ pub enum CommsError
     RootServerError(String),
     InternalError(String),
     UrlError(url::ParseError),
-    #[cfg(feature="websockets")]
+    #[cfg(feature="ws")]
     WebSocketError(tokio_tungstenite::tungstenite::Error),
-    #[cfg(feature="websockets")]
+    #[cfg(feature="ws")]
     WebSocketInternalError(String),
     UnsupportedProtocolError(String),
 }
@@ -99,12 +99,21 @@ for CommsError
     }   
 }
 
-#[cfg(feature="websockets")]
+#[cfg(feature="ws")]
 impl From<tokio_tungstenite::tungstenite::Error>
 for CommsError
 {
     fn from(err: tokio_tungstenite::tungstenite::Error) -> CommsError {
         CommsError::WebSocketError(err)
+    }   
+}
+
+#[cfg(feature="ws")]
+impl From<tokio_tungstenite::tungstenite::http::uri::InvalidUri>
+for CommsError
+{
+    fn from(err: tokio_tungstenite::tungstenite::http::uri::InvalidUri) -> CommsError {
+        CommsError::WebSocketInternalError(format!("Failed to establish websocket due to an invalid URI - {}", err.to_string()))
     }   
 }
 
@@ -228,11 +237,11 @@ for CommsError {
             CommsError::RootServerError(err) => {
                 write!(f, "Error at the root server while processing communication - {}", err)
             },
-            #[cfg(feature="websockets")]
+            #[cfg(feature="ws")]
             CommsError::WebSocketError(err) => {
                 write!(f, "Web socket error - {}", err.to_string())
             },
-            #[cfg(feature="websockets")]
+            #[cfg(feature="ws")]
             CommsError::WebSocketInternalError(err) => {
                 write!(f, "Web socket internal error - {}", err)
             },

@@ -22,9 +22,9 @@ buffered = []
 local_fs = []
 rotate = []
 caching = []
-websockets = [ "tokio-tungstenite" ]
-http = [ "hyper", "hyper-tls" ]
-all = [ "basics", "buffered", "local_fs", "rotate", "caching", "websockets", "http" ]
+ws = [ "tokio-tungstenite", "http" ]
+http_ws = [ "hyper", "hyper-tls", "ws" ]
+all = [ "basics", "buffered", "local_fs", "rotate", "caching", "ws", "http_ws" ]
 #all = [ "basics", "buffered", "local_fs", "rotate", "caching" ]
 
 #- memdb works nicely fixes the corruption issue but does not scale with huge log files
@@ -77,6 +77,7 @@ btreemultimap = { version = "0.1.*" }
 base64 = "0.13.*"
 hyper = { version = "0.14.*", features = ["full"], optional = true }
 hyper-tls = { version = "0.5.*", optional = true }
+http = { version = "0.2.*", optional = true }
 tokio-tungstenite = { version = "0.14.*", optional = true }
 
 [dev-dependencies]
