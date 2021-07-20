@@ -21,6 +21,8 @@ pub enum StreamProtocol
     Tcp,
     #[cfg(feature="ws")]
     TcpWebSocket,
+    #[cfg(feature="ws")]
+    TcpWebSocketSecure,
     #[cfg(feature="http_ws")]
     HttpWebSocket,
     #[cfg(feature="http_ws")]
@@ -38,6 +40,8 @@ for StreamProtocol
             "tcp" => StreamProtocol::Tcp,
             #[cfg(feature="ws")]
             "tcp-ws" => StreamProtocol::TcpWebSocket,
+            #[cfg(feature="ws")]
+            "tcp-wss" => StreamProtocol::TcpWebSocketSecure,
             #[cfg(feature="http_ws")]
             "ws" => StreamProtocol::HttpWebSocket,
             #[cfg(feature="http_ws")]
@@ -58,6 +62,24 @@ impl StreamProtocol
             StreamProtocol::Tcp => "tcp",
             #[cfg(feature="ws")]
             StreamProtocol::TcpWebSocket => "tcp-ws",
+            #[cfg(feature="ws")]
+            StreamProtocol::TcpWebSocketSecure => "tcp-wss",
+            #[cfg(feature="http_ws")]
+            StreamProtocol::HttpWebSocket => "ws",
+            #[cfg(feature="http_ws")]
+            StreamProtocol::HttpsWebSocket => "wss",
+        };
+        ret.to_string()
+    }
+
+    pub fn to_standardized_scheme(&self) -> String
+    {
+        let ret = match self {
+            StreamProtocol::Tcp => "tcp",
+            #[cfg(feature="ws")]
+            StreamProtocol::TcpWebSocket => "ws",
+            #[cfg(feature="ws")]
+            StreamProtocol::TcpWebSocketSecure => "wss",
             #[cfg(feature="http_ws")]
             StreamProtocol::HttpWebSocket => "ws",
             #[cfg(feature="http_ws")]
@@ -75,6 +97,8 @@ impl StreamProtocol
         match self {
             #[cfg(feature="ws")]
             StreamProtocol::TcpWebSocket => true,
+            #[cfg(feature="ws")]
+            StreamProtocol::TcpWebSocketSecure => true,
             #[cfg(feature="http_ws")]
             StreamProtocol::HttpWebSocket => true,
             #[cfg(feature="http_ws")]
@@ -109,6 +133,16 @@ impl StreamProtocol
     pub fn make_url(&self, domain: Option<String>) -> Result<url::Url, url::ParseError>
     {
         let scheme = self.to_scheme();
+        let input = match domain {
+            Some(a) => format!("{}://{}/", scheme, a),
+            None => format!("{}://localhost/", scheme)
+        };
+        url::Url::parse(input.as_str())
+    }
+
+    pub fn make_standardized_url(&self, domain: Option<String>) -> Result<url::Url, url::ParseError>
+    {
+        let scheme = self.to_standardized_scheme();
         let input = match domain {
             Some(a) => format!("{}://{}/", scheme, a),
             None => format!("{}://localhost/", scheme)
