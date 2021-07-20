@@ -82,7 +82,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
     let mut exp_backoff = Duration::from_millis(100);
     tokio::task::spawn(async move {
         loop {
-            let (mut stream, sock_addr) = match listener.accept().await {
+            let (stream, sock_addr) = match listener.accept().await {
                 Ok(a) => a,
                 Err(err) => {
                     eprintln!("tcp-listener - {}", err.to_string());
@@ -103,8 +103,19 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                 guard.connected = guard.connected + 1;
             }
 
+            #[cfg(feature="websockets")]
+            let stream = {
+                // Convert the TCP stream into a WebSocket stream
+                let stream = tokio_tungstenite::accept_async(stream)
+                    .await?;
+                stream
+            };
+
+            // Split the stream
+            let (mut stream_rx, mut stream_tx) = stream.into_split();
+
             // Say hello
-            let wire_encryption = match super::hello::mesh_hello_exchange_receiver(&mut stream, wire_encryption, wire_format).await {
+            let wire_encryption = match super::hello::mesh_hello_exchange_receiver(&mut stream_rx, &mut stream_tx, wire_encryption, wire_format).await {
                 Ok(a) => a,
                 Err(err) => {
                     warn!("connection-failed: {} - say-hello", err.to_string());
@@ -115,7 +126,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
             // If we are using wire encryption then exchange secrets
             let ek = match wire_encryption {
                 Some(key_size) => Some(
-                    match key_exchange::mesh_key_exchange_receiver(&mut stream, key_size).await {
+                    match key_exchange::mesh_key_exchange_receiver(&mut stream_rx, &mut stream_tx, key_size).await {
                         Ok(a) => a,
                         Err(err) => {
                             warn!("connection-failed: {} - exchange-secrets", err.to_string());
@@ -127,7 +138,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
             let ek1 = ek.clone();
             let ek2 = ek.clone();
 
-            let (rx, tx) = stream.into_split();
             let context = Arc::new(C::default());
             let sender = fastrand::u64(..);
 
@@ -142,7 +152,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
             let worker_terminate_tx = terminate_tx.clone();
             let worker_terminate_rx = terminate_tx.subscribe();
             tokio::spawn(async move {
-                match process_inbox::<M, C>(rx, reply_tx1, worker_inbox, sender, worker_context, wire_format, ek1, worker_terminate_rx).await {
+                match process_inbox::<M, C>(stream_rx, reply_tx1, worker_inbox, sender, worker_context, wire_format, ek1, worker_terminate_rx).await {
                     Ok(_) => { },
                     Err(CommsError::IO(err)) if err.kind() == std::io::ErrorKind::UnexpectedEof => { },
                     Err(err) => {
@@ -160,7 +170,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
             let worker_terminate_tx = terminate_tx.clone();
             let worker_terminate_rx = terminate_tx.subscribe();
             tokio::spawn(async move {
-                match process_outbox::<M>(tx, reply_rx, sender, ek2, worker_terminate_rx).await {
+                match process_outbox::<M>(stream_tx, reply_rx, sender, ek2, worker_terminate_rx).await {
                     Ok(_) => { },
                     Err(err) => {
                         warn!("connection-failed: {} - outbox", err.to_string());

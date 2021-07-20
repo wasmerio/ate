@@ -22,6 +22,9 @@ buffered = []
 local_fs = []
 rotate = []
 caching = []
+websockets = [ "tungstenite", "tokio-tungstenite" ]
+http = [ "hyper", "hyper-tls" ]
+#all = [ "basics", "buffered", "local_fs", "rotate", "caching", "websockets" ]
 all = [ "basics", "buffered", "local_fs", "rotate", "caching" ]
 
 #- memdb works nicely fixes the corruption issue but does not scale with huge log files
@@ -72,6 +75,10 @@ trust-dns-client = { version = "0.20.*", features = ["dnssec"] }
 backtrace = { version = "0.3.*", optional = true }
 btreemultimap = { version = "0.1.*" }
 base64 = "0.13.*"
+hyper = { version = "0.14.*", features = ["full"], optional = true }
+hyper-tls = { version = "0.5.*", optional = true }
+tungstenite = { version = "0.14.*", optional = true }
+tokio-tungstenite = { version = "0.14.*", optional = true }
 
 [dev-dependencies]
 ctor = "0.1.*"

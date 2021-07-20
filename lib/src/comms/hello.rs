@@ -1,12 +1,16 @@
 #![allow(unused_imports)]
 use log::{info, warn, debug};
-use tokio::{net::{TcpStream}};
+#[cfg(not(feature="websockets"))]
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+#[cfg(feature="websockets")]
+use tungstenite::protocol::Message;
 
 use crate::error::*;
 use serde::{Serialize, Deserialize};
 use crate::crypto::KeySize;
 use crate::spec::*;
+
+use super::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Hello
@@ -16,7 +20,7 @@ pub struct Hello
     pub wire_format: Option<SerializationFormat>,
 }
 
-pub(super) async fn mesh_hello_exchange_sender(stream: &mut TcpStream, domain: Option<String>, mut key_size: Option<KeySize>) -> Result<(Option<KeySize>, SerializationFormat), CommsError>
+pub(super) async fn mesh_hello_exchange_sender(stream_rx: &mut StreamRx, stream_tx: &mut StreamTx, domain: Option<String>, mut key_size: Option<KeySize>) -> Result<(Option<KeySize>, SerializationFormat), CommsError>
 {
     // Send over the hello message and wait for a response
     debug!("client sending hello");
@@ -26,13 +30,13 @@ pub(super) async fn mesh_hello_exchange_sender(stream: &mut TcpStream, domain: O
         wire_format: None,
     };
     let hello_client_bytes = serde_json::to_vec(&hello_client)?;
-    stream.write_u16(hello_client_bytes.len() as u16).await?;
-    stream.write_all(&hello_client_bytes[..]).await?;
+    stream_tx.write_u16(hello_client_bytes.len() as u16).await?;
+    stream_tx.write_all(&hello_client_bytes[..]).await?;
 
     // Read the hello message from the other side
-    let hello_server_bytes_len = stream.read_u16().await?;
+    let hello_server_bytes_len = stream_rx.read_u16().await?;
     let mut hello_server_bytes = vec![0 as u8; hello_server_bytes_len as usize];
-    stream.read_exact(&mut hello_server_bytes).await?;
+    stream_rx.read_exact(&mut hello_server_bytes).await?;
     debug!("client received hello from server");
     let hello_server: Hello = serde_json::from_slice(&hello_server_bytes[..])?;
 
@@ -53,12 +57,12 @@ pub(super) async fn mesh_hello_exchange_sender(stream: &mut TcpStream, domain: O
     ))
 }
 
-pub(super) async fn mesh_hello_exchange_receiver(stream: &mut TcpStream, mut key_size: Option<KeySize>, wire_format: SerializationFormat) -> Result<Option<KeySize>, CommsError>
+pub(super) async fn mesh_hello_exchange_receiver(stream_rx: &mut StreamRx, stream_tx: &mut StreamTx, mut key_size: Option<KeySize>, wire_format: SerializationFormat) -> Result<Option<KeySize>, CommsError>
 {
     // Read the hello message from the other side
-    let hello_client_bytes_len = stream.read_u16().await?;
+    let hello_client_bytes_len = stream_rx.read_u16().await?;
     let mut hello_client_bytes = vec![0 as u8; hello_client_bytes_len as usize];
-    stream.read_exact(&mut hello_client_bytes).await?;
+    stream_rx.read_exact(&mut hello_client_bytes).await?;
     debug!("server received hello from client");
     let hello_client: Hello = serde_json::from_slice(&hello_client_bytes[..])?;
 
@@ -73,8 +77,8 @@ pub(super) async fn mesh_hello_exchange_receiver(stream: &mut TcpStream, mut key
         wire_format: Some(wire_format),
     };
     let hello_server_bytes = serde_json::to_vec(&hello_server)?;
-    stream.write_u16(hello_server_bytes.len() as u16).await?;
-    stream.write_all(&hello_server_bytes[..]).await?;
+    stream_tx.write_u16(hello_server_bytes.len() as u16).await?;
+    stream_tx.write_all(&hello_server_bytes[..]).await?;
 
     Ok(key_size)
 }

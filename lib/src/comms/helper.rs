@@ -5,7 +5,6 @@ use tokio::sync::broadcast;
 use std::sync::Arc;
 use serde::{Serialize, de::DeserializeOwned};
 use tokio::{net::{TcpStream}};
-use tokio::net::tcp;
 use bytes::Bytes;
 use tokio::select;
 use tokio::io::{self, AsyncReadExt, AsyncWriteExt};
@@ -19,6 +18,8 @@ use super::PacketData;
 use super::PacketWithContext;
 use super::BroadcastContext;
 use super::BroadcastPacketData;
+use super::StreamRx;
+use super::StreamTx;
 
 pub(super) fn setup_tcp_stream(stream: &TcpStream) -> io::Result<()> {
     stream.set_nodelay(true)?;
@@ -27,7 +28,7 @@ pub(super) fn setup_tcp_stream(stream: &TcpStream) -> io::Result<()> {
 
 #[allow(unused_variables)]
 pub(super) async fn process_inbox<M, C>(
-    mut rx: tcp::OwnedReadHalf,
+    mut rx: StreamRx,
     reply_tx: mpsc::Sender<PacketData>,
     inbox: mpsc::Sender<PacketWithContext<M, C>>,
     sender: u64,
@@ -101,7 +102,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
 
 #[allow(unused_variables)]
 pub(super) async fn process_outbox<M>(
-    mut tx: tcp::OwnedWriteHalf,
+    mut tx: StreamTx,
     mut reply_rx: mpsc::Receiver<PacketData>,
     sender: u64,
     wire_encryption: Option<EncryptKey>,
@@ -123,15 +124,18 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone,
                             let enc = key.encrypt(&buf.bytes[..])?;
         
                             // Write the initialization vector
+                            #[cfg(not(feature = "websockets"))]
                             tx.write_u8(enc.iv.bytes.len() as u8).await?;
                             tx.write_all(&enc.iv.bytes[..]).await?;
         
                             // Write the cipher text
+                            #[cfg(not(feature = "websockets"))]
                             tx.write_u32(enc.data.len() as u32).await?;
                             tx.write_all(&enc.data[..]).await?;
                         },
                         None => {
                             // Write the bytes down the pipe
+                            #[cfg(not(feature = "websockets"))]
                             tx.write_u32(buf.bytes.len() as u32).await?;
                             tx.write_all(&buf.bytes).await?;
                         }

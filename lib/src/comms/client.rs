@@ -23,6 +23,8 @@ use super::rx_tx::*;
 use super::helper::*;
 use super::hello;
 use super::key_exchange;
+use super::StreamRx;
+use super::StreamTx;
 
 pub(crate) async fn connect<M, C>(conf: &NodeConfig<M>, domain: Option<String>) -> Result<(NodeTx<C>, NodeRx<M, C>), CommsError>
 where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
@@ -140,7 +142,8 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
     sender: u64,
     on_connect: Option<M>,
     state: Arc<StdMutex<NodeState>>,
-    stream: TcpStream,
+    stream_rx: StreamRx,
+    stream_tx: StreamTx,
     wire_encryption: Option<KeySize>,
     wire_format: SerializationFormat,
 }
@@ -165,7 +168,8 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
     let mut exp_backoff = Duration::from_millis(100);
     loop {
         let worker_state = Arc::clone(&state);
-        let mut stream = match TcpStream::connect(addr.clone()).await {
+        
+        let stream = match TcpStream::connect(addr.clone()).await {
             Err(err) if match err.kind() {
                 std::io::ErrorKind::ConnectionRefused => true,
                 std::io::ErrorKind::ConnectionReset => true,
@@ -183,6 +187,14 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         // Setup the TCP stream
         setup_tcp_stream(&stream)?;
 
+        #[cfg(feature="websockets")]
+        let stream = {
+            // Convert the TCP stream into a WebSocket stream
+            let stream = tokio_tungstenite::accept_async(stream)
+                .await?;
+            stream
+        };
+
         {
             // Increase the connection count
             let mut guard = worker_state.lock();
@@ -190,7 +202,8 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         }
 
         // Say hello
-        let (wire_encryption, wire_format) = hello::mesh_hello_exchange_sender(&mut stream, domain.clone(), wire_encryption).await?;
+        let (mut stream_rx, mut stream_tx) = stream.into_split();
+        let (wire_encryption, wire_format) = hello::mesh_hello_exchange_sender(&mut stream_rx, &mut stream_tx, domain.clone(), wire_encryption).await?;
 
         // Return the result
         return Ok(MeshConnectContext {
@@ -202,7 +215,8 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
             sender,
             on_connect,
             state,
-            stream,
+            stream_rx,
+            stream_tx,
             wire_encryption,
             wire_format,
         });
@@ -225,13 +239,14 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
     let sender = connect.sender;
     let on_connect = connect.on_connect;
     let state = connect.state;
-    let mut stream = connect.stream;
+    let mut stream_rx = connect.stream_rx;
+    let mut stream_tx = connect.stream_tx;
     let wire_encryption = connect.wire_encryption;
     let wire_format = connect.wire_format;
 
     // If we are using wire encryption then exchange secrets
     let ek = match wire_encryption {
-        Some(key_size) => Some(key_exchange::mesh_key_exchange_sender(&mut stream, key_size).await?),
+        Some(key_size) => Some(key_exchange::mesh_key_exchange_sender(&mut stream_rx, &mut stream_tx, key_size).await?),
         None => None,
     };
     let ek1 = ek.clone();
@@ -239,14 +254,13 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
     
     // Start the background threads that will process packets for chains
     let context = Arc::new(C::default());
-    let (rx, tx) = stream.into_split();
 
     let reply_tx1 = reply_tx.clone();
     
     let worker_terminate_tx = terminate_tx.clone();
     let worker_terminate_rx = terminate_tx.subscribe();
     let join2 = tokio::spawn(async move {
-        let ret = match process_outbox::<M>(tx, reply_rx, sender, ek1, worker_terminate_rx).await {
+        let ret = match process_outbox::<M>(stream_tx, reply_rx, sender, ek1, worker_terminate_rx).await {
             Ok(a) => Some(a),
             Err(err) => {
                 warn!("connection-failed: {}", err.to_string());
@@ -266,7 +280,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
     let worker_terminate_tx = terminate_tx.clone();
     let worker_terminate_rx = terminate_tx.subscribe();
     let join1 = tokio::spawn(async move {
-        match process_inbox::<M, C>(rx, reply_tx1, worker_inbox, sender, worker_context, wire_format, ek2, worker_terminate_rx).await {
+        match process_inbox::<M, C>(stream_rx, reply_tx1, worker_inbox, sender, worker_context, wire_format, ek2, worker_terminate_rx).await {
             Ok(_) => { },
             Err(CommsError::IO(err)) if match err.kind() {
                 std::io::ErrorKind::UnexpectedEof => true,
