@@ -38,10 +38,21 @@ for DummyContext {
 
 #[tokio::main]
 #[test]
-async fn test_server_client_for_comms() -> Result<(), AteError> {
+async fn test_server_client_for_comms_with_tcp() -> Result<(), AteError> {
+    test_server_client_for_comms(StreamProtocol::Tcp, 4001).await
+}
+
+#[cfg(feature="websockets")]
+#[tokio::main]
+#[test]
+async fn test_server_client_for_comms_with_websocket() -> Result<(), AteError> {
+    test_server_client_for_comms(StreamProtocol::WebSocket, 4011).await
+}
+
+#[cfg(test)]
+async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) -> Result<(), AteError> {
     crate::utils::bootstrap_env();
     
-    let wire_protocol = StreamProtocol::Tcp;
     let wire_format = SerializationFormat::MessagePack;
     {
         // Start the server
@@ -49,7 +60,7 @@ async fn test_server_client_for_comms() -> Result<(), AteError> {
         let cfg = NodeConfig::new(wire_protocol, wire_format)
             .wire_encryption(Some(KeySize::Bit256))
             .listen_on(IpAddr::from_str("127.0.0.1")
-            .unwrap(), 4001);
+            .unwrap(), port);
         let (_, mut server_rx) = super::listen::<TestMessage, DummyContext>(&cfg).await;
 
         // Create a background thread that will respond to pings with pong
@@ -75,8 +86,8 @@ async fn test_server_client_for_comms() -> Result<(), AteError> {
         info!("start a client that will be relay server");
         let cfg = NodeConfig::new(wire_format)
             .wire_encryption(Some(KeySize::Bit256))
-            .listen_on(IpAddr::from_str("127.0.0.1").unwrap(), 4002)
-            .connect_to(IpAddr::from_str("127.0.0.1").unwrap(), 4001);
+            .listen_on(IpAddr::from_str("127.0.0.1").unwrap(), port+1)
+            .connect_to(IpAddr::from_str("127.0.0.1").unwrap(), port);
         let (relay_tx, mut relay_rx) = connect::<TestMessage, ()>(&cfg, None).await;
 
         // Create a background thread that will respond to pings with pong
@@ -101,7 +112,7 @@ async fn test_server_client_for_comms() -> Result<(), AteError> {
         let cfg = NodeConfig::new(wire_protocol, wire_format)
             .wire_encryption(Some(KeySize::Bit256))
             .connect_to(IpAddr::from_str("127.0.0.1")
-            .unwrap(), 4001);
+            .unwrap(), port);
         let (client_tx, mut client_rx) = super::connect::<TestMessage, ()>(&cfg, None)
             .await?;
 

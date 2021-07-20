@@ -1,3 +1,4 @@
+#![allow(unused_imports)]
 use tokio::net::TcpStream;
 use tokio::net::tcp::OwnedReadHalf;
 use tokio::net::tcp::OwnedWriteHalf;
@@ -51,6 +52,7 @@ impl StreamProtocol
         let scheme = url.scheme().to_string().to_lowercase();
         match scheme.as_ref() {
             "tcp" => Ok(StreamProtocol::Tcp),
+            #[cfg(feature="websockets")]
             "ws" => Ok(StreamProtocol::WebSocket),
             _ => Err(CommsError::UnsupportedProtocolError(scheme.clone())),
         }
@@ -110,6 +112,7 @@ impl Stream
         Ok(ret)
     }
 
+    #[allow(unused_variables)]
     pub async fn upgrade_client(self, protocol: StreamProtocol, url: url::Url) -> Result<Stream, CommsError> {
         let ret = match self {
             Stream::Tcp(a) => {
@@ -151,7 +154,8 @@ impl Stream
 
 impl StreamTx
 {
-    pub async fn write_8bit(&mut self, buf: Vec<u8>) -> Result<(), tokio::io::Error>
+    #[allow(unused_variables)]
+    pub async fn write_8bit(&mut self, buf: Vec<u8>, delay_flush: bool) -> Result<(), tokio::io::Error>
     {
         match self {
             StreamTx::Tcp(a) => {
@@ -163,13 +167,14 @@ impl StreamTx
             },
             #[cfg(feature="websockets")]
             StreamTx::WebSocket(_) => {
-                self.write_32bit(buf).await?;
+                self.write_32bit(buf, delay_flush).await?;
             },
         }
         Ok(())
     }
 
-    pub async fn write_16bit(&mut self, buf: Vec<u8>) -> Result<(), tokio::io::Error>
+    #[allow(unused_variables)]
+    pub async fn write_16bit(&mut self, buf: Vec<u8>, delay_flush: bool) -> Result<(), tokio::io::Error>
     {
         match self {
             StreamTx::Tcp(a) => {
@@ -181,13 +186,14 @@ impl StreamTx
             },
             #[cfg(feature="websockets")]
             StreamTx::WebSocket(_) => {
-                self.write_32bit(buf).await?;
+                self.write_32bit(buf, delay_flush).await?;
             },
         }
         Ok(())
     }
 
-    pub async fn write_32bit(&mut self, buf: Vec<u8>) -> Result<(), tokio::io::Error>
+    #[allow(unused_variables)]
+    pub async fn write_32bit(&mut self, buf: Vec<u8>, delay_flush: bool) -> Result<(), tokio::io::Error>
     {
         match self {
             StreamTx::Tcp(a) => {
@@ -199,10 +205,19 @@ impl StreamTx
             },
             #[cfg(feature="websockets")]
             StreamTx::WebSocket(a) => {
-                match a.feed(Message::binary(buf)).await {
-                    Ok(a) => a,
-                    Err(err) => {
-                        return Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to feed data into websocket - {}", err.to_string())));
+                if delay_flush {
+                    match a.feed(Message::binary(buf)).await {
+                        Ok(a) => a,
+                        Err(err) => {
+                            return Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to feed data into websocket - {}", err.to_string())));
+                        }
+                    }
+                } else {
+                    match a.send(Message::binary(buf)).await {
+                        Ok(a) => a,
+                        Err(err) => {
+                            return Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to feed data into websocket - {}", err.to_string())));
+                        }
                     }
                 }
             },

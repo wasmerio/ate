@@ -1,9 +1,5 @@
-#![allow(unused_imports)]
+#[allow(unused_imports)]
 use log::{info, warn, debug};
-#[cfg(not(feature="websockets"))]
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-#[cfg(feature="websockets")]
-use tungstenite::protocol::Message;
 
 use crate::error::*;
 use serde::{Serialize, Deserialize};
@@ -30,7 +26,7 @@ pub(super) async fn mesh_hello_exchange_sender(stream_rx: &mut StreamRx, stream_
         wire_format: None,
     };
     let hello_client_bytes = serde_json::to_vec(&hello_client)?;
-    stream_tx.write_16bit(hello_client_bytes).await?;
+    stream_tx.write_16bit(hello_client_bytes, false).await?;
 
     // Read the hello message from the other side
     let hello_server_bytes = stream_rx.read_16bit().await?;
@@ -72,7 +68,7 @@ pub(super) async fn mesh_hello_exchange_receiver(stream_rx: &mut StreamRx, strea
         wire_format: Some(wire_format),
     };
     let hello_server_bytes = serde_json::to_vec(&hello_server)?;
-    stream_tx.write_16bit(hello_server_bytes).await?;
+    stream_tx.write_16bit(hello_server_bytes, false).await?;
 
     Ok(key_size)
 }

@@ -22,9 +22,10 @@ buffered = []
 local_fs = []
 rotate = []
 caching = []
-websockets = [ "tungstenite", "tokio-tungstenite" ]
+websockets = [ "tokio-tungstenite" ]
 http = [ "hyper", "hyper-tls" ]
 all = [ "basics", "buffered", "local_fs", "rotate", "caching", "websockets" ]
+#all = [ "basics", "buffered", "local_fs", "rotate", "caching" ]
 
 #- memdb works nicely fixes the corruption issue but does not scale with huge log files
 #- it would seem the conversation logic is working however the server side is dropping
@@ -76,7 +77,6 @@ btreemultimap = { version = "0.1.*" }
 base64 = "0.13.*"
 hyper = { version = "0.14.*", features = ["full"], optional = true }
 hyper-tls = { version = "0.5.*", optional = true }
-tungstenite = { version = "0.14.*", optional = true }
 tokio-tungstenite = { version = "0.14.*", optional = true }
 
 [dev-dependencies]

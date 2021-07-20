@@ -118,14 +118,14 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone,
                             let enc = key.encrypt(&buf.bytes[..])?;
         
                             // Write the initialization vector
-                            tx.write_8bit(enc.iv.bytes).await?;
+                            tx.write_8bit(enc.iv.bytes, true).await?;
                             
                             // Write the cipher text
-                            tx.write_32bit(enc.data).await?;
+                            tx.write_32bit(enc.data, false).await?;
                         },
                         None => {
                             // Write the bytes down the pipe
-                            tx.write_32bit(buf.bytes.to_vec()).await?;
+                            tx.write_32bit(buf.bytes.to_vec(), false).await?;
                         }
                     };
                 } else {
