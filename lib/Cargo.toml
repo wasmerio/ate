@@ -24,7 +24,7 @@ rotate = []
 caching = []
 websockets = [ "tokio-tungstenite" ]
 http = [ "hyper", "hyper-tls" ]
-all = [ "basics", "buffered", "local_fs", "rotate", "caching", "websockets" ]
+all = [ "basics", "buffered", "local_fs", "rotate", "caching", "websockets", "http" ]
 #all = [ "basics", "buffered", "local_fs", "rotate", "caching" ]
 
 #- memdb works nicely fixes the corruption issue but does not scale with huge log files

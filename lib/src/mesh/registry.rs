@@ -181,6 +181,10 @@ impl Registry
     {
         let port = match url.port() {
             Some(a) => a,
+            None if url.scheme() == "http" => 80,
+            None if url.scheme() == "https" => 443,
+            None if url.scheme() == "ws" => 80,
+            None if url.scheme() == "wss" => 443,
             None => self.cfg_ate.default_port,
         };
 

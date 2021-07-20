@@ -10,39 +10,103 @@ use futures_util::stream;
 use futures_util::StreamExt;
 use futures_util::SinkExt;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use std::str::FromStr;
 
 use crate::error::CommsError;
-
-#[derive(Debug)]
-pub enum Stream
-{
-    Tcp(TcpStream),
-    #[cfg(feature="websockets")]
-    WebSocket(WebSocketStream<TcpStream>)
-}
 
 #[derive(Debug, Clone, Copy)]
 pub enum StreamProtocol
 {
     Tcp,
     #[cfg(feature="websockets")]
-    WebSocket,
+    TcpWebSocket,
+    #[cfg(feature="websockets")]
+    #[cfg(feature="http")]
+    HttpWebSocket,
+    #[cfg(feature="websockets")]
+    #[cfg(feature="http")]
+    HttpsWebSocket,
+}
+
+impl std::str::FromStr
+for StreamProtocol
+{
+    type Err = CommsError;
+
+    fn from_str(s: &str) -> Result<StreamProtocol, CommsError>
+    {
+        let ret = match s {
+            "tcp" => StreamProtocol::Tcp,
+            #[cfg(feature="websockets")]
+            "tcp-ws" => StreamProtocol::TcpWebSocket,
+            #[cfg(feature="websockets")]
+            #[cfg(feature="http")]
+            "ws" => StreamProtocol::HttpWebSocket,
+            #[cfg(feature="websockets")]
+            #[cfg(feature="http")]
+            "wss" => StreamProtocol::HttpsWebSocket,
+            _ => {
+                return Err(CommsError::UnsupportedProtocolError(s.to_string()));
+            }
+        };
+        Ok(ret)
+    }
+}
+
+impl StreamProtocol
+{
+    pub fn to_scheme(&self) -> String
+    {
+        let ret = match self {
+            StreamProtocol::Tcp => "tcp",
+            #[cfg(feature="websockets")]
+            StreamProtocol::TcpWebSocket => "tcp-ws",
+            #[cfg(feature="websockets")]
+            #[cfg(feature="http")]
+            StreamProtocol::HttpWebSocket => "ws",
+            #[cfg(feature="websockets")]
+            #[cfg(feature="http")]
+            StreamProtocol::HttpsWebSocket => "wss",
+        };
+        ret.to_string()
+    }
+
+    pub fn to_string(&self) -> String
+    {
+        self.to_scheme()
+    }
+
+    pub fn is_websocket(&self) -> bool {
+        match self {
+            #[cfg(feature="websockets")]
+            StreamProtocol::TcpWebSocket => true,
+            #[cfg(feature="websockets")]
+            #[cfg(feature="http")]
+            StreamProtocol::HttpWebSocket => true,
+            #[cfg(feature="websockets")]
+            #[cfg(feature="http")]
+            StreamProtocol::HttpsWebSocket => true,
+            _ => false
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum Stream
+{
+    Tcp(TcpStream),
+    #[cfg(feature="websockets")]
+    WebSocket(WebSocketStream<TcpStream>, StreamProtocol)
 }
 
 impl StreamProtocol
 {
     pub fn make_url(&self, domain: Option<String>) -> Result<url::Url, url::ParseError>
     {
-        let input = match self {
-            StreamProtocol::Tcp => match domain {
-                Some(a) => format!("tcp://{}/", a),
-                None => "tcp://localhost/".to_string()
-            },
-            #[cfg(feature="websockets")]
-            StreamProtocol::WebSocket => match domain {
-                Some(a) => format!("ws://{}/", a),
-                None => "ws://localhost/".to_string()
-            },
+        let scheme = self.to_scheme();
+        let input = match domain {
+            Some(a) => format!("{}://{}/", scheme, a),
+            None => format!("{}://localhost/", scheme)
         };
         url::Url::parse(input.as_str())
     }
@@ -50,12 +114,7 @@ impl StreamProtocol
     pub fn parse(url: &url::Url) -> Result<StreamProtocol, CommsError>
     {
         let scheme = url.scheme().to_string().to_lowercase();
-        match scheme.as_ref() {
-            "tcp" => Ok(StreamProtocol::Tcp),
-            #[cfg(feature="websockets")]
-            "ws" => Ok(StreamProtocol::WebSocket),
-            _ => Err(CommsError::UnsupportedProtocolError(scheme.clone())),
-        }
+        StreamProtocol::from_str(scheme.as_str())
     }
 }
 
@@ -84,7 +143,7 @@ impl Stream
                 (StreamRx::Tcp(rx), StreamTx::Tcp(tx))
             },
             #[cfg(feature="websockets")]
-            Stream::WebSocket(a) => {
+            Stream::WebSocket(a, _) => {
                 let (tx, rx) = a.split();
                 (StreamRx::WebSocket(rx), StreamTx::WebSocket(tx))
             }
@@ -94,18 +153,18 @@ impl Stream
     pub async fn upgrade_server(self, protocol: StreamProtocol) -> Result<Stream, CommsError> {
         let ret = match self {
             Stream::Tcp(a) => {
-                match protocol {
-                    StreamProtocol::Tcp => Stream::Tcp(a),
+                match protocol.is_websocket() {
+                    false => Stream::Tcp(a),
                     #[cfg(feature="websockets")]
-                    StreamProtocol::WebSocket => Stream::WebSocket(tokio_tungstenite::accept_async(a).await?),
+                    true => Stream::WebSocket(tokio_tungstenite::accept_async(a).await?, protocol),
                 }
             },
             #[cfg(feature="websockets")]
-            Stream::WebSocket(a) => {
-                match protocol {
-                    StreamProtocol::Tcp => Stream::WebSocket(a),
+            Stream::WebSocket(a, p) => {
+                match protocol.is_websocket() {
+                    false => Stream::WebSocket(a, p),
                     #[cfg(feature="websockets")]
-                    StreamProtocol::WebSocket => Stream::WebSocket(a),
+                    true => Stream::WebSocket(a, p),
                 }
             }
         };
@@ -116,25 +175,25 @@ impl Stream
     pub async fn upgrade_client(self, protocol: StreamProtocol, url: url::Url) -> Result<Stream, CommsError> {
         let ret = match self {
             Stream::Tcp(a) => {
-                match protocol {
-                    StreamProtocol::Tcp => Stream::Tcp(a),
+                match protocol.is_websocket() {
+                    false => Stream::Tcp(a),
                     #[cfg(feature="websockets")]
-                    StreamProtocol::WebSocket => {
+                    true => {
                         let (stream, response) = tokio_tungstenite::client_async(url, a)
                             .await?;
                         if response.status().is_client_error() {
                             return Err(CommsError::WebSocketInternalError(format!("HTTP error while performing WebSocket handshack - status-code={}", response.status().as_u16())));
                         }
-                        Stream::WebSocket(stream)
+                        Stream::WebSocket(stream, protocol)
                     },
                 }
             },
             #[cfg(feature="websockets")]
-            Stream::WebSocket(a) => {
-                match protocol {
-                    StreamProtocol::Tcp => Stream::WebSocket(a),
+            Stream::WebSocket(a, p) => {
+                match protocol.is_websocket() {
+                    false => Stream::WebSocket(a, p),
                     #[cfg(feature="websockets")]
-                    StreamProtocol::WebSocket => Stream::WebSocket(a),
+                    true => Stream::WebSocket(a, p),
                 }
             }
         };
@@ -147,7 +206,7 @@ impl Stream
         match self {
             Stream::Tcp(_) => StreamProtocol::Tcp,
             #[cfg(feature="websockets")]
-            Stream::WebSocket(_) => StreamProtocol::WebSocket
+            Stream::WebSocket(_, p) => p.clone()
         }
     }
 }

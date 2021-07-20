@@ -102,12 +102,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
             
             setup_tcp_stream(&stream).unwrap();
 
-            {
-                // Increase the connection count
-                let mut guard = worker_state.lock();
-                guard.connected = guard.connected + 1;
-            }
-
             // Convert the TCP stream into the right protocol
             let mut stream = Stream::Tcp(stream);
             stream = match stream.upgrade_server(wire_protocol).await {
@@ -117,6 +111,12 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                     continue;
                 }
             };
+
+            {
+                // Increase the connection count
+                let mut guard = worker_state.lock();
+                guard.connected = guard.connected + 1;
+            }
 
             // Split the stream
             let (mut stream_rx, mut stream_tx) = stream.split();

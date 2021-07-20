@@ -45,8 +45,24 @@ async fn test_server_client_for_comms_with_tcp() -> Result<(), AteError> {
 #[cfg(feature="websockets")]
 #[tokio::main]
 #[test]
-async fn test_server_client_for_comms_with_websocket() -> Result<(), AteError> {
-    test_server_client_for_comms(StreamProtocol::WebSocket, 4011).await
+async fn test_server_client_for_comms_with_tcp_websocket() -> Result<(), AteError> {
+    test_server_client_for_comms(StreamProtocol::TcpWebSocket, 4011).await
+}
+
+#[cfg(feature="websockets")]
+#[cfg(feature="http")]
+#[tokio::main]
+#[test]
+async fn test_server_client_for_comms_with_http_websocket() -> Result<(), AteError> {
+    test_server_client_for_comms(StreamProtocol::HttpWebSocket, 4021).await
+}
+
+#[cfg(feature="websockets")]
+#[cfg(feature="http")]
+#[tokio::main]
+#[test]
+async fn test_server_client_for_comms_with_https_websocket() -> Result<(), AteError> {
+    test_server_client_for_comms(StreamProtocol::HttpsWebSocket, 4031).await
 }
 
 #[cfg(test)]
