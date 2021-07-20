@@ -3,8 +3,6 @@ use log::{info, error, debug};
 use std::error::Error;
 use crate::header::PrimaryKey;
 
-extern crate rmp_serde as rmps;
-
 use super::*;
 
 #[derive(Debug)]

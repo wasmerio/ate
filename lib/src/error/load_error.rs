@@ -4,8 +4,6 @@ use std::error::Error;
 use crate::crypto::AteHash;
 use crate::header::PrimaryKey;
 
-extern crate rmp_serde as rmps;
-
 use rmp_serde::encode::Error as RmpEncodeError;
 use rmp_serde::decode::Error as RmpDecodeError;
 

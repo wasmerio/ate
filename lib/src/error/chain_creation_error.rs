@@ -2,8 +2,6 @@
 use log::{info, error, debug};
 use std::error::Error;
 
-extern crate rmp_serde as rmps;
-
 use trust_dns_proto::error::ProtoError as DnsProtoError;
 use trust_dns_client::error::ClientError as DnsClientError;
 

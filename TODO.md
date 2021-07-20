@@ -1,14 +1,29 @@
 ```
+0.8.1   Support for WebSockets
+        + Attempt to remove as many dependencies as possible
+        + Add WebSocket support to the ATE server instead of TCP ports
+          (see https://levelup.gitconnected.com/handling-websocket-and-http-on-the-same-port-with-rust-f65b770722c9)
+          (see https://github.com/snapview/tokio-tungstenite/blob/master/examples/echo-server.rs)
+        + Default to WebSockets and allow multiple servers to listen on the same 80/443 port.
+        + Add a --pure-tcp which will switch to a TCP channel and use manual framing techniques
+        + Add a --no-http which will remove the HTTP handshake and switch immediately to websocket
+          protocol upon a successful TCP connection
 
-0.7.2   Better Consistency
-        + Values uploaded the server redo log should always postfix onto the end of the chain-of-trust
-          with the ChainTimestamp returned to the caller
-        + Logs should be staged in a seperate file rather than using 'delayed-upload' markers.
-        + When staged events are accepted by the server they should move the events from the staging
-          log file over to the real-log using the flip functionality and just the event hashes.
-        + Delete the delayed upload functionality as it will be superceeded by this
+0.8.2   Support for browsers
+        + Allow --target=wasm32-wasi to compile
+          (see https://github.com/bytecodealliance/wasmtime)
+        + Choose either stdweb or wasm-bindgen for WebSocket client
+          (see https://rustwasm.github.io/wasm-bindgen/examples/websockets.html)
+          (see https://github.com/nstoddard/websocket-client/blob/master/src/lib.rs)
+        + Implement a WebSocket and disable the TCP when compiling as wasm32-wasi
+        + Publish the module on the WebAssembly package manager
+          (see https://wapm.io/)
+        + Should be able to execute commands on the webassembly shell emulator with ATE
+          (see https://webassembly.sh/)
 
-0.8.0   Tokera Coins
+0.8.3   Add a Tokera login page for the public repository.
+        + Create a login HTML page using ATE that stores a token in the local file-system
+        + Wallet with finance support
         + Create wallets for accounts in Tokera
         + Create PayPal exchange for wallets
         + Add contracts that are redeemable after a fixed piece of buisness logic
@@ -18,7 +33,19 @@
         + It must be possible for a Wallet to be tied to other peoples databases
           that get created for them (this is so middleman sites can be created)
 
-0.9.0   WebAssembly
+0.8.4   WebBrowser based file system and terminal
+        + Implement a terminal that emulates a file system stored in ATE via browser
+          after a login attempt is succesful
+        
+0.8.5   Better Consistency
+        + Values uploaded the server redo log should always postfix onto the end of the chain-of-trust
+          with the ChainTimestamp returned to the caller
+        + Logs should be staged in a seperate file rather than using 'delayed-upload' markers.
+        + When staged events are accepted by the server they should move the events from the staging
+          log file over to the real-log using the flip functionality and just the event hashes.
+        + Delete the delayed upload functionality as it will be superceeded by this
+
+0.10.0   WebAssembly
         + Convert ATE so that it works within WebAssembly
         + Build a Login and Wallet page for Tokera
 

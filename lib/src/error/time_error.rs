@@ -4,8 +4,6 @@ use std::{error::Error, time::SystemTime};
 use chrono::Utc;
 use chrono::DateTime;
 
-extern crate rmp_serde as rmps;
-
 use std::time::SystemTimeError;
 
 #[derive(Debug)]

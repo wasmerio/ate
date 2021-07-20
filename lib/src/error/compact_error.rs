@@ -4,8 +4,6 @@ use std::error::Error;
 use tokio::sync::watch;
 use tokio::sync::broadcast;
 
-extern crate rmp_serde as rmps;
-
 use super::*;
 
 #[derive(Debug)]

@@ -2,8 +2,6 @@
 use log::{info, error, debug};
 use std::error::Error;
 
-extern crate rmp_serde as rmps;
-
 use std::sync::mpsc as smpsc;
 use tokio::sync::mpsc as mpsc;
 use tokio::sync::broadcast as broadcast;

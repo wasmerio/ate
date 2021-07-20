@@ -1,8 +1,6 @@
 #[allow(unused_imports)]
 use log::{info, error, debug};
 
-extern crate rmp_serde as rmps;
-
 use super::*;
 
 pub fn eat<T>(ret: Result<T, AteError>) -> Option<T> {

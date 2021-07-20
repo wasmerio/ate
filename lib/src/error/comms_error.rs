@@ -2,8 +2,6 @@
 use log::{info, error, debug};
 use std::error::Error;
 
-extern crate rmp_serde as rmps;
-
 use rmp_serde::decode::Error as RmpDecodeError;
 use serde_json::Error as JsonError;
 use tokio::task::JoinError;

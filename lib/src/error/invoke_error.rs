@@ -1,8 +1,6 @@
 #[allow(unused_imports)]
 use log::{info, error, debug};
 
-extern crate rmp_serde as rmps;
-
 use tokio::sync::mpsc as mpsc;
 
 use super::*;

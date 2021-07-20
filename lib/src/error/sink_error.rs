@@ -3,8 +3,6 @@ use log::{info, error, debug};
 use std::error::Error;
 use crate::crypto::AteHash;
 
-extern crate rmp_serde as rmps;
-
 use super::*;
 
 #[derive(Debug)]

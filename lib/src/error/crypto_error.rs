@@ -2,8 +2,6 @@
 use log::{info, error, debug};
 use std::error::Error;
 
-extern crate rmp_serde as rmps;
-
 #[derive(Debug)]
 pub enum CryptoError {
     NoIvPresent,    

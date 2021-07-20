@@ -1,4 +1,5 @@
 #![cfg_attr(not(debug_assertions), allow(dead_code, unused_imports, unused_variables))]
+#![warn(unused_extern_crates)]
 
 /// You can change the hashing routine with these features
 /// - feature = "use_blake3"

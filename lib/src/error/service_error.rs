@@ -2,7 +2,6 @@
 use log::{info, error, debug};
 use serde::{Serialize, Deserialize};
 
-extern crate rmp_serde as rmps;
 use tokio::sync::mpsc as mpsc;
 
 use super::*;
