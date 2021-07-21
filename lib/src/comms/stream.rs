@@ -21,12 +21,8 @@ pub enum StreamProtocol
     Tcp,
     #[cfg(feature="ws")]
     TcpWebSocket,
-    #[cfg(feature="ws")]
-    TcpWebSocketSecure,
     #[cfg(feature="http_ws")]
     HttpWebSocket,
-    #[cfg(feature="http_ws")]
-    HttpsWebSocket,
 }
 
 impl std::str::FromStr
@@ -40,12 +36,8 @@ for StreamProtocol
             "tcp" => StreamProtocol::Tcp,
             #[cfg(feature="ws")]
             "tcp-ws" => StreamProtocol::TcpWebSocket,
-            #[cfg(feature="ws")]
-            "tcp-wss" => StreamProtocol::TcpWebSocketSecure,
             #[cfg(feature="http_ws")]
             "ws" => StreamProtocol::HttpWebSocket,
-            #[cfg(feature="http_ws")]
-            "wss" => StreamProtocol::HttpsWebSocket,
             _ => {
                 return Err(CommsError::UnsupportedProtocolError(s.to_string()));
             }
@@ -62,12 +54,8 @@ impl StreamProtocol
             StreamProtocol::Tcp => "tcp",
             #[cfg(feature="ws")]
             StreamProtocol::TcpWebSocket => "tcp-ws",
-            #[cfg(feature="ws")]
-            StreamProtocol::TcpWebSocketSecure => "tcp-wss",
             #[cfg(feature="http_ws")]
             StreamProtocol::HttpWebSocket => "ws",
-            #[cfg(feature="http_ws")]
-            StreamProtocol::HttpsWebSocket => "wss",
         };
         ret.to_string()
     }
@@ -78,12 +66,8 @@ impl StreamProtocol
             StreamProtocol::Tcp => "tcp",
             #[cfg(feature="ws")]
             StreamProtocol::TcpWebSocket => "ws",
-            #[cfg(feature="ws")]
-            StreamProtocol::TcpWebSocketSecure => "wss",
             #[cfg(feature="http_ws")]
             StreamProtocol::HttpWebSocket => "ws",
-            #[cfg(feature="http_ws")]
-            StreamProtocol::HttpsWebSocket => "wss",
         };
         ret.to_string()
     }
@@ -97,12 +81,8 @@ impl StreamProtocol
         match self {
             #[cfg(feature="ws")]
             StreamProtocol::TcpWebSocket => true,
-            #[cfg(feature="ws")]
-            StreamProtocol::TcpWebSocketSecure => true,
             #[cfg(feature="http_ws")]
             StreamProtocol::HttpWebSocket => true,
-            #[cfg(feature="http_ws")]
-            StreamProtocol::HttpsWebSocket => true,
             _ => false
         }
     }
@@ -111,8 +91,6 @@ impl StreamProtocol
         match self {
             #[cfg(feature="http_ws")]
             StreamProtocol::HttpWebSocket => true,
-            #[cfg(feature="http_ws")]
-            StreamProtocol::HttpsWebSocket => true,
             _ => false
         }
     }

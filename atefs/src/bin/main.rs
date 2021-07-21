@@ -14,7 +14,7 @@ use clap::Clap;
 fn test_opts() -> Opts {
     Opts {
         verbose: 0,
-        auth: Url::parse("tcp://auth.tokera.com:5001/auth").unwrap(),
+        auth: Url::parse("ws://auth.tokera.com/").unwrap(),
         no_auth: false,
         token: None,
         token_path: Some("~/token".to_string()),
@@ -27,7 +27,7 @@ fn test_opts() -> Opts {
         wire_encryption: None,
         subcmd: SubCommand::Mount(OptsMount {
             mount_path: "/mnt/ate".to_string(),
-            remote: Some(Url::parse("tcp://ate.tokera.com/").unwrap()),
+            remote: Some(Url::parse("ws://ate.tokera.com/").unwrap()),
             log_path: Some("~/ate/fs".to_string()),
             recovery_mode: RecoveryMode::ReadOnlyAsync,
             passcode: None,

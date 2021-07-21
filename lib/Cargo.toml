@@ -23,7 +23,7 @@ local_fs = []
 rotate = []
 caching = []
 ws = [ "tokio-tungstenite", "http" ]
-http_ws = [ "hyper", "hyper-tls", "ws" ]
+http_ws = [ "hyper", "ws" ]
 all = [ "basics", "buffered", "local_fs", "rotate", "caching", "ws", "http_ws" ]
 #all = [ "basics", "buffered", "local_fs", "rotate", "caching" ]
 

@@ -81,7 +81,7 @@ struct Solo {
     #[clap(short, long, default_value = "/")]
     uri_path: String,
     /// Port that the database server will listen on
-    #[clap(short, long, default_value = "80")]
+    #[clap(short, long, default_value = "5000")]
     port: u16,
     /// Mode that the compaction will run under (valid modes are 'never', 'modified', 'timer', 'factor', 'size', 'factor-or-timer', 'size-or-timer')
     #[clap(long, default_value = "factor-or-timer")]

@@ -16,7 +16,7 @@ pub struct Opts {
     #[clap(short, long, parse(from_occurrences))]
     pub verbose: i32,
     /// URL where the user is authenticated
-    #[clap(short, long, default_value = "tcp://auth.tokera.com:5001/auth")]
+    #[clap(short, long, default_value = "ws://auth.tokera.com/")]
     pub auth: Url,
     /// No authentication or passcode will be used to protect this file-system
     #[clap(short, long)]
