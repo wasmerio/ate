@@ -34,6 +34,12 @@ struct Run {
     /// Path to the log files where all the authentication data is stored
     #[clap(index = 2, default_value = "~/ate/auth")]
     logs_path: String,
+    /// Underlying protocol that the authentication server will negotiate using (valid protocols are 'tcp', 'tcp-ws', 'tcp-wss', 'ws', 'wss').
+    #[clap(short, long, default_value = "ws")]
+    protocol: StreamProtocol,
+    /// URI path that the server will check before it accepts a websocket on this address.
+    #[clap(short, long, default_value = "/")]
+    uri_path: String,
     /// IP address that the authentication server will isten on
     #[clap(short, long, default_value = "0.0.0.0")]
     listen: String,
@@ -88,6 +94,9 @@ async fn main() -> Result<(), AteError>
             let mut cfg_ate = ate_auth::conf_auth();
             cfg_ate.log_path = Some(shellexpand::tilde(&run.logs_path).to_string());
             cfg_ate.compact_mode = CompactMode::Never;
+            cfg_ate.wire_protocol = run.protocol;
+            cfg_ate.uri_path = run.uri_path;
+            
             let mut session = AteSession::new(&cfg_ate);
             session.user.add_read_key(&root_read_key);
             session.user.add_write_key(&root_write_key);
