@@ -170,13 +170,14 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
     let (mut stream_rx, mut stream_tx) = stream.split();
 
     // Say hello
-    let wire_encryption = super::hello::mesh_hello_exchange_receiver
+    let hello_meta = super::hello::mesh_hello_exchange_receiver
     (
         &mut stream_rx,
         &mut stream_tx,
         wire_encryption,
         wire_format
     ).await?;
+    let wire_encryption = hello_meta.encryption;
 
     // If we are using wire encryption then exchange secrets
     let ek = match wire_encryption {

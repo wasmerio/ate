@@ -48,6 +48,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
     {
         let upstream = mesh_connect_to::<M, C>(
             target.clone(), 
+            conf.hello_path.clone(),
             domain.clone(),
             inbox_tx.clone(), 
             conf.on_connect.clone(),
@@ -87,6 +88,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
 pub(super) async fn mesh_connect_to<M, C>
 (
     addr: SocketAddr,
+    hello_path: String,
     domain: Option<String>,
     inbox: mpsc::Sender<PacketWithContext<M, C>>,
     on_connect: Option<M>,
@@ -113,6 +115,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
     let worker_connect = mesh_connect_prepare::<M, C>
     (
         addr,
+        hello_path,
         domain,
         reply_rx,
         reply_tx,
@@ -161,6 +164,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
 async fn mesh_connect_prepare<M, C>
 (
     addr: SocketAddr,
+    hello_path: String,
     domain: Option<String>,
     reply_rx: mpsc::Receiver<PacketData>,
     reply_tx: mpsc::Sender<PacketData>,
@@ -220,7 +224,9 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
 
         // Say hello
         let (mut stream_rx, mut stream_tx) = stream.split();
-        let (wire_encryption, wire_format) = hello::mesh_hello_exchange_sender(&mut stream_rx, &mut stream_tx, domain.clone(), wire_encryption).await?;
+        let hello_metadata = hello::mesh_hello_exchange_sender(&mut stream_rx, &mut stream_tx, hello_path.clone(), domain.clone(), wire_encryption).await?;
+        let wire_encryption = hello_metadata.encryption;
+        let wire_format = hello_metadata.wire_format;
 
         // Return the result
         return Ok(MeshConnectContext {

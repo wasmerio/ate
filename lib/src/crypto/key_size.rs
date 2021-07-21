@@ -45,6 +45,14 @@ impl KeySize
             KeySize::Bit256 => ntru256::ciphertext_bytes(),
         }
     }
+
+    pub fn as_str(&self) -> &str {
+        match &self {
+            KeySize::Bit128 => "128",
+            KeySize::Bit192 => "192",
+            KeySize::Bit256 => "256",
+        }
+    }
 }
 
 impl std::str::FromStr

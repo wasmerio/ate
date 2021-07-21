@@ -18,7 +18,6 @@ pub enum CommsError
     ReceiveError(String),
     IO(std::io::Error),
     NoReplyChannel,
-    NoWireFormat,
     Disconnected,
     Refused,
     ShouldBlock,
@@ -215,9 +214,6 @@ for CommsError {
             },
             CommsError::Refused => {
                 write!(f, "Connection was refused by the destination address")
-            },
-            CommsError::NoWireFormat => {
-                write!(f, "Server did not send a wire format")
             },
             CommsError::ValidationError(errs) => {
                 write!(f, "Message contained event data that failed validation")?;

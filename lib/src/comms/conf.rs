@@ -61,6 +61,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
     pub wire_protocol: StreamProtocol,
     pub wire_encryption: Option<KeySize>,
     pub fail_fast: bool,
+    pub hello_path: String,
 }
 
 impl<M> NodeConfig<M>
@@ -77,12 +78,19 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
             wire_protocol,
             wire_encryption: None,
             fail_fast: false,
+            hello_path: "/".to_string(),
         }
     }
 
     #[allow(dead_code)]
     pub(crate) fn wire_protocol(mut self, protocol: StreamProtocol) -> Self {
         self.wire_protocol = protocol;
+        self
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn hello_path(mut self, hello_path: String) -> Self {
+        self.hello_path = hello_path;
         self
     }
 
