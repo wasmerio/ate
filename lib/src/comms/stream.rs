@@ -65,6 +65,13 @@ impl StreamProtocol
             _ => false
         }
     }
+
+    pub fn default_port(&self) -> u16 {
+        match self {
+            StreamProtocol::Tcp => 5000,
+            StreamProtocol::WebSocket => 80,
+        }
+    }
 }
 
 impl std::fmt::Display

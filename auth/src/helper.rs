@@ -78,7 +78,6 @@ pub fn conf_auth() -> ConfAte
     cfg_ate.log_format.meta = SerializationFormat::Json;
     cfg_ate.log_format.data = SerializationFormat::Json;
     cfg_ate.wire_format = SerializationFormat::Json;
-    cfg_ate.default_port = 5001;
     cfg_ate
 }
 

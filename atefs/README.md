@@ -93,7 +93,7 @@ FLAGS:
 
 OPTIONS:
     -a, --auth <auth>
-            URL where the user is authenticated [default: tcp://auth.tokera.com:5001/auth]
+            URL where the user is authenticated [default: ws://tokera.com/auth]
 
         --dns-server <dns-server>
             Address that DNS queries will be sent to [default: 8.8.8.8]
@@ -190,7 +190,7 @@ USAGE:
 ARGS:
     <mount-path>    Path to directory that the file system will be mounted at
     <remote>        URL where the data is remotely stored on a distributed commit log (e.g.
-                    tcp://ate.tokera.com/). If this URL is not specified then data will only be
+                    ws://tokera.com/db/myfs). If this URL is not specified then data will only be
                     stored locally
     <log-path>      (Optional) Location of the local persistent redo log (e.g. ~/ate/fs)
 

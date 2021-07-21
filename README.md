@@ -70,7 +70,7 @@ This library is a way of working with data in modern distributed computing.
      | >atedb solo |
      '------|------'          '- - | - - - -'
             |                      |
-        tcp://yourserver.com:5000/yourdb
+        ws://yourserver.com/db/yourdb
             |
      .------|------.
      |   Client    |
@@ -82,7 +82,7 @@ This library is a way of working with data in modern distributed computing.
 - Server runs the 'atedb' process on some network reachable
 - Create several records for each IP address under the same A-record in your DNS
 - Build your model in RUST and add ATE as a dependency
-- Either create your own authentication server (auth-server) or use tcp://auth.tokera.com/
+- Either create your own authentication server (auth-server) or use ws://tokera.com/auth
 - Create a user programatically or using 'atefs create-user' and 'atefs create-token'
 
 (See the 'atefs' source-code for examples on how to do all this)

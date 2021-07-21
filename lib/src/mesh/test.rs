@@ -72,7 +72,7 @@ async fn test_mesh()
 
     debug!("create the mesh and connect to it with client 1");
     let client_a = create_temporal_client(&cfg_ate, &cfg_mesh).await;
-    let chain_a = client_a.open_by_url(&url::Url::parse("tcp://127.0.0.1/test-chain").unwrap()).await.unwrap();
+    let chain_a = client_a.open_by_url(&url::Url::parse("ws://localhost/test-chain").unwrap()).await.unwrap();
     debug!("connected with client 1");
     let mut session_a = AteSession::new(&cfg_ate);
     session_a.add_user_write_key(&root_key);
@@ -155,7 +155,7 @@ async fn test_mesh()
         let client = create_temporal_client(&cfg_ate, &cfg_mesh).await;
 
         debug!("reconnecting the client");
-        let chain = client.open_by_url(&url::Url::parse("tcp://127.0.0.1/test-chain").unwrap()).await.unwrap();
+        let chain = client.open_by_url(&url::Url::parse("ws://localhost/test-chain").unwrap()).await.unwrap();
         let session = AteSession::new(&cfg_ate);
         {
             debug!("loading data object 1");

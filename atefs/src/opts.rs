@@ -16,7 +16,7 @@ pub struct Opts {
     #[clap(short, long, parse(from_occurrences))]
     pub verbose: i32,
     /// URL where the user is authenticated
-    #[clap(short, long, default_value = "ws://auth.tokera.com/")]
+    #[clap(short, long, default_value = "ws://tokera.com/auth")]
     pub auth: Url,
     /// No authentication or passcode will be used to protect this file-system
     #[clap(short, long)]
@@ -79,7 +79,7 @@ pub struct OptsMount {
     /// Path to directory that the file system will be mounted at
     #[clap(index=1)]
     pub mount_path: String,
-    /// URL where the data is remotely stored on a distributed commit log (e.g. tcp://ate.tokera.com/).
+    /// URL where the data is remotely stored on a distributed commit log (e.g. ws://tokera.com/db/myfs).
     /// If this URL is not specified then data will only be stored locally
     #[clap(index=2)]
     pub remote: Option<Url>,

@@ -32,7 +32,7 @@ Other projects use this backend for persistent storage - projects such as
   chain and associated log files.
 - When AteDB creates new chains it will will query an authentication server for a public key
   of who should have access to write root events into the chain based on a naming convention.  
-  e.g. tcp://server.com/domain.com/name/mydb => mydb chain for user with email name@domain.com.
+  e.g. ws://server.com/db/domain.com/name/mydb => mydb chain for user with email name@domain.com.
 - If you specify the --no-auth command then chains will be created without making any authentication
   checks which means anyone can create new chains on a first-come-first-served basis and no authentcation
   server is required.
@@ -90,7 +90,7 @@ cargo install auth-server
 # Launch AteDB with all the defaults which is a good balance of security, performance
 # and simplfied setup. This instance will use the default authentication when it creates
 # new chains setting the root write key to that of the owner. The authentication server
-# that is queried will default to tcp://auth.tokera.com:5001/auth.
+# that is queried will default to ws://tokera.com/auth.
 # The instance will listen on all ports and all network addresses.
 atedb solo
 ```
@@ -118,14 +118,14 @@ atedb solo ~/another-path/
 # Starts AteDB without an authentication server which will listen on a localhost address for connections.
 # Wire encryption is disabled even while this instance is running as a centralized trust mode as there
 # is a low risk attackers could reach the loopback device.
-atedb --no-auth --no-wire-encryption solo -l 127.0.0.1
+atedb --no-auth --no-wire-encryption solo -l 127.0.0.1 -p 5555
 ```
 
 ```sh
 # Starts AteDB using a different DNS server and authentication address that is hosted locally
 # Also by specifying that we listen on address 0.0.0.0 we purposely limited ourselves to IPv4
 auth-server run -l 0.0.0.0 -p 5555
-atedb --dns 8.8.4.4 --auth tcp://127.0.0.1:5555/auth solo -l 0.0.0.0
+atedb --dns 8.8.4.4 --auth ws://localhost:5555/auth solo -l 0.0.0.0
 ```
 
 ```sh
@@ -152,7 +152,7 @@ FLAGS:
 
 OPTIONS:
     -a, --auth <auth>
-            URL where the user is authenticated [default: tcp://auth.tokera.com:5001/auth]
+            URL where the user is authenticated [default: ws://tokera.com/auth]
 
         --dns-server <dns-server>
             Address that DNS queries will be sent to [default: 8.8.8.8]

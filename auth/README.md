@@ -89,7 +89,7 @@ FLAGS:
 
 OPTIONS:
     -a, --auth <auth>                URL where the user is authenticated [default:
-                                     tcp://auth.tokera.com:5001/auth]
+                                     ws://tokera.com/auth]
     -t, --token <token>              Token used to access your encrypted file-system (if you do not
                                      supply a token then you will be prompted for a username and
                                      password)

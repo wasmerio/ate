@@ -179,12 +179,11 @@ impl Registry
 
     async fn cfg(&self, url: &Url) -> Result<ConfMesh, ChainCreationError>
     {
+        let protocol = StreamProtocol::parse(url)?;
         let port = match url.port() {
             Some(a) => a,
-            None => self.cfg_ate.default_port,
+            None => protocol.default_port(),
         };
-
-        let _protocol = StreamProtocol::parse(url)?;
 
         let mut ret = ConfMesh::default();
         ret.force_listen = None;

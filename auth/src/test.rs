@@ -35,7 +35,7 @@ pub async fn test_create_user_and_group() -> Result<(), AteError>
     // Create the user
     let username = "joe.blogs@nowhere.com".to_string();
     let password = "letmein".to_string();
-    let auth = Url::parse(format!("tcp://127.0.0.1:{}/auth", port).as_str()).unwrap();
+    let auth = Url::parse(format!("ws://localhost:{}/auth", port).as_str()).unwrap();
     let response = crate::main_create_user(
         Some(username.clone()),
         Some(password.clone()),

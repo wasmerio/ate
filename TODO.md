@@ -99,7 +99,7 @@
 0.7.0   Docker imports
         + AteDocker needs to be created that hosts imported docker files
           on demand as they are requested.
-        + AteDocker will run at 'tcp://docker.tokera.com/'
+        + AteDocker will run at 'ws://tokera.com/docker'
         + Docker credentials should be passed in the command-line, only public
           containers are supported at Tokera - private containers require
           one to run their own instance of AteDocker.

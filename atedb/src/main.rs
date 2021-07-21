@@ -26,8 +26,8 @@ struct Opts {
     /// Logs debug info to the console
     #[clap(short, long)]
     debug: bool,
-    /// URL where the user is authenticated (default port=5001)
-    #[clap(short, long, default_value = "ws://auth.tokera.com/")]
+    /// URL where the user is authenticated
+    #[clap(short, long, default_value = "ws://tokera.com/auth")]
     auth: Url,
     /// Indicates no authentication server will be used meaning all new chains
     /// created by clients allow anyone to write new root nodes.
@@ -74,7 +74,7 @@ struct Solo {
     /// IP address that the database server will isten on
     #[clap(short, long, default_value = "0.0.0.0")]
     listen: String,
-    /// Underlying protocol that the ATE database will negotiate using (valid protocols are 'tcp', 'tcp-ws', 'tcp-wss', 'ws', 'wss').
+    /// Underlying protocol that the ATE database will negotiate using (valid protocols are 'tcp', 'ws').
     #[clap(short, long, default_value = "ws")]
     protocol: StreamProtocol,
     /// Port that the database server will listen on
