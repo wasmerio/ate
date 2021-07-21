@@ -1,5 +1,4 @@
 #![allow(unused_imports)]
-use hyper::upgrade::Upgraded;
 use tokio::net::TcpStream;
 use tokio::net::tcp::OwnedReadHalf;
 use tokio::net::tcp::OwnedWriteHalf;
@@ -20,9 +19,7 @@ pub enum StreamProtocol
 {
     Tcp,
     #[cfg(feature="ws")]
-    TcpWebSocket,
-    #[cfg(feature="http_ws")]
-    HttpWebSocket,
+    WebSocket,
 }
 
 impl std::str::FromStr
@@ -35,9 +32,7 @@ for StreamProtocol
         let ret = match s {
             "tcp" => StreamProtocol::Tcp,
             #[cfg(feature="ws")]
-            "tcp-ws" => StreamProtocol::TcpWebSocket,
-            #[cfg(feature="http_ws")]
-            "ws" => StreamProtocol::HttpWebSocket,
+            "ws" => StreamProtocol::WebSocket,
             _ => {
                 return Err(CommsError::UnsupportedProtocolError(s.to_string()));
             }
@@ -53,21 +48,7 @@ impl StreamProtocol
         let ret = match self {
             StreamProtocol::Tcp => "tcp",
             #[cfg(feature="ws")]
-            StreamProtocol::TcpWebSocket => "tcp-ws",
-            #[cfg(feature="http_ws")]
-            StreamProtocol::HttpWebSocket => "ws",
-        };
-        ret.to_string()
-    }
-
-    pub fn to_standardized_scheme(&self) -> String
-    {
-        let ret = match self {
-            StreamProtocol::Tcp => "tcp",
-            #[cfg(feature="ws")]
-            StreamProtocol::TcpWebSocket => "ws",
-            #[cfg(feature="http_ws")]
-            StreamProtocol::HttpWebSocket => "ws",
+            StreamProtocol::WebSocket => "ws",
         };
         ret.to_string()
     }
@@ -80,17 +61,7 @@ impl StreamProtocol
     pub fn is_websocket(&self) -> bool {
         match self {
             #[cfg(feature="ws")]
-            StreamProtocol::TcpWebSocket => true,
-            #[cfg(feature="http_ws")]
-            StreamProtocol::HttpWebSocket => true,
-            _ => false
-        }
-    }
-
-    pub fn is_http(&self) -> bool {
-        match self {
-            #[cfg(feature="http_ws")]
-            StreamProtocol::HttpWebSocket => true,
+            StreamProtocol::WebSocket => true,
             _ => false
         }
     }
@@ -110,8 +81,6 @@ pub enum Stream
     Tcp(TcpStream),
     #[cfg(feature="ws")]
     WebSocket(WebSocketStream<TcpStream>, StreamProtocol),
-    #[cfg(feature="http_ws")]
-    WebSocketUpgraded(WebSocketStream<Upgraded>, StreamProtocol),
 }
 
 impl StreamProtocol
@@ -119,16 +88,6 @@ impl StreamProtocol
     pub fn make_url(&self, domain: Option<String>) -> Result<url::Url, url::ParseError>
     {
         let scheme = self.to_scheme();
-        let input = match domain {
-            Some(a) => format!("{}://{}/", scheme, a),
-            None => format!("{}://localhost/", scheme)
-        };
-        url::Url::parse(input.as_str())
-    }
-
-    pub fn make_standardized_url(&self, domain: Option<String>) -> Result<url::Url, url::ParseError>
-    {
-        let scheme = self.to_standardized_scheme();
         let input = match domain {
             Some(a) => format!("{}://{}/", scheme, a),
             None => format!("{}://localhost/", scheme)
@@ -149,8 +108,6 @@ pub enum StreamRx
     Tcp(OwnedReadHalf),
     #[cfg(feature="ws")]
     WebSocket(stream::SplitStream<WebSocketStream<TcpStream>>),
-    #[cfg(feature="http_ws")]
-    WebSocketUpgraded(stream::SplitStream<WebSocketStream<Upgraded>>)
 }
 
 #[derive(Debug)]
@@ -159,8 +116,6 @@ pub enum StreamTx
     Tcp(OwnedWriteHalf),
     #[cfg(feature="ws")]
     WebSocket(stream::SplitSink<WebSocketStream<TcpStream>, Message>),
-    #[cfg(feature="http_ws")]
-    WebSocketUpgraded(stream::SplitSink<WebSocketStream<Upgraded>, Message>)
 }
 
 impl Stream
@@ -176,11 +131,6 @@ impl Stream
                 let (tx, rx) = a.split();
                 (StreamRx::WebSocket(rx), StreamTx::WebSocket(tx))
             },
-            #[cfg(feature="http_ws")]
-            Stream::WebSocketUpgraded(a, _) => {
-                let (tx, rx) = a.split();
-                (StreamRx::WebSocketUpgraded(rx), StreamTx::WebSocketUpgraded(tx))
-            }
         }
     }
 
@@ -200,13 +150,6 @@ impl Stream
                     true => Stream::WebSocket(a, p),
                 }
             },
-            #[cfg(feature="http_ws")]
-            Stream::WebSocketUpgraded(a, p) => {
-                match protocol.is_websocket() {
-                    false => Stream::WebSocketUpgraded(a, p),
-                    true => Stream::WebSocketUpgraded(a, p),
-                }
-            }
         };
         Ok(ret)
     }
@@ -238,13 +181,6 @@ impl Stream
                     true => Stream::WebSocket(a, p),
                 }
             },
-            #[cfg(feature="http_ws")]
-            Stream::WebSocketUpgraded(a, p) => {
-                match protocol.is_websocket() {
-                    false => Stream::WebSocketUpgraded(a, p),
-                    true => Stream::WebSocketUpgraded(a, p),
-                }
-            }
         };
         Ok(ret)
     }
@@ -256,8 +192,6 @@ impl Stream
             Stream::Tcp(_) => StreamProtocol::Tcp,
             #[cfg(feature="ws")]
             Stream::WebSocket(_, p) => p.clone(),
-            #[cfg(feature="http_ws")]
-            Stream::WebSocketUpgraded(_, p) => p.clone(),
         }
     }
 }
@@ -279,10 +213,6 @@ impl StreamTx
             StreamTx::WebSocket(_) => {
                 self.write_32bit(buf, delay_flush).await?;
             },
-            #[cfg(feature="http_ws")]
-            StreamTx::WebSocketUpgraded(_) => {
-                self.write_32bit(buf, delay_flush).await?;
-            },
         }
         Ok(())
     }
@@ -302,10 +232,6 @@ impl StreamTx
             StreamTx::WebSocket(_) => {
                 self.write_32bit(buf, delay_flush).await?;
             },
-            #[cfg(feature="http_ws")]
-            StreamTx::WebSocketUpgraded(_) => {
-                self.write_32bit(buf, delay_flush).await?;
-            },
         }
         Ok(())
     }
@@ -323,24 +249,6 @@ impl StreamTx
             },
             #[cfg(feature="ws")]
             StreamTx::WebSocket(a) => {
-                if delay_flush {
-                    match a.feed(Message::binary(buf)).await {
-                        Ok(a) => a,
-                        Err(err) => {
-                            return Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to feed data into websocket - {}", err.to_string())));
-                        }
-                    }
-                } else {
-                    match a.send(Message::binary(buf)).await {
-                        Ok(a) => a,
-                        Err(err) => {
-                            return Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to feed data into websocket - {}", err.to_string())));
-                        }
-                    }
-                }
-            },
-            #[cfg(feature="http_ws")]
-            StreamTx::WebSocketUpgraded(a) => {
                 if delay_flush {
                     match a.feed(Message::binary(buf)).await {
                         Ok(a) => a,
@@ -379,10 +287,6 @@ impl StreamRx
             StreamRx::WebSocket(_) => {
                 self.read_32bit().await?
             },
-            #[cfg(feature="http_ws")]
-            StreamRx::WebSocketUpgraded(_) => {
-                self.read_32bit().await?
-            },
         };
         Ok(ret)
     }
@@ -402,10 +306,6 @@ impl StreamRx
             StreamRx::WebSocket(_) => {
                 self.read_32bit().await?
             },
-            #[cfg(feature="http_ws")]
-            StreamRx::WebSocketUpgraded(_) => {
-                self.read_32bit().await?
-            },
         };
         Ok(ret)
     }
@@ -423,28 +323,6 @@ impl StreamRx
             },
             #[cfg(feature="ws")]
             StreamRx::WebSocket(a) => {
-                match a.next().await {
-                    Some(a) => {
-                        let msg = match a {
-                            Ok(a) => a,
-                            Err(err) => {
-                                return Err(tokio::io::Error::new(tokio::io::ErrorKind::InvalidData, format!("Failed to receive data from websocket - {}", err.to_string())));
-                            }
-                        };
-                        match msg {
-                            Message::Binary(a) => a,
-                            _ => {
-                                return Err(tokio::io::Error::new(tokio::io::ErrorKind::InvalidData, format!("Failed to receive data from websocket as the message was the wrong type")));
-                            }
-                        }
-                    },
-                    None => {
-                        return Err(tokio::io::Error::new(tokio::io::ErrorKind::BrokenPipe, format!("Failed to receive data from websocket")));
-                    }
-                }
-            },
-            #[cfg(feature="http_ws")]
-            StreamRx::WebSocketUpgraded(a) => {
                 match a.next().await {
                     Some(a) => {
                         let msg = match a {

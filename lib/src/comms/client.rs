@@ -208,7 +208,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         // Convert the TCP stream into the right protocol
         let stream = Stream::Tcp(stream);
         let stream = {
-            let url = wire_protocol.make_standardized_url(domain.clone())?;
+            let url = wire_protocol.make_url(domain.clone())?;
             stream.upgrade_client(wire_protocol, url).await?
         };
 

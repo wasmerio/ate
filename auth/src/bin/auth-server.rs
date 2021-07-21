@@ -34,7 +34,7 @@ struct Run {
     /// Path to the log files where all the authentication data is stored
     #[clap(index = 2, default_value = "~/ate/auth")]
     logs_path: String,
-    /// Underlying protocol that the authentication server will negotiate using (valid protocols are 'tcp', 'tcp-ws' or 'ws').
+    /// Underlying protocol that the authentication server will negotiate using (valid protocols are 'tcp' or 'ws').
     #[clap(long, default_value = "ws")]
     protocol: StreamProtocol,
     /// IP address that the authentication server will isten on
