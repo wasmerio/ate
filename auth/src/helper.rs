@@ -82,6 +82,13 @@ pub fn conf_auth() -> ConfAte
     cfg_ate
 }
 
+pub fn conf_cmd() -> ConfAte
+{
+    let mut cfg_cmd = conf_auth();
+    cfg_cmd.fail_fast = true;
+    cfg_cmd
+}
+
 pub(crate) fn compute_user_auth(user: &User) -> AteSession
 {
     let mut session = AteSession::default();

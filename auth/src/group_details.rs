@@ -95,7 +95,7 @@ pub async fn group_details_command(group: String, auth: Url, session: Option<&At
 {
     // Open a command chain
     let chain_url = crate::helper::command_url(auth.clone());
-    let registry = ate::mesh::Registry::new(&conf_auth(), true).await;
+    let registry = ate::mesh::Registry::new(&conf_cmd(), true).await;
     let chain = Arc::clone(&registry).open_by_url(&chain_url).await?;
     
     // Make the create request and fire it over to the authentication server

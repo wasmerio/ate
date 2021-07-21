@@ -63,7 +63,8 @@ impl RecoverableSessionPipe
             .wire_encryption(self.builder.cfg.wire_encryption)
             .connect_to(self.addr.ip, self.addr.port)
             .on_connect(Message::Connected)
-            .buffer_size(self.builder.cfg.buffer_size_client);
+            .buffer_size(self.builder.cfg.buffer_size_client)
+            .fail_fast(self.builder.cfg.fail_fast);
 
         let (node_tx, node_rx)
             = crate::comms::connect::<Message, ()>

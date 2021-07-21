@@ -115,6 +115,8 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
     let listener = TcpListener::bind(addr.clone()).await
         .expect(&format!("Failed to bind listener to address ({})", addr.clone()));
 
+    info!("listening on: {} with proto {}", addr, wire_protocol);
+
     let mut exp_backoff = Duration::from_millis(100);
     tokio::task::spawn(async move {
         loop {
@@ -129,7 +131,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                 }
             };
             exp_backoff = Duration::from_millis(100);
-            info!("connection-from: {}", sock_addr.to_string());
+            info!("accept-from: {}", sock_addr.to_string());
             
             setup_tcp_stream(&stream).unwrap();
 
@@ -341,17 +343,13 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                                 };
                             },
                             Err(e) =>
-                                error!("error when trying to upgrade connection \
-                                        from address {} to websocket connection. \
-                                        Error is: {}", remote_addr, e),
+                                error!("error when trying to upgrade connection from address {} to websocket connection. Error is: {}", remote_addr, e),
                         }
                     });
                     response
                 },
                 Err(error) => {
-                    error!("Failed to create websocket response \
-                                to request from address {}. \
-                                Error is: {}", remote_addr, error);
+                    error!("Failed to create websocket response to request from address {}. Error is: {}", remote_addr, error);
                     let mut res = Response::new(Body::from(format!("Failed to create websocket: {}", error)));
                     *res.status_mut() = StatusCode::BAD_REQUEST;
                     return Ok(res);
@@ -361,9 +359,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
             Ok::<_, Infallible>(response)
         },
         false => {
-            Ok(Response::new(Body::from(format!("Only connections over \
-                                                websocket clients are supported
-                                                for this ATE chain-of-trust.\n"))))
+            Ok(Response::new(Body::from(format!("Only connections over websocket clients are supported for this ATE chain-of-trust.\n"))))
         },
     }
 }
@@ -380,12 +376,17 @@ pub(super) async fn listen_on_with_http<M, C>(addr: SocketAddr,
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
       C: Send + Sync + BroadcastContext + Default + 'static,
 {
+    info!("listening on: {} with proto {}", addr, wire_protocol);
+
     let make_svc = {
         make_service_fn(move |conn: & AddrStream| {
             let remote_addr = conn.remote_addr();
             let inbox = inbox.clone();
             let outbox = Arc::clone(&outbox);
             let state = Arc::clone(&state);
+
+            info!("accept from: {}", remote_addr);
+
             async move {
                 Ok::<_, Infallible>(service_fn(move |request: Request<Body>|
                     {

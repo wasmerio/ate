@@ -96,6 +96,14 @@ impl StreamProtocol
     }
 }
 
+impl std::fmt::Display
+for StreamProtocol
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_scheme())
+    }
+}
+
 #[derive(Debug)]
 pub enum Stream
 {

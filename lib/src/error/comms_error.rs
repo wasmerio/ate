@@ -20,6 +20,7 @@ pub enum CommsError
     NoReplyChannel,
     NoWireFormat,
     Disconnected,
+    Refused,
     ShouldBlock,
     ValidationError(Vec<ValidationError>),
     #[allow(dead_code)]
@@ -212,6 +213,9 @@ for CommsError {
             CommsError::NoReplyChannel => {
                 write!(f, "Message has no reply channel attached to it")
             },
+            CommsError::Refused => {
+                write!(f, "Connection was refused by the destination address")
+            },
             CommsError::NoWireFormat => {
                 write!(f, "Server did not send a wire format")
             },
@@ -249,7 +253,7 @@ for CommsError {
                 write!(f, "Internal comms error - {}", err)
             },
             CommsError::UnsupportedProtocolError(proto) => {
-                write!(f, "Unsupport protocol ({})", proto)
+                write!(f, "Unsupported wire protocol ({})", proto)
             },
         }
     }

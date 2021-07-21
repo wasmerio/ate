@@ -90,6 +90,10 @@ pub struct ConfAte
     /// Time to wait for a connection to a server before it times out
     pub connect_timeout: Duration,
 
+    /// Connection attempts will abort quickly in the scenario that something is wrong rather
+    /// than retrying in an exponential backoff
+    pub fail_fast: bool,
+
     /// Default port that the ATE protocol will run on (port 5000)
     pub default_port: u16
 }
@@ -126,6 +130,7 @@ for ConfAte
             wire_format: SerializationFormat::Bincode,
             connect_timeout: Duration::from_secs(30),
             default_port: 5000,
+            fail_fast: false,
         }
     }
 }

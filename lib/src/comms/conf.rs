@@ -60,6 +60,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
     pub wire_format: SerializationFormat,
     pub wire_protocol: StreamProtocol,
     pub wire_encryption: Option<KeySize>,
+    pub fail_fast: bool,
 }
 
 impl<M> NodeConfig<M>
@@ -75,6 +76,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
             wire_format,
             wire_protocol,
             wire_encryption: None,
+            fail_fast: false,
         }
     }
 
@@ -101,6 +103,11 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
 
     pub(crate) fn buffer_size(mut self, buffer_size: usize) -> Self {
         self.buffer_size = buffer_size;
+        self
+    }
+
+    pub(crate) fn fail_fast(mut self, fail_fast: bool) -> Self {
+        self.fail_fast = fail_fast;
         self
     }
 

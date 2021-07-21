@@ -55,7 +55,8 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
             Arc::clone(&state),
             conf.wire_protocol,
             conf.wire_encryption,
-            conf.connect_timeout
+            conf.connect_timeout,
+            conf.fail_fast,
         ).await?;
         wire_format = upstream.wire_format;
 
@@ -94,6 +95,7 @@ pub(super) async fn mesh_connect_to<M, C>
     wire_protocol: StreamProtocol,
     wire_encryption: Option<KeySize>,
     timeout: Duration,
+    fail_fast: bool,
 )
 -> Result<Upstream, CommsError>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
@@ -121,6 +123,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         state,
         wire_protocol,
         wire_encryption,
+        fail_fast,
     );
     let worker_connect = tokio::time::timeout(timeout, worker_connect).await??;
     let wire_format = worker_connect.wire_format;
@@ -168,6 +171,7 @@ async fn mesh_connect_prepare<M, C>
     state: Arc<StdMutex<NodeState>>,
     wire_protocol: StreamProtocol,
     wire_encryption: Option<KeySize>,
+    fail_fast: bool,
 )
 -> Result<MeshConnectContext<M, C>, CommsError>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
@@ -179,11 +183,17 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         
         let stream = match TcpStream::connect(addr.clone()).await {
             Err(err) if match err.kind() {
-                std::io::ErrorKind::ConnectionRefused => true,
+                std::io::ErrorKind::ConnectionRefused => {
+                    if fail_fast {
+                        return Err(CommsError::Refused);
+                    }
+                    true
+                },
                 std::io::ErrorKind::ConnectionReset => true,
                 std::io::ErrorKind::ConnectionAborted => true,
                 _ => false   
             } => {
+                debug!("connect failed: reason={}, backoff={}s", err, exp_backoff.as_secs_f32());
                 tokio::time::sleep(exp_backoff).await;
                 exp_backoff *= 2;
                 if exp_backoff > Duration::from_secs(10) { exp_backoff = Duration::from_secs(10); }
