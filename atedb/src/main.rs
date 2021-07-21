@@ -27,7 +27,7 @@ struct Opts {
     #[clap(short, long)]
     debug: bool,
     /// URL where the user is authenticated (default port=5001)
-    #[clap(short, long, default_value = "tcp://auth.tokera.com/")]
+    #[clap(short, long, default_value = "ws://auth.tokera.com/")]
     auth: Url,
     /// Indicates no authentication server will be used meaning all new chains
     /// created by clients allow anyone to write new root nodes.
@@ -74,8 +74,14 @@ struct Solo {
     /// IP address that the database server will isten on
     #[clap(short, long, default_value = "0.0.0.0")]
     listen: String,
+    /// Underlying protocol that the ATE database will negotiate using (valid protocols are 'tcp', 'tcp-ws', 'tcp-wss', 'ws', 'wss').
+    #[clap(short, long, default_value = "ws")]
+    protocol: StreamProtocol,
+    /// URI path that the server will check before it accepts a websocket on this address.
+    #[clap(short, long, default_value = "/")]
+    uri_path: String,
     /// Port that the database server will listen on
-    #[clap(short, long, default_value = "5000")]
+    #[clap(short, long, default_value = "80")]
     port: u16,
     /// Mode that the compaction will run under (valid modes are 'never', 'modified', 'timer', 'factor', 'size', 'factor-or-timer', 'size-or-timer')
     #[clap(long, default_value = "factor-or-timer")]
@@ -152,6 +158,8 @@ async fn main_solo(solo: Solo, mut cfg_ate: ConfAte, auth: Option<url::Url>, tru
         .with_growth_factor(solo.compact_threshold_factor)
         .with_growth_size(solo.compact_threshold_size)
         .with_timer_value(Duration::from_secs(solo.compact_timer));
+    cfg_ate.uri_path = solo.uri_path;
+    cfg_ate.wire_protocol = solo.protocol;
 
     // Create the chain flow and generate configuration
     let flow = ChainFlow::new(&cfg_ate, auth, trust).await;
