@@ -82,22 +82,22 @@ fn create_prepare<'a, 'b>(cfg_mesh: &'b ConfMesh) -> Vec<MeshAddress> {
     listen_root_addresses
 }
 
-pub async fn create_persistent_centralized_server(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Arc<MeshRoot<OpenStaticBuilder>>
+pub async fn create_persistent_centralized_server(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Result<Arc<MeshRoot<OpenStaticBuilder>>, CommsError>
 {
     create_server(cfg_ate, cfg_mesh, super::flow::all_persistent_and_centralized().await).await
 }
 
-pub async fn create_persistent_distributed_server(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Arc<MeshRoot<OpenStaticBuilder>>
+pub async fn create_persistent_distributed_server(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Result<Arc<MeshRoot<OpenStaticBuilder>>, CommsError>
 {
     create_server(cfg_ate, cfg_mesh, super::flow::all_persistent_and_distributed().await).await
 }
 
-pub async fn create_ethereal_server(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Arc<MeshRoot<OpenStaticBuilder>>
+pub async fn create_ethereal_server(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Result<Arc<MeshRoot<OpenStaticBuilder>>, CommsError>
 {
     create_server(cfg_ate, cfg_mesh, super::flow::all_ethereal().await).await
 }
 
-pub async fn create_server<F>(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh, open_flow: Box<F>) -> Arc<MeshRoot<F>>
+pub async fn create_server<F>(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh, open_flow: Box<F>) -> Result<Arc<MeshRoot<F>>, CommsError>
 where F: OpenFlow + 'static
 {
     

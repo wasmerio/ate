@@ -39,6 +39,7 @@ where C: Send + Sync
     pub _marker: PhantomData<C>,
 }
 
+#[derive(Debug)]
 pub(crate) struct NodeRx<M, C>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone,
       C: Send + Sync

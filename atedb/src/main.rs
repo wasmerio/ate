@@ -158,7 +158,7 @@ async fn main_solo(solo: Solo, mut cfg_ate: ConfAte, auth: Option<url::Url>, tru
 
     // Create the server and listen on the port
     let cfg_mesh = ConfMesh::solo(&solo.listen)?;
-    let _server = create_server(&cfg_ate, &cfg_mesh, Box::new(flow)).await;
+    let _server = create_server(&cfg_ate, &cfg_mesh, Box::new(flow)).await?;
 
     // Wait for ctrl-c
     eprintln!("Press ctrl-c to exit");

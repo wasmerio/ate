@@ -65,7 +65,8 @@ async fn test_mesh()
         // Wait for all the servers to start
         for (addr, join) in mesh_root_joins {
             debug!("creating server on {:?}", addr);
-            mesh_roots.push(join.await);
+            let join = join.await;
+            mesh_roots.push(join);
         }
         cfg_mesh
     };

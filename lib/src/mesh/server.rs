@@ -97,7 +97,7 @@ impl<F> MeshRoot<F>
 where F: OpenFlow + 'static
 {
     #[allow(dead_code)]
-    pub(super) async fn new(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh, listen_addrs: Vec<MeshAddress>, open_flow: Box<F>) -> Arc<Self>
+    pub(super) async fn new(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh, listen_addrs: Vec<MeshAddress>, open_flow: Box<F>) -> Result<Arc<Self>, CommsError>
     {
         let mut node_cfg = NodeConfig::new(cfg_ate.wire_protocol, cfg_ate.wire_format)
             .wire_encryption(cfg_ate.wire_encryption)
@@ -117,6 +117,7 @@ where F: OpenFlow + 'static
                 .listen_on(IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0)), port.clone());                
         }
 
+        let hello_path = open_flow.hello_path().to_string();
         let open_flow = Mutex::new(open_flow);
         let ret = Arc::new(
             MeshRoot
@@ -130,12 +131,15 @@ where F: OpenFlow + 'static
             }
         );
 
-        let (tx, rx)
-            = crate::comms::listen(&node_cfg).await;
+        let listener = crate::comms::Listener::new(&node_cfg).await?;
+        let (tx, rx) = {
+            let mut guard = listener.lock();
+            guard.add_route(hello_path.as_str())?
+        };
 
         tokio::spawn(inbox(Arc::clone(&ret), rx, tx));
 
-        ret
+        Ok(ret)
     }
 }
 

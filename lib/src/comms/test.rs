@@ -5,6 +5,7 @@ use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use crate::prelude::*;
 use super::NodeConfig;
 use crate::comms::BroadcastContext;
+use super::Listener;
 
 #[cfg(test)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -61,7 +62,12 @@ async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) 
             .wire_encryption(Some(KeySize::Bit256))
             .listen_on(IpAddr::from_str("127.0.0.1")
             .unwrap(), port);
-        let (_, mut server_rx) = super::listen::<TestMessage, DummyContext>(&cfg).await;
+        
+            let listener = Listener::<TestMessage, DummyContext>::new(&cfg).await?;
+        let (_, mut server_rx) = {
+            let mut guard = listener.lock();
+            guard.add_route("/")?
+        };
 
         // Create a background thread that will respond to pings with pong
         info!("creating server worker thread");

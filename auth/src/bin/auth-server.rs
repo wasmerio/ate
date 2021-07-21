@@ -97,7 +97,7 @@ async fn main() -> Result<(), AteError>
 
             // Create the server and listen on port 5000
             let cfg_mesh = ConfMesh::solo(&run.listen)?;
-            let _server = create_server(&cfg_ate, &cfg_mesh, Box::new(flow)).await;
+            let _server = create_server(&cfg_ate, &cfg_mesh, Box::new(flow)).await?;
             
             // Wait for ctrl-c
             let mut exit = ctrl_channel();

@@ -6,7 +6,7 @@ mod hello;
 mod key_exchange;
 mod conf;
 mod helper;
-mod server;
+mod listener;
 mod client;
 mod rx_tx;
 mod test;
@@ -23,7 +23,7 @@ pub(crate) use rx_tx::NodeRx;
 pub(crate) use rx_tx::NodeTx;
 pub(crate) use rx_tx::TxDirection;
 
-pub(crate) use server::listen;
+pub(crate) use listener::Listener;
 pub(crate) use client::connect;
 
 pub(crate) use stream::Stream;

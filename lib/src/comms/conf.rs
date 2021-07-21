@@ -48,7 +48,7 @@ for SocketAddr
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct NodeConfig<M>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone
 {
