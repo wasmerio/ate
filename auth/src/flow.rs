@@ -23,8 +23,8 @@ impl ChainFlow
         ChainFlow {
             cfg: cfg.clone(),
             root_key,
-            regex_auth: Regex::new("^/auth-[a-f0-9]{4}$").unwrap(),
-            regex_cmd: Regex::new("^/cmd-[a-f0-9]{16}$").unwrap(),
+            regex_auth: Regex::new("^/auth/redo-[a-f0-9]{4}$").unwrap(),
+            regex_cmd: Regex::new("^/auth/cmd-[a-f0-9]{16}$").unwrap(),
             session,
         }
     }

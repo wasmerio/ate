@@ -29,7 +29,7 @@ impl AuthService
         info!("create group: {}", request.group);
 
         // Make sure the group matches the regex and is valid
-        let regex = Regex::new("^/{0,1}([a-zA-Z0-9_]{0,})$").unwrap();
+        let regex = Regex::new("^([a-zA-Z0-9_]{0,})$").unwrap();
         if let Some(_captures) = regex.captures(request.group.as_str()) {
             if request.group.len() <= 0 {
                 return Err(ServiceError::Reply(CreateGroupFailed::InvalidGroupName));    

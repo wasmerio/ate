@@ -22,8 +22,8 @@ impl ChainFlow
     pub async fn new(cfg: &ConfAte, auth: Option<url::Url>, mode: TrustMode) -> Self {        
         ChainFlow {
             cfg: cfg.clone(),
-            regex_personal: Regex::new("^/([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})/([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})/([a-zA-Z0-9_]{1,})$").unwrap(),
-            regex_group: Regex::new("^/{0,1}([a-zA-Z0-9_]{0,})$").unwrap(),
+            regex_personal: Regex::new("^/db/redo-([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})/([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})/([a-zA-Z0-9_]{1,})$").unwrap(),
+            regex_group: Regex::new("^/db/redo-([a-zA-Z0-9_]{0,})$").unwrap(),
             mode,
             auth,
             registry: ate::mesh::Registry::new(&ate_auth::conf_auth(), true).await
