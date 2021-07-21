@@ -12,6 +12,7 @@ pub struct ChainFlow {
     cfg: ConfAte,
     regex_personal: Regex,
     regex_group: Regex,
+    hello_path: String,
     mode: TrustMode,
     auth: Option<url::Url>,
     registry: Arc<Registry>,
@@ -22,8 +23,9 @@ impl ChainFlow
     pub async fn new(cfg: &ConfAte, auth: Option<url::Url>, mode: TrustMode) -> Self {        
         ChainFlow {
             cfg: cfg.clone(),
-            regex_personal: Regex::new("^/db/redo-([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})/([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})/([a-zA-Z0-9_]{1,})$").unwrap(),
-            regex_group: Regex::new("^/db/redo-([a-zA-Z0-9_]{0,})$").unwrap(),
+            regex_personal: Regex::new("^/([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})/([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})/([a-zA-Z0-9_]{1,})$").unwrap(),
+            regex_group: Regex::new("^/{0,1}([a-zA-Z0-9_]{0,})$").unwrap(),
+            hello_path: "db".to_string(),
             mode,
             auth,
             registry: ate::mesh::Registry::new(&ate_auth::conf_auth(), true).await
@@ -35,6 +37,10 @@ impl ChainFlow
 impl OpenFlow
 for ChainFlow
 {
+    fn hello_path(&self) -> &str {
+        self.hello_path.as_str()
+    }
+
     async fn open(&self, mut builder: ChainBuilder, key: &ChainKey) -> Result<OpenAction, ChainCreationError>
     {
         debug!("open_db: {}", key);

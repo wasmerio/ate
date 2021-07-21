@@ -211,6 +211,35 @@ impl ChainBuilder
     }
 
     #[allow(dead_code)]
+    pub fn postfix_log_path(mut self, postfix: &str) -> Self
+    {
+        let orig_path = match self.cfg.log_path.as_ref() {
+            Some(a) => a.clone(),
+            None => {
+                return self;
+            }
+        };
+
+        // Remove any prefix slash as this will already be there
+        let mut postfix = postfix.to_string();
+        while postfix.starts_with("/") {
+            postfix = postfix[1..].to_string();
+        }
+        if postfix.len() <= 0 {
+            return self;
+        }
+
+        // Get the path so far
+        let path = match orig_path.ends_with("/") {
+            true => format!("{}{}", orig_path, postfix),
+            false => format!("{}/{}", orig_path, postfix)
+        };
+
+        self.cfg.log_path = Some(path);
+        self
+    }
+
+    #[allow(dead_code)]
     pub fn set_session(mut self, session: AteSession) -> Self {
         self.session = session;
         self

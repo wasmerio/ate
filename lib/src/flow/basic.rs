@@ -59,6 +59,10 @@ impl OpenStaticBuilder
 impl OpenFlow
 for OpenStaticBuilder
 {
+    fn hello_path(&self) -> &str {
+        "/"
+    }
+
     async fn open(&self, mut builder: ChainBuilder, key: &ChainKey) -> Result<OpenAction, ChainCreationError> {
         debug!("open_static: {}", key.to_string());
 

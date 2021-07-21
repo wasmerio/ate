@@ -58,6 +58,8 @@ pub trait OpenFlow
 where Self: Send + Sync
 {
     async fn open(&self, builder: ChainBuilder, key: &ChainKey) -> Result<OpenAction, ChainCreationError>;
+
+    fn hello_path(&self) -> &str;
 }
 
 pub async fn all_persistent_and_centralized() -> Box<basic::OpenStaticBuilder> {

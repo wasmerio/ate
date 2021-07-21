@@ -281,6 +281,9 @@ where F: OpenFlow + 'static
     // Set the protocol
     builder.cfg.wire_protocol = proto;
 
+    // Postfix the hello_path
+    builder = builder.postfix_log_path(chain_builder_flow.hello_path());
+
     // Add a pipe that will broadcast message to the connected clients
     if let Some(ctx) = &context {
         if let TxDirection::Downcast(downcast) = &ctx.tx.direction {

@@ -28,6 +28,7 @@ pub struct ConfAte
     pub compact_bootstrap: bool,
 
     /// Directory path that the redo logs will be stored.
+    /// (if this option is none then the logs will be stored in memory)
     #[cfg(feature = "local_fs")]
     pub log_path: Option<String>,
 

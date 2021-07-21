@@ -14,6 +14,7 @@ pub struct ChainFlow {
     root_key: PrivateSignKey,
     regex_auth: Regex,
     regex_cmd: Regex,
+    hello_path: String,
     session: AteSession,
 }
 
@@ -23,8 +24,9 @@ impl ChainFlow
         ChainFlow {
             cfg: cfg.clone(),
             root_key,
-            regex_auth: Regex::new("^/auth/redo-[a-f0-9]{4}$").unwrap(),
-            regex_cmd: Regex::new("^/auth/cmd-[a-f0-9]{16}$").unwrap(),
+            regex_auth: Regex::new("^/auth-[a-f0-9]{4}$").unwrap(),
+            regex_cmd: Regex::new("^/cmd-[a-f0-9]{16}$").unwrap(),
+            hello_path: "auth".to_string(),
             session,
         }
     }
@@ -34,13 +36,18 @@ impl ChainFlow
 impl OpenFlow
 for ChainFlow
 {
+    fn hello_path(&self) -> &str {
+        self.hello_path.as_str()
+    }
+
     async fn open(&self, builder: ChainBuilder, key: &ChainKey) -> Result<OpenAction, ChainCreationError>
     {
         debug!("open_auth: {}", key);
 
         let name = key.name.clone();
         let name = name.as_str();
-        if self.regex_auth.is_match(name) {
+        if self.regex_auth.is_match(name)
+        {
             let chain = builder
                 .set_session(self.session.clone())
                 .add_root_public_key(&self.root_key.as_public_key())
