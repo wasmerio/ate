@@ -39,7 +39,7 @@ impl MeshClient {
         )
     }
 
-    pub async fn open_ext<'a>(&'a self, key: &ChainKey, protocol: StreamProtocol, domain: Option<String>, uri_path: Option<String>, loader_local: Box<impl Loader>, loader_remote: Box<impl Loader>)
+    pub async fn open_ext<'a>(&'a self, key: &ChainKey, protocol: StreamProtocol, domain: Option<String>, loader_local: Box<impl Loader>, loader_remote: Box<impl Loader>)
         -> Result<Arc<Chain>, ChainCreationError>
     {
         debug!("client open {}", key.to_string());
@@ -63,10 +63,6 @@ impl MeshClient {
         let mut builder = ChainBuilder::new(&self.cfg_ate).await
             .temporal(self.temporal);
         builder.cfg.wire_protocol = protocol;
-
-        if let Some(uri_path) = &uri_path {
-            builder.cfg.uri_path = uri_path.clone();
-        }
 
         let chain = MeshSession::connect(builder, key, domain, addr, self.cfg_ate.recovery_mode, loader_local, loader_remote).await?;
         *record = Arc::downgrade(&chain);
@@ -96,13 +92,12 @@ for MeshClient
     async fn open_by_url(self: Arc<Self>, url: &url::Url) -> Result<Arc<Chain>, ChainCreationError>
     {
         let domain = url.domain().map(|a| a.to_string());
-        let path = url.path().to_string();
         let key = ChainKey::from_url(url);
         let weak = Arc::downgrade(&self);
         let loader_local  = Box::new(crate::loader::DummyLoader::default());
         let loader_remote  = Box::new(crate::loader::DummyLoader::default());
         let protocol = StreamProtocol::parse(url)?;
-        let ret = self.open_ext(&key, protocol, domain, Some(path), loader_local, loader_remote).await?;
+        let ret = self.open_ext(&key, protocol, domain, loader_local, loader_remote).await?;
         ret.inside_sync.write().repository = Some(weak);
         Ok(ret)
     }
@@ -113,7 +108,7 @@ for MeshClient
         let weak = Arc::downgrade(&self);
         let loader_local  = Box::new(crate::loader::DummyLoader::default());
         let loader_remote  = Box::new(crate::loader::DummyLoader::default());
-        let ret = self.open_ext(key, proto, None, None, loader_local, loader_remote).await?;
+        let ret = self.open_ext(key, proto, None, loader_local, loader_remote).await?;
         ret.inside_sync.write().repository = Some(weak);
         Ok(ret)
     }

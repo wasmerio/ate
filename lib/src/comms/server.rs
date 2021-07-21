@@ -56,7 +56,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
             Arc::clone(&downcast_tx),
             conf.buffer_size,
             Arc::clone(&state),
-            conf.path_filter.clone(),
             conf.wire_protocol,
             conf.wire_format,
             conf.wire_encryption,
@@ -86,7 +85,6 @@ pub(super) async fn listen_on<M, C>(
     outbox: Arc<broadcast::Sender<BroadcastPacketData>>,
     buffer_size: usize,
     state: Arc<StdMutex<NodeState>>,
-    path_filter: String,
     wire_protocol: StreamProtocol,
     wire_format: SerializationFormat,
     wire_encryption: Option<KeySize>,
@@ -97,7 +95,7 @@ C: Send + Sync + BroadcastContext + Default + 'static,
     match wire_protocol.is_http()
     {
         false => listen_on_with_tcp(addr, inbox, outbox, buffer_size, state, wire_protocol, wire_format, wire_encryption).await,
-        true => listen_on_with_http(addr, inbox, outbox, buffer_size, state, path_filter, wire_protocol, wire_format, wire_encryption).await,
+        true => listen_on_with_http(addr, inbox, outbox, buffer_size, state, wire_protocol, wire_format, wire_encryption).await,
     }
 }
 
@@ -298,7 +296,6 @@ pub(super) async fn handle_http_request<M, C>(
                         outbox: Arc<broadcast::Sender<BroadcastPacketData>>,
                         buffer_size: usize,
                         state: Arc<StdMutex<NodeState>>,
-                        path_filter: String,
                         wire_protocol: StreamProtocol,
                         wire_format: SerializationFormat,
                         wire_encryption: Option<KeySize>) -> Result<Response<Body>, Infallible>
@@ -307,10 +304,8 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
 {
     info!("handle_http_request: {}", request.uri().to_string());
     
-    let path_filter = path_filter.as_str();
-    match (request.uri().path(), request.headers().contains_key(header::UPGRADE)) {
-        (a, true) if a == path_filter => {
-        
+    match request.headers().contains_key(header::UPGRADE) {
+        true => {        
             let response = 
             match handshake::server::create_response_with_body(&request, || Body::empty()) {
                 Ok(response) => {
@@ -365,21 +360,11 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         
             Ok::<_, Infallible>(response)
         },
-        (a, false) if a == path_filter => {
+        false => {
             Ok(Response::new(Body::from(format!("Only connections over \
                                                 websocket clients are supported
                                                 for this ATE chain-of-trust.\n"))))
         },
-        (_, false) => {
-            Ok(Response::new(Body::from(format!("The accessed URL is not currently \
-                                                hosting an ATE chain-of-trust and
-                                                this server is only accepting
-                                                websocket clients.\n"))))
-        }
-        (_, true) => {
-            Ok(Response::new(Body::from(format!("The accessed URL is not currently \
-                                                hosting an ATE chain-of-trust.\n"))))
-        }
     }
 }
 
@@ -388,7 +373,6 @@ pub(super) async fn listen_on_with_http<M, C>(addr: SocketAddr,
                            outbox: Arc<broadcast::Sender<BroadcastPacketData>>,
                            buffer_size: usize,
                            state: Arc<StdMutex<NodeState>>,
-                           path_filter: String,
                            wire_protocol: StreamProtocol,
                            wire_format: SerializationFormat,
                            wire_encryption: Option<KeySize>,
@@ -402,11 +386,9 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
             let inbox = inbox.clone();
             let outbox = Arc::clone(&outbox);
             let state = Arc::clone(&state);
-            let path_filter = path_filter.clone();
             async move {
                 Ok::<_, Infallible>(service_fn(move |request: Request<Body>|
                     {
-                        let path_filter = path_filter.clone();
                         let inbox = inbox.clone();
                         let outbox = Arc::clone(&outbox);
                         let state = Arc::clone(&state);
@@ -417,7 +399,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                             outbox,
                             buffer_size,
                             state,
-                            path_filter,
                             wire_protocol,
                             wire_format,
                             wire_encryption

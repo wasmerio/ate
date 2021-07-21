@@ -59,16 +59,11 @@ impl RecoverableSessionPipe
             = Arc::new(StdMutex::new(FxHashMap::default()));
 
         // Create pipes to all the target root nodes
-        let mut node_cfg = NodeConfig::new(self.builder.cfg.wire_protocol, self.builder.cfg.wire_format)
+        let node_cfg = NodeConfig::new(self.builder.cfg.wire_protocol, self.builder.cfg.wire_format)
             .wire_encryption(self.builder.cfg.wire_encryption)
             .connect_to(self.addr.ip, self.addr.port)
             .on_connect(Message::Connected)
             .buffer_size(self.builder.cfg.buffer_size_client);
-
-        #[cfg(feature = "http_ws")]
-        {
-            node_cfg.path_filter = self.builder.cfg.uri_path.clone();
-        }
 
         let (node_tx, node_rx)
             = crate::comms::connect::<Message, ()>
