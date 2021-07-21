@@ -9,6 +9,34 @@
         + Add a --no-http which will remove the HTTP handshake and switch immediately to websocket
           protocol upon a successful TCP connection
 
+0.8.2   Symbiont elevation, advanced tokfs and bootable images
+        + Add a symbiosis role to authentication groups that has no rights to the group itself
+          but allows one to elevate permissions. Login then run "atefs conjunct elevate" to acquire
+          the rights of another who is performing an "atefs conjunct donate".
+        + When the symbiont conjunctors are all terminated then all host instances terminate which
+          is handled by a background thread that holds a TCP connection, the secret itself is never
+          stored on disk and is only held in memory.
+        + atefs is able to import any public docker image and copy it to a chain of trust using thd
+          "atefs import (groupname) docker image/name --docker-username joe --docker-password blogs".
+          All files are appended and all whitemarks reapplied.
+        + atefs can also import file systems using the "atefs import (groupname) fs /myfiles". It
+          follows the same override rules as the docker import
+        + atefs is able to generate a symbiont init.rd which will boot, elevate, mount the filesystem
+          at a specific path then execute a binary. Use the "atefs conjunct bootimg (groupname) make"
+          to create an image
+        + atefs can run a symbiont image as a virtual machine by executing the following command
+          "atefs conjunct bootimg (groupname) run" which will use a NAT network card and permission.
+        + Move the payment engine of Tokera over to a secure symbiont VM.
+        + In the Tokera version you are able to host symbiont instances using the following command
+          "tok host host (groupname) at (servicename)" which will generate a bootimage on a remote server
+          and await a symbiont to donate elevation for it to start.
+        + Hosts can be stopped, started, modified and deleted using similar commands including changing
+          thd number of instances and/or adding extra export environment variables.
+        + Funds are automatically deducted from the wallet of thr symbiont donator while the hosts are
+          active thus if the wallet runs dry thd hosts will gracefully shutdown until the wallet
+          is deposited again.
+        + Active file system mounts are also charged funds from the owning wallet while they are active.
+
 0.8.2   Support for browsers
         + Allow --target=wasm32-wasi to compile
           (see https://github.com/bytecodealliance/wasmtime)
