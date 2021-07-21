@@ -1,7 +1,8 @@
 #[allow(unused_imports)]
 use log::{info, error, debug};
-use std::{net::IpAddr, str::FromStr};
+use std::{net::IpAddr};
 
+use crate::{comms::StreamProtocol, error::CommsError};
 use super::*;
 
 /// Represents all nodes within this cluster. All the chains
@@ -28,13 +29,29 @@ impl ConfMesh
 {
     /// Represents a single server listening on all available addresses. All chains
     /// will be stored locally to this server and there is no replication
-    pub fn solo(addr: &str, port: u16) -> ConfMesh
+    pub fn solo(listen: &url::Url) -> Result<ConfMesh, CommsError>
     {
+        let protocol = StreamProtocol::parse(listen)?;
+        let port = listen.port().unwrap_or(protocol.default_port());
+        let ip = match listen.host() {
+            Some(a) => match a {
+                url::Host::Ipv4(a) => IpAddr::V4(a),
+                url::Host::Ipv6(a) => IpAddr::V6(a),
+                a => {
+                    return Err(CommsError::ListenAddressInvalid(a.to_string()))
+                }
+            },
+            None => {
+                return Err(CommsError::ListenAddressInvalid("failed to parse".to_string()))
+            }
+        };
+    
         let mut cfg_mesh = ConfMesh::default();
-        let addr = MeshAddress::new(IpAddr::from_str(addr).unwrap(), port);
+        let addr = MeshAddress::new(ip, port);
         cfg_mesh.roots.push(addr.clone());
         cfg_mesh.force_listen = Some(addr);
-        cfg_mesh
+
+        Ok(cfg_mesh)
     }
 }
 

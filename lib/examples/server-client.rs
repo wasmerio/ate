@@ -9,7 +9,7 @@ async fn main() -> Result<(), AteError>
     env_logger::init();
 
     // Create the server and listen on port 5000
-    let cfg_mesh = ConfMesh::solo("127.0.0.1", 5000);
+    let cfg_mesh = ConfMesh::solo(&url::Url::parse("ws://[::]:5000/test-chain").unwrap())?;
     let cfg_ate = ConfAte::default();
     info!("create a persistent server");
     let _server = create_persistent_centralized_server(&cfg_ate, &cfg_mesh).await;

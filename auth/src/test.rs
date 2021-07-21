@@ -25,11 +25,11 @@ pub async fn test_create_user_and_group() -> Result<(), AteError>
 
     // Create the chain flow and generate configuration
     let port_offset = fastrand::u16(..1000);
-    let flow = ChainFlow::new(&cfg_ate, root_write_key, session);
+    let flow = ChainFlow::new(&cfg_ate, root_write_key, session, "auth".to_string());
 
     // Create the server and listen on port 5000
     let port = 5000 + port_offset;
-    let cfg_mesh = ConfMesh::solo("127.0.0.1", port);
+    let cfg_mesh = ConfMesh::solo(&url::Url::parse(format!("ws://[::1]:{}/auth", port).as_str()).unwrap())?;
     let _server = create_server(&cfg_ate, &cfg_mesh, Box::new(flow)).await;
 
     // Create the user

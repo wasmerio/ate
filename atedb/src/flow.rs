@@ -9,23 +9,23 @@ use ate::trust::IntegrityMode;
 use ate_auth::commands::*;
 
 pub struct ChainFlow {
-    cfg: ConfAte,
-    regex_personal: Regex,
-    regex_group: Regex,
-    hello_path: String,
-    mode: TrustMode,
-    auth: Option<url::Url>,
-    registry: Arc<Registry>,
+    pub cfg: ConfAte,
+    pub regex_personal: Regex,
+    pub regex_group: Regex,
+    pub hello_path: String,
+    pub mode: TrustMode,
+    pub auth: Option<url::Url>,
+    pub registry: Arc<Registry>,
 }
 
 impl ChainFlow
 {
-    pub async fn new(cfg: &ConfAte, auth: Option<url::Url>, mode: TrustMode) -> Self {        
+    pub async fn new(cfg: &ConfAte, auth: Option<url::Url>, mode: TrustMode, hello_path: String) -> Self {        
         ChainFlow {
             cfg: cfg.clone(),
             regex_personal: Regex::new("^/([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})/([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})/([a-zA-Z0-9_]{1,})$").unwrap(),
             regex_group: Regex::new("^/{0,1}([a-zA-Z0-9_]{0,})$").unwrap(),
-            hello_path: "db".to_string(),
+            hello_path,
             mode,
             auth,
             registry: ate::mesh::Registry::new(&ate_auth::conf_auth(), true).await

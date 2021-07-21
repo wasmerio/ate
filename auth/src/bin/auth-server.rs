@@ -34,15 +34,10 @@ struct Run {
     /// Path to the log files where all the authentication data is stored
     #[clap(index = 2, default_value = "~/ate/auth")]
     logs_path: String,
-    /// Underlying protocol that the authentication server will negotiate using (valid protocols are 'tcp' or 'ws').
-    #[clap(long, default_value = "ws")]
-    protocol: StreamProtocol,
-    /// IP address that the authentication server will isten on
-    #[clap(short, long, default_value = "0.0.0.0")]
-    listen: String,
-    /// Port that the authentication server will listen on
-    #[clap(short, long, default_value = "5001")]
-    port: u16,
+    /// Address that the authentication server will listen on - you must specify
+    /// an IP4/IP6 address (or pattern) here for the server to listen on
+    #[clap(short, long, default_value = "ws://[::]:5001/auth")]
+    listen: url::Url,
 }
 
 /// Generates the secret key that helps protect key operations like creating users and resetting passwords
@@ -91,17 +86,17 @@ async fn main() -> Result<(), AteError>
             let mut cfg_ate = ate_auth::conf_auth();
             cfg_ate.log_path = Some(shellexpand::tilde(&run.logs_path).to_string());
             cfg_ate.compact_mode = CompactMode::Never;
-            cfg_ate.wire_protocol = run.protocol;
+            cfg_ate.wire_protocol = StreamProtocol::parse(&run.listen)?;
 
             let mut session = AteSession::new(&cfg_ate);
             session.user.add_read_key(&root_read_key);
             session.user.add_write_key(&root_write_key);
 
             // Create the chain flow and generate configuration
-            let flow = ChainFlow::new(&cfg_ate, root_write_key, session);
+            let flow = ChainFlow::new(&cfg_ate, root_write_key, session, run.listen.path().to_string());
 
             // Create the server and listen on port 5000
-            let cfg_mesh = ConfMesh::solo(run.listen.as_str(), run.port);
+            let cfg_mesh = ConfMesh::solo(&run.listen)?;
             let _server = create_server(&cfg_ate, &cfg_mesh, Box::new(flow)).await;
             
             // Wait for ctrl-c

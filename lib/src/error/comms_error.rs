@@ -21,6 +21,7 @@ pub enum CommsError
     Disconnected,
     Refused,
     ShouldBlock,
+    ListenAddressInvalid(String),
     ValidationError(Vec<ValidationError>),
     #[allow(dead_code)]
     JoinError(JoinError),
@@ -236,6 +237,9 @@ for CommsError {
             },
             CommsError::RootServerError(err) => {
                 write!(f, "Error at the root server while processing communication - {}", err)
+            },
+            CommsError::ListenAddressInvalid(addr) => {
+                write!(f, "Could not listen on the address ({}) as it is not a valid IPv4/IPv6 address", addr)
             },
             #[cfg(feature="ws")]
             CommsError::WebSocketError(err) => {

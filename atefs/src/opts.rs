@@ -80,7 +80,7 @@ pub struct OptsMount {
     #[clap(index=1)]
     pub mount_path: String,
     /// URL where the data is remotely stored on a distributed commit log (e.g. ws://tokera.com/db/myfs).
-    /// If this URL is not specified then data will only be stored locally
+    /// If this URL is not specified then data will only be stored in a local chain-of-trust
     #[clap(index=2)]
     pub remote: Option<Url>,
     /// (Optional) Location of the local persistent redo log (e.g. ~/ate/fs)

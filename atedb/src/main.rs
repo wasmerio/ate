@@ -56,6 +56,7 @@ struct Opts {
     /// Address that DNS queries will be sent to
     #[clap(long, default_value = "8.8.8.8")]
     dns_server: String,
+
     #[clap(subcommand)]
     subcmd: SubCommand,
 }
@@ -71,15 +72,10 @@ struct Solo {
     /// Path to the log files where all the file system data is stored
     #[clap(index = 1, default_value = "/opt/ate")]
     logs_path: String,
-    /// IP address that the database server will isten on
-    #[clap(short, long, default_value = "0.0.0.0")]
-    listen: String,
-    /// Underlying protocol that the ATE database will negotiate using (valid protocols are 'tcp', 'ws').
-    #[clap(short, long, default_value = "ws")]
-    protocol: StreamProtocol,
-    /// Port that the database server will listen on
-    #[clap(short, long, default_value = "5000")]
-    port: u16,
+    /// Address that the database server will listen on - you must specify
+    /// an IP4/IP6 address (or pattern) here for the server to listen on
+    #[clap(short, long, default_value = "ws://[::]:5000/db")]
+    listen: url::Url,
     /// Mode that the compaction will run under (valid modes are 'never', 'modified', 'timer', 'factor', 'size', 'factor-or-timer', 'size-or-timer')
     #[clap(long, default_value = "factor-or-timer")]
     compact_mode: CompactMode,
@@ -155,13 +151,13 @@ async fn main_solo(solo: Solo, mut cfg_ate: ConfAte, auth: Option<url::Url>, tru
         .with_growth_factor(solo.compact_threshold_factor)
         .with_growth_size(solo.compact_threshold_size)
         .with_timer_value(Duration::from_secs(solo.compact_timer));
-    cfg_ate.wire_protocol = solo.protocol;
+    cfg_ate.wire_protocol = StreamProtocol::parse(&solo.listen)?;
 
     // Create the chain flow and generate configuration
-    let flow = ChainFlow::new(&cfg_ate, auth, trust).await;
+    let flow = ChainFlow::new(&cfg_ate, auth, trust, solo.listen.path().to_string()).await;
 
-    // Create the server and listen on port 5000
-    let cfg_mesh = ConfMesh::solo(solo.listen.as_str(), solo.port);
+    // Create the server and listen on the port
+    let cfg_mesh = ConfMesh::solo(&solo.listen)?;
     let _server = create_server(&cfg_ate, &cfg_mesh, Box::new(flow)).await;
 
     // Wait for ctrl-c

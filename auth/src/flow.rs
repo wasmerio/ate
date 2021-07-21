@@ -20,13 +20,13 @@ pub struct ChainFlow {
 
 impl ChainFlow
 {
-    pub fn new(cfg: &ConfAte, root_key: PrivateSignKey, session: AteSession) -> Self {        
+    pub fn new(cfg: &ConfAte, root_key: PrivateSignKey, session: AteSession, hello_path: String) -> Self {        
         ChainFlow {
             cfg: cfg.clone(),
             root_key,
             regex_auth: Regex::new("^/auth-[a-f0-9]{4}$").unwrap(),
             regex_cmd: Regex::new("^/cmd-[a-f0-9]{16}$").unwrap(),
-            hello_path: "auth".to_string(),
+            hello_path,
             session,
         }
     }
