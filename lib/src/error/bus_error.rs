@@ -3,7 +3,6 @@ use log::{info, error, debug};
 use std::error::Error;
 
 use std::sync::mpsc as smpsc;
-use tokio::sync::mpsc as mpsc;
 
 use super::*;
 
@@ -40,14 +39,6 @@ for BusError
 {
     fn from(err: SerializationError) -> BusError {
         BusError::SerializationError(err)
-    }   
-}
-
-impl From<mpsc::error::RecvError>
-for BusError
-{
-    fn from(err: mpsc::error::RecvError) -> BusError {
-        BusError::ReceiveError(err.to_string())
     }   
 }
 

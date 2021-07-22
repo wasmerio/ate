@@ -2,7 +2,9 @@
 use log::{info, error, debug};
 use std::error::Error;
 
+#[cfg(not(target_arch = "wasm32"))]
 use trust_dns_proto::error::ProtoError as DnsProtoError;
+#[cfg(not(target_arch = "wasm32"))]
 use trust_dns_client::error::ClientError as DnsClientError;
 
 use super::*;
@@ -26,7 +28,9 @@ pub enum ChainCreationError {
     NoValidDomain(String),
     InvalidRoute(String),
     CommsError(CommsError),
+    #[cfg(not(target_arch = "wasm32"))]
     DnsProtoError(DnsProtoError),
+    #[cfg(not(target_arch = "wasm32"))]
     DnsClientError(DnsClientError),
     ServerRejected(String),
     InternalError(String),
@@ -80,6 +84,7 @@ for ChainCreationError
     }   
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl From<DnsProtoError>
 for ChainCreationError
 {
@@ -88,6 +93,7 @@ for ChainCreationError
     }
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 impl From<DnsClientError>
 for ChainCreationError
 {
@@ -150,9 +156,11 @@ for ChainCreationError {
             ChainCreationError::NoValidDomain(err) => {
                 write!(f, "Failed to create chain-of-trust as the address does not have a valid domain name [{}]", err)
             },
+            #[cfg(not(target_arch = "wasm32"))]
             ChainCreationError::DnsProtoError(err) => {
                 write!(f, "Failed to create chain-of-trust due to a DNS error - {}", err)
             },
+            #[cfg(not(target_arch = "wasm32"))]
             ChainCreationError::DnsClientError(err) => {
                 write!(f, "Failed to create chain-of-trust due to a DNS error - {}", err)
             },

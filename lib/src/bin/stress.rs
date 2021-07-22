@@ -1,7 +1,11 @@
+#[cfg(not(target_arch = "wasm32"))]
 use log::{info};
+#[cfg(not(target_arch = "wasm32"))]
 use serde::{Serialize, Deserialize};
+#[cfg(not(target_arch = "wasm32"))]
 use ate::prelude::*;
 
+#[cfg(not(target_arch = "wasm32"))]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct MyTestObject
 {
@@ -11,6 +15,11 @@ struct MyTestObject
     lines: Vec<String>,
 }
 
+#[cfg(target_arch = "wasm32")]
+fn main() {
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 #[tokio::main]
 async fn main() -> Result<(), AteError> {
     env_logger::init();

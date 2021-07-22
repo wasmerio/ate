@@ -77,14 +77,6 @@ for CommsError
     }   
 }
 
-impl From<mpsc::error::RecvError>
-for CommsError
-{
-    fn from(err: mpsc::error::RecvError) -> CommsError {
-        CommsError::ReceiveError(err.to_string())
-    }   
-}
-
 impl From<smpsc::RecvError>
 for CommsError
 {

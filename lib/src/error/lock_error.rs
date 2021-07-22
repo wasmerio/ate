@@ -3,7 +3,6 @@ use log::{info, error, debug};
 use std::error::Error;
 
 use std::sync::mpsc as smpsc;
-use tokio::sync::mpsc as mpsc;
 
 use super::*;
 
@@ -37,14 +36,6 @@ for LockError
 {
     fn from(err: CommitError) -> LockError {
         LockError::CommitError(err.to_string())
-    }   
-}
-
-impl From<mpsc::error::RecvError>
-for LockError
-{
-    fn from(err: mpsc::error::RecvError) -> LockError {
-        LockError::ReceiveError(err.to_string())
     }   
 }
 

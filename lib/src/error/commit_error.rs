@@ -108,14 +108,6 @@ for CommitError
     }   
 }
 
-impl From<mpsc::error::RecvError>
-for CommitError
-{
-    fn from(err: mpsc::error::RecvError) -> CommitError {
-        CommitError::PipeError(err.to_string())
-    }   
-}
-
 impl<T> From<mpsc::error::SendError<T>>
 for CommitError
 {
