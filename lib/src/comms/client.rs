@@ -208,7 +208,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
 
         // Convert the TCP stream into the right protocol
         let stream = Stream::Tcp(stream);
-        let stream = stream.upgrade_client(wire_protocol).await?;
+        let stream = stream.upgrade_client(wire_protocol, domain.clone(), hello_path.clone()).await?;
 
         {
             // Increase the connection count

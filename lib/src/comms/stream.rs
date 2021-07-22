@@ -93,10 +93,13 @@ pub enum Stream
 
 impl StreamProtocol
 {
-    pub fn make_url(&self, domain: String) -> Result<url::Url, url::ParseError>
+    pub fn make_url(&self, domain: String, path: String) -> Result<url::Url, url::ParseError>
     {
         let scheme = self.to_scheme();
-        let input = format!("{}://{}/", scheme, domain);
+        let input = match path.starts_with("/") {
+            true => format!("{}://{}{}", scheme, domain, path),
+            false => format!("{}://{}/{}", scheme, domain, path),
+        };
         url::Url::parse(input.as_str())
     }
 
@@ -160,7 +163,7 @@ impl Stream
     }
 
     #[allow(unused_variables)]
-    pub async fn upgrade_client(self, protocol: StreamProtocol) -> Result<Stream, CommsError> {
+    pub async fn upgrade_client(self, protocol: StreamProtocol, domain: String, hello_path: String) -> Result<Stream, CommsError> {
         debug!("tcp-protocol-upgrade: {}", protocol);
 
         let ret = match self {
@@ -169,7 +172,9 @@ impl Stream
                     false => Stream::Tcp(a),
                     #[cfg(feature="ws")]
                     true => {
-                        let request = tokio_tungstenite::tungstenite::http::Request::new(());
+                        let url = protocol.make_url(domain, hello_path)?;
+                        let mut request = tokio_tungstenite::tungstenite::http::Request::new(());
+                        *request.uri_mut() = tokio_tungstenite::tungstenite::http::Uri::from_str(url.as_str())?;
                         let (stream, response) = tokio_tungstenite::client_async(request, a)
                             .await?;
                         if response.status().is_client_error() {
