@@ -47,7 +47,8 @@ impl AuthService
         super_session.user.add_read_key(&super_key);
 
         // Compute which chain the user should exist within
-        let chain = context.repository.open(&self.auth_url, &ChainKey::from(request.email.clone())).await?;
+        let chain_key =chain_key_4hex(request.email.as_str(), Some("redo"));
+        let chain = context.repository.open(&self.auth_url, &chain_key).await?;
 
         let user_key = PrimaryKey::from(request.email.clone());
         let user =
@@ -183,7 +184,8 @@ pub async fn load_credentials(username: String, read_key: EncryptKey, _code: Opt
 
     // Generate a chain key that matches this username on the authentication server
     let registry = ate::mesh::Registry::new(&conf_auth(), true).await;
-    let chain = registry.open(&auth, &ChainKey::from(username)).await?;
+    let chain_key = chain_key_4hex(username.as_str(), Some("redo"));
+    let chain = registry.open(&auth, &chain_key).await?;
 
     // Load the user
     let mut dio = chain.dio(&session).await;

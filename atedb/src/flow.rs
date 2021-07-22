@@ -23,8 +23,8 @@ impl ChainFlow
     pub async fn new(cfg: &ConfAte, url_auth: Option<url::Url>, url_db: url::Url, mode: TrustMode) -> Self {
         ChainFlow {
             cfg: cfg.clone(),
-            regex_personal: Regex::new("^/([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})/([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})/([a-zA-Z0-9_]{1,})$").unwrap(),
-            regex_group: Regex::new("^/{0,1}([a-zA-Z0-9_]{0,})$").unwrap(),
+            regex_personal: Regex::new("^([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})/([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})/([a-zA-Z0-9_]{1,})$").unwrap(),
+            regex_group: Regex::new("^([a-zA-Z0-9_]{0,})$").unwrap(),
             mode,
             url_auth,
             url_db,

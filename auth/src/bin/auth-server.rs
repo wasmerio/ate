@@ -39,7 +39,7 @@ struct Run {
     #[clap(short, long, default_value = "ws://localhost:5001/auth")]
     url: url::Url,
     /// IP address that the authentication server will isten on
-    #[clap(short, long, default_value = "[::]")]
+    #[clap(short, long, default_value = "::")]
     listen: IpAddr,
 }
 

@@ -77,7 +77,7 @@ struct Solo {
     #[clap(short, long, default_value = "ws://localhost:5000/db")]
     url: url::Url,
     /// IP address that the database server will isten on
-    #[clap(short, long, default_value = "[::]")]
+    #[clap(short, long, default_value = "::")]
     listen: IpAddr,
     /// Mode that the compaction will run under (valid modes are 'never', 'modified', 'timer', 'factor', 'size', 'factor-or-timer', 'size-or-timer')
     #[clap(long, default_value = "factor-or-timer")]
