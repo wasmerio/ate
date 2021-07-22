@@ -1,7 +1,6 @@
 #[allow(unused_imports)]
 use log::{info, error, debug};
 use std::{net::IpAddr};
-use std::str::FromStr;
 
 use crate::{comms::StreamProtocol, error::CommsError};
 use super::*;
@@ -32,18 +31,12 @@ impl ConfMesh
 {
     /// Represents a single server listening on all available addresses. All chains
     /// will be stored locally to this server and there is no replication
-    pub fn solo(url: &url::Url, listen: &str) -> Result<ConfMesh, CommsError>
+    pub fn solo(url: &url::Url, listen: &IpAddr) -> Result<ConfMesh, CommsError>
     {
         let protocol = StreamProtocol::parse(url)?;
         let port = url.port().unwrap_or(protocol.default_port());
-        let ip = match IpAddr::from_str(listen) {
-            Ok(a) => a,
-            Err(_err) => {
-                return Err(CommsError::ListenAddressInvalid(listen.to_string()));
-            }
-        };
     
-        let addr = MeshAddress::new(ip, port);
+        let addr = MeshAddress::new(listen.clone(), port);
         let mut cfg_mesh = ConfMesh {
             roots: Vec::new(),
             url: url.clone(),

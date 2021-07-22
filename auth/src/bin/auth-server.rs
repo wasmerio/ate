@@ -40,7 +40,7 @@ struct Run {
     url: url::Url,
     /// IP address that the authentication server will isten on
     #[clap(short, long, default_value = "[::]")]
-    listen: String,
+    listen: IpAddr,
 }
 
 /// Generates the secret key that helps protect key operations like creating users and resetting passwords
@@ -95,9 +95,9 @@ async fn main() -> Result<(), AteError>
             session.user.add_read_key(&root_read_key);
             session.user.add_write_key(&root_write_key);
 
-            // Create the server and listen on port 5000
+            // Create the server and listen
             let flow = ChainFlow::new(&cfg_ate, root_write_key, session, &run.url);
-            let cfg_mesh = ConfMesh::solo(&run.url, run.listen.as_str())?;
+            let cfg_mesh = ConfMesh::solo(&run.url, &run.listen)?;
             let _server = create_server(&cfg_ate, &cfg_mesh, Box::new(flow)).await?;
             
             // Wait for ctrl-c
