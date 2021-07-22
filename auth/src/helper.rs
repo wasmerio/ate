@@ -66,14 +66,12 @@ pub fn conf_auth() -> ConfAte
     cfg_ate.configured_for(ConfiguredFor::BestSecurity);
     cfg_ate.log_format.meta = SerializationFormat::Json;
     cfg_ate.log_format.data = SerializationFormat::Json;
-    cfg_ate.wire_format = SerializationFormat::Json;
     cfg_ate
 }
 
 pub fn conf_cmd() -> ConfAte
 {
-    let mut cfg_cmd = conf_auth();
-    cfg_cmd.fail_fast = true;
+    let cfg_cmd = conf_auth();
     cfg_cmd
 }
 

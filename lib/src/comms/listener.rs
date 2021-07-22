@@ -7,6 +7,7 @@ use tokio::sync::broadcast;
 use crate::error::*;
 use tokio::time::Duration;
 use std::sync::Arc;
+use std::sync::Weak;
 use parking_lot::Mutex as StdMutex;
 use serde::{Serialize, de::DeserializeOwned};
 use std::net::SocketAddr;
@@ -50,17 +51,15 @@ pub(crate) struct Listener<M, C>
 where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone,
       C: Send + Sync + BroadcastContext + Default
 {
-    conf: NodeConfig<M>,
+    conf: MeshConfig<M>,
     routes: fxhash::FxHashMap<String, ListenerNode<M, C>>,
 }
-
-type ListenerSafe<M, C> = Arc<StdMutex<Listener<M, C>>>;
 
 impl<M, C> Listener<M, C>
 where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
       C: Send + Sync + BroadcastContext + Default + 'static
 {
-    pub(crate) async fn new(conf: &NodeConfig<M>) -> Result<ListenerSafe<M, C>, CommsError>
+    pub(crate) async fn new(conf: &MeshConfig<M>) -> Result<Arc<StdMutex<Listener<M, C>>>, CommsError>
     {
         // Create the node state and initialize it
         let state = Arc::new(StdMutex::new(
@@ -74,11 +73,11 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
         for target in conf.listen_on.iter() {
             Listener::<M, C>::listen_on(
                 target.clone(), 
-                conf.buffer_size,
-                Arc::clone(&state),
-                conf.wire_protocol,
-                conf.wire_format,
-                conf.wire_encryption,
+                conf.cfg_mesh.buffer_size_server,
+                Arc::downgrade(&state),
+                conf.cfg_mesh.wire_protocol,
+                conf.cfg_mesh.wire_format,
+                conf.cfg_mesh.wire_encryption,
             ).await;
         }
 
@@ -88,8 +87,8 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
     pub(crate) fn add_route(&mut self, path: &str) -> Result<(NodeTx<C>, NodeRx<M, C>), CommsError>
     {
         // Setup the communication pipes for the server
-        let (inbox_tx, inbox_rx) = mpsc::channel(self.conf.buffer_size);
-        let (downcast_tx, _) = broadcast::channel(self.conf.buffer_size);
+        let (inbox_tx, inbox_rx) = mpsc::channel(self.conf.cfg_mesh.buffer_size_server);
+        let (downcast_tx, _) = broadcast::channel(self.conf.cfg_mesh.buffer_size_server);
         let downcast_tx = Arc::new(downcast_tx);
 
         // Create the node state and initialize it
@@ -109,9 +108,9 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
         Ok((
             NodeTx {
                 direction: TxDirection::Downcast(downcast_tx),
+                hello_path: path.to_string(),
                 state: Arc::clone(&state),
-                wire_protocol: self.conf.wire_protocol,
-                wire_format: self.conf.wire_format,
+                wire_format: self.conf.cfg_mesh.wire_format,
                 _marker: PhantomData
             },
             NodeRx {
@@ -125,7 +124,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
     async fn listen_on(
         addr: SocketAddr,
         buffer_size: usize,
-        listener: ListenerSafe<M, C>,
+        listener: Weak<StdMutex<Listener<M, C>>>,
         wire_protocol: StreamProtocol,
         wire_format: SerializationFormat,
         wire_encryption: Option<KeySize>,
@@ -155,7 +154,13 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
                 setup_tcp_stream(&stream).unwrap();
 
                 let stream = Stream::Tcp(stream);
-                let listener = Arc::clone(&listener);
+                let listener = match Weak::upgrade(&listener) {
+                    Some(a) => a,
+                    None => {
+                        error!("connection attempt on a terminated listener (out-of-scope)");
+                        break;
+                    }
+                };
 
                 match Listener::<M, C>::accept_tcp_connect
                 (
@@ -182,7 +187,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
         stream: Stream,
         sock_addr: SocketAddr,
         buffer_size: usize,
-        listener: ListenerSafe<M, C>,
+        listener: Arc<StdMutex<Listener<M, C>>>,
         wire_protocol: StreamProtocol,
         wire_format: SerializationFormat,
         wire_encryption: Option<KeySize>
@@ -317,5 +322,15 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
         });
 
         Ok(())
+    }
+}
+
+impl<M, C> Drop
+for Listener<M, C>
+where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone,
+      C: Send + Sync + BroadcastContext + Default
+{
+    fn drop(&mut self) {
+        debug!("drop (Listener)");
     }
 }

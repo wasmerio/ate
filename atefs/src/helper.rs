@@ -104,7 +104,9 @@ pub async fn main_mount(mount: OptsMount, conf: ConfAte, group: Option<String>, 
             )
         },
         Some(remote) => {
-            registry = ate::mesh::Registry::new(&conf, mount.temp).await;
+            registry = ate::mesh::Registry::new(&conf).await
+                .temporal(mount.temp);
+            
             registry.open_ext(&mount.remote, &ChainKey::from(remote), progress_local, progress_remote).await?
         },
     };

@@ -9,7 +9,6 @@ use crate::crypto::AteHash;
 /// partition their data space into seperate chains to improve scalability
 /// and performance as a single chain will reside on a single node within
 /// the cluster.
-#[allow(dead_code)]
 #[derive(Serialize, Deserialize, Debug, Clone, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct ChainKey {
     pub name: String,

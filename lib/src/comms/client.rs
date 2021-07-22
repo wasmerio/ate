@@ -28,12 +28,12 @@ use super::StreamRx;
 use super::StreamTx;
 use super::StreamProtocol;
 
-pub(crate) async fn connect<M, C>(conf: &NodeConfig<M>, domain: Option<String>) -> Result<(NodeTx<C>, NodeRx<M, C>), CommsError>
+pub(crate) async fn connect<M, C>(conf: &MeshConfig<M>, domain: Option<String>, hello_path: String) -> Result<(NodeTx<C>, NodeRx<M, C>), CommsError>
 where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
       C: Send + Sync + Default + 'static
 {
     // Setup the communication pipes for the server
-    let (inbox_tx, inbox_rx) = mpsc::channel(conf.buffer_size);
+    let (inbox_tx, inbox_rx) = mpsc::channel(conf.cfg_mesh.buffer_size_client);
     
     // Create the node state and initialize it
     let state = Arc::new(StdMutex::new(NodeState {
@@ -41,25 +41,22 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
     }));
     
     // Create all the outbound connections
-    let wire_protocol = conf.wire_protocol;
-    let mut wire_format = conf.wire_format;
     let mut upcast = FxHashMap::default();
     for target in conf.connect_to.iter()
     {
         let upstream = mesh_connect_to::<M, C>(
             target.clone(), 
-            conf.hello_path.clone(),
+            hello_path.clone(),
             domain.clone(),
             inbox_tx.clone(), 
             conf.on_connect.clone(),
-            conf.buffer_size,
+            conf.cfg_mesh.buffer_size_client,
             Arc::clone(&state),
-            conf.wire_protocol,
-            conf.wire_encryption,
-            conf.connect_timeout,
-            conf.fail_fast,
+            conf.cfg_mesh.wire_protocol,
+            conf.cfg_mesh.wire_encryption,
+            conf.cfg_mesh.connect_timeout,
+            conf.cfg_mesh.fail_fast,
         ).await?;
-        wire_format = upstream.wire_format;
 
         upcast.insert(upstream.id, upstream);
     }
@@ -72,9 +69,9 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
                 1 => TxDirection::UpcastOne(upcast.into_iter().map(|(_,v)| v).next().unwrap()),
                 _ => TxDirection::UpcastMany(upcast)
             },
+            hello_path: hello_path.clone(),
             state: Arc::clone(&state),
-            wire_protocol,
-            wire_format,
+            wire_format: conf.cfg_mesh.wire_format,
             _marker: PhantomData
         },
         NodeRx {

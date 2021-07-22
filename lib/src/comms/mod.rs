@@ -17,7 +17,7 @@ pub(crate) use packet::PacketData;
 pub(crate) use packet::BroadcastPacketData;
 pub(crate) use packet::PacketWithContext;
 pub(crate) use packet::BroadcastContext;
-pub(crate) use conf::NodeConfig;
+pub(crate) use conf::MeshConfig;
 
 pub(crate) use rx_tx::NodeRx;
 pub(crate) use rx_tx::NodeTx;

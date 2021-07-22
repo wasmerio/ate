@@ -3,7 +3,7 @@ use log::{info, warn, debug};
 use crate::crypto::{EncryptKey, PrivateEncryptKey, PublicEncryptKey, InitializationVector};
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use crate::prelude::*;
-use super::NodeConfig;
+use super::MeshConfig;
 use crate::comms::BroadcastContext;
 use super::Listener;
 
@@ -54,19 +54,24 @@ async fn test_server_client_for_comms_with_websocket() -> Result<(), AteError> {
 async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) -> Result<(), AteError> {
     crate::utils::bootstrap_env();
     
+    let listener;
     let wire_format = SerializationFormat::MessagePack;
     {
         // Start the server
         info!("starting listen server on 127.0.0.1");
-        let cfg = NodeConfig::new(wire_protocol, "/comms", wire_format)
-            .wire_encryption(Some(KeySize::Bit256))
+
+        let mut cfg = ConfMesh::default();
+        cfg.wire_protocol = wire_protocol;
+        cfg.wire_format = wire_format;
+        cfg.wire_encryption = Some(KeySize::Bit256);
+        let cfg = MeshConfig::new(cfg)
             .listen_on(IpAddr::from_str("127.0.0.1")
             .unwrap(), port);
         
-            let listener = Listener::<TestMessage, DummyContext>::new(&cfg).await?;
+        listener = Listener::<TestMessage, DummyContext>::new(&cfg).await?;
         let (_, mut server_rx) = {
             let mut guard = listener.lock();
-            guard.add_route("/")?
+            guard.add_route("/comm-test")?
         };
 
         // Create a background thread that will respond to pings with pong
@@ -115,11 +120,15 @@ async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) 
     {
         // Start the client
         info!("start another client that will connect to the relay");
-        let cfg = NodeConfig::new(wire_protocol, "/comms", wire_format)
-            .wire_encryption(Some(KeySize::Bit256))
+        
+        let mut cfg = ConfMesh::default();
+        cfg.wire_protocol = wire_protocol;
+        cfg.wire_format = wire_format;
+        cfg.wire_encryption = Some(KeySize::Bit256);
+        let cfg = MeshConfig::new(cfg)
             .connect_to(IpAddr::from_str("127.0.0.1")
             .unwrap(), port);
-        let (client_tx, mut client_rx) = super::connect::<TestMessage, ()>(&cfg, None)
+        let (client_tx, mut client_rx) = super::connect::<TestMessage, ()>(&cfg, None, "/comm-test".to_string())
             .await?;
 
         // We need to test it alot

@@ -225,7 +225,7 @@ impl AuthService
 pub async fn create_group_command(group: String, auth: Url, username: String) -> Result<CreateGroupResponse, CreateError>
 {
     // Open a command chain
-    let registry = ate::mesh::Registry::new(&conf_cmd(), true).await;
+    let registry = ate::mesh::Registry::new(&conf_cmd()).await.cement();
     let chain = Arc::clone(&registry).open(&auth, &chain_key_cmd()).await?;
 
     // First we query the user that needs to be added so that we can get their public encrypt key

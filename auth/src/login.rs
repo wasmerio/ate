@@ -146,7 +146,7 @@ impl AuthService
 pub async fn login_command(username: String, password: String, code: Option<String>, auth: Url) -> Result<AteSession, LoginError>
 {
     // Open a command chain
-    let registry = ate::mesh::Registry::new(&conf_cmd(), true).await;
+    let registry = ate::mesh::Registry::new(&conf_cmd()).await.cement();
     let chain = registry.open(&auth, &chain_key_cmd()).await?;
 
     // Generate a read-key using the password and some seed data
@@ -183,7 +183,7 @@ pub async fn load_credentials(username: String, read_key: EncryptKey, _code: Opt
     session.user.add_read_key(&read_key);
 
     // Generate a chain key that matches this username on the authentication server
-    let registry = ate::mesh::Registry::new(&conf_auth(), true).await;
+    let registry = ate::mesh::Registry::new(&conf_auth()).await.cement();
     let chain_key = chain_key_4hex(username.as_str(), Some("redo"));
     let chain = registry.open(&auth, &chain_key).await?;
 

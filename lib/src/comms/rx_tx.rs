@@ -10,8 +10,7 @@ use parking_lot::Mutex as StdMutex;
 use serde::{Serialize, de::DeserializeOwned};
 
 use crate::error::*;
-use crate::spec::*;
-use crate::comms::StreamProtocol;
+use crate::prelude::SerializationFormat;
 
 use super::conf::Upstream;
 use super::conf::NodeState;
@@ -32,10 +31,10 @@ pub(crate) enum TxDirection
 pub(crate) struct NodeTx<C>
 where C: Send + Sync
 {
+    pub hello_path: String,
     pub direction: TxDirection,
-    pub state: Arc<StdMutex<NodeState>>,
-    pub wire_protocol: StreamProtocol,
     pub wire_format: SerializationFormat,
+    pub state: Arc<StdMutex<NodeState>>,
     pub _marker: PhantomData<C>,
 }
 

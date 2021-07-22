@@ -24,7 +24,6 @@ fn test_opts() -> Opts {
         debug: false,
         dns_sec: false,
         dns_server: "8.8.8.8".to_string(),
-        wire_encryption: None,
         subcmd: SubCommand::Mount(OptsMount {
             mount_path: "/mnt/ate".to_string(),
             remote: Url::parse("ws://tokera.com/db/").unwrap(),
@@ -71,7 +70,6 @@ async fn main() -> Result<(), CommandError> {
     conf.dns_sec = opts.dns_sec;
     conf.dns_server = opts.dns_server;
     conf.ntp_sync = opts.no_ntp == false;
-    conf.wire_encryption = opts.wire_encryption;
     
     if let Some(pool) = opts.ntp_pool {
         conf.ntp_pool = pool;

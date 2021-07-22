@@ -2,11 +2,9 @@
 use log::{info, error, debug};
 use std::time::Duration;
 
-use crate::crypto::KeySize;
 use crate::spec::*;
 use crate::mesh::RecoveryMode;
 use crate::compact::CompactMode;
-use crate::comms::StreamProtocol;
 
 use super::*;
 
@@ -56,25 +54,6 @@ pub struct ConfAte
     /// (default=30 seconds)
     pub sync_tolerance: Duration,
 
-    /// The transport protocol that will be used for communication. When compiled
-    /// with the right features this will allow the caller to specify different
-    /// underlying communication channels
-    pub wire_protocol: StreamProtocol,
-
-    /// Flag that indicates if encryption will be used for the underlying
-    /// connections over the wire. When using a ATE's in built encryption
-    /// and quantum resistant signatures it is not mandatory to use
-    /// wire encryption as confidentially and integrity are already enforced however
-    /// for best security it is advisable to apply a layered defence, of
-    /// which double encrypting your data and the metadata around it is
-    /// another defence.
-    pub wire_encryption: Option<KeySize>,
-
-    /// Size of the buffer on mesh clients, tweak this number with care
-    pub buffer_size_client: usize,
-    /// Size of the buffer on mesh servers, tweak this number with care
-    pub buffer_size_server: usize,
-
     /// Size of the local cache that stores redo log entries in memory
     #[cfg(feature = "local_fs")]
     pub load_cache_size: usize,
@@ -85,15 +64,8 @@ pub struct ConfAte
 
     /// Serialization format of the log files
     pub log_format: MessageFormat,
-    /// Serialization format of the data on the network pipes between nodes and clients
-    pub wire_format: SerializationFormat,
-
-    /// Time to wait for a connection to a server before it times out
-    pub connect_timeout: Duration,
-
-    /// Connection attempts will abort quickly in the scenario that something is wrong rather
-    /// than retrying in an exponential backoff
-    pub fail_fast: bool,
+    /// Size of the buffer used by the chain-of-trust
+    pub buffer_size_chain: usize,
 }
 
 impl Default
@@ -112,10 +84,7 @@ for ConfAte
             ntp_sync: true,
             ntp_pool: "pool.ntp.org".to_string(),
             ntp_port: 123,
-            wire_encryption: Some(KeySize::Bit128),
             configured_for: ConfiguredFor::default(),
-            buffer_size_client: 2,
-            buffer_size_server: 10,
             #[cfg(feature = "local_fs")]
             load_cache_size: 1000,
             #[cfg(feature = "local_fs")]
@@ -124,10 +93,7 @@ for ConfAte
                 meta: SerializationFormat::Bincode,
                 data: SerializationFormat::Json,
             },
-            wire_protocol: StreamProtocol::Tcp,
-            wire_format: SerializationFormat::Bincode,
-            connect_timeout: Duration::from_secs(30),
-            fail_fast: false,
+            buffer_size_chain: 1,
         }
     }
 }

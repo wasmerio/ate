@@ -32,16 +32,31 @@ use crate::comms::TxDirection;
 use crate::crypto::AteHash;
 use crate::time::ChainTimestamp;
 
-pub struct MeshRoot<F>
-where Self: ChainRepository,
-      F: OpenFlow + 'static
+#[derive(Serialize, Deserialize, Debug, Clone, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct RouteChain
 {
-    cfg_ate: ConfAte,
+    pub route: String,
+    pub chain: ChainKey,
+}
+
+pub struct MeshRoute
+{
+    pub hello_path: String,
+    pub cfg_ate: ConfAte,
+    pub cfg_mesh: ConfMesh,
+    pub flow: Box<dyn OpenFlow>,
+    pub flow_type: String,
+}
+
+pub struct MeshRoot
+where Self: ChainRepository,
+{
+    cfg_mesh: ConfMesh,
     lookup: MeshHashTable,
     addrs: Vec<MeshAddress>,
-    chains: StdMutex<FxHashMap<ChainKey, Weak<Chain>>>,
-    chain_builder: Mutex<Box<F>>,
-    remote_registry: Arc<Registry>,
+    chains: StdMutex<FxHashMap<RouteChain, Weak<Chain>>>,
+    listener: Arc<StdMutex<Listener<Message, SessionContext>>>,
+    routes: StdMutex<FxHashMap<String, Arc<Mutex<MeshRoute>>>>,
 }
 
 #[derive(Clone)]
@@ -93,19 +108,11 @@ for SessionContext {
     }
 }
 
-impl<F> MeshRoot<F>
-where F: OpenFlow + 'static
+impl MeshRoot
 {
-    #[allow(dead_code)]
-    pub(super) async fn new(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh, listen_addrs: Vec<MeshAddress>, open_flow: Box<F>) -> Result<Arc<Self>, CommsError>
+    pub(super) async fn new(cfg: &ConfMesh, listen_addrs: Vec<MeshAddress>) -> Result<Arc<Self>, CommsError>
     {
-        let hello_path = open_flow.hello_path().to_string();
-        let mut node_cfg = NodeConfig::new(cfg_ate.wire_protocol, hello_path.as_str(), cfg_ate.wire_format)
-            .wire_encryption(cfg_ate.wire_encryption)
-            .timeout(cfg_ate.connect_timeout)
-            .buffer_size(cfg_ate.buffer_size_server)
-            .fail_fast(cfg_ate.fail_fast);
-
+        let mut cfg = MeshConfig::new(cfg.clone());
         let mut listen_ports = listen_addrs
             .iter()
             .map(|a| a.port)
@@ -114,32 +121,54 @@ where F: OpenFlow + 'static
         listen_ports.sort();
         listen_ports.dedup();
         for port in listen_ports.iter() {
-            node_cfg = node_cfg
+            cfg = cfg
                 .listen_on(IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0)), port.clone());                
         }
 
-        let open_flow = Mutex::new(open_flow);
+        let listener = crate::comms::Listener::new(&cfg).await?;
+
         let ret = Arc::new(
             MeshRoot
             {
-                cfg_ate: cfg_ate.clone(),
+                cfg_mesh: cfg.cfg_mesh.clone(),
                 addrs: listen_addrs,
-                lookup: MeshHashTable::new(cfg_mesh),
+                lookup: MeshHashTable::new(&cfg.cfg_mesh),
                 chains: StdMutex::new(FxHashMap::default()),
-                chain_builder: open_flow,
-                remote_registry: Registry::new(&cfg_ate, true).await
+                listener,
+                routes: StdMutex::new(FxHashMap::default()),
             }
         );
 
-        let listener = crate::comms::Listener::new(&node_cfg).await?;
+        Ok(ret)
+    }
+
+    pub async fn add_route<F>(self: &Arc<Self>, open_flow: Box<F>, cfg_ate: &ConfAte)
+    -> Result<(), CommsError>
+    where F: OpenFlow + 'static
+    {
+        let hello_path = open_flow.hello_path().to_string();
+
+        let route = MeshRoute {
+            hello_path: hello_path.clone(),
+            cfg_ate: cfg_ate.clone(),
+            cfg_mesh: self.cfg_mesh.clone(),
+            flow: open_flow,
+            flow_type: std::any::type_name::<F>().to_string(),
+        };
+        
+        {
+            let mut routes = self.routes.lock();
+            routes.insert(hello_path.clone(), Arc::new(Mutex::new(route)));
+        }
+
         let (tx, rx) = {
-            let mut guard = listener.lock();
-            guard.add_route(hello_path.as_str())?
+            let mut listener = self.listener.lock();
+            listener.add_route(hello_path.as_str())?
         };
 
-        tokio::spawn(inbox(Arc::clone(&ret), rx, tx));
-
-        Ok(ret)
+        tokio::spawn(inbox(Arc::clone(&self), rx, tx));
+        
+        Ok(())
     }
 }
 
@@ -207,40 +236,33 @@ for ServerPipe
 }
 
 #[async_trait]
-impl<F> ChainRepository
-for MeshRoot<F>
-where F: OpenFlow + 'static
+impl ChainRepository
+for MeshRoot
 {
     async fn open(self: Arc<Self>, url: &url::Url, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
     {
-        if url.domain() == None || url.domain() == Some("localhost")
-        {
-            let proto = self.cfg_ate.wire_protocol;
-            let addr = match self.lookup.lookup(key) {
-                Some(a) => a,
-                None => {
-                    return Err(ChainCreationError::NoRootFoundInConfig);
-                }
-            };
-    
-            let local_ips = vec!(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1)));
-            let is_local = self.addrs.contains(&addr) || local_ips.contains(&addr.ip);
-    
-            let weak = Arc::downgrade(&self);
-            let ret = {
-                if is_local {
-                    open_internal(self, proto, key.clone(), None).await
-                } else {
-                    return Err(ChainCreationError::NotThisRoot);
-                }
-            }?;
-            ret.inside_sync.write().repository = Some(weak);
-            return Ok(ret);
-        }
+        let addr = match self.lookup.lookup(key) {
+            Some(a) => a,
+            None => {
+                return Err(ChainCreationError::NoRootFoundInConfig);
+            }
+        };
+
+        let local_ips = vec!(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1)));
+        let is_local = self.addrs.contains(&addr) || local_ips.contains(&addr.ip);
 
         let weak = Arc::downgrade(&self);
-        let repo = Arc::clone(&self.remote_registry);
-        let ret = repo.open(url, key).await?;
+        let ret = {
+            if is_local {
+                let route_chain = RouteChain {
+                    route: url.path().to_string(),
+                    chain: key.clone(),
+                };
+                open_internal(self, route_chain, None).await
+            } else {
+                return Err(ChainCreationError::NotThisRoot);
+            }
+        }?;
         ret.inside_sync.write().repository = Some(weak);
         return Ok(ret);
     }
@@ -252,49 +274,63 @@ struct OpenContext<'a>
     reply_at: Option<&'a mpsc::Sender<PacketData>>,
 }
 
-async fn open_internal<'a, F>(root: Arc<MeshRoot<F>>, proto: StreamProtocol, key: ChainKey, context: Option<OpenContext<'a>>) -> Result<Arc<Chain>, ChainCreationError>
-where F: OpenFlow + 'static
+async fn open_internal<'a>(
+    root: Arc<MeshRoot>,
+    route_chain: RouteChain,
+    context: Option<OpenContext<'a>>
+) -> Result<Arc<Chain>, ChainCreationError>
 {
-    debug!("open_internal {}", key.to_string());
+    debug!("open_internal {} - {}", route_chain.route, route_chain.chain);
 
     {
         let chains = root.chains.lock();
-        if let Some(chain) = chains.get(&key) {
+        if let Some(chain) = chains.get(&route_chain) {
             if let Some(chain) = chain.upgrade() {
                 return Ok(chain);
             }
         }
     }
 
-    let chain_builder_flow = root.chain_builder.lock().await;
+    let route = {
+        let routes = root.routes.lock();
+        match routes.get(&route_chain.route) {
+            Some(a) => Arc::clone(a),
+            None => {
+                return Err(ChainCreationError::InvalidRoute(route_chain.route))
+            }
+        }
+    };
     
     {
         // If the chain already exists then we are done
         let chains = root.chains.lock();
-        if let Some(chain) = chains.get(&key) {
+        if let Some(chain) = chains.get(&route_chain) {
             if let Some(chain) = chain.upgrade() {
                 return Ok(chain);
             }
         }
     }
 
+    // Get the configuration
+    let cfg_ate = {
+        let route = route.lock().await;
+        route.cfg_ate.clone()
+    };
+
     // Create a chain builder
-    let mut builder = ChainBuilder::new(&root.cfg_ate)
+    let mut builder = ChainBuilder::new(&cfg_ate)
         .await;
 
-    // Set the protocol
-    builder.cfg.wire_protocol = proto;
-
     // Postfix the hello_path
-    builder = builder.postfix_log_path(chain_builder_flow.hello_path());
+    builder = builder.postfix_log_path(route_chain.route.as_str());
 
     // Add a pipe that will broadcast message to the connected clients
     if let Some(ctx) = &context {
         if let TxDirection::Downcast(downcast) = &ctx.tx.direction {
             let pipe = Box::new(ServerPipe {
-                chain_key: key.clone(),
+                chain_key: route_chain.chain.clone(),
                 downcast: downcast.clone(),
-                wire_format: ctx.tx.wire_format.clone(),
+                wire_format: root.cfg_mesh.wire_format.clone(),
                 next: crate::pipe::NullPipe::new()
             });
         
@@ -303,34 +339,37 @@ where F: OpenFlow + 'static
     }
 
     // Create the chain using the chain flow builder
-    debug!("open_flow: {}", std::any::type_name::<F>());
-    let new_chain = match chain_builder_flow.open(builder, &key).await? {
-        OpenAction::PrivateChain { chain, session} => {
-            if let Some(ctx) = &context {
-                PacketData::reply_at(ctx.reply_at, ctx.tx.wire_format, Message::SecuredWith(session)).await?;
+    let new_chain = {
+        let route = route.lock().await;
+        debug!("open_flow: {}", route.flow_type);    
+        match route.flow.open(builder, &route_chain.chain).await? {
+            OpenAction::PrivateChain { chain, session} => {
+                if let Some(ctx) = &context {
+                    PacketData::reply_at(ctx.reply_at, ctx.tx.wire_format, Message::SecuredWith(session)).await?;
+                }
+                chain
+            },
+            OpenAction::DistributedChain(c) => {
+                c.single().await.set_integrity(IntegrityMode::Distributed);
+                c
+            },
+            OpenAction::CentralizedChain(c) => {
+                c.single().await.set_integrity(IntegrityMode::Centralized);
+                c
+            },
+            OpenAction::Deny(reason) => {
+                return Err(ChainCreationError::ServerRejected(reason));
             }
-            chain
-        },
-        OpenAction::DistributedChain(c) => {
-            c.single().await.set_integrity(IntegrityMode::Distributed);
-            c
-        },
-        OpenAction::CentralizedChain(c) => {
-            c.single().await.set_integrity(IntegrityMode::Centralized);
-            c
-        },
-        OpenAction::Deny(reason) => {
-            return Err(ChainCreationError::ServerRejected(reason));
         }
     };
     
     // Insert it into the cache so future requests can reuse the reference to the chain
     let mut chains = root.chains.lock();
-    match chains.entry(key.clone()) {
+    match chains.entry(route_chain.clone()) {
         Entry::Occupied(o) => o.into_mut(),
         Entry::Vacant(v) =>
         {
-            match root.lookup.lookup(&key) {
+            match root.lookup.lookup(&route_chain.chain) {
                 Some(addr) if root.addrs.contains(&addr) => addr,
                 _ => { return Err(ChainCreationError::NoRootFoundInConfig); }
             };
@@ -444,18 +483,16 @@ async fn inbox_unlock(
     Ok(())
 }
 
-async fn inbox_subscribe<F>(
-    root: Arc<MeshRoot<F>>,
+async fn inbox_subscribe(
+    root: Arc<MeshRoot>,
+    hello_path: &str,
     chain_key: ChainKey,
     from: ChainTimestamp,
     reply_at: Option<&mpsc::Sender<PacketData>>,
     session_context: Arc<SessionContext>,
-    wire_protocol: StreamProtocol,
-    wire_format: SerializationFormat,
     tx: &NodeTx<SessionContext>
 )
 -> Result<(), CommsError>
-where F: OpenFlow + 'static
 {
     debug!("inbox: subscribe: {}", chain_key.to_string());
 
@@ -465,22 +502,26 @@ where F: OpenFlow + 'static
         tx,
         reply_at,
     };
+    let route = RouteChain {
+        route: hello_path.to_string(),
+        chain: chain_key.clone(),
+    };
 
     // If we can't find a chain for this subscription then fail and tell the caller
-    let chain = match open_internal(Arc::clone(&root), wire_protocol, chain_key.clone(), Some(open_context)).await {
+    let chain = match open_internal(Arc::clone(&root), route.clone(), Some(open_context)).await {
         Err(ChainCreationError::NotThisRoot) => {
-            PacketData::reply_at(reply_at, wire_format, Message::NotThisRoot).await?;
+            PacketData::reply_at(reply_at, root.cfg_mesh.wire_format, Message::NotThisRoot).await?;
             return Ok(());
         },
         Err(ChainCreationError::NoRootFoundInConfig) => {
-            PacketData::reply_at(reply_at, wire_format, Message::NotThisRoot).await?;
+            PacketData::reply_at(reply_at, root.cfg_mesh.wire_format, Message::NotThisRoot).await?;
             return Ok(());
         }
         a => {
             let chain = match a {
                 Ok(a) => a,
                 Err(err) => {
-                    PacketData::reply_at(reply_at, wire_format, Message::FatalTerminate {
+                    PacketData::reply_at(reply_at, root.cfg_mesh.wire_format, Message::FatalTerminate {
                         err: err.to_string()
                     }).await?;
                     return Err(CommsError::RootServerError(err.to_string()));
@@ -509,7 +550,7 @@ where F: OpenFlow + 'static
             Arc::clone(&chain), 
             from.., 
             reply_at.clone(),
-            wire_format,
+            root.cfg_mesh.wire_format,
         ));
     } else {
         debug!("no reply address for this subscribe");
@@ -518,31 +559,28 @@ where F: OpenFlow + 'static
     Ok(())
 }
 
-async fn inbox_unsubscribe<F>(
-    _root: Arc<MeshRoot<F>>,
+async fn inbox_unsubscribe(
+    _root: Arc<MeshRoot>,
     chain_key: ChainKey,
     _reply_at: Option<&mpsc::Sender<PacketData>>,
     _session_context: Arc<SessionContext>,
 )
 -> Result<(), CommsError>
-where F: OpenFlow + 'static
 {
     debug!("inbox: unsubscribe: {}", chain_key.to_string());
 
     Ok(())
 }
 
-async fn inbox_packet<F>(
-    root: Arc<MeshRoot<F>>,
+async fn inbox_packet(
+    root: Arc<MeshRoot>,
     pck: PacketWithContext<Message, SessionContext>,
     tx: &NodeTx<SessionContext>
 )
 -> Result<(), CommsError>
-where F: OpenFlow + 'static
 {
     //debug!("inbox: packet size={}", pck.data.bytes.len());
 
-    let wire_protocol = tx.wire_protocol;
     let wire_format = pck.data.wire_format;
     let context = pck.context.clone();
     let mut pck_data = pck.data;
@@ -553,7 +591,7 @@ where F: OpenFlow + 'static
     
     match pck.msg {
         Message::Subscribe { chain_key, from }
-            => inbox_subscribe(root, chain_key, from, reply_at, context, wire_protocol, wire_format, tx).await,
+            => inbox_subscribe(root, tx.hello_path.as_str(), chain_key, from, reply_at, context, tx).await,
         Message::Events { commit, evts }
             => inbox_event(reply_at, context, commit, evts, tx, pck_data).await,
         Message::Lock { key }
@@ -564,12 +602,25 @@ where F: OpenFlow + 'static
     }
 }
 
-async fn inbox<F>(
-    root: Arc<MeshRoot<F>>,
+async fn inbox(
+    root: Arc<MeshRoot>,
+    rx: NodeRx<Message, SessionContext>,
+    tx: NodeTx<SessionContext>
+)
+{
+    match inbox_internal(root, rx, tx).await {
+        Ok(a) => a,
+        Err(err) => {
+            warn!("server-inbox-err: {}", err.to_string());
+        }
+    }
+}
+
+async fn inbox_internal(
+    root: Arc<MeshRoot>,
     mut rx: NodeRx<Message, SessionContext>,
     tx: NodeTx<SessionContext>
 ) -> Result<(), CommsError>
-where F: OpenFlow + 'static
 {
     let weak = Arc::downgrade(&root);
     drop(root);
@@ -577,19 +628,20 @@ where F: OpenFlow + 'static
     while let Some(pck) = rx.recv().await {
         let root = match weak.upgrade() {
             Some(a) => a,
-            None => { break; }
-        };
-        match inbox_packet(root, pck, &tx).await {
-            Ok(_) => { },
-            Err(CommsError::RootServerError(err)) => {
-                warn!("mesh-root-fatal-err: {}", err);
-                continue;
-            },
-            Err(err) => {
-                warn!("mesh-root-err: {}", err.to_string());
-                continue;
+            None => {
+                debug!("server-inbox-exit: mesh root out-of-scope");
+                break;
             }
-        }
+        };
+        inbox_packet(root, pck, &tx).await?;
     }
     Ok(())
+}
+
+impl Drop
+for MeshRoot
+{
+    fn drop(&mut self) {
+        debug!("drop (MeshRoot)");
+    }
 }

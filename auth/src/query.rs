@@ -88,7 +88,7 @@ pub async fn main_query(
     };
 
 
-    let registry = ate::mesh::Registry::new(&conf_cmd(), true).await;
+    let registry = ate::mesh::Registry::new(&conf_cmd()).await.cement();
     let result = query_command(registry, username, auth).await?;
     Ok(result.advert)
 }

@@ -40,6 +40,9 @@ pub(super) struct RecoverableSessionPipe
     pub(super) active: RwLock<Option<ActiveSessionPipe>>,
     pub(super) mode: RecoveryMode,
 
+    // Configuration
+    pub(super) cfg_mesh: ConfMesh,
+
     // Used to create new active pipes
     pub(super) addr: MeshAddress,
     pub(super) hello_path: String,
@@ -60,18 +63,16 @@ impl RecoverableSessionPipe
             = Arc::new(StdMutex::new(FxHashMap::default()));
 
         // Create pipes to all the target root nodes
-        let node_cfg = NodeConfig::new(self.builder.cfg.wire_protocol, self.hello_path.as_str(), self.builder.cfg.wire_format)
-            .wire_encryption(self.builder.cfg.wire_encryption)
+        let node_cfg = MeshConfig::new(self.cfg_mesh.clone())
             .connect_to(self.addr.ip, self.addr.port)
-            .on_connect(Message::Connected)
-            .buffer_size(self.builder.cfg.buffer_size_client)
-            .fail_fast(self.builder.cfg.fail_fast);
+            .on_connect(Message::Connected);
 
         let (node_tx, node_rx)
             = crate::comms::connect::<Message, ()>
             (
                 &node_cfg, 
-                self.chain_domain.clone()
+                self.chain_domain.clone(),
+                self.hello_path.clone(),
             ).await?;
 
         let inbound_conversation = Arc::new(ConversationSession::new(true));
@@ -80,7 +81,7 @@ impl RecoverableSessionPipe
         let session = Arc::new(MeshSession {
             addr: self.addr.clone(),
             key: self.key.clone(),
-            sync_tolerance: self.builder.cfg.sync_tolerance,
+            sync_tolerance: self.builder.cfg_ate.sync_tolerance,
             commit: Arc::clone(&commit),
             chain: Weak::clone(self.chain.lock().as_ref().expect("You must call the 'set_chain' before invoking this method.")),
             lock_requests: Arc::clone(&lock_requests),

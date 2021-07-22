@@ -49,11 +49,11 @@ impl MeshSession
     pub(super) async fn connect
     (
         builder: ChainBuilder,
+        cfg_mesh: &ConfMesh,
         chain_key: &ChainKey,
         chain_domain: Option<String>,
         addr: MeshAddress,
         hello_path: String,
-        mode: RecoveryMode,
         loader_local: Box<impl Loader>,
         loader_remote: Box<impl Loader>
     )
@@ -98,9 +98,10 @@ impl MeshSession
         // Create a session pipe
         let chain_store = Arc::new(StdMutex::new(None));
         let session = RecoverableSessionPipe {
+            cfg_mesh: cfg_mesh.clone(),
             next: NullPipe::new(),
             active: RwLock::new(None),
-            mode,
+            mode: builder.cfg_ate.recovery_mode,
             addr,
             hello_path,
             key: chain_key.clone(),

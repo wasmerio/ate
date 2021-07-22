@@ -17,7 +17,6 @@ use crate::plugin::*;
 use crate::trust::ChainKey;
 use crate::trust::IntegrityMode;
 use crate::crypto::PublicSignKey;
-use crate::crypto::KeySize;
 use crate::error::*;
 use crate::pipe::*;
 use crate::session::AteSession;
@@ -30,7 +29,7 @@ use super::*;
 /// this builder will be used to create and load your chains.
 pub struct ChainBuilder
 {
-    pub(crate) cfg: ConfAte, 
+    pub(crate) cfg_ate: ConfAte,
     pub(crate) configured_for: ConfiguredFor,
     pub(crate) validators: Vec<Box<dyn EventValidator>>,
     pub(crate) compactors: Vec<Box<dyn EventCompactor>>,
@@ -51,7 +50,7 @@ for ChainBuilder
 {
     fn clone(&self) -> Self {
         ChainBuilder {
-            cfg: self.cfg.clone(),
+            cfg_ate: self.cfg_ate.clone(),
             configured_for: self.configured_for.clone(),
             validators: self.validators.iter().map(|a| a.clone_validator()).collect::<Vec<_>>(),
             compactors: self.compactors.iter().filter_map(|a| a.clone_compactor()).collect::<Vec<_>>(),
@@ -72,10 +71,10 @@ for ChainBuilder
 impl ChainBuilder
 {
     #[allow(dead_code)]
-    pub async fn new(cfg: &ConfAte) -> ChainBuilder {
+    pub async fn new(cfg_ate: &ConfAte) -> ChainBuilder {
         ChainBuilder {
-            cfg: cfg.clone(),
-            configured_for: cfg.configured_for.clone(),
+            cfg_ate: cfg_ate.clone(),
+            configured_for: cfg_ate.configured_for.clone(),
             validators: Vec::new(),
             indexers: Vec::new(),
             compactors: Vec::new(),
@@ -84,7 +83,7 @@ impl ChainBuilder
             plugins: Vec::new(),
             pipes: None,
             tree: None,
-            session: AteSession::new(&cfg),
+            session: AteSession::new(&cfg_ate),
             truncate: false,
             temporal: false,
             integrity: IntegrityMode::Distributed,
@@ -113,17 +112,14 @@ impl ChainBuilder
         self.compactors.push(Box::new(TombstoneCompactor::default()));
         self.plugins.push(Box::new(AntiReplayPlugin::default()));
 
-        self.cfg.wire_encryption = None;
         match self.configured_for {
             ConfiguredFor::SmallestSize => {
                 self.transformers.insert(0, Box::new(CompressorWithSnapTransformer::default()));
             },
             ConfiguredFor::Balanced => {
-                self.cfg.wire_encryption = Some(KeySize::Bit128);
             },
             ConfiguredFor::BestSecurity => {
-                self.cfg.dns_sec = true;
-                self.cfg.wire_encryption = Some(KeySize::Bit256);
+                self.cfg_ate.dns_sec = true;
             }
             _ => {}
         }
@@ -137,7 +133,7 @@ impl ChainBuilder
             self.tree = Some(crate::tree::TreeAuthorityPlugin::new());
 
             let tolerance = self.configured_for.ntp_tolerance();
-            self.plugins.push(Box::new(TimestampEnforcer::new(&self.cfg, tolerance).await.unwrap()));
+            self.plugins.push(Box::new(TimestampEnforcer::new(&self.cfg_ate, tolerance).await.unwrap()));
         }
 
         self
@@ -213,7 +209,7 @@ impl ChainBuilder
     #[allow(dead_code)]
     pub fn postfix_log_path(mut self, postfix: &str) -> Self
     {
-        let orig_path = match self.cfg.log_path.as_ref() {
+        let orig_path = match self.cfg_ate.log_path.as_ref() {
             Some(a) => a.clone(),
             None => {
                 return self;
@@ -235,7 +231,7 @@ impl ChainBuilder
             false => format!("{}/{}", orig_path, postfix)
         };
 
-        self.cfg.log_path = Some(path);
+        self.cfg_ate.log_path = Some(path);
         self
     }
 
@@ -263,8 +259,8 @@ impl ChainBuilder
         self
     }
 
-    pub fn cfg(&self) -> &ConfAte {
-        &self.cfg
+    pub fn cfg_ate(&self) -> &ConfAte {
+        &self.cfg_ate
     }
 
     #[allow(dead_code)]

@@ -1,8 +1,12 @@
 #[allow(unused_imports)]
 use log::{info, error, debug};
 use std::{net::IpAddr};
+use std::time::Duration;
 
+use crate::prelude::*;
+use crate::crypto::KeySize;
 use crate::{comms::StreamProtocol, error::CommsError};
+
 use super::*;
 
 /// Represents all nodes within this cluster. All the chains
@@ -16,8 +20,7 @@ pub struct ConfMesh
 {
     /// List of all the addresses that the root nodes exists on
     pub roots: Vec<MeshAddress>,
-    /// URL that this and all the other nodes in the mesh are using
-    pub url: url::Url,
+    
     /// Forces ATE to act as a client even if its local IP address is one
     /// of the node machines in the clusters (normally ATE would automatically
     /// listen for connections)
@@ -25,38 +28,75 @@ pub struct ConfMesh
     /// Forces ATE to listen on a particular address for connections even if
     /// the address is not in the list of cluster nodes.
     pub force_listen: Option<MeshAddress>,
+
+    /// Flag that indicates if encryption will be used for the underlying
+    /// connections over the wire. When using a ATE's in built encryption
+    /// and quantum resistant signatures it is not mandatory to use
+    /// wire encryption as confidentially and integrity are already enforced however
+    /// for best security it is advisable to apply a layered defence, of
+    /// which double encrypting your data and the metadata around it is
+    /// another defence.
+    pub wire_encryption: Option<KeySize>,
+    /// Time to wait for a connection to a server before it times out
+    pub connect_timeout: Duration,
+    
+    /// Connection attempts will abort quickly in the scenario that something is wrong rather
+    /// than retrying in an exponential backoff
+    pub fail_fast: bool,
+    
+    /// Serialization format of the data on the network pipes between nodes and clients
+    pub wire_format: SerializationFormat,
+
+    /// The transport protocol that will be used for communication. When compiled
+    /// with the right features this will allow the caller to specify different
+    /// underlying communication channels
+    pub wire_protocol: StreamProtocol,
+
+    /// Size of the buffer on mesh clients, tweak this number with care
+    pub buffer_size_client: usize,
+    /// Size of the buffer on mesh servers, tweak this number with care
+    pub buffer_size_server: usize,
 }
 
 impl ConfMesh
 {
     /// Represents a single server listening on all available addresses. All chains
     /// will be stored locally to this server and there is no replication
-    pub fn solo(url: &url::Url, listen: &IpAddr) -> Result<ConfMesh, CommsError>
+    pub fn solo(listen: &IpAddr, port: u16) -> Result<ConfMesh, CommsError>
     {
-        let protocol = StreamProtocol::parse(url)?;
-        let port = url.port().unwrap_or(protocol.default_port());
-    
         let addr = MeshAddress::new(listen.clone(), port);
-        let mut cfg_mesh = ConfMesh {
-            roots: Vec::new(),
-            url: url.clone(),
-            force_client_only: false,
-            force_listen: Some(addr.clone()),
-        };
+        let mut cfg_mesh = ConfMesh::default();
+        cfg_mesh.force_client_only = false;
+        cfg_mesh.force_listen = Some(addr.clone());
         cfg_mesh.roots.push(addr.clone());
 
         Ok(cfg_mesh)
     }
 
-    /// Represents a target of nodes that belong to a mesh
-    /// (note: the root nodes are not present in this object)
-    pub fn target(url: &url::Url) -> ConfMesh
+    pub fn solo_from_url(url : &url::Url, listen: &IpAddr) -> Result<ConfMesh, CommsError>
+    {
+        let protocol = StreamProtocol::parse(url)?;
+        let port = url.port().unwrap_or(protocol.default_port());
+        ConfMesh::solo(listen, port)
+    }
+}
+
+impl Default
+for ConfMesh
+{
+    fn default() -> Self
     {
         ConfMesh {
             roots: Vec::new(),
-            url: url.clone(),
             force_client_only: false,
             force_listen: None,
+            wire_encryption: Some(KeySize::Bit128),
+            wire_protocol: StreamProtocol::Tcp,
+            wire_format: SerializationFormat::Bincode,
+            connect_timeout: Duration::from_secs(30),
+            fail_fast: false,
+            buffer_size_client: 2,
+            buffer_size_server: 10,
         }
     }
 }

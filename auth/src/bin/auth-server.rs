@@ -89,16 +89,18 @@ async fn main() -> Result<(), AteError>
             let mut cfg_ate = ate_auth::conf_auth();
             cfg_ate.log_path = Some(shellexpand::tilde(&run.logs_path).to_string());
             cfg_ate.compact_mode = CompactMode::Never;
-            cfg_ate.wire_protocol = StreamProtocol::parse(&run.url)?;
-
+            
             let mut session = AteSession::new(&cfg_ate);
             session.user.add_read_key(&root_read_key);
             session.user.add_write_key(&root_write_key);
 
             // Create the server and listen
             let flow = ChainFlow::new(&cfg_ate, root_write_key, session, &run.url);
-            let cfg_mesh = ConfMesh::solo(&run.url, &run.listen)?;
-            let _server = create_server(&cfg_ate, &cfg_mesh, Box::new(flow)).await?;
+            let mut cfg_mesh = ConfMesh::solo_from_url(&run.url, &run.listen)?;
+            cfg_mesh.wire_protocol = StreamProtocol::parse(&run.url)?;
+
+            let server = create_server(&cfg_mesh).await?;
+            server.add_route(Box::new(flow), &cfg_ate).await?;
             
             // Wait for ctrl-c
             let mut exit = ctrl_channel();

@@ -200,7 +200,7 @@ impl AuthService
 pub async fn create_user_command(username: String, password: String, auth: Url) -> Result<CreateUserResponse, CreateError>
 {
     // Open a command chain
-    let registry = ate::mesh::Registry::new(&conf_cmd(), true).await;
+    let registry = ate::mesh::Registry::new(&conf_cmd()).await.cement();
     let chain = registry.open(&auth, &chain_key_cmd()).await?;
 
     // Generate a read-key using the password and some seed data

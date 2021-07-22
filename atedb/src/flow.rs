@@ -21,6 +21,7 @@ pub struct ChainFlow {
 impl ChainFlow
 {
     pub async fn new(cfg: &ConfAte, url_auth: Option<url::Url>, url_db: url::Url, mode: TrustMode) -> Self {
+        let registry = ate::mesh::Registry::new(&ate_auth::conf_auth()).await.cement();
         ChainFlow {
             cfg: cfg.clone(),
             regex_personal: Regex::new("^([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})/([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})/([a-zA-Z0-9_]{1,})$").unwrap(),
@@ -28,7 +29,7 @@ impl ChainFlow
             mode,
             url_auth,
             url_db,
-            registry: ate::mesh::Registry::new(&ate_auth::conf_auth(), true).await
+            registry,
         }
     }
 }

@@ -1,9 +1,12 @@
 #![allow(unused_imports)]
 use log::{error, info, debug};
+use std::sync::Arc;
 
 use serde::{Serialize, Deserialize};
 
 use crate::prelude::*;
+use crate::mesh::MeshRoot;
+use crate::error::*;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 struct TestData {
@@ -31,7 +34,8 @@ async fn test_mesh()
     let mut cfg_mesh =
     {
         // Build the configuration file for the mesh
-        let mut cfg_mesh = ConfMesh::target(&test_url);
+        let mut cfg_mesh = ConfMesh::default();
+        cfg_mesh.wire_protocol = StreamProtocol::WebSocket;
         for n in (5100+port_offset)..(5105+port_offset) {
             cfg_mesh.roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
         }
@@ -54,7 +58,9 @@ async fn test_mesh()
 
             let root_key = root_key.as_public_key();
             let join = tokio::spawn(async move {
-                create_server(&cfg_ate, &cfg_mesh, all_ethereal_with_root_key(root_key).await).await
+                let server = create_server(&cfg_mesh).await?;
+                server.add_route(all_ethereal_with_root_key(root_key).await, &cfg_ate).await?;
+                Result::<Arc<MeshRoot>, CommsError>::Ok(server)
             });
             mesh_root_joins.push((addr, join));
             index = index + 1;
@@ -74,8 +80,11 @@ async fn test_mesh()
 
     debug!("create the mesh and connect to it with client 1");
     let client_a = create_temporal_client(&cfg_ate, &cfg_mesh).await;
+    debug!("temporal client is ready");
+
     let chain_a = client_a.open(&test_url, &ChainKey::from("test-chain")).await.unwrap();
     debug!("connected with client 1");
+
     let mut session_a = AteSession::new(&cfg_ate);
     session_a.add_user_write_key(&root_key);
     

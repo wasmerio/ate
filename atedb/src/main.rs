@@ -128,7 +128,6 @@ async fn main() -> Result<(), AteError> {
     let mut conf = AteConfig::default();
     conf.dns_sec = opts.dns_sec;
     conf.dns_server = opts.dns_server;
-    conf.wire_encryption = wire_encryption;
 
     let auth = match opts.no_auth {
         false if opts.trust == TrustMode::Centralized => Some(opts.auth),
@@ -137,7 +136,7 @@ async fn main() -> Result<(), AteError> {
     
     match opts.subcmd {
         SubCommand::Solo(solo) => {
-            main_solo(solo, conf, auth, opts.trust).await?;
+            main_solo(solo, conf, auth, opts.trust, wire_encryption).await?;
         }
     }
 
@@ -146,7 +145,7 @@ async fn main() -> Result<(), AteError> {
     Ok(())
 }
 
-async fn main_solo(solo: Solo, mut cfg_ate: ConfAte, auth: Option<url::Url>, trust: TrustMode) -> Result<(), AteError>
+async fn main_solo(solo: Solo, mut cfg_ate: ConfAte, auth: Option<url::Url>, trust: TrustMode, wire_encryption: Option<KeySize>) -> Result<(), AteError>
 {
     // Create the chain flow and generate configuration
     cfg_ate.log_path = Some(shellexpand::tilde(&solo.logs_path).to_string());
@@ -154,14 +153,17 @@ async fn main_solo(solo: Solo, mut cfg_ate: ConfAte, auth: Option<url::Url>, tru
         .with_growth_factor(solo.compact_threshold_factor)
         .with_growth_size(solo.compact_threshold_size)
         .with_timer_value(Duration::from_secs(solo.compact_timer));
-    cfg_ate.wire_protocol = StreamProtocol::parse(&solo.url)?;
-
+    
     // Create the chain flow and generate configuration
     let flow = ChainFlow::new(&cfg_ate, auth, solo.url.clone(), trust).await;
 
     // Create the server and listen on the port
-    let cfg_mesh = ConfMesh::solo(&solo.url, &solo.listen)?;
-    let _server = create_server(&cfg_ate, &cfg_mesh, Box::new(flow)).await?;
+    let mut cfg_mesh = ConfMesh::solo_from_url(&solo.url, &solo.listen)?;
+    cfg_mesh.wire_protocol = StreamProtocol::parse(&solo.url)?;
+    cfg_mesh.wire_encryption = wire_encryption;
+
+    let server = create_server(&cfg_mesh).await?;
+    server.add_route(Box::new(flow), &cfg_ate).await?;
 
     // Wait for ctrl-c
     eprintln!("Press ctrl-c to exit");

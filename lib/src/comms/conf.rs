@@ -3,12 +3,10 @@ use log::{info, warn, debug};
 use std::{net::IpAddr};
 use serde::{Serialize, de::DeserializeOwned};
 use std::net::SocketAddr;
-use crate::crypto::KeySize;
 use crate::spec::*;
 use tokio::sync::mpsc;
 use super::PacketData;
-use std::time::Duration;
-use super::StreamProtocol;
+use crate::conf::ConfMesh;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Upstream
@@ -49,54 +47,25 @@ for SocketAddr
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct NodeConfig<M>
+pub(crate) struct MeshConfig<M>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone
 {
     pub listen_on: Vec<SocketAddr>,
     pub connect_to: Vec<SocketAddr>,
-    pub connect_timeout: Duration,
     pub on_connect: Option<M>,
-    pub buffer_size: usize,
-    pub wire_format: SerializationFormat,
-    pub wire_protocol: StreamProtocol,
-    pub wire_encryption: Option<KeySize>,
-    pub fail_fast: bool,
-    pub hello_path: String,
+    pub cfg_mesh: ConfMesh,
 }
 
-impl<M> NodeConfig<M>
+impl<M> MeshConfig<M>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone
 {
-    pub(crate) fn new(wire_protocol: StreamProtocol, hello_path: &str, wire_format: SerializationFormat) -> NodeConfig<M> {
-        NodeConfig {
+    pub(crate) fn new(cfg_mesh: ConfMesh) -> MeshConfig<M> {
+        MeshConfig {
             listen_on: Vec::new(),
             connect_to: Vec::new(),
-            connect_timeout: Duration::from_secs(30),
             on_connect: None,
-            buffer_size: 1,
-            wire_format,
-            wire_protocol,
-            wire_encryption: None,
-            fail_fast: false,
-            hello_path: hello_path.to_string(),
+            cfg_mesh: cfg_mesh.clone(),
         }
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn wire_protocol(mut self, protocol: StreamProtocol) -> Self {
-        self.wire_protocol = protocol;
-        self
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn hello_path(mut self, hello_path: String) -> Self {
-        self.hello_path = hello_path;
-        self
-    }
-
-    pub(crate) fn wire_encryption(mut self, key_size: Option<KeySize>) -> Self {
-        self.wire_encryption = key_size;
-        self
     }
 
     pub(crate) fn listen_on(mut self, ip: IpAddr, port: u16) -> Self {
@@ -109,23 +78,8 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
         self
     }
 
-    pub(crate) fn buffer_size(mut self, buffer_size: usize) -> Self {
-        self.buffer_size = buffer_size;
-        self
-    }
-
-    pub(crate) fn fail_fast(mut self, fail_fast: bool) -> Self {
-        self.fail_fast = fail_fast;
-        self
-    }
-
     pub(crate) fn on_connect(mut self, msg: M) -> Self {
         self.on_connect = Some(msg);
-        self
-    }
-
-    pub(crate) fn timeout(mut self, timeout: Duration) -> Self {
-        self.connect_timeout = timeout;
         self
     }
 }

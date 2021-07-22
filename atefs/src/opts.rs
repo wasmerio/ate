@@ -48,11 +48,7 @@ pub struct Opts {
     /// Address that DNS queries will be sent to
     #[clap(long, default_value = "8.8.8.8")]
     pub dns_server: String,
-    /// Indicates if ATE will use quantum resistant wire encryption (possible values are 128, 192, 256).
-    /// The default is not to use wire encryption meaning the encryption of the event data itself is
-    /// what protects the data
-    #[clap(long)]
-    pub wire_encryption: Option<KeySize>,
+
     #[clap(subcommand)]
     pub subcmd: SubCommand,
 }

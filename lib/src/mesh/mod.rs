@@ -82,31 +82,36 @@ fn create_prepare<'a, 'b>(cfg_mesh: &'b ConfMesh) -> Vec<MeshAddress> {
     listen_root_addresses
 }
 
-pub async fn create_persistent_centralized_server(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Result<Arc<MeshRoot<OpenStaticBuilder>>, CommsError>
+pub async fn create_persistent_centralized_server(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Result<Arc<MeshRoot>, CommsError>
 {
-    create_server(cfg_ate, cfg_mesh, super::flow::all_persistent_and_centralized().await).await
+    let ret = create_server(cfg_mesh).await?;
+    ret.add_route(super::flow::all_persistent_and_centralized().await, cfg_ate).await?;
+    Ok(ret)
 }
 
-pub async fn create_persistent_distributed_server(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Result<Arc<MeshRoot<OpenStaticBuilder>>, CommsError>
+pub async fn create_persistent_distributed_server(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Result<Arc<MeshRoot>, CommsError>
 {
-    create_server(cfg_ate, cfg_mesh, super::flow::all_persistent_and_distributed().await).await
+    let ret = create_server(cfg_mesh).await?;
+    ret.add_route(super::flow::all_persistent_and_distributed().await, cfg_ate).await?;
+    Ok(ret)
 }
 
-pub async fn create_ethereal_server(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Result<Arc<MeshRoot<OpenStaticBuilder>>, CommsError>
+pub async fn create_ethereal_server(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Result<Arc<MeshRoot>, CommsError>
 {
-    create_server(cfg_ate, cfg_mesh, super::flow::all_ethereal().await).await
+    let ret = create_server(cfg_mesh).await?;
+    ret.add_route(super::flow::all_ethereal().await, cfg_ate).await?;
+    Ok(ret)
 }
 
-pub async fn create_server<F>(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh, open_flow: Box<F>) -> Result<Arc<MeshRoot<F>>, CommsError>
-where F: OpenFlow + 'static
+pub async fn create_server(cfg_mesh: &ConfMesh) -> Result<Arc<MeshRoot>, CommsError>
 {
     
     let listen_root_addresses = create_prepare(cfg_mesh);
-    MeshRoot::new(
-        &cfg_ate,
-        cfg_mesh,
-        listen_root_addresses,
-        open_flow).await
+    let ret = MeshRoot::new(
+        &cfg_mesh,
+        listen_root_addresses).await?;
+
+    Ok(ret)
 }
 
 pub async fn create_client(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh, temporal: bool) -> Arc<MeshClient>

@@ -129,27 +129,44 @@ impl DnsClient
 
 pub struct Registry
 {
-    cfg_ate: ConfAte,
+    pub cfg_ate: ConfAte,
     dns: Mutex<DnsClient>,
-    temporal: bool,
+    pub temporal: bool,
+    pub fail_fast: bool,
     chains: Mutex<FxHashMap<url::Url, Arc<MeshClient>>>,
 }
 
 impl Registry
 {
-    pub async fn new(cfg_ate: &ConfAte, temporal: bool) -> Arc<Registry>
+    pub async fn new(cfg_ate: &ConfAte) -> Registry
     {
         let dns = DnsClient::connect(cfg_ate).await;
         let dns = Mutex::new(dns);
         
-        Arc::new(
-            Registry {
-                cfg_ate: cfg_ate.clone(),
-                dns,
-                temporal,
-                chains: Mutex::new(FxHashMap::default()),
-            }
-        )
+        Registry {
+            cfg_ate: cfg_ate.clone(),
+            fail_fast: true,
+            dns,
+            temporal: true,
+            chains: Mutex::new(FxHashMap::default()),
+        }
+    }
+
+    pub fn temporal(mut self, temporal: bool) -> Self
+    {
+        self.temporal = temporal;
+        self
+    }
+
+    pub fn fail_fast(mut self, fail_fast: bool) -> Self
+    {
+        self.fail_fast = fail_fast;
+        self
+    }
+
+    pub fn cement(self) -> Arc<Self>
+    {
+        Arc::new(self)
     }
 
     pub async fn open_ext(&self, url: &Url, key: &ChainKey, loader_local: Box<impl loader::Loader>, loader_remote: Box<impl loader::Loader>) -> Result<Arc<Chain>, ChainCreationError>
@@ -161,18 +178,17 @@ impl Registry
             None => { return Err(ChainCreationError::NoValidDomain(url.to_string())); }
         };
 
-        let protocol = StreamProtocol::parse(url)?;
         let hello_path = url.path().to_string();
 
         match lock.get(&url) {
             Some(a) => {
-                Ok(a.open_ext(&key, protocol, hello_path, Some(domain), loader_local, loader_remote).await?)
+                Ok(a.open_ext(&key, hello_path, Some(domain), loader_local, loader_remote).await?)
             },
             None => {
                 let cfg_mesh = self.cfg(url).await?;
                 let mesh = create_client(&self.cfg_ate, &cfg_mesh, self.temporal).await;
                 lock.insert(url.clone(), Arc::clone(&mesh));
-                Ok(mesh.open_ext(&key, protocol, hello_path, Some(domain), loader_local, loader_remote).await?)
+                Ok(mesh.open_ext(&key, hello_path, Some(domain), loader_local, loader_remote).await?)
             }
         }
     }
@@ -185,7 +201,10 @@ impl Registry
             None => protocol.default_port(),
         };
 
-        let mut ret = ConfMesh::target(&url);
+        let mut ret = ConfMesh::default();
+
+        // Set the fail fast
+        ret.fail_fast = self.fail_fast;
 
         // Build the DNS name we will query
         let name = match url.domain() {

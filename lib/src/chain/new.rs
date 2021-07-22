@@ -58,8 +58,8 @@ impl<'a> Chain
             temporal: builder.temporal,
             integrity: builder.integrity,
         };
-        let compact_mode = builder.cfg.compact_mode;
-        let compact_bootstrap = builder.cfg.compact_bootstrap;
+        let compact_mode = builder.cfg_ate.compact_mode;
+        let compact_bootstrap = builder.cfg_ate.compact_bootstrap;
         
         // Create a redo log loader which will listen to all the events as they are
         // streamed in and extract the event headers
@@ -85,7 +85,7 @@ impl<'a> Chain
             let key = key.clone();
             let builder = builder.clone();
             tokio::spawn(async move {
-                RedoLog::open_ext(&builder.cfg, &key, flags, composite_loader, header_bytes).await
+                RedoLog::open_ext(&builder.cfg_ate, &key, flags, composite_loader, header_bytes).await
             })
         };
         #[cfg(not(feature = "local_fs"))]
@@ -153,9 +153,9 @@ impl<'a> Chain
         // will have longer waits on it when there are writes occuring
         let mut inside_async = ChainProtectedAsync {
             chain,
-            default_format: builder.cfg.log_format,
+            default_format: builder.cfg_ate.log_format,
             disable_new_roots: false,
-            sync_tolerance: builder.cfg.sync_tolerance,
+            sync_tolerance: builder.cfg_ate.sync_tolerance,
             exit: exit_tx.clone(),
         };
 
@@ -186,7 +186,7 @@ impl<'a> Chain
         // the chain of trust itself when writes occur locally or are received on the network
         let (sender,
              receiver)
-             = mpsc::channel(builder.cfg.buffer_size_client);
+             = mpsc::channel(builder.cfg_ate.buffer_size_chain);
 
         // The worker thread processes events that come in
         let worker_exit = exit_tx.subscribe();
@@ -205,12 +205,12 @@ impl<'a> Chain
 
         // Create the NTP worker thats needed to build the timeline
         let tolerance = builder.configured_for.ntp_tolerance();
-        let time = Arc::new(TimeKeeper::new(&builder.cfg, tolerance).await?);
+        let time = Arc::new(TimeKeeper::new(&builder.cfg_ate, tolerance).await?);
 
         // Create the chain that will be returned to the caller
         let chain = Chain {
             key: key.clone(),
-            default_format: builder.cfg.log_format,
+            default_format: builder.cfg_ate.log_format,
             inside_sync,
             inside_async,
             pipe,
@@ -225,8 +225,8 @@ impl<'a> Chain
         }
 
         // Start the compactor worker thread on the chain
-        if builder.cfg.compact_mode != CompactMode::Never {
-            debug!("compact-mode-on: {}", builder.cfg.compact_mode);
+        if builder.cfg_ate.compact_mode != CompactMode::Never {
+            debug!("compact-mode-on: {}", builder.cfg_ate.compact_mode);
 
             let worker_exit = exit_tx.subscribe();
             let worker_inside_async = Arc::clone(&chain.inside_async);
@@ -235,7 +235,7 @@ impl<'a> Chain
             let time = Arc::clone(&chain.time);
             tokio::task::spawn(Chain::worker_compactor(worker_inside_async, worker_inside_sync, worker_pipe, time, compact_rx, worker_exit));
         } else {
-            debug!("compact-mode-off: {}", builder.cfg.compact_mode);
+            debug!("compact-mode-off: {}", builder.cfg_ate.compact_mode);
         }
 
         // Create the chain

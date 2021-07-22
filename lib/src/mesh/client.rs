@@ -20,6 +20,7 @@ use crate::comms::StreamProtocol;
 
 pub struct MeshClient {
     cfg_ate: ConfAte,
+    cfg_mesh: ConfMesh,
     lookup: MeshHashTable,
     temporal: bool,
     sessions: Mutex<FxHashMap<ChainKey, Weak<Chain>>>,
@@ -32,6 +33,7 @@ impl MeshClient {
             MeshClient
             {
                 cfg_ate: cfg_ate.clone(),
+                cfg_mesh: cfg_mesh.clone(),
                 lookup: MeshHashTable::new(cfg_mesh),
                 temporal,
                 sessions: Mutex::new(FxHashMap::default()),
@@ -39,7 +41,7 @@ impl MeshClient {
         )
     }
 
-    pub async fn open_ext<'a>(&'a self, key: &ChainKey, protocol: StreamProtocol, hello_path: String, domain: Option<String>, loader_local: Box<impl Loader>, loader_remote: Box<impl Loader>)
+    pub async fn open_ext<'a>(&'a self, key: &ChainKey, hello_path: String, domain: Option<String>, loader_local: Box<impl Loader>, loader_remote: Box<impl Loader>)
         -> Result<Arc<Chain>, ChainCreationError>
     {
         debug!("client open {}", key.to_string());
@@ -60,11 +62,21 @@ impl MeshClient {
             None => { return Err(ChainCreationError::NoRootFoundInConfig); }
         };
         
-        let mut builder = ChainBuilder::new(&self.cfg_ate).await
+        let builder = ChainBuilder::new(&self.cfg_ate).await
             .temporal(self.temporal);
-        builder.cfg.wire_protocol = protocol;
 
-        let chain = MeshSession::connect(builder, key, domain, addr, hello_path, self.cfg_ate.recovery_mode, loader_local, loader_remote).await?;
+        let chain = MeshSession::connect
+            (
+                builder,
+                &self.cfg_mesh,
+                key,
+                domain,
+                addr,
+                hello_path,
+                loader_local,
+                loader_remote
+            )
+            .await?;
         *record = Arc::downgrade(&chain);
 
         Ok(chain)
@@ -95,9 +107,8 @@ for MeshClient
         let weak = Arc::downgrade(&self);
         let loader_local  = Box::new(crate::loader::DummyLoader::default());
         let loader_remote  = Box::new(crate::loader::DummyLoader::default());
-        let protocol = StreamProtocol::parse(url)?;
         let hello_path = url.path().to_string();
-        let ret = self.open_ext(&key, protocol, hello_path, domain, loader_local, loader_remote).await?;
+        let ret = self.open_ext(&key, hello_path, domain, loader_local, loader_remote).await?;
         ret.inside_sync.write().repository = Some(weak);
         Ok(ret)
     }

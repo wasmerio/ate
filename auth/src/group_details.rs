@@ -94,7 +94,7 @@ impl AuthService
 pub async fn group_details_command(group: String, auth: Url, session: Option<&AteSession>) -> Result<GroupDetailsResponse, GroupDetailsError>
 {
     // Open a command chain
-    let registry = ate::mesh::Registry::new(&conf_cmd(), true).await;
+    let registry = ate::mesh::Registry::new(&conf_cmd()).await.cement();
     let chain = Arc::clone(&registry).open(&auth, &chain_key_cmd()).await?;
     
     // Make the create request and fire it over to the authentication server

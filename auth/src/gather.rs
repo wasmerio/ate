@@ -70,7 +70,7 @@ impl AuthService
 pub async fn gather_command(group: String, session: AteSession, auth: Url) -> Result<AteSession, GatherError>
 {
     // Open a command chain
-    let registry = ate::mesh::Registry::new(&conf_cmd(), true).await;
+    let registry = ate::mesh::Registry::new(&conf_cmd()).await.cement();
     let chain = registry.open(&auth, &chain_key_cmd()).await?;
     
     // Create the gather command

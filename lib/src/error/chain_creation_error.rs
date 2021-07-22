@@ -24,6 +24,7 @@ pub enum ChainCreationError {
     NotImplemented,
     TimeError(TimeError),
     NoValidDomain(String),
+    InvalidRoute(String),
     CommsError(CommsError),
     DnsProtoError(DnsProtoError),
     DnsClientError(DnsClientError),
@@ -143,6 +144,9 @@ for ChainCreationError {
             ChainCreationError::CompactError(err) => {
                 write!(f, "Failed to create chain-of-trust due issue compacting the redo log - {}", err)
             },
+            ChainCreationError::InvalidRoute(chain) => {
+                write!(f, "Failed to create chain-of-trust as the chain path ({}) is not hosted as a route", chain)
+            }
             ChainCreationError::NoValidDomain(err) => {
                 write!(f, "Failed to create chain-of-trust as the address does not have a valid domain name [{}]", err)
             },
