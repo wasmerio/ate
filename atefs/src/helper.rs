@@ -72,7 +72,7 @@ pub async fn main_mount(mount: OptsMount, conf: ConfAte, group: Option<String>, 
     });
     info!("log_temp: {}", mount.temp);
     info!("mount_path: {}", mount.mount_path);
-    match &mount.remote {
+    match &mount.remote_name {
         Some(remote) => info!("remote: {}", remote.to_string()),
         None => info!("remote: local-only"),
     };
@@ -92,7 +92,7 @@ pub async fn main_mount(mount: OptsMount, conf: ConfAte, group: Option<String>, 
     // We create a chain with a specific key (this is used for the file name it creates)
     debug!("chain-init");
     let registry;
-    let chain = match mount.remote {
+    let chain = match mount.remote_name {
         None => {
             Arc::new(
                 Chain::new_ext(
@@ -105,7 +105,7 @@ pub async fn main_mount(mount: OptsMount, conf: ConfAte, group: Option<String>, 
         },
         Some(remote) => {
             registry = ate::mesh::Registry::new(&conf, mount.temp).await;
-            registry.open_ext(&remote, progress_local, progress_remote).await?
+            registry.open_ext(&mount.remote, &ChainKey::from(remote), progress_local, progress_remote).await?
         },
     };
 

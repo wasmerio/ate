@@ -56,7 +56,7 @@ pub(crate) async fn create_test_chain(mock_cfg: &mut ConfAte, chain_name: String
     let builder = builder.build();
 
     (
-        builder.open(&mock_chain_key).await.unwrap(),
+        builder.open_local(&mock_chain_key).await.unwrap(),
         builder
     )
 }

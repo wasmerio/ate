@@ -277,26 +277,12 @@ impl ChainBuilder
         Arc::new(self)
     }
     
-    #[allow(dead_code)]
-    pub async fn open_by_url(self: &Arc<Self>, url: &Url) -> Result<Arc<Chain>, ChainCreationError>
+    pub async fn open_local(self: &Arc<Self>, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
     {
-        let repo = Arc::clone(self);
-        let repo: Arc<dyn ChainRepository> = repo;
-        repo.open_by_url(url).await
-    }
-
-    #[allow(dead_code)]
-    pub async fn open_by_key(self: &Arc<Self>, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
-    {
-        let repo = Arc::clone(self);
-        let repo: Arc<dyn ChainRepository> = repo;
-        repo.open_by_key(key).await
-    }
-
-    #[allow(dead_code)]
-    pub async fn open(self: &Arc<Self>, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
-    {
-        self.open_by_key(key).await
+        let weak = Arc::downgrade(&self);
+        let ret = Arc::new(Chain::new((**self).clone(), key).await?);
+        ret.inside_sync.write().repository = Some(weak);
+        Ok(ret)
     }
 }
 
@@ -304,17 +290,8 @@ impl ChainBuilder
 impl ChainRepository
 for ChainBuilder
 {
-    async fn open_by_url(self: Arc<Self>, url: &Url) -> Result<Arc<Chain>, ChainCreationError>
+    async fn open(self: Arc<Self>, _url: &Url, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
     {
-        let key = ChainKey::from_url(url);
-        self.open_by_key(&key).await
-    }
-
-    async fn open_by_key(self: Arc<Self>, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
-    {
-        let weak = Arc::downgrade(&self);
-        let ret = Arc::new(Chain::new((*self).clone(), key).await?);
-        ret.inside_sync.write().repository = Some(weak);
-        Ok(ret)
+        self.open_local(key).await
     }
 }

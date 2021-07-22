@@ -12,22 +12,22 @@ pub struct ChainFlow {
     pub cfg: ConfAte,
     pub regex_personal: Regex,
     pub regex_group: Regex,
-    pub hello_path: String,
     pub mode: TrustMode,
-    pub auth: Option<url::Url>,
+    pub url_auth: Option<url::Url>,
+    pub url_db: url::Url,
     pub registry: Arc<Registry>,
 }
 
 impl ChainFlow
 {
-    pub async fn new(cfg: &ConfAte, auth: Option<url::Url>, mode: TrustMode, hello_path: String) -> Self {        
+    pub async fn new(cfg: &ConfAte, url_auth: Option<url::Url>, url_db: url::Url, mode: TrustMode) -> Self {
         ChainFlow {
             cfg: cfg.clone(),
             regex_personal: Regex::new("^/([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})/([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})/([a-zA-Z0-9_]{1,})$").unwrap(),
             regex_group: Regex::new("^/{0,1}([a-zA-Z0-9_]{0,})$").unwrap(),
-            hello_path,
             mode,
-            auth,
+            url_auth,
+            url_db,
             registry: ate::mesh::Registry::new(&ate_auth::conf_auth(), true).await
         }
     }
@@ -38,7 +38,7 @@ impl OpenFlow
 for ChainFlow
 {
     fn hello_path(&self) -> &str {
-        self.hello_path.as_str()
+        self.url_db.path()
     }
 
     async fn open(&self, mut builder: ChainBuilder, key: &ChainKey) -> Result<OpenAction, ChainCreationError>
@@ -60,7 +60,7 @@ for ChainFlow
             }
 
             // Grab the public write key from the authentication server for this user
-            if let Some(auth) = &self.auth {
+            if let Some(auth) = &self.url_auth {
                 let advert = match ate_auth::query_command(Arc::clone(&self.registry), email.clone(), auth.clone()).await {
                     Ok(a) => a.advert,
                     Err(err) => {
@@ -92,7 +92,7 @@ for ChainFlow
             // Create the chain
             let chain = builder
                 .build()
-                .open(&key)
+                .open_local(&key)
                 .await?;
 
             // We have opened the chain
@@ -107,7 +107,7 @@ for ChainFlow
         {
             // Get the auth
             let group = path.clone();
-            let auth = match &self.auth {
+            let auth = match &self.url_auth {
                 Some(a) => a.clone(),
                 None => {
                     return Ok(OpenAction::Deny(format!("Failed to create the chain for group ({}) as the server has no authentication endpoint configured.", group)));
@@ -115,8 +115,8 @@ for ChainFlow
             };
 
             // Prepare the right chain            
-            let chain_url = ate_auth::command_url(auth.clone());
-            let chain = Arc::clone(&self.registry).open_by_url(&chain_url).await?;
+            let chain_url = ate_auth::chain_key_cmd();
+            let chain = Arc::clone(&self.registry).open(&auth, &chain_url).await?;
 
             // Grab the public write key from the authentication server for this group
             let advert: Result<GroupDetailsResponse, InvokeError<GroupDetailsFailed>> = chain.invoke(GroupDetailsRequest {
@@ -163,7 +163,7 @@ for ChainFlow
             // Create the chain
             let chain = builder
                 .build()
-                .open(&key)
+                .open_local(&key)
                 .await?;
 
             // We have opened the chain

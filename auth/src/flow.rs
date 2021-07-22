@@ -11,22 +11,22 @@ use crate::service::*;
 
 pub struct ChainFlow {
     cfg: ConfAte,
+    auth_url: url::Url,
     root_key: PrivateSignKey,
     regex_auth: Regex,
     regex_cmd: Regex,
-    hello_path: String,
     session: AteSession,
 }
 
 impl ChainFlow
 {
-    pub fn new(cfg: &ConfAte, root_key: PrivateSignKey, session: AteSession, hello_path: String) -> Self {        
+    pub fn new(cfg: &ConfAte, root_key: PrivateSignKey, session: AteSession, auth_url: &url::Url) -> Self {        
         ChainFlow {
             cfg: cfg.clone(),
             root_key,
-            regex_auth: Regex::new("^/auth-[a-f0-9]{4}$").unwrap(),
+            regex_auth: Regex::new("^/redo-[a-f0-9]{4}$").unwrap(),
             regex_cmd: Regex::new("^/cmd-[a-f0-9]{16}$").unwrap(),
-            hello_path,
+            auth_url: auth_url.clone(),
             session,
         }
     }
@@ -37,7 +37,7 @@ impl OpenFlow
 for ChainFlow
 {
     fn hello_path(&self) -> &str {
-        self.hello_path.as_str()
+        self.auth_url.path()
     }
 
     async fn open(&self, builder: ChainBuilder, key: &ChainKey) -> Result<OpenAction, ChainCreationError>
@@ -52,7 +52,7 @@ for ChainFlow
                 .set_session(self.session.clone())
                 .add_root_public_key(&self.root_key.as_public_key())
                 .build()
-                .open(key)
+                .open_local(key)
                 .await?;
 
             return Ok(OpenAction::DistributedChain(chain));
@@ -72,11 +72,11 @@ for ChainFlow
                 .add_root_public_key(&session_root_key.as_public_key())
                 .temporal(true)
                 .build()
-                .open(key)
+                .open_local(key)
                 .await?;
                 
             // Add the services to this chain
-            service_auth_handlers(&self.cfg, cmd_session.clone(), self.session.clone(), &Arc::clone(&chain)).await?;
+            service_auth_handlers(&self.cfg, cmd_session.clone(), self.auth_url.clone(), self.session.clone(), &Arc::clone(&chain)).await?;
 
             // Return the chain to the caller
             return Ok(OpenAction::PrivateChain

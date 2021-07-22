@@ -132,7 +132,7 @@ pub struct Registry
     cfg_ate: ConfAte,
     dns: Mutex<DnsClient>,
     temporal: bool,
-    chains: Mutex<FxHashMap<String, Arc<MeshClient>>>,
+    chains: Mutex<FxHashMap<url::Url, Arc<MeshClient>>>,
 }
 
 impl Registry
@@ -152,7 +152,7 @@ impl Registry
         )
     }
 
-    pub async fn open_ext(&self, url: &Url, loader_local: Box<impl loader::Loader>, loader_remote: Box<impl loader::Loader>) -> Result<Arc<Chain>, ChainCreationError>
+    pub async fn open_ext(&self, url: &Url, key: &ChainKey, loader_local: Box<impl loader::Loader>, loader_remote: Box<impl loader::Loader>) -> Result<Arc<Chain>, ChainCreationError>
     {
         let mut lock = self.chains.lock().await;
         
@@ -163,17 +163,15 @@ impl Registry
 
         let protocol = StreamProtocol::parse(url)?;
         let hello_path = url.path().to_string();
-        let client_key = format!("{}/{}", domain, hello_path);
 
-        let key = ChainKey::from_url(&url);
-        match lock.get(&client_key) {
+        match lock.get(&url) {
             Some(a) => {
                 Ok(a.open_ext(&key, protocol, hello_path, Some(domain), loader_local, loader_remote).await?)
             },
             None => {
                 let cfg_mesh = self.cfg(url).await?;
                 let mesh = create_client(&self.cfg_ate, &cfg_mesh, self.temporal).await;
-                lock.insert(client_key.clone(), Arc::clone(&mesh));
+                lock.insert(url.clone(), Arc::clone(&mesh));
                 Ok(mesh.open_ext(&key, protocol, hello_path, Some(domain), loader_local, loader_remote).await?)
             }
         }
@@ -187,9 +185,7 @@ impl Registry
             None => protocol.default_port(),
         };
 
-        let mut ret = ConfMesh::default();
-        ret.force_listen = None;
-        ret.force_client_only = true;
+        let mut ret = ConfMesh::target(&url);
 
         // Build the DNS name we will query
         let name = match url.domain() {
@@ -262,19 +258,14 @@ impl Registry
 impl ChainRepository
 for Registry
 {
-    async fn open_by_url(self: Arc<Self>, url: &Url) -> Result<Arc<Chain>, ChainCreationError>
+    async fn open(self: Arc<Self>, url: &Url, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
     {
         let loader_local = Box::new(loader::DummyLoader::default());
         let loader_remote = Box::new(loader::DummyLoader::default());
 
         let weak = Arc::downgrade(&self);
-        let ret = self.open_ext(url, loader_local, loader_remote).await?;
+        let ret = self.open_ext(url, key, loader_local, loader_remote).await?;
         ret.inside_sync.write().repository = Some(weak);
         Ok(ret)
-    }
-
-    async fn open_by_key(self: Arc<Self>, _key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
-    {
-        return Err(ChainCreationError::NotSupported);
     }
 }

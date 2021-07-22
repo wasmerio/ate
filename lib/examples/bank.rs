@@ -72,7 +72,7 @@ async fn main() -> Result<(), AteError>
     let builder = ChainBuilder::new(&conf).await.build();
 
     // We create a chain with a specific key (this is used for the file name it creates)
-    let chain = builder.open(&ChainKey::from("bank")).await?;
+    let chain = builder.open_local(&ChainKey::from("bank")).await?;
 
     // Make a thousand bank accounts
     let mut generator = Generator::default();

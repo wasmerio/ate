@@ -71,8 +71,8 @@ impl AuthService
         session.user.add_write_key(&write_key);
 
         // Compute which chain the user should exist within
-        let user_chain_key = auth_chain_key("auth".to_string(), &request.email);
-        let chain = context.repository.open_by_key(&user_chain_key).await?;
+        let user_chain_key = chain_key_4hex(&request.email, Some("redo"));
+        let chain = context.repository.open(&self.auth_url, &user_chain_key).await?;
         let mut dio = chain.dio(&super_session).await;
 
         // Try and find a free UID
@@ -200,9 +200,8 @@ impl AuthService
 pub async fn create_user_command(username: String, password: String, auth: Url) -> Result<CreateUserResponse, CreateError>
 {
     // Open a command chain
-    let chain_url = crate::helper::command_url(auth.clone());
     let registry = ate::mesh::Registry::new(&conf_cmd(), true).await;
-    let chain = registry.open_by_url(&chain_url).await?;
+    let chain = registry.open(&auth, &chain_key_cmd()).await?;
 
     // Generate a read-key using the password and some seed data
     // (this read-key will be mixed with entropy on the server side to decrypt the row

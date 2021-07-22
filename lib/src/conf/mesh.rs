@@ -1,6 +1,7 @@
 #[allow(unused_imports)]
 use log::{info, error, debug};
 use std::{net::IpAddr};
+use std::str::FromStr;
 
 use crate::{comms::StreamProtocol, error::CommsError};
 use super::*;
@@ -16,6 +17,8 @@ pub struct ConfMesh
 {
     /// List of all the addresses that the root nodes exists on
     pub roots: Vec<MeshAddress>,
+    /// URL that this and all the other nodes in the mesh are using
+    pub url: url::Url,
     /// Forces ATE to act as a client even if its local IP address is one
     /// of the node machines in the clusters (normally ATE would automatically
     /// listen for connections)
@@ -29,38 +32,36 @@ impl ConfMesh
 {
     /// Represents a single server listening on all available addresses. All chains
     /// will be stored locally to this server and there is no replication
-    pub fn solo(listen: &url::Url) -> Result<ConfMesh, CommsError>
+    pub fn solo(url: &url::Url, listen: &str) -> Result<ConfMesh, CommsError>
     {
-        let protocol = StreamProtocol::parse(listen)?;
-        let port = listen.port().unwrap_or(protocol.default_port());
-        let ip = match listen.host() {
-            Some(a) => match a {
-                url::Host::Ipv4(a) => IpAddr::V4(a),
-                url::Host::Ipv6(a) => IpAddr::V6(a),
-                a => {
-                    return Err(CommsError::ListenAddressInvalid(a.to_string()))
-                }
-            },
-            None => {
-                return Err(CommsError::ListenAddressInvalid("failed to parse".to_string()))
+        let protocol = StreamProtocol::parse(url)?;
+        let port = url.port().unwrap_or(protocol.default_port());
+        let ip = match IpAddr::from_str(listen) {
+            Ok(a) => a,
+            Err(_err) => {
+                return Err(CommsError::ListenAddressInvalid(listen.to_string()));
             }
         };
     
-        let mut cfg_mesh = ConfMesh::default();
         let addr = MeshAddress::new(ip, port);
+        let mut cfg_mesh = ConfMesh {
+            roots: Vec::new(),
+            url: url.clone(),
+            force_client_only: false,
+            force_listen: Some(addr.clone()),
+        };
         cfg_mesh.roots.push(addr.clone());
-        cfg_mesh.force_listen = Some(addr);
 
         Ok(cfg_mesh)
     }
-}
 
-impl Default
-for ConfMesh
-{
-    fn default() -> ConfMesh {
+    /// Represents a target of nodes that belong to a mesh
+    /// (note: the root nodes are not present in this object)
+    pub fn target(url: &url::Url) -> ConfMesh
+    {
         ConfMesh {
             roots: Vec::new(),
+            url: url.clone(),
             force_client_only: false,
             force_listen: None,
         }

@@ -79,12 +79,15 @@ pub struct OptsMount {
     /// Path to directory that the file system will be mounted at
     #[clap(index=1)]
     pub mount_path: String,
-    /// URL where the data is remotely stored on a distributed commit log (e.g. ws://tokera.com/db/myfs).
+    /// Name of the file-system to be mounted (e.g. myfs).
     /// If this URL is not specified then data will only be stored in a local chain-of-trust
     #[clap(index=2)]
-    pub remote: Option<Url>,
-    /// (Optional) Location of the local persistent redo log (e.g. ~/ate/fs)
-    #[clap(index=3)]
+    pub remote_name: Option<String>,
+    /// URL where the data is remotely stored on a distributed commit log.
+    #[clap(short, long, default_value = "ws://tokera.com/db")]
+    pub remote: Url,
+    /// (Optional) Location of the local persistent redo log (e.g. ~/ate/fs")
+    #[clap(long)]
     pub log_path: Option<String>,
     /// Determines how the file-system will react while it is nominal and when it is
     /// recovering from a communication failure (valid options are 'async', 'readonly-async',

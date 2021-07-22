@@ -72,10 +72,13 @@ struct Solo {
     /// Path to the log files where all the file system data is stored
     #[clap(index = 1, default_value = "/opt/ate")]
     logs_path: String,
-    /// Address that the database server will listen on - you must specify
-    /// an IP4/IP6 address (or pattern) here for the server to listen on
-    #[clap(short, long, default_value = "ws://[::]:5000/db")]
-    listen: url::Url,
+    /// Address that the database server(s) are listening and that
+    /// this server can connect to if the chain is on another mesh node
+    #[clap(short, long, default_value = "ws://localhost:5000/db")]
+    url: url::Url,
+    /// IP address that the authentication server will isten on
+    #[clap(short, long, default_value = "[::]")]
+    listen: String,
     /// Mode that the compaction will run under (valid modes are 'never', 'modified', 'timer', 'factor', 'size', 'factor-or-timer', 'size-or-timer')
     #[clap(long, default_value = "factor-or-timer")]
     compact_mode: CompactMode,
@@ -151,13 +154,13 @@ async fn main_solo(solo: Solo, mut cfg_ate: ConfAte, auth: Option<url::Url>, tru
         .with_growth_factor(solo.compact_threshold_factor)
         .with_growth_size(solo.compact_threshold_size)
         .with_timer_value(Duration::from_secs(solo.compact_timer));
-    cfg_ate.wire_protocol = StreamProtocol::parse(&solo.listen)?;
+    cfg_ate.wire_protocol = StreamProtocol::parse(&solo.url)?;
 
     // Create the chain flow and generate configuration
-    let flow = ChainFlow::new(&cfg_ate, auth, trust, solo.listen.path().to_string()).await;
+    let flow = ChainFlow::new(&cfg_ate, auth, solo.url.clone(), trust).await;
 
     // Create the server and listen on the port
-    let cfg_mesh = ConfMesh::solo(&solo.listen)?;
+    let cfg_mesh = ConfMesh::solo(&solo.url, &solo.listen)?;
     let _server = create_server(&cfg_ate, &cfg_mesh, Box::new(flow)).await?;
 
     // Wait for ctrl-c

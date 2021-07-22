@@ -9,7 +9,7 @@ async fn main() -> Result<(), AteError>
     env_logger::init();
 
     // Create the server and listen on port 5000
-    let cfg_mesh = ConfMesh::solo(&url::Url::parse("ws://[::]:5000/test-chain").unwrap())?;
+    let cfg_mesh = ConfMesh::solo(&url::Url::parse("ws://localhost:5000/test-chain").unwrap(), "[::]")?;
     let cfg_ate = ConfAte::default();
     info!("create a persistent server");
     let _server = create_persistent_centralized_server(&cfg_ate, &cfg_mesh).await?;
@@ -18,7 +18,7 @@ async fn main() -> Result<(), AteError>
 
     let key = {
         let registry = Registry::new(&cfg_ate, true).await;
-        let chain = registry.open_by_url(&url::Url::from_str("ws://localhost:5000/test-chain").unwrap()).await?;
+        let chain = registry.open(&url::Url::from_str("ws://localhost:5000/").unwrap(), &ChainKey::from("test-chain")).await?;
         let session = AteSession::new(&cfg_ate);
         let mut dio = chain.dio_ext(&session, TransactionScope::Full).await;
         let dao = dio.store("my test string".to_string())?;
@@ -30,7 +30,7 @@ async fn main() -> Result<(), AteError>
 
     {
         let registry = Registry::new(&cfg_ate, true).await;
-        let chain = registry.open_by_url(&url::Url::from_str("ws://localhost:5000/test-chain").unwrap()).await?;
+        let chain = registry.open(&url::Url::from_str("ws://localhost:5000/").unwrap(), &ChainKey::from("test-chain")).await?;
         let session = AteSession::new(&cfg_ate);
         let mut dio = chain.dio_ext(&session, TransactionScope::Full).await;
         let dao = dio.load::<String>(&key).await?;

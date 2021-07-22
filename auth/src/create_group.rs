@@ -55,8 +55,8 @@ impl AuthService
         };
         
         // Compute which chain the group should exist within
-        let group_chain_key = auth_chain_key("auth".to_string(), &request.group);
-        let chain = context.repository.open_by_key(&group_chain_key).await?;
+        let group_chain_key = chain_key_4hex(&request.group, Some("redo"));
+        let chain = context.repository.open(&self.auth_url, &group_chain_key).await?;
         let mut dio = chain.dio(&self.master_session).await;
 
         // Try and find a free GID
@@ -225,9 +225,8 @@ impl AuthService
 pub async fn create_group_command(group: String, auth: Url, username: String) -> Result<CreateGroupResponse, CreateError>
 {
     // Open a command chain
-    let chain_url = crate::helper::command_url(auth.clone());
     let registry = ate::mesh::Registry::new(&conf_cmd(), true).await;
-    let chain = Arc::clone(&registry).open_by_url(&chain_url).await?;
+    let chain = Arc::clone(&registry).open(&auth, &chain_key_cmd()).await?;
 
     // First we query the user that needs to be added so that we can get their public encrypt key
     let query = crate::query_command(Arc::clone(&registry), username.clone(), auth).await?;

@@ -28,8 +28,8 @@ impl AuthService
         debug!("group ({}) details", request.group);
         
         // Compute which chain the group should exist within
-        let group_chain_key = auth_chain_key("auth".to_string(), &request.group);
-        let chain = context.repository.open_by_key(&group_chain_key).await?;
+        let group_chain_key = chain_key_4hex(&request.group, Some("redo"));
+        let chain = context.repository.open(&self.auth_url, &group_chain_key).await?;
 
         // Load the group
         let group_key = PrimaryKey::from(request.group.clone());
@@ -94,9 +94,8 @@ impl AuthService
 pub async fn group_details_command(group: String, auth: Url, session: Option<&AteSession>) -> Result<GroupDetailsResponse, GroupDetailsError>
 {
     // Open a command chain
-    let chain_url = crate::helper::command_url(auth.clone());
     let registry = ate::mesh::Registry::new(&conf_cmd(), true).await;
-    let chain = Arc::clone(&registry).open_by_url(&chain_url).await?;
+    let chain = Arc::clone(&registry).open(&auth, &chain_key_cmd()).await?;
     
     // Make the create request and fire it over to the authentication server
     let create = GroupDetailsRequest {

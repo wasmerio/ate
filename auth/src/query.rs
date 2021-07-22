@@ -26,8 +26,8 @@ impl AuthService
         info!("query user/group: {}", request.identity);
 
         // Compute which chain the user should exist within
-        let user_chain_key = auth_chain_key("auth".to_string(), &request.identity);
-        let chain = context.repository.open_by_key(&user_chain_key).await?;
+        let user_chain_key = chain_key_4hex(&request.identity, Some("redo"));
+        let chain = context.repository.open(&self.auth_url, &user_chain_key).await?;
         let mut dio = chain.dio(&self.master_session).await;
 
         // If it does not exist then fail
@@ -50,8 +50,7 @@ impl AuthService
 pub async fn query_command(registry: Arc<ate::mesh::Registry>, username: String, auth: Url) -> Result<QueryResponse, QueryError>
 {
     // Open a command chain
-    let chain_url = crate::helper::command_url(auth.clone());
-    let chain = registry.open_by_url(&chain_url).await?;
+    let chain = registry.open(&auth, &chain_key_cmd()).await?;
     
     // Create the query command
     let query = QueryRequest {

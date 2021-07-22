@@ -32,8 +32,8 @@ impl AuthService
         let request_session = request.session;
         
         // Compute which chain the group should exist within
-        let group_chain_key = auth_chain_key("auth".to_string(), &request.group);
-        let chain = context.repository.open_by_key(&group_chain_key).await?;
+        let group_chain_key = chain_key_4hex(&request.group, Some("redo"));
+        let chain = context.repository.open(&self.auth_url, &group_chain_key).await?;
 
         // Create the super session that has all the rights we need
         let mut super_session = self.master_session.clone();
@@ -103,9 +103,8 @@ impl AuthService
 pub async fn group_user_remove_command(group: String, purpose: AteRolePurpose, username: String, auth: Url, session: &AteSession) -> Result<GroupUserRemoveResponse, GroupUserRemoveError>
 {
     // Open a command chain
-    let chain_url = crate::helper::command_url(auth.clone());
     let registry = ate::mesh::Registry::new(&conf_cmd(), true).await;
-    let chain = Arc::clone(&registry).open_by_url(&chain_url).await?;
+    let chain = Arc::clone(&registry).open(&auth, &chain_key_cmd()).await?;
     
     // First we query the user that needs to be added so that we can get their public encrypt key
     let query = crate::query_command(Arc::clone(&registry), username, auth).await?;

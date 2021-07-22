@@ -81,8 +81,8 @@ for OpenStaticBuilder
         });
 
         Ok(match &self.centralized_integrity {
-            true => OpenAction::CentralizedChain(builder.temporal(self.temporal).build().open_by_key(&key).await?),
-            false => OpenAction::DistributedChain(builder.temporal(self.temporal).build().open_by_key(&key).await?),
+            true => OpenAction::CentralizedChain(builder.temporal(self.temporal).build().open_local(&key).await?),
+            false => OpenAction::DistributedChain(builder.temporal(self.temporal).build().open_local(&key).await?),
         })
     }
 }

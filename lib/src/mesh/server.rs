@@ -211,36 +211,36 @@ impl<F> ChainRepository
 for MeshRoot<F>
 where F: OpenFlow + 'static
 {
-    async fn open_by_url(self: Arc<Self>, url: &url::Url) -> Result<Arc<Chain>, ChainCreationError>
+    async fn open(self: Arc<Self>, url: &url::Url, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
     {
+        if url.domain() == None || url.domain() == Some("localhost")
+        {
+            let proto = self.cfg_ate.wire_protocol;
+            let addr = match self.lookup.lookup(key) {
+                Some(a) => a,
+                None => {
+                    return Err(ChainCreationError::NoRootFoundInConfig);
+                }
+            };
+    
+            let local_ips = vec!(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1)));
+            let is_local = self.addrs.contains(&addr) || local_ips.contains(&addr.ip);
+    
+            let weak = Arc::downgrade(&self);
+            let ret = {
+                if is_local {
+                    open_internal(self, proto, key.clone(), None).await
+                } else {
+                    return Err(ChainCreationError::NotThisRoot);
+                }
+            }?;
+            ret.inside_sync.write().repository = Some(weak);
+            return Ok(ret);
+        }
+
         let weak = Arc::downgrade(&self);
         let repo = Arc::clone(&self.remote_registry);
-        let ret = repo.open_by_url(url).await?;
-        ret.inside_sync.write().repository = Some(weak);
-        return Ok(ret);
-    }
-
-    async fn open_by_key(self: Arc<Self>, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
-    {
-        let proto = self.cfg_ate.wire_protocol;
-        let addr = match self.lookup.lookup(key) {
-            Some(a) => a,
-            None => {
-                return Err(ChainCreationError::NoRootFoundInConfig);
-            }
-        };
-
-        let local_ips = vec!(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1)));
-        let is_local = self.addrs.contains(&addr) || local_ips.contains(&addr.ip);
-
-        let weak = Arc::downgrade(&self);
-        let ret = {
-            if is_local {
-                open_internal(self, proto, key.clone(), None).await
-            } else {
-                return Err(ChainCreationError::NotThisRoot);
-            }
-        }?;
+        let ret = repo.open(url, key).await?;
         ret.inside_sync.write().repository = Some(weak);
         return Ok(ret);
     }

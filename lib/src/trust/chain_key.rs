@@ -24,10 +24,11 @@ for ChainKey {
     }
 }
 
-impl ChainKey {
+impl ChainKey
+{
     pub fn new(mut val: String) -> ChainKey {
-        if val.starts_with("/") == false {
-            val = format!("/{}", val);
+        while val.starts_with("/") == true {
+            val = val[1..].to_string();
         }
         
         ChainKey {
@@ -35,6 +36,11 @@ impl ChainKey {
             name: val,
         }
     }
+
+    pub const ROOT: ChainKey = ChainKey {
+        name: String::new(),
+        hash: None,
+    };
 
     pub fn with_name(&self, val: String) -> ChainKey
     {
@@ -69,11 +75,6 @@ impl ChainKey {
     pub fn to_string(&self) -> String
     {
         self.name.clone()
-    }
-
-    pub fn from_url(url: &url::Url) -> ChainKey
-    {
-        ChainKey::new(url.path().to_string())
     }
 }
 

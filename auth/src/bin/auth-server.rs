@@ -34,10 +34,13 @@ struct Run {
     /// Path to the log files where all the authentication data is stored
     #[clap(index = 2, default_value = "~/ate/auth")]
     logs_path: String,
-    /// Address that the authentication server will listen on - you must specify
-    /// an IP4/IP6 address (or pattern) here for the server to listen on
-    #[clap(short, long, default_value = "ws://[::]:5001/auth")]
-    listen: url::Url,
+    /// Address that the authentication server(s) are listening and that
+    /// this server can connect to if the chain is on another mesh node
+    #[clap(short, long, default_value = "ws://localhost:5001/auth")]
+    url: url::Url,
+    /// IP address that the authentication server will isten on
+    #[clap(short, long, default_value = "[::]")]
+    listen: String,
 }
 
 /// Generates the secret key that helps protect key operations like creating users and resetting passwords
@@ -86,17 +89,15 @@ async fn main() -> Result<(), AteError>
             let mut cfg_ate = ate_auth::conf_auth();
             cfg_ate.log_path = Some(shellexpand::tilde(&run.logs_path).to_string());
             cfg_ate.compact_mode = CompactMode::Never;
-            cfg_ate.wire_protocol = StreamProtocol::parse(&run.listen)?;
+            cfg_ate.wire_protocol = StreamProtocol::parse(&run.url)?;
 
             let mut session = AteSession::new(&cfg_ate);
             session.user.add_read_key(&root_read_key);
             session.user.add_write_key(&root_write_key);
 
-            // Create the chain flow and generate configuration
-            let flow = ChainFlow::new(&cfg_ate, root_write_key, session, run.listen.path().to_string());
-
             // Create the server and listen on port 5000
-            let cfg_mesh = ConfMesh::solo(&run.listen)?;
+            let flow = ChainFlow::new(&cfg_ate, root_write_key, session, &run.url);
+            let cfg_mesh = ConfMesh::solo(&run.url, run.listen.as_str())?;
             let _server = create_server(&cfg_ate, &cfg_mesh, Box::new(flow)).await?;
             
             // Wait for ctrl-c

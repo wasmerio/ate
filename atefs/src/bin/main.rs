@@ -27,7 +27,8 @@ fn test_opts() -> Opts {
         wire_encryption: None,
         subcmd: SubCommand::Mount(OptsMount {
             mount_path: "/mnt/ate".to_string(),
-            remote: Some(Url::parse("ws://tokera.com/db/myfs").unwrap()),
+            remote: Url::parse("ws://tokera.com/db/").unwrap(),
+            remote_name: Some("myfs".to_string()),
             log_path: Some("~/ate/fs".to_string()),
             recovery_mode: RecoveryMode::ReadOnlyAsync,
             passcode: None,
@@ -106,7 +107,7 @@ async fn main() -> Result<(), CommandError> {
                     eprintln!("You can not supply both a passcode and a token, either drop the --token arguments or the --passcode argument");
                     std::process::exit(1);
                 }
-                if mount.remote.is_some() {
+                if mount.remote_name.is_some() {
                     eprintln!("Using a passcode is not compatible with remotely hosted file-systems as the distributed databases need to make authentication checks");
                     std::process::exit(1);
                 }
@@ -116,7 +117,7 @@ async fn main() -> Result<(), CommandError> {
                 session.user.add_read_key(&key);
 
             } else if opts.no_auth {
-                if mount.remote.is_some() {
+                if mount.remote_name.is_some() {
                     eprintln!("In order to use remotely hosted file-systems you must use some form of authentication, without authentication the distributed databases will not be able to make the needed checks");
                     std::process::exit(1);
                 }
@@ -127,8 +128,8 @@ async fn main() -> Result<(), CommandError> {
                 session = ate_auth::main_session(opts.token.clone(), opts.token_path.clone(), Some(opts.auth.clone()), false).await?;
 
                 // Attempt to grab additional permissions for the group (if it has any)
-                if let Some(remote) = &mount.remote {
-                    group = Some(remote.path().to_string());
+                if let Some(remote) = &mount.remote_name {
+                    group = Some(remote.clone());
                     session = match ate_auth::main_gather(group.clone(), session.clone(), opts.auth).await {
                         Ok(a) => a,
                         Err(err) => {

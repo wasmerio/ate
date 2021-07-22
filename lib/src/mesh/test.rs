@@ -18,6 +18,7 @@ async fn test_mesh()
     crate::utils::bootstrap_env();
 
     let cfg_ate = crate::conf::tests::mock_test_config();
+    let test_url = url::Url::parse("ws://localhost/").unwrap();
 
     // Create a root key that will protect the integrity of the chain
     let root_key = crate::crypto::PrivateSignKey::generate(KeySize::Bit256);
@@ -30,7 +31,7 @@ async fn test_mesh()
     let mut cfg_mesh =
     {
         // Build the configuration file for the mesh
-        let mut cfg_mesh = ConfMesh::default();
+        let mut cfg_mesh = ConfMesh::target(&test_url);
         for n in (5100+port_offset)..(5105+port_offset) {
             cfg_mesh.roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
         }
@@ -73,7 +74,7 @@ async fn test_mesh()
 
     debug!("create the mesh and connect to it with client 1");
     let client_a = create_temporal_client(&cfg_ate, &cfg_mesh).await;
-    let chain_a = client_a.open_by_url(&url::Url::parse("ws://localhost/test-chain").unwrap()).await.unwrap();
+    let chain_a = client_a.open(&test_url, &ChainKey::from("test-chain")).await.unwrap();
     debug!("connected with client 1");
     let mut session_a = AteSession::new(&cfg_ate);
     session_a.add_user_write_key(&root_key);
@@ -100,7 +101,7 @@ async fn test_mesh()
             cfg_mesh.force_client_only = true;
             let client_b = create_temporal_client(&cfg_ate, &cfg_mesh).await;
 
-            let chain_b = client_b.open_by_key(&ChainKey::new("test-chain".to_string())).await.unwrap();
+            let chain_b = client_b.open(&test_url, &ChainKey::new("test-chain".to_string())).await.unwrap();
             let mut session_b = AteSession::new(&cfg_ate);
             session_b.add_user_write_key(&root_key);
 
@@ -156,7 +157,7 @@ async fn test_mesh()
         let client = create_temporal_client(&cfg_ate, &cfg_mesh).await;
 
         debug!("reconnecting the client");
-        let chain = client.open_by_url(&url::Url::parse("ws://localhost/test-chain").unwrap()).await.unwrap();
+        let chain = client.open(&test_url, &ChainKey::from("test-chain")).await.unwrap();
         let session = AteSession::new(&cfg_ate);
         {
             debug!("loading data object 1");

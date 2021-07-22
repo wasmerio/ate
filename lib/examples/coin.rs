@@ -21,7 +21,7 @@ async fn main() -> Result<(), AteError>
         .await
         .add_root_public_key(&root.as_public_key())
         .build();
-    let chain = builder.open(&ChainKey::from("universe")).await?;
+    let chain = builder.open_local(&ChainKey::from("universe")).await?;
 
     // Our session needs the keys
     let mut session = AteSession::new(&conf);

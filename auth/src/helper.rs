@@ -1,7 +1,6 @@
 #[allow(unused_imports)]
 use log::{info, error, debug};
 use serde::*;
-use url::Url;
 use std::fs::File;
 
 use ::ate::prelude::*;
@@ -10,40 +9,30 @@ use ::ate::error::*;
 
 use crate::model::*;
 
-pub fn ate_url(auth: Url, default_path: &str, identity: &String) -> Url
+pub fn chain_key_4hex(val: &String, prefix: Option<&str>) -> ChainKey
 {
-    let hash = AteHash::from(identity.clone());
+    let hash = AteHash::from(val.clone());
     let hex = hash.to_hex_string().to_lowercase();
-    let mut ret = auth.clone();
-
-    let path = match auth.path() {
-        a if a.len() >= 1 && a.eq("/") == false => a.to_string(),
-        _ => {
-            match default_path {
-                a if a.len() <= 0 => "/".to_string(),
-                a if a.starts_with("/") => a.to_string(),
-                a => format!("/{}", a).to_string()
-            }
-        }
-    };
-
-    ret.set_path(format!("{}-{}", path.as_str(), &hex[..4]).as_str());
-    ret
+    match prefix {
+        Some(prefix) => ChainKey::new(format!("{}-{}", prefix, &hex[..4])),
+        None => ChainKey::new(format!("{}", &hex[..4]))
+    }
 }
 
-pub fn auth_chain_key(path: String, identity: &String) -> ChainKey
+pub fn chain_key_16hex(val: &String, prefix: Option<&str>) -> ChainKey
 {
-    let hash = AteHash::from(identity.clone());
+    let hash = AteHash::from(val.clone());
     let hex = hash.to_hex_string().to_lowercase();
-    ChainKey::new(format!("{}-{}", path, &hex[..4]))
+    match prefix {
+        Some(prefix) => ChainKey::new(format!("{}-{}", prefix, &hex[..16])),
+        None => ChainKey::new(format!("{}", &hex[..16]))
+    }
 }
 
-pub fn command_url(auth: Url) -> Url
+pub fn chain_key_cmd() -> ChainKey
 {
     let hex = PrimaryKey::generate().as_fixed_hex_string();
-    let mut ret = auth.clone();
-    ret.set_path(format!("cmd-{}", hex).as_str());
-    ret
+    ChainKey::from(hex)
 }
 
 pub fn password_to_read_key(seed: &String, password: &String, repeat: i32, key_size: KeySize) -> EncryptKey

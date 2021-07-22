@@ -24,7 +24,7 @@ fn rotate_test() -> Result<(), AteError>
         let key2;
         {
             // We create a chain with a specific key (this is used for the file name it creates)
-            let chain = builder.open(&ChainKey::from("rotate")).await?;
+            let chain = builder.open_local(&ChainKey::from("rotate")).await?;
             let session = AteSession::new(&conf);
 
             {
@@ -50,7 +50,7 @@ fn rotate_test() -> Result<(), AteError>
         }
 
         {
-            let chain = builder.open(&ChainKey::from("rotate")).await?;
+            let chain = builder.open_local(&ChainKey::from("rotate")).await?;
 
             let session = AteSession::new(&conf);
             let mut dio = chain.dio(&session).await;

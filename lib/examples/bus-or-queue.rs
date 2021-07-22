@@ -23,7 +23,8 @@ async fn main() -> Result<(), AteError>
 
     // Create the server and listen on port 5001
     debug!("setting up a mesh server on 127.0.0.1:5001");
-    let mut cfg_mesh = ConfMesh::default();
+    let mesh_url = url::Url::parse("ws://localhost:5001/").unwrap();
+    let mut cfg_mesh = ConfMesh::target(&mesh_url);
     let cfg_ate = ConfAte::default();
     let addr = MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), 5001);
     cfg_mesh.roots.push(addr.clone());
@@ -42,7 +43,7 @@ async fn main() -> Result<(), AteError>
 
     // Setup a BUS that we will listen on
     debug!("opening a chain on called 'ping-pong-table' using client 1");
-    let chain_a = client_a.open_by_url(&url::Url::parse("ws://localhost:5001/ping-pong-table").unwrap()).await.unwrap();
+    let chain_a = client_a.open(&mesh_url, &ChainKey::from("ping-pong-table")).await.unwrap();
     let (mut bus, key) =
     {
         debug!("writing a record ('table') to the remote chain from client 1");
@@ -63,7 +64,7 @@ async fn main() -> Result<(), AteError>
     {
         // Write a ping... twice
         debug!("connecting to the communication bus from client 2");
-        let chain_b = client_b.open_by_url(&url::Url::parse("ws://localhost:5001/ping-pong-table").unwrap()).await.unwrap();
+        let chain_b = client_b.open(&url::Url::parse("ws://localhost:5001/").unwrap(), &ChainKey::from("ping-pong-table")).await.unwrap();
         chain_b.sync().await?;
 
         debug!("writing two records ('balls') onto the earlier saved record 'table' from client 2");

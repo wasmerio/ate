@@ -54,7 +54,7 @@ fn test_trust_tree_persistent() -> Result<(), AteError>
                 .add_root_public_key(&root_public_key)
                 .truncate(true)
                 .build();
-            let chain = builder.open(&ChainKey::from("trust")).await?;
+            let chain = builder.open_local(&ChainKey::from("trust")).await?;
 
             debug!("add the objects to the DIO");
             let mut dio = chain.dio(&session).await;
@@ -95,7 +95,7 @@ fn test_trust_tree_persistent() -> Result<(), AteError>
                     .await
                     .add_root_public_key(&root_public_key)
                     .build();
-                builder.open(&ChainKey::from("trust")).await?
+                builder.open_local(&ChainKey::from("trust")).await?
             };
 
             // Load the garage
@@ -145,7 +145,7 @@ fn test_trust_tree_memory() -> Result<(), AteError>
                 .add_root_public_key(&root_public_key)
                 .truncate(true)
                 .build();
-            let chain = builder.open(&ChainKey::from("trust")).await?;
+            let chain = builder.open_local(&ChainKey::from("trust")).await?;
 
             debug!("add the objects to the DIO");
             let mut dio = chain.dio(&session).await;

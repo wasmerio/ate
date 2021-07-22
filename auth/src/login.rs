@@ -47,8 +47,7 @@ impl AuthService
         super_session.user.add_read_key(&super_key);
 
         // Compute which chain the user should exist within
-        let user_chain_key = auth_chain_key("auth".to_string(), &request.email);
-        let chain = context.repository.open_by_key(&user_chain_key).await?;
+        let chain = context.repository.open(&self.auth_url, &ChainKey::from(request.email.clone())).await?;
 
         let user_key = PrimaryKey::from(request.email.clone());
         let user =
@@ -146,9 +145,8 @@ impl AuthService
 pub async fn login_command(username: String, password: String, code: Option<String>, auth: Url) -> Result<AteSession, LoginError>
 {
     // Open a command chain
-    let chain_url = crate::helper::command_url(auth);
     let registry = ate::mesh::Registry::new(&conf_cmd(), true).await;
-    let chain = registry.open_by_url(&chain_url).await?;
+    let chain = registry.open(&auth, &chain_key_cmd()).await?;
 
     // Generate a read-key using the password and some seed data
     // (this read-key will be mixed with entropy on the server side to decrypt the row
@@ -183,12 +181,9 @@ pub async fn load_credentials(username: String, read_key: EncryptKey, _code: Opt
     let mut session = AteSession::new(&conf_auth());
     session.user.add_read_key(&read_key);
 
-    // Compute which chain our user exists in
-    let chain_url = crate::helper::ate_url(auth, "auth", &username);
-
     // Generate a chain key that matches this username on the authentication server
     let registry = ate::mesh::Registry::new(&conf_auth(), true).await;
-    let chain = registry.open_by_url(&chain_url).await?;
+    let chain = registry.open(&auth, &ChainKey::from(username)).await?;
 
     // Load the user
     let mut dio = chain.dio(&session).await;
