@@ -41,7 +41,7 @@ impl MeshClient {
         )
     }
 
-    pub async fn open_ext<'a>(&'a self, key: &ChainKey, hello_path: String, domain: Option<String>, loader_local: Box<impl Loader>, loader_remote: Box<impl Loader>)
+    pub async fn open_ext<'a>(&'a self, key: &ChainKey, hello_path: String, loader_local: Box<impl Loader>, loader_remote: Box<impl Loader>)
         -> Result<Arc<Chain>, ChainCreationError>
     {
         debug!("client open {}", key.to_string());
@@ -70,7 +70,6 @@ impl MeshClient {
                 builder,
                 &self.cfg_mesh,
                 key,
-                domain,
                 addr,
                 hello_path,
                 loader_local,
@@ -103,12 +102,11 @@ for MeshClient
 {
     async fn open(self: Arc<Self>, url: &url::Url, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
     {
-        let domain = url.domain().map(|a| a.to_string());
         let weak = Arc::downgrade(&self);
         let loader_local  = Box::new(crate::loader::DummyLoader::default());
         let loader_remote  = Box::new(crate::loader::DummyLoader::default());
         let hello_path = url.path().to_string();
-        let ret = self.open_ext(&key, hello_path, domain, loader_local, loader_remote).await?;
+        let ret = self.open_ext(&key, hello_path, loader_local, loader_remote).await?;
         ret.inside_sync.write().repository = Some(weak);
         Ok(ret)
     }

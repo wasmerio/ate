@@ -28,7 +28,7 @@ use super::StreamRx;
 use super::StreamTx;
 use super::StreamProtocol;
 
-pub(crate) async fn connect<M, C>(conf: &MeshConfig<M>, domain: Option<String>, hello_path: String) -> Result<(NodeTx<C>, NodeRx<M, C>), CommsError>
+pub(crate) async fn connect<M, C>(conf: &MeshConfig<M>, hello_path: String) -> Result<(NodeTx<C>, NodeRx<M, C>), CommsError>
 where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
       C: Send + Sync + Default + 'static
 {
@@ -47,7 +47,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
         let upstream = mesh_connect_to::<M, C>(
             target.clone(), 
             hello_path.clone(),
-            domain.clone(),
+            conf.cfg_mesh.domain_name.clone(),
             inbox_tx.clone(), 
             conf.on_connect.clone(),
             conf.cfg_mesh.buffer_size_client,
@@ -86,7 +86,7 @@ pub(super) async fn mesh_connect_to<M, C>
 (
     addr: SocketAddr,
     hello_path: String,
-    domain: Option<String>,
+    domain: String,
     inbox: mpsc::Sender<PacketWithContext<M, C>>,
     on_connect: Option<M>,
     buffer_size: usize,
@@ -162,7 +162,7 @@ async fn mesh_connect_prepare<M, C>
 (
     addr: SocketAddr,
     hello_path: String,
-    domain: Option<String>,
+    domain: String,
     reply_rx: mpsc::Receiver<PacketData>,
     reply_tx: mpsc::Sender<PacketData>,
     terminate_tx: tokio::sync::broadcast::Sender<bool>,
@@ -208,10 +208,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
 
         // Convert the TCP stream into the right protocol
         let stream = Stream::Tcp(stream);
-        let stream = {
-            let url = wire_protocol.make_url(domain.clone())?;
-            stream.upgrade_client(wire_protocol, url).await?
-        };
+        let stream = stream.upgrade_client(wire_protocol).await?;
 
         {
             // Increase the connection count

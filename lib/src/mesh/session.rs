@@ -51,7 +51,6 @@ impl MeshSession
         builder: ChainBuilder,
         cfg_mesh: &ConfMesh,
         chain_key: &ChainKey,
-        chain_domain: Option<String>,
         addr: MeshAddress,
         hello_path: String,
         loader_local: Box<impl Loader>,
@@ -106,7 +105,6 @@ impl MeshSession
             hello_path,
             key: chain_key.clone(),
             builder,
-            chain_domain,
             chain: Arc::clone(&chain_store),
             loader_remote: StdMutex::new(Some(loader_remote)),
         };

@@ -173,22 +173,17 @@ impl Registry
     {
         let mut lock = self.chains.lock().await;
         
-        let domain = match url.domain() {
-            Some(a) => a.to_string(),
-            None => { return Err(ChainCreationError::NoValidDomain(url.to_string())); }
-        };
-
         let hello_path = url.path().to_string();
 
         match lock.get(&url) {
             Some(a) => {
-                Ok(a.open_ext(&key, hello_path, Some(domain), loader_local, loader_remote).await?)
+                Ok(a.open_ext(&key, hello_path, loader_local, loader_remote).await?)
             },
             None => {
                 let cfg_mesh = self.cfg(url).await?;
                 let mesh = create_client(&self.cfg_ate, &cfg_mesh, self.temporal).await;
                 lock.insert(url.clone(), Arc::clone(&mesh));
-                Ok(mesh.open_ext(&key, hello_path, Some(domain), loader_local, loader_remote).await?)
+                Ok(mesh.open_ext(&key, hello_path, loader_local, loader_remote).await?)
             }
         }
     }
@@ -200,22 +195,21 @@ impl Registry
             Some(a) => a,
             None => protocol.default_port(),
         };
-
-        let mut ret = ConfMesh::default();
-
-        // Set the fail fast
-        ret.fail_fast = self.fail_fast;
-
-        // Build the DNS name we will query
-        let name = match url.domain() {
+        let domain = match url.domain() {
             Some(a) => a,
             None => { return Err(ChainCreationError::NoValidDomain(url.to_string())); }
         };
+
+        let mut ret = ConfMesh::for_domain(domain.to_string());
+        ret.wire_protocol = protocol;
         
+        // Set the fail fast
+        ret.fail_fast = self.fail_fast;
+
         // Search DNS for entries for this server (Ipv6 takes prioity over Ipv4)
-        let mut addrs = self.dns_query(name).await?;
+        let mut addrs = self.dns_query(domain).await?;
         if addrs.len() <= 0 {
-            debug!("no nodes found for {}", name);
+            debug!("no nodes found for {}", domain);
         }
 
         addrs.sort();

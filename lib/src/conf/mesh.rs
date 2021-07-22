@@ -18,6 +18,9 @@ use super::*;
 #[derive(Debug, Clone)]
 pub struct ConfMesh
 {
+    /// Domain name that this mesh is running on
+    pub domain_name: String,
+
     /// List of all the addresses that the root nodes exists on
     pub roots: Vec<MeshAddress>,
     
@@ -62,10 +65,10 @@ impl ConfMesh
 {
     /// Represents a single server listening on all available addresses. All chains
     /// will be stored locally to this server and there is no replication
-    pub fn solo(listen: &IpAddr, port: u16) -> Result<ConfMesh, CommsError>
+    pub fn solo(listen: &IpAddr, domain: String, port: u16) -> Result<ConfMesh, CommsError>
     {
         let addr = MeshAddress::new(listen.clone(), port);
-        let mut cfg_mesh = ConfMesh::default();
+        let mut cfg_mesh = ConfMesh::for_domain(domain);
         cfg_mesh.force_client_only = false;
         cfg_mesh.force_listen = Some(addr.clone());
         cfg_mesh.roots.push(addr.clone());
@@ -77,17 +80,20 @@ impl ConfMesh
     {
         let protocol = StreamProtocol::parse(url)?;
         let port = url.port().unwrap_or(protocol.default_port());
-        ConfMesh::solo(listen, port)
+        let domain = match url.domain() {
+            Some(a) => a.to_string(),
+            None => {
+                return Err(CommsError::InvalidDomainName);
+            }
+        };
+        ConfMesh::solo(listen, domain, port)
     }
-}
 
-impl Default
-for ConfMesh
-{
-    fn default() -> Self
+    pub fn for_domain(domain_name: String) -> ConfMesh
     {
         ConfMesh {
             roots: Vec::new(),
+            domain_name,
             force_client_only: false,
             force_listen: None,
             wire_encryption: Some(KeySize::Bit128),

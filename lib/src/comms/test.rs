@@ -60,7 +60,7 @@ async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) 
         // Start the server
         info!("starting listen server on 127.0.0.1");
 
-        let mut cfg = ConfMesh::default();
+        let mut cfg = ConfMesh::for_domain("localhost".to_string());
         cfg.wire_protocol = wire_protocol;
         cfg.wire_format = wire_format;
         cfg.wire_encryption = Some(KeySize::Bit256);
@@ -121,14 +121,14 @@ async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) 
         // Start the client
         info!("start another client that will connect to the relay");
         
-        let mut cfg = ConfMesh::default();
+        let mut cfg = ConfMesh::for_domain("localhost".to_string());
         cfg.wire_protocol = wire_protocol;
         cfg.wire_format = wire_format;
         cfg.wire_encryption = Some(KeySize::Bit256);
         let cfg = MeshConfig::new(cfg)
             .connect_to(IpAddr::from_str("127.0.0.1")
             .unwrap(), port);
-        let (client_tx, mut client_rx) = super::connect::<TestMessage, ()>(&cfg, None, "/comm-test".to_string())
+        let (client_tx, mut client_rx) = super::connect::<TestMessage, ()>(&cfg, "/comm-test".to_string())
             .await?;
 
         // We need to test it alot

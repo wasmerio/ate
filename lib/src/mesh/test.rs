@@ -34,7 +34,7 @@ async fn test_mesh()
     let mut cfg_mesh =
     {
         // Build the configuration file for the mesh
-        let mut cfg_mesh = ConfMesh::default();
+        let mut cfg_mesh = ConfMesh::for_domain("localhost".to_string());
         cfg_mesh.wire_protocol = StreamProtocol::WebSocket;
         for n in (5100+port_offset)..(5105+port_offset) {
             cfg_mesh.roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));

@@ -24,7 +24,7 @@ async fn main() -> Result<(), AteError>
     // Create the server and listen on port 5001
     debug!("setting up a mesh server on 127.0.0.1:5001");
     let mesh_url = url::Url::parse("ws://localhost:5001/").unwrap();
-    let mut cfg_mesh = ConfMesh::solo(&IpAddr::from_str("127.0.0.1").unwrap(), 5001)?;
+    let mut cfg_mesh = ConfMesh::solo(&IpAddr::from_str("127.0.0.1").unwrap(), "localhost".to_string(), 5001)?;
     let cfg_ate = ConfAte::default();
     let _root = create_ethereal_server(&cfg_ate, &cfg_mesh).await?;
 

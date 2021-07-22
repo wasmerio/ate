@@ -150,10 +150,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
                 };
                 exp_backoff = Duration::from_millis(100);
                 info!("accept-from: {}", sock_addr.to_string());
-                
-                setup_tcp_stream(&stream).unwrap();
 
-                let stream = Stream::Tcp(stream);
                 let listener = match Weak::upgrade(&listener) {
                     Some(a) => a,
                     None => {
@@ -161,7 +158,10 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
                         break;
                     }
                 };
+                
+                setup_tcp_stream(&stream).unwrap();
 
+                let stream = Stream::Tcp(stream);
                 match Listener::<M, C>::accept_tcp_connect
                 (
                     stream,

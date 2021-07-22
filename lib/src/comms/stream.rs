@@ -1,4 +1,5 @@
 #![allow(unused_imports)]
+use log::{info, warn, debug};
 use tokio::net::TcpStream;
 use tokio::net::tcp::OwnedReadHalf;
 use tokio::net::tcp::OwnedWriteHalf;
@@ -92,13 +93,10 @@ pub enum Stream
 
 impl StreamProtocol
 {
-    pub fn make_url(&self, domain: Option<String>) -> Result<url::Url, url::ParseError>
+    pub fn make_url(&self, domain: String) -> Result<url::Url, url::ParseError>
     {
         let scheme = self.to_scheme();
-        let input = match domain {
-            Some(a) => format!("{}://{}/", scheme, a),
-            None => format!("{}://localhost/", scheme)
-        };
+        let input = format!("{}://{}/", scheme, domain);
         url::Url::parse(input.as_str())
     }
 
@@ -162,16 +160,16 @@ impl Stream
     }
 
     #[allow(unused_variables)]
-    pub async fn upgrade_client(self, protocol: StreamProtocol, url: url::Url) -> Result<Stream, CommsError> {
+    pub async fn upgrade_client(self, protocol: StreamProtocol) -> Result<Stream, CommsError> {
+        debug!("tcp-protocol-upgrade: {}", protocol);
+
         let ret = match self {
             Stream::Tcp(a) => {
                 match protocol.is_websocket() {
                     false => Stream::Tcp(a),
                     #[cfg(feature="ws")]
                     true => {
-                        let mut request = tokio_tungstenite::tungstenite::http::Request::new(());
-                        *request.uri_mut() = tokio_tungstenite::tungstenite::http::Uri::from_str(url.as_str())?;
-
+                        let request = tokio_tungstenite::tungstenite::http::Request::new(());
                         let (stream, response) = tokio_tungstenite::client_async(request, a)
                             .await?;
                         if response.status().is_client_error() {

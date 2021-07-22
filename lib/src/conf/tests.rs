@@ -16,7 +16,7 @@ pub(crate) fn mock_test_config() -> ConfAte {
 }
 
 pub(crate) fn mock_test_mesh() -> ConfMesh {
-    let mut ret = ConfMesh::default();
+    let mut ret = ConfMesh::for_domain("localhost".to_string());
     ret.roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), 4001));
     ret
 }

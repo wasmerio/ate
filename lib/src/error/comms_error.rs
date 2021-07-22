@@ -21,6 +21,7 @@ pub enum CommsError
     Disconnected,
     Refused,
     ShouldBlock,
+    InvalidDomainName,
     ListenAddressInvalid(String),
     ValidationError(Vec<ValidationError>),
     #[allow(dead_code)]
@@ -203,7 +204,10 @@ for CommsError {
             },
             CommsError::ShouldBlock => {
                 write!(f, "Operation should have blocked but it didn't")
-            }
+            },
+            CommsError::InvalidDomainName => {
+                write!(f, "The supplied domain name is not valid")
+            },
             CommsError::SendError(err) => {
                 write!(f, "Sending error while processing communication - {}", err)
             },

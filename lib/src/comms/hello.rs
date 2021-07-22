@@ -20,7 +20,7 @@ pub struct HelloMetadata
 struct SenderHello
 {
     pub path: String,
-    pub domain: Option<String>,
+    pub domain: String,
     pub key_size: Option<KeySize>,
 }
 
@@ -31,7 +31,7 @@ struct ReceiverHello
     pub wire_format: SerializationFormat,
 }
 
-pub(super) async fn mesh_hello_exchange_sender(stream_rx: &mut StreamRx, stream_tx: &mut StreamTx, hello_path: String, domain: Option<String>, key_size: Option<KeySize>) -> Result<HelloMetadata, CommsError>
+pub(super) async fn mesh_hello_exchange_sender(stream_rx: &mut StreamRx, stream_tx: &mut StreamTx, hello_path: String, domain: String, key_size: Option<KeySize>) -> Result<HelloMetadata, CommsError>
 {
     // Send over the hello message and wait for a response
     debug!("client sending hello");

@@ -48,7 +48,6 @@ pub(super) struct RecoverableSessionPipe
     pub(super) hello_path: String,
     pub(super) key: ChainKey,
     pub(super) builder: ChainBuilder,
-    pub(super) chain_domain: Option<String>,
     pub(super) chain: Arc<StdMutex<Option<Weak<Chain>>>>,
     pub(super) loader_remote: StdMutex<Option<Box<dyn Loader>>>,
 }
@@ -70,8 +69,7 @@ impl RecoverableSessionPipe
         let (node_tx, node_rx)
             = crate::comms::connect::<Message, ()>
             (
-                &node_cfg, 
-                self.chain_domain.clone(),
+                &node_cfg,
                 self.hello_path.clone(),
             ).await?;
 
