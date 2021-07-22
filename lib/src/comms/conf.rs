@@ -67,7 +67,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
 impl<M> NodeConfig<M>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone
 {
-    pub(crate) fn new(wire_protocol: StreamProtocol, wire_format: SerializationFormat) -> NodeConfig<M> {
+    pub(crate) fn new(wire_protocol: StreamProtocol, hello_path: &str, wire_format: SerializationFormat) -> NodeConfig<M> {
         NodeConfig {
             listen_on: Vec::new(),
             connect_to: Vec::new(),
@@ -78,7 +78,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
             wire_protocol,
             wire_encryption: None,
             fail_fast: false,
-            hello_path: "/".to_string(),
+            hello_path: hello_path.to_string(),
         }
     }
 

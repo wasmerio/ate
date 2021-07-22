@@ -58,7 +58,7 @@ async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) 
     {
         // Start the server
         info!("starting listen server on 127.0.0.1");
-        let cfg = NodeConfig::new(wire_protocol, wire_format)
+        let cfg = NodeConfig::new(wire_protocol, "/comms", wire_format)
             .wire_encryption(Some(KeySize::Bit256))
             .listen_on(IpAddr::from_str("127.0.0.1")
             .unwrap(), port);
@@ -115,7 +115,7 @@ async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) 
     {
         // Start the client
         info!("start another client that will connect to the relay");
-        let cfg = NodeConfig::new(wire_protocol, wire_format)
+        let cfg = NodeConfig::new(wire_protocol, "/comms", wire_format)
             .wire_encryption(Some(KeySize::Bit256))
             .connect_to(IpAddr::from_str("127.0.0.1")
             .unwrap(), port);

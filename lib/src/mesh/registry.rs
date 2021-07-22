@@ -162,17 +162,19 @@ impl Registry
         };
 
         let protocol = StreamProtocol::parse(url)?;
+        let hello_path = url.path().to_string();
+        let client_key = format!("{}/{}", domain, hello_path);
 
         let key = ChainKey::from_url(&url);
-        match lock.get(&domain) {
+        match lock.get(&client_key) {
             Some(a) => {
-                Ok(a.open_ext(&key, protocol, Some(domain), loader_local, loader_remote).await?)
+                Ok(a.open_ext(&key, protocol, hello_path, Some(domain), loader_local, loader_remote).await?)
             },
             None => {
                 let cfg_mesh = self.cfg(url).await?;
                 let mesh = create_client(&self.cfg_ate, &cfg_mesh, self.temporal).await;
-                lock.insert(domain.clone(), Arc::clone(&mesh));
-                Ok(mesh.open_ext(&key, protocol, Some(domain), loader_local, loader_remote).await?)
+                lock.insert(client_key.clone(), Arc::clone(&mesh));
+                Ok(mesh.open_ext(&key, protocol, hello_path, Some(domain), loader_local, loader_remote).await?)
             }
         }
     }

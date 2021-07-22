@@ -52,6 +52,7 @@ impl MeshSession
         chain_key: &ChainKey,
         chain_domain: Option<String>,
         addr: MeshAddress,
+        hello_path: String,
         mode: RecoveryMode,
         loader_local: Box<impl Loader>,
         loader_remote: Box<impl Loader>
@@ -101,6 +102,7 @@ impl MeshSession
             active: RwLock::new(None),
             mode,
             addr,
+            hello_path,
             key: chain_key.clone(),
             builder,
             chain_domain,

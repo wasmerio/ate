@@ -39,7 +39,7 @@ impl MeshClient {
         )
     }
 
-    pub async fn open_ext<'a>(&'a self, key: &ChainKey, protocol: StreamProtocol, domain: Option<String>, loader_local: Box<impl Loader>, loader_remote: Box<impl Loader>)
+    pub async fn open_ext<'a>(&'a self, key: &ChainKey, protocol: StreamProtocol, hello_path: String, domain: Option<String>, loader_local: Box<impl Loader>, loader_remote: Box<impl Loader>)
         -> Result<Arc<Chain>, ChainCreationError>
     {
         debug!("client open {}", key.to_string());
@@ -64,7 +64,7 @@ impl MeshClient {
             .temporal(self.temporal);
         builder.cfg.wire_protocol = protocol;
 
-        let chain = MeshSession::connect(builder, key, domain, addr, self.cfg_ate.recovery_mode, loader_local, loader_remote).await?;
+        let chain = MeshSession::connect(builder, key, domain, addr, hello_path, self.cfg_ate.recovery_mode, loader_local, loader_remote).await?;
         *record = Arc::downgrade(&chain);
 
         Ok(chain)
@@ -97,7 +97,8 @@ for MeshClient
         let loader_local  = Box::new(crate::loader::DummyLoader::default());
         let loader_remote  = Box::new(crate::loader::DummyLoader::default());
         let protocol = StreamProtocol::parse(url)?;
-        let ret = self.open_ext(&key, protocol, domain, loader_local, loader_remote).await?;
+        let hello_path = url.path().to_string();
+        let ret = self.open_ext(&key, protocol, hello_path, domain, loader_local, loader_remote).await?;
         ret.inside_sync.write().repository = Some(weak);
         Ok(ret)
     }
@@ -108,7 +109,8 @@ for MeshClient
         let weak = Arc::downgrade(&self);
         let loader_local  = Box::new(crate::loader::DummyLoader::default());
         let loader_remote  = Box::new(crate::loader::DummyLoader::default());
-        let ret = self.open_ext(key, proto, None, loader_local, loader_remote).await?;
+        let hello_path = "/".to_string();
+        let ret = self.open_ext(key, proto, hello_path, None, loader_local, loader_remote).await?;
         ret.inside_sync.write().repository = Some(weak);
         Ok(ret)
     }

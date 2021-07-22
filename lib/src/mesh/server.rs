@@ -99,7 +99,8 @@ where F: OpenFlow + 'static
     #[allow(dead_code)]
     pub(super) async fn new(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh, listen_addrs: Vec<MeshAddress>, open_flow: Box<F>) -> Result<Arc<Self>, CommsError>
     {
-        let mut node_cfg = NodeConfig::new(cfg_ate.wire_protocol, cfg_ate.wire_format)
+        let hello_path = open_flow.hello_path().to_string();
+        let mut node_cfg = NodeConfig::new(cfg_ate.wire_protocol, hello_path.as_str(), cfg_ate.wire_format)
             .wire_encryption(cfg_ate.wire_encryption)
             .timeout(cfg_ate.connect_timeout)
             .buffer_size(cfg_ate.buffer_size_server)
@@ -117,7 +118,6 @@ where F: OpenFlow + 'static
                 .listen_on(IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0)), port.clone());                
         }
 
-        let hello_path = open_flow.hello_path().to_string();
         let open_flow = Mutex::new(open_flow);
         let ret = Arc::new(
             MeshRoot
