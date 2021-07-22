@@ -12,6 +12,8 @@ use futures_util::StreamExt;
 use futures_util::SinkExt;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use std::str::FromStr;
+use tokio::time::timeout as tokio_timeout;
+use std::time::Duration;
 
 use crate::error::CommsError;
 
@@ -59,14 +61,6 @@ impl StreamProtocol
         self.to_scheme()
     }
 
-    pub fn is_websocket(&self) -> bool {
-        match self {
-            #[cfg(feature="ws")]
-            StreamProtocol::WebSocket => true,
-            _ => false
-        }
-    }
-
     pub fn default_port(&self) -> u16 {
         match self {
             StreamProtocol::Tcp => 5000,
@@ -93,12 +87,18 @@ pub enum Stream
 
 impl StreamProtocol
 {
-    pub fn make_url(&self, domain: String, path: String) -> Result<url::Url, url::ParseError>
+    pub fn make_url(&self, domain: String, port: u16, path: String) -> Result<url::Url, url::ParseError>
     {
         let scheme = self.to_scheme();
-        let input = match path.starts_with("/") {
-            true => format!("{}://{}{}", scheme, domain, path),
-            false => format!("{}://{}/{}", scheme, domain, path),
+        let input = match port {
+            a if a == self.default_port() => match path.starts_with("/") {
+                true => format!("{}://{}:{}{}", scheme, domain, port, path),
+                false => format!("{}://{}:{}/{}", scheme, domain, port, path),
+            },
+            _ => match path.starts_with("/") {
+                true => format!("{}://{}{}", scheme, domain, path),
+                false => format!("{}://{}/{}", scheme, domain, path),
+            }
         };
         url::Url::parse(input.as_str())
     }
@@ -142,37 +142,50 @@ impl Stream
         }
     }
 
-    pub async fn upgrade_server(self, protocol: StreamProtocol) -> Result<Stream, CommsError> {
-        let ret = match self {
-            Stream::Tcp(a) => {
-                match protocol.is_websocket() {
-                    false => Stream::Tcp(a),
-                    #[cfg(feature="ws")]
-                    true => Stream::WebSocket(tokio_tungstenite::accept_async(a).await?, protocol),
-                }
-            },
-            #[cfg(feature="ws")]
-            Stream::WebSocket(a, p) => {
-                match protocol.is_websocket() {
-                    false => Stream::WebSocket(a, p),
-                    true => Stream::WebSocket(a, p),
-                }
-            },
-        };
-        Ok(ret)
-    }
-
-    #[allow(unused_variables)]
-    pub async fn upgrade_client(self, protocol: StreamProtocol, domain: String, hello_path: String) -> Result<Stream, CommsError> {
+    pub async fn upgrade_server(self, protocol: StreamProtocol, timeout: Duration) -> Result<Stream, CommsError> {
         debug!("tcp-protocol-upgrade: {}", protocol);
 
         let ret = match self {
             Stream::Tcp(a) => {
-                match protocol.is_websocket() {
-                    false => Stream::Tcp(a),
+                match protocol {
+                    StreamProtocol::Tcp => {
+                        Stream::Tcp(a)
+                    },
                     #[cfg(feature="ws")]
-                    true => {
-                        let url = protocol.make_url(domain, hello_path)?;
+                    StreamProtocol::WebSocket => {
+                        let wait = tokio_tungstenite::accept_async(a);
+                        let socket = tokio_timeout(timeout, wait).await??;
+                        Stream::WebSocket(socket, protocol)
+                    },
+                }
+            },
+            #[cfg(feature="ws")]
+            Stream::WebSocket(a, p) => {
+                match protocol {
+                    StreamProtocol::Tcp => {
+                        Stream::WebSocket(a, p)
+                    },
+                    StreamProtocol::WebSocket => {
+                        Stream::WebSocket(a, p)
+                    },
+                }
+            },
+        };
+
+        Ok(ret)
+    }
+
+    #[allow(unused_variables)]
+    pub async fn upgrade_client(self, protocol: StreamProtocol) -> Result<Stream, CommsError> {
+        debug!("tcp-protocol-upgrade: {}", protocol);
+
+        let ret = match self {
+            Stream::Tcp(a) => {
+                match protocol {
+                    StreamProtocol::Tcp => Stream::Tcp(a),
+                    #[cfg(feature="ws")]
+                    StreamProtocol::WebSocket => {
+                        let url = StreamProtocol::WebSocket.make_url("localhost".to_string(), 80, "/".to_string())?;
                         let mut request = tokio_tungstenite::tungstenite::http::Request::new(());
                         *request.uri_mut() = tokio_tungstenite::tungstenite::http::Uri::from_str(url.as_str())?;
                         let (stream, response) = tokio_tungstenite::client_async(request, a)
@@ -186,9 +199,9 @@ impl Stream
             },
             #[cfg(feature="ws")]
             Stream::WebSocket(a, p) => {
-                match protocol.is_websocket() {
-                    false => Stream::WebSocket(a, p),
-                    true => Stream::WebSocket(a, p),
+                match protocol {
+                    StreamProtocol::Tcp => Stream::WebSocket(a, p),
+                    StreamProtocol::WebSocket => Stream::WebSocket(a, p),
                 }
             },
         };

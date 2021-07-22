@@ -42,6 +42,8 @@ pub struct ConfMesh
     pub wire_encryption: Option<KeySize>,
     /// Time to wait for a connection to a server before it times out
     pub connect_timeout: Duration,
+    /// Time to wait for a connection to be accepted during handshaking
+    pub accept_timeout: Duration,
     
     /// Connection attempts will abort quickly in the scenario that something is wrong rather
     /// than retrying in an exponential backoff
@@ -100,6 +102,7 @@ impl ConfMesh
             wire_protocol: StreamProtocol::Tcp,
             wire_format: SerializationFormat::Bincode,
             connect_timeout: Duration::from_secs(30),
+            accept_timeout: Duration::from_secs(10),
             fail_fast: false,
             buffer_size_client: 2,
             buffer_size_server: 10,

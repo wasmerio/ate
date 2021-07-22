@@ -41,7 +41,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone,
       C: Send + Sync + BroadcastContext + Default
 {
     path: String,
-    state: Arc<StdMutex<NodeState>>,
     inbox: mpsc::Sender<PacketWithContext<M, C>>,
     outbox: Arc<broadcast::Sender<BroadcastPacketData>>
 }
@@ -78,6 +77,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
                 conf.cfg_mesh.wire_protocol,
                 conf.cfg_mesh.wire_format,
                 conf.cfg_mesh.wire_encryption,
+                conf.cfg_mesh.accept_timeout,
             ).await;
         }
 
@@ -91,15 +91,9 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
         let (downcast_tx, _) = broadcast::channel(self.conf.cfg_mesh.buffer_size_server);
         let downcast_tx = Arc::new(downcast_tx);
 
-        // Create the node state and initialize it
-        let state = Arc::new(StdMutex::new(NodeState {
-            connected: 0,
-        }));
-
         // Add the node to the lookup
         self.routes.insert(path.to_string(), ListenerNode {
             path: path.to_string(),
-            state: Arc::clone(&state),
             inbox: inbox_tx.clone(),
             outbox: Arc::clone(&downcast_tx),
         });
@@ -109,13 +103,11 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
             NodeTx {
                 direction: TxDirection::Downcast(downcast_tx),
                 hello_path: path.to_string(),
-                state: Arc::clone(&state),
                 wire_format: self.conf.cfg_mesh.wire_format,
                 _marker: PhantomData
             },
             NodeRx {
                 rx: inbox_rx,
-                state: state,
                 _marker: PhantomData
             }
         ))
@@ -128,6 +120,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
         wire_protocol: StreamProtocol,
         wire_format: SerializationFormat,
         wire_encryption: Option<KeySize>,
+        accept_timeout: Duration,
     )
     {
         let tcp_listener = TcpListener::bind(addr.clone()).await
@@ -149,7 +142,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
                     }
                 };
                 exp_backoff = Duration::from_millis(100);
-                info!("accept-from: {}", sock_addr.to_string());
+                info!("connection-from: {}", sock_addr.to_string());
 
                 let listener = match Weak::upgrade(&listener) {
                     Some(a) => a,
@@ -171,11 +164,16 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
                     wire_protocol,
                     wire_format,
                     wire_encryption,
+                    accept_timeout,
                 ).await {
                     Ok(a) => a,
-                    Err(CommsError::IO(err)) if err.kind() == std::io::ErrorKind::UnexpectedEof => { }
+                    Err(CommsError::IO(err))
+                        if err.kind() == std::io::ErrorKind::UnexpectedEof ||
+                        err.kind() == std::io::ErrorKind::ConnectionReset ||
+                        err.to_string().to_lowercase().contains("connection reset without closing handshake")
+                        => debug!("connection-eof(accept)"),
                     Err(err) => {
-                        warn!("connection-failed: {}", err.to_string());
+                        warn!("connection-failed(accept): {}", err.to_string());
                         continue;
                     }
                 };
@@ -190,12 +188,14 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
         listener: Arc<StdMutex<Listener<M, C>>>,
         wire_protocol: StreamProtocol,
         wire_format: SerializationFormat,
-        wire_encryption: Option<KeySize>
+        wire_encryption: Option<KeySize>,
+        timeout: Duration,
     ) -> Result<(), CommsError>
     {
-        let stream = stream.upgrade_server(wire_protocol).await?;
-
-        // Split the stream
+        info!("accept-from: {}", sock_addr.to_string());
+        
+        // Upgrade and split the stream
+        let stream = stream.upgrade_server(wire_protocol, timeout).await?;
         let (mut stream_rx, mut stream_tx) = stream.split();
 
         // Say hello
@@ -224,7 +224,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
         let ek2 = ek.clone();
 
         // Now we need to check if there are any endpoints for this hello_path
-        let (inbox, outbox, state) = {
+        let (inbox, outbox) = {
             let guard = listener.lock();
             let route = match guard.routes.get(&hello_meta.path) {
                 Some(a) => a,
@@ -236,15 +236,8 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
             (
                 route.inbox.clone(),
                 Arc::clone(&route.outbox),
-                Arc::clone(&route.state),
             )
         };
-
-        {
-            // Increase the connection count
-            let mut guard = state.lock();
-            guard.connected = guard.connected + 1;
-        }
         
         let context = Arc::new(C::default());
         let sender = fastrand::u64(..);
@@ -255,7 +248,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
         let reply_tx2 = reply_tx.clone();
 
         let worker_context = Arc::clone(&context);
-        let worker_state = Arc::clone(&state);
         let worker_inbox = inbox.clone();
         let worker_terminate_tx = terminate_tx.clone();
         let worker_terminate_rx = terminate_tx.subscribe();
@@ -272,15 +264,15 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
                 worker_terminate_rx
             ).await {
                 Ok(_) => {},
-                Err(CommsError::IO(err)) if err.kind() == std::io::ErrorKind::UnexpectedEof => { }
-                Err(err) => warn!("connection-failed (inbox): {}", err.to_string())
+                Err(CommsError::IO(err))
+                    if err.kind() == std::io::ErrorKind::UnexpectedEof ||
+                       err.kind() == std::io::ErrorKind::ConnectionReset ||
+                       err.to_string().to_lowercase().contains("connection reset without closing handshake")
+                     => debug!("connection-eof(inbox)"),
+                Err(err) => warn!("connection-failed (inbox): {:?}", err)
             };
             info!("disconnected: {}", sock_addr.to_string());
             let _ = worker_terminate_tx.send(true);
-
-            // Decrease the connection state
-            let mut guard = worker_state.lock();
-            guard.connected = guard.connected - 1;
         });
 
         let worker_terminate_tx = terminate_tx.clone();
@@ -295,7 +287,11 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
                 worker_terminate_rx
             ).await {
                 Ok(_) => {},
-                Err(CommsError::IO(err)) if err.kind() == std::io::ErrorKind::UnexpectedEof => { }
+                Err(CommsError::IO(err))
+                    if err.kind() == std::io::ErrorKind::UnexpectedEof ||
+                       err.kind() == std::io::ErrorKind::ConnectionReset ||
+                       err.to_string().to_lowercase().contains("connection reset without closing handshake")
+                     => debug!("connection-eof(outbox)"),
                 Err(err) => warn!("connection-failed (outbox): {}", err.to_string())
             };
             let _ = worker_terminate_tx.send(true);
@@ -315,7 +311,9 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
                 worker_terminate_rx
             ).await {
                 Ok(_) => {},
-                Err(CommsError::IO(err)) if err.kind() == std::io::ErrorKind::UnexpectedEof => { }
+                Err(CommsError::IO(err))
+                    if err.kind() == std::io::ErrorKind::UnexpectedEof
+                     => debug!("connection-eof(downcast)"),
                 Err(err) => warn!("connection-failed (downcast): {}", err.to_string())
             };
             let _ = worker_terminate_tx.send(true);

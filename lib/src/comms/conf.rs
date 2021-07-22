@@ -25,12 +25,6 @@ for Upstream
     }
 }
 
-#[derive(Debug)]
-pub(crate) struct NodeState
-{
-    pub connected: i32,
-}
-
 #[derive(Debug, Clone)]
 pub(crate) struct NodeTarget
 {

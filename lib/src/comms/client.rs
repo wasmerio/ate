@@ -7,7 +7,6 @@ use tokio::sync::mpsc;
 use std::{marker::PhantomData};
 use tokio::time::Duration;
 use std::sync::Arc;
-use parking_lot::Mutex as StdMutex;
 use serde::{Serialize, de::DeserializeOwned};
 use std::net::SocketAddr;
 
@@ -35,11 +34,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
     // Setup the communication pipes for the server
     let (inbox_tx, inbox_rx) = mpsc::channel(conf.cfg_mesh.buffer_size_client);
     
-    // Create the node state and initialize it
-    let state = Arc::new(StdMutex::new(NodeState {
-        connected: 0,
-    }));
-    
     // Create all the outbound connections
     let mut upcast = FxHashMap::default();
     for target in conf.connect_to.iter()
@@ -51,7 +45,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
             inbox_tx.clone(), 
             conf.on_connect.clone(),
             conf.cfg_mesh.buffer_size_client,
-            Arc::clone(&state),
             conf.cfg_mesh.wire_protocol,
             conf.cfg_mesh.wire_encryption,
             conf.cfg_mesh.connect_timeout,
@@ -70,13 +63,11 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
                 _ => TxDirection::UpcastMany(upcast)
             },
             hello_path: hello_path.clone(),
-            state: Arc::clone(&state),
             wire_format: conf.cfg_mesh.wire_format,
             _marker: PhantomData
         },
         NodeRx {
             rx: inbox_rx,
-            state: state,
             _marker: PhantomData
         }
     ))
@@ -90,7 +81,6 @@ pub(super) async fn mesh_connect_to<M, C>
     inbox: mpsc::Sender<PacketWithContext<M, C>>,
     on_connect: Option<M>,
     buffer_size: usize,
-    state: Arc<StdMutex<NodeState>>,
     wire_protocol: StreamProtocol,
     wire_encryption: Option<KeySize>,
     timeout: Duration,
@@ -120,7 +110,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         inbox,
         sender,
         on_connect,
-        state,
         wire_protocol,
         wire_encryption,
         fail_fast,
@@ -151,7 +140,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
     inbox: mpsc::Sender<PacketWithContext<M, C>>,
     sender: u64,
     on_connect: Option<M>,
-    state: Arc<StdMutex<NodeState>>,
     stream_rx: StreamRx,
     stream_tx: StreamTx,
     wire_encryption: Option<KeySize>,
@@ -169,7 +157,6 @@ async fn mesh_connect_prepare<M, C>
     inbox: mpsc::Sender<PacketWithContext<M, C>>,
     sender: u64,
     on_connect: Option<M>,
-    state: Arc<StdMutex<NodeState>>,
     wire_protocol: StreamProtocol,
     wire_encryption: Option<KeySize>,
     fail_fast: bool,
@@ -180,8 +167,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
 {
     let mut exp_backoff = Duration::from_millis(100);
     loop {
-        let worker_state = Arc::clone(&state);
-        
         let stream = match TcpStream::connect(addr.clone()).await {
             Err(err) if match err.kind() {
                 std::io::ErrorKind::ConnectionRefused => {
@@ -208,13 +193,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
 
         // Convert the TCP stream into the right protocol
         let stream = Stream::Tcp(stream);
-        let stream = stream.upgrade_client(wire_protocol, domain.clone(), hello_path.clone()).await?;
-
-        {
-            // Increase the connection count
-            let mut guard = worker_state.lock();
-            guard.connected = guard.connected + 1;
-        }
+        let stream = stream.upgrade_client(wire_protocol).await?;
 
         // Say hello
         let (mut stream_rx, mut stream_tx) = stream.split();
@@ -231,7 +210,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
             inbox,
             sender,
             on_connect,
-            state,
             stream_rx,
             stream_tx,
             wire_encryption,
@@ -255,7 +233,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
     let inbox = connect.inbox;
     let sender = connect.sender;
     let on_connect = connect.on_connect;
-    let state = connect.state;
     let mut stream_rx = connect.stream_rx;
     let mut stream_tx = connect.stream_tx;
     let wire_encryption = connect.wire_encryption;
@@ -312,10 +289,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         //#[cfg(feature = "verbose")]
         debug!("disconnected-inbox: {}", addr.to_string());
         let _ = worker_terminate_tx.send(true);
-
-        // Decrease the connection count
-        let mut guard = state.lock();
-        guard.connected = guard.connected - 1;
     });
 
     // We have connected the plumbing... now its time to send any notifications back to ourselves

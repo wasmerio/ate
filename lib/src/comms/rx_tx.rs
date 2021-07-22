@@ -6,14 +6,12 @@ use tokio::sync::mpsc;
 use std::{marker::PhantomData};
 use tokio::sync::broadcast;
 use std::sync::Arc;
-use parking_lot::Mutex as StdMutex;
 use serde::{Serialize, de::DeserializeOwned};
 
 use crate::error::*;
 use crate::prelude::SerializationFormat;
 
 use super::conf::Upstream;
-use super::conf::NodeState;
 use super::Packet;
 use super::PacketData;
 use super::BroadcastPacketData;
@@ -34,7 +32,6 @@ where C: Send + Sync
     pub hello_path: String,
     pub direction: TxDirection,
     pub wire_format: SerializationFormat,
-    pub state: Arc<StdMutex<NodeState>>,
     pub _marker: PhantomData<C>,
 }
 
@@ -44,7 +41,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone,
       C: Send + Sync
 {
     pub rx: mpsc::Receiver<PacketWithContext<M, C>>,
-    pub state: Arc<StdMutex<NodeState>>,
     pub _marker: PhantomData<C>,
 }
 
@@ -93,11 +89,6 @@ where C: Send + Sync + Default + 'static
             group: broadcast_group,
             data: Packet::from(msg).to_packet_data(self.wire_format)?
         }).await
-    }
-
-    pub(crate) fn connected(&self) -> i32 {
-        let state = self.state.lock();
-        state.connected
     }
 
     pub(crate) async fn on_disconnect(&self) -> Result<(), CommsError> {
