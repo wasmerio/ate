@@ -67,7 +67,7 @@ blake3 = "0.3.*"
 bincode = "1.3.*"
 num_enum = "0.5.*"
 async-executor = "1.4.*"
-url = "2.2.*"
+url = { version = "2.2.*", features = ["serde"] }
 trust-dns-proto = { version = "0.20.*" }
 trust-dns-client = { version = "0.20.*", features = ["dnssec"] }
 backtrace = { version = "0.3.*", optional = true }

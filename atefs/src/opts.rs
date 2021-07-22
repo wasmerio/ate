@@ -87,6 +87,7 @@ pub struct OptsMount {
     #[clap(short, long, default_value = "ws://tokera.com/db")]
     pub remote: Url,
     /// (Optional) Location of the local persistent redo log (e.g. ~/ate/fs")
+    /// If this parameter is not specified then chain-of-trust will cache in memory rather than disk
     #[clap(long)]
     pub log_path: Option<String>,
     /// Determines how the file-system will react while it is nominal and when it is

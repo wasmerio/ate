@@ -30,6 +30,7 @@ pub use crate::flow::all_persistent_and_distributed_with_root_key;
 
 pub use crate::chain::Chain;
 pub use crate::trust::ChainKey;
+pub use crate::trust::ChainRef;
 pub use crate::conf::ChainBuilder;
 
 pub use crate::dio::DaoForeign;

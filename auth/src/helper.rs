@@ -9,9 +9,9 @@ use ::ate::error::*;
 
 use crate::model::*;
 
-pub fn chain_key_4hex(val: &String, prefix: Option<&str>) -> ChainKey
+pub fn chain_key_4hex(val: &str, prefix: Option<&str>) -> ChainKey
 {
-    let hash = AteHash::from(val.clone());
+    let hash = AteHash::from(val.to_string());
     let hex = hash.to_hex_string().to_lowercase();
     match prefix {
         Some(prefix) => ChainKey::new(format!("{}-{}", prefix, &hex[..4])),
@@ -19,9 +19,9 @@ pub fn chain_key_4hex(val: &String, prefix: Option<&str>) -> ChainKey
     }
 }
 
-pub fn chain_key_16hex(val: &String, prefix: Option<&str>) -> ChainKey
+pub fn chain_key_16hex(val: &str, prefix: Option<&str>) -> ChainKey
 {
-    let hash = AteHash::from(val.clone());
+    let hash = AteHash::from(val.to_string());
     let hex = hash.to_hex_string().to_lowercase();
     match prefix {
         Some(prefix) => ChainKey::new(format!("{}-{}", prefix, &hex[..16])),
@@ -32,7 +32,7 @@ pub fn chain_key_16hex(val: &String, prefix: Option<&str>) -> ChainKey
 pub fn chain_key_cmd() -> ChainKey
 {
     let hex = PrimaryKey::generate().as_fixed_hex_string();
-    ChainKey::from(hex)
+    chain_key_16hex(hex.as_str(), Some("cmd"))
 }
 
 pub fn password_to_read_key(seed: &String, password: &String, repeat: i32, key_size: KeySize) -> EncryptKey
