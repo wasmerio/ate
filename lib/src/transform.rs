@@ -161,7 +161,7 @@ fn test_crypto()
     let key = b"\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0A\x0B\x0C\x0D\x0E\x0F";
     let cipher = crate::crypto::EncryptKey::Aes128(key.clone());
     let iv = b"\x00\x01\x02\x03\x04\x05\x06\x07\x00\x01\x02\x03\x04\x05\x06\x07";
-    let data = cipher.decrypt(&InitializationVector::from(iv), data);
+    let data = cipher.decrypt(&InitializationVector::from(iv), &ciphertext[..]);
     
     assert_eq!(
         b"Some Crypto Text",

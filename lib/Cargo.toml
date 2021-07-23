@@ -25,7 +25,7 @@ caching = []
 aes_openssl = [ "openssl" ]
 aes_rust = [ "aes", "ctr" ]
 ws = [ "tokio-tungstenite", "http" ]
-all = [ "basics", "buffered", "local_fs", "rotate", "caching", "ws", "aes_openssl" ]
+all = [ "basics", "buffered", "local_fs", "rotate", "caching", "ws", "aes_rust" ]
 
 #- memdb works nicely fixes the corruption issue but does not scale with huge log files
 #- it would seem the conversation logic is working however the server side is dropping
@@ -79,7 +79,6 @@ pqcrypto-traits = "0.3.*"
 tokio = { version = "0.3", features = [ "rt", "sync" ], default-features = false }
 ws_stream_wasm = { version = "0.7" }
 #ws_stream_wasm = { version = "0.7", features= [ "tokio_io" ] }
-#tokio = { version = "1.3.*", features= [ "rt", "sync" ] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { version = "1.9.*", features = ["full", "signal", "process"] }
