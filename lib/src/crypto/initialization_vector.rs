@@ -24,10 +24,34 @@ impl InitializationVector {
         rng.fill_bytes(&mut iv.bytes);
         iv
     }
+}
 
-    pub fn from_bytes(bytes: Vec<u8>) -> InitializationVector {
+impl From<Vec<u8>>
+for InitializationVector
+{
+    fn from(bytes: Vec<u8>) -> InitializationVector {
         InitializationVector {
             bytes,
+        }
+    }
+}
+
+impl From<&[u8]>
+for InitializationVector
+{
+    fn from(bytes: &[u8]) -> InitializationVector {
+        InitializationVector {
+            bytes: bytes.to_vec(),
+        }
+    }
+}
+
+impl From<&[u8; 16]>
+for InitializationVector
+{
+    fn from(bytes: &[u8; 16]) -> InitializationVector {
+        InitializationVector {
+            bytes: bytes.to_vec(),
         }
     }
 }

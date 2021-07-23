@@ -5,9 +5,20 @@ use rand::{RngCore, SeedableRng};
 use rand_chacha::{ChaCha20Rng};
 use std::{io::ErrorKind};
 use std::result::Result;
-use openssl::symm::{Cipher};
 use sha3::Digest;
 use std::convert::TryInto;
+
+#[cfg(feature = "aes_openssl")]
+use openssl::symm::{Cipher};
+
+#[cfg(not(feature = "aes_openssl"))]
+use ctr::cipher::*;
+#[cfg(not(feature = "aes_openssl"))]
+type Aes128Ctr = ctr::Ctr128BE<aes::Aes128>;
+#[cfg(not(feature = "aes_openssl"))]
+type Aes192Ctr = ctr::Ctr128BE<aes::Aes192>;
+#[cfg(not(feature = "aes_openssl"))]
+type Aes256Ctr = ctr::Ctr128BE<aes::Aes256>;
 
 use super::*;
 
@@ -101,6 +112,7 @@ impl EncryptKey {
         }
     }
 
+    #[cfg(feature = "aes_openssl")]
     pub fn cipher(&self) -> Cipher {
         match self.size() {
             KeySize::Bit128 => Cipher::aes_128_ctr(),
@@ -109,7 +121,8 @@ impl EncryptKey {
         }
     }
 
-    pub fn encrypt_with_iv(&self, iv: &InitializationVector, data: &[u8]) -> Result<Vec<u8>, openssl::error::ErrorStack> {
+    #[cfg(feature = "aes_openssl")]
+    pub fn encrypt_with_iv(&self, iv: &InitializationVector, data: &[u8]) -> Vec<u8> {
         let iv_store;
         let iv = match iv.bytes.len() {
             16 => iv,
@@ -121,22 +134,54 @@ impl EncryptKey {
             }
         };
         Ok(
-            openssl::symm::encrypt(self.cipher(), self.value(), Some(&iv.bytes[..]), data)?
+            openssl::symm::encrypt(self.cipher(), self.value(), Some(&iv.bytes[..]), data).unwrap()
         )
     }
 
-    pub fn encrypt(&self, data: &[u8]) -> Result<EncryptResult, std::io::Error> {
-        let iv = InitializationVector::generate();
-        let data = self.encrypt_with_iv(&iv, data)?;
-        Ok(
-            EncryptResult {
-                iv: iv,
-                data: data,
+    #[cfg(not(feature = "aes_openssl"))]
+    pub fn encrypt_with_iv(&self, iv: &InitializationVector, data: &[u8]) -> Vec<u8> {
+        let iv_store;
+        let iv = match iv.bytes.len() {
+            16 => iv,
+            _ => {
+                iv_store = InitializationVector {
+                    bytes: iv.bytes.clone().into_iter().take(16).collect::<Vec<_>>()
+                };
+                &iv_store
             }
-        )
+        };
+
+        let mut data = data.to_vec();
+
+        match self.size() {
+            KeySize::Bit128 => {
+                let mut cipher = Aes128Ctr::new(self.value().into(), (&iv.bytes[..]).into());
+                cipher.apply_keystream(data.as_mut_slice());
+            },
+            KeySize::Bit192 => {
+                let mut cipher = Aes192Ctr::new(self.value().into(), (&iv.bytes[..]).into());
+                cipher.apply_keystream(data.as_mut_slice());
+            },
+            KeySize::Bit256 => {
+                let mut cipher = Aes256Ctr::new(self.value().into(), (&iv.bytes[..]).into());
+                cipher.apply_keystream(data.as_mut_slice());
+            },
+        }
+        
+        data
+    }
+
+    pub fn encrypt(&self, data: &[u8]) -> EncryptResult {
+        let iv = InitializationVector::generate();
+        let data = self.encrypt_with_iv(&iv, data);
+        EncryptResult {
+            iv: iv,
+            data: data,
+        }
     }
     
-    pub fn decrypt(&self, iv: &InitializationVector, data: &[u8]) -> Result<Vec<u8>, std::io::Error> {
+    #[cfg(feature = "aes_openssl")]
+    pub fn decrypt(&self, iv: &InitializationVector, data: &[u8]) -> Vec<u8> {
         let iv_store;
         let iv = match iv.bytes.len() {
             16 => iv,
@@ -148,8 +193,41 @@ impl EncryptKey {
             }
         };
         Ok(
-            openssl::symm::decrypt(self.cipher(), self.value(), Some(&iv.bytes[..]), data)?
+            openssl::symm::decrypt(self.cipher(), self.value(), Some(&iv.bytes[..]), data).unwrap()
         )
+    }
+
+    #[cfg(not(feature = "aes_openssl"))]
+    pub fn decrypt(&self, iv: &InitializationVector, data: &[u8]) -> Vec<u8> {
+        let iv_store;
+        let iv = match iv.bytes.len() {
+            16 => iv,
+            _ => {
+                iv_store = InitializationVector {
+                    bytes: iv.bytes.clone().into_iter().take(16).collect::<Vec<_>>()
+                };
+                &iv_store
+            }
+        };
+        
+        let mut data = data.to_vec();
+
+        match self.size() {
+            KeySize::Bit128 => {
+                let mut cipher = Aes128Ctr::new(self.value().into(), (&iv.bytes[..]).into());
+                cipher.apply_keystream(data.as_mut_slice());
+            },
+            KeySize::Bit192 => {
+                let mut cipher = Aes192Ctr::new(self.value().into(), (&iv.bytes[..]).into());
+                cipher.apply_keystream(data.as_mut_slice());
+            },
+            KeySize::Bit256 => {
+                let mut cipher = Aes256Ctr::new(self.value().into(), (&iv.bytes[..]).into());
+                cipher.apply_keystream(data.as_mut_slice());
+            },
+        }
+        
+        data
     }
 
     #[allow(dead_code)]

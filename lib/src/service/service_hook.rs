@@ -135,7 +135,7 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
 
         // If the session has an encryption key then use it
         if let Some(key) = self.session.read_keys().into_iter().map(|a| a.clone()).next() {
-            res.auth_mut().read = ReadOption::from_key(&key)?;
+            res.auth_mut().read = ReadOption::from_key(&key);
         }
 
         // Add the metadata

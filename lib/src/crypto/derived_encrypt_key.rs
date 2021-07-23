@@ -16,27 +16,23 @@ pub struct DerivedEncryptKey
 
 impl DerivedEncryptKey
 {
-    pub fn new(key: &EncryptKey) -> Result<DerivedEncryptKey, std::io::Error> {
+    pub fn new(key: &EncryptKey) -> DerivedEncryptKey {
         let inner = EncryptKey::generate(key.size());
-        Ok(
-            DerivedEncryptKey {
-                inner: key.encrypt(inner.value())?
-            }
-        )
+        DerivedEncryptKey {
+            inner: key.encrypt(inner.value())
+        }
     }
 
-    pub fn reverse(key: &EncryptKey, inner: &EncryptKey) -> Result<DerivedEncryptKey, std::io::Error> {
-        Ok(
-            DerivedEncryptKey {
-                inner: key.encrypt(inner.value())?
-            }
-        )
+    pub fn reverse(key: &EncryptKey, inner: &EncryptKey) -> DerivedEncryptKey {
+        DerivedEncryptKey {
+            inner: key.encrypt(inner.value())
+        }
     }
 
     pub fn transmute(&self, key: &EncryptKey) -> Result<EncryptKey, std::io::Error>
     {
         // Decrypt the derived key
-        let bytes = key.decrypt(&self.inner.iv, &self.inner.data[..])?;
+        let bytes = key.decrypt(&self.inner.iv, &self.inner.data[..]);
         Ok(EncryptKey::from_bytes(&bytes[..])?)
     }
 
@@ -51,7 +47,7 @@ impl DerivedEncryptKey
     {
         // First derive the key, then replace the inner with a newly encrypted value
         let inner = self.transmute(old)?;
-        self.inner = new.encrypt(inner.value())?;
+        self.inner = new.encrypt(inner.value());
         Ok(())
     }
 
@@ -59,7 +55,7 @@ impl DerivedEncryptKey
     {
         // First derive the key, then replace the inner with a newly encrypted value
         let inner = self.transmute_private(old)?;
-        self.inner = new.encrypt(inner.value())?;
+        self.inner = new.encrypt(inner.value());
         Ok(())
     }
 }

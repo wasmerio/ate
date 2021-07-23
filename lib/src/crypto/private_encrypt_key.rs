@@ -141,7 +141,7 @@ impl PrivateEncryptKey
                 return Err(std::io::Error::new(std::io::ErrorKind::Other, "The encryption key could not be decapsulated from the initialization vector."));
             }
         };
-        ek.decrypt(iv, data)
+        Ok(ek.decrypt(iv, data))
     }
 
     pub fn size(&self) -> KeySize {
@@ -218,33 +218,31 @@ impl PublicEncryptKey
             PublicEncryptKey::Ntru128 { pk } => {
                 let pk = ntru128::PublicKey::from_bytes(&pk[..]).unwrap();
                 let (ss, ct) = ntru128::encapsulate(&pk);
-                let iv = InitializationVector::from_bytes(Vec::from(ct.as_bytes()));
+                let iv = InitializationVector::from(ct.as_bytes());
                 (iv, EncryptKey::from_seed_bytes(ss.as_bytes(), KeySize::Bit128))
             },
             PublicEncryptKey::Ntru192 { pk } => {
                 let pk = ntru192::PublicKey::from_bytes(&pk[..]).unwrap();
                 let (ss, ct) = ntru192::encapsulate(&pk);
-                let iv = InitializationVector::from_bytes(Vec::from(ct.as_bytes()));
+                let iv = InitializationVector::from(ct.as_bytes());
                 (iv, EncryptKey::from_seed_bytes(ss.as_bytes(), KeySize::Bit192))
             },
             PublicEncryptKey::Ntru256 { pk } => {
                 let pk = ntru256::PublicKey::from_bytes(&pk[..]).unwrap();
                 let (ss, ct) = ntru256::encapsulate(&pk);
-                let iv = InitializationVector::from_bytes(Vec::from(ct.as_bytes()));
+                let iv = InitializationVector::from(ct.as_bytes());
                 (iv, EncryptKey::from_seed_bytes(ss.as_bytes(), KeySize::Bit256))
             },
         }
     }
 
-    pub fn encrypt(&self, data: &[u8]) -> Result<EncryptResult, std::io::Error> {
+    pub fn encrypt(&self, data: &[u8]) -> EncryptResult {
         let (iv, ek) = self.encapsulate();
-        let data = ek.encrypt_with_iv(&iv, data)?;
-        Ok(
-            EncryptResult {
-                iv,
-                data,
-            }
-        )
+        let data = ek.encrypt_with_iv(&iv, data);
+        EncryptResult {
+            iv,
+            data,
+        }
     }
 
     pub fn size(&self) -> KeySize {

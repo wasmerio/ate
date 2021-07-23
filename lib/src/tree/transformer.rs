@@ -37,7 +37,7 @@ for TreeAuthorityPlugin
         };
 
         if let Some((iv, key)) = self.generate_encrypt_key(auth, session)? {
-            let encrypted = key.encrypt_with_iv(&iv, &with[..])?;
+            let encrypted = key.encrypt_with_iv(&iv, &with[..]);
             meta.core.push(CoreMetadata::InitializationVector(iv));
             with = Bytes::from(encrypted);
         }
@@ -58,7 +58,7 @@ for TreeAuthorityPlugin
                         Some(a) => a,
                         None => { return Err(TransformError::CryptoError(CryptoError::NoIvPresent)); }
                     };
-                    let decrypted = key.decrypt(&iv, &with[..])?;
+                    let decrypted = key.decrypt(&iv, &with[..]);
                     with = Bytes::from(decrypted);
                 }
             },

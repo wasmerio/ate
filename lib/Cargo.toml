@@ -22,8 +22,10 @@ buffered = []
 local_fs = []
 rotate = []
 caching = []
+aes_openssl = [ "openssl" ]
+aes_rust = [ "aes", "ctr" ]
 ws = [ "tokio-tungstenite", "http" ]
-all = [ "basics", "buffered", "local_fs", "rotate", "caching", "ws" ]
+all = [ "basics", "buffered", "local_fs", "rotate", "caching", "ws", "aes_rust" ]
 
 #- memdb works nicely fixes the corruption issue but does not scale with huge log files
 #- it would seem the conversation logic is working however the server side is dropping
@@ -66,6 +68,9 @@ base64 = "0.13.*"
 http = { version = "0.2.*", optional = true }
 num_enum = "0.5.*"
 backtrace = { version = "0.3.*", optional = true }
+aes = { version = "0.7.4", optional = true }
+ctr = { version = "0.8.0", optional = true }
+openssl = { version = "0.10.*", features = ["vendored"], optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 tokio = { version = "0.3", features = [ "rt", "sync" ], default-features = false }
@@ -75,10 +80,9 @@ ws_stream_wasm = { version = "0.7" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 pqcrypto-falcon = "0.2.*"
-pqcrypto-ntru = "0.5.*"
+pqcrypto-ntru = "0.4.*"
 pqcrypto-traits = "0.3.*"
 tokio = { version = "1.9.*", features = ["full", "signal", "process"] }
-openssl = { version = "0.10.*", features = ["vendored"] }
 pnet = "0.27.*"
 trust-dns-proto = { version = "0.20.*" }
 trust-dns-client = { version = "0.20.*", features = ["dnssec"] }

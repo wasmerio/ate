@@ -45,7 +45,7 @@ impl Chain
         
         // Add an encryption key on the command (if the session has one)
         if let Some(key) = session.read_keys().into_iter().next() {
-            cmd.auth_mut().read = ReadOption::from_key(key)?;
+            cmd.auth_mut().read = ReadOption::from_key(key);
         }
 
         // Add the extra metadata about the type so the other side can find it

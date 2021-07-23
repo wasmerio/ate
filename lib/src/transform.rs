@@ -6,6 +6,7 @@ use super::transaction::TransactionMetadata;
 use snap::read::FrameDecoder;
 use snap::read::FrameEncoder;
 use bytes::{Bytes, Buf};
+#[cfg(feature = "aes_openssl")]
 #[allow(unused_imports)]
 use openssl::symm::{encrypt, decrypt, Cipher};
 
@@ -83,7 +84,7 @@ for StaticEncryptionTransformer
     fn data_as_underlay(&self, meta: &mut Metadata, with: Bytes, _session: &AteSession, _trans_meta: &TransactionMetadata) -> Result<Bytes, TransformError>
     {
         let iv = meta.generate_iv();
-        let encrypted = self.key.encrypt_with_iv(&iv, &with[..])?;
+        let encrypted = self.key.encrypt_with_iv(&iv, &with[..]);
         Ok(Bytes::from(encrypted))
     }
 
@@ -91,7 +92,7 @@ for StaticEncryptionTransformer
     fn data_as_overlay(&self, meta: &Metadata, with: Bytes, _session: &AteSession) -> Result<Bytes, TransformError>
     {
         let iv = meta.get_iv()?;
-        let decrypted = self.key.decrypt(&iv, &with[..])?;
+        let decrypted = self.key.decrypt(&iv, &with[..]);
         Ok(Bytes::from(decrypted))
     }
 }
@@ -150,32 +151,24 @@ fn test_crypto()
 {
     crate::utils::bootstrap_env();
     
-    let cipher = Cipher::aes_128_cbc();
-    let data = b"Some Crypto Text";
     let key = b"\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0A\x0B\x0C\x0D\x0E\x0F";
+    let cipher = crate::crypto::EncryptKey::Aes128(key.clone());
+    let data = b"Some Crypto Text";
     let iv = b"\x00\x01\x02\x03\x04\x05\x06\x07\x00\x01\x02\x03\x04\x05\x06\x07";
-    let ciphertext = encrypt(
-        cipher,
-        key,
-        Some(iv),
-        data).unwrap();
+    let ciphertext = cipher.encrypt_with_iv(&InitializationVector::from(iv), data);
 
     assert_eq!(
         b"\xB4\xB9\xE7\x30\xD6\xD6\xF7\xDE\x77\x3F\x1C\xFF\xB3\x3E\x44\x5A\x91\xD7\x27\x62\x87\x4D\
         \xFB\x3C\x5E\xC4\x59\x72\x4A\xF4\x7C\xA1",
         &ciphertext[..]);
 
-    let cipher = Cipher::aes_128_cbc();
+    let key = b"\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0A\x0B\x0C\x0D\x0E\x0F";
+    let cipher = crate::crypto::EncryptKey::Aes128(key.clone());
     let data = b"\xB4\xB9\xE7\x30\xD6\xD6\xF7\xDE\x77\x3F\x1C\xFF\xB3\x3E\x44\x5A\x91\xD7\x27\x62\
                 \x87\x4D\xFB\x3C\x5E\xC4\x59\x72\x4A\xF4\x7C\xA1";
-    let key = b"\x00\x01\x02\x03\x04\x05\x06\x07\x08\x09\x0A\x0B\x0C\x0D\x0E\x0F";
     let iv = b"\x00\x01\x02\x03\x04\x05\x06\x07\x00\x01\x02\x03\x04\x05\x06\x07";
-    let ciphertext = decrypt(
-        cipher,
-        key,
-        Some(iv),
-        data).unwrap();
-
+    let ciphertext = cipher.decrypt(&InitializationVector::from(iv), data);
+    
     assert_eq!(
         b"Some Crypto Text",
         &ciphertext[..]);
