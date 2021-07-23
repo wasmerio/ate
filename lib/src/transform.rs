@@ -6,6 +6,7 @@ use super::transaction::TransactionMetadata;
 use snap::read::FrameDecoder;
 use snap::read::FrameEncoder;
 use bytes::{Bytes, Buf};
+#[cfg(not(target_arch = "wasm32"))]
 #[allow(unused_imports)]
 use openssl::symm::{encrypt, decrypt, Cipher};
 

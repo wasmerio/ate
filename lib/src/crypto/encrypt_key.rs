@@ -5,9 +5,12 @@ use rand::{RngCore, SeedableRng};
 use rand_chacha::{ChaCha20Rng};
 use std::{io::ErrorKind};
 use std::result::Result;
-use openssl::symm::{Cipher};
 use sha3::Digest;
 use std::convert::TryInto;
+
+type Aes128Ctr = ctr::Ctr32BE<aes::Aes128>;
+type Aes192Ctr = ctr::Ctr32BE<aes::Aes128>;
+type Aes256Ctr = ctr::Ctr32BE<aes::Aes192>;
 
 use super::*;
 
@@ -24,40 +27,6 @@ pub enum EncryptKey {
 impl EncryptKey {
     pub fn generate(size: KeySize) -> EncryptKey {
         RandomGeneratorAccessor::generate_encrypt_key(size)
-    }
-
-    #[deprecated(
-        since = "0.2.1",
-        note = "Please use 'from_seed_string' instead as this function only uses the first 30 bytes while the later uses all of the string as its entropy."
-    )]
-    #[allow(dead_code)]
-    pub fn from_string(str: String, size: KeySize) -> EncryptKey {
-        let mut n = 0;
-        let mut seed = [0 as u8; 32];
-        for b in str.as_bytes() {
-            seed[n] = *b;
-            n = n + 1;
-            if n >= 30 { break; }
-        }
-
-        let mut rng = ChaCha20Rng::from_seed(seed);
-        match size {
-            KeySize::Bit128 => {
-                let mut aes_key = [0; 16];
-                rng.fill_bytes(&mut aes_key);
-                EncryptKey::Aes128(aes_key)
-            },
-            KeySize::Bit192 => {
-                let mut aes_key = [0; 24];
-                rng.fill_bytes(&mut aes_key);
-                EncryptKey::Aes192(aes_key)
-            },
-            KeySize::Bit256 => {
-                let mut aes_key = [0; 32];
-                rng.fill_bytes(&mut aes_key);
-                EncryptKey::Aes256(aes_key)
-            }
-        }
     }
 
     pub fn resize(&self, size: KeySize) -> EncryptKey
@@ -121,6 +90,9 @@ impl EncryptKey {
             }
         };
         Ok(
+            match self.size() {
+                KeySize::Bit128 => Aes128Ctr::::encrypt_block(&self, block),
+            }
             openssl::symm::encrypt(self.cipher(), self.value(), Some(&iv.bytes[..]), data)?
         )
     }
