@@ -29,7 +29,7 @@ where T: serde::Serialize + serde::de::DeserializeOwned
             Ok(a) => a,
             Err(err) => { return Err(std::io::Error::new(ErrorKind::Other, err.to_string())); }
         };
-        let result = encrypt_key.encrypt(&data[..])?;
+        let result = encrypt_key.encrypt(&data[..]);
         
         Ok(
             EncryptedSecureData {
@@ -85,7 +85,7 @@ where T: serde::Serialize + serde::de::DeserializeOwned
             Ok(a) => a,
             Err(err) => { return Err(std::io::Error::new(ErrorKind::Other, err.to_string())); }
         };
-        let result = shared_key.encrypt(&data[..])?;
+        let result = shared_key.encrypt(&data[..]);
         
         Ok(
             MultiEncryptedSecureData {
@@ -104,7 +104,7 @@ where T: serde::Serialize + serde::de::DeserializeOwned
             match self.members.get(&key.hash().to_hex_string()) {
                 Some(a) => {
                     let shared_key = a.unwrap(key)?;
-                    let data = shared_key.decrypt(&self.sd_iv, &self.sd_encrypted[..])?;
+                    let data = shared_key.decrypt(&self.sd_iv, &self.sd_encrypted[..]);
                     Some(match self.format.deserialize::<T>(&data[..]) {
                         Ok(a) => a,
                         Err(err) => { return Err(std::io::Error::new(ErrorKind::Other, err.to_string())); }

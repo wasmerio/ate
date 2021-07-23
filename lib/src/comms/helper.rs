@@ -47,14 +47,14 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
                 // Read the initialization vector
                 let iv_bytes = rx.read_8bit().await?;
                 if iv_bytes.len() == 0 { break; }
-                let iv = InitializationVector::from_bytes(iv_bytes);
+                let iv = InitializationVector::from(iv_bytes);
 
                 // Read the cipher text
                 let cipher_bytes = rx.read_32bit().await?;
                 if cipher_bytes.len() == 0 { break; }
 
                 // Decrypt the message
-                key.decrypt(&iv, &cipher_bytes)?
+                key.decrypt(&iv, &cipher_bytes)
             },
             None => {
                 // Read the next message
@@ -115,7 +115,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone,
                     match wire_encryption {
                         Some(key) => {
                             // Encrypt the data
-                            let enc = key.encrypt(&buf.bytes[..])?;
+                            let enc = key.encrypt(&buf.bytes[..]);
         
                             // Write the initialization vector
                             tx.write_8bit(enc.iv.bytes, true).await?;

@@ -18,8 +18,8 @@ pub enum ReadOption
 
 impl ReadOption
 {
-    pub fn from_key(key: &EncryptKey) -> Result<ReadOption, std::io::Error> {
-        Ok(ReadOption::Specific(key.hash(), DerivedEncryptKey::new(key)?))
+    pub fn from_key(key: &EncryptKey) -> ReadOption {
+        ReadOption::Specific(key.hash(), DerivedEncryptKey::new(key))
     }
 }
 

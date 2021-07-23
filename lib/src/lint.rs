@@ -5,8 +5,6 @@ use super::error::*;
 use super::meta::*;
 use super::event::*;
 use super::transaction::*;
-#[allow(unused_imports)]
-use openssl::symm::{encrypt, Cipher};
 
 pub struct LintData<'a>
 {

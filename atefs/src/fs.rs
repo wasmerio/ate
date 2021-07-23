@@ -440,7 +440,7 @@ impl AteFS
                     Some(a) => a.clone(),
                     None => EncryptKey::generate(inner_key.size())
                 };
-                auth.read = ReadOption::Specific(new_key.hash(), DerivedEncryptKey::reverse(&new_key, &inner_key)?);
+                auth.read = ReadOption::Specific(new_key.hash(), DerivedEncryptKey::reverse(&new_key, &inner_key));
             } else if self.no_auth == false {
                 if mode & 0o040 != 0 {
                     error!("Session does not have the required group ({}) read key embedded within it", gid);

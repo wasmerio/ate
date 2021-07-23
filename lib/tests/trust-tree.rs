@@ -59,7 +59,7 @@ fn test_trust_tree_persistent() -> Result<(), AteError>
             debug!("add the objects to the DIO");
             let mut dio = chain.dio(&session).await;
             let mut garage = dio.store(Garage::default())?;
-            garage.auth_mut().read = ReadOption::from_key(&read_key)?;
+            garage.auth_mut().read = ReadOption::from_key(&read_key);
             garage.auth_mut().write = WriteOption::Specific(write_key2.hash());
             
             for n in 0..100 {
@@ -150,7 +150,7 @@ fn test_trust_tree_memory() -> Result<(), AteError>
             debug!("add the objects to the DIO");
             let mut dio = chain.dio(&session).await;
             let mut garage = dio.store(Garage::default())?;
-            garage.auth_mut().read = ReadOption::from_key(&read_key)?;
+            garage.auth_mut().read = ReadOption::from_key(&read_key);
             garage.auth_mut().write = WriteOption::Specific(write_key2.hash());
             
             for n in 0..100 {

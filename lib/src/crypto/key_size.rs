@@ -2,9 +2,6 @@
 use log::{info, error, debug};
 use serde::{Serialize, Deserialize};
 use std::result::Result;
-use pqcrypto_ntru::ntruhps2048509 as ntru128;
-use pqcrypto_ntru::ntruhps2048677 as ntru192;
-use pqcrypto_ntru::ntruhps4096821 as ntru256;
 
 /// Size of a cryptographic key, smaller keys are still very secure but
 /// have less room in the future should new attacks be found against the
@@ -22,30 +19,6 @@ pub enum KeySize {
 
 impl KeySize
 {
-    pub fn ntru_public_key_size(&self) -> usize {
-        match &self {
-            KeySize::Bit128 => ntru128::public_key_bytes(),
-            KeySize::Bit192 => ntru192::public_key_bytes(),
-            KeySize::Bit256 => ntru256::public_key_bytes(),
-        }
-    }
-
-    pub fn ntru_private_key_size(&self) -> usize {
-        match &self {
-            KeySize::Bit128 => ntru128::secret_key_bytes(),
-            KeySize::Bit192 => ntru192::secret_key_bytes(),
-            KeySize::Bit256 => ntru256::secret_key_bytes(),
-        }
-    }
-
-    pub fn ntru_cipher_text_size(&self) -> usize {
-        match &self {
-            KeySize::Bit128 => ntru128::ciphertext_bytes(),
-            KeySize::Bit192 => ntru192::ciphertext_bytes(),
-            KeySize::Bit256 => ntru256::ciphertext_bytes(),
-        }
-    }
-
     pub fn as_str(&self) -> &str {
         match &self {
             KeySize::Bit128 => "128",

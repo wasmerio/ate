@@ -19,20 +19,6 @@ fn test_secure_random() {
     }
 }
 
-#[allow(deprecated)]
-#[test]
-fn test_encrypt_key_seeding_old() {
-    crate::utils::bootstrap_env();
-
-    let provided = EncryptKey::from_string("test".to_string(), KeySize::Bit256);
-    let expected = EncryptKey::Aes256([109, 23, 234, 219, 133, 97, 152, 126, 236, 229, 197, 134, 107, 89, 217, 82, 107, 27, 70, 176, 239, 71, 218, 171, 68, 75, 54, 215, 249, 219, 231, 69]);
-    assert_eq!(provided, expected);
-
-    let provided = EncryptKey::from_string("test2".to_string(), KeySize::Bit256);
-    let expected = EncryptKey::Aes256([230, 248, 163, 17, 228, 69, 199, 43, 44, 106, 137, 243, 229, 187, 80, 173, 250, 183, 169, 165, 247, 153, 250, 8, 248, 187, 48, 83, 165, 91, 255, 180]);
-    assert_eq!(provided, expected);
-}
-
 #[test]
 fn test_encrypt_key_seeding_new() {
     crate::utils::bootstrap_env();
@@ -52,11 +38,11 @@ fn test_asym_crypto_128()
     crate::utils::bootstrap_env();
 
     let key = EncryptKey::generate(KeySize::Bit128);
-    let private = EncryptedPrivateKey::generate(&key).unwrap();
+    let private = EncryptedPrivateKey::generate(&key);
     let public = private.as_public_key();
 
     let plain = b"test";
-    let sig = private.as_private_key(&key).unwrap().sign(plain).unwrap();
+    let sig = private.as_private_key(&key).sign(plain).unwrap();
     assert!(public.verify(plain, &sig[..]).unwrap(), "Signature verificaton failed");
 
     let negative = b"blahtest";
@@ -69,11 +55,11 @@ fn test_asym_crypto_256()
     crate::utils::bootstrap_env();
 
     let key = EncryptKey::generate(KeySize::Bit256);
-    let private = EncryptedPrivateKey::generate(&key).unwrap();
+    let private = EncryptedPrivateKey::generate(&key);
     let public = private.as_public_key();
 
     let plain = b"test";
-    let sig = private.as_private_key(&key).unwrap().sign(plain).unwrap();
+    let sig = private.as_private_key(&key).sign(plain).unwrap();
     assert!(public.verify(plain, &sig[..]).unwrap(), "Signature verificaton failed");
 
     let negative = b"blahtest";
@@ -93,8 +79,8 @@ fn test_ntru_encapsulate() -> Result<(), AteError>
         let ek2 = sk.decapsulate(&iv).unwrap();
 
         let plain_text1 = "the cat ran up the wall".to_string();
-        let cipher_text = ek1.encrypt(plain_text1.as_bytes())?;
-        let plain_test2 = String::from_utf8(ek2.decrypt(&cipher_text.iv, &cipher_text.data)?).unwrap();
+        let cipher_text = ek1.encrypt(plain_text1.as_bytes());
+        let plain_test2 = String::from_utf8(ek2.decrypt(&cipher_text.iv, &cipher_text.data)).unwrap();
 
         assert_eq!(plain_text1, plain_test2);
     }
@@ -113,7 +99,7 @@ fn test_ntru_encrypt() -> Result<(), AteError>
         let pk = sk.as_public_key();
         
         let plain_text1 = "the cat ran up the wall".to_string();
-        let cipher_text = pk.encrypt(plain_text1.as_bytes())?;
+        let cipher_text = pk.encrypt(plain_text1.as_bytes());
         let plain_test2 = String::from_utf8(sk.decrypt(&cipher_text.iv, &cipher_text.data)?).unwrap();
 
         assert_eq!(plain_text1, plain_test2);
@@ -131,14 +117,14 @@ fn test_derived_keys() -> Result<(), AteError>
 
             // Generate a derived key and encryption key
             let key2 = EncryptKey::generate(*key_size1);
-            let mut key1 = DerivedEncryptKey::new(&key2)?;
+            let mut key1 = DerivedEncryptKey::new(&key2);
 
             // Encrypt some data
             let plain_text1 = "the cat ran up the wall".to_string();
-            let encrypted_text1 = key1.transmute(&key2)?.encrypt(plain_text1.as_bytes())?;
+            let encrypted_text1 = key1.transmute(&key2)?.encrypt(plain_text1.as_bytes());
 
             // Check that it decrypts properly
-            let plain_text2 = String::from_utf8(key1.transmute(&key2)?.decrypt(&encrypted_text1.iv, &encrypted_text1.data[..])?).unwrap();
+            let plain_text2 = String::from_utf8(key1.transmute(&key2)?.decrypt(&encrypted_text1.iv, &encrypted_text1.data[..])).unwrap();
             assert_eq!(plain_text1, plain_text2);
 
             // Now change the key
@@ -146,19 +132,14 @@ fn test_derived_keys() -> Result<(), AteError>
             key1.change(&key2, &key3)?;
 
             // The decryption with the old key which should now fail
-            let plain_text2 = match key1.transmute(&key2)?.decrypt(&encrypted_text1.iv, &encrypted_text1.data[..]) {
-                Ok(a) => {
-                    match String::from_utf8(a) {
-                        Ok(a) => a,
-                        Err(_) => "nothing".to_string()
-                    }
-                },
+            let plain_text2 = match String::from_utf8(key1.transmute(&key2)?.decrypt(&encrypted_text1.iv, &encrypted_text1.data[..])) {
+                Ok(a) => a,
                 Err(_) => "nothing".to_string()
             };
             assert_ne!(plain_text1, plain_text2);
 
             // Check that it decrypts properly with the new key
-            let plain_text2 = String::from_utf8(key1.transmute(&key3)?.decrypt(&encrypted_text1.iv, &encrypted_text1.data[..])?).unwrap();
+            let plain_text2 = String::from_utf8(key1.transmute(&key3)?.decrypt(&encrypted_text1.iv, &encrypted_text1.data[..])).unwrap();
             assert_eq!(plain_text1, plain_text2);
         }
     }
