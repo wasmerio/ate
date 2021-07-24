@@ -72,7 +72,7 @@ pqcrypto-traits = { git = "https://github.com/john-sharratt/pqcrypto-wasi.git" }
 http = { version = "^0.2" }
 aes = { version = "^0.7" }
 ctr = { version = "^0.8" }
-tokio = { version = "^1", features = [ "rt", "sync", "io-util", "macros", "time" ] }
+tokio = { version = "^1", features = [ "rt", "sync", "io-util", "macros", "time", "rt-multi-thread" ] }
 ws_stream_wasm = { version = "^0.7", features= [ "tokio_io" ], optional = true }
 wasm-bindgen = { version = "^0.2", optional = true }
 wasm-bindgen-test = { version = "^0.3", optional = true }
