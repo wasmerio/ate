@@ -53,7 +53,7 @@ pub fn compute_relevance<'a>(compactors: impl Iterator<Item=&'a Box<dyn EventCom
     for compactor in compactors {
         let relevance = compactor.relevance(&header);
 
-        #[cfg(feature = "verbose")]
+        #[cfg(feature = "enable_verbose")]
         if relevance != EventRelevance::Abstain && relevance != EventRelevance::ForceKeep && relevance != EventRelevance::Keep {
             debug!("{} on {} for {}", relevance, compactor.name(), header.meta);
         }
@@ -66,7 +66,7 @@ pub fn compute_relevance<'a>(compactors: impl Iterator<Item=&'a Box<dyn EventCom
             EventRelevance::Abstain => { }
         }
     }
-    #[cfg(feature = "verbose")]
+    #[cfg(feature = "enable_verbose")]
     if is_force_keep == false && is_keep == false && is_drop == false && is_force_drop == false {
         debug!("abstain-all for {}", header.meta);
     }

@@ -9,7 +9,7 @@ use super::*;
 
 impl<'a> Chain
 {
-    #[cfg(feature = "rotate")]
+    #[cfg(feature = "enable_rotate")]
     pub async fn rotate(&'a self) -> Result<(), SerializationError>
     {
         // Start a new log file

@@ -13,7 +13,7 @@ use crate::loader::*;
 pub trait LogFile
 where Self: Sync + Send
 {
-    #[cfg(feature = "rotate")]
+    #[cfg(feature = "enable_rotate")]
     async fn rotate(&mut self, header_bytes: Vec<u8>) -> Result<()>;
 
     async fn copy(&mut self) -> Result<Box<dyn LogFile>>;

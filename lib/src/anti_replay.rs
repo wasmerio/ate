@@ -58,7 +58,7 @@ for AntiReplayPlugin
     fn validate(&self, header: &EventHeader, _conversation: Option<&Arc<ConversationSession>>) -> Result<ValidationResult, ValidationError> {
         match self.seen.contains(&header.raw.event_hash) {
             true => {
-                #[cfg(feature = "verbose")]
+                #[cfg(feature = "enable_verbose")]
                 debug!("rejected event as it is a duplicate - {}", header.raw.event_hash);
                 Ok(ValidationResult::Deny)
             },

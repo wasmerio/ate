@@ -30,9 +30,9 @@ pub enum CommsError
     RootServerError(String),
     InternalError(String),
     UrlError(url::ParseError),
-    #[cfg(feature="ws")]
+    #[cfg(feature="enable_ws")]
     WebSocketError(tokio_tungstenite::tungstenite::Error),
-    #[cfg(feature="ws")]
+    #[cfg(feature="enable_ws")]
     WebSocketInternalError(String),
     UnsupportedProtocolError(String),
 }
@@ -93,7 +93,7 @@ for CommsError
     }   
 }
 
-#[cfg(feature="ws")]
+#[cfg(feature="enable_ws")]
 impl From<tokio_tungstenite::tungstenite::Error>
 for CommsError
 {
@@ -102,7 +102,7 @@ for CommsError
     }   
 }
 
-#[cfg(feature="ws")]
+#[cfg(feature="enable_ws")]
 impl From<tokio_tungstenite::tungstenite::http::uri::InvalidUri>
 for CommsError
 {
@@ -237,11 +237,11 @@ for CommsError {
             CommsError::ListenAddressInvalid(addr) => {
                 write!(f, "Could not listen on the address ({}) as it is not a valid IPv4/IPv6 address", addr)
             },
-            #[cfg(feature="ws")]
+            #[cfg(feature="enable_ws")]
             CommsError::WebSocketError(err) => {
                 write!(f, "Web socket error - {}", err.to_string())
             },
-            #[cfg(feature="ws")]
+            #[cfg(feature="enable_ws")]
             CommsError::WebSocketInternalError(err) => {
                 write!(f, "Web socket internal error - {}", err)
             },

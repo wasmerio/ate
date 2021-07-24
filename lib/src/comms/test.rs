@@ -43,7 +43,7 @@ async fn test_server_client_for_comms_with_tcp() -> Result<(), AteError> {
     test_server_client_for_comms(StreamProtocol::Tcp, 4001).await
 }
 
-#[cfg(feature="ws")]
+#[cfg(feature="enable_ws")]
 #[tokio::main]
 #[test]
 async fn test_server_client_for_comms_with_websocket() -> Result<(), AteError> {

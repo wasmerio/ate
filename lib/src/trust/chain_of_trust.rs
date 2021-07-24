@@ -21,7 +21,7 @@ impl<'a> ChainOfTrust
 {
     pub(crate) async fn load(&self, leaf: EventLeaf) -> Result<LoadResult, LoadError>
     {
-        #[cfg(feature = "verbose")]
+        #[cfg(feature = "enable_verbose")]
         debug!("loading: {}", leaf.record);
         
         let data = self.redo.load(leaf.record.clone()).await?;

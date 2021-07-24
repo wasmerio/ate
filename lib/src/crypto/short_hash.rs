@@ -18,21 +18,23 @@ impl ShortHash {
     pub fn from_bytes(input: &[u8]) -> ShortHash {
         Self::from_bytes_by_routine(input, crate::HASH_ROUTINE)
     }
+    
     pub fn from_bytes_twice(input1: &[u8], input2: &[u8]) -> ShortHash {
         Self::from_bytes_twice_by_routine(input1, input2, crate::HASH_ROUTINE)
     }
+    
     fn from_bytes_by_routine(input: &[u8], routine: HashRoutine) -> ShortHash {
         match routine {
-            HashRoutine::Blake3 => ShortHash::from_bytes_blake3(input),
             HashRoutine::Sha3 => ShortHash::from_bytes_sha3(input, 1),
         }
     }
+    
     fn from_bytes_twice_by_routine(input1: &[u8], input2: &[u8], routine: HashRoutine) -> ShortHash {
         match routine {
-            HashRoutine::Blake3 => ShortHash::from_bytes_twice_blake3(input1, input2),
             HashRoutine::Sha3 => ShortHash::from_bytes_twice_sha3(input1, input2),
         }
     }
+
     pub fn from_bytes_sha3(input: &[u8], repeat: i32) -> ShortHash {
         let mut hasher = sha3::Keccak384::new();
         for _ in 0..repeat {
@@ -51,6 +53,7 @@ impl ShortHash {
             val: result,
         }
     }
+
     fn from_bytes_twice_sha3(input1: &[u8], input2: &[u8]) -> ShortHash {
         let mut hasher = sha3::Keccak384::new();
         hasher.update(input1);
@@ -62,31 +65,6 @@ impl ShortHash {
             .expect("The hash should fit into 4 bytes!");
         let result = u32::from_be_bytes(result);
 
-        ShortHash {
-            val: result,
-        }
-    }
-    pub fn from_bytes_blake3(input: &[u8]) -> ShortHash {
-        let result = blake3::hash(input);
-        let result = result.as_bytes().iter().take(4).map(|b| *b).collect::<Vec<_>>();
-        let result: [u8; 4] = result
-            .try_into()
-            .expect("The hash should hit into 4 bytes!");
-        let result = u32::from_be_bytes(result);
-        ShortHash {
-            val: result,
-        }
-    }
-    fn from_bytes_twice_blake3(input1: &[u8], input2: &[u8]) -> ShortHash {
-        let mut hasher = blake3::Hasher::new();
-        hasher.update(input1);
-        hasher.update(input2);
-        let result = hasher.finalize();
-        let result = result.iter().take(4).map(|b| *b).collect::<Vec<_>>();
-        let result: [u8; 4] = result
-            .try_into()
-            .expect("The hash should fit into 4 bytes!");
-        let result = u32::from_be_bytes(result);
         ShortHash {
             val: result,
         }

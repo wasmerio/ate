@@ -1,16 +1,16 @@
 #[allow(unused_imports)]
 use log::{error, info, warn, debug};
 use async_trait::async_trait;
-#[cfg(feature = "local_fs")]
+#[cfg(feature = "enable_local_fs")]
 use std::{collections::VecDeque};
 use tokio::io::Result;
 use tokio::io::Error;
 use tokio::io::ErrorKind;
 
 use crate::crypto::*;
-#[cfg(feature = "local_fs")]
+#[cfg(feature = "enable_local_fs")]
 use crate::conf::*;
-#[cfg(feature = "local_fs")]
+#[cfg(feature = "enable_local_fs")]
 use crate::chain::*;
 use crate::event::*;
 use crate::error::*;
@@ -19,19 +19,19 @@ use crate::redo::LogLookup;
 
 use super::*;
 use super::flip::RedoLogFlip;
-#[cfg(feature = "local_fs")]
+#[cfg(feature = "enable_local_fs")]
 use super::flags::OpenFlags;
 use super::flip::FlippedLogFile;
-#[cfg(feature = "local_fs")]
+#[cfg(feature = "enable_local_fs")]
 use super::loader::RedoLogLoader;
 use super::api::LogWritable;
-#[cfg(feature = "local_fs")]
+#[cfg(feature = "enable_local_fs")]
 use super::file_localfs::LogFileLocalFs;
 use super::file_memdb::LogFileMemDb;
 
 pub struct RedoLog
 {
-    #[cfg(feature = "local_fs")]
+    #[cfg(feature = "enable_local_fs")]
     log_path: Option<String>,
     flip: Option<RedoLogFlip>,
     pub(super) log_file: Box<dyn LogFile>,
@@ -39,7 +39,7 @@ pub struct RedoLog
 
 impl RedoLog
 {
-    #[cfg(feature = "local_fs")]
+    #[cfg(feature = "enable_local_fs")]
     async fn new(path_log: Option<String>, flags: OpenFlags, cache_size: usize, cache_ttl: u64, loader: Box<impl Loader>, header_bytes: Vec<u8>) -> std::result::Result<RedoLog, SerializationError>
     {
         // Now load the real thing
@@ -67,7 +67,7 @@ impl RedoLog
         Ok(ret)
     }
 
-    #[cfg(not(feature = "local_fs"))]
+    #[cfg(not(feature = "enable_local_fs"))]
     async fn new(header_bytes: Vec<u8>) -> std::result::Result<RedoLog, SerializationError>
     {
         // Now load the real thing
@@ -78,7 +78,7 @@ impl RedoLog
         Ok(ret)
     }
 
-    #[cfg(feature = "rotate")]
+    #[cfg(feature = "enable_rotate")]
     pub async fn rotate(&mut self, header_bytes: Vec<u8>) -> Result<()> {
         Ok(self.log_file.rotate(header_bytes).await?)
     }
@@ -127,7 +127,7 @@ impl RedoLog
                 
                 new_log_file.flush().await?;
                 
-                #[cfg(feature = "local_fs")]
+                #[cfg(feature = "enable_local_fs")]
                 if let Some(a) = self.log_path.as_ref() {
                     new_log_file.move_log_file(a)?;
                 }
@@ -167,7 +167,7 @@ impl RedoLog
         }
     }
 
-    #[cfg(feature = "local_fs")]
+    #[cfg(feature = "enable_local_fs")]
     pub async fn open(cfg: &ConfAte, key: &ChainKey, flags: OpenFlags, header_bytes: Vec<u8>) -> std::result::Result<(RedoLog, VecDeque<LoadData>), SerializationError>
     {
         let mut ret = VecDeque::new();
@@ -193,7 +193,7 @@ impl RedoLog
         Ok((log, ret))
     }
 
-    #[cfg(feature = "local_fs")]
+    #[cfg(feature = "enable_local_fs")]
     pub async fn open_ext(cfg: &ConfAte, key: &ChainKey, flags: OpenFlags, loader: Box<impl Loader>, header_bytes: Vec<u8>) -> std::result::Result<RedoLog, SerializationError> {
         let mut key_name = key.name.clone();
         if key_name.starts_with("/") {
@@ -231,7 +231,7 @@ impl RedoLog
         Ok(log)
     }
 
-    #[cfg(not(feature = "local_fs"))]
+    #[cfg(not(feature = "enable_local_fs"))]
     pub async fn open(header_bytes: Vec<u8>) -> std::result::Result<RedoLog, SerializationError> {
         let log = {
             RedoLog::new(

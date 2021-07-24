@@ -183,7 +183,7 @@ for ActiveSessionPipe
 {
     fn drop(&mut self)
     {
-        #[cfg(feature = "verbose")]
+        #[cfg(feature = "enable_verbose")]
         debug!("drop {}", self.key.to_string());
     }
 }

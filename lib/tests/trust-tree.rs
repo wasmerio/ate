@@ -18,7 +18,7 @@ struct Garage
     cars: DaoVec<Car>,
 }
 
-#[cfg(feature = "local_fs")]
+#[cfg(feature = "enable_local_fs")]
 #[test]
 fn test_trust_tree_persistent() -> Result<(), AteError>
 {

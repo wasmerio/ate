@@ -8,7 +8,6 @@ use std::convert::TryInto;
 pub enum HashRoutine
 {
     Sha3,
-    Blake3,
 }
 
 /// Represents a hash of a piece of data that is cryptographically secure enough
@@ -28,13 +27,11 @@ impl AteHash {
     }
     fn from_bytes_by_routine(input: &[u8], routine: HashRoutine) -> AteHash {
         match routine {
-            HashRoutine::Blake3 => AteHash::from_bytes_blake3(input),
             HashRoutine::Sha3 => AteHash::from_bytes_sha3(input, 1),
         }
     }
     fn from_bytes_twice_by_routine(input1: &[u8], input2: &[u8], routine: HashRoutine) -> AteHash {
         match routine {
-            HashRoutine::Blake3 => AteHash::from_bytes_twice_blake3(input1, input2),
             HashRoutine::Sha3 => AteHash::from_bytes_twice_sha3(input1, input2),
         }
     }
@@ -71,27 +68,7 @@ impl AteHash {
             val: result,
         }
     }
-    pub fn from_bytes_blake3(input: &[u8]) -> AteHash {
-        let result: [u8; 32] = blake3::hash(input).into();
-        let mut ret = AteHash {
-            val: Default::default(),
-        };
-        ret.val.copy_from_slice(&result[..16]);
-        ret
-    }
-
-    fn from_bytes_twice_blake3(input1: &[u8], input2: &[u8]) -> AteHash {
-        let mut hasher = blake3::Hasher::new();
-        hasher.update(input1);
-        hasher.update(input2);
-        let result: [u8; 32] = hasher.finalize().into();
-        let mut ret = AteHash {
-            val: Default::default(),
-        };
-        ret.val.copy_from_slice(&result[..16]);
-        ret
-    }
-
+    
     pub fn to_u64(&self) -> u64 {
         let mut val = [0u8; 8];
         val.copy_from_slice(&self.val[..8]);

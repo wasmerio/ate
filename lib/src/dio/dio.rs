@@ -532,7 +532,7 @@ impl<'a> Dio<'a>
             for row in state.store.drain(..)
             {
                 // Debug output
-                #[cfg(feature = "verbose")]
+                #[cfg(feature = "enable_verbose")]
                 debug!("store: {}@{}", row.type_name, row.key.as_hex_string());
 
                 // Build a new clean metadata header
@@ -632,7 +632,7 @@ impl<'a> Dio<'a>
             }
         }
 
-        #[cfg(feature = "verbose")]
+        #[cfg(feature = "enable_verbose")]
         {
             for evt in evts.iter() {
                 debug!("event: {}", evt.meta);

@@ -49,7 +49,7 @@ async fn test_mesh()
             let addr = MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n);
             #[allow(unused_mut)]
             let mut cfg_ate = cfg_ate.clone();
-            #[cfg(feature = "local_fs")]
+            #[cfg(feature = "enable_local_fs")]
             {
                 cfg_ate.log_path = cfg_ate.log_path.as_ref().map(|a| format!("{}/p{}", a, index));
             }

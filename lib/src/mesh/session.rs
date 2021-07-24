@@ -60,7 +60,7 @@ impl MeshSession
     {
         debug!("new: chain_key={}", chain_key.to_string());
 
-        #[cfg(feature = "super_verbose")]
+        #[cfg(feature = "enable_super_verbose")]
         {
             let bt = backtrace::Backtrace::new();
             debug!("{:?}", bt);
@@ -295,7 +295,7 @@ impl MeshSession
 
         if let Some(chain) = self.chain.upgrade()
         {
-            #[cfg(feature = "verbose")]
+            #[cfg(feature = "enable_verbose")]
             debug!("start_of_history: chain_key={}", chain.key());
 
             {
@@ -358,7 +358,7 @@ impl MeshSession
         pck: PacketWithContext<Message, ()>,
     ) -> Result<(), CommsError>
     {
-        #[cfg(feature = "super_verbose")]
+        #[cfg(feature = "enable_super_verbose")]
         debug!("inbox: packet size={}", pck.data.bytes.len());
 
         match pck.packet.msg {

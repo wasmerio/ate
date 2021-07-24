@@ -2,17 +2,17 @@
 use log::{error, info, warn, debug};
 
 mod api;
-#[cfg(feature = "local_fs")]
+#[cfg(feature = "enable_local_fs")]
 mod file_localfs;
 mod file_memdb;
 mod file;
 mod flags;
 mod flip;
 mod magic;
-#[cfg(feature = "local_fs")]
+#[cfg(feature = "enable_local_fs")]
 mod appender;
 mod loader;
-#[cfg(feature = "local_fs")]
+#[cfg(feature = "enable_local_fs")]
 mod archive;
 mod core;
 mod test;

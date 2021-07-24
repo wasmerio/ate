@@ -4,6 +4,7 @@ use log::{error, info, debug};
 
 mod msg;
 mod core;
+#[cfg(not(target_arch = "wasm32"))]
 mod server;
 mod client;
 mod session;

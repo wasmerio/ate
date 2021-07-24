@@ -8,7 +8,7 @@ use super::*;
 pub(crate) fn mock_test_config() -> ConfAte {
     #[allow(unused_mut)]
     let mut ret = ConfAte::default();
-    #[cfg(feature = "local_fs")]
+    #[cfg(feature = "enable_local_fs")]
     {
         ret.log_path = Some("/tmp/ate".to_string());
     }

@@ -27,7 +27,7 @@ pub struct ConfAte
 
     /// Directory path that the redo logs will be stored.
     /// (if this option is none then the logs will be stored in memory)
-    #[cfg(feature = "local_fs")]
+    #[cfg(feature = "enable_local_fs")]
     pub log_path: Option<String>,
 
     /// NTP pool server which ATE will synchronize its clocks with, its
@@ -55,11 +55,11 @@ pub struct ConfAte
     pub sync_tolerance: Duration,
 
     /// Size of the local cache that stores redo log entries in memory
-    #[cfg(feature = "local_fs")]
+    #[cfg(feature = "enable_local_fs")]
     pub load_cache_size: usize,
     /// Number of seconds that redo log entries will remain in memory before
     /// they are evicted
-    #[cfg(feature = "local_fs")]
+    #[cfg(feature = "enable_local_fs")]
     pub load_cache_ttl: u64,
 
     /// Serialization format of the log files
@@ -73,7 +73,7 @@ for ConfAte
 {
     fn default() -> ConfAte {
         ConfAte {
-            #[cfg(feature = "local_fs")]
+            #[cfg(feature = "enable_local_fs")]
             log_path: None,
             dns_sec: false,
             dns_server: "8.8.8.8".to_string(),
@@ -85,9 +85,9 @@ for ConfAte
             ntp_pool: "pool.ntp.org".to_string(),
             ntp_port: 123,
             configured_for: ConfiguredFor::default(),
-            #[cfg(feature = "local_fs")]
+            #[cfg(feature = "enable_local_fs")]
             load_cache_size: 1000,
-            #[cfg(feature = "local_fs")]
+            #[cfg(feature = "enable_local_fs")]
             load_cache_ttl: 30,
             log_format: MessageFormat {
                 meta: SerializationFormat::Bincode,

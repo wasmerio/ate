@@ -79,7 +79,7 @@ for TreeAuthorityPlugin
         self.root = WriteOption::Everyone;
 
         for root_key in root_keys {
-            #[cfg(feature = "verbose")]
+            #[cfg(feature = "enable_verbose")]
             debug!("old_chain_root_key: {}", self.root);
             debug!("chain_root_key: {}", root_key.hash().to_string());
             self.add_root_public_key(root_key);

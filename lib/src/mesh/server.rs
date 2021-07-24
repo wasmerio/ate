@@ -391,7 +391,7 @@ async fn inbox_event(
 -> Result<(), CommsError>
 {
     debug!("inbox: events: cnt={}", evts.len());
-    #[cfg(feature = "verbose")]
+    #[cfg(feature = "enable_verbose")]
     {
         for evt in evts.iter() {
             debug!("event: {}", evt.meta);

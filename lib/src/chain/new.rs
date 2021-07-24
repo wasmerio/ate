@@ -52,7 +52,7 @@ impl<'a> Chain
         debug!("open: {}", key);
 
         // Compute the open flags
-        #[cfg(feature = "local_fs")]
+        #[cfg(feature = "enable_local_fs")]
         let flags = OpenFlags {
             truncate: builder.truncate,
             temporal: builder.temporal,
@@ -63,12 +63,12 @@ impl<'a> Chain
         
         // Create a redo log loader which will listen to all the events as they are
         // streamed in and extract the event headers
-        #[cfg(feature = "local_fs")]
+        #[cfg(feature = "enable_local_fs")]
         let (loader, mut rx) = RedoLogLoader::new();
 
         // We create a composite loader that includes any user defined loader
         let mut composite_loader = Box::new(crate::loader::CompositionLoader::default());
-        #[cfg(feature = "local_fs")]
+        #[cfg(feature = "enable_local_fs")]
         composite_loader.loaders.push(loader);
         if let Some(a) = extra_loader {
             composite_loader.loaders.push(a);
@@ -80,7 +80,7 @@ impl<'a> Chain
         
         // Create the redo log itself which will open the files and stream in the events
         // in a background thread
-        #[cfg(feature = "local_fs")]
+        #[cfg(feature = "enable_local_fs")]
         let redo_log = {
             let key = key.clone();
             let builder = builder.clone();
@@ -88,7 +88,7 @@ impl<'a> Chain
                 RedoLog::open_ext(&builder.cfg_ate, &key, flags, composite_loader, header_bytes).await
             })
         };
-        #[cfg(not(feature = "local_fs"))]
+        #[cfg(not(feature = "enable_local_fs"))]
         let redo_log = {
             tokio::spawn(async move {
                 RedoLog::open(header_bytes).await
@@ -99,7 +99,7 @@ impl<'a> Chain
         // but we strip off the data itself
         #[allow(unused_mut)]
         let mut headers = Vec::new();
-        #[cfg(feature = "local_fs")]
+        #[cfg(feature = "enable_local_fs")]
         while let Some(result) = rx.recv().await {
             headers.push(result.header.as_header()?);
         }
@@ -160,7 +160,7 @@ impl<'a> Chain
         };
 
         // Check all the process events
-        #[cfg(feature = "verbose")]
+        #[cfg(feature = "enable_verbose")]
         for a in headers.iter() {
             match a.meta.get_data_key() {
                 Some(key) => debug!("loaded: {} data {}", a.raw.event_hash, key),

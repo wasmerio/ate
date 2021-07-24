@@ -99,7 +99,7 @@ impl<'a> Chain
                 .collect::<Vec<_>>();
             let total = headers.len() as u64;
 
-            #[cfg(feature = "super_verbose")]
+            #[cfg(feature = "enable_super_verbose")]
             {
                 debug!("step-p");
                 headers.iter().for_each(|a| debug!("=> [{}]", a.0.meta));
@@ -140,7 +140,7 @@ impl<'a> Chain
                     }
                 }
 
-                #[cfg(feature = "super_verbose")]
+                #[cfg(feature = "enable_super_verbose")]
                 {
                     debug!("step3");
                     headers.iter().for_each(|a| debug!("[{}]->{}", a.1, a.0.raw.event_hash));
@@ -181,7 +181,7 @@ impl<'a> Chain
                 if let Ok(_err) = sync.validate_event(&header, Some(&conversation)) {
                     for plugin in sync.plugins.iter_mut() {
                         let _r = plugin.feed(&header, Some(&conversation));
-                        #[cfg(feature = "verbose")]
+                        #[cfg(feature = "enable_verbose")]
                         if let Err(_err) = _r {
                             debug!("err-while-compacting: {}", _err);
                         }
@@ -191,7 +191,7 @@ impl<'a> Chain
                 }
             }
 
-            #[cfg(feature = "super_verbose")]
+            #[cfg(feature = "enable_super_verbose")]
             {
                 debug!("step5");
                 headers.iter().for_each(|a| debug!("[{}]->{}", a.1, a.0.raw.event_hash));

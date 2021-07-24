@@ -83,14 +83,14 @@ for TreeAuthorityPlugin
 
         // If we get this far then any data events must be denied
         // as all the other possible routes for it to be accepted into the tree have failed
-        #[cfg(feature = "verbose")]
+        #[cfg(feature = "enable_verbose")]
         {
             warn!("rejected event as it is detached from the tree with auth.write = ({})", auth.write);
             for hash in verified_signatures.iter() {
                 warn!("- supplied hash signature ({})", hash);
             }
         }
-        #[cfg(not(feature = "verbose"))]
+        #[cfg(not(feature = "enable_verbose"))]
         warn!("rejected event as it is detached from the tree");
         Err(ValidationError::Detached)
     }

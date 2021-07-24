@@ -1,22 +1,12 @@
 #![cfg_attr(not(debug_assertions), allow(dead_code, unused_imports, unused_variables))]
 #![warn(unused_extern_crates)]
 
-/// You can change the hashing routine with these features
-/// - feature = "use_blake3"
-/// - feature = "use_sha3"
-
 /// You can change the log file format with these features
 /// - feature = "use_version1"
 /// - feature = "use_version2"
 
 #[cfg(not(target_arch = "wasm32"))]
-pub const HASH_ROUTINE: crypto::HashRoutine = if cfg!(feature = "use_blake3") {
-    crypto::HashRoutine::Blake3
-} else if cfg!(feature = "use_sha3") {
-    crypto::HashRoutine::Sha3
-} else {
-    crypto::HashRoutine::Blake3
-};
+pub const HASH_ROUTINE: crypto::HashRoutine = crypto::HashRoutine::Sha3;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub const LOG_VERSION: spec::EventVersion = spec::EventVersion::V2;

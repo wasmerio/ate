@@ -1,4 +1,4 @@
-#[cfg(feature = "buffered")]
+#[cfg(feature = "enable_buffered")]
 use tokio::io::BufStream;
 use tokio::fs::File;
 use tokio::fs::OpenOptions;
@@ -21,7 +21,7 @@ pub(crate) struct LogAppender
 {
     path: String,
     pub(super) file: File,
-    #[cfg(feature = "buffered")]
+    #[cfg(feature = "enable_buffered")]
     stream: BufStream<File>,
     pub(super) offset: u64,
     header: Vec<u8>,
@@ -42,7 +42,7 @@ impl LogAppender
         // Build the appender
         let mut appender = LogAppender {
             path: log_back_path.clone(),
-            #[cfg(feature = "buffered")]
+            #[cfg(feature = "enable_buffered")]
             stream: BufStream::new(log_back.try_clone().await.unwrap()),
             file: log_back,
             offset: 0,
@@ -69,7 +69,7 @@ impl LogAppender
     pub(super) async fn clone(&mut self) -> Result<LogAppender>
     {
         // We have to flush the stream in-case there is outstanding IO that is not yet written to the backing disk
-        #[cfg(feature = "buffered")]
+        #[cfg(feature = "enable_buffered")]
         self.stream.flush().await?;
 
         // Copy the file handles
@@ -77,7 +77,7 @@ impl LogAppender
             LogAppender {
                 path: self.path.clone(),
                 file: self.file.try_clone().await?,
-                #[cfg(feature = "buffered")]
+                #[cfg(feature = "enable_buffered")]
                 stream: BufStream::new(self.file.try_clone().await?),
                 offset: self.offset,
                 index: self.index,
@@ -119,17 +119,17 @@ impl LogAppender
 
     pub(super) async fn flush(&mut self) -> Result<()>
     {
-        #[cfg(feature = "buffered")]
+        #[cfg(feature = "enable_buffered")]
         self.stream.flush().await?;
         Ok(())
     }
 
     pub(super) async fn seek_to_end(&mut self) -> Result<()>
     {
-        #[cfg(feature = "buffered")]
+        #[cfg(feature = "enable_buffered")]
         self.stream.flush().await?;
         self.offset = self.file.seek(SeekFrom::End(0)).await?;
-        #[cfg(feature = "buffered")]
+        #[cfg(feature = "enable_buffered")]
         {
             self.stream = BufStream::new(self.file.try_clone().await?);
         }
@@ -150,11 +150,11 @@ for LogAppender
     }
 
     async fn seek(&mut self, off: u64) -> Result<()> {
-        #[cfg(feature = "buffered")]
+        #[cfg(feature = "enable_buffered")]
         self.stream.flush().await?;
         self.file.seek(SeekFrom::Start(off)).await?;
         self.offset = off;
-        #[cfg(feature = "buffered")]
+        #[cfg(feature = "enable_buffered")]
         {
             self.stream = BufStream::new(self.file.try_clone().await?);
         }
@@ -162,90 +162,90 @@ for LogAppender
     }
     
     async fn read_u8(&mut self) -> Result<u8> {
-        #[cfg(feature = "buffered")]
+        #[cfg(feature = "enable_buffered")]
         let ret = self.stream.read_u8().await?;
-        #[cfg(not(feature = "buffered"))]
+        #[cfg(not(feature = "enable_buffered"))]
         let ret = self.file.read_u8().await?;
         self.offset = self.offset + size_of::<u8>() as u64;
         Ok(ret)
     }
 
     async fn read_u16(&mut self) -> Result<u16> {
-        #[cfg(feature = "buffered")]
+        #[cfg(feature = "enable_buffered")]
         let ret = self.stream.read_u16().await?;
-        #[cfg(not(feature = "buffered"))]
+        #[cfg(not(feature = "enable_buffered"))]
         let ret = self.file.read_u16().await?;
         self.offset = self.offset + size_of::<u16>() as u64;
         Ok(ret)
     }
 
     async fn read_u32(&mut self) -> Result<u32> {
-        #[cfg(feature = "buffered")]
+        #[cfg(feature = "enable_buffered")]
         let ret = self.stream.read_u32().await?;
-        #[cfg(not(feature = "buffered"))]
+        #[cfg(not(feature = "enable_buffered"))]
         let ret = self.file.read_u32().await?;
         self.offset = self.offset + size_of::<u32>() as u64;
         Ok(ret)
     }
 
     async fn read_u64(&mut self) -> Result<u64> {
-        #[cfg(feature = "buffered")]
+        #[cfg(feature = "enable_buffered")]
         let ret = self.stream.read_u64().await?;
-        #[cfg(not(feature = "buffered"))]
+        #[cfg(not(feature = "enable_buffered"))]
         let ret = self.file.read_u64().await?;
         self.offset = self.offset + size_of::<u64>() as u64;
         Ok(ret)
     }
 
     async fn read_exact(&mut self, buf: &mut [u8]) -> Result<()> {
-        #[cfg(feature = "buffered")]
+        #[cfg(feature = "enable_buffered")]
         let amt = self.stream.read_exact(&mut buf[..]).await?;
-        #[cfg(not(feature = "buffered"))]
+        #[cfg(not(feature = "enable_buffered"))]
         let amt = self.file.read_exact(&mut buf[..]).await?;
         self.offset = self.offset + amt as u64;
         Ok(())
     }
 
     async fn write_u8(&mut self, val: u8) -> Result<()> {
-        #[cfg(feature = "buffered")]
+        #[cfg(feature = "enable_buffered")]
         self.stream.write_u8(val).await?;
-        #[cfg(not(feature = "buffered"))]
+        #[cfg(not(feature = "enable_buffered"))]
         self.file.write_u8(val).await?;
         self.offset = self.offset + size_of::<u8>() as u64;
         Ok(())
     }
 
     async fn write_u16(&mut self, val: u16) -> Result<()> {
-        #[cfg(feature = "buffered")]
+        #[cfg(feature = "enable_buffered")]
         self.stream.write_u16(val).await?;
-        #[cfg(not(feature = "buffered"))]
+        #[cfg(not(feature = "enable_buffered"))]
         self.file.write_u16(val).await?;
         self.offset = self.offset + size_of::<u16>() as u64;
         Ok(())
     }
 
     async fn write_u32(&mut self, val: u32) -> Result<()> {
-        #[cfg(feature = "buffered")]
+        #[cfg(feature = "enable_buffered")]
         self.stream.write_u32(val).await?;
-        #[cfg(not(feature = "buffered"))]
+        #[cfg(not(feature = "enable_buffered"))]
         self.file.write_u32(val).await?;
         self.offset = self.offset + size_of::<u32>() as u64;
         Ok(())
     }
 
     async fn write_u64(&mut self, val: u64) -> Result<()> {
-        #[cfg(feature = "buffered")]
+        #[cfg(feature = "enable_buffered")]
         self.stream.write_u64(val).await?;
-        #[cfg(not(feature = "buffered"))]
+        #[cfg(not(feature = "enable_buffered"))]
         self.file.write_u64(val).await?;
         self.offset = self.offset + size_of::<u64>() as u64;
         Ok(())
     }
 
     async fn write_exact(&mut self, buf: &[u8]) -> Result<()> {
-        #[cfg(feature = "buffered")]
+        #[cfg(feature = "enable_buffered")]
         self.stream.write_all(&buf[..]).await?;
-        #[cfg(not(feature = "buffered"))]
+        #[cfg(not(feature = "enable_buffered"))]
         self.file.write_all(&buf[..]).await?;
         self.offset = self.offset + buf.len() as u64;
         Ok(())
@@ -259,7 +259,7 @@ for LogAppender
     }
 }
 
-#[cfg(feature = "buffered")]
+#[cfg(feature = "enable_buffered")]
 impl Drop
 for LogAppender
 {

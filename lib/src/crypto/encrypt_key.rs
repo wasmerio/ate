@@ -6,16 +6,16 @@ use std::result::Result;
 use sha3::Digest;
 use std::convert::TryInto;
 
-#[cfg(feature = "aes_openssl")]
+#[cfg(feature = "use_openssl")]
 use openssl::symm::{Cipher};
 
-#[cfg(not(feature = "aes_openssl"))]
+#[cfg(not(feature = "enable_openssl"))]
 use ctr::cipher::*;
-#[cfg(not(feature = "aes_openssl"))]
+#[cfg(not(feature = "enable_openssl"))]
 type Aes128Ctr = ctr::Ctr128BE<aes::Aes128>;
-#[cfg(not(feature = "aes_openssl"))]
+#[cfg(not(feature = "enable_openssl"))]
 type Aes192Ctr = ctr::Ctr128BE<aes::Aes192>;
-#[cfg(not(feature = "aes_openssl"))]
+#[cfg(not(feature = "enable_openssl"))]
 type Aes256Ctr = ctr::Ctr128BE<aes::Aes256>;
 
 use super::*;
@@ -76,7 +76,7 @@ impl EncryptKey {
         }
     }
 
-    #[cfg(feature = "aes_openssl")]
+    #[cfg(feature = "enable_openssl")]
     pub fn cipher(&self) -> Cipher {
         match self.size() {
             KeySize::Bit128 => Cipher::aes_128_ctr(),
@@ -85,7 +85,7 @@ impl EncryptKey {
         }
     }
 
-    #[cfg(feature = "aes_openssl")]
+    #[cfg(feature = "enable_openssl")]
     pub fn encrypt_with_iv(&self, iv: &InitializationVector, data: &[u8]) -> Vec<u8> {
         let iv_store;
         let iv = match iv.bytes.len() {
@@ -100,7 +100,7 @@ impl EncryptKey {
         openssl::symm::encrypt(self.cipher(), self.value(), Some(&iv.bytes[..]), data).unwrap()
     }
 
-    #[cfg(not(feature = "aes_openssl"))]
+    #[cfg(not(feature = "enable_openssl"))]
     pub fn encrypt_with_iv(&self, iv: &InitializationVector, data: &[u8]) -> Vec<u8> {
         let iv_store;
         let iv = match iv.bytes.len() {
@@ -142,7 +142,7 @@ impl EncryptKey {
         }
     }
     
-    #[cfg(feature = "aes_openssl")]
+    #[cfg(feature = "enable_openssl")]
     pub fn decrypt(&self, iv: &InitializationVector, data: &[u8]) -> Vec<u8> {
         let iv_store;
         let iv = match iv.bytes.len() {
@@ -157,7 +157,7 @@ impl EncryptKey {
         openssl::symm::decrypt(self.cipher(), self.value(), Some(&iv.bytes[..]), data).unwrap()
     }
 
-    #[cfg(not(feature = "aes_openssl"))]
+    #[cfg(not(feature = "enable_openssl"))]
     pub fn decrypt(&self, iv: &InitializationVector, data: &[u8]) -> Vec<u8> {
         let iv_store;
         let iv = match iv.bytes.len() {

@@ -3,9 +3,9 @@ use log::{info, warn, debug};
 use tokio::net::TcpStream;
 use tokio::net::tcp::OwnedReadHalf;
 use tokio::net::tcp::OwnedWriteHalf;
-#[cfg(feature="ws")]
+#[cfg(feature="enable_ws")]
 use tokio_tungstenite::tungstenite::Message;
-#[cfg(feature="ws")]
+#[cfg(feature="enable_ws")]
 use tokio_tungstenite::WebSocketStream;
 use futures_util::stream;
 use futures_util::StreamExt;
@@ -21,7 +21,7 @@ use crate::error::CommsError;
 pub enum StreamProtocol
 {
     Tcp,
-    #[cfg(feature="ws")]
+    #[cfg(feature="enable_ws")]
     WebSocket,
 }
 
@@ -34,7 +34,7 @@ for StreamProtocol
     {
         let ret = match s {
             "tcp" => StreamProtocol::Tcp,
-            #[cfg(feature="ws")]
+            #[cfg(feature="enable_ws")]
             "ws" => StreamProtocol::WebSocket,
             _ => {
                 return Err(CommsError::UnsupportedProtocolError(s.to_string()));
@@ -50,7 +50,7 @@ impl StreamProtocol
     {
         let ret = match self {
             StreamProtocol::Tcp => "tcp",
-            #[cfg(feature="ws")]
+            #[cfg(feature="enable_ws")]
             StreamProtocol::WebSocket => "ws",
         };
         ret.to_string()
@@ -81,7 +81,7 @@ for StreamProtocol
 pub enum Stream
 {
     Tcp(TcpStream),
-    #[cfg(feature="ws")]
+    #[cfg(feature="enable_ws")]
     WebSocket(WebSocketStream<TcpStream>, StreamProtocol),
 }
 
@@ -114,7 +114,7 @@ impl StreamProtocol
 pub enum StreamRx
 {
     Tcp(OwnedReadHalf),
-    #[cfg(feature="ws")]
+    #[cfg(feature="enable_ws")]
     WebSocket(stream::SplitStream<WebSocketStream<TcpStream>>),
 }
 
@@ -122,7 +122,7 @@ pub enum StreamRx
 pub enum StreamTx
 {
     Tcp(OwnedWriteHalf),
-    #[cfg(feature="ws")]
+    #[cfg(feature="enable_ws")]
     WebSocket(stream::SplitSink<WebSocketStream<TcpStream>, Message>),
 }
 
@@ -134,7 +134,7 @@ impl Stream
                 let (rx, tx) = a.into_split();
                 (StreamRx::Tcp(rx), StreamTx::Tcp(tx))
             },
-            #[cfg(feature="ws")]
+            #[cfg(feature="enable_ws")]
             Stream::WebSocket(a, _) => {
                 let (tx, rx) = a.split();
                 (StreamRx::WebSocket(rx), StreamTx::WebSocket(tx))
@@ -151,7 +151,7 @@ impl Stream
                     StreamProtocol::Tcp => {
                         Stream::Tcp(a)
                     },
-                    #[cfg(feature="ws")]
+                    #[cfg(feature="enable_ws")]
                     StreamProtocol::WebSocket => {
                         let wait = tokio_tungstenite::accept_async(a);
                         let socket = tokio_timeout(timeout, wait).await??;
@@ -159,7 +159,7 @@ impl Stream
                     },
                 }
             },
-            #[cfg(feature="ws")]
+            #[cfg(feature="enable_ws")]
             Stream::WebSocket(a, p) => {
                 match protocol {
                     StreamProtocol::Tcp => {
@@ -183,7 +183,7 @@ impl Stream
             Stream::Tcp(a) => {
                 match protocol {
                     StreamProtocol::Tcp => Stream::Tcp(a),
-                    #[cfg(feature="ws")]
+                    #[cfg(feature="enable_ws")]
                     StreamProtocol::WebSocket => {
                         let url = StreamProtocol::WebSocket.make_url("localhost".to_string(), 80, "/".to_string())?;
                         let mut request = tokio_tungstenite::tungstenite::http::Request::new(());
@@ -197,7 +197,7 @@ impl Stream
                     },
                 }
             },
-            #[cfg(feature="ws")]
+            #[cfg(feature="enable_ws")]
             Stream::WebSocket(a, p) => {
                 match protocol {
                     StreamProtocol::Tcp => Stream::WebSocket(a, p),
@@ -213,7 +213,7 @@ impl Stream
     {
         match self {
             Stream::Tcp(_) => StreamProtocol::Tcp,
-            #[cfg(feature="ws")]
+            #[cfg(feature="enable_ws")]
             Stream::WebSocket(_, p) => p.clone(),
         }
     }
@@ -232,7 +232,7 @@ impl StreamTx
                 a.write_u8(buf.len() as u8).await?;
                 a.write_all(&buf[..]).await?; 
             },
-            #[cfg(feature="ws")]
+            #[cfg(feature="enable_ws")]
             StreamTx::WebSocket(_) => {
                 self.write_32bit(buf, delay_flush).await?;
             },
@@ -251,7 +251,7 @@ impl StreamTx
                 a.write_u16(buf.len() as u16).await?;
                 a.write_all(&buf[..]).await?; 
             },
-            #[cfg(feature="ws")]
+            #[cfg(feature="enable_ws")]
             StreamTx::WebSocket(_) => {
                 self.write_32bit(buf, delay_flush).await?;
             },
@@ -270,7 +270,7 @@ impl StreamTx
                 a.write_u32(buf.len() as u32).await?;
                 a.write_all(&buf[..]).await?; 
             },
-            #[cfg(feature="ws")]
+            #[cfg(feature="enable_ws")]
             StreamTx::WebSocket(a) => {
                 if delay_flush {
                     match a.feed(Message::binary(buf)).await {
@@ -306,7 +306,7 @@ impl StreamRx
                 if n != (len as usize) { return Ok(vec![]); }
                 bytes
             },
-            #[cfg(feature="ws")]
+            #[cfg(feature="enable_ws")]
             StreamRx::WebSocket(_) => {
                 self.read_32bit().await?
             },
@@ -325,7 +325,7 @@ impl StreamRx
                 if n != (len as usize) { return Ok(vec![]); }
                 bytes
             },
-            #[cfg(feature="ws")]
+            #[cfg(feature="enable_ws")]
             StreamRx::WebSocket(_) => {
                 self.read_32bit().await?
             },
@@ -344,7 +344,7 @@ impl StreamRx
                 if n != (len as usize) { return Ok(vec![]); }
                 bytes
             },
-            #[cfg(feature="ws")]
+            #[cfg(feature="enable_ws")]
             StreamRx::WebSocket(a) => {
                 match a.next().await {
                     Some(a) => {

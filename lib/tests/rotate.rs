@@ -2,7 +2,7 @@
 use ate::prelude::*;
 use tokio::runtime::Runtime;
 
-#[cfg(feature = "rotate")]
+#[cfg(feature = "enable_rotate")]
 #[test]
 fn rotate_test() -> Result<(), AteError>
 {
@@ -13,7 +13,7 @@ fn rotate_test() -> Result<(), AteError>
 
         // The default configuration will store the redo log locally in the temporary folder
         let mut conf = ConfAte::default();
-        #[cfg(feature = "local_fs")]
+        #[cfg(feature = "enable_local_fs")]
         {
             conf.log_path = Some("/tmp/ate".to_string());
         }

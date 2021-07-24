@@ -45,7 +45,7 @@ impl<'a> ChainTimeline
 
         let raw = header.raw.clone();
 
-        #[cfg(feature = "super_verbose")]
+        #[cfg(feature = "enable_super_verbose")]
         debug!("add_history::evt[{}]", header.meta);
 
         let timestamp = match header.meta.get_timestamp() {

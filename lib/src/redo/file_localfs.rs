@@ -2,15 +2,15 @@
 use log::{error, info, warn, debug};
 use async_trait::async_trait;
 
-#[cfg(feature = "caching")]
+#[cfg(feature = "enable_caching")]
 use cached::Cached;
 use tokio::io::{Result};
 use tokio::io::ErrorKind;
 use bytes::Bytes;
-#[cfg(feature = "caching")]
+#[cfg(feature = "enable_caching")]
 use cached::*;
 use fxhash::{FxHashMap};
-#[cfg(feature = "caching")]
+#[cfg(feature = "enable_caching")]
 use parking_lot::Mutex as MutexSync;
 
 use crate::{crypto::*, redo::LogLookup};
@@ -24,7 +24,7 @@ use super::magic::*;
 use super::archive::*;
 use super::appender::*;
 
-#[cfg(feature = "caching")]
+#[cfg(feature = "enable_caching")]
 pub(crate) struct LogFileCache
 {
     pub(crate) flush: FxHashMap<AteHash, LoadData>,
@@ -39,7 +39,7 @@ pub(super) struct LogFileLocalFs
     pub(crate) lookup: FxHashMap<AteHash, LogLookup>,
     pub(crate) appender: LogAppender,
     pub(crate) archives: FxHashMap<u32, LogArchive>,
-    #[cfg(feature = "caching")]
+    #[cfg(feature = "enable_caching")]
     pub(crate) cache: MutexSync<LogFileCache>,
 }
 
@@ -91,7 +91,7 @@ impl LogFileLocalFs
             temp: temp_file,
             lookup: FxHashMap::default(),
             appender,
-            #[cfg(feature = "caching")]
+            #[cfg(feature = "enable_caching")]
             cache: MutexSync::new(LogFileCache {
                 flush: FxHashMap::default(),
                 read: TimedSizedCache::with_size_and_lifespan(_cache_size, _cache_ttl),
@@ -131,7 +131,7 @@ impl LogFileLocalFs
             loop {
                 match LogFileLocalFs::read_once_internal(&mut lock).await {
                     Ok(Some(head)) => {
-                        #[cfg(feature = "super_verbose")]
+                        #[cfg(feature = "enable_super_verbose")]
                         debug!("log-read: {:?}", head);
 
                         lookup.insert(head.header.event_hash, head.lookup);
@@ -161,7 +161,7 @@ impl LogFileLocalFs
     {
         let offset = guard.offset();
         
-        #[cfg(feature = "super_verbose")]
+        #[cfg(feature = "enable_super_verbose")]
         info!("log-read-event: offset={}", offset);
 
         // Read the log event
@@ -219,7 +219,7 @@ impl LogFileLocalFs
 impl LogFile
 for LogFileLocalFs
 {
-    #[cfg(feature = "rotate")]
+    #[cfg(feature = "enable_rotate")]
     async fn rotate(&mut self, header_bytes: Vec<u8>) -> Result<()>
     {
         // If this a temporary file then fail
@@ -255,7 +255,7 @@ for LogFileLocalFs
             log_archives.insert(k.clone(), v.clone().await?);
         }
 
-        #[cfg(feature = "caching")]
+        #[cfg(feature = "enable_caching")]
         let cache = {
             let cache = self.cache.lock();
             MutexSync::new(LogFileCache {
@@ -271,7 +271,7 @@ for LogFileLocalFs
                 temp: self.temp,
                 lookup: self.lookup.clone(),
                 appender: self.appender.clone().await?,
-                #[cfg(feature = "caching")]
+                #[cfg(feature = "enable_caching")]
                 cache,
                 archives: log_archives,
             })
@@ -282,26 +282,19 @@ for LogFileLocalFs
     {
         // Write the appender
         let header = evt.as_header_raw()?;
-        #[cfg(feature = "local_fs")]
+        #[cfg(feature = "enable_local_fs")]
         let lookup = self.appender.write(evt, &header).await?;
         
         // Record the lookup map
         self.lookup.insert(header.event_hash, lookup);
 
-        #[cfg(feature = "verbose")]
+        #[cfg(feature = "enable_verbose")]
         debug!("log-write: {} - {:?}", header.event_hash, lookup);
-        #[cfg(feature = "super_verbose")]
+        #[cfg(feature = "enable_super_verbose")]
         debug!("log-write: {:?} - {:?}", header, evt);
 
-        // If we are in debug mode then do some extra checks
-        #[cfg(feature = "extra_checks")]
-        {
-            self.appender.flush().await?;
-            self.load(header.event_hash).await.expect("Failed to load!");
-        }
-
         // Cache the data
-        #[cfg(feature = "caching")]
+        #[cfg(feature = "enable_caching")]
         {
             let mut cache = self.cache.lock();
             cache.flush.insert(header.event_hash, LoadData {
@@ -327,7 +320,7 @@ for LogFileLocalFs
         self.lookup.insert(hash.clone(), lookup);
 
         // Cache the data
-        #[cfg(feature = "caching")]
+        #[cfg(feature = "enable_caching")]
         {
             let mut cache = self.cache.lock();
             cache.flush.insert(hash.clone(), LoadData {
@@ -343,7 +336,7 @@ for LogFileLocalFs
     async fn load(&self, hash: AteHash) -> std::result::Result<LoadData, LoadError>
     {
         // Check the caches
-        #[cfg(feature = "caching")]
+        #[cfg(feature = "enable_caching")]
         {
             let mut cache = self.cache.lock();
             if let Some(result) = cache.flush.get(&hash) {
@@ -417,7 +410,7 @@ for LogFileLocalFs
         assert_eq!(hash.to_string(), ret.header.event_hash.to_string());
 
         // Store it in the read cache
-        #[cfg(feature = "caching")]
+        #[cfg(feature = "enable_caching")]
         {
             let mut cache = self.cache.lock();
             cache.read.cache_set(ret.header.event_hash, ret.clone());
@@ -479,10 +472,10 @@ for LogFileLocalFs
     async fn flush(&mut self) -> Result<()>
     {
         // Make a note of all the cache lines we need to move
-        #[cfg(feature = "caching")]
+        #[cfg(feature = "enable_caching")]
         let mut keys = Vec::new();
 
-        #[cfg(feature = "caching")]
+        #[cfg(feature = "enable_caching")]
         {
             let cache = self.cache.lock();
             for k in cache.flush.keys() {
@@ -495,7 +488,7 @@ for LogFileLocalFs
 
         // Move the cache lines into the write cache from the flush cache which
         // will cause them to be released after the TTL is reached
-        #[cfg(feature = "caching")]
+        #[cfg(feature = "enable_caching")]
         {
             let mut cache = self.cache.lock();
             for k in keys.into_iter() {
@@ -556,14 +549,14 @@ for LogFileLocalFs
         let ret = {
             let path_flip = format!("{}.flip", self.path);
 
-            #[cfg(feature = "caching")]
+            #[cfg(feature = "enable_caching")]
             let (cache_size, cache_ttl) = {
                 let cache = self.cache.lock();
                 let cache_size = cache.read.cache_capacity().unwrap();
                 let cache_ttl = cache.read.cache_lifespan().unwrap();
                 (cache_size, cache_ttl)
             };
-            #[cfg(not(feature = "caching"))]
+            #[cfg(not(feature = "enable_caching"))]
             let (cache_size, cache_ttl) = {
                 (0, u64::MAX)
             };

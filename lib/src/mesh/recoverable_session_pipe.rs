@@ -158,7 +158,7 @@ for RecoverableSessionPipe
 {
     fn drop(&mut self)
     {
-        #[cfg(feature = "verbose")]
+        #[cfg(feature = "enable_verbose")]
         debug!("drop {} @ {}", self.key.to_string(), self.addr);
     }
 }
@@ -250,7 +250,7 @@ for RecoverableSessionPipe
                         loader
                     ).await;
 
-                    #[cfg(feature = "verbose")]
+                    #[cfg(feature = "enable_verbose")]
                     info!("disconnected: {}", _addr);
 
                     // We should only get here if the inbound connection is shutdown or fails

@@ -41,7 +41,7 @@ impl LogFileMemDb
 impl LogFile
 for LogFileMemDb
 {
-    #[cfg(feature = "rotate")]
+    #[cfg(feature = "enable_rotate")]
     async fn rotate(&mut self, header_bytes: Vec<u8>) -> Result<()>
     {
         self.header = header_bytes;
@@ -73,9 +73,9 @@ for LogFileMemDb
         // Record the lookup map
         self.lookup.insert(header.event_hash, lookup);
 
-        #[cfg(feature = "verbose")]
+        #[cfg(feature = "enable_verbose")]
         debug!("log-write: {} - {:?}", header.event_hash, lookup);
-        #[cfg(feature = "super_verbose")]
+        #[cfg(feature = "enable_super_verbose")]
         debug!("log-write: {:?} - {:?}", header, evt);
 
         // If we are running as a memory database then store it in the RAM

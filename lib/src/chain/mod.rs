@@ -6,7 +6,7 @@ mod protected_async;
 mod protected_sync;
 mod workers;
 mod compact;
-#[cfg(feature = "rotate")]
+#[cfg(feature = "enable_rotate")]
 mod rotate;
 
 pub use self::core::*;

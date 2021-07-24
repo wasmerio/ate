@@ -7,7 +7,7 @@ use super::*;
 
 #[derive(Debug)]
 pub enum TransformError {
-    #[cfg(feature = "aes_openssl")]
+    #[cfg(feature = "enable_openssl")]
     EncryptionError(openssl::error::ErrorStack),
     IO(std::io::Error),
     CryptoError(CryptoError),
@@ -16,7 +16,7 @@ pub enum TransformError {
     UnspecifiedReadability,
 }
 
-#[cfg(feature = "aes_openssl")]
+#[cfg(feature = "enable_openssl")]
 impl From<openssl::error::ErrorStack>
 for TransformError
 {
@@ -54,7 +54,7 @@ impl std::fmt::Display
 for TransformError {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            #[cfg(feature = "aes_openssl")]
+            #[cfg(feature = "enable_openssl")]
             TransformError::EncryptionError(err) => {
                 write!(f, "Encryption error while transforming event data - {}", err)
             },

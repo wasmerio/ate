@@ -20,9 +20,9 @@ use std::convert::Infallible;
 use hyper::{header, upgrade, StatusCode, Body, Request, Response, Server, server::conn::AddrStream};
 #[cfg(feature="http_ws")]
 use hyper::service::{make_service_fn, service_fn};
-#[cfg(feature="ws")]
+#[cfg(feature="enable_ws")]
 use tokio_tungstenite::WebSocketStream;
-#[cfg(feature="ws")]
+#[cfg(feature="enable_ws")]
 use tokio_tungstenite::tungstenite::{handshake, Error};
 
 use super::BroadcastContext;
