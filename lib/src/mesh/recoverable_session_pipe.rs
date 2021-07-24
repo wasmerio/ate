@@ -63,7 +63,7 @@ impl RecoverableSessionPipe
 
         // Create pipes to all the target root nodes
         let node_cfg = MeshConfig::new(self.cfg_mesh.clone())
-            .connect_to(self.addr.ip, self.addr.port)
+            .connect_to(self.addr.clone())
             .on_connect(Message::Connected);
 
         let (node_tx, node_rx)

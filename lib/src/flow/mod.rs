@@ -10,13 +10,7 @@ use super::conf::ConfAte;
 use super::conf::ChainBuilder;
 use super::error::ChainCreationError;
 use std::sync::Arc;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum TrustMode
-{
-    Distributed,
-    Centralized
-}
+use super::spec::TrustMode;
 
 impl std::str::FromStr
 for TrustMode

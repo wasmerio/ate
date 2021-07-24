@@ -3,9 +3,9 @@ use log::{error, info, warn, debug};
 
 mod api;
 #[cfg(feature = "enable_local_fs")]
-mod file_localfs;
-mod file_memdb;
-mod file;
+mod log_localfs;
+mod log_memdb;
+mod log_traits;
 mod flags;
 mod flip;
 mod magic;
@@ -24,4 +24,4 @@ pub use api::LogWritable;
 
 pub(crate) use api::LogLookup;
 
-pub use file::*;
+pub use log_traits::*;

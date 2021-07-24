@@ -206,6 +206,7 @@ impl ChainBuilder
         self
     }
 
+    #[cfg(feature = "enable_local_fs")]
     #[allow(dead_code)]
     pub fn postfix_log_path(mut self, postfix: &str) -> Self
     {

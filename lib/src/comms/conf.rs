@@ -7,6 +7,7 @@ use crate::spec::*;
 use tokio::sync::mpsc;
 use super::PacketData;
 use crate::conf::ConfMesh;
+use crate::conf::MeshAddress;
 
 #[derive(Debug, Clone)]
 pub(crate) struct Upstream
@@ -44,8 +45,12 @@ for SocketAddr
 pub(crate) struct MeshConfig<M>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone
 {
+    #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
     pub listen_on: Vec<SocketAddr>,
+    #[cfg(feature="enable_dns")]
     pub connect_to: Vec<SocketAddr>,
+    #[cfg(not(feature="enable_dns"))]
+    pub connect_to: Option<MeshAddress>,
     pub on_connect: Option<M>,
     pub cfg_mesh: ConfMesh,
 }
@@ -55,20 +60,31 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
 {
     pub(crate) fn new(cfg_mesh: ConfMesh) -> MeshConfig<M> {
         MeshConfig {
+            #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
             listen_on: Vec::new(),
+            #[cfg(feature="enable_dns")]
             connect_to: Vec::new(),
+            #[cfg(not(feature="enable_dns"))]
+            connect_to: None,
             on_connect: None,
             cfg_mesh: cfg_mesh.clone(),
         }
     }
 
+    #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
     pub(crate) fn listen_on(mut self, ip: IpAddr, port: u16) -> Self {
         self.listen_on.push(SocketAddr::from(NodeTarget{ip, port}));
         self
     }
 
-    pub(crate) fn connect_to(mut self, ip: IpAddr, port: u16) -> Self {
-        self.connect_to.push(SocketAddr::from(NodeTarget{ip, port}));
+    #[cfg(feature = "enable_client")]
+    pub(crate) fn connect_to(mut self, addr: MeshAddress) -> Self {
+        #[cfg(feature="enable_dns")]
+        self.connect_to.push(SocketAddr::from(NodeTarget{ip: addr.host, port: addr.port}));
+        #[cfg(not(feature="enable_dns"))]
+        {
+            self.connect_to.replace(addr);
+        }
         self
     }
 

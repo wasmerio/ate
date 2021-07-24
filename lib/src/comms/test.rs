@@ -5,6 +5,7 @@ use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use crate::prelude::*;
 use super::MeshConfig;
 use crate::comms::BroadcastContext;
+#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
 use super::Listener;
 
 #[cfg(test)]
@@ -37,12 +38,14 @@ for DummyContext {
     }
 }
 
+#[cfg(all(feature = "enable_server", feature = "enable_client", feature = "enable_tcp" ))]
 #[tokio::main]
 #[test]
 async fn test_server_client_for_comms_with_tcp() -> Result<(), AteError> {
     test_server_client_for_comms(StreamProtocol::Tcp, 4001).await
 }
 
+#[cfg(all(feature = "enable_server", feature = "enable_client", feature = "enable_tcp" ))]
 #[cfg(feature="enable_ws")]
 #[tokio::main]
 #[test]
@@ -50,6 +53,7 @@ async fn test_server_client_for_comms_with_websocket() -> Result<(), AteError> {
     test_server_client_for_comms(StreamProtocol::WebSocket, 4011).await
 }
 
+#[cfg(all(feature = "enable_server", feature = "enable_client", feature = "enable_tcp" ))]
 #[cfg(test)]
 async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) -> Result<(), AteError> {
     crate::utils::bootstrap_env();
@@ -117,6 +121,7 @@ async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) 
     }
     */
     
+    #[cfg(feature="enable_dns")]
     {
         // Start the client
         info!("start another client that will connect to the relay");
@@ -126,8 +131,7 @@ async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) 
         cfg.wire_format = wire_format;
         cfg.wire_encryption = Some(KeySize::Bit256);
         let cfg = MeshConfig::new(cfg)
-            .connect_to(IpAddr::from_str("127.0.0.1")
-            .unwrap(), port);
+            .connect_to(MeshAddress { host: IpAddr::from_str("127.0.0.1").unwrap(), port });
         let (client_tx, mut client_rx) = super::connect::<TestMessage, ()>(&cfg, "/comm-test".to_string())
             .await?;
 

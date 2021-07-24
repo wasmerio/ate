@@ -1,6 +1,5 @@
 #![allow(unused_imports)]
 use log::{info, warn, debug};
-use tokio::{net::{TcpStream}};
 use tokio::io::{ AsyncReadExt, AsyncWriteExt};
 use crate::crypto::{EncryptKey, PublicEncryptKey, InitializationVector};
 
@@ -10,6 +9,7 @@ use crate::crypto::KeySize;
 use super::StreamRx;
 use super::StreamTx;
 
+#[cfg(feature = "enable_client")]
 pub(super) async fn mesh_key_exchange_sender(stream_rx: &mut StreamRx, stream_tx: &mut StreamTx, key_size: KeySize) -> Result<EncryptKey, CommsError>
 {
     debug!("negotiating {}bit shared secret", key_size);
@@ -50,6 +50,7 @@ pub(super) async fn mesh_key_exchange_sender(stream_rx: &mut StreamRx, stream_tx
     Ok(EncryptKey::xor(&ek1, &ek2))
 }
 
+#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
 pub(super) async fn mesh_key_exchange_receiver(stream_rx: &mut StreamRx, stream_tx: &mut StreamTx, key_size: KeySize) -> Result<EncryptKey, CommsError>
 {
     debug!("negotiating {}bit shared secret", key_size);

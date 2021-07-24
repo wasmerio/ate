@@ -7,6 +7,8 @@ use serde_json::Error as JsonError;
 use tokio::task::JoinError;
 use std::sync::mpsc as smpsc;
 use tokio::sync::mpsc as mpsc;
+#[cfg(feature="enable_wasm")]
+use ws_stream_wasm::WsErr;
 
 use super::*;
 
@@ -30,6 +32,10 @@ pub enum CommsError
     RootServerError(String),
     InternalError(String),
     UrlError(url::ParseError),
+    #[cfg(feature="enable_wasm")]
+    #[cfg(not(feature="enable_tcp"))]
+    WebSocketError(WsErr),
+    #[cfg(feature="enable_tcp")]
     #[cfg(feature="enable_ws")]
     WebSocketError(tokio_tungstenite::tungstenite::Error),
     #[cfg(feature="enable_ws")]
@@ -93,6 +99,17 @@ for CommsError
     }   
 }
 
+#[cfg(feature="enable_wasm")]
+#[cfg(not(feature="enable_tcp"))]
+impl From<WsErr>
+for CommsError
+{
+    fn from(err: WsErr) -> CommsError {
+        CommsError::WebSocketError(err)
+    }   
+}
+
+#[cfg(feature="enable_tcp")]
 #[cfg(feature="enable_ws")]
 impl From<tokio_tungstenite::tungstenite::Error>
 for CommsError
@@ -102,6 +119,7 @@ for CommsError
     }   
 }
 
+#[cfg(feature="enable_tcp")]
 #[cfg(feature="enable_ws")]
 impl From<tokio_tungstenite::tungstenite::http::uri::InvalidUri>
 for CommsError

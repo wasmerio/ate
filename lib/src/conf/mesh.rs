@@ -1,10 +1,12 @@
 #[allow(unused_imports)]
 use log::{info, error, debug};
+#[cfg(feature="enable_dns")]
 use std::{net::IpAddr};
 use std::time::Duration;
 
 use crate::prelude::*;
 use crate::crypto::KeySize;
+#[allow(unused_imports)]
 use crate::{comms::StreamProtocol, error::CommsError};
 
 use super::*;
@@ -27,9 +29,11 @@ pub struct ConfMesh
     /// Forces ATE to act as a client even if its local IP address is one
     /// of the node machines in the clusters (normally ATE would automatically
     /// listen for connections)
+    #[cfg(feature="enable_client")]
     pub force_client_only: bool,
     /// Forces ATE to listen on a particular address for connections even if
     /// the address is not in the list of cluster nodes.
+    #[cfg(feature="enable_server")]
     pub force_listen: Option<MeshAddress>,
 
     /// Flag that indicates if encryption will be used for the underlying
@@ -43,6 +47,7 @@ pub struct ConfMesh
     /// Time to wait for a connection to a server before it times out
     pub connect_timeout: Duration,
     /// Time to wait for a connection to be accepted during handshaking
+    #[cfg(feature="enable_server")]
     pub accept_timeout: Duration,
     
     /// Connection attempts will abort quickly in the scenario that something is wrong rather
@@ -58,8 +63,10 @@ pub struct ConfMesh
     pub wire_protocol: StreamProtocol,
 
     /// Size of the buffer on mesh clients, tweak this number with care
+    #[cfg(feature="enable_client")]
     pub buffer_size_client: usize,
     /// Size of the buffer on mesh servers, tweak this number with care
+    #[cfg(feature="enable_server")]
     pub buffer_size_server: usize,
 }
 
@@ -67,6 +74,8 @@ impl ConfMesh
 {
     /// Represents a single server listening on all available addresses. All chains
     /// will be stored locally to this server and there is no replication
+    #[cfg(feature="enable_dns")]
+    #[cfg(feature="enable_server")]
     pub fn solo(listen: &IpAddr, domain: String, port: u16) -> Result<ConfMesh, CommsError>
     {
         let addr = MeshAddress::new(listen.clone(), port);
@@ -77,7 +86,24 @@ impl ConfMesh
 
         Ok(cfg_mesh)
     }
+    
+    /// Represents a single server listening on all available addresses. All chains
+    /// will be stored locally to this server and there is no replication
+    #[cfg(not(feature="enable_dns"))]
+    #[cfg(feature="enable_server")]
+    pub fn solo(domain: String, port: u16) -> Result<ConfMesh, CommsError>
+    {
+        let addr = MeshAddress::new(domain.as_str(), port);
+        let mut cfg_mesh = ConfMesh::for_domain(domain);
+        cfg_mesh.force_client_only = false;
+        cfg_mesh.force_listen = Some(addr.clone());
+        cfg_mesh.roots.push(addr.clone());
 
+        Ok(cfg_mesh)
+    }
+
+    #[cfg(feature="enable_dns")]
+    #[cfg(feature="enable_server")]
     pub fn solo_from_url(url : &url::Url, listen: &IpAddr) -> Result<ConfMesh, CommsError>
     {
         let protocol = StreamProtocol::parse(url)?;
@@ -91,20 +117,43 @@ impl ConfMesh
         ConfMesh::solo(listen, domain, port)
     }
 
+    #[cfg(not(feature="enable_dns"))]
+    #[cfg(feature="enable_server")]
+    pub fn solo_from_url(url : &url::Url) -> Result<ConfMesh, CommsError>
+    {
+        let protocol = StreamProtocol::parse(url)?;
+        let port = url.port().unwrap_or(protocol.default_port());
+        let domain = match url.domain() {
+            Some(a) => a.to_string(),
+            None => {
+                return Err(CommsError::InvalidDomainName);
+            }
+        };
+        ConfMesh::solo(domain, port)
+    }
+
     pub fn for_domain(domain_name: String) -> ConfMesh
     {
         ConfMesh {
             roots: Vec::new(),
             domain_name,
+            #[cfg(feature="enable_client")]
             force_client_only: false,
+            #[cfg(feature="enable_server")]
             force_listen: None,
             wire_encryption: Some(KeySize::Bit128),
+            #[cfg(feature="enable_tcp")]
             wire_protocol: StreamProtocol::Tcp,
+            #[cfg(not(feature="enable_tcp"))]
+            wire_protocol: StreamProtocol::WebSocket,
             wire_format: SerializationFormat::Bincode,
             connect_timeout: Duration::from_secs(30),
+            #[cfg(feature="enable_server")]
             accept_timeout: Duration::from_secs(10),
             fail_fast: false,
+            #[cfg(feature="enable_client")]
             buffer_size_client: 2,
+            #[cfg(feature="enable_server")]
             buffer_size_server: 10,
         }
     }

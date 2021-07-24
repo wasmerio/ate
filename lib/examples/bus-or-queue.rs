@@ -16,6 +16,11 @@ struct Table
     ball: DaoVec<BallSound>
 }
 
+#[cfg(not(all(feature = "enable_server", feature = "enable_tcp" )))]
+fn main() {
+}
+
+#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
 #[tokio::main]
 async fn main() -> Result<(), AteError>
 {
@@ -24,7 +29,10 @@ async fn main() -> Result<(), AteError>
     // Create the server and listen on port 5001
     debug!("setting up a mesh server on 127.0.0.1:5001");
     let mesh_url = url::Url::parse("ws://localhost:5001/").unwrap();
+    #[cfg(feature="enable_dns")]
     let mut cfg_mesh = ConfMesh::solo(&IpAddr::from_str("127.0.0.1").unwrap(), "localhost".to_string(), 5001)?;
+    #[cfg(not(feature="enable_dns"))]
+    let mut cfg_mesh = ConfMesh::solo("localhost".to_string(), 5001)?;
     let cfg_ate = ConfAte::default();
     let _root = create_ethereal_server(&cfg_ate, &cfg_mesh).await?;
 

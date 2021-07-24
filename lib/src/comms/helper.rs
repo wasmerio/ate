@@ -1,12 +1,15 @@
 #[allow(unused_imports)]
 use log::{info, warn, debug};
 use tokio::sync::mpsc;
+#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
 use tokio::sync::broadcast;
 use std::sync::Arc;
 use serde::{Serialize, de::DeserializeOwned};
+#[cfg(feature="enable_tcp")]
 use tokio::{net::{TcpStream}};
 use bytes::Bytes;
 use tokio::select;
+#[allow(unused_imports)]
 use tokio::io::{self};
 
 use crate::spec::*;
@@ -16,11 +19,14 @@ use crate::error::*;
 use super::Packet;
 use super::PacketData;
 use super::PacketWithContext;
+#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
 use super::BroadcastContext;
+#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
 use super::BroadcastPacketData;
 use super::StreamRx;
 use super::StreamTx;
 
+#[cfg(feature="enable_tcp")]
 pub(super) fn setup_tcp_stream(stream: &TcpStream) -> io::Result<()> {
     stream.set_nodelay(true)?;
     Ok(())
@@ -139,6 +145,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone,
     }
 }
 
+#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
 #[allow(unused_variables)]
 pub(super) async fn process_downcast<M, C>(
     tx: mpsc::Sender<PacketData>,

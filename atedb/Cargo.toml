@@ -11,31 +11,31 @@ repository = "https://github.com/john-sharratt/ate/atedb"
 readme = "README.md"
 
 [dependencies]
-ate = { version = "0.9.*", path = "../lib" }
-ate-auth = { version = "1.7.*", path = "../auth" }
-tokio = { version = "1.9.*", features = ["full", "signal", "process"] }
-serde = { version = "1.0.*", features = ["derive"] }
-log = { version = "0.4.*", features = [ "release_max_level_info" ] }
-env_logger = "0.8.*"
-parking_lot = "0.11.*"
-futures = "0.3.*"
-futures-util = "0.3.*"
-async-trait = "0.1.*"
-bytes = "1.0.*"
-fxhash = "0.2.*"
-fastrand = "1.4.*"
-ctrlc = { version = "3.1.*" }
-directories = { version = "3.0.*" }
-libc = { version = "0.2.*" }
-enum_dispatch = { version = "0.3.*" }
+ate = { version = "^0.9", path = "../lib", features = [ "server" ] }
+ate-auth = { version = "^1", path = "../auth" }
+tokio = { version = "^1", features = ["full", "signal", "process"] }
+serde = { version = "^1", features = ["derive"] }
+log = { version = "^0.4", features = [ "release_max_level_info" ] }
+env_logger = "^0.8"
+parking_lot = "^0.11"
+futures = "^0.3"
+futures-util = "^0.3"
+async-trait = "^0.1"
+bytes = "^1"
+fxhash = "^0.2"
+fastrand = "^1"
+ctrlc = { version = "^3" }
+directories = { version = "^3" }
+libc = { version = "^0.2" }
+enum_dispatch = { version = "^0.3" }
 clap = "3.0.0-beta.2"
-shellexpand = "2.1.0"
-cached = "0.23.*"
-seqlock = "0.1.*"
-xarc = "0.2.*"
-lockfree = "0.5.*"
-array-init = "1.0.*"
+shellexpand = "^2"
+cached = "^0.23"
+seqlock = "^0.1"
+xarc = "^0.2"
+lockfree = "^0.5"
+array-init = "^1"
 rpassword = "0.0.*"
-url = "2.2.*"
-pbr = "1.0.*"
-regex = "1.4.*"
+url = "^2"
+pbr = "^1"
+regex = "^1"

@@ -2,7 +2,7 @@
 use log::{info, error, debug};
 use ate::prelude::*;
 use crate::prelude::*;
-use ate::time::NtpWorker;
+use ate::time::TimeKeeper;
 use url::Url;
 
 #[tokio::main]
@@ -14,7 +14,10 @@ pub async fn test_create_user_and_group() -> Result<(), AteError>
     // Create the configuration
     #[allow(unused_mut)]
     let mut cfg_ate = crate::conf_auth();
-    cfg_ate.log_path = Some(format!("/tmp/ate/test/{}", fastrand::u64(..)));
+    #[cfg(feature = "enable_local_fs")]
+    {
+        cfg_ate.log_path = Some(format!("/tmp/ate/test/{}", fastrand::u64(..)));
+    }
     
     // Build a session for service
     let root_read_key = EncryptKey::generate(KeySize::Bit256);
@@ -51,9 +54,9 @@ pub async fn test_create_user_and_group() -> Result<(), AteError>
     let _session = crate::main_create_group(Some(group.clone()), auth.clone(), Some(username.clone())).await?;
 
     // Compute the code using the returned QR secret
-    let ntp = NtpWorker::create(&cfg_ate, 30000).await?;
+    let timer = TimeKeeper::new(&cfg_ate, 30000).await?;
     let google_auth = google_authenticator::GoogleAuthenticator::new();
-    let code = google_auth.get_code(response.qr_secret.as_str(), ntp.current_timestamp()?.as_secs() / 30).unwrap();
+    let code = google_auth.get_code(response.qr_secret.as_str(), timer.current_timestamp_as_duration()?.as_secs() / 30).unwrap();
 
     // Login to the main user and gather the rights to the group (full sudo rights)
     let session = crate::main_sudo(Some(username.clone()), Some(password.clone()), Some(code), auth.clone()).await?;

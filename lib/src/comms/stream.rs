@@ -1,25 +1,47 @@
 #![allow(unused_imports)]
 use log::{info, warn, debug};
+#[cfg(feature="enable_tcp")]
 use tokio::net::TcpStream;
+#[cfg(feature="enable_tcp")]
 use tokio::net::tcp::OwnedReadHalf;
+#[cfg(feature="enable_tcp")]
 use tokio::net::tcp::OwnedWriteHalf;
-#[cfg(feature="enable_ws")]
-use tokio_tungstenite::tungstenite::Message;
-#[cfg(feature="enable_ws")]
-use tokio_tungstenite::WebSocketStream;
-use futures_util::stream;
-use futures_util::StreamExt;
-use futures_util::SinkExt;
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use std::str::FromStr;
 use tokio::time::timeout as tokio_timeout;
 use std::time::Duration;
+use std::result::Result;
+
+#[allow(unused_imports)]
+#[cfg(feature="enable_tcp")]
+#[cfg(feature="enable_ws")]
+use
+{
+    tokio_tungstenite     :: { tungstenite::{ Message }, WebSocketStream    },
+    tokio                 :: { io::{ AsyncReadExt, AsyncWriteExt }          },
+    futures_util          :: { StreamExt, SinkExt, stream                   },
+};
+
+#[cfg(feature="enable_wasm")]
+#[cfg(feature="enable_ws")]
+use
+{
+    futures               :: { AsyncReadExt                         } ,
+	wasm_bindgen::prelude :: { *                                    } ,
+	wasm_bindgen_test     :: { *                                    } ,
+	ws_stream_wasm        :: { *                                    } ,
+    futures               :: { io::{ ReadHalf, WriteHalf }          } ,
+    futures               :: { stream::{ StreamExt }, sink::SinkExt } ,
+    async_io_stream       :: { IoStream                             } ,
+    tokio_util            :: { codec::{ BytesCodec, Framed }        } ,
+    futures_util          :: { stream                               } ,
+};
 
 use crate::error::CommsError;
 
 #[derive(Debug, Clone, Copy)]
 pub enum StreamProtocol
 {
+    #[cfg(feature="enable_tcp")]
     Tcp,
     #[cfg(feature="enable_ws")]
     WebSocket,
@@ -33,6 +55,7 @@ for StreamProtocol
     fn from_str(s: &str) -> Result<StreamProtocol, CommsError>
     {
         let ret = match s {
+            #[cfg(feature="enable_tcp")]
             "tcp" => StreamProtocol::Tcp,
             #[cfg(feature="enable_ws")]
             "ws" => StreamProtocol::WebSocket,
@@ -49,6 +72,7 @@ impl StreamProtocol
     pub fn to_scheme(&self) -> String
     {
         let ret = match self {
+            #[cfg(feature="enable_tcp")]
             StreamProtocol::Tcp => "tcp",
             #[cfg(feature="enable_ws")]
             StreamProtocol::WebSocket => "ws",
@@ -63,6 +87,7 @@ impl StreamProtocol
 
     pub fn default_port(&self) -> u16 {
         match self {
+            #[cfg(feature="enable_tcp")]
             StreamProtocol::Tcp => 5000,
             StreamProtocol::WebSocket => 80,
         }
@@ -80,9 +105,14 @@ for StreamProtocol
 #[derive(Debug)]
 pub enum Stream
 {
+    #[cfg(feature="enable_tcp")]
     Tcp(TcpStream),
+    #[cfg(not(feature="enable_wasm"))]
     #[cfg(feature="enable_ws")]
     WebSocket(WebSocketStream<TcpStream>, StreamProtocol),
+    #[cfg(feature="enable_wasm")]
+    #[cfg(feature="enable_ws")]
+    WebSocket(IoStream<WsStreamIo, Vec<u8>>, StreamProtocol),
 }
 
 impl StreamProtocol
@@ -113,39 +143,52 @@ impl StreamProtocol
 #[derive(Debug)]
 pub enum StreamRx
 {
+    #[cfg(feature="enable_tcp")]
     Tcp(OwnedReadHalf),
+    #[cfg(not(feature="enable_wasm"))]
     #[cfg(feature="enable_ws")]
     WebSocket(stream::SplitStream<WebSocketStream<TcpStream>>),
+    #[cfg(feature="enable_wasm")]
+    #[cfg(feature="enable_ws")]
+    WebSocket(stream::SplitStream<Framed<IoStream<WsStreamIo, Vec<u8>>, BytesCodec>>),
 }
 
 #[derive(Debug)]
 pub enum StreamTx
 {
+    #[cfg(feature="enable_tcp")]
     Tcp(OwnedWriteHalf),
+    #[cfg(not(feature="enable_wasm"))]
     #[cfg(feature="enable_ws")]
     WebSocket(stream::SplitSink<WebSocketStream<TcpStream>, Message>),
+    #[cfg(feature="enable_wasm")]
+    #[cfg(feature="enable_ws")]
+    WebSocket(stream::SplitSink<Framed<IoStream<WsStreamIo, Vec<u8>>, BytesCodec>, bytes::Bytes>),
 }
 
 impl Stream
 {
     pub fn split(self) -> (StreamRx, StreamTx) {
         match self {
+            #[cfg(feature="enable_tcp")]
             Stream::Tcp(a) => {
                 let (rx, tx) = a.into_split();
                 (StreamRx::Tcp(rx), StreamTx::Tcp(tx))
             },
             #[cfg(feature="enable_ws")]
             Stream::WebSocket(a, _) => {
-                let (tx, rx) = a.split();
+                let (tx, rx) = Framed::new( a, BytesCodec::new() ).split();
                 (StreamRx::WebSocket(rx), StreamTx::WebSocket(tx))
             },
         }
     }
 
+    #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
     pub async fn upgrade_server(self, protocol: StreamProtocol, timeout: Duration) -> Result<Stream, CommsError> {
         debug!("tcp-protocol-upgrade: {}", protocol);
 
         let ret = match self {
+            #[cfg(feature="enable_tcp")]
             Stream::Tcp(a) => {
                 match protocol {
                     StreamProtocol::Tcp => {
@@ -162,6 +205,7 @@ impl Stream
             #[cfg(feature="enable_ws")]
             Stream::WebSocket(a, p) => {
                 match protocol {
+                    #[cfg(feature="enable_tcp")]
                     StreamProtocol::Tcp => {
                         Stream::WebSocket(a, p)
                     },
@@ -180,6 +224,7 @@ impl Stream
         debug!("tcp-protocol-upgrade: {}", protocol);
 
         let ret = match self {
+            #[cfg(feature="enable_tcp")]
             Stream::Tcp(a) => {
                 match protocol {
                     StreamProtocol::Tcp => Stream::Tcp(a),
@@ -200,6 +245,7 @@ impl Stream
             #[cfg(feature="enable_ws")]
             Stream::WebSocket(a, p) => {
                 match protocol {
+                    #[cfg(feature="enable_tcp")]
                     StreamProtocol::Tcp => Stream::WebSocket(a, p),
                     StreamProtocol::WebSocket => Stream::WebSocket(a, p),
                 }
@@ -212,6 +258,7 @@ impl Stream
     pub fn protocol(&self) -> StreamProtocol
     {
         match self {
+            #[cfg(feature="enable_tcp")]
             Stream::Tcp(_) => StreamProtocol::Tcp,
             #[cfg(feature="enable_ws")]
             Stream::WebSocket(_, p) => p.clone(),
@@ -225,6 +272,7 @@ impl StreamTx
     pub async fn write_8bit(&mut self, buf: Vec<u8>, delay_flush: bool) -> Result<(), tokio::io::Error>
     {
         match self {
+            #[cfg(feature="enable_tcp")]
             StreamTx::Tcp(a) => {
                 if buf.len() > u8::MAX as usize {
                     return Err(tokio::io::Error::new(tokio::io::ErrorKind::InvalidData, format!("Data is to big to write (len={}, max={})", buf.len(), u8::MAX)));
@@ -244,6 +292,7 @@ impl StreamTx
     pub async fn write_16bit(&mut self, buf: Vec<u8>, delay_flush: bool) -> Result<(), tokio::io::Error>
     {
         match self {
+            #[cfg(feature="enable_tcp")]
             StreamTx::Tcp(a) => {
                 if buf.len() > u16::MAX as usize {
                     return Err(tokio::io::Error::new(tokio::io::ErrorKind::InvalidData, format!("Data is to big to write (len={}, max={})", buf.len(), u16::MAX)));
@@ -263,6 +312,7 @@ impl StreamTx
     pub async fn write_32bit(&mut self, buf: Vec<u8>, delay_flush: bool) -> Result<(), tokio::io::Error>
     {
         match self {
+            #[cfg(feature="enable_tcp")]
             StreamTx::Tcp(a) => {
                 if buf.len() > u32::MAX as usize {
                     return Err(tokio::io::Error::new(tokio::io::ErrorKind::InvalidData, format!("Data is to big to write (len={}, max={})", buf.len(), u32::MAX)));
@@ -270,6 +320,7 @@ impl StreamTx
                 a.write_u32(buf.len() as u32).await?;
                 a.write_all(&buf[..]).await?; 
             },
+            #[cfg(not(feature="enable_wasm"))]
             #[cfg(feature="enable_ws")]
             StreamTx::WebSocket(a) => {
                 if delay_flush {
@@ -288,6 +339,25 @@ impl StreamTx
                     }
                 }
             },
+            #[cfg(feature="enable_wasm")]
+            #[cfg(feature="enable_ws")]
+            StreamTx::WebSocket(a) => {
+                if delay_flush {
+                    match a.feed(bytes::Bytes::from(buf)).await {
+                        Ok(a) => a,
+                        Err(err) => {
+                            return Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to feed data into websocket - {}", err.to_string())));
+                        }
+                    }
+                } else {
+                    match a.send(bytes::Bytes::from(buf)).await {
+                        Ok(a) => a,
+                        Err(err) => {
+                            return Err(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to feed data into websocket - {}", err.to_string())));
+                        }
+                    }
+                }
+            },
         }
         Ok(())
     }
@@ -298,6 +368,7 @@ impl StreamRx
     pub async fn read_8bit(&mut self) -> Result<Vec<u8>, tokio::io::Error>
     {
         let ret = match self {
+            #[cfg(feature="enable_tcp")]
             StreamRx::Tcp(a) => {
                 let len = a.read_u8().await?;
                 if len <= 0 { return Ok(vec![]); }
@@ -317,6 +388,7 @@ impl StreamRx
     pub async fn read_16bit(&mut self) -> Result<Vec<u8>, tokio::io::Error>
     {
         let ret = match self {
+            #[cfg(feature="enable_tcp")]
             StreamRx::Tcp(a) => {
                 let len = a.read_u16().await?;
                 if len <= 0 { return Ok(vec![]); }
@@ -336,6 +408,7 @@ impl StreamRx
     pub async fn read_32bit(&mut self) -> Result<Vec<u8>, tokio::io::Error>
     {
         let ret = match self {
+            #[cfg(feature="enable_tcp")]
             StreamRx::Tcp(a) => {
                 let len = a.read_u32().await?;
                 if len <= 0 { return Ok(vec![]); }
@@ -344,6 +417,7 @@ impl StreamRx
                 if n != (len as usize) { return Ok(vec![]); }
                 bytes
             },
+            #[cfg(not(feature="enable_wasm"))]
             #[cfg(feature="enable_ws")]
             StreamRx::WebSocket(a) => {
                 match a.next().await {
@@ -358,6 +432,23 @@ impl StreamRx
                             Message::Binary(a) => a,
                             _ => {
                                 return Err(tokio::io::Error::new(tokio::io::ErrorKind::InvalidData, format!("Failed to receive data from websocket as the message was the wrong type")));
+                            }
+                        }
+                    },
+                    None => {
+                        return Err(tokio::io::Error::new(tokio::io::ErrorKind::BrokenPipe, format!("Failed to receive data from websocket")));
+                    }
+                }
+            },
+            #[cfg(feature="enable_wasm")]
+            #[cfg(feature="enable_ws")]
+            StreamRx::WebSocket(a) => {
+                match a.next().await {
+                    Some(msg) => {
+                        match msg {
+                            Ok(a) => a.to_vec(),
+                            Err(err) => {
+                                return Err(tokio::io::Error::new(tokio::io::ErrorKind::InvalidData, format!("Failed to receive data from websocket - {}", err.to_string())));
                             }
                         }
                     },

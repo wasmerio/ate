@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use ::ate::prelude::*;
 use ::ate::error::*;
-use ::ate::time::NtpWorker;
+use ::ate::time::TimeKeeper;
 
 use crate::commands::*;
 use crate::helper::*;
@@ -16,7 +16,7 @@ pub struct AuthService
 {
     pub auth_url: url::Url,
     pub master_session: AteSession,
-    pub ntp_worker: Arc<NtpWorker>,
+    pub time_keeper: Arc<TimeKeeper>,
 }
 
 #[async_trait]
@@ -108,7 +108,7 @@ impl AuthService
             {
                 auth_url,
                 master_session: auth_session,
-                ntp_worker:  NtpWorker::create(cfg, 30000).await?
+                time_keeper:  Arc::new(TimeKeeper::new(cfg, 30000).await?)
             }
         );
         Ok(service)

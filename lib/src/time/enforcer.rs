@@ -122,7 +122,7 @@ for TimestampEnforcer
         // Check its within the time range
         let timestamp = Duration::from_millis(time.time_since_epoch_ms);
         //let min_timestamp = self.cursor - self.tolerance;
-        let max_timestamp = self.keeper.current_timestamp_internal()? + self.keeper.tolerance;
+        let max_timestamp = self.keeper.current_timestamp_as_duration()? + self.keeper.tolerance;
         
         if //timestamp < min_timestamp ||
            timestamp > max_timestamp

@@ -7,7 +7,7 @@ use crate::{crypto::AteHash};
 use crate::event::*;
 use crate::error::*;
 
-use super::{LogLookup, file::LogFile};
+use super::{LogLookup, log_traits::LogFile};
 use super::api::LogWritable;
 use super::core::RedoLog;
 

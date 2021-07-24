@@ -1,7 +1,9 @@
+#![cfg(any(feature = "enable_full"))]
 #![allow(unused_imports)]
 use ate::prelude::*;
 use tokio::runtime::Runtime;
 
+#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
 #[cfg(feature = "enable_rotate")]
 #[test]
 fn rotate_test() -> Result<(), AteError>

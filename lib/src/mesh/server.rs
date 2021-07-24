@@ -248,8 +248,16 @@ for MeshRoot
             }
         };
 
-        let local_ips = vec!(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1)));
-        let is_local = self.addrs.contains(&addr) || local_ips.contains(&addr.ip);
+        #[cfg(feature="enable_dns")]
+        let is_local = {
+            let local_ips = vec!(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1)));
+            let is_local = self.addrs.contains(&addr) || local_ips.contains(&addr.host);
+            is_local
+        };
+        #[cfg(not(feature="enable_dns"))]
+        let is_local = {
+            addr.host == "localhost" || addr.host == "127.0.0.1" || addr.host == "::1"
+        };
 
         let weak = Arc::downgrade(&self);
         let ret = {
@@ -322,7 +330,10 @@ async fn open_internal<'a>(
         .await;
 
     // Postfix the hello_path
-    builder = builder.postfix_log_path(route_chain.route.as_str());
+    #[cfg(feature = "enable_local_fs")]
+    {
+        builder = builder.postfix_log_path(route_chain.route.as_str());
+    }
 
     // Add a pipe that will broadcast message to the connected clients
     if let Some(ctx) = &context {

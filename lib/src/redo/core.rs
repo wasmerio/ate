@@ -26,8 +26,8 @@ use super::flip::FlippedLogFile;
 use super::loader::RedoLogLoader;
 use super::api::LogWritable;
 #[cfg(feature = "enable_local_fs")]
-use super::file_localfs::LogFileLocalFs;
-use super::file_memdb::LogFileMemDb;
+use super::log_localfs::LogFileLocalFs;
+use super::log_memdb::LogFileMemDb;
 
 pub struct RedoLog
 {

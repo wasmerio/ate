@@ -25,6 +25,7 @@ pub enum ServiceError<E>
     LockError(LockError),
     PipeError(String),
     ServiceError(String),
+    TimeError(TimeError),
     Timeout,
     Aborted
 }
@@ -51,6 +52,14 @@ for ServiceError<E>
     fn from(err: mpsc::error::SendError<T>) -> ServiceError<E> {
         ServiceError::PipeError(err.to_string())
     }   
+}
+
+impl<E> From<TimeError>
+for ServiceError<E>
+{
+    fn from(err: TimeError) -> ServiceError<E> {
+        ServiceError::TimeError(err)
+    }
 }
 
 impl<E> From<LoadError>
@@ -151,6 +160,7 @@ impl<E> ServiceError<E>
             ServiceError::IO(a) => ServiceError::IO(a),
             ServiceError::Reply(_) => ServiceError::Reply(()),
             ServiceError::ServiceError(a) => ServiceError::ServiceError(a),
+            ServiceError::TimeError(a) => ServiceError::TimeError(a),
             ServiceError::Timeout => ServiceError::Timeout,
             ServiceError::Aborted => ServiceError::Aborted,
         }
@@ -190,6 +200,9 @@ where E: std::fmt::Debug
             ServiceError::Reply(err) => {
                 write!(f, "Command failed - {:?}", err)
             },
+            ServiceError::TimeError(err) => {
+                write!(f, "Command failed - Time error - {}", err)
+            }
             ServiceError::Timeout => {
                 write!(f, "Command failed - Timeout")
             },

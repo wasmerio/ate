@@ -5,6 +5,7 @@ use std::sync::Arc;
 use serde::{Serialize, Deserialize};
 
 use crate::prelude::*;
+#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
 use crate::mesh::MeshRoot;
 use crate::error::*;
 
@@ -14,6 +15,7 @@ struct TestData {
     pub inner: DaoVec<String>,
 }
 
+#[cfg(all(feature = "enable_server", feature = "enable_client", feature = "enable_tcp" ))]
 #[tokio::main]
 #[test]
 async fn test_mesh()
@@ -36,6 +38,7 @@ async fn test_mesh()
         // Build the configuration file for the mesh
         let mut cfg_mesh = ConfMesh::for_domain("localhost".to_string());
         cfg_mesh.wire_protocol = StreamProtocol::WebSocket;
+        #[cfg(feature="enable_dns")]
         for n in (5100+port_offset)..(5105+port_offset) {
             cfg_mesh.roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
         }
@@ -46,7 +49,10 @@ async fn test_mesh()
         #[allow(unused_variables)]
         let mut index: i32 = 0;
         for n in (5100+port_offset)..(5105+port_offset) {
+            #[cfg(feature="enable_dns")]
             let addr = MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n);
+            #[cfg(not(feature="enable_dns"))]
+            let addr = MeshAddress::new("localhost", n);
             #[allow(unused_mut)]
             let mut cfg_ate = cfg_ate.clone();
             #[cfg(feature = "enable_local_fs")]

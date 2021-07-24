@@ -113,7 +113,7 @@ impl AuthService
 
             {
                 // Check the code matches the authenticator code
-                let time = self.ntp_worker.current_timestamp().unwrap();
+                let time = self.time_keeper.current_timestamp_as_duration()?;
                 let time = time.as_secs() / 30;
                 let google_auth = google_authenticator::GoogleAuthenticator::new();
                 if google_auth.verify_code(sudo.secret.as_str(), code.as_str(), 3, time) {

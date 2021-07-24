@@ -86,6 +86,13 @@ pub struct MessageFormat
     pub data: SerializationFormat,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum TrustMode
+{
+    Distributed,
+    Centralized
+}
+
 #[derive(Debug, Clone, Copy, Eq, PartialEq, IntoPrimitive, TryFromPrimitive)]
 #[repr(u8)]
 pub enum BlobSize

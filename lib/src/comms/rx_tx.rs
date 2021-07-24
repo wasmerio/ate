@@ -4,7 +4,9 @@ use rand::seq::SliceRandom;
 use fxhash::FxHashMap;
 use tokio::sync::mpsc;
 use std::{marker::PhantomData};
+#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
 use tokio::sync::broadcast;
+#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
 use std::sync::Arc;
 use serde::{Serialize, de::DeserializeOwned};
 
@@ -20,6 +22,7 @@ use super::PacketWithContext;
 #[derive(Debug)]
 pub(crate) enum TxDirection
 {
+    #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
     Downcast(Arc<broadcast::Sender<BroadcastPacketData>>),
     UpcastOne(Upstream),
     UpcastMany(FxHashMap<u64, Upstream>)
@@ -50,6 +53,7 @@ where C: Send + Sync + Default + 'static
 {
     pub(crate) async fn send_packet(&self, pck: BroadcastPacketData) -> Result<(), CommsError> {
         match &self.direction {
+            #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
             TxDirection::Downcast(a) => {
                 a.send(pck)?;
             },
@@ -68,6 +72,7 @@ where C: Send + Sync + Default + 'static
     pub(crate) fn get_unicast_sender(&self) -> Option<mpsc::Sender<PacketData>>
     {
         match &self.direction {
+            #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
             TxDirection::Downcast(_) => {
                 None
             },
@@ -93,6 +98,7 @@ where C: Send + Sync + Default + 'static
 
     pub(crate) async fn on_disconnect(&self) -> Result<(), CommsError> {
         match &self.direction {
+            #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
             TxDirection::Downcast(_) => {
                 return Err(CommsError::ShouldBlock);
             },
@@ -110,6 +116,7 @@ where C: Send + Sync + Default + 'static
 
     pub(crate) fn is_closed(&self) -> bool {
         match &self.direction {
+            #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
             TxDirection::Downcast(_) => {
                 false
             },

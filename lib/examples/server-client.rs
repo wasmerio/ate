@@ -3,13 +3,22 @@ use log::{info, warn, debug, error};
 use serde::{Serialize, Deserialize};
 use ate::prelude::*;
 
+#[cfg(not(feature = "enable_server"))]
+fn main () {
+}
+
+#[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
 #[tokio::main]
 async fn main() -> Result<(), AteError>
 {
     env_logger::init();
 
     // Create the server and listen on port 5000
-    let cfg_mesh = ConfMesh::solo_from_url(&url::Url::parse("ws://localhost:5000/test-chain").unwrap(), &IpAddr::from_str("::").unwrap())?;
+    let url = url::Url::parse("ws://localhost:5000/test-chain").unwrap();
+    #[cfg(feature="enable_dns")]
+    let cfg_mesh = ConfMesh::solo_from_url(&url, &IpAddr::from_str("::").unwrap())?;
+    #[cfg(not(feature="enable_dns"))]
+    let cfg_mesh = ConfMesh::solo_from_url(&url)?;
     let cfg_ate = ConfAte::default();
     info!("create a persistent server");
     let _server = create_persistent_centralized_server(&cfg_ate, &cfg_mesh).await?;

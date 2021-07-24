@@ -1,3 +1,4 @@
+#![cfg(any(feature = "enable_full"))]
 #![allow(unused_imports)]
 use log::{error, info, warn, debug};
 use serde::{Serialize, Deserialize};
@@ -18,6 +19,7 @@ struct Garage
     cars: DaoVec<Car>,
 }
 
+#[cfg(any(feature = "enable_server", feature = "enable_client" ))]
 #[cfg(feature = "enable_local_fs")]
 #[test]
 fn test_trust_tree_persistent() -> Result<(), AteError>
@@ -111,6 +113,7 @@ fn test_trust_tree_persistent() -> Result<(), AteError>
     })
 }
 
+#[cfg(any(feature = "enable_server", feature = "enable_client" ))]
 #[test]
 fn test_trust_tree_memory() -> Result<(), AteError>
 {

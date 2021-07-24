@@ -14,34 +14,33 @@ use crate::repository::ChainRepository;
 use std::{net::IpAddr, sync::Arc};
 use fxhash::FxHashMap;
 use tokio::sync::Mutex;
-use tokio::net::UdpSocket;
 use std::net::SocketAddr;
 use std::net::ToSocketAddrs;
+#[cfg(feature="enable_tcp")]
 use tokio::net::TcpStream as TokioTcpStream;
-use tokio::net::UdpSocket as TokioUdpSocket;
 use url::Url;
 use std::net::Ipv4Addr;
 use std::net::Ipv6Addr;
 use std::str::FromStr;
-use trust_dns_client::client::{Client, SyncClient, ClientHandle, AsyncClient, MemoizeClientHandle};
-use trust_dns_client::error::ClientError;
-use trust_dns_client::udp::UdpClientConnection;
-use trust_dns_client::udp::UdpClientStream;
-use trust_dns_client::tcp::TcpClientConnection;
-use trust_dns_client::tcp::TcpClientStream;
-use trust_dns_client::tcp::TcpStream;
-use trust_dns_client::op::DnsResponse;
-use trust_dns_client::rr::{DNSClass, Name, RData, Record, RecordType};
-use trust_dns_proto::DnssecDnsHandle;
-use trust_dns_proto::iocompat::AsyncIoTokioAsStd;
-use trust_dns_client::op::ResponseCode;
-use trust_dns_client::rr::dnssec::TrustAnchor;
-use trust_dns_proto::{
-    error::ProtoError,
-    xfer::{DnsHandle, DnsRequest},
+#[cfg(feature="enable_dns")]
+use
+{
+    trust_dns_client::client::*,
+    trust_dns_client::error::ClientError,
+    trust_dns_client::tcp::*,
+    trust_dns_client::op::DnsResponse,
+    trust_dns_client::rr::*,
+    trust_dns_proto::DnssecDnsHandle,
+    trust_dns_proto::iocompat::AsyncIoTokioAsStd,
+    trust_dns_client::op::ResponseCode,
+    trust_dns_client::rr::dnssec::TrustAnchor,
+    trust_dns_proto::{
+        error::ProtoError,
+        xfer::{DnsHandle, DnsRequest},
+    }
 };
 
-
+#[cfg(feature="enable_dns")]
 enum DnsClient
 {
     Dns {
@@ -54,6 +53,7 @@ enum DnsClient
     }
 }
 
+#[cfg(feature="enable_dns")]
 impl DnsClient
 {
     async fn connect(cfg: &ConfAte) -> DnsClient
@@ -130,6 +130,7 @@ impl DnsClient
 pub struct Registry
 {
     pub cfg_ate: ConfAte,
+    #[cfg(feature="enable_dns")]
     dns: Mutex<DnsClient>,
     pub temporal: bool,
     pub fail_fast: bool,
@@ -140,12 +141,16 @@ impl Registry
 {
     pub async fn new(cfg_ate: &ConfAte) -> Registry
     {
-        let dns = DnsClient::connect(cfg_ate).await;
-        let dns = Mutex::new(dns);
+        #[cfg(feature="enable_dns")]
+        let dns = {
+            let dns = DnsClient::connect(cfg_ate).await;
+            Mutex::new(dns)
+        };
         
         Registry {
             cfg_ate: cfg_ate.clone(),
             fail_fast: true,
+            #[cfg(feature="enable_dns")]
             dns,
             temporal: true,
             chains: Mutex::new(FxHashMap::default()),
@@ -207,19 +212,27 @@ impl Registry
         ret.fail_fast = self.fail_fast;
 
         // Search DNS for entries for this server (Ipv6 takes prioity over Ipv4)
-        let mut addrs = self.dns_query(domain).await?;
-        if addrs.len() <= 0 {
-            debug!("no nodes found for {}", domain);
-        }
+        #[cfg(feature="enable_dns")]
+        {
+            let mut addrs = self.dns_query(domain).await?;
+            if addrs.len() <= 0 {
+                debug!("no nodes found for {}", domain);
+            }
 
-        addrs.sort();
-        for addr in addrs.iter() {
-            debug!("found node {}", addr);
-        }
-        
-        // Add the cluster to the configuration
-        for addr in addrs {
-            let addr = MeshAddress::new(addr, port);
+            addrs.sort();
+            for addr in addrs.iter() {
+                debug!("found node {}", addr);
+            }
+            
+            // Add the cluster to the configuration
+            for addr in addrs {
+                let addr = MeshAddress::new(addr, port);
+                ret.roots.push(addr);
+            }
+        };
+        #[cfg(not(feature="enable_dns"))]
+        {
+            let addr = MeshAddress::new(domain, port);
             ret.roots.push(addr);
         }
 
@@ -230,6 +243,7 @@ impl Registry
         Ok(ret)
     }
 
+    #[cfg(feature="enable_dns")]
     async fn dns_query(&self, name: &str) -> Result<Vec<IpAddr>, ClientError>
     {
         match name.to_lowercase().as_str() {

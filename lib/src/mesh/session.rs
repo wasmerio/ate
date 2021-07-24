@@ -429,7 +429,7 @@ impl MeshSession
             }
         }
 
-        info!("disconnected: {}:{}", addr.ip, addr.port);
+        info!("disconnected: {}:{}", addr.host, addr.port);
         if let Some(session) = weak.upgrade() {
             session.cancel_commits().await;
             session.cancel_sniffers();

@@ -20,11 +20,19 @@ enable_local_fs = []
 enable_rotate = []
 enable_caching = []
 enable_ws = []
-enable_basics = [ "enable_buffered", "enable_local_fs", "enable_rotate", "enable_caching", "enable_ws" ]
-enable_x86 = [ "openssl", "tokio-tungstenite", "tokio", "pnet", "hyper", "hyper-tls", "backtrace", "trust-dns-proto", "trust-dns-client" ]
-client_wasm = [ ]
-client = [ "enable_x86" ]
-server = [ "enable_x86" ]
+enable_client = []
+enable_server = []
+enable_ntp = []
+enable_tcp = [ "tokio-tungstenite", "tokio", "pnet", "hyper", "hyper-tls" ]
+enable_wasm = [ "ws_stream_wasm", "wasm-bindgen", "wasm-bindgen-test", "async_io_stream", "tokio-util" ]
+enable_basics = [ "enable_ws", "enable_wasm" ]
+#enable_basics = [ "enable_ws" ]
+enable_dns = [ "trust-dns-proto", "trust-dns-client" ]
+enable_full = [ "enable_buffered", "enable_local_fs", "enable_rotate", "enable_caching", "enable_ntp" ]
+#enable_full = [ "enable_buffered", "enable_local_fs", "enable_rotate", "enable_caching", "enable_ntp", "enable_tcp", "enable_dns" ]
+client_wasm = [ "enable_wasm", "enable_client" ]
+client = [ "enable_full", "enable_client" ]
+server = [ "enable_full", "enable_server", "enable_client" ]
 
 [dependencies]
 uuid = { version = "^0.8", features = ["serde", "v4"] }
@@ -64,10 +72,15 @@ pqcrypto-traits = { git = "https://github.com/john-sharratt/pqcrypto-wasi.git" }
 http = { version = "^0.2" }
 aes = { version = "^0.7" }
 ctr = { version = "^0.8" }
+tokio = { version = "^1", features = [ "rt", "sync", "io-util", "macros", "time" ] }
+ws_stream_wasm = { version = "^0.7", features= [ "tokio_io" ], optional = true }
+wasm-bindgen = { version = "^0.2", optional = true }
+wasm-bindgen-test = { version = "^0.3", optional = true }
+async_io_stream = { version = "^0.3", optional = true }
+tokio-util = { version = "^0.6", optional = true, features = [ "io", "codec" ] }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 tokio = { version = "^1", features = [ "rt", "sync" ] }
-ws_stream_wasm = { version = "^0.7", features= [ "tokio_io" ] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { version = "^1", features = ["full", "signal", "process"], optional = true }
@@ -78,7 +91,6 @@ hyper = { version = "^0.14", features = ["full"], optional = true }
 hyper-tls = { version = "^0.5", optional = true }
 tokio-tungstenite = { version = "^0.14", optional = true }
 backtrace = { version = "^0.3", optional = true }
-openssl = { version = "^0.10", features = ["vendored"], optional = true }
 
 [dev-dependencies]
 ctor = "0.1.*"

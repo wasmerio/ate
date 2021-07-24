@@ -33,12 +33,15 @@ pub struct ConfAte
     /// NTP pool server which ATE will synchronize its clocks with, its
     /// important to have synchronized clocks with ATE as it uses time as
     /// digest to prevent replay attacks
+    #[cfg(feature = "enable_ntp")]
     pub ntp_pool: String,
     /// Port that the NTP server is listening on (defaults to 123)
+    #[cfg(feature = "enable_ntp")]
     pub ntp_port: u16,
     /// Flag that indicates if the time keeper will sync with NTP or not
     /// (avoiding NTP sync means one can run fully offline but time drift
     ///  will cause issues with multi factor authentication and timestamps)
+    #[cfg(feature = "enable_ntp")]
     pub ntp_sync: bool,
 
     /// Flag that determines if ATE will use DNSSec or just plain DNS
@@ -81,8 +84,11 @@ for ConfAte
             compact_mode: CompactMode::Never,
             compact_bootstrap: false,
             sync_tolerance: Duration::from_secs(30),
+            #[cfg(feature = "enable_ntp")]
             ntp_sync: true,
+            #[cfg(feature = "enable_ntp")]
             ntp_pool: "pool.ntp.org".to_string(),
+            #[cfg(feature = "enable_ntp")]
             ntp_port: 123,
             configured_for: ConfiguredFor::default(),
             #[cfg(feature = "enable_local_fs")]
