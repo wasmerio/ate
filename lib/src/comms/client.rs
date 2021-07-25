@@ -15,7 +15,7 @@ use std::net::SocketAddr;
 use std::net::ToSocketAddrs;
 use std::result::Result;
 
-#[cfg(feature="enable_wasm")]
+#[cfg(feature="enable_web")]
 #[cfg(feature="enable_ws")]
 use
 {
@@ -137,7 +137,8 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
     let worker_connect = tokio::time::timeout(timeout, worker_connect).await??;
     let wire_format = worker_connect.wire_format;
 
-    tokio::task::spawn(
+    // background thread - connects and then runs inbox and outbox threads
+    tokio::spawn(
         mesh_connect_worker(worker_connect)
     );
 
@@ -240,7 +241,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         };
 
         // Connect to the websocket using the WASM binding (browser connection)
-        #[cfg(feature="enable_wasm")]
+        #[cfg(feature="enable_web")]
         #[cfg(not(feature="enable_tcp"))]
         let stream = {
             let url = wire_protocol.make_url(addr.host.clone(), addr.port, hello_path.clone())?.to_string();
@@ -322,7 +323,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
     let worker_terminate_rx = terminate_tx.subscribe();
     #[cfg(feature = "enable_verbose")]
     let worker_addr = addr.clone();
-    let join2 = tokio::spawn(async move {
+    let join2 = async move {
         let ret = match process_outbox::<M>(stream_tx, reply_rx, sender, ek1, worker_terminate_rx).await {
             Ok(a) => Some(a),
             Err(err) => {
@@ -336,14 +337,14 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         
         let _ = worker_terminate_tx.send(true);
         ret
-    });
+    };
 
     let worker_context = Arc::clone(&context);
     let worker_inbox = inbox.clone();
     let worker_terminate_tx = terminate_tx.clone();
     let worker_terminate_rx = terminate_tx.subscribe();
     let worker_addr = addr.clone();
-    let join1 = tokio::spawn(async move {
+    let join1 = async move {
         match process_inbox::<M, C>(stream_rx, reply_tx1, worker_inbox, sender, worker_context, wire_format, ek2, worker_terminate_rx).await {
             Ok(_) => { },
             Err(CommsError::IO(err)) if match err.kind() {
@@ -359,7 +360,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         //#[cfg(feature = "enable_verbose")]
         debug!("disconnected-inbox: {}", worker_addr.to_string());
         let _ = worker_terminate_tx.send(true);
-    });
+    };
 
     // We have connected the plumbing... now its time to send any notifications back to ourselves
     if let Some(on_connect) = &on_connect {
@@ -374,9 +375,9 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         }).await;
     }
 
-    // Wait till either side disconnected
+    // Process the inbox and outbox until one of them disconnects
     select! {
-        a = join1 => { a? }
+        _ = join1 => { }
         _ = join2 => { }
     };
 

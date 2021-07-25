@@ -38,9 +38,11 @@ pub(crate) fn callback_events_prepare(guard: &StdRwLockReadGuard<ChainProtectedS
 
 pub(crate) async fn callback_events_notify(mut notifies: Vec<Notify>) -> Result<(), ServiceError<()>>
 {
+    let mut joins = Vec::new();
     for notify in notifies.drain(..) {
-        tokio::spawn(notify.notify());
+        joins.push(notify.notify());
     }
+    futures::future::join_all(joins).await;
     Ok(())
 }
 

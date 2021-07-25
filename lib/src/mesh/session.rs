@@ -12,6 +12,7 @@ use std::time::Duration;
 use std::time::Instant;
 use tokio::sync::broadcast;
 use tokio::time::timeout;
+use tokio::select;
 
 use super::recoverable_session_pipe::*;
 use super::lock_request::*;
@@ -38,7 +39,7 @@ pub struct MeshSession
     pub(super) key: ChainKey,
     pub(super) sync_tolerance: Duration,
     pub(super) chain: Weak<Chain>,
-    pub(super) commit: Arc<StdMutex<FxHashMap<u64, mpsc::Sender<Result<(), CommitError>>>>>,
+    pub(super) commit: Arc<StdMutex<FxHashMap<u64, mpsc::Sender<Result<u64, CommitError>>>>>,
     pub(super) lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, LockRequest>>>,
     pub(super) inbound_conversation: Arc<ConversationSession>,
     pub(super) outbound_conversation: Arc<ConversationSession>,
@@ -164,54 +165,59 @@ impl MeshSession
         }).await
     }
 
-    pub(super) async fn inbox_events(self: &Arc<MeshSession>, evts: Vec<MessageEvent>, loader: &mut Option<Box<impl Loader>>) -> Result<(), CommsError> {
+    pub(super) async fn inbox_events(self: &Arc<MeshSession>, evts: Vec<MessageEvent>, loader: &mut Option<Box<dyn Loader>>) -> Result<FeedNotifications, CommsError> {
         debug!("inbox: events cnt={}", evts.len());
 
-        if let Some(chain) = self.chain.upgrade()
-        {
-            // Convert the events but we do this differently depending on on if we are
-            // in a loading phase or a running phase
-            let feed_me = MessageEvent::convert_from(evts.into_iter());
-            let feed_me = match loader.as_mut() {
-                Some(l) =>
-                {
-                    // Feeding the events into the loader lets proactive feedback to be given back to
-                    // the user such as progress bars
-                    l.feed_events(&feed_me);
+        let ret = match self.chain.upgrade() {
+            Some(chain) =>
+            {
+                // Convert the events but we do this differently depending on on if we are
+                // in a loading phase or a running phase
+                let feed_me = MessageEvent::convert_from(evts.into_iter());
+                let feed_me = match loader.as_mut() {
+                    Some(l) =>
+                    {
+                        // Feeding the events into the loader lets proactive feedback to be given back to
+                        // the user such as progress bars
+                        l.feed_events(&feed_me);
 
-                    // When we are running then we proactively remove any duplicates to reduce noise
-                    // or the likelihood of errors
-                    feed_me.into_iter()
-                        .filter(|e| {
-                            l.relevance_check(e) == false
-                        })
-                        .collect::<Vec<_>>()
-                },
-                None => feed_me
-            };
-        
-            // We only feed the transactions into the local chain otherwise this will
-            // reflect events back into the chain-of-trust running on the server
-            chain.pipe.feed(Transaction {
-                scope: TransactionScope::Local,
-                transmit: false,
-                events: feed_me,
-                conversation: Some(Arc::clone(&self.inbound_conversation)),
-            }).await?;
-        }
+                        // When we are running then we proactively remove any duplicates to reduce noise
+                        // or the likelihood of errors
+                        feed_me.into_iter()
+                            .filter(|e| {
+                                l.relevance_check(e) == false
+                            })
+                            .collect::<Vec<_>>()
+                    },
+                    None => feed_me
+                };
+            
+                // We only feed the transactions into the local chain otherwise this will
+                // reflect events back into the chain-of-trust running on the server
+                chain.pipe.feed(Transaction {
+                    scope: TransactionScope::Local,
+                    transmit: false,
+                    events: feed_me,
+                    conversation: Some(Arc::clone(&self.inbound_conversation)),
+                }).await?
+            },
+            None => FeedNotifications::default()
+        };
 
-        Ok(())
+        Ok(ret)
     }
 
     pub(super) async fn inbox_confirmed(self: &Arc<MeshSession>, id: u64) -> Result<(), CommsError> {
-        debug!("inbox: confirmed id={}", id);
+        debug!("inbox: commit_confirmed id={}", id);
 
         let r = {
             let mut lock = self.commit.lock();
             lock.remove(&id)
         };
         if let Some(result) = r {
-            result.send(Ok(())).await?;
+            result.send(Ok(id)).await?;
+        } else {
+            debug!("orphaned confirmation!");
         }
         Ok(())
     }
@@ -288,7 +294,7 @@ impl MeshSession
         Ok(())
     }
 
-    pub(super) async fn inbox_start_of_history(self: &Arc<MeshSession>, size: usize, _from: Option<ChainTimestamp>, to: Option<ChainTimestamp>, loader: &mut Option<Box<impl Loader>>, root_keys: Vec<PublicSignKey>, integrity: IntegrityMode) -> Result<(), CommsError>
+    pub(super) async fn inbox_start_of_history(self: &Arc<MeshSession>, size: usize, _from: Option<ChainTimestamp>, to: Option<ChainTimestamp>, loader: &mut Option<Box<dyn Loader>>, root_keys: Vec<PublicSignKey>, integrity: IntegrityMode) -> Result<(), CommsError>
     {
         // Declare variables
         let size = size;
@@ -332,7 +338,7 @@ impl MeshSession
         Ok(())
     }
 
-    pub(super) async fn inbox_end_of_history(self: &Arc<MeshSession>, _pck: PacketWithContext<Message, ()>, loader: &mut Option<Box<impl Loader>>) -> Result<(), CommsError> {
+    pub(super) async fn inbox_end_of_history(self: &Arc<MeshSession>, _pck: PacketWithContext<Message, ()>, loader: &mut Option<Box<dyn Loader>>) -> Result<(), CommsError> {
         debug!("inbox: end_of_history");
 
         // The end of the history means that the chain can now be actively used, its likely that
@@ -354,30 +360,54 @@ impl MeshSession
 
     pub(super) async fn inbox_packet(
         self: &Arc<MeshSession>,
-        loader: &mut Option<Box<impl Loader>>,
+        loader: &mut Option<Box<dyn Loader>>,
         pck: PacketWithContext<Message, ()>,
-    ) -> Result<(), CommsError>
+    ) -> Result<FeedNotifications, CommsError>
     {
         #[cfg(feature = "enable_super_verbose")]
         debug!("inbox: packet size={}", pck.data.bytes.len());
 
-        match pck.packet.msg {
+        let ret = match pck.packet.msg {
             Message::StartOfHistory { size, from, to, root_keys, integrity }
-                => Self::inbox_start_of_history(self, size, from, to, loader, root_keys, integrity).await,
+                => {
+                    Self::inbox_start_of_history(self, size, from, to, loader, root_keys, integrity).await?;
+                    FeedNotifications::default()
+                },
             Message::Connected
-                => Self::inbox_connected(self, pck.data).await,
+                => {
+                    Self::inbox_connected(self, pck.data).await?;
+                    FeedNotifications::default()
+                },
             Message::Events { commit: _, evts }
-                => Self::inbox_events(self, evts, loader).await,
+                => {
+                    let notifications = Self::inbox_events(self, evts, loader).await?;
+                    notifications
+                },
             Message::Confirmed(id)
-                => Self::inbox_confirmed(self, id).await,
+                => {
+                    Self::inbox_confirmed(self, id).await?;
+                    FeedNotifications::default()
+                },
             Message::CommitError { id, err }
-                => Self::inbox_commit_error(self, id, err).await,
+                => {
+                    Self::inbox_commit_error(self, id, err).await?;
+                    FeedNotifications::default()
+                },
             Message::LockResult { key, is_locked }
-                => Self::inbox_lock_result(self, key, is_locked),
+                => {
+                    Self::inbox_lock_result(self, key, is_locked)?;
+                    FeedNotifications::default()
+                },
             Message::EndOfHistory
-                => Self::inbox_end_of_history(self, pck, loader).await,
+                => {
+                    Self::inbox_end_of_history(self, pck, loader).await?;
+                    FeedNotifications::default()
+                },
             Message::SecuredWith(session)
-                => Self::inbox_secure_with(self, session).await,
+                => {
+                    Self::inbox_secure_with(self, session).await?;
+                    FeedNotifications::default()
+                },
             Message::Disconnected
                 => { return Err(CommsError::Disconnected); },
             Message::FatalTerminate { err }
@@ -388,54 +418,10 @@ impl MeshSession
                     warn!("mesh-session-err: {}", err);
                     return Err(CommsError::Disconnected);
                 },
-            _ => Ok(())
-        }
-    }
+            _ => FeedNotifications::default()
+        };
 
-    pub(super) async fn inbox(session: Arc<MeshSession>, mut rx: NodeRx<Message, ()>, mut loader: Option<Box<impl Loader>>)
-        -> Result<(), CommsError>
-    {
-        let addr = session.addr.clone();
-        let weak = Arc::downgrade(&session);
-        drop(session);
-
-        loop {
-            let rcv = timeout(Duration::from_secs(1), rx.recv()).await;
-            let session = match weak.upgrade() {
-                Some(a) => a,
-                None => { break; }
-            };
-            if let Ok(rcv) = rcv {
-                let pck = match rcv {
-                    Some(a) => a,
-                    None => { break; }
-                };
-                match MeshSession::inbox_packet(&session, &mut loader, pck).await {
-                    Ok(_) => { },
-                    Err(CommsError::Disconnected) => { break; }
-                    Err(CommsError::SendError(err)) => {
-                        warn!("mesh-session-err: {}", err);
-                        break;
-                    }
-                    Err(CommsError::ValidationError(errs)) => {
-                        debug!("mesh-session-debug: {} validation errors", errs.len());
-                        continue;
-                    }
-                    Err(err) => {
-                        warn!("mesh-session-err: {}", err.to_string());
-                        continue;
-                    }
-                }
-            }
-        }
-
-        info!("disconnected: {}:{}", addr.host, addr.port);
-        if let Some(session) = weak.upgrade() {
-            session.cancel_commits().await;
-            session.cancel_sniffers();
-            session.cancel_locks();
-        }
-        Ok(())
+        Ok(ret)
     }
 
     pub(super) async fn cancel_commits(&self)
@@ -469,6 +455,44 @@ impl MeshSession
             let mut lock = guard.inside_sync.write();
             lock.sniffers.clear();
         }
+    }
+}
+
+struct MeshSessionInboxProcessor
+{
+    loader: Option<Box<dyn Loader>>
+}
+
+#[async_trait]
+impl super::helper::InboxProcessor<MeshSession, ()>
+for MeshSessionInboxProcessor
+{
+    async fn process_packet(&mut self, session: Arc<MeshSession>, pck: PacketWithContext<Message, ()>) -> Result<FeedNotifications,CommsError>
+    {
+        MeshSession::inbox_packet(&session, &mut self.loader, pck).await
+    }
+}
+
+impl MeshSession
+{
+    pub(super) async fn inbox(session: Arc<MeshSession>, rx: NodeRx<Message, ()>, loader: Option<Box<dyn Loader>>)
+        -> Result<(), CommsError>
+    {
+        let addr = session.addr.clone();
+        let weak = Arc::downgrade(&session);
+        
+        let callback = MeshSessionInboxProcessor {
+            loader: loader,
+        };
+        super::helper::inbox_processor(session, rx, callback).await?;
+
+        info!("disconnected: {}:{}", addr.host, addr.port);
+        if let Some(session) = weak.upgrade() {
+            session.cancel_commits().await;
+            session.cancel_sniffers();
+            session.cancel_locks();
+        }
+        Ok(())
     }
 }
 

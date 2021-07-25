@@ -652,7 +652,7 @@ impl<'a> Dio<'a>
         debug!("commit events={}", trans.events.len());
 
         // Process the transaction in the chain using its pipe
-        self.multi.pipe.feed(trans).await?;
+        let notify = self.multi.pipe.feed(trans).await?;
 
         // Last thing we do is kick off an unlock operation using fire and forget
         let unlock_multi = self.multi.clone();
@@ -662,6 +662,9 @@ impl<'a> Dio<'a>
                 let _ = unlock_multi.pipe.unlock(key).await;
             }
         });
+
+        // Process all the notifications
+        notify.process().await;
 
         // Success
         Ok(())

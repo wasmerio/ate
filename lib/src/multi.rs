@@ -136,7 +136,7 @@ impl ChainMultiUser
         }        
     }
 
-    pub async fn sync(&self) -> Result<(), CommitError>
+    pub async fn sync(&self) -> Result<FeedNotifications, CommitError>
     {
         // Create the transaction
         let trans = Transaction {
@@ -147,8 +147,8 @@ impl ChainMultiUser
         };
 
         // Process the transaction in the chain using its pipe
-        self.pipe.feed(trans).await?;
-        Ok(())
+        let ret = self.pipe.feed(trans).await?;
+        Ok(ret)
     }
 }
 

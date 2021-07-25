@@ -24,13 +24,13 @@ enable_client = []
 enable_server = []
 enable_ntp = []
 enable_tcp = [ "tokio-tungstenite", "tokio", "pnet", "hyper", "hyper-tls" ]
-enable_wasm = [ "ws_stream_wasm", "wasm-bindgen", "wasm-bindgen-test", "async_io_stream", "tokio-util" ]
-enable_basics = [ "enable_ws", "enable_wasm" ]
-#enable_basics = [ "enable_ws" ]
+enable_web = [ "ws_stream_wasm", "wasm-bindgen", "wasm-bindgen-test", "async_io_stream", "tokio-util" ]
+#enable_basics = [ "enable_ws", "enable_web" ]
+enable_basics = [ "enable_ws" ]
 enable_dns = [ "trust-dns-proto", "trust-dns-client" ]
-enable_full = [ "enable_buffered", "enable_local_fs", "enable_rotate", "enable_caching", "enable_ntp" ]
-#enable_full = [ "enable_buffered", "enable_local_fs", "enable_rotate", "enable_caching", "enable_ntp", "enable_tcp", "enable_dns" ]
-client_wasm = [ "enable_wasm", "enable_client" ]
+#enable_full = [ "enable_buffered", "enable_local_fs", "enable_rotate", "enable_caching", "enable_ntp" ]
+enable_full = [ "enable_buffered", "enable_local_fs", "enable_rotate", "enable_caching", "enable_ntp", "enable_tcp", "enable_dns" ]
+client_web = [ "enable_web", "enable_client" ]
 client = [ "enable_full", "enable_client" ]
 server = [ "enable_full", "enable_server", "enable_client" ]
 
@@ -77,7 +77,7 @@ ws_stream_wasm = { version = "^0.7", features= [ "tokio_io" ], optional = true }
 wasm-bindgen = { version = "^0.2", optional = true }
 wasm-bindgen-test = { version = "^0.3", optional = true }
 async_io_stream = { version = "^0.3", optional = true }
-tokio-util = { version = "^0.6", optional = true, features = [ "io", "codec" ] }
+tokio-util = { version = "^0.6", features = [ "io", "codec" ], optional = true }
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 tokio = { version = "^1", features = [ "rt", "sync" ] }

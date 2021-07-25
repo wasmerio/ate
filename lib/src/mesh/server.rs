@@ -195,7 +195,7 @@ struct ServerPipe
 impl EventPipe
 for ServerPipe
 {
-    async fn feed(&self, trans: Transaction) -> Result<(), CommitError>
+    async fn feed(&self, trans: Transaction) -> Result<FeedNotifications, CommitError>
     {
         // If this packet is being broadcast then send it to all the other nodes too
         if trans.transmit {
@@ -399,7 +399,7 @@ async fn inbox_event(
     tx: &NodeTx<SessionContext>,
     pck_data: PacketData,
 )
--> Result<(), CommsError>
+-> Result<FeedNotifications, CommsError>
 {
     debug!("inbox: events: cnt={}", evts.len());
     #[cfg(feature = "enable_verbose")]
@@ -411,7 +411,7 @@ async fn inbox_event(
 
     let chain = match context.inside.lock().chain.clone() {
         Some(a) => a,
-        None => { return Ok(()); }
+        None => { return Ok(FeedNotifications::default()); }
     };
     let commit = commit.clone();
     
@@ -427,7 +427,7 @@ async fn inbox_event(
 
     // Send the packet down to others
     let wire_format = pck_data.wire_format;
-    let downcast_err = match &ret {
+    match &ret {
         Ok(_) => {
             tx.send_packet(BroadcastPacketData {
                 group: Some(chain.key().hash64()),
@@ -436,20 +436,28 @@ async fn inbox_event(
             Ok(())
         },
         Err(err) => Err(CommsError::InternalError(format!("feed-failed - {}", err.to_string())))
-    };
+    }?;
 
     // If the operation has a commit to transmit the response
-    if let Some(id) = commit {
-        match &ret {
-            Ok(_) => PacketData::reply_at(reply_at, wire_format, Message::Confirmed(id.clone())).await?,
-            Err(err) => PacketData::reply_at(reply_at, wire_format, Message::CommitError{
-                id: id.clone(),
-                err: err.to_string(),
-            }).await?
-        };
-    }
-
-    Ok(downcast_err?)
+    let ret = match commit {
+        Some(id) => {
+            match ret {
+                Ok(a) => {
+                    PacketData::reply_at(reply_at, wire_format, Message::Confirmed(id.clone())).await?;
+                    a
+                },
+                Err(err) =>{
+                    PacketData::reply_at(reply_at, wire_format, Message::CommitError{
+                        id: id.clone(),
+                        err: err.to_string(),
+                    }).await?;
+                    FeedNotifications::default()
+                } 
+            }
+        },
+        None => ret?
+    };    
+    Ok(ret)
 }
 
 async fn inbox_lock(
@@ -588,7 +596,7 @@ async fn inbox_packet(
     pck: PacketWithContext<Message, SessionContext>,
     tx: &NodeTx<SessionContext>
 )
--> Result<(), CommsError>
+-> Result<FeedNotifications, CommsError>
 {
     //debug!("inbox: packet size={}", pck.data.bytes.len());
 
@@ -600,17 +608,28 @@ async fn inbox_packet(
     let reply_at_owner = pck_data.reply_here.take();
     let reply_at = reply_at_owner.as_ref();
     
-    match pck.msg {
+    let ret = match pck.msg {
         Message::Subscribe { chain_key, from }
-            => inbox_subscribe(root, tx.hello_path.as_str(), chain_key, from, reply_at, context, tx).await,
+            => {
+                inbox_subscribe(root, tx.hello_path.as_str(), chain_key, from, reply_at, context, tx).await?;
+                FeedNotifications::default()
+            },
         Message::Events { commit, evts }
-            => inbox_event(reply_at, context, commit, evts, tx, pck_data).await,
+            => inbox_event(reply_at, context, commit, evts, tx, pck_data).await?,
         Message::Lock { key }
-            => inbox_lock(reply_at, context, key, wire_format).await,
+            => {
+                inbox_lock(reply_at, context, key, wire_format).await?;
+                FeedNotifications::default()
+            },
         Message::Unlock { key }
-            => inbox_unlock(context, key).await,
-        _ => Ok(())
-    }
+            => {
+                inbox_unlock(context, key).await?;
+                FeedNotifications::default()
+            },
+        _ => FeedNotifications::default()
+    };
+
+    Ok(ret)
 }
 
 async fn inbox(
@@ -627,25 +646,31 @@ async fn inbox(
     }
 }
 
+struct MeshRootInboxProcessor
+{
+    tx: NodeTx<SessionContext>
+}
+
+#[async_trait]
+impl super::helper::InboxProcessor<MeshRoot, SessionContext>
+for MeshRootInboxProcessor
+{
+    async fn process_packet(&mut self, root: Arc<MeshRoot>, pck: PacketWithContext<Message, SessionContext>) -> Result<FeedNotifications,CommsError>
+    {
+        inbox_packet(root, pck, &self.tx).await
+    }
+}
+
 async fn inbox_internal(
     root: Arc<MeshRoot>,
-    mut rx: NodeRx<Message, SessionContext>,
+    rx: NodeRx<Message, SessionContext>,
     tx: NodeTx<SessionContext>
 ) -> Result<(), CommsError>
 {
-    let weak = Arc::downgrade(&root);
-    drop(root);
-
-    while let Some(pck) = rx.recv().await {
-        let root = match weak.upgrade() {
-            Some(a) => a,
-            None => {
-                debug!("server-inbox-exit: mesh root out-of-scope");
-                break;
-            }
-        };
-        inbox_packet(root, pck, &tx).await?;
-    }
+    let callback = MeshRootInboxProcessor {
+        tx,
+    };
+    super::helper::inbox_processor(root, rx, callback).await?;
     Ok(())
 }
 

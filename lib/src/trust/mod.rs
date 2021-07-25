@@ -7,6 +7,7 @@ pub mod tests;
 pub mod header;
 pub mod timeline;
 
+#[allow(unused_imports)]
 #[cfg(test)]
 pub(crate) use tests::*;
 

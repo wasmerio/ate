@@ -7,7 +7,7 @@ use serde_json::Error as JsonError;
 use tokio::task::JoinError;
 use std::sync::mpsc as smpsc;
 use tokio::sync::mpsc as mpsc;
-#[cfg(feature="enable_wasm")]
+#[cfg(feature="enable_web")]
 use ws_stream_wasm::WsErr;
 
 use super::*;
@@ -32,7 +32,7 @@ pub enum CommsError
     RootServerError(String),
     InternalError(String),
     UrlError(url::ParseError),
-    #[cfg(feature="enable_wasm")]
+    #[cfg(feature="enable_web")]
     #[cfg(not(feature="enable_tcp"))]
     WebSocketError(WsErr),
     #[cfg(feature="enable_tcp")]
@@ -99,7 +99,7 @@ for CommsError
     }   
 }
 
-#[cfg(feature="enable_wasm")]
+#[cfg(feature="enable_web")]
 #[cfg(not(feature="enable_tcp"))]
 impl From<WsErr>
 for CommsError

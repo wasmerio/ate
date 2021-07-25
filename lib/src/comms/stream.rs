@@ -21,7 +21,7 @@ use
     futures_util          :: { StreamExt, SinkExt, stream                   },
 };
 
-#[cfg(feature="enable_wasm")]
+#[cfg(feature="enable_web")]
 #[cfg(feature="enable_ws")]
 use
 {
@@ -107,10 +107,10 @@ pub enum Stream
 {
     #[cfg(feature="enable_tcp")]
     Tcp(TcpStream),
-    #[cfg(not(feature="enable_wasm"))]
+    #[cfg(not(feature="enable_web"))]
     #[cfg(feature="enable_ws")]
     WebSocket(WebSocketStream<TcpStream>, StreamProtocol),
-    #[cfg(feature="enable_wasm")]
+    #[cfg(feature="enable_web")]
     #[cfg(feature="enable_ws")]
     WebSocket(IoStream<WsStreamIo, Vec<u8>>, StreamProtocol),
 }
@@ -145,10 +145,10 @@ pub enum StreamRx
 {
     #[cfg(feature="enable_tcp")]
     Tcp(OwnedReadHalf),
-    #[cfg(not(feature="enable_wasm"))]
+    #[cfg(not(feature="enable_web"))]
     #[cfg(feature="enable_ws")]
     WebSocket(stream::SplitStream<WebSocketStream<TcpStream>>),
-    #[cfg(feature="enable_wasm")]
+    #[cfg(feature="enable_web")]
     #[cfg(feature="enable_ws")]
     WebSocket(stream::SplitStream<Framed<IoStream<WsStreamIo, Vec<u8>>, BytesCodec>>),
 }
@@ -158,10 +158,10 @@ pub enum StreamTx
 {
     #[cfg(feature="enable_tcp")]
     Tcp(OwnedWriteHalf),
-    #[cfg(not(feature="enable_wasm"))]
+    #[cfg(not(feature="enable_web"))]
     #[cfg(feature="enable_ws")]
     WebSocket(stream::SplitSink<WebSocketStream<TcpStream>, Message>),
-    #[cfg(feature="enable_wasm")]
+    #[cfg(feature="enable_web")]
     #[cfg(feature="enable_ws")]
     WebSocket(stream::SplitSink<Framed<IoStream<WsStreamIo, Vec<u8>>, BytesCodec>, bytes::Bytes>),
 }
@@ -177,7 +177,10 @@ impl Stream
             },
             #[cfg(feature="enable_ws")]
             Stream::WebSocket(a, _) => {
+                #[cfg(feature="enable_web")]
                 let (tx, rx) = Framed::new( a, BytesCodec::new() ).split();
+                #[cfg(not(feature="enable_web"))]
+                let (tx, rx) = a.split();
                 (StreamRx::WebSocket(rx), StreamTx::WebSocket(tx))
             },
         }
@@ -320,7 +323,7 @@ impl StreamTx
                 a.write_u32(buf.len() as u32).await?;
                 a.write_all(&buf[..]).await?; 
             },
-            #[cfg(not(feature="enable_wasm"))]
+            #[cfg(not(feature="enable_web"))]
             #[cfg(feature="enable_ws")]
             StreamTx::WebSocket(a) => {
                 if delay_flush {
@@ -339,7 +342,7 @@ impl StreamTx
                     }
                 }
             },
-            #[cfg(feature="enable_wasm")]
+            #[cfg(feature="enable_web")]
             #[cfg(feature="enable_ws")]
             StreamTx::WebSocket(a) => {
                 if delay_flush {
@@ -417,7 +420,7 @@ impl StreamRx
                 if n != (len as usize) { return Ok(vec![]); }
                 bytes
             },
-            #[cfg(not(feature="enable_wasm"))]
+            #[cfg(not(feature="enable_web"))]
             #[cfg(feature="enable_ws")]
             StreamRx::WebSocket(a) => {
                 match a.next().await {
@@ -440,7 +443,7 @@ impl StreamRx
                     }
                 }
             },
-            #[cfg(feature="enable_wasm")]
+            #[cfg(feature="enable_web")]
             #[cfg(feature="enable_ws")]
             StreamRx::WebSocket(a) => {
                 match a.next().await {

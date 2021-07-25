@@ -5,7 +5,7 @@ use crate::prelude::*;
 use ate::time::TimeKeeper;
 use url::Url;
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 #[test]
 pub async fn test_create_user_and_group() -> Result<(), AteError>
 {

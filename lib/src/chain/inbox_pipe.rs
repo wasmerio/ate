@@ -5,18 +5,18 @@ use async_trait::async_trait;
 use std::sync::{Arc};
 use parking_lot::Mutex as StdMutex;
 use fxhash::{FxHashSet};
-use tokio::sync::mpsc;
 
 use crate::error::*;
 use crate::pipe::*;
 use crate::header::PrimaryKey;
 use crate::transaction::*;
+use super::workers::ChainWorkProcessor;
 
 use super::workers::*;
 
 pub(super) struct InboxPipe
 {
-    pub(super) inbox: mpsc::Sender<ChainWork>,
+    pub(super) inbox: ChainWorkProcessor,
     pub(super) locks: StdMutex<FxHashSet<PrimaryKey>>,
 }
 
@@ -24,46 +24,18 @@ pub(super) struct InboxPipe
 impl EventPipe
 for InboxPipe
 {
-    #[allow(dead_code)]
-    async fn feed(&self, trans: Transaction) -> Result<(), CommitError>
+    async fn feed(&self, trans: Transaction) -> Result<FeedNotifications, CommitError>
     {
-        // Determine if we are going to wait for the result or not
-        match trans.scope {
-            TransactionScope::Full | TransactionScope::Local =>
-            {
-                // Prepare the work
-                let (sender, mut receiver) = mpsc::channel(1);
-                let work = ChainWork {
-                    trans,
-                    notify: Some(sender),
-                };
-
-                // Submit the work
-                let sender = self.inbox.clone();
-                sender.send(work).await?;
-
-                // Block until the transaction is received
-                match receiver.recv().await {
-                    Some(a) => a?,
-                    None => { return Err(CommitError::Aborted); }
-                };
-            },
-            TransactionScope::None =>
-            {
-                // Prepare the work and submit it
-                let work = ChainWork {
-                    trans,
-                    notify: None,
-                };
-
-                // Submit the work
-                let sender = self.inbox.clone();
-                sender.send(work).await?;
-            }
+        // Prepare the work and submit it
+        let work = ChainWork {
+            trans,
         };
 
+        // Submit the work
+        let ret = self.inbox.process(work).await?;
+
         // Success
-        Ok(())
+        Ok(ret)
     }
 
     #[allow(dead_code)]

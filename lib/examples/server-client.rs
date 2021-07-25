@@ -8,7 +8,7 @@ fn main () {
 }
 
 #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), AteError>
 {
     env_logger::init();

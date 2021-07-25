@@ -101,7 +101,7 @@ fn ctrl_channel() -> tokio::sync::watch::Receiver<bool> {
     receiver
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread")]
 async fn main() -> Result<(), AteError> {
     let opts: Opts = Opts::parse();
     //let opts = main_debug();

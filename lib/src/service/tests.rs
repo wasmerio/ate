@@ -44,7 +44,7 @@ for PingPongTable
     }
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 #[test]
 async fn test_service() -> Result<(), AteError>
 {

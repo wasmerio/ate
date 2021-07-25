@@ -17,3 +17,4 @@ pub(crate) use protected_async::*;
 pub(crate) use protected_sync::*;
 
 pub use crate::trust::ChainKey;
+pub use workers::FeedNotifications;

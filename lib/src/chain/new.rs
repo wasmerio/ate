@@ -16,7 +16,6 @@ use parking_lot::Mutex as StdMutex;
 use fxhash::{FxHashSet};
 use tokio::sync::RwLock;
 use parking_lot::RwLock as StdRwLock;
-use tokio::sync::mpsc;
 
 use crate::redo::*;
 use crate::spec::SerializationFormat;
@@ -24,11 +23,13 @@ use crate::time::TimeKeeper;
 use crate::trust::*;
 use crate::pipe::*;
 use crate::loader::*;
+use crate::event::EventHeader;
 
 use crate::trust::ChainKey;
 
 use super::*;
 use super::inbox_pipe::*;
+use super::workers::ChainWorkProcessor;
 
 impl<'a> Chain
 {
@@ -84,28 +85,33 @@ impl<'a> Chain
         let redo_log = {
             let key = key.clone();
             let builder = builder.clone();
-            tokio::spawn(async move {
+            async move {
                 RedoLog::open_ext(&builder.cfg_ate, &key, flags, composite_loader, header_bytes).await
-            })
+            }
         };
         #[cfg(not(feature = "enable_local_fs"))]
         let redo_log = {
-            tokio::spawn(async move {
+            async move {
                 RedoLog::open(header_bytes).await
-            })
+            }
         };
         
         // While the events are streamed in we build a list of all the event headers
         // but we strip off the data itself
-        #[allow(unused_mut)]
-        let mut headers = Vec::new();
-        #[cfg(feature = "enable_local_fs")]
-        while let Some(result) = rx.recv().await {
-            headers.push(result.header.as_header()?);
-        }
+        let process_local = async move {
+            #[allow(unused_mut)]
+            let mut headers = Vec::new();
+            #[cfg(feature = "enable_local_fs")]
+            while let Some(result) = rx.recv().await {
+                headers.push(result.header.as_header()?);
+            }
+            Result::<Vec<EventHeader>, SerializationError>::Ok(headers)
+        };
         
         // Join the redo log thread earlier after the events were successfully streamed in
-        let redo_log = redo_log.await.unwrap()?;
+        let (redo_log, process_local) = futures::join!(redo_log, process_local);
+        let headers = process_local?;
+        let redo_log = redo_log?;
 
         // Construnct the chain-of-trust on top of the redo-log
         let chain = ChainOfTrust {
@@ -156,7 +162,6 @@ impl<'a> Chain
             default_format: builder.cfg_ate.log_format,
             disable_new_roots: false,
             sync_tolerance: builder.cfg_ate.sync_tolerance,
-            exit: exit_tx.clone(),
         };
 
         // Check all the process events
@@ -182,17 +187,12 @@ impl<'a> Chain
         // Make the inside async immutable
         let inside_async = Arc::new(RwLock::new(inside_async));
 
-        // We create a channel that will be used to feed events from the inbox pipe into
-        // the chain of trust itself when writes occur locally or are received on the network
-        let (sender,
-             receiver)
-             = mpsc::channel(builder.cfg_ate.buffer_size_chain);
-
         // The worker thread processes events that come in
-        let worker_exit = exit_tx.subscribe();
         let worker_inside_async = Arc::clone(&inside_async);
         let worker_inside_sync = Arc::clone(&inside_sync);
-        tokio::task::spawn(Chain::worker_receiver(worker_inside_async, worker_inside_sync, receiver, compact_tx, worker_exit));
+
+        // background thread - receives events and processes them
+        let sender = ChainWorkProcessor::new(worker_inside_async, worker_inside_sync, compact_tx);
 
         // The inbox pipe intercepts requests to and processes them
         let mut pipe: Arc<Box<dyn EventPipe>> = Arc::new(Box::new(InboxPipe {
@@ -233,7 +233,9 @@ impl<'a> Chain
             let worker_inside_sync = Arc::clone(&chain.inside_sync);
             let worker_pipe = Arc::clone(&chain.pipe);
             let time = Arc::clone(&chain.time);
-            tokio::task::spawn(Chain::worker_compactor(worker_inside_async, worker_inside_sync, worker_pipe, time, compact_rx, worker_exit));
+
+            // background thread - periodically compacts the chain into a smaller memory footprint
+            tokio::spawn(Chain::worker_compactor(worker_inside_async, worker_inside_sync, worker_pipe, time, compact_rx, worker_exit));
         } else {
             debug!("compact-mode-off: {}", builder.cfg_ate.compact_mode);
         }

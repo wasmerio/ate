@@ -6,6 +6,7 @@ use super::error::*;
 use super::transaction::*;
 use std::sync::Arc;
 use tokio::sync::mpsc;
+use crate::chain::FeedNotifications;
 
 pub enum ConnectionStatusChange
 {
@@ -23,7 +24,7 @@ pub(crate) trait EventPipe: Send + Sync
 
     async fn on_disconnect(&self) -> Result<(), CommsError> { Err(CommsError::ShouldBlock) }
     
-    async fn feed(&self, mut trans: Transaction) -> Result<(), CommitError>;
+    async fn feed(&self, mut trans: Transaction) -> Result<FeedNotifications, CommitError>;
 
     async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError>;
 
@@ -51,7 +52,7 @@ impl NullPipe
 impl EventPipe
 for NullPipe
 {
-    async fn feed(&self, _trans: Transaction) -> Result<(), CommitError> { Ok(()) }
+    async fn feed(&self, _trans: Transaction) -> Result<FeedNotifications, CommitError> { Ok(FeedNotifications::default()) }
 
     async fn try_lock(&self, _key: PrimaryKey) -> Result<bool, CommitError> { Ok(false) }
 
@@ -126,10 +127,16 @@ for DuelPipe
         Err(ChainCreationError::NotImplemented)
     }
 
-    async fn feed(&self, trans: Transaction) -> Result<(), CommitError>
+    async fn feed(&self, trans: Transaction) -> Result<FeedNotifications, CommitError>
     {
-        self.first.feed(trans.clone()).await?;
-        self.second.feed(trans).await
+        let join1 = self.first.feed(trans.clone());
+        let join2 = self.second.feed(trans);
+        let (notify1, notify2) = futures::join!(join1, join2);
+
+        let notify1 = notify1?;
+        let notify2 = notify2?;
+
+        Ok(FeedNotifications::from(vec![notify1, notify2]))
     }
 
     async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError>

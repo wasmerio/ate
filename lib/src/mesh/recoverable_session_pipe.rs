@@ -239,7 +239,7 @@ for RecoverableSessionPipe
         {
             let _addr = self.addr.clone();
             let session = Arc::clone(&session);
-            let loader = Some(Box::new(composite_loader));
+            let loader: Option<Box<dyn Loader>> = Some(Box::new(composite_loader)); 
             tokio::spawn(
                 async move
                 {
@@ -297,8 +297,11 @@ for RecoverableSessionPipe
                     // We complete a dummy transaction to confirm that all the data has been
                     // successfully received by the server and processed before we clear our flag
                     match chain.multi().await.sync().await {
-                        Ok(()) =>
+                        Ok(a) =>
                         {
+                            // Process the notifications
+                            a.process().await;
+
                             // Finally we clear the pending upload by writing a record for it
                             MeshSession::complete_delayed_upload(&chain, delayed_upload.from, delayed_upload.to).await?;
                         },
@@ -324,7 +327,7 @@ for RecoverableSessionPipe
         Ok(status_rx)
     }
 
-    async fn feed(&self, mut trans: Transaction) -> Result<(), CommitError>
+    async fn feed(&self, mut trans: Transaction) -> Result<FeedNotifications, CommitError>
     {
         {
             let lock = self.active.read().await;

@@ -7,7 +7,7 @@ struct TrustedRecord {
     hidden_data: String,
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), AteError>
 {
     // Make the keys that will protect the data

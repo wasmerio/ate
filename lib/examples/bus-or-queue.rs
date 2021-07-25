@@ -21,7 +21,7 @@ fn main() {
 }
 
 #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), AteError>
 {
     env_logger::init();
@@ -70,7 +70,7 @@ async fn main() -> Result<(), AteError>
         // Write a ping... twice
         debug!("connecting to the communication bus from client 2");
         let chain_b = client_b.open(&url::Url::parse("ws://localhost:5001/").unwrap(), &ChainKey::from("ping-pong-table")).await.unwrap();
-        chain_b.sync().await?;
+        chain_b.sync().await?.process().await;
 
         debug!("writing two records ('balls') onto the earlier saved record 'table' from client 2");
         let mut dio = chain_b.dio_ext(&session, TransactionScope::Full).await;

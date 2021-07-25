@@ -92,7 +92,7 @@ impl<'a> ChainOfTrust
         self.key.name.clone()
     }
 
-    pub(crate) fn add_history(&mut self, header: &EventHeader) {
+    pub(crate) fn add_history(&mut self, header: EventHeader) {
         self.timeline.add_history(header)
     }
 }

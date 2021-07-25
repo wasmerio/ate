@@ -37,7 +37,7 @@ pub struct TestStructDao
     inner: DaoVec<TestEnumDao>,
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 #[test]
 async fn test_dio() -> Result<(), AteError>
 {

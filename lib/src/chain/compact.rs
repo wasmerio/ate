@@ -150,6 +150,7 @@ impl<'a> Chain
                 if changed == false { break; }
 
                 // Yield some time for other things to happend in the background
+                #[cfg(not(feature = "enable_web"))]
                 tokio::task::yield_now().await;
             }
 
@@ -197,16 +198,16 @@ impl<'a> Chain
                 headers.iter().for_each(|a| debug!("[{}]->{}", a.1, a.0.raw.event_hash));
             }
 
-            // step6 - build a list of the events that are actually relevant to a compacted log
-            for header in headers.iter().filter(|a| a.1).map(|a| &a.0) {
-                flip.event_summary.push(header.raw.clone());
-                let _lookup = flip.copy_event(&guard_async.chain.redo, header.raw.event_hash).await?;
-                new_timeline.add_history(&header);
-            }
-
             // write the events out only loading the ones that are actually needed
             let how_many_keepers = headers.iter().filter(|a| a.1).count();
             debug!("compact: kept {} events of {} events for cut-off {}", how_many_keepers, total, cut_off);
+
+            // step6 - build a list of the events that are actually relevant to a compacted log
+            for header in headers.into_iter().filter(|a| a.1).map(|a| a.0) {
+                flip.event_summary.push(header.raw.clone());
+                let _lookup = flip.copy_event(&guard_async.chain.redo, header.raw.event_hash).await?;
+                new_timeline.add_history(header);
+            }
         }
 
         // Opening this lock will prevent writes while we are flipping

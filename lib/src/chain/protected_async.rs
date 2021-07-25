@@ -11,7 +11,6 @@ use parking_lot::RwLock as StdRwLock;
 use parking_lot::RwLockWriteGuard as StdRwLockWriteGuard;
 use std::ops::*;
 use std::time::Duration;
-use tokio::sync::broadcast;
 
 use crate::trust::*;
 use crate::meta::*;
@@ -26,7 +25,6 @@ pub(crate) struct ChainProtectedAsync
     pub(crate) default_format: MessageFormat,
     pub(crate) disable_new_roots: bool,
     pub(crate) sync_tolerance: Duration,
-    pub(crate) exit: broadcast::Sender<()>,
 }
 
 impl ChainProtectedAsync
@@ -52,7 +50,7 @@ impl ChainProtectedAsync
                 }
             }
 
-            self.chain.add_history(&header);
+            self.chain.add_history(header);
         }
 
         match ret.as_result() {
@@ -62,7 +60,7 @@ impl ChainProtectedAsync
     }
 
     pub(crate) async fn feed_meta_data(&mut self, sync: &Arc<StdRwLock<ChainProtectedSync>>, meta: Metadata)
-        -> Result<Vec<EventHeader>, CommitError>
+        -> Result<(), CommitError>
     {
         let data = EventData {
             meta,
@@ -78,7 +76,7 @@ impl ChainProtectedAsync
     }
 
     pub(super) async fn feed_async_internal(&mut self, sync: &Arc<StdRwLock<ChainProtectedSync>>, evts: &Vec<EventData>, conversation: Option<&Arc<ConversationSession>>)
-        -> Result<Vec<EventHeader>, CommitError>
+        -> Result<(), CommitError>
     {
         let mut errors = Vec::new();
         let mut validated_evts = Vec::new();
@@ -112,18 +110,16 @@ impl ChainProtectedAsync
             }
         }
 
-        let mut ret = Vec::new();
         for (evt, header) in validated_evts.into_iter() {
             let _lookup = self.chain.redo.write(evt).await?;
-            self.chain.add_history(&header);
-            ret.push(header);
+            self.chain.add_history(header);
         }
 
         if errors.len() > 0 {
             return Err(CommitError::ValidationError(errors));
         }
 
-        Ok(ret)
+        Ok(())
     }
 
     pub fn range<'a, R>(&'a self, range: R) -> impl DoubleEndedIterator<Item = (&'a ChainTimestamp, &'a EventHeaderRaw)>

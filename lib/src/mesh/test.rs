@@ -16,7 +16,7 @@ struct TestData {
 }
 
 #[cfg(all(feature = "enable_server", feature = "enable_client", feature = "enable_tcp" ))]
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread")]
 #[test]
 async fn test_mesh()
 {
@@ -140,7 +140,7 @@ async fn test_mesh()
         }
 
         debug!("sync to disk");
-        chain_a.sync().await.unwrap();
+        chain_a.sync().await.unwrap().process().await;
 
         debug!("wait for an event on the BUS");
         let task_ret = task.await.expect("Should have received the result on the BUS");

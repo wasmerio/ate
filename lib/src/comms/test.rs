@@ -39,7 +39,7 @@ for DummyContext {
 }
 
 #[cfg(all(feature = "enable_server", feature = "enable_client", feature = "enable_tcp" ))]
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread")]
 #[test]
 async fn test_server_client_for_comms_with_tcp() -> Result<(), AteError> {
     test_server_client_for_comms(StreamProtocol::Tcp, 4001).await
@@ -47,7 +47,7 @@ async fn test_server_client_for_comms_with_tcp() -> Result<(), AteError> {
 
 #[cfg(all(feature = "enable_server", feature = "enable_client", feature = "enable_tcp" ))]
 #[cfg(feature="enable_ws")]
-#[tokio::main]
+#[tokio::main(flavor = "multi_thread")]
 #[test]
 async fn test_server_client_for_comms_with_websocket() -> Result<(), AteError> {
     test_server_client_for_comms(StreamProtocol::WebSocket, 4011).await
@@ -93,33 +93,6 @@ async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) 
             }
         });
     }
-
-    /* This has been disabled for now as we deprecated the built in relay functionality and will
-     * build it again when the time is right
-    {
-        // Start the reply
-        info!("start a client that will be relay server");
-        let cfg = NodeConfig::new(wire_format)
-            .wire_encryption(Some(KeySize::Bit256))
-            .listen_on(IpAddr::from_str("127.0.0.1").unwrap(), port+1)
-            .connect_to(IpAddr::from_str("127.0.0.1").unwrap(), port);
-        let (relay_tx, mut relay_rx) = connect::<TestMessage, ()>(&cfg, None).await;
-
-        // Create a background thread that will respond to pings with pong
-        info!("start a client worker thread");
-        tokio::spawn(async move {
-            while let Some(pck) = relay_rx.recv().await {
-                let data = pck.data;
-                let pck = pck.packet;
-                match pck.msg {
-                    TestMessage::Ping(_) => relay_tx.upcast_packet(data).await.unwrap(),
-                    TestMessage::Pong(_) => relay_tx.downcast_packet(data).await.unwrap(),
-                    _ => data.reply(TestMessage::Rejected(Box::new(pck.msg.clone()))).await.unwrap(),
-                };
-            }
-        });
-    }
-    */
     
     #[cfg(feature="enable_dns")]
     {

@@ -131,7 +131,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
         info!("listening on: {} with proto {}", addr, wire_protocol);
 
         let mut exp_backoff = Duration::from_millis(100);
-        tokio::task::spawn(async move {
+        tokio::spawn(async move {
             loop {
                 let (stream, sock_addr) = match tcp_listener.accept().await {
                     Ok(a) => a,

@@ -89,7 +89,7 @@ impl<'a> Chain
         )
     }
 
-    pub async fn sync(&'a self) -> Result<(), CommitError>
+    pub async fn sync(&'a self) -> Result<FeedNotifications, CommitError>
     {
         // Create the transaction
         let trans = Transaction {
@@ -101,10 +101,10 @@ impl<'a> Chain
 
         // Feed the transaction into the chain
         let pipe = self.pipe.clone();
-        pipe.feed(trans).await?;
+        let ret = pipe.feed(trans).await?;
 
         // Success!
-        Ok(())
+        Ok(ret)
     }
 
     pub(crate) async fn get_pending_uploads(&self) -> Vec<MetaDelayedUpload>

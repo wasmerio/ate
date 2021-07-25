@@ -38,7 +38,7 @@ for PingPongTable
     }
 }
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), AteError>
 {
     env_logger::init();

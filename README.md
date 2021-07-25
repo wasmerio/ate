@@ -190,7 +190,7 @@ struct World
     commandment: String
 }
 
-#[tokio::main]
+#[tokio::main(basic_scheduler)]
 async fn main() -> Result<(), AteError>
 {
     // The default configuration will store the redo log locally in the temporary folder

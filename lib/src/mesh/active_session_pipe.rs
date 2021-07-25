@@ -40,7 +40,7 @@ pub(super) struct ActiveSessionPipe
     pub(super) mode: RecoveryMode,
     pub(super) session: Arc<MeshSession>,
     pub(super) connected: bool,
-    pub(super) commit: Arc<StdMutex<FxHashMap<u64, mpsc::Sender<Result<(), CommitError>>>>>,
+    pub(super) commit: Arc<StdMutex<FxHashMap<u64, mpsc::Sender<Result<u64, CommitError>>>>>,
     pub(super) lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, LockRequest>>>,
     pub(super) outbound_conversation: Arc<ConversationSession>,
 }
@@ -68,7 +68,7 @@ impl ActiveSessionPipe
         self.tx.on_disconnect().await
     }
 
-    pub(super) async fn feed_internal(&self, trans: &mut Transaction) -> Result<Option<mpsc::Receiver<Result<(), CommitError>>>, CommitError>
+    pub(super) async fn feed_internal(&self, trans: &mut Transaction) -> Result<Option<mpsc::Receiver<Result<u64, CommitError>>>, CommitError>
     {
         // Convert the event data into message events
         let evts = MessageEvent::convert_to(&trans.events);
@@ -121,9 +121,16 @@ impl ActiveSessionPipe
 
             // If we need to wait for the transaction to commit then do so
             if let Some(mut receiver) = receiver {
+                debug!("waiting for transaction to commit");
                 match receiver.recv().await {
-                    Some(result) => result?,
-                    None => { return Err(CommitError::Aborted); }
+                    Some(result) => {
+                        let commit_id = result?;
+                        debug!("transaction committed: {}", commit_id);
+                    },
+                    None => { 
+                        debug!("transaction has aborted");
+                        return Err(CommitError::Aborted);
+                    }
                 };
             }
         }

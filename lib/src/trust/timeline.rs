@@ -40,10 +40,10 @@ impl<'a> ChainTimeline
     pub(crate) fn invalidate_caches(&mut self) {
     }
 
-    pub(crate) fn add_history(&mut self, header: &EventHeader) {
+    pub(crate) fn add_history(&mut self, header: EventHeader) {
         self.pointers.feed(&header);
 
-        let raw = header.raw.clone();
+        let raw = header.raw;
 
         #[cfg(feature = "enable_super_verbose")]
         debug!("add_history::evt[{}]", header.meta);

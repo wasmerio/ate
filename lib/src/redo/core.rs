@@ -107,7 +107,7 @@ impl RedoLog
         }
     }
 
-    pub async fn finish_flip(&mut self, mut flip: FlippedLogFile, mut deferred_write_callback: impl FnMut(LogLookup, &EventHeader)) -> std::result::Result<Vec<EventHeaderRaw>, SerializationError>
+    pub async fn finish_flip(&mut self, mut flip: FlippedLogFile, mut deferred_write_callback: impl FnMut(LogLookup, EventHeader)) -> std::result::Result<Vec<EventHeaderRaw>, SerializationError>
     {
         match &mut self.flip
         {
@@ -122,7 +122,7 @@ impl RedoLog
                     event_summary.push(header.raw.clone());
                     let lookup = new_log_file.write(&d).await?;
     
-                    deferred_write_callback(lookup, &header);
+                    deferred_write_callback(lookup, header);
                 }
                 
                 new_log_file.flush().await?;
