@@ -28,7 +28,7 @@ pub struct MeshClient {
 }
 
 impl MeshClient {
-    pub(super) async fn new(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh, temporal: bool) -> Arc<MeshClient>
+    pub(super) fn new(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh, temporal: bool) -> Arc<MeshClient>
     {
         Arc::new(
             MeshClient
@@ -102,6 +102,14 @@ impl ChainRepository
 for MeshClient
 {
     async fn open(self: Arc<Self>, url: &url::Url, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
+    {
+        TaskEngine::run_until(self.__open(url, key)).await
+    }
+}
+
+impl MeshClient
+{
+    async fn __open(self: Arc<Self>, url: &url::Url, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
     {
         let weak = Arc::downgrade(&self);
         let loader_local  = Box::new(crate::loader::DummyLoader::default());

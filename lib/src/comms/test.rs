@@ -7,6 +7,7 @@ use super::MeshConfig;
 use crate::comms::BroadcastContext;
 #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
 use super::Listener;
+use crate::engine::TaskEngine;
 
 #[cfg(test)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -39,7 +40,8 @@ for DummyContext {
 }
 
 #[cfg(all(feature = "enable_server", feature = "enable_client", feature = "enable_tcp" ))]
-#[tokio::main(flavor = "multi_thread")]
+#[cfg_attr(feature = "enable_mt", tokio::main(flavor = "multi_thread"))]
+#[cfg_attr(not(feature = "enable_mt"), tokio::main(flavor = "current_thread"))]
 #[test]
 async fn test_server_client_for_comms_with_tcp() -> Result<(), AteError> {
     test_server_client_for_comms(StreamProtocol::Tcp, 4001).await
@@ -47,7 +49,8 @@ async fn test_server_client_for_comms_with_tcp() -> Result<(), AteError> {
 
 #[cfg(all(feature = "enable_server", feature = "enable_client", feature = "enable_tcp" ))]
 #[cfg(feature="enable_ws")]
-#[tokio::main(flavor = "multi_thread")]
+#[cfg_attr(feature = "enable_mt", tokio::main(flavor = "multi_thread"))]
+#[cfg_attr(not(feature = "enable_mt"), tokio::main(flavor = "current_thread"))]
 #[test]
 async fn test_server_client_for_comms_with_websocket() -> Result<(), AteError> {
     test_server_client_for_comms(StreamProtocol::WebSocket, 4011).await
@@ -80,7 +83,7 @@ async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) 
 
         // Create a background thread that will respond to pings with pong
         info!("creating server worker thread");
-        tokio::spawn(async move {
+        TaskEngine::spawn(async move {
             while let Some(pck) = server_rx.recv().await {
                 let data = pck.data;
                 let pck: super::Packet<TestMessage> = pck.packet;
@@ -91,7 +94,7 @@ async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) 
                     _ => {}
                 };
             }
-        });
+        }).await;
     }
     
     #[cfg(feature="enable_dns")]

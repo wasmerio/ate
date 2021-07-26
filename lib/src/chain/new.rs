@@ -24,6 +24,7 @@ use crate::trust::*;
 use crate::pipe::*;
 use crate::loader::*;
 use crate::event::EventHeader;
+use crate::engine::TaskEngine;
 
 use crate::trust::ChainKey;
 
@@ -235,7 +236,7 @@ impl<'a> Chain
             let time = Arc::clone(&chain.time);
 
             // background thread - periodically compacts the chain into a smaller memory footprint
-            tokio::spawn(Chain::worker_compactor(worker_inside_async, worker_inside_sync, worker_pipe, time, compact_rx, worker_exit));
+            TaskEngine::spawn(Chain::worker_compactor(worker_inside_async, worker_inside_sync, worker_pipe, time, compact_rx, worker_exit)).await;
         } else {
             debug!("compact-mode-off: {}", builder.cfg_ate.compact_mode);
         }

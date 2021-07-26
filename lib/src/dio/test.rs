@@ -37,7 +37,8 @@ pub struct TestStructDao
     inner: DaoVec<TestEnumDao>,
 }
 
-#[tokio::main(flavor = "current_thread")]
+#[cfg_attr(feature = "enable_mt", tokio::main(flavor = "multi_thread"))]
+#[cfg_attr(not(feature = "enable_mt"), tokio::main(flavor = "current_thread"))]
 #[test]
 async fn test_dio() -> Result<(), AteError>
 {

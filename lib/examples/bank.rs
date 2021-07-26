@@ -62,7 +62,7 @@ async fn make_account<'a>(conf: &ConfAte, chain: &'a Chain, generator: &mut Gene
     Ok(())
 }
 
-#[tokio::main(flavor = "current_thread")]
+#[tokio::main]
 async fn main() -> Result<(), AteError>
 {
     env_logger::init();

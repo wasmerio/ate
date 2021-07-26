@@ -21,6 +21,7 @@ use crate::time::TimeKeeper;
 use crate::transaction::TransactionScope;
 use crate::trust::ChainKey;
 use crate::trust::ChainHeader;
+use crate::engine::*;
 
 use super::*;
 
@@ -64,14 +65,26 @@ impl<'a> Chain
     }
 
     pub async fn single(&'a self) -> ChainSingleUser<'a> {
+        TaskEngine::run_until(self.__single()).await
+    }
+
+    async fn __single(&'a self) -> ChainSingleUser<'a> {
         ChainSingleUser::new(self).await
     }
 
     pub async fn multi(&'a self) -> ChainMultiUser {
+        TaskEngine::run_until(self.__multi()).await
+    }
+
+    async fn __multi(&'a self) -> ChainMultiUser {
         ChainMultiUser::new(self).await
     }
 
     pub async fn name(&'a self) -> String {
+        TaskEngine::run_until(self.__name()).await
+    }
+
+    async fn __name(&'a self) -> String {
         self.single().await.name()
     }
 
@@ -80,16 +93,29 @@ impl<'a> Chain
     }
 
     pub async fn count(&'a self) -> usize {
+        TaskEngine::run_until(self.__count()).await
+    }
+
+    async fn __count(&'a self) -> usize {
         self.inside_async.read().await.chain.redo.count()
     }
 
     pub async fn flush(&'a self) -> Result<(), tokio::io::Error> {
+        TaskEngine::run_until(self.__flush()).await
+    }
+
+    async fn __flush(&'a self) -> Result<(), tokio::io::Error> {
         Ok(
             self.inside_async.write().await.chain.flush().await?
         )
     }
 
     pub async fn sync(&'a self) -> Result<FeedNotifications, CommitError>
+    {
+        TaskEngine::run_until(self.__sync()).await
+    }
+
+    async fn __sync(&'a self) -> Result<FeedNotifications, CommitError>
     {
         // Create the transaction
         let trans = Transaction {

@@ -4,6 +4,7 @@ use fxhash::FxHashMap;
 
 use crate::error::*;
 use crate::conf::*;
+use crate::engine::TaskEngine;
 
 use std::{ops::Deref, sync::Arc};
 use parking_lot::Mutex as PMutex;
@@ -42,7 +43,7 @@ impl NtpWorker
         });
 
         let worker_ret = Arc::clone(&ret);
-        tokio::spawn(async move {
+        TaskEngine::spawn(async move {
             let mut best_ping = bt_best_ping;
             loop {
                 match super::ntp::query_ntp_retry(bt_pool.deref(), port, tolerance_ms_loop, 10).await {
@@ -59,7 +60,7 @@ impl NtpWorker
                 
                 tokio::time::sleep(Duration::from_secs(20)).await;
             }
-        });
+        }).await;
 
         debug!("ntp service ready for {}@{}", pool, port);
         Ok(ret)

@@ -8,6 +8,7 @@ use crate::dio::*;
 use crate::chain::*;
 use crate::index::*;
 use crate::session::*;
+use crate::engine::*;
 
 impl<D> Dao<D>
 where D: Serialize + DeserializeOwned + Clone + Send + Sync,
@@ -61,8 +62,11 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
         }
     }
 
-    #[allow(dead_code)]
     pub async fn recv(&mut self, session: &AteSession) -> Result<D, BusError> {
+        TaskEngine::run_until(self.__recv(session)).await
+    }
+
+    async fn __recv(&mut self, session: &AteSession) -> Result<D, BusError> {
         while let Some(mut evt) = self.receiver.recv().await {
 
             let multi = self.chain.multi().await;
@@ -77,8 +81,11 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
         Err(BusError::ChannelClosed)
     }
 
-    #[allow(dead_code)]
     pub async fn process(&mut self, dio: &mut Dio<'a>) -> Result<Dao<D>, BusError> {
+        TaskEngine::run_until(self.__process(dio)).await
+    }
+
+    async fn __process(&mut self, dio: &mut Dio<'a>) -> Result<Dao<D>, BusError> {
         loop {
             let mut dao: Dao<D> = match self.receiver.recv().await {
                 Some(evt) => {

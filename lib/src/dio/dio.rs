@@ -125,12 +125,6 @@ where Self: Send + Sync
 
 impl<'a> Dio<'a>
 {
-    pub fn store<D>(&mut self, data: D) -> Result<Dao<D>, SerializationError>
-    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
-    {
-        self.store_ext(data, self.session.log_format, None)
-    }
-
     pub fn make<D>(&mut self, data: D) -> Result<DaoEthereal<D>, SerializationError>
     where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
@@ -167,6 +161,12 @@ impl<'a> Dio<'a>
         Ok(ret)
     }
 
+    pub fn store<D>(&mut self, data: D) -> Result<Dao<D>, SerializationError>
+    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
+    {
+        self.store_ext(data, self.session.log_format, None)
+    }
+
     pub fn store_ext<D>(&mut self, data: D, format: Option<MessageFormat>, key: Option<PrimaryKey>) -> Result<Dao<D>, SerializationError>
     where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
@@ -176,6 +176,12 @@ impl<'a> Dio<'a>
     }
 
     pub async fn delete<D>(&mut self, key: &PrimaryKey) -> Result<(), LoadError>
+    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
+    {
+        TaskEngine::run_until(self.__delete::<D>(key)).await
+    }
+
+    async fn __delete<D>(&mut self, key: &PrimaryKey) -> Result<(), LoadError>
     where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
         {
@@ -208,6 +214,12 @@ impl<'a> Dio<'a>
     pub async fn load<D>(&mut self, key: &PrimaryKey) -> Result<Dao<D>, LoadError>
     where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
+        TaskEngine::run_until(self.__load(key)).await
+    }
+
+    async fn __load<D>(&mut self, key: &PrimaryKey) -> Result<Dao<D>, LoadError>
+    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
+    {
         {
             let state = &self.state;
             if state.is_locked(key) {
@@ -236,6 +248,11 @@ impl<'a> Dio<'a>
 
     pub async fn exists(&mut self, key: &PrimaryKey) -> bool
     {
+        TaskEngine::run_until(self.__exists(key)).await
+    }
+
+    async fn __exists(&mut self, key: &PrimaryKey) -> bool
+    {
         {
             let state = &self.state;
             if let Some(_) = state.cache_store_primary.get(key) {
@@ -253,6 +270,13 @@ impl<'a> Dio<'a>
     }
 
     pub(crate) async fn load_from_entry<D>(&mut self, leaf: EventLeaf)
+    -> Result<Dao<D>, LoadError>
+    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
+    {
+        TaskEngine::run_until(self.__load_from_entry(leaf)).await
+    }
+
+    async fn __load_from_entry<D>(&mut self, leaf: EventLeaf)
     -> Result<Dao<D>, LoadError>
     where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
@@ -288,6 +312,12 @@ impl<'a> Dio<'a>
     }
 
     pub async fn children_ext<D>(&mut self, parent_id: PrimaryKey, collection_id: u64, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Vec<Dao<D>>, LoadError>
+    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
+    {
+        TaskEngine::run_until(self.__children_ext(parent_id, collection_id, allow_missing_keys, allow_serialization_error)).await
+    }
+
+    pub async fn __children_ext<D>(&mut self, parent_id: PrimaryKey, collection_id: u64, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Vec<Dao<D>>, LoadError>
     where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
         // Build the secondary index key
@@ -349,6 +379,12 @@ impl<'a> Dio<'a>
     }
 
     pub async fn load_many_ext<D>(&mut self, keys: impl Iterator<Item=PrimaryKey>, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Vec<Dao<D>>, LoadError>
+    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
+    {
+        TaskEngine::run_until(self.__load_many_ext(keys, allow_missing_keys, allow_serialization_error)).await
+    }
+
+    async fn __load_many_ext<D>(&mut self, keys: impl Iterator<Item=PrimaryKey>, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Vec<Dao<D>>, LoadError>
     where D: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
         // This is the main return list
@@ -461,13 +497,15 @@ impl<'a> Dio<'a>
 
 impl Chain
 {
-    #[allow(dead_code)]
     pub async fn dio<'a>(&'a self, session: &'a AteSession) -> Dio<'a> {
         self.dio_ext(session, TransactionScope::Local).await
     }
 
-    #[allow(dead_code)]
     pub async fn dio_ext<'a>(&'a self, session: &'a AteSession, scope: TransactionScope) -> Dio<'a> {
+        TaskEngine::run_until(self.__dio_ext(session, scope)).await
+    }
+
+    pub async fn __dio_ext<'a>(&'a self, session: &'a AteSession, scope: TransactionScope) -> Dio<'a> {
         let multi = self.multi().await;
         Dio {
             state: DioState::new(),
@@ -505,6 +543,11 @@ impl<'a> Dio<'a>
     }
 
     pub async fn commit(&mut self) -> Result<(), CommitError>
+    {
+        TaskEngine::run_until(self.__commit()).await
+    }
+
+    async fn __commit(&mut self) -> Result<(), CommitError>
     {
         // If we have dirty records
         let state = &mut self.state;

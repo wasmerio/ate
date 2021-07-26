@@ -6,7 +6,7 @@ use ate_auth::prelude::*;
 use clap::Clap;
 use ate_auth::opts::*;
 
-#[tokio::main(flavor = "current_thread")]
+#[tokio::main]
 async fn main() -> Result<(), AteError>
 {
     let opts: Opts = Opts::parse();

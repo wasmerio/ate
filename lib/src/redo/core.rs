@@ -170,12 +170,11 @@ impl RedoLog
     #[cfg(feature = "enable_local_fs")]
     pub async fn open(cfg: &ConfAte, key: &ChainKey, flags: OpenFlags, header_bytes: Vec<u8>) -> std::result::Result<(RedoLog, VecDeque<LoadData>), SerializationError>
     {
-        let mut ret = VecDeque::new();
         let (loader, mut rx) = RedoLogLoader::new();
-
+        
         let cfg = cfg.clone();
         let key = key.clone();
-        let log = tokio::spawn(async move {
+        let join1 = async move {
             RedoLog::open_ext(
                 &cfg,
                 &key,
@@ -183,14 +182,19 @@ impl RedoLog
                 loader,
                 header_bytes
             ).await
-        });
+        };
 
-        while let Some(evt) = rx.recv().await {
-            ret.push_back(evt);
-        }
+        let join2 = async move {
+            let mut ret = VecDeque::new();
+            while let Some(evt) = rx.recv().await {
+                ret.push_back(evt);
+            }
+            ret
+        };
+
+        let (log, ret) = futures::join!(join1, join2);
         
-        let log = log.await.unwrap()?;
-        Ok((log, ret))
+        Ok((log?, ret))
     }
 
     #[cfg(feature = "enable_local_fs")]

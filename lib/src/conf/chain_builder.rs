@@ -19,6 +19,7 @@ use crate::trust::IntegrityMode;
 use crate::crypto::PublicSignKey;
 use crate::error::*;
 use crate::pipe::*;
+use crate::engine::*;
 use crate::session::AteSession;
 use crate::repository::ChainRepository;
 
@@ -273,8 +274,13 @@ impl ChainBuilder
     {
         Arc::new(self)
     }
-    
+
     pub async fn open_local(self: &Arc<Self>, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
+    {
+        TaskEngine::run_until(self.__open_local(key)).await
+    }
+    
+    async fn __open_local(self: &Arc<Self>, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
     {
         let weak = Arc::downgrade(&self);
         let ret = Arc::new(Chain::new((**self).clone(), key).await?);

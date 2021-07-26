@@ -16,10 +16,6 @@ use crate::spec::*;
 use std::{marker::PhantomData};
 
 use std::convert::Infallible;
-#[cfg(feature="http_ws")]
-use hyper::{header, upgrade, StatusCode, Body, Request, Response, Server, server::conn::AddrStream};
-#[cfg(feature="http_ws")]
-use hyper::service::{make_service_fn, service_fn};
 #[cfg(feature="enable_tcp")]
 #[cfg(feature="enable_ws")]
 use tokio_tungstenite::WebSocketStream;
@@ -36,6 +32,7 @@ use super::helper::*;
 use super::key_exchange;
 use super::Stream;
 use super::StreamProtocol;
+use crate::engine::TaskEngine;
 
 #[derive(Debug)]
 struct ListenerNode<M, C>
@@ -131,7 +128,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
         info!("listening on: {} with proto {}", addr, wire_protocol);
 
         let mut exp_backoff = Duration::from_millis(100);
-        tokio::spawn(async move {
+        TaskEngine::spawn(async move {
             loop {
                 let (stream, sock_addr) = match tcp_listener.accept().await {
                     Ok(a) => a,
@@ -180,7 +177,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
                     }
                 };
             }
-        });
+        }).await;
     }
 
     async fn accept_tcp_connect(
@@ -253,7 +250,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
         let worker_inbox = inbox.clone();
         let worker_terminate_tx = terminate_tx.clone();
         let worker_terminate_rx = terminate_tx.subscribe();
-        tokio::spawn(async move {
+        TaskEngine::spawn(async move {
             match process_inbox::<M, C>
             (
                 stream_rx,
@@ -275,11 +272,11 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
             };
             info!("disconnected: {}", sock_addr.to_string());
             let _ = worker_terminate_tx.send(true);
-        });
+        }).await;
 
         let worker_terminate_tx = terminate_tx.clone();
         let worker_terminate_rx = terminate_tx.subscribe();
-        tokio::spawn(async move {
+        TaskEngine::spawn(async move {
             match process_outbox::<M>
             (
                 stream_tx,
@@ -297,13 +294,13 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
                 Err(err) => warn!("connection-failed (outbox): {}", err.to_string())
             };
             let _ = worker_terminate_tx.send(true);
-        });
+        }).await;
 
         let worker_context = Arc::clone(&context);
         let worker_outbox = outbox.subscribe();
         let worker_terminate_tx = terminate_tx.clone();
         let worker_terminate_rx = terminate_tx.subscribe();
-        tokio::spawn(async move {
+        TaskEngine::spawn(async move {
             match process_downcast::<M, C>
             (
                 reply_tx2,
@@ -319,7 +316,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
                 Err(err) => warn!("connection-failed (downcast): {}", err.to_string())
             };
             let _ = worker_terminate_tx.send(true);
-        });
+        }).await;
 
         Ok(())
     }

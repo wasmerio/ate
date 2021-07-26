@@ -128,19 +128,19 @@ pub async fn create_server(cfg_mesh: &ConfMesh) -> Result<Arc<MeshRoot>, CommsEr
 }
 
 #[cfg(feature = "enable_client")]
-pub async fn create_client(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh, temporal: bool) -> Arc<MeshClient>
+pub fn create_client(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh, temporal: bool) -> Arc<MeshClient>
 {
-    MeshClient::new(&cfg_ate, &cfg_mesh, temporal).await
+    MeshClient::new(&cfg_ate, &cfg_mesh, temporal)
 }
 
 #[cfg(feature = "enable_client")]
-pub async fn create_persistent_client(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Arc<MeshClient>
+pub fn create_persistent_client(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Arc<MeshClient>
 {
-    MeshClient::new(&cfg_ate, &cfg_mesh, false).await
+    MeshClient::new(&cfg_ate, &cfg_mesh, false)
 }
 
 #[cfg(feature = "enable_client")]
-pub async fn create_temporal_client(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Arc<MeshClient>
+pub fn create_temporal_client(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Arc<MeshClient>
 {
-    MeshClient::new(&cfg_ate, &cfg_mesh, true).await
+    MeshClient::new(&cfg_ate, &cfg_mesh, true)
 }

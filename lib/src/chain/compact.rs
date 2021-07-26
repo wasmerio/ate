@@ -148,10 +148,6 @@ impl<'a> Chain
                 
                 // If nother changed on this run then we have reached equilibrum
                 if changed == false { break; }
-
-                // Yield some time for other things to happend in the background
-                #[cfg(not(feature = "enable_web"))]
-                tokio::task::yield_now().await;
             }
 
             // step4 - create a fake sync that will be used by the validators

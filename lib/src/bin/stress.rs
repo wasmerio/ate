@@ -17,7 +17,8 @@ fn main() {
 }
 
 #[cfg(any(feature = "server"))]
-#[tokio::main(flavor = "multi_thread")]
+#[cfg_attr(feature = "enable_mt", tokio::main(flavor = "multi_thread"))]
+#[cfg_attr(not(feature = "enable_mt"), tokio::main(flavor = "current_thread"))]
 async fn main() -> Result<(), AteError> {
     env_logger::init();
 

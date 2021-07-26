@@ -32,6 +32,7 @@ use crate::repository::ChainRepository;
 use crate::comms::TxDirection;
 use crate::crypto::AteHash;
 use crate::time::ChainTimestamp;
+use crate::engine::TaskEngine;
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct RouteChain
@@ -113,6 +114,11 @@ impl MeshRoot
 {
     pub(super) async fn new(cfg: &ConfMesh, listen_addrs: Vec<MeshAddress>) -> Result<Arc<Self>, CommsError>
     {
+        TaskEngine::run_until(Self::__new(cfg, listen_addrs)).await
+    }
+
+    async fn __new(cfg: &ConfMesh, listen_addrs: Vec<MeshAddress>) -> Result<Arc<Self>, CommsError>
+    {
         let mut cfg = MeshConfig::new(cfg.clone());
         let mut listen_ports = listen_addrs
             .iter()
@@ -144,6 +150,13 @@ impl MeshRoot
     }
 
     pub async fn add_route<F>(self: &Arc<Self>, open_flow: Box<F>, cfg_ate: &ConfAte)
+    -> Result<(), CommsError>
+    where F: OpenFlow + 'static
+    {
+        TaskEngine::run_until(self.__add_route(open_flow, cfg_ate)).await
+    }
+
+    async fn __add_route<F>(self: &Arc<Self>, open_flow: Box<F>, cfg_ate: &ConfAte)
     -> Result<(), CommsError>
     where F: OpenFlow + 'static
     {
@@ -243,6 +256,14 @@ impl ChainRepository
 for MeshRoot
 {
     async fn open(self: Arc<Self>, url: &url::Url, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
+    {
+        TaskEngine::run_until(self.__open(url, key)).await       
+    }
+}
+
+impl MeshRoot
+{
+    async fn __open(self: Arc<Self>, url: &url::Url, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
     {
         let addr = match self.lookup.lookup(key) {
             Some(a) => a,
@@ -568,12 +589,12 @@ async fn inbox_subscribe(
     // Stream the data back to the client
     if let Some(reply_at) = reply_at {
         debug!("inbox: starting the streaming process");
-        tokio::spawn(stream_history_range(
+        TaskEngine::spawn(stream_history_range(
             Arc::clone(&chain), 
             from.., 
             reply_at.clone(),
             root.cfg_mesh.wire_format,
-        ));
+        )).await;
     } else {
         debug!("no reply address for this subscribe");
     }

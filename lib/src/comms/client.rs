@@ -27,6 +27,7 @@ use crate::crypto::*;
 use crate::spec::*;
 #[allow(unused_imports)]
 use crate::conf::*;
+use crate::engine::TaskEngine;
 
 use super::Packet;
 use super::PacketData;
@@ -138,9 +139,9 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
     let wire_format = worker_connect.wire_format;
 
     // background thread - connects and then runs inbox and outbox threads
-    tokio::spawn(
+    TaskEngine::spawn(
         mesh_connect_worker(worker_connect)
-    );
+    ).await;
 
     Ok(Upstream {
         id: sender,

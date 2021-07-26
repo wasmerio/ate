@@ -5,6 +5,7 @@ use crate::{
     conf::ConfAte,
     error::ChainCreationError
 };
+use crate::engine::TaskEngine;
 use crate::chain::Chain;
 use crate::chain::ChainKey;
 use crate::mesh::*;
@@ -67,7 +68,7 @@ impl DnsClient
             = AsyncClient::new(stream, sender, None);
         let (client, bg)
             = client.await.expect("client failed to connect");
-        tokio::spawn(bg);
+        TaskEngine::spawn(bg).await;
 
         let client = MemoizeClientHandle::new(client);
 
@@ -141,6 +142,11 @@ impl Registry
 {
     pub async fn new(cfg_ate: &ConfAte) -> Registry
     {
+        TaskEngine::run_until(Registry::__new(cfg_ate)).await
+    }
+
+    async fn __new(cfg_ate: &ConfAte) -> Registry
+    {
         #[cfg(feature="enable_dns")]
         let dns = {
             let dns = DnsClient::connect(cfg_ate).await;
@@ -176,6 +182,11 @@ impl Registry
 
     pub async fn open_ext(&self, url: &Url, key: &ChainKey, loader_local: Box<impl loader::Loader>, loader_remote: Box<impl loader::Loader>) -> Result<Arc<Chain>, ChainCreationError>
     {
+        TaskEngine::run_until(self.__open_ext(url, key, loader_local, loader_remote)).await
+    }
+
+    async fn __open_ext(&self, url: &Url, key: &ChainKey, loader_local: Box<impl loader::Loader>, loader_remote: Box<impl loader::Loader>) -> Result<Arc<Chain>, ChainCreationError>
+    {
         let mut lock = self.chains.lock().await;
         
         let hello_path = url.path().to_string();
@@ -186,7 +197,7 @@ impl Registry
             },
             None => {
                 let cfg_mesh = self.cfg(url).await?;
-                let mesh = create_client(&self.cfg_ate, &cfg_mesh, self.temporal).await;
+                let mesh = create_client(&self.cfg_ate, &cfg_mesh, self.temporal);
                 lock.insert(url.clone(), Arc::clone(&mesh));
                 Ok(mesh.open_ext(&key, hello_path, loader_local, loader_remote).await?)
             }
@@ -286,6 +297,14 @@ impl ChainRepository
 for Registry
 {
     async fn open(self: Arc<Self>, url: &Url, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
+    {
+        TaskEngine::run_until(self.__open(url, key)).await
+    }
+}
+
+impl Registry
+{
+    async fn __open(self: Arc<Self>, url: &Url, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
     {
         let loader_local = Box::new(loader::DummyLoader::default());
         let loader_remote = Box::new(loader::DummyLoader::default());

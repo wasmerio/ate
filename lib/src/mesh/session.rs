@@ -121,7 +121,7 @@ impl MeshSession
 
         // Launch an automatic reconnect thread
         if temporal == false {
-            tokio::spawn(RecoverableSessionPipe::auto_reconnect(Arc::downgrade(&chain), on_disconnect));
+            TaskEngine::spawn(RecoverableSessionPipe::auto_reconnect(Arc::downgrade(&chain), on_disconnect)).await;
         }
 
         // Ok we are good!

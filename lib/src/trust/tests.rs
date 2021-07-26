@@ -61,7 +61,8 @@ pub(crate) async fn create_test_chain(mock_cfg: &mut ConfAte, chain_name: String
     )
 }
 
-#[tokio::main(flavor = "current_thread")]
+#[cfg_attr(feature = "enable_mt", tokio::main(flavor = "multi_thread"))]
+#[cfg_attr(not(feature = "enable_mt"), tokio::main(flavor = "current_thread"))]
 #[test]
 async fn test_chain() -> Result<(), AteError> {
     crate::utils::bootstrap_env();
