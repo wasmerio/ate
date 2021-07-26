@@ -25,7 +25,7 @@ fn main() {
 async fn main() -> Result<(), AteError>
 {
     env_logger::init();
-
+    
     // Create the server and listen on port 5001
     debug!("setting up a mesh server on 127.0.0.1:5001");
     let mesh_url = url::Url::parse("ws://localhost:5001/").unwrap();

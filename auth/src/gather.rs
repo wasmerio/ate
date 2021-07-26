@@ -66,7 +66,6 @@ impl AuthService
     }
 }
 
-#[allow(dead_code)]
 pub async fn gather_command(group: String, session: AteSession, auth: Url) -> Result<AteSession, GatherError>
 {
     // Open a command chain

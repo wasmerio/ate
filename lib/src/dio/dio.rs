@@ -657,14 +657,17 @@ impl<'a> Dio<'a>
         // Last thing we do is kick off an unlock operation using fire and forget
         let unlock_multi = self.multi.clone();
         let unlock_me = state.pipe_unlock.iter().map(|a| a.clone()).collect::<Vec<_>>();
-        tokio::spawn(async move {
+        let join1 = async move {
             for key in unlock_me {
                 let _ = unlock_multi.pipe.unlock(key).await;
             }
-        });
+        };
 
         // Process all the notifications
-        notify.process().await;
+        let join2 = notify.process();
+
+        // Wait for all the joins to complete
+        futures::join!(join1, join2);
 
         // Success
         Ok(())

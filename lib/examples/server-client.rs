@@ -12,7 +12,7 @@ fn main () {
 async fn main() -> Result<(), AteError>
 {
     env_logger::init();
-
+    
     // Create the server and listen on port 5000
     let url = url::Url::parse("ws://localhost:5000/test-chain").unwrap();
     #[cfg(feature="enable_dns")]
@@ -46,5 +46,6 @@ async fn main() -> Result<(), AteError>
 
         assert_eq!(*dao, "my test string".to_string());
     }
+    
     Ok(())
 }

@@ -12,6 +12,7 @@ use crate::{header::PrimaryKey, pipe::EventPipe};
 use std::sync::Weak;
 use std::future::Future;
 
+use crate::prelude::*;
 use super::core::*;
 use crate::comms::*;
 use crate::trust::*;
@@ -166,7 +167,9 @@ impl MeshRoot
             listener.add_route(hello_path.as_str())?
         };
 
-        tokio::spawn(inbox(Arc::clone(&self), rx, tx));
+        // The server route is ran on a background thread
+        let root = Arc::clone(&self);
+        spawn_inbox(root, rx, tx).await;
         
         Ok(())
     }
@@ -632,13 +635,13 @@ async fn inbox_packet(
     Ok(ret)
 }
 
-async fn inbox(
+async fn spawn_inbox(
     root: Arc<MeshRoot>,
     rx: NodeRx<Message, SessionContext>,
     tx: NodeTx<SessionContext>
 )
 {
-    match inbox_internal(root, rx, tx).await {
+    match spawn_inbox_internal(root, rx, tx).await {
         Ok(a) => a,
         Err(err) => {
             warn!("server-inbox-err: {}", err.to_string());
@@ -659,9 +662,12 @@ for MeshRootInboxProcessor
     {
         inbox_packet(root, pck, &self.tx).await
     }
+
+    async fn shutdown(mut self) {
+    }
 }
 
-async fn inbox_internal(
+async fn spawn_inbox_internal(
     root: Arc<MeshRoot>,
     rx: NodeRx<Message, SessionContext>,
     tx: NodeTx<SessionContext>
@@ -670,7 +676,7 @@ async fn inbox_internal(
     let callback = MeshRootInboxProcessor {
         tx,
     };
-    super::helper::inbox_processor(root, rx, callback).await?;
+    super::helper::spawn_inbox_processor(root, rx, callback).await?;
     Ok(())
 }
 

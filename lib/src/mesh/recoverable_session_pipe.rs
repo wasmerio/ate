@@ -240,23 +240,14 @@ for RecoverableSessionPipe
             let _addr = self.addr.clone();
             let session = Arc::clone(&session);
             let loader: Option<Box<dyn Loader>> = Some(Box::new(composite_loader)); 
-            tokio::spawn(
-                async move
-                {
-                    let _ = MeshSession::inbox
-                    (
-                        session,
-                        node_rx,
-                        loader
-                    ).await;
 
-                    #[cfg(feature = "enable_verbose")]
-                    info!("disconnected: {}", _addr);
-
-                    // We should only get here if the inbound connection is shutdown or fails
-                    let _ = status_tx.send(ConnectionStatusChange::Disconnected).await;
-                }
-            );
+            MeshSession::spawn_inbox
+            (
+                session,
+                node_rx,
+                loader,
+                status_tx
+            ).await?;
         }
 
         // Wait for all the messages to start loading

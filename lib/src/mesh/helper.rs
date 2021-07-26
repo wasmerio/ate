@@ -35,70 +35,79 @@ use crate::crypto::*;
 use crate::meta::*;
 use crate::session::*;
 use crate::time::*;
+use crate::engine::*;
 
 #[async_trait]
 pub(super) trait InboxProcessor<T, C>
-where C: Send + Sync,
+where C: Send + Sync + 'static,
 {
     async fn process_packet(&mut self, session: Arc<T>, pck: PacketWithContext<Message, C>) -> Result<FeedNotifications,CommsError>;
+
+    async fn shutdown(mut self);
 }
 
-pub(super) async fn inbox_processor<T, C>(session: Arc<T>, mut rx: NodeRx<Message, C>, mut processor: impl InboxProcessor<T, C>)
+pub(super) async fn spawn_inbox_processor<T, C>(session: Arc<T>, mut rx: NodeRx<Message, C>, mut processor: impl InboxProcessor<T, C> + Send + Sync + 'static)
 -> Result<(), CommsError>
-where C: Default + Send + Sync + 'static
+where C: Default + Send + Sync + 'static,
+      T: Send + Sync + 'static
 {
     let weak = Arc::downgrade(&session);
     drop(session);
 
-    let (n_tx, mut n_rx) = mpsc::channel::<FeedNotifications>(1000);
-    select! {
-        _ = async move {
-            loop {
-                let pck = match timeout(Duration::from_secs(1), rx.recv()).await {
-                    Ok(a) => a,
-                    Err(_) => continue
-                };
-                let session = match weak.upgrade() {
-                    Some(a) => a,
-                    None => {
-                        debug!("inbox-processor-exit: mesh root out-of-scope");
-                        break
-                    }
-                };
-                let pck = match pck {
-                    Some(a) => a,
-                    None => break
-                };
+    // Run on a local thread
+    TaskEngine::spawn(async move {
+        loop
+        {
+            // Grab the next packet in the queue (or try again if its waited a second)
+            let pck = match timeout(Duration::from_secs(1), rx.recv()).await {
+                Ok(a) => a,
+                Err(_) => {
+                    if weak.strong_count() <= 0 { break }
+                    else { continue }
+                }
+            };
 
-                let rcv = processor.process_packet(session, pck);
-                match rcv.await {
-                    Ok(notify) => {
-                        if let Err(err) = n_tx.send(notify).await {
-                            warn!("mesh-notify-err: {}", err);
-                            break;
-                        }
-                    },
-                    Err(CommsError::Disconnected) => { break; }
-                    Err(CommsError::SendError(err)) => {
-                        warn!("mesh-err: {}", err);
-                        break;
-                    }
-                    Err(CommsError::ValidationError(errs)) => {
-                        debug!("mesh-debug: {} validation errors", errs.len());
-                        continue;
-                    }
-                    Err(err) => {
-                        warn!("mesh-err: {}", err.to_string());
-                        continue;
-                    }
+            // We need a reference to the session (if we cant get one then the session is terminated)
+            let session = match weak.upgrade() {
+                Some(a) => a,
+                None => {
+                    debug!("inbox-processor-exit: mesh root out-of-scope");
+                    break
+                }
+            };
+
+            // When there are no more packets then the network pipe has closed
+            let pck = match pck {
+                Some(a) => a,
+                None => {
+                    debug!("inbox-processor-exit: noderx is closed");
+                    break
+                }
+            };
+
+            // Its time to process the packet
+            let rcv = processor.process_packet(session, pck);
+            match rcv.await {
+                Ok(notify) => {
+                    TaskEngine::spawn(notify.process()).await;
+                },
+                Err(CommsError::Disconnected) => { break; }
+                Err(CommsError::SendError(err)) => {
+                    warn!("mesh-err: {}", err);
+                    break;
+                }
+                Err(CommsError::ValidationError(errs)) => {
+                    debug!("mesh-debug: {} validation errors", errs.len());
+                    continue;
+                }
+                Err(err) => {
+                    warn!("mesh-err: {}", err.to_string());
+                    continue;
                 }
             }
-        } => { },
-        _ = async move {
-            while let Some(a) = n_rx.recv().await {
-                a.process().await;
-            }
-        } => { }
-    }
+        }
+    }).await;
+
+    // shutdown
     Ok(())
 }

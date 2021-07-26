@@ -67,6 +67,7 @@ pub use crate::service::ServiceInstance;
 pub use crate::error::ServiceError;
 pub use crate::error::InvokeError;
 
+pub use crate::engine::TaskEngine;
 pub use crate::comms::StreamProtocol;
 pub use crate::spec::TrustMode;
 pub use crate::mesh::RecoveryMode;

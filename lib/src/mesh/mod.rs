@@ -46,6 +46,7 @@ use super::transaction::*;
 use super::session::*;
 use crate::mesh::msg::*;
 use crate::dio::*;
+use crate::engine::TaskEngine;
 
 #[cfg(feature = "enable_client")]
 use crate::mesh::client::MeshClient;

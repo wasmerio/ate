@@ -17,6 +17,7 @@ use super::msg::*;
 use crate::loader::Loader;
 use crate::repository::ChainRepository;
 use crate::comms::StreamProtocol;
+use crate::prelude::TaskEngine;
 
 pub struct MeshClient {
     cfg_ate: ConfAte,

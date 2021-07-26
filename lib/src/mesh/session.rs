@@ -32,6 +32,7 @@ use crate::crypto::*;
 use crate::meta::*;
 use crate::session::*;
 use crate::time::*;
+use crate::engine::*;
 
 pub struct MeshSession
 {
@@ -460,7 +461,10 @@ impl MeshSession
 
 struct MeshSessionInboxProcessor
 {
-    loader: Option<Box<dyn Loader>>
+    addr: MeshAddress,
+    loader: Option<Box<dyn Loader>>,
+    session: Weak<MeshSession>,
+    status_tx: mpsc::Sender<ConnectionStatusChange>,
 }
 
 #[async_trait]
@@ -471,27 +475,38 @@ for MeshSessionInboxProcessor
     {
         MeshSession::inbox_packet(&session, &mut self.loader, pck).await
     }
-}
 
-impl MeshSession
-{
-    pub(super) async fn inbox(session: Arc<MeshSession>, rx: NodeRx<Message, ()>, loader: Option<Box<dyn Loader>>)
-        -> Result<(), CommsError>
+    async fn shutdown(mut self)
     {
-        let addr = session.addr.clone();
-        let weak = Arc::downgrade(&session);
-        
-        let callback = MeshSessionInboxProcessor {
-            loader: loader,
-        };
-        super::helper::inbox_processor(session, rx, callback).await?;
-
-        info!("disconnected: {}:{}", addr.host, addr.port);
-        if let Some(session) = weak.upgrade() {
+        info!("disconnected: {}:{}", self.addr.host, self.addr.port);
+        if let Some(session) = self.session.upgrade() {
             session.cancel_commits().await;
             session.cancel_sniffers();
             session.cancel_locks();
         }
+        
+        // We should only get here if the inbound connection is shutdown or fails
+        let _ = self.status_tx.send(ConnectionStatusChange::Disconnected).await;
+    }
+}
+
+impl MeshSession
+{
+    pub(super) async fn spawn_inbox(
+        session: Arc<MeshSession>,
+        rx: NodeRx<Message, ()>,
+        loader: Option<Box<dyn Loader>>,
+        status_tx: mpsc::Sender<ConnectionStatusChange>
+    )
+    -> Result<(), CommsError>
+    {
+        let callback = MeshSessionInboxProcessor {
+            addr: session.addr.clone(),
+            loader: loader,
+            session: Arc::downgrade(&session),
+            status_tx,
+        };
+        super::helper::spawn_inbox_processor(session, rx, callback).await?;
         Ok(())
     }
 }
