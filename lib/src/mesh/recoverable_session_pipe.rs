@@ -17,6 +17,7 @@ use super::*;
 use super::active_session_pipe::*;
 use super::lock_request::*;
 use super::core::*;
+use super::session::*;
 use crate::{anti_replay::AntiReplayPlugin, comms::*};
 use crate::trust::*;
 use crate::chain::*;
@@ -54,7 +55,7 @@ pub(super) struct RecoverableSessionPipe
 
 impl RecoverableSessionPipe
 {
-    pub(super) async fn create_active_pipe(&self) -> Result<(ActiveSessionPipe, NodeRx<Message, ()>, Arc<MeshSession>), CommsError>
+    pub(super) async fn create_active_pipe(&self, loader: Option<Box<dyn Loader>>, status_tx: mpsc::Sender<ConnectionStatusChange>) -> Result<(ActiveSessionPipe, Arc<MeshSession>), CommsError>
     {
         let commit
             = Arc::new(StdMutex::new(FxHashMap::default()));
@@ -63,15 +64,7 @@ impl RecoverableSessionPipe
 
         // Create pipes to all the target root nodes
         let node_cfg = MeshConfig::new(self.cfg_mesh.clone())
-            .connect_to(self.addr.clone())
-            .on_connect(Message::Connected);
-
-        let (node_tx, node_rx)
-            = crate::comms::connect::<Message, ()>
-            (
-                &node_cfg,
-                self.hello_path.clone(),
-            ).await?;
+            .connect_to(self.addr.clone());
 
         let inbound_conversation = Arc::new(ConversationSession::new(true));
         let outbound_conversation = Arc::new(ConversationSession::new(true));
@@ -86,6 +79,60 @@ impl RecoverableSessionPipe
             inbound_conversation: Arc::clone(&inbound_conversation),
             outbound_conversation: Arc::clone(&outbound_conversation),
         });
+
+        let inbox = MeshSessionProcessor {
+            addr: self.addr.clone(),
+            session: Arc::downgrade(&session),
+            loader,
+            status_tx,
+        };
+
+        let mut node_tx
+            = crate::comms::connect
+            (
+                &node_cfg,
+                self.hello_path.clone(),
+                inbox,
+            ).await?;
+
+        // Compute an end time that we will sync from based off whats already in the
+        // chain-of-trust minus a small tolerance that helps in edge-cases - this will
+        // cause a minor number duplicate events to be ignored but it is needed to
+        // reduce the chances of data loss.
+        let from = {
+            let tolerance_ms = self.builder.cfg_ate.sync_tolerance.as_millis() as u64;
+
+            let chain = {
+                let lock = self.chain.lock();
+                lock.as_ref().map(|a| Weak::upgrade(a)).flatten()
+            };
+            
+            if let Some(chain) = chain {
+                let lock = chain.inside_async.read().await;
+                let mut ret = lock.chain.timeline.end();
+                if ret.time_since_epoch_ms > tolerance_ms {
+                    ret.time_since_epoch_ms = ret.time_since_epoch_ms - tolerance_ms;
+                }
+                
+                // If the chain has a cut-off value then the subscription point must be less than
+                // this value to avoid the situation where a compacted chain reloads values that
+                // have already been deleted
+                let chain_header = lock.chain.redo.read_chain_header()?;
+                if chain_header.cut_off > ret {
+                    ret = chain_header.cut_off;
+                }
+
+                ret
+            } else {
+                ChainTimestamp::from(0u64)
+            }
+        };
+
+        // Now we subscribe to the chain
+        node_tx.send_reply_msg(Message::Subscribe {
+            chain_key: self.key.clone(),
+            from,
+        }).await?;
         
         // Set the pipe and drop the lock so that events can be fed correctly
         Ok((
@@ -99,7 +146,6 @@ impl RecoverableSessionPipe
                 lock_requests: Arc::clone(&lock_requests),
                 outbound_conversation: Arc::clone(&outbound_conversation),
             },
-            node_rx,
             session
         ))
     }
@@ -181,7 +227,7 @@ for RecoverableSessionPipe
         if let Some(pipe) = lock.as_ref() {
             return pipe.on_disconnect().await;
         }
-        Err(CommsError::ShouldBlock)
+        Ok(())
     }
 
     async fn connect(&self) -> Result<mpsc::Receiver<ConnectionStatusChange>, ChainCreationError>
@@ -189,14 +235,6 @@ for RecoverableSessionPipe
         // Remove the pipe which will mean if we are in a particular recovery
         // mode then all write IO will be blocked
         self.active.write().await.take();
-        
-        // Set the pipe and drop the lock so that events can be fed correctly
-        let (pipe, node_rx, session)
-            = self.create_active_pipe().await?;
-
-        // Clone some parameters out of the pipe that we use later
-        let pipe_tx = pipe.tx.get_unicast_sender();
-        let wire_format = pipe.tx.wire_format;
 
         // We build a anti replay loader and fill it with the events we already have
         // This is because the sync design has a tolerance in what it replays back
@@ -225,7 +263,14 @@ for RecoverableSessionPipe
         if let Some(loader) = loader.take() {
             composite_loader.loaders.push(loader);
         }
-
+        let loader = Some(Box::new(composite_loader)); 
+        
+        // Set the pipe and drop the lock so that events can be fed correctly
+        let (status_tx, status_rx) = mpsc::channel(1);
+        let (pipe, session)
+            = self.create_active_pipe(loader, status_tx).await?;
+        let wire_format = pipe.tx.wire_format.clone();
+            
         // We replace the new pipe which will mean the chain becomes active again
         // before its completed all the load operations however this is required
         // as otherwise when events are received on the inbox they will not feed
@@ -233,22 +278,6 @@ for RecoverableSessionPipe
         // again (if they are ASYNC) however any confirmation will not be received
         // until all the chain is loaded
         self.active.write().await.replace(pipe);
-
-        // Spawn a thread that will process new inbox messages
-        let (status_tx, status_rx) = mpsc::channel(1);
-        {
-            let _addr = self.addr.clone();
-            let session = Arc::clone(&session);
-            let loader: Option<Box<dyn Loader>> = Some(Box::new(composite_loader)); 
-
-            MeshSession::spawn_inbox
-            (
-                session,
-                node_rx,
-                loader,
-                status_tx
-            ).await?;
-        }
 
         // Wait for all the messages to start loading
         match loading_receiver.recv().await {
@@ -272,16 +301,17 @@ for RecoverableSessionPipe
         let chain = self.chain.lock().as_ref().map(|a| a.upgrade());
         if let Some(Some(chain)) = chain {
             for delayed_upload in chain.get_pending_uploads().await {
-                
-                if let Some(reply_at) = &pipe_tx {
-                    debug!("sending pending upload [{}..{}]", delayed_upload.from, delayed_upload.to);
+                debug!("sending pending upload [{}..{}]", delayed_upload.from, delayed_upload.to);
 
+                let mut lock = self.active.write().await;
+                if let Some(pipe_tx) = lock.as_mut().map(|a| &mut a.tx)
+                {
                     // We send all the events for this delayed upload to the server by streaming
                     // it in a controlled and throttled way
                     stream_history_range(
                         Arc::clone(&chain), 
                         delayed_upload.from..delayed_upload.to, 
-                        reply_at.clone(),
+                        pipe_tx,
                         wire_format,
                     ).await?;
 
@@ -301,8 +331,6 @@ for RecoverableSessionPipe
                             debug!("failed sending pending upload - {}", err);
                         }
                     };
-                } else {
-                    debug!("failed sending pending upload - no pipe sender");
                 }
             }
         }
@@ -321,8 +349,8 @@ for RecoverableSessionPipe
     async fn feed(&self, mut trans: Transaction) -> Result<FeedNotifications, CommitError>
     {
         {
-            let lock = self.active.read().await;
-            if let Some(pipe) = lock.as_ref() {
+            let mut lock = self.active.write().await;
+            if let Some(pipe) = lock.as_mut() {
                 pipe.feed(&mut trans).await?;
             } else if self.mode.should_error_out() {
                 return Err(CommitError::CommsError(CommsError::Disconnected));
@@ -335,7 +363,7 @@ for RecoverableSessionPipe
     async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError>
     {
         // If we are not active then fail
-        let lock = self.active.read().await;
+        let mut lock = self.active.write().await;
         if lock.is_none() {
             return Ok(false);
         }
@@ -347,7 +375,7 @@ for RecoverableSessionPipe
         }
 
         // Now process it in the active pipe        
-        if let Some(pipe) = lock.as_ref() {
+        if let Some(pipe) = lock.as_mut() {
             return pipe.try_lock(key).await;
         } else if self.mode.should_error_out() {
             return Err(CommitError::CommsError(CommsError::Disconnected));
@@ -369,8 +397,8 @@ for RecoverableSessionPipe
         self.next.unlock(key).await?;
 
         // Now unlock it at the server
-        let lock = self.active.read().await;
-        if let Some(pipe) = lock.as_ref() {
+        let mut lock = self.active.write().await;
+        if let Some(pipe) = lock.as_mut() {
             pipe.unlock(key).await?
         } else if self.mode.should_error_out() {
             return Err(CommitError::CommsError(CommsError::Disconnected));

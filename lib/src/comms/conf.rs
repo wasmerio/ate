@@ -1,29 +1,18 @@
 #[allow(unused_imports)]
 use log::{info, warn, debug};
 use std::{net::IpAddr};
-use serde::{Serialize, de::DeserializeOwned};
 use std::net::SocketAddr;
 use crate::spec::*;
-use tokio::sync::mpsc;
-use super::PacketData;
 use crate::conf::ConfMesh;
 use crate::conf::MeshAddress;
+use crate::comms::StreamTxChannel;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) struct Upstream
 {
     pub id: u64,
-    pub outbox: mpsc::Sender<PacketData>,
+    pub outbox: StreamTxChannel,
     pub wire_format: SerializationFormat,
-    pub terminate: tokio::sync::broadcast::Sender<bool>,
-}
-
-impl Drop
-for Upstream
-{
-    fn drop(&mut self) {
-        let _ = self.terminate.send(true);
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -42,8 +31,7 @@ for SocketAddr
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct MeshConfig<M>
-where M: Send + Sync + Serialize + DeserializeOwned + Clone
+pub(crate) struct MeshConfig
 {
     #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
     pub listen_on: Vec<SocketAddr>,
@@ -51,14 +39,12 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
     pub connect_to: Vec<SocketAddr>,
     #[cfg(not(feature="enable_dns"))]
     pub connect_to: Option<MeshAddress>,
-    pub on_connect: Option<M>,
     pub cfg_mesh: ConfMesh,
 }
 
-impl<M> MeshConfig<M>
-where M: Send + Sync + Serialize + DeserializeOwned + Clone
+impl MeshConfig
 {
-    pub(crate) fn new(cfg_mesh: ConfMesh) -> MeshConfig<M> {
+    pub(crate) fn new(cfg_mesh: ConfMesh) -> MeshConfig {
         MeshConfig {
             #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
             listen_on: Vec::new(),
@@ -66,7 +52,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
             connect_to: Vec::new(),
             #[cfg(not(feature="enable_dns"))]
             connect_to: None,
-            on_connect: None,
             cfg_mesh: cfg_mesh.clone(),
         }
     }
@@ -85,11 +70,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
         {
             self.connect_to.replace(addr);
         }
-        self
-    }
-
-    pub(crate) fn on_connect(mut self, msg: M) -> Self {
-        self.on_connect = Some(msg);
         self
     }
 }

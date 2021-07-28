@@ -164,13 +164,22 @@ This library is a way of working with data in modern distributed computing.
     |  |                                  |   *-----------*
 
 
+## Feature Flags
+
+- 'client'     - Client functionality that allows one to connect to ATE databases
+                 and/or host them locally
+- 'server'     - Server functionality required to create and run ATE in distributed
+                 mode with the data replicated on server nodes.
+- 'client_web' - Client functionality designed for running within a browser sandbox
+                 (--target=wasm32-wasi)
+
 ## Quick Start
 
 Add ate, serde and tokio to your dependency list in Cargo.toml
 
 ```toml
 [dependencies]
-tokio = { version = "*", features = ["full", "signal", "process"] }
+tokio = { version = "*", features = ["client", "server"] }
 serde = { version = "*", features = ["derive"] }
 ate = { version = "*", features = ["all"] }
 ```

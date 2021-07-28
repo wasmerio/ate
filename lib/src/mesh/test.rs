@@ -15,10 +15,7 @@ struct TestData {
     pub inner: DaoVec<String>,
 }
 
-#[cfg(all(feature = "enable_server", feature = "enable_client", feature = "enable_tcp" ))]
-//#[cfg_attr(feature = "enable_mt", tokio::main(flavor = "multi_thread"))]
-//#[cfg_attr(not(feature = "enable_mt"), tokio::main(flavor = "current_thread"))]
-#[tokio::main(flavor = "multi_thread")]
+#[tokio::main(flavor = "current_thread")]
 #[test]
 async fn test_mesh()
 {

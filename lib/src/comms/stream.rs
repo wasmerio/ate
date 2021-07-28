@@ -11,6 +11,9 @@ use tokio::time::timeout as tokio_timeout;
 use std::time::Duration;
 use std::result::Result;
 
+use crate::crypto::EncryptKey;
+use crate::comms::PacketData;
+
 #[allow(unused_imports)]
 #[cfg(feature="enable_tcp")]
 #[cfg(feature="enable_ws")]
@@ -363,6 +366,46 @@ impl StreamTx
             },
         }
         Ok(())
+    }
+
+    pub(crate) async fn send(&mut self, wire_encryption: &Option<EncryptKey>, pck: PacketData)
+    -> Result<(), tokio::io::Error>
+    {
+        match wire_encryption {
+            Some(key) => {
+                let enc = key.encrypt(&pck.bytes[..]);
+                self.write_8bit(enc.iv.bytes, true).await?;
+                self.write_32bit(enc.data, false).await?;
+            },
+            None => {
+                self.write_32bit(pck.bytes.to_vec(), false).await?;
+            }
+        };
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct StreamTxChannel
+{
+    tx: StreamTx,
+    wire_encryption: Option<EncryptKey>,
+}
+
+impl StreamTxChannel
+{
+    pub fn new(tx: StreamTx, wire_encryption: Option<EncryptKey>) -> StreamTxChannel
+    {
+        StreamTxChannel {
+            tx,
+            wire_encryption
+        }
+    }
+
+    pub(crate) async fn send(&mut self, pck: PacketData)
+    -> Result<(), tokio::io::Error>
+    {
+        self.tx.send(&self.wire_encryption, pck).await
     }
 }
 

@@ -52,7 +52,7 @@ fn test_opts() -> Opts {
     }
 }
 
-#[tokio::main(flavor = "multi_thread")]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), CommandError> {
     let opts: Opts = Opts::parse();
     //let opts = test_opts();

@@ -21,6 +21,7 @@ pub enum CommsError
     IO(std::io::Error),
     NoReplyChannel,
     Disconnected,
+    NoAddress,
     Refused,
     ShouldBlock,
     InvalidDomainName,
@@ -211,6 +212,9 @@ for CommsError {
             },
             CommsError::IO(err) => {
                 write!(f, "IO error while processing communication - {}", err)
+            },
+            CommsError::NoAddress => {
+                write!(f, "No address to connect to")
             },
             CommsError::ShouldBlock => {
                 write!(f, "Operation should have blocked but it didn't")

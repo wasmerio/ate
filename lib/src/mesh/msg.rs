@@ -76,8 +76,6 @@ impl MessageEvent
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub(super) enum Message {
     Noop,
-    Connected,
-    Disconnected,
 
     Subscribe {
         chain_key: ChainKey,

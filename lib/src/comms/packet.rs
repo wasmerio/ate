@@ -8,6 +8,7 @@ use std::sync::Arc;
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use bytes::Bytes;
 use crate::spec::*;
+use crate::comms::*;
 
 pub(crate) trait BroadcastContext
 {
@@ -18,16 +19,8 @@ pub(crate) trait BroadcastContext
 pub(crate) struct PacketData
 {
     pub bytes: Bytes,
-    pub reply_here: Option<mpsc::Sender<PacketData>>,
     pub skip_here: Option<u64>,
     pub wire_format: SerializationFormat,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct BroadcastPacketData
-{
-    pub group: Option<u64>,
-    pub data: PacketData,   
 }
 
 #[derive(Debug)]
@@ -45,48 +38,38 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone,
       C: Send + Sync
 {
     #[allow(dead_code)]
-    pub(crate) async fn reply(&self, msg: M) -> Result<(), CommsError> {
-        if self.data.reply_here.is_none() { return Ok(()); }
-        Ok(Self::reply_at(self.data.reply_here.as_ref(), self.data.wire_format, msg).await?)
+    pub(crate) async fn reply(&self, tx: &mut StreamTxChannel, msg: M) -> Result<(), CommsError> {
+        Ok(Self::reply_at(tx, self.data.wire_format, msg).await?)
     }
 
     #[allow(dead_code)]
-    pub(crate) async fn reply_at(at: Option<&mpsc::Sender<PacketData>>, format: SerializationFormat, msg: M) -> Result<(), CommsError> {
-        Ok(PacketData::reply_at(at, format, msg).await?)
+    pub(crate) async fn reply_at(tx: &mut StreamTxChannel, format: SerializationFormat, msg: M) -> Result<(), CommsError> {
+        Ok(PacketData::reply_at(tx, format, msg).await?)
     }
 }
 
 impl PacketData
 {
     #[allow(dead_code)]
-    pub(crate) async fn reply<M>(&self, msg: M) -> Result<(), CommsError>
+    pub(crate) async fn reply<M>(&self, tx: &mut StreamTxChannel, msg: M) -> Result<(), CommsError>
     where M: Send + Sync + Serialize + DeserializeOwned + Clone,
     {
-        if self.reply_here.is_none() { return Ok(()); }
         Ok(
-            Self::reply_at(self.reply_here.as_ref(), self.wire_format, msg).await?
+            Self::reply_at(tx, self.wire_format, msg).await?
         )
     }
 
     #[allow(dead_code)]
-    pub(crate) async fn reply_at<M>(at: Option<&mpsc::Sender<PacketData>>, wire_format: SerializationFormat, msg: M) -> Result<(), CommsError>
+    pub(crate) async fn reply_at<M>(tx: &mut StreamTxChannel, wire_format: SerializationFormat, msg: M) -> Result<(), CommsError>
     where M: Send + Sync + Serialize + DeserializeOwned + Clone,
     {
-        if at.is_none() { return Ok(()); }
-
         let pck = PacketData {
             bytes: Bytes::from(wire_format.serialize(&msg)?),
-            reply_here: None,
             skip_here: None,
             wire_format,
         };
 
-        if let Some(tx) = at {
-            tx.send(pck).await?;
-        } else {
-            return Err(CommsError::NoReplyChannel);
-        }
-
+        tx.send(pck).await?;
         Ok(())
     }
 }
@@ -118,7 +101,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
         Ok(
             PacketData {
                 bytes: Bytes::from(buf),
-                reply_here: None,
                 skip_here: None,
                 wire_format,
             }

@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use log::{warn, debug, info};
 use parking_lot::Mutex as StdMutex;
+use std::net::SocketAddr;
 use std::{sync::Arc, sync::Weak};
 use tokio::sync::mpsc;
 use tokio::sync::RwLock;
@@ -126,44 +127,6 @@ impl MeshSession
 
         // Ok we are good!
         Ok(chain)
-    }
-
-    pub(super) async fn inbox_connected(self: &Arc<MeshSession>, pck: PacketData) -> Result<(), CommsError> {
-        debug!("inbox: connected pck.size={}", pck.bytes.len());
-
-        // Compute an end time that we will sync from based off whats already in the
-        // chain-of-trust minus a small tolerance that helps in edge-cases - this will
-        // cause a minor number duplicate events to be ignored but it is needed to
-        // reduce the chances of data loss.
-        let from = {
-            let tolerance_ms = self.sync_tolerance.as_millis() as u64;
-            if let Some(chain) = self.chain.upgrade() {
-                let lock = chain.inside_async.read().await;
-                let mut ret = lock.chain.timeline.end();
-                if ret.time_since_epoch_ms > tolerance_ms {
-                    ret.time_since_epoch_ms = ret.time_since_epoch_ms - tolerance_ms;
-                }
-                
-                // If the chain has a cut-off value then the subscription point must be less than
-                // this value to avoid the situation where a compacted chain reloads values that
-                // have already been deleted
-                let chain_header = lock.chain.redo.read_chain_header()?;
-                if chain_header.cut_off > ret {
-                    ret = chain_header.cut_off;
-                }
-
-                ret
-            } else {
-                ChainTimestamp::from(0u64)
-            }
-        };
-        debug!("connected: sync.from={}", from);
-
-        // Now we subscribe to the chain
-        pck.reply(Message::Subscribe {
-            chain_key: self.key.clone(),
-            from,
-        }).await
     }
 
     pub(super) async fn inbox_events(self: &Arc<MeshSession>, evts: Vec<MessageEvent>, loader: &mut Option<Box<dyn Loader>>) -> Result<FeedNotifications, CommsError> {
@@ -374,11 +337,6 @@ impl MeshSession
                     Self::inbox_start_of_history(self, size, from, to, loader, root_keys, integrity).await?;
                     FeedNotifications::default()
                 },
-            Message::Connected
-                => {
-                    Self::inbox_connected(self, pck.data).await?;
-                    FeedNotifications::default()
-                },
             Message::Events { commit: _, evts }
                 => {
                     let notifications = Self::inbox_events(self, evts, loader).await?;
@@ -409,8 +367,6 @@ impl MeshSession
                     Self::inbox_secure_with(self, session).await?;
                     FeedNotifications::default()
                 },
-            Message::Disconnected
-                => { return Err(CommsError::Disconnected); },
             Message::FatalTerminate { err }
                 => {
                     if let Some(mut loader) = loader.take() {
@@ -459,7 +415,7 @@ impl MeshSession
     }
 }
 
-struct MeshSessionInboxProcessor
+pub(super) struct MeshSessionProcessor
 {
     addr: MeshAddress,
     loader: Option<Box<dyn Loader>>,
@@ -468,15 +424,25 @@ struct MeshSessionInboxProcessor
 }
 
 #[async_trait]
-impl super::helper::InboxProcessor<MeshSession, ()>
-for MeshSessionInboxProcessor
+impl InboxProcessor<Message, ()>
+for MeshSessionProcessor
 {
-    async fn process_packet(&mut self, session: Arc<MeshSession>, pck: PacketWithContext<Message, ()>) -> Result<FeedNotifications,CommsError>
+    async fn process(&mut self, pck: PacketWithContext<Message, ()>) -> Result<FeedNotifications,CommsError>
     {
-        MeshSession::inbox_packet(&session, &mut self.loader, pck).await
+        let session = match Weak::upgrade(&self) {
+            Some(a) => a,
+            None => {
+                debug!("inbox-server-exit: reference dropped scope");
+                return Err(CommsError::Disconnected);
+            }
+        };
+
+        let notify = MeshSession::inbox_packet(&session, &mut self.loader, pck).await?;
+        TaskEngine::spawn(notify).await;
+        Ok(())        
     }
 
-    async fn shutdown(mut self)
+    async fn shutdown(&mut self, sock_addr: SocketAddr)
     {
         info!("disconnected: {}:{}", self.addr.host, self.addr.port);
         if let Some(session) = self.session.upgrade() {
@@ -487,27 +453,6 @@ for MeshSessionInboxProcessor
         
         // We should only get here if the inbound connection is shutdown or fails
         let _ = self.status_tx.send(ConnectionStatusChange::Disconnected).await;
-    }
-}
-
-impl MeshSession
-{
-    pub(super) async fn spawn_inbox(
-        session: Arc<MeshSession>,
-        rx: NodeRx<Message, ()>,
-        loader: Option<Box<dyn Loader>>,
-        status_tx: mpsc::Sender<ConnectionStatusChange>
-    )
-    -> Result<(), CommsError>
-    {
-        let callback = MeshSessionInboxProcessor {
-            addr: session.addr.clone(),
-            loader: loader,
-            session: Arc::downgrade(&session),
-            status_tx,
-        };
-        super::helper::spawn_inbox_processor(session, rx, callback).await?;
-        Ok(())
     }
 }
 

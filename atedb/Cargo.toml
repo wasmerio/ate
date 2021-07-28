@@ -11,7 +11,7 @@ repository = "https://github.com/john-sharratt/ate/atedb"
 readme = "README.md"
 
 [dependencies]
-ate = { version = "^0.9", path = "../lib", features = [ "server" ] }
+ate = { version = "^0.9", path = "../lib", features = [ "server", "enable_mt" ] }
 ate-auth = { version = "^1", path = "../auth" }
 tokio = { version = "^1", features = ["full", "signal", "process"] }
 serde = { version = "^1", features = ["derive"] }

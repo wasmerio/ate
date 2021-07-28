@@ -22,7 +22,7 @@ pub(crate) trait EventPipe: Send + Sync
         Err(ChainCreationError::NotImplemented)
     }
 
-    async fn on_disconnect(&self) -> Result<(), CommsError> { Err(CommsError::ShouldBlock) }
+    async fn on_disconnect(&self) -> Result<(), CommsError> { Ok(()) }
     
     async fn feed(&self, mut trans: Transaction) -> Result<FeedNotifications, CommitError>;
 

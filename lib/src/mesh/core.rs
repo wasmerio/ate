@@ -20,6 +20,9 @@ use crate::comms::PacketData;
 use crate::spec::SerializationFormat;
 use crate::redo::LogLookup;
 use crate::time::ChainTimestamp;
+use crate::comms::StreamTx;
+use crate::comms::StreamTxChannel;
+use crate::comms::Tx;
 
 // Determines how the file-system will react while it is nominal and when it is
 // recovering from a communication failure (valid options are 'async', 'readonly-async',
@@ -152,8 +155,7 @@ impl MeshHashTable
 async fn stream_events<R>(
     chain: &Arc<Chain>,
     range: R,
-    send_to: &mpsc::Sender<PacketData>,
-    wire_format: SerializationFormat,
+    tx: &mut Tx,
 )
 -> Result<(), CommsError>
 where R: RangeBounds<ChainTimestamp>
@@ -232,7 +234,7 @@ where R: RangeBounds<ChainTimestamp>
         }
 
         debug!("sending {} events", evts.len());
-        PacketData::reply_at(Some(&send_to), wire_format, Message::Events {
+        tx.send_reply_msg(Message::Events {
             commit: None,
             evts
         }).await?;
@@ -242,7 +244,7 @@ where R: RangeBounds<ChainTimestamp>
 pub(super) async fn stream_empty_history(
     chain: Arc<Chain>,
     to: Option<ChainTimestamp>,
-    reply_at: mpsc::Sender<PacketData>,
+    tx: &mut StreamTxChannel,
     wire_format: SerializationFormat,
 )
 -> Result<(), CommsError>
@@ -260,7 +262,7 @@ pub(super) async fn stream_empty_history(
 
     // Let the caller know we will be streaming them events
     debug!("sending start-of-history (size={})", 0);
-    PacketData::reply_at(Some(&reply_at), wire_format,Message::StartOfHistory
+    PacketData::reply_at(tx, wire_format,Message::StartOfHistory
         {
             size: 0,
             from: None,
@@ -271,18 +273,19 @@ pub(super) async fn stream_empty_history(
 
     // Let caller know we have sent all the events that were requested
     debug!("sending end-of-history");
-    PacketData::reply_at(Some(&reply_at), wire_format, Message::EndOfHistory).await?;
+    PacketData::reply_at(tx, wire_format, Message::EndOfHistory).await?;
     Ok(())
 }
 
-pub(super) async fn stream_history_range<R>(
+pub(super) async fn stream_history_range<R, C>(
     chain: Arc<Chain>,
     range: R,
-    reply_at: mpsc::Sender<PacketData>,
+    tx: &mut Tx,
     wire_format: SerializationFormat,
 )
 -> Result<(), CommsError>
-where R: RangeBounds<ChainTimestamp>
+where R: RangeBounds<ChainTimestamp>,
+      C: Send + Sync
 {
     // Extract the root keys and integrity mode
     let (integrity, root_keys) = {
@@ -304,8 +307,7 @@ where R: RangeBounds<ChainTimestamp>
 
     // Let the caller know we will be streaming them events
     debug!("sending start-of-history (size={})", size);
-    PacketData::reply_at(Some(&reply_at), wire_format,
-    Message::StartOfHistory
+    tx.send_reply_msg(Message::StartOfHistory
         {
             size,
             from: match range.start_bound() {
@@ -325,11 +327,11 @@ where R: RangeBounds<ChainTimestamp>
     {
         // Sync the events
         debug!("streaming requested events");
-        stream_events(&chain, range, &reply_at, wire_format).await?;
+        stream_events(&chain, range, tx).await?;
     }
 
     // Let caller know we have sent all the events that were requested
     debug!("sending end-of-history");
-    PacketData::reply_at(Some(&reply_at), wire_format, Message::EndOfHistory).await?;
+    tx.send_reply_msg(Message::EndOfHistory).await?;
     Ok(())
 }

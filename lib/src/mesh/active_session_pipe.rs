@@ -36,7 +36,7 @@ use crate::time::*;
 pub(super) struct ActiveSessionPipe
 {
     pub(super) key: ChainKey,
-    pub(super) tx: NodeTx<()>,
+    pub(super) tx: Tx,
     pub(super) mode: RecoveryMode,
     pub(super) session: Arc<MeshSession>,
     pub(super) connected: bool,
@@ -53,7 +53,7 @@ impl ActiveSessionPipe
 
     pub(super) fn is_connected(&self) -> bool {
         if self.connected == false { return false; }
-        self.tx.is_closed() == false
+        true
     }
 
     pub(super) async fn on_disconnect(&self) -> Result<(), CommsError> {
@@ -63,12 +63,10 @@ impl ActiveSessionPipe
         if let Some(chain) = self.session.chain.upgrade() {
             chain.single().await.set_integrity(IntegrityMode::Distributed);
         }
-
-        // Let anyone know that we are closed
-        self.tx.on_disconnect().await
+        Ok(())
     }
 
-    pub(super) async fn feed_internal(&self, trans: &mut Transaction) -> Result<Option<mpsc::Receiver<Result<u64, CommitError>>>, CommitError>
+    pub(super) async fn feed_internal(&mut self, trans: &mut Transaction) -> Result<Option<mpsc::Receiver<Result<u64, CommitError>>>, CommitError>
     {
         // Convert the event data into message events
         let evts = MessageEvent::convert_to(&trans.events);
@@ -91,10 +89,7 @@ impl ActiveSessionPipe
         // Send the same packet to all the transmit nodes (if there is only one then don't clone)
         debug!("tx wire_format={}", self.tx.wire_format);
         let pck = Packet::from(Message::Events{ commit, evts, }).to_packet_data(self.tx.wire_format)?;
-        self.tx.send_packet(BroadcastPacketData {
-            group: Some(self.key.hash64()),
-            data: pck
-        }).await?;
+        self.tx.send_others(pck).await?;
 
         Ok(receiver)
     }
@@ -102,7 +97,7 @@ impl ActiveSessionPipe
 
 impl ActiveSessionPipe
 {
-    pub(super) async fn feed(&self, trans: &mut Transaction) -> Result<(), CommitError>
+    pub(super) async fn feed(&mut self, trans: &mut Transaction) -> Result<(), CommitError>
     {
         // Only transmit the packet if we are meant to
         if trans.transmit == true
@@ -138,7 +133,7 @@ impl ActiveSessionPipe
         Ok(())
     }
 
-    pub(super) async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError>
+    pub(super) async fn try_lock(&mut self, key: PrimaryKey) -> Result<bool, CommitError>
     {
         // If we are still connecting then don't do it
         if self.connected == false {
@@ -156,15 +151,15 @@ impl ActiveSessionPipe
         self.lock_requests.lock().insert(key.clone(), my_lock);
 
         // Send a message up to the main server asking for a lock on the data object
-        self.tx.send(Message::Lock {
+        self.tx.send_reply_msg(Message::Lock {
             key: key.clone(),
-        }, Some(self.key.hash64())).await?;
+        }).await?;
 
         // Wait for the response from the server
         Ok(rx.recv()?)
     }
 
-    pub(super) async fn unlock(&self, key: PrimaryKey) -> Result<(), CommitError>
+    pub(super) async fn unlock(&mut self, key: PrimaryKey) -> Result<(), CommitError>
     {
         // If we are still connecting then don't do it
         if self.connected == false {
@@ -172,9 +167,9 @@ impl ActiveSessionPipe
         }
 
         // Send a message up to the main server asking for an unlock on the data object
-        self.tx.send(Message::Unlock {
+        self.tx.send_reply_msg(Message::Unlock {
             key: key.clone(),
-        }, Some(self.key.hash64())).await?;
+        }).await?;
 
         // Success
         Ok(())
