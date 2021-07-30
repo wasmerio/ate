@@ -1,6 +1,20 @@
 #![allow(unused_imports)]
 use log::{warn, debug, error};
 use async_trait::async_trait;
+use std::{net::IpAddr, sync::Arc};
+use fxhash::FxHashMap;
+use tokio::sync::Mutex;
+use std::time::Duration;
+use std::net::SocketAddr;
+use std::net::ToSocketAddrs;
+#[cfg(feature="enable_tcp")]
+use tokio::net::TcpStream as TokioTcpStream;
+use url::Url;
+use std::net::Ipv4Addr;
+use std::net::Ipv6Addr;
+use std::str::FromStr;
+
+use crate::prelude::*;
 use crate::{
     conf::ConfAte,
     error::ChainCreationError
@@ -12,17 +26,7 @@ use crate::mesh::*;
 use crate::error::*;
 use crate::loader;
 use crate::repository::ChainRepository;
-use std::{net::IpAddr, sync::Arc};
-use fxhash::FxHashMap;
-use tokio::sync::Mutex;
-use std::net::SocketAddr;
-use std::net::ToSocketAddrs;
-#[cfg(feature="enable_tcp")]
-use tokio::net::TcpStream as TokioTcpStream;
-use url::Url;
-use std::net::Ipv4Addr;
-use std::net::Ipv6Addr;
-use std::str::FromStr;
+
 #[cfg(feature="enable_dns")]
 use
 {
@@ -68,7 +72,7 @@ impl DnsClient
             = AsyncClient::new(stream, sender, None);
         let (client, bg)
             = client.await.expect("client failed to connect");
-        TaskEngine::spawn(bg).await;
+        TaskEngine::spawn(bg);
 
         let client = MemoizeClientHandle::new(client);
 
@@ -180,12 +184,12 @@ impl Registry
         Arc::new(self)
     }
 
-    pub async fn open_ext(&self, url: &Url, key: &ChainKey, loader_local: Box<impl loader::Loader>, loader_remote: Box<impl loader::Loader>) -> Result<Arc<Chain>, ChainCreationError>
+    pub async fn open_ext(&self, url: &Url, key: &ChainKey, loader_local: impl loader::Loader + 'static, loader_remote: impl loader::Loader + 'static) -> Result<Arc<Chain>, ChainCreationError>
     {
         TaskEngine::run_until(self.__open_ext(url, key, loader_local, loader_remote)).await
     }
 
-    async fn __open_ext(&self, url: &Url, key: &ChainKey, loader_local: Box<impl loader::Loader>, loader_remote: Box<impl loader::Loader>) -> Result<Arc<Chain>, ChainCreationError>
+    async fn __open_ext(&self, url: &Url, key: &ChainKey, loader_local: impl loader::Loader + 'static, loader_remote: impl loader::Loader + 'static) -> Result<Arc<Chain>, ChainCreationError>
     {
         let mut lock = self.chains.lock().await;
         
@@ -196,7 +200,7 @@ impl Registry
                 Ok(a.open_ext(&key, hello_path, loader_local, loader_remote).await?)
             },
             None => {
-                let cfg_mesh = self.cfg(url).await?;
+                let cfg_mesh = self.cfg_for_url(url).await?;
                 let mesh = create_client(&self.cfg_ate, &cfg_mesh, self.temporal);
                 lock.insert(url.clone(), Arc::clone(&mesh));
                 Ok(mesh.open_ext(&key, hello_path, loader_local, loader_remote).await?)
@@ -204,7 +208,7 @@ impl Registry
         }
     }
 
-    async fn cfg(&self, url: &Url) -> Result<ConfMesh, ChainCreationError>
+    pub async fn cfg_for_url(&self, url: &Url) -> Result<ConfMesh, ChainCreationError>
     {
         let protocol = StreamProtocol::parse(url)?;
         let port = match url.port() {
@@ -216,11 +220,18 @@ impl Registry
             None => { return Err(ChainCreationError::NoValidDomain(url.to_string())); }
         };
 
-        let mut ret = ConfMesh::for_domain(domain.to_string());
+        let mut ret = self.cfg_for_domain(domain, port).await?;
         ret.wire_protocol = protocol;
         
         // Set the fail fast
         ret.fail_fast = self.fail_fast;
+
+        Ok(ret)
+    }
+
+    async fn cfg_roots(&self, domain: &str, port: u16) -> Result<Vec<MeshAddress>, ChainCreationError>
+    {
+        let mut roots = Vec::new();
 
         // Search DNS for entries for this server (Ipv6 takes prioity over Ipv4)
         #[cfg(feature="enable_dns")]
@@ -238,20 +249,20 @@ impl Registry
             // Add the cluster to the configuration
             for addr in addrs {
                 let addr = MeshAddress::new(addr, port);
-                ret.roots.push(addr);
+                roots.push(addr);
             }
         };
         #[cfg(not(feature="enable_dns"))]
         {
             let addr = MeshAddress::new(domain, port);
-            ret.roots.push(addr);
+            roots.push(addr);
         }
 
-        if ret.roots.len() <= 0 {
-            return Err(ChainCreationError::NoRootFoundForUrl(url.to_string()));
+        if roots.len() <= 0 {
+            return Err(ChainCreationError::NoRootFoundForDomain(domain.to_string()));
         }
 
-        Ok(ret)
+        Ok(roots)
     }
 
     #[cfg(feature="enable_dns")]
@@ -290,6 +301,13 @@ impl Registry
 
         Ok(addrs)
     }
+
+    pub(crate) async fn cfg_for_domain(&self, domain_name: &str, port: u16) -> Result<ConfMesh, ChainCreationError>
+    {
+        let roots = self.cfg_roots(domain_name, port).await?;
+        let ret = ConfMesh::new(domain_name, roots.iter());
+        Ok(ret)
+    }
 }
 
 #[async_trait]
@@ -306,8 +324,8 @@ impl Registry
 {
     async fn __open(self: Arc<Self>, url: &Url, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
     {
-        let loader_local = Box::new(loader::DummyLoader::default());
-        let loader_remote = Box::new(loader::DummyLoader::default());
+        let loader_local = loader::DummyLoader::default();
+        let loader_remote = loader::DummyLoader::default();
 
         let weak = Arc::downgrade(&self);
         let ret = self.open_ext(url, key, loader_local, loader_remote).await?;

@@ -2,9 +2,8 @@ use async_trait::async_trait;
 use log::{warn, debug, info};
 use parking_lot::Mutex as StdMutex;
 use std::{sync::Arc, sync::Weak};
-use tokio::sync::mpsc;
+use tokio::sync::watch;
 use tokio::sync::RwLock;
-use std::sync::mpsc as smpsc;
 use fxhash::FxHashMap;
 use parking_lot::RwLock as StdRwLock;
 use std::ops::Rem;
@@ -41,6 +40,7 @@ pub(super) struct ActiveSessionPipe
     pub(super) session: Arc<MeshSession>,
     pub(super) connected: bool,
     pub(super) commit: Arc<StdMutex<FxHashMap<u64, mpsc::Sender<Result<u64, CommitError>>>>>,
+    pub(super) lock_attempt_timeout: Duration,
     pub(super) lock_requests: Arc<StdMutex<FxHashMap<PrimaryKey, LockRequest>>>,
     pub(super) outbound_conversation: Arc<ConversationSession>,
 }
@@ -88,8 +88,7 @@ impl ActiveSessionPipe
 
         // Send the same packet to all the transmit nodes (if there is only one then don't clone)
         debug!("tx wire_format={}", self.tx.wire_format);
-        let pck = Packet::from(Message::Events{ commit, evts, }).to_packet_data(self.tx.wire_format)?;
-        self.tx.send_others(pck).await?;
+        self.tx.send_all_msg(Message::Events{ commit, evts, }).await?;
 
         Ok(receiver)
     }
@@ -137,26 +136,36 @@ impl ActiveSessionPipe
     {
         // If we are still connecting then don't do it
         if self.connected == false {
-            return Err(CommitError::CommsError(CommsError::Disconnected));
+            return Err(CommitError::LockError(CommsError::Disconnected));
         }
 
         // Write an entry into the lookup table
-        let (tx, rx) = smpsc::channel();
+        let (tx, mut rx) = watch::channel(false);
         let my_lock = LockRequest {
             needed: 1,
             positive: 0,
             negative: 0,
-            receiver: tx,
+            tx,
         };
         self.lock_requests.lock().insert(key.clone(), my_lock);
 
         // Send a message up to the main server asking for a lock on the data object
-        self.tx.send_reply_msg(Message::Lock {
+        debug!("tx lock key={}", key);
+        self.tx.send_all_msg(Message::Lock {
             key: key.clone(),
         }).await?;
 
         // Wait for the response from the server
-        Ok(rx.recv()?)
+        let ret = match tokio::time::timeout(self.lock_attempt_timeout, rx.changed()).await {
+            Ok(a) => {
+                if let Err(_) = a {
+                    return Err(CommitError::LockError(CommsError::Disconnected));
+                }
+                *rx.borrow()
+            },
+            Err(_) => return Err(CommitError::LockError(CommsError::Timeout))
+        };
+        Ok(ret)
     }
 
     pub(super) async fn unlock(&mut self, key: PrimaryKey) -> Result<(), CommitError>
@@ -167,7 +176,8 @@ impl ActiveSessionPipe
         }
 
         // Send a message up to the main server asking for an unlock on the data object
-        self.tx.send_reply_msg(Message::Unlock {
+        debug!("tx unlock key={}", key);
+        self.tx.send_all_msg(Message::Unlock {
             key: key.clone(),
         }).await?;
 

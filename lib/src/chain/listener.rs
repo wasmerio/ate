@@ -5,6 +5,7 @@ use crate::event::*;
 
 use tokio::sync::mpsc;
 
+#[derive(Debug)]
 pub(crate) struct ChainListener
 {
     pub(crate) id: u64,

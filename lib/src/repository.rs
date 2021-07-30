@@ -13,5 +13,5 @@ use crate::chain::ChainKey;
 pub trait ChainRepository
 where Self: Send + Sync
 {
-    async fn open(self: Arc<Self>, url: &Url, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>;
+    async fn open(self: Arc<Self>, url: &'_ Url, key: &'_ ChainKey) -> Result<Arc<Chain>, ChainCreationError>;
 }

@@ -29,8 +29,7 @@ enable_tcp = [ "tokio-tungstenite", "pnet", "enable_net" ]
 enable_web = [ "ws_stream_wasm", "wasm-bindgen", "wasm-bindgen-test", "async_io_stream", "tokio-util" ]
 enable_basics = [ "enable_ws" ]
 enable_dns = [ "enable_net", "trust-dns-proto", "trust-dns-client" ]
-#enable_full = [ "enable_buffered", "enable_local_fs", "enable_rotate", "enable_caching", "enable_ntp", "enable_tcp", "enable_dns", "enable_mt" ]
-enable_full = [ "enable_buffered", "enable_local_fs", "enable_rotate", "enable_caching", "enable_ntp", "enable_tcp", "enable_dns" ]
+enable_full = [ "enable_buffered", "enable_local_fs", "enable_rotate", "enable_caching", "enable_ntp", "enable_tcp", "enable_dns", "enable_mt" ]
 client_web = [ "enable_web", "enable_client" ]
 client = [ "enable_full", "enable_client" ]
 server = [ "enable_full", "enable_server", "enable_client" ]
@@ -76,6 +75,7 @@ pqcrypto-traits = { git = "https://github.com/john-sharratt/pqcrypto-wasi.git" }
 http = { version = "^0.2" }
 aes = { version = "^0.7" }
 ctr = { version = "^0.8" }
+send_wrapper = { version = "0.5", features = ["futures"] }
 tokio = { version = "^1", features = [ "rt", "io-util", "macros", "sync", "time", "fs" ], default_features = false }
 ws_stream_wasm = { version = "^0.7", features= [ "tokio_io" ], optional = true }
 wasm-bindgen = { version = "^0.2", optional = true }

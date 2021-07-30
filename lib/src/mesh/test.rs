@@ -34,13 +34,12 @@ async fn test_mesh()
     let mut mesh_roots = Vec::new();
     let mut cfg_mesh =
     {
-        // Build the configuration file for the mesh
-        let mut cfg_mesh = ConfMesh::for_domain("localhost".to_string());
-        cfg_mesh.wire_protocol = StreamProtocol::WebSocket;
-        #[cfg(feature="enable_dns")]
+        let mut roots = Vec::new();
         for n in (5100+port_offset)..(5105+port_offset) {
-            cfg_mesh.roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
+            roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n));
         }
+        let mut cfg_mesh = ConfMesh::new("localhost", roots.iter());
+        cfg_mesh.wire_protocol = StreamProtocol::WebSocket;
 
         let mut mesh_root_joins = Vec::new();
 
@@ -49,7 +48,7 @@ async fn test_mesh()
         let mut index: i32 = 0;
         for n in (5100+port_offset)..(5105+port_offset) {
             #[cfg(feature="enable_dns")]
-            let addr = MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), n);
+            let addr = MeshAddress::new(IpAddr::from_str("0.0.0.0").unwrap(), n);
             #[cfg(not(feature="enable_dns"))]
             let addr = MeshAddress::new("localhost", n);
             #[allow(unused_mut)]
@@ -77,6 +76,7 @@ async fn test_mesh()
             let join = join.await;
             mesh_roots.push(join);
         }
+
         cfg_mesh
     };
 
@@ -84,7 +84,7 @@ async fn test_mesh()
     let client_a = create_temporal_client(&cfg_ate, &cfg_mesh);
     debug!("temporal client is ready");
 
-    let chain_a = client_a.open(&test_url, &ChainKey::from("test-chain")).await.unwrap();
+    let chain_a = Arc::clone(&client_a).open(&test_url, &ChainKey::from("test-chain")).await.unwrap();
     debug!("connected with client 1");
 
     let mut session_a = AteSession::new(&cfg_ate);
@@ -93,18 +93,18 @@ async fn test_mesh()
     let dao_key1;
     let dao_key2;
     {
-        let mut bus;
-        let task;
+        let mut bus_a;
+        let mut bus_b;
 
+        let dao2;
         {
             let mut dio = chain_a.dio_ext(&session_a, TransactionScope::Full).await;
-            let dao2: Dao<TestData> = dio.store(TestData::default()).unwrap();
+            dao2 = dio.store(TestData::default()).unwrap();
             dao_key2 = dao2.key().clone();
             let _ = dio.store(TestData::default()).unwrap();
-
-            bus = dao2.bus(&chain_a, dao2.inner);
-            task = bus.recv(&session_a);
             dio.commit().await.unwrap();
+
+            bus_b = dao2.bus(&chain_a, dao2.inner).await;
         }
 
         {
@@ -116,6 +116,8 @@ async fn test_mesh()
             let mut session_b = AteSession::new(&cfg_ate);
             session_b.add_user_write_key(&root_key);
 
+            bus_a = dao2.bus(&chain_b, dao2.inner).await;
+            
             {
                 debug!("start a DIO session for client B");
                 let mut dio = chain_b.dio_ext(&session_b, TransactionScope::Full).await;
@@ -136,10 +138,14 @@ async fn test_mesh()
         }
 
         debug!("sync to disk");
-        chain_a.sync().await.unwrap().process().await;
+        chain_a.sync().await.unwrap();
+        
+        debug!("wait for an event on the BUS (local)");
+        let task_ret = bus_a.recv(&session_a).await.expect("Should have received the result on the BUS");
+        assert_eq!(*task_ret, "test_string1".to_string());
 
-        debug!("wait for an event on the BUS");
-        let task_ret = task.await.expect("Should have received the result on the BUS");
+        debug!("wait for an event on the BUS (other)");
+        let task_ret = bus_b.recv(&session_a).await.expect("Should have received the result on the BUS");
         assert_eq!(*task_ret, "test_string1".to_string());
 
         {
@@ -147,8 +153,9 @@ async fn test_mesh()
             let mut dio = chain_a.dio_ext(&session_a, TransactionScope::Full).await;
 
             debug!("processing the next event in the BUS (and lock_for_delete it)");
-            let task = bus.process(&mut dio);
-            let mut task_ret = task.await.expect("Should have received the result on the BUS for the second time");
+            let mut task_ret = bus_b.process(&mut dio)
+                .await
+                .expect("Should have received the result on the BUS for the second time");
             debug!("event received");
             assert_eq!(*task_ret, "test_string2".to_string());
 
@@ -164,6 +171,14 @@ async fn test_mesh()
     }
 
     {
+        // -DISABLED- need to implement this in the future!
+        //
+        // Find an address where the chain is 'not' owned which will mean the
+        // server needs to do a cross connect in order to pass this test\
+        // (this is needed for the WebAssembly model as this can not support
+        //  client side load-balancing)
+        //cfg_mesh.force_connect = cfg_mesh.roots.iter().filter(|a| Some(*a) != chain_a.remote_addr()).map(|a| a.clone()).next();
+        
         cfg_mesh.force_listen = None;
         cfg_mesh.force_client_only = true;
         let client = create_temporal_client(&cfg_ate, &cfg_mesh);

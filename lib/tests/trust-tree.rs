@@ -26,10 +26,13 @@ fn test_trust_tree_persistent() -> Result<(), AteError>
 {
     ate::utils::bootstrap_env();
 
-    let rt = Runtime::new().unwrap();
+    #[cfg(feature = "enable_mt")]
+    let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
+    #[cfg(not(feature = "enable_mt"))]
+    let rt =tokio::runtime::Builder::new_current_thread().enable_all().build()?;
+
     rt.block_on(async
     {
-
         debug!("generating crypto keys");
         let write_key = PrivateSignKey::generate(KeySize::Bit192);
         let write_key2 = PrivateSignKey::generate(KeySize::Bit256);
@@ -119,10 +122,13 @@ fn test_trust_tree_memory() -> Result<(), AteError>
 {
     ate::utils::bootstrap_env();
 
-    let rt = Runtime::new().unwrap();
-    rt.block_on(async
-    {
+    #[cfg(feature = "enable_mt")]
+    let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
+    #[cfg(not(feature = "enable_mt"))]
+    let rt =tokio::runtime::Builder::new_current_thread().enable_all().build()?;
 
+    rt.block_on(TaskEngine::run_until(async
+    {
         debug!("generating crypto keys");
         let write_key = PrivateSignKey::generate(KeySize::Bit192);
         let write_key2 = PrivateSignKey::generate(KeySize::Bit256);
@@ -187,5 +193,5 @@ fn test_trust_tree_memory() -> Result<(), AteError>
         }
 
         Ok(())
-    })
+    }))
 }

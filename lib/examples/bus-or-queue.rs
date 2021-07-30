@@ -29,11 +29,11 @@ async fn main() -> Result<(), AteError>
     // Create the server and listen on port 5001
     debug!("setting up a mesh server on 127.0.0.1:5001");
     let mesh_url = url::Url::parse("ws://localhost:5001/").unwrap();
+    let cfg_ate = ConfAte::default();
     #[cfg(feature="enable_dns")]
-    let mut cfg_mesh = ConfMesh::solo(&IpAddr::from_str("127.0.0.1").unwrap(), "localhost".to_string(), 5001)?;
+    let mut cfg_mesh = ConfMesh::solo(&cfg_ate, &IpAddr::from_str("127.0.0.1").unwrap(), "localhost".to_string(), 5001, None).await?;
     #[cfg(not(feature="enable_dns"))]
     let mut cfg_mesh = ConfMesh::solo("localhost".to_string(), 5001)?;
-    let cfg_ate = ConfAte::default();
     let _root = create_ethereal_server(&cfg_ate, &cfg_mesh).await?;
 
     // Connect to the server from a client
@@ -61,7 +61,7 @@ async fn main() -> Result<(), AteError>
         // Now attach a BUS that will simple write to the console
         debug!("opening a communication bus on the record 'table' from client 1");
         (
-            dao.bus(&chain_a, dao.ball),
+            dao.bus(&chain_a, dao.ball).await,
             dao.key().clone(),
         )
     };
@@ -70,7 +70,7 @@ async fn main() -> Result<(), AteError>
         // Write a ping... twice
         debug!("connecting to the communication bus from client 2");
         let chain_b = client_b.open(&url::Url::parse("ws://localhost:5001/").unwrap(), &ChainKey::from("ping-pong-table")).await.unwrap();
-        chain_b.sync().await?.process().await;
+        chain_b.sync().await?;
 
         debug!("writing two records ('balls') onto the earlier saved record 'table' from client 2");
         let mut dio = chain_b.dio_ext(&session, TransactionScope::Full).await;

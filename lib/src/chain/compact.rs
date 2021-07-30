@@ -4,7 +4,6 @@ use std::sync::{Arc};
 use tokio::sync::RwLock;
 use parking_lot::RwLock as StdRwLock;
 use btreemultimap::BTreeMultiMap;
-use multimap::MultiMap;
 
 use crate::trust::*;
 use crate::spec::*;
@@ -160,7 +159,6 @@ impl<'a> Chain
                     linters: Vec::new(),
                     validators: guard_sync.validators.iter().map(|a| a.clone_validator()).collect::<Vec<_>>(),
                     transformers: Vec::new(),
-                    listeners: MultiMap::new(),
                     services: Vec::new(),
                     repository: None,
                     default_session: AteSession::default(),

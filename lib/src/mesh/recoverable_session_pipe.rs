@@ -4,7 +4,6 @@ use parking_lot::Mutex as StdMutex;
 use std::{sync::Arc, sync::Weak};
 use tokio::sync::mpsc;
 use tokio::sync::RwLock;
-use std::sync::mpsc as smpsc;
 use fxhash::FxHashMap;
 use parking_lot::RwLock as StdRwLock;
 use std::ops::Rem;
@@ -50,12 +49,12 @@ pub(super) struct RecoverableSessionPipe
     pub(super) key: ChainKey,
     pub(super) builder: ChainBuilder,
     pub(super) chain: Arc<StdMutex<Option<Weak<Chain>>>>,
-    pub(super) loader_remote: StdMutex<Option<Box<dyn Loader>>>,
+    pub(super) loader_remote: StdMutex<Option<Box<dyn Loader + 'static>>>,
 }
 
 impl RecoverableSessionPipe
 {
-    pub(super) async fn create_active_pipe(&self, loader: Option<Box<dyn Loader>>, status_tx: mpsc::Sender<ConnectionStatusChange>) -> Result<(ActiveSessionPipe, Arc<MeshSession>), CommsError>
+    pub(super) async fn create_active_pipe(&self, loader: impl Loader + 'static, status_tx: mpsc::Sender<ConnectionStatusChange>) -> Result<ActiveSessionPipe, CommsError>
     {
         let commit
             = Arc::new(StdMutex::new(FxHashMap::default()));
@@ -83,7 +82,7 @@ impl RecoverableSessionPipe
         let inbox = MeshSessionProcessor {
             addr: self.addr.clone(),
             session: Arc::downgrade(&session),
-            loader,
+            loader: Some(Box::new(loader)),
             status_tx,
         };
 
@@ -135,7 +134,7 @@ impl RecoverableSessionPipe
         }).await?;
         
         // Set the pipe and drop the lock so that events can be fed correctly
-        Ok((
+        Ok(
             ActiveSessionPipe {
                 key: self.key.clone(),
                 connected: false,
@@ -143,11 +142,11 @@ impl RecoverableSessionPipe
                 session: Arc::clone(&session),
                 tx: node_tx,
                 commit: Arc::clone(&commit),
+                lock_attempt_timeout: self.builder.cfg_ate.lock_attempt_timeout,
                 lock_requests: Arc::clone(&lock_requests),
                 outbound_conversation: Arc::clone(&outbound_conversation),
-            },
-            session
-        ))
+            }
+        )
     }
 
     pub(super) async fn auto_reconnect(chain: Weak<Chain>, mut status_change: mpsc::Receiver<ConnectionStatusChange>) -> Result<(), ChainCreationError>
@@ -263,13 +262,11 @@ for RecoverableSessionPipe
         if let Some(loader) = loader.take() {
             composite_loader.loaders.push(loader);
         }
-        let loader = Some(Box::new(composite_loader)); 
         
         // Set the pipe and drop the lock so that events can be fed correctly
         let (status_tx, status_rx) = mpsc::channel(1);
-        let (pipe, session)
-            = self.create_active_pipe(loader, status_tx).await?;
-        let wire_format = pipe.tx.wire_format.clone();
+        let pipe
+            = self.create_active_pipe(composite_loader, status_tx).await?;
             
         // We replace the new pipe which will mean the chain becomes active again
         // before its completed all the load operations however this is required
@@ -283,7 +280,7 @@ for RecoverableSessionPipe
         match loading_receiver.recv().await {
             Some(result) => result?,
             None => {
-                return Err(ChainCreationError::ServerRejected("Server disconnected before it started loading the chain.".to_string()));
+                return Err(ChainCreationError::ServerRejected(FatalTerminate::Other { err: "Server disconnected before it started loading the chain.".to_string() }));
             }
         }
         debug!("loading {}", self.key.to_string());
@@ -292,7 +289,7 @@ for RecoverableSessionPipe
         match loading_receiver.recv().await {
             Some(result) => result?,
             None => {
-                return Err(ChainCreationError::ServerRejected("Server disconnected before it loaded the chain.".to_string()));
+                return Err(ChainCreationError::ServerRejected(FatalTerminate::Other { err: "Server disconnected before it loaded the chain.".to_string() }));
             }
         }
         debug!("loaded {}", self.key.to_string());
@@ -312,17 +309,13 @@ for RecoverableSessionPipe
                         Arc::clone(&chain), 
                         delayed_upload.from..delayed_upload.to, 
                         pipe_tx,
-                        wire_format,
                     ).await?;
 
                     // We complete a dummy transaction to confirm that all the data has been
                     // successfully received by the server and processed before we clear our flag
                     match chain.multi().await.sync().await {
-                        Ok(a) =>
+                        Ok(_) =>
                         {
-                            // Process the notifications
-                            a.process().await;
-
                             // Finally we clear the pending upload by writing a record for it
                             MeshSession::complete_delayed_upload(&chain, delayed_upload.from, delayed_upload.to).await?;
                         },
@@ -346,8 +339,9 @@ for RecoverableSessionPipe
         Ok(status_rx)
     }
 
-    async fn feed(&self, mut trans: Transaction) -> Result<FeedNotifications, CommitError>
+    async fn feed(&self, mut trans: Transaction) -> Result<(), CommitError>
     {
+        debug!("feed trans(cnt={})", trans.events.len());
         {
             let mut lock = self.active.write().await;
             if let Some(pipe) = lock.as_mut() {

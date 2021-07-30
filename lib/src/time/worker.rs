@@ -60,7 +60,7 @@ impl NtpWorker
                 
                 tokio::time::sleep(Duration::from_secs(20)).await;
             }
-        }).await;
+        });
 
         debug!("ntp service ready for {}@{}", pool, port);
         Ok(ret)

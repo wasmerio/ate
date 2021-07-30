@@ -69,6 +69,8 @@ pub struct ConfAte
     pub log_format: MessageFormat,
     /// Size of the buffer used by the chain-of-trust
     pub buffer_size_chain: usize,
+    /// Timeout before an attempt to lock a data object fails
+    pub lock_attempt_timeout: Duration,
 }
 
 impl Default
@@ -100,6 +102,7 @@ for ConfAte
                 data: SerializationFormat::Json,
             },
             buffer_size_chain: 1,
+            lock_attempt_timeout: Duration::from_secs(20),
         }
     }
 }

@@ -1,12 +1,13 @@
-#[allow(unused_imports)]
+#![allow(unused_imports)]
 use log::{info, error, debug};
-#[cfg(feature="enable_dns")]
 use std::{net::IpAddr};
 use std::time::Duration;
+use std::iter::Iterator;
 
+use crate::mesh::Registry;
+use crate::conf::ConfAte;
 use crate::prelude::*;
 use crate::crypto::KeySize;
-#[allow(unused_imports)]
 use crate::{comms::StreamProtocol, error::CommsError};
 
 use super::*;
@@ -35,6 +36,16 @@ pub struct ConfMesh
     /// the address is not in the list of cluster nodes.
     #[cfg(feature="enable_server")]
     pub force_listen: Option<MeshAddress>,
+    /// Forces ATE to process all requests related to this particular node_id.
+    /// Use this property when the node_id can not be derived from the list
+    /// of addresses and your listen address. For instance when behind a load
+    /// balancer
+    #[cfg(feature="enable_server")]
+    pub force_node_id: Option<u32>,
+    /// Forces ATE to connect to a specific address for connections even if
+    /// chain is not owned by that particular node in the cluster
+    #[cfg(feature="enable_client")]
+    pub force_connect: Option<MeshAddress>,
 
     /// Flag that indicates if encryption will be used for the underlying
     /// connections over the wire. When using a ATE's in built encryption
@@ -76,14 +87,15 @@ impl ConfMesh
     /// will be stored locally to this server and there is no replication
     #[cfg(feature="enable_dns")]
     #[cfg(feature="enable_server")]
-    pub fn solo(listen: &IpAddr, domain: String, port: u16) -> Result<ConfMesh, CommsError>
+    pub async fn solo(cfg_ate: &ConfAte, listen: &IpAddr, domain: String, port: u16, node_id: Option<u32>) -> Result<ConfMesh, CommsError>
     {
+        let registry = Registry::new(cfg_ate).await;
         let addr = MeshAddress::new(listen.clone(), port);
-        let mut cfg_mesh = ConfMesh::for_domain(domain);
+        let mut cfg_mesh = registry.cfg_for_domain(domain.as_str(), port).await?;
         cfg_mesh.force_client_only = false;
         cfg_mesh.force_listen = Some(addr.clone());
-        cfg_mesh.roots.push(addr.clone());
-
+        cfg_mesh.force_node_id = node_id;
+        
         Ok(cfg_mesh)
     }
     
@@ -91,20 +103,21 @@ impl ConfMesh
     /// will be stored locally to this server and there is no replication
     #[cfg(not(feature="enable_dns"))]
     #[cfg(feature="enable_server")]
-    pub fn solo(domain: String, port: u16) -> Result<ConfMesh, CommsError>
+    pub async fn solo(cfg_ate: &ConfAte, domain: String, port: u16, node_id: Option<u32>) -> Result<ConfMesh, CommsError>
     {
+        let registry = Registry::new(cfg_ate).await;
         let addr = MeshAddress::new(domain.as_str(), port);
-        let mut cfg_mesh = ConfMesh::for_domain(domain);
+        let mut cfg_mesh = registry.cfg_for_domain(domain.as_str(), port).await?;
         cfg_mesh.force_client_only = false;
         cfg_mesh.force_listen = Some(addr.clone());
-        cfg_mesh.roots.push(addr.clone());
+        cfg_mesh.force_node_id = node_id;
 
         Ok(cfg_mesh)
     }
 
     #[cfg(feature="enable_dns")]
     #[cfg(feature="enable_server")]
-    pub fn solo_from_url(url : &url::Url, listen: &IpAddr) -> Result<ConfMesh, CommsError>
+    pub async fn solo_from_url(cfg_ate: &ConfAte, url :&url::Url, listen: &IpAddr, node_id: Option<u32>) -> Result<ConfMesh, CommsError>
     {
         let protocol = StreamProtocol::parse(url)?;
         let port = url.port().unwrap_or(protocol.default_port());
@@ -114,12 +127,23 @@ impl ConfMesh
                 return Err(CommsError::InvalidDomainName);
             }
         };
-        ConfMesh::solo(listen, domain, port)
+
+        let mut ret = ConfMesh::solo(cfg_ate, listen, domain, port, node_id).await?;
+        ret.force_node_id = match node_id {
+            Some(a) => Some(a),
+            None => {
+                match ret.roots.len() {
+                    1 => Some(0u32),
+                    _ => None
+                }
+            }
+        };
+        Ok(ret)
     }
 
     #[cfg(not(feature="enable_dns"))]
     #[cfg(feature="enable_server")]
-    pub fn solo_from_url(url : &url::Url) -> Result<ConfMesh, CommsError>
+    pub fn solo_from_url(cfg_ate: &ConfAte, url : &url::Url, node_id: Option<u32>) -> Result<ConfMesh, CommsError>
     {
         let protocol = StreamProtocol::parse(url)?;
         let port = url.port().unwrap_or(protocol.default_port());
@@ -129,18 +153,22 @@ impl ConfMesh
                 return Err(CommsError::InvalidDomainName);
             }
         };
-        ConfMesh::solo(domain, port)
+        ConfMesh::solo(cfg_ate, domain, port, node_id)
     }
 
-    pub fn for_domain(domain_name: String) -> ConfMesh
+    pub(crate) fn new<'a, 'b>(domain_name: &'a str, roots: impl Iterator<Item=&'b MeshAddress>) -> ConfMesh
     {
         ConfMesh {
-            roots: Vec::new(),
-            domain_name,
+            roots: roots.map(|a| a.clone()).collect::<Vec<_>>(),
+            domain_name: domain_name.to_string(),
             #[cfg(feature="enable_client")]
             force_client_only: false,
             #[cfg(feature="enable_server")]
             force_listen: None,
+            #[cfg(feature="enable_server")]
+            force_node_id: None,
+            #[cfg(feature="enable_client")]
+            force_connect: None,
             wire_encryption: Some(KeySize::Bit128),
             #[cfg(feature="enable_tcp")]
             wire_protocol: StreamProtocol::Tcp,

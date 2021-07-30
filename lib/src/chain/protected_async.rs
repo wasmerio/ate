@@ -6,11 +6,14 @@ use crate::error::*;
 use crate::event::*;
 use crate::transaction::*;
 
+use fxhash::FxHashSet;
 use std::sync::{Arc};
+use tokio::sync::RwLock;
 use parking_lot::RwLock as StdRwLock;
 use parking_lot::RwLockWriteGuard as StdRwLockWriteGuard;
 use std::ops::*;
 use std::time::Duration;
+use multimap::MultiMap;
 
 use crate::trust::*;
 use crate::meta::*;
@@ -19,12 +22,14 @@ use crate::time::*;
 
 use super::*;
 
+#[derive(Debug)]
 pub(crate) struct ChainProtectedAsync
 {
     pub(crate) chain: ChainOfTrust,
     pub(crate) default_format: MessageFormat,
     pub(crate) disable_new_roots: bool,
     pub(crate) sync_tolerance: Duration,
+    pub(crate) listeners: MultiMap<MetaCollection, ChainListener>,
 }
 
 impl ChainProtectedAsync
@@ -141,5 +146,53 @@ impl ChainProtectedAsync
     where R: RangeBounds<ChainTimestamp>
     {
         self.range(range).map(|e| e.1)
+    }
+
+    pub(crate) async fn notify(lock: Arc<RwLock<ChainProtectedAsync>>, evts: Vec<EventData>)
+    {
+        // Build a map of event parents that will be used in the BUS notifications
+        let mut notify_map = MultiMap::new();
+        for evt in evts {
+            if let Some(parent) = evt.meta.get_parent() {
+                notify_map.insert(parent.vec.clone(), evt);
+            }
+        }
+
+        let mut to_remove = MultiMap::new();
+
+        
+        if notify_map.is_empty() == false
+        {
+            {
+                // Push the events to all the listeners
+                let lock = lock.read().await;                
+                for (k, v) in notify_map {
+                    if let Some(targets) = lock.listeners.get_vec(&k) {
+                        for target in targets {
+                            for evt in v.iter() {
+                                match target.sender.send(evt.clone()).await {
+                                    Ok(()) => { },
+                                    Err(_) => {
+                                        to_remove.insert(k.clone(), target.id);
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // If any listeners have disconnected then remove them
+            if to_remove.is_empty() == false {
+                let mut lock = lock.write().await;
+                for (k, to_remove) in to_remove {
+                    let to_remove = to_remove.into_iter().collect::<FxHashSet<u64>>();
+                    if let Some(targets) = lock.listeners.get_vec_mut(&k) {
+                        targets.retain(|a| to_remove.contains(&a.id) == false);
+                    }
+                }
+            } 
+        }       
     }
 }

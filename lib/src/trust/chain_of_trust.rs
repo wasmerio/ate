@@ -12,9 +12,18 @@ use super::*;
 
 pub(crate) struct ChainOfTrust
 {
+    pub(crate) debug_id: u64,
     pub(crate) key: ChainKey,
     pub(crate) timeline: ChainTimeline,
     pub(crate) redo: RedoLog,
+}
+
+impl std::fmt::Debug
+for ChainOfTrust
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "chain-of-trust(key={},debug_id={})", self.key, self.debug_id)
+    }
 }
 
 impl<'a> ChainOfTrust

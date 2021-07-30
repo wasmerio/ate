@@ -74,6 +74,50 @@ impl MessageEvent
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum FatalTerminate
+{
+    NotYetSubscribed,
+    NotFound,
+    NotThisRoot,
+    RootRedirect {
+        expected: u32,
+        actual: u32,
+    },
+    Denied {
+        reason: String
+    },
+    Other {
+        err: String
+    },
+}
+
+impl std::fmt::Display
+for FatalTerminate {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            FatalTerminate::NotYetSubscribed => {
+                write!(f, "Performed an action while the chain is not subscribed")
+            },
+            FatalTerminate::NotFound => {
+                write!(f, "The chain is not found")
+            },
+            FatalTerminate::NotThisRoot => {
+                write!(f, "Failed to create chain-of-trust as this is the wrong root node")
+            },
+            FatalTerminate::RootRedirect { expected, actual } => {
+                write!(f, "Failed to create chain-of-trust as the server you connected (node_id={}) is not hosting these chains - instead you must connect to another node (node_id={})", actual, expected)
+            },
+            FatalTerminate::Denied { reason } => {
+                write!(f, "Access to this chain is denied - {}", reason)
+            },
+            FatalTerminate::Other { err } => {
+                write!(f, "Fatal error occured - {}", err)
+            },
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub(super) enum Message {
     Noop,
 
@@ -81,10 +125,6 @@ pub(super) enum Message {
         chain_key: ChainKey,
         from: ChainTimestamp
     },
-    
-    NotYetSubscribed,
-    NotFound,
-    NotThisRoot,
 
     Lock {
         key: PrimaryKey,
@@ -117,9 +157,7 @@ pub(super) enum Message {
         err: String,
     },
 
-    FatalTerminate {
-        err: String
-    },
+    FatalTerminate(FatalTerminate),
 
     SecuredWith(AteSession),
 }

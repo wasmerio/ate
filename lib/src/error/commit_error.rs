@@ -2,7 +2,6 @@
 use log::{info, error, debug};
 use std::error::Error;
 
-use std::sync::mpsc as smpsc;
 use tokio::sync::mpsc as mpsc;
 use tokio::sync::broadcast as broadcast;
 
@@ -22,6 +21,7 @@ pub enum CommitError
     SerializationError(SerializationError),
     PipeError(String),
     RootError(String),
+    LockError(CommsError),
     CommsError(CommsError),
     TimeError(TimeError),
 }
@@ -92,22 +92,6 @@ for CommitError
     }   
 }
 
-impl From<smpsc::RecvError>
-for CommitError
-{
-    fn from(err: smpsc::RecvError) -> CommitError {
-        CommitError::PipeError(err.to_string())
-    }   
-}
-
-impl<T> From<smpsc::SendError<T>>
-for CommitError
-{
-    fn from(err: smpsc::SendError<T>) -> CommitError {
-        CommitError::PipeError(err.to_string())
-    }   
-}
-
 impl<T> From<mpsc::error::SendError<T>>
 for CommitError
 {
@@ -139,6 +123,9 @@ for CommitError {
             },
             CommitError::CommsError(err) => {
                 write!(f, "Failed to commit the data due to an error in communication - {}", err.to_string())
+            },
+            CommitError::LockError(err) => {
+                write!(f, "Failed to lock the data due to an error in communication - {}", err.to_string())
             },
             CommitError::LintError(err) => {
                 write!(f, "Failed to commit the data due to an error linting the data object events - {}", err.to_string())

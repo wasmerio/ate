@@ -2,8 +2,6 @@
 use log::{info, error, debug};
 use std::error::Error;
 
-use std::sync::mpsc as smpsc;
-
 use super::*;
 
 #[derive(Debug)]
@@ -36,14 +34,6 @@ for LockError
 {
     fn from(err: CommitError) -> LockError {
         LockError::CommitError(err.to_string())
-    }   
-}
-
-impl From<smpsc::RecvError>
-for LockError
-{
-    fn from(err: smpsc::RecvError) -> LockError {
-        LockError::ReceiveError(err.to_string())
     }   
 }
 

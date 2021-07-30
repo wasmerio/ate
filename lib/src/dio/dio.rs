@@ -10,7 +10,6 @@ use std::{fmt::Debug, sync::Arc};
 use parking_lot::Mutex;
 use std::ops::Deref;
 use tokio::sync::mpsc;
-use std::sync::mpsc as smpsc;
 
 use super::dao::*;
 use crate::meta::*;
@@ -695,22 +694,14 @@ impl<'a> Dio<'a>
         debug!("commit events={}", trans.events.len());
 
         // Process the transaction in the chain using its pipe
-        let notify = self.multi.pipe.feed(trans).await?;
-
+        self.multi.pipe.feed(trans).await?;
+        
         // Last thing we do is kick off an unlock operation using fire and forget
         let unlock_multi = self.multi.clone();
         let unlock_me = state.pipe_unlock.iter().map(|a| a.clone()).collect::<Vec<_>>();
-        let join1 = async move {
-            for key in unlock_me {
-                let _ = unlock_multi.pipe.unlock(key).await;
-            }
-        };
-
-        // Process all the notifications
-        let join2 = notify.process();
-
-        // Wait for all the joins to complete
-        futures::join!(join1, join2);
+        for key in unlock_me {
+            let _ = unlock_multi.pipe.unlock(key).await;
+        }
 
         // Success
         Ok(())

@@ -4,51 +4,51 @@ use log::{error, info, debug};
 use serde::{Serialize, de::DeserializeOwned};
 use std::marker::PhantomData;
 use tokio::sync::mpsc;
+use std::sync::Arc;
 
 use crate::{error::*, event::*, meta::MetaCollection};
 use super::dao::*;
 use crate::dio::*;
 use crate::chain::*;
 use crate::index::*;
-use crate::session::*;
 use crate::engine::*;
+use crate::prelude::*;
 
 impl<D> Dao<D>
 where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     #[allow(dead_code)]
-    pub fn bus<'a, C>(&self, chain: &'a Chain, vec: DaoVec<C>) -> Bus<'a, C>
+    pub async fn bus<C>(&self, chain: &Arc<Chain>, vec: DaoVec<C>) -> Bus<C>
     where C: Serialize + DeserializeOwned + Clone + Send + Sync,
     {
         let vec = MetaCollection {
             parent_id: self.key().clone(),
             collection_id: vec.vec_id,
         };
-        Bus::new(chain, vec)
+        Bus::new(chain, vec).await
     }
 }
 
 #[allow(dead_code)]
-pub struct Bus<'a, D>
+pub struct Bus<D>
 where D: Serialize + DeserializeOwned + Clone + Send + Sync
 {
-    id: u64,
-    chain: &'a Chain,
+    chain: Arc<Chain>,
     vec: MetaCollection,
     receiver: mpsc::Receiver<EventData>,
     _marker: PhantomData<D>,
 }
 
-impl<'a, D> Bus<'a, D>
+impl<D> Bus<D>
 where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
-    pub(crate) fn new(chain: &'a Chain, vec: MetaCollection) -> Bus<'a, D>
+    pub(crate) async fn new(chain: &Arc<Chain>, vec: MetaCollection) -> Bus<D>
     {
         let id = fastrand::u64(..);
         let (tx, rx) = mpsc::channel(100);
         
         {
-            let mut lock = chain.inside_sync.write();
+            let mut lock = chain.inside_async.write().await;
             let listener = ChainListener {
                 id: id,
                 sender: tx,
@@ -57,22 +57,20 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
         }
 
         Bus {
-            id: fastrand::u64(..),
-            chain: chain,
+            chain: Arc::clone(&chain),
             vec: vec,
             receiver: rx,
             _marker: PhantomData,
         }
     }
 
-    pub async fn recv(&mut self, session: &AteSession) -> Result<D, BusError> {
+    pub async fn recv(&mut self, session: &'_ AteSession) -> Result<D, BusError> {
         TaskEngine::run_until(self.__recv(session)).await
     }
 
-    async fn __recv(&mut self, session: &AteSession) -> Result<D, BusError> {
+    async fn __recv(&mut self, session: &'_ AteSession) -> Result<D, BusError> {
+        let multi = self.chain.multi().await;
         while let Some(mut evt) = self.receiver.recv().await {
-
-            let multi = self.chain.multi().await;
             match evt.data_bytes {
                 Some(data) => {
                     let data = multi.data_as_overlay(&mut evt.meta, data, session)?;
@@ -84,11 +82,11 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
         Err(BusError::ChannelClosed)
     }
 
-    pub async fn process(&mut self, dio: &mut Dio<'a>) -> Result<Dao<D>, BusError> {
+    pub async fn process(&mut self, dio: &'_ mut Dio<'_>) -> Result<Dao<D>, BusError> {
         TaskEngine::run_until(self.__process(dio)).await
     }
 
-    async fn __process(&mut self, dio: &mut Dio<'a>) -> Result<Dao<D>, BusError> {
+    async fn __process(&mut self, dio: &'_ mut Dio<'_>) -> Result<Dao<D>, BusError> {
         loop {
             let mut dao: Dao<D> = match self.receiver.recv().await {
                 Some(evt) => {
@@ -102,24 +100,9 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
                 },
                 None => { return Err(BusError::ChannelClosed); }
             };
+            dao.auto_cancel();
             if dao.try_lock_then_delete(dio).await? == true {
                 return Ok(dao);
-            }
-            dao.cancel();
-        }
-    }
-}
-
-impl<'a, D> Drop
-for Bus<'a, D>
-where D: Serialize + DeserializeOwned + Clone + Send + Sync,
-{
-    fn drop(&mut self)
-    {
-        let mut lock = self.chain.inside_sync.write();
-        if let Some(vec) = lock.listeners.get_vec_mut(&self.vec) {
-            if let Some(index) = vec.iter().position(|x| x.id == self.id) {
-                vec.remove(index);
             }
         }
     }

@@ -1,12 +1,12 @@
-#[allow(unused_imports)]
+#![allow(unused_imports)]
 use log::{info, warn, debug};
 use fxhash::FxHashMap;
 #[cfg(feature="enable_tcp")]
 use tokio::{net::{TcpStream}};
 use tokio::time::Duration;
 use std::sync::Arc;
+use send_wrapper::SendWrapper;
 use serde::{Serialize, de::DeserializeOwned};
-#[cfg(feature="enable_tcp")]
 use std::net::SocketAddr;
 #[cfg(all(feature="enable_tcp", not(feature="enable_dns")))]
 use std::net::ToSocketAddrs;
@@ -51,8 +51,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
       C: Send + Sync + Default + 'static,
 {
     // Create all the outbound connections
-    let mut upcast = FxHashMap::default();
-    if let Some(target) = conf.connect_to.iter().next()
+    if let Some(target) = &conf.connect_to
     {
         let inbox = Box::new(inbox);
         let upstream = mesh_connect_to::<M, C>(
@@ -65,22 +64,20 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
             conf.cfg_mesh.connect_timeout,
             conf.cfg_mesh.fail_fast,
         ).await?;
-
-        upcast.insert(upstream.id, upstream);
-    }
-    let upcast_cnt = upcast.len();
-
-    // Return the mesh
-    Ok(
-        Tx {
-            direction: match upcast_cnt {
-                1 => TxDirection::UpcastOne(upcast.into_iter().map(|(_,v)| v).next().unwrap()),
-                _ => TxDirection::UpcastMany(upcast)
+        
+        // Return the mesh
+        Ok(
+            Tx {
+                direction: TxDirection::Upcast(upstream),
+                hello_path: hello_path.clone(),
+                wire_format: conf.cfg_mesh.wire_format,
             },
-            hello_path: hello_path.clone(),
-            wire_format: conf.cfg_mesh.wire_format,
-        },
-    )
+        )
+    }
+    else
+    {
+        return Err(CommsError::NoAddress);
+    }
 }
 
 #[cfg(feature="enable_dns")]
@@ -103,13 +100,11 @@ pub(super) async fn mesh_connect_to<M, C>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
       C: Send + Sync + Default + 'static,
 {
-    let (terminate_tx, terminate_rx) = tokio::sync::watch::channel::<bool>(false);
-    
     // Make the connection
     let sender = fastrand::u64(..);    
     let worker_connect = mesh_connect_prepare
     (
-        addr,
+        addr.clone(),
         hello_path,
         domain,
         sender,
@@ -132,7 +127,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         async move {
             mesh_connect_worker::<M, C>(worker_connect, addr, ek, inbox).await
         }
-    ).await;
+    );
 
     let stream_tx = StreamTxChannel::new(stream_tx, ek);
     Ok(Upstream {
@@ -159,6 +154,7 @@ async fn mesh_connect_prepare
     sender: u64,
     wire_protocol: StreamProtocol,
     wire_encryption: Option<KeySize>,
+    #[allow(unused_variables)]
     fail_fast: bool,
 )
 -> Result<(MeshConnectContext, StreamTx), CommsError>
@@ -217,7 +213,8 @@ async fn mesh_connect_prepare
         let stream = {
             let url = wire_protocol.make_url(addr.host.clone(), addr.port, hello_path.clone())?.to_string();
             
-            let (ws, wsio) = match WsMeta::connect( url, None ).await {
+            let connect = SendWrapper::new(WsMeta::connect( url, None ));
+            let (_, wsio) = match connect.await {
                 Ok(a) => a,
                 Err(WsErr::ConnectionFailed{ event }) => {
                     debug!("connect failed: reason={}, backoff={}s", event.reason, exp_backoff.as_secs_f32());
@@ -229,8 +226,7 @@ async fn mesh_connect_prepare
                 a => a?,
             };
 
-            let meta = ws;
-            let stream = wsio.into_io();
+            let stream = SendWrapper::new(wsio.into_io());
             Stream::WebSocket(stream, wire_protocol)
         };
 
@@ -254,7 +250,7 @@ async fn mesh_connect_prepare
 async fn mesh_connect_worker<M, C>
 (
     connect: MeshConnectContext,
-    sock_addr: SocketAddr,
+    sock_addr: MeshConnectAddr,
     wire_encryption: Option<EncryptKey>,
     inbox: Box<dyn InboxProcessor<M, C>>
 )

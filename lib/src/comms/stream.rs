@@ -10,13 +10,13 @@ use std::str::FromStr;
 use tokio::time::timeout as tokio_timeout;
 use std::time::Duration;
 use std::result::Result;
+use send_wrapper::SendWrapper;
 
 use crate::crypto::EncryptKey;
 use crate::comms::PacketData;
 
-#[allow(unused_imports)]
-#[cfg(feature="enable_tcp")]
 #[cfg(feature="enable_ws")]
+#[cfg(not(feature="enable_web"))]
 use
 {
     tokio_tungstenite     :: { tungstenite::{ Message }, WebSocketStream    },
@@ -24,8 +24,8 @@ use
     futures_util          :: { StreamExt, SinkExt, stream                   },
 };
 
-#[cfg(feature="enable_web")]
 #[cfg(feature="enable_ws")]
+#[cfg(feature="enable_web")]
 use
 {
     futures               :: { AsyncReadExt                         } ,
@@ -110,12 +110,12 @@ pub enum Stream
 {
     #[cfg(feature="enable_tcp")]
     Tcp(TcpStream),
+    #[cfg(feature="enable_ws")]
     #[cfg(not(feature="enable_web"))]
-    #[cfg(feature="enable_ws")]
     WebSocket(WebSocketStream<TcpStream>, StreamProtocol),
-    #[cfg(feature="enable_web")]
     #[cfg(feature="enable_ws")]
-    WebSocket(IoStream<WsStreamIo, Vec<u8>>, StreamProtocol),
+    #[cfg(feature="enable_web")]
+    WebSocket(SendWrapper<IoStream<WsStreamIo, Vec<u8>>>, StreamProtocol),
 }
 
 impl StreamProtocol
@@ -181,7 +181,7 @@ impl Stream
             #[cfg(feature="enable_ws")]
             Stream::WebSocket(a, _) => {
                 #[cfg(feature="enable_web")]
-                let (tx, rx) = Framed::new( a, BytesCodec::new() ).split();
+                let (tx, rx) = Framed::new( a.take(), BytesCodec::new() ).split();
                 #[cfg(not(feature="enable_web"))]
                 let (tx, rx) = a.split();
                 (StreamRx::WebSocket(rx), StreamTx::WebSocket(tx))
@@ -225,6 +225,7 @@ impl Stream
         Ok(ret)
     }
 
+    #[allow(dead_code)]
     #[allow(unused_variables)]
     pub async fn upgrade_client(self, protocol: StreamProtocol) -> Result<Stream, CommsError> {
         debug!("tcp-protocol-upgrade: {}", protocol);

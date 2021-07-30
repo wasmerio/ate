@@ -82,8 +82,8 @@ pub async fn main_mount(mount: OptsMount, conf: ConfAte, group: Option<String>, 
         .temporal(mount.temp);
 
     // Create a progress bar loader
-    let mut progress_local = Box::new(progress::LoadProgress::default());
-    let mut progress_remote = Box::new(progress::LoadProgress::default());
+    let mut progress_local = progress::LoadProgress::default();
+    let mut progress_remote = progress::LoadProgress::default();
     progress_local.units = pbr::Units::Bytes;
     progress_local.msg_done = "Downloading latest events from server...".to_string();
     progress_remote.msg_done = "Loaded the remote chain-of-trust, proceeding to mount the file system.".to_string();
@@ -98,7 +98,7 @@ pub async fn main_mount(mount: OptsMount, conf: ConfAte, group: Option<String>, 
                 Chain::new_ext(
                     builder.clone(),
                     ChainKey::from("root"),
-                    Some(progress_local),
+                    Some(Box::new(progress_local)),
                     true
                 ).await?
             )

@@ -2,7 +2,6 @@
 use log::{info};
 use serde::{Serialize, Deserialize};
 use ate::prelude::*;
-use tokio::runtime::Runtime;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 struct MyTestObject
@@ -19,9 +18,12 @@ struct MyTestObject
 fn load_test() -> Result<(), AteError> {
     ate::utils::bootstrap_env();
 
-    let rt = Runtime::new().unwrap();
-    rt.block_on(async {
-
+    #[cfg(feature = "enable_mt")]
+    let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
+    #[cfg(not(feature = "enable_mt"))]
+    let rt =tokio::runtime::Builder::new_current_thread().enable_all().build()?;
+    
+    rt.block_on(TaskEngine::run_until(async {
         // The default configuration will store the redo log locally in the temporary folder
         let mut conf = ConfAte::default();
         conf.configured_for(ConfiguredFor::BestPerformance);
@@ -68,5 +70,5 @@ fn load_test() -> Result<(), AteError> {
         }
 
         Ok(())
-    })
+    }))
 }

@@ -14,11 +14,11 @@ async fn main() -> Result<(), AteError>
     
     // Create the server and listen on port 5000
     let url = url::Url::parse("ws://localhost:5000/test-chain").unwrap();
-    #[cfg(feature="enable_dns")]
-    let cfg_mesh = ConfMesh::solo_from_url(&url, &IpAddr::from_str("::").unwrap())?;
-    #[cfg(not(feature="enable_dns"))]
-    let cfg_mesh = ConfMesh::solo_from_url(&url)?;
     let cfg_ate = ConfAte::default();
+    #[cfg(feature="enable_dns")]
+    let cfg_mesh = ConfMesh::solo_from_url(&cfg_ate, &url, &IpAddr::from_str("::").unwrap(), None).await?;
+    #[cfg(not(feature="enable_dns"))]
+    let cfg_mesh = ConfMesh::solo_from_url(&cfg_ate, &url)?;
     info!("create a persistent server");
     let _server = create_persistent_centralized_server(&cfg_ate, &cfg_mesh).await?;
 

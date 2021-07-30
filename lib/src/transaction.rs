@@ -1,6 +1,5 @@
 #![allow(unused_imports)]
 use tokio::sync::mpsc as mpsc;
-use std::sync::mpsc as smpsc;
 use crate::meta::MetaParent;
 use fxhash::FxHashMap;
 use fxhash::FxHashSet;

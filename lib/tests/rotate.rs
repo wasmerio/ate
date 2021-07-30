@@ -1,7 +1,6 @@
 #![cfg(any(feature = "enable_full"))]
 #![allow(unused_imports)]
 use ate::prelude::*;
-use tokio::runtime::Runtime;
 
 #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
 #[cfg(feature = "enable_rotate")]
@@ -10,8 +9,12 @@ fn rotate_test() -> Result<(), AteError>
 {
     ate::utils::bootstrap_env();
 
-    let rt = Runtime::new().unwrap();
-    rt.block_on(async {
+    #[cfg(feature = "enable_mt")]
+    let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
+    #[cfg(not(feature = "enable_mt"))]
+    let rt =tokio::runtime::Builder::new_current_thread().enable_all().build()?;
+
+    rt.block_on(TaskEngine::run_until(async {
 
         // The default configuration will store the redo log locally in the temporary folder
         let mut conf = ConfAte::default();
@@ -63,5 +66,5 @@ fn rotate_test() -> Result<(), AteError>
         }
 
         Ok(())
-    })
+    }))
 }

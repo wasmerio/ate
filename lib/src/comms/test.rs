@@ -12,6 +12,7 @@ use crate::comms::PacketData;
 use crate::comms::PacketWithContext;
 use crate::error::CommsError;
 use async_trait::async_trait;
+#[cfg(feature="enable_server")]
 use crate::comms::ServerProcessor;
 use crate::comms::Tx;
 use std::net::SocketAddr;
@@ -62,101 +63,114 @@ async fn test_server_client_for_comms_with_websocket() -> Result<(), AteError> {
     test_server_client_for_comms(StreamProtocol::WebSocket, 4011).await
 }
 
+#[cfg(test)]
+pub(crate) fn mock_test_mesh(port: u16) -> ConfMesh {
+    let mut roots = Vec::new();
+    #[cfg(feature="enable_dns")]
+    roots.push(MeshAddress::new(IpAddr::from_str("127.0.0.1").unwrap(), port));
+    #[cfg(not(feature="enable_dns"))]
+    roots.push(MeshAddress::new("localhost", port));
+
+    let ret = ConfMesh::new("localhost", roots.iter());    
+    ret
+}
+
 #[cfg(all(feature = "enable_server", feature = "enable_client", feature = "enable_tcp" ))]
 #[cfg(test)]
 async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) -> Result<(), AteError> {
     use crate::comms::helper::InboxProcessor;
 
-    crate::utils::bootstrap_env();
-    
-    let listener;
-    let wire_format = SerializationFormat::MessagePack;
-    {
-        // Start the server
-        info!("starting listen server on 127.0.0.1");
-
-        let mut cfg = ConfMesh::for_domain("localhost".to_string());
-        cfg.wire_protocol = wire_protocol;
-        cfg.wire_format = wire_format;
-        cfg.wire_encryption = Some(KeySize::Bit256);
-        let cfg = MeshConfig::new(cfg)
-            .listen_on(IpAddr::from_str("127.0.0.1")
-            .unwrap(), port);
-
-        #[derive(Debug, Clone, Default)]
-        struct Handler {
-        }
-        #[async_trait]
-        impl ServerProcessor<TestMessage, DummyContext>
-        for Handler {
-            async fn process(&self, pck: PacketWithContext<TestMessage, DummyContext>, &mut tx: Tx)
-            -> Result<(), CommsError>
-            {
-                let pck: super::Packet<TestMessage> = pck.packet;
-                match &pck.msg {
-                    TestMessage::Ping(txt) => {
-                        tx.send(TestMessage::Pong(txt.clone()), None).await.unwrap();
-                    },
-                    _ => {}
-                };
-                Ok(())
-            }
-            async fn shutdown(&self, addr: SocketAddr) {
-            }
-        }
+    TaskEngine::run_until(async move {
+        crate::utils::bootstrap_env();
         
-        listener = Listener::new(&cfg, Handler::default()).await?;
+        let listener;
+        let wire_format = SerializationFormat::MessagePack;
         {
-            let mut guard = listener.lock();
-            guard.add_route("/comm-test")?;
-        };
-    };
-    
-    #[cfg(feature="enable_dns")]
-    {
-        // Start the client
-        info!("start another client that will connect to the relay");
+            // Start the server
+            info!("starting listen server on 127.0.0.1");
 
-        #[derive(Debug, Clone, Default)]
-        struct Handler {
-        }
-        #[async_trait]
-        impl InboxProcessor<TestMessage, ()>
-        for Handler {
-            async fn process(&mut self, pck: PacketWithContext<TestMessage, ()>)
-            -> Result<(), CommsError>
-            {
-                let pck: super::Packet<TestMessage> = pck.packet;
-                if let TestMessage::Pong(txt) = pck.msg {
-                    assert_eq!("hello", txt.as_str());
-                } else {
-                    panic!("Wrong message type returned")
+            let mut cfg = mock_test_mesh(port);
+            cfg.wire_protocol = wire_protocol;
+            cfg.wire_format = wire_format;
+            cfg.wire_encryption = Some(KeySize::Bit256);
+            let cfg = MeshConfig::new(cfg)
+                .listen_on(IpAddr::from_str("127.0.0.1")
+                .unwrap(), port);
+
+            #[derive(Debug, Clone, Default)]
+            struct Handler {
+            }
+            #[async_trait]
+            impl ServerProcessor<TestMessage, DummyContext>
+            for Handler {
+                async fn process(&'_ self, pck: PacketWithContext<TestMessage, DummyContext>, tx: &'_ mut Tx)
+                -> Result<(), CommsError>
+                {
+                    let pck: super::Packet<TestMessage> = pck.packet;
+                    match &pck.msg {
+                        TestMessage::Ping(txt) => {
+                            tx.send_reply_msg(TestMessage::Pong(txt.clone())).await.unwrap();
+                        },
+                        _ => {}
+                    };
+                    Ok(())
                 }
-                Ok(())
+                async fn shutdown(&self, _addr: SocketAddr) {
+                }
             }
-            async fn shutdown(&mut self, addr: SocketAddr) {
-            }
-        }
-        let inbox = Handler::default();
+            
+            listener = Listener::new(&cfg, Handler::default()).await?;
+            {
+                let mut guard = listener.lock();
+                guard.add_route("/comm-test")?;
+            };
+        };
         
-        let mut cfg = ConfMesh::for_domain("localhost".to_string());
-        cfg.wire_protocol = wire_protocol;
-        cfg.wire_format = wire_format;
-        cfg.wire_encryption = Some(KeySize::Bit256);
-        let cfg = MeshConfig::new(cfg)
-            .connect_to(MeshAddress { host: IpAddr::from_str("127.0.0.1").unwrap(), port });
-        let mut client_tx = super::connect(&cfg, "/comm-test".to_string(), inbox)
-            .await?;
-
-        // We need to test it alot
-        info!("send lots of hellos");
-        for n in 0..1000
+        #[cfg(feature="enable_dns")]
         {
-            // Send a ping
-            let test = "hello".to_string();
-            client_tx.send_reply_msg(TestMessage::Ping(test.clone())).await.unwrap();
-        }
-    }
+            // Start the client
+            info!("start another client that will connect to the server");
 
-    Ok(())
+            #[derive(Debug, Clone, Default)]
+            struct Handler {
+            }
+            #[async_trait]
+            impl InboxProcessor<TestMessage, ()>
+            for Handler {
+                async fn process(&mut self, pck: PacketWithContext<TestMessage, ()>)
+                -> Result<(), CommsError>
+                {
+                    let pck: super::Packet<TestMessage> = pck.packet;
+                    if let TestMessage::Pong(txt) = pck.msg {
+                        assert_eq!("hello", txt.as_str());
+                    } else {
+                        panic!("Wrong message type returned")
+                    }
+                    Ok(())
+                }
+                async fn shutdown(&mut self, _addr: SocketAddr) {
+                }
+            }
+            let inbox = Handler::default();
+            
+            let mut cfg = mock_test_mesh(port);
+            cfg.wire_protocol = wire_protocol;
+            cfg.wire_format = wire_format;
+            cfg.wire_encryption = Some(KeySize::Bit256);
+            let cfg = MeshConfig::new(cfg)
+                .connect_to(MeshAddress { host: IpAddr::from_str("127.0.0.1").unwrap(), port });
+            let mut client_tx = super::connect(&cfg, "/comm-test".to_string(), inbox)
+                .await?;
+
+            // We need to test it alot
+            info!("send lots of hellos");
+            for _n in 0..1000
+            {
+                // Send a ping
+                let test = "hello".to_string();
+                client_tx.send_reply_msg(TestMessage::Ping(test.clone())).await.unwrap();
+            }
+        }
+        Ok(())
+    }).await
 }

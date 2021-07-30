@@ -19,7 +19,6 @@ pub(crate) trait BroadcastContext
 pub(crate) struct PacketData
 {
     pub bytes: Bytes,
-    pub skip_here: Option<u64>,
     pub wire_format: SerializationFormat,
 }
 
@@ -65,7 +64,6 @@ impl PacketData
     {
         let pck = PacketData {
             bytes: Bytes::from(wire_format.serialize(&msg)?),
-            skip_here: None,
             wire_format,
         };
 
@@ -101,7 +99,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone
         Ok(
             PacketData {
                 bytes: Bytes::from(buf),
-                skip_here: None,
                 wire_format,
             }
         )

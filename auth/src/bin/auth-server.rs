@@ -41,6 +41,9 @@ struct Run {
     /// IP address that the authentication server will isten on
     #[clap(short, long, default_value = "::")]
     listen: IpAddr,
+    /// Ensures that this authentication server runs as a specific node_id
+    #[clap(short, long)]
+    node_id: Option<u32>,
 }
 
 /// Generates the secret key that helps protect key operations like creating users and resetting passwords
@@ -96,7 +99,7 @@ async fn main() -> Result<(), AteError>
 
             // Create the server and listen
             let flow = ChainFlow::new(&cfg_ate, root_write_key, session, &run.url);
-            let mut cfg_mesh = ConfMesh::solo_from_url(&run.url, &run.listen)?;
+            let mut cfg_mesh = ConfMesh::solo_from_url(&cfg_ate, &run.url, &run.listen, run.node_id).await?;
             cfg_mesh.wire_protocol = StreamProtocol::parse(&run.url)?;
 
             let server = create_server(&cfg_mesh).await?;

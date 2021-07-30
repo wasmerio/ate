@@ -1,11 +1,10 @@
-#[allow(unused_imports)]
+#![allow(unused_imports)]
 use log::{info, error, debug};
 use std::error::Error;
 
 use rmp_serde::decode::Error as RmpDecodeError;
 use serde_json::Error as JsonError;
 use tokio::task::JoinError;
-use std::sync::mpsc as smpsc;
 use tokio::sync::mpsc as mpsc;
 #[cfg(feature="enable_web")]
 use ws_stream_wasm::WsErr;
@@ -21,10 +20,12 @@ pub enum CommsError
     IO(std::io::Error),
     NoReplyChannel,
     Disconnected,
+    Timeout,
     NoAddress,
     Refused,
     ShouldBlock,
     InvalidDomainName,
+    RequredExplicitNodeId,
     ListenAddressInvalid(String),
     ValidationError(Vec<ValidationError>),
     #[allow(dead_code)]
@@ -33,11 +34,11 @@ pub enum CommsError
     RootServerError(String),
     InternalError(String),
     UrlError(url::ParseError),
-    #[cfg(feature="enable_web")]
-    #[cfg(not(feature="enable_tcp"))]
-    WebSocketError(WsErr),
-    #[cfg(feature="enable_tcp")]
     #[cfg(feature="enable_ws")]
+    #[cfg(feature="enable_web")]
+    WebSocketError(WsErr),
+    #[cfg(feature="enable_ws")]
+    #[cfg(not(feature="enable_web"))]
     WebSocketError(tokio_tungstenite::tungstenite::Error),
     #[cfg(feature="enable_ws")]
     WebSocketInternalError(String),
@@ -84,24 +85,8 @@ for CommsError
     }   
 }
 
-impl From<smpsc::RecvError>
-for CommsError
-{
-    fn from(err: smpsc::RecvError) -> CommsError {
-        CommsError::ReceiveError(err.to_string())
-    }   
-}
-
-impl<T> From<smpsc::SendError<T>>
-for CommsError
-{
-    fn from(err: smpsc::SendError<T>) -> CommsError {
-        CommsError::SendError(err.to_string())
-    }   
-}
-
+#[cfg(feature="enable_ws")]
 #[cfg(feature="enable_web")]
-#[cfg(not(feature="enable_tcp"))]
 impl From<WsErr>
 for CommsError
 {
@@ -110,8 +95,8 @@ for CommsError
     }   
 }
 
-#[cfg(feature="enable_tcp")]
 #[cfg(feature="enable_ws")]
+#[cfg(not(feature="enable_web"))]
 impl From<tokio_tungstenite::tungstenite::Error>
 for CommsError
 {
@@ -216,6 +201,9 @@ for CommsError {
             CommsError::NoAddress => {
                 write!(f, "No address to connect to")
             },
+            CommsError::Timeout => {
+                write!(f, "IO timeout")
+            },
             CommsError::ShouldBlock => {
                 write!(f, "Operation should have blocked but it didn't")
             },
@@ -227,6 +215,9 @@ for CommsError {
             },
             CommsError::ReceiveError(err) => {
                 write!(f, "Receiving error while processing communication - {}", err)
+            },
+            CommsError::RequredExplicitNodeId => {
+                write!(f, "ATE is unable to determine the node_id of this root and thus you must explicily specify it in AteCfg")
             },
             CommsError::NoReplyChannel => {
                 write!(f, "Message has no reply channel attached to it")

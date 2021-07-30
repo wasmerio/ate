@@ -14,7 +14,7 @@ pub struct LoadData
 }
 
 #[async_trait]
-pub trait Loader: Send + Sync + 'static
+pub trait Loader: Send + Sync
 {
     /// Function invoked when the start of the history is being loaded
     async fn start_of_history(&mut self, _size: usize) { }

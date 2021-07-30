@@ -43,13 +43,9 @@ struct ListenerNode
     path: String,
 }
 
-pub(crate) struct Listener<M, C>
-where M: Send + Sync + Serialize + DeserializeOwned + Clone,
-      C: Send + Sync,
+pub(crate) struct Listener
 {
-    conf: MeshConfig,
     routes: fxhash::FxHashMap<String, ListenerNode>,
-    inbox: Arc<dyn ServerProcessor<M, C>>
 }
 
 #[async_trait]
@@ -58,7 +54,7 @@ where Self: Send + Sync,
       M: Send + Sync + Serialize + DeserializeOwned + Clone,
       C: Send + Sync,
 {
-    async fn process(&self, pck: PacketWithContext<M, C>, &mut tx: Tx) -> Result<(), CommsError>;
+    async fn process<'a, 'b>(&'a self, pck: PacketWithContext<M, C>, tx: &'b mut Tx) -> Result<(), CommsError>;
 
     async fn shutdown(&self, addr: SocketAddr);
 }
@@ -80,7 +76,7 @@ where Self: Send + Sync,
 {
     async fn process(&mut self, pck: PacketWithContext<M, C>) -> Result<(), CommsError>
     {
-        self.handler.process(pck, self.tx).await
+        self.handler.process(pck, &mut self.tx).await
     }
 
     async fn shutdown(&mut self, addr: SocketAddr) {
@@ -88,26 +84,23 @@ where Self: Send + Sync,
     }
 }
 
-impl<M, C> Listener<M, C>
-where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
-      C: Send + Sync + Default + 'static,
+impl Listener
 {
-    pub(crate) async fn new
+    pub(crate) async fn new<M, C>
     (
         conf: &MeshConfig,
         inbox: impl ServerProcessor<M, C> + 'static
     )
-    -> Result<Arc<StdMutex<Listener<M, C>>>, CommsError>
+    -> Result<Arc<StdMutex<Listener>>, CommsError>
+    where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
+          C: Send + Sync + Default + 'static,
     {
         // Create the node state and initialize it
         let inbox = Arc::new(inbox);
         let listener = {
-            let inbox = Arc::clone(&inbox);
             Arc::new(StdMutex::new(
                 Listener {
-                        conf: conf.clone(),
                         routes: fxhash::FxHashMap::default(),
-                        inbox,
                     }
             ))
         };
@@ -117,7 +110,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
             let inbox = Arc::clone(&inbox);
             Listener::listen_on(
                 target.clone(), 
-                conf.cfg_mesh.buffer_size_server,
                 Arc::downgrade(&listener),
                 conf.cfg_mesh.wire_protocol,
                 conf.cfg_mesh.wire_format,
@@ -141,16 +133,17 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         Ok(())
     }
 
-    async fn listen_on(
+    async fn listen_on<M, C>(
         addr: SocketAddr,
-        buffer_size: usize,
-        listener: Weak<StdMutex<Listener<M, C>>>,
+        listener: Weak<StdMutex<Listener>>,
         wire_protocol: StreamProtocol,
         wire_format: SerializationFormat,
         wire_encryption: Option<KeySize>,
         accept_timeout: Duration,
         inbox: Arc<dyn ServerProcessor<M, C>>
     )
+    where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
+          C: Send + Sync + Default + 'static,
     {
         let tcp_listener = TcpListener::bind(addr.clone()).await
             .expect(&format!("Failed to bind listener to address ({})", addr.clone()));
@@ -188,7 +181,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                 (
                     stream,
                     sock_addr,
-                    buffer_size,
                     listener,
                     wire_protocol,
                     wire_format,
@@ -208,20 +200,21 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                     }
                 };
             }
-        }).await;
+        });
     }
 
-    async fn accept_tcp_connect(
+    async fn accept_tcp_connect<M, C>(
         stream: Stream,
         sock_addr: SocketAddr,
-        buffer_size: usize,
-        listener: Arc<StdMutex<Listener<M, C>>>,
+        listener: Arc<StdMutex<Listener>>,
         wire_protocol: StreamProtocol,
         wire_format: SerializationFormat,
         wire_encryption: Option<KeySize>,
         timeout: Duration,
         handler: Arc<dyn ServerProcessor<M, C>>
     ) -> Result<(), CommsError>
+    where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
+          C: Send + Sync + Default + 'static,
     {
         info!("accept-from: {}", sock_addr.to_string());
         
@@ -256,7 +249,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         // Now we need to check if there are any endpoints for this hello_path
         {
             let guard = listener.lock();
-            let route = match guard.routes.get(&hello_meta.path) {
+            match guard.routes.get(&hello_meta.path) {
                 Some(a) => a,
                 None => {
                     error!("There are no listener routes for this connection path ({})", hello_meta.path);
@@ -267,8 +260,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         
         let context = Arc::new(C::default());
         let sender = fastrand::u64(..);
-        let (terminate_tx, terminate_rx) = tokio::sync::watch::channel::<bool>(false);
-
+        
         // Create an upstream from the tx
         let tx = Upstream {
             id: fastrand::u64(..),
@@ -280,7 +272,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         // Now lets build a Tx object that is not connected to any of transmit pipes for now
         // (later we will add other ones to create a broadcast group)
         let mut group = TxGroup::default();
-        group.add(&tx);
+        group.all.insert(sender, Arc::downgrade(&tx));
         let tx = Tx {
             hello_path: hello_meta.path.clone(),
             wire_format,
@@ -321,18 +313,15 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
                 Err(err) => warn!("connection-failed (inbox): {:?}", err)
             };
             info!("disconnected(inbox): {}", sock_addr.to_string());
-            let _ = terminate_tx.send(true);
-        }).await;
+        });
 
         // Happy days
         Ok(())
     }
 }
 
-impl<M, C> Drop
-for Listener<M, C>
-where M: Send + Sync + Serialize + DeserializeOwned + Clone,
-      C: Send + Sync,
+impl Drop
+for Listener
 {
     fn drop(&mut self) {
         debug!("drop (Listener)");

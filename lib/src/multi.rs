@@ -1,8 +1,6 @@
 use tokio::sync::RwLock;
 use parking_lot::RwLock as StdRwLock;
 #[allow(unused_imports)]
-use std::sync::mpsc as smpsc;
-#[allow(unused_imports)]
 use std::sync::{Weak, Arc};
 
 use crate::session::{AteSession};
@@ -136,7 +134,7 @@ impl ChainMultiUser
         }        
     }
 
-    pub async fn sync(&self) -> Result<FeedNotifications, CommitError>
+    pub async fn sync(&self) -> Result<(), CommitError>
     {
         // Create the transaction
         let trans = Transaction {
@@ -147,8 +145,8 @@ impl ChainMultiUser
         };
 
         // Process the transaction in the chain using its pipe
-        let ret = self.pipe.feed(trans).await?;
-        Ok(ret)
+        self.pipe.feed(trans).await?;
+        Ok(())
     }
 }
 

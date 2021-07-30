@@ -56,17 +56,18 @@ pub struct MeshRoute
 pub struct MeshChain
 {
     chain: Weak<Chain>,
-    tx_group: Weak<StdMutex<TxGroup>>,
+    tx_group: Weak<Mutex<TxGroup>>,
 }
 
 pub struct MeshRoot
 where Self: ChainRepository,
 {
     cfg_mesh: ConfMesh,
+    node_id: u32,
     lookup: MeshHashTable,
     addrs: Vec<MeshAddress>,
-    chains: StdMutex<FxHashMap<RouteChain, MeshChain>>,
-    listener: StdMutex<Option<Arc<StdMutex<Listener<Message, SessionContext>>>>>,
+    chains: Mutex<FxHashMap<RouteChain, MeshChain>>,
+    listener: StdMutex<Option<Arc<StdMutex<Listener>>>>,
     routes: StdMutex<FxHashMap<String, Arc<Mutex<MeshRoute>>>>,
 }
 
@@ -141,13 +142,27 @@ impl MeshRoot
                 .listen_on(IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0)), port.clone());                
         }
 
+        let lookup = MeshHashTable::new(&cfg.cfg_mesh);
+        let node_id = match cfg.cfg_mesh.force_node_id {
+            Some(a) => a,
+            None => {
+                match listen_addrs.iter().filter_map(|a| lookup.derive_id(a)).next() {
+                    Some(a) => a,
+                    None => {
+                        return Err(CommsError::RequredExplicitNodeId);
+                    }
+                }
+            }
+        };
+
         let root = Arc::new(
             MeshRoot
             {
                 cfg_mesh: cfg.cfg_mesh.clone(),
                 addrs: listen_addrs,
-                lookup: MeshHashTable::new(&cfg.cfg_mesh),
-                chains: StdMutex::new(FxHashMap::default()),
+                lookup,
+                node_id,
+                chains: Mutex::new(FxHashMap::default()),
                 listener: StdMutex::new(None),
                 routes: StdMutex::new(FxHashMap::default()),
             }
@@ -218,7 +233,7 @@ fn disconnected(mut context: SessionContextProtected) -> Result<(), CommsError> 
 struct ServerPipe
 {
     chain_key: ChainKey,
-    tx_group: Arc<StdMutex<TxGroup>>,
+    tx_group: Arc<Mutex<TxGroup>>,
     wire_format: SerializationFormat,
     next: Arc<Box<dyn EventPipe>>,
 }
@@ -227,13 +242,13 @@ struct ServerPipe
 impl EventPipe
 for ServerPipe
 {
-    async fn feed(&self, trans: Transaction) -> Result<FeedNotifications, CommitError>
+    async fn feed(&self, trans: Transaction) -> Result<(), CommitError>
     {
         // If this packet is being broadcast then send it to all the other nodes too
         if trans.transmit {
             let evts = MessageEvent::convert_to(&trans.events);
             let pck = Packet::from(Message::Events{ commit: None, evts: evts.clone(), }).to_packet_data(self.wire_format)?;
-            let tx = self.tx_group.lock();
+            let mut tx = self.tx_group.lock().await;
             tx.send(pck, None).await?;
         }
 
@@ -269,76 +284,28 @@ for ServerPipe
 impl ChainRepository
 for MeshRoot
 {
-    async fn open(self: Arc<Self>, url: &url::Url, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
+    async fn open(self: Arc<Self>, _url: &url::Url, _key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
     {
-        TaskEngine::run_until(self.__open(url, key)).await
+        return Err(ChainCreationError::NotSupported);
     }
 }
 
-impl MeshRoot
-{
-    async fn __open(self: Arc<Self>, url: &url::Url, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
-    {
-        let addr = match self.lookup.lookup(key) {
-            Some(a) => a,
-            None => {
-                return Err(ChainCreationError::NoRootFoundInConfig);
-            }
-        };
-
-        #[cfg(feature="enable_dns")]
-        let is_local = {
-            let local_ips = vec!(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1)));
-            let is_local = self.addrs.contains(&addr) || local_ips.contains(&addr.host);
-            is_local
-        };
-        #[cfg(not(feature="enable_dns"))]
-        let is_local = {
-            addr.host == "localhost" || addr.host == "127.0.0.1" || addr.host == "::1"
-        };
-
-        let weak = Arc::downgrade(&self);
-        let ret = {
-            if is_local {
-                let route_chain = RouteChain {
-                    route: url.path().to_string(),
-                    chain: key.clone(),
-                };
-                open_internal(self, route_chain, None).await
-            } else {
-                return Err(ChainCreationError::NotThisRoot);
-            }
-        }?;
-        ret.inside_sync.write().repository = Some(weak);
-        return Ok(ret);
-    }
-}
-
-struct OpenContext<'a>
-{
-    tx: &'a mut TxGroupSpecific,
-}
-
-async fn open_internal<'a>(
+async fn open_internal<'b>(
     root: Arc<MeshRoot>,
     route_chain: RouteChain,
-    mut context: Option<OpenContext<'a>>
+    tx: &'b mut Tx,
 ) -> Result<Arc<Chain>, ChainCreationError>
 {
     debug!("open_internal {} - {}", route_chain.route, route_chain.chain);
 
     {
-        let chains = root.chains.lock();
+        let chains = root.chains.lock().await;
         if let Some(chain) = chains.get(&route_chain) {
-            if let Some(context) = context.as_mut() {
-                if let Some(tx_group) = chain.tx_group.upgrade() {
-                    context.tx.group = Arc::clone(&tx_group);
-                    let mut tx_group = tx_group.lock();
-                    tx_group.add(&context.tx.me_tx);
+            if let Some(group) = chain.tx_group.upgrade() {
+                if let Some(chain) = chain.chain.upgrade() {
+                    tx.replace_group(group).await;
+                    return Ok(chain);
                 }
-            }
-            if let Some(chain) = chain.chain.upgrade() {
-                return Ok(chain);
             }
         }
     }
@@ -371,7 +338,7 @@ async fn open_internal<'a>(
 
     // Create the broadcast group
     let new_tx_group = {
-        Arc::new(StdMutex::new(TxGroup::default()))
+        Arc::new(Mutex::new(TxGroup::default()))
     };
 
     // Add a pipe that will broadcast message to the connected clients
@@ -384,16 +351,14 @@ async fn open_internal<'a>(
     builder = builder.add_pipe(pipe);
 
     // Create the chain using the chain flow builder
-    let mut new_chain = {
+    let new_chain = {
         let route = route.lock().await;
         debug!("open_flow: {}", route.flow_type);    
         match route.flow.open(builder, &route_chain.chain).await? {
             OpenAction::PrivateChain { chain, session} => {
-                if let Some(ctx) = context.as_mut() {
-                    let msg = Message::SecuredWith(session);
-                    let pck = Packet::from(msg).to_packet_data(root.cfg_mesh.wire_format)?;
-                    ctx.tx.send_reply(pck).await?;
-                }
+                let msg = Message::SecuredWith(session);
+                let pck = Packet::from(msg).to_packet_data(root.cfg_mesh.wire_format)?;
+                tx.send_reply(pck).await?;
                 chain
             },
             OpenAction::DistributedChain(c) => {
@@ -405,33 +370,32 @@ async fn open_internal<'a>(
                 c
             },
             OpenAction::Deny(reason) => {
-                return Err(ChainCreationError::ServerRejected(reason));
+                return Err(ChainCreationError::ServerRejected(FatalTerminate::Denied {
+                    reason
+                }));
             }
         }
     };
     
     // Insert it into the cache so future requests can reuse the reference to the chain
-    let mut chains = root.chains.lock();
+    let mut chains = root.chains.lock().await;
     match chains.entry(route_chain.clone()) {
         Entry::Occupied(o) => {
             let o = o.into_mut();
-            if let Some(context) = context.as_mut() {
-                if let Some(tx_group) = o.tx_group.upgrade() {
-                    context.tx.group = Arc::clone(&tx_group);
-                    let mut tx_group = tx_group.lock();
-                    tx_group.add(&context.tx.me_tx);
+            if let Some(group) = Weak::upgrade(&o.tx_group) {                
+                if let Some(chain) = o.chain.upgrade() {
+                    tx.replace_group(group).await;
+                    return Ok(chain);
                 }
             }
-            if let Some(chain) = o.chain.upgrade() {
-                new_chain = chain;
-            }
+            tx.replace_group(Arc::clone(&new_tx_group)).await;
+            o.chain = Arc::downgrade(&new_chain);
+            o.tx_group = Arc::downgrade(&new_tx_group);
             o
         },
         Entry::Vacant(v) =>
         {
-            if let Some(context) = context.as_mut() {
-                context.tx.group = Arc::clone(&new_tx_group);
-            }
+            tx.replace_group(Arc::clone(&new_tx_group)).await;
             v.insert(MeshChain {
                 chain: Arc::downgrade(&new_chain),
                 tx_group: Arc::downgrade(&new_tx_group),  
@@ -451,10 +415,10 @@ struct MeshRootProcessor
 impl ServerProcessor<Message, SessionContext>
 for MeshRootProcessor
 {
-    async fn process(&self, pck: PacketWithContext<Message, SessionContext>, &mut tx: Tx)
+    async fn process<'a, 'b>(&'a self, pck: PacketWithContext<Message, SessionContext>, tx: &'b mut Tx)
     -> Result<(), CommsError>
     {
-        let root = match Weak::upgrade(&self) {
+        let root = match Weak::upgrade(&self.root) {
             Some(a) => a,
             None => {
                 debug!("inbox-server-exit: reference dropped scope");
@@ -462,8 +426,7 @@ for MeshRootProcessor
             }
         };
 
-        let notify = inbox_packet(root, pck, tx).await;
-        TaskEngine::spawn(notify).await;
+        inbox_packet(root, pck, tx).await?;
         Ok(())
     }
 
@@ -473,14 +436,14 @@ for MeshRootProcessor
     }
 }
 
-async fn inbox_event(
+async fn inbox_event<'b>(
     context: Arc<SessionContext>,
     commit: Option<u64>,
     evts: Vec<MessageEvent>,
-    tx: &mut Tx,
+    tx: &'b mut Tx,
     pck_data: PacketData,
 )
--> Result<FeedNotifications, CommsError>
+-> Result<(), CommsError>
 {
     debug!("inbox: events: cnt={}", evts.len());
     #[cfg(feature = "enable_verbose")]
@@ -492,7 +455,7 @@ async fn inbox_event(
 
     let chain = match context.inside.lock().chain.clone() {
         Some(a) => a,
-        None => { return Ok(FeedNotifications::default()); }
+        None => { return Ok(()); }
     };
     let commit = commit.clone();
     
@@ -507,40 +470,38 @@ async fn inbox_event(
     }).await;
 
     // Send the packet down to others
-    match &ret {
-        Ok(_) => {
-            tx.send_reply(pck_data).await?;
+    match ret {
+        Ok(_) =>
+        {
+            // If the operation has a commit to transmit the response
+            if let Some(id) = commit {
+                match ret {
+                    Ok(a) => {
+                        debug!("send::commit_confirmed id={}", id);
+                        tx.send_reply_msg(Message::Confirmed(id.clone())).await?;
+                        a
+                    },
+                    Err(err) => {
+                        tx.send_reply_msg(Message::CommitError {
+                            id: id.clone(),
+                            err: err.to_string(),
+                        }).await?;
+                    } 
+                }
+            }
+
+            // Send the packet data onto the others in this broadcast group
+            tx.send_others(pck_data).await?;
             Ok(())
         },
         Err(err) => Err(CommsError::InternalError(format!("feed-failed - {}", err.to_string())))
-    }?;
-
-    // If the operation has a commit to transmit the response
-    let ret = match commit {
-        Some(id) => {
-            match ret {
-                Ok(a) => {
-                    tx.send_reply_msg(Message::Confirmed(id.clone())).await?;
-                    a
-                },
-                Err(err) => {
-                    tx.send_reply_msg(Message::CommitError {
-                        id: id.clone(),
-                        err: err.to_string(),
-                    }).await?;
-                    FeedNotifications::default()
-                } 
-            }
-        },
-        None => ret?
-    };    
-    Ok(ret)
+    }
 }
 
-async fn inbox_lock(
+async fn inbox_lock<'b>(
     context: Arc<SessionContext>,
     key: PrimaryKey,
-    tx: &mut Tx
+    tx: &'b mut Tx
 )
 -> Result<(), CommsError>
 {
@@ -578,45 +539,59 @@ async fn inbox_unlock(
     Ok(())
 }
 
-async fn inbox_subscribe(
+async fn inbox_subscribe<'b>(
     root: Arc<MeshRoot>,
     hello_path: &str,
     chain_key: ChainKey,
     from: ChainTimestamp,
     context: Arc<SessionContext>,
-    tx: &mut Tx
+    tx: &'b mut Tx
 )
 -> Result<(), CommsError>
 {
     debug!("inbox: subscribe: {}", chain_key.to_string());
 
-    // Create the open context
-    let open_context = OpenContext
-    {
-        tx,
+    // First lets check if this connection is meant for this server
+    let (_, node_id) = match root.lookup.lookup(&chain_key) {
+        Some(a) => a,
+        None => {
+            tx.send_reply_msg(Message::FatalTerminate(FatalTerminate::NotThisRoot)).await?;
+            return Ok(());
+        }
     };
+    
+    // Reject the request if its from the wrong machine
+    if root.node_id != node_id {
+        tx.send_reply_msg(Message::FatalTerminate(FatalTerminate::RootRedirect {
+            actual: node_id,
+            expected: root.node_id
+        })).await?;
+        return Ok(());
+    }
+
+    // Create the open context
     let route = RouteChain {
         route: hello_path.to_string(),
         chain: chain_key.clone(),
     };
 
     // If we can't find a chain for this subscription then fail and tell the caller
-    let chain = match open_internal(Arc::clone(&root), route.clone(), Some(open_context)).await {
+    let chain = match open_internal(Arc::clone(&root), route.clone(), tx).await {
         Err(ChainCreationError::NotThisRoot) => {
-            tx.send_reply_msg(Message::NotThisRoot).await?;
+            tx.send_reply_msg(Message::FatalTerminate(FatalTerminate::NotThisRoot)).await?;
             return Ok(());
         },
         Err(ChainCreationError::NoRootFoundInConfig) => {
-            tx.send_reply_msg(Message::NotThisRoot).await?;
+            tx.send_reply_msg(Message::FatalTerminate(FatalTerminate::NotThisRoot)).await?;
             return Ok(());
         }
         a => {
             let chain = match a {
                 Ok(a) => a,
                 Err(err) => {
-                    tx.send_reply_msg(Message::FatalTerminate {
+                    tx.send_reply_msg(Message::FatalTerminate(FatalTerminate::Other {
                         err: err.to_string()
-                    }).await?;
+                    })).await?;
                     return Err(CommsError::RootServerError(err.to_string()));
                 }
             };
@@ -642,16 +617,15 @@ async fn inbox_subscribe(
         Arc::clone(&chain), 
         from.., 
         tx,
-        root.cfg_mesh.wire_format,
     ).await?;
 
     Ok(())
 }
 
-async fn inbox_unsubscribe(
+async fn inbox_unsubscribe<'b>(
     _root: Arc<MeshRoot>,
     chain_key: ChainKey,
-    _tx: &mut StreamTxChannel,
+    _tx: &'b mut StreamTxChannel,
     _session_context: Arc<SessionContext>,
 )
 -> Result<(), CommsError>
@@ -661,42 +635,36 @@ async fn inbox_unsubscribe(
     Ok(())
 }
 
-async fn inbox_packet(
+async fn inbox_packet<'b>(
     root: Arc<MeshRoot>,
     pck: PacketWithContext<Message, SessionContext>,
-    tx: &mut Tx
+    tx: &'b mut Tx
 )
--> Result<FeedNotifications, CommsError>
+-> Result<(), CommsError>
 {
-    //debug!("inbox: packet size={}", pck.data.bytes.len());
+    debug!("inbox: packet size={}", pck.data.bytes.len());
 
     let context = pck.context.clone();
     let pck_data = pck.data;
     let pck = pck.packet;
     
-    let ret = match pck.msg {
-        Message::Subscribe { chain_key, from }
-            => {
+    match pck.msg {
+        Message::Subscribe { chain_key, from } => {
                 let hello_path = tx.hello_path.clone();
                 inbox_subscribe(root, hello_path.as_str(), chain_key, from, context, tx).await?;
-                FeedNotifications::default()
             },
-        Message::Events { commit, evts }
-            => inbox_event(context, commit, evts, tx, pck_data).await?,
-        Message::Lock { key }
-            => {
+        Message::Events { commit, evts } => {
+                inbox_event(context, commit, evts, tx, pck_data).await?;
+            },
+        Message::Lock { key } => {
                 inbox_lock(context, key, tx).await?;
-                FeedNotifications::default()
             },
-        Message::Unlock { key }
-            => {
+        Message::Unlock { key }=> {
                 inbox_unlock(context, key).await?;
-                FeedNotifications::default()
             },
-        _ => FeedNotifications::default()
+        _ => { }
     };
-
-    Ok(ret)
+    Ok(())
 }
 
 impl Drop

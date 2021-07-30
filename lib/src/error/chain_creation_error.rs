@@ -8,6 +8,7 @@ use trust_dns_proto::error::ProtoError as DnsProtoError;
 use trust_dns_client::error::ClientError as DnsClientError;
 
 use super::*;
+use crate::mesh::FatalTerminate;
 
 #[derive(Debug)]
 pub enum ChainCreationError {
@@ -16,7 +17,8 @@ pub enum ChainCreationError {
     SerializationError(SerializationError),
     CompactError(CompactError),
     NoRootFoundInConfig,
-    NoRootFoundForUrl(String),
+    RootRedirect(u32, u32),
+    NoRootFoundForDomain(String),
     UnsupportedProtocol(String),
     UrlInvalid(url::ParseError),
     NotSupported,
@@ -32,7 +34,7 @@ pub enum ChainCreationError {
     DnsProtoError(DnsProtoError),
     #[cfg(feature="enable_dns")]
     DnsClientError(DnsClientError),
-    ServerRejected(String),
+    ServerRejected(FatalTerminate),
     InternalError(String),
 }
 
@@ -135,9 +137,12 @@ for ChainCreationError {
             ChainCreationError::NoRootFoundInConfig => {
                 write!(f, "Failed to create chain-of-trust as the root node is not found in the configuration settings")
             },
-            ChainCreationError::NoRootFoundForUrl(url) => {
-                write!(f, "Failed to create chain-of-trust as the root node is not found in the URL [{}]", url)
+            ChainCreationError::NoRootFoundForDomain(url) => {
+                write!(f, "Failed to create chain-of-trust as the root node is not found in the domain [{}]", url)
             },
+            ChainCreationError::RootRedirect(expected, actual) => {
+                write!(f, "Failed to create chain-of-trust as the server you connected (node_id={}) is not hosting these chains - instead you must connect to another node (node_id={})", actual, expected)
+            }
             ChainCreationError::UnsupportedProtocol(proto) => {
                 write!(f, "Failed to create chain-of-trust as the protocol is not supported ({})", proto)
             },

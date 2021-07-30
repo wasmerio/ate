@@ -42,7 +42,7 @@ impl MeshClient {
         )
     }
 
-    pub async fn open_ext<'a>(&'a self, key: &ChainKey, hello_path: String, loader_local: Box<impl Loader>, loader_remote: Box<impl Loader>)
+    pub async fn open_ext<'a>(&'a self, key: &ChainKey, hello_path: String, loader_local: impl Loader + 'static, loader_remote: impl Loader + 'static)
         -> Result<Arc<Chain>, ChainCreationError>
     {
         debug!("client open {}", key.to_string());
@@ -57,10 +57,15 @@ impl MeshClient {
             return Ok(Arc::clone(&ret));
         }
 
-        let addr = self.lookup.lookup(&key);
-        let addr = match addr {
-            Some(a) => a,
-            None => { return Err(ChainCreationError::NoRootFoundInConfig); }
+        let addr = match &self.cfg_mesh.force_connect {
+            Some(a) => a.clone(),
+            None => {
+                let addr = self.lookup.lookup(&key);
+                match addr {
+                    Some((a, _)) => a,
+                    None => { return Err(ChainCreationError::NoRootFoundInConfig); }
+                }
+            }
         };
         
         let builder = ChainBuilder::new(&self.cfg_ate).await
@@ -101,7 +106,7 @@ for MeshClient
 impl ChainRepository
 for MeshClient
 {
-    async fn open(self: Arc<Self>, url: &url::Url, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
+    async fn open(self: Arc<MeshClient>, url: &'_ url::Url, key: &'_ ChainKey) -> Result<Arc<Chain>, ChainCreationError>
     {
         TaskEngine::run_until(self.__open(url, key)).await
     }
@@ -109,11 +114,11 @@ for MeshClient
 
 impl MeshClient
 {
-    async fn __open(self: Arc<Self>, url: &url::Url, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
+    async fn __open(self: &Arc<MeshClient>, url: &'_ url::Url, key: &'_ ChainKey) -> Result<Arc<Chain>, ChainCreationError>
     {
-        let weak = Arc::downgrade(&self);
-        let loader_local  = Box::new(crate::loader::DummyLoader::default());
-        let loader_remote  = Box::new(crate::loader::DummyLoader::default());
+        let weak = Arc::downgrade(self);
+        let loader_local  = crate::loader::DummyLoader::default();
+        let loader_remote  = crate::loader::DummyLoader::default();
         let hello_path = url.path().to_string();
         let ret = self.open_ext(&key, hello_path, loader_local, loader_remote).await?;
         ret.inside_sync.write().repository = Some(weak);

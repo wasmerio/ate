@@ -21,6 +21,11 @@ use super::PacketData;
 use super::PacketWithContext;
 use super::StreamRx;
 
+#[cfg(feature="enable_dns")]
+type MeshConnectAddr = SocketAddr;
+#[cfg(not(feature="enable_dns"))]
+type MeshConnectAddr = crate::conf::MeshAddress;
+
 #[async_trait]
 pub(crate) trait InboxProcessor<M, C>
 where Self: Send + Sync,
@@ -29,7 +34,7 @@ where Self: Send + Sync,
 {
     async fn process(&mut self, pck: PacketWithContext<M, C>) -> Result<(), CommsError>;
 
-    async fn shutdown(&mut self, addr: SocketAddr);
+    async fn shutdown(&mut self, addr: MeshConnectAddr);
 }
 
 #[cfg(feature="enable_tcp")]
@@ -43,7 +48,7 @@ pub(super) async fn process_inbox<M, C>(
     mut rx: StreamRx,
     mut inbox: Box<dyn InboxProcessor<M, C>>,
     sender: u64,
-    sock_addr: SocketAddr,
+    sock_addr: MeshConnectAddr,
     context: Arc<C>,
     wire_format: SerializationFormat,
     wire_encryption: Option<EncryptKey>
@@ -93,7 +98,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
         let pck = PacketWithContext {
             data: PacketData {
                 bytes: Bytes::from(buf),
-                skip_here: Some(sender),
                 wire_format,
             },
             context: Arc::clone(&context),
@@ -120,6 +124,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
         }
     }
 
-    inbox.shutdown(sock_addr);
+    inbox.shutdown(sock_addr).await;
     Ok(())
 }

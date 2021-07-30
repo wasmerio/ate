@@ -24,7 +24,7 @@ pub(super) struct InboxPipe
 impl EventPipe
 for InboxPipe
 {
-    async fn feed(&self, trans: Transaction) -> Result<FeedNotifications, CommitError>
+    async fn feed(&self, trans: Transaction) -> Result<(), CommitError>
     {
         // Prepare the work and submit it
         let work = ChainWork {
@@ -33,7 +33,7 @@ for InboxPipe
 
         // Submit the work
         let ret = self.inbox.process(work).await?;
-
+        
         // Success
         Ok(ret)
     }

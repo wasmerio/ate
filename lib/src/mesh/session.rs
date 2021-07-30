@@ -5,7 +5,6 @@ use std::net::SocketAddr;
 use std::{sync::Arc, sync::Weak};
 use tokio::sync::mpsc;
 use tokio::sync::RwLock;
-use std::sync::mpsc as smpsc;
 use fxhash::FxHashMap;
 use parking_lot::RwLock as StdRwLock;
 use std::ops::Rem;
@@ -35,6 +34,11 @@ use crate::session::*;
 use crate::time::*;
 use crate::engine::*;
 
+#[cfg(feature="enable_dns")]
+type MeshConnectAddr = SocketAddr;
+#[cfg(not(feature="enable_dns"))]
+type MeshConnectAddr = crate::conf::MeshAddress;
+
 pub struct MeshSession
 {
     pub(super) addr: MeshAddress,
@@ -56,8 +60,8 @@ impl MeshSession
         chain_key: &ChainKey,
         addr: MeshAddress,
         hello_path: String,
-        loader_local: Box<impl Loader>,
-        loader_remote: Box<impl Loader>
+        loader_local: impl Loader + 'static,
+        loader_remote: impl Loader + 'static
     )
     -> Result<Arc<Chain>, ChainCreationError>
     {
@@ -89,7 +93,9 @@ impl MeshSession
             let chain_key = ChainKey::new(format!("{}", key_name).to_string());
 
             // Generate the chain object
-            Chain::new_ext(builder.clone(), chain_key, Some(loader_local), true).await?
+            let mut chain = Chain::new_ext(builder.clone(), chain_key, Some(Box::new(loader_local)), true).await?;
+            chain.remote_addr = Some(addr.clone());
+            chain
         };
 
         // While we are running offline we run in full distributed mode until
@@ -109,7 +115,7 @@ impl MeshSession
             key: chain_key.clone(),
             builder,
             chain: Arc::clone(&chain_store),
-            loader_remote: StdMutex::new(Some(loader_remote)),
+            loader_remote: StdMutex::new(Some(Box::new(loader_remote))),
         };
         
         // Add the pipe to the chain and cement it
@@ -122,17 +128,17 @@ impl MeshSession
 
         // Launch an automatic reconnect thread
         if temporal == false {
-            TaskEngine::spawn(RecoverableSessionPipe::auto_reconnect(Arc::downgrade(&chain), on_disconnect)).await;
+            TaskEngine::spawn(RecoverableSessionPipe::auto_reconnect(Arc::downgrade(&chain), on_disconnect));
         }
 
         // Ok we are good!
         Ok(chain)
     }
 
-    pub(super) async fn inbox_events(self: &Arc<MeshSession>, evts: Vec<MessageEvent>, loader: &mut Option<Box<dyn Loader>>) -> Result<FeedNotifications, CommsError> {
+    pub(super) async fn inbox_events(self: &Arc<MeshSession>, evts: Vec<MessageEvent>, loader: &mut Option<Box<dyn Loader>>) -> Result<(), CommsError> {
         debug!("inbox: events cnt={}", evts.len());
 
-        let ret = match self.chain.upgrade() {
+        match self.chain.upgrade() {
             Some(chain) =>
             {
                 // Convert the events but we do this differently depending on on if we are
@@ -163,12 +169,12 @@ impl MeshSession
                     transmit: false,
                     events: feed_me,
                     conversation: Some(Arc::clone(&self.inbound_conversation)),
-                }).await?
+                }).await?;
             },
-            None => FeedNotifications::default()
+            None => { }
         };
 
-        Ok(ret)
+        Ok(())
     }
 
     pub(super) async fn inbox_confirmed(self: &Arc<MeshSession>, id: u64) -> Result<(), CommsError> {
@@ -326,59 +332,52 @@ impl MeshSession
         self: &Arc<MeshSession>,
         loader: &mut Option<Box<dyn Loader>>,
         pck: PacketWithContext<Message, ()>,
-    ) -> Result<FeedNotifications, CommsError>
+    ) -> Result<(), CommsError>
     {
         #[cfg(feature = "enable_super_verbose")]
         debug!("inbox: packet size={}", pck.data.bytes.len());
 
-        let ret = match pck.packet.msg {
+        match pck.packet.msg {
             Message::StartOfHistory { size, from, to, root_keys, integrity }
                 => {
                     Self::inbox_start_of_history(self, size, from, to, loader, root_keys, integrity).await?;
-                    FeedNotifications::default()
                 },
             Message::Events { commit: _, evts }
                 => {
-                    let notifications = Self::inbox_events(self, evts, loader).await?;
-                    notifications
+                    Self::inbox_events(self, evts, loader).await?;
                 },
             Message::Confirmed(id)
                 => {
                     Self::inbox_confirmed(self, id).await?;
-                    FeedNotifications::default()
                 },
             Message::CommitError { id, err }
                 => {
                     Self::inbox_commit_error(self, id, err).await?;
-                    FeedNotifications::default()
                 },
             Message::LockResult { key, is_locked }
                 => {
                     Self::inbox_lock_result(self, key, is_locked)?;
-                    FeedNotifications::default()
                 },
             Message::EndOfHistory
                 => {
                     Self::inbox_end_of_history(self, pck, loader).await?;
-                    FeedNotifications::default()
                 },
             Message::SecuredWith(session)
                 => {
                     Self::inbox_secure_with(self, session).await?;
-                    FeedNotifications::default()
                 },
-            Message::FatalTerminate { err }
+            Message::FatalTerminate(fatal)
                 => {
                     if let Some(mut loader) = loader.take() {
-                        loader.failed(ChainCreationError::ServerRejected(err.clone())).await;
+                        loader.failed(ChainCreationError::ServerRejected(fatal.clone())).await;
                     }
-                    warn!("mesh-session-err: {}", err);
+                    warn!("mesh-session-err: {}", fatal);
                     return Err(CommsError::Disconnected);
                 },
-            _ => FeedNotifications::default()
+            _ => { }
         };
 
-        Ok(ret)
+        Ok(())
     }
 
     pub(super) async fn cancel_commits(&self)
@@ -415,21 +414,21 @@ impl MeshSession
     }
 }
 
-pub(super) struct MeshSessionProcessor
+pub(crate) struct MeshSessionProcessor
 {
-    addr: MeshAddress,
-    loader: Option<Box<dyn Loader>>,
-    session: Weak<MeshSession>,
-    status_tx: mpsc::Sender<ConnectionStatusChange>,
+    pub(crate) addr: MeshAddress,
+    pub(crate) loader: Option<Box<dyn Loader>>,
+    pub(crate) session: Weak<MeshSession>,
+    pub(crate) status_tx: mpsc::Sender<ConnectionStatusChange>,
 }
 
 #[async_trait]
 impl InboxProcessor<Message, ()>
 for MeshSessionProcessor
 {
-    async fn process(&mut self, pck: PacketWithContext<Message, ()>) -> Result<FeedNotifications,CommsError>
+    async fn process(&mut self, pck: PacketWithContext<Message, ()>) -> Result<(), CommsError>
     {
-        let session = match Weak::upgrade(&self) {
+        let session = match Weak::upgrade(&self.session) {
             Some(a) => a,
             None => {
                 debug!("inbox-server-exit: reference dropped scope");
@@ -437,12 +436,11 @@ for MeshSessionProcessor
             }
         };
 
-        let notify = MeshSession::inbox_packet(&session, &mut self.loader, pck).await?;
-        TaskEngine::spawn(notify).await;
+        MeshSession::inbox_packet(&session, &mut self.loader, pck).await?;
         Ok(())        
     }
 
-    async fn shutdown(&mut self, sock_addr: SocketAddr)
+    async fn shutdown(&mut self, _sock_addr: MeshConnectAddr)
     {
         info!("disconnected: {}:{}", self.addr.host, self.addr.port);
         if let Some(session) = self.session.upgrade() {

@@ -7,8 +7,7 @@ use crate::compact::*;
 use crate::error::*;
 use crate::pipe::*;
 use crate::time::*;
-use crate::event::EventData;
-use crate::service::Notify;
+use crate::engine::TaskEngine;
 
 use parking_lot::RwLock as StdRwLock;
 use std::sync::Arc;
@@ -26,109 +25,9 @@ pub(crate) struct ChainWork
 
 pub(crate) struct ChainWorkProcessor
 {
-    inside_async: Arc<RwLock<ChainProtectedAsync>>,
-    inside_sync: Arc<StdRwLock<ChainProtectedSync>>,
-    compact_tx: CompactNotifications,
-}
-
-struct FeedNotificationsInternal
-{
-    inside_sync: Option<Arc<StdRwLock<ChainProtectedSync>>>,
-    events: Vec<EventData>,
-    notifies: Vec<Notify>,
-}
-
-#[must_use = "notifications must be 'process'ed"]
-pub struct FeedNotifications
-{
-    inside: Option<FeedNotificationsInternal>,
-    children: Vec<FeedNotifications>,
-}
-
-impl FeedNotifications
-{
-    pub async fn process(self)
-    {
-        // Check for fast exit
-        if self.inside.is_none() && self.children.len() <= 0 {
-            return;
-        }
-
-        // Unwind the children tree
-        let to_process = {
-            let mut to_process = Vec::new();
-            let mut stack = vec![ self ];
-            while let Some(mut s) = stack.pop() {
-                if let Some(inside) = s.inside.take() {
-                    to_process.push(inside);
-                }
-                stack.append(&mut s.children);
-            }
-            to_process
-        };
-
-        // Now process them all
-        let mut joins = Vec::new();
-        for s in to_process
-        {
-            let events = s.events;
-            let inside_sync = s.inside_sync;
-            let join_notify_sniffers = async move {
-                if let Some(inside_sync) = inside_sync {
-                    ChainProtectedSync::notify(inside_sync, events).await;
-                }
-            };
-
-            // Notify all the sniffers
-            let notifies = s.notifies;
-            let join_notify_callbacks = async move {
-                match crate::service::callback_events_notify(notifies).await {
-                    Ok(_) => {}
-                    Err(err) => debug!("notify-err - {}", err)
-                };
-            };
-
-            // Return a wait operation for the notifications
-            joins.push(async move {
-                futures::join!(join_notify_sniffers, join_notify_callbacks);
-            });
-        }
-        futures::future::join_all(joins).await;
-    }
-}
-
-impl Drop
-for FeedNotifications
-{
-    fn drop(&mut self) {
-        if self.inside.is_some() || self.children.len() > 0 {
-            panic!("Unprocessing feed notifications will break the event engine.");
-        }
-    }
-}
-
-impl Default
-for FeedNotifications
-{
-    fn default() -> Self
-    {
-        FeedNotifications {
-            inside: None,
-            children: Vec::new(),
-        }
-    }
-}
-
-impl From<Vec<FeedNotifications>>
-for FeedNotifications
-{
-    fn from(children: Vec<FeedNotifications>) -> Self
-    {
-        FeedNotifications {
-            inside: None,
-            children,
-        }
-    }
+    pub(crate) inside_async: Arc<RwLock<ChainProtectedAsync>>,
+    pub(crate) inside_sync: Arc<StdRwLock<ChainProtectedSync>>,
+    pub(crate) compact_tx: CompactNotifications,
 }
 
 impl ChainWorkProcessor
@@ -142,7 +41,7 @@ impl ChainWorkProcessor
         }
     }
 
-    pub(crate) async fn process(&self, work: ChainWork) -> Result<FeedNotifications, CommitError>
+    pub(crate) async fn process(&self, work: ChainWork) -> Result<(), CommitError>
     {
         // Extract the variables
         let trans = work.trans;
@@ -176,24 +75,28 @@ impl ChainWorkProcessor
         // Drop the lock
         drop(lock);
 
+        {
+            let inside_async = Arc::clone(&self.inside_async);
+            TaskEngine::spawn(async move {
+                ChainProtectedAsync::notify(inside_async, trans.events).await;
+            });
+        }
+
+        TaskEngine::spawn(async move {
+            match crate::service::callback_events_notify(notifies).await {
+                Ok(_) => {}
+                Err(err) => debug!("notify-err - {}", err)
+            };
+        });
+
         // If we have a late flush in play then execute it
         if late_flush {
             let flush_async = self.inside_async.clone();
             let mut lock = flush_async.write().await;
             let _ = lock.chain.flush().await;
         };
-
-        let inside_sync = Arc::clone(&self.inside_sync);
-        Ok(
-            FeedNotifications {
-                inside: Some(FeedNotificationsInternal {
-                    inside_sync: Some(inside_sync),
-                    events: trans.events,
-                    notifies,
-                }),
-                children: Vec::new(),
-            }
-        )
+        
+        Ok(())
     }
 }
 

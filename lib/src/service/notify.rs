@@ -14,6 +14,15 @@ pub(crate) enum NotifyWho
     Service(Arc<dyn Service>)
 }
 
+impl std::fmt::Debug
+for NotifyWho
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "notify-who:sender")
+    }
+}
+
+#[derive(Debug)]
 pub(crate) struct Notify
 {
     pub(crate) key: PrimaryKey,

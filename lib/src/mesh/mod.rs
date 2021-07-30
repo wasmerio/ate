@@ -22,7 +22,6 @@ use tokio::sync::{RwLock, Mutex};
 use std::sync::Mutex as StdMutex;
 use std::{collections::BTreeMap, sync::Arc, collections::hash_map::Entry};
 use tokio::sync::mpsc;
-use std::sync::mpsc as smpsc;
 use fxhash::FxHashMap;
 use bytes::Bytes;
 use std::sync::Weak;
@@ -57,6 +56,7 @@ pub use crate::mesh::server::MeshRoot;
 pub use crate::mesh::registry::Registry;
 pub use crate::loader::Loader;
 pub use self::core::RecoveryMode;
+pub use self::msg::FatalTerminate;
 
 fn create_prepare<'a, 'b>(cfg_mesh: &'b ConfMesh) -> Vec<MeshAddress> {
     let mut hash_table = BTreeMap::new();
@@ -64,6 +64,7 @@ fn create_prepare<'a, 'b>(cfg_mesh: &'b ConfMesh) -> Vec<MeshAddress> {
         hash_table.insert(addr.hash(), addr.clone());
     }
 
+    #[allow(unused_mut)]
     let mut listen_root_addresses = Vec::new();
 
     #[cfg(feature="enable_server")]

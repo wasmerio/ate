@@ -35,5 +35,6 @@ pub(crate) use stream::StreamTx;
 pub(crate) use stream::StreamTxChannel;
 pub use stream::StreamProtocol;
 
+#[cfg(feature="server")]
 pub(crate) use listener::ServerProcessor;
 pub(crate) use helper::InboxProcessor;

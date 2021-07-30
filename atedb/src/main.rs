@@ -79,6 +79,9 @@ struct Solo {
     /// IP address that the database server will isten on
     #[clap(short, long, default_value = "::")]
     listen: IpAddr,
+    /// Ensures that this database runs as a specific node_id
+    #[clap(short, long)]
+    node_id: Option<u32>,
     /// Mode that the compaction will run under (valid modes are 'never', 'modified', 'timer', 'factor', 'size', 'factor-or-timer', 'size-or-timer')
     #[clap(long, default_value = "factor-or-timer")]
     compact_mode: CompactMode,
@@ -158,7 +161,7 @@ async fn main_solo(solo: Solo, mut cfg_ate: ConfAte, auth: Option<url::Url>, tru
     let flow = ChainFlow::new(&cfg_ate, auth, solo.url.clone(), trust).await;
 
     // Create the server and listen on the port
-    let mut cfg_mesh = ConfMesh::solo_from_url(&solo.url, &solo.listen)?;
+    let mut cfg_mesh = ConfMesh::solo_from_url(&cfg_ate, &solo.url, &solo.listen, solo.node_id).await?;
     cfg_mesh.wire_protocol = StreamProtocol::parse(&solo.url)?;
     cfg_mesh.wire_encryption = wire_encryption;
 

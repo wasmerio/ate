@@ -22,6 +22,7 @@ use crate::transaction::TransactionScope;
 use crate::trust::ChainKey;
 use crate::trust::ChainHeader;
 use crate::engine::*;
+use crate::conf::MeshAddress;
 
 use super::*;
 
@@ -44,6 +45,7 @@ pub struct Chain
 where Self: Send + Sync
 {
     pub(crate) key: ChainKey,
+    pub(crate) remote_addr: Option<MeshAddress>,
     pub(crate) default_format: MessageFormat,
     pub(crate) inside_sync: Arc<StdRwLock<ChainProtectedSync>>,
     pub(crate) inside_async: Arc<RwLock<ChainProtectedAsync>>,
@@ -62,6 +64,10 @@ impl<'a> Chain
 
     pub fn key(&'a self) -> &'a ChainKey {
         &self.key
+    }
+
+    pub fn remote_addr(&'a self) -> Option<&'a MeshAddress> {
+        self.remote_addr.as_ref()
     }
 
     pub async fn single(&'a self) -> ChainSingleUser<'a> {
@@ -110,12 +116,12 @@ impl<'a> Chain
         )
     }
 
-    pub async fn sync(&'a self) -> Result<FeedNotifications, CommitError>
+    pub async fn sync(&'a self) -> Result<(), CommitError>
     {
         TaskEngine::run_until(self.__sync()).await
     }
 
-    async fn __sync(&'a self) -> Result<FeedNotifications, CommitError>
+    async fn __sync(&'a self) -> Result<(), CommitError>
     {
         // Create the transaction
         let trans = Transaction {
@@ -127,10 +133,10 @@ impl<'a> Chain
 
         // Feed the transaction into the chain
         let pipe = self.pipe.clone();
-        let ret = pipe.feed(trans).await?;
+        pipe.feed(trans).await?;
 
         // Success!
-        Ok(ret)
+        Ok(())
     }
 
     pub(crate) async fn get_pending_uploads(&self) -> Vec<MetaDelayedUpload>

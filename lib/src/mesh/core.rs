@@ -105,7 +105,7 @@ pub struct MeshHashTable
 
 impl MeshHashTable
 {
-    pub(crate) fn lookup(&self, key: &ChainKey) -> Option<MeshAddress> {
+    pub(crate) fn lookup(&self, key: &ChainKey) -> Option<(MeshAddress, u32)> {
         let hash = key.hash();
 
         let mut pointer: Option<usize> = None;
@@ -127,12 +127,42 @@ impl MeshHashTable
         if let Some(a) = pointer {
             let index = a % self.address_lookup.len();
             if let Some(a) = self.address_lookup.get(index) {
-                return Some(a.clone());
+                return Some((a.clone(), index as u32));
             }
         }
         
-        self.address_lookup.iter().map(|a| a.clone()).next()
+        None
     }
+
+    pub(crate) fn derive_id(&self, addr: &MeshAddress) -> Option<u32> {
+        let mut n = 0usize;
+        while n < self.address_lookup.len() {
+            let test = &self.address_lookup[n];
+
+            #[cfg(feature="enable_dns")]
+            match test.host.is_loopback() {
+                true if test.port == addr.port => {
+                    if addr.host.is_loopback() || addr.host.is_unspecified() {
+                        return Some(n as u32);
+                    }
+                },
+                _ => {
+                    if *test == *addr {
+                        return Some(n as u32);
+                    }
+                }
+            }
+
+            #[cfg(not(feature="enable_dns"))]
+            if *test == *addr {
+                return Some(n as u32);
+            }
+
+            n = n + 1;
+        }
+        None
+    }
+
     #[allow(dead_code)]
     pub(crate) fn new(cfg_mesh: &ConfMesh) -> MeshHashTable
     {
@@ -277,15 +307,13 @@ pub(super) async fn stream_empty_history(
     Ok(())
 }
 
-pub(super) async fn stream_history_range<R, C>(
+pub(super) async fn stream_history_range<R>(
     chain: Arc<Chain>,
     range: R,
     tx: &mut Tx,
-    wire_format: SerializationFormat,
 )
 -> Result<(), CommsError>
 where R: RangeBounds<ChainTimestamp>,
-      C: Send + Sync
 {
     // Extract the root keys and integrity mode
     let (integrity, root_keys) = {

@@ -33,7 +33,7 @@ pub async fn test_create_user_and_group() -> Result<(), AteError>
     let flow = ChainFlow::new(&cfg_ate, root_write_key, session, &auth);
 
     // Create the server and listen on port 5000
-    let cfg_mesh = ConfMesh::solo_from_url(&auth, &IpAddr::from_str("::1").unwrap())?;
+    let cfg_mesh = ConfMesh::solo_from_url(&cfg_ate, &auth, &IpAddr::from_str("::1").unwrap(), None).await?;
     let server = create_server(&cfg_mesh).await?;
     server.add_route(Box::new(flow), &cfg_ate).await?;
 

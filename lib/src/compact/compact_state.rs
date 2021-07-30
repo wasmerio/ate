@@ -1,3 +1,5 @@
+#[allow(unused_imports)]
+use log::{info, warn, debug, error};
 use std::sync::Arc;
 use std::time::Duration;
 use std::time::Instant;

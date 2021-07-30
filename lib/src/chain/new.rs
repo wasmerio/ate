@@ -116,6 +116,7 @@ impl<'a> Chain
 
         // Construnct the chain-of-trust on top of the redo-log
         let chain = ChainOfTrust {
+            debug_id: fastrand::u64(..),
             key: key.clone(),
             redo: redo_log,
             timeline: ChainTimeline {
@@ -134,7 +135,6 @@ impl<'a> Chain
             linters: builder.linters,
             validators: builder.validators,
             transformers: builder.transformers,
-            listeners: MultiMap::new(),
             services: Vec::new(),
             repository: None,
             default_session: builder.session,
@@ -163,6 +163,7 @@ impl<'a> Chain
             default_format: builder.cfg_ate.log_format,
             disable_new_roots: false,
             sync_tolerance: builder.cfg_ate.sync_tolerance,
+            listeners: MultiMap::new(),
         };
 
         // Check all the process events
@@ -211,6 +212,7 @@ impl<'a> Chain
         // Create the chain that will be returned to the caller
         let chain = Chain {
             key: key.clone(),
+            remote_addr: None,
             default_format: builder.cfg_ate.log_format,
             inside_sync,
             inside_async,
@@ -236,7 +238,7 @@ impl<'a> Chain
             let time = Arc::clone(&chain.time);
 
             // background thread - periodically compacts the chain into a smaller memory footprint
-            TaskEngine::spawn(Chain::worker_compactor(worker_inside_async, worker_inside_sync, worker_pipe, time, compact_rx, worker_exit)).await;
+            TaskEngine::spawn(Chain::worker_compactor(worker_inside_async, worker_inside_sync, worker_pipe, time, compact_rx, worker_exit));
         } else {
             debug!("compact-mode-off: {}", builder.cfg_ate.compact_mode);
         }
