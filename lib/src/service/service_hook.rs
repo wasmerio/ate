@@ -11,6 +11,7 @@ use crate::chain::*;
 use crate::session::*;
 use crate::meta::*;
 use crate::header::*;
+use crate::repository::ChainRepository;
 
 use super::*;
 
@@ -20,6 +21,7 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
       ERR: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized
 {
     chain: Weak<Chain>,
+    relay_repository: Arc<dyn ChainRepository>,
     session: AteSession,
     handler: ServiceInstance<REQ, RES, ERR>,
     request_type_name: String,
@@ -32,11 +34,12 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
       RES: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
       ERR: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized
 {
-    pub(crate) fn new(chain: &Arc<Chain>, session: AteSession, handler: ServiceInstance<REQ, RES, ERR>) -> ServiceHook<REQ, RES, ERR> {
+    pub(crate) fn new(chain: &Arc<Chain>, session: AteSession, relay_repository: Arc<dyn ChainRepository>, handler: ServiceInstance<REQ, RES, ERR>) -> ServiceHook<REQ, RES, ERR> {
         ServiceHook {
             chain: Arc::downgrade(chain),
             session: session.clone(),
             handler: Arc::clone(&handler),
+            relay_repository,
             request_type_name: std::any::type_name::<REQ>().to_string(),
             response_type_name: std::any::type_name::<RES>().to_string(),
             error_type_name: std::any::type_name::<ServiceErrorReply<ERR>>().to_string(),
@@ -69,13 +72,7 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
         };
 
         // Load the repository
-        let repo = match chain.repository() {
-            Some(a) => a,
-            None => {
-                warn!("service call failed - repository pointer is missing which means the service was added to a chain that is itself detached from any repositories, this is not allowed.");
-                return Ok(());
-            }
-        };
+        let repo = Arc::clone(&self.relay_repository);
 
         let ret = {
             // Load the object

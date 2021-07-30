@@ -123,49 +123,49 @@ pub async fn service_auth_handlers(cfg: &ConfAte, cmd_session: AteSession, auth_
     {
         let service = Arc::clone(&service);
         let service: ServiceInstance<LoginRequest, LoginResponse, LoginFailed> = service;
-        chain.add_service(cmd_session.clone(), service);
+        chain.add_service(cmd_session.clone(), service).await;
     }
 
     {
         let service = Arc::clone(&service);
         let service: ServiceInstance<CreateUserRequest, CreateUserResponse, CreateUserFailed> = service;
-        chain.add_service(cmd_session.clone(), service);
+        chain.add_service(cmd_session.clone(), service).await;
     }
 
     {
         let service = Arc::clone(&service);
         let service: ServiceInstance<CreateGroupRequest, CreateGroupResponse, CreateGroupFailed> = service;
-        chain.add_service(cmd_session.clone(), service);
+        chain.add_service(cmd_session.clone(), service).await;
     }
 
     {
         let service = Arc::clone(&service);
         let service: ServiceInstance<QueryRequest, QueryResponse, QueryFailed> = service;
-        chain.add_service(cmd_session.clone(), service);
+        chain.add_service(cmd_session.clone(), service).await;
     }
 
     {
         let service = Arc::clone(&service);
         let service: ServiceInstance<GatherRequest, GatherResponse, GatherFailed> = service;
-        chain.add_service(cmd_session.clone(), service);
+        chain.add_service(cmd_session.clone(), service).await;
     }
 
     {
         let service = Arc::clone(&service);
         let service: ServiceInstance<GroupUserAddRequest, GroupUserAddResponse, GroupUserAddFailed> = service;
-        chain.add_service(cmd_session.clone(), service);
+        chain.add_service(cmd_session.clone(), service).await;
     }
 
     {
         let service = Arc::clone(&service);
         let service: ServiceInstance<GroupUserRemoveRequest, GroupUserRemoveResponse, GroupUserRemoveFailed> = service;
-        chain.add_service(cmd_session.clone(), service);
+        chain.add_service(cmd_session.clone(), service).await;
     }
 
     {
         let service = Arc::clone(&service);
         let service: ServiceInstance<GroupDetailsRequest, GroupDetailsResponse, GroupDetailsFailed> = service;
-        chain.add_service(cmd_session.clone(), service);
+        chain.add_service(cmd_session.clone(), service).await;
     }
 
     Ok(())

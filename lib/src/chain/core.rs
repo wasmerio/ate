@@ -15,6 +15,7 @@ use crate::multi::*;
 use crate::pipe::*;
 use crate::meta::*;
 use crate::spec::*;
+use crate::conf::ConfAte;
 use crate::repository::ChainRepository;
 use crate::redo::RedoLog;
 use crate::time::TimeKeeper;
@@ -45,6 +46,7 @@ pub struct Chain
 where Self: Send + Sync
 {
     pub(crate) key: ChainKey,
+    pub(crate) cfg_ate: ConfAte,
     pub(crate) remote_addr: Option<MeshAddress>,
     pub(crate) default_format: MessageFormat,
     pub(crate) inside_sync: Arc<StdRwLock<ChainProtectedSync>>,
