@@ -15,7 +15,7 @@ ate = { version = "^0.9", path = "../lib", features = [ "server", "enable_mt" ] 
 ate-auth = { version = "^1", path = "../auth" }
 tokio = { version = "^1", features = ["full", "signal", "process"] }
 serde = { version = "^1", features = ["derive"] }
-tracing = { version = "^0.1", features = [ "release_max_level_info" ] }
+tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
 env_logger = "^0.8"
 parking_lot = "^0.11"
 futures = "^0.3"

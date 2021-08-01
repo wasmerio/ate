@@ -1,6 +1,6 @@
 #![cfg(test)]
 #[allow(unused_imports)]
-use tracing::{info, debug, warn, error, trace};
+use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 #[cfg(feature="enable_dns")]
 use std::{net::IpAddr, str::FromStr};
 

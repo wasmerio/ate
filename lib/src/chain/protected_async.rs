@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use tracing::{info, debug, warn, error, trace};
+use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 
 use crate::redo::LogWritable;
 use crate::error::*;

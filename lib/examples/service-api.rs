@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use tracing::{info, debug, warn, error, trace};
+use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use async_trait::async_trait;
 use serde::{Serialize, Deserialize};
 use std::sync::Arc;
@@ -58,7 +58,8 @@ async fn main() -> Result<(), AteError>
     let pong: Result<Pong, InvokeError<PingError>> = chain.invoke(Ping {
         msg: "hi".to_string()
     }).await;
+    let pong = pong?;
 
-    info!("received pong with msg [{}]", pong?.msg);
+    info!("received pong with msg [{}]", pong.msg);
     Ok(())
 }

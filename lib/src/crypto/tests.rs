@@ -1,6 +1,6 @@
 #![cfg(test)]
 #[allow(unused_imports)]
-use tracing::{info, debug, warn, error, trace};
+use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use std::result::Result;
 use crate::error::*;
 

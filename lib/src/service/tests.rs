@@ -1,6 +1,6 @@
 #![cfg(test)]
 #[allow(unused_imports)]
-use tracing::{info, debug, warn, error, trace};
+use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 
 use super::*;
 
@@ -11,19 +11,19 @@ use std::sync::Arc;
 use crate::{error::*};
 use crate::session::*;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize)]
 struct Ping
 {
     msg: String
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize)]
 struct Pong
 {
     msg: String
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug)]
 struct Noise
 {
     dummy: u64
@@ -62,7 +62,8 @@ async fn test_service() -> Result<(), AteError>
     let pong: Result<Pong, InvokeError<Noise>> = chain.invoke(Ping {
         msg: "hi".to_string()
     }).await;
+    let pong = pong?;
 
-    info!("received pong with msg [{}]", pong?.msg);
+    info!("received pong with msg [{}]", pong.msg);
     Ok(())
 }

@@ -1,10 +1,7 @@
-#[allow(unused_imports)]
-use tracing::{info, debug, warn, error, trace};
+#![allow(unused_imports)]
+use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 
-use std::{collections::BTreeMap, ops::Deref};
 use std::ffi::{OsStr, OsString};
-use std::io::{self, Cursor, Read};
-use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 use std::vec::IntoIter;
@@ -20,24 +17,16 @@ use ::ate::crypto::*;
 use ::ate::session::AteSession;
 use ::ate::header::PrimaryKey;
 use ::ate::prelude::*;
-use ::ate::prelude::AteSessionProperty;
 use ::ate::prelude::AteRolePurpose;
 use ::ate::prelude::ReadOption;
-use ::ate::meta::MetaAuthorization;
 use crate::fixed::FixedFile;
 
-use super::dir::Directory;
-use super::file::RegularFile;
 use super::model::*;
 use super::api::*;
-use ate::conf::ConfAte;
 
 use async_trait::async_trait;
-use bytes::{Buf, BytesMut};
 use futures_util::stream;
-use futures_util::stream::{Empty, Iter};
-use futures_util::StreamExt;
-use tokio::sync::RwLock;
+use futures_util::stream::{Iter};
 use fxhash::FxHashMap;
 
 use fuse3::raw::prelude::*;

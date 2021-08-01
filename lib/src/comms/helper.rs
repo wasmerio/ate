@@ -114,6 +114,10 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
                 break;
             }
             Err(CommsError::ValidationError(errs)) => {
+                for err in errs.iter() {
+                    trace!("val-err: {}", err);
+                }
+
                 #[cfg(debug_assertions)]
                 warn!("inbox-debug: {} validation errors", errs.len());
                 #[cfg(not(debug_assertions))]

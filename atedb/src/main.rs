@@ -1,14 +1,8 @@
 #[allow(unused_imports)]
-use tracing::{info, debug, warn, error, trace};
+use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use ate::{compact::CompactMode, prelude::*};
-use std::env;
-use std::io::ErrorKind;
-use directories::BaseDirs;
-use std::sync::Arc;
-use std::ops::Deref;
 use std::time::Duration;
 use url::Url;
-use tokio::select;
 
 use clap::Clap;
 
@@ -122,7 +116,12 @@ async fn main() -> Result<(), AteError> {
         Some(a) => Some(a),
         None => {
             match opts.trust {
-                TrustMode::Centralized => Some(KeySize::Bit128),
+                TrustMode::Centralized => {
+                    match opts.no_wire_encryption {
+                        false => Some(KeySize::Bit128),
+                        true => None,
+                    }
+                },
                 TrustMode::Distributed => None
             }
         }
