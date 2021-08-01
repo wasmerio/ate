@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use log::{info, error, debug};
+use tracing::{info, debug, warn, error, trace};
 use serde::{Serialize, Deserialize};
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]

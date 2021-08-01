@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use log::{info, error, debug};
+use tracing::{info, debug, warn, error, trace};
 use serde::{Serialize, Deserialize};
 use sha3::Digest;
 use std::convert::TryInto;

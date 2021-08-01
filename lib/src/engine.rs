@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-use log::{info, warn, debug, error};
+use tracing::{info, debug, warn, error, trace};
 use std::ops::DerefMut;
 use std::sync::Arc;
 use std::future::Future;

@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use log::{warn, debug, info};
+use tracing::{info, warn, debug, error, trace};
 use parking_lot::Mutex as StdMutex;
 use std::net::SocketAddr;
 use std::{sync::Arc, sync::Weak};
@@ -70,7 +70,7 @@ impl MeshSession
         #[cfg(feature = "enable_super_verbose")]
         {
             let bt = backtrace::Backtrace::new();
-            debug!("{:?}", bt);
+            trace!("{:?}", bt);
         }
 
         let temporal = builder.temporal;
@@ -136,7 +136,7 @@ impl MeshSession
     }
 
     pub(super) async fn inbox_events(self: &Arc<MeshSession>, evts: Vec<MessageEvent>, loader: &mut Option<Box<dyn Loader>>) -> Result<(), CommsError> {
-        debug!("inbox: events cnt={}", evts.len());
+        trace!("inbox: events cnt={}", evts.len());
 
         match self.chain.upgrade() {
             Some(chain) =>
@@ -178,7 +178,7 @@ impl MeshSession
     }
 
     pub(super) async fn inbox_confirmed(self: &Arc<MeshSession>, id: u64) -> Result<(), CommsError> {
-        debug!("inbox: commit_confirmed id={}", id);
+        trace!("inbox: commit_confirmed id={}", id);
 
         let r = {
             let mut lock = self.commit.lock();
@@ -193,7 +193,7 @@ impl MeshSession
     }
 
     pub(super) async fn inbox_commit_error(self: &Arc<MeshSession>, id: u64, err: String) -> Result<(), CommsError> {
-        debug!("inbox: commit_error id={}, err={}", id, err);
+        trace!("inbox: commit_error id={}, err={}", id, err);
 
         let r= {
             let mut lock = self.commit.lock();
@@ -206,7 +206,7 @@ impl MeshSession
     }
 
     pub(super) fn inbox_lock_result(self: &Arc<MeshSession>, key: PrimaryKey, is_locked: bool) -> Result<(), CommsError> {
-        debug!("inbox: lock_result key={} is_locked={}", key.to_string(), is_locked);
+        trace!("inbox: lock_result key={} is_locked={}", key.to_string(), is_locked);
 
         let mut remove = false;
         let mut guard = self.lock_requests.lock();
@@ -226,13 +226,13 @@ impl MeshSession
         if let Some(from) = from
         {
             if let Some(a) = guard.chain.timeline.pointers.get_delayed_upload(from) {
-                debug!("delayed_upload exists: {}..{}", a.from, a.to);
+                trace!("delayed_upload exists: {}..{}", a.from, a.to);
                 return Ok(());
             }
 
             let to = guard.range_keys(from..).next_back();
             if let Some(to) = to {
-                debug!("delayed_upload new: {}..{}", from, to);
+                trace!("delayed_upload new: {}..{}", from, to);
                 guard.feed_meta_data(&chain.inside_sync, Metadata {
                     core: vec![CoreMetadata::DelayedUpload(MetaDelayedUpload {
                         complete: false,
@@ -241,10 +241,10 @@ impl MeshSession
                     })]
                 }).await?;
             } else {
-                debug!("delayed_upload: {}..error", from);
+                trace!("delayed_upload: {}..error", from);
             }
         } else {
-            debug!("delayed_upload: error..error");
+            trace!("delayed_upload: error..error");
         }
 
         Ok(())
@@ -252,7 +252,7 @@ impl MeshSession
 
     pub(super) async fn complete_delayed_upload(chain: &Arc<Chain>, from: ChainTimestamp, to: ChainTimestamp) -> Result<(), CommsError>
     {
-        debug!("delayed_upload complete: {}..{}", from, to);
+        trace!("delayed_upload complete: {}..{}", from, to);
         let mut guard = chain.inside_async.write().await;
         let _ = guard.feed_meta_data(&chain.inside_sync, Metadata {
             core: vec![CoreMetadata::DelayedUpload(MetaDelayedUpload {
@@ -272,7 +272,7 @@ impl MeshSession
         if let Some(chain) = self.chain.upgrade()
         {
             #[cfg(feature = "enable_verbose")]
-            debug!("start_of_history: chain_key={}", chain.key());
+            trace!("start_of_history: chain_key={}", chain.key());
 
             {
                 // Setup the chain based on the properties given to us
@@ -309,7 +309,7 @@ impl MeshSession
     }
 
     pub(super) async fn inbox_end_of_history(self: &Arc<MeshSession>, _pck: PacketWithContext<Message, ()>, loader: &mut Option<Box<dyn Loader>>) -> Result<(), CommsError> {
-        debug!("inbox: end_of_history");
+        trace!("inbox: end_of_history");
 
         // The end of the history means that the chain can now be actively used, its likely that
         // a loader is waiting for this important event which will then release some caller who
@@ -322,7 +322,7 @@ impl MeshSession
 
     pub(super) async fn inbox_secure_with(self: &Arc<MeshSession>, mut session: crate::session::AteSession) -> Result<(), CommsError> {
         if let Some(chain) = self.chain.upgrade() {
-            debug!("received 'secure_with' secrets");
+            trace!("received 'secure_with' secrets");
             chain.inside_sync.write().default_session.user.properties.append(&mut session.user.properties);
         }
         Ok(())
@@ -335,7 +335,7 @@ impl MeshSession
     ) -> Result<(), CommsError>
     {
         #[cfg(feature = "enable_super_verbose")]
-        debug!("inbox: packet size={}", pck.data.bytes.len());
+        trace!("inbox: packet size={}", pck.data.bytes.len());
 
         match pck.packet.msg {
             Message::StartOfHistory { size, from, to, root_keys, integrity }
@@ -431,7 +431,7 @@ for MeshSessionProcessor
         let session = match Weak::upgrade(&self.session) {
             Some(a) => a,
             None => {
-                debug!("inbox-server-exit: reference dropped scope");
+                trace!("inbox-server-exit: reference dropped scope");
                 return Err(CommsError::Disconnected);
             }
         };
@@ -459,7 +459,7 @@ for MeshSession
 {
     fn drop(&mut self)
     {
-        debug!("drop {}", self.key.to_string());
+        trace!("drop {}", self.key.to_string());
         self.cancel_locks();
         self.cancel_sniffers();
     }

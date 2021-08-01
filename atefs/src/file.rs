@@ -1,6 +1,6 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
-use log::{info, error, debug};
+use tracing::{info, debug, warn, error, trace};
 use std::sync::Arc;
 use std::ops::DerefMut;
 use async_trait::async_trait;

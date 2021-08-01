@@ -1,6 +1,6 @@
 #![cfg_attr(debug_assertions, allow(dead_code, unused_imports))]
 #![allow(unused_imports)]
-use log::{error, info, debug};
+use tracing::{error, info, debug};
 
 mod msg;
 mod core;

@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use log::{error, info, warn, debug};
+use tracing::{error, info, warn, debug};
 use async_trait::async_trait;
 
 #[cfg(feature = "enable_caching")]
@@ -132,7 +132,7 @@ impl LogFileLocalFs
                 match LogFileLocalFs::read_once_internal(&mut lock).await {
                     Ok(Some(head)) => {
                         #[cfg(feature = "enable_super_verbose")]
-                        debug!("log-read: {:?}", head);
+                        trace!("log-read: {:?}", head);
 
                         lookup.insert(head.header.event_hash, head.lookup);
 
@@ -289,9 +289,9 @@ for LogFileLocalFs
         self.lookup.insert(header.event_hash, lookup);
 
         #[cfg(feature = "enable_verbose")]
-        debug!("log-write: {} - {:?}", header.event_hash, lookup);
+        trace!("log-write: {} - {:?}", header.event_hash, lookup);
         #[cfg(feature = "enable_super_verbose")]
-        debug!("log-write: {:?} - {:?}", header, evt);
+        trace!("log-write: {:?} - {:?}", header, evt);
 
         // Cache the data
         #[cfg(feature = "enable_caching")]

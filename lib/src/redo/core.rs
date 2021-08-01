@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use log::{error, info, warn, debug};
+use tracing::{error, info, warn, debug};
 use async_trait::async_trait;
 #[cfg(feature = "enable_local_fs")]
 use std::{collections::VecDeque};

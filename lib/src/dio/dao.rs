@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-use log::{warn, debug};
+use tracing::{warn, debug};
 use fxhash::FxHashSet;
 
 use serde::{Serialize, de::DeserializeOwned};

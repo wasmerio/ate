@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use log::{info, warn, debug, error};
+use tracing::{info, debug, warn, error, trace};
 use serde::{Serialize, Deserialize};
 use std::{collections::BTreeMap, sync::Arc};
 use crate::{header::PrimaryKey, meta::Metadata, pipe::EventPipe};
@@ -263,7 +263,7 @@ where R: RangeBounds<ChainTimestamp>
             evts.push(evt);
         }
 
-        debug!("sending {} events", evts.len());
+        trace!("sending {} events", evts.len());
         tx.send_reply_msg(Message::Events {
             commit: None,
             evts
@@ -291,7 +291,7 @@ pub(super) async fn stream_empty_history(
     };
 
     // Let the caller know we will be streaming them events
-    debug!("sending start-of-history (size={})", 0);
+    trace!("sending start-of-history (size={})", 0);
     PacketData::reply_at(tx, wire_format,Message::StartOfHistory
         {
             size: 0,
@@ -302,7 +302,7 @@ pub(super) async fn stream_empty_history(
         }).await?;
 
     // Let caller know we have sent all the events that were requested
-    debug!("sending end-of-history");
+    trace!("sending end-of-history");
     PacketData::reply_at(tx, wire_format, Message::EndOfHistory).await?;
     Ok(())
 }
@@ -334,7 +334,7 @@ where R: RangeBounds<ChainTimestamp>,
     };
 
     // Let the caller know we will be streaming them events
-    debug!("sending start-of-history (size={})", size);
+    trace!("sending start-of-history (size={})", size);
     tx.send_reply_msg(Message::StartOfHistory
         {
             size,
@@ -354,12 +354,12 @@ where R: RangeBounds<ChainTimestamp>,
     if size > 0
     {
         // Sync the events
-        debug!("streaming requested events");
+        trace!("streaming requested events");
         stream_events(&chain, range, tx).await?;
     }
 
     // Let caller know we have sent all the events that were requested
-    debug!("sending end-of-history");
+    trace!("sending end-of-history");
     tx.send_reply_msg(Message::EndOfHistory).await?;
     Ok(())
 }

@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use serde::{Serialize, Deserialize};
-use log::{info, warn, debug, error};
+use tracing::{info, debug, warn, error, trace};
 use std::{borrow::Borrow, net::{IpAddr, Ipv4Addr, Ipv6Addr}, ops::Deref};
 use tokio::sync::{Mutex};
 use parking_lot::Mutex as StdMutex;
@@ -445,11 +445,11 @@ async fn inbox_event<'b>(
 )
 -> Result<(), CommsError>
 {
-    debug!("inbox: events: cnt={}", evts.len());
+    trace!("inbox: events: cnt={}", evts.len());
     #[cfg(feature = "enable_verbose")]
     {
         for evt in evts.iter() {
-            debug!("event: {}", evt.meta);
+            trace!("event: {}", evt.meta);
         }
     }
 
@@ -477,7 +477,7 @@ async fn inbox_event<'b>(
             if let Some(id) = commit {
                 match ret {
                     Ok(a) => {
-                        debug!("send::commit_confirmed id={}", id);
+                        trace!("send::commit_confirmed id={}", id);
                         tx.send_reply_msg(Message::Confirmed(id.clone())).await?;
                         a
                     },
@@ -505,7 +505,7 @@ async fn inbox_lock<'b>(
 )
 -> Result<(), CommsError>
 {
-    debug!("inbox: lock {}", key);
+    trace!("inbox: lock {}", key);
 
     let chain = match context.inside.lock().chain.clone() {
         Some(a) => a,
@@ -527,7 +527,7 @@ async fn inbox_unlock(
 )
 -> Result<(), CommsError>
 {
-    debug!("inbox: unlock {}", key);
+    trace!("inbox: unlock {}", key);
 
     let chain = match context.inside.lock().chain.clone() {
         Some(a) => a,
@@ -549,7 +549,7 @@ async fn inbox_subscribe<'b>(
 )
 -> Result<(), CommsError>
 {
-    debug!("inbox: subscribe: {}", chain_key.to_string());
+    trace!("inbox: subscribe: {}", chain_key.to_string());
 
     // First lets check if this connection is meant for this server
     let (_, node_id) = match root.lookup.lookup(&chain_key) {
@@ -642,7 +642,7 @@ async fn inbox_packet<'b>(
 )
 -> Result<(), CommsError>
 {
-    debug!("inbox: packet size={}", pck.data.bytes.len());
+    trace!("inbox: packet size={}", pck.data.bytes.len());
 
     let context = pck.context.clone();
     let pck_data = pck.data;

@@ -1,6 +1,6 @@
 #![cfg(test)]
 #[allow(unused_imports)]
-use log::{error, info, warn, debug};
+use tracing::{error, info, warn, debug};
 use tokio::runtime::Runtime;
 use bytes::Bytes;
 

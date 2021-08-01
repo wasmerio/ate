@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-use log::{info, warn, debug};
+use tracing::{info, warn, debug, error, trace};
 use crate::crypto::{EncryptKey, PrivateEncryptKey, PublicEncryptKey, InitializationVector};
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use crate::prelude::*;

@@ -1,5 +1,5 @@
-#![allow(unused_imports)]
-use log::{info, error, debug};
+#[allow(unused_imports)]
+use tracing::{info, debug, warn, error, trace};
 
 use std::{collections::BTreeMap, ops::Deref};
 use std::ffi::{OsStr, OsString};
@@ -348,12 +348,12 @@ impl AteFS
         let data = conv_load(dio.load::<Inode>(&key).await)?;
 
         if data.spec_type != SpecType::Directory {
-            debug!("atefs::create parent={} not-a-directory", parent);
+            trace!("atefs::create parent={} not-a-directory", parent);
             return Err(libc::ENOTDIR.into());
         }
         
         if let Some(_) = conv_load(data.children.iter().await)?.filter(|c| *c.dentry.name == *name).next() {
-            debug!("atefs::create parent={} name={}: already-exists", parent, name.to_str().unwrap());
+            trace!("atefs::create parent={} name={}: already-exists", parent, name.to_str().unwrap());
             return Err(libc::EEXIST.into());
         }
 
@@ -391,7 +391,7 @@ impl AteFS
     }
 
     async fn commit_internal(&self) -> Result<()> {
-        debug!("commit");
+        trace!("commit");
         let open_handles = {
             let lock = self.open_handles.lock();
             lock.values()
@@ -535,38 +535,38 @@ impl AteFS
 
     async fn access_internal(&self, req: &Request, inode: u64, mask: u32) -> Result<()> {
         self.tick().await?;
-        debug!("atefs::access inode={} mask={:#02x}", inode, mask);
+        trace!("access inode={} mask={:#02x}", inode, mask);
         
         let dao = self.load(inode).await?;
         if (dao.dentry.mode & mask) != 0
         {
-            debug!("atefs::access mode={:#02x} - ok", dao.dentry.mode);
+            trace!("access mode={:#02x} - ok", dao.dentry.mode);
             return Ok(());
         }
 
         let uid = self.translate_uid(req.uid, &req);
         if uid == dao.dentry.uid {
-            debug!("atefs::access has_user");
+            trace!("access has_user");
             let mask_shift = mask << 6;
             if (dao.dentry.mode & mask_shift) != 0
             {
-                debug!("atefs::access mode={:#02x} - ok", dao.dentry.mode);
+                trace!("access mode={:#02x} - ok", dao.dentry.mode);
                 return Ok(());
             }
         }
 
         let gid = self.translate_gid(req.gid, &req);
         if gid == dao.dentry.gid && self.session.groups.iter().any(|g| g.roles.iter().any(|r| r.gid().iter().any(|gid2| *gid2 == gid))) {
-            debug!("atefs::access has_group");
+            trace!("access has_group");
             let mask_shift = mask << 3;
             if (dao.dentry.mode & mask_shift) != 0
             {
-                debug!("atefs::access mode={:#02x} - ok", dao.dentry.mode);
+                trace!("access mode={:#02x} - ok", dao.dentry.mode);
                 return Ok(());
             }
         }
 
-        debug!("atefs::access mode={:#02x} - EACCES", dao.dentry.mode);
+        trace!("access mode={:#02x} - EACCES", dao.dentry.mode);
         Err(libc::EACCES.into())
     }
 }
@@ -604,7 +604,7 @@ for AteFS
                 }
             }     
         };
-        debug!("atefs::init");
+        debug!("init");
         
         // All good
         self.tick().await?;
@@ -620,7 +620,7 @@ for AteFS
     async fn destroy(&self, _req: Request) {
         self.tick().await.unwrap();
         self.commit().await.unwrap();
-        debug!("atefs::destroy");
+        debug!("destroy");
     }
 
     async fn getattr(
@@ -631,7 +631,7 @@ for AteFS
         _flags: u32,
     ) -> Result<ReplyAttr> {
         self.tick().await?;
-        debug!("atefs::getattr inode={}", inode);
+        trace!("getattr inode={}", inode);
 
         if let Some(fh) = fh {
             let lock = self.open_handles.lock();
@@ -662,7 +662,7 @@ for AteFS
         set_attr: SetAttr,
     ) -> Result<ReplyAttr> {
         self.tick().await?;
-        debug!("atefs::setattr inode={}", inode);
+        trace!("setattr inode={}", inode);
 
         let key = PrimaryKey::from(inode);
         let dio = self.dio_mut().await;

@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-use log::{info, warn, debug, error};
+use tracing::{info, debug, warn, error, trace};
 use tokio::{net::{TcpListener}};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;

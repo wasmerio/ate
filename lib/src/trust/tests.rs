@@ -1,6 +1,6 @@
 #![cfg(test)]
 #[allow(unused_imports)]
-use log::{info, error, debug};
+use tracing::{info, debug, warn, error, trace};
 use std::sync::Arc;
 use bytes::Bytes;
 
@@ -77,13 +77,13 @@ async fn test_chain() -> Result<(), AteError> {
     let mut stored_chain = None;
 
     {
-        debug!("creating test chain");
+        info!("creating test chain");
         let mut mock_cfg = crate::conf::tests::mock_test_config();
         mock_cfg.compact_mode = CompactMode::Never;
         let (chain, _builder) = create_test_chain(&mut mock_cfg, "test_chain".to_string(), true, true, None).await;
         
         chain_name = chain.name().await;
-        debug!("chain-name: {}", chain_name);
+        info!("chain-name: {}", chain_name);
         
         {
             let lock = chain.multi().await;
@@ -97,7 +97,7 @@ async fn test_chain() -> Result<(), AteError> {
             evts.push(evt1);
             evts.push(evt2);
 
-            debug!("feeding two events into the chain");
+            info!("feeding two events into the chain");
             let trans = Transaction::from_events(evts, TransactionScope::Local, false);
             lock.pipe.feed(trans).await.expect("The event failed to be accepted");
             
@@ -109,13 +109,13 @@ async fn test_chain() -> Result<(), AteError> {
             let lock = chain.multi().await;
 
             // Make sure its there in the chain
-            debug!("checking event1 is in the chain");
+            info!("checking event1 is in the chain");
             let test_data = lock.lookup_primary(&key1).await.expect("Failed to find the entry after the flip");
             let test_data = lock.load(test_data.clone()).await.expect("Could not load the data for the entry");
             assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(1; 1))));
 
             // The other event we added should also still be there
-            debug!("checking event2 is in the chain");
+            info!("checking event2 is in the chain");
             let test_data = lock.lookup_primary(&key2).await.expect("Failed to find the entry after the compact");
             let test_data = lock.load(test_data.clone()).await?;
             assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(2; 1))));
@@ -132,7 +132,7 @@ async fn test_chain() -> Result<(), AteError> {
 
     {
         // Reload the chain from disk and check its integrity
-        debug!("reloading the chain");
+        info!("reloading the chain");
         let mut mock_cfg = crate::conf::tests::mock_test_config();
         mock_cfg.compact_mode = CompactMode::Never;
 
@@ -145,13 +145,13 @@ async fn test_chain() -> Result<(), AteError> {
             let lock = chain.multi().await;
 
             // Make sure its there in the chain
-            debug!("checking event1 is in the chain");
+            info!("checking event1 is in the chain");
             let test_data = lock.lookup_primary(&key1).await.expect("Failed to find the entry after the reload");
             let test_data = lock.load(test_data.clone()).await.expect("Could not load the data for the entry");
             assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(1; 1))));
 
             // The other event we added should also still be there
-            debug!("checking event2 is in the chain");
+            info!("checking event2 is in the chain");
             let test_data = lock.lookup_primary(&key2).await.expect("Failed to find the entry after the reload");
             let test_data = lock.load(test_data.clone()).await.unwrap();
             assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(2; 1))));
@@ -159,7 +159,7 @@ async fn test_chain() -> Result<(), AteError> {
             // Duplicate one of the event so the compactor has something to clean
             let evt1 = EventData::new(key1.clone(), Bytes::from(vec!(10; 1)), mock_cfg.log_format);
             
-            debug!("feeding new version of event1 into the chain");
+            info!("feeding new version of event1 into the chain");
             let mut evts = Vec::new();
             evts.push(evt1);
             let trans = Transaction::from_events(evts, TransactionScope::Local, false);
@@ -170,7 +170,7 @@ async fn test_chain() -> Result<(), AteError> {
         }
 
         // Now compact the chain-of-trust which should reduce the duplicate event
-        debug!("compacting the log and checking the counts");
+        info!("compacting the log and checking the counts");
         assert_eq!(3, chain.count().await);
         chain.compact().await.expect("Failed to compact the log");
         assert_eq!(2, chain.count().await);
@@ -179,13 +179,13 @@ async fn test_chain() -> Result<(), AteError> {
             let lock = chain.multi().await;
 
             // Read the event and make sure its the second one that results after compaction
-            debug!("checking event1 is in the chain");
+            info!("checking event1 is in the chain");
             let test_data = lock.lookup_primary(&key1).await.expect("Failed to find the entry after the compact");
             let test_data = lock.load(test_data.clone()).await?;
             assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(10; 1))));
 
             // The other event we added should also still be there
-            debug!("checking event2 is in the chain");
+            info!("checking event2 is in the chain");
             let test_data = lock.lookup_primary(&key2).await.expect("Failed to find the entry after the compact");
             let test_data = lock.load(test_data.clone()).await?;
             assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(2; 1))));
@@ -199,7 +199,7 @@ async fn test_chain() -> Result<(), AteError> {
 
     {
         // Reload the chain from disk and check its integrity
-        debug!("reloading the chain");
+        info!("reloading the chain");
         let mut mock_cfg = crate::conf::tests::mock_test_config();
         mock_cfg.compact_mode = CompactMode::Never;
         #[cfg(feature = "enable_local_fs")]
@@ -213,13 +213,13 @@ async fn test_chain() -> Result<(), AteError> {
             let lock = chain.multi().await;
 
             // Read the event and make sure its the second one that results after compaction
-            debug!("checking event1 is in the chain");
+            info!("checking event1 is in the chain");
             let test_data = lock.lookup_primary(&key1).await.expect("Failed to find the entry after the compact");
             let test_data = lock.load(test_data.clone()).await?;
             assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(10; 1))));
 
             // The other event we added should also still be there
-            debug!("checking event2 is in the chain");
+            info!("checking event2 is in the chain");
             let test_data = lock.lookup_primary(&key2).await.expect("Failed to find the entry after the compact");
             let test_data = lock.load(test_data.clone()).await?;
             assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(2; 1))));
@@ -229,11 +229,11 @@ async fn test_chain() -> Result<(), AteError> {
             let lock = chain.multi().await;
 
             // Now lets tombstone the second event
-            debug!("tombstoning event2");
+            info!("tombstoning event2");
             let mut evt3 = EventData::barebone(mock_cfg.log_format);
             evt3.meta.add_tombstone(key2);
             
-            debug!("feeding the tombstone into the chain");
+            info!("feeding the tombstone into the chain");
             let mut evts = Vec::new();
             evts.push(evt3.clone());
             let trans = Transaction::from_events(evts, TransactionScope::Local, false);
@@ -245,14 +245,14 @@ async fn test_chain() -> Result<(), AteError> {
         }
 
         // Searching for the item we should not find it
-        debug!("checking event2 is gone from the chain");
+        info!("checking event2 is gone from the chain");
         match chain.multi().await.lookup_primary(&key2).await {
             Some(_) => panic!("The item should not be visible anymore"),
             None => {}
         }
         
         // Now compact the chain-of-trust which should remove one of the events and its tombstone
-        debug!("compacting the chain");
+        info!("compacting the chain");
         let before = chain.count().await;
         chain.compact().await.expect("Failed to compact the log");
         let after = chain.count().await;
@@ -266,7 +266,7 @@ async fn test_chain() -> Result<(), AteError> {
 
     {
         // Reload the chain from disk and check its integrity
-        debug!("reloading the chain");
+        info!("reloading the chain");
         let mut mock_cfg = crate::conf::tests::mock_test_config();
         mock_cfg.compact_mode = CompactMode::Never;
         #[cfg(feature = "enable_local_fs")]
@@ -278,14 +278,14 @@ async fn test_chain() -> Result<(), AteError> {
             let lock = chain.multi().await;
 
             // Read the event and make sure its the second one that results after compaction
-            debug!("checking event1 is in the chain");
+            info!("checking event1 is in the chain");
             let test_data = lock.lookup_primary(&key1).await.expect("Failed to find the entry after we reloaded the chain");
             let test_data = lock.load(test_data).await?;
             assert_eq!(test_data.data.data_bytes, Some(Bytes::from(vec!(10; 1))));
         }
 
         // Destroy the chain
-        debug!("destroying the chain");
+        info!("destroying the chain");
         chain.single().await.destroy().await?;
     }
 

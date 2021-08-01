@@ -1,24 +1,24 @@
 #[allow(unused_imports)]
-use log::{info, error, debug};
+use tracing::{info, debug, warn, error, trace};
 use async_trait::async_trait;
 use serde::{Serialize, Deserialize};
 use std::sync::Arc;
 
 use ate::prelude::*;
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize)]
 struct Ping
 {
     msg: String
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize)]
 struct Pong
 {
     msg: String
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug)]
 struct PingError
 {
 }
@@ -43,22 +43,22 @@ async fn main() -> Result<(), AteError>
 {
     env_logger::init();
 
-    debug!("creating test chain");
+    info!("creating test chain");
 
     // Create the chain with a public/private key to protect its integrity
     let conf = ConfAte::default();
     let builder = ChainBuilder::new(&conf).await.build();
     let chain = builder.open_local(&ChainKey::from("cmd")).await?;
     
-    debug!("start the service on the chain");
+    info!("start the service on the chain");
     let session = AteSession::new(&conf);
     chain.add_service(session.clone(), Arc::new(PingPongTable::default())).await;
     
-    debug!("sending ping");
+    info!("sending ping");
     let pong: Result<Pong, InvokeError<PingError>> = chain.invoke(Ping {
         msg: "hi".to_string()
     }).await;
 
-    debug!("received pong with msg [{}]", pong?.msg);
+    info!("received pong with msg [{}]", pong?.msg);
     Ok(())
 }

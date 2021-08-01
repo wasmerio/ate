@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use log::{info, error, debug};
+use tracing::{info, debug, warn, error, trace};
 use fxhash::FxHashMap;
 use serde::{Serialize, Deserialize};
 use std::{io::ErrorKind, marker::PhantomData};

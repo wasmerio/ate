@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use log::{info, error, debug};
+use tracing::{info, debug, warn, error, trace};
 use btreemultimap::BTreeMultiMap;
 
 use crate::compact::*;
@@ -46,7 +46,7 @@ impl<'a> ChainTimeline
         let raw = header.raw;
 
         #[cfg(feature = "enable_super_verbose")]
-        debug!("add_history::evt[{}]", header.meta);
+        trace!("add_history::evt[{}]", header.meta);
 
         let timestamp = match header.meta.get_timestamp() {
             Some(a) => a.clone(),

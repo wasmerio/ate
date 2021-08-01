@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use log::{info, warn, debug, error};
+use tracing::{info, debug, warn, error, trace};
 use serde::{Serialize, Deserialize};
 use ate::prelude::*;
 
@@ -27,7 +27,7 @@ async fn main() -> Result<(), AteError>
     env_logger::init();
     
     // Create the server and listen on port 5001
-    debug!("setting up a mesh server on 127.0.0.1:5001");
+    info!("setting up a mesh server on 127.0.0.1:5001");
     let mesh_url = url::Url::parse("ws://localhost:5001/").unwrap();
     let cfg_ate = ConfAte::default();
     #[cfg(feature="enable_dns")]
@@ -37,7 +37,7 @@ async fn main() -> Result<(), AteError>
     let _root = create_ethereal_server(&cfg_ate, &cfg_mesh).await?;
 
     // Connect to the server from a client
-    debug!("connection two clients to the mesh server");
+    info!("connection two clients to the mesh server");
     cfg_mesh.force_listen = None;
     cfg_mesh.force_client_only = true;
     let client_a = create_temporal_client(&cfg_ate, &cfg_mesh);
@@ -47,11 +47,11 @@ async fn main() -> Result<(), AteError>
     let session = AteSession::new(&cfg_ate);
 
     // Setup a BUS that we will listen on
-    debug!("opening a chain on called 'ping-pong-table' using client 1");
+    info!("opening a chain on called 'ping-pong-table' using client 1");
     let chain_a = client_a.open(&mesh_url, &ChainKey::from("ping-pong-table")).await.unwrap();
     let (mut bus, key) =
     {
-        debug!("writing a record ('table') to the remote chain from client 1");
+        info!("writing a record ('table') to the remote chain from client 1");
         let dio = chain_a.dio_trans(&session, TransactionScope::Full).await;
         let dao = dio.store(Table {
             ball: DaoVec::default(),
@@ -59,7 +59,7 @@ async fn main() -> Result<(), AteError>
         dio.commit().await?;
 
         // Now attach a BUS that will simple write to the console
-        debug!("opening a communication bus on the record 'table' from client 1");
+        info!("opening a communication bus on the record 'table' from client 1");
         (
             dao.ball.bus().await?,
             dao.key().clone(),
@@ -68,11 +68,11 @@ async fn main() -> Result<(), AteError>
 
     {
         // Write a ping... twice
-        debug!("connecting to the communication bus from client 2");
+        info!("connecting to the communication bus from client 2");
         let chain_b = client_b.open(&url::Url::parse("ws://localhost:5001/").unwrap(), &ChainKey::from("ping-pong-table")).await.unwrap();
         chain_b.sync().await?;
 
-        debug!("writing two records ('balls') onto the earlier saved record 'table' from client 2");
+        info!("writing two records ('balls') onto the earlier saved record 'table' from client 2");
         let dio = chain_b.dio_trans(&session, TransactionScope::Full).await;
         let dao = dio.load::<Table>(&key).await?;
         dao.ball.push(&dio, BallSound::Ping)?;
@@ -85,12 +85,12 @@ async fn main() -> Result<(), AteError>
         let dio = chain_a.dio_trans(&session, TransactionScope::Full).await;
 
         // (this is a broadcast event to all current subscribers)
-        debug!("waiting for the first record on the BUS of client 1 which we will process as a broadcast");
+        info!("waiting for the first record on the BUS of client 1 which we will process as a broadcast");
         let ret = bus.recv().await?;
         println!("{:?}", ret);
 
         // (this is an exactly once queue)
-        debug!("waiting for the second record on the BUS of client 1 which we will process as an (exactly-once) event");
+        info!("waiting for the second record on the BUS of client 1 which we will process as an (exactly-once) event");
         let ret = bus.process(&dio).await?;
         println!("{:?}", ret);
         dio.commit().await?;

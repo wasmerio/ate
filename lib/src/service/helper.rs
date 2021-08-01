@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use log::{info, error, warn, debug};
+use tracing::{info, error, warn, debug};
 use std::{sync::Weak};
 use tokio::sync::mpsc;
 use std::sync::Arc;

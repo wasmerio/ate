@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use tokio::sync::{Mutex};
-use log::{warn, debug, error};
+use tracing::{info, warn, debug, error, trace};
 use std::{sync::Arc, collections::hash_map::Entry};
 use fxhash::FxHashMap;
 use crate::{header::PrimaryKey, pipe::EventPipe};
@@ -98,7 +98,7 @@ impl Drop
 for MeshClient
 {
     fn drop(&mut self) {
-        debug!("drop");
+        trace!("drop");
     }
 }
 

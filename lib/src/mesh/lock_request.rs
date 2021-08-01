@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use log::{warn, debug, info};
+use tracing::{info, warn, debug, error, trace};
 use parking_lot::Mutex as StdMutex;
 use std::{sync::Arc, sync::Weak};
 use tokio::sync::watch;

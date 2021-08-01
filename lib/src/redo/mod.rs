@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use log::{error, info, warn, debug};
+use tracing::{error, info, warn, debug};
 
 mod api;
 #[cfg(feature = "enable_local_fs")]

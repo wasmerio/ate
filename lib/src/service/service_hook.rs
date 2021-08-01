@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use log::{info, error, warn, debug};
+use tracing::{info, error, warn, debug};
 use async_trait::async_trait;
 use serde::{Serialize, de::DeserializeOwned};
 use std::{sync::Weak};
@@ -15,9 +15,9 @@ use crate::repository::ChainRepository;
 use super::*;
 
 pub(crate) struct ServiceHook<REQ, RES, ERR>
-where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
-      RES: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
-      ERR: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized
+where REQ: Serialize + DeserializeOwned + Sync + Send + ?Sized,
+      RES: Serialize + DeserializeOwned + Sync + Send + ?Sized,
+      ERR: Serialize + DeserializeOwned + Sync + Send + ?Sized
 {
     chain: Weak<Chain>,
     relay_repository: Arc<dyn ChainRepository>,
@@ -29,9 +29,9 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
 }
 
 impl<REQ, RES, ERR> ServiceHook<REQ, RES, ERR>
-where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
-      RES: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
-      ERR: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized
+where REQ: Serialize + DeserializeOwned + Sync + Send + ?Sized,
+      RES: Serialize + DeserializeOwned + Sync + Send + ?Sized,
+      ERR: Serialize + DeserializeOwned + Sync + Send + ?Sized
 {
     pub(crate) fn new(chain: &Arc<Chain>, session: AteSession, relay_repository: Arc<dyn ChainRepository>, handler: ServiceInstance<REQ, RES, ERR>) -> ServiceHook<REQ, RES, ERR> {
         ServiceHook {
@@ -49,9 +49,9 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
 #[async_trait]
 impl<REQ, RES, ERR> Service
 for ServiceHook<REQ, RES, ERR>
-where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
-      RES: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
-      ERR: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized + std::fmt::Debug
+where REQ: Serialize + DeserializeOwned + Sync + Send + ?Sized,
+      RES: Serialize + DeserializeOwned + Sync + Send + ?Sized,
+      ERR: Serialize + DeserializeOwned + Sync + Send + ?Sized + std::fmt::Debug
 {
     fn filter(&self, evt: &EventData) -> bool {
         if let Some(t) = evt.meta.get_type_name() {
@@ -117,12 +117,12 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
 }
 
 impl<REQ, RES, ERR> ServiceHook<REQ, RES, ERR>
-where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
-      RES: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
-      ERR: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized
+where REQ: Serialize + DeserializeOwned + Sync + Send + ?Sized,
+      RES: Serialize + DeserializeOwned + Sync + Send + ?Sized,
+      ERR: Serialize + DeserializeOwned + Sync + Send + ?Sized
 {
     async fn send_reply<T>(&self, chain: Arc<Chain>, req: PrimaryKey, res: T, res_type: String) -> Result<(), ServiceError<()>>
-    where T: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized
+    where T: Serialize + DeserializeOwned + Sync + Send + ?Sized
     {
         // Turn it into a data object to be stored on commit
         let dio = chain.dio_mut(&self.session).await;

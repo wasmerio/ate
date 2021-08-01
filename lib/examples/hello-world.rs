@@ -1,7 +1,7 @@
 use serde::{Serialize, Deserialize};
 use ate::prelude::*;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 struct World
 {
     commandment: String

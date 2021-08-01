@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use log::{info, warn, debug, error};
+use tracing::{info, debug, warn, error, trace};
 use std::sync::Arc;
 use regex::Regex;
 
@@ -44,7 +44,7 @@ for ChainFlow
 
     async fn open(&self, mut builder: ChainBuilder, key: &ChainKey) -> Result<OpenAction, ChainCreationError>
     {
-        debug!("open_db: {}", key);
+        trace!("open_db: {}", key);
 
         // Extract the identity from the supplied path (we can only create chains that are actually
         // owned by the specific user)

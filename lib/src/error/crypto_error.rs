@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use log::{info, error, debug};
+use tracing::{info, debug, warn, error, trace};
 use std::error::Error;
 
 #[derive(Debug)]

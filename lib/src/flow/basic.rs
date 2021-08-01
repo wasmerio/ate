@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-use log::{error, info, debug};
+use tracing::{error, info, debug};
 use async_trait::async_trait;
 use std::sync::Arc;
 

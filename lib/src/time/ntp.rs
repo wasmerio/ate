@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-use log::{error, info, debug};
+use tracing::{error, info, debug};
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use tokio::io;
@@ -422,10 +422,10 @@ pub(crate) async fn query_ntp_retry(pool: &String, port: u16, tolerance_ms: u32,
         };
 
         #[cfg(feature = "enable_super_verbose")]
-        debug!("ntp request timeout={}ms", timeout.as_millis());
+        trace!("ntp request timeout={}ms", timeout.as_millis());
         if let Ok(ret) = request(pool.as_str(), port, timeout).await {
             #[cfg(feature = "enable_super_verbose")]
-            debug!("ntp response roundtrip={}, offset={}", ret.roundtrip, ret.offset);
+            trace!("ntp response roundtrip={}, offset={}", ret.roundtrip, ret.offset);
 
             let current_ping = match &best {
                 Some(b) => b.roundtrip(),

@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use log::{info, error, debug};
+use tracing::{info, debug, warn, error, trace};
 
 use crate::redo::LogWritable;
 use crate::error::*;
@@ -92,7 +92,7 @@ impl ChainProtectedAsync
                 let header = evt.as_header()?;
 
                 #[cfg(feature = "enable_verbose")]
-                debug!("chain::evt[key={}]", header.meta.get_data_key().map_or_else(|| "none".to_string(), |h| h.to_string()));
+                trace!("chain::evt[key={}]", header.meta.get_data_key().map_or_else(|| "none".to_string(), |h| h.to_string()));
 
                 match sync.validate_event(&header, conversation) {
                     Err(err) => {

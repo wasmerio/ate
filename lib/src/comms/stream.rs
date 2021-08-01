@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-use log::{info, warn, debug};
+use tracing::{info, warn, debug, error, trace};
 #[cfg(feature="enable_tcp")]
 use tokio::net::TcpStream;
 #[cfg(feature="enable_tcp")]

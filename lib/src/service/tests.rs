@@ -1,6 +1,6 @@
 #![cfg(test)]
 #[allow(unused_imports)]
-use log::{info, error, debug};
+use tracing::{info, debug, warn, error, trace};
 
 use super::*;
 
@@ -50,19 +50,19 @@ async fn test_service() -> Result<(), AteError>
 {
     crate::utils::bootstrap_env();
 
-    debug!("creating test chain");
+    info!("creating test chain");
     let mut mock_cfg = crate::conf::tests::mock_test_config();
     let (chain, _builder) = crate::trust::create_test_chain(&mut mock_cfg, "test_chain".to_string(), true, true, None).await;
     
-    debug!("start the service on the chain");
+    info!("start the service on the chain");
     let session = AteSession::new(&mock_cfg);
     chain.add_service(session.clone(), Arc::new(PingPongTable::default())).await;
     
-    debug!("sending ping");
+    info!("sending ping");
     let pong: Result<Pong, InvokeError<Noise>> = chain.invoke(Ping {
         msg: "hi".to_string()
     }).await;
 
-    debug!("received pong with msg [{}]", pong?.msg);
+    info!("received pong with msg [{}]", pong?.msg);
     Ok(())
 }

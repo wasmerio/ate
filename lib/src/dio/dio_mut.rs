@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-use log::{info, error, debug};
+use tracing::{info, debug, warn, error, trace};
 use crate::prelude::*;
 use fxhash::FxHashMap;
 use fxhash::FxHashSet;
@@ -409,7 +409,7 @@ impl DioMut
             state.clear();
 
             // Now we process them
-            debug!("commit stored={} deleted={} unlocks={}", rows.len(), deleted.len(), unlocks.len());
+            trace!("commit stored={} deleted={} unlocks={}", rows.len(), deleted.len(), unlocks.len());
             (rows, deleted, unlocks)
         };
         
@@ -432,7 +432,7 @@ impl DioMut
             {
                 // Debug output
                 #[cfg(feature = "enable_verbose")]
-                debug!("store: {}@{}", row.type_name, row.key.as_hex_string());
+                trace!("store: {}@{}", row.type_name, row.key.as_hex_string());
 
                 // Build a new clean metadata header
                 let mut meta = Metadata::for_data(row.key);
@@ -535,7 +535,7 @@ impl DioMut
         #[cfg(feature = "enable_verbose")]
         {
             for evt in evts.iter() {
-                debug!("event: {}", evt.meta);
+                trace!("event: {}", evt.meta);
             }
         }
 
@@ -549,7 +549,7 @@ impl DioMut
                 None => None,
             },
         };
-        debug!("commit events={}", trans.events.len());
+        trace!("commit events={}", trans.events.len());
 
         // Process the transaction in the chain using its pipe
         self.multi.pipe.feed(trans).await?;

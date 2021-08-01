@@ -1,5 +1,5 @@
 #[allow(unused_imports, dead_code)]
-use log::{info, error, debug};
+use tracing::{info, debug, warn, error, trace};
 use ate::prelude::*;
 use std::io::ErrorKind;
 use std::sync::Arc;

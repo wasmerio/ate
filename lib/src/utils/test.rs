@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-use log::{warn, debug, error};
+use tracing::{info, warn, debug, error, trace};
 use std::sync::Once;
 
 static INIT: Once = Once::new();

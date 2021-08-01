@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use log::{warn, debug, info};
+use tracing::{info, warn, debug, error, trace};
 use parking_lot::Mutex as StdMutex;
 use std::{sync::Arc, sync::Weak};
 use tokio::sync::watch;
@@ -87,7 +87,7 @@ impl ActiveSessionPipe
         };
 
         // Send the same packet to all the transmit nodes (if there is only one then don't clone)
-        debug!("tx wire_format={}", self.tx.wire_format);
+        trace!("tx wire_format={}", self.tx.wire_format);
         self.tx.send_all_msg(Message::Events{ commit, evts, }).await?;
 
         Ok(receiver)
@@ -115,11 +115,11 @@ impl ActiveSessionPipe
 
             // If we need to wait for the transaction to commit then do so
             if let Some(mut receiver) = receiver {
-                debug!("waiting for transaction to commit");
+                trace!("waiting for transaction to commit");
                 match receiver.recv().await {
                     Some(result) => {
                         let commit_id = result?;
-                        debug!("transaction committed: {}", commit_id);
+                        trace!("transaction committed: {}", commit_id);
                     },
                     None => { 
                         debug!("transaction has aborted");
@@ -150,7 +150,7 @@ impl ActiveSessionPipe
         self.lock_requests.lock().insert(key.clone(), my_lock);
 
         // Send a message up to the main server asking for a lock on the data object
-        debug!("tx lock key={}", key);
+        trace!("tx lock key={}", key);
         self.tx.send_all_msg(Message::Lock {
             key: key.clone(),
         }).await?;
@@ -176,7 +176,7 @@ impl ActiveSessionPipe
         }
 
         // Send a message up to the main server asking for an unlock on the data object
-        debug!("tx unlock key={}", key);
+        trace!("tx unlock key={}", key);
         self.tx.send_all_msg(Message::Unlock {
             key: key.clone(),
         }).await?;

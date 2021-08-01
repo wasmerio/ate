@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-use log::{error, info, debug};
+use tracing::{error, info, debug};
 use std::sync::Arc;
 
 use fxhash::FxHashSet;

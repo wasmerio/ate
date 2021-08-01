@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use log::{info, warn, debug};
+use tracing::{info, warn, debug, error, trace};
 
 use crate::error::*;
 use serde::{Serialize, Deserialize};
@@ -35,7 +35,7 @@ struct ReceiverHello
 pub(super) async fn mesh_hello_exchange_sender(stream_rx: &mut StreamRx, stream_tx: &mut StreamTx, hello_path: String, domain: String, key_size: Option<KeySize>) -> Result<HelloMetadata, CommsError>
 {
     // Send over the hello message and wait for a response
-    debug!("client sending hello");
+    trace!("client sending hello");
     let hello_client = SenderHello {
         path: hello_path.clone(),
         domain,
@@ -46,15 +46,15 @@ pub(super) async fn mesh_hello_exchange_sender(stream_rx: &mut StreamRx, stream_
 
     // Read the hello message from the other side
     let hello_server_bytes = stream_rx.read_16bit().await?;
-    debug!("client received hello from server");
+    trace!("client received hello from server");
     let hello_server: ReceiverHello = serde_json::from_slice(&hello_server_bytes[..])?;
 
     // Upgrade the key_size if the server is bigger
-    debug!("client encryption={}", match &hello_server.encryption {
+    trace!("client encryption={}", match &hello_server.encryption {
         Some(a) => a.as_str(),
         None => "none"
     });
-    debug!("client wire_format={}", hello_server.wire_format);
+    trace!("client wire_format={}", hello_server.wire_format);
     
     Ok(HelloMetadata {
         path: hello_path,
@@ -68,14 +68,14 @@ pub(super) async fn mesh_hello_exchange_receiver(stream_rx: &mut StreamRx, strea
 {
     // Read the hello message from the other side
     let hello_client_bytes = stream_rx.read_16bit().await?;
-    debug!("server received hello from client");
+    trace!("server received hello from client");
     let hello_client: SenderHello = serde_json::from_slice(&hello_client_bytes[..])?;
     
     // Upgrade the key_size if the client is bigger
     let encryption = mesh_hello_upgrade_key(key_size, hello_client.key_size);
     
     // Send over the hello message and wait for a response
-    debug!("server sending hello (wire_format={})", wire_format);
+    trace!("server sending hello (wire_format={})", wire_format);
     let hello_server = ReceiverHello {
         encryption,
         wire_format,
@@ -102,25 +102,25 @@ fn mesh_hello_upgrade_key(key1: Option<KeySize>, key2: Option<KeySize>) -> Optio
     let key1 = match key1 {
         Some(a) => a,
         None => {
-            debug!("upgrading to {}bit shared secret", key2.unwrap());
+            trace!("upgrading to {}bit shared secret", key2.unwrap());
             return key2;
         }
     };
     let key2 = match key2 {
         Some(a) => a,
         None => {
-            debug!("upgrading to {}bit shared secret", key1);
+            trace!("upgrading to {}bit shared secret", key1);
             return Some(key1);
         }
     };
 
     // Upgrade the key_size if the client is bigger
     if key2 > key1 {
-        debug!("upgrading to {}bit shared secret", key2);
+        trace!("upgrading to {}bit shared secret", key2);
         return Some(key2);
     }
     if key1 > key2 {
-        debug!("upgrading to {}bit shared secret", key2);
+        trace!("upgrading to {}bit shared secret", key2);
         return Some(key1);
     }
 

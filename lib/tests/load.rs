@@ -1,5 +1,5 @@
 #![cfg(any(feature = "enable_server", feature = "enable_client" ))]
-use log::{info};
+use tracing::{info};
 use serde::{Serialize, Deserialize};
 use ate::prelude::*;
 

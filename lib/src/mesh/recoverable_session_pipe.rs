@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use log::{warn, debug, info};
+use tracing::{info, warn, debug, error, trace};
 use parking_lot::Mutex as StdMutex;
 use std::{sync::Arc, sync::Weak};
 use tokio::sync::mpsc;
@@ -341,7 +341,7 @@ for RecoverableSessionPipe
 
     async fn feed(&self, mut trans: Transaction) -> Result<(), CommitError>
     {
-        debug!("feed trans(cnt={})", trans.events.len());
+        trace!("feed trans(cnt={})", trans.events.len());
         {
             let mut lock = self.active.write().await;
             if let Some(pipe) = lock.as_mut() {

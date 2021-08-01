@@ -1,5 +1,5 @@
-#![allow(unused_imports, dead_code)]
-use log::{info, error, debug};
+#[allow(unused_imports)]
+use tracing::{info, debug, warn, error, trace};
 use ate::{compact::CompactMode, prelude::*};
 use std::env;
 use std::io::ErrorKind;

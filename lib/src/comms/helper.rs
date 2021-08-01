@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use log::{info, warn, debug};
+use tracing::{info, warn, debug, error, trace};
 use std::sync::Arc;
 use serde::{Serialize, de::DeserializeOwned};
 #[cfg(feature="enable_tcp")]
@@ -114,6 +114,9 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
                 break;
             }
             Err(CommsError::ValidationError(errs)) => {
+                #[cfg(debug_assertions)]
+                warn!("inbox-debug: {} validation errors", errs.len());
+                #[cfg(not(debug_assertions))]
                 debug!("inbox-debug: {} validation errors", errs.len());
                 continue;
             }

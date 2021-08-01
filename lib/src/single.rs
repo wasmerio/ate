@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use log::{warn, debug, info};
+use tracing::{info, warn, debug, error, trace};
 use tokio::sync::RwLock;
 use tokio::sync::RwLockWriteGuard;
 use parking_lot::RwLock as StdRwLock;

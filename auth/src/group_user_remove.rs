@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-use log::{info, error, debug};
+use tracing::{info, debug, warn, error, trace};
 use std::io::stdout;
 use std::io::Write;
 use std::sync::Arc;
@@ -73,7 +73,7 @@ impl AuthService
 
         {
             let mut group = group.as_mut();
-            
+
             // Get the group role
             let role = {
                 match group.roles.iter_mut().filter(|r| r.purpose == request_purpose).next() {

@@ -1,6 +1,6 @@
 
 #[allow(unused_imports)]
-use log::{error, info, debug};
+use tracing::{error, info, debug};
 use serde::{Serialize, de::DeserializeOwned};
 use std::marker::PhantomData;
 use tokio::sync::mpsc;

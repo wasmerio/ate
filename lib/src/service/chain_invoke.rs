@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use log::{info, error, warn, debug};
+use tracing::{info, error, warn, debug};
 use serde::{Serialize, de::DeserializeOwned};
 use std::{time::Duration};
 use tokio::select;
@@ -17,17 +17,17 @@ use super::*;
 impl Chain
 {
     pub async fn invoke<REQ, RES, ERR>(self: Arc<Self>, request: REQ) -> Result<RES, InvokeError<ERR>>
-    where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
-          RES: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
-          ERR: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
+    where REQ: Serialize + DeserializeOwned + Sync + Send + ?Sized,
+          RES: Serialize + DeserializeOwned + Sync + Send + ?Sized,
+          ERR: Serialize + DeserializeOwned + Sync + Send + ?Sized,
     {
         self.invoke_ext(None, request, std::time::Duration::from_secs(30)).await
     }
 
     pub async fn invoke_ext<REQ, RES, ERR>(self: Arc<Self>, session: Option<&AteSession>, request: REQ, timeout: Duration) -> Result<RES, InvokeError<ERR>>
-    where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
-          RES: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
-          ERR: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
+    where REQ: Serialize + DeserializeOwned + Sync + Send + ?Sized,
+          RES: Serialize + DeserializeOwned + Sync + Send + ?Sized,
+          ERR: Serialize + DeserializeOwned + Sync + Send + ?Sized,
     {
         // If no session was provided then use the empty one
         let session_store;
@@ -118,9 +118,9 @@ impl Chain
 
     #[allow(dead_code)]
     pub async fn add_service<REQ, RES, ERR>(self: &Arc<Self>, session: AteSession, handler: ServiceInstance<REQ, RES, ERR>)
-    where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized + 'static,
-          RES: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized + 'static,
-          ERR: std::fmt::Debug + Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized + 'static,
+    where REQ: Serialize + DeserializeOwned + Sync + Send + ?Sized + 'static,
+          RES: Serialize + DeserializeOwned + Sync + Send + ?Sized + 'static,
+          ERR: std::fmt::Debug + Serialize + DeserializeOwned + Sync + Send + ?Sized + 'static,
     {
         let relay_repository = Arc::new(Registry::new(&self.cfg_ate).await);
 

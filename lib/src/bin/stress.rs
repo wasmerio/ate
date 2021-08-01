@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-use log::{info};
+use tracing::{info};
 use serde::{Serialize, Deserialize};
 use ate::prelude::*;
 

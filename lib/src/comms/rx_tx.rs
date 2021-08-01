@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use log::{info, warn, debug, error};
+use tracing::{info, debug, warn, error, trace};
 use rand::seq::SliceRandom;
 use fxhash::FxHashMap;
 use std::sync::Arc;
@@ -115,7 +115,7 @@ for Tx
     fn drop(&mut self)
     {
         #[cfg(feature = "enable_super_verbose")]
-        debug!("drop(node-tx)");
+        trace!("drop(node-tx)");
     }
 }
 

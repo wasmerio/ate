@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-use log::{warn, debug};
+use tracing::{warn, debug};
 use fxhash::FxHashSet;
 use async_trait::async_trait;
 
@@ -224,7 +224,6 @@ where D: Serialize
     }
 
     pub fn take(self) -> D
-    where D: Clone
     {
         self.inner.row.data
     }

@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use log::{info, error, debug};
+use tracing::{info, debug, warn, error, trace};
 
 use crate::error::*;
 
@@ -160,7 +160,7 @@ for Chain
 {
     fn drop(&mut self)
     {
-        debug!("drop {}", self.key.to_string());
+        trace!("drop {}", self.key.to_string());
         let _ = self.exit.send(());
     }
 }

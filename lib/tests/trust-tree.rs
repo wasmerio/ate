@@ -1,6 +1,6 @@
 #![cfg(any(feature = "enable_full"))]
 #![allow(unused_imports)]
-use log::{error, info, warn, debug};
+use tracing::{error, info, warn, debug};
 use serde::{Serialize, Deserialize};
 use ate::prelude::*;
 use rust_decimal::prelude::*;
@@ -33,7 +33,7 @@ fn test_trust_tree_persistent() -> Result<(), AteError>
 
     rt.block_on(async
     {
-        debug!("generating crypto keys");
+        info!("generating crypto keys");
         let write_key = PrivateSignKey::generate(KeySize::Bit192);
         let write_key2 = PrivateSignKey::generate(KeySize::Bit256);
         let read_key = EncryptKey::generate(KeySize::Bit256);
@@ -46,14 +46,14 @@ fn test_trust_tree_persistent() -> Result<(), AteError>
 
         let key1;
         {
-            debug!("building the session");
+            info!("building the session");
             let mut session = AteSession::new(&conf);    
             session.user.properties.push(AteSessionProperty::WriteKey(write_key.clone()));
             session.user.properties.push(AteSessionProperty::WriteKey(write_key2.clone()));
             session.user.properties.push(AteSessionProperty::ReadKey(read_key.clone()));
             session.user.properties.push(AteSessionProperty::Identity("author@here.com".to_string()));
 
-            debug!("creating the chain-of-trust");
+            info!("creating the chain-of-trust");
             let builder = ChainBuilder::new(&conf)
                 .await
                 .add_root_public_key(&root_public_key)
@@ -61,7 +61,7 @@ fn test_trust_tree_persistent() -> Result<(), AteError>
                 .build();
             let chain = builder.open_local(&ChainKey::from("trust")).await?;
 
-            debug!("add the objects to the DIO");
+            info!("add the objects to the DIO");
             let dio = chain.dio_mut(&session).await;
             let mut garage = dio.store(Garage::default())?;
             garage.auth_mut().read = ReadOption::from_key(&read_key);
@@ -83,14 +83,14 @@ fn test_trust_tree_persistent() -> Result<(), AteError>
         }
 
         {
-            debug!("building the session");
+            info!("building the session");
             let mut session = AteSession::new(&conf);    
             session.user.properties.push(AteSessionProperty::WriteKey(write_key2.clone()));
             session.user.properties.push(AteSessionProperty::ReadKey(read_key.clone()));
             session.user.properties.push(AteSessionProperty::Identity("author@here.com".to_string()));
 
             let chain = {
-                debug!("loading the chain-of-trust again");
+                info!("loading the chain-of-trust again");
                 let mut conf = ConfAte::default();
                 conf.log_path = Some("/tmp/ate".to_string());
                 conf.log_format.meta = SerializationFormat::Json;
@@ -128,7 +128,7 @@ fn test_trust_tree_memory() -> Result<(), AteError>
 
     rt.block_on(TaskEngine::run_until(async
     {
-        debug!("generating crypto keys");
+        info!("generating crypto keys");
         let write_key = PrivateSignKey::generate(KeySize::Bit192);
         let write_key2 = PrivateSignKey::generate(KeySize::Bit256);
         let read_key = EncryptKey::generate(KeySize::Bit256);
@@ -140,14 +140,14 @@ fn test_trust_tree_memory() -> Result<(), AteError>
 
         let key1;
         {
-            debug!("building the session");
+            info!("building the session");
             let mut session = AteSession::new(&conf);    
             session.user.properties.push(AteSessionProperty::WriteKey(write_key.clone()));
             session.user.properties.push(AteSessionProperty::WriteKey(write_key2.clone()));
             session.user.properties.push(AteSessionProperty::ReadKey(read_key.clone()));
             session.user.properties.push(AteSessionProperty::Identity("author@here.com".to_string()));
 
-            debug!("creating the chain-of-trust");
+            info!("creating the chain-of-trust");
             let builder = ChainBuilder::new(&conf)
                 .await
                 .add_root_public_key(&root_public_key)
@@ -155,7 +155,7 @@ fn test_trust_tree_memory() -> Result<(), AteError>
                 .build();
             let chain = builder.open_local(&ChainKey::from("trust")).await?;
 
-            debug!("add the objects to the DIO");
+            info!("add the objects to the DIO");
             let dio = chain.dio_mut(&session).await;
             let mut garage = dio.store(Garage::default())?;
             garage.auth_mut().read = ReadOption::from_key(&read_key);
@@ -175,7 +175,7 @@ fn test_trust_tree_memory() -> Result<(), AteError>
 
             key1 = garage.key().clone();
 
-            debug!("building the session");
+            info!("building the session");
             let mut session = AteSession::new(&conf);    
             session.user.properties.push(AteSessionProperty::WriteKey(write_key2.clone()));
             session.user.properties.push(AteSessionProperty::ReadKey(read_key.clone()));

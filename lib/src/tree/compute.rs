@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use log::{error, info, warn, debug};
+use tracing::{error, info, warn, debug};
 
 use crate::error::*;
 use crate::meta::*;
@@ -31,7 +31,7 @@ impl TreeAuthorityPlugin
             }
         };
         #[cfg(feature = "enable_super_verbose")]
-        debug!("compute_auth(): key={}", key);
+        trace!("compute_auth(): key={}", key);
 
         // Get the authorization of this node itself (if its post phase)
         let mut auth = match phase {
@@ -56,7 +56,7 @@ impl TreeAuthorityPlugin
             None => (ReadOption::Inherit, WriteOption::Inherit),
         };
         #[cfg(feature = "enable_super_verbose")]
-        debug!("compute_auth(): read={}, write={}", read, write);
+        trace!("compute_auth(): read={}, write={}", read, write);
 
         // Resolve any inheritance through recursive queries
         let mut parent = meta.get_parent();
@@ -69,7 +69,7 @@ impl TreeAuthorityPlugin
                     None => unreachable!(),
                 };
                 #[cfg(feature = "enable_super_verbose")]
-                debug!("compute_auth(): parent={}", parent);
+                trace!("compute_auth(): parent={}", parent);
 
                 // Get the authorization for this parent (if there is one)
                 let mut parent_auth = trans_meta.auth.get(&parent);
@@ -80,7 +80,7 @@ impl TreeAuthorityPlugin
                     Some(a) => a,
                     None => {
                         #[cfg(feature = "enable_super_verbose")]
-                        debug!("compute_auth(): missing_parent={}", parent);
+                        trace!("compute_auth(): missing_parent={}", parent);
                         return Err(TrustError::MissingParent(parent));
                     }
                 };
@@ -95,7 +95,7 @@ impl TreeAuthorityPlugin
                 }
 
                 #[cfg(feature = "enable_super_verbose")]
-                debug!("compute_auth(): read={}, write={}", read, write);
+                trace!("compute_auth(): read={}, write={}", read, write);
             }
 
             // Walk up the tree until we have a resolved inheritance or there are no more parents
@@ -124,11 +124,11 @@ impl TreeAuthorityPlugin
         }
         if write == WriteOption::Inherit {
             #[cfg(feature = "enable_super_verbose")]
-            debug!("compute_auth(): using_root_read={}", self.root);
+            trace!("compute_auth(): using_root_read={}", self.root);
             write = self.root.clone();
         }
         #[cfg(feature = "enable_super_verbose")]
-        debug!("compute_auth(): read={}, write={}", read, write);
+        trace!("compute_auth(): read={}, write={}", read, write);
 
         let auth = MetaAuthorization {
             read,

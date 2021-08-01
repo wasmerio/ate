@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-use log::{error, info, debug};
+use tracing::{error, info, debug};
 use std::sync::Arc;
 
 use serde::{Serialize, Deserialize};
@@ -72,7 +72,7 @@ async fn test_mesh()
 
         // Wait for all the servers to start
         for (addr, join) in mesh_root_joins {
-            debug!("creating server on {:?}", addr);
+            info!("creating server on {:?}", addr);
             let join = join.await;
             mesh_roots.push(join);
         }
@@ -80,12 +80,12 @@ async fn test_mesh()
         cfg_mesh
     };
 
-    debug!("create the mesh and connect to it with client 1");
+    info!("create the mesh and connect to it with client 1");
     let client_a = create_temporal_client(&cfg_ate, &cfg_mesh);
-    debug!("temporal client is ready");
+    info!("temporal client is ready");
 
     let chain_a = Arc::clone(&client_a).open(&test_url, &ChainKey::from("test-chain")).await.unwrap();
-    debug!("connected with client 1");
+    info!("connected with client 1");
 
     let mut session_a = AteSession::new(&cfg_ate);
     session_a.add_user_write_key(&root_key);
@@ -101,7 +101,8 @@ async fn test_mesh()
             let dio = chain_a.dio_trans(&session_a, TransactionScope::Full).await;
             dao2 = dio.store(TestData::default()).unwrap();
             dao_key2 = dao2.key().clone();
-            let _ = dio.store(TestData::default()).unwrap();
+            let _ = dio.store(TestData::default()).unwrap();            
+            info!("commit on chain_a with two rows");
             dio.commit().await.unwrap();
 
             bus_b = dao2.inner.bus().await.unwrap();
@@ -119,50 +120,52 @@ async fn test_mesh()
             bus_a = dao2.inner.bus().await.unwrap();
             
             {
-                debug!("start a DIO session for client B");
+                info!("start a DIO session for client B");
                 let dio = chain_b.dio_trans(&session_b, TransactionScope::Full).await;
 
-                debug!("store data object 1");
+                info!("store data object 1");
                 dao_key1 = dio.store(TestData::default()).unwrap().key().clone();
+                info!("commit on chain_b with one rows");
                 dio.commit().await.unwrap();
 
-                debug!("load data object 2");
+                info!("load data object 2");
                 let dao2: DaoMut<TestData> = dio.load(&dao_key2).await.expect("An earlier saved object should have loaded");
                 
-                debug!("add to new sub objects to the vector");
+                info!("add to new sub objects to the vector");
                 dao2.inner.push(&dio, "test_string1".to_string()).unwrap();
                 dio.commit().await.unwrap();
                 dao2.inner.push(&dio, "test_string2".to_string()).unwrap();
+                info!("commit on chain_b with two children");
                 dio.commit().await.unwrap();
             }
         }
 
-        debug!("sync to disk");
+        info!("sync to disk");
         chain_a.sync().await.unwrap();
         
-        debug!("wait for an event on the BUS (local)");
+        info!("wait for an event on the BUS (local)");
         let task_ret = bus_a.recv().await.expect("Should have received the result on the BUS");
         assert_eq!(*task_ret, "test_string1".to_string());
 
-        debug!("wait for an event on the BUS (other)");
+        info!("wait for an event on the BUS (other)");
         let task_ret = bus_b.recv().await.expect("Should have received the result on the BUS");
         assert_eq!(*task_ret, "test_string1".to_string());
 
         {
-            debug!("new DIO session for client A");
+            info!("new DIO session for client A");
             let dio = chain_a.dio_trans(&session_a, TransactionScope::Full).await;
 
-            debug!("processing the next event in the BUS (and lock_for_delete it)");
+            info!("processing the next event in the BUS (and lock_for_delete it)");
             let task_ret = bus_b.process(&dio)
                 .await
                 .expect("Should have received the result on the BUS for the second time");
-            debug!("event received");
+            info!("event received");
             assert_eq!(*task_ret, "test_string2".to_string());
 
-            debug!("loading data object 1");
+            info!("loading data object 1");
             dio.load::<TestData>(&dao_key1).await.expect("The data did not not get replicated to other clients in realtime");
             
-            debug!("committing the DIO");
+            info!("commit on chain_a with one processed event");
             dio.commit().await.unwrap();
         }
     }
@@ -180,16 +183,16 @@ async fn test_mesh()
         cfg_mesh.force_client_only = true;
         let client = create_temporal_client(&cfg_ate, &cfg_mesh);
 
-        debug!("reconnecting the client");
+        info!("reconnecting the client");
         let chain = client.open(&test_url, &ChainKey::from("test-chain")).await.unwrap();
         let session = AteSession::new(&cfg_ate);
         {
-            debug!("loading data object 1");
+            info!("loading data object 1");
             let dio = chain.dio(&session).await;
             dio.load::<TestData>(&dao_key1).await.expect("The data did not survive between new sessions");
         }
     }
 
-    debug!("shutting down");
+    info!("shutting down");
     //std::process::exit(0);
 }
