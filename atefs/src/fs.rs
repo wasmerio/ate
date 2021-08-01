@@ -13,8 +13,7 @@ use parking_lot::Mutex;
 use ::ate::{crypto::DerivedEncryptKey, prelude::TransactionScope};
 use ::ate::dio::Dio;
 use ::ate::dio::Dao;
-use ::ate::dio::DaoObjEthereal;
-use ::ate::dio::DaoObjReal;
+use ::ate::dio::DaoObj;
 use ::ate::error::*;
 use ::ate::chain::*;
 use ::ate::crypto::*;
@@ -50,6 +49,7 @@ pub struct AteFS
 where Self: Send + Sync
 {
     pub chain: Arc<Chain>,
+    pub dio: Arc<Dio>,
     pub no_auth: bool,
     pub scope: TransactionScope,
     pub group: Option<String>,
@@ -134,17 +134,24 @@ pub(crate) fn conv_io<T>(r: std::result::Result<T, tokio::io::Error>) -> std::re
     })
 }
 
-pub(crate) fn conv_commit<T>(r: std::result::Result<T, CommitError>) -> std::result::Result<T, Errno> {
+pub(crate) fn cc<T>(r: std::result::Result<T, CommitError>) -> std::result::Result<T, Errno> {
     conv(match r {
         Ok(a) => Ok(a),
         Err(err) => Err(AteError::CommitError(err)),
     })
 }
 
-pub(crate) fn conv_serialization<T>(r: std::result::Result<T, SerializationError>) -> std::result::Result<T, Errno> {
+pub(crate) fn cs<T>(r: std::result::Result<T, SerializationError>) -> std::result::Result<T, Errno> {
     conv(match r {
         Ok(a) => Ok(a),
         Err(err) => Err(AteError::SerializationError(err)),
+    })
+}
+
+pub(crate) fn cl<T>(r: std::result::Result<T, LoadError>) -> std::result::Result<T, Errno> {
+    conv(match r {
+        Ok(a) => Ok(a),
+        Err(err) => Err(AteError::LoadError(err)),
     })
 }
 
@@ -166,9 +173,11 @@ pub(crate) fn conv<T>(r: std::result::Result<T, AteError>) -> std::result::Resul
 
 impl AteFS
 {
-    pub fn new(chain: Arc<Chain>, group: Option<String>, session: AteSession, scope: TransactionScope, no_auth: bool, impersonate_uid: bool) -> AteFS {
+    pub async fn new(chain: Arc<Chain>, group: Option<String>, session: AteSession, scope: TransactionScope, no_auth: bool, impersonate_uid: bool) -> AteFS {
+        let dio = chain.dio(&session).await;
         AteFS {
             chain,
+            dio,
             no_auth,
             group,
             session,
@@ -234,10 +243,9 @@ impl AteFS
         } 
     }
 
-    pub async fn load<'a>(&'a self, inode: u64) -> Result<(Dao<Inode>, Dio<'a>)> {
-        let mut dio = self.chain.dio_ext(&self.session, self.scope).await;
-        let dao = conv_load(dio.load::<Inode>(&PrimaryKey::from(inode)).await)?;
-        Ok((dao, dio))
+    pub async fn load(&self, inode: u64) -> Result<Dao<Inode>> {
+        let dao = conv_load(self.dio.load::<Inode>(&PrimaryKey::from(inode)).await)?;
+        Ok(dao)
     }
 
     async fn create_open_handle(&self, inode: u64, req: &Request, flags: i32) -> Result<OpenHandle>
@@ -250,8 +258,7 @@ impl AteFS
         }
 
         let key = PrimaryKey::from(inode);
-        let mut dio = self.chain.dio_ext(&self.session, self.scope).await;
-        let data = conv_load(dio.load::<Inode>(&key).await)?;
+        let data = conv_load(self.dio.load::<Inode>(&key).await)?;
         let created = data.when_created();
         let updated = data.when_updated();
         let read_only = flags & libc::O_RDONLY != 0;
@@ -277,15 +284,15 @@ impl AteFS
                 .updated(updated);
             children.push(FileSpec::FixedFile(fixed));
 
-            for child in conv_load(data.iter_ext(&mut dio, data.children, true, true).await)? {
-                let child_spec = Inode::as_file_spec(child.key().as_u64(), child.when_created(), child.when_updated(), child);
+            for child in conv_load(data.children.iter_ext(true, true).await)? {
+                let child_spec = Inode::as_file_spec(child.key().as_u64(), child.when_created(), child.when_updated(), child, self.scope).await;
                 children.push(child_spec);
             }
         }
         
-        let spec = Inode::as_file_spec(key.as_u64(), created, updated, data);
+        let spec = Inode::as_file_spec(key.as_u64(), created, updated, data, self.scope).await;
         if flags & libc::O_TRUNC != 0 {
-            spec.fallocate(&self.chain, &self.session, self.scope, 0).await?;
+            spec.fallocate(0).await?;
             dirty = true;
         }
 
@@ -320,25 +327,32 @@ impl AteFS
 
 impl AteFS
 {
-    async fn mknod_internal<'a>(
-        &'a self,
+    async fn dio_mut(&self) -> Arc<DioMut>
+    {
+        let ret = self.dio.trans(self.scope).await;
+        ret.auto_cancel();
+        ret
+    }
+
+    async fn mknod_internal(
+        &self,
         req: Request,
         parent: u64,
         name: &OsStr,
         mode: u32,
         _rdev: u32,
-    ) -> Result<(Dao<Inode>, Dio<'a>)> {
+    ) -> Result<DaoMut<Inode>> {
         
         let key = PrimaryKey::from(parent);
-        let mut dio = self.chain.dio_ext(&self.session, self.scope).await;
-        let mut data = conv_load(dio.load::<Inode>(&key).await)?;
+        let dio = self.dio_mut().await;
+        let data = conv_load(dio.load::<Inode>(&key).await)?;
 
         if data.spec_type != SpecType::Directory {
             debug!("atefs::create parent={} not-a-directory", parent);
             return Err(libc::ENOTDIR.into());
         }
         
-        if let Some(_) = conv_load(data.iter(&mut dio, data.children).await)?.filter(|c| *c.dentry.name == *name).next() {
+        if let Some(_) = conv_load(data.children.iter().await)?.filter(|c| *c.dentry.name == *name).next() {
             debug!("atefs::create parent={} name={}: already-exists", parent, name.to_str().unwrap());
             return Err(libc::EEXIST.into());
         }
@@ -353,10 +367,9 @@ impl AteFS
             SpecType::RegularFile,
         );
 
-        let mut child = conv_serialization(data.push_make(&mut dio, data.children, child))?;
+        let mut child = cs(data.children.push(&dio, child))?;
         self.update_auth(mode, uid, gid, child.auth_mut())?;
-        let child = conv_serialization(child.commit(&mut dio))?;
-        return Ok((child, dio));
+        return Ok(child);
     }
 
     async fn tick(&self) -> Result<()> {
@@ -390,12 +403,12 @@ impl AteFS
                 .collect::<Vec<_>>()
         };
         for open in open_handles {
-            open.spec.commit(&self.chain, &self.session, self.scope).await?;
+            open.spec.commit().await?;
         }
         Ok(())
     }
 
-    fn update_auth(&self, mode: u32, uid: u32, gid: u32, auth: &mut MetaAuthorization) -> Result<()> {
+    fn update_auth(&self, mode: u32, uid: u32, gid: u32, mut auth: DaoAuthGuard<'_>) -> Result<()> {
         let inner_key = {
             match &auth.read {
                 ReadOption::Inherit => None,
@@ -524,8 +537,7 @@ impl AteFS
         self.tick().await?;
         debug!("atefs::access inode={} mask={:#02x}", inode, mask);
         
-        let (dao, _dio) = self.load(inode).await?;
-
+        let dao = self.load(inode).await?;
         if (dao.dentry.mode & mask) != 0
         {
             debug!("atefs::access mode={:#02x} - ok", dao.dentry.mode);
@@ -568,11 +580,8 @@ for AteFS
 
     async fn init(&self, req: Request) -> Result<()>
     {
-        // Attempt to load the root node, if it does not exist then create it
-        let mut dio = self.chain.dio_ext(&self.session, self.scope).await;
-        dio.auto_cancel();
-
-        if let Err(LoadError::NotFound(_)) = dio.load::<Inode>(&PrimaryKey::from(1)).await {
+        let dio = self.dio_mut().await;
+        if let Err(LoadError::NotFound(_)) = self.dio.load::<Inode>(&PrimaryKey::from(1)).await {
             info!("atefs::creating-root-node");
             
             let mode = 0o755;
@@ -585,12 +594,10 @@ for AteFS
                 gid,
                 SpecType::Directory
             );
-            match dio.make_ext(root, self.session.log_format, Some(PrimaryKey::from(1))) {
-                Ok(mut root) =>
-                {
-                    root.auto_cancel();
+            match dio.store_with_key(root, PrimaryKey::from(1))
+            {
+                Ok(mut root) => {
                     self.update_auth(mode, uid, gid, root.auth_mut())?;
-                    conv_serialization(root.commit(&mut dio))?;
                 },
                 Err(err) => {
                     error!("atefs::error {}", err);
@@ -602,7 +609,7 @@ for AteFS
         // All good
         self.tick().await?;
         self.commit().await?;
-        conv_commit(dio.commit().await)?;
+        cc(dio.commit().await)?;
 
         // Disable any more root nodes from being created (only the single root node is allowed)
         self.chain.single().await.disable_new_roots();
@@ -636,8 +643,8 @@ for AteFS
             }
         }
 
-        let (dao, _dio) = self.load(inode).await?;
-        let spec = Inode::as_file_spec(inode, dao.when_created(), dao.when_updated(), dao);
+        let dao = self.load(inode).await?;
+        let spec = Inode::as_file_spec(inode, dao.when_created(), dao.when_updated(), dao, self.scope).await;
         Ok(ReplyAttr {
             ttl: FUSE_TTL,
             attr: match self.impersonate_uid {
@@ -658,16 +665,14 @@ for AteFS
         debug!("atefs::setattr inode={}", inode);
 
         let key = PrimaryKey::from(inode);
-        let mut dio = self.chain.dio_ext(&self.session, self.scope).await;
-        let mut dao = conv_load(dio.load::<Inode>(&key).await)?;
-
-        dio.auto_cancel();
-        dao.auto_cancel();
-
+        let dio = self.dio_mut().await;
+        let mut dao = conv_load(dio.load::<Inode>(&key).await)?;            
+        
         let mut changed = false;
         if let Some(uid) = set_attr.uid {
             let new_uid = self.translate_uid(uid, &req);
             if dao.dentry.uid != new_uid {
+                let mut dao = dao.as_mut();
                 dao.dentry.uid = new_uid;
                 changed = true;
             }
@@ -675,25 +680,26 @@ for AteFS
         if let Some(gid) = set_attr.gid {
             let new_gid = self.translate_gid(gid, &req);
             if dao.dentry.gid != new_gid {
+                let mut dao = dao.as_mut();
                 dao.dentry.gid = new_gid;
                 changed = true;
             }
         }
         if let Some(mode) = set_attr.mode {
             if dao.dentry.mode != mode {
+                let mut dao = dao.as_mut();
                 dao.dentry.mode = mode;
                 dao.dentry.uid = self.translate_uid(req.uid, &req);
                 changed = true;
             }
         }
+
         if changed == true {
             self.update_auth(dao.dentry.mode, dao.dentry.uid, dao.dentry.gid, dao.auth_mut())?;
+            cc(dio.commit().await)?;
         }
 
-        conv_serialization(dao.commit(&mut dio))?;
-        conv_commit(dio.commit().await)?;
-
-        let spec = Inode::as_file_spec(inode, dao.when_created(), dao.when_updated(), dao);
+        let spec = Inode::as_file_spec(inode, dao.when_created(), dao.when_updated(), dao.into(), self.scope).await;
         Ok(ReplyAttr {
             ttl: FUSE_TTL,
             attr: self.spec_as_attr_reverse(&spec, &req),
@@ -723,7 +729,7 @@ for AteFS
 
         let open = self.open_handles.lock().remove(&fh);
         if let Some(open) = open {
-            open.spec.commit(&self.chain, &self.session, self.scope).await?
+            open.spec.commit().await?
         }
         Ok(())
     }
@@ -833,7 +839,7 @@ for AteFS
             }
         };
         if let Some(open) = open {
-            open.spec.commit(&self.chain, &self.session, self.scope).await?
+            open.spec.commit().await?
         }
 
         conv_io(self.chain.flush().await)?;
@@ -855,10 +861,7 @@ for AteFS
         self.tick().await?;
         debug!("atefs::mkdir parent={}", parent);
 
-        let mut dio = self.chain.dio_ext(&self.session, self.scope).await;
-        dio.auto_cancel();
-
-        let mut data = conv_load(dio.load::<Inode>(&PrimaryKey::from(parent)).await)?;
+        let data = conv_load(self.dio.load::<Inode>(&PrimaryKey::from(parent)).await)?;
         
         if data.spec_type != SpecType::Directory {
             return Err(libc::ENOTDIR.into());
@@ -874,13 +877,12 @@ for AteFS
             SpecType::Directory,
         );
 
-        let mut child = conv_serialization(data.push_make(&mut dio, data.children, child))?;
-        child.auto_cancel();
+        let dio = self.dio_mut().await;
+        let mut child = cs(data.children.push(&dio, child))?;
         self.update_auth(mode, uid, gid, child.auth_mut())?;
-        let child = conv_serialization(child.commit(&mut dio))?;
+        cc(dio.commit().await)?;
 
-        let child_spec = Inode::as_file_spec(child.key().as_u64(), child.when_created(), child.when_updated(), child);
-        conv_commit(dio.commit().await)?;
+        let child_spec = Inode::as_file_spec(child.key().as_u64(), child.when_created(), child.when_updated(), child.into(), self.scope).await;
 
         Ok(ReplyEntry {
             ttl: FUSE_TTL,
@@ -903,10 +905,9 @@ for AteFS
         if let Some(entry) = open.children_plus.iter().filter(|c| *c.name == *name).next() {
             debug!("atefs::rmdir parent={} name={}: found", parent, name.to_str().unwrap());
 
-            let mut dio = self.chain.dio_ext(&self.session, self.scope).await;
-            dio.auto_cancel();
-            conv_load(dio.delete::<Inode>(&PrimaryKey::from(entry.inode)).await)?;
-            conv_commit(dio.commit().await)?;
+            let dio = self.dio.trans(self.scope).await;
+            conv_load(dio.delete(&PrimaryKey::from(entry.inode)).await)?;
+            cc(dio.commit().await)?;
             return Ok(())
         }
 
@@ -932,14 +933,10 @@ for AteFS
         self.tick().await?;
         debug!("atefs::mknod parent={} name={}", parent, name.to_str().unwrap().to_string());
 
-        let (mut dao, mut dio) = self.mknod_internal(req, parent, name, mode, rdev).await?;
-        dio.auto_cancel();
-        dao.auto_cancel();
+        let dao = self.mknod_internal(req, parent, name, mode, rdev).await?;
+        cc(dao.trans().commit().await)?;
 
-        conv_serialization(dao.commit(&mut dio))?;
-        conv_commit(dio.commit().await)?;
-
-        let spec = Inode::as_file_spec(dao.key().as_u64(), dao.when_created(), dao.when_updated(), dao);
+        let spec = Inode::as_file_spec(dao.key().as_u64(), dao.when_created(), dao.when_updated(), dao.into(), self.scope).await;
         Ok(ReplyEntry {
             ttl: FUSE_TTL,
             attr: self.spec_as_attr_reverse(&spec, &req),
@@ -958,13 +955,10 @@ for AteFS
         self.tick().await?;
         debug!("atefs::create parent={} name={}", parent, name.to_str().unwrap().to_string());
 
-        let (mut data, mut dio) = self.mknod_internal(req, parent, name, mode, 0).await?;
-        dio.auto_cancel();
-        data.auto_cancel();
+        let data = self.mknod_internal(req, parent, name, mode, 0).await?;
+        cc(data.trans().commit().await)?;
 
-        conv_serialization(data.commit(&mut dio))?;
-        let spec = Inode::as_file_spec(data.key().as_u64(), data.when_created(), data.when_updated(), data);
-
+        let spec = Inode::as_file_spec(data.key().as_u64(), data.when_created(), data.when_updated(), data.into(), self.scope).await;
         let open = OpenHandle {
             inode: spec.ino(),
             read_only: false,
@@ -979,7 +973,6 @@ for AteFS
         let fh = open.fh;
         let attr = open.attr.clone();
 
-        conv_commit(dio.commit().await)?;
         self.open_handles.lock().insert(open.fh, Arc::new(open));
 
         Ok(ReplyCreated {
@@ -996,33 +989,27 @@ for AteFS
         debug!("atefs::unlink parent={} name={}", parent, name.to_str().unwrap().to_string());
 
         let parent_key = PrimaryKey::from(parent);
-        let mut dio = self.chain.dio_ext(&self.session, self.scope).await;
-        dio.auto_cancel();
-
-        let data_parent = conv_load(dio.load::<Inode>(&parent_key).await)?;
+        
+        let data_parent = conv_load(self.dio.load::<Inode>(&parent_key).await)?;
 
         if data_parent.spec_type != SpecType::Directory {
             debug!("atefs::unlink parent={} not-a-directory", parent);
-            
-            dio.cancel();
             return Err(libc::ENOTDIR.into());
         }
         
-        if let Some(data) = conv_load(data_parent.iter(&mut dio, data_parent.children).await)?.filter(|c| *c.dentry.name == *name).next()
+        if let Some(data) = conv_load(data_parent.children.iter().await)?.filter(|c| *c.dentry.name == *name).next()
         {
             if data.spec_type == SpecType::Directory {
                 debug!("atefs::unlink parent={} name={} is-a-directory", parent, name.to_str().unwrap().to_string());
-                
-                dio.cancel();
                 return Err(libc::EISDIR.into());
             }
 
-            conv_serialization(data.delete(&mut dio))?;
-            conv_commit(dio.commit().await)?;
+            let dio = self.dio_mut().await;
+            cl(dio.delete(&data.key()).await)?;
+            cc(dio.commit().await)?;
+
             return Ok(());
         }
-
-        dio.cancel();
         Err(libc::ENOENT.into())
     }
 
@@ -1037,55 +1024,50 @@ for AteFS
         self.tick().await?;
         debug!("atefs::rename name={} new_name={}", name.to_str().unwrap().to_string(), new_name.to_str().unwrap().to_string());
         
-        let mut dio = self.chain.dio_ext(&self.session, self.scope).await;
         let parent_key = PrimaryKey::from(parent);
-        let parent_data = conv_load(dio.load::<Inode>(&parent_key).await)?;
-
+        let parent_data = conv_load(self.dio.load::<Inode>(&parent_key).await)?;
+        
         if parent_data.spec_type != SpecType::Directory {
             debug!("atefs::rename parent={} not-a-directory", parent);
-            dio.cancel();
             return Err(libc::ENOTDIR.into());
         }
         
-        if let Some(mut data) = conv_load(parent_data.iter(&mut dio, parent_data.children).await)?.filter(|c| *c.dentry.name == *name).next()
+        if let Some(data) = conv_load(parent_data.children.iter().await)?.filter(|c| *c.dentry.name == *name).next()
         {
+            let dio = self.dio_mut().await;
+            let mut data = data.as_mut(&dio);
+
             // If the parent has changed then move it
             if parent != new_parent
             {
                 let new_parent_key = PrimaryKey::from(new_parent);
-                let new_parent_data = conv_load(dio.load::<Inode>(&new_parent_key).await)?;
-
+                let new_parent_data = conv_load(self.dio.load::<Inode>(&new_parent_key).await)?;
+                
                 if new_parent_data.spec_type != SpecType::Directory {
                     debug!("atefs::rename new_parent={} not-a-directory", new_parent);
-                    dio.cancel();
                     return Err(libc::ENOTDIR.into());
                 }
 
-                if conv_load(new_parent_data.iter(&mut dio, new_parent_data.children).await)?.filter(|c| *c.dentry.name == *new_name).next().is_some() {
+                if conv_load(new_parent_data.children.iter().await)?.filter(|c| *c.dentry.name == *new_name).next().is_some() {
                     debug!("atefs::rename new_name={} already exists", new_name.to_str().unwrap().to_string());
-                    dio.cancel();
                     return Err(libc::EEXIST.into());
                 }
 
-                data.detach();
-                data.attach(&new_parent_data, new_parent_data.children);
+                cs(data.detach())?;
+                cs(data.attach(&new_parent_data, &new_parent_data.children))?;
             }
             else
             {
-                if conv_load(parent_data.iter(&mut dio, parent_data.children).await)?.filter(|c| *c.dentry.name == *new_name).next().is_some() {
+                if conv_load(parent_data.children.iter().await)?.filter(|c| *c.dentry.name == *new_name).next().is_some() {
                     debug!("atefs::rename new_name={} already exists", new_name.to_str().unwrap().to_string());
-                    dio.cancel();
                     return Err(libc::ENOTDIR.into());
                 }
             }
 
-            data.dentry.name = new_name.to_str().unwrap().to_string();
-            conv_serialization(data.commit(&mut dio))?;
-            conv_commit(dio.commit().await)?;
+            data.as_mut().dentry.name = new_name.to_str().unwrap().to_string();
+            cc(dio.commit().await)?;
             return Ok(());
         }
-
-        dio.cancel();
         Err(libc::ENOENT.into())
     }
 
@@ -1121,7 +1103,7 @@ for AteFS
         
         let open = self.open_handles.lock().remove(&fh);
         if let Some(open) = open {
-            open.spec.commit(&self.chain, &self.session, self.scope).await?
+            open.spec.commit().await?
         }
 
         if flush {
@@ -1151,7 +1133,7 @@ for AteFS
                 },
             }
         };
-        Ok(ReplyData { data: open.spec.read(&self.chain, &self.session, self.scope, offset, size as u64).await?,  })
+        Ok(ReplyData { data: open.spec.read(offset, size as u64).await?,  })
     }
 
     async fn write(
@@ -1181,7 +1163,7 @@ for AteFS
             return Err(libc::EPERM.into());
         }
 
-        let wrote = open.spec.write(&self.chain, &self.session, self.scope, offset, data).await?;
+        let wrote = open.spec.write(offset, data).await?;
         if open.dirty.read() == false {
             *open.dirty.lock_write() = true;
         }
@@ -1217,7 +1199,7 @@ for AteFS
                     return Err(libc::EPERM.into());
                 }
                 
-                open.spec.fallocate(&self.chain, &self.session, self.scope, offset + length).await?;
+                open.spec.fallocate(offset + length).await?;
                 if open.dirty.read() == false {
                     *open.dirty.lock_write() = true;
                 }
@@ -1225,9 +1207,11 @@ for AteFS
             }
         }
 
-        let (mut dao, mut dio) = self.load(inode).await?;
-        dao.size = offset + length;
-        conv_serialization(dao.commit(&mut dio))?;
+        let dio = self.dio_mut().await;
+        let mut dao = self.load(inode).await?.as_mut(&dio);
+        dao.as_mut().size = offset + length;
+        cc(dio.commit().await)?;
+
         return Ok(());
     }
 
@@ -1254,7 +1238,7 @@ for AteFS
             }
             let size = match size {
                 Some(a) => a,
-                None => self.load(inode).await?.0.size
+                None => self.load(inode).await?.size
             };
             offset + size
         } else {
@@ -1275,15 +1259,15 @@ for AteFS
 
         let link = link.to_str().unwrap().to_string();
         let spec = {
-            let (mut dao, mut dio) = self.mknod_internal(req, parent, name, 0o755, 0).await?;
-            dio.auto_cancel();
-            dao.auto_cancel();
+            let mut dao = self.mknod_internal(req, parent, name, 0o755, 0).await?;
+            {
+                let mut dao = dao.as_mut();
+                dao.spec_type = SpecType::SymLink;
+                dao.link = Some(link);
+            }
+            cc(dao.trans().commit().await)?;
 
-            dao.spec_type = SpecType::SymLink;
-            dao.link = Some(link);
-            conv_serialization(dao.commit(&mut dio))?;
-            conv_commit(dio.commit().await)?;
-            Inode::as_file_spec(dao.key().as_u64(), dao.when_created(), dao.when_updated(), dao)
+            Inode::as_file_spec(dao.key().as_u64(), dao.when_created(), dao.when_updated(), dao.into(), self.scope).await
         };
         
         Ok(ReplyEntry {
@@ -1303,7 +1287,7 @@ for AteFS
         debug!("atefs::readlink inode={}", inode);
 
         let dao = self.load(inode).await?;
-        match &dao.0.link {
+        match &dao.link {
             Some(l) => {
                 Ok(ReplyData {
                     data: bytes::Bytes::from(l.clone().into_bytes()),

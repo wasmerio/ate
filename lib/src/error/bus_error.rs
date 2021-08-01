@@ -14,6 +14,8 @@ pub enum BusError
     SerializationError(SerializationError),
     LockError(LockError),
     TransformError(TransformError),
+    SaveParentFirst,
+    WeakDio,
 }
 
 impl From<LoadError>
@@ -69,6 +71,12 @@ for BusError {
             },
             BusError::LockError(err) => {
                 write!(f, "Failed to receive event from BUS due to an error locking the data object - {}", err)
+            },
+            BusError::SaveParentFirst => {
+                write!(f, "You must save the parent object before attempting to initiate a BUS from this vector")
+            },
+            BusError::WeakDio => {
+                write!(f, "The DIO that created this object has gone out of scope")
             },
         }
     }

@@ -73,7 +73,7 @@ impl AuthService
         // Compute which chain the user should exist within
         let user_chain_key = chain_key_4hex(&request.email, Some("redo"));
         let chain = context.repository.open(&self.auth_url, &user_chain_key).await?;
-        let mut dio = chain.dio(&super_session).await;
+        let dio = chain.dio_full(&super_session).await;
 
         // Try and find a free UID
         let mut uid = None;
@@ -117,7 +117,7 @@ impl AuthService
     
         // Create the user and save it
         let user = User {
-            person: DaoRef::default(),
+            person: DaoRef::new(),
             email: request.email.clone(),
             uid,
             role: UserRole::Human,
@@ -125,7 +125,7 @@ impl AuthService
             last_login: None,
             access: access,
             foreign: DaoForeign::default(),
-            sudo: DaoRef::default(),
+            sudo: DaoRef::new(),
             nominal_read: read_key.hash(),
             nominal_public_read: private_read_key.as_public_key(),
             nominal_write: write_key.as_public_key(),
@@ -133,7 +133,7 @@ impl AuthService
             sudo_public_read: sudo_private_read_key.as_public_key(),
             sudo_write: sudo_write_key.as_public_key()
         };
-        let mut user = Dao::make(user_key.clone(), chain.default_format(), user);
+        let mut user = dio.store_with_key(user, user_key.clone())?;
         
         // Set the authorizations amd commit the user to the tree
         user.auth_mut().read = ReadOption::from_key(&super_key);
@@ -156,12 +156,10 @@ impl AuthService
             access: sudo_access,
             qr_code: qr_code.clone(),
         };
-        let mut sudo = dio.make(sudo)?;
+        let mut sudo = user.as_mut().sudo.store(&dio, sudo)?;
         sudo.auth_mut().read = ReadOption::from_key(&super_super_key);
         sudo.auth_mut().write = WriteOption::Any(vec![master_write_key.hash(), sudo_write_key.hash()]);
-        let sudo = sudo.commit(&mut dio)?;
-        user.sudo.set_id(sudo.key().clone());
-
+        
         // Create the advert object and save it using public read
         let advert_key_entropy = format!("advert@{}", request.email.clone()).to_string();
         let advert_key = PrimaryKey::from(advert_key_entropy);
@@ -173,13 +171,11 @@ impl AuthService
             sudo_encrypt: sudo_private_read_key.as_public_key(),
             sudo_auth: sudo_write_key.as_public_key()
         };
-        let mut advert = Dao::make(advert_key, chain.default_format(), advert);
+        let mut advert = dio.store_with_key(advert, advert_key.clone())?;
         advert.auth_mut().read = ReadOption::Everyone(None);
         advert.auth_mut().write = WriteOption::Inherit;
         
         // Save the data
-        let user = user.commit(&mut dio)?;
-        advert.commit(&mut dio)?;
         dio.commit().await?;
 
         // Create the authorizations and return them

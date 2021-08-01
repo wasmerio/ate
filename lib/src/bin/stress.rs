@@ -47,7 +47,7 @@ async fn main() -> Result<(), AteError> {
         // Do a whole let of work
         info!("stress::running");
         for _ in 0..200 {
-            let mut dio = chain.dio(&session).await;
+            let dio = chain.dio_mut(&session).await;
             for _ in 0..500 {
                 dio.store(test_obj.clone())?;
             }

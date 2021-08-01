@@ -57,7 +57,7 @@ impl AuthService
         // Compute which chain the group should exist within
         let group_chain_key = chain_key_4hex(&request.group, Some("redo"));
         let chain = context.repository.open(&self.auth_url, &group_chain_key).await?;
-        let mut dio = chain.dio(&self.master_session).await;
+        let dio = chain.dio_mut(&self.master_session).await;
 
         // Try and find a free GID
         let mut gid = None;
@@ -111,7 +111,7 @@ impl AuthService
         super_session.user.add_private_read_key(&delegate_private_read);
         super_session.user.add_write_key(&owner_write);
         super_session.user.add_write_key(&delegate_write);
-        let mut dio = chain.dio(&super_session).await;
+        let dio = chain.dio_full(&super_session).await;
         
         // Create the group and save it
         let group = Group {
@@ -120,85 +120,88 @@ impl AuthService
             gid,
             roles: Vec::new(),
         };
-        let mut group = Dao::make(group_key.clone(), chain.default_format(), group);
+        let mut group = dio.store_with_key(group, group_key.clone())?;
 
         // Create the session that we will return to the call
         let mut session = AteSession::default();
 
         // Add the other roles
-        for purpose in vec![
-            AteRolePurpose::Owner,
-            AteRolePurpose::Delegate,
-            AteRolePurpose::Contributor,
-            AteRolePurpose::Observer
-        ].iter()
         {
-            // Generate the keys
-            let role_read;
-            let role_private_read;
-            let role_write;
-            match purpose {
-                AteRolePurpose::Owner => {
-                    role_read = owner_read.clone();
-                    role_private_read = owner_private_read.clone();
-                    role_write = owner_write.clone();
-                },
-                AteRolePurpose::Delegate => {
-                    role_read = delegate_read.clone();
-                    role_private_read = delegate_private_read.clone();
-                    role_write = delegate_write.clone();
-                },
-                AteRolePurpose::Contributor => {
-                    role_read = contributor_read.clone();
-                    role_private_read = contributor_private_read.clone();
-                    role_write = contributor_write.clone();
-                },
-                AteRolePurpose::Observer => {
-                    role_read = observer_read.clone();
-                    role_private_read = observer_private_read.clone();
-                    role_write = observer_write.clone();
-                },
-                _ => {
-                    role_read = EncryptKey::generate(key_size);
-                    role_private_read = PrivateEncryptKey::generate(key_size);
-                    role_write = PrivateSignKey::generate(key_size);
+            let mut group_mut = group.as_mut();
+            for purpose in vec![
+                AteRolePurpose::Owner,
+                AteRolePurpose::Delegate,
+                AteRolePurpose::Contributor,
+                AteRolePurpose::Observer
+            ].iter()
+            {
+                // Generate the keys
+                let role_read;
+                let role_private_read;
+                let role_write;
+                match purpose {
+                    AteRolePurpose::Owner => {
+                        role_read = owner_read.clone();
+                        role_private_read = owner_private_read.clone();
+                        role_write = owner_write.clone();
+                    },
+                    AteRolePurpose::Delegate => {
+                        role_read = delegate_read.clone();
+                        role_private_read = delegate_private_read.clone();
+                        role_write = delegate_write.clone();
+                    },
+                    AteRolePurpose::Contributor => {
+                        role_read = contributor_read.clone();
+                        role_private_read = contributor_private_read.clone();
+                        role_write = contributor_write.clone();
+                    },
+                    AteRolePurpose::Observer => {
+                        role_read = observer_read.clone();
+                        role_private_read = observer_private_read.clone();
+                        role_write = observer_write.clone();
+                    },
+                    _ => {
+                        role_read = EncryptKey::generate(key_size);
+                        role_private_read = PrivateEncryptKey::generate(key_size);
+                        role_write = PrivateSignKey::generate(key_size);
+                    }
                 }
+
+                // Create the access object
+                let mut access = MultiEncryptedSecureData::new(&owner_private_read.as_public_key(), "owner".to_string(), Authorization {
+                    read: role_read.clone(),
+                    private_read: role_private_read.clone(),
+                    write: role_write.clone()
+                })?;
+                if let AteRolePurpose::Owner = purpose {
+                    access.add(&request.sudo_read_key, request.identity.clone(), &owner_private_read)?;
+                } else if let AteRolePurpose::Delegate = purpose {
+                    access.add(&request.nominal_read_key, request.identity.clone(), &owner_private_read)?;
+                } else if let AteRolePurpose::Observer = purpose {
+                    access.add(&delegate_private_read.as_public_key(), "delegate".to_string(), &owner_private_read)?;
+                    access.add(&contributor_private_read.as_public_key(), "contributor".to_string(), &owner_private_read)?;
+                } else {
+                    access.add(&delegate_private_read.as_public_key(), "delegate".to_string(), &owner_private_read)?;
+                }
+
+                // Add the rights to the session we will return
+                let role = session.get_or_create_group_role(&request.group, &purpose);
+                role.add_read_key(&role_read.clone());
+                role.add_private_read_key(&role_private_read.clone());
+                role.add_write_key(&role_write.clone());
+
+                // Add the owner role to the group (as its a super_key the authentication server
+                // is required to read the group records and load them, while the authentication
+                // server can run in a distributed mode it is a centralized authority)
+                let role = Role {
+                    purpose: purpose.clone(),
+                    read: role_read.hash(),
+                    private_read: role_private_read.as_public_key(),
+                    write: role_write.as_public_key(),
+                    access,
+                };
+                group_mut.roles.push(role);
             }
-
-            // Create the access object
-            let mut access = MultiEncryptedSecureData::new(&owner_private_read.as_public_key(), "owner".to_string(), Authorization {
-                read: role_read.clone(),
-                private_read: role_private_read.clone(),
-                write: role_write.clone()
-            })?;
-            if let AteRolePurpose::Owner = purpose {
-                access.add(&request.sudo_read_key, request.identity.clone(), &owner_private_read)?;
-            } else if let AteRolePurpose::Delegate = purpose {
-                access.add(&request.nominal_read_key, request.identity.clone(), &owner_private_read)?;
-            } else if let AteRolePurpose::Observer = purpose {
-                access.add(&delegate_private_read.as_public_key(), "delegate".to_string(), &owner_private_read)?;
-                access.add(&contributor_private_read.as_public_key(), "contributor".to_string(), &owner_private_read)?;
-            } else {
-                access.add(&delegate_private_read.as_public_key(), "delegate".to_string(), &owner_private_read)?;
-            }
-
-            // Add the rights to the session we will return
-            let role = session.get_or_create_group_role(&request.group, &purpose);
-            role.add_read_key(&role_read.clone());
-            role.add_private_read_key(&role_private_read.clone());
-            role.add_write_key(&role_write.clone());
-
-            // Add the owner role to the group (as its a super_key the authentication server
-            // is required to read the group records and load them, while the authentication
-            // server can run in a distributed mode it is a centralized authority)
-            let role = Role {
-                purpose: purpose.clone(),
-                read: role_read.hash(),
-                private_read: role_private_read.as_public_key(),
-                write: role_write.as_public_key(),
-                access,
-            };
-            group.roles.push(role);
         }
 
         // Set all the permissions and save the group. While the group is readable by everyone
@@ -208,7 +211,6 @@ impl AuthService
         group.auth_mut().write = WriteOption::Any(vec![master_write_key.hash(), owner_write.hash()]);
 
         // Commit
-        let group = group.commit(&mut dio)?;
         dio.commit().await?;
 
         // Add the group credentials to the response

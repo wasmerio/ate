@@ -44,11 +44,14 @@ pub use crate::conf::ChainBuilder;
 pub use crate::dio::DaoForeign;
 pub use crate::dio::DaoVec;
 pub use crate::dio::DaoRef;
-pub use crate::dio::DaoObjReal;
-pub use crate::dio::DaoObjEthereal;
+pub use crate::dio::DaoObj;
 pub use crate::dio::Dao;
-pub use crate::dio::DaoEthereal;
+pub use crate::dio::DaoMut;
+pub use crate::dio::DaoMutGuard;
+pub use crate::dio::DaoMutGuardOwned;
+pub use crate::dio::DaoAuthGuard;
 pub use crate::dio::Dio;
+pub use crate::dio::DioMut;
 
 pub use crate::spec::SerializationFormat;
 pub use crate::repository::ChainRepository;

@@ -32,13 +32,12 @@ async fn main() -> Result<(), AteError>
     let key =
     {
         // Now create the data using the keys we have
-        let mut dio = chain.dio(&session).await;
+        let dio = chain.dio_mut(&session).await;
         let mut dao = dio.store(TrustedRecord {
             hidden_data: "Secret data".to_string(),
         })?;
         dao.auth_mut().read = ReadOption::from_key(&ek);
         dao.auth_mut().write = WriteOption::Specific(sk.hash());
-        dao.commit(&mut dio)?;
         dio.commit().await?;
         dao.key().clone()
     };
@@ -50,7 +49,7 @@ async fn main() -> Result<(), AteError>
     
     {
         // Only we can read or write this record (and anything attached to it) in the chain-of-trust
-        let mut dio = chain.dio(&session).await;
+        let dio = chain.dio(&session).await;
         let _ = dio.load::<TrustedRecord>(&key).await?;
     }
 

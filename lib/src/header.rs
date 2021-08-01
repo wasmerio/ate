@@ -1,4 +1,6 @@
 use serde::{Serialize, Deserialize};
+use std::cell::RefCell;
+use std::rc::Rc;
 
 #[allow(unused_imports)]
 use fastrand::u64;
@@ -25,7 +27,55 @@ impl Default for PrimaryKey
     }
 }
 
-impl PrimaryKey {
+pub(crate) struct PrimaryKeyScope
+{
+    pop: Option<PrimaryKey>,
+    _negative: Rc<()>,
+}
+
+impl PrimaryKeyScope
+{
+    pub fn new(key: PrimaryKey) -> Self {
+        PrimaryKeyScope {
+            pop: PrimaryKey::current_set(Some(key)),
+            _negative: Rc::new(())
+        }
+    }
+}
+
+impl Drop
+for PrimaryKeyScope
+{
+    fn drop(&mut self) {
+        PrimaryKey::current_set(self.pop.take());
+    }
+}
+
+impl PrimaryKey
+{
+    thread_local! {
+        static CURRENT: RefCell<Option<PrimaryKey>> = RefCell::new(None)
+    }
+
+    pub(crate) fn current_get() -> Option<PrimaryKey>
+    {
+        PrimaryKey::CURRENT.with(|key| {
+            let key = key.borrow();
+            return key.clone()
+        })
+    }
+
+    fn current_set(val: Option<PrimaryKey>) -> Option<PrimaryKey>
+    {
+        PrimaryKey::CURRENT.with(|key| {
+            let mut key = key.borrow_mut();
+            match val {
+                Some(a) => key.replace(a),
+                None => key.take()
+            }
+        })
+    }
+
     #[allow(dead_code)]
     pub fn generate() -> PrimaryKey {
         PrimaryKey {

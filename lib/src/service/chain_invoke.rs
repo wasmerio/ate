@@ -40,51 +40,55 @@ impl Chain
         };
 
         // Build the command object
-        let mut dio = self.dio(session).await;
-        dio.auto_cancel();
-        let mut cmd = dio.make_ext(request, session.log_format, None)?;
-        
-        // Add an encryption key on the command (if the session has one)
-        if let Some(key) = session.read_keys().into_iter().next() {
-            cmd.auth_mut().read = ReadOption::from_key(key);
-        }
+        let dio = self.dio_forget(session).await;
+        let (join_res, join_err) = {
+            dio.auto_cancel();
+            
+            let mut cmd = dio.store(request)?;
+            
+            // Add an encryption key on the command (if the session has one)
+            if let Some(key) = session.read_keys().into_iter().next() {
+                cmd.auth_mut().read = ReadOption::from_key(key);
+            }
 
-        // Add the extra metadata about the type so the other side can find it
-        cmd.add_extra_metadata(CoreMetadata::Type(MetaType {
-            type_name: std::any::type_name::<REQ>().to_string()
-        }));
+            // Add the extra metadata about the type so the other side can find it
+            cmd.add_extra_metadata(CoreMetadata::Type(MetaType {
+                type_name: std::any::type_name::<REQ>().to_string()
+            }))?;
 
-        // Sniff out the response object
-        let cmd = cmd.commit(&mut dio)?;
-        let cmd_id = cmd.key().clone();
+            // Sniff out the response object
+            let cmd_id = cmd.key().clone();
 
-        let response_type_name = std::any::type_name::<RES>().to_string();
-        let error_type_name = std::any::type_name::<ServiceErrorReply<ERR>>().to_string();
+            let response_type_name = std::any::type_name::<RES>().to_string();
+            let error_type_name = std::any::type_name::<ServiceErrorReply<ERR>>().to_string();
 
-        let join_res = sniff_for_command(Arc::downgrade(&self), Box::new(move |h| {
-            if let Some(reply) = h.meta.is_reply_to_what() {
-                if reply == cmd_id {
-                    if let Some(t) = h.meta.get_type_name() {
-                        return t.type_name == response_type_name;
+            let join_res = sniff_for_command(Arc::downgrade(&self), Box::new(move |h| {
+                if let Some(reply) = h.meta.is_reply_to_what() {
+                    if reply == cmd_id {
+                        if let Some(t) = h.meta.get_type_name() {
+                            return t.type_name == response_type_name;
+                        }
                     }
                 }
-            }
-            false
-        }));
-        let join_err = sniff_for_command(Arc::downgrade(&self), Box::new(move |h| {
-            if let Some(reply) = h.meta.is_reply_to_what() {
-                if reply == cmd_id {
-                    if let Some(t) = h.meta.get_type_name() {
-                        return t.type_name == error_type_name;
+                false
+            }));
+            let join_err = sniff_for_command(Arc::downgrade(&self), Box::new(move |h| {
+                if let Some(reply) = h.meta.is_reply_to_what() {
+                    if reply == cmd_id {
+                        if let Some(t) = h.meta.get_type_name() {
+                            return t.type_name == error_type_name;
+                        }
                     }
                 }
-            }
-            false
-        }));
+                false
+            }));
 
-        // Send our command
-        dio.commit().await?;
-        
+            // Send our command
+            dio.commit().await?;
+
+            (join_res, join_err)
+        };
+
         // The caller will wait on the response from the sniff that is looking for a reply object
         let mut timeout = tokio::time::interval(timeout);
         timeout.tick().await;
@@ -94,14 +98,14 @@ impl Chain
                     Some(a) => a,
                     None => { return Err(InvokeError::Aborted); }
                 };
-                Ok(dio.load::<RES>(&key).await?.take())
+                Ok(dio.load_and_take::<RES>(&key).await?)
             },
             key = join_err => {
                 let key = match key {
                     Some(a) => a,
                     None => { return Err(InvokeError::Aborted); }
                 };
-                match dio.load::<ServiceErrorReply<ERR>>(&key).await?.take() {
+                match dio.load_and_take::<ServiceErrorReply<ERR>>(&key).await? {
                     ServiceErrorReply::Reply(e) => Err(InvokeError::Reply(e)),
                     ServiceErrorReply::ServiceError(err) => Err(InvokeError::ServiceError(err))
                 }

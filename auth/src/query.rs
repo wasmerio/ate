@@ -28,7 +28,7 @@ impl AuthService
         // Compute which chain the user should exist within
         let user_chain_key = chain_key_4hex(&request.identity, Some("redo"));
         let chain = context.repository.open(&self.auth_url, &user_chain_key).await?;
-        let mut dio = chain.dio(&self.master_session).await;
+        let dio = chain.dio(&self.master_session).await;
 
         // If it does not exist then fail
         let user_key_entropy = format!("advert@{}", request.identity).to_string();

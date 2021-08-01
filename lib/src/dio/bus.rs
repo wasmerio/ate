@@ -6,33 +6,20 @@ use std::marker::PhantomData;
 use tokio::sync::mpsc;
 use std::sync::Arc;
 
+use super::*;
+use super::dio_mut::*;
+use crate::header::PrimaryKeyScope;
 use crate::{error::*, event::*, meta::MetaCollection};
+use super::dao_mut::*;
 use super::dao::*;
-use crate::dio::*;
 use crate::chain::*;
-use crate::index::*;
 use crate::engine::*;
-use crate::prelude::*;
-
-impl<D> Dao<D>
-where D: Serialize + DeserializeOwned + Clone + Send + Sync,
-{
-    #[allow(dead_code)]
-    pub async fn bus<C>(&self, chain: &Arc<Chain>, vec: DaoVec<C>) -> Bus<C>
-    where C: Serialize + DeserializeOwned + Clone + Send + Sync,
-    {
-        let vec = MetaCollection {
-            parent_id: self.key().clone(),
-            collection_id: vec.vec_id,
-        };
-        Bus::new(chain, vec).await
-    }
-}
+use super::vec::DaoVecState;
 
 #[allow(dead_code)]
 pub struct Bus<D>
-where D: Serialize + DeserializeOwned + Clone + Send + Sync
 {
+    dio: Arc<Dio>,
     chain: Arc<Chain>,
     vec: MetaCollection,
     receiver: mpsc::Receiver<EventData>,
@@ -40,15 +27,14 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync
 }
 
 impl<D> Bus<D>
-where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
-    pub(crate) async fn new(chain: &Arc<Chain>, vec: MetaCollection) -> Bus<D>
+    pub(crate) async fn new(dio: &Arc<Dio>, vec: MetaCollection) -> Bus<D>
     {
         let id = fastrand::u64(..);
         let (tx, rx) = mpsc::channel(100);
         
         {
-            let mut lock = chain.inside_async.write().await;
+            let mut lock = dio.chain().inside_async.write().await;
             let listener = ChainListener {
                 id: id,
                 sender: tx,
@@ -57,53 +43,82 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
         }
 
         Bus {
-            chain: Arc::clone(&chain),
+            dio: Arc::clone(&dio),
+            chain: Arc::clone(dio.chain()),
             vec: vec,
             receiver: rx,
             _marker: PhantomData,
         }
     }
 
-    pub async fn recv(&mut self, session: &'_ AteSession) -> Result<D, BusError> {
-        TaskEngine::run_until(self.__recv(session)).await
+    pub async fn recv(&mut self) -> Result<Dao<D>, BusError>
+    where D: DeserializeOwned
+    {
+        TaskEngine::run_until(self.__recv()).await
     }
 
-    async fn __recv(&mut self, session: &'_ AteSession) -> Result<D, BusError> {
-        let multi = self.chain.multi().await;
-        while let Some(mut evt) = self.receiver.recv().await {
-            match evt.data_bytes {
-                Some(data) => {
-                    let data = multi.data_as_overlay(&mut evt.meta, data, session)?;
-                    return Ok(evt.format.data.deserialize(&data)?)
-                },
-                None => continue,
+    async fn __recv(&mut self) -> Result<Dao<D>, BusError>
+    where D: DeserializeOwned
+    {
+        while let Some(evt) = self.receiver.recv().await {
+            if evt.data_bytes.is_some() {
+                continue;
+            }
+
+            let when = evt.meta.get_timestamp();
+            let when = match when {
+                Some(t) => t.time_since_epoch_ms,
+                None => 0
             };
+
+            let _pop1 = DioScope::new(&self.dio);
+            let _pop2 = evt.meta.get_data_key().as_ref().map(|a| PrimaryKeyScope::new(a.clone()));
+
+            let (row_header, row) = super::row::Row::from_event(&self.dio, &evt, when, when)?;
+            return Ok(Dao::new(&self.dio, row_header, row));
         }
         Err(BusError::ChannelClosed)
     }
 
-    pub async fn process(&mut self, dio: &'_ mut Dio<'_>) -> Result<Dao<D>, BusError> {
-        TaskEngine::run_until(self.__process(dio)).await
+    pub async fn process(&mut self, trans: &Arc<DioMut>) -> Result<DaoMut<D>, BusError>
+    where D: Serialize + DeserializeOwned
+    {
+        let trans = Arc::clone(&trans);
+        TaskEngine::run_until(self.__process(&trans)).await
     }
 
-    async fn __process(&mut self, dio: &'_ mut Dio<'_>) -> Result<Dao<D>, BusError> {
+    async fn __process(&mut self, trans: &Arc<DioMut>) -> Result<DaoMut<D>, BusError>
+    where D: Serialize + DeserializeOwned
+    {
         loop {
-            let mut dao: Dao<D> = match self.receiver.recv().await {
-                Some(evt) => {
-                    let header = evt.as_header()?;
-                    let leaf = EventLeaf {
-                        record: header.raw.event_hash,
-                        created: 0,
-                        updated: 0,
-                    };
-                    dio.load_from_event(evt, header, leaf)?
-                },
-                None => { return Err(BusError::ChannelClosed); }
-            };
-            dao.auto_cancel();
-            if dao.try_lock_then_delete(dio).await? == true {
+            let dao = self.__recv().await?;
+            let mut dao = DaoMut::new(Arc::clone(trans), dao);
+            if dao.try_lock_then_delete().await? == true {
                 return Ok(dao);
             }
         }
+    }
+}
+
+impl<D> DaoVec<D>
+{
+    pub async fn bus(&self) -> Result<Bus<D>, BusError>
+    {
+        let parent_id = match &self.state {
+            DaoVecState::Unsaved => { return Err(BusError::SaveParentFirst); },
+            DaoVecState::Saved(a) => a.clone(),
+        };
+
+        let vec = MetaCollection {
+            parent_id: parent_id,
+            collection_id: self.vec_id,
+        };
+        
+        let dio = match self.dio() {
+            Some(a) => a,
+            None => { return Err(BusError::WeakDio); }
+        };
+
+        Ok(Bus::new(&dio, vec).await)
     }
 }

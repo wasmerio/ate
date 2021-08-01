@@ -7,11 +7,9 @@ use super::fixed::FixedFile;
 use super::symlink::SymLink;
 use fuse3::FileType;
 use bytes::Bytes;
-use ate::prelude::*;
 use fuse3::{Result};
 
 #[enum_dispatch(FileApi)]
-#[derive(Debug)]
 pub enum FileSpec
 {
     //Custom,
@@ -60,13 +58,13 @@ pub trait FileApi
 
     fn updated(&self) -> u64 { 0 }
 
-    async fn fallocate(&self, _chain: &Chain, _session: &AteSession, _scope: TransactionScope, _size: u64) -> Result<()> { Ok(()) }
+    async fn fallocate(&self, _size: u64) -> Result<()> { Ok(()) }
 
-    async fn read(&self, _chain: &Chain, _session: &AteSession, _scope: TransactionScope, _offset: u64, _size: u64) -> Result<Bytes> { Ok(Bytes::from(Vec::new())) }
+    async fn read(&self, _offset: u64, _size: u64) -> Result<Bytes> { Ok(Bytes::from(Vec::new())) }
 
-    async fn write(&self, _chain: &Chain, _session: &AteSession, _scope: TransactionScope, _offset: u64, _data: &[u8]) -> Result<u64> { Ok(0) }
+    async fn write(&self, _offset: u64, _data: &[u8]) -> Result<u64> { Ok(0) }
 
     fn link(&self) -> Option<String> { None }
 
-    async fn commit(&self, _chain: &Chain, _session: &AteSession, _scope: TransactionScope) -> Result<()> { Ok(())}
+    async fn commit(&self) -> Result<()> { Ok(())}
 }

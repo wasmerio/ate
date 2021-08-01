@@ -52,16 +52,16 @@ async fn main() -> Result<(), AteError>
     let (mut bus, key) =
     {
         debug!("writing a record ('table') to the remote chain from client 1");
-        let mut dio = chain_a.dio_ext(&session, TransactionScope::Full).await;
+        let dio = chain_a.dio_trans(&session, TransactionScope::Full).await;
         let dao = dio.store(Table {
-            ball: DaoVec::new(),
+            ball: DaoVec::default(),
         })?;
         dio.commit().await?;
 
         // Now attach a BUS that will simple write to the console
         debug!("opening a communication bus on the record 'table' from client 1");
         (
-            dao.bus(&chain_a, dao.ball).await,
+            dao.ball.bus().await?,
             dao.key().clone(),
         )
     };
@@ -73,28 +73,26 @@ async fn main() -> Result<(), AteError>
         chain_b.sync().await?;
 
         debug!("writing two records ('balls') onto the earlier saved record 'table' from client 2");
-        let mut dio = chain_b.dio_ext(&session, TransactionScope::Full).await;
-        let mut dao = dio.load::<Table>(&key).await?;
-        dao.push_store(&mut dio, dao.ball, BallSound::Ping)?;
-        dao.push_store(&mut dio, dao.ball, BallSound::Ping)?;
-        dao.commit(&mut dio)?;
+        let dio = chain_b.dio_trans(&session, TransactionScope::Full).await;
+        let dao = dio.load::<Table>(&key).await?;
+        dao.ball.push(&dio, BallSound::Ping)?;
+        dao.ball.push(&dio, BallSound::Ping)?;
         dio.commit().await?;
     }
 
     // Process any events that were received on the BUS
     {   
-        let mut dio = chain_a.dio_ext(&session, TransactionScope::Full).await;
+        let dio = chain_a.dio_trans(&session, TransactionScope::Full).await;
 
         // (this is a broadcast event to all current subscribers)
         debug!("waiting for the first record on the BUS of client 1 which we will process as a broadcast");
-        let ret = bus.recv(&session).await?;
+        let ret = bus.recv().await?;
         println!("{:?}", ret);
 
         // (this is an exactly once queue)
         debug!("waiting for the second record on the BUS of client 1 which we will process as an (exactly-once) event");
-        let mut ret = bus.process(&mut dio).await?;
+        let ret = bus.process(&dio).await?;
         println!("{:?}", ret);
-        ret.commit(&mut dio)?;
         dio.commit().await?;
     }
 

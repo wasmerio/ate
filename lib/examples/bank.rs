@@ -1,5 +1,6 @@
 #[allow(unused_imports)]
 use serde::{Serialize, Deserialize};
+use std::sync::Arc;
 use ate::prelude::*;
 use rust_decimal::prelude::*;
 use names::Generator;
@@ -29,10 +30,10 @@ struct Account
 }
 
 #[allow(dead_code)]
-async fn make_account<'a>(conf: &ConfAte, chain: &'a Chain, generator: &mut Generator<'a>) -> Result<(), AteError>
+async fn make_account<'a>(conf: &ConfAte, chain: &Arc<Chain>, generator: &mut Generator<'a>) -> Result<(), AteError>
 {
     let session = AteSession::new(conf);
-    let mut dio = chain.dio(&session).await;
+    let dio = chain.dio_mut(&session).await;
 
     let person = Person {
         first_name: generator.next().unwrap(),
@@ -42,22 +43,21 @@ async fn make_account<'a>(conf: &ConfAte, chain: &'a Chain, generator: &mut Gene
 
     let acc = Account {
         name: "Current Account".to_string(),
-        transactions: DaoVec::default(),
+        transactions: DaoVec::new(),
         balance: Decimal::default(),
     };
-    let mut acc = dio.store(acc).unwrap();
+    let acc = dio.store(acc).unwrap();
 
     for _ in 0..10 {
         let trans = Transaction {
-            to: DaoRef::from(acc.key().clone()),
+            to: DaoRef::from_key(&dio, acc.key().clone()),
             from: PrimaryKey::generate(),
             description: generator.next().unwrap(),
             amount: Decimal::from_i64(10).unwrap(),
         };
-        acc.push_store(&mut dio, acc.transactions, trans).unwrap();
+        acc.transactions.push(&dio, trans).unwrap();
     }
 
-    acc.commit(&mut dio)?;
     dio.commit().await?;
     Ok(())
 }

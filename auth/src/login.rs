@@ -54,7 +54,7 @@ impl AuthService
         let user =
         {
             // Attempt to load the object (if it fails we will tell the caller)
-            let mut dio = chain.dio(&super_session).await;
+            let dio = chain.dio(&super_session).await;
             let user = match dio.load::<User>(&user_key).await {
                 Ok(a) => a,
                 Err(LoadError::NotFound(_)) => {
@@ -97,8 +97,7 @@ impl AuthService
             super_session.user.add_read_key(&super_super_key);
 
             // Load the sudo object
-            let mut dio = chain.dio(&super_session).await;
-            if let Some(sudo) = match user.sudo.load(&mut dio).await {
+            if let Some(sudo) = match user.sudo.load().await {
                 Ok(a) => a,
                 Err(LoadError::NotFound(_)) => {
                     return Err(ServiceError::Reply(LoginFailed::UserNotFound));
@@ -188,7 +187,7 @@ pub async fn load_credentials(username: String, read_key: EncryptKey, _code: Opt
     let chain = registry.open(&auth, &chain_key).await?;
 
     // Load the user
-    let mut dio = chain.dio(&session).await;
+    let dio = chain.dio(&session).await;
     let user = dio.load::<User>(&key).await?;
 
     // Build a new session

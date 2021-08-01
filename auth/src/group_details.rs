@@ -33,7 +33,7 @@ impl AuthService
 
         // Load the group
         let group_key = PrimaryKey::from(request.group.clone());
-        let mut dio = chain.dio(&self.master_session).await;
+        let dio = chain.dio(&self.master_session).await;
         let group = match dio.load::<Group>(&group_key).await {
             Ok(a) => a,
             Err(LoadError::NotFound(_)) => {

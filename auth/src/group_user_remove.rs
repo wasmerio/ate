@@ -41,7 +41,7 @@ impl AuthService
 
         // Load the group
         let group_key = PrimaryKey::from(request.group.clone());
-        let mut dio = chain.dio(&super_session).await;
+        let dio = chain.dio_full(&super_session).await;
         let mut group = match dio.load::<Group>(&group_key).await {
             Ok(a) => a,
             Err(LoadError::NotFound(_)) => {
@@ -71,26 +71,31 @@ impl AuthService
         };
         let delegate_write_hash = delegate_write.as_public_key().hash();
 
-        // Get the group role
-        let role = match group.roles.iter_mut().filter(|r| r.purpose == request_purpose).next() {
-            Some(a) => a,
-            None => {
-                return Err(ServiceError::Reply(GroupUserRemoveFailed::RoleNotFound));
+        {
+            let mut group = group.as_mut();
+            
+            // Get the group role
+            let role = {
+                match group.roles.iter_mut().filter(|r| r.purpose == request_purpose).next() {
+                    Some(a) => a,
+                    None => {
+                        return Err(ServiceError::Reply(GroupUserRemoveFailed::RoleNotFound));
+                    }
+                }
+            };        
+
+            // Check that we actually have the rights to remove this item
+            if role.access.exists(&delegate_write_hash) == false {
+                return Err(ServiceError::Reply(GroupUserRemoveFailed::NoAccess));
             }
-        };        
 
-        // Check that we actually have the rights to remove this item
-        if role.access.exists(&delegate_write_hash) == false {
-            return Err(ServiceError::Reply(GroupUserRemoveFailed::NoAccess));
-        }
-
-        // Perform the operation that will remove the other user to the specific group role
-        if role.access.remove(&request.who) == false {
-            return Err(ServiceError::Reply(GroupUserRemoveFailed::NothingToRemove));
+            // Perform the operation that will remove the other user to the specific group role
+            if role.access.remove(&request.who) == false {
+                return Err(ServiceError::Reply(GroupUserRemoveFailed::NothingToRemove));
+            }
         }
 
         // Commit
-        group.commit(&mut dio)?;
         dio.commit().await?;
 
         // Return success to the caller

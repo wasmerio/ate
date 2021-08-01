@@ -2,6 +2,7 @@
 use log::{info, error, debug};
 use serde::{Deserialize};
 use serde::{Serialize, de::DeserializeOwned};
+use std::convert::*;
 
 use crate::dio::*;
 use crate::crypto::*;
@@ -75,7 +76,7 @@ async fn test_dio() -> Result<(), AteError>
 
         // Write a value immediately from chain (this data will remain in the transaction)
         {
-            let mut dio = chain.dio(&session).await;
+            let dio = chain.dio_mut(&session).await;
             {
                 debug!("storing data object 1");
                 let mut mock_dao = TestStructDao::default();
@@ -83,7 +84,7 @@ async fn test_dio() -> Result<(), AteError>
                 mock_dao.hidden = "This text should be hidden".to_string();
                 
                 let mut dao1 = dio.store(mock_dao).unwrap();
-                let mut dao3 = dao1.push_store(&mut dio, dao1.inner, TestEnumDao::Blah1).unwrap();
+                let dao3 = dao1.as_mut().inner.push(&dio, TestEnumDao::Blah1).unwrap();
 
                 key1 = dao1.key().clone();
                 debug!("key1: {}", key1.as_hex_string());
@@ -96,16 +97,13 @@ async fn test_dio() -> Result<(), AteError>
                 debug!("setting read and write crypto keys");
                 dao1.auth_mut().read = ReadOption::from_key(&read_key);
                 dao1.auth_mut().write = WriteOption::Specific(write_key2.hash());
-
-                dao1.commit(&mut dio).unwrap();
-                dao3.commit(&mut dio).unwrap();
             }
-            dio.commit().await.unwrap();
+            dio.commit().await.expect("The DIO should commit");
         }
 
         {
             debug!("new DIO context");
-            let mut dio = chain.dio(&session).await;
+            let dio = chain.dio_mut(&session).await;
             {
                 // Load the object again which should load it from the cache
                 debug!("loading data object 1");
@@ -113,12 +111,11 @@ async fn test_dio() -> Result<(), AteError>
 
                 // When we update this value it will become dirty and hence should block future loads until its flushed or goes out of scope
                 debug!("updating data object");
-                dao1.val = 2;
-                dao1.commit(&mut dio).unwrap();
+                dao1.as_mut().val = 2;
 
                 // Flush the data and attempt to read it again (this should succeed)
                 debug!("load the object again");
-                let test: Dao<TestStructDao> = dio.load(&key1).await.expect("The dirty data object should have been read after it was flushed");
+                let test: DaoMut<TestStructDao> = dio.load(&key1).await.expect("The dirty data object should have been read after it was flushed");
                 assert_eq!(test.val, 2 as u32);
             }
 
@@ -129,8 +126,7 @@ async fn test_dio() -> Result<(), AteError>
             
                 // Again after changing the data reads should fail
                 debug!("modifying data object 1");
-                dao1.val = 3;
-                dao1.commit(&mut dio).unwrap();
+                dao1.as_mut().val = 3;
             }
 
             {
@@ -141,7 +137,6 @@ async fn test_dio() -> Result<(), AteError>
                 // We create a new private key for this data
                 debug!("adding a write crypto key");
                 dao2.auth_mut().write = WriteOption::Specific(write_key2.as_public_key().hash());
-                dao2.commit(&mut dio).unwrap();
                 
                 key2 = dao2.key().clone();
                 debug!("key2: {}", key2.as_hex_string());
@@ -151,7 +146,7 @@ async fn test_dio() -> Result<(), AteError>
 
         {
             debug!("new DIO context");
-            let mut dio = chain.dio(&session).await;
+            let dio = chain.dio(&session).await;
             
             // Now its out of scope it should be loadable again
             debug!("loading data object 1");
@@ -160,27 +155,26 @@ async fn test_dio() -> Result<(), AteError>
 
             // Read the items in the collection which we should find our second object
             debug!("loading children");
-            let test3 = test.iter(&mut dio, test.inner).await.unwrap().next().expect("Three should be a data object in this collection");
+            let test3 = test.inner.iter().await.unwrap().next().expect("Three should be a data object in this collection");
             assert_eq!(test3.key(), &key3);
         }
 
         {
             debug!("new DIO context");
-            let mut dio = chain.dio(&session).await;
+            let dio = chain.dio_mut(&session).await;
 
             // The data we saved earlier should be accessible accross DIO scope boundaries
             debug!("loading data object 1");
-            let mut dao1: Dao<TestStructDao> = dio.load(&key1).await.expect("The data object should have been read");
+            let mut dao1: DaoMut<TestStructDao> = dio.load(&key1).await.expect("The data object should have been read");
             assert_eq!(dao1.val, 3);
-            dao1.val = 4;
-            dao1.commit(&mut dio).unwrap();
+            dao1.as_mut().val = 4;
 
             // First attempt to read the record then delete it
             debug!("loading data object 2");
             let dao2 = dio.load::<TestEnumDao>(&key2).await.expect("The record should load before we delete it in this session");
 
             debug!("deleting data object 2");
-            dao2.delete(&mut dio).unwrap();
+            dao2.delete().unwrap();
 
             // It should no longer load now that we deleted it
             debug!("negative test on loading data object 2");
@@ -206,7 +200,7 @@ async fn test_dio() -> Result<(), AteError>
         let chain = stored_chain.take().unwrap();
 
         {
-            let mut dio = chain.dio(&session).await;
+            let dio = chain.dio(&session).await;
 
             // Load it again
             debug!("loading data object 1");

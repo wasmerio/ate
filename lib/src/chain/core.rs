@@ -24,6 +24,7 @@ use crate::trust::ChainKey;
 use crate::trust::ChainHeader;
 use crate::engine::*;
 use crate::conf::MeshAddress;
+use crate::prelude::PrimaryKey;
 
 use super::*;
 
@@ -54,6 +55,7 @@ where Self: Send + Sync
     pub(crate) pipe: Arc<Box<dyn EventPipe>>,
     pub(crate) time: Arc<TimeKeeper>,
     pub(crate) exit: broadcast::Sender<()>,
+    pub(crate) decache: broadcast::Sender<Vec<PrimaryKey>>,
 }
 
 impl<'a> Chain

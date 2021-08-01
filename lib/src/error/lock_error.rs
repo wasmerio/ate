@@ -11,6 +11,7 @@ pub enum LockError
     LintError(LintError),
     CommitError(String),
     ReceiveError(String),
+    WeakDio,
 }
 
 impl From<SerializationError>
@@ -52,6 +53,9 @@ for LockError {
             },
             LockError::ReceiveError(err) => {
                 write!(f, "Failed to lock the data object due to an error receiving on the pipe - {}", err)
+            },
+            LockError::WeakDio => {
+                write!(f, "The DIO that created this object has gone out of scope")
             },
         }
     }

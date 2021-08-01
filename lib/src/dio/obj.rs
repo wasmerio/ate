@@ -1,8 +1,10 @@
 use std::marker::PhantomData;
+use std::sync::{Arc, Weak};
 
 use serde::*;
 use serde::de::*;
 use crate::dio::*;
+use super::dio::DioWeak;
 use crate::dio::dao::*;
 use crate::error::*;
 use crate::header::*;
@@ -10,47 +12,91 @@ use crate::header::*;
 /// Rerepresents a reference to another data object with strong
 /// type linting to make the model more solidified
 ///
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize)]
 pub struct DaoRef<D>
-where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     pub(super) id: Option<PrimaryKey>,
     #[serde(skip)]
-    _phantom1: PhantomData<D>,
+    dio: DioWeak,
+    #[serde(skip)]
+    _marker: PhantomData<D>,
+}
+
+impl<D> Clone
+for DaoRef<D>
+{
+    fn clone(&self) -> Self
+    {
+        DaoRef {
+            id: self.id.clone(),
+            dio: self.dio.clone(),
+            _marker: PhantomData,
+        }
+    }
+}
+
+impl<D> Default
+for DaoRef<D>
+{
+    fn default() -> Self {
+        DaoRef::new()
+    }
+}
+
+impl<D> std::fmt::Debug
+for DaoRef<D>
+where D: std::fmt::Debug
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let type_name = std::any::type_name::<D>();
+        match self.id {
+            Some(id) => write!(f, "dao-ref(key={}, type={})", id, type_name),
+            None => write!(f, "dao-ref(type={})", type_name)
+        }
+    }
 }
 
 impl<D> DaoRef<D>
-where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 {
     pub fn new() -> DaoRef<D> {
         DaoRef {
             id: None,
-            _phantom1: PhantomData,
+            dio: DioWeak::Uninitialized,
+            _marker: PhantomData,
         }
     }
 
-    pub fn from_key(key: PrimaryKey) -> DaoRef<D> {
+    pub fn from_key(dio: &Arc<DioMut>, key: PrimaryKey) -> DaoRef<D> {
         DaoRef {
             id: Some(key),
-            _phantom1: PhantomData,
+            dio: DioWeak::from(&dio.dio),
+            _marker: PhantomData,
         }
     }
 
-    pub fn get_id(&self) -> Option<PrimaryKey> {
+    pub fn key(&self) -> Option<PrimaryKey> {
         self.id
     }
 
-    pub fn set_id(&mut self, val: PrimaryKey) {
-        self.id = Some(val)
+    pub fn set_key(&mut self, dio: &Arc<Dio>, val: PrimaryKey) {
+        self.dio = DioWeak::from(dio);
+        self.id = Some(val);
     }
 
     pub fn clear(&mut self) {
         self.id = None;
     }
 
+    pub fn dio(&self) -> Option<Arc<Dio>> {
+        match &self.dio {
+            DioWeak::Uninitialized => None,
+            DioWeak::Weak(a) => Weak::upgrade(a)
+        }
+    }
+
     /// Loads the data object (if it exists)
-    pub async fn load<'a>(&self, dio: &mut Dio<'a>) -> Result<Option<Dao<D>>, LoadError>
-    where D: Serialize + DeserializeOwned + Clone + Send + Sync
+    pub async fn load(&self) -> Result<Option<Dao<D>>, LoadError>
+    where D: DeserializeOwned,
     {
         let id = match self.id {
             Some(a) => a,
@@ -59,59 +105,77 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
             }
         };
 
-        Ok(Some(dio.load::<D>(&id).await?))
+        let dio = match self.dio() {
+            Some(a) => a,
+            None => return Err(LoadError::WeakDio)
+        };
+
+        let ret = dio.load::<D>(&id).await?;
+        Ok(Some(ret))
     }
 
     /// Stores the data within this reference
-    pub async fn store<'a>(&mut self, dio: &mut Dio<'a>, value: D) -> Result<Dao<D>, LoadError>
+    pub fn store(&mut self, trans: &Arc<DioMut>, value: D) -> Result<DaoMut<D>, LoadError>
+    where D: Serialize + DeserializeOwned,
     {
-        let ret = dio.store::<D>(value)?;
+        let ret = trans.store::<D>(value)?;
+        self.dio = DioWeak::from(trans);
         self.id = Some(ret.key().clone());
         Ok(ret)
     }
 
     /// Loads the data object or uses a default if none exists
-    pub async fn unwrap_or<'a>(&mut self, dio: &mut Dio<'a>, default: D) -> Result<Dao<D>, LoadError>
-    where D: Serialize + DeserializeOwned + Clone + Send + Sync
+    pub async fn unwrap_or(&mut self, default: D) -> Result<D, LoadError>
+    where D: DeserializeOwned,
     {
         match self.id {
             Some(id) => {
-                Ok(dio.load(&id).await?)
+                let dio = match self.dio() {
+                    Some(a) => a,
+                    None => return Err(LoadError::WeakDio)
+                };
+                Ok(dio.load::<D>(&id).await?.take())
             },
             None => {
-                Ok(self.store(dio, default).await?)
+                Ok(default)
             }
         }
     }
 
     /// Loads the data object or uses a default if none exists
-    pub async fn unwrap_or_else<'a, F: FnOnce() -> D>(&mut self, dio: &mut Dio<'a>, f: F) -> Result<Dao<D>, LoadError>
-    where D: Serialize + DeserializeOwned + Clone + Send + Sync
+    pub async fn unwrap_or_else<F: FnOnce() -> D>(&mut self, f: F) -> Result<D, LoadError>
+    where D: Serialize + DeserializeOwned,
     {
+        let dio = match self.dio() {
+            Some(a) => a,
+            None => return Err(LoadError::WeakDio)
+        };
+
         match self.id {
             Some(id) => {
-                Ok(dio.load(&id).await?)
+                Ok(dio.load::<D>(&id).await?.take())
             },
             None => {
-                Ok(self.store(dio, f()).await?)
+                Ok(f())
             }
         }
     }
 
     /// Loads the data object or creates a new one (if it does not exist)
-    pub async fn unwrap_or_default<'a>(&mut self, dio: &mut Dio<'a>) -> Result<Dao<D>, LoadError>
-    where D: Default + Serialize + DeserializeOwned + Clone + Send + Sync
+    pub async fn unwrap_or_default(&mut self)
+    -> Result<D, LoadError>
+    where D: Serialize + DeserializeOwned + Default
     {
-        Ok(self.unwrap_or_else(dio, || {
+        Ok(self.unwrap_or_else(|| {
             let ret: D = Default::default();
             ret
         }).await?)
     }
 
-    pub async fn expect<'a>(&mut self, dio: &mut Dio<'a>, msg: &str) -> Dao<D>
-    where D: Serialize + DeserializeOwned + Clone + Send + Sync
+    pub async fn expect(&self, msg: &str) -> Dao<D>
+    where D: DeserializeOwned,
     {
-        match self.load(dio).await {
+        match self.load().await {
             Ok(Some(a)) => a,
             Ok(None) => {
                 panic!("{}", msg);
@@ -122,21 +186,47 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
         }
     }
 
-    pub async fn unwrap<'a>(&mut self, dio: &mut Dio<'a>) -> Dao<D>
+    pub async fn unwrap(&self) -> Dao<D>
+    where D: DeserializeOwned,
     {
-        self.expect(dio, "called `DaoRef::unwrap()` that failed to load").await
+        self.load().await.ok().flatten().expect("called `DaoRef::unwrap()` that failed to load")
     }
 
-    pub async fn take<'a>(&mut self, dio: &mut Dio<'a>) -> Result<Option<Dao<D>>, LoadError> {
-        let ret = self.load(dio).await?;
+    pub async fn take(&mut self) -> Result<Option<Dao<D>>, LoadError>
+    where D: DeserializeOwned,
+    {
+        let key = self.id.take();
         self.id = None;
-        Ok(ret)
+        
+        let id = match key {
+            Some(a) => a,
+            None => {
+                return Ok(None);
+            }
+        };
+
+        let dio = match self.dio() {
+            Some(a) => a,
+            None => return Err(LoadError::WeakDio)
+        };
+
+        Ok(Some(dio.load::<D>(&id).await?))
     }
 
-    pub async fn replace<'a>(&mut self, dio: &mut Dio<'a>, value: D) -> Result<Option<Dao<D>>, LoadError> {
-        let ret = self.load(dio).await?;
-        self.store(dio, value).await?;
-        Ok(ret)
+    pub async fn replace(&mut self, trans: &Arc<DioMut>, value: D) -> Result<Option<Dao<D>>, LoadError>
+    where D: Serialize + DeserializeOwned,
+    {
+        let ret = trans.store::<D>(value)?;
+        
+        let key = self.id.replace(ret.key().clone());
+        let id = match key {
+            Some(a) => a,
+            None => {
+                return Ok(None);
+            }
+        };
+
+        Ok(Some(trans.dio.load::<D>(&id).await?))
     }
 
     pub fn is_some(&self) -> bool {
@@ -145,27 +235,5 @@ where D: Serialize + DeserializeOwned + Clone + Send + Sync,
 
     pub fn is_none(&self) -> bool {
         !self.is_some()
-    }
-}
-
-impl<D> From<PrimaryKey>
-for DaoRef<D>
-where D: Serialize + DeserializeOwned + Clone + Send + Sync,
-{
-    fn from(key: PrimaryKey) -> DaoRef<D> {
-        DaoRef {
-            id: Some(key),
-            _phantom1: PhantomData
-        }
-    }
-}
-
-impl<D> Default
-for DaoRef<D>
-where D: Serialize + DeserializeOwned + Clone + Send + Sync,
-{
-    fn default() -> DaoRef<D>
-    {
-        DaoRef::new()
     }
 }

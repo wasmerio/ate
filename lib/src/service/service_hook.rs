@@ -6,7 +6,6 @@ use std::{sync::Weak};
 use std::sync::Arc;
 
 use crate::{error::*, event::*, meta::{CoreMetadata}};
-use crate::dio::*;
 use crate::chain::*;
 use crate::session::*;
 use crate::meta::*;
@@ -76,13 +75,14 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
 
         let ret = {
             // Load the object
-            let mut dio = chain.dio(&self.session).await;
+            let dio = chain.dio_mut(&self.session).await;
             dio.auto_cancel();
+
             let mut req = dio.load::<REQ>(&key).await?;
 
             // Attempt to lock (later delete) the request - if that fails then someone else
             // has likely picked this up and will process it instead
-            if req.try_lock_then_delete(&mut dio).await? == false {
+            if req.try_lock_then_delete().await? == false {
                 debug!("service call skipped - someone else locked it");
                 return Ok(())
             }
@@ -95,7 +95,6 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
             };
 
             // Invoke the callback in the service
-            req.commit(&mut dio)?;
             let ret = self.handler.process(req.take(), context).await;
             dio.commit().await?;
             ret
@@ -126,9 +125,10 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
     where T: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized
     {
         // Turn it into a data object to be stored on commit
-        let mut dio = chain.dio(&self.session).await;
+        let dio = chain.dio_mut(&self.session).await;
         dio.auto_cancel();
-        let mut res = dio.make_ext(res, self.session.log_format.clone(), None)?;
+
+        let mut res = dio.store(res)?;
 
         // If the session has an encryption key then use it
         if let Some(key) = self.session.read_keys().into_iter().map(|a| a.clone()).next() {
@@ -138,11 +138,10 @@ where REQ: Serialize + DeserializeOwned + Clone + Sync + Send + ?Sized,
         // Add the metadata
         res.add_extra_metadata(CoreMetadata::Type(MetaType {
             type_name: res_type
-        }));
-        res.add_extra_metadata(CoreMetadata::Reply(req));
+        }))?;
+        res.add_extra_metadata(CoreMetadata::Reply(req))?;
         
         // Commit the transaction
-        res.commit(&mut dio)?;
         dio.commit().await?;
         Ok(())
     }

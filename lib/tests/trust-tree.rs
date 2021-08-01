@@ -62,7 +62,7 @@ fn test_trust_tree_persistent() -> Result<(), AteError>
             let chain = builder.open_local(&ChainKey::from("trust")).await?;
 
             debug!("add the objects to the DIO");
-            let mut dio = chain.dio(&session).await;
+            let dio = chain.dio_mut(&session).await;
             let mut garage = dio.store(Garage::default())?;
             garage.auth_mut().read = ReadOption::from_key(&read_key);
             garage.auth_mut().write = WriteOption::Specific(write_key2.hash());
@@ -73,10 +73,9 @@ fn test_trust_tree_persistent() -> Result<(), AteError>
                 let mut car = Car::default();
                 car.name = name.clone();
                 
-                let car = garage.push_store(&mut dio, garage.cars, car)?;
+                let car = garage.cars.push(&dio, car)?;
                 assert_eq!(car.name, name);
             }
-            garage.commit(&mut dio)?;
             dio.commit().await?;
             drop(dio);
 
@@ -104,9 +103,9 @@ fn test_trust_tree_persistent() -> Result<(), AteError>
             };
 
             // Load the garage
-            let mut dio = chain.dio(&session).await;
+            let dio = chain.dio(&session).await;
             let garage = dio.load::<Garage>(&key1).await?;
-            assert_eq!(garage.iter(&mut dio, garage.cars).await?.collect::<Vec<_>>().len(), 100);
+            assert_eq!(garage.cars.iter().await?.count(), 100);
 
             // Delete the chain
             chain.single().await.destroy().await.unwrap();
@@ -157,7 +156,7 @@ fn test_trust_tree_memory() -> Result<(), AteError>
             let chain = builder.open_local(&ChainKey::from("trust")).await?;
 
             debug!("add the objects to the DIO");
-            let mut dio = chain.dio(&session).await;
+            let dio = chain.dio_mut(&session).await;
             let mut garage = dio.store(Garage::default())?;
             garage.auth_mut().read = ReadOption::from_key(&read_key);
             garage.auth_mut().write = WriteOption::Specific(write_key2.hash());
@@ -168,10 +167,9 @@ fn test_trust_tree_memory() -> Result<(), AteError>
                 let mut car = Car::default();
                 car.name = name.clone();
                 
-                let car = garage.push_store(&mut dio, garage.cars, car)?;
+                let car = garage.cars.push(&dio, car)?;
                 assert_eq!(car.name, name);
             }
-            garage.commit(&mut dio)?;
             dio.commit().await?;
             drop(dio);
 
@@ -184,9 +182,9 @@ fn test_trust_tree_memory() -> Result<(), AteError>
             session.user.properties.push(AteSessionProperty::Identity("author@here.com".to_string()));
 
             // Load the garage
-            let mut dio = chain.dio(&session).await;
+            let dio = chain.dio(&session).await;
             let garage = dio.load::<Garage>(&key1).await?;
-            assert_eq!(garage.iter(&mut dio, garage.cars).await?.collect::<Vec<_>>().len(), 100);
+            assert_eq!(garage.cars.iter().await?.count(), 100);
 
             // Delete the chain
             chain.single().await.destroy().await.unwrap();

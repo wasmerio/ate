@@ -25,6 +25,7 @@ pub enum LoadError {
     IO(tokio::io::Error),
     #[allow(dead_code)]
     CollectionDetached,
+    WeakDio,
 }
 
 impl From<tokio::io::Error>
@@ -115,6 +116,9 @@ for LoadError {
             },
             LoadError::CollectionDetached => {
                 write!(f, "Collection is detached from its parent, it must be attached before it can be used")
+            },
+            LoadError::WeakDio => {
+                write!(f, "The DIO that created this object has gone out of scope")
             },
         }
     }

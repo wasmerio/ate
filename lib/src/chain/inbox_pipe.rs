@@ -1,5 +1,6 @@
 #[allow(unused_imports)]
 use log::{info, error, debug};
+use tokio::sync::broadcast;
 
 use async_trait::async_trait;
 use std::sync::{Arc};
@@ -17,6 +18,7 @@ use super::workers::*;
 pub(super) struct InboxPipe
 {
     pub(super) inbox: ChainWorkProcessor,
+    pub(super) decache: broadcast::Sender<Vec<PrimaryKey>>,
     pub(super) locks: StdMutex<FxHashSet<PrimaryKey>>,
 }
 
@@ -27,12 +29,16 @@ for InboxPipe
     async fn feed(&self, trans: Transaction) -> Result<(), CommitError>
     {
         // Prepare the work and submit it
+        let decache = trans.events.iter().filter_map(|a| a.meta.get_data_key()).collect::<Vec<_>>();
         let work = ChainWork {
             trans,
         };
-
+        
         // Submit the work
         let ret = self.inbox.process(work).await?;
+
+        // Clear all the caches
+        let _ = self.decache.send(decache);
         
         // Success
         Ok(ret)

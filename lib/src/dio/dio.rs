@@ -1,16 +1,23 @@
 #![allow(unused_imports)]
 use log::{info, error, debug};
 use crate::prelude::*;
+use tokio::sync::broadcast;
 use fxhash::FxHashMap;
 use fxhash::FxHashSet;
 use multimap::MultiMap;
 use serde::{Deserialize};
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{Serialize, Serializer, de::Deserializer, de::DeserializeOwned};
 use std::{fmt::Debug, sync::Arc};
 use parking_lot::Mutex;
 use std::ops::Deref;
 use tokio::sync::mpsc;
+use std::cell::RefCell;
+use std::rc::Rc;
+use std::sync::Weak;
 
+use crate::header::PrimaryKeyScope;
+use super::DioMutState;
+use super::row::*;
 use super::dao::*;
 use crate::meta::*;
 use crate::event::*;
@@ -20,6 +27,7 @@ use crate::transaction::*;
 use crate::comms::*;
 use crate::spec::*;
 use crate::error::*;
+use crate::trust::LoadResult;
 use crate::lint::*;
 use crate::time::*;
 
@@ -30,55 +38,7 @@ use crate::{crypto::EncryptKey, session::{AteSession, AteSessionProperty}};
 pub(crate) struct DioState
 where Self: Send + Sync
 {
-    pub(super) store: Vec<Arc<RowData>>,
-    pub(super) cache_store_primary: FxHashMap<PrimaryKey, Arc<RowData>>,
-    pub(super) cache_store_secondary: MultiMap<MetaCollection, PrimaryKey>,
     pub(super) cache_load: FxHashMap<PrimaryKey, (Arc<EventData>, EventLeaf)>,
-    pub(super) locked: FxHashSet<PrimaryKey>,
-    pub(super) deleted: FxHashSet<PrimaryKey>,
-    pub(super) pipe_unlock: FxHashSet<PrimaryKey>,
-    pub(super) auto_cancel: bool,
-}
-
-impl DioState
-{
-    pub(super) fn dirty(&mut self, key: &PrimaryKey, parent: Option<&MetaParent>, row: RowData) {
-        let row = Arc::new(row);
-        self.store.push(row.clone());
-        self.cache_store_primary.insert(key.clone(), row);
-        if let Some(parent) = parent {
-            self.cache_store_secondary.insert(parent.vec.clone(), key.clone());
-        }
-        self.cache_load.remove(key);
-    }
-
-    pub(super) fn lock(&mut self, key: &PrimaryKey) -> bool {
-        self.locked.insert(key.clone())
-    }
-
-    pub(super) fn unlock(&mut self, key: &PrimaryKey) -> bool {
-        self.locked.remove(key)
-    }
-
-    pub(super) fn is_locked(&self, key: &PrimaryKey) -> bool {
-        self.locked.contains(key)
-    }
-
-    pub(super) fn add_deleted(&mut self, key: PrimaryKey, parent: Option<MetaParent>)
-    {
-        if self.lock(&key) == false {
-            eprintln!("Detected concurrent write while deleting a data object ({:?}) - the delete operation will override everything else", key);
-        }
-
-        self.cache_store_primary.remove(&key);
-        if let Some(tree) = parent {
-            if let Some(y) = self.cache_store_secondary.get_vec_mut(&tree.vec) {
-                y.retain(|x| *x == key);
-            }
-        }
-        self.cache_load.remove(&key);
-        self.deleted.insert(key);
-    }
 }
 
 impl DioState
@@ -86,14 +46,7 @@ impl DioState
     #[allow(dead_code)]
     fn new() -> DioState {
         DioState {
-            store: Vec::new(),
-            cache_store_primary: FxHashMap::default(),
-            cache_store_secondary: MultiMap::new(),
             cache_load: FxHashMap::default(),
-            locked: FxHashSet::default(),
-            deleted: FxHashSet::default(),
-            pipe_unlock: FxHashSet::default(),
-            auto_cancel: false,
         }
     }
 }
@@ -111,129 +64,119 @@ impl DioState
 ///
 /// When setting the scope for the DIO it will behave differently when the commit function
 /// is invoked based on what scope you set for the transaction.
-pub struct Dio<'a>
-where Self: Send + Sync
+pub struct Dio
 {
+    pub(super) chain: Arc<Chain>,
     pub(super) multi: ChainMultiUser,
-    pub(super) state: DioState,
-    pub(super) session: &'a AteSession,
-    pub(super) scope: TransactionScope,
-    pub(super) conversation: Option<Arc<ConversationSession>>,
+    pub(super) state: Mutex<DioState>,
+    pub(super) session: AteSession,
     pub(super) time: Arc<TimeKeeper>,
 }
 
-impl<'a> Dio<'a>
+pub(crate) struct DioScope
 {
-    pub fn make<D>(&mut self, data: D) -> Result<DaoEthereal<D>, SerializationError>
-    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
-    {
-        self.make_ext(data, self.session.log_format, None)
-    }
+    pop: Option<Arc<Dio>>,
+    _negative: Rc<()>,
+}
 
-    pub fn make_ext<D>(&mut self, data: D, format: Option<MessageFormat>, key: Option<PrimaryKey>) -> Result<DaoEthereal<D>, SerializationError>
-    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
-    {
-        let format = match format {
-            Some(a) => a,
-            None => self.multi.default_format
-        };
-
-        let row = Row {
-            key: match key {
-                Some(k) => k,
-                None => PrimaryKey::generate(),
-            },
-            type_name: std::any::type_name::<D>(),
-            parent: None,
-            data: data,
-            auth: MetaAuthorization::default(),
-            collections: FxHashSet::default(),
-            format,
-            created: 0,
-            updated: 0,
-            extra_meta: Vec::new()
-        };
-
-        let mut ret = DaoEthereal::new(row);
-        ret.state.dirty = true;
-
-        Ok(ret)
-    }
-
-    pub fn store<D>(&mut self, data: D) -> Result<Dao<D>, SerializationError>
-    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
-    {
-        self.store_ext(data, self.session.log_format, None)
-    }
-
-    pub fn store_ext<D>(&mut self, data: D, format: Option<MessageFormat>, key: Option<PrimaryKey>) -> Result<Dao<D>, SerializationError>
-    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
-    {
-        let ret = self.make_ext(data, format, key)?;
-        let ret= ret.commit(self)?;
-        Ok(ret)
-    }
-
-    pub async fn delete<D>(&mut self, key: &PrimaryKey) -> Result<(), LoadError>
-    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
-    {
-        TaskEngine::run_until(self.__delete::<D>(key)).await
-    }
-
-    async fn __delete<D>(&mut self, key: &PrimaryKey) -> Result<(), LoadError>
-    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
-    {
-        {
-            let state = &self.state;
-            if state.is_locked(key) {
-                return Result::Err(LoadError::ObjectStillLocked(key.clone()));
-            }
-            if let Some(dao) = state.cache_store_primary.get(key) {
-                let row = Row::from_row_data(dao.deref())?;
-                let dao = Dao::new(DaoEthereal::<D>::new(row));
-                dao.delete(self)?;
-                return Ok(());
-            }
-            if let Some((dao, leaf)) = state.cache_load.get(key) {
-                let row = Row::from_event(dao.deref(), leaf.created, leaf.updated)?;
-                let dao = Dao::new(DaoEthereal::<D>::new(row));
-                dao.delete(self)?;
-                return Ok(());
-            }
-            if state.deleted.contains(&key) {
-                return Result::Err(LoadError::AlreadyDeleted(key.clone()));
-            }
+impl DioScope
+{
+    pub fn new(dio: &Arc<Dio>) -> Self {
+        DioScope {
+            pop: Dio::current_set(Some(Arc::clone(dio))),
+            _negative: Rc::new(())
         }
-        
-        let parent = self.multi.lookup_parent(key).await;
-        self.state.add_deleted(key.clone(), parent);
-        Ok(())
+    }
+}
+
+impl Drop
+for DioScope
+{
+    fn drop(&mut self) {
+        Dio::current_set(self.pop.take());
+    }
+}
+
+#[derive(Clone)]
+pub(crate) enum DioWeak
+{
+    Uninitialized,
+    Weak(Weak<Dio>)
+}
+
+impl Default
+for DioWeak
+{
+    fn default() -> Self
+    {
+        match Dio::current_get() {
+            Some(a) => DioWeak::Weak(Arc::downgrade(&a)),
+            None => DioWeak::Uninitialized
+        }
+    }
+}
+
+impl From<&Arc<Dio>>
+for DioWeak
+{
+    fn from(val: &Arc<Dio>) -> Self
+    {
+        DioWeak::Weak(Arc::downgrade(val))
+    }
+}
+
+impl From<&Arc<DioMut>>
+for DioWeak
+{
+    fn from(val: &Arc<DioMut>) -> Self
+    {
+        DioWeak::Weak(Arc::downgrade(&val.dio))
+    }
+}
+
+impl Dio
+{
+    thread_local! {
+        static CURRENT: RefCell<Option<Arc<Dio>>> = RefCell::new(None)
     }
 
-    pub async fn load<D>(&mut self, key: &PrimaryKey) -> Result<Dao<D>, LoadError>
-    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
+    pub(crate) fn current_get() -> Option<Arc<Dio>>
+    {
+        Dio::CURRENT.with(|dio| {
+            let dio = dio.borrow();
+            return dio.clone()
+        })
+    }
+
+    fn current_set(val: Option<Arc<Dio>>) -> Option<Arc<Dio>>
+    {
+        Dio::CURRENT.with(|dio| {
+            let mut dio = dio.borrow_mut();
+            match val {
+                Some(a) => dio.replace(a),
+                None => dio.take()
+            }
+        })
+    }
+
+    pub fn chain(&self) -> &Arc<Chain> {
+        &self.chain
+    }
+
+    pub async fn load<D>(self: &Arc<Self>, key: &PrimaryKey) -> Result<Dao<D>, LoadError>
+    where D: DeserializeOwned,
     {
         TaskEngine::run_until(self.__load(key)).await
     }
 
-    async fn __load<D>(&mut self, key: &PrimaryKey) -> Result<Dao<D>, LoadError>
-    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
+    pub(super) async fn __load<D>(self: &Arc<Self>, key: &PrimaryKey) -> Result<Dao<D>, LoadError>
+    where D: DeserializeOwned,
     {
         {
-            let state = &self.state;
-            if state.is_locked(key) {
-                return Result::Err(LoadError::ObjectStillLocked(key.clone()));
-            }
-            if let Some(dao) = state.cache_store_primary.get(key) {
-                let row = Row::from_row_data(dao.deref())?;
-                return Ok(Dao::new(DaoEthereal::new(row)));
-            }
+            let state = self.state.lock();
             if let Some((dao, leaf)) = state.cache_load.get(key) {
-                let row = Row::from_event(dao.deref(), leaf.created, leaf.updated)?;
-                return Ok(Dao::new(DaoEthereal::new(row)));
-            }
-            if state.deleted.contains(&key) {
-                return Result::Err(LoadError::AlreadyDeleted(key.clone()));
+                let (row_header, row) = Row::from_event(self, dao.deref(), leaf.created, leaf.updated)?;
+                return Ok(Dao::new(self, row_header, row));
             }
         }
 
@@ -245,79 +188,81 @@ impl<'a> Dio<'a>
         Ok(self.load_from_entry(entry).await?)
     }
 
-    pub async fn exists(&mut self, key: &PrimaryKey) -> bool
+    pub async fn load_and_take<D>(self: &Arc<Self>, key: &PrimaryKey) -> Result<D, LoadError>
+    where D: DeserializeOwned,
+    {
+        let ret: Dao<D> = self.load(key).await?;
+        Ok(ret.take())
+    }
+
+    pub async fn exists(&self, key: &PrimaryKey) -> bool
     {
         TaskEngine::run_until(self.__exists(key)).await
     }
 
-    async fn __exists(&mut self, key: &PrimaryKey) -> bool
+    pub(super) async fn __exists(&self, key: &PrimaryKey) -> bool
     {
         {
-            let state = &self.state;
-            if let Some(_) = state.cache_store_primary.get(key) {
-                return true;
-            }
+            let state = self.state.lock();
             if let Some((_, _)) = state.cache_load.get(key) {
                 return true;
-            }
-            if state.deleted.contains(&key) {
-                return false;
             }
         }
 
         self.multi.lookup_primary(key).await.is_some()
     }
 
-    pub(crate) async fn load_from_entry<D>(&mut self, leaf: EventLeaf)
+    pub(crate) async fn load_from_entry<D>(self: &Arc<Self>, leaf: EventLeaf)
     -> Result<Dao<D>, LoadError>
-    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
+    where D: DeserializeOwned,
     {
         TaskEngine::run_until(self.__load_from_entry(leaf)).await
     }
 
-    async fn __load_from_entry<D>(&mut self, leaf: EventLeaf)
+    pub(super) async fn __load_from_entry<D>(self: &Arc<Self>, leaf: EventLeaf)
     -> Result<Dao<D>, LoadError>
-    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
+    where D: DeserializeOwned,
     {
         let evt = self.multi.load(leaf).await?;
 
         Ok(self.load_from_event(evt.data, evt.header.as_header()?, leaf)?)
     }
 
-    pub(crate) fn load_from_event<D>(&mut self, mut data: EventData, header: EventHeader, leaf: EventLeaf)
+    pub(crate) fn load_from_event<D>(self: &Arc<Self>, mut data: EventData, header: EventHeader, leaf: EventLeaf)
     -> Result<Dao<D>, LoadError>
-    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
+    where D: DeserializeOwned,
     {
         data.data_bytes = match data.data_bytes {
             Some(data) => Some(self.multi.data_as_overlay(&header.meta, data, &self.session)?),
             None => None,
         };
 
-        let state = &mut self.state;
+        let mut state = self.state.lock();
         match header.meta.get_data_key() {
-            Some(key) => {
-                let row = Row::from_event(&data, leaf.created, leaf.updated)?;
+            Some(key) =>
+            {
+                let (row_header, row) = Row::from_event(self, &data, leaf.created, leaf.updated)?;
                 state.cache_load.insert(key.clone(), (Arc::new(data), leaf));
-                Ok(Dao::new(DaoEthereal::new(row)))
+                Ok(Dao::new(self, row_header, row))
             },
             None => Err(LoadError::NoPrimaryKey)
         }
     }
 
-    pub async fn children<D>(&mut self, parent_id: PrimaryKey, collection_id: u64) -> Result<Vec<Dao<D>>, LoadError>
-    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
+    pub async fn children<D>(self: &Arc<Self>, parent_id: PrimaryKey, collection_id: u64) -> Result<Vec<Dao<D>>, LoadError>
+    where D: DeserializeOwned,
     {
         self.children_ext(parent_id, collection_id, false, false).await
     }
 
-    pub async fn children_ext<D>(&mut self, parent_id: PrimaryKey, collection_id: u64, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Vec<Dao<D>>, LoadError>
-    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
+    pub async fn children_ext<D>(self: &Arc<Self>, parent_id: PrimaryKey, collection_id: u64, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Vec<Dao<D>>, LoadError>
+    where D: DeserializeOwned,
     {
         TaskEngine::run_until(self.__children_ext(parent_id, collection_id, allow_missing_keys, allow_serialization_error)).await
     }
 
-    pub async fn __children_ext<D>(&mut self, parent_id: PrimaryKey, collection_id: u64, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Vec<Dao<D>>, LoadError>
-    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
+    pub(super) async fn __children_ext<D>(self: &Arc<Self>, parent_id: PrimaryKey, collection_id: u64, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Vec<Dao<D>>, LoadError>
+    where D: DeserializeOwned,
     {
         // Build the secondary index key
         let collection_key = MetaCollection {
@@ -332,394 +277,185 @@ impl<'a> Dio<'a>
         };
 
         // Load all the objects
-        let mut ret: Vec<Dao<D>> = self.load_many_ext(keys.into_iter(), allow_missing_keys, allow_serialization_error).await?;
-
-        // Build an already loaded list
-        let mut already = FxHashSet::default();
-        for a in ret.iter() {
-            already.insert(a.key().clone());
-        }
-
-        // Now we search the secondary local index so any objects we have
-        // added in this transaction scope are returned
-        let state = &self.state;
-        if let Some(vec) = state.cache_store_secondary.get_vec(&collection_key) {
-            for a in vec {
-                // This is an OR of two lists so its likely that the object
-                // may already be in the return list
-                if already.contains(a) {
-                    continue;
-                }
-                if state.deleted.contains(a) {
-                    continue;
-                }
-
-                // If its still locked then that is a problem
-                if state.is_locked(a) {
-                    return Result::Err(LoadError::ObjectStillLocked(a.clone()));
-                }
-
-                if let Some(dao) = state.cache_store_primary.get(a) {
-                    let row = Row::from_row_data(dao.deref())?;
-    
-                    already.insert(row.key.clone());
-                    ret.push(Dao::new(DaoEthereal::new(row)));
-                }
-            }
-        }
-
-        Ok(ret)
+        Ok(self.__load_many_ext(keys.into_iter(), allow_missing_keys, allow_serialization_error).await?)
     }
 
-    pub async fn load_many<D>(&mut self, keys: impl Iterator<Item=PrimaryKey>) -> Result<Vec<Dao<D>>, LoadError>
-    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
+    pub async fn load_many<D>(self: &Arc<Self>, keys: impl Iterator<Item=PrimaryKey>) -> Result<Vec<Dao<D>>, LoadError>
+    where D: DeserializeOwned,
     {
         self.load_many_ext(keys, false, false).await
     }
 
-    pub async fn load_many_ext<D>(&mut self, keys: impl Iterator<Item=PrimaryKey>, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Vec<Dao<D>>, LoadError>
-    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
+    pub async fn load_many_ext<D>(self: &Arc<Self>, keys: impl Iterator<Item=PrimaryKey>, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Vec<Dao<D>>, LoadError>
+    where D: DeserializeOwned,
     {
         TaskEngine::run_until(self.__load_many_ext(keys, allow_missing_keys, allow_serialization_error)).await
     }
 
-    async fn __load_many_ext<D>(&mut self, keys: impl Iterator<Item=PrimaryKey>, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Vec<Dao<D>>, LoadError>
-    where D: Serialize + DeserializeOwned + Clone + Send + Sync,
+    pub(super) async fn __load_many_ext<D>(self: &Arc<Self>, keys: impl Iterator<Item=PrimaryKey>, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Vec<Dao<D>>, LoadError>
+    where D: DeserializeOwned,
     {
         // This is the main return list
         let mut already = FxHashSet::default();
         let mut ret = Vec::new();
 
-        // We either find existing objects in the cache or build a list of objects to load
-        let mut to_load = Vec::new();
-        for key in keys
-        {
-            {
-                let state = &self.state;
-                if state.is_locked(&key) {
-                    return Result::Err(LoadError::ObjectStillLocked(key));
-                }
-                if let Some(dao) = state.cache_store_primary.get(&key) {
-                    let row = Row::from_row_data(dao.deref())?;
-                    already.insert(row.key.clone());
-                    ret.push(Dao::new(DaoEthereal::new(row)));
-                    continue;
-                }
-                if let Some((dao, leaf)) = state.cache_load.get(&key) {
-                    let row = Row::from_event(dao.deref(), leaf.created, leaf.updated)?;
-                    already.insert(row.key.clone());
-                    ret.push(Dao::new(DaoEthereal::new(row)));
-                    continue;
-                }
-                if state.deleted.contains(&key) {
-                    continue;
-                }
-            }
+        let inside_async = self.multi.inside_async.read().await;
 
-            to_load.push(match self.multi.lookup_primary(&key).await {
-                Some(a) => a,
-                None => { continue },
-            });
-        }
+        // We either find existing objects in the cache or build a list of objects to load
+        let to_load = {
+            let mut to_load = Vec::new();
+
+            let state = self.state.lock();
+            for key in keys
+            {
+                if let Some((dao, leaf)) = state.cache_load.get(&key) {
+                    let (row_header, row) = Row::from_event(self, dao.deref(), leaf.created, leaf.updated)?;
+                    already.insert(row.key.clone());
+                    ret.push(Dao::new(self, row_header, row));
+                    continue;
+                }
+
+                to_load.push(match inside_async.chain.lookup_primary(&key) {
+                    Some(a) => a,
+                    None => { continue },
+                });
+            }
+            to_load
+        };
 
         // Load all the objects that have not yet been loaded
-        for mut evt in self.multi.load_many(to_load).await? {
-            let mut header = evt.header.as_header()?;
+        let to_load = inside_async.chain.load_many(to_load).await?;
 
-            let key = match header.meta.get_data_key() {
-                Some(k) => k,
-                None => { continue; }
-            };
+        // Now process all the objects
+        let ret = {
+            let mut state = self.state.lock();
+            for mut evt in to_load {
 
-            let state = &mut self.state;
-            if state.is_locked(&key) {
-                return Result::Err(LoadError::ObjectStillLocked(key.clone()));
-            }
+                let mut header = evt.header.as_header()?;
 
-            if let Some(dao) = state.cache_store_primary.get(&key) {
-                let row = Row::from_row_data(dao.deref())?;
+                let key = match header.meta.get_data_key() {
+                    Some(k) => k,
+                    None => { continue; }
+                };
 
-                already.insert(row.key.clone());
-                ret.push(Dao::new(DaoEthereal::new(row)));
-                continue;
-            }
-            if let Some((dao, leaf)) = state.cache_load.get(&key) {
-                let row = Row::from_event(dao.deref(), leaf.created, leaf.updated)?;
+                if let Some((dao, leaf)) = state.cache_load.get(&key) {
+                    let (row_header, row) = Row::from_event(self, dao.deref(), leaf.created, leaf.updated)?;
 
-                already.insert(row.key.clone());
-                ret.push(Dao::new(DaoEthereal::new(row)));
-            }
-            if state.deleted.contains(&key) {
-                continue;
-            }
-
-            evt.data.data_bytes = match evt.data.data_bytes {
-                Some(data) => {
-                    let data = match self.multi.data_as_overlay(&mut header.meta, data, &self.session) {
-                        Ok(a) => a,
-                        Err(TransformError::MissingReadKey(hash)) if allow_missing_keys => {
-                            debug!("Missing read key {} - ignoring row", hash);
-                            continue;
-                        }
-                        Err(err) => {
-                            return Err(LoadError::TransformationError(err));
-                        }
-                    };
-                    Some(data)
-                },
-                None => { continue; },
-            };
-
-            let row = match Row::from_event(&evt.data, evt.leaf.created, evt.leaf.updated) {
-                Ok(a) => a,
-                Err(err) => {
-                    if allow_serialization_error {
-                        debug!("Serialization error {} - ignoring row", err);
-                        continue;
-                    }
-                    return Err(LoadError::SerializationError(err));
+                    already.insert(row.key.clone());
+                    ret.push(Dao::new(self, row_header, row));
                 }
-            };
-            state.cache_load.insert(row.key.clone(), (Arc::new(evt.data), evt.leaf));
+                
+                let (row_header, row) = match self.__process_load_row(&mut evt, &mut header.meta, allow_missing_keys, allow_serialization_error)? {
+                    Some(a) => a,
+                    None => { continue; }
+                };
+                state.cache_load.insert(row.key.clone(), (Arc::new(evt.data), evt.leaf));
 
-            already.insert(row.key.clone());
-            ret.push(Dao::new(DaoEthereal::new(row)));
-        }
+                already.insert(row.key.clone());
+                ret.push(Dao::new(self, row_header, row));
+            }
+            ret
+        };
 
         Ok(ret)
     }
 
-    pub fn session(&'a self) -> &'a AteSession {
-        self.session
+    pub(super) fn __process_load_row<D>(self: &Arc<Self>, evt: &mut LoadResult, meta: &Metadata, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Option<(RowHeader, Row<D>)>, LoadError>
+    where D: DeserializeOwned
+    {
+        evt.data.data_bytes = match &evt.data.data_bytes {
+            Some(data) => {
+                let data = match self.multi.data_as_overlay(meta, data.clone(), &self.session) {
+                    Ok(a) => a,
+                    Err(TransformError::MissingReadKey(hash)) if allow_missing_keys => {
+                        debug!("Missing read key {} - ignoring row", hash);
+                        return Ok(None);
+                    }
+                    Err(err) => {
+                        return Err(LoadError::TransformationError(err));
+                    }
+                };
+                Some(data)
+            },
+            None => { return Ok(None); },
+        };
+
+        let (row_header, row) = match Row::from_event(self, &evt.data, evt.leaf.created, evt.leaf.updated) {
+            Ok(a) => a,
+            Err(err) => {
+                if allow_serialization_error {
+                    debug!("Serialization error {} - ignoring row", err);
+                    return Ok(None);
+                }
+                return Err(LoadError::SerializationError(err));
+            }
+        };
+        Ok(Some((row_header, row)))
+    }
+
+    pub fn session(&self) -> &AteSession {
+        &self.session
+    }
+
+    pub(crate) fn run_decache(self: &Arc<Dio>, mut decache: broadcast::Receiver<Vec<PrimaryKey>>) {
+        let dio = Arc::downgrade(self);
+
+        TaskEngine::spawn(async move {
+            loop {
+                let recv = tokio::time::timeout(std::time::Duration::from_secs(1), decache.recv()).await;
+                let dio = match Weak::upgrade(&dio) {
+                    Some(a) => a,
+                    None => { break; }
+                };
+                let recv = match recv {
+                    Ok(a) => a,
+                    Err(_) => { continue; }
+                };
+                let recv = match recv {
+                    Ok(a) => a,
+                    Err(_) => { break; }
+                };
+
+                let mut state = dio.state.lock();
+                for key in recv {
+                    state.cache_load.remove(&key);
+                }
+            }
+        });
     }
 }
 
 impl Chain
 {
-    pub async fn dio<'a>(&'a self, session: &'a AteSession) -> Dio<'a> {
-        self.dio_ext(session, TransactionScope::Local).await
+    /// Opens a data access layer that allows read only access to data within the chain
+    /// In order to make changes to data you must use '.dio_mut', '.dio_forget', '.dio_full' or '.dio_trans'
+    pub async fn dio(self: &Arc<Chain>, session: &'_ AteSession) -> Arc<Dio> {
+        TaskEngine::run_until(self.__dio(session)).await
     }
 
-    pub async fn dio_ext<'a>(&'a self, session: &'a AteSession, scope: TransactionScope) -> Dio<'a> {
-        TaskEngine::run_until(self.__dio_ext(session, scope)).await
-    }
-
-    pub async fn __dio_ext<'a>(&'a self, session: &'a AteSession, scope: TransactionScope) -> Dio<'a> {
+    pub async fn __dio(self: &Arc<Chain>, session: &'_ AteSession) -> Arc<Dio> {
+        let decache = self.decache.subscribe();
         let multi = self.multi().await;
-        Dio {
-            state: DioState::new(),
+        let ret = Dio {
+            chain: Arc::clone(self),
+            state: Mutex::new(DioState::new()),
             multi,
-            session,
-            scope,
-            conversation: self.pipe.conversation().await,
+            session: session.clone(),
             time: Arc::clone(&self.time),
-        }
+        };
+        let ret = Arc::new(ret);
+        ret.run_decache(decache);
+        ret
     }
 }
 
-impl<'a> Dio<'a>
+impl Dio
 {
-    pub fn has_uncommitted(&self) -> bool
-    {
-        let state = &self.state;
-        if state.store.is_empty() && state.deleted.is_empty() {
-            return false;
-        }
-        return true;
+    pub async fn as_mut(self: &Arc<Self>) -> Arc<DioMut> {
+        self.trans(TransactionScope::Local).await
     }
 
-    pub fn cancel(&mut self)
-    {
-        let state = &mut self.state;
-        state.store.clear();   
-        state.deleted.clear();
-    }
-
-    pub fn auto_cancel(&mut self)
-    {
-        let state = &mut self.state;
-        state.auto_cancel = true;
-    }
-
-    pub async fn commit(&mut self) -> Result<(), CommitError>
-    {
-        TaskEngine::run_until(self.__commit()).await
-    }
-
-    async fn __commit(&mut self) -> Result<(), CommitError>
-    {
-        // If we have dirty records
-        let state = &mut self.state;
-        if state.store.is_empty() && state.deleted.is_empty() {
-            return Ok(())
-        }
-
-        debug!("commit stored={} deleted={}", state.store.len(), state.deleted.len());
-        
-        // Declare variables
-        let mut evts = Vec::new();
-        let mut trans_meta = TransactionMetadata::default();
-
-        // Determine the format of the message
-        let format = match self.session.log_format {
-            Some(a) => a,
-            None => self.multi.default_format
-        };
-        
-        {
-            // Take all the locks we need to perform the commit actions
-            let multi_lock = self.multi.lock().await;
-
-            // Convert all the events that we are storing into serialize data
-            for row in state.store.drain(..)
-            {
-                // Debug output
-                #[cfg(feature = "enable_verbose")]
-                debug!("store: {}@{}", row.type_name, row.key.as_hex_string());
-
-                // Build a new clean metadata header
-                let mut meta = Metadata::for_data(row.key);
-                meta.core.push(CoreMetadata::Timestamp(self.time.current_timestamp()?));
-                if row.auth.is_relevant() {
-                    meta.core.push(CoreMetadata::Authorization(row.auth.clone()));
-                }
-                if let Some(parent) = &row.parent {
-                    meta.core.push(CoreMetadata::Parent(parent.clone()))
-                } else {
-                    if multi_lock.inside_async.disable_new_roots == true {
-                        return Err(CommitError::NewRootsAreDisabled);
-                    }
-                }
-                for extra in row.extra_meta.iter() {
-                    meta.core.push(extra.clone());
-                }
-
-                // Compute all the extra metadata for an event
-                let extra_meta = multi_lock.metadata_lint_event(&mut meta, &self.session, &trans_meta)?;
-                meta.core.extend(extra_meta);
-
-                // Add the data to the transaction metadata object
-                if let Some(key) = meta.get_data_key() {
-                    trans_meta.auth.insert(key, match meta.get_authorization() {
-                        Some(a) => a.clone(),
-                        None => MetaAuthorization {
-                            read: ReadOption::Inherit,
-                            write: WriteOption::Inherit,
-                        }
-                    });
-                    if let Some(parent) = meta.get_parent() {
-                        if parent.vec.parent_id != key {
-                            trans_meta.parents.insert(key, parent.clone());
-                        }
-                    }
-                }
-                
-                // Perform any transformation (e.g. data encryption and compression)
-                let data = multi_lock.data_as_underlay(&mut meta, row.data.clone(), &self.session, &trans_meta)?;
-                
-                // Only once all the rows are processed will we ship it to the redo log
-                let evt = EventData {
-                    meta: meta,
-                    data_bytes: Some(data),
-                    format: row.format,
-                };
-                evts.push(evt);
-            }
-
-            // Build events that will represent tombstones on all these records (they will be sent after the writes)
-            for key in state.deleted.drain() {
-                let mut meta = Metadata::default();
-                meta.core.push(CoreMetadata::Timestamp(self.time.current_timestamp()?));
-                meta.core.push(CoreMetadata::Authorization(MetaAuthorization {
-                    read: ReadOption::Everyone(None),
-                    write: WriteOption::Nobody,
-                }));
-                if let Some(parent) = multi_lock.inside_async.chain.lookup_parent(&key) {
-                    meta.core.push(CoreMetadata::Parent(parent))
-                }
-                meta.add_tombstone(key);
-                
-                // Compute all the extra metadata for an event
-                let extra_meta = multi_lock.metadata_lint_event(&mut meta, &self.session, &trans_meta)?;
-                meta.core.extend(extra_meta);
-
-                let evt = EventData {
-                    meta: meta,
-                    data_bytes: None,
-                    format,
-                };
-                evts.push(evt);
-            }
-
-            // Lint the data
-            let mut lints = Vec::new();
-            for evt in evts.iter() {
-                lints.push(LintData {
-                    data: evt,
-                    header: evt.as_header()?,
-                });
-            }
-
-            let meta = multi_lock.metadata_lint_many(&lints, &self.session, self.conversation.as_ref())?;
-
-            // If it has data then insert it at the front of these events
-            if meta.len() > 0 {
-                evts.insert(0, EventData {
-                    meta: Metadata {
-                        core: meta,
-                    },
-                    data_bytes: None,
-                    format,
-                });
-            }
-        }
-
-        #[cfg(feature = "enable_verbose")]
-        {
-            for evt in evts.iter() {
-                debug!("event: {}", evt.meta);
-            }
-        }
-
-        // Create the transaction
-        let trans = Transaction {
-            scope: self.scope.clone(),
-            transmit: true,
-            events: evts,
-            conversation: match &self.conversation {
-                Some(c) => Some(Arc::clone(c)),
-                None => None,
-            },
-        };
-        debug!("commit events={}", trans.events.len());
-
-        // Process the transaction in the chain using its pipe
-        self.multi.pipe.feed(trans).await?;
-        
-        // Last thing we do is kick off an unlock operation using fire and forget
-        let unlock_multi = self.multi.clone();
-        let unlock_me = state.pipe_unlock.iter().map(|a| a.clone()).collect::<Vec<_>>();
-        for key in unlock_me {
-            let _ = unlock_multi.pipe.unlock(key).await;
-        }
-
-        // Success
-        Ok(())
-    }
-}
-
-impl<'a> Drop
-for Dio<'a>
-{
-    fn drop(&mut self)
-    {
-        // Check if auto-cancel is enabled
-        if self.has_uncommitted() & self.state.auto_cancel {
-            debug!("Data objects have been discarded due to auto-cancel and uncommitted changes");
-            self.cancel();
-        }
-
-        // If the DIO has uncommitted changes then warn the caller
-        debug_assert!(self.has_uncommitted() == false, "dio-has-uncommitted - the DIO has uncommitted data in it - call the .commit() method before the DIO goes out of scope.");
+    pub async fn trans(self: &Arc<Self>, scope: TransactionScope) -> Arc<DioMut> {
+        DioMut::new(self, scope).await
     }
 }

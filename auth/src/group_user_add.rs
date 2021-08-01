@@ -85,7 +85,7 @@ impl AuthService
 
         // Load the group
         let group_key = PrimaryKey::from(request.group.clone());
-        let mut dio = chain.dio(&super_session).await;
+        let dio = chain.dio_full(&super_session).await;
         let mut group = match dio.load::<Group>(&group_key).await {
             Ok(a) => a,
             Err(LoadError::NotFound(_)) => {
@@ -131,7 +131,7 @@ impl AuthService
             let role_write = PrivateSignKey::generate(key_size);
 
             // Add this customer role and attach it back to the delegate role
-            group.roles.push(Role {
+            group.as_mut().roles.push(Role {
                 purpose: request_purpose.clone(),
                 access: MultiEncryptedSecureData::new(&delegate_write.as_public_key(), referrer_identity, Authorization {
                     read: role_read.clone(),
@@ -145,12 +145,11 @@ impl AuthService
         }
 
         // Perform the operation that will add the other user to the specific group role
-        for role in group.roles.iter_mut().filter(|r| r.purpose == request_purpose) {
+        for role in group.as_mut().roles.iter_mut().filter(|r| r.purpose == request_purpose) {
             role.access.add(&request.who_key, request.who_name.clone(), &delegate_write)?;
         }
 
         // Commit
-        group.commit(&mut dio)?;
         dio.commit().await?;
 
         // Return success to the caller

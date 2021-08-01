@@ -98,13 +98,13 @@ async fn test_mesh()
 
         let dao2;
         {
-            let mut dio = chain_a.dio_ext(&session_a, TransactionScope::Full).await;
+            let dio = chain_a.dio_trans(&session_a, TransactionScope::Full).await;
             dao2 = dio.store(TestData::default()).unwrap();
             dao_key2 = dao2.key().clone();
             let _ = dio.store(TestData::default()).unwrap();
             dio.commit().await.unwrap();
 
-            bus_b = dao2.bus(&chain_a, dao2.inner).await;
+            bus_b = dao2.inner.bus().await.unwrap();
         }
 
         {
@@ -116,23 +116,23 @@ async fn test_mesh()
             let mut session_b = AteSession::new(&cfg_ate);
             session_b.add_user_write_key(&root_key);
 
-            bus_a = dao2.bus(&chain_b, dao2.inner).await;
+            bus_a = dao2.inner.bus().await.unwrap();
             
             {
                 debug!("start a DIO session for client B");
-                let mut dio = chain_b.dio_ext(&session_b, TransactionScope::Full).await;
+                let dio = chain_b.dio_trans(&session_b, TransactionScope::Full).await;
 
                 debug!("store data object 1");
                 dao_key1 = dio.store(TestData::default()).unwrap().key().clone();
                 dio.commit().await.unwrap();
 
                 debug!("load data object 2");
-                let mut dao2: Dao<TestData> = dio.load(&dao_key2).await.expect("An earlier saved object should have loaded");
+                let dao2: DaoMut<TestData> = dio.load(&dao_key2).await.expect("An earlier saved object should have loaded");
                 
                 debug!("add to new sub objects to the vector");
-                dao2.push_store(&mut dio, dao2.inner, "test_string1".to_string()).unwrap();
+                dao2.inner.push(&dio, "test_string1".to_string()).unwrap();
                 dio.commit().await.unwrap();
-                dao2.push_store(&mut dio, dao2.inner, "test_string2".to_string()).unwrap();
+                dao2.inner.push(&dio, "test_string2".to_string()).unwrap();
                 dio.commit().await.unwrap();
             }
         }
@@ -141,26 +141,23 @@ async fn test_mesh()
         chain_a.sync().await.unwrap();
         
         debug!("wait for an event on the BUS (local)");
-        let task_ret = bus_a.recv(&session_a).await.expect("Should have received the result on the BUS");
+        let task_ret = bus_a.recv().await.expect("Should have received the result on the BUS");
         assert_eq!(*task_ret, "test_string1".to_string());
 
         debug!("wait for an event on the BUS (other)");
-        let task_ret = bus_b.recv(&session_a).await.expect("Should have received the result on the BUS");
+        let task_ret = bus_b.recv().await.expect("Should have received the result on the BUS");
         assert_eq!(*task_ret, "test_string1".to_string());
 
         {
             debug!("new DIO session for client A");
-            let mut dio = chain_a.dio_ext(&session_a, TransactionScope::Full).await;
+            let dio = chain_a.dio_trans(&session_a, TransactionScope::Full).await;
 
             debug!("processing the next event in the BUS (and lock_for_delete it)");
-            let mut task_ret = bus_b.process(&mut dio)
+            let task_ret = bus_b.process(&dio)
                 .await
                 .expect("Should have received the result on the BUS for the second time");
             debug!("event received");
             assert_eq!(*task_ret, "test_string2".to_string());
-
-            // Committing the DIO
-            task_ret.commit(&mut dio).unwrap();
 
             debug!("loading data object 1");
             dio.load::<TestData>(&dao_key1).await.expect("The data did not not get replicated to other clients in realtime");
@@ -188,7 +185,7 @@ async fn test_mesh()
         let session = AteSession::new(&cfg_ate);
         {
             debug!("loading data object 1");
-            let mut dio = chain.dio(&session).await;
+            let dio = chain.dio(&session).await;
             dio.load::<TestData>(&dao_key1).await.expect("The data did not survive between new sessions");
         }
     }

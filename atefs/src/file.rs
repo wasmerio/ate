@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 #![allow(unused_imports)]
 use log::{info, error, debug};
+use std::sync::Arc;
 use std::ops::DerefMut;
 use async_trait::async_trait;
 use crate::api::FileApi;
@@ -16,8 +17,8 @@ use tokio::io::AsyncWriteExt;
 use fuse3::{Errno, Result};
 use super::fs::conv;
 use super::fs::conv_load;
-use super::fs::conv_commit;
-use super::fs::conv_serialization;
+use super::fs::cc;
+use super::fs::cs;
 use tokio::sync::Mutex;
 use parking_lot::{Mutex as PMutex, RwLock};
 use fxhash::FxHashMap;
@@ -33,7 +34,6 @@ const CACHED_BUNDLES: usize = 10;      // Number of cached bundles per open file
 const CACHED_PAGES: usize = 80;       // Number of cached pages per open file
 const ZERO_PAGE: [u8; super::model::PAGE_SIZE] = [0 as u8; super::model::PAGE_SIZE];    // Page full of zeros
 
-#[derive(Debug)]
 pub struct RegularFile
 {
     pub ino: u64,
@@ -47,13 +47,14 @@ pub struct RegularFile
     pub state: Mutex<FileState>,
 }
 
-#[derive(Debug)]
 pub struct FileState
 {
-    pub inode: Dao<Inode>,
     pub dirty: bool,
-    pub pages: [Option<Dao<Page>>; CACHED_PAGES],
-    pub bundles: [Option<Dao<PageBundle>>; CACHED_BUNDLES],
+    pub dio: Arc<DioMut>,
+    pub inode: DaoMut<Inode>,
+    pub bundles: [Option<DaoMut<PageBundle>>; CACHED_BUNDLES],
+    pub pages: [Option<DaoMutGuardOwned<Page>>; CACHED_PAGES],
+    
 }
 
 impl FileState
@@ -65,12 +66,12 @@ impl FileState
 
     pub fn set_size(&mut self, val: u64) -> Result<()>
     {
-        self.inode.size = val;
+        self.inode.as_mut().size = val;
         self.dirty = true;
         Ok(())
     }
 
-    pub async fn read_page(&mut self, chain: &Chain, session: &AteSession, scope: TransactionScope, mut offset: u64, mut size: u64, ret: &mut Cursor<&mut Vec<u8>>) -> Result<()>
+    pub async fn read_page(&mut self, mut offset: u64, mut size: u64, ret: &mut Cursor<&mut Vec<u8>>) -> Result<()>
     {
         // Compute the strides
         let stride_page = super::model::PAGE_SIZE as u64;
@@ -105,10 +106,7 @@ impl FileState
             },
             _ => {
                 // Cache-miss - load the bundle into the cacheline and return its pages
-                let mut dio = chain.dio_ext(session, scope).await;                    
-                let dao = conv_load(dio.load::<PageBundle>(&bundle).await)?;
-                
-                // We always commit changes to the bundles so no need to commit it here
+                let dao = conv_load(self.dio.load::<PageBundle>(&bundle).await)?;
                 cache_line.replace(dao);
                 cache_line.as_mut().unwrap()
             }
@@ -133,7 +131,6 @@ impl FileState
         };
 
         // Use the cache-line to load the page
-        let mut page_store;
         let cache_index = page.as_u64() as usize % CACHED_PAGES;
         let cache_line = &mut self.pages[cache_index];
         let page = match cache_line {
@@ -144,30 +141,9 @@ impl FileState
             },
             _ => {
                 // Cache-miss - load the bundle into the cacheline and return its pages
-                let mut dio = chain.dio_ext(session, scope).await;
-                let dao = conv_load(dio.load::<Page>(&page).await)?;
-                
-                // Replace the cache-line - pages here are lazy-written so we might need to flush it
-                let old = cache_line.replace(dao);
-                if let Some(mut old) = old {
-                    match old.commit(&mut dio) {
-                        Ok(_) => {
-                            conv_commit(dio.commit().await)?;
-                            cache_line.as_mut().unwrap()
-                        },
-                        Err(err) => {
-                            error!("failed to flush cache-line - {}", err);
-
-                            // Swap the old page back into the cache-line and return the loaded page
-                            // (this will cause a significant performance drop on loads however at
-                            //  least it will keep working)
-                            page_store = cache_line.replace(old).unwrap();
-                            &mut page_store
-                        }
-                    }
-                } else {
-                    cache_line.as_mut().unwrap()
-                }
+                let dao = conv_load(self.dio.load::<Page>(&page).await)?;
+                cache_line.replace(dao.as_mut_owned());
+                cache_line.as_mut().unwrap()
             }
         };
 
@@ -199,7 +175,7 @@ impl FileState
         Ok(())
     }
 
-    pub async fn write_page(&mut self, chain: &Chain, session: &AteSession, scope: TransactionScope, mut offset: u64, reader: &mut Cursor<&[u8]>) -> Result<()>
+    pub async fn write_page(&mut self, mut offset: u64, reader: &mut Cursor<&[u8]>) -> Result<()>
     {
         self.dirty = true;
 
@@ -208,58 +184,40 @@ impl FileState
         let stride_page = super::model::PAGE_SIZE as u64;
         let stride_bundle = super::model::PAGES_PER_BUNDLE as u64 * stride_page;
 
-        // Determine the format of the messages
-        let format = match session.log_format {
-            Some(a) => a,
-            None => chain.default_format()
-        };
-
         // Expand the bundles until we have enough of them to cover this write offset
         let index = offset / stride_bundle;
-        while self.inode.bundles.len() <= index as usize {
-            self.inode.bundles.push(None);
+        if self.inode.bundles.len() <= index as usize {
+            let mut guard = self.inode.as_mut();
+            while guard.bundles.len() <= index as usize {
+                guard.bundles.push(None);
+            }
+            drop(guard);
+            cc(self.dio.commit().await)?;
         }
         offset = offset - (index * stride_bundle);
 
         // If the bundle is a hole then we need to fill it
-        let bundle_ref = &mut self.inode.bundles[index as usize];
-        let bundle = match bundle_ref {
-            Some(a) => a.clone(),
+        let bundle = match self.inode.bundles[index as usize] {
+            Some(a) => a,
             None => {
                 // Create the bundle
-                let mut dio = chain.dio_ext(session, scope).await;
-                dio.auto_cancel();
-
-                let mut bundle = conv_serialization(dio.make_ext( 
+                let mut bundle = cs(self.dio.store( 
                     PageBundle {
                             pages: Vec::new(),
-                        }, Some(format), None
-                    ))?;
-                bundle.auto_cancel();
-                bundle.attach_orphaned(&inode_key);
+                        }))?;
+                cs(bundle.attach_orphaned(&inode_key))?;
                 
-                let bundle = conv_serialization(bundle.commit(&mut dio))?;
                 let key = bundle.key().clone();
 
                 // Replace the cache-line with this new one (if something was left behind then commit it)
                 // (in the next section we will commit the row out of this match statement)
                 let cache_index = bundle.key().as_u64() as usize % CACHED_BUNDLES;
                 let cache_line = &mut self.bundles[cache_index];
-                if let Some(mut old) = cache_line.replace(bundle) {
-                    match old.commit(&mut dio) {
-                        Ok(_) => { },
-                        Err(err) => {
-                            cache_line.replace(old);
-                            conv_serialization(Err(err))?;
-                        }
-                    }
-                }
-
-                // Push the data to the chain
-                conv_commit(dio.commit().await)?;
+                cache_line.replace(bundle);
 
                 // Write the entry to the inode and return its reference
-                bundle_ref.replace(key);
+                self.inode.as_mut().bundles.insert(index as usize, Some(key));
+                cc(self.dio.commit().await)?;
                 key
             }
         };
@@ -275,10 +233,7 @@ impl FileState
             },
             _ => {
                 // Cache-miss - load the bundle into the cacheline and return its pages
-                let mut dio = chain.dio_ext(session, scope).await;                    
-                let dao = conv_load(dio.load::<PageBundle>(&bundle).await)?;
-                
-                // We always commit changes to the bundles so no need to commit it here
+                let dao = conv_load(self.dio.load::<PageBundle>(&bundle).await)?;
                 cache_line.replace(dao);
                 cache_line.as_mut().unwrap()
             }
@@ -286,65 +241,47 @@ impl FileState
 
         // Expand the page until we have enough of them to cover this write offset
         let index = offset / stride_page;
-        while bundle.pages.len() <= index as usize {
-            bundle.pages.push(None);
+        if bundle.pages.len() <= index as usize {
+            let mut guard = bundle.as_mut();
+            while guard.pages.len() <= super::model::PAGES_PER_BUNDLE as usize {
+                guard.pages.push(None);
+            }
+            while guard.pages.len() <= index as usize {
+                guard.pages.push(None);
+            }
+            drop(guard);
+            cc(self.dio.commit().await)?;
         }
         offset = offset - (index * stride_page);
 
         // If the page is a hole then we need to fill it
         let bundle_key = bundle.key().clone();
-        let page_ref = &mut bundle.pages[index as usize];
+        let page_ref = bundle.pages[index as usize];
         let page = match page_ref {
             Some(a) => a.clone(),
             None => {
                 // Create the page (and commit it for reference integrity)
-                let mut dio = chain.dio_ext(session, scope).await;
-                dio.auto_cancel();
-
-                let mut page = conv_serialization(dio.make_ext(Page {
+                let mut page = cs(self.dio.store(Page {
                         buf: Vec::new(),
                     },
-                    None, None
                 ))?;
-                page.auto_cancel();
-                page.attach_orphaned(&bundle_key);
-                let page = conv_serialization(page.commit(&mut dio))?;
+                cs(page.attach_orphaned(&bundle_key))?;
                 let key = page.key().clone();
 
                 // Replace the cache-line with this new one (if something was left behind then commit it)
                 // (in the next section we will commit the row out of this match statement)
                 let cache_index = page.key().as_u64() as usize % CACHED_BUNDLES;
                 let cache_line = &mut self.pages[cache_index];
-                if let Some(mut old) = cache_line.replace(page) {
-                    match old.commit(&mut dio) {
-                        Ok(_) => { },
-                        Err(err) => {
-                            cache_line.replace(old);
-                            conv_serialization(Err(err))?
-                        }
-                    }
-                }
+                cache_line.replace(page.as_mut_owned());
 
                 // Write the entry to the inode and return its reference
-                conv_commit(dio.commit().await)?;
-                page_ref.replace(key);
+                bundle.as_mut().pages.insert(index as usize, Some(key));
+                cc(self.dio.commit().await)?;
                 key
             }
         };
 
-        // Now its time to commit all the metadata updates (if there were any)
-        if bundle.is_dirty() || self.inode.is_dirty() {
-            let mut dio = chain.dio_ext(session, scope).await;
-            dio.auto_cancel();
-            bundle.auto_cancel();
-            
-            conv_serialization(bundle.commit(&mut dio))?;    
-            conv_serialization(self.inode.commit(&mut dio))?;
-            conv_commit(dio.commit().await)?
-        }
-
         // Use the cache-line to load the page
-        let mut page_store;
         let cache_index = page.as_u64() as usize % CACHED_BUNDLES;
         let cache_line = &mut self.pages[cache_index];
         let page = match cache_line {
@@ -355,29 +292,10 @@ impl FileState
             },
             _ => {
                 // Cache-miss - load the page into the cacheline and return its pages
-                let mut dio = chain.dio_ext(session, scope).await;                    
-                let dao = conv_load(dio.load::<Page>(&page).await)?;
-                
-                // We always commit changes to the bundles so no need to commit it here
-                if let Some(mut old) = cache_line.replace(dao) {
-                    match old.commit(&mut dio) {
-                        Ok(_) => {
-                            conv_commit(dio.commit().await)?;
-                            cache_line.as_mut().unwrap()
-                        },
-                        Err(err) => {
-                            error!("failed to flush cache-line - {}", err);
-
-                            // Swap the old page back into the cache-line and return the loaded page
-                            // (this will cause a significant performance drop on writes however at
-                            //  least it will keep working)
-                            page_store = cache_line.replace(old).unwrap();
-                            &mut page_store
-                        }
-                    }
-                } else {
-                    cache_line.as_mut().unwrap()
-                }
+                let dao = conv_load(self.dio.load::<Page>(&page).await)?;
+                let dao = dao.as_mut_owned();
+                cache_line.replace(dao);
+                cache_line.as_mut().unwrap()
             }
         };
 
@@ -393,19 +311,13 @@ impl FileState
         Ok(())
     }
 
-    pub async fn commit(&mut self, chain: &Chain, session: &AteSession, scope: TransactionScope) -> Result<()>
+    pub async fn commit(&mut self) -> Result<()>
     {
         if self.dirty {
-            let mut dio = chain.dio_ext(session, scope).await;
-            dio.auto_cancel();
-
             for page in self.pages.iter_mut() {
-                if let Some(page) = page {
-                    page.auto_cancel();
-                    conv_serialization(page.commit(&mut dio))?;
-                }
+                page.take();
             }
-            conv_commit(dio.commit().await)?;
+            cc(self.dio.commit().await)?;
             self.dirty = false;
         }
         Ok(())
@@ -414,8 +326,9 @@ impl FileState
 
 impl RegularFile
 {
-    pub fn new(mut inode: Dao<Inode>, created: u64, updated: u64) -> RegularFile {
-        inode.auto_cancel();
+    pub async fn new(inode: Dao<Inode>, created: u64, updated: u64, scope: TransactionScope) -> RegularFile {
+        let dio = inode.dio().trans(scope).await;
+        let inode = inode.as_mut(&dio);
         RegularFile {
             uid: inode.dentry.uid,
             gid: inode.dentry.gid,
@@ -426,6 +339,7 @@ impl RegularFile
             created,
             updated,
             state: Mutex::new(FileState {
+                dio,
                 inode,
                 dirty: false,
                 bundles: array_init::array_init(|_| None),
@@ -483,7 +397,7 @@ for RegularFile
         self.updated
     }
 
-    async fn fallocate(&self, _chain: &Chain, _session: &AteSession, _scope: TransactionScope, size: u64) -> Result<()>
+    async fn fallocate(&self, size: u64) -> Result<()>
     {
         let mut lock = self.state.lock().await;
         lock.set_size(size)?;
@@ -491,7 +405,7 @@ for RegularFile
         Ok(())
     }
 
-    async fn read(&self, chain: &Chain, session: &AteSession, scope: TransactionScope, mut offset: u64, mut size: u64) -> Result<Bytes>
+    async fn read(&self, mut offset: u64, mut size: u64) -> Result<Bytes>
     {
         // Clip the read to the correct size (or return EOF)
         let mut state = self.state.lock().await;
@@ -515,7 +429,7 @@ for RegularFile
             let sub_offset = offset % stride_page;
             let sub_size = size.min(stride_page - sub_offset);
             if sub_size > 0 {
-                state.read_page(chain, session, scope, offset, sub_size, &mut cursor).await?;
+                state.read_page(offset, sub_size, &mut cursor).await?;
             }
 
             // Move the data pointers and offsets
@@ -526,7 +440,7 @@ for RegularFile
         Ok(Bytes::from(ret))
     }
 
-    async fn write(&self, chain: &Chain, session: &AteSession, scope: TransactionScope, mut offset: u64, data: &[u8]) -> Result<u64>    
+    async fn write(&self, mut offset: u64, data: &[u8]) -> Result<u64>    
     {
         // Validate
         let mut size = data.len();
@@ -541,7 +455,8 @@ for RegularFile
         let mut state = self.state.lock().await;
         let end = offset + data.len() as u64;
         if end > state.inode.size {
-            state.inode.size = end;
+            state.inode.as_mut().size = end;
+            cc(state.inode.trans().commit().await)?;
         }
         
         // Write the data (under a lock)
@@ -551,7 +466,7 @@ for RegularFile
             let sub_size = size.min(stride_page - sub_offset as usize);
             if sub_size > 0 {
                 let mut reader = Cursor::new(&data[data_offset..(data_offset+sub_size) as usize]);
-                state.write_page(chain, session, scope, offset, &mut reader).await?;
+                state.write_page(offset, &mut reader).await?;
             }
 
             // Move the data pointers and offsets
@@ -567,9 +482,9 @@ for RegularFile
         Ok(data.len() as u64)
     }
 
-    async fn commit(&self, chain: &Chain, session: &AteSession, scope: TransactionScope) -> Result<()> {
+    async fn commit(&self) -> Result<()> {
         let mut state = self.state.lock().await;
-        state.commit(chain, session, scope).await?;
+        state.commit().await?;
         Ok(())
     }
 }

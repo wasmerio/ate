@@ -34,7 +34,7 @@ fn rotate_test() -> Result<(), AteError>
 
             {
                 // Write a test object
-                let mut dio = chain.dio(&session).await;
+                let dio = chain.dio_mut(&session).await;
                 key1 = dio.store("blah!".to_string())?.key().clone();
                 dio.commit().await?;
             }
@@ -44,12 +44,12 @@ fn rotate_test() -> Result<(), AteError>
 
             {
                 // Write a test object
-                let mut dio = chain.dio(&session).await;
+                let dio = chain.dio_mut(&session).await;
                 key2 = dio.store("haha!".to_string())?.key().clone();
                 dio.commit().await?;
             }
 
-            let mut dio = chain.dio(&session).await;
+            let dio = chain.dio(&session).await;
             assert_eq!(*dio.load::<String>(&key1).await?, "blah!".to_string());
             assert_eq!(*dio.load::<String>(&key2).await?, "haha!".to_string());
         }
@@ -58,7 +58,7 @@ fn rotate_test() -> Result<(), AteError>
             let chain = builder.open_local(&ChainKey::from("rotate")).await?;
 
             let session = AteSession::new(&conf);
-            let mut dio = chain.dio(&session).await;
+            let dio = chain.dio(&session).await;
             assert_eq!(*dio.load::<String>(&key1).await?, "blah!".to_string());
             assert_eq!(*dio.load::<String>(&key2).await?, "haha!".to_string());
             

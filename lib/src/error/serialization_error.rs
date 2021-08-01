@@ -20,6 +20,8 @@ pub enum SerializationError
     #[allow(dead_code)]
     CollectionDetached,
     SerdeError(String),
+    WeakDio,
+    SaveParentFirst,
 }
 
 impl From<RmpEncodeError>
@@ -92,6 +94,12 @@ for SerializationError {
             },
             SerializationError::SerdeError(err) => {
                 write!(f, "Serde error during serialization - {}", err)
+            },
+            SerializationError::WeakDio => {
+                write!(f, "The DIO that created this object has gone out of scope")
+            },
+            SerializationError::SaveParentFirst => {
+                write!(f, "You must save the parent object before attempting to push objects to this vector")
             },
         }
     }

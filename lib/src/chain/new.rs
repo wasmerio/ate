@@ -196,9 +196,13 @@ impl<'a> Chain
         // background thread - receives events and processes them
         let sender = ChainWorkProcessor::new(worker_inside_async, worker_inside_sync, compact_tx);
 
+        // decache subscription
+        let (decache_tx, _) = broadcast::channel(1000);
+
         // The inbox pipe intercepts requests to and processes them
         let mut pipe: Arc<Box<dyn EventPipe>> = Arc::new(Box::new(InboxPipe {
             inbox: sender,
+            decache: decache_tx.clone(),
             locks: StdMutex::new(FxHashSet::default()),
         }));
         if let Some(second) = builder.pipes {
@@ -220,6 +224,7 @@ impl<'a> Chain
             pipe,
             time,
             exit: exit_tx.clone(),
+            decache: decache_tx,
         };
 
         // If we are to compact the log on bootstrap then do so
