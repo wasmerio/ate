@@ -4,6 +4,7 @@ use tracing_futures::Instrument;
 
 use crate::error::*;
 
+use crate::comms::NodeId;
 use crate::transaction::*;
 
 use std::sync::{Arc};
@@ -47,7 +48,7 @@ pub struct Chain
 where Self: Send + Sync
 {
     pub(crate) key: ChainKey,
-    pub(crate) client_id: String,
+    pub(crate) client_id: NodeId,
     pub(crate) cfg_ate: ConfAte,
     pub(crate) remote_addr: Option<MeshAddress>,
     pub(crate) default_format: MessageFormat,

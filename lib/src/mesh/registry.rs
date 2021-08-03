@@ -138,7 +138,7 @@ pub struct Registry
     #[cfg(feature="enable_dns")]
     dns: Mutex<DnsClient>,
     pub temporal: bool,
-    pub client_id: String,
+    pub client_id: NodeId,
     pub fail_fast: bool,
     
     chains: Mutex<FxHashMap<url::Url, Arc<MeshClient>>>,
@@ -160,7 +160,7 @@ impl Registry
             Mutex::new(dns)
         };
         
-        let client_id = MeshClient::generate_client_id();
+        let client_id = NodeId::generate_client_id();
         Registry {
             cfg_ate: cfg_ate.clone(),
             fail_fast: true,

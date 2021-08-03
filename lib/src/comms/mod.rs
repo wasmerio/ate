@@ -13,6 +13,9 @@ mod client;
 mod rx_tx;
 mod test;
 mod stream;
+mod node_id;
+
+pub use self::node_id::NodeId;
 
 pub(crate) use packet::Packet;
 pub(crate) use packet::PacketData;

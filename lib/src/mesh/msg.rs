@@ -17,6 +17,8 @@ use crate::crypto::PublicSignKey;
 use crate::trust::IntegrityMode;
 use crate::time::ChainTimestamp;
 
+use super::NodeId;
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub(super) struct MessageEvent
 {
@@ -122,7 +124,6 @@ pub(super) enum Message {
     Noop,
 
     Subscribe {
-        client_id: String,
         chain_key: ChainKey,
         from: ChainTimestamp
     },

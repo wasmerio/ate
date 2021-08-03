@@ -11,6 +11,7 @@ use parking_lot::Mutex as StdMutex;
 use crate::error::*;
 use crate::prelude::SerializationFormat;
 
+use super::NodeId;
 use super::conf::Upstream;
 use super::Packet;
 use super::PacketData;
@@ -122,7 +123,7 @@ for Tx
 #[derive(Debug)]
 pub(crate) struct TxGroupSpecific
 {
-    pub me_id: u64,
+    pub me_id: NodeId,
     pub me_tx: Arc<Mutex<Upstream>>,
     pub group: Arc<Mutex<TxGroup>>,
 }
@@ -163,19 +164,18 @@ impl TxGroupSpecific
 #[derive(Debug, Default)]
 pub(crate) struct TxGroup
 {
-    pub all: FxHashMap<u64, Weak<Mutex<Upstream>>>,
+    pub all: FxHashMap<NodeId, Weak<Mutex<Upstream>>>,
 }
 
 impl TxGroup
 {
     #[cfg(feature="enable_server")]
-    pub(crate) async fn send(&mut self, pck: PacketData, skip: Option<u64>) -> Result<(), CommsError>
+    pub(crate) async fn send(&mut self, pck: PacketData, skip: Option<NodeId>) -> Result<(), CommsError>
     {
         match self.all.len() {
             1 => {
                 if let Some(tx) = self.all.values().next().iter().filter_map(|a| Weak::upgrade(a)).next() {
                     let mut tx = tx.lock().await;
-                    error!("{}, {}", tx.id, skip);
                     if Some(tx.id) != skip {
                         tx.outbox.send(pck).await?;
                     }
@@ -185,7 +185,6 @@ impl TxGroup
                 let all = self.all.values().filter_map(|a| Weak::upgrade(a));
                 for tx in all {
                     let mut tx = tx.lock().await;
-                    error!("{}, {}", tx.id, skip);
                     if Some(tx.id) != skip {
                         tx.outbox.send(pck.clone()).await?;
                     }

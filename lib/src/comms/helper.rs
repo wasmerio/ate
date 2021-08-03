@@ -15,6 +15,7 @@ use std::net::SocketAddr;
 use crate::spec::*;
 use crate::crypto::*;
 use crate::error::*;
+use crate::comms::NodeId;
 
 use super::Packet;
 use super::PacketData;
@@ -47,7 +48,8 @@ pub(super) fn setup_tcp_stream(stream: &TcpStream) -> io::Result<()> {
 pub(super) async fn process_inbox<M, C>(
     mut rx: StreamRx,
     mut inbox: Box<dyn InboxProcessor<M, C>>,
-    sender: u64,
+    id: NodeId,
+    peer_id: NodeId,
     sock_addr: MeshConnectAddr,
     context: Arc<C>,
     wire_format: SerializationFormat,
@@ -102,6 +104,8 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
             },
             context: Arc::clone(&context),
             packet: pck,
+            id,
+            peer_id,
         };
 
         // Its time to process the packet

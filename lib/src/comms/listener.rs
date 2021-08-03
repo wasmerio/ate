@@ -36,6 +36,7 @@ use super::StreamProtocol;
 use crate::engine::TaskEngine;
 use super::stream::*;
 use super::helper::InboxProcessor;
+use crate::comms::NodeId;
 
 #[derive(Debug)]
 struct ListenerNode
@@ -89,7 +90,7 @@ impl Listener
     pub(crate) async fn new<M, C>
     (
         conf: &MeshConfig,
-        server_id: String,
+        server_id: NodeId,
         inbox: impl ServerProcessor<M, C> + 'static
     )
     -> Result<Arc<StdMutex<Listener>>, CommsError>
@@ -137,7 +138,7 @@ impl Listener
 
     async fn listen_on<M, C>(
         addr: SocketAddr,
-        server_id: String,
+        server_id: NodeId,
         listener: Weak<StdMutex<Listener>>,
         wire_protocol: StreamProtocol,
         wire_format: SerializationFormat,
@@ -187,6 +188,7 @@ impl Listener
                     (
                         stream,
                         sock_addr,
+                        server_id,
                         listener,
                         wire_protocol,
                         wire_format,
@@ -194,7 +196,7 @@ impl Listener
                         accept_timeout,
                         Arc::clone(&inbox)
                     )
-                    .instrument(tracing::info_span!("server-accept", id=server_id.as_str()))
+                    .instrument(tracing::info_span!("server-accept", id=server_id.to_short_string().as_str()))
                     .await {
                         Ok(a) => a,
                         Err(CommsError::IO(err))
@@ -215,6 +217,7 @@ impl Listener
     async fn accept_tcp_connect<M, C>(
         stream: Stream,
         sock_addr: SocketAddr,
+        server_id: NodeId,
         listener: Arc<StdMutex<Listener>>,
         wire_protocol: StreamProtocol,
         wire_format: SerializationFormat,
@@ -236,10 +239,12 @@ impl Listener
         (
             &mut rx,
             &mut tx,
+            server_id,
             wire_encryption,
             wire_format
         ).await?;
         let wire_encryption = hello_meta.encryption;
+        let client_id = hello_meta.client_id;
 
         // If we are using wire encryption then exchange secrets
         let ek = match wire_encryption {
@@ -268,11 +273,10 @@ impl Listener
         }
         
         let context = Arc::new(C::default());
-        let sender = fastrand::u64(..);
         
         // Create an upstream from the tx
         let tx = Upstream {
-            id: fastrand::u64(..),
+            id: client_id,
             outbox: tx,
             wire_format,
         };
@@ -281,12 +285,12 @@ impl Listener
         // Now lets build a Tx object that is not connected to any of transmit pipes for now
         // (later we will add other ones to create a broadcast group)
         let mut group = TxGroup::default();
-        group.all.insert(sender, Arc::downgrade(&tx));
+        group.all.insert(client_id, Arc::downgrade(&tx));
         let tx = Tx {
             hello_path: hello_meta.path.clone(),
             wire_format,
             direction: TxDirection::Downcast(TxGroupSpecific {
-                me_id: sender,
+                me_id: client_id,
                 me_tx: Arc::clone(&tx),
                 group: Arc::new(Mutex::new(group)),
             })
@@ -307,7 +311,8 @@ impl Listener
             (
                 rx,
                 tx,
-                sender,
+                client_id,
+                server_id,
                 sock_addr,
                 worker_context,
                 wire_format,

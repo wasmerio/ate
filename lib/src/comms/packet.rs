@@ -25,6 +25,8 @@ where M: Send + Sync + Clone,
     pub packet: Packet<M>,
     pub data: PacketData,
     pub context: Arc<C>,
+    pub id: NodeId,
+    pub peer_id: NodeId,
 }
 
 impl<M, C> PacketWithContext<M, C>

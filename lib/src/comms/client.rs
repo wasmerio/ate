@@ -20,14 +20,14 @@ use
     ws_stream_wasm        :: { *                                    } ,
 };
 
-use crate::error::*;
+use crate::{error::*, comms::NodeId};
 use crate::crypto::*;
 use crate::spec::*;
 #[allow(unused_imports)]
 use crate::conf::*;
 use crate::engine::TaskEngine;
 
-use super::conf::*;
+use super::{conf::*, hello::HelloMetadata};
 use super::rx_tx::*;
 use super::helper::*;
 use super::hello;
@@ -45,8 +45,7 @@ pub(crate) async fn connect<M, C>
 (
     conf: &MeshConfig,
     hello_path: String,
-    client_id: String,
-    peer_id: String,
+    client_id: NodeId,
     inbox: impl InboxProcessor<M, C> + 'static
 )
 -> Result<Tx, CommsError>
@@ -61,7 +60,6 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
             target.clone(), 
             hello_path.clone(),
             client_id,
-            peer_id,
             conf.cfg_mesh.domain_name.clone(),
             inbox,
             conf.cfg_mesh.wire_protocol,
@@ -94,8 +92,7 @@ pub(super) async fn mesh_connect_to<M, C>
 (
     addr: MeshConnectAddr,
     hello_path: String,
-    client_id: String,
-    peer_id: String,
+    client_id: NodeId,
     domain: String,
     inbox: Box<dyn InboxProcessor<M, C>>,
     wire_protocol: StreamProtocol,
@@ -108,19 +105,19 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
       C: Send + Sync + Default + 'static,
 {
     // Make the connection
-    let sender = fastrand::u64(..);    
     let worker_connect = mesh_connect_prepare
     (
         addr.clone(),
         hello_path,
+        client_id,
         domain,
-        sender,
         wire_protocol,
         wire_encryption,
         fail_fast,
     );
     let (mut worker_connect, mut stream_tx) = tokio::time::timeout(timeout, worker_connect).await??;
-    let wire_format = worker_connect.wire_format;
+    let wire_format = worker_connect.hello_metadata.wire_format;
+    let server_id = worker_connect.hello_metadata.server_id;
 
     // If we are using wire encryption then exchange secrets
     let ek = match wire_encryption {
@@ -131,12 +128,12 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
     // background thread - connects and then runs inbox and outbox threads
     // if the upstream object signals a termination event it will exit
     TaskEngine::spawn(
-        mesh_connect_worker::<M, C>(worker_connect, addr, ek, client_id, peer_id, inbox)
+        mesh_connect_worker::<M, C>(worker_connect, addr, ek, client_id, server_id, inbox)
     );
 
     let stream_tx = StreamTxChannel::new(stream_tx, ek);
     Ok(Upstream {
-        id: sender,
+        id: client_id,
         outbox: stream_tx,
         wire_format,
     })
@@ -145,9 +142,8 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
 struct MeshConnectContext
 {
     addr: MeshConnectAddr,
-    sender: u64,
     stream_rx: StreamRx,
-    wire_format: SerializationFormat,
+    hello_metadata: HelloMetadata,
 }
 
 async fn mesh_connect_prepare
@@ -155,8 +151,8 @@ async fn mesh_connect_prepare
     
     addr: MeshConnectAddr,
     hello_path: String,
+    client_id: NodeId,
     domain: String,
-    sender: u64,
     wire_protocol: StreamProtocol,
     wire_encryption: Option<KeySize>,
     #[allow(unused_variables)]
@@ -249,16 +245,14 @@ async fn mesh_connect_prepare
 
             // Say hello
             let hello_metadata =
-                hello::mesh_hello_exchange_sender(&mut stream_rx, &mut stream_tx, hello_path.clone(), domain.clone(), wire_encryption)
+                hello::mesh_hello_exchange_sender(&mut stream_rx, &mut stream_tx, client_id, hello_path.clone(), domain.clone(), wire_encryption)
                 .await?;
-            let wire_format = hello_metadata.wire_format;
-
-            // Return the result
+            
+                // Return the result
             return Ok((MeshConnectContext {
                 addr,
-                sender,
                 stream_rx,
-                wire_format,
+                hello_metadata,
             }, stream_tx));
         }
     }
@@ -271,24 +265,27 @@ async fn mesh_connect_worker<M, C>
     connect: MeshConnectContext,
     sock_addr: MeshConnectAddr,
     wire_encryption: Option<EncryptKey>,
-    client_id: String,
-    peer_id: String,
+    client_id: NodeId,
+    peer_id: NodeId,
     inbox: Box<dyn InboxProcessor<M, C>>
 )
 -> Result<(), CommsError>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
       C: Send + Sync + Default + 'static,
 {
-    let span = span!(Level::DEBUG, "client", id=client_id.as_str(), peer=peer_id.as_str());
+    let span = span!(Level::DEBUG, "client", id=client_id.to_short_string().as_str(), peer=peer_id.to_short_string().as_str());
+    let wire_format = connect.hello_metadata.wire_format;
+    
     let context = Arc::new(C::default());
     match process_inbox::<M, C>
     (
         connect.stream_rx,
         inbox,
-        connect.sender,
+        client_id,
+        peer_id,
         sock_addr,
         context,
-        connect.wire_format,
+        wire_format,
         wire_encryption
     )
     .instrument(span.clone())

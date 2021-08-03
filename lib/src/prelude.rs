@@ -72,6 +72,7 @@ pub use crate::error::InvokeError;
 pub use crate::engine::TaskEngine;
 pub use crate::comms::StreamProtocol;
 pub use crate::spec::TrustMode;
+pub use crate::comms::NodeId;
 pub use crate::mesh::RecoveryMode;
 pub use crate::mesh::Registry;
 pub use crate::conf::MeshAddress;

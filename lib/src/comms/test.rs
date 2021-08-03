@@ -14,6 +14,7 @@ use async_trait::async_trait;
 #[cfg(feature="enable_server")]
 use crate::comms::ServerProcessor;
 use crate::comms::Tx;
+use crate::comms::NodeId;
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -111,7 +112,7 @@ async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) 
                 }
             }
             
-            let server_id = "n0".to_string();
+            let server_id = NodeId::generate_server_id(0);
             listener = Listener::new(&cfg, server_id, Handler::default()).await?;
             {
                 let mut guard = listener.lock();
@@ -145,8 +146,7 @@ async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) 
                 }
             }
             let inbox = Handler::default();
-            let client_id = "c0".to_string();
-            let peer_id = "n0".to_string();
+            let client_id = NodeId::generate_client_id();
             
             let mut cfg = mock_test_mesh(port);
             cfg.wire_protocol = wire_protocol;
@@ -154,7 +154,7 @@ async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) 
             cfg.wire_encryption = Some(KeySize::Bit256);
             let cfg = MeshConfig::new(cfg)
                 .connect_to(MeshAddress { host: IpAddr::from_str("127.0.0.1").unwrap(), port });
-            let mut client_tx = super::connect(&cfg, "/comm-test".to_string(), client_id, peer_id, inbox)
+            let mut client_tx = super::connect(&cfg, "/comm-test".to_string(), client_id, inbox)
                 .await?;
 
             // We need to test it alot

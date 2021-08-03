@@ -19,6 +19,7 @@ use crate::error::*;
 use crate::pipe::*;
 use crate::engine::*;
 use crate::session::AteSession;
+use crate::comms::NodeId;
 
 use super::*;
 
@@ -28,7 +29,7 @@ use super::*;
 pub struct ChainBuilder
 {
     pub(crate) cfg_ate: ConfAte,
-    pub(crate) client_id: String,
+    pub(crate) client_id: NodeId,
     pub(crate) configured_for: ConfiguredFor,
     pub(crate) validators: Vec<Box<dyn EventValidator>>,
     pub(crate) compactors: Vec<Box<dyn EventCompactor>>,
@@ -74,7 +75,7 @@ impl ChainBuilder
     pub async fn new(cfg_ate: &ConfAte) -> ChainBuilder {
         ChainBuilder {
             cfg_ate: cfg_ate.clone(),
-            client_id: crate::mesh::MeshClient::generate_client_id(),
+            client_id: crate::comms::NodeId::generate_client_id(),
             configured_for: cfg_ate.configured_for.clone(),
             validators: Vec::new(),
             indexers: Vec::new(),
@@ -255,7 +256,7 @@ impl ChainBuilder
         self
     }
 
-    pub fn client_id(mut self, client_id: String) -> Self {
+    pub fn client_id(mut self, client_id: NodeId) -> Self {
         self.client_id = client_id;
         self
     }

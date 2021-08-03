@@ -11,6 +11,8 @@ use super::*;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct HelloMetadata
 {
+    pub client_id: NodeId,
+    pub server_id: NodeId,
     pub path: String,
     pub encryption: Option<KeySize>,
     pub wire_format: SerializationFormat,
@@ -19,6 +21,7 @@ pub struct HelloMetadata
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct SenderHello
 {
+    pub id: NodeId,
     pub path: String,
     pub domain: String,
     pub key_size: Option<KeySize>,
@@ -27,16 +30,18 @@ struct SenderHello
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct ReceiverHello
 {
+    pub id: NodeId,
     pub encryption: Option<KeySize>,
     pub wire_format: SerializationFormat,
 }
 
 #[cfg(feature = "enable_client")]
-pub(super) async fn mesh_hello_exchange_sender(stream_rx: &mut StreamRx, stream_tx: &mut StreamTx, hello_path: String, domain: String, key_size: Option<KeySize>) -> Result<HelloMetadata, CommsError>
+pub(super) async fn mesh_hello_exchange_sender(stream_rx: &mut StreamRx, stream_tx: &mut StreamTx, client_id: NodeId, hello_path: String, domain: String, key_size: Option<KeySize>) -> Result<HelloMetadata, CommsError>
 {
     // Send over the hello message and wait for a response
     trace!("client sending hello");
     let hello_client = SenderHello {
+        id: client_id,
         path: hello_path.clone(),
         domain,
         key_size,
@@ -57,6 +62,8 @@ pub(super) async fn mesh_hello_exchange_sender(stream_rx: &mut StreamRx, stream_
     trace!("client wire_format={}", hello_server.wire_format);
     
     Ok(HelloMetadata {
+        client_id,
+        server_id: hello_server.id,
         path: hello_path,
         encryption: hello_server.encryption,
         wire_format: hello_server.wire_format,
@@ -64,7 +71,7 @@ pub(super) async fn mesh_hello_exchange_sender(stream_rx: &mut StreamRx, stream_
 }
 
 #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
-pub(super) async fn mesh_hello_exchange_receiver(stream_rx: &mut StreamRx, stream_tx: &mut StreamTx, key_size: Option<KeySize>, wire_format: SerializationFormat) -> Result<HelloMetadata, CommsError>
+pub(super) async fn mesh_hello_exchange_receiver(stream_rx: &mut StreamRx, stream_tx: &mut StreamTx, server_id: NodeId, key_size: Option<KeySize>, wire_format: SerializationFormat) -> Result<HelloMetadata, CommsError>
 {
     // Read the hello message from the other side
     let hello_client_bytes = stream_rx.read_16bit().await?;
@@ -77,6 +84,7 @@ pub(super) async fn mesh_hello_exchange_receiver(stream_rx: &mut StreamRx, strea
     // Send over the hello message and wait for a response
     trace!("server sending hello (wire_format={})", wire_format);
     let hello_server = ReceiverHello {
+        id: server_id,
         encryption,
         wire_format,
     };
@@ -84,6 +92,8 @@ pub(super) async fn mesh_hello_exchange_receiver(stream_rx: &mut StreamRx, strea
     stream_tx.write_16bit(hello_server_bytes, false).await?;
 
     Ok(HelloMetadata {
+        client_id: hello_client.id,
+        server_id,
         path: hello_client.path,
         encryption,
         wire_format,

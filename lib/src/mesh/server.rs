@@ -62,7 +62,7 @@ pub struct MeshChain
 pub struct MeshRoot
 {
     cfg_mesh: ConfMesh,
-    server_id: String,
+    server_id: NodeId,
     node_id: u32,
     lookup: MeshHashTable,
     addrs: Vec<MeshAddress>,
@@ -78,7 +78,6 @@ struct SessionContextProtected {
 }
 
 struct SessionContext {
-    client_id: StdMutex<String>,
     inside: StdMutex<SessionContextProtected>,
     conversation: Arc<ConversationSession>,
 }
@@ -87,7 +86,6 @@ impl Default
 for SessionContext {
     fn default() -> SessionContext {
         SessionContext {
-            client_id: StdMutex::new("[new]".to_string()),
             inside: StdMutex::new(SessionContextProtected {
                 chain: None,
                 locks: FxHashSet::default(),
@@ -146,7 +144,7 @@ impl MeshRoot
                 .listen_on(IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0)), port.clone());                
         }
 
-        let server_id = format!("n{}", node_id);
+        let server_id = NodeId::generate_server_id(node_id);
         let root = Arc::new(
             MeshRoot
             {
@@ -627,14 +625,7 @@ async fn inbox_packet<'b>(
     let context = pck.context.clone();
 
     // Extract the client it and build the span (used for tracing)
-    let client_id = match &pck.packet.msg {
-        Message::Subscribe { chain_key: _, from: _, client_id } => {
-            *context.client_id.lock() = client_id.clone();
-            client_id.clone()
-        },
-        _ => context.client_id.lock().clone()
-    };
-    let span = span!(Level::DEBUG, "server", id=root.server_id.as_str(), peer=client_id.as_str());
+    let span = span!(Level::DEBUG, "server", id=pck.id.to_short_string().as_str(), peer=pck.peer_id.to_short_string().as_str());
 
     // Now process the packet under the span
     async move {
@@ -644,7 +635,7 @@ async fn inbox_packet<'b>(
         let pck = pck.packet;
 
         match pck.msg {
-            Message::Subscribe { chain_key, from, client_id: _ } => {                    
+            Message::Subscribe { chain_key, from } => {                    
                     let hello_path = tx.hello_path.clone();
                     inbox_subscribe(root, hello_path.as_str(), chain_key, from, context, tx)
                         .instrument(span!(Level::DEBUG, "subscribe"))

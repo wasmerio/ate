@@ -6,11 +6,12 @@ use crate::spec::*;
 use crate::conf::ConfMesh;
 use crate::conf::MeshAddress;
 use crate::comms::StreamTxChannel;
+use crate::comms::NodeId;
 
 #[derive(Debug)]
 pub(crate) struct Upstream
 {
-    pub id: u64,
+    pub id: NodeId,
     pub outbox: StreamTxChannel,
     pub wire_format: SerializationFormat,
 }

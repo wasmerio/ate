@@ -130,20 +130,20 @@ pub async fn create_server(cfg_mesh: &ConfMesh) -> Result<Arc<MeshRoot>, CommsEr
 #[cfg(feature = "enable_client")]
 pub fn create_client(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh, temporal: bool) -> Arc<MeshClient>
 {
-    let client_id = MeshClient::generate_client_id();
+    let client_id = NodeId::generate_client_id();
     MeshClient::new(&cfg_ate, &cfg_mesh, client_id, temporal)
 }
 
 #[cfg(feature = "enable_client")]
 pub fn create_persistent_client(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Arc<MeshClient>
 {
-    let client_id = MeshClient::generate_client_id();
+    let client_id = NodeId::generate_client_id();
     MeshClient::new(&cfg_ate, &cfg_mesh, client_id, false)
 }
 
 #[cfg(feature = "enable_client")]
 pub fn create_temporal_client(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh) -> Arc<MeshClient>
 {
-    let client_id = MeshClient::generate_client_id();
+    let client_id = NodeId::generate_client_id();
     MeshClient::new(&cfg_ate, &cfg_mesh, client_id, true)
 }

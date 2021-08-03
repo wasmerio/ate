@@ -34,6 +34,7 @@ use crate::meta::*;
 use crate::session::*;
 use crate::time::*;
 use crate::engine::*;
+use crate::mesh::NodeId;
 
 #[cfg(feature="enable_dns")]
 type MeshConnectAddr = SocketAddr;
@@ -60,8 +61,7 @@ impl MeshSession
         cfg_mesh: &ConfMesh,
         chain_key: &ChainKey,
         addr: MeshAddress,
-        client_id: String,
-        peer_id: String,
+        client_id: NodeId,
         hello_path: String,
         loader_local: impl Loader + 'static,
         loader_remote: impl Loader + 'static
@@ -116,7 +116,6 @@ impl MeshSession
             addr,
             hello_path,
             client_id: client_id.clone(),
-            peer_id: peer_id.clone(),
             key: chain_key.clone(),
             builder,
             chain: Arc::clone(&chain_store),
@@ -448,8 +447,7 @@ impl MeshSession
 pub(crate) struct MeshSessionProcessor
 {
     pub(crate) addr: MeshAddress,
-    pub(crate) client_id: String,
-    pub(crate) peer_id: String,
+    pub(crate) client_id: NodeId,
     pub(crate) loader: Option<Box<dyn Loader>>,
     pub(crate) session: Weak<MeshSession>,
     pub(crate) status_tx: mpsc::Sender<ConnectionStatusChange>,
