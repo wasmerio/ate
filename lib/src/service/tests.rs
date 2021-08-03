@@ -48,7 +48,7 @@ for PingPongTable
 #[test]
 async fn test_service() -> Result<(), AteError>
 {
-    crate::utils::bootstrap_env();
+    crate::utils::bootstrap_test_env();
 
     info!("creating test chain");
     let mut mock_cfg = crate::conf::tests::mock_test_config();

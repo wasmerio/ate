@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace};
+use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use async_trait::async_trait;
 use std::{net::IpAddr, sync::Arc};
 use fxhash::FxHashMap;
@@ -138,6 +138,7 @@ pub struct Registry
     #[cfg(feature="enable_dns")]
     dns: Mutex<DnsClient>,
     pub temporal: bool,
+    pub client_id: String,
     pub fail_fast: bool,
     chains: Mutex<FxHashMap<url::Url, Arc<MeshClient>>>,
 }
@@ -157,11 +158,13 @@ impl Registry
             Mutex::new(dns)
         };
         
+        let client_id = MeshClient::generate_client_id();
         Registry {
             cfg_ate: cfg_ate.clone(),
             fail_fast: true,
             #[cfg(feature="enable_dns")]
             dns,
+            client_id,
             temporal: true,
             chains: Mutex::new(FxHashMap::default()),
         }
@@ -201,7 +204,7 @@ impl Registry
             },
             None => {
                 let cfg_mesh = self.cfg_for_url(url).await?;
-                let mesh = create_client(&self.cfg_ate, &cfg_mesh, self.temporal);
+                let mesh = MeshClient::new(&self.cfg_ate, &cfg_mesh, self.client_id.clone(), self.temporal);
                 lock.insert(url.clone(), Arc::clone(&mesh));
                 Ok(mesh.open_ext(&key, hello_path, loader_local, loader_remote).await?)
             }

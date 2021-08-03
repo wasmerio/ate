@@ -70,7 +70,7 @@ async fn test_read_data(log: &mut RedoLog, read_header: AteHash, test_key: Prima
 
 #[test]
 fn test_redo_log() {
-    crate::utils::bootstrap_env();
+    crate::utils::bootstrap_test_env();
 
     let rt = Runtime::new().unwrap();
 

@@ -1,6 +1,7 @@
+use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use tracing_futures::{Instrument, WithSubscriber};
 use async_trait::async_trait;
 use serde::{Serialize, Deserialize};
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use std::{borrow::Borrow, net::{IpAddr, Ipv4Addr, Ipv6Addr}, ops::Deref};
 use tokio::sync::{Mutex};
 use parking_lot::Mutex as StdMutex;
@@ -63,6 +64,7 @@ pub struct MeshRoot
 where Self: ChainRepository,
 {
     cfg_mesh: ConfMesh,
+    server_id: String,
     node_id: u32,
     lookup: MeshHashTable,
     addrs: Vec<MeshAddress>,
@@ -78,28 +80,16 @@ struct SessionContextProtected {
 }
 
 struct SessionContext {
-    group: std::sync::atomic::AtomicU64,
+    client_id: StdMutex<String>,
     inside: StdMutex<SessionContextProtected>,
     conversation: Arc<ConversationSession>,
-}
-
-impl BroadcastContext
-for SessionContext {
-    fn broadcast_group(&self) -> Option<u64>
-    {
-        let ret = self.group.load(std::sync::atomic::Ordering::Relaxed);
-        match ret {
-            0 => None,
-            a => Some(a)
-        }
-    }
 }
 
 impl Default
 for SessionContext {
     fn default() -> SessionContext {
         SessionContext {
-            group: std::sync::atomic::AtomicU64::new(0),
+            client_id: StdMutex::new("[new]".to_string()),
             inside: StdMutex::new(SessionContextProtected {
                 chain: None,
                 locks: FxHashSet::default(),
@@ -124,10 +114,26 @@ impl MeshRoot
 {
     pub(super) async fn new(cfg: &ConfMesh, listen_addrs: Vec<MeshAddress>) -> Result<Arc<Self>, CommsError>
     {
-        TaskEngine::run_until(Self::__new(cfg, listen_addrs)).await
+        let lookup = MeshHashTable::new(&cfg);
+        let node_id = match cfg.force_node_id {
+            Some(a) => a,
+            None => {
+                match listen_addrs.iter().filter_map(|a| lookup.derive_id(a)).next() {
+                    Some(a) => a,
+                    None => {
+                        return Err(CommsError::RequredExplicitNodeId);
+                    }
+                }
+            }
+        };
+        let server_id = format!("n{}", node_id);
+
+        TaskEngine::run_until(Self::__new(cfg, lookup, node_id, listen_addrs)
+            .instrument(span!(Level::INFO, "server", id=server_id.as_str()))
+        ).await
     }
 
-    async fn __new(cfg: &ConfMesh, listen_addrs: Vec<MeshAddress>) -> Result<Arc<Self>, CommsError>
+    async fn __new(cfg: &ConfMesh, lookup: MeshHashTable, node_id: u32, listen_addrs: Vec<MeshAddress>) -> Result<Arc<Self>, CommsError>
     {
         let mut cfg = MeshConfig::new(cfg.clone());
         let mut listen_ports = listen_addrs
@@ -142,25 +148,14 @@ impl MeshRoot
                 .listen_on(IpAddr::V6(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 0)), port.clone());                
         }
 
-        let lookup = MeshHashTable::new(&cfg.cfg_mesh);
-        let node_id = match cfg.cfg_mesh.force_node_id {
-            Some(a) => a,
-            None => {
-                match listen_addrs.iter().filter_map(|a| lookup.derive_id(a)).next() {
-                    Some(a) => a,
-                    None => {
-                        return Err(CommsError::RequredExplicitNodeId);
-                    }
-                }
-            }
-        };
-
+        let server_id = format!("n{}", node_id);
         let root = Arc::new(
             MeshRoot
             {
                 cfg_mesh: cfg.cfg_mesh.clone(),
                 addrs: listen_addrs,
                 lookup,
+                server_id: server_id.clone(),
                 node_id,
                 chains: Mutex::new(FxHashMap::default()),
                 listener: StdMutex::new(None),
@@ -172,7 +167,7 @@ impl MeshRoot
             root: Arc::downgrade(&root)
         };
 
-        let listener = crate::comms::Listener::new(&cfg, processor).await?;
+        let listener = crate::comms::Listener::new(&cfg, server_id, processor).await?;
         {
             let mut guard = root.listener.lock();
             guard.replace(listener);
@@ -185,7 +180,10 @@ impl MeshRoot
     -> Result<(), CommsError>
     where F: OpenFlow + 'static
     {
-        TaskEngine::run_until(self.__add_route(open_flow, cfg_ate)).await
+        TaskEngine::run_until(self.__add_route(open_flow, cfg_ate)
+            .instrument(span!(Level::INFO, "add_route"))
+            .instrument(span!(Level::INFO, "server"))
+        ).await
     }
 
     async fn __add_route<F>(self: &Arc<Self>, open_flow: Box<F>, cfg_ate: &ConfAte)
@@ -328,7 +326,8 @@ async fn open_internal<'b>(
 
     // Create a chain builder
     let mut builder = ChainBuilder::new(&cfg_ate)
-        .await;
+        .await
+        .client_id(root.server_id.clone());
 
     // Postfix the hello_path
     #[cfg(feature = "enable_local_fs")]
@@ -445,7 +444,7 @@ async fn inbox_event<'b>(
 )
 -> Result<(), CommsError>
 {
-    trace!("inbox: events: cnt={}", evts.len());
+    trace!(evts.cnt = evts.len());
     #[cfg(feature = "enable_verbose")]
     {
         for evt in evts.iter() {
@@ -505,7 +504,7 @@ async fn inbox_lock<'b>(
 )
 -> Result<(), CommsError>
 {
-    trace!("inbox: lock {}", key);
+    trace!("lock {}", key);
 
     let chain = match context.inside.lock().chain.clone() {
         Some(a) => a,
@@ -527,7 +526,7 @@ async fn inbox_unlock(
 )
 -> Result<(), CommsError>
 {
-    trace!("inbox: unlock {}", key);
+    trace!("unlock {}", key);
 
     let chain = match context.inside.lock().chain.clone() {
         Some(a) => a,
@@ -549,7 +548,7 @@ async fn inbox_subscribe<'b>(
 )
 -> Result<(), CommsError>
 {
-    trace!("inbox: subscribe: {}", chain_key.to_string());
+    trace!("subscribe: {}", chain_key.to_string());
 
     // First lets check if this connection is meant for this server
     let (_, node_id) = match root.lookup.lookup(&chain_key) {
@@ -608,11 +607,10 @@ async fn inbox_subscribe<'b>(
     {
         let mut guard = context.inside.lock();
         guard.chain.replace(Arc::clone(&chain));
-        context.group.store(chain.key().hash64(), std::sync::atomic::Ordering::Relaxed);
     }
 
     // Stream the data back to the client
-    debug!("inbox: starting the streaming process");
+    debug!("starting the streaming process");
     stream_history_range(
         Arc::clone(&chain), 
         from.., 
@@ -630,7 +628,7 @@ async fn inbox_unsubscribe<'b>(
 )
 -> Result<(), CommsError>
 {
-    debug!("inbox: unsubscribe: {}", chain_key.to_string());
+    debug!(" unsubscribe: {}", chain_key.to_string());
 
     Ok(())
 }
@@ -642,29 +640,53 @@ async fn inbox_packet<'b>(
 )
 -> Result<(), CommsError>
 {
-    trace!("inbox: packet size={}", pck.data.bytes.len());
-
     let context = pck.context.clone();
-    let pck_data = pck.data;
-    let pck = pck.packet;
-    
-    match pck.msg {
-        Message::Subscribe { chain_key, from } => {
-                let hello_path = tx.hello_path.clone();
-                inbox_subscribe(root, hello_path.as_str(), chain_key, from, context, tx).await?;
-            },
-        Message::Events { commit, evts } => {
-                inbox_event(context, commit, evts, tx, pck_data).await?;
-            },
-        Message::Lock { key } => {
-                inbox_lock(context, key, tx).await?;
-            },
-        Message::Unlock { key }=> {
-                inbox_unlock(context, key).await?;
-            },
-        _ => { }
+
+    // Extract the client it and build the span (used for tracing)
+    let client_id = match &pck.packet.msg {
+        Message::Subscribe { chain_key: _, from: _, client_id } => {
+            *context.client_id.lock() = client_id.clone();
+            client_id.clone()
+        },
+        _ => context.client_id.lock().clone()
     };
-    Ok(())
+    let span = span!(Level::DEBUG, "server", id=root.server_id.as_str(), peer=client_id.as_str());
+
+    // Now process the packet under the span
+    async move {
+        trace!(packet_size = pck.data.bytes.len());
+
+        let pck_data = pck.data;
+        let pck = pck.packet;
+
+        match pck.msg {
+            Message::Subscribe { chain_key, from, client_id: _ } => {                    
+                    let hello_path = tx.hello_path.clone();
+                    inbox_subscribe(root, hello_path.as_str(), chain_key, from, context, tx)
+                        .instrument(span!(Level::DEBUG, "subscribe"))
+                        .await?;
+                },
+            Message::Events { commit, evts } => {
+                    inbox_event(context, commit, evts, tx, pck_data)
+                        .instrument(span!(Level::DEBUG, "event"))
+                        .await?;
+                },
+            Message::Lock { key } => {
+                    inbox_lock(context, key, tx)
+                        .instrument(span!(Level::DEBUG, "lock"))
+                        .await?;
+                },
+            Message::Unlock { key }=> {
+                    inbox_unlock(context, key)
+                        .instrument(span!(Level::DEBUG, "unlock"))
+                        .await?;
+                },
+            _ => { }
+        };
+        Ok(())
+    }
+    .instrument(span)
+    .await
 }
 
 impl Drop

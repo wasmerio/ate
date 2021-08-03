@@ -31,6 +31,7 @@ use super::*;
 pub struct ChainBuilder
 {
     pub(crate) cfg_ate: ConfAte,
+    pub(crate) client_id: String,
     pub(crate) configured_for: ConfiguredFor,
     pub(crate) validators: Vec<Box<dyn EventValidator>>,
     pub(crate) compactors: Vec<Box<dyn EventCompactor>>,
@@ -52,6 +53,7 @@ for ChainBuilder
     fn clone(&self) -> Self {
         ChainBuilder {
             cfg_ate: self.cfg_ate.clone(),
+            client_id: self.client_id.clone(),
             configured_for: self.configured_for.clone(),
             validators: self.validators.iter().map(|a| a.clone_validator()).collect::<Vec<_>>(),
             compactors: self.compactors.iter().filter_map(|a| a.clone_compactor()).collect::<Vec<_>>(),
@@ -75,6 +77,7 @@ impl ChainBuilder
     pub async fn new(cfg_ate: &ConfAte) -> ChainBuilder {
         ChainBuilder {
             cfg_ate: cfg_ate.clone(),
+            client_id: crate::mesh::MeshClient::generate_client_id(),
             configured_for: cfg_ate.configured_for.clone(),
             validators: Vec::new(),
             indexers: Vec::new(),
@@ -252,6 +255,11 @@ impl ChainBuilder
     #[allow(dead_code)]
     pub fn temporal(mut self, val: bool) -> Self {
         self.temporal = val;
+        self
+    }
+
+    pub fn client_id(mut self, client_id: String) -> Self {
+        self.client_id = client_id;
         self
     }
 

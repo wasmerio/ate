@@ -1,5 +1,5 @@
 use async_trait::async_trait;
-use tracing::{info, warn, debug, error, trace};
+use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use parking_lot::Mutex as StdMutex;
 use std::{sync::Arc, sync::Weak};
 use tokio::sync::mpsc;
@@ -46,6 +46,8 @@ pub(super) struct RecoverableSessionPipe
     // Used to create new active pipes
     pub(super) addr: MeshAddress,
     pub(super) hello_path: String,
+    pub(super) client_id: String,
+    pub(super) peer_id: String,
     pub(super) key: ChainKey,
     pub(super) builder: ChainBuilder,
     pub(super) chain: Arc<StdMutex<Option<Weak<Chain>>>>,
@@ -81,6 +83,8 @@ impl RecoverableSessionPipe
 
         let inbox = MeshSessionProcessor {
             addr: self.addr.clone(),
+            client_id: self.client_id.clone(),
+            peer_id: self.peer_id.clone(),
             session: Arc::downgrade(&session),
             loader: Some(Box::new(loader)),
             status_tx,
@@ -91,6 +95,8 @@ impl RecoverableSessionPipe
             (
                 &node_cfg,
                 self.hello_path.clone(),
+                self.client_id.clone(),
+                self.peer_id.clone(),
                 inbox,
             ).await?;
 
@@ -129,6 +135,7 @@ impl RecoverableSessionPipe
 
         // Now we subscribe to the chain
         node_tx.send_reply_msg(Message::Subscribe {
+            client_id: self.client_id.clone(),
             chain_key: self.key.clone(),
             from,
         }).await?;

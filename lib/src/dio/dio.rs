@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use tracing_futures::Instrument;
 use crate::prelude::*;
 use tokio::sync::broadcast;
 use fxhash::FxHashMap;
@@ -163,10 +164,19 @@ impl Dio
         &self.chain
     }
 
+    async fn run_async<F>(&self, future: F) -> F::Output
+    where F: std::future::Future,
+    {
+        let key_str = self.chain.key().to_string();
+        TaskEngine::run_until(future
+            .instrument(span!(Level::DEBUG, "dio", key=key_str.as_str()))
+        ).await
+    }
+
     pub async fn load<D>(self: &Arc<Self>, key: &PrimaryKey) -> Result<Dao<D>, LoadError>
     where D: DeserializeOwned,
     {
-        TaskEngine::run_until(self.__load(key)).await
+        self.run_async(self.__load(key)).await
     }
 
     pub(super) async fn __load<D>(self: &Arc<Self>, key: &PrimaryKey) -> Result<Dao<D>, LoadError>
@@ -197,7 +207,7 @@ impl Dio
 
     pub async fn exists(&self, key: &PrimaryKey) -> bool
     {
-        TaskEngine::run_until(self.__exists(key)).await
+        self.run_async(self.__exists(key)).await
     }
 
     pub(super) async fn __exists(&self, key: &PrimaryKey) -> bool
@@ -216,7 +226,7 @@ impl Dio
     -> Result<Dao<D>, LoadError>
     where D: DeserializeOwned,
     {
-        TaskEngine::run_until(self.__load_from_entry(leaf)).await
+        self.run_async(self.__load_from_entry(leaf)).await
     }
 
     pub(super) async fn __load_from_entry<D>(self: &Arc<Self>, leaf: EventLeaf)
@@ -258,7 +268,7 @@ impl Dio
     pub async fn children_ext<D>(self: &Arc<Self>, parent_id: PrimaryKey, collection_id: u64, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Vec<Dao<D>>, LoadError>
     where D: DeserializeOwned,
     {
-        TaskEngine::run_until(self.__children_ext(parent_id, collection_id, allow_missing_keys, allow_serialization_error)).await
+        self.run_async(self.__children_ext(parent_id, collection_id, allow_missing_keys, allow_serialization_error)).await
     }
 
     pub(super) async fn __children_ext<D>(self: &Arc<Self>, parent_id: PrimaryKey, collection_id: u64, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Vec<Dao<D>>, LoadError>
@@ -289,7 +299,7 @@ impl Dio
     pub async fn load_many_ext<D>(self: &Arc<Self>, keys: impl Iterator<Item=PrimaryKey>, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Vec<Dao<D>>, LoadError>
     where D: DeserializeOwned,
     {
-        TaskEngine::run_until(self.__load_many_ext(keys, allow_missing_keys, allow_serialization_error)).await
+        self.run_async(self.__load_many_ext(keys, allow_missing_keys, allow_serialization_error)).await
     }
 
     pub(super) async fn __load_many_ext<D>(self: &Arc<Self>, keys: impl Iterator<Item=PrimaryKey>, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Vec<Dao<D>>, LoadError>

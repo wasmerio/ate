@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use tracing_futures::{Instrument, WithSubscriber};
 use tokio::{net::{TcpListener}};
 use tokio::net::TcpStream;
 use tokio::sync::mpsc;
@@ -25,7 +26,6 @@ use tokio_tungstenite::WebSocketStream;
 #[cfg(feature="enable_ws")]
 use tokio_tungstenite::tungstenite::{handshake, Error};
 
-use super::BroadcastContext;
 use super::PacketWithContext;
 use super::conf::*;
 use super::rx_tx::*;
@@ -89,6 +89,7 @@ impl Listener
     pub(crate) async fn new<M, C>
     (
         conf: &MeshConfig,
+        server_id: String,
         inbox: impl ServerProcessor<M, C> + 'static
     )
     -> Result<Arc<StdMutex<Listener>>, CommsError>
@@ -109,7 +110,8 @@ impl Listener
         for target in conf.listen_on.iter() {
             let inbox = Arc::clone(&inbox);
             Listener::listen_on(
-                target.clone(), 
+                target.clone(),
+                server_id.clone(),
                 Arc::downgrade(&listener),
                 conf.cfg_mesh.wire_protocol,
                 conf.cfg_mesh.wire_format,
@@ -135,6 +137,7 @@ impl Listener
 
     async fn listen_on<M, C>(
         addr: SocketAddr,
+        server_id: String,
         listener: Weak<StdMutex<Listener>>,
         wire_protocol: StreamProtocol,
         wire_format: SerializationFormat,
@@ -151,56 +154,62 @@ impl Listener
         info!("listening on: {} with proto {}", addr, wire_protocol);
 
         let mut exp_backoff = Duration::from_millis(100);
-        TaskEngine::spawn(async move {
-            loop {
-                let (stream, sock_addr) = match tcp_listener.accept().await {
-                    Ok(a) => a,
-                    Err(err) => {
-                        eprintln!("tcp-listener - {}", err.to_string());
-                        tokio::time::sleep(exp_backoff).await;
-                        exp_backoff *= 2;
-                        if exp_backoff > Duration::from_secs(10) { exp_backoff = Duration::from_secs(10); }
-                        continue;
-                    }
-                };
-                exp_backoff = Duration::from_millis(100);
-                info!("connection-from: {}", sock_addr.to_string());
+        TaskEngine::spawn(
+            async move {
+                loop {
+                    let result = tcp_listener.accept().await;
+                    
+                    let (stream, sock_addr) = match result {
+                        Ok(a) => a,
+                        Err(err) => {
+                            error!("tcp-listener - {}", err.to_string());
+                            tokio::time::sleep(exp_backoff).await;
+                            exp_backoff *= 2;
+                            if exp_backoff > Duration::from_secs(10) { exp_backoff = Duration::from_secs(10); }
+                            continue;
+                        }
+                    };
 
-                let listener = match Weak::upgrade(&listener) {
-                    Some(a) => a,
-                    None => {
-                        error!("connection attempt on a terminated listener (out-of-scope)");
-                        break;
-                    }
-                };
-                
-                setup_tcp_stream(&stream).unwrap();
+                    exp_backoff = Duration::from_millis(100);
 
-                let stream = Stream::Tcp(stream);
-                match Listener::accept_tcp_connect
-                (
-                    stream,
-                    sock_addr,
-                    listener,
-                    wire_protocol,
-                    wire_format,
-                    wire_encryption,
-                    accept_timeout,
-                    Arc::clone(&inbox)
-                ).await {
-                    Ok(a) => a,
-                    Err(CommsError::IO(err))
-                        if err.kind() == std::io::ErrorKind::UnexpectedEof ||
-                        err.kind() == std::io::ErrorKind::ConnectionReset ||
-                        err.to_string().to_lowercase().contains("connection reset without closing handshake")
-                        => debug!("connection-eof(accept)"),
-                    Err(err) => {
-                        warn!("connection-failed(accept): {}", err.to_string());
-                        continue;
-                    }
-                };
+                    let listener = match Weak::upgrade(&listener) {
+                        Some(a) => a,
+                        None => {
+                            error!("connection attempt on a terminated listener (out-of-scope)");
+                            break;
+                        }
+                    };
+                    
+                    setup_tcp_stream(&stream).unwrap();
+
+                    let stream = Stream::Tcp(stream);
+                    match Listener::accept_tcp_connect
+                    (
+                        stream,
+                        sock_addr,
+                        listener,
+                        wire_protocol,
+                        wire_format,
+                        wire_encryption,
+                        accept_timeout,
+                        Arc::clone(&inbox)
+                    )
+                    .instrument(tracing::info_span!("server-accept", id=server_id.as_str()))
+                    .await {
+                        Ok(a) => a,
+                        Err(CommsError::IO(err))
+                            if err.kind() == std::io::ErrorKind::UnexpectedEof ||
+                            err.kind() == std::io::ErrorKind::ConnectionReset ||
+                            err.to_string().to_lowercase().contains("connection reset without closing handshake")
+                            => debug!("connection-eof(accept)"),
+                        Err(err) => {
+                            warn!("connection-failed(accept): {}", err.to_string());
+                            continue;
+                        }
+                    };
+                }
             }
-        });
+        );
     }
 
     async fn accept_tcp_connect<M, C>(

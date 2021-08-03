@@ -122,6 +122,7 @@ pub(super) enum Message {
     Noop,
 
     Subscribe {
+        client_id: String,
         chain_key: ChainKey,
         from: ChainTimestamp
     },

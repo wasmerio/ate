@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace};
+use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 
 use tokio::sync::mpsc;
 
@@ -9,11 +9,6 @@ use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use bytes::Bytes;
 use crate::spec::*;
 use crate::comms::*;
-
-pub(crate) trait BroadcastContext
-{
-    fn broadcast_group(&self) -> Option<u64>;
-}
 
 #[derive(Debug, Clone)]
 pub(crate) struct PacketData

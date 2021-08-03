@@ -10,7 +10,7 @@ fn main () {
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), AteError>
 {
-    env_logger::init();
+    ate::log_init(0, true);
     
     // Create the server and listen on port 5000
     let url = url::Url::parse("ws://localhost:5000/test-chain").unwrap();

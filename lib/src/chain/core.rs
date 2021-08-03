@@ -1,5 +1,6 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use tracing_futures::Instrument;
 
 use crate::error::*;
 
@@ -47,6 +48,7 @@ pub struct Chain
 where Self: Send + Sync
 {
     pub(crate) key: ChainKey,
+    pub(crate) client_id: String,
     pub(crate) cfg_ate: ConfAte,
     pub(crate) remote_addr: Option<MeshAddress>,
     pub(crate) default_format: MessageFormat,
@@ -110,8 +112,17 @@ impl<'a> Chain
         self.inside_async.read().await.chain.redo.count()
     }
 
+    async fn run_async<F>(&self, future: F) -> F::Output
+    where F: std::future::Future,
+    {
+        let key_str = self.key().to_string();
+        TaskEngine::run_until(future
+            .instrument(span!(Level::DEBUG, "dio", key=key_str.as_str()))
+        ).await
+    }
+
     pub async fn flush(&'a self) -> Result<(), tokio::io::Error> {
-        TaskEngine::run_until(self.__flush()).await
+        self.run_async(self.__flush()).await
     }
 
     async fn __flush(&'a self) -> Result<(), tokio::io::Error> {
@@ -122,7 +133,7 @@ impl<'a> Chain
 
     pub async fn sync(&'a self) -> Result<(), CommitError>
     {
-        TaskEngine::run_until(self.__sync()).await
+        self.run_async(self.__sync()).await
     }
 
     async fn __sync(&'a self) -> Result<(), CommitError>

@@ -42,7 +42,7 @@ pub struct TestStructDao
 #[test]
 async fn test_dio() -> Result<(), AteError>
 {
-    crate::utils::bootstrap_env();
+    crate::utils::bootstrap_test_env();
 
     info!("generating crypto keys");
     let write_key = PrivateSignKey::generate(crate::crypto::KeySize::Bit192);

@@ -10,7 +10,7 @@ use super::*;
 
 #[test]
 fn test_secure_random() {
-    crate::utils::bootstrap_env();
+    crate::utils::bootstrap_test_env();
 
     let t = 1024;
     for _ in 0..t {
@@ -21,7 +21,7 @@ fn test_secure_random() {
 
 #[test]
 fn test_encrypt_key_seeding_new() {
-    crate::utils::bootstrap_env();
+    crate::utils::bootstrap_test_env();
 
     let provided = EncryptKey::from_seed_string("test".to_string(), KeySize::Bit256);
     let expected = EncryptKey::Aes256([83, 208, 186, 19, 115, 7, 212, 194, 249, 182, 103, 76, 131, 237, 189, 88, 183, 12, 15, 67, 64, 19, 62, 208, 173, 198, 251, 161, 210, 71, 138, 106]);
@@ -35,7 +35,7 @@ fn test_encrypt_key_seeding_new() {
 #[test]
 fn test_asym_crypto_128()
 {
-    crate::utils::bootstrap_env();
+    crate::utils::bootstrap_test_env();
 
     let key = EncryptKey::generate(KeySize::Bit128);
     let private = EncryptedPrivateKey::generate(&key);
@@ -52,7 +52,7 @@ fn test_asym_crypto_128()
 #[test]
 fn test_asym_crypto_256()
 {
-    crate::utils::bootstrap_env();
+    crate::utils::bootstrap_test_env();
 
     let key = EncryptKey::generate(KeySize::Bit256);
     let private = EncryptedPrivateKey::generate(&key);
@@ -69,7 +69,7 @@ fn test_asym_crypto_256()
 #[test]
 fn test_ntru_encapsulate() -> Result<(), AteError>
 {
-    crate::utils::bootstrap_env();
+    crate::utils::bootstrap_test_env();
 
     static KEY_SIZES: [KeySize; 3] = [KeySize::Bit128, KeySize::Bit192, KeySize::Bit256];
     for key_size in KEY_SIZES.iter() {
@@ -91,7 +91,7 @@ fn test_ntru_encapsulate() -> Result<(), AteError>
 #[test]
 fn test_ntru_encrypt() -> Result<(), AteError>
 {
-    crate::utils::bootstrap_env();
+    crate::utils::bootstrap_test_env();
     
     static KEY_SIZES: [KeySize; 3] = [KeySize::Bit128, KeySize::Bit192, KeySize::Bit256];
     for key_size in KEY_SIZES.iter() {
@@ -150,7 +150,7 @@ fn test_derived_keys() -> Result<(), AteError>
 #[test]
 fn test_multi_encrypt() -> Result<(), AteError>
 {
-    crate::utils::bootstrap_env();
+    crate::utils::bootstrap_test_env();
 
     static KEY_SIZES: [KeySize; 3] = [KeySize::Bit128, KeySize::Bit192, KeySize::Bit256];
     for key_size in KEY_SIZES.iter() {

@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use tokio::sync::{Mutex};
-use tracing::{info, warn, debug, error, trace};
+use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use tracing_futures::{Instrument, WithSubscriber};
 use std::{sync::Arc, collections::hash_map::Entry};
 use fxhash::FxHashMap;
 use crate::{header::PrimaryKey, pipe::EventPipe};
@@ -23,12 +24,13 @@ pub struct MeshClient {
     cfg_ate: ConfAte,
     cfg_mesh: ConfMesh,
     lookup: MeshHashTable,
+    client_id: String,
     temporal: bool,
     sessions: Mutex<FxHashMap<ChainKey, Weak<Chain>>>,
 }
 
 impl MeshClient {
-    pub(super) fn new(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh, temporal: bool) -> Arc<MeshClient>
+    pub(super) fn new(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh, client_id: String, temporal: bool) -> Arc<MeshClient>
     {
         Arc::new(
             MeshClient
@@ -36,16 +38,34 @@ impl MeshClient {
                 cfg_ate: cfg_ate.clone(),
                 cfg_mesh: cfg_mesh.clone(),
                 lookup: MeshHashTable::new(cfg_mesh),
+                client_id,
                 temporal,
                 sessions: Mutex::new(FxHashMap::default()),
             }
         )
     }
 
+    pub(crate) fn generate_client_id() -> String
+    {
+        let client_id = fastrand::u64(..).to_be_bytes();
+        let client_id = hex::encode(client_id).to_uppercase();
+        format!("{}", &client_id[..4])
+    }
+
     pub async fn open_ext<'a>(&'a self, key: &ChainKey, hello_path: String, loader_local: impl Loader + 'static, loader_remote: impl Loader + 'static)
         -> Result<Arc<Chain>, ChainCreationError>
     {
-        debug!("client open {}", key.to_string());
+        let span = span!(Level::INFO, "client-open", id=self.client_id.as_str());
+        TaskEngine::run_until(self.__open_ext(key, hello_path, loader_local, loader_remote)
+            .instrument(span)
+        ).await
+    }
+
+    async fn __open_ext<'a>(&'a self, key: &ChainKey, hello_path: String, loader_local: impl Loader + 'static, loader_remote: impl Loader + 'static)
+        -> Result<Arc<Chain>, ChainCreationError>
+    {
+        debug!(key=key.to_string().as_str());
+        debug!(path=hello_path.as_str());
 
         let mut sessions = self.sessions.lock().await;
         let record = match sessions.entry(key.clone()) {
@@ -57,18 +77,18 @@ impl MeshClient {
             return Ok(Arc::clone(&ret));
         }
 
+        let (peer_addr, peer_id) = match self.lookup.lookup(&key) {
+            Some(a) => a,
+            None => { return Err(ChainCreationError::NoRootFoundInConfig); }
+        };
         let addr = match &self.cfg_mesh.force_connect {
             Some(a) => a.clone(),
-            None => {
-                let addr = self.lookup.lookup(&key);
-                match addr {
-                    Some((a, _)) => a,
-                    None => { return Err(ChainCreationError::NoRootFoundInConfig); }
-                }
-            }
+            None => peer_addr
         };
+        let peer_id = format!("n{}", peer_id);
         
         let builder = ChainBuilder::new(&self.cfg_ate).await
+            .client_id(self.client_id.clone())
             .temporal(self.temporal);
 
         let chain = MeshSession::connect
@@ -77,6 +97,8 @@ impl MeshClient {
                 &self.cfg_mesh,
                 key,
                 addr,
+                self.client_id.clone(),
+                peer_id.clone(),
                 hello_path,
                 loader_local,
                 loader_remote
@@ -98,6 +120,10 @@ impl Drop
 for MeshClient
 {
     fn drop(&mut self) {
+        {
+            let bt = backtrace::Backtrace::new();
+            trace!("{:?}", bt);
+        }
         trace!("drop");
     }
 }

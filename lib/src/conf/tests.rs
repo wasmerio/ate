@@ -33,7 +33,7 @@ pub(crate) fn mock_test_mesh(port: u16) -> ConfMesh {
 
 #[test]
 fn test_config_mocking() {
-    crate::utils::bootstrap_env();
+    crate::utils::bootstrap_test_env();
 
     let cfg = mock_test_mesh(4001);
     assert_eq!(cfg.roots.iter().next().unwrap().host.to_string(), "127.0.0.1");

@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace};
+use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use std::sync::Arc;
 use serde::{Serialize, de::DeserializeOwned};
 #[cfg(feature="enable_tcp")]

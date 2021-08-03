@@ -79,6 +79,11 @@ impl AteHash {
         hex::encode(self.val)
     }
 
+    pub fn to_4hex(&self) -> String {
+        let ret = hex::encode(self.val);
+        format!("{}", &ret[..4])
+    }
+
     pub fn to_string(&self) -> String {
         self.to_hex_string()
     }

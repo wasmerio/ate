@@ -9,7 +9,7 @@ use url::Url;
 #[test]
 pub async fn test_create_user_and_group() -> Result<(), AteError>
 {
-    ate::utils::bootstrap_env();
+    ate::utils::bootstrap_test_env();
 
     // Create the configuration
     #[allow(unused_mut)]

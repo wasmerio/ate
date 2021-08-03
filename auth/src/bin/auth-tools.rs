@@ -11,15 +11,7 @@ async fn main() -> Result<(), AteError>
 {
     let opts: Opts = Opts::parse();
 
-    // Prepare the logging
-    let mut log_level = match opts.verbose {
-        0 => "error",
-        1 => "warn",
-        2 => "info",
-        _ => "debug",
-    };
-    if opts.debug { log_level = "debug"; }
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(log_level)).init();
+    ate::log_init(opts.verbose, opts.debug);
 
     // Determine what we need to do
     match opts.subcmd {

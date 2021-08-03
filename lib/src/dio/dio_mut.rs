@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use tracing_futures::Instrument;
 use crate::prelude::*;
 use fxhash::FxHashMap;
 use fxhash::FxHashSet;
@@ -300,9 +301,18 @@ impl DioMut
         Ok(ret)
     }
 
+    async fn run_async<F>(&self, future: F) -> F::Output
+    where F: std::future::Future,
+    {
+        let key_str = self.chain.key().to_string();
+        TaskEngine::run_until(future
+            .instrument(span!(Level::DEBUG, "dio", key=key_str.as_str()))
+        ).await
+    }
+
     pub async fn delete(&self, key: &PrimaryKey) -> Result<(), LoadError>
     {
-        TaskEngine::run_until(self.__delete(key)).await
+        self.run_async(self.__delete(key)).await
     }
 
     async fn __delete(&self, key: &PrimaryKey) -> Result<(), LoadError>
@@ -379,7 +389,7 @@ impl DioMut
 
     pub async fn commit(&self) -> Result<(), CommitError>
     {
-        TaskEngine::run_until(self.__commit()).await
+        self.run_async(self.__commit()).await
     }
 
     async fn __commit(&self) -> Result<(), CommitError>
@@ -625,7 +635,7 @@ impl DioMut
     pub async fn load_and_take<D>(self: &Arc<Self>, key: &PrimaryKey) -> Result<D, LoadError>
     where D: Serialize + DeserializeOwned,
     {
-        TaskEngine::run_until(self.__load_and_take(key)).await
+        self.run_async(self.__load_and_take(key)).await
     }
 
     async fn __load_and_take<D>(self: &Arc<Self>, key: &PrimaryKey) -> Result<D, LoadError>
@@ -637,7 +647,7 @@ impl DioMut
 
     pub async fn exists(&self, key: &PrimaryKey) -> bool
     {
-        TaskEngine::run_until(self.__exists(key)).await
+        self.run_async(self.__exists(key)).await
     }
 
     async fn __exists(&self, key: &PrimaryKey) -> bool
@@ -663,7 +673,7 @@ impl DioMut
     pub async fn children_ext<D>(self: &Arc<Self>, parent_id: PrimaryKey, collection_id: u64, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Vec<DaoMut<D>>, LoadError>
     where D: Serialize + DeserializeOwned,
     {
-        TaskEngine::run_until(self.__children_ext(parent_id, collection_id, allow_missing_keys, allow_serialization_error)).await
+        self.run_async(self.__children_ext(parent_id, collection_id, allow_missing_keys, allow_serialization_error)).await
     }
 
     pub async fn __children_ext<D>(self: &Arc<Self>, parent_id: PrimaryKey, collection_id: u64, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Vec<DaoMut<D>>, LoadError>
@@ -731,7 +741,7 @@ impl DioMut
     pub async fn load_many_ext<D>(self: &Arc<Self>, keys: impl Iterator<Item=PrimaryKey>, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Vec<DaoMut<D>>, LoadError>
     where D: Serialize + DeserializeOwned,
     {
-        TaskEngine::run_until(self.__load_many_ext(keys, allow_missing_keys, allow_serialization_error)).await
+        self.run_async(self.__load_many_ext(keys, allow_missing_keys, allow_serialization_error)).await
     }
 
     async fn __load_many_ext<D>(self: &Arc<Self>, keys: impl Iterator<Item=PrimaryKey>, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Vec<DaoMut<D>>, LoadError>

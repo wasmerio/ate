@@ -2,6 +2,8 @@
 #![allow(unused_imports)]
 use tracing::{error, info, debug};
 
+mod log;
 mod test;
 
 pub use super::utils::test::*;
+pub use log::log_init;

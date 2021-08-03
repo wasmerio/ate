@@ -11,7 +11,7 @@ use super::*;
 #[tokio::main(flavor = "current_thread")]
 #[test]
 async fn test_compact_state_machine() -> Result<(), AteError> {
-    crate::utils::bootstrap_env();
+    crate::utils::bootstrap_test_env();
 
     TaskEngine::run_until(async move 
     {

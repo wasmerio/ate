@@ -46,3 +46,5 @@ pub mod anti_replay;
 pub mod flow;
 pub mod repository;
 pub mod engine;
+
+pub use utils::log_init;

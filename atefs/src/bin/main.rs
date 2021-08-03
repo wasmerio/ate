@@ -57,14 +57,7 @@ async fn main() -> Result<(), CommandError> {
     let opts: Opts = Opts::parse();
     //let opts = test_opts();
     
-    let mut log_level = match opts.verbose {
-        0 => "error",
-        1 => "warn",
-        2 => "info",
-        _ => "debug",
-    };
-    if opts.debug { log_level = "debug"; }
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(log_level)).init();
+    ate::log_init(opts.verbose, opts.debug);
 
     let mut conf = AteConfig::default();
     conf.dns_sec = opts.dns_sec;

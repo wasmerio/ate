@@ -20,7 +20,7 @@ fn main() {
 #[cfg_attr(feature = "enable_mt", tokio::main(flavor = "multi_thread"))]
 #[cfg_attr(not(feature = "enable_mt"), tokio::main(flavor = "current_thread"))]
 async fn main() -> Result<(), AteError> {
-    env_logger::init();
+    ate::log_init(0, true);
 
     // The default configuration will store the redo log locally in the temporary folder
     let mut cfg_ate = ConfAte::default();

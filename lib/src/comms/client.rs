@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace};
+use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use tracing_futures::{Instrument, WithSubscriber};
 use fxhash::FxHashMap;
 #[cfg(feature="enable_tcp")]
 use tokio::{net::{TcpStream}};
@@ -44,6 +45,8 @@ pub(crate) async fn connect<M, C>
 (
     conf: &MeshConfig,
     hello_path: String,
+    client_id: String,
+    peer_id: String,
     inbox: impl InboxProcessor<M, C> + 'static
 )
 -> Result<Tx, CommsError>
@@ -57,6 +60,8 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
         let upstream = mesh_connect_to::<M, C>(
             target.clone(), 
             hello_path.clone(),
+            client_id,
+            peer_id,
             conf.cfg_mesh.domain_name.clone(),
             inbox,
             conf.cfg_mesh.wire_protocol,
@@ -89,6 +94,8 @@ pub(super) async fn mesh_connect_to<M, C>
 (
     addr: MeshConnectAddr,
     hello_path: String,
+    client_id: String,
+    peer_id: String,
     domain: String,
     inbox: Box<dyn InboxProcessor<M, C>>,
     wire_protocol: StreamProtocol,
@@ -124,9 +131,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
     // background thread - connects and then runs inbox and outbox threads
     // if the upstream object signals a termination event it will exit
     TaskEngine::spawn(
-        async move {
-            mesh_connect_worker::<M, C>(worker_connect, addr, ek, inbox).await
-        }
+        mesh_connect_worker::<M, C>(worker_connect, addr, ek, client_id, peer_id, inbox)
     );
 
     let stream_tx = StreamTxChannel::new(stream_tx, ek);
@@ -159,65 +164,39 @@ async fn mesh_connect_prepare
 )
 -> Result<(MeshConnectContext, StreamTx), CommsError>
 {
-    let mut exp_backoff = Duration::from_millis(100);
-    loop {
-        #[cfg(all(feature="enable_tcp", not(feature="enable_dns")))]
-        let addr = {
-            match format!("{}:{}", addr.host, addr.port)
-                .to_socket_addrs()?
-                .next()
-            {
-                Some(a) => a,
-                None => {
-                    return Err(CommsError::InvalidDomainName);
-                }
-            }
-        };
-
-        #[cfg(feature="enable_tcp")]
-        let stream = match TcpStream::connect(addr.clone()).await {
-            Err(err) if match err.kind() {
-                std::io::ErrorKind::ConnectionRefused => {
-                    if fail_fast {
-                        return Err(CommsError::Refused);
+    async move {
+        let mut exp_backoff = Duration::from_millis(100);
+        loop {
+            #[cfg(all(feature="enable_tcp", not(feature="enable_dns")))]
+            let addr = {
+                match format!("{}:{}", addr.host, addr.port)
+                    .to_socket_addrs()?
+                    .next()
+                {
+                    Some(a) => a,
+                    None => {
+                        return Err(CommsError::InvalidDomainName);
                     }
-                    true
-                },
-                std::io::ErrorKind::ConnectionReset => true,
-                std::io::ErrorKind::ConnectionAborted => true,
-                _ => false   
-            } => {
-                debug!("connect failed: reason={}, backoff={}s", err, exp_backoff.as_secs_f32());
-                tokio::time::sleep(exp_backoff).await;
-                exp_backoff *= 2;
-                if exp_backoff > Duration::from_secs(10) { exp_backoff = Duration::from_secs(10); }
-                continue;
-            },
-            a => a?,
-        };
-         
-        #[cfg(feature="enable_tcp")]
-        let stream = {
-            // Setup the TCP stream
-            setup_tcp_stream(&stream)?;
+                }
+            };
 
-            // Convert the TCP stream into the right protocol
-            let stream = Stream::Tcp(stream);
-            let stream = stream.upgrade_client(wire_protocol).await?;
-            stream
-        };
-
-        // Connect to the websocket using the WASM binding (browser connection)
-        #[cfg(feature="enable_web")]
-        #[cfg(not(feature="enable_tcp"))]
-        let stream = {
-            let url = wire_protocol.make_url(addr.host.clone(), addr.port, hello_path.clone())?.to_string();
-            
-            let connect = SendWrapper::new(WsMeta::connect( url, None ));
-            let (_, wsio) = match connect.await {
-                Ok(a) => a,
-                Err(WsErr::ConnectionFailed{ event }) => {
-                    debug!("connect failed: reason={}, backoff={}s", event.reason, exp_backoff.as_secs_f32());
+            #[cfg(feature="enable_tcp")]
+            let stream = match
+                TcpStream::connect(addr.clone())
+                .await
+            {
+                Err(err) if match err.kind() {
+                    std::io::ErrorKind::ConnectionRefused => {
+                        if fail_fast {
+                            return Err(CommsError::Refused);
+                        }
+                        true
+                    },
+                    std::io::ErrorKind::ConnectionReset => true,
+                    std::io::ErrorKind::ConnectionAborted => true,
+                    _ => false   
+                } => {
+                    debug!("connect failed: reason={}, backoff={}s", err, exp_backoff.as_secs_f32());
                     tokio::time::sleep(exp_backoff).await;
                     exp_backoff *= 2;
                     if exp_backoff > Duration::from_secs(10) { exp_backoff = Duration::from_secs(10); }
@@ -225,26 +204,66 @@ async fn mesh_connect_prepare
                 },
                 a => a?,
             };
+            
+            #[cfg(feature="enable_tcp")]
+            let stream = {
+                // Setup the TCP stream
+                setup_tcp_stream(&stream)?;
 
-            let stream = SendWrapper::new(wsio.into_io());
-            Stream::WebSocket(stream, wire_protocol)
-        };
+                // Convert the TCP stream into the right protocol
+                let stream = Stream::Tcp(stream);
+                let stream = stream
+                    .upgrade_client(wire_protocol)
+                    .await?;
+                stream
+            };
 
-        // Build the stream
-        let (mut stream_rx, mut stream_tx) = stream.split();
+            // Connect to the websocket using the WASM binding (browser connection)
+            #[cfg(feature="enable_web")]
+            #[cfg(not(feature="enable_tcp"))]
+            let stream = {
+                let url = wire_protocol.make_url(addr.host.clone(), addr.port, hello_path.clone())?.to_string();
+                
+                let connect = SendWrapper::new(WsMeta::connect( url, None ));
+                let (_, wsio) = match
+                    connect
+                    .await
+                {
+                    Ok(a) => a,
+                    Err(WsErr::ConnectionFailed{ event }) => {
+                        debug!("connect failed: reason={}, backoff={}s", event.reason, exp_backoff.as_secs_f32());
+                        tokio::time::sleep(exp_backoff).await;
+                        exp_backoff *= 2;
+                        if exp_backoff > Duration::from_secs(10) { exp_backoff = Duration::from_secs(10); }
+                        continue;
+                    },
+                    a => a?,
+                };
 
-        // Say hello
-        let hello_metadata = hello::mesh_hello_exchange_sender(&mut stream_rx, &mut stream_tx, hello_path.clone(), domain.clone(), wire_encryption).await?;
-        let wire_format = hello_metadata.wire_format;
+                let stream = SendWrapper::new(wsio.into_io());
+                Stream::WebSocket(stream, wire_protocol)
+            };
 
-        // Return the result
-        return Ok((MeshConnectContext {
-            addr,
-            sender,
-            stream_rx,
-            wire_format,
-        }, stream_tx));
+            // Build the stream
+            let (mut stream_rx, mut stream_tx) = stream.split();
+
+            // Say hello
+            let hello_metadata =
+                hello::mesh_hello_exchange_sender(&mut stream_rx, &mut stream_tx, hello_path.clone(), domain.clone(), wire_encryption)
+                .await?;
+            let wire_format = hello_metadata.wire_format;
+
+            // Return the result
+            return Ok((MeshConnectContext {
+                addr,
+                sender,
+                stream_rx,
+                wire_format,
+            }, stream_tx));
+        }
     }
+    .instrument(tracing::info_span!("connect"))
+    .await
 }
 
 async fn mesh_connect_worker<M, C>
@@ -252,6 +271,8 @@ async fn mesh_connect_worker<M, C>
     connect: MeshConnectContext,
     sock_addr: MeshConnectAddr,
     wire_encryption: Option<EncryptKey>,
+    client_id: String,
+    peer_id: String,
     inbox: Box<dyn InboxProcessor<M, C>>
 )
 -> Result<(), CommsError>
@@ -268,7 +289,9 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         context,
         connect.wire_format,
         wire_encryption
-    ).await {
+    )
+    .instrument(span!(Level::DEBUG, "client", id=client_id.as_str(), peer=peer_id.as_str()))
+    .await {
         Ok(_) => { },
         Err(CommsError::IO(err)) if match err.kind() {
             std::io::ErrorKind::UnexpectedEof => true,
@@ -280,6 +303,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
             warn!("connection-failed: {}", err.to_string());
         },
     };
+
     //#[cfg(feature = "enable_verbose")]
     debug!("disconnected-inbox: {}", connect.addr.to_string());
     Err(CommsError::Disconnected)

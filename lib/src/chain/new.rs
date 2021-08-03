@@ -1,5 +1,6 @@
-#[allow(unused_imports)]
+#![allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use tracing_futures::{Instrument};
 
 use multimap::MultiMap;
 use btreemultimap::BTreeMultiMap;
@@ -40,7 +41,8 @@ impl<'a> Chain
         key: &ChainKey,
     ) -> Result<Chain, ChainCreationError>
     {
-        Chain::new_ext(builder, key.clone(), None, true).await
+        Chain::new_ext(builder, key.clone(), None, true)
+            .await
     }
 
     #[allow(dead_code)]
@@ -216,6 +218,7 @@ impl<'a> Chain
         // Create the chain that will be returned to the caller
         let chain = Chain {
             key: key.clone(),
+            client_id: builder.client_id.clone(),
             cfg_ate: builder.cfg_ate.clone(),
             remote_addr: None,
             default_format: builder.cfg_ate.log_format,

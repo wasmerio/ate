@@ -41,7 +41,7 @@ for PingPongTable
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), AteError>
 {
-    env_logger::init();
+    ate::log_init(0, true);
 
     info!("creating test chain");
 

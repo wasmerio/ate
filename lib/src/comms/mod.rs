@@ -1,5 +1,5 @@
 #![allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace};
+use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 
 mod packet;
 mod hello;
@@ -17,7 +17,6 @@ mod stream;
 pub(crate) use packet::Packet;
 pub(crate) use packet::PacketData;
 pub(crate) use packet::PacketWithContext;
-pub(crate) use packet::BroadcastContext;
 pub(crate) use conf::MeshConfig;
 
 #[allow(unused_imports)]

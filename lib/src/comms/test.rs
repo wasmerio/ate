@@ -1,10 +1,9 @@
 #![allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace};
+use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use crate::crypto::{EncryptKey, PrivateEncryptKey, PublicEncryptKey, InitializationVector};
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use crate::prelude::*;
 use super::MeshConfig;
-use crate::comms::BroadcastContext;
 #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
 use super::Listener;
 use crate::engine::TaskEngine;
@@ -41,13 +40,6 @@ for TestMessage
 struct DummyContext {
 }
 
-impl BroadcastContext
-for DummyContext {
-    fn broadcast_group(&self) -> Option<u64> {
-        None
-    }
-}
-
 #[cfg(all(feature = "enable_server", feature = "enable_client", feature = "enable_tcp" ))]
 #[tokio::main(flavor = "current_thread")]
 #[test]
@@ -81,7 +73,7 @@ async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) 
     use crate::comms::helper::InboxProcessor;
 
     TaskEngine::run_until(async move {
-        crate::utils::bootstrap_env();
+        crate::utils::bootstrap_test_env();
         
         let listener;
         let wire_format = SerializationFormat::MessagePack;
@@ -119,7 +111,8 @@ async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) 
                 }
             }
             
-            listener = Listener::new(&cfg, Handler::default()).await?;
+            let server_id = "n0".to_string();
+            listener = Listener::new(&cfg, server_id, Handler::default()).await?;
             {
                 let mut guard = listener.lock();
                 guard.add_route("/comm-test")?;
@@ -152,6 +145,8 @@ async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) 
                 }
             }
             let inbox = Handler::default();
+            let client_id = "c0".to_string();
+            let peer_id = "n0".to_string();
             
             let mut cfg = mock_test_mesh(port);
             cfg.wire_protocol = wire_protocol;
@@ -159,7 +154,7 @@ async fn test_server_client_for_comms(wire_protocol: StreamProtocol, port: u16) 
             cfg.wire_encryption = Some(KeySize::Bit256);
             let cfg = MeshConfig::new(cfg)
                 .connect_to(MeshAddress { host: IpAddr::from_str("127.0.0.1").unwrap(), port });
-            let mut client_tx = super::connect(&cfg, "/comm-test".to_string(), inbox)
+            let mut client_tx = super::connect(&cfg, "/comm-test".to_string(), client_id, peer_id, inbox)
                 .await?;
 
             // We need to test it alot

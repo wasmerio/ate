@@ -19,7 +19,7 @@ struct TestData {
 #[test]
 async fn test_mesh()
 {
-    crate::utils::bootstrap_env();
+    crate::utils::bootstrap_test_env();
 
     let cfg_ate = crate::conf::tests::mock_test_config();
     let test_url = url::Url::parse("ws://localhost/").unwrap();

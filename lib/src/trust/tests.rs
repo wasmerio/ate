@@ -64,9 +64,8 @@ pub(crate) async fn create_test_chain(mock_cfg: &mut ConfAte, chain_name: String
 #[tokio::main(flavor = "current_thread")]
 #[test]
 async fn test_chain() -> Result<(), AteError> {
-    crate::utils::bootstrap_env();
-    //env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("debug")).init();
-
+    crate::utils::bootstrap_test_env();
+    
     let key1 = PrimaryKey::generate();
     let key2 = PrimaryKey::generate();
     #[allow(unused_variables)]

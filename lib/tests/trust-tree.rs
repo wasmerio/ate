@@ -24,7 +24,7 @@ struct Garage
 #[test]
 fn test_trust_tree_persistent() -> Result<(), AteError>
 {
-    ate::utils::bootstrap_env();
+    ate::utils::bootstrap_test_env();
 
     #[cfg(feature = "enable_mt")]
     let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
@@ -119,7 +119,7 @@ fn test_trust_tree_persistent() -> Result<(), AteError>
 #[test]
 fn test_trust_tree_memory() -> Result<(), AteError>
 {
-    ate::utils::bootstrap_env();
+    ate::utils::bootstrap_test_env();
 
     #[cfg(feature = "enable_mt")]
     let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;

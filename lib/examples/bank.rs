@@ -65,7 +65,7 @@ async fn make_account<'a>(conf: &ConfAte, chain: &Arc<Chain>, generator: &mut Ge
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<(), AteError>
 {
-    env_logger::init();
+    ate::log_init(0, true);
 
     // The default configuration will store the redo log locally in the temporary folder
     let conf = ConfAte::default();

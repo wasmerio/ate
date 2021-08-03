@@ -11,7 +11,7 @@ repository = "https://github.com/john-sharratt/ate"
 readme = "../README.md"
 
 [features]
-default = [ "enable_basics" ]
+default = [ "enable_basics", "backtrace" ]
 enable_verbose = []
 enable_super_verbose = [ "backtrace", "enable_verbose" ]
 enable_openssl = []
@@ -57,9 +57,10 @@ multimap = "^0.8"
 hex = "^0.4"
 chrono = "^0.4"
 tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
+tracing-futures = { version = "^0.2" }
+tracing-subscriber = { version = "^0.2" }
 cached = "^0.23"
 parking_lot = "^0.11"
-env_logger = "^0.8"
 bincode = "^1"
 async-executor = "^1"
 url = { version = "^2", features = ["serde"] }

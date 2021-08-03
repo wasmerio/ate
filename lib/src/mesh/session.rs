@@ -1,5 +1,6 @@
 use async_trait::async_trait;
-use tracing::{info, warn, debug, error, trace};
+use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use tracing_futures::{Instrument, WithSubscriber};
 use parking_lot::Mutex as StdMutex;
 use std::net::SocketAddr;
 use std::{sync::Arc, sync::Weak};
@@ -59,6 +60,8 @@ impl MeshSession
         cfg_mesh: &ConfMesh,
         chain_key: &ChainKey,
         addr: MeshAddress,
+        client_id: String,
+        peer_id: String,
         hello_path: String,
         loader_local: impl Loader + 'static,
         loader_remote: impl Loader + 'static
@@ -112,6 +115,8 @@ impl MeshSession
             mode: builder.cfg_ate.recovery_mode,
             addr,
             hello_path,
+            client_id: client_id.clone(),
+            peer_id: peer_id.clone(),
             key: chain_key.clone(),
             builder,
             chain: Arc::clone(&chain_store),
@@ -124,11 +129,14 @@ impl MeshSession
 
         // Set a reference to the chain and trigger it to connect!
         chain_store.lock().replace(Arc::downgrade(&chain));
-        let on_disconnect = chain.pipe.connect().await?;
+        let on_disconnect = chain.pipe.connect()
+            .await?;
 
         // Launch an automatic reconnect thread
         if temporal == false {
-            TaskEngine::spawn(RecoverableSessionPipe::auto_reconnect(Arc::downgrade(&chain), on_disconnect));
+            TaskEngine::spawn(
+                RecoverableSessionPipe::auto_reconnect(Arc::downgrade(&chain), on_disconnect)
+            );
         }
 
         // Ok we are good!
@@ -136,7 +144,7 @@ impl MeshSession
     }
 
     pub(super) async fn inbox_events(self: &Arc<MeshSession>, evts: Vec<MessageEvent>, loader: &mut Option<Box<dyn Loader>>) -> Result<(), CommsError> {
-        trace!("inbox: events cnt={}", evts.len());
+        trace!("events cnt={}", evts.len());
 
         match self.chain.upgrade() {
             Some(chain) =>
@@ -178,7 +186,7 @@ impl MeshSession
     }
 
     pub(super) async fn inbox_confirmed(self: &Arc<MeshSession>, id: u64) -> Result<(), CommsError> {
-        trace!("inbox: commit_confirmed id={}", id);
+        trace!("commit_confirmed id={}", id);
 
         let r = {
             let mut lock = self.commit.lock();
@@ -193,7 +201,7 @@ impl MeshSession
     }
 
     pub(super) async fn inbox_commit_error(self: &Arc<MeshSession>, id: u64, err: String) -> Result<(), CommsError> {
-        trace!("inbox: commit_error id={}, err={}", id, err);
+        trace!("commit_error id={}, err={}", id, err);
 
         let r= {
             let mut lock = self.commit.lock();
@@ -206,7 +214,7 @@ impl MeshSession
     }
 
     pub(super) fn inbox_lock_result(self: &Arc<MeshSession>, key: PrimaryKey, is_locked: bool) -> Result<(), CommsError> {
-        trace!("inbox: lock_result key={} is_locked={}", key.to_string(), is_locked);
+        trace!("lock_result key={} is_locked={}", key.to_string(), is_locked);
 
         let mut remove = false;
         let mut guard = self.lock_requests.lock();
@@ -309,7 +317,7 @@ impl MeshSession
     }
 
     pub(super) async fn inbox_end_of_history(self: &Arc<MeshSession>, _pck: PacketWithContext<Message, ()>, loader: &mut Option<Box<dyn Loader>>) -> Result<(), CommsError> {
-        trace!("inbox: end_of_history");
+        trace!("end_of_history");
 
         // The end of the history means that the chain can now be actively used, its likely that
         // a loader is waiting for this important event which will then release some caller who
@@ -335,43 +343,64 @@ impl MeshSession
     ) -> Result<(), CommsError>
     {
         #[cfg(feature = "enable_super_verbose")]
-        trace!("inbox: packet size={}", pck.data.bytes.len());
+        trace!("packet size={}", pck.data.bytes.len());
 
         match pck.packet.msg {
             Message::StartOfHistory { size, from, to, root_keys, integrity }
                 => {
-                    Self::inbox_start_of_history(self, size, from, to, loader, root_keys, integrity).await?;
+                    Self::inbox_start_of_history(self, size, from, to, loader, root_keys, integrity)
+                        .instrument(span!(Level::DEBUG, "start-of-history"))
+                        .await?;
                 },
             Message::Events { commit: _, evts }
                 => {
-                    Self::inbox_events(self, evts, loader).await?;
+                    Self::inbox_events(self, evts, loader)
+                        .instrument(span!(Level::DEBUG, "event"))
+                        .await?;
                 },
             Message::Confirmed(id)
                 => {
-                    Self::inbox_confirmed(self, id).await?;
+                    Self::inbox_confirmed(self, id)
+                        .instrument(span!(Level::DEBUG, "commit-confirmed"))
+                        .await?;
                 },
             Message::CommitError { id, err }
                 => {
-                    Self::inbox_commit_error(self, id, err).await?;
+                    Self::inbox_commit_error(self, id, err)
+                        .instrument(span!(Level::DEBUG, "commit-error"))
+                        .await?;
                 },
             Message::LockResult { key, is_locked }
                 => {
-                    Self::inbox_lock_result(self, key, is_locked)?;
+                    async move {
+                        Self::inbox_lock_result(self, key, is_locked)
+                    }
+                        .instrument(span!(Level::DEBUG, "lock_result"))
+                        .await?;
                 },
             Message::EndOfHistory
                 => {
-                    Self::inbox_end_of_history(self, pck, loader).await?;
+                    Self::inbox_end_of_history(self, pck, loader)
+                        .instrument(span!(Level::DEBUG, "end-of-history"))
+                        .await?;
                 },
             Message::SecuredWith(session)
                 => {
-                    Self::inbox_secure_with(self, session).await?;
+                    Self::inbox_secure_with(self, session)
+                        .instrument(span!(Level::DEBUG, "secured-with"))
+                        .await?;
                 },
             Message::FatalTerminate(fatal)
                 => {
-                    if let Some(mut loader) = loader.take() {
-                        loader.failed(ChainCreationError::ServerRejected(fatal.clone())).await;
+                    async move {
+                        if let Some(mut loader) = loader.take() {
+                            loader.failed(ChainCreationError::ServerRejected(fatal.clone())).await;
+                        }
+                        warn!("mesh-session-err: {}", fatal);
                     }
-                    warn!("mesh-session-err: {}", fatal);
+                    .instrument(span!(Level::DEBUG, "fatal_terminate"))
+                    .await;
+
                     return Err(CommsError::Disconnected);
                 },
             _ => { }
@@ -417,6 +446,8 @@ impl MeshSession
 pub(crate) struct MeshSessionProcessor
 {
     pub(crate) addr: MeshAddress,
+    pub(crate) client_id: String,
+    pub(crate) peer_id: String,
     pub(crate) loader: Option<Box<dyn Loader>>,
     pub(crate) session: Weak<MeshSession>,
     pub(crate) status_tx: mpsc::Sender<ConnectionStatusChange>,
@@ -436,7 +467,8 @@ for MeshSessionProcessor
             }
         };
 
-        MeshSession::inbox_packet(&session, &mut self.loader, pck).await?;
+        MeshSession::inbox_packet(&session, &mut self.loader, pck)
+            .await?;
         Ok(())        
     }
 

@@ -16,7 +16,7 @@ struct MyTestObject
 
 #[test]
 fn load_test() -> Result<(), AteError> {
-    ate::utils::bootstrap_env();
+    ate::utils::bootstrap_test_env();
 
     #[cfg(feature = "enable_mt")]
     let rt = tokio::runtime::Builder::new_multi_thread().enable_all().build()?;
