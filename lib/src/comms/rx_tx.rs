@@ -175,6 +175,7 @@ impl TxGroup
             1 => {
                 if let Some(tx) = self.all.values().next().iter().filter_map(|a| Weak::upgrade(a)).next() {
                     let mut tx = tx.lock().await;
+                    error!("{}, {}", tx.id, skip);
                     if Some(tx.id) != skip {
                         tx.outbox.send(pck).await?;
                     }
@@ -184,6 +185,7 @@ impl TxGroup
                 let all = self.all.values().filter_map(|a| Weak::upgrade(a));
                 for tx in all {
                     let mut tx = tx.lock().await;
+                    error!("{}, {}", tx.id, skip);
                     if Some(tx.id) != skip {
                         tx.outbox.send(pck.clone()).await?;
                     }
