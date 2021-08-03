@@ -24,7 +24,7 @@ use crate::model::*;
 
 impl AuthService
 {
-    pub async fn process_create_group<'a>(&self, request: CreateGroupRequest, context: InvocationContext<'a>) -> Result<CreateGroupResponse, ServiceError<CreateGroupFailed>>
+    pub async fn process_create_group<'a>(&self, request: CreateGroupRequest, _context: InvocationContext<'a>) -> Result<CreateGroupResponse, ServiceError<CreateGroupFailed>>
     {
         info!("create group: {}", request.group);
 
@@ -56,7 +56,7 @@ impl AuthService
         
         // Compute which chain the group should exist within
         let group_chain_key = chain_key_4hex(&request.group, Some("redo"));
-        let chain = context.repository.open(&self.auth_url, &group_chain_key).await?;
+        let chain = self.registry.open(&self.auth_url, &group_chain_key).await?;
         let dio = chain.dio_mut(&self.master_session).await;
 
         // Try and find a free GID

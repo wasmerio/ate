@@ -21,13 +21,13 @@ use crate::helper::*;
 
 impl AuthService
 {
-    pub async fn process_query<'a>(&self, request: QueryRequest, context: InvocationContext<'a>) -> Result<QueryResponse, ServiceError<QueryFailed>>
+    pub async fn process_query<'a>(&self, request: QueryRequest, _context: InvocationContext<'a>) -> Result<QueryResponse, ServiceError<QueryFailed>>
     {
         info!("query user/group: {}", request.identity);
 
         // Compute which chain the user should exist within
         let user_chain_key = chain_key_4hex(&request.identity, Some("redo"));
-        let chain = context.repository.open(&self.auth_url, &user_chain_key).await?;
+        let chain = self.registry.open(&self.auth_url, &user_chain_key).await?;
         let dio = chain.dio(&self.master_session).await;
 
         // If it does not exist then fail

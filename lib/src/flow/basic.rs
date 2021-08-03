@@ -9,7 +9,6 @@ use super::OpenAction;
 use super::OpenFlow;
 use crate::chain::ChainKey;
 use crate::conf::ChainBuilder;
-use crate::repository::ChainRepository;
 use crate::error::ChainCreationError;
 use crate::trust::IntegrityMode;
 
@@ -81,8 +80,8 @@ for OpenStaticBuilder
         });
 
         Ok(match &self.centralized_integrity {
-            true => OpenAction::CentralizedChain(builder.temporal(self.temporal).build().open_local(&key).await?),
-            false => OpenAction::DistributedChain(builder.temporal(self.temporal).build().open_local(&key).await?),
+            true => OpenAction::CentralizedChain(builder.temporal(self.temporal).build().open(&key).await?),
+            false => OpenAction::DistributedChain(builder.temporal(self.temporal).build().open(&key).await?),
         })
     }
 }

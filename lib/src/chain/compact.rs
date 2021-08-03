@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use tracing::{info, debug, warn, error, trace};
 use std::sync::{Arc};
 use tokio::sync::RwLock;
 use parking_lot::RwLock as StdRwLock;
@@ -154,13 +154,12 @@ impl<'a> Chain
                 let guard_sync = multi.inside_sync.read();
                 ChainProtectedSync {
                     sniffers: Vec::new(),
+                    services: Vec::new(),
                     indexers: Vec::new(),
                     plugins: guard_sync.plugins.iter().map(|a| a.clone_plugin()).collect::<Vec<_>>(),
                     linters: Vec::new(),
                     validators: guard_sync.validators.iter().map(|a| a.clone_validator()).collect::<Vec<_>>(),
                     transformers: Vec::new(),
-                    services: Vec::new(),
-                    repository: None,
                     default_session: AteSession::default(),
                     integrity: guard_sync.integrity,
                 }

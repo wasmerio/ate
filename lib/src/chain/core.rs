@@ -17,7 +17,6 @@ use crate::pipe::*;
 use crate::meta::*;
 use crate::spec::*;
 use crate::conf::ConfAte;
-use crate::repository::ChainRepository;
 use crate::redo::RedoLog;
 use crate::time::TimeKeeper;
 use crate::transaction::TransactionScope;
@@ -148,7 +147,9 @@ impl<'a> Chain
 
         // Feed the transaction into the chain
         let pipe = self.pipe.clone();
-        pipe.feed(trans).await?;
+        pipe.feed(ChainWork {
+            trans
+        }).await?;
 
         // Success!
         Ok(())
@@ -158,11 +159,6 @@ impl<'a> Chain
     {
         let guard = self.inside_async.read().await;
         guard.chain.timeline.pointers.get_pending_uploads()
-    }
-
-    pub fn repository(&self) -> Option<Arc<dyn ChainRepository>>
-    {
-        self.inside_sync.read().repository()
     }
 }
 

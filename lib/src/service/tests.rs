@@ -56,7 +56,7 @@ async fn test_service() -> Result<(), AteError>
     
     info!("start the service on the chain");
     let session = AteSession::new(&mock_cfg);
-    chain.add_service(session.clone(), Arc::new(PingPongTable::default())).await;
+    let _svr = chain.add_service(session.clone(), Arc::new(PingPongTable::default()));
     
     info!("sending ping");
     let pong: Result<Pong, InvokeError<Noise>> = chain.invoke(Ping {

@@ -15,5 +15,6 @@ pub use compact::*;
 pub(crate) use listener::*;
 pub(crate) use protected_async::*;
 pub(crate) use protected_sync::*;
+pub(crate) use workers::*;
 
 pub use crate::trust::ChainKey;

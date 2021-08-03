@@ -14,7 +14,6 @@ use super::header::*;
 use super::lint::*;
 use super::index::*;
 use super::transaction::*;
-use super::repository::*;
 use super::spec::MessageFormat;
 
 use bytes::Bytes;
@@ -39,7 +38,6 @@ for ChainMultiUserLock<'a>
 pub struct ChainMultiUser
 where Self: Send + Sync
 {
-    pub(super) chain: ChainKey,
     pub(super) inside_async: Arc<RwLock<ChainProtectedAsync>>,
     pub(super) inside_sync: Arc<StdRwLock<ChainProtectedSync>>,
     pub(super) pipe: Arc<Box<dyn EventPipe>>,
@@ -48,14 +46,13 @@ where Self: Send + Sync
 
 impl ChainMultiUser
 {
-    pub(crate) async fn new(accessor: &Chain) -> ChainMultiUser
+    pub(crate) async fn new(chain: &Chain) -> ChainMultiUser
     {
         ChainMultiUser {
-            chain: accessor.key().clone(),
-            inside_async: Arc::clone(&accessor.inside_async),
-            inside_sync: Arc::clone(&accessor.inside_sync),
-            pipe: Arc::clone(&accessor.pipe),
-            default_format: accessor.default_format
+            inside_async: Arc::clone(&chain.inside_async),
+            inside_sync: Arc::clone(&chain.inside_sync),
+            pipe: Arc::clone(&chain.pipe),
+            default_format: chain.default_format
         }
     }
 
@@ -63,7 +60,6 @@ impl ChainMultiUser
     {
         let guard = inside_async.read().await;
         ChainMultiUser {
-            chain: guard.chain.key.clone(),
             inside_async: Arc::clone(inside_async),
             inside_sync: Arc::clone(inside_sync),
             pipe: Arc::clone(pipe),
@@ -123,10 +119,6 @@ impl ChainMultiUser
         self.inside_async.read().await.chain.redo.count()
     }
 
-    pub fn repository(&self) -> Option<Arc<dyn ChainRepository>> {
-        self.inside_sync.read().repository()
-    }
-
     pub(crate) async fn lock<'a>(&'a self) -> ChainMultiUserLock<'a> {
         ChainMultiUserLock {
             inside_async: self.inside_async.read().await,
@@ -144,8 +136,12 @@ impl ChainMultiUser
             conversation: None,
         };
 
+        let work = ChainWork {
+            trans,
+        };
+
         // Process the transaction in the chain using its pipe
-        self.pipe.feed(trans).await?;
+        self.pipe.feed(work).await?;
         Ok(())
     }
 }
@@ -193,12 +189,5 @@ impl ChainProtectedSync {
             ret = plugin.data_as_underlay(meta, ret, session, trans_meta)?;
         }
         Ok(ret)
-    }
-    
-    pub fn repository(&self) -> Option<Arc<dyn ChainRepository>> {
-        match &self.repository {
-            Some(a) => a.upgrade(),
-            None => None
-        }
     }
 }

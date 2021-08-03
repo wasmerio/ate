@@ -11,12 +11,12 @@ use crate::commands::*;
 use crate::helper::*;
 use crate::model::*;
 
-#[derive(Debug)]
 pub struct AuthService
 {
     pub auth_url: url::Url,
     pub master_session: AteSession,
     pub time_keeper: Arc<TimeKeeper>,
+    pub registry: Arc<Registry>,
 }
 
 #[async_trait]
@@ -108,7 +108,8 @@ impl AuthService
             {
                 auth_url,
                 master_session: auth_session,
-                time_keeper:  Arc::new(TimeKeeper::new(cfg, 30000).await?)
+                time_keeper:  Arc::new(TimeKeeper::new(cfg, 30000).await?),
+                registry: Registry::new(cfg).await.cement(),
             }
         );
         Ok(service)
@@ -123,49 +124,49 @@ pub async fn service_auth_handlers(cfg: &ConfAte, cmd_session: AteSession, auth_
     {
         let service = Arc::clone(&service);
         let service: ServiceInstance<LoginRequest, LoginResponse, LoginFailed> = service;
-        chain.add_service(cmd_session.clone(), service).await;
+        chain.add_service(cmd_session.clone(), service);
     }
 
     {
         let service = Arc::clone(&service);
         let service: ServiceInstance<CreateUserRequest, CreateUserResponse, CreateUserFailed> = service;
-        chain.add_service(cmd_session.clone(), service).await;
+        chain.add_service(cmd_session.clone(), service);
     }
 
     {
         let service = Arc::clone(&service);
         let service: ServiceInstance<CreateGroupRequest, CreateGroupResponse, CreateGroupFailed> = service;
-        chain.add_service(cmd_session.clone(), service).await;
+        chain.add_service(cmd_session.clone(), service);
     }
 
     {
         let service = Arc::clone(&service);
         let service: ServiceInstance<QueryRequest, QueryResponse, QueryFailed> = service;
-        chain.add_service(cmd_session.clone(), service).await;
+        chain.add_service(cmd_session.clone(), service);
     }
 
     {
         let service = Arc::clone(&service);
         let service: ServiceInstance<GatherRequest, GatherResponse, GatherFailed> = service;
-        chain.add_service(cmd_session.clone(), service).await;
+        chain.add_service(cmd_session.clone(), service);
     }
 
     {
         let service = Arc::clone(&service);
         let service: ServiceInstance<GroupUserAddRequest, GroupUserAddResponse, GroupUserAddFailed> = service;
-        chain.add_service(cmd_session.clone(), service).await;
+        chain.add_service(cmd_session.clone(), service);
     }
 
     {
         let service = Arc::clone(&service);
         let service: ServiceInstance<GroupUserRemoveRequest, GroupUserRemoveResponse, GroupUserRemoveFailed> = service;
-        chain.add_service(cmd_session.clone(), service).await;
+        chain.add_service(cmd_session.clone(), service);
     }
 
     {
         let service = Arc::clone(&service);
         let service: ServiceInstance<GroupDetailsRequest, GroupDetailsResponse, GroupDetailsFailed> = service;
-        chain.add_service(cmd_session.clone(), service).await;
+        chain.add_service(cmd_session.clone(), service);
     }
 
     Ok(())

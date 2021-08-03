@@ -279,6 +279,7 @@ async fn mesh_connect_worker<M, C>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
       C: Send + Sync + Default + 'static,
 {
+    let span = span!(Level::DEBUG, "client", id=client_id.as_str(), peer=peer_id.as_str());
     let context = Arc::new(C::default());
     match process_inbox::<M, C>
     (
@@ -290,7 +291,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
         connect.wire_format,
         wire_encryption
     )
-    .instrument(span!(Level::DEBUG, "client", id=client_id.as_str(), peer=peer_id.as_str()))
+    .instrument(span.clone())
     .await {
         Ok(_) => { },
         Err(CommsError::IO(err)) if match err.kind() {
@@ -303,6 +304,8 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
             warn!("connection-failed: {}", err.to_string());
         },
     };
+
+    let _span = span.enter();
 
     //#[cfg(feature = "enable_verbose")]
     debug!("disconnected-inbox: {}", connect.addr.to_string());

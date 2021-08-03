@@ -23,13 +23,13 @@ use crate::model::*;
 
 impl AuthService
 {
-    pub async fn process_group_details<'a>(&self, request: GroupDetailsRequest, context: InvocationContext<'a>) -> Result<GroupDetailsResponse, ServiceError<GroupDetailsFailed>>
+    pub async fn process_group_details<'a>(&self, request: GroupDetailsRequest, _context: InvocationContext<'a>) -> Result<GroupDetailsResponse, ServiceError<GroupDetailsFailed>>
     {
         debug!("group ({}) details", request.group);
         
         // Compute which chain the group should exist within
         let group_chain_key = chain_key_4hex(&request.group, Some("redo"));
-        let chain = context.repository.open(&self.auth_url, &group_chain_key).await?;
+        let chain = self.registry.open(&self.auth_url, &group_chain_key).await?;
 
         // Load the group
         let group_key = PrimaryKey::from(request.group.clone());

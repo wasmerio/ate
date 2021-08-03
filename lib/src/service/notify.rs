@@ -34,7 +34,9 @@ impl Notify
     pub(crate) async fn notify(self) -> Result<(), ServiceError<()>> {
         match self.who {
             NotifyWho::Sender(sender) => sender.send(self.key).await?,
-            NotifyWho::Service(service) => service.notify(self.key).await?
+            NotifyWho::Service(service) => {
+                service.notify(self.key).await?
+            }
         }
         Ok(())
     }

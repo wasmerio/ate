@@ -1,8 +1,6 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use async_trait::async_trait;
 use std::sync::Arc;
-use url::Url;
 
 use crate::anti_replay::AntiReplayPlugin;
 use crate::chain::Chain;
@@ -21,7 +19,6 @@ use crate::error::*;
 use crate::pipe::*;
 use crate::engine::*;
 use crate::session::AteSession;
-use crate::repository::ChainRepository;
 
 use super::*;
 
@@ -283,26 +280,14 @@ impl ChainBuilder
         Arc::new(self)
     }
 
-    pub async fn open_local(self: &Arc<Self>, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
+    pub async fn open(self: &Arc<Self>, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
     {
-        TaskEngine::run_until(self.__open_local(key)).await
+        TaskEngine::run_until(self.__open(key)).await
     }
     
-    async fn __open_local(self: &Arc<Self>, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
+    async fn __open(self: &Arc<Self>, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
     {
-        let weak = Arc::downgrade(&self);
         let ret = Arc::new(Chain::new((**self).clone(), key).await?);
-        ret.inside_sync.write().repository = Some(weak);
         Ok(ret)
-    }
-}
-
-#[async_trait]
-impl ChainRepository
-for ChainBuilder
-{
-    async fn open(self: Arc<Self>, _url: &Url, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
-    {
-        self.open_local(key).await
     }
 }

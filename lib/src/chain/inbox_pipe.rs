@@ -26,13 +26,10 @@ pub(super) struct InboxPipe
 impl EventPipe
 for InboxPipe
 {
-    async fn feed(&self, trans: Transaction) -> Result<(), CommitError>
+    async fn feed(&self, work: ChainWork) -> Result<(), CommitError>
     {
         // Prepare the work and submit it
-        let decache = trans.events.iter().filter_map(|a| a.meta.get_data_key()).collect::<Vec<_>>();
-        let work = ChainWork {
-            trans,
-        };
+        let decache = work.trans.events.iter().filter_map(|a| a.meta.get_data_key()).collect::<Vec<_>>();
         
         // Submit the work
         let ret = self.inbox.process(work).await?;

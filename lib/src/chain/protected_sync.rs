@@ -8,14 +8,13 @@ use crate::index::*;
 use crate::validator::*;
 use crate::transaction::*;
 
-use std::sync::{Arc, Weak};
+use std::sync::Arc;
 
 use crate::trust::*;
 use crate::lint::*;
 use crate::transform::*;
 use crate::service::*;
 use crate::session::AteSession;
-use crate::repository::ChainRepository;
 
 pub(crate) struct ChainProtectedSync
 {
@@ -28,7 +27,6 @@ pub(crate) struct ChainProtectedSync
     pub(crate) transformers: Vec<Box<dyn EventDataTransformer>>,
     pub(crate) validators: Vec<Box<dyn EventValidator>>,
     pub(crate) services: Vec<Arc<dyn Service>>,
-    pub(crate) repository: Option<Weak<dyn ChainRepository>>,
 }
 
 impl ChainProtectedSync

@@ -31,7 +31,7 @@ fn load_test() -> Result<(), AteError> {
 
         {
             // We create a chain with a specific key (this is used for the file name it creates)
-            let chain = builder.open_local(&ChainKey::from("load")).await?;
+            let chain = builder.open(&ChainKey::from("load")).await?;
             
             // Prepare
             let session = AteSession::new(&conf);
@@ -62,7 +62,7 @@ fn load_test() -> Result<(), AteError> {
         {
             // We create a chain with a specific key (this is used for the file name it creates)
             info!("load::running");
-            let chain = builder.open_local(&ChainKey::from("load")).await?;
+            let chain = builder.open(&ChainKey::from("load")).await?;
             info!("load::finished");
 
             // Destroy the chain

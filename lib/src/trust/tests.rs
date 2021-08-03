@@ -56,7 +56,7 @@ pub(crate) async fn create_test_chain(mock_cfg: &mut ConfAte, chain_name: String
     let builder = builder.build();
 
     (
-        builder.open_local(&mock_chain_key).await.unwrap(),
+        builder.open(&mock_chain_key).await.unwrap(),
         builder
     )
 }
@@ -98,7 +98,7 @@ async fn test_chain() -> Result<(), AteError> {
 
             info!("feeding two events into the chain");
             let trans = Transaction::from_events(evts, TransactionScope::Local, false);
-            lock.pipe.feed(trans).await.expect("The event failed to be accepted");
+            lock.pipe.feed(ChainWork { trans }).await.expect("The event failed to be accepted");
             
             drop(lock);
             assert_eq!(2, chain.count().await);
@@ -162,7 +162,7 @@ async fn test_chain() -> Result<(), AteError> {
             let mut evts = Vec::new();
             evts.push(evt1);
             let trans = Transaction::from_events(evts, TransactionScope::Local, false);
-            lock.pipe.feed(trans).await.expect("The event failed to be accepted");
+            lock.pipe.feed(ChainWork { trans }).await.expect("The event failed to be accepted");
 
             drop(lock);
             assert_eq!(3, chain.count().await);
@@ -236,7 +236,7 @@ async fn test_chain() -> Result<(), AteError> {
             let mut evts = Vec::new();
             evts.push(evt3.clone());
             let trans = Transaction::from_events(evts, TransactionScope::Local, false);
-            lock.pipe.feed(trans).await.expect("The event failed to be accepted");
+            lock.pipe.feed(ChainWork { trans }).await.expect("The event failed to be accepted");
             
             // Number of events should have gone up by one even though there should be one less item
             drop(lock);

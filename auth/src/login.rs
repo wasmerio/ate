@@ -35,7 +35,7 @@ impl AuthService
         Some(super_key)
     }
 
-    pub async fn process_login<'a>(&self, request: LoginRequest, context: InvocationContext<'a>) -> Result<LoginResponse, ServiceError<LoginFailed>>
+    pub async fn process_login<'a>(&self, request: LoginRequest, _context: InvocationContext<'a>) -> Result<LoginResponse, ServiceError<LoginFailed>>
     {
         info!("login attempt: {}", request.email);
 
@@ -48,7 +48,7 @@ impl AuthService
 
         // Compute which chain the user should exist within
         let chain_key =chain_key_4hex(request.email.as_str(), Some("redo"));
-        let chain = context.repository.open(&self.auth_url, &chain_key).await?;
+        let chain = self.registry.open(&self.auth_url, &chain_key).await?;
 
         let user_key = PrimaryKey::from(request.email.clone());
         let user =

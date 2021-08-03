@@ -29,7 +29,7 @@ async fn main() -> Result<(), AteError> {
 
     {
         // We create a chain with a specific key (this is used for the file name it creates)
-        let chain = builder.open_local(&ChainKey::from("stress")).await?;
+        let chain = builder.open(&ChainKey::from("stress")).await?;
         
         // Prepare
         let session = AteSession::new(&cfg_ate);
@@ -58,7 +58,7 @@ async fn main() -> Result<(), AteError> {
 
     {
         // We create a chain with a specific key (this is used for the file name it creates)
-        let chain = builder.open_local(&ChainKey::from("stress")).await?;
+        let chain = builder.open(&ChainKey::from("stress")).await?;
 
         // Destroy the chain
         chain.single().await.destroy().await.unwrap();

@@ -93,7 +93,7 @@ for ChainFlow
             // Create the chain
             let chain = builder
                 .build()
-                .open_local(&key)
+                .open(&key)
                 .await?;
 
             // We have opened the chain
@@ -164,7 +164,7 @@ for ChainFlow
             // Create the chain
             let chain = builder
                 .build()
-                .open_local(&key)
+                .open(&key)
                 .await?;
 
             // We have opened the chain

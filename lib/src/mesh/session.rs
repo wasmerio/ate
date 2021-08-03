@@ -172,11 +172,13 @@ impl MeshSession
             
                 // We only feed the transactions into the local chain otherwise this will
                 // reflect events back into the chain-of-trust running on the server
-                chain.pipe.feed(Transaction {
-                    scope: TransactionScope::Local,
-                    transmit: false,
-                    events: feed_me,
-                    conversation: Some(Arc::clone(&self.inbound_conversation)),
+                chain.pipe.feed(ChainWork {
+                    trans: Transaction {
+                        scope: TransactionScope::Local,
+                        transmit: false,
+                        events: feed_me,
+                        conversation: Some(Arc::clone(&self.inbound_conversation)),
+                    }
                 }).await?;
             },
             None => { }

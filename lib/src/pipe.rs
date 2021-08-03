@@ -3,6 +3,7 @@ use crate::header::PrimaryKey;
 #[allow(unused_imports)]
 use crate::meta::*;
 use super::error::*;
+use crate::chain::ChainWork;
 use super::transaction::*;
 use std::sync::Arc;
 use tokio::sync::mpsc;
@@ -23,7 +24,7 @@ pub(crate) trait EventPipe: Send + Sync
 
     async fn on_disconnect(&self) -> Result<(), CommsError> { Ok(()) }
     
-    async fn feed(&self, mut trans: Transaction) -> Result<(), CommitError>;
+    async fn feed(&self, work: ChainWork) -> Result<(), CommitError>;
 
     async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError>;
 
@@ -51,7 +52,7 @@ impl NullPipe
 impl EventPipe
 for NullPipe
 {
-    async fn feed(&self, _trans: Transaction) -> Result<(), CommitError> { Ok(()) }
+    async fn feed(&self, _work: ChainWork) -> Result<(), CommitError> { Ok(()) }
 
     async fn try_lock(&self, _key: PrimaryKey) -> Result<bool, CommitError> { Ok(false) }
 
@@ -126,10 +127,10 @@ for DuelPipe
         Err(ChainCreationError::NotImplemented)
     }
 
-    async fn feed(&self, trans: Transaction) -> Result<(), CommitError>
+    async fn feed(&self, work: ChainWork) -> Result<(), CommitError>
     {
-        let join1 = self.first.feed(trans.clone());
-        let join2 = self.second.feed(trans);
+        let join1 = self.first.feed(work.clone());
+        let join2 = self.second.feed(work);
         let (notify1, notify2) = futures::join!(join1, join2);
 
         notify1?;

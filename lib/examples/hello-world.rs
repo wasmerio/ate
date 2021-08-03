@@ -17,7 +17,7 @@ async fn main() -> Result<(), AteError>
         .build();
 
     // We create a chain with a specific key (this is used for the file name it creates)
-    let chain = builder.open_local(&ChainKey::from("universe")).await?;
+    let chain = builder.open(&ChainKey::from("universe")).await?;
     
     // We interact with the data stored in the chain-of-trust using a DIO
     let session = AteSession::new(&conf);

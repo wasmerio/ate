@@ -52,7 +52,7 @@ for ChainFlow
                 .set_session(self.session.clone())
                 .add_root_public_key(&self.root_key.as_public_key())
                 .build()
-                .open_local(key)
+                .open(key)
                 .await?;
 
             return Ok(OpenAction::DistributedChain(chain));
@@ -72,7 +72,7 @@ for ChainFlow
                 .add_root_public_key(&session_root_key.as_public_key())
                 .temporal(true)
                 .build()
-                .open_local(key)
+                .open(key)
                 .await?;
                 
             // Add the services to this chain

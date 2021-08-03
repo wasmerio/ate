@@ -10,7 +10,6 @@ use crate::dio::*;
 use crate::chain::*;
 use crate::session::*;
 use crate::meta::*;
-use crate::mesh::Registry;
 
 use super::*;
 
@@ -114,24 +113,5 @@ impl Chain
                 Err(InvokeError::Timeout)
             }
         }  
-    }
-
-    #[allow(dead_code)]
-    pub async fn add_service<REQ, RES, ERR>(self: &Arc<Self>, session: AteSession, handler: ServiceInstance<REQ, RES, ERR>)
-    where REQ: Serialize + DeserializeOwned + Sync + Send + ?Sized + 'static,
-          RES: Serialize + DeserializeOwned + Sync + Send + ?Sized + 'static,
-          ERR: std::fmt::Debug + Serialize + DeserializeOwned + Sync + Send + ?Sized + 'static,
-    {
-        let relay_repository = Arc::new(Registry::new(&self.cfg_ate).await);
-
-        let mut guard = self.inside_sync.write();
-        guard.services.push(
-            Arc::new(ServiceHook::new(
-                self,
-                session,
-                relay_repository,
-                Arc::clone(&handler),
-            ))
-        );
     }
 }

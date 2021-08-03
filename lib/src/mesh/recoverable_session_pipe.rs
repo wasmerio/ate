@@ -346,19 +346,19 @@ for RecoverableSessionPipe
         Ok(status_rx)
     }
 
-    async fn feed(&self, mut trans: Transaction) -> Result<(), CommitError>
+    async fn feed(&self, mut work: ChainWork) -> Result<(), CommitError>
     {
-        trace!("feed trans(cnt={})", trans.events.len());
+        trace!("feed trans(cnt={})", work.trans.events.len());
         {
             let mut lock = self.active.write().await;
             if let Some(pipe) = lock.as_mut() {
-                pipe.feed(&mut trans).await?;
+                pipe.feed(&mut work.trans).await?;
             } else if self.mode.should_error_out() {
                 return Err(CommitError::CommsError(CommsError::Disconnected));
             }
         }
 
-        self.next.feed(trans).await
+        self.next.feed(work).await
     }
 
     async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError>

@@ -21,7 +21,7 @@ use crate::model::*;
 
 impl AuthService
 {
-    pub async fn process_create_user<'a>(&self, request: CreateUserRequest, context: InvocationContext<'a>) -> Result<CreateUserResponse, ServiceError<CreateUserFailed>>
+    pub async fn process_create_user<'a>(&self, request: CreateUserRequest, _context: InvocationContext<'a>) -> Result<CreateUserResponse, ServiceError<CreateUserFailed>>
     {
         info!("create user: {}", request.email);
 
@@ -72,7 +72,7 @@ impl AuthService
 
         // Compute which chain the user should exist within
         let user_chain_key = chain_key_4hex(&request.email, Some("redo"));
-        let chain = context.repository.open(&self.auth_url, &user_chain_key).await?;
+        let chain = self.registry.open(&self.auth_url, &user_chain_key).await?;
         let dio = chain.dio_full(&super_session).await;
 
         // Try and find a free UID

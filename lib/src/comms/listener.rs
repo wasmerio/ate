@@ -303,7 +303,7 @@ impl Listener
         // Launch the inbox background thread
         let worker_context = Arc::clone(&context);
         TaskEngine::spawn(async move {
-            match process_inbox::<M, C>
+            let result = process_inbox::<M, C>
             (
                 rx,
                 tx,
@@ -312,7 +312,12 @@ impl Listener
                 worker_context,
                 wire_format,
                 ek,
-            ).await {
+            ).await;
+
+            let span = span!(Level::DEBUG, "server", addr=sock_addr.to_string().as_str());
+            let _span = span.enter();
+            
+            match result {
                 Ok(_) => {},
                 Err(CommsError::IO(err))
                     if err.kind() == std::io::ErrorKind::UnexpectedEof ||
@@ -321,7 +326,7 @@ impl Listener
                      => debug!("connection-eof(inbox)"),
                 Err(err) => warn!("connection-failed (inbox): {:?}", err)
             };
-            info!("disconnected(inbox): {}", sock_addr.to_string());
+            info!("disconnected");
         });
 
         // Happy days

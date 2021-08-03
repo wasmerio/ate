@@ -31,6 +31,7 @@ use crate::spec::*;
 use crate::error::*;
 use crate::lint::*;
 use crate::time::*;
+use crate::chain::ChainWork;
 
 use crate::crypto::{EncryptedPrivateKey, PrivateSignKey};
 use crate::{crypto::EncryptKey, session::{AteSession, AteSessionProperty}};
@@ -562,7 +563,9 @@ impl DioMut
         trace!("commit events={}", trans.events.len());
 
         // Process the transaction in the chain using its pipe
-        self.multi.pipe.feed(trans).await?;
+        self.multi.pipe.feed(ChainWork {
+            trans: trans
+        }).await?;
         
         // Last thing we do is kick off an unlock operation using fire and forget
         let unlock_multi = self.multi.clone();

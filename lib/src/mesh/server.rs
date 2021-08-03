@@ -31,7 +31,6 @@ use super::Registry;
 use crate::flow::OpenFlow;
 use crate::flow::OpenAction;
 use crate::spec::SerializationFormat;
-use crate::repository::ChainRepository;
 use crate::comms::TxDirection;
 use crate::comms::TxGroup;
 use crate::crypto::AteHash;
@@ -61,7 +60,6 @@ pub struct MeshChain
 }
 
 pub struct MeshRoot
-where Self: ChainRepository,
 {
     cfg_mesh: ConfMesh,
     server_id: String,
@@ -240,18 +238,18 @@ struct ServerPipe
 impl EventPipe
 for ServerPipe
 {
-    async fn feed(&self, trans: Transaction) -> Result<(), CommitError>
+    async fn feed(&self, work: ChainWork) -> Result<(), CommitError>
     {
         // If this packet is being broadcast then send it to all the other nodes too
-        if trans.transmit {
-            let evts = MessageEvent::convert_to(&trans.events);
+        if work.trans.transmit {
+            let evts = MessageEvent::convert_to(&work.trans.events);
             let pck = Packet::from(Message::Events{ commit: None, evts: evts.clone(), }).to_packet_data(self.wire_format)?;
             let mut tx = self.tx_group.lock().await;
             tx.send(pck, None).await?;
         }
 
         // Hand over to the next pipe as this transaction 
-        self.next.feed(trans).await
+        self.next.feed(work).await
     }
 
     async fn try_lock(&self, key: PrimaryKey) -> Result<bool, CommitError>
@@ -275,16 +273,6 @@ for ServerPipe
 
     async fn conversation(&self) -> Option<Arc<ConversationSession>> {
         None
-    }
-}
-
-#[async_trait]
-impl ChainRepository
-for MeshRoot
-{
-    async fn open(self: Arc<Self>, _url: &url::Url, _key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
-    {
-        return Err(ChainCreationError::NotSupported);
     }
 }
 
@@ -460,12 +448,13 @@ async fn inbox_event<'b>(
     
     // Feed the events into the chain of trust
     let evts = MessageEvent::convert_from(evts.into_iter());
-    let ret = chain.pipe.feed(Transaction {
-        scope: TransactionScope::None,
-        transmit: false,
-        events: evts,
-        conversation: Some(Arc::clone(&context.conversation)),
-
+    let ret = chain.pipe.feed(ChainWork {
+        trans: Transaction {
+            scope: TransactionScope::None,
+            transmit: false,
+            events: evts,
+            conversation: Some(Arc::clone(&context.conversation)),
+        }
     }).await;
 
     // Send the packet down to others
@@ -597,11 +586,6 @@ async fn inbox_subscribe<'b>(
             chain
         }
     };
-
-    // Update the chain with the repository
-    let repository = Arc::clone(&root);
-    let repository: Arc<dyn ChainRepository> = repository;
-    chain.inside_sync.write().repository = Some(Arc::downgrade(&repository));
 
     // Update the context with the latest chain-key
     {

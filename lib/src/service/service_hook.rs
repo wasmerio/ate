@@ -2,30 +2,29 @@
 use tracing::{info, error, warn, debug};
 use async_trait::async_trait;
 use serde::{Serialize, de::DeserializeOwned};
-use std::{sync::Weak};
-use std::sync::Arc;
+use std::sync::{Arc, Weak};
 
 use crate::{error::*, event::*, meta::{CoreMetadata}};
 use crate::chain::*;
 use crate::session::*;
 use crate::meta::*;
 use crate::header::*;
-use crate::repository::ChainRepository;
+use crate::prelude::TransactionScope;
 
 use super::*;
 
-pub(crate) struct ServiceHook<REQ, RES, ERR>
+pub struct ServiceHook<REQ, RES, ERR>
 where REQ: Serialize + DeserializeOwned + Sync + Send + ?Sized,
       RES: Serialize + DeserializeOwned + Sync + Send + ?Sized,
       ERR: Serialize + DeserializeOwned + Sync + Send + ?Sized
 {
-    chain: Weak<Chain>,
-    relay_repository: Arc<dyn ChainRepository>,
-    session: AteSession,
+    pub session: AteSession,
+    pub scope: TransactionScope,
     handler: ServiceInstance<REQ, RES, ERR>,
     request_type_name: String,
     response_type_name: String,
     error_type_name: String,
+    chain: Weak<Chain>,
 }
 
 impl<REQ, RES, ERR> ServiceHook<REQ, RES, ERR>
@@ -33,15 +32,15 @@ where REQ: Serialize + DeserializeOwned + Sync + Send + ?Sized,
       RES: Serialize + DeserializeOwned + Sync + Send + ?Sized,
       ERR: Serialize + DeserializeOwned + Sync + Send + ?Sized
 {
-    pub(crate) fn new(chain: &Arc<Chain>, session: AteSession, relay_repository: Arc<dyn ChainRepository>, handler: ServiceInstance<REQ, RES, ERR>) -> ServiceHook<REQ, RES, ERR> {
+    pub(crate) fn new(chain: &Arc<Chain>, session: AteSession, handler: ServiceInstance<REQ, RES, ERR>) -> ServiceHook<REQ, RES, ERR> {
         ServiceHook {
             chain: Arc::downgrade(chain),
             session: session.clone(),
             handler: Arc::clone(&handler),
-            relay_repository,
             request_type_name: std::any::type_name::<REQ>().to_string(),
             response_type_name: std::any::type_name::<RES>().to_string(),
             error_type_name: std::any::type_name::<ServiceErrorReply<ERR>>().to_string(),
+            scope: TransactionScope::Local,
         }
     }
 }
@@ -71,11 +70,10 @@ where REQ: Serialize + DeserializeOwned + Sync + Send + ?Sized,
         };
 
         // Load the repository
-        let repo = Arc::clone(&self.relay_repository);
-
-        let ret = {
+        let ret =
+        {
             // Load the object
-            let dio = chain.dio_mut(&self.session).await;
+            let dio = chain.dio_trans(&self.session, self.scope).await;
             dio.auto_cancel();
 
             let mut req = dio.load::<REQ>(&key).await?;
@@ -91,7 +89,6 @@ where REQ: Serialize + DeserializeOwned + Sync + Send + ?Sized,
             let context = InvocationContext
             {
                 session: &self.session,
-                repository: repo,
             };
 
             // Invoke the callback in the service

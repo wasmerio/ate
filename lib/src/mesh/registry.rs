@@ -25,7 +25,7 @@ use crate::chain::ChainKey;
 use crate::mesh::*;
 use crate::error::*;
 use crate::loader;
-use crate::repository::ChainRepository;
+use crate::service::Service;
 
 #[cfg(feature="enable_dns")]
 use
@@ -140,7 +140,9 @@ pub struct Registry
     pub temporal: bool,
     pub client_id: String,
     pub fail_fast: bool,
+    
     chains: Mutex<FxHashMap<url::Url, Arc<MeshClient>>>,
+    pub(crate) services: StdMutex<Vec<Arc<dyn Service>>>,
 }
 
 impl Registry
@@ -167,6 +169,7 @@ impl Registry
             client_id,
             temporal: true,
             chains: Mutex::new(FxHashMap::default()),
+            services: StdMutex::new(Vec::new()),
         }
     }
 
@@ -185,6 +188,18 @@ impl Registry
     pub fn cement(self) -> Arc<Self>
     {
         Arc::new(self)
+    }
+    
+    pub async fn open(self: &Arc<Self>, url: &Url, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
+    {
+        TaskEngine::run_until(self.__open(url, key)).await
+    }
+
+    async fn __open(self: &Arc<Self>, url: &Url, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
+    {
+        let loader_local = loader::DummyLoader::default();
+        let loader_remote = loader::DummyLoader::default();
+        Ok(self.open_ext(url, key, loader_local, loader_remote).await?)
     }
 
     pub async fn open_ext(&self, url: &Url, key: &ChainKey, loader_local: impl loader::Loader + 'static, loader_remote: impl loader::Loader + 'static) -> Result<Arc<Chain>, ChainCreationError>
@@ -309,30 +324,6 @@ impl Registry
     {
         let roots = self.cfg_roots(domain_name, port).await?;
         let ret = ConfMesh::new(domain_name, roots.iter());
-        Ok(ret)
-    }
-}
-
-#[async_trait]
-impl ChainRepository
-for Registry
-{
-    async fn open(self: Arc<Self>, url: &Url, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
-    {
-        TaskEngine::run_until(self.__open(url, key)).await
-    }
-}
-
-impl Registry
-{
-    async fn __open(self: Arc<Self>, url: &Url, key: &ChainKey) -> Result<Arc<Chain>, ChainCreationError>
-    {
-        let loader_local = loader::DummyLoader::default();
-        let loader_remote = loader::DummyLoader::default();
-
-        let weak = Arc::downgrade(&self);
-        let ret = self.open_ext(url, key, loader_local, loader_remote).await?;
-        ret.inside_sync.write().repository = Some(weak);
         Ok(ret)
     }
 }

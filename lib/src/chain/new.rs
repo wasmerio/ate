@@ -132,13 +132,12 @@ impl<'a> Chain
         // that does not wait
         let mut inside_sync = ChainProtectedSync {
             sniffers: Vec::new(),
+            services: Vec::new(),
             indexers: builder.indexers,
             plugins: builder.plugins,
             linters: builder.linters,
             validators: builder.validators,
             transformers: builder.transformers,
-            services: Vec::new(),
-            repository: None,
             default_session: builder.session,
             integrity: builder.integrity,
         };

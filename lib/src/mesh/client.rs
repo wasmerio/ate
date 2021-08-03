@@ -16,7 +16,6 @@ use crate::conf::*;
 use crate::transaction::*;
 use super::msg::*;
 use crate::loader::Loader;
-use crate::repository::ChainRepository;
 use crate::comms::StreamProtocol;
 use crate::prelude::TaskEngine;
 
@@ -120,34 +119,26 @@ impl Drop
 for MeshClient
 {
     fn drop(&mut self) {
-        {
-            let bt = backtrace::Backtrace::new();
-            trace!("{:?}", bt);
-        }
-        trace!("drop");
-    }
-}
+        
+        let span = span!(Level::TRACE, "client", id=self.client_id.as_str());
+        let _span = span.enter();
 
-#[async_trait]
-impl ChainRepository
-for MeshClient
-{
-    async fn open(self: Arc<MeshClient>, url: &'_ url::Url, key: &'_ ChainKey) -> Result<Arc<Chain>, ChainCreationError>
-    {
-        TaskEngine::run_until(self.__open(url, key)).await
+        trace!("drop (out-of-scope)");
     }
 }
 
 impl MeshClient
 {
+    pub async fn open(self: &Arc<MeshClient>, url: &'_ url::Url, key: &'_ ChainKey) -> Result<Arc<Chain>, ChainCreationError>
+    {
+        TaskEngine::run_until(self.__open(url, key)).await
+    }
+
     async fn __open(self: &Arc<MeshClient>, url: &'_ url::Url, key: &'_ ChainKey) -> Result<Arc<Chain>, ChainCreationError>
     {
-        let weak = Arc::downgrade(self);
         let loader_local  = crate::loader::DummyLoader::default();
         let loader_remote  = crate::loader::DummyLoader::default();
         let hello_path = url.path().to_string();
-        let ret = self.open_ext(&key, hello_path, loader_local, loader_remote).await?;
-        ret.inside_sync.write().repository = Some(weak);
-        Ok(ret)
+        self.open_ext(&key, hello_path, loader_local, loader_remote).await
     }
 }

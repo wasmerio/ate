@@ -19,7 +19,7 @@ use async_trait::async_trait;
 use serde::{Serialize, Deserialize};
 use std::{net::{IpAddr, Ipv6Addr}, str::FromStr};
 use tokio::sync::{RwLock, Mutex};
-use std::sync::Mutex as StdMutex;
+use parking_lot::Mutex as StdMutex;
 use std::{collections::BTreeMap, sync::Arc, collections::hash_map::Entry};
 use tokio::sync::mpsc;
 use fxhash::FxHashMap;
