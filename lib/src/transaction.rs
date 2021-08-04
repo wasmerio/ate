@@ -32,6 +32,18 @@ pub enum TransactionScope
     Full
 }
 
+impl std::fmt::Display
+for TransactionScope
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TransactionScope::None => write!(f, "none"),
+            TransactionScope::Local => write!(f, "local"),
+            TransactionScope::Full => write!(f, "full"),
+        }
+    }
+}
+
 #[derive(Debug, Default)]
 pub struct ConversationSession
 {

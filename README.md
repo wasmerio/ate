@@ -179,9 +179,9 @@ Add ate, serde and tokio to your dependency list in Cargo.toml
 
 ```toml
 [dependencies]
-tokio = { version = "*", features = ["client", "server"] }
+tokio = { version = "*", features = ["full", "signal", "process"] }
 serde = { version = "*", features = ["derive"] }
-ate = { version = "*", features = ["all"] }
+ate = { version = "*" }
 ```
 
 Create a main.rs file
@@ -225,6 +225,12 @@ async fn main() -> Result<(), AteError>
     // All errors in ATE will convert into the AteError
     Ok(())
 }
+```
+
+When compiling for WASM use the following command:
+
+```sh
+cargo build --target wasm32-wasi --no-default-features --features client_web
 ```
 
 ## Contribution

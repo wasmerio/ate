@@ -61,10 +61,10 @@ impl<D> Bus<D>
     where D: DeserializeOwned
     {
         while let Some(evt) = self.receiver.recv().await {
-            if evt.data_bytes.is_some() {
+            if evt.data_bytes.is_none() {
                 continue;
             }
-
+            
             let when = evt.meta.get_timestamp();
             let when = match when {
                 Some(t) => t.time_since_epoch_ms,

@@ -245,6 +245,7 @@ impl Listener
         ).await?;
         let wire_encryption = hello_meta.encryption;
         let client_id = hello_meta.client_id;
+        //debug!("{:?}", hello_meta);
 
         // If we are using wire encryption then exchange secrets
         let ek = match wire_encryption {
@@ -311,8 +312,8 @@ impl Listener
             (
                 rx,
                 tx,
-                client_id,
                 server_id,
+                client_id,
                 sock_addr,
                 worker_context,
                 wire_format,

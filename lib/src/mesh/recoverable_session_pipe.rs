@@ -345,7 +345,7 @@ for RecoverableSessionPipe
 
     async fn feed(&self, mut work: ChainWork) -> Result<(), CommitError>
     {
-        trace!("feed trans(cnt={})", work.trans.events.len());
+        trace!("feed trans(cnt={}, scope={})", work.trans.events.len(), work.trans.scope);
         {
             let mut lock = self.active.write().await;
             if let Some(pipe) = lock.as_mut() {

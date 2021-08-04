@@ -11,7 +11,7 @@ repository = "https://github.com/john-sharratt/ate"
 readme = "../README.md"
 
 [features]
-default = [ "enable_basics", "backtrace" ]
+default = [ "client", "server", "enable_ws" ]
 enable_verbose = []
 enable_super_verbose = [ "backtrace", "enable_verbose" ]
 enable_openssl = []
@@ -30,9 +30,9 @@ enable_web = [ "ws_stream_wasm", "wasm-bindgen", "wasm-bindgen-test", "async_io_
 enable_basics = [ "enable_ws" ]
 enable_dns = [ "enable_net", "trust-dns-proto", "trust-dns-client" ]
 enable_full = [ "enable_buffered", "enable_local_fs", "enable_rotate", "enable_caching", "enable_ntp", "enable_tcp", "enable_dns", "enable_mt" ]
-client_web = [ "enable_web", "enable_client" ]
-client = [ "enable_full", "enable_client" ]
-server = [ "enable_full", "enable_server", "enable_client" ]
+client_web = [ "enable_web", "enable_ws", "enable_client" ]
+client = [ "enable_full", "enable_ws", "enable_client" ]
+server = [ "enable_full", "enable_ws", "enable_server", "enable_client" ]
 
 [dependencies]
 uuid = { version = "^0.8", features = ["serde", "v4"] }
