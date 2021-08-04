@@ -10,6 +10,7 @@ use crate::dio::*;
 use crate::chain::*;
 use crate::session::*;
 use crate::meta::*;
+use crate::engine::*;
 
 use super::*;
 
@@ -24,6 +25,14 @@ impl Chain
     }
 
     pub async fn invoke_ext<REQ, RES, ERR>(self: Arc<Self>, session: Option<&AteSession>, request: REQ, timeout: Duration) -> Result<RES, InvokeError<ERR>>
+    where REQ: Serialize + DeserializeOwned + Sync + Send + ?Sized,
+          RES: Serialize + DeserializeOwned + Sync + Send + ?Sized,
+          ERR: Serialize + DeserializeOwned + Sync + Send + ?Sized,
+    {
+        TaskEngine::run_until(self.__invoke_ext(session, request, timeout)).await
+    }
+
+    pub async fn __invoke_ext<REQ, RES, ERR>(self: Arc<Self>, session: Option<&AteSession>, request: REQ, timeout: Duration) -> Result<RES, InvokeError<ERR>>
     where REQ: Serialize + DeserializeOwned + Sync + Send + ?Sized,
           RES: Serialize + DeserializeOwned + Sync + Send + ?Sized,
           ERR: Serialize + DeserializeOwned + Sync + Send + ?Sized,
