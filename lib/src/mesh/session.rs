@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use tracing_futures::{Instrument, WithSubscriber};
+use error_chain::bail;
 use parking_lot::Mutex as StdMutex;
 use std::net::SocketAddr;
 use std::{sync::Arc, sync::Weak};

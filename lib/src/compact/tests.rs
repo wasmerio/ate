@@ -3,7 +3,7 @@ use std::time::Duration;
 use std::time::Instant;
 use tokio::time::timeout;
 
-use crate::error::AteError;
+use crate::error::*;
 use crate::engine::TaskEngine;
 
 use super::*;

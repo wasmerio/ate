@@ -1,5 +1,6 @@
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use tracing_futures::{Instrument, WithSubscriber};
+use error_chain::bail;
 use async_trait::async_trait;
 use serde::{Serialize, Deserialize};
 use std::{borrow::Borrow, net::{IpAddr, Ipv4Addr, Ipv6Addr}, ops::Deref};

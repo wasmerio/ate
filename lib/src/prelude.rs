@@ -4,7 +4,7 @@ pub use crate::conf::ConfMesh;
 pub use crate::conf::ConfiguredFor;
 pub use crate::compact::CompactMode;
 pub use crate::header::PrimaryKey;
-pub use crate::error::AteError;
+pub use crate::error::*;
 
 pub use crate::crypto::EncryptKey;
 pub use crate::crypto::DerivedEncryptKey;
@@ -64,7 +64,6 @@ pub use crate::session::AteRolePurpose;
 pub use crate::transaction::TransactionScope;
 
 pub use crate::service::ServiceHandler;
-pub use crate::error::InvokeError;
 
 pub use crate::engine::TaskEngine;
 pub use crate::comms::StreamProtocol;

@@ -1,5 +1,6 @@
 #[allow(unused_imports)]
 use tracing::{error, info, warn, debug};
+use error_chain::bail;
 use std::sync::Arc;
 
 use crate::error::*;

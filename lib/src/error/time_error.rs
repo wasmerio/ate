@@ -1,63 +1,31 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use error_chain::error_chain;
 use std::{time::SystemTime};
 use chrono::Utc;
 use chrono::DateTime;
 
 use std::time::SystemTimeError;
 
-#[derive(Debug)]
-pub enum TimeError
-{
-    IO(std::io::Error),
-    SystemTimeError(SystemTimeError),
-    BeyondTolerance(u32),
-    NoTimestamp,
-    OutOfBounds{ cursor: SystemTime, timestamp: SystemTime},
-}
-
-impl From<std::io::Error>
-for TimeError
-{
-    fn from(err: std::io::Error) -> TimeError {
-        TimeError::IO(err)
-    }   
-}
-
-impl From<SystemTimeError>
-for TimeError
-{
-    fn from(err: SystemTimeError) -> TimeError {
-        TimeError::SystemTimeError(err)
-    }   
-}
-
-impl std::fmt::Display
-for TimeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            TimeError::IO(err) => {
-                write!(f, "IO error while computing the current time - {}", err.to_string())
-            },
-            TimeError::SystemTimeError(err) => {
-                write!(f, "System clock error while computing the current time - {}", err.to_string())
-            },
-            TimeError::BeyondTolerance(err) => {
-                write!(f, "The network latency is beyond tolerance to synchronize the clocks - {}", err.to_string())
-            },
-            TimeError::NoTimestamp => {
-                write!(f, "The data object has no timestamp metadata attached to it")
-            },
-            TimeError::OutOfBounds{ cursor, timestamp} => {
-                let cursor = DateTime::<Utc>::from(*cursor).format("%Y-%m-%d %H:%M:%S.%f").to_string();
-                let timestamp = DateTime::<Utc>::from(*timestamp).format("%Y-%m-%d %H:%M:%S.%f").to_string();
-                write!(f, "The network latency is out of bounds - cursor:{}, timestamp:{}", cursor, timestamp)
-            },
+error_chain! {
+    types {
+        TimeError, TimeErrorKind, ResultExt, Result;
+    }
+    foreign_links {
+        IO(std::io::Error);
+        SystemTimeError(SystemTimeError);
+    }
+    errors {
+        BeyondTolerance(tolerance: u32) {
+            description("the network latency is beyond tolerance to synchronize the clocks"),
+            display("the network latency is beyond tolerance ({}) to synchronize the clocks", tolerance.to_string()),
+        }
+        NoTimestamp {
+            display("the data object has no timestamp metadata attached to it")
+        }
+        OutOfBounds(cursor: SystemTime, timestamp: SystemTime) {
+            description("the network latency is out of bound"),
+            display("the network latency is out of bounds - cursor:{}, timestamp:{}",
+                    DateTime::<Utc>::from(*cursor).format("%Y-%m-%d %H:%M:%S.%f").to_string(),
+                    DateTime::<Utc>::from(*timestamp).format("%Y-%m-%d %H:%M:%S.%f").to_string())
         }
     }
-}
-
-impl std::error::Error
-for TimeError
-{
 }

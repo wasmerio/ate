@@ -9,7 +9,7 @@ use super::Listener;
 use crate::engine::TaskEngine;
 use crate::comms::PacketData;
 use crate::comms::PacketWithContext;
-use crate::error::CommsError;
+use crate::error::*;
 use async_trait::async_trait;
 #[cfg(feature="enable_server")]
 use crate::comms::ServerProcessor;

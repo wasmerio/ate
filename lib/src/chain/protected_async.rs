@@ -1,5 +1,6 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use error_chain::bail;
 
 use crate::redo::LogWritable;
 use crate::error::*;
@@ -58,10 +59,7 @@ impl ChainProtectedAsync
             self.chain.add_history(header);
         }
 
-        match ret.as_result() {
-            Ok(a) => Ok(a),
-            Err(err) => Err(ChainCreationError::ProcessError(err))
-        }
+        Ok(ret.as_result()?)
     }
 
     pub(crate) async fn feed_meta_data(&mut self, sync: &Arc<StdRwLock<ChainProtectedSync>>, meta: Metadata)
@@ -121,7 +119,11 @@ impl ChainProtectedAsync
         }
 
         if errors.len() > 0 {
-            return Err(CommitError::ValidationError(errors));
+            if errors.len() == 1 {
+                let err = errors.into_iter().next().unwrap();
+                bail!(CommitErrorKind::ValidationError(err.0));
+            }
+            bail!(CommitErrorKind::ValidationError(ValidationErrorKind::Many(errors)));
         }
 
         Ok(())

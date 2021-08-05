@@ -1,78 +1,98 @@
-#![allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-
+use error_chain::error_chain;
 use rmp_serde::decode::Error as RmpDecodeError;
 use serde_json::Error as JsonError;
-use tokio::task::JoinError;
 use tokio::sync::mpsc as mpsc;
 #[cfg(feature="enable_web")]
 use ws_stream_wasm::WsErr;
 
-use super::*;
-
-#[derive(Debug)]
-pub enum CommsError
-{
-    SerializationError(SerializationError),
-    SendError(String),
-    ReceiveError(String),
-    IO(std::io::Error),
-    NoReplyChannel,
-    Disconnected,
-    Timeout,
-    NoAddress,
-    Refused,
-    ShouldBlock,
-    InvalidDomainName,
-    RequredExplicitNodeId,
-    ListenAddressInvalid(String),
-    ValidationError(Vec<ValidationError>),
-    #[allow(dead_code)]
-    JoinError(JoinError),
-    LoadError(LoadError),
-    RootServerError(String),
-    InternalError(String),
-    UrlError(url::ParseError),
-    #[cfg(feature="enable_ws")]
-    #[cfg(feature="enable_web")]
-    WebSocketError(WsErr),
-    #[cfg(feature="enable_ws")]
-    #[cfg(not(feature="enable_web"))]
-    WebSocketError(tokio_tungstenite::tungstenite::Error),
-    #[cfg(feature="enable_ws")]
-    WebSocketInternalError(String),
-    UnsupportedProtocolError(String),
-}
-
-impl From<SerializationError>
-for CommsError
-{
-    fn from(err: SerializationError) -> CommsError {
-        CommsError::SerializationError(err)
-    }   
-}
-
-impl From<std::io::Error>
-for CommsError
-{
-    fn from(err: std::io::Error) -> CommsError {
-        CommsError::IO(err)
-    }   
-}
-
-impl From<url::ParseError>
-for CommsError
-{
-    fn from(err: url::ParseError) -> CommsError {
-        CommsError::UrlError(err)
-    }   
+error_chain! {
+    types {
+        CommsError, CommsErrorKind, ResultExt, Result;
+    }
+    links {
+        SerializationError(super::SerializationError, super::SerializationErrorKind);
+        ValidationError(super::ValidationError, super::ValidationErrorKind);
+        LoadError(super::LoadError, super::LoadErrorKind);
+    }
+    foreign_links {
+        IO(::tokio::io::Error);
+        JoinError(::tokio::task::JoinError);
+        UrlError(::url::ParseError);
+    }
+    errors {
+        SendError(err: String) {
+            description("sending error while processing communication"),
+            display("sending error while processing communication - {}", err),
+        }
+        ReceiveError(err: String) {
+            description("receiving error while processing communication"),
+            display("receiving error while processing communication - {}", err),
+        }
+        NoReplyChannel {
+            display("message has no reply channel attached to it")
+        }
+        Disconnected {    
+            display("channel has been disconnected")        
+        }
+        Timeout {
+            display("io timeout")
+        }
+        NoAddress {
+            display("no address to connect to")
+        }
+        Refused {
+            display("connection was refused by the destination address")
+        }
+        ShouldBlock {
+            display("operation should have blocked but it didnt")
+        }
+        InvalidDomainName {
+            display("the supplied domain name is not valid")
+        }
+        RequredExplicitNodeId {
+            display("ate is unable to determine the node_id of this root and thus you must explicily specify it in cfg")
+        }
+        ListenAddressInvalid(addr: String) {
+            description("could not listen on the address as it is not a valid IPv4/IPv6 address"),
+            display("could not listen on the address ({}) as it is not a valid IPv4/IPv6 address", addr),
+        }
+        RootServerError(err: String) {
+            description("error at the root server while processing communication"),
+            display("error at the root server while processing communication - {}", err),
+        }
+        InternalError(err: String) {
+            description("internal comms error"),
+            display("internal comms error - {}", err),
+        }
+        #[cfg(feature="enable_ws")]
+        #[cfg(feature="enable_web")]
+        WebSocketError(err: WsErr) {
+            description("web socket error"),
+            display("web socket error - {}", err.to_string()),
+        }
+        #[cfg(feature="enable_ws")]
+        #[cfg(not(feature="enable_web"))]
+        WebSocketError(err: tokio_tungstenite::tungstenite::Error) {
+            description("web socket error"),
+            display("web socket error - {}", err.to_string()),
+        }
+        #[cfg(feature="enable_ws")]
+        WebSocketInternalError(err: String) {
+            description("web socket internal error"),
+            display("web socket internal error - {}", err),
+        }
+        UnsupportedProtocolError(proto: String) {
+            description("unsupported wire protocol"),
+            display("unsupported wire protocol ({})", proto),
+        }
+    }
 }
 
 impl From<tokio::time::error::Elapsed>
 for CommsError
 {
     fn from(_err: tokio::time::error::Elapsed) -> CommsError {
-        CommsError::IO(std::io::Error::new(std::io::ErrorKind::TimedOut, format!("Timeout while waiting for communication channel").to_string()))
+        CommsErrorKind::IO(std::io::Error::new(std::io::ErrorKind::TimedOut, format!("Timeout while waiting for communication channel").to_string())).into()
     }   
 }
 
@@ -80,7 +100,7 @@ impl<T> From<mpsc::error::SendError<T>>
 for CommsError
 {
     fn from(err: mpsc::error::SendError<T>) -> CommsError {
-        CommsError::SendError(err.to_string())
+        CommsErrorKind::SendError(err.to_string()).into()
     }   
 }
 
@@ -90,7 +110,7 @@ impl From<WsErr>
 for CommsError
 {
     fn from(err: WsErr) -> CommsError {
-        CommsError::WebSocketError(err)
+        CommsErrorKind::WebSocketError(err).into()
     }   
 }
 
@@ -100,7 +120,7 @@ impl From<tokio_tungstenite::tungstenite::Error>
 for CommsError
 {
     fn from(err: tokio_tungstenite::tungstenite::Error) -> CommsError {
-        CommsError::WebSocketError(err)
+        CommsErrorKind::WebSocketError(err).into()
     }   
 }
 
@@ -110,7 +130,7 @@ impl From<tokio_tungstenite::tungstenite::http::uri::InvalidUri>
 for CommsError
 {
     fn from(err: tokio_tungstenite::tungstenite::http::uri::InvalidUri) -> CommsError {
-        CommsError::WebSocketInternalError(format!("Failed to establish websocket due to an invalid URI - {}", err.to_string()))
+        CommsErrorKind::WebSocketInternalError(format!("Failed to establish websocket due to an invalid URI - {}", err.to_string())).into()
     }   
 }
 
@@ -118,7 +138,7 @@ impl<T> From<tokio::sync::broadcast::error::SendError<T>>
 for CommsError
 {
     fn from(err: tokio::sync::broadcast::error::SendError<T>) -> CommsError {
-        CommsError::SendError(err.to_string())
+        CommsErrorKind::SendError(err.to_string()).into()
     }   
 }
 
@@ -126,41 +146,17 @@ impl From<tokio::sync::broadcast::error::RecvError>
 for CommsError
 {
     fn from(err: tokio::sync::broadcast::error::RecvError) -> CommsError {
-        CommsError::ReceiveError(err.to_string())
+        CommsErrorKind::ReceiveError(err.to_string()).into()
     }   
 }
 
-impl From<JoinError>
+impl From<super::CommitError>
 for CommsError
 {
-    fn from(err: JoinError) -> CommsError {
-        CommsError::ReceiveError(err.to_string())
-    }   
-}
-
-impl From<LoadError>
-for CommsError
-{
-    fn from(err: LoadError) -> CommsError {
-        CommsError::LoadError(err)
-    }   
-}
-
-impl From<ChainCreationError>
-for CommsError
-{
-    fn from(err: ChainCreationError) -> CommsError {
-        CommsError::RootServerError(err.to_string())
-    }   
-}
-
-impl From<CommitError>
-for CommsError
-{
-    fn from(err: CommitError) -> CommsError {
+    fn from(err: super::CommitError) -> CommsError {
         match err {
-            CommitError::ValidationError(errs) => CommsError::ValidationError(errs),
-            err => CommsError::InternalError(format!("commit-failed - {}", err.to_string())),
+            super::CommitError(super::CommitErrorKind::ValidationError(errs), _) => CommsErrorKind::ValidationError(errs).into(),
+            err => CommsErrorKind::InternalError(format!("commit-failed - {}", err.to_string())).into(),
         }
     }   
 }
@@ -169,105 +165,20 @@ impl From<bincode::Error>
 for CommsError
 {
     fn from(err: bincode::Error) -> CommsError {
-        CommsError::SerializationError(SerializationError::BincodeError(err))
+        CommsErrorKind::SerializationError(super::SerializationErrorKind::BincodeError(err).into()).into()
     }   
 }
 
 impl From<RmpDecodeError>
 for CommsError {
     fn from(err: RmpDecodeError) -> CommsError {
-        CommsError::SerializationError(SerializationError::DecodeError(err))
+        CommsErrorKind::SerializationError(super::SerializationErrorKind::DecodeError(err).into()).into()
     }
 }
 
 impl From<JsonError>
 for CommsError {
     fn from(err: JsonError) -> CommsError {
-        CommsError::SerializationError(SerializationError::JsonError(err))
+        CommsErrorKind::SerializationError(super::SerializationErrorKind::JsonError(err).into()).into()
     }
-}
-
-impl std::fmt::Display
-for CommsError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            CommsError::SerializationError(err) => {
-                write!(f, "Serialization error while processing communication - {}", err)
-            },
-            CommsError::IO(err) => {
-                write!(f, "IO error while processing communication - {}", err)
-            },
-            CommsError::NoAddress => {
-                write!(f, "No address to connect to")
-            },
-            CommsError::Timeout => {
-                write!(f, "IO timeout")
-            },
-            CommsError::ShouldBlock => {
-                write!(f, "Operation should have blocked but it didn't")
-            },
-            CommsError::InvalidDomainName => {
-                write!(f, "The supplied domain name is not valid")
-            },
-            CommsError::SendError(err) => {
-                write!(f, "Sending error while processing communication - {}", err)
-            },
-            CommsError::ReceiveError(err) => {
-                write!(f, "Receiving error while processing communication - {}", err)
-            },
-            CommsError::RequredExplicitNodeId => {
-                write!(f, "ATE is unable to determine the node_id of this root and thus you must explicily specify it in AteCfg")
-            },
-            CommsError::NoReplyChannel => {
-                write!(f, "Message has no reply channel attached to it")
-            },
-            CommsError::Refused => {
-                write!(f, "Connection was refused by the destination address")
-            },
-            CommsError::ValidationError(errs) => {
-                write!(f, "Message contained event data that failed validation")?;
-                for err in errs.iter() {
-                    write!(f, " - {}", err.to_string())?;
-                }
-                Ok(())
-            },
-            CommsError::Disconnected => {
-                write!(f, "Channel has been disconnected")
-            },
-            CommsError::JoinError(err) => {
-                write!(f, "Receiving error while processing communication - {}", err)
-            },
-            CommsError::LoadError(err) => {
-                write!(f, "Load error occured while processing communication - {}", err)
-            },
-            CommsError::UrlError(err) => {
-                write!(f, "Failed to parse the URL - {}", err)
-            },
-            CommsError::RootServerError(err) => {
-                write!(f, "Error at the root server while processing communication - {}", err)
-            },
-            CommsError::ListenAddressInvalid(addr) => {
-                write!(f, "Could not listen on the address ({}) as it is not a valid IPv4/IPv6 address", addr)
-            },
-            #[cfg(feature="enable_ws")]
-            CommsError::WebSocketError(err) => {
-                write!(f, "Web socket error - {}", err.to_string())
-            },
-            #[cfg(feature="enable_ws")]
-            CommsError::WebSocketInternalError(err) => {
-                write!(f, "Web socket internal error - {}", err)
-            },
-            CommsError::InternalError(err) => {
-                write!(f, "Internal comms error - {}", err)
-            },
-            CommsError::UnsupportedProtocolError(proto) => {
-                write!(f, "Unsupported wire protocol ({})", proto)
-            },
-        }
-    }
-}
-
-impl std::error::Error
-for CommsError
-{
 }

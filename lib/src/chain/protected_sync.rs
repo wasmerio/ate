@@ -1,5 +1,6 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use error_chain::bail;
 
 use crate::plugin::*;
 use crate::error::*;
@@ -47,23 +48,30 @@ impl ChainProtectedSync
                 },
                 Ok(ValidationResult::Allow) => is_allow = true,
                 Ok(ValidationResult::Abstain) => { },
-                Err(ValidationError::Denied(reason)) => {
+                Err(ValidationError(ValidationErrorKind::Denied(reason), _)) => {
                     if deny_reason.is_empty() == false { deny_reason.push_str(" + "); };
                     deny_reason.push_str(reason.as_str());
                     is_deny = true
                 },
-                Err(ValidationError::Detached) => is_deny = true,
-                Err(ValidationError::Trust(reason)) => {
-                    if deny_reason.is_empty() == false { deny_reason.push_str(" + "); };
-                    deny_reason.push_str(reason.to_string().as_str());
-                    is_deny = true
-                },
-                Err(ValidationError::AllAbstained) => { },
-                Err(ValidationError::NoSignatures) => {
+                Err(ValidationError(ValidationErrorKind::Detached, _)) => is_deny = true,
+                Err(ValidationError(ValidationErrorKind::AllAbstained, _)) => { },
+                Err(ValidationError(ValidationErrorKind::NoSignatures, _)) => {
                     if deny_reason.is_empty() == false { deny_reason.push_str(" + "); };
                     deny_reason.push_str("no signatures");
                     is_deny = true
                 },
+                Err(ValidationError(ValidationErrorKind::Many(errors), _)) => {
+                    for err in errors {
+                        if deny_reason.is_empty() == false { deny_reason.push_str(" + "); };
+                        deny_reason.push_str(err.to_string().as_str());
+                        is_deny = true
+                    }
+                },
+                Err(err) => {
+                    if deny_reason.is_empty() == false { deny_reason.push_str(" + "); };
+                    deny_reason.push_str(err.to_string().as_str());
+                    is_deny = true
+                }
             }
         }
         for plugin in self.plugins.iter() {
@@ -75,31 +83,38 @@ impl ChainProtectedSync
                 },
                 Ok(ValidationResult::Allow) => is_allow = true,
                 Ok(ValidationResult::Abstain) => { },
-                Err(ValidationError::Denied(reason)) => {
+                Err(ValidationError(ValidationErrorKind::Denied(reason), _)) => {
                     if deny_reason.is_empty() == false { deny_reason.push_str(" + "); };
                     deny_reason.push_str(reason.as_str());
                     is_deny = true
                 },
-                Err(ValidationError::Detached) => is_deny = true,
-                Err(ValidationError::Trust(reason)) => {
-                    if deny_reason.is_empty() == false { deny_reason.push_str(" + "); };
-                    deny_reason.push_str(reason.to_string().as_str());
-                    is_deny = true
-                },
-                Err(ValidationError::AllAbstained) => { },
-                Err(ValidationError::NoSignatures) => {
+                Err(ValidationError(ValidationErrorKind::Detached, _)) => is_deny = true,
+                Err(ValidationError(ValidationErrorKind::AllAbstained, _)) => { },
+                Err(ValidationError(ValidationErrorKind::NoSignatures, _)) => {
                     if deny_reason.is_empty() == false { deny_reason.push_str(" + "); };
                     deny_reason.push_str("no signatures");
                     is_deny = true
                 },
+                Err(ValidationError(ValidationErrorKind::Many(errors), _)) => {
+                    for err in errors {
+                        if deny_reason.is_empty() == false { deny_reason.push_str(" + "); };
+                        deny_reason.push_str(err.to_string().as_str());
+                        is_deny = true
+                    }
+                },
+                Err(err) => {
+                    if deny_reason.is_empty() == false { deny_reason.push_str(" + "); };
+                    deny_reason.push_str(err.to_string().as_str());
+                    is_deny = true
+                }
             }
         }
 
         if is_deny == true {
-            return Err(ValidationError::Denied(deny_reason))
+            bail!(ValidationErrorKind::Denied(deny_reason))
         }
         if is_allow == false {
-            return Err(ValidationError::AllAbstained);
+            bail!(ValidationErrorKind::AllAbstained);
         }
         Ok(ValidationResult::Allow)
     }

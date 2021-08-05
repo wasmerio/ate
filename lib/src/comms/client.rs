@@ -1,6 +1,7 @@
 #![allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use tracing_futures::{Instrument, WithSubscriber};
+use error_chain::bail;
 use fxhash::FxHashMap;
 #[cfg(feature="enable_tcp")]
 use tokio::{net::{TcpStream}};
@@ -79,7 +80,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
     }
     else
     {
-        return Err(CommsError::NoAddress);
+        bail!(CommsErrorKind::NoAddress);
     }
 }
 
@@ -184,7 +185,7 @@ async fn mesh_connect_prepare
                 Err(err) if match err.kind() {
                     std::io::ErrorKind::ConnectionRefused => {
                         if fail_fast {
-                            return Err(CommsError::Refused);
+                            bail!(CommsErrorKind::Refused);
                         }
                         true
                     },
@@ -275,7 +276,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
 {
     let span = span!(Level::DEBUG, "client", id=client_id.to_short_string().as_str(), peer=peer_id.to_short_string().as_str());
     let wire_format = connect.hello_metadata.wire_format;
-    
+
     let context = Arc::new(C::default());
     match process_inbox::<M, C>
     (
@@ -291,7 +292,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
     .instrument(span.clone())
     .await {
         Ok(_) => { },
-        Err(CommsError::IO(err)) if match err.kind() {
+        Err(CommsError(CommsErrorKind::IO(err), _)) if match err.kind() {
             std::io::ErrorKind::UnexpectedEof => true,
             std::io::ErrorKind::ConnectionReset => true,
             std::io::ErrorKind::ConnectionAborted => true,
@@ -306,5 +307,5 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
 
     //#[cfg(feature = "enable_verbose")]
     debug!("disconnected-inbox: {}", connect.addr.to_string());
-    Err(CommsError::Disconnected)
+    Err(CommsErrorKind::Disconnected.into())
 }

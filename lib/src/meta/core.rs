@@ -2,7 +2,7 @@ use serde::{Serialize, Deserialize};
 use crate::signature::MetaSignWith;
 
 use crate::crypto::*;
-use crate::error::CryptoError;
+use crate::error::*;
 use crate::header::*;
 use crate::signature::MetaSignature;
 use crate::time::*;
@@ -157,7 +157,7 @@ impl Metadata
                 _ => { }
             }
         }
-        Result::Err(CryptoError::NoIvPresent)
+        Result::Err(CryptoErrorKind::NoIvPresent.into())
     }
 
     pub fn needs_signature(&self) -> bool

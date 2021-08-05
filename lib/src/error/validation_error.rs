@@ -1,57 +1,30 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use error_chain::error_chain;
 
-use super::*;
-
-#[derive(Debug)]
-pub enum ValidationError {
-    Denied(String),
-    AllAbstained,
-    Detached,
-    NoSignatures,
-    Trust(TrustError),
-}
-
-impl From<TrustError>
-for ValidationError
-{
-    fn from(err: TrustError) -> ValidationError {
-        ValidationError::Trust(err)
-    }   
-}
-
-impl From<TimeError>
-for ValidationError
-{
-    fn from(err: TimeError) -> ValidationError {
-        ValidationError::Trust(TrustError::Time(err))
-    }   
-}
-
-impl std::fmt::Display
-for ValidationError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            ValidationError::AllAbstained => {
-                write!(f, "None of the validators approved this data object event")
-            },
-            ValidationError::Denied(err) => {
-                write!(f, "The data was rejected by one of the validators - {}", err)
-            },
-            ValidationError::Detached => {
-                write!(f, "The data object event is detached from the chain of trust")
-            },
-            ValidationError::NoSignatures => {
-                write!(f, "The data object event has no signatures and one is required to store it at this specific location within the chain of trust")
-            },
-            ValidationError::Trust(err) => {
-                write!(f, "The data object event has an issue with trust - {}", err)
-            },
+error_chain! {
+    types {
+        ValidationError, ValidationErrorKind, ResultExt, Result;
+    }
+    links {
+        TrustError(super::TrustError, super::TrustErrorKind);
+        TimeError(super::TimeError, super::TimeErrorKind);
+    }
+    errors {
+        Denied(reason: String) {
+            description("the data was rejected"),
+            display("the data was rejected - {}", reason),
+        }
+        Many(errors: Vec<ValidationError>) {
+            description("the data was rejected by one (or more) of the validators"),
+            display("the data was rejected by {} of the validators", errors.len()),
+        }
+        AllAbstained {
+            display("none of the validators approved this data object event")
+        }
+        Detached {
+            display("the data object event is detached from the chain of trust")
+        }
+        NoSignatures {
+            display("the data object event has no signatures and one is required to store it at this specific location within the chain of trust")
         }
     }
-}
-
-impl std::error::Error
-for ValidationError
-{
 }

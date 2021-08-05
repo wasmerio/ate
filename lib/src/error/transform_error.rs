@@ -1,83 +1,38 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use error_chain::error_chain;
 use crate::crypto::AteHash;
 
-use super::*;
-
-#[derive(Debug)]
-pub enum TransformError {
-    #[cfg(feature = "enable_openssl")]
-    EncryptionError(openssl::error::ErrorStack),
-    IO(std::io::Error),
-    CryptoError(CryptoError),
-    TrustError(TrustError),
-    MissingReadKey(AteHash),
-    UnspecifiedReadability,
-}
-
-#[cfg(feature = "enable_openssl")]
-impl From<openssl::error::ErrorStack>
-for TransformError
-{
-    fn from(err: openssl::error::ErrorStack) -> TransformError {
-        TransformError::EncryptionError(err)
+error_chain! {
+    types {
+        TransformError, TransformErrorKind, ResultExt, Result;
     }
-}
-
-impl From<std::io::Error>
-for TransformError
-{
-    fn from(err: std::io::Error) -> TransformError {
-        TransformError::IO(err)
+    links {
+        CryptoError(super::CryptoError, super::CryptoErrorKind);
+        TrustError(super::TrustError, super::TrustErrorKind);
     }
-}
-
-impl From<CryptoError>
-for TransformError
-{
-    fn from(err: CryptoError) -> TransformError {
-        TransformError::CryptoError(err)
+    foreign_links {
+        IO(std::io::Error);
     }
-}
-
-impl From<TrustError>
-for TransformError
-{
-    fn from(err: TrustError) -> TransformError {
-        TransformError::TrustError(err)
-    }
-}
-
-
-impl std::fmt::Display
-for TransformError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            #[cfg(feature = "enable_openssl")]
-            TransformError::EncryptionError(err) => {
-                write!(f, "Encryption error while transforming event data - {}", err)
-            },
-            TransformError::IO(err) => {
-                write!(f, "IO error while transforming event data - {}", err)
-            },
-            TransformError::CryptoError(err) => {
-                write!(f, "Cryptography error while transforming event data - {}", err)
-            },
-            TransformError::TrustError(err) => {
-                write!(f, "Trust error while transforming event data - {}", err)
-            },
-            TransformError::MissingReadKey(key) => {
-                write!(f, "Missing the read key ({}) needed to encrypt/decrypt this data object", key.to_string())
-            },
-            TransformError::UnspecifiedReadability => {
-                write!(f, "The readability for this data object has not been specified")
-            },
-            
+    errors {
+        #[cfg(feature = "enable_openssl")]
+        EncryptionError(stack: openssl::error::ErrorStack) {
+            description("encryption error while transforming event data"),
+            display("encryption error while transforming event data - {}", err),
+        }
+        MissingReadKey(hash: AteHash) {
+            description("missing the read key needed to encrypt/decrypt this data object"),
+            display("missing the read key ({}) needed to encrypt/decrypt this data object", hash.to_string())
+        }
+        UnspecifiedReadability {
+            display("the readability for this data object has not been specified")
         }
     }
 }
 
-impl std::error::Error
-for TransformError
+#[cfg(feature = "enable_openssl")]
+impl From<openssl::error::ErrorStack>
+for Error
 {
+    fn from(err: openssl::error::ErrorStack) -> Error {
+        ErrorKind::EncryptionError(err).into()
+    }
 }

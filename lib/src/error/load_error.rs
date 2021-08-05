@@ -1,129 +1,90 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use crate::crypto::AteHash;
-use crate::header::PrimaryKey;
-
+use error_chain::error_chain;
 use rmp_serde::encode::Error as RmpEncodeError;
 use rmp_serde::decode::Error as RmpDecodeError;
 
-use super::*;
+use crate::header::PrimaryKey;
+use crate::crypto::AteHash;
 
-#[derive(Debug)]
-pub enum LoadError {
-    NotFound(PrimaryKey),
-    NoPrimaryKey,
-    VersionMismatch,
-    NotFoundByHash(AteHash),
-    ObjectStillLocked(PrimaryKey),
-    AlreadyDeleted(PrimaryKey),
-    Tombstoned(PrimaryKey),
-    SerializationError(SerializationError),
-    ChainCreationError(String),
-    TransformationError(TransformError),
-    NoRepository,
-    IO(tokio::io::Error),
-    #[allow(dead_code)]
-    CollectionDetached,
-    WeakDio,
-}
-
-impl From<tokio::io::Error>
-for LoadError
-{
-    fn from(err: tokio::io::Error) -> LoadError {
-        LoadError::IO(err)
-    }   
-}
-
-impl From<SerializationError>
-for LoadError
-{
-    fn from(err: SerializationError) -> LoadError {
-        LoadError::SerializationError(err)
-    }   
-}
-
-impl From<TransformError>
-for LoadError
-{
-    fn from(err: TransformError) -> LoadError {
-        LoadError::TransformationError(err)
-    }   
-}
-
-impl From<ChainCreationError>
-for LoadError
-{
-    fn from(err: ChainCreationError) -> LoadError {
-        LoadError::ChainCreationError(err.to_string())
-    }   
+error_chain! {
+    types {
+        LoadError, LoadErrorKind, ResultExt, Result;
+    }
+    links {
+        SerializationError(super::SerializationError, super::SerializationErrorKind);
+        TransformationError(super::TransformError, super::TransformErrorKind);
+    }
+    foreign_links {
+        IO(tokio::io::Error);
+    }
+    errors {
+        NotFound(key: PrimaryKey) {
+            description("data object with key could not be found"),
+            display("data object with key ({}) could not be found", key.as_hex_string()),
+        }
+        NoPrimaryKey {
+            display("entry has no primary could and hence could not be loaded")
+        }
+        VersionMismatch {
+            display("entry has an invalid version for this log file")
+        }
+        NotFoundByHash(hash: AteHash) {
+            description("data object with hash could not be found"),
+            display("data object with hash ({}) could not be found", hash.to_string()),
+        }
+        ObjectStillLocked(key: PrimaryKey) {
+            description("data object with key is still being edited in the current scope"),
+            display("data object with key ({}) is still being edited in the current scope", key.as_hex_string()),
+        }
+        AlreadyDeleted(key: PrimaryKey) {
+            description("data object with key has already been deleted"),
+            display("data object with key ({}) has already been deleted", key.as_hex_string()),
+        }
+        Tombstoned(key: PrimaryKey) {
+            description("data object with key has already been tombstoned"),
+            display("data object with key ({}) has already been tombstoned", key.as_hex_string()),
+        }
+        ChainCreationError(err: String) {
+            description("chain creation error while attempting to load data object"),
+            display("chain creation error while attempting to load data object - {}", err),
+        }
+        NoRepository {
+            display("chain has no repository thus could not load foreign object")
+        }
+        CollectionDetached {
+            display("collection is detached from its parent, it must be attached before it can be used")
+        }
+        WeakDio {
+            display("the dio that created this object has gone out of scope")
+        }
+    }
 }
 
 impl From<RmpEncodeError>
 for LoadError {
     fn from(err: RmpEncodeError) -> LoadError {
-        LoadError::SerializationError(SerializationError::EncodeError(err))
+        LoadErrorKind::SerializationError(super::SerializationErrorKind::EncodeError(err).into()).into()
     }
 }
 
 impl From<RmpDecodeError>
 for LoadError {
     fn from(err: RmpDecodeError) -> LoadError {
-        LoadError::SerializationError(SerializationError::DecodeError(err))
+        LoadErrorKind::SerializationError(super::SerializationErrorKind::DecodeError(err).into()).into()
     }
 }
 
-impl std::fmt::Display
-for LoadError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            LoadError::NotFound(key) => {
-                write!(f, "Data object with key ({}) could not be found", key.as_hex_string())
-            },
-            LoadError::NotFoundByHash(hash) => {
-                write!(f, "Data object with hash ({}) could not be found", hash.to_string())
-            },
-            LoadError::VersionMismatch => {
-                write!(f, "Entry has an invalid version for this log file")
-            }
-            LoadError::NoPrimaryKey => {
-                write!(f, "Entry has no primary could and hence could not be loaded")
-            },
-            LoadError::ObjectStillLocked(key) => {
-                write!(f, "Data object with key ({}) is still being edited in the current scope", key.as_hex_string())
-            },
-            LoadError::AlreadyDeleted(key) => {
-                write!(f, "Data object with key ({}) has already been deleted", key.as_hex_string())
-            },
-            LoadError::Tombstoned(key) => {
-                write!(f, "Data object with key ({}) has already been tombstoned", key.as_hex_string())
-            },
-            LoadError::SerializationError(err) => {
-                write!(f, "Serialization error while attempting to load data object - {}", err)
-            },
-            LoadError::TransformationError(err) => {
-                write!(f, "Transformation error while attempting to load data object - {}", err)
-            },
-            LoadError::ChainCreationError(err) => {
-                write!(f, "Chain creation error while attempting to load data object - {}", err)
-            },
-            LoadError::NoRepository => {
-                write!(f, "Chain has no repository thus could not load foreign object")
-            },
-            LoadError::IO(err) => {
-                write!(f, "IO error while attempting to load data object - {}", err)
-            },
-            LoadError::CollectionDetached => {
-                write!(f, "Collection is detached from its parent, it must be attached before it can be used")
-            },
-            LoadError::WeakDio => {
-                write!(f, "The DIO that created this object has gone out of scope")
-            },
-        }
-    }
-}
-
-impl std::error::Error
+impl From<super::ChainCreationError>
 for LoadError
 {
+    fn from(err: super::ChainCreationError) -> LoadError {
+        LoadErrorKind::ChainCreationError(err.to_string()).into()
+    }   
+}
+
+impl From<super::ChainCreationErrorKind>
+for LoadError
+{
+    fn from(err: super::ChainCreationErrorKind) -> LoadError {
+        LoadErrorKind::ChainCreationError(err.to_string()).into()
+    }   
 }

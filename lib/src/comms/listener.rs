@@ -199,7 +199,7 @@ impl Listener
                     .instrument(tracing::info_span!("server-accept", id=server_id.to_short_string().as_str()))
                     .await {
                         Ok(a) => a,
-                        Err(CommsError::IO(err))
+                        Err(CommsError(CommsErrorKind::IO(err), _))
                             if err.kind() == std::io::ErrorKind::UnexpectedEof ||
                             err.kind() == std::io::ErrorKind::ConnectionReset ||
                             err.to_string().to_lowercase().contains("connection reset without closing handshake")
@@ -325,7 +325,7 @@ impl Listener
             
             match result {
                 Ok(_) => {},
-                Err(CommsError::IO(err))
+                Err(CommsError(CommsErrorKind::IO(err), _))
                     if err.kind() == std::io::ErrorKind::UnexpectedEof ||
                        err.kind() == std::io::ErrorKind::ConnectionReset ||
                        err.to_string().to_lowercase().contains("connection reset without closing handshake")

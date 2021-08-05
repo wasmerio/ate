@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use error_chain::bail;
 use async_trait::async_trait;
 use std::{net::IpAddr, sync::Arc};
 use fxhash::FxHashMap;

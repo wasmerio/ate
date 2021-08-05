@@ -1,5 +1,6 @@
 #[allow(unused_imports)]
 use tracing::{info, error, warn, debug};
+use error_chain::bail;
 use serde::{Serialize, de::DeserializeOwned};
 use std::{time::Duration};
 use tokio::select;

@@ -1,6 +1,7 @@
 #![allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use tracing_futures::Instrument;
+use error_chain::bail;
 use crate::prelude::*;
 use tokio::sync::broadcast;
 use fxhash::FxHashMap;

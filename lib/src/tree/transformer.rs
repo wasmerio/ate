@@ -1,5 +1,6 @@
 #[allow(unused_imports)]
 use tracing::{error, info, warn, debug};
+use error_chain::bail;
 use bytes::Bytes;
 
 use crate::error::*;

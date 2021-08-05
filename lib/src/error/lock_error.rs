@@ -1,66 +1,40 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use error_chain::error_chain;
 
-use super::*;
-
-#[derive(Debug)]
-pub enum LockError
-{
-    SerializationError(SerializationError),
-    LintError(LintError),
-    CommitError(String),
-    ReceiveError(String),
-    WeakDio,
-}
-
-impl From<SerializationError>
-for LockError
-{
-    fn from(err: SerializationError) -> LockError {
-        LockError::SerializationError(err)
-    }   
-}
-
-impl From<LintError>
-for LockError
-{
-    fn from(err: LintError) -> LockError {
-        LockError::LintError(err)
-    }   
-}
-
-impl From<CommitError>
-for LockError
-{
-    fn from(err: CommitError) -> LockError {
-        LockError::CommitError(err.to_string())
-    }   
-}
-
-impl std::fmt::Display
-for LockError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            LockError::SerializationError(err) => {
-                write!(f, "Failed to lock the data object due to a serialization error - {}", err)
-            },
-            LockError::LintError(err) => {
-                write!(f, "Failed to lock the data object due to issue linting the event - {}", err)
-            },
-            LockError::CommitError(err) => {
-                write!(f, "Failed to lock the data object due to issue committing the event to the pipe - {}", err)
-            },
-            LockError::ReceiveError(err) => {
-                write!(f, "Failed to lock the data object due to an error receiving on the pipe - {}", err)
-            },
-            LockError::WeakDio => {
-                write!(f, "The DIO that created this object has gone out of scope")
-            },
+error_chain! {
+    types {
+        LockError, LockErrorKind, ResultExt, Result;
+    }
+    links {
+        SerializationError(super::SerializationError, super::SerializationErrorKind);
+        LintError(super::LintError, super::LintErrorKind);
+    }
+    errors {
+        CommitError(err: String) {
+            description("failed to lock the data object due to issue committing the event to the pipe"),
+            display("failed to lock the data object due to issue committing the event to the pipe - {}", err),
+        }
+        ReceiveError(err: String) {
+            description("failed to lock the data object due to an error receiving on the pipe"),
+            display("failed to lock the data object due to an error receiving on the pipe - {}", err),
+        }
+        WeakDio {
+            display("the dIO that created this object has gone out of scope")
         }
     }
 }
 
-impl std::error::Error
+impl From<super::CommitError>
 for LockError
 {
+    fn from(err: super::CommitError) -> LockError {
+        LockErrorKind::CommitError(err.to_string()).into()
+    }   
+}
+
+impl From<super::CommitErrorKind>
+for LockError
+{
+    fn from(err: super::CommitErrorKind) -> LockError {
+        LockErrorKind::CommitError(err.to_string()).into()
+    }   
 }

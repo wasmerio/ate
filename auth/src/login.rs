@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use error_chain::bail;
 use std::{io::stdout, path::Path};
 use std::io::Write;
 use url::Url;

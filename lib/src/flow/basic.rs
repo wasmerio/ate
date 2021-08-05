@@ -9,7 +9,7 @@ use super::OpenAction;
 use super::OpenFlow;
 use crate::chain::ChainKey;
 use crate::conf::ChainBuilder;
-use crate::error::ChainCreationError;
+use crate::error::*;
 use crate::trust::IntegrityMode;
 
 pub struct OpenStaticBuilder

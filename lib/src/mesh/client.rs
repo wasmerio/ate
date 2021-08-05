@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use tokio::sync::{Mutex};
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use tracing_futures::{Instrument, WithSubscriber};
+use error_chain::bail;
 use std::{sync::Arc, collections::hash_map::Entry};
 use fxhash::FxHashMap;
 use crate::{header::PrimaryKey, pipe::EventPipe};

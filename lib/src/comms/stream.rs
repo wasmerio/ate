@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use error_chain::bail;
 #[cfg(feature="enable_tcp")]
 use tokio::net::TcpStream;
 #[cfg(feature="enable_tcp")]
@@ -39,7 +40,7 @@ use
     futures_util          :: { stream                               } ,
 };
 
-use crate::error::CommsError;
+use crate::error::*;
 
 #[derive(Debug, Clone, Copy)]
 pub enum StreamProtocol
@@ -63,7 +64,7 @@ for StreamProtocol
             #[cfg(feature="enable_ws")]
             "ws" => StreamProtocol::WebSocket,
             _ => {
-                return Err(CommsError::UnsupportedProtocolError(s.to_string()));
+                bail!(CommsErrorKind::UnsupportedProtocolError(s.to_string()));
             }
         };
         Ok(ret)
@@ -243,7 +244,7 @@ impl Stream
                         let (stream, response) = tokio_tungstenite::client_async(request, a)
                             .await?;
                         if response.status().is_client_error() {
-                            return Err(CommsError::WebSocketInternalError(format!("HTTP error while performing WebSocket handshack - status-code={}", response.status().as_u16())));
+                            bail!(CommsErrorKind::WebSocketInternalError(format!("HTTP error while performing WebSocket handshack - status-code={}", response.status().as_u16())));
                         }
                         Stream::WebSocket(stream, protocol)
                     },

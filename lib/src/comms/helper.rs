@@ -112,12 +112,12 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
         let rcv = inbox.process(pck);
         match rcv.await {
             Ok(a) => a,
-            Err(CommsError::Disconnected) => { break; }
-            Err(CommsError::SendError(err)) => {
+            Err(CommsError(CommsErrorKind::Disconnected, _)) => { break; }
+            Err(CommsError(CommsErrorKind::SendError(err), _)) => {
                 warn!("inbox-err: {}", err);
                 break;
             }
-            Err(CommsError::ValidationError(errs)) => {
+            Err(CommsError(CommsErrorKind::ValidationError(ValidationErrorKind::Many(errs)), _)) => {
                 for err in errs.iter() {
                     trace!("val-err: {}", err);
                 }
@@ -126,6 +126,13 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
                 warn!("inbox-debug: {} validation errors", errs.len());
                 #[cfg(not(debug_assertions))]
                 debug!("inbox-debug: {} validation errors", errs.len());
+                continue;
+            }
+            Err(CommsError(CommsErrorKind::ValidationError(err), _)) => {
+                #[cfg(debug_assertions)]
+                warn!("inbox-debug: validation error - {}", err);
+                #[cfg(not(debug_assertions))]
+                debug!("inbox-debug: validation error - {}", err);
                 continue;
             }
             Err(err) => {

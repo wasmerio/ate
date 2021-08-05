@@ -1,32 +1,22 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use error_chain::error_chain;
 
-#[derive(Debug)]
-pub enum CryptoError {
-    NoIvPresent,    
+error_chain! {
+    types {
+        CryptoError, CryptoErrorKind, ResultExt, Result;
+    }
+    errors {
+        NoIvPresent {
+            display("no initialization vector")
+        }
+    }
 }
 
 impl From<CryptoError>
 for std::io::Error {
     fn from(error: CryptoError) -> Self {
         match error {
-            CryptoError::NoIvPresent => std::io::Error::new(std::io::ErrorKind::Other, "The metadata does not have IV component present")
+            CryptoError(CryptoErrorKind::NoIvPresent, _) => std::io::Error::new(std::io::ErrorKind::Other, "The metadata does not have IV component present"),
+            _ => std::io::Error::new(std::io::ErrorKind::Other, "An unknown error occured while performing ate crypto")
         }
     }
-}
-
-impl std::fmt::Display
-for CryptoError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            CryptoError::NoIvPresent => {
-                write!(f, "The event has no initialization vector")
-            },
-        }
-    }
-}
-
-impl std::error::Error
-for CryptoError
-{
 }

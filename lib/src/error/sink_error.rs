@@ -1,48 +1,22 @@
-#[allow(unused_imports)]
-use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use error_chain::error_chain;
+
 use crate::crypto::AteHash;
 
-use super::*;
-
-#[derive(Debug)]
-pub enum SinkError {
-    MissingPublicKey(AteHash),
-    Trust(TrustError),
-    InvalidSignature {
-        hash: AteHash,
-        err: Option<pqcrypto_traits::Error>,
+error_chain! {
+    types {
+        SinkError, SinkErrorKind, ResultExt, Result;
     }
-}
-
-impl From<TrustError>
-for SinkError
-{
-    fn from(err: TrustError) -> SinkError {
-        SinkError::Trust(err)
-    }   
-}
-
-impl std::fmt::Display
-for SinkError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            SinkError::MissingPublicKey(hash) => {
-                write!(f, "The public key ({}) for signature could not be found in the chain-of-trust", hash.to_string())
-            },
-            SinkError::Trust(err) => {
-                write!(f, "Failed to accept event due to a trust error - {}", err)
-            },
-            SinkError::InvalidSignature { hash, err } => {
-                match err {
-                    Some(err) => write!(f, "Failed verification of hash while using public key ({}) - {}", hash.to_string(), err),
-                    None => write!(f, "Failed verification of hash while using public key ({})", hash.to_string())
-                }
-            },
+    links {
+        TrustError(super::TrustError, super::TrustErrorKind);
+    }
+    errors {
+        MissingPublicKey(hash: AteHash) {
+            description("the public key for signature could not be found in the chain-of-trust"),
+            display("the public key ({}) for signature could not be found in the chain-of-trust", hash.to_string()),
+        }
+        InvalidSignature(hash: AteHash, err: Option<pqcrypto_traits::Error>) {
+            description("failed verification of hash while using public key"),
+            display("failed verification of hash while using public key ({}) - {}", hash.to_string(), err.map(|a| a.to_string()).unwrap_or_else(|| "unknown reason".to_string()))
         }
     }
-}
-
-impl std::error::Error
-for SinkError
-{
 }

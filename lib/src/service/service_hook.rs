@@ -1,6 +1,7 @@
 use fxhash::FxHashSet;
 #[allow(unused_imports)]
 use tracing::{info, error, warn, debug};
+use error_chain::bail;
 use async_trait::async_trait;
 use std::sync::{Arc, Weak};
 use bytes::Bytes;

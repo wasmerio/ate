@@ -1,6 +1,7 @@
 #![allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use tracing_futures::{Instrument};
+use error_chain::bail;
 
 use multimap::MultiMap;
 use btreemultimap::BTreeMultiMap;

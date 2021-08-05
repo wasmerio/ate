@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use error_chain::bail;
 use tokio::io::{ AsyncReadExt, AsyncWriteExt};
 use crate::crypto::{EncryptKey, PublicEncryptKey, InitializationVector};
 
@@ -28,7 +29,7 @@ pub(super) async fn mesh_key_exchange_sender(stream_rx: &mut StreamRx, stream_tx
     let iv1 = InitializationVector::from(iv1_bytes);
     let ek1 = match sk1.decapsulate(&iv1) {
         Some(a) => a,
-        None => { return Err(CommsError::ReceiveError("Failed to decapsulate the encryption key from the received initialization vector.".to_string())); }
+        None => { bail!(CommsErrorKind::ReceiveError("Failed to decapsulate the encryption key from the received initialization vector.".to_string())); }
     };
     trace!("client received the servers half of the shared secret");
 
@@ -37,7 +38,7 @@ pub(super) async fn mesh_key_exchange_sender(stream_rx: &mut StreamRx, stream_tx
     trace!("client received the servers public key");
     let pk2 = match PublicEncryptKey::from_bytes(pk2_bytes) {
         Some(a) => a,
-        None => { return Err(CommsError::ReceiveError("Failed to receive a public key from the other side.".to_string())); }
+        None => { bail!(CommsErrorKind::ReceiveError("Failed to receive a public key from the other side.".to_string())); }
     };
 
     // Generate one half of the secret and send the IV so the other side can recreate it
@@ -60,7 +61,7 @@ pub(super) async fn mesh_key_exchange_receiver(stream_rx: &mut StreamRx, stream_
     trace!("server received clients public key");
     let pk1 = match PublicEncryptKey::from_bytes(pk1_bytes) {
         Some(a) => a,
-        None => { return Err(CommsError::ReceiveError("Failed to receive a valid public key from the sender".to_string())); }
+        None => { bail!(CommsErrorKind::ReceiveError("Failed to receive a valid public key from the sender".to_string())); }
     };
 
     // Generate one half of the secret and send the IV so the other side can recreate it
@@ -81,7 +82,7 @@ pub(super) async fn mesh_key_exchange_receiver(stream_rx: &mut StreamRx, stream_
     let iv2 = InitializationVector::from(iv2_bytes);
     let ek2 = match sk2.decapsulate(&iv2) {
         Some(a) => a,
-        None => { return Err(CommsError::ReceiveError("Failed to receive a public key from the other side.".to_string())); }
+        None => { bail!(CommsErrorKind::ReceiveError("Failed to receive a public key from the other side.".to_string())); }
     };
     trace!("server received client half of the shared secret");
     

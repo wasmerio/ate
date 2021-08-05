@@ -5,6 +5,7 @@ use serde::{Serialize, de::DeserializeOwned};
 use std::marker::PhantomData;
 use tokio::sync::mpsc;
 use std::sync::Arc;
+use error_chain::bail;
 
 use super::*;
 use super::dio_mut::*;
@@ -77,7 +78,7 @@ impl<D> Bus<D>
             let (row_header, row) = super::row::Row::from_event(&self.dio, &evt, when, when)?;
             return Ok(Dao::new(&self.dio, row_header, row));
         }
-        Err(BusError::ChannelClosed)
+        Err(BusErrorKind::ChannelClosed.into())
     }
 
     pub async fn process(&mut self, trans: &Arc<DioMut>) -> Result<DaoMut<D>, BusError>
@@ -105,7 +106,7 @@ impl<D> DaoVec<D>
     pub async fn bus(&self) -> Result<Bus<D>, BusError>
     {
         let parent_id = match &self.state {
-            DaoVecState::Unsaved => { return Err(BusError::SaveParentFirst); },
+            DaoVecState::Unsaved => { bail!(BusErrorKind::SaveParentFirst); },
             DaoVecState::Saved(a) => a.clone(),
         };
 
@@ -116,7 +117,7 @@ impl<D> DaoVec<D>
         
         let dio = match self.dio() {
             Some(a) => a,
-            None => { return Err(BusError::WeakDio); }
+            None => { bail!(BusErrorKind::WeakDio); }
         };
 
         Ok(Bus::new(&dio, vec).await)
