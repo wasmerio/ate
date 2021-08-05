@@ -1,6 +1,5 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use std::error::Error;
 
 use super::*;
 
@@ -64,7 +63,4 @@ for LockError {
 impl std::error::Error
 for LockError
 {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        None
-    }
 }

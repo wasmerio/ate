@@ -1,6 +1,6 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use std::{error::Error, time::SystemTime};
+use std::{time::SystemTime};
 use chrono::Utc;
 use chrono::DateTime;
 
@@ -60,7 +60,4 @@ for TimeError {
 impl std::error::Error
 for TimeError
 {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        None
-    }
 }

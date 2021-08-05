@@ -1,6 +1,5 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use std::error::Error;
 use crate::crypto::AteHash;
 
 use super::*;
@@ -81,7 +80,4 @@ for TransformError {
 impl std::error::Error
 for TransformError
 {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        None
-    }
 }

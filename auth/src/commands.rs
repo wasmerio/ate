@@ -265,7 +265,16 @@ pub enum CreateGroupFailed
     AlreadyExists,
     NoMoreRoom,
     NoMasterKey,
-    InvalidGroupName
+    InvalidGroupName,
+    InternalError(String),
+}
+
+impl From<Box<dyn std::error::Error>>
+for CreateGroupFailed
+{
+    fn from(err: Box<dyn std::error::Error>) -> Self {
+        CreateGroupFailed::InternalError(err.to_string())
+    }
 }
 
 impl std::fmt::Display
@@ -283,6 +292,9 @@ for CreateGroupFailed {
             },
             CreateGroupFailed::InvalidGroupName => {
                 write!(f, "The specified group name is not supported")
+            },
+            CreateGroupFailed::InternalError(err) => {
+                write!(f, "An internal error occurred - {}", err)
             },
         }
     }

@@ -24,7 +24,7 @@ use crate::index::*;
 pub use super::vec::DaoVec;
 
 #[derive(Debug, Clone)]
-pub(super) struct RowHeader
+pub(crate) struct RowHeader
 {
     pub key: PrimaryKey,
     pub parent: Option<MetaParent>,
@@ -34,7 +34,7 @@ pub(super) struct RowHeader
 pub(super) struct Row<D>
 {
     pub(super) key: PrimaryKey,
-    pub(super) type_name: &'static str,
+    pub(super) type_name: String,
     pub(super) created: u64,
     pub(super) updated: u64,
     pub(super) format: MessageFormat,
@@ -51,7 +51,7 @@ where D: Clone,
     {
         Row {
             key: self.key.clone(),
-            type_name: self.type_name,
+            type_name: self.type_name.clone(),
             created: self.created,
             updated: self.updated,
             format: self.format,
@@ -110,7 +110,7 @@ impl<D> Row<D>
                     },
                     Row {
                         key,
-                        type_name: std::any::type_name::<D>(),
+                        type_name: std::any::type_name::<D>().to_string(),
                         format: evt.format,
                         data,
                         collections,
@@ -142,7 +142,7 @@ impl<D> Row<D>
             },
             Row {
                 key: row.key,
-                type_name: row.type_name,
+                type_name: row.type_name.clone(),
                 format: row.format,
                 data: data,
                 collections: row.collections.clone(),
@@ -162,7 +162,7 @@ impl<D> Row<D>
         (
             RowData {
                 key: self.key.clone(),
-                type_name: self.type_name,
+                type_name: self.type_name.clone(),
                 format: self.format,
                 parent: header.parent.clone(),
                 data_hash,
@@ -181,7 +181,7 @@ impl<D> Row<D>
 pub(crate) struct RowData
 {
     pub key: PrimaryKey,
-    pub type_name: &'static str,
+    pub type_name: String,
     pub format: MessageFormat,
     pub data_hash: AteHash,
     pub data: Bytes,

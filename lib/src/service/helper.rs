@@ -36,7 +36,7 @@ pub(crate) fn callback_events_prepare(guard: &StdRwLockReadGuard<ChainProtectedS
     ret
 }
 
-pub(crate) async fn callback_events_notify(mut notifies: Vec<Notify>) -> Result<(), ServiceError<()>>
+pub(crate) async fn callback_events_notify(mut notifies: Vec<Notify>) -> Result<(), InvokeError>
 {
     let mut joins = Vec::new();
     for notify in notifies.drain(..) {

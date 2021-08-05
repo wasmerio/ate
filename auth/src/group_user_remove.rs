@@ -23,7 +23,7 @@ use crate::model::*;
 
 impl AuthService
 {
-    pub async fn process_group_user_remove<'a>(&self, request: GroupUserRemoveRequest, _context: InvocationContext<'a>) -> Result<GroupUserRemoveResponse, ServiceError<GroupUserRemoveFailed>>
+    pub async fn process_group_user_remove(self: Arc<Self>, request: GroupUserRemoveRequest) -> Result<GroupUserRemoveResponse, ServiceError<GroupUserRemoveFailed>>
     {
         info!("group ({}) user remove", request.group);
 

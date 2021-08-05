@@ -1,6 +1,5 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use std::error::Error;
 
 #[cfg(feature="enable_dns")]
 use trust_dns_proto::error::ProtoError as DnsProtoError;
@@ -185,7 +184,4 @@ for ChainCreationError {
 impl std::error::Error
 for ChainCreationError
 {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        None
-    }
 }

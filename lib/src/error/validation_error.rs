@@ -1,6 +1,5 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use std::error::Error;
 
 use super::*;
 
@@ -55,7 +54,4 @@ for ValidationError {
 impl std::error::Error
 for ValidationError
 {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        None
-    }
 }

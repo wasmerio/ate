@@ -1,6 +1,5 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use std::error::Error;
 
 use tokio::sync::mpsc as mpsc;
 use tokio::sync::broadcast as broadcast;
@@ -162,7 +161,4 @@ for CommitError {
 impl std::error::Error
 for CommitError
 {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        None
-    }
 }

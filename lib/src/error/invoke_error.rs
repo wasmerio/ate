@@ -6,79 +6,87 @@ use tokio::sync::mpsc as mpsc;
 use super::*;
 
 #[derive(Debug)]
-pub enum InvokeError<E>
+pub enum InvokeError
 {
     IO(std::io::Error),
-    Reply(E),
     LoadError(LoadError),
     SerializationError(SerializationError),
     CommitError(CommitError),
+    TransformError(TransformError),
     LockError(LockError),
     PipeError(String),
     ServiceError(String),
     Timeout,
-    Aborted
+    Aborted,
+    NoData,
 }
 
-impl<E> From<std::io::Error>
-for InvokeError<E>
+impl From<std::io::Error>
+for InvokeError
 {
-    fn from(err: std::io::Error) -> InvokeError<E> {
+    fn from(err: std::io::Error) -> InvokeError {
         InvokeError::IO(err)
     }   
 }
 
-impl<E> From<SerializationError>
-for InvokeError<E>
+impl From<SerializationError>
+for InvokeError
 {
-    fn from(err: SerializationError) -> InvokeError<E> {
+    fn from(err: SerializationError) -> InvokeError {
         InvokeError::SerializationError(err)
     }   
 }
 
-impl<E> From<LockError>
-for InvokeError<E>
+impl From<LockError>
+for InvokeError
 {
-    fn from(err: LockError) -> InvokeError<E> {
+    fn from(err: LockError) -> InvokeError {
         InvokeError::LockError(err)
     }   
 }
 
-impl<T, E> From<mpsc::error::SendError<T>>
-for InvokeError<E>
+impl<T> From<mpsc::error::SendError<T>>
+for InvokeError
 {
-    fn from(err: mpsc::error::SendError<T>) -> InvokeError<E> {
+    fn from(err: mpsc::error::SendError<T>) -> InvokeError {
         InvokeError::PipeError(err.to_string())
     }   
 }
 
-impl<E> From<LoadError>
-for InvokeError<E>
+impl From<LoadError>
+for InvokeError
 {
-    fn from(err: LoadError) -> InvokeError<E> {
+    fn from(err: LoadError) -> InvokeError {
         InvokeError::LoadError(err)
     }   
 }
 
-impl<E> From<CommitError>
-for InvokeError<E>
+impl From<CommitError>
+for InvokeError
 {
-    fn from(err: CommitError) -> InvokeError<E> {
+    fn from(err: CommitError) -> InvokeError {
         InvokeError::CommitError(err)
     }   
 }
 
-impl<E> From<tokio::time::error::Elapsed>
-for InvokeError<E>
+impl From<TransformError>
+for InvokeError
 {
-    fn from(_elapsed: tokio::time::error::Elapsed) -> InvokeError<E> {
+    fn from(err: TransformError) -> InvokeError {
+        InvokeError::TransformError(err)
+    }   
+}
+
+impl From<tokio::time::error::Elapsed>
+for InvokeError
+{
+    fn from(_elapsed: tokio::time::error::Elapsed) -> InvokeError {
         InvokeError::Timeout
     }
 }
 
-impl<E> std::fmt::Display
-for InvokeError<E>
-where E: std::fmt::Debug
+impl std::fmt::Display
+for InvokeError
 {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
@@ -97,11 +105,11 @@ where E: std::fmt::Debug
             InvokeError::CommitError(err) => {
                 write!(f, "Command failed - {}", err)
             },
-            InvokeError::PipeError(err) => {
+            InvokeError::TransformError(err) => {
                 write!(f, "Command failed - {}", err)
             },
-            InvokeError::Reply(_) => {
-                write!(f, "Command failed for an unspecified reason")
+            InvokeError::PipeError(err) => {
+                write!(f, "Command failed - {}", err)
             },
             InvokeError::ServiceError(err) => {
                 write!(f, "Command failed - {}", err)
@@ -109,9 +117,17 @@ where E: std::fmt::Debug
             InvokeError::Timeout => {
                 write!(f, "Command failed - Timeout")
             },
+            InvokeError::NoData => {
+                write!(f, "Command failed - No Data")
+            },
             InvokeError::Aborted => {
                 write!(f, "Command failed - Aborted")
             },
         }
     }
+}
+
+impl std::error::Error
+for InvokeError
+{
 }

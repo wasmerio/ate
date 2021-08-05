@@ -1,6 +1,5 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use async_trait::async_trait;
 use serde::{Serialize, Deserialize};
 use std::sync::Arc;
 
@@ -28,11 +27,9 @@ struct PingPongTable
 {        
 }
 
-#[async_trait]
-impl ServiceHandler<Ping, Pong, PingError>
-for PingPongTable
+impl PingPongTable
 {
-    async fn process<'a>(&self, ping: Ping, _context: InvocationContext<'a>) -> Result<Pong, ServiceError<PingError>>
+    async fn process(self: Arc<Self>, ping: Ping) -> Result<Pong, PingError>
     {
         Ok(Pong { msg: ping.msg })
     }
@@ -52,13 +49,13 @@ async fn main() -> Result<(), AteError>
     
     info!("start the service on the chain");
     let session = AteSession::new(&conf);
-    chain.add_service(session.clone(), Arc::new(PingPongTable::default()));
+    chain.add_service(&session, Arc::new(PingPongTable::default()), PingPongTable::process);
     
     info!("sending ping");
-    let pong: Result<Pong, InvokeError<PingError>> = chain.invoke(Ping {
+    let pong: Result<Pong, PingError> = chain.invoke(Ping {
         msg: "hi".to_string()
-    }).await;
-    let pong = pong?;
+    }).await?;
+    let pong = pong.unwrap();
 
     info!("received pong with msg [{}]", pong.msg);
     Ok(())

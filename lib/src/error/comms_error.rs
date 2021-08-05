@@ -1,6 +1,5 @@
 #![allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use std::error::Error;
 
 use rmp_serde::decode::Error as RmpDecodeError;
 use serde_json::Error as JsonError;
@@ -271,7 +270,4 @@ for CommsError {
 impl std::error::Error
 for CommsError
 {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        None
-    }
 }

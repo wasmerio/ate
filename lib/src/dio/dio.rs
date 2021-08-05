@@ -173,6 +173,21 @@ impl Dio
         ).await
     }
 
+    pub async fn load_raw(self: &Arc<Self>, key: &PrimaryKey) -> Result<EventData, LoadError>
+    {
+        self.run_async(self.__load_raw(key)).await
+    }
+
+    pub(super) async fn __load_raw(self: &Arc<Self>, key: &PrimaryKey) -> Result<EventData, LoadError>
+    {
+        let leaf = match self.multi.lookup_primary(key).await {
+            Some(a) => a,
+            None => return Result::Err(LoadError::NotFound(key.clone()))
+        };
+        let data = self.multi.load(leaf).await?.data;
+        Ok(data)
+    }
+
     pub async fn load<D>(self: &Arc<Self>, key: &PrimaryKey) -> Result<Dao<D>, LoadError>
     where D: DeserializeOwned,
     {
@@ -190,12 +205,11 @@ impl Dio
             }
         }
 
-        let entry = match self.multi.lookup_primary(key).await {
+        let leaf = match self.multi.lookup_primary(key).await {
             Some(a) => a,
             None => return Result::Err(LoadError::NotFound(key.clone()))
         };
-
-        Ok(self.load_from_entry(entry).await?)
+        Ok(self.load_from_entry(leaf).await?)
     }
 
     pub async fn load_and_take<D>(self: &Arc<Self>, key: &PrimaryKey) -> Result<D, LoadError>
@@ -368,6 +382,15 @@ impl Dio
         };
 
         Ok(ret)
+    }
+
+    pub(crate) fn data_as_overlay(self: &Arc<Self>, data: &mut EventData) -> Result<(), TransformError>
+    {
+        data.data_bytes = match &data.data_bytes {
+            Some(d) => Some(self.multi.data_as_overlay(&data.meta, d.clone(), &self.session)?),
+            None => None,
+        };
+        Ok(())
     }
 
     pub(super) fn __process_load_row<D>(self: &Arc<Self>, evt: &mut LoadResult, meta: &Metadata, allow_missing_keys: bool, allow_serialization_error: bool) -> Result<Option<(RowHeader, Row<D>)>, LoadError>

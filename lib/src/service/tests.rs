@@ -1,10 +1,6 @@
 #![cfg(test)]
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-
-use super::*;
-
-use async_trait::async_trait;
 use serde::{Serialize, Deserialize};
 use std::sync::Arc;
 
@@ -31,14 +27,12 @@ struct Noise
 
 #[derive(Default)]
 struct PingPongTable
-{        
+{
 }
 
-#[async_trait]
-impl super::ServiceHandler<Ping, Pong, Noise>
-for PingPongTable
+impl PingPongTable
 {
-    async fn process<'a>(&self, ping: Ping, _context: InvocationContext<'a>) -> Result<Pong, ServiceError<Noise>>
+    async fn process(self: Arc<PingPongTable>, ping: Ping) -> Result<Pong, Noise>
     {
         Ok(Pong { msg: ping.msg })
     }
@@ -55,14 +49,16 @@ async fn test_service() -> Result<(), AteError>
     let (chain, _builder) = crate::trust::create_test_chain(&mut mock_cfg, "test_chain".to_string(), true, true, None).await;
     
     info!("start the service on the chain");
+    
     let session = AteSession::new(&mock_cfg);
-    let _svr = chain.add_service(session.clone(), Arc::new(PingPongTable::default()));
+    
+    chain.add_service(&session, Arc::new(PingPongTable::default()), PingPongTable::process);
     
     info!("sending ping");
-    let pong: Result<Pong, InvokeError<Noise>> = chain.invoke(Ping {
+    let pong: Result<Pong, Noise> = chain.invoke(Ping {
         msg: "hi".to_string()
-    }).await;
-    let pong = pong?;
+    }).await?;
+    let pong = pong.unwrap();
 
     info!("received pong with msg [{}]", pong.msg);
     Ok(())

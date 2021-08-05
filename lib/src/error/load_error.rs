@@ -1,6 +1,5 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use std::error::Error;
 use crate::crypto::AteHash;
 use crate::header::PrimaryKey;
 
@@ -127,7 +126,4 @@ for LoadError {
 impl std::error::Error
 for LoadError
 {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        None
-    }
 }

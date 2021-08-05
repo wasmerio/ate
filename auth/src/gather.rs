@@ -4,6 +4,7 @@ use std::{io::stdout, path::Path};
 use std::io::Write;
 use url::Url;
 use std::ops::Deref;
+use std::sync::Arc;
 
 use ate::prelude::*;
 use ate::error::LoadError;
@@ -19,7 +20,7 @@ use crate::helper::*;
 
 impl AuthService
 {
-    pub async fn process_gather<'a>(&self, request: GatherRequest, _context: InvocationContext<'a>) -> Result<GatherResponse, ServiceError<GatherFailed>>
+    pub async fn process_gather(self: Arc<Self>, request: GatherRequest) -> Result<GatherResponse, GatherFailed>
     {
         info!("gather attempt: {}", request.group);
 

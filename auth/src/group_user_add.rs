@@ -63,7 +63,7 @@ impl AuthService
         Ok(Some((delegate_write, request_session)))
     }
 
-    pub async fn process_group_user_add<'a>(&self, request: GroupUserAddRequest, _context: InvocationContext<'a>) -> Result<GroupUserAddResponse, ServiceError<GroupUserAddFailed>>
+    pub async fn process_group_user_add(self: Arc<Self>, request: GroupUserAddRequest) -> Result<GroupUserAddResponse, GroupUserAddFailed>
     {
         info!("group ({}) user add", request.group);
 

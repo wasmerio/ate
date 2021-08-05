@@ -1,6 +1,5 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use std::error::Error;
 
 use rmp_serde::encode::Error as RmpEncodeError;
 use rmp_serde::decode::Error as RmpDecodeError;
@@ -108,7 +107,4 @@ for SerializationError {
 impl std::error::Error
 for SerializationError
 {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        None
-    }
 }

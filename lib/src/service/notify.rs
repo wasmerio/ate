@@ -31,7 +31,7 @@ pub(crate) struct Notify
 
 impl Notify
 {
-    pub(crate) async fn notify(self) -> Result<(), ServiceError<()>> {
+    pub(crate) async fn notify(self) -> Result<(), InvokeError> {
         match self.who {
             NotifyWho::Sender(sender) => sender.send(self.key).await?,
             NotifyWho::Service(service) => {

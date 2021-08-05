@@ -32,6 +32,7 @@ use crate::error::*;
 use crate::lint::*;
 use crate::time::*;
 use crate::chain::ChainWork;
+use crate::trust::LoadResult;
 
 use crate::crypto::{EncryptedPrivateKey, PrivateSignKey};
 use crate::{crypto::EncryptKey, session::{AteSession, AteSessionProperty}};
@@ -50,7 +51,7 @@ pub(crate) struct DioMutState
 impl DioMutState
 {
     /// Returns true if the row also needs to be updated
-    pub(super) fn dirty_header(&mut self, header: RowHeader) -> bool
+    pub(crate) fn dirty_header(&mut self, header: RowHeader) -> bool
     {
         {
             // If the last row is a already there then we only need update it
@@ -67,7 +68,7 @@ impl DioMutState
         return true;
     }
     
-    pub(super) fn dirty_row(&mut self, row: RowData) {
+    pub(crate) fn dirty_row(&mut self, row: RowData) {
         let key = row.key.clone();
         let parent = row.parent.clone();
                 
@@ -146,7 +147,7 @@ pub struct DioMut
 {
     pub dio: Arc<Dio>,
     pub scope: TransactionScope,
-    pub(super) state: Mutex<DioMutState>,
+    pub(crate) state: Mutex<DioMutState>,
     pub(super) conversation: Option<Arc<ConversationSession>>,
 }
 
@@ -260,7 +261,7 @@ impl DioMut
     {
         let format = match format {
             Some(a) => a,
-            None => self.dio.multi.default_format
+            None => self.default_format(),
         };
 
         let key = match key {
@@ -288,7 +289,7 @@ impl DioMut
         };
         let row = Row {
             key,
-            type_name: std::any::type_name::<D>(),
+            type_name: std::any::type_name::<D>().to_string(),
             data,
             collections: FxHashSet::default(),
             format,
@@ -386,6 +387,11 @@ impl DioMut
     {
         let mut state = self.state.lock();
         state.auto_cancel = true;
+    }
+
+    pub(crate) fn default_format(&self) -> MessageFormat
+    {
+        self.dio.multi.default_format.clone()
     }
 
     pub async fn commit(&self) -> Result<(), CommitError>
@@ -635,6 +641,11 @@ impl DioMut
         Ok(ret)
     }
 
+    pub async fn load_raw(self: &Arc<Self>, key: &PrimaryKey) -> Result<EventData, LoadError>
+    {
+        self.run_async(self.dio.__load_raw(key)).await
+    }
+
     pub async fn load_and_take<D>(self: &Arc<Self>, key: &PrimaryKey) -> Result<D, LoadError>
     where D: Serialize + DeserializeOwned,
     {
@@ -665,6 +676,16 @@ impl DioMut
             }
         }
         self.dio.__exists(key).await
+    }
+
+    pub async fn try_lock(self: &Arc<Self>, key: PrimaryKey) -> Result<bool, CommitError>
+    {
+        self.multi.pipe.try_lock(key).await
+    }
+
+    pub async fn unlock(self: &Arc<Self>, key: PrimaryKey) -> Result<(), CommitError>
+    {
+        self.multi.pipe.unlock(key).await
     }
 
     pub async fn children<D>(self: &Arc<Self>, parent_id: PrimaryKey, collection_id: u64) -> Result<Vec<DaoMut<D>>, LoadError>
@@ -843,6 +864,12 @@ impl DioMut
         };
 
         Ok(ret.into_iter().map(|a: Dao<D>| a.as_mut(self)).collect::<Vec<_>>())
+    }
+
+    pub(crate) fn data_as_overlay(self: &Arc<Self>, data: &mut EventData) -> Result<(), TransformError>
+    {
+        self.dio.data_as_overlay(data)?;
+        Ok(())
     }
 
     pub fn session(&self) -> &AteSession {

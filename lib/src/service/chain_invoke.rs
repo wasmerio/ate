@@ -16,7 +16,7 @@ use super::*;
 
 impl Chain
 {
-    pub async fn invoke<REQ, RES, ERR>(self: Arc<Self>, request: REQ) -> Result<RES, InvokeError<ERR>>
+    pub async fn invoke<REQ, RES, ERR>(self: Arc<Self>, request: REQ) -> Result<Result<RES, ERR>, InvokeError>
     where REQ: Serialize + DeserializeOwned + Sync + Send + ?Sized,
           RES: Serialize + DeserializeOwned + Sync + Send + ?Sized,
           ERR: Serialize + DeserializeOwned + Sync + Send + ?Sized,
@@ -24,7 +24,7 @@ impl Chain
         self.invoke_ext(None, request, std::time::Duration::from_secs(30)).await
     }
 
-    pub async fn invoke_ext<REQ, RES, ERR>(self: Arc<Self>, session: Option<&AteSession>, request: REQ, timeout: Duration) -> Result<RES, InvokeError<ERR>>
+    pub async fn invoke_ext<REQ, RES, ERR>(self: Arc<Self>, session: Option<&AteSession>, request: REQ, timeout: Duration) -> Result<Result<RES, ERR>, InvokeError>
     where REQ: Serialize + DeserializeOwned + Sync + Send + ?Sized,
           RES: Serialize + DeserializeOwned + Sync + Send + ?Sized,
           ERR: Serialize + DeserializeOwned + Sync + Send + ?Sized,
@@ -32,7 +32,7 @@ impl Chain
         TaskEngine::run_until(self.__invoke_ext(session, request, timeout)).await
     }
 
-    pub async fn __invoke_ext<REQ, RES, ERR>(self: Arc<Self>, session: Option<&AteSession>, request: REQ, timeout: Duration) -> Result<RES, InvokeError<ERR>>
+    pub async fn __invoke_ext<REQ, RES, ERR>(self: Arc<Self>, session: Option<&AteSession>, request: REQ, timeout: Duration) -> Result<Result<RES, ERR>, InvokeError>
     where REQ: Serialize + DeserializeOwned + Sync + Send + ?Sized,
           RES: Serialize + DeserializeOwned + Sync + Send + ?Sized,
           ERR: Serialize + DeserializeOwned + Sync + Send + ?Sized,
@@ -106,17 +106,14 @@ impl Chain
                     Some(a) => a,
                     None => { return Err(InvokeError::Aborted); }
                 };
-                Ok(dio.load_and_take::<RES>(&key).await?)
+                Ok(Ok(dio.load_and_take::<RES>(&key).await?))
             },
             key = join_err => {
                 let key = match key {
                     Some(a) => a,
                     None => { return Err(InvokeError::Aborted); }
                 };
-                match dio.load_and_take::<ServiceErrorReply<ERR>>(&key).await? {
-                    ServiceErrorReply::Reply(e) => Err(InvokeError::Reply(e)),
-                    ServiceErrorReply::ServiceError(err) => Err(InvokeError::ServiceError(err))
-                }
+                Ok(Err(dio.load_and_take::<ERR>(&key).await?))
             },
             _ = timeout.tick() => {
                 Err(InvokeError::Timeout)

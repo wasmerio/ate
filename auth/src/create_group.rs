@@ -24,7 +24,7 @@ use crate::model::*;
 
 impl AuthService
 {
-    pub async fn process_create_group<'a>(&self, request: CreateGroupRequest, _context: InvocationContext<'a>) -> Result<CreateGroupResponse, ServiceError<CreateGroupFailed>>
+    pub async fn process_create_group(self: Arc<Self>, request: CreateGroupRequest) -> Result<CreateGroupResponse, CreateGroupFailed>
     {
         info!("create group: {}", request.group);
 
@@ -32,17 +32,17 @@ impl AuthService
         let regex = Regex::new("^/{0,1}([a-zA-Z0-9_]{0,})$").unwrap();
         if let Some(_captures) = regex.captures(request.group.as_str()) {
             if request.group.len() <= 0 {
-                return Err(ServiceError::Reply(CreateGroupFailed::InvalidGroupName));    
+                return Err(CreateGroupFailed::InvalidGroupName);
             }
         } else {
-            return Err(ServiceError::Reply(CreateGroupFailed::InvalidGroupName));
+            return Err(CreateGroupFailed::InvalidGroupName);
         }
 
         // Get the master write key
         let master_write_key = match self.master_session.write_keys().next() {
             Some(a) => a.clone(),
             None => {
-                return Err(ServiceError::Reply(CreateGroupFailed::NoMasterKey));
+                return Err(CreateGroupFailed::NoMasterKey);
             }
         };
 
@@ -51,7 +51,7 @@ impl AuthService
         let key_size = request.nominal_read_key.size();
         let master_key = match self.master_key() {
             Some(a) => a,
-            None => { return Err(ServiceError::Reply(CreateGroupFailed::NoMasterKey)); }
+            None => { return Err(CreateGroupFailed::NoMasterKey); }
         };
         
         // Compute which chain the group should exist within
@@ -73,14 +73,14 @@ impl AuthService
         let gid = match gid {
             Some(a) => a,
             None => {
-                return Err(ServiceError::Reply(CreateGroupFailed::NoMoreRoom));
+                return Err(CreateGroupFailed::NoMoreRoom);
             }
         };
         
         // If it already exists then fail
         let group_key = PrimaryKey::from(request.group.clone());
         if dio.exists(&group_key).await {
-            return Err(ServiceError::Reply(CreateGroupFailed::AlreadyExists));
+            return Err(CreateGroupFailed::AlreadyExists);
         }
 
         // Generate the owner encryption keys used to protect this role

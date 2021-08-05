@@ -7,6 +7,7 @@ use std::ops::Deref;
 use qrcode::QrCode;
 use qrcode::render::unicode;
 use regex::Regex;
+use std::sync::Arc;
 
 use ate::prelude::*;
 use ate::error::LoadError;
@@ -21,21 +22,21 @@ use crate::model::*;
 
 impl AuthService
 {
-    pub async fn process_create_user<'a>(&self, request: CreateUserRequest, _context: InvocationContext<'a>) -> Result<CreateUserResponse, ServiceError<CreateUserFailed>>
+    pub async fn process_create_user(self: Arc<Self>, request: CreateUserRequest) -> Result<CreateUserResponse, CreateUserFailed>
     {
         info!("create user: {}", request.email);
 
         // Check the username matches the regex
         let regex = Regex::new("^([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})@([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,}).([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})$").unwrap();
         if regex.is_match(request.email.as_str()) == false {
-            return Err(ServiceError::Reply(CreateUserFailed::InvalidEmail));
+            return Err(CreateUserFailed::InvalidEmail);
         }
 
         // Get the master write key
         let master_write_key = match self.master_session.write_keys().next() {
             Some(a) => a.clone(),
             None => {
-                return Err(ServiceError::Reply(CreateUserFailed::NoMasterKey));
+                return Err(CreateUserFailed::NoMasterKey);
             }
         };
 
@@ -43,11 +44,11 @@ impl AuthService
         let key_size = request.secret.size();
         let super_key = match self.compute_super_key(request.secret) {
             Some(a) => a,
-            None => { return Err(ServiceError::Reply(CreateUserFailed::NoMasterKey)); }
+            None => { return Err(CreateUserFailed::NoMasterKey); }
         };
         let super_super_key = match self.compute_super_key(super_key.clone()) {
             Some(a) => a,
-            None => { return Err(ServiceError::Reply(CreateUserFailed::NoMasterKey)); }
+            None => { return Err(CreateUserFailed::NoMasterKey); }
         };
         let mut super_session = self.master_session.clone();
         super_session.user.add_read_key(&super_key);
@@ -89,14 +90,14 @@ impl AuthService
         let uid = match uid {
             Some(a) => a,
             None => {
-                return Err(ServiceError::Reply(CreateUserFailed::NoMoreRoom));
+                return Err(CreateUserFailed::NoMoreRoom);
             }
         };
 
         // If it already exists then fail
         let user_key = PrimaryKey::from(request.email.clone());
         if dio.exists(&user_key).await {
-            return Err(ServiceError::Reply(CreateUserFailed::AlreadyExists));
+            return Err(CreateUserFailed::AlreadyExists);
         }
 
         // Generate a QR code

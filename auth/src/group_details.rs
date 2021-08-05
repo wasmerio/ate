@@ -23,7 +23,7 @@ use crate::model::*;
 
 impl AuthService
 {
-    pub async fn process_group_details<'a>(&self, request: GroupDetailsRequest, _context: InvocationContext<'a>) -> Result<GroupDetailsResponse, ServiceError<GroupDetailsFailed>>
+    pub async fn process_group_details(self: Arc<Self>, request: GroupDetailsRequest) -> Result<GroupDetailsResponse, GroupDetailsFailed>
     {
         debug!("group ({}) details", request.group);
         

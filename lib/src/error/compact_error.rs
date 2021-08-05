@@ -1,6 +1,5 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use std::error::Error;
 use tokio::sync::watch;
 use tokio::sync::broadcast;
 
@@ -120,7 +119,4 @@ for CompactError {
 impl std::error::Error
 for CompactError
 {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        None
-    }
 }

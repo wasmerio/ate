@@ -21,7 +21,7 @@ use crate::helper::*;
 
 impl AuthService
 {
-    pub async fn process_query<'a>(&self, request: QueryRequest, _context: InvocationContext<'a>) -> Result<QueryResponse, ServiceError<QueryFailed>>
+    pub async fn process_query(self: Arc<Self>, request: QueryRequest) -> Result<QueryResponse, ServiceError<QueryFailed>>
     {
         info!("query user/group: {}", request.identity);
 

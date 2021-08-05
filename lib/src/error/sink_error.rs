@@ -1,6 +1,5 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use std::error::Error;
 use crate::crypto::AteHash;
 
 use super::*;
@@ -46,7 +45,4 @@ for SinkError {
 impl std::error::Error
 for SinkError
 {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        None
-    }
 }

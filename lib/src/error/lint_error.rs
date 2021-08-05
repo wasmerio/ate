@@ -1,6 +1,5 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use std::error::Error;
 use crate::crypto::AteHash;
 
 use super::*;
@@ -68,7 +67,4 @@ for LintError {
 impl std::error::Error
 for LintError
 {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        None
-    }
 }

@@ -283,8 +283,6 @@ where D: Serialize
         }
         if commit_data {
             let row_data = {
-                let _pop1 = DioMutScope::new(&self.trans);
-                let _pop2 = PrimaryKeyScope::new(self.key().clone());            
                 self.inner.row.as_row_data(&self.inner.row_header)?
             };
             state.dirty_row(row_data);

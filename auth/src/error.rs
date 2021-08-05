@@ -44,11 +44,10 @@ for LoginError
     }
 }
 
-impl<E> From<InvokeError<E>>
+impl From<InvokeError>
 for LoginError
-where E: std::fmt::Debug
 {
-    fn from(err: InvokeError<E>) -> LoginError {
+    fn from(err: InvokeError) -> LoginError {
         LoginError::AteError(AteError::InvokeError(err.to_string()))
     }
 }
@@ -130,11 +129,10 @@ for GatherError
     }
 }
 
-impl<E> From<InvokeError<E>>
+impl From<InvokeError>
 for GatherError
-where E: std::fmt::Debug
 {
-    fn from(err: InvokeError<E>) -> GatherError {
+    fn from(err: InvokeError) -> GatherError {
         GatherError::AteError(AteError::InvokeError(err.to_string()))
     }
 }
@@ -228,11 +226,10 @@ for CreateError
     }
 }
 
-impl<E> From<InvokeError<E>>
+impl From<InvokeError>
 for CreateError
-where E: std::fmt::Debug
 {
-    fn from(err: InvokeError<E>) -> CreateError {
+    fn from(err: InvokeError) -> CreateError {
         CreateError::AteError(AteError::InvokeError(err.to_string()))
     }
 }
@@ -334,11 +331,10 @@ for GroupUserAddError
     }
 }
 
-impl<E> From<InvokeError<E>>
+impl From<InvokeError>
 for GroupUserAddError
-where E: std::fmt::Debug
 {
-    fn from(err: InvokeError<E>) -> GroupUserAddError {
+    fn from(err: InvokeError) -> GroupUserAddError {
         GroupUserAddError::AteError(AteError::InvokeError(err.to_string()))
     }
 }
@@ -418,11 +414,10 @@ for GroupDetailsError
     }
 }
 
-impl<E> From<InvokeError<E>>
+impl From<InvokeError>
 for GroupDetailsError
-where E: std::fmt::Debug
 {
-    fn from(err: InvokeError<E>) -> GroupDetailsError {
+    fn from(err: InvokeError) -> GroupDetailsError {
         GroupDetailsError::AteError(AteError::InvokeError(err.to_string()))
     }
 }
@@ -509,11 +504,10 @@ for GroupUserRemoveError
     }
 }
 
-impl<E> From<InvokeError<E>>
+impl From<InvokeError>
 for GroupUserRemoveError
-where E: std::fmt::Debug
 {
-    fn from(err: InvokeError<E>) -> GroupUserRemoveError {
+    fn from(err: InvokeError) -> GroupUserRemoveError {
         GroupUserRemoveError::AteError(AteError::InvokeError(err.to_string()))
     }
 }
@@ -603,11 +597,10 @@ for QueryError
     }
 }
 
-impl<E> From<InvokeError<E>>
+impl From<InvokeError>
 for QueryError
-where E: std::fmt::Debug
 {
-    fn from(err: InvokeError<E>) -> QueryError {
+    fn from(err: InvokeError) -> QueryError {
         QueryError::AteError(AteError::InvokeError(err.to_string()))
     }
 }

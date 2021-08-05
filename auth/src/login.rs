@@ -3,6 +3,7 @@ use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use std::{io::stdout, path::Path};
 use std::io::Write;
 use url::Url;
+use std::sync::Arc;
 
 use ate::prelude::*;
 use ate::error::LoadError;
@@ -35,7 +36,7 @@ impl AuthService
         Some(super_key)
     }
 
-    pub async fn process_login<'a>(&self, request: LoginRequest, _context: InvocationContext<'a>) -> Result<LoginResponse, ServiceError<LoginFailed>>
+    pub async fn process_login(self: Arc<Self>, request: LoginRequest) -> Result<LoginResponse, ServiceError<LoginFailed>>
     {
         info!("login attempt: {}", request.email);
 

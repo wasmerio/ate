@@ -1,6 +1,5 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use std::error::Error;
 
 use super::*;
 
@@ -184,21 +183,11 @@ where T: std::fmt::Debug
     }   
 }
 
-impl<E> From<InvokeError<E>>
+impl From<InvokeError>
 for AteError
-where E: std::fmt::Debug
 {
-    fn from(err: InvokeError<E>) -> AteError {
+    fn from(err: InvokeError) -> AteError {
         AteError::InvokeError(err.to_string())
-    }   
-}
-
-impl<E> From<ServiceError<E>>
-for AteError
-where E: std::fmt::Debug
-{
-    fn from(err: ServiceError<E>) -> AteError {
-        AteError::ServiceError(err.to_string())
     }   
 }
 
@@ -270,7 +259,4 @@ for AteError {
 impl std::error::Error
 for AteError
 {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        None
-    }
 }

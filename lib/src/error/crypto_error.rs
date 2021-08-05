@@ -1,6 +1,5 @@
 #[allow(unused_imports)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
-use std::error::Error;
 
 #[derive(Debug)]
 pub enum CryptoError {
@@ -30,7 +29,4 @@ for CryptoError {
 impl std::error::Error
 for CryptoError
 {
-    fn source(&self) -> Option<&(dyn Error + 'static)> {
-        None
-    }
 }
