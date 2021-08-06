@@ -29,27 +29,35 @@ error_chain! {
             display("receiving error while processing communication - {}", err),
         }
         NoReplyChannel {
+            description("message has no reply channel attached to it")
             display("message has no reply channel attached to it")
         }
-        Disconnected {    
-            display("channel has been disconnected")        
+        Disconnected {
+            description("channel has been disconnected")
+            display("channel has been disconnected")
         }
         Timeout {
+            description("io timeout")
             display("io timeout")
         }
         NoAddress {
+            description("no address to connect to")
             display("no address to connect to")
         }
         Refused {
+            description("connection was refused by the destination address")
             display("connection was refused by the destination address")
         }
         ShouldBlock {
+            description("operation should have blocked but it didnt")
             display("operation should have blocked but it didnt")
         }
         InvalidDomainName {
+            description("the supplied domain name is not valid")
             display("the supplied domain name is not valid")
         }
         RequredExplicitNodeId {
+            description("ate is unable to determine the node_id of this root and thus you must explicily specify it in cfg")
             display("ate is unable to determine the node_id of this root and thus you must explicily specify it in cfg")
         }
         ListenAddressInvalid(addr: String) {

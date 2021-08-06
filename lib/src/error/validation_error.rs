@@ -18,12 +18,15 @@ error_chain! {
             display("the data was rejected by {} of the validators", errors.len()),
         }
         AllAbstained {
+            description("none of the validators approved this data object event")
             display("none of the validators approved this data object event")
         }
         Detached {
+            description("the data object event is detached from the chain of trust")
             display("the data object event is detached from the chain of trust")
         }
         NoSignatures {
+            description("the data object event has no signatures and one is required to store it at this specific location within the chain of trust")
             display("the data object event has no signatures and one is required to store it at this specific location within the chain of trust")
         }
     }

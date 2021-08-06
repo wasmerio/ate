@@ -40,13 +40,13 @@ pub async fn service_auth_handlers(cfg: &ConfAte, cmd_session: AteSession, auth_
 -> Result<(), TimeError>
 {
     let service = AuthService::new(cfg, auth_url, auth_session).await?;
-    chain.add_service(cmd_session.clone(), service.clone(), service.process_login);
-    chain.add_service(cmd_session.clone(), service.clone(), service.process_create_user);
-    chain.add_service(cmd_session.clone(), service.clone(), service.process_create_group);
-    chain.add_service(cmd_session.clone(), service.clone(), service.process_query);
-    chain.add_service(cmd_session.clone(), service.clone(), service.process_gather);
-    chain.add_service(cmd_session.clone(), service.clone(), service.process_group_user_add);
-    chain.add_service(cmd_session.clone(), service.clone(), service.process_group_user_remove);
-    chain.add_service(cmd_session.clone(), service.clone(), service.process_group_details);
+    chain.add_service(&cmd_session, service.clone(), AuthService::process_login);
+    chain.add_service(&cmd_session, service.clone(), AuthService::process_create_user);
+    chain.add_service(&cmd_session, service.clone(), AuthService::process_create_group);
+    chain.add_service(&cmd_session, service.clone(), AuthService::process_query);
+    chain.add_service(&cmd_session, service.clone(), AuthService::process_gather);
+    chain.add_service(&cmd_session, service.clone(), AuthService::process_group_user_add);
+    chain.add_service(&cmd_session, service.clone(), AuthService::process_group_user_remove);
+    chain.add_service(&cmd_session, service.clone(), AuthService::process_group_details);
     Ok(())
 }

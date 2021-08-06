@@ -29,7 +29,7 @@ impl AuthService
         // the authentication server can access it
         let master_key = match self.master_key() {
             Some(a) => a,
-            None => { return Err(ServiceError::Reply(GatherFailed::NoMasterKey)); }
+            None => { return Err(GatherFailed::NoMasterKey); }
         };
 
         let mut super_session = request.session.clone();
@@ -44,14 +44,14 @@ impl AuthService
         let dio = chain.dio(&self.master_session).await;
         let group = match dio.load::<Group>(&group_key).await {
             Ok(a) => a,
-            Err(LoadError::NotFound(_)) => {
-                return Err(ServiceError::Reply(GatherFailed::GroupNotFound));
+            Err(LoadError(LoadErrorKind::NotFound(_), _)) => {
+                return Err(GatherFailed::GroupNotFound(request.group));
             },
-            Err(LoadError::TransformationError(TransformError::MissingReadKey(_))) => {
-                return Err(ServiceError::Reply(GatherFailed::NoMasterKey));
+            Err(LoadError(LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_)), _)) => {
+                return Err(GatherFailed::NoMasterKey);
             },
             Err(err) => {
-                return Err(ServiceError::LoadError(err));
+                bail!(err);
             }
         };
 
@@ -81,16 +81,9 @@ pub async fn gather_command(group: String, session: AteSession, auth: Url) -> Re
     };
 
     // Attempt the gather request with a 10 second timeout
-    let response: Result<GatherResponse, InvokeError<GatherFailed>> = chain.invoke(gather).await;
-    match response {
-        Err(InvokeError::Reply(GatherFailed::NoAccess)) => Err(GatherError::NoAccess),
-        Err(InvokeError::Reply(GatherFailed::GroupNotFound)) => Err(GatherError::NotFound(group)),
-        Err(InvokeError::Reply(err)) => Err(GatherError::ServerError(err.to_string())),
-        result => {
-            let result = result?;
-            Ok(result.authority)
-        }
-    }
+    let response: Result<GatherResponse, GatherFailed> = chain.invoke(gather).await?;
+    let result = response?;
+    Ok(result.authority)
 }
 
 pub async fn main_gather(

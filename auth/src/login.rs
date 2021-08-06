@@ -37,13 +37,13 @@ impl AuthService
         Some(super_key)
     }
 
-    pub async fn process_login(self: Arc<Self>, request: LoginRequest) -> Result<LoginResponse, ServiceError<LoginFailed>>
+    pub async fn process_login(self: Arc<Self>, request: LoginRequest) -> Result<LoginResponse, LoginFailed>
     {
         info!("login attempt: {}", request.email);
 
         let super_key = match self.compute_super_key(request.secret) {
             Some(a) => a,
-            None => { return Err(ServiceError::Reply(LoginFailed::NoMasterKey)); }
+            None => { return Err(LoginFailed::NoMasterKey); }
         };
         let mut super_session = AteSession::default();
         super_session.user.add_read_key(&super_key);
@@ -59,24 +59,24 @@ impl AuthService
             let dio = chain.dio(&super_session).await;
             let user = match dio.load::<User>(&user_key).await {
                 Ok(a) => a,
-                Err(LoadError::NotFound(_)) => {
-                    return Err(ServiceError::Reply(LoginFailed::UserNotFound));
+                Err(LoadError(LoadErrorKind::NotFound(_), _)) => {
+                    return Err(LoginFailed::UserNotFound);
                 },
-                Err(LoadError::TransformationError(TransformError::MissingReadKey(_))) => {
-                    return Err(ServiceError::Reply(LoginFailed::UserNotFound));
+                Err(LoadError(LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_)), _)) => {
+                    return Err(LoginFailed::WrongPasswordOrCode);
                 },
                 Err(err) => {
-                    return Err(ServiceError::LoadError(err));
+                    bail!(err);
                 }
             };
             
             // Check if the account is locked or not yet verified
             match user.status {
                 UserStatus::Locked => {
-                    return Err(ServiceError::Reply(LoginFailed::AccountLocked));
+                    return Err(LoginFailed::AccountLocked);
                 },
                 UserStatus::Unverified => {
-                    return Err(ServiceError::Reply(LoginFailed::Unverified));
+                    return Err(LoginFailed::Unverified);
                 },
                 UserStatus::Nominal => { },
             };
@@ -94,21 +94,21 @@ impl AuthService
         if let Some(code) = request.code {
             let super_super_key = match self.compute_super_key(super_key.clone()) {
                 Some(a) => a,
-                None => { return Err(ServiceError::Reply(LoginFailed::UserNotFound)); }
+                None => { return Err(LoginFailed::UserNotFound); }
             };
             super_session.user.add_read_key(&super_super_key);
 
             // Load the sudo object
             if let Some(sudo) = match user.sudo.load().await {
                 Ok(a) => a,
-                Err(LoadError::NotFound(_)) => {
-                    return Err(ServiceError::Reply(LoginFailed::UserNotFound));
+                Err(LoadError(LoadErrorKind::NotFound(_), _)) => {
+                    return Err(LoginFailed::UserNotFound);
                 },
-                Err(LoadError::TransformationError(TransformError::MissingReadKey(_))) => {
-                    return Err(ServiceError::Reply(LoginFailed::UserNotFound));
+                Err(LoadError(LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_)), _)) => {
+                    return Err(LoginFailed::WrongPasswordOrCode);
                 },
                 Err(err) => {
-                    return Err(ServiceError::LoadError(err))
+                    bail!(err);
                 }
             }
 
@@ -120,14 +120,14 @@ impl AuthService
                 if google_auth.verify_code(sudo.secret.as_str(), code.as_str(), 3, time) {
                     debug!("code authenticated");
                 } else {
-                    return Err(ServiceError::Reply(LoginFailed::WrongCode));
+                    return Err(LoginFailed::WrongPasswordOrCode);
                 }
 
                 // Add the extra authentication objects from the sudo
                 session = compute_sudo_auth(&sudo.take(), session);
                 
             } else {
-                return Err(ServiceError::Reply(LoginFailed::UserNotFound));
+                return Err(LoginFailed::UserNotFound);
             }
         }
 
@@ -164,16 +164,9 @@ pub async fn login_command(username: String, password: String, code: Option<Stri
     };
 
     // Attempt the login request with a 10 second timeout
-    let response: Result<LoginResponse, InvokeError<LoginFailed>> = chain.invoke(login).await;
-    match response {
-        Err(InvokeError::Reply(LoginFailed::AccountLocked)) => Err(LoginError::AccountLocked),
-        Err(InvokeError::Reply(LoginFailed::UserNotFound)) => Err(LoginError::NotFound(username)),
-        Err(InvokeError::Reply(err)) => Err(LoginError::ServerError(err.to_string())),
-        result => {
-            let result = result?;
-            Ok(result.authority)
-        }
-    }
+    let response: Result<LoginResponse, LoginFailed> = chain.invoke(login).await?;
+    let result = response?;
+    Ok(result.authority)
 }
 
 pub async fn load_credentials(username: String, read_key: EncryptKey, _code: Option<String>, auth: Url) -> Result<AteSession, AteError>

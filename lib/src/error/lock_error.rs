@@ -18,6 +18,7 @@ error_chain! {
             display("failed to lock the data object due to an error receiving on the pipe - {}", err),
         }
         WeakDio {
+            description("the dIO that created this object has gone out of scope")
             display("the dIO that created this object has gone out of scope")
         }
     }

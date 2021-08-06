@@ -5,7 +5,6 @@ use std::fs::File;
 
 use ::ate::prelude::*;
 use ::ate::crypto::EncryptKey;
-use ::ate::error::*;
 
 use crate::model::*;
 

@@ -37,14 +37,14 @@ impl AuthService
         let dio = chain.dio(&self.master_session).await;
         let group = match dio.load::<Group>(&group_key).await {
             Ok(a) => a,
-            Err(LoadError::NotFound(_)) => {
-                return Err(ServiceError::Reply(GroupDetailsFailed::GroupNotFound));
+            Err(LoadError(LoadErrorKind::NotFound(_), _)) => {
+                return Err(GroupDetailsFailed::GroupNotFound);
             },
-            Err(LoadError::TransformationError(TransformError::MissingReadKey(_))) => {
-                return Err(ServiceError::Reply(GroupDetailsFailed::NoMasterKey));
+            Err(LoadError(LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_)), _)) => {
+                return Err(GroupDetailsFailed::NoMasterKey);
             },
             Err(err) => {
-                return Err(ServiceError::LoadError(err));
+                bail!(err);
             }
         };       
 
@@ -104,16 +104,10 @@ pub async fn group_details_command(group: String, auth: Url, session: Option<&At
         session: session.map(|s| s.clone()),
     };
 
-    let response: Result<GroupDetailsResponse, InvokeError<GroupDetailsFailed>> = chain.invoke(create).await;
-    match response {
-        Err(InvokeError::Reply(GroupDetailsFailed::NoAccess)) => Err(GroupDetailsError::NoAccess),
-        Err(InvokeError::Reply(GroupDetailsFailed::GroupNotFound)) => Err(GroupDetailsError::GroupNotFound),
-        result => {
-            let result = result?;
-            debug!("key: {}", result.key);
-            Ok(result)
-        }
-    }
+    let response: Result<GroupDetailsResponse, GroupDetailsFailed> = chain.invoke(create).await?;
+    let result = response?;
+    debug!("key: {}", result.key);
+    Ok(result)
 }
 
 pub async fn main_group_details(

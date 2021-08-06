@@ -19,6 +19,7 @@ error_chain! {
             display("data object with key ({}) could not be written as the current session has no encryption key for this authorization ({})", key.as_hex_string(), read),
         }
         NoAuthorizationOrphan {
+            description("data objects without a primary key has no write authorization")
             display("data objects without a primary key has no write authorization")
         }
         MissingParent(key: PrimaryKey) {
@@ -26,6 +27,7 @@ error_chain! {
             display("data object references a parent object that does not exist ({})", key.as_hex_string()),
         }
         UnspecifiedWritability {
+            description("the writability of this data object has not been specified")
             display("the writability of this data object has not been specified")
         }
     }

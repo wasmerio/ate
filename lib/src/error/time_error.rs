@@ -19,6 +19,7 @@ error_chain! {
             display("the network latency is beyond tolerance ({}) to synchronize the clocks", tolerance.to_string()),
         }
         NoTimestamp {
+            description("the data object has no timestamp metadata attached to it")
             display("the data object has no timestamp metadata attached to it")
         }
         OutOfBounds(cursor: SystemTime, timestamp: SystemTime) {

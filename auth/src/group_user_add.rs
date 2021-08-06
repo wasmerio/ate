@@ -89,14 +89,14 @@ impl AuthService
         let dio = chain.dio_full(&super_session).await;
         let mut group = match dio.load::<Group>(&group_key).await {
             Ok(a) => a,
-            Err(LoadError::NotFound(_)) => {
-                return Err(ServiceError::Reply(GroupUserAddFailed::GroupNotFound));
+            Err(LoadError(LoadErrorKind::NotFound(_), _)) => {
+                return Err(GroupUserAddFailed::GroupNotFound);
             },
-            Err(LoadError::TransformationError(TransformError::MissingReadKey(_))) => {
-                return Err(ServiceError::Reply(GroupUserAddFailed::NoMasterKey));
+            Err(LoadError(LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_)), _)) => {
+                return Err(GroupUserAddFailed::NoMasterKey);
             },
             Err(err) => {
-                return Err(ServiceError::LoadError(err));
+                bail!(err);
             }
         };
 
@@ -111,7 +111,7 @@ impl AuthService
         let (delegate_write, request_session) = match AuthService::get_delegate_write(request_session, group.deref(), needed_role)? {
             Some((a, b)) => (a, b),
             None => {
-                return Err(ServiceError::Reply(GroupUserAddFailed::NoAccess));
+                return Err(GroupUserAddFailed::NoAccess);
             }
         };
 
@@ -122,7 +122,7 @@ impl AuthService
             let referrer_identity = match request_session.user.identity() {
                 Some(a) => a.clone(),
                 None => {
-                    return Err(ServiceError::Reply(GroupUserAddFailed::UnknownIdentity));
+                    return Err(GroupUserAddFailed::UnknownIdentity);
                 }
             };
 
@@ -184,16 +184,10 @@ pub async fn group_user_add_command(group: String, purpose: AteRolePurpose, user
         purpose,
     };
 
-    let response: Result<GroupUserAddResponse, InvokeError<GroupUserAddFailed>> = chain.invoke(create).await;
-    match response {
-        Err(InvokeError::Reply(GroupUserAddFailed::NoMasterKey)) => Err(GroupUserAddError::NoMasterKey),
-        Err(InvokeError::Reply(GroupUserAddFailed::NoAccess)) => Err(GroupUserAddError::NoAccess),
-        result => {
-            let result = result?;
-            debug!("key: {}", result.key);
-            Ok(result)
-        }
-    }
+    let response: Result<GroupUserAddResponse, GroupUserAddFailed> = chain.invoke(create).await?;
+    let result = response?;
+    debug!("key: {}", result.key);
+    Ok(result)
 }
 
 pub async fn main_group_user_add(
@@ -224,7 +218,7 @@ pub async fn main_group_user_add(
             std::io::stdin().read_line(&mut s).expect("Did not enter a valid role purpose");
             match AteRolePurpose::from_str(s.trim()) {
                 Ok(a) => a,
-                Err(err) => { return Err(GroupUserAddError::InvalidPurpose(err.to_string())); }
+                Err(err) => { bail!(GroupUserAddErrorKind::InvalidPurpose); }
             }
         }
     };

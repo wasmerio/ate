@@ -18,6 +18,7 @@ error_chain! {
     }
     errors {
         Aborted {
+            description("the transaction aborted before it could be completed"),
             display("the transaction aborted before it could be completed"),
         }
         LockError(err: super::CommsErrorKind) {
@@ -25,6 +26,7 @@ error_chain! {
             display("failed to lock the data due to an error in communication - {}", err.to_string()),
         }
         NewRootsAreDisabled {
+            description("new root objects are currently not allowed for this chain"),
             display("new root objects are currently not allowed for this chain"),
         }
         PipeError(err: String) {

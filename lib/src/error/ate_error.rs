@@ -29,7 +29,12 @@ error_chain! {
     }
     errors {
         NotImplemented {
+            description("not implemented")
             display("not implemented")
+        }
+        ServiceError(err: String) {
+            description("service error"),
+            display("service error - {}", err)
         }
     }
 }

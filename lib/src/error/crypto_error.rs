@@ -6,6 +6,7 @@ error_chain! {
     }
     errors {
         NoIvPresent {
+            description("no initialization vector")
             display("no initialization vector")
         }
     }

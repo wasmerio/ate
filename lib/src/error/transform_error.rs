@@ -23,6 +23,7 @@ error_chain! {
             display("missing the read key ({}) needed to encrypt/decrypt this data object", hash.to_string())
         }
         UnspecifiedReadability {
+            description("the readability for this data object has not been specified")
             display("the readability for this data object has not been specified")
         }
     }

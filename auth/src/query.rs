@@ -22,7 +22,7 @@ use crate::helper::*;
 
 impl AuthService
 {
-    pub async fn process_query(self: Arc<Self>, request: QueryRequest) -> Result<QueryResponse, ServiceError<QueryFailed>>
+    pub async fn process_query(self: Arc<Self>, request: QueryRequest) -> Result<QueryResponse, QueryFailed>
     {
         info!("query user/group: {}", request.identity);
 
@@ -35,7 +35,7 @@ impl AuthService
         let user_key_entropy = format!("advert@{}", request.identity).to_string();
         let user_key = PrimaryKey::from(user_key_entropy);
         if dio.exists(&user_key).await == false {
-            return Err(ServiceError::Reply(QueryFailed::NotFound));
+            return Err(QueryFailed::NotFound);
         }
 
         // Load the advert
@@ -59,17 +59,10 @@ pub async fn query_command(registry: Arc<ate::mesh::Registry>, username: String,
     };
 
     // Attempt the login request with a 10 second timeout
-    let response: Result<QueryResponse, InvokeError<QueryFailed>> = chain.invoke(query).await;
-    match response {
-        Err(InvokeError::Reply(QueryFailed::Banned)) => Err(QueryError::Banned),
-        Err(InvokeError::Reply(QueryFailed::Suspended)) => Err(QueryError::Suspended),
-        Err(InvokeError::Reply(QueryFailed::NotFound)) => Err(QueryError::NotFound),
-        result => {
-            let result = result?;
-            //debug!("advert: {:?}", result.advert);
-            Ok(result)
-        }
-    }
+    let response: Result<QueryResponse, QueryFailed> = chain.invoke(query).await?;
+    let result = response?;
+    //debug!("advert: {:?}", result.advert);
+    Ok(result)
 }
 
 pub async fn main_query(

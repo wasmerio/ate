@@ -25,6 +25,7 @@ error_chain! {
             display("failed to compact the chain due to an error in broadcast notification - {}", err)
         }
         Aborted {
+            description("compacting has been aborted")
             display("compacting has been aborted")
         }
     }

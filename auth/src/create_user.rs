@@ -219,17 +219,10 @@ pub async fn create_user_command(username: String, password: String, auth: Url) 
     };
 
     // Attempt the login request with a 10 second timeout
-    let response: Result<CreateUserResponse, InvokeError<CreateUserFailed>> = chain.invoke(request).await;
-    match response {
-        Err(InvokeError::Reply(CreateUserFailed::AlreadyExists)) => Err(CreateError::AlreadyExists),
-        Err(InvokeError::Reply(CreateUserFailed::InvalidEmail)) => Err(CreateError::InvalidEmail),
-        Err(InvokeError::Reply(CreateUserFailed::NoMoreRoom)) => Err(CreateError::NoMoreRoom),
-        result => {
-            let result = result?;
-            debug!("key: {}", result.key);
-            Ok(result)
-        }
-    }
+    let response: Result<CreateUserResponse, CreateUserFailed> = chain.invoke(request).await?;
+    let result = response?;
+    debug!("key: {}", result.key);
+    Ok(result)
 }
 
 pub async fn main_create_user(
@@ -261,7 +254,7 @@ pub async fn main_create_user(
             let ret2 = rpassword::read_password().unwrap();
 
             if ret1 != ret2 {
-                return Err(CreateError::PasswordMismatch);
+                bail!(CreateErrorKind::PasswordMismatch);
             }
 
             ret2

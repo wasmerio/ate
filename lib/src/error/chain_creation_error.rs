@@ -17,6 +17,7 @@ error_chain! {
     }
     errors {
         NoRootFoundInConfig {
+            description("failed to create chain-of-trust as the root node is not found in the configuration settings"),
             display("failed to create chain-of-trust as the root node is not found in the configuration settings"),
         }
         RootRedirect(expected: u32, actual: u32) {
@@ -32,12 +33,15 @@ error_chain! {
             display("failed to create chain-of-trust as the protocol is not supported ({})", proto),
         }
         NotSupported {
+            description("failed to create chain-of-trust as the operation is not supported. possible causes are calling 'open_by_key' on a Registry which only supports the 'open_by_url'."),
             display("failed to create chain-of-trust as the operation is not supported. possible causes are calling 'open_by_key' on a Registry which only supports the 'open_by_url'."),
         }
         NotThisRoot {
+            description("failed to create chain-of-trust as this is the wrong root node"),
             display("failed to create chain-of-trust as this is the wrong root node"),
         }
         NotImplemented {
+            description("failed to create chain-of-trust as the method is not implemented"),
             display("failed to create chain-of-trust as the method is not implemented"),
         }
         NoValidDomain(domain: String) {

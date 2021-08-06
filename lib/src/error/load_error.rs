@@ -22,9 +22,11 @@ error_chain! {
             display("data object with key ({}) could not be found", key.as_hex_string()),
         }
         NoPrimaryKey {
+            description("entry has no primary could and hence could not be loaded")
             display("entry has no primary could and hence could not be loaded")
         }
         VersionMismatch {
+            description("entry has an invalid version for this log file")
             display("entry has an invalid version for this log file")
         }
         NotFoundByHash(hash: AteHash) {
@@ -48,12 +50,15 @@ error_chain! {
             display("chain creation error while attempting to load data object - {}", err),
         }
         NoRepository {
+            description("chain has no repository thus could not load foreign object")
             display("chain has no repository thus could not load foreign object")
         }
         CollectionDetached {
+            description("collection is detached from its parent, it must be attached before it can be used")
             display("collection is detached from its parent, it must be attached before it can be used")
         }
         WeakDio {
+            description("the dio that created this object has gone out of scope")
             display("the dio that created this object has gone out of scope")
         }
     }

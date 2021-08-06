@@ -18,15 +18,19 @@ error_chain! {
     }
     errors {
         NoPrimarykey {
+            description("data object does not have a primary key")
             display("data object does not have a primary key")
         }
         NoData {
+            description("data object has no actual data")
             display("data object has no actual data")
         }
         InvalidSerializationFormat {
+            description("data is stored in an unknown serialization format")
             display("data is stored in an unknown serialization format")
         }
         CollectionDetached {
+            description("collection is detached from a parent")
             display("collection is detached from a parent")
         }
         SerdeError(err: String) {
@@ -34,9 +38,11 @@ error_chain! {
             display("serde error during serialization - {}", err),
         }
         WeakDio {
+            description("the dio that created this object has gone out of scope")
             display("the dio that created this object has gone out of scope")
         }
         SaveParentFirst {
+            description("you must save the parent object before attempting to push objects to this vector")
             display("you must save the parent object before attempting to push objects to this vector")
         }
     }

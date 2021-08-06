@@ -24,7 +24,7 @@ use crate::model::*;
 
 impl AuthService
 {
-    pub async fn process_group_user_remove(self: Arc<Self>, request: GroupUserRemoveRequest) -> Result<GroupUserRemoveResponse, ServiceError<GroupUserRemoveFailed>>
+    pub async fn process_group_user_remove(self: Arc<Self>, request: GroupUserRemoveRequest) -> Result<GroupUserRemoveResponse, GroupUserRemoveFailed>
     {
         info!("group ({}) user remove", request.group);
 
@@ -45,14 +45,14 @@ impl AuthService
         let dio = chain.dio_full(&super_session).await;
         let mut group = match dio.load::<Group>(&group_key).await {
             Ok(a) => a,
-            Err(LoadError::NotFound(_)) => {
-                return Err(ServiceError::Reply(GroupUserRemoveFailed::GroupNotFound));
+            Err(LoadError(LoadErrorKind::NotFound(_), _)) => {
+                return Err(GroupUserRemoveFailed::GroupNotFound);
             },
-            Err(LoadError::TransformationError(TransformError::MissingReadKey(_))) => {
-                return Err(ServiceError::Reply(GroupUserRemoveFailed::NoMasterKey));
+            Err(LoadError(LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_)), _)) => {
+                return Err(GroupUserRemoveFailed::NoMasterKey);
             },
             Err(err) => {
-                return Err(ServiceError::LoadError(err));
+                bail!(err);
             }
         };
 
@@ -67,7 +67,7 @@ impl AuthService
         let (delegate_write, _request_session) = match AuthService::get_delegate_write(request_session, group.deref(), needed_role)? {
             Some((a, b)) => (a, b),
             None => {
-                return Err(ServiceError::Reply(GroupUserRemoveFailed::NoAccess));
+                return Err(GroupUserRemoveFailed::NoAccess);
             }
         };
         let delegate_write_hash = delegate_write.as_public_key().hash();
@@ -80,19 +80,19 @@ impl AuthService
                 match group.roles.iter_mut().filter(|r| r.purpose == request_purpose).next() {
                     Some(a) => a,
                     None => {
-                        return Err(ServiceError::Reply(GroupUserRemoveFailed::RoleNotFound));
+                        return Err(GroupUserRemoveFailed::RoleNotFound);
                     }
                 }
             };        
 
             // Check that we actually have the rights to remove this item
             if role.access.exists(&delegate_write_hash) == false {
-                return Err(ServiceError::Reply(GroupUserRemoveFailed::NoAccess));
+                return Err(GroupUserRemoveFailed::NoAccess);
             }
 
             // Perform the operation that will remove the other user to the specific group role
             if role.access.remove(&request.who) == false {
-                return Err(ServiceError::Reply(GroupUserRemoveFailed::NothingToRemove));
+                return Err(GroupUserRemoveFailed::NothingToRemove);
             }
         }
 
@@ -129,19 +129,10 @@ pub async fn group_user_remove_command(group: String, purpose: AteRolePurpose, u
         purpose,
     };
 
-    let response: Result<GroupUserRemoveResponse, InvokeError<GroupUserRemoveFailed>> = chain.invoke(create).await;
-    match response {
-        Err(InvokeError::Reply(GroupUserRemoveFailed::NoMasterKey)) => Err(GroupUserRemoveError::NoMasterKey),
-        Err(InvokeError::Reply(GroupUserRemoveFailed::NoAccess)) => Err(GroupUserRemoveError::NoAccess),
-        Err(InvokeError::Reply(GroupUserRemoveFailed::GroupNotFound)) => Err(GroupUserRemoveError::GroupNotFound),
-        Err(InvokeError::Reply(GroupUserRemoveFailed::RoleNotFound)) => Err(GroupUserRemoveError::RoleNotFound),
-        Err(InvokeError::Reply(GroupUserRemoveFailed::NothingToRemove)) => Err(GroupUserRemoveError::NothingToRemove),
-        result => {
-            let result = result?;
-            debug!("key: {}", result.key);
-            Ok(result)
-        }
-    }
+    let response: Result<GroupUserRemoveResponse, GroupUserRemoveFailed> = chain.invoke(create).await?;
+    let result = response?;
+    debug!("key: {}", result.key);
+    Ok(result)
 }
 
 pub async fn main_group_user_remove(
@@ -172,7 +163,7 @@ pub async fn main_group_user_remove(
             std::io::stdin().read_line(&mut s).expect("Did not enter a valid role purpose");
             match AteRolePurpose::from_str(s.trim()) {
                 Ok(a) => a,
-                Err(err) => { return Err(GroupUserRemoveError::InvalidPurpose(err.to_string())); }
+                Err(err) => { bail!(GroupUserRemoveErrorKind::InvalidPurpose); }
             }
         }
     };

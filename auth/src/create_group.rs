@@ -246,17 +246,10 @@ pub async fn create_group_command(group: String, auth: Url, username: String) ->
         sudo_read_key,
     };
 
-    let response: Result<CreateGroupResponse, InvokeError<CreateGroupFailed>> = chain.invoke(create).await;
-    match response {
-        Err(InvokeError::Reply(CreateGroupFailed::AlreadyExists)) => Err(CreateError::AlreadyExists),
-        Err(InvokeError::Reply(CreateGroupFailed::NoMoreRoom)) => Err(CreateError::NoMoreRoom),
-        Err(InvokeError::Reply(CreateGroupFailed::InvalidGroupName)) => Err(CreateError::InvalidName),
-        result => {
-            let result = result?;
-            debug!("key: {}", result.key);
-            Ok(result)
-        }
-    }
+    let response: Result<CreateGroupResponse, CreateGroupFailed> = chain.invoke(create).await?;
+    let result = response?;
+    debug!("key: {}", result.key);
+    Ok(result)
 }
 
 pub async fn main_create_group(
