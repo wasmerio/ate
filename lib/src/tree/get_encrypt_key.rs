@@ -25,7 +25,7 @@ impl TreeAuthorityPlugin
 
         match auth {
             ReadOption::Inherit => {
-                Err(TransformError::UnspecifiedReadability)
+                Err(TransformErrorKind::UnspecifiedReadability.into())
             },
             ReadOption::Everyone(key) => {
                 if let Some(_iv) = iv {
@@ -52,7 +52,7 @@ impl TreeAuthorityPlugin
                         }
                     }
                 }
-                Err(TransformError::MissingReadKey(key_hash.clone()))
+                Err(TransformErrorKind::MissingReadKey(key_hash.clone()).into())
             }
         }
     }

@@ -323,10 +323,10 @@ impl DioMut
         {
             let mut state = self.state.lock();
             if state.is_locked(key) {
-                return Result::Err(LoadError::ObjectStillLocked(key.clone()));
+                bail!(LoadErrorKind::ObjectStillLocked(key.clone()));
             }
             if state.deleted.contains(&key) {
-                return Result::Err(LoadError::AlreadyDeleted(key.clone()));
+                bail!(LoadErrorKind::AlreadyDeleted(key.clone()));
             }
             state.store_ordered.retain(|a| a.key != *key);
         }
@@ -462,7 +462,7 @@ impl DioMut
                     meta.core.push(CoreMetadata::Parent(parent.clone()))
                 } else {
                     if multi_lock.inside_async.disable_new_roots == true {
-                        return Err(CommitError::NewRootsAreDisabled);
+                        bail!(CommitErrorKind::NewRootsAreDisabled);
                     }
                 }
                 for extra in row.extra_meta.iter() {
@@ -627,10 +627,10 @@ impl DioMut
         {
             let state = self.state.lock();
             if state.is_locked(key) {
-                return Result::Err(LoadError::ObjectStillLocked(key.clone()));
+                bail!(LoadErrorKind::ObjectStillLocked(key.clone()));
             }
             if state.deleted.contains(&key) {
-                return Result::Err(LoadError::AlreadyDeleted(key.clone()));
+                bail!(LoadErrorKind::AlreadyDeleted(key.clone()));
             }
             if let Some(dao) = state.store_primary.get(key) {
                 let (row_header, row) = Row::from_row_data(&self.dio, dao.deref())?;
@@ -741,7 +741,7 @@ impl DioMut
 
                 // If its still locked then that is a problem
                 if state.is_locked(a) {
-                    return Result::Err(LoadError::ObjectStillLocked(a.clone()));
+                    bail!(LoadErrorKind::ObjectStillLocked(a.clone()));
                 }
 
                 if let Some(dao) = state.store_primary.get(a) {
@@ -788,7 +788,7 @@ impl DioMut
             for key in keys
             {
                 if state.is_locked(&key) {
-                    return Result::Err(LoadError::ObjectStillLocked(key));
+                    bail!(LoadErrorKind::ObjectStillLocked(key));
                 }
                 if state.deleted.contains(&key) {
                     continue;
@@ -831,7 +831,7 @@ impl DioMut
                 };
 
                 if state.is_locked(&key) {
-                    return Result::Err(LoadError::ObjectStillLocked(key.clone()));
+                    bail!(LoadErrorKind::ObjectStillLocked(key.clone()));
                 }
                 if state.deleted.contains(&key) {
                     continue;

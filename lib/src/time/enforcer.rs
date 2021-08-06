@@ -113,7 +113,7 @@ for TimestampEnforcer
                 return match header.meta.needs_signature() {
                     true => {
                         debug!("rejected event due to missing timestamp");
-                        Err(ValidationError::Trust(TrustError::Time(TimeError::NoTimestamp)))
+                        Err(ValidationErrorKind::TrustError(TrustErrorKind::TimeError(TimeErrorKind::NoTimestamp)).into())
                     },
                     false => Ok(ValidationResult::Abstain)
                 };
@@ -134,7 +134,7 @@ for TimestampEnforcer
             let cursor_str = chrono::DateTime::<chrono::Utc>::from(cursor).format("%Y-%m-%d %H:%M:%S.%f").to_string();
             let timestamp_str = chrono::DateTime::<chrono::Utc>::from(timestamp).format("%Y-%m-%d %H:%M:%S.%f").to_string();
             debug!("rejected event {:?} due to out-of-bounds timestamp ({} vs {})", header, cursor_str, timestamp_str);
-            return Err(ValidationError::Trust(TrustError::Time(TimeError::OutOfBounds{cursor, timestamp})));
+            bail!(ValidationErrorKind::TrustError(TrustErrorKind::TimeError(TimeErrorKind::OutOfBounds(cursor, timestamp))));
         }
 
         // All good

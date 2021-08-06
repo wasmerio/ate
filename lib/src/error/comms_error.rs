@@ -66,15 +66,15 @@ error_chain! {
         }
         #[cfg(feature="enable_ws")]
         #[cfg(feature="enable_web")]
-        WebSocketError(err: WsErr) {
+        WebSocketError(err: String) {
             description("web socket error"),
-            display("web socket error - {}", err.to_string()),
+            display("web socket error - {}", err),
         }
         #[cfg(feature="enable_ws")]
         #[cfg(not(feature="enable_web"))]
-        WebSocketError(err: tokio_tungstenite::tungstenite::Error) {
+        WebSocketError(err: String) {
             description("web socket error"),
-            display("web socket error - {}", err.to_string()),
+            display("web socket error - {}", err),
         }
         #[cfg(feature="enable_ws")]
         WebSocketInternalError(err: String) {
@@ -110,7 +110,7 @@ impl From<WsErr>
 for CommsError
 {
     fn from(err: WsErr) -> CommsError {
-        CommsErrorKind::WebSocketError(err).into()
+        CommsErrorKind::WebSocketError(er.to_string()).into()
     }   
 }
 
@@ -120,7 +120,7 @@ impl From<tokio_tungstenite::tungstenite::Error>
 for CommsError
 {
     fn from(err: tokio_tungstenite::tungstenite::Error) -> CommsError {
-        CommsErrorKind::WebSocketError(err).into()
+        CommsErrorKind::WebSocketError(err.to_string()).into()
     }   
 }
 
@@ -158,6 +158,22 @@ for CommsError
             super::CommitError(super::CommitErrorKind::ValidationError(errs), _) => CommsErrorKind::ValidationError(errs).into(),
             err => CommsErrorKind::InternalError(format!("commit-failed - {}", err.to_string())).into(),
         }
+    }   
+}
+
+impl From<super::ChainCreationError>
+for CommsError
+{
+    fn from(err: super::ChainCreationError) -> CommsError {
+        CommsErrorKind::RootServerError(err.to_string()).into()
+    }   
+}
+
+impl From<super::ChainCreationErrorKind>
+for CommsError
+{
+    fn from(err: super::ChainCreationErrorKind) -> CommsError {
+        CommsErrorKind::RootServerError(err.to_string()).into()
     }   
 }
 

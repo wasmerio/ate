@@ -33,3 +33,28 @@ error_chain! {
         }
     }
 }
+
+impl From<serde_json::Error>
+for AteError
+{
+    fn from(err: serde_json::Error) -> AteError {
+        AteErrorKind::SerializationError(super::SerializationErrorKind::SerdeError(err.to_string()).into()).into()
+    } 
+}
+
+impl From<tokio::sync::watch::error::RecvError>
+for AteError
+{
+    fn from(err: tokio::sync::watch::error::RecvError) -> AteError {
+        AteErrorKind::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, err.to_string())).into()
+    }   
+}
+
+impl<T> From<tokio::sync::watch::error::SendError<T>>
+for AteError
+where T: std::fmt::Debug
+{
+    fn from(err: tokio::sync::watch::error::SendError<T>) -> AteError {
+        AteErrorKind::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, err.to_string())).into()
+    }   
+}

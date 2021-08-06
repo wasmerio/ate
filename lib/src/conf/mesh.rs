@@ -125,7 +125,7 @@ impl ConfMesh
         let domain = match url.domain() {
             Some(a) => a.to_string(),
             None => {
-                return Err(CommsError::InvalidDomainName);
+                bail!(CommsErrorKind::InvalidDomainName);
             }
         };
 

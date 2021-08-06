@@ -105,19 +105,19 @@ impl Chain
             key = join_res => {
                 let key = match key {
                     Some(a) => a,
-                    None => { return Err(InvokeError::Aborted); }
+                    None => { bail!(InvokeErrorKind::Aborted); }
                 };
                 Ok(Ok(dio.load_and_take::<RES>(&key).await?))
             },
             key = join_err => {
                 let key = match key {
                     Some(a) => a,
-                    None => { return Err(InvokeError::Aborted); }
+                    None => { bail!(InvokeErrorKind::Aborted); }
                 };
                 Ok(Err(dio.load_and_take::<ERR>(&key).await?))
             },
             _ = timeout.tick() => {
-                Err(InvokeError::Timeout)
+                Err(InvokeErrorKind::Timeout.into())
             }
         }  
     }

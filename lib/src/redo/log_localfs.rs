@@ -355,7 +355,7 @@ for LogFileLocalFs
         let lookup = match self.lookup.get(&hash) {
             Some(a) => a.clone(),
             None => {
-                return Err(LoadError::NotFoundByHash(hash));
+                bail!(LoadErrorKind::NotFoundByHash(hash));
             }
         };
         let _offset = lookup.offset;
@@ -364,7 +364,7 @@ for LogFileLocalFs
         let archive = match self.archives.get(&lookup.index) {
             Some(a) => a,
             None => {
-                return Err(LoadError::NotFoundByHash(hash));
+                bail!(LoadErrorKind::NotFoundByHash(hash));
             }
         };
 
@@ -373,7 +373,7 @@ for LogFileLocalFs
             let mut loader = archive.lock_at(_offset).await?;
             match EventVersion::read(&mut loader).await? {
                 Some(a) => a,
-                None => { return Err(LoadError::NotFoundByHash(hash)); }
+                None => { bail!(LoadErrorKind::NotFoundByHash(hash)); }
             }
         };
         

@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 use tracing::{warn, debug};
+use error_chain::bail;
 use fxhash::FxHashSet;
 
 use serde::{Serialize, de::DeserializeOwned};
@@ -81,7 +82,7 @@ impl<D> Row<D>
     {
         let key = match evt.meta.get_data_key() {
             Some(key) => key,
-            None => { return Result::Err(SerializationError::NoPrimarykey) }
+            None => { bail!(SerializationErrorKind::NoPrimarykey) }
         };
         let mut collections = FxHashSet::default();
         for a in evt.meta.get_collections() {
@@ -120,7 +121,7 @@ impl<D> Row<D>
                     }
                 ))
             }
-            None => return Result::Err(SerializationError::NoData),
+            None => bail!(SerializationErrorKind::NoData),
         }
     }
 

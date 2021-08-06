@@ -130,7 +130,7 @@ impl<D> DaoVec<D>
             {
                 let dio = match self.dio() {
                     Some(a) => a,
-                    None => return Err(LoadError::WeakDio)
+                    None => bail!(LoadErrorKind::WeakDio)
                 };
                 
                 dio.children_ext(parent_id.clone(), self.vec_id, allow_missing_keys, allow_serialization_error).await?
@@ -148,7 +148,7 @@ impl<D> DaoVec<D>
     where D: Serialize + DeserializeOwned,
     {
         let parent_id = match &self.state {
-            DaoVecState::Unsaved => { return Err(SerializationError::SaveParentFirst); },
+            DaoVecState::Unsaved => { bail!(SerializationErrorKind::SaveParentFirst); },
             DaoVecState::Saved(a) => a.clone(),
         };
 

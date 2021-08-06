@@ -8,7 +8,6 @@ error_chain! {
         CommsError(super::CommsError, super::CommsErrorKind);
         ValidationError(super::ValidationError, super::ValidationErrorKind);
         TransformError(super::TransformError, super::TransformErrorKind);
-        LockError(super::LockError, super::LockErrorKind);
         LintError(super::LintError, super::LintErrorKind);
         TimeError(super::TimeError, super::TimeErrorKind);
         SinkError(super::SinkError, super::SinkErrorKind);
@@ -20,6 +19,10 @@ error_chain! {
     errors {
         Aborted {
             display("the transaction aborted before it could be completed"),
+        }
+        LockError(err: super::CommsErrorKind) {
+            description("failed to lock the data due to an error in communication"),
+            display("failed to lock the data due to an error in communication - {}", err.to_string()),
         }
         NewRootsAreDisabled {
             display("new root objects are currently not allowed for this chain"),

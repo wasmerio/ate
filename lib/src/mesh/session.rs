@@ -210,7 +210,7 @@ impl MeshSession
             lock.remove(&id)
         };
         if let Some(result) = r {
-            result.send(Err(CommitError::RootError(err))).await?;
+            result.send(Err(CommitErrorKind::RootError(err).into())).await?;
         }
         Ok(())
     }
@@ -396,14 +396,14 @@ impl MeshSession
                 => {
                     async move {
                         if let Some(mut loader) = loader.take() {
-                            loader.failed(ChainCreationError::ServerRejected(fatal.clone())).await;
+                            loader.failed(ChainCreationErrorKind::ServerRejected(fatal.clone()).into()).await;
                         }
                         warn!("mesh-session-err: {}", fatal);
                     }
                     .instrument(span!(Level::DEBUG, "fatal_terminate"))
                     .await;
 
-                    return Err(CommsError::Disconnected);
+                    bail!(CommsErrorKind::Disconnected);
                 },
             _ => { }
         };
@@ -422,7 +422,7 @@ impl MeshSession
         }
 
         for sender in senders.into_iter() {
-            if let Err(err) = sender.send(Err(CommitError::Aborted)).await {
+            if let Err(err) = sender.send(Err(CommitErrorKind::Aborted.into())).await {
                 warn!("mesh-session-cancel-err: {}", err.to_string());
             }
         }
@@ -464,7 +464,7 @@ for MeshSessionProcessor
             Some(a) => a,
             None => {
                 trace!("inbox-server-exit: reference dropped scope");
-                return Err(CommsError::Disconnected);
+                bail!(CommsErrorKind::Disconnected);
             }
         };
 

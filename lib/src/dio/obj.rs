@@ -111,7 +111,7 @@ impl<D> DaoRef<D>
 
         let dio = match self.dio() {
             Some(a) => a,
-            None => return Err(LoadError::WeakDio)
+            None => bail!(LoadErrorKind::WeakDio)
         };
 
         let ret = dio.load::<D>(&id).await?;
@@ -136,7 +136,7 @@ impl<D> DaoRef<D>
             Some(id) => {
                 let dio = match self.dio() {
                     Some(a) => a,
-                    None => return Err(LoadError::WeakDio)
+                    None => bail!(LoadErrorKind::WeakDio)
                 };
                 Ok(dio.load::<D>(&id).await?.take())
             },
@@ -152,7 +152,7 @@ impl<D> DaoRef<D>
     {
         let dio = match self.dio() {
             Some(a) => a,
-            None => return Err(LoadError::WeakDio)
+            None => bail!(LoadErrorKind::WeakDio)
         };
 
         match self.id {
@@ -211,7 +211,7 @@ impl<D> DaoRef<D>
 
         let dio = match self.dio() {
             Some(a) => a,
-            None => return Err(LoadError::WeakDio)
+            None => bail!(LoadErrorKind::WeakDio)
         };
 
         Ok(Some(dio.load::<D>(&id).await?))

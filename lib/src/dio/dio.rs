@@ -183,7 +183,7 @@ impl Dio
     {
         let leaf = match self.multi.lookup_primary(key).await {
             Some(a) => a,
-            None => return Result::Err(LoadError::NotFound(key.clone()))
+            None => bail!(LoadErrorKind::NotFound(key.clone()))
         };
         let data = self.multi.load(leaf).await?.data;
         Ok(data)
@@ -208,7 +208,7 @@ impl Dio
 
         let leaf = match self.multi.lookup_primary(key).await {
             Some(a) => a,
-            None => return Result::Err(LoadError::NotFound(key.clone()))
+            None => bail!(LoadErrorKind::NotFound(key.clone()))
         };
         Ok(self.load_from_entry(leaf).await?)
     }
@@ -270,7 +270,7 @@ impl Dio
                 state.cache_load.insert(key.clone(), (Arc::new(data), leaf));
                 Ok(Dao::new(self, row_header, row))
             },
-            None => Err(LoadError::NoPrimaryKey)
+            None => Err(LoadErrorKind::NoPrimaryKey.into())
         }
     }
 
@@ -401,12 +401,12 @@ impl Dio
             Some(data) => {
                 let data = match self.multi.data_as_overlay(meta, data.clone(), &self.session) {
                     Ok(a) => a,
-                    Err(TransformError::MissingReadKey(hash)) if allow_missing_keys => {
+                    Err(TransformError(TransformErrorKind::MissingReadKey(hash), _)) if allow_missing_keys => {
                         debug!("Missing read key {} - ignoring row", hash);
                         return Ok(None);
                     }
                     Err(err) => {
-                        return Err(LoadError::TransformationError(err));
+                        bail!(LoadErrorKind::TransformationError(err.0));
                     }
                 };
                 Some(data)
@@ -421,7 +421,7 @@ impl Dio
                     debug!("Serialization error {} - ignoring row", err);
                     return Ok(None);
                 }
-                return Err(LoadError::SerializationError(err));
+                bail!(LoadErrorKind::SerializationError(err.0));
             }
         };
         Ok(Some((row_header, row)))

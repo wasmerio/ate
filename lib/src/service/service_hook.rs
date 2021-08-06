@@ -55,7 +55,7 @@ for ServiceHook
         let chain = match self.chain.upgrade() {
             Some(a) => a,
             None => {
-                return Err(InvokeError::Aborted);
+                bail!(InvokeErrorKind::Aborted);
             }
         };
 
@@ -76,7 +76,7 @@ for ServiceHook
         dio.data_as_overlay(&mut evt)?;
         let req = match evt.data_bytes {
             Some(a) => a,
-            None => { return Err(InvokeError::NoData); }
+            None => { bail!(InvokeErrorKind::NoData); }
         };
 
         // Invoke the callback in the service

@@ -90,7 +90,7 @@ for CompositionLoader
             err = match loader.failed(err).await {
                 Some(a) => a,
                 None => {
-                    ChainCreationError::InternalError(err_msg.clone())
+                    ChainCreationErrorKind::InternalError(err_msg.clone()).into()
                 }
             };
         }

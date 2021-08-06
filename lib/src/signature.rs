@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use multimap::MultiMap;
+use error_chain::bail;
 #[allow(unused_imports)]
 use serde::{Serialize, Deserialize, de::DeserializeOwned};
 use fxhash::FxHashMap;
@@ -126,17 +127,17 @@ for SignaturePlugin
                 CoreMetadata::Signature(sig) => {
                     let pk = match self.pk.get(&sig.public_key_hash) {
                         Some(pk) => pk,
-                        None => { return Result::Err(SinkError::MissingPublicKey(sig.public_key_hash)); }
+                        None => bail!(SinkErrorKind::MissingPublicKey(sig.public_key_hash))
                     };
 
                     let hashes_bytes: Vec<u8> = sig.hashes.iter().flat_map(|h| { Vec::from(h.val).into_iter() }).collect();
                     let hash_of_hashes = AteHash::from_bytes(&hashes_bytes[..]);
                     let result = match pk.verify(&hash_of_hashes.val[..], &sig.signature[..]) {
                         Ok(r) => r,
-                        Err(err) => { return Result::Err(SinkError::InvalidSignature { hash: sig.public_key_hash, err: Some(err) }); },
+                        Err(err) => bail!(SinkErrorKind::InvalidSignature(sig.public_key_hash, Some(err))),
                     };
                     if result == false {
-                        return Result::Err(SinkError::InvalidSignature { hash: sig.public_key_hash, err: None });
+                        bail!(SinkErrorKind::InvalidSignature(sig.public_key_hash, None));
                     }
 
                     // Add all the validated hashes
@@ -225,7 +226,7 @@ for SignaturePlugin
                 .next()
             {
                 Some(sk) => sk,
-                None => return Err(LintError::MissingWriteKey(auth.clone())),
+                None => bail!(LintErrorKind::MissingWriteKey(auth.clone())),
             };
 
             // Compute a hash of the hashesevt

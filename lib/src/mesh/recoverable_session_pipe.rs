@@ -285,7 +285,7 @@ for RecoverableSessionPipe
         match loading_receiver.recv().await {
             Some(result) => result?,
             None => {
-                return Err(ChainCreationError::ServerRejected(FatalTerminate::Other { err: "Server disconnected before it started loading the chain.".to_string() }));
+                bail!(ChainCreationErrorKind::ServerRejected(FatalTerminate::Other { err: "Server disconnected before it started loading the chain.".to_string() }));
             }
         }
         debug!("loading {}", self.key.to_string());
@@ -294,7 +294,7 @@ for RecoverableSessionPipe
         match loading_receiver.recv().await {
             Some(result) => result?,
             None => {
-                return Err(ChainCreationError::ServerRejected(FatalTerminate::Other { err: "Server disconnected before it loaded the chain.".to_string() }));
+                bail!(ChainCreationErrorKind::ServerRejected(FatalTerminate::Other { err: "Server disconnected before it loaded the chain.".to_string() }));
             }
         }
         debug!("loaded {}", self.key.to_string());
@@ -352,7 +352,7 @@ for RecoverableSessionPipe
             if let Some(pipe) = lock.as_mut() {
                 pipe.feed(&mut work.trans).await?;
             } else if self.mode.should_error_out() {
-                return Err(CommitError::CommsError(CommsError::Disconnected));
+                bail!(CommitErrorKind::CommsError(CommsErrorKind::Disconnected));
             }
         }
 
@@ -377,7 +377,7 @@ for RecoverableSessionPipe
         if let Some(pipe) = lock.as_mut() {
             return pipe.try_lock(key).await;
         } else if self.mode.should_error_out() {
-            return Err(CommitError::CommsError(CommsError::Disconnected));
+            bail!(CommitErrorKind::CommsError(CommsErrorKind::Disconnected));
         } else {
             return Ok(false);
         }
@@ -400,7 +400,7 @@ for RecoverableSessionPipe
         if let Some(pipe) = lock.as_mut() {
             pipe.unlock(key).await?
         } else if self.mode.should_error_out() {
-            return Err(CommitError::CommsError(CommsError::Disconnected));
+            bail!(CommitErrorKind::CommsError(CommsErrorKind::Disconnected));
         }
         Ok(())
     }

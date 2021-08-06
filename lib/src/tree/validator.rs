@@ -69,7 +69,7 @@ for TreeAuthorityPlugin
                 
                 // Otherwise fail
                 debug!("rejected event as it has no signatures (distributed)");
-                return Err(ValidationError::NoSignatures);
+                bail!(ValidationErrorKind::NoSignatures);
             },
         };
         
@@ -93,7 +93,7 @@ for TreeAuthorityPlugin
         }
         #[cfg(not(feature = "enable_verbose"))]
         warn!("rejected event as it is detached from the tree");
-        Err(ValidationError::Detached)
+        Err(ValidationErrorKind::Detached.into())
     }
 
     fn set_integrity_mode(&mut self, mode: IntegrityMode) {

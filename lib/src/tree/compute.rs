@@ -82,7 +82,7 @@ impl TreeAuthorityPlugin
                     None => {
                         #[cfg(feature = "enable_super_verbose")]
                         trace!("compute_auth(): missing_parent={}", parent);
-                        return Err(TrustError::MissingParent(parent));
+                        bail!(TrustErrorKind::MissingParent(parent));
                     }
                 };
 

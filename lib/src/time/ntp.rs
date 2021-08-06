@@ -1,5 +1,6 @@
 #![allow(unused_imports)]
 use tracing::{error, info, debug};
+use error_chain::bail;
 use std::fmt::Debug;
 use std::fmt::Formatter;
 use tokio::io;
@@ -386,7 +387,7 @@ pub(crate) async fn query_ntp(pool: &String, port: u16, tolerance_ms: u32) -> Re
     let ret = request(pool.as_str(), port, timeout).await?;
     let ping = Duration::from_micros(ret.roundtrip()).as_millis() as u32;
     if ping > tolerance_ms {
-        return Err(TimeError::BeyondTolerance(ping as u32));
+        bail!(TimeErrorKind::BeyondTolerance(ping as u32));
     }
     Ok(ret)
 }

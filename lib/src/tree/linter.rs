@@ -54,8 +54,8 @@ for TreeAuthorityPlugin
                 {
                     // This record has no authorization
                     return match meta.get_data_key() {
-                        Some(key) => Err(LintError::Trust(TrustError::NoAuthorizationWrite(key, auth.write))),
-                        None => Err(LintError::Trust(TrustError::NoAuthorizationOrphan))
+                        Some(key) => Err(LintErrorKind::TrustError(TrustErrorKind::NoAuthorizationWrite(key, auth.write)).into()),
+                        None => Err(LintErrorKind::TrustError(TrustErrorKind::NoAuthorizationOrphan).into())
                     };
                 }
 
@@ -67,7 +67,7 @@ for TreeAuthorityPlugin
                 }
             },
             WriteOption::Inherit => {
-                return Err(LintError::Trust(TrustError::UnspecifiedWritability));
+                bail!(LintErrorKind::TrustError(TrustErrorKind::UnspecifiedWritability));
             },
             WriteOption::Everyone => { },
             WriteOption::Nobody => { },
@@ -98,7 +98,7 @@ for TreeAuthorityPlugin
                 }
                 if ret.is_none() {
                     if let Some(key) = meta.get_data_key() {
-                        return Err(LintError::Trust(TrustError::NoAuthorizationRead(key, auth.read)));
+                        bail!(LintErrorKind::TrustError(TrustErrorKind::NoAuthorizationRead(key, auth.read)));
                     }
                 }
                 ret

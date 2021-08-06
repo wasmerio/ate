@@ -127,15 +127,15 @@ for LogFileMemDb
         let lookup = match self.lookup.get(&hash) {
             Some(a) => a.clone(),
             None => {
-                return Err(LoadError::NotFoundByHash(hash));
+                bail!(LoadErrorKind::NotFoundByHash(hash));
             }
         };
         let _offset = lookup.offset;
 
         // If we are running as a memory database then just lookup the value
         let result = match self.memdb.get(&lookup) {
-            Some(a) => Ok(a.clone()),
-            None => Err(LoadError::NotFoundByHash(hash))
+            Some(a) => std::result::Result::<LogEntry, LoadError>::Ok(a.clone()),
+            None => Err(LoadErrorKind::NotFoundByHash(hash).into())
         }?;
         
         // Hash body

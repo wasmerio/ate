@@ -19,7 +19,7 @@ pub(crate) trait EventPipe: Send + Sync
     async fn is_connected(&self) -> bool { true }
 
     async fn connect(&self) -> Result<mpsc::Receiver<ConnectionStatusChange>, ChainCreationError> {
-        Err(ChainCreationError::NotImplemented)
+        Err(ChainCreationErrorKind::NotImplemented.into())
     }
 
     async fn on_disconnect(&self) -> Result<(), CommsError> { Ok(()) }
@@ -109,22 +109,22 @@ for DuelPipe
             return Ok(())
         }
 
-        Err(CommsError::ShouldBlock)
+        Err(CommsErrorKind::ShouldBlock.into())
     }
 
     async fn connect(&self) -> Result<mpsc::Receiver<ConnectionStatusChange>, ChainCreationError>
     {
         match self.first.connect().await {
             Ok(a) => { return Ok(a); },
-            Err(ChainCreationError::NotImplemented) => { }
+            Err(ChainCreationError(ChainCreationErrorKind::NotImplemented, _)) => { }
             Err(err) => { return Err(err); }
         }
         match self.second.connect().await {
             Ok(a) => { return Ok(a); },
-            Err(ChainCreationError::NotImplemented) => { }
+            Err(ChainCreationError(ChainCreationErrorKind::NotImplemented, _)) => { }
             Err(err) => { return Err(err); }
         }
-        Err(ChainCreationError::NotImplemented)
+        Err(ChainCreationErrorKind::NotImplemented.into())
     }
 
     async fn feed(&self, work: ChainWork) -> Result<(), CommitError>

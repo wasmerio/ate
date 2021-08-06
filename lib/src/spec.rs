@@ -166,7 +166,7 @@ impl EventVersion
             Ok(a) => Ok(Some(a)),
             Err(err) => {
                 if err.kind() == ErrorKind::UnexpectedEof { return Ok(None); }
-                Err(SerializationError::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the event magic number at 0x{:x}", api.offset()))))
+                Err(SerializationErrorKind::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read the event magic number at 0x{:x}", api.offset()))).into())
             },
         }
     }
@@ -210,7 +210,7 @@ impl EventVersion
                     Ok(BlobSize::U32) => Ok(api.read_u32().await? as usize),
                     Ok(BlobSize::U64) => Ok(api.read_u64().await? as usize),
                     Err(err) => {
-                        Err(SerializationError::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read data at 0x{:x} - {}", api.offset(), err))))
+                        Err(SerializationErrorKind::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to read data at 0x{:x} - {}", api.offset(), err))).into())
                     }
                 }
             }
@@ -242,7 +242,7 @@ impl EventVersion
         match SerializationFormat::try_from(api.read_u8().await?) {
             Ok(a) => Ok(a),
             Err(_) => {
-                return Err(SerializationError::InvalidSerializationFormat);
+                Err(SerializationErrorKind::InvalidSerializationFormat.into())
             }
         }
     }
@@ -252,7 +252,7 @@ impl EventVersion
             EventVersion::V2 => {
                 match api.write_u8(format.into()).await {
                     Ok(_) => Ok(()),
-                    Err(err) => Err(SerializationError::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to write data at 0x{:x} - {}", api.offset(), err))))
+                    Err(err) => Err(SerializationErrorKind::IO(tokio::io::Error::new(tokio::io::ErrorKind::Other, format!("Failed to write data at 0x{:x} - {}", api.offset(), err))).into())
                 }
             },
         }

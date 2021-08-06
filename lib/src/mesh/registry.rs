@@ -236,7 +236,7 @@ impl Registry
         };
         let domain = match url.domain() {
             Some(a) => a,
-            None => { return Err(ChainCreationError::NoValidDomain(url.to_string())); }
+            None => { bail!(ChainCreationErrorKind::NoValidDomain(url.to_string())); }
         };
 
         let mut ret = self.cfg_for_domain(domain, port).await?;
@@ -278,7 +278,7 @@ impl Registry
         }
 
         if roots.len() <= 0 {
-            return Err(ChainCreationError::NoRootFoundForDomain(domain.to_string()));
+            bail!(ChainCreationErrorKind::NoRootFoundForDomain(domain.to_string()));
         }
 
         Ok(roots)

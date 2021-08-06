@@ -73,7 +73,7 @@ impl MeshClient {
 
         let (peer_addr, _) = match self.lookup.lookup(&key) {
             Some(a) => a,
-            None => { return Err(ChainCreationError::NoRootFoundInConfig); }
+            None => { bail!(ChainCreationErrorKind::NoRootFoundInConfig); }
         };
         let addr = match &self.cfg_mesh.force_connect {
             Some(a) => a.clone(),

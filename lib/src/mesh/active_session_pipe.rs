@@ -105,7 +105,7 @@ impl ActiveSessionPipe
             // If we are still connecting then don't do it
             if self.connected == false {
                 if self.mode.should_error_out() {
-                    return Err(CommitError::CommsError(CommsError::Disconnected));
+                    return Err(CommitErrorKind::CommsError(CommsErrorKind::Disconnected).into());
                 } else {
                     return Ok(())
                 }
@@ -124,7 +124,7 @@ impl ActiveSessionPipe
                     },
                     None => { 
                         debug!("transaction has aborted");
-                        return Err(CommitError::Aborted);
+                        bail!(CommitErrorKind::Aborted);
                     }
                 };
             }
@@ -137,7 +137,7 @@ impl ActiveSessionPipe
     {
         // If we are still connecting then don't do it
         if self.connected == false {
-            return Err(CommitError::LockError(CommsError::Disconnected));
+            bail!(CommitErrorKind::LockError(CommsErrorKind::Disconnected));
         }
 
         // Write an entry into the lookup table
@@ -160,11 +160,11 @@ impl ActiveSessionPipe
         let ret = match tokio::time::timeout(self.lock_attempt_timeout, rx.changed()).await {
             Ok(a) => {
                 if let Err(_) = a {
-                    return Err(CommitError::LockError(CommsError::Disconnected));
+                    bail!(CommitErrorKind::LockError(CommsErrorKind::Disconnected.into()));
                 }
                 *rx.borrow()
             },
-            Err(_) => return Err(CommitError::LockError(CommsError::Timeout))
+            Err(_) => bail!(CommitErrorKind::LockError(CommsErrorKind::Timeout.into()))
         };
         Ok(ret)
     }
@@ -173,7 +173,7 @@ impl ActiveSessionPipe
     {
         // If we are still connecting then don't do it
         if self.connected == false {
-            return Err(CommitError::CommsError(CommsError::Disconnected));
+            bail!(CommitErrorKind::CommsError(CommsErrorKind::Disconnected));
         }
 
         // Send a message up to the main server asking for an unlock on the data object

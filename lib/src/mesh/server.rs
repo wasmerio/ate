@@ -118,7 +118,7 @@ impl MeshRoot
                 match listen_addrs.iter().filter_map(|a| lookup.derive_id(a)).next() {
                     Some(a) => a,
                     None => {
-                        return Err(CommsError::RequredExplicitNodeId);
+                        bail!(CommsErrorKind::RequredExplicitNodeId);
                     }
                 }
             }
@@ -300,7 +300,7 @@ async fn open_internal<'b>(
         match routes.get(&route_chain.route) {
             Some(a) => Arc::clone(a),
             None => {
-                return Err(ChainCreationError::InvalidRoute(route_chain.route))
+                bail!(ChainCreationErrorKind::InvalidRoute(route_chain.route))
             }
         }
     };
@@ -356,7 +356,7 @@ async fn open_internal<'b>(
                 c
             },
             OpenAction::Deny(reason) => {
-                return Err(ChainCreationError::ServerRejected(FatalTerminate::Denied {
+                bail!(ChainCreationErrorKind::ServerRejected(FatalTerminate::Denied {
                     reason
                 }));
             }
@@ -408,12 +408,11 @@ for MeshRootProcessor
             Some(a) => a,
             None => {
                 debug!("inbox-server-exit: reference dropped scope");
-                return Err(CommsError::Disconnected);
+                bail!(CommsErrorKind::Disconnected);
             }
         };
 
-        inbox_packet(root, pck, tx).await?;
-        Ok(())
+        inbox_packet(root, pck, tx).await
     }
 
     async fn shutdown(&self, addr: SocketAddr)
@@ -469,9 +468,10 @@ async fn inbox_event<'b>(
                         a
                     },
                     Err(err) => {
+                        let err = err.to_string();
                         tx.send_reply_msg(Message::CommitError {
                             id: id.clone(),
-                            err: err.to_string(),
+                            err,
                         }).await?;
                     } 
                 }
@@ -481,7 +481,7 @@ async fn inbox_event<'b>(
             tx.send_others(pck_data).await?;
             Ok(())
         },
-        Err(err) => Err(CommsError::InternalError(format!("feed-failed - {}", err.to_string())))
+        Err(err) => Err(CommsErrorKind::InternalError(format!("feed-failed - {}", err.to_string())).into())
     }
 }
 
@@ -564,11 +564,11 @@ async fn inbox_subscribe<'b>(
 
     // If we can't find a chain for this subscription then fail and tell the caller
     let chain = match open_internal(Arc::clone(&root), route.clone(), tx).await {
-        Err(ChainCreationError::NotThisRoot) => {
+        Err(ChainCreationError(ChainCreationErrorKind::NotThisRoot, _)) => {
             tx.send_reply_msg(Message::FatalTerminate(FatalTerminate::NotThisRoot)).await?;
             return Ok(());
         },
-        Err(ChainCreationError::NoRootFoundInConfig) => {
+        Err(ChainCreationError(ChainCreationErrorKind::NoRootFoundInConfig, _)) => {
             tx.send_reply_msg(Message::FatalTerminate(FatalTerminate::NotThisRoot)).await?;
             return Ok(());
         }
@@ -576,10 +576,11 @@ async fn inbox_subscribe<'b>(
             let chain = match a {
                 Ok(a) => a,
                 Err(err) => {
+                    let err = err.to_string();
                     tx.send_reply_msg(Message::FatalTerminate(FatalTerminate::Other {
-                        err: err.to_string()
+                        err: err.clone()
                     })).await?;
-                    return Err(CommsError::RootServerError(err.to_string()));
+                    bail!(CommsErrorKind::RootServerError(err));
                 }
             };
             chain

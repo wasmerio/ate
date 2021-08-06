@@ -57,13 +57,13 @@ for TreeAuthorityPlugin
                 if let Some(key) = self.get_encrypt_key(meta, confidentiality, iv, session)? {
                     let iv = match iv {
                         Some(a) => a,
-                        None => { return Err(TransformError::CryptoError(CryptoError::NoIvPresent)); }
+                        None => { bail!(TransformErrorKind::CryptoError(CryptoErrorKind::NoIvPresent)); }
                     };
                     let decrypted = key.decrypt(&iv, &with[..]);
                     with = Bytes::from(decrypted);
                 }
             },
-            None if iv.is_some() => { return Err(TransformError::UnspecifiedReadability); }
+            None if iv.is_some() => { bail!(TransformErrorKind::UnspecifiedReadability); }
             None => {
 
             }

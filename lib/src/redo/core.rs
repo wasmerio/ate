@@ -139,7 +139,7 @@ impl RedoLog
             },
             None =>
             {
-                Err(SerializationError::IO(Error::new(ErrorKind::Other, "There is no outstanding flip operation to end.")))
+                Err(SerializationErrorKind::IO(Error::new(ErrorKind::Other, "There is no outstanding flip operation to end.")).into())
             }
         }
     }
