@@ -25,13 +25,13 @@ pub struct MeshClient {
     cfg_ate: ConfAte,
     cfg_mesh: ConfMesh,
     lookup: MeshHashTable,
-    client_id: NodeId,
+    node_id: NodeId,
     temporal: bool,
     sessions: Mutex<FxHashMap<ChainKey, Weak<Chain>>>,
 }
 
 impl MeshClient {
-    pub(super) fn new(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh, client_id: NodeId, temporal: bool) -> Arc<MeshClient>
+    pub(super) fn new(cfg_ate: &ConfAte, cfg_mesh: &ConfMesh, node_id: NodeId, temporal: bool) -> Arc<MeshClient>
     {
         Arc::new(
             MeshClient
@@ -39,7 +39,7 @@ impl MeshClient {
                 cfg_ate: cfg_ate.clone(),
                 cfg_mesh: cfg_mesh.clone(),
                 lookup: MeshHashTable::new(cfg_mesh),
-                client_id,
+                node_id,
                 temporal,
                 sessions: Mutex::new(FxHashMap::default()),
             }
@@ -49,7 +49,7 @@ impl MeshClient {
     pub async fn open_ext<'a>(&'a self, key: &ChainKey, hello_path: String, loader_local: impl Loader + 'static, loader_remote: impl Loader + 'static)
         -> Result<Arc<Chain>, ChainCreationError>
     {
-        let span = span!(Level::INFO, "client-open", id=self.client_id.to_short_string().as_str());
+        let span = span!(Level::INFO, "client-open", id=self.node_id.to_short_string().as_str());
         TaskEngine::run_until(self.__open_ext(key, hello_path, loader_local, loader_remote)
             .instrument(span)
         ).await
@@ -81,7 +81,7 @@ impl MeshClient {
         };
         
         let builder = ChainBuilder::new(&self.cfg_ate).await
-            .client_id(self.client_id.clone())
+            .node_id(self.node_id.clone())
             .temporal(self.temporal);
 
         let chain = MeshSession::connect
@@ -90,7 +90,7 @@ impl MeshClient {
                 &self.cfg_mesh,
                 key,
                 addr,
-                self.client_id.clone(),
+                self.node_id.clone(),
                 hello_path,
                 loader_local,
                 loader_remote
@@ -113,7 +113,7 @@ for MeshClient
 {
     fn drop(&mut self) {
         
-        let span = span!(Level::TRACE, "client", id=self.client_id.to_short_string().as_str());
+        let span = span!(Level::TRACE, "client", id=self.node_id.to_short_string().as_str());
         let _span = span.enter();
 
         trace!("drop (out-of-scope)");

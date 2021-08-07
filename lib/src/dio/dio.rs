@@ -461,7 +461,7 @@ impl Dio
 impl Chain
 {
     /// Opens a data access layer that allows read only access to data within the chain
-    /// In order to make changes to data you must use '.dio_mut', '.dio_forget', '.dio_full' or '.dio_trans'
+    /// In order to make changes to data you must use '.dio_mut', '.dio_fire', '.dio_full' or '.dio_trans'
     pub async fn dio(self: &Arc<Chain>, session: &'_ AteSession) -> Arc<Dio> {
         TaskEngine::run_until(self.__dio(session)).await
     }

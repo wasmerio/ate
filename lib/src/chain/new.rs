@@ -218,7 +218,7 @@ impl<'a> Chain
         // Create the chain that will be returned to the caller
         let chain = Chain {
             key: key.clone(),
-            client_id: builder.client_id.clone(),
+            node_id: builder.node_id.clone(),
             cfg_ate: builder.cfg_ate.clone(),
             remote_addr: None,
             default_format: builder.cfg_ate.log_format,

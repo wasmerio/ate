@@ -139,7 +139,7 @@ pub struct Registry
     #[cfg(feature="enable_dns")]
     dns: Mutex<DnsClient>,
     pub temporal: bool,
-    pub client_id: NodeId,
+    pub node_id: NodeId,
     pub fail_fast: bool,
     
     chains: Mutex<FxHashMap<url::Url, Arc<MeshClient>>>,
@@ -161,13 +161,13 @@ impl Registry
             Mutex::new(dns)
         };
         
-        let client_id = NodeId::generate_client_id();
+        let node_id = NodeId::generate_client_id();
         Registry {
             cfg_ate: cfg_ate.clone(),
             fail_fast: true,
             #[cfg(feature="enable_dns")]
             dns,
-            client_id,
+            node_id,
             temporal: true,
             chains: Mutex::new(FxHashMap::default()),
             services: StdMutex::new(Vec::new()),
@@ -220,7 +220,7 @@ impl Registry
             },
             None => {
                 let cfg_mesh = self.cfg_for_url(url).await?;
-                let mesh = MeshClient::new(&self.cfg_ate, &cfg_mesh, self.client_id.clone(), self.temporal);
+                let mesh = MeshClient::new(&self.cfg_ate, &cfg_mesh, self.node_id.clone(), self.temporal);
                 lock.insert(url.clone(), Arc::clone(&mesh));
                 Ok(mesh.open_ext(&key, hello_path, loader_local, loader_remote).await?)
             }

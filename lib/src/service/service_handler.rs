@@ -111,6 +111,6 @@ where Self: Sync + Send,
 
     fn error_type_name(&self) -> String
     {
-        std::any::type_name::<ServiceErrorReply<ERR>>().to_string()
+        std::any::type_name::<ERR>().to_string()
     }
 }

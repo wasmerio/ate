@@ -347,7 +347,7 @@ impl Chain
 
     /// Opens a data access layer that allows mutable changes to data (in a fire-and-forget mode).
     /// No transaction consistency on commits will be enforced
-    pub async fn dio_forget(self: &Arc<Chain>, session: &'_ AteSession) -> Arc<DioMut> {
+    pub async fn dio_fire(self: &Arc<Chain>, session: &'_ AteSession) -> Arc<DioMut> {
         let dio = self.dio(session).await;
         dio.as_mut().await
     }

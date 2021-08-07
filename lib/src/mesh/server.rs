@@ -314,7 +314,7 @@ async fn open_internal<'b>(
     // Create a chain builder
     let mut builder = ChainBuilder::new(&cfg_ate)
         .await
-        .client_id(root.server_id.clone());
+        .node_id(root.server_id.clone());
 
     // Postfix the hello_path
     #[cfg(feature = "enable_local_fs")]

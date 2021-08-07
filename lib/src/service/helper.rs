@@ -14,7 +14,7 @@ use super::*;
 pub(crate) fn callback_events_prepare(guard: &StdRwLockReadGuard<ChainProtectedSync>, events: &Vec<EventData>) -> Vec<Notify>
 {
     let mut ret = Vec::new();
-    
+
     for sniffer in guard.sniffers.iter() {
         if let Some(key) = events.iter().filter_map(|e| match (*sniffer.filter)(e) {
             true => e.meta.get_data_key(),
@@ -42,15 +42,29 @@ pub(crate) async fn callback_events_notify(mut notifies: Vec<Notify>) -> Result<
     for notify in notifies.drain(..) {
         joins.push(notify.notify());
     }
-    futures::future::join_all(joins).await;
+    for notify in futures::future::join_all(joins).await {
+        if let Err(err) = notify {
+            #[cfg(debug_assertions)]
+            warn!("notify-err - {}", err);
+            #[cfg(not(debug_assertions))]
+            debug!("notify-err - {}", err);
+        }
+    }
     Ok(())
 }
 
-pub(super) async fn sniff_for_command(chain: Weak<Chain>, what: Box<dyn Fn(&EventData) -> bool + Send + Sync>) -> Option<PrimaryKey>
+pub(super) struct SniffCommandHandle
+{
+    id: u64,
+    rx: mpsc::Receiver<PrimaryKey>,
+    chain: Weak<Chain>,
+}
+
+pub(super) fn sniff_for_command_begin(chain: Weak<Chain>, what: Box<dyn Fn(&EventData) -> bool + Send + Sync>) -> SniffCommandHandle
 {
     // Create a sniffer
     let id = fastrand::u64(..);
-    let (tx, mut rx) = mpsc::channel(1);
+    let (tx, rx) = mpsc::channel(1);
     let sniffer = ChainSniffer {
         id,
         filter: what,
@@ -61,17 +75,24 @@ pub(super) async fn sniff_for_command(chain: Weak<Chain>, what: Box<dyn Fn(&Even
     if let Some(chain) = chain.upgrade() {
         let mut guard = chain.inside_sync.write();
         guard.sniffers.push(sniffer);
-    } else {
-        return None;
     }
 
+    SniffCommandHandle {
+        id,
+        rx,
+        chain: Weak::clone(&chain),
+    }
+}
+
+pub(super) async fn sniff_for_command_finish(mut handle: SniffCommandHandle) -> Option<PrimaryKey>
+{
     // Now wait for the response
-    let ret = rx.recv().await;
+    let ret = handle.rx.recv().await;
 
     // Remove the sniffer
-    if let Some(chain) = chain.upgrade() {
+    if let Some(chain) = handle.chain.upgrade() {
         let mut guard = chain.inside_sync.write();
-        guard.sniffers.retain(|s| s.id != id);
+        guard.sniffers.retain(|s| s.id != handle.id);
     }
 
     // Return the result

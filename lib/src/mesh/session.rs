@@ -62,7 +62,7 @@ impl MeshSession
         cfg_mesh: &ConfMesh,
         chain_key: &ChainKey,
         addr: MeshAddress,
-        client_id: NodeId,
+        node_id: NodeId,
         hello_path: String,
         loader_local: impl Loader + 'static,
         loader_remote: impl Loader + 'static
@@ -116,7 +116,7 @@ impl MeshSession
             mode: builder.cfg_ate.recovery_mode,
             addr,
             hello_path,
-            client_id: client_id.clone(),
+            node_id: node_id.clone(),
             key: chain_key.clone(),
             builder,
             chain: Arc::clone(&chain_store),
@@ -448,7 +448,7 @@ impl MeshSession
 pub(crate) struct MeshSessionProcessor
 {
     pub(crate) addr: MeshAddress,
-    pub(crate) client_id: NodeId,
+    pub(crate) node_id: NodeId,
     pub(crate) loader: Option<Box<dyn Loader>>,
     pub(crate) session: Weak<MeshSession>,
     pub(crate) status_tx: mpsc::Sender<ConnectionStatusChange>,

@@ -82,9 +82,15 @@ impl ChainWorkProcessor
         }
 
         TaskEngine::spawn(async move {
-            match crate::service::callback_events_notify(notifies).await {
+            match crate::service::callback_events_notify(notifies)
+            .await {
                 Ok(_) => {}
-                Err(err) => debug!("notify-err - {}", err)
+                Err(err) => {
+                    #[cfg(debug_assertions)]
+                    warn!("notify-err - {}", err);
+                    #[cfg(not(debug_assertions))]
+                    debug!("notify-err - {}", err);
+                }
             };
         });
 

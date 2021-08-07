@@ -1,6 +1,7 @@
-use fxhash::FxHashSet;
+use tracing::Instrument;
 #[allow(unused_imports)]
-use tracing::{info, error, warn, debug};
+use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use fxhash::FxHashSet;
 use error_chain::bail;
 use async_trait::async_trait;
 use std::sync::{Arc, Weak};
@@ -15,6 +16,7 @@ use crate::prelude::TransactionScope;
 use crate::prelude::DioMut;
 use crate::dio::row::RowData;
 use crate::dio::row::RowHeader;
+use crate::engine::TaskEngine;
 
 use super::*;
 
@@ -33,7 +35,7 @@ impl ServiceHook
             chain: Arc::downgrade(chain),
             session: session.clone(),
             handler: Arc::clone(handler),
-            scope: TransactionScope::Local,
+            scope: TransactionScope::None,
         }
     }
 }
@@ -58,6 +60,10 @@ for ServiceHook
                 bail!(InvokeErrorKind::Aborted);
             }
         };
+
+        // Start a span for this notify
+        let span = span!(Level::DEBUG, "service", id=chain.node_id.to_short_string().as_str());
+        let _span = span.enter();
 
         // Build the data access layer
         let dio = chain.dio_trans(&self.session, self.scope).await;
@@ -87,32 +93,44 @@ for ServiceHook
             dio.cancel();
         }
 
-        // Delete the request as we have processed it
+        // We delete the row under a concurrent task to prevent deadlocks
         dio.delete(&key).await?;
 
         // Process the results
-        let ret = match ret {
+        let reply_ret =   match ret {
             Ok(res) => {
                 debug!("service [{}] ok", self.handler.request_type_name());
-                self.send_reply(&dio, key, res, self.handler.response_type_name()).await?;
-                Ok(())
+                trace!("sending {}", self.handler.response_type_name());
+                self.send_reply(&dio, key, res, self.handler.response_type_name())
             },
             Err(err) => {
                 debug!("service [{}] error", self.handler.request_type_name());
-                self.send_reply(&dio, key, err, self.handler.error_type_name()).await?;
-                Ok(())
+                trace!("sending {}", self.handler.error_type_name());
+                self.send_reply(&dio, key, err, self.handler.error_type_name())
             }
         };
 
-        // Commit the result
-        dio.commit().await?;
-        ret
+        // We commit the transactions that holds the reply message under a concurrent
+        // thread to prevent deadlocks
+        TaskEngine::spawn(async move {
+            let span = span!(Level::DEBUG, "service", id=chain.node_id.to_short_string().as_str());
+            let ret = dio.commit()
+                .instrument(span)
+                .await;
+            if let Err(err) = ret {
+                debug!("notify-err - {}", err);
+            }
+        });
+
+        // If the reply failed to send then return that error - otherwise success!
+        reply_ret?;
+        Ok(())
     }
 }
 
 impl ServiceHook
 {
-    async fn send_reply(&self, dio: &Arc<DioMut>, req: PrimaryKey, res: Bytes, res_type: String) -> Result<(), InvokeError>
+    fn send_reply(&self, dio: &Arc<DioMut>, req: PrimaryKey, res: Bytes, res_type: String) -> Result<(), InvokeError>
     {
         let key = PrimaryKey::generate();
         let format = self.handler.data_format();
@@ -120,20 +138,25 @@ impl ServiceHook
         let data_hash = AteHash::from_bytes(&data[..]);
 
         let mut auth = MetaAuthorization::default();
-        if let Some(key) = self.session.read_keys().into_iter().map(|a| a.clone()).next() {
-            auth.read = ReadOption::from_key(&key);
-        }
+        auth.write = WriteOption::Nobody;
 
-        let mut extra = Vec::new();
-        extra.push(CoreMetadata::Type(MetaType {
+        let parent = Some(MetaParent{ vec: 
+            MetaCollection {
+                parent_id: req,
+                collection_id: fastrand::u64(..),
+            }
+        });
+
+        let mut extra_meta = Vec::new();
+        extra_meta.push(CoreMetadata::Type(MetaType {
             type_name: res_type.clone()
         }));
-        extra.push(CoreMetadata::Reply(req));
+        extra_meta.push(CoreMetadata::Reply(req));
 
         let mut state = dio.state.lock();
         state.dirty_header(RowHeader {
             key,
-            parent: None,
+            parent: parent.clone(),
             auth: auth.clone(),
         });
         state.dirty_row(RowData {
@@ -144,15 +167,14 @@ impl ServiceHook
                 meta: dio.default_format().meta,
             },
             data_hash,
-            data: bytes::Bytes::from(data),
+            data,
             collections: FxHashSet::default(),
             created: 0,
             updated: 0,
-            extra_meta: Vec::new(),
-            parent: None,
+            extra_meta,
+            parent: parent.clone(),
             auth,
         });
-
         Ok(())
     }
 }

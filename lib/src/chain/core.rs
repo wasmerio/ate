@@ -47,7 +47,7 @@ use super::*;
 pub struct Chain
 {
     pub(crate) key: ChainKey,
-    pub(crate) client_id: NodeId,
+    pub(crate) node_id: NodeId,
     pub(crate) cfg_ate: ConfAte,
     pub(crate) remote_addr: Option<MeshAddress>,
     pub(crate) default_format: MessageFormat,

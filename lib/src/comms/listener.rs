@@ -244,7 +244,7 @@ impl Listener
             wire_format
         ).await?;
         let wire_encryption = hello_meta.encryption;
-        let client_id = hello_meta.client_id;
+        let node_id = hello_meta.client_id;
         //debug!("{:?}", hello_meta);
 
         // If we are using wire encryption then exchange secrets
@@ -277,7 +277,7 @@ impl Listener
         
         // Create an upstream from the tx
         let tx = Upstream {
-            id: client_id,
+            id: node_id,
             outbox: tx,
             wire_format,
         };
@@ -286,12 +286,12 @@ impl Listener
         // Now lets build a Tx object that is not connected to any of transmit pipes for now
         // (later we will add other ones to create a broadcast group)
         let mut group = TxGroup::default();
-        group.all.insert(client_id, Arc::downgrade(&tx));
+        group.all.insert(node_id, Arc::downgrade(&tx));
         let tx = Tx {
             hello_path: hello_meta.path.clone(),
             wire_format,
             direction: TxDirection::Downcast(TxGroupSpecific {
-                me_id: client_id,
+                me_id: node_id,
                 me_tx: Arc::clone(&tx),
                 group: Arc::new(Mutex::new(group)),
             })
@@ -313,7 +313,7 @@ impl Listener
                 rx,
                 tx,
                 server_id,
-                client_id,
+                node_id,
                 sock_addr,
                 worker_context,
                 wire_format,

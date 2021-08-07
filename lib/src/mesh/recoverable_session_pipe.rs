@@ -48,7 +48,7 @@ pub(super) struct RecoverableSessionPipe
     // Used to create new active pipes
     pub(super) addr: MeshAddress,
     pub(super) hello_path: String,
-    pub(super) client_id: NodeId,
+    pub(super) node_id: NodeId,
     pub(super) key: ChainKey,
     pub(super) builder: ChainBuilder,
     pub(super) chain: Arc<StdMutex<Option<Weak<Chain>>>>,
@@ -84,7 +84,7 @@ impl RecoverableSessionPipe
 
         let inbox = MeshSessionProcessor {
             addr: self.addr.clone(),
-            client_id: self.client_id,
+            node_id: self.node_id,
             session: Arc::downgrade(&session),
             loader: Some(Box::new(loader)),
             status_tx,
@@ -95,7 +95,7 @@ impl RecoverableSessionPipe
             (
                 &node_cfg,
                 self.hello_path.clone(),
-                self.client_id.clone(),
+                self.node_id.clone(),
                 inbox,
             ).await?;
 

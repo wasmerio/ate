@@ -1,5 +1,5 @@
 #[allow(unused_imports)]
-use tracing::{info, error, warn, debug};
+use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use error_chain::bail;
 use serde::{Serialize, de::DeserializeOwned};
 use std::{time::Duration};
@@ -49,7 +49,7 @@ impl Chain
         };
 
         // Build the command object
-        let dio = self.dio_forget(session).await;
+        let dio = self.dio_fire(session).await;
         let (join_res, join_err) = {
             dio.auto_cancel();
             
@@ -69,9 +69,9 @@ impl Chain
             let cmd_id = cmd.key().clone();
 
             let response_type_name = std::any::type_name::<RES>().to_string();
-            let error_type_name = std::any::type_name::<ServiceErrorReply<ERR>>().to_string();
+            let error_type_name = std::any::type_name::<ERR>().to_string();
 
-            let join_res = sniff_for_command(Arc::downgrade(&self), Box::new(move |h| {
+            let sniff_res = sniff_for_command_begin(Arc::downgrade(&self), Box::new(move |h| {
                 if let Some(reply) = h.meta.is_reply_to_what() {
                     if reply == cmd_id {
                         if let Some(t) = h.meta.get_type_name() {
@@ -81,7 +81,7 @@ impl Chain
                 }
                 false
             }));
-            let join_err = sniff_for_command(Arc::downgrade(&self), Box::new(move |h| {
+            let sniff_err = sniff_for_command_begin(Arc::downgrade(&self), Box::new(move |h| {
                 if let Some(reply) = h.meta.is_reply_to_what() {
                     if reply == cmd_id {
                         if let Some(t) = h.meta.get_type_name() {
@@ -95,6 +95,9 @@ impl Chain
             // Send our command
             dio.commit().await?;
 
+            // Wait for the response
+            let join_res = sniff_for_command_finish(sniff_res);
+            let join_err = sniff_for_command_finish(sniff_err);
             (join_res, join_err)
         };
 

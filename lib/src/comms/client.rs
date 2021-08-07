@@ -46,7 +46,7 @@ pub(crate) async fn connect<M, C>
 (
     conf: &MeshConfig,
     hello_path: String,
-    client_id: NodeId,
+    node_id: NodeId,
     inbox: impl InboxProcessor<M, C> + 'static
 )
 -> Result<Tx, CommsError>
@@ -60,7 +60,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
         let upstream = mesh_connect_to::<M, C>(
             target.clone(), 
             hello_path.clone(),
-            client_id,
+            node_id,
             conf.cfg_mesh.domain_name.clone(),
             inbox,
             conf.cfg_mesh.wire_protocol,
@@ -93,7 +93,7 @@ pub(super) async fn mesh_connect_to<M, C>
 (
     addr: MeshConnectAddr,
     hello_path: String,
-    client_id: NodeId,
+    node_id: NodeId,
     domain: String,
     inbox: Box<dyn InboxProcessor<M, C>>,
     wire_protocol: StreamProtocol,
@@ -110,7 +110,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
     (
         addr.clone(),
         hello_path,
-        client_id,
+        node_id,
         domain,
         wire_protocol,
         wire_encryption,
@@ -129,12 +129,12 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
     // background thread - connects and then runs inbox and outbox threads
     // if the upstream object signals a termination event it will exit
     TaskEngine::spawn(
-        mesh_connect_worker::<M, C>(worker_connect, addr, ek, client_id, server_id, inbox)
+        mesh_connect_worker::<M, C>(worker_connect, addr, ek, node_id, server_id, inbox)
     );
 
     let stream_tx = StreamTxChannel::new(stream_tx, ek);
     Ok(Upstream {
-        id: client_id,
+        id: node_id,
         outbox: stream_tx,
         wire_format,
     })
@@ -152,7 +152,7 @@ async fn mesh_connect_prepare
     
     addr: MeshConnectAddr,
     hello_path: String,
-    client_id: NodeId,
+    node_id: NodeId,
     domain: String,
     wire_protocol: StreamProtocol,
     wire_encryption: Option<KeySize>,
@@ -246,7 +246,7 @@ async fn mesh_connect_prepare
 
             // Say hello
             let hello_metadata =
-                hello::mesh_hello_exchange_sender(&mut stream_rx, &mut stream_tx, client_id, hello_path.clone(), domain.clone(), wire_encryption)
+                hello::mesh_hello_exchange_sender(&mut stream_rx, &mut stream_tx, node_id, hello_path.clone(), domain.clone(), wire_encryption)
                 .await?;
             
                 // Return the result
@@ -266,7 +266,7 @@ async fn mesh_connect_worker<M, C>
     connect: MeshConnectContext,
     sock_addr: MeshConnectAddr,
     wire_encryption: Option<EncryptKey>,
-    client_id: NodeId,
+    node_id: NodeId,
     peer_id: NodeId,
     inbox: Box<dyn InboxProcessor<M, C>>
 )
@@ -274,7 +274,7 @@ async fn mesh_connect_worker<M, C>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
       C: Send + Sync + Default + 'static,
 {
-    let span = span!(Level::DEBUG, "client", id=client_id.to_short_string().as_str(), peer=peer_id.to_short_string().as_str());
+    let span = span!(Level::DEBUG, "client", id=node_id.to_short_string().as_str(), peer=peer_id.to_short_string().as_str());
     let wire_format = connect.hello_metadata.wire_format;
 
     let context = Arc::new(C::default());
@@ -282,7 +282,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default + 'static,
     (
         connect.stream_rx,
         inbox,
-        client_id,
+        node_id,
         peer_id,
         sock_addr,
         context,

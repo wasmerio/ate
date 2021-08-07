@@ -29,7 +29,7 @@ use super::*;
 pub struct ChainBuilder
 {
     pub(crate) cfg_ate: ConfAte,
-    pub(crate) client_id: NodeId,
+    pub(crate) node_id: NodeId,
     pub(crate) configured_for: ConfiguredFor,
     pub(crate) validators: Vec<Box<dyn EventValidator>>,
     pub(crate) compactors: Vec<Box<dyn EventCompactor>>,
@@ -51,7 +51,7 @@ for ChainBuilder
     fn clone(&self) -> Self {
         ChainBuilder {
             cfg_ate: self.cfg_ate.clone(),
-            client_id: self.client_id.clone(),
+            node_id: self.node_id.clone(),
             configured_for: self.configured_for.clone(),
             validators: self.validators.iter().map(|a| a.clone_validator()).collect::<Vec<_>>(),
             compactors: self.compactors.iter().filter_map(|a| a.clone_compactor()).collect::<Vec<_>>(),
@@ -75,7 +75,7 @@ impl ChainBuilder
     pub async fn new(cfg_ate: &ConfAte) -> ChainBuilder {
         ChainBuilder {
             cfg_ate: cfg_ate.clone(),
-            client_id: crate::comms::NodeId::generate_client_id(),
+            node_id: crate::comms::NodeId::generate_client_id(),
             configured_for: cfg_ate.configured_for.clone(),
             validators: Vec::new(),
             indexers: Vec::new(),
@@ -256,8 +256,8 @@ impl ChainBuilder
         self
     }
 
-    pub fn client_id(mut self, client_id: NodeId) -> Self {
-        self.client_id = client_id;
+    pub fn node_id(mut self, client_id: NodeId) -> Self {
+        self.node_id = client_id;
         self
     }
 

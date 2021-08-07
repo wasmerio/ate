@@ -11,14 +11,11 @@ pub mod load_error;
 pub mod lock_error;
 pub mod process_error;
 pub mod serialization_error;
-pub mod service_error;
 pub mod sink_error;
 pub mod time_error;
 pub mod transform_error;
 pub mod trust_error;
 pub mod validation_error;
-
-pub use self::service_error::ServiceErrorReply;
 
 pub use ate_error::AteError as AteError;
 pub use ate_error::AteErrorKind as AteErrorKind;
