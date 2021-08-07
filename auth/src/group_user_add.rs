@@ -218,7 +218,7 @@ pub async fn main_group_user_add(
             std::io::stdin().read_line(&mut s).expect("Did not enter a valid role purpose");
             match AteRolePurpose::from_str(s.trim()) {
                 Ok(a) => a,
-                Err(err) => { bail!(GroupUserAddErrorKind::InvalidPurpose); }
+                Err(_err) => { bail!(GroupUserAddErrorKind::InvalidPurpose); }
             }
         }
     };

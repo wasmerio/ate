@@ -1,4 +1,4 @@
-use ate::error::AteError;
+use ate::error::{AteError, AteErrorKind};
 use ate_auth::error::*;
 
 #[derive(Debug)]
@@ -29,7 +29,7 @@ impl From<std::io::Error>
 for CommandError
 {
     fn from(err: std::io::Error) -> CommandError {
-        CommandError::AteError(AteError::IO(err))
+        CommandError::AteError(AteErrorKind::IO(err).into())
     }
 }
 

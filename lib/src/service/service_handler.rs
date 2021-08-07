@@ -6,6 +6,7 @@ use bytes::Bytes;
 use std::future::Future;
 use std::marker::PhantomData;
 use std::sync::Arc;
+use tokio::sync::Mutex;
 
 use crate::spec::SerializationFormat;
 use crate::error::*;
@@ -26,16 +27,15 @@ where Self: Send + Sync
 }
 
 pub struct ServiceHandler<CTX, REQ, RES, ERR, C, F>
-where Self: Sync + Send,
-      CTX: Send + Sync,
+where CTX: Send + Sync,
       REQ: DeserializeOwned + Send + Sync,
       RES: Serialize + Send + Sync,
       ERR: Serialize + Send + Sync,
-      C: Fn(Arc<CTX>, REQ) -> F + Send + Sync,
-      F: Future<Output=Result<RES,ERR>> + Send + Sync
+      C: Fn(Arc<CTX>, REQ) -> F + Send,
+      F: Future<Output=Result<RES,ERR>> + Send
 {
     context: Arc<CTX>,
-    callback: C,
+    callback: Mutex<C>,
     _marker1: PhantomData<REQ>,
     _marker2: PhantomData<RES>,
     _marker3: PhantomData<ERR>,
@@ -47,14 +47,14 @@ where Self: Sync + Send,
       REQ: DeserializeOwned + Send + Sync,
       RES: Serialize + Send + Sync,
       ERR: Serialize + Send + Sync,
-      C: Fn(Arc<CTX>, REQ) -> F + Send + Sync,
-      F: Future<Output=Result<RES,ERR>> + Send + Sync
+      C: Fn(Arc<CTX>, REQ) -> F + Send,
+      F: Future<Output=Result<RES,ERR>> + Send
 {
     pub fn new(context: Arc<CTX>, callback: C) -> Arc<ServiceHandler<CTX, REQ, RES, ERR, C, F>>
     {
         let ret = ServiceHandler {
             context,
-            callback,
+            callback: Mutex::new(callback),
             _marker1: PhantomData,
             _marker2: PhantomData,
             _marker3: PhantomData
@@ -71,8 +71,8 @@ where Self: Sync + Send,
       REQ: DeserializeOwned + Send + Sync,
       RES: Serialize + Send + Sync,
       ERR: Serialize + Send + Sync,
-      C: Fn(Arc<CTX>, REQ) -> F + Send + Sync,
-      F: Future<Output=Result<RES,ERR>> + Send + Sync
+      C: Fn(Arc<CTX>, REQ) -> F + Send,
+      F: Future<Output=Result<RES,ERR>> + Send
 {
     async fn invoke(&self, req: Bytes) -> Result<Result<Bytes, Bytes>, SerializationError>
     {
@@ -80,7 +80,12 @@ where Self: Sync + Send,
         let req = format.deserialize::<REQ>(&req[..])?;
 
         let ctx = Arc::clone(&self.context);
-        let ret = (self.callback)(ctx, req).await;
+
+        let ret = {
+            let callback = self.callback.lock().await;
+            (callback)(ctx, req)
+        };
+        let ret = ret.await;
 
         let ret = match ret {
             Ok(res) => Ok(Bytes::from(format.serialize::<RES>(&res)?)),

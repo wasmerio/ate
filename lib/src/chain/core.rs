@@ -45,7 +45,6 @@ use super::*;
 ///
 #[derive(Clone)]
 pub struct Chain
-where Self: Send + Sync
 {
     pub(crate) key: ChainKey,
     pub(crate) client_id: NodeId,

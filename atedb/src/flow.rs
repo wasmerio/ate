@@ -120,20 +120,23 @@ for ChainFlow
             let chain = Arc::clone(&self.registry).open(&auth, &chain_url).await?;
 
             // Grab the public write key from the authentication server for this group
-            let advert: Result<GroupDetailsResponse, InvokeError<GroupDetailsFailed>> = chain.invoke(GroupDetailsRequest {
+            let advert: Result<GroupDetailsResponse, GroupDetailsFailed> = chain.invoke(GroupDetailsRequest {
                 group,
                 session: None,
-            }).await;
+            }).await?;
             let advert = match advert {
                 Ok(a) => a,
-                Err(InvokeError::Reply(GroupDetailsFailed::NoAccess)) => {
+                Err(GroupDetailsFailed::NoAccess) => {
                     return Ok(OpenAction::Deny(format!("Failed to create the chain as the caller has no access to the authorization group({}), contact the owner of the group to add this user to the delegate role of that group.", path)));
                 },
-                Err(InvokeError::Reply(GroupDetailsFailed::GroupNotFound)) => {
+                Err(GroupDetailsFailed::NoMasterKey) => {
+                    return Ok(OpenAction::Deny(format!("Failed to create the chain as the server has not yet been properly initialized.")));
+                },
+                Err(GroupDetailsFailed::GroupNotFound) => {
                     return Ok(OpenAction::Deny(format!("Failed to create the chain as no authorization group exists with the same name({}), please create one and try again.", path)));
                 },
-                Err(err) => {
-                    return Ok(OpenAction::Deny(format!("Failed to create the chain as the authentication group query failed - {}.", err)));
+                Err(GroupDetailsFailed::InternalError(code)) => {
+                    return Ok(OpenAction::Deny(format!("Failed to create the chain as the authentication group query failed due to an internal error - code={}.", code)));
                 }
             };
 

@@ -2,6 +2,7 @@
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use async_trait::async_trait;
 use std::sync::Arc;
+use tokio::sync::Mutex;
 
 use ::ate::prelude::*;
 use ::ate::error::*;

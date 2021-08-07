@@ -13,10 +13,11 @@ error_chain! {
         SerializationError(super::SerializationError, super::SerializationErrorKind);
         TransformationError(super::TransformError, super::TransformErrorKind);
     }
-    foreign_links {
-        IO(tokio::io::Error);
-    }
     errors {
+        IO(err: String) {
+            description("IO error")
+            display("{}", err)
+        }
         NotFound(key: PrimaryKey) {
             description("data object with key could not be found"),
             display("data object with key ({}) could not be found", key.as_hex_string()),
@@ -61,6 +62,13 @@ error_chain! {
             description("the dio that created this object has gone out of scope")
             display("the dio that created this object has gone out of scope")
         }
+    }
+}
+
+impl From<tokio::io::Error>
+for LoadError {
+    fn from(err: tokio::io::Error) -> LoadError {
+        LoadErrorKind::IO(err.to_string()).into()
     }
 }
 

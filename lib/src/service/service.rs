@@ -31,8 +31,8 @@ impl Chain
           REQ: DeserializeOwned + Send + Sync + Sized + 'static,
           RES: Serialize + Send + Sync + Sized + 'static,
           ERR: Serialize + Send + Sync + Sized + 'static,
-          C: Fn(Arc<CTX>, REQ) -> F + Send + Sync + 'static,
-          F: Future<Output=Result<RES, ERR>> + Send + Sync + 'static
+          C: Fn(Arc<CTX>, REQ) -> F + Send + 'static,
+          F: Future<Output=Result<RES, ERR>> + Send + 'static
     {
         let svr = ServiceHandler::new(context, callback);
         let svr: Arc<dyn ServiceInvoker> = svr;

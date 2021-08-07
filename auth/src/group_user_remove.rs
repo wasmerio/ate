@@ -163,7 +163,7 @@ pub async fn main_group_user_remove(
             std::io::stdin().read_line(&mut s).expect("Did not enter a valid role purpose");
             match AteRolePurpose::from_str(s.trim()) {
                 Ok(a) => a,
-                Err(err) => { bail!(GroupUserRemoveErrorKind::InvalidPurpose); }
+                Err(_err) => { bail!(GroupUserRemoveErrorKind::InvalidPurpose); }
             }
         }
     };

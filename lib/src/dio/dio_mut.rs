@@ -14,7 +14,6 @@ use std::ops::Deref;
 use tokio::sync::mpsc;
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::rc::Weak as RcWeak;
 use std::sync::Weak;
 
 use crate::header::PrimaryKeyScope;

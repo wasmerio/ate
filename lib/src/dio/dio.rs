@@ -38,7 +38,6 @@ use crate::{crypto::EncryptKey, session::{AteSession, AteSessionProperty}};
 
 #[derive(Debug)]
 pub(crate) struct DioState
-where Self: Send + Sync
 {
     pub(super) cache_load: FxHashMap<PrimaryKey, (Arc<EventData>, EventLeaf)>,
 }

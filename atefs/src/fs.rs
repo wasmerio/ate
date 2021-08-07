@@ -112,35 +112,35 @@ pub fn spec_as_attr(spec: &FileSpec, uid: u32, gid: u32) -> FileAttr {
 pub(crate) fn conv_load<T>(r: std::result::Result<T, LoadError>) -> std::result::Result<T, Errno> {
     conv(match r {
         Ok(a) => Ok(a),
-        Err(err) => Err(AteError::LoadError(err)),
+        Err(err) => Err(AteErrorKind::LoadError(err.0).into()),
     })
 }
 
 pub(crate) fn conv_io<T>(r: std::result::Result<T, tokio::io::Error>) -> std::result::Result<T, Errno> {
     conv(match r {
         Ok(a) => Ok(a),
-        Err(err) => Err(AteError::IO(err)),
+        Err(err) => Err(AteErrorKind::IO(err).into()),
     })
 }
 
 pub(crate) fn cc<T>(r: std::result::Result<T, CommitError>) -> std::result::Result<T, Errno> {
     conv(match r {
         Ok(a) => Ok(a),
-        Err(err) => Err(AteError::CommitError(err)),
+        Err(err) => Err(AteErrorKind::CommitError(err.0).into()),
     })
 }
 
 pub(crate) fn cs<T>(r: std::result::Result<T, SerializationError>) -> std::result::Result<T, Errno> {
     conv(match r {
         Ok(a) => Ok(a),
-        Err(err) => Err(AteError::SerializationError(err)),
+        Err(err) => Err(AteErrorKind::SerializationError(err.0).into()),
     })
 }
 
 pub(crate) fn cl<T>(r: std::result::Result<T, LoadError>) -> std::result::Result<T, Errno> {
     conv(match r {
         Ok(a) => Ok(a),
-        Err(err) => Err(AteError::LoadError(err)),
+        Err(err) => Err(AteErrorKind::LoadError(err.0).into()),
     })
 }
 
@@ -150,10 +150,10 @@ pub(crate) fn conv<T>(r: std::result::Result<T, AteError>) -> std::result::Resul
         Err(err) => {
             error!("atefs::error {}", err);
             match err {
-                AteError::CommsError(CommsError::Disconnected) => Err(libc::EBUSY.into()),
-                AteError::CommitError(CommitError::CommsError(CommsError::Disconnected)) => Err(libc::EBUSY.into()),
-                AteError::LoadError(LoadError::NotFound(_)) => Err(libc::ENOENT.into()),
-                AteError::LoadError(LoadError::TransformationError(TransformError::MissingReadKey(_))) => Err(libc::EACCES.into()),
+                AteError(AteErrorKind::CommsError(CommsErrorKind::Disconnected), _) => Err(libc::EBUSY.into()),
+                AteError(AteErrorKind::CommitError(CommitErrorKind::CommsError(CommsErrorKind::Disconnected)), _) => Err(libc::EBUSY.into()),
+                AteError(AteErrorKind::LoadError(LoadErrorKind::NotFound(_)), _) => Err(libc::ENOENT.into()),
+                AteError(AteErrorKind::LoadError(LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_))), _) => Err(libc::EACCES.into()),
                 _ => Err(libc::EIO.into())
             }
         }
@@ -570,7 +570,7 @@ for AteFS
     async fn init(&self, req: Request) -> Result<()>
     {
         let dio = self.dio_mut().await;
-        if let Err(LoadError::NotFound(_)) = self.dio.load::<Inode>(&PrimaryKey::from(1)).await {
+        if let Err(LoadError(LoadErrorKind::NotFound(_), _)) = self.dio.load::<Inode>(&PrimaryKey::from(1)).await {
             info!("atefs::creating-root-node");
             
             let mode = 0o755;

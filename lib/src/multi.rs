@@ -36,7 +36,6 @@ for ChainMultiUserLock<'a>
 
 #[derive(Clone)]
 pub struct ChainMultiUser
-where Self: Send + Sync
 {
     pub(super) inside_async: Arc<RwLock<ChainProtectedAsync>>,
     pub(super) inside_sync: Arc<StdRwLock<ChainProtectedSync>>,

@@ -9,6 +9,7 @@ error_chain! {
         TimeError(super::TimeError, super::TimeErrorKind);
         CommsError(super::CommsError, super::CommsErrorKind);
         SerializationError(super::SerializationError, super::SerializationErrorKind);
+        InvokeError(super::InvokeError, super::InvokeErrorKind);
     }
     foreign_links {
         IO(::tokio::io::Error);
@@ -57,12 +58,12 @@ error_chain! {
             display("failed to create chain-of-trust as the server refused to create the chain ({})", reason),
         }
         #[cfg(feature="enable_dns")]
-        DnsProtoError(err: ::trust_dns_proto::error::ProtoError) {
+        DnsProtoError(err: String) {
             description("failed to create chain-of-trust due to a DNS error"),
             display("failed to create chain-of-trust due to a DNS error - {}", err),
         }
         #[cfg(feature="enable_dns")]
-        DnsClientError(err: ::trust_dns_client::error::ClientError) {
+        DnsClientError(err: String) {
             description("failed to create chain-of-trust due to a DNS error"),
             display("failed to create chain-of-trust due to a DNS error - {}", err),
         }
@@ -78,7 +79,7 @@ impl From<::trust_dns_proto::error::ProtoError>
 for ChainCreationError
 {
     fn from(err: ::trust_dns_proto::error::ProtoError) -> ChainCreationError {
-        ChainCreationErrorKind::DnsProtoError(err).into()
+        ChainCreationErrorKind::DnsProtoError(err.to_string()).into()
     }   
 }
 
@@ -87,6 +88,6 @@ impl From<::trust_dns_client::error::ClientError>
 for ChainCreationError
 {
     fn from(err: ::trust_dns_client::error::ClientError) -> ChainCreationError {
-        ChainCreationErrorKind::DnsClientError(err).into()
+        ChainCreationErrorKind::DnsClientError(err.to_string()).into()
     }   
 }

@@ -49,7 +49,7 @@ impl AuthService
         super_session.user.add_read_key(&super_key);
 
         // Compute which chain the user should exist within
-        let chain_key =chain_key_4hex(request.email.as_str(), Some("redo"));
+        let chain_key = chain_key_4hex(request.email.as_str(), Some("redo"));
         let chain = self.registry.open(&self.auth_url, &chain_key).await?;
 
         let user_key = PrimaryKey::from(request.email.clone());

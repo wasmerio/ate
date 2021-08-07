@@ -25,7 +25,6 @@ use super::*;
 #[allow(dead_code)]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct AteSession
-where Self: Send + Sync
 {
     pub log_format: Option<MessageFormat>,
     pub user: AteGroupRole,
