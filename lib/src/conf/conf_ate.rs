@@ -4,6 +4,7 @@ use std::time::Duration;
 
 use crate::spec::*;
 use crate::mesh::RecoveryMode;
+use crate::mesh::BackupMode;
 use crate::compact::CompactMode;
 
 use super::*;
@@ -29,6 +30,14 @@ pub struct ConfAte
     /// (if this option is none then the logs will be stored in memory)
     #[cfg(feature = "enable_local_fs")]
     pub log_path: Option<String>,
+
+    /// Directory path that the backup files will be stored and fetched.
+    /// (if this option is none then the logs will not be backed up)
+    #[cfg(feature = "enable_local_fs")]
+    pub backup_path: Option<String>,
+
+    /// Specifies the backup mode that the mesh will undertake
+    pub backup_mode: BackupMode,
 
     /// NTP pool server which ATE will synchronize its clocks with, its
     /// important to have synchronized clocks with ATE as it uses time as
@@ -83,6 +92,8 @@ for ConfAte
             dns_sec: false,
             dns_server: "8.8.8.8".to_string(),
             recovery_mode: RecoveryMode::ReadOnlyAsync,
+            backup_path: None,
+            backup_mode: BackupMode::None,
             compact_mode: CompactMode::Never,
             compact_bootstrap: false,
             sync_tolerance: Duration::from_secs(30),

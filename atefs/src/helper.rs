@@ -56,6 +56,7 @@ pub async fn main_mount(mount: OptsMount, conf: ConfAte, group: Option<String>, 
     conf.log_format.meta = mount.meta_format;
     conf.log_format.data = mount.data_format;
     conf.log_path = mount.log_path.as_ref().map(|a| shellexpand::tilde(a).to_string());
+    conf.backup_path = mount.backup_path.as_ref().map(|a| shellexpand::tilde(a).to_string());
     conf.recovery_mode = mount.recovery_mode;
     conf.compact_bootstrap = mount.compact_now;
     conf.compact_mode = mount.compact_mode

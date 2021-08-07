@@ -46,13 +46,35 @@ pub(super) struct LogFileLocalFs
 
 impl LogFileLocalFs
 {
-    pub(super) async fn new(temp_file: bool, path_log: String, truncate: bool, _cache_size: usize, _cache_ttl: u64, header_bytes: Vec<u8>) -> Result<Box<LogFileLocalFs>>
+    pub(super) async fn new(temp_file: bool, path_log: String, restore_path: Option<String>, truncate: bool, _cache_size: usize, _cache_ttl: u64, header_bytes: Vec<u8>) -> Result<Box<LogFileLocalFs>>
     {
         info!("open at {}", path_log);
         
         // Load all the archives
         let mut archives = FxHashMap::default();
         let mut n = 0 as u32;
+
+        // If there are any backups then restore them (but do not override any local
+        // files that already exist)
+        if let Some(restore_path) = restore_path {
+            loop
+            {
+                let source = format!("{}.{}", restore_path.clone(), n + 1);
+                if std::path::Path::new(source.as_str()).exists() == false {
+                    break;
+                }
+
+                let dest = format!("{}.{}", path_log.clone(), n + 1);
+                if std::path::Path::new(source.as_str()).exists() == true {
+                    continue;
+                }
+
+                if let Err(err) = std::fs::copy(source.clone(), dest.clone()) {
+                    warn!("error while restoring log file({}) - {}", source, err);
+                }
+            }
+
+        }
         
         loop
         {
@@ -565,6 +587,7 @@ for LogFileLocalFs
             LogFileLocalFs::new(
                 self.temp, 
                 path_flip, 
+                None,
                 true, 
                 cache_size, 
                 cache_ttl,

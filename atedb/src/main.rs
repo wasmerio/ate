@@ -66,6 +66,9 @@ struct Solo {
     /// Path to the log files where all the file system data is stored
     #[clap(index = 1, default_value = "/opt/ate")]
     logs_path: String,
+    /// Path to the backup and restore location of log files
+    #[clap(short, long)]
+    backup_path: Option<String>,
     /// Address that the database server(s) are listening and that
     /// this server can connect to if the chain is on another mesh node
     #[clap(short, long, default_value = "ws://localhost:5000/db")]
@@ -144,6 +147,7 @@ async fn main_solo(solo: Solo, mut cfg_ate: ConfAte, auth: Option<url::Url>, tru
 {
     // Create the chain flow and generate configuration
     cfg_ate.log_path = Some(shellexpand::tilde(&solo.logs_path).to_string());
+    cfg_ate.backup_path = solo.backup_path.as_ref().map(|a| shellexpand::tilde(a).to_string());
     cfg_ate.compact_mode = solo.compact_mode
         .with_growth_factor(solo.compact_threshold_factor)
         .with_growth_size(solo.compact_threshold_size)

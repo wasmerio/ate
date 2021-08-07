@@ -96,6 +96,53 @@ for RecoveryMode
     }
 }
 
+// Determines how the redo-log engine will perform its backup and restoration
+// actions. Backup and restoration is required for expansions of the cluster
+// and for storage capacity management.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum BackupMode
+{
+    // No backups or restorations will take place fro this set of redo logs. Using this
+    // mode does not improve performance but can save disk space and simplify the
+    // deployment model. This comes at the price of essentially having no backups.
+    None,
+    // The system will not automatically backup data but it will restore data files from
+    // the backup store before creating new empty log files. This is ideal for migration
+    // environments or replicas.
+    RestoreOnly,
+    // Regular backups will be made to the target backup location whenever a log file
+    // rotate is actioned or the process shuts down however no automatic restoration
+    // will take place. This will protect your data however data recovery is a manual
+    // process.
+    BackupOnly,
+    // ATE will automatically backup data to the backup location whenever the log files
+    // rotate or the process shuts down. Upon bringing online a new chain-of-trust the
+    // backup files will be checked first before starting a new log-file thus providing
+    // an automatic migration and restoration system.
+    Full,
+}
+
+impl std::str::FromStr
+for BackupMode
+{
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "off" => Ok(BackupMode::None),
+            "none" => Ok(BackupMode::None),
+            "restore" => Ok(BackupMode::RestoreOnly),
+            "restore-only" => Ok(BackupMode::RestoreOnly),
+            "backup" => Ok(BackupMode::BackupOnly),
+            "backup-only" => Ok(BackupMode::BackupOnly),
+            "full" => Ok(BackupMode::Full),
+            "auto" => Ok(BackupMode::Full),
+            "on" => Ok(BackupMode::Full),
+            _ => Err("valid values are 'none', 'restore-only', 'backup-only' and 'full'"),
+        }
+    }
+}
+
 #[derive(Default)]
 pub struct MeshHashTable
 {

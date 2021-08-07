@@ -228,13 +228,23 @@ impl ChainBuilder
             return self;
         }
 
-        // Get the path so far
         let path = match orig_path.ends_with("/") {
             true => format!("{}{}", orig_path, postfix),
             false => format!("{}/{}", orig_path, postfix)
         };
-
         self.cfg_ate.log_path = Some(path);
+
+        // Also update the backup path
+        if let Some(backup_path) = self.cfg_ate.backup_path.as_ref() {
+            let backup_path = backup_path.clone();
+
+            let path = match backup_path.ends_with("/") {
+                true => format!("{}{}", backup_path, postfix),
+                false => format!("{}/{}", backup_path, postfix)
+            };
+            self.cfg_ate.backup_path = Some(path);
+        }
+
         self
     }
 

@@ -70,9 +70,11 @@ pub use crate::comms::StreamProtocol;
 pub use crate::spec::TrustMode;
 pub use crate::comms::NodeId;
 pub use crate::mesh::RecoveryMode;
+pub use crate::mesh::BackupMode;
 pub use crate::mesh::Registry;
 pub use crate::conf::MeshAddress;
 pub use std::{net::{IpAddr, Ipv4Addr, Ipv6Addr}, str::FromStr};
+
 #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
 pub use crate::mesh::create_persistent_centralized_server;
 #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]

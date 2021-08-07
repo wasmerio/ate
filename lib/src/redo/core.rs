@@ -40,7 +40,7 @@ pub struct RedoLog
 impl RedoLog
 {
     #[cfg(feature = "enable_local_fs")]
-    async fn new(path_log: Option<String>, flags: OpenFlags, cache_size: usize, cache_ttl: u64, loader: Box<impl Loader>, header_bytes: Vec<u8>) -> std::result::Result<RedoLog, SerializationError>
+    async fn new(path_log: Option<String>, restore_path: Option<String>, flags: OpenFlags, cache_size: usize, cache_ttl: u64, loader: Box<impl Loader>, header_bytes: Vec<u8>) -> std::result::Result<RedoLog, SerializationError>
     {
         // Now load the real thing
         let ret = RedoLog {
@@ -50,6 +50,7 @@ impl RedoLog
                     let mut log_file = LogFileLocalFs::new(
                         flags.temporal,
                         path_log,
+                        restore_path,
                         flags.truncate,
                         cache_size,
                         cache_ttl,
@@ -221,9 +222,23 @@ impl RedoLog
             let _ = std::fs::create_dir_all(path.parent().unwrap().clone());
         }
 
+        let restore_path = {
+            match cfg.backup_path.as_ref() {
+                Some(a) if a.ends_with("/") => Some(format!("{}{}.log", a, key_name)),
+                Some(a) => Some(format!("{}/{}.log", a, key_name)),
+                None => None,
+            }
+        };
+
+        if let Some(restore_path) = restore_path.as_ref() {
+            let path = std::path::Path::new(restore_path);
+            let _ = std::fs::create_dir_all(path.parent().unwrap().clone());
+        }
+
         let log = {
             RedoLog::new(
                 path_log.clone(),
+                restore_path.clone(),
                 flags,
                 cfg.load_cache_size,
                 cfg.load_cache_ttl,

@@ -57,6 +57,7 @@ pub use crate::mesh::server::MeshRoot;
 pub use crate::mesh::registry::Registry;
 pub use crate::loader::Loader;
 pub use self::core::RecoveryMode;
+pub use self::core::BackupMode;
 pub use self::msg::FatalTerminate;
 
 fn create_prepare<'a, 'b>(cfg_mesh: &'b ConfMesh) -> Vec<MeshAddress> {

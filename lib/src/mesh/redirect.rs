@@ -77,7 +77,7 @@ where C: Send + Sync + Default + 'static,
     // Build a configuration that forces connecting to a specific ndoe
     let mut conf = root.cfg_mesh.clone();
     conf.force_connect = Some(node_addr.clone());
-    let mut conf = MeshConfig::new(conf)
+    let conf = MeshConfig::new(conf)
         .connect_to(node_addr);
 
     // Attempt to connect to the other machine

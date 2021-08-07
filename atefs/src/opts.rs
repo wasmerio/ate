@@ -86,6 +86,9 @@ pub struct OptsMount {
     /// If this parameter is not specified then chain-of-trust will cache in memory rather than disk
     #[clap(long)]
     pub log_path: Option<String>,
+    /// Path to the backup and restore location of log files
+    #[clap(short, long)]
+    pub backup_path: Option<String>,
     /// Determines how the file-system will react while it is nominal and when it is
     /// recovering from a communication failure (valid options are 'async', 'readonly-async',
     /// 'readonly-sync' or 'sync')

@@ -34,6 +34,9 @@ struct Run {
     /// Path to the log files where all the authentication data is stored
     #[clap(index = 2, default_value = "~/ate/auth")]
     logs_path: String,
+    /// Path to the backup and restore location of log files
+    #[clap(short, long)]
+    backup_path: Option<String>,
     /// Address that the authentication server(s) are listening and that
     /// this server can connect to if the chain is on another mesh node
     #[clap(short, long, default_value = "ws://localhost:5001/auth")]
@@ -83,6 +86,9 @@ async fn main() -> Result<(), AteError>
             // Build a session for service
             let mut cfg_ate = ate_auth::conf_auth();
             cfg_ate.log_path = Some(shellexpand::tilde(&run.logs_path).to_string());
+            if let Some(backup_path) = run.backup_path {
+                cfg_ate.backup_path = Some(shellexpand::tilde(&backup_path).to_string());
+            }
             cfg_ate.compact_mode = CompactMode::Never;
             
             let mut session = AteSession::new(&cfg_ate);
