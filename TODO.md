@@ -8,6 +8,34 @@
         + Add a --pure-tcp which will switch to a TCP channel and use manual framing techniques
         + Add a --no-http which will remove the HTTP handshake and switch immediately to websocket
           protocol upon a successful TCP connection
+        + Allow --target=wasm32-wasi to compile for ATE library
+
+0.8.2   Spit and Polish
+        + Implement 'chain redirect' functionality to handle cross connects
+        + Add backup-to-path functionality which allows data to be stored and fetched from
+          a backup remote folder
+        + Modify chain creation path so that it first checks for backups to restore from
+          which thus allows for dynamic group of the mesh cluster (awesome!)
+        + Creating auth-groups should check against domain names when they are not pre-qualified
+          otherwise they need to be postfix with fcfs domain name end.
+        + All databases that get created can be associated with the same group by using a path
+          postfix of the group which allows multiple databases to use the same group
+
+0.8.3   Tokera release.
+
+0.8.4   Publish ATE on webassembly.sh
+        + Publish the module on the WebAssembly package manager
+          (see https://wapm.io/)
+        + Should be able to execute commands on the webassembly shell emulator with ATE
+          (see https://webassembly.sh/)
+
+0.8.5   Tokera release.
+
+0.8.6   Publish Battle Cities Game
+
+-----------------------------------------------------------------------------------
+ATE RELEASE 1.0
+----------------
 
 0.8.2   Symbiont elevation, advanced tokfs and bootable images
         + Add a symbiosis role to authentication groups that has no rights to the group itself
@@ -37,29 +65,7 @@
           is deposited again.
         + Active file system mounts are also charged funds from the owning wallet while they are active.
 
-0.8.2   Support for browsers
-        + Allow --target=wasm32-wasi to compile
-          (see https://github.com/bytecodealliance/wasmtime)
-        + Choose either stdweb or wasm-bindgen for WebSocket client
-          (see https://rustwasm.github.io/wasm-bindgen/examples/websockets.html)
-          (see https://github.com/nstoddard/websocket-client/blob/master/src/lib.rs)
-        + Implement a WebSocket and disable the TCP when compiling as wasm32-wasi
-        + Publish the module on the WebAssembly package manager
-          (see https://wapm.io/)
-        + Should be able to execute commands on the webassembly shell emulator with ATE
-          (see https://webassembly.sh/)
-
-0.8.3   Add a Tokera login page for the public repository.
-        + Create a login HTML page using ATE that stores a token in the local file-system
-        + Wallet with finance support
-        + Create wallets for accounts in Tokera
-        + Create PayPal exchange for wallets
-        + Add contracts that are redeemable after a fixed piece of buisness logic
-          executes that validates the completeness of the contract
-        + Modify AteDB so that it is able to charge wallets for databases for
-          both ongoing usable and for persistant storage.
-        + It must be possible for a Wallet to be tied to other peoples databases
-          that get created for them (this is so middleman sites can be created)
+0.8.3   Tokera release.
 
 0.8.4   WebBrowser based file system and terminal
         + Implement a terminal that emulates a file system stored in ATE via browser
