@@ -72,10 +72,13 @@ where C: Send + Sync + Default + 'static,
         _marker1: PhantomData::<C>,
     };
 
+    trace!("redirect to {}", node_addr);
+
     // Build a configuration that forces connecting to a specific ndoe
     let mut conf = root.cfg_mesh.clone();
-    conf.force_connect = Some(node_addr);
-    let conf = MeshConfig::new(conf);
+    conf.force_connect = Some(node_addr.clone());
+    let mut conf = MeshConfig::new(conf)
+        .connect_to(node_addr);
 
     // Attempt to connect to the other machine
     let mut relay_tx = crate::comms::connect(&conf, hello_path.to_string(), root.server_id, fascade).await?;
