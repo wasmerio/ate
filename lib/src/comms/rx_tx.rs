@@ -15,6 +15,7 @@ use super::NodeId;
 use super::conf::Upstream;
 use super::Packet;
 use super::PacketData;
+use super::PacketWithContext;
 
 #[derive(Debug)]
 pub(crate) enum TxDirection
@@ -43,11 +44,17 @@ pub(crate) struct Tx
 
 impl Tx
 {
-    pub async fn send_relay_msg<M>(&mut self, msg: M) -> Result<(), CommsError>
-    where M: Send + Sync + Serialize + DeserializeOwned + Clone
+    #[allow(dead_code)]
+    pub async fn send_relay<M, C>(&mut self, pck: PacketWithContext<M, C>) -> Result<(), CommsError>
+    where M: Send + Sync + Serialize + DeserializeOwned + Clone,
+          C: Send + Sync,
     {
         if let Some(relay) = self.relay.as_mut() {
-            let pck = Packet::from(msg).to_packet_data(relay.wire_format)?;
+            let pck = if self.wire_format == relay.wire_format {
+                pck.data
+            } else {
+                Packet::from(pck.packet.msg).to_packet_data(relay.wire_format)?
+            };
             match &mut relay.direction {
                 #[cfg(feature="enable_server")]
                 TxDirection::Downcast(tx) => {
@@ -156,19 +163,13 @@ impl Tx
         ret
     }
 
-    pub fn replace(&mut self, mut tx: Tx) -> Tx
-    {
-        std::mem::swap(&mut self.hello_path, &mut tx.hello_path);
-        std::mem::swap(&mut self.direction, &mut tx.direction);
-        std::mem::swap(&mut self.wire_format, &mut tx.wire_format);
-        std::mem::swap(&mut self.relay, &mut tx.relay);
-        tx
-    }
-
     pub fn set_relay(&mut self, mut tx: Tx)
     {
+        let mut direction = TxDirection::Nullcast;
+        std::mem::swap(&mut tx.direction, &mut direction);
+
         self.relay.replace(TxRelay {
-            direction: tx.direction,
+            direction,
             wire_format: tx.wire_format
         });
     }

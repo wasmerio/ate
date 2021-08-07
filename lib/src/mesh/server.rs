@@ -664,6 +664,12 @@ async fn inbox_packet<'b>(
     // Extract the client it and build the span (used for tracing)
     let span = span!(Level::DEBUG, "server", id=pck.id.to_short_string().as_str(), peer=pck.peer_id.to_short_string().as_str());
 
+    // If we are in relay mode the send it on to the other server
+    if tx.relay.is_some() {
+        tx.send_relay(pck).await?;
+        return Ok(());
+    }
+
     // Now process the packet under the span
     async move {
         trace!(packet_size = pck.data.bytes.len());
