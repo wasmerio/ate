@@ -12,7 +12,7 @@ readme = "README.md"
 
 [dependencies]
 ate = { version = "^0.9", path = "../lib", features = [ "client", "server" ] }
-error-chain = { version = "^0.12", path = "../../error-chain" }
+error-chain = { version = "^0.12" }
 tokio = { version = "^1", features = ["full", "signal", "process"] }
 serde = { version = "^1", features = ["derive"] }
 tracing = { version = "^0.1", features = [ "log", "release_max_level_info" ] }
