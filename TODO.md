@@ -17,7 +17,7 @@
         + Modify chain creation path so that it first checks for backups to restore from
           which thus allows for dynamic group of the mesh cluster (awesome!)
         + Creating auth-groups should check against domain names when they are not pre-qualified
-          otherwise they need to be postfix with fcfs domain name end.
+          otherwise they need to be postfix with fcfs (first-come-first-serve) domain name end.
         + All databases that get created can be associated with the same group by using a path
           postfix of the group which allows multiple databases to use the same group
 
@@ -29,13 +29,15 @@
         + Should be able to execute commands on the webassembly shell emulator with ATE
           (see https://webassembly.sh/)
 
+-----------------------------------------------------------------------------------
+ATE RELEASE 1.0
+----------------
+
 0.8.5   Tokera release.
 
 0.8.6   Publish Battle Cities Game
 
 -----------------------------------------------------------------------------------
-ATE RELEASE 1.0
-----------------
 
 0.8.2   Symbiont elevation, advanced tokfs and bootable images
         + Add a symbiosis role to authentication groups that has no rights to the group itself
