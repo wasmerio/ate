@@ -32,6 +32,10 @@ error_chain! {
             description("message has no reply channel attached to it")
             display("message has no reply channel attached to it")
         }
+        RedirectNotSupported {
+            description("redirecting to another address is not supported by this process")
+            display("redirecting to another address is not supported by this process")
+        }
         Disconnected {
             description("channel has been disconnected")
             display("channel has been disconnected")
@@ -64,9 +68,12 @@ error_chain! {
             description("could not listen on the address as it is not a valid IPv4/IPv6 address"),
             display("could not listen on the address ({}) as it is not a valid IPv4/IPv6 address", addr),
         }
-        RootServerError(err: String) {
-            description("error at the root server while processing communication"),
-            display("error at the root server while processing communication - {}", err),
+        NotYetSubscribed {
+            description("attempted to perform a chain operation on a connection that is not yet subscribed to chain")
+        }
+        FatalError(err: String) {
+            description("error at the root server while processing communication which has terminated the connection"),
+            display("error at the root server while processing communication which has terminated the connection - {}", err),
         }
         InternalError(err: String) {
             description("internal comms error"),
@@ -173,7 +180,7 @@ impl From<super::ChainCreationError>
 for CommsError
 {
     fn from(err: super::ChainCreationError) -> CommsError {
-        CommsErrorKind::RootServerError(err.to_string()).into()
+        CommsErrorKind::FatalError(err.to_string()).into()
     }   
 }
 
@@ -181,7 +188,7 @@ impl From<super::ChainCreationErrorKind>
 for CommsError
 {
     fn from(err: super::ChainCreationErrorKind) -> CommsError {
-        CommsErrorKind::RootServerError(err.to_string()).into()
+        CommsErrorKind::FatalError(err.to_string()).into()
     }   
 }
 

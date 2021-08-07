@@ -125,7 +125,8 @@ pub(super) enum Message {
 
     Subscribe {
         chain_key: ChainKey,
-        from: ChainTimestamp
+        from: ChainTimestamp,
+        allow_redirect: bool,
     },
 
     Lock {

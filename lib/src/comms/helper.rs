@@ -113,6 +113,15 @@ where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
         match rcv.await {
             Ok(a) => a,
             Err(CommsError(CommsErrorKind::Disconnected, _)) => { break; }
+            Err(CommsError(CommsErrorKind::NotYetSubscribed, _)) => {
+                let err = CommsErrorKind::NotYetSubscribed;
+                warn!("inbox-err: {}", err);
+                break;
+            }
+            Err(CommsError(CommsErrorKind::FatalError(err), _)) => {
+                warn!("inbox-err: {}", err);
+                break;
+            }
             Err(CommsError(CommsErrorKind::SendError(err), _)) => {
                 warn!("inbox-err: {}", err);
                 break;

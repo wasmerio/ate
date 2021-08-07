@@ -62,14 +62,14 @@ pub struct MeshChain
 
 pub struct MeshRoot
 {
-    cfg_mesh: ConfMesh,
-    server_id: NodeId,
-    node_id: u32,
-    lookup: MeshHashTable,
-    addrs: Vec<MeshAddress>,
-    chains: Mutex<FxHashMap<RouteChain, MeshChain>>,
-    listener: StdMutex<Option<Arc<StdMutex<Listener>>>>,
-    routes: StdMutex<FxHashMap<String, Arc<Mutex<MeshRoute>>>>,
+    pub(super) cfg_mesh: ConfMesh,
+    pub(super) server_id: NodeId,
+    pub(super) node_id: u32,
+    pub(super) lookup: MeshHashTable,
+    pub(super) addrs: Vec<MeshAddress>,
+    pub(super) chains: Mutex<FxHashMap<RouteChain, MeshChain>>,
+    pub(super) listener: StdMutex<Option<Arc<StdMutex<Listener>>>>,
+    pub(super) routes: StdMutex<FxHashMap<String, Arc<Mutex<MeshRoute>>>>,
 }
 
 #[derive(Clone)]
@@ -78,7 +78,7 @@ struct SessionContextProtected {
     locks: FxHashSet<PrimaryKey>,
 }
 
-struct SessionContext {
+pub(super) struct SessionContext {
     inside: StdMutex<SessionContextProtected>,
     conversation: Arc<ConversationSession>,
 }
@@ -438,9 +438,13 @@ async fn inbox_event<'b>(
         }
     }
 
-    let chain = match context.inside.lock().chain.clone() {
+    let chain = context.inside.lock().chain.clone();
+    let chain = match chain {
         Some(a) => a,
-        None => { return Ok(()); }
+        None => {
+            tx.send_reply_msg(Message::FatalTerminate(FatalTerminate::NotYetSubscribed)).await?;
+            bail!(CommsErrorKind::NotYetSubscribed);
+        }
     };
     let commit = commit.clone();
     
@@ -494,9 +498,13 @@ async fn inbox_lock<'b>(
 {
     trace!("lock {}", key);
 
-    let chain = match context.inside.lock().chain.clone() {
+    let chain = context.inside.lock().chain.clone();
+    let chain = match chain {
         Some(a) => a,
-        None => { return Ok(()); }
+        None => {
+            tx.send_reply_msg(Message::FatalTerminate(FatalTerminate::NotYetSubscribed)).await?;
+            bail!(CommsErrorKind::NotYetSubscribed);
+        }
     };
 
     let is_locked = chain.pipe.try_lock(key.clone()).await?;
@@ -508,17 +516,22 @@ async fn inbox_lock<'b>(
     }).await
 }
 
-async fn inbox_unlock(
+async fn inbox_unlock<'b>(
     context: Arc<SessionContext>,
     key: PrimaryKey,
+    tx: &'b mut Tx
 )
 -> Result<(), CommsError>
 {
     trace!("unlock {}", key);
 
-    let chain = match context.inside.lock().chain.clone() {
+    let chain = context.inside.lock().chain.clone();
+    let chain = match chain {
         Some(a) => a,
-        None => { return Ok(()); }
+        None => {
+            tx.send_reply_msg(Message::FatalTerminate(FatalTerminate::NotYetSubscribed)).await?;
+            bail!(CommsErrorKind::NotYetSubscribed);
+        }
     };
     
     context.inside.lock().locks.remove(&key);
@@ -531,6 +544,7 @@ async fn inbox_subscribe<'b>(
     hello_path: &str,
     chain_key: ChainKey,
     from: ChainTimestamp,
+    redirect: bool,
     context: Arc<SessionContext>,
     tx: &'b mut Tx
 )
@@ -539,7 +553,7 @@ async fn inbox_subscribe<'b>(
     trace!("subscribe: {}", chain_key.to_string());
 
     // First lets check if this connection is meant for this server
-    let (_, node_id) = match root.lookup.lookup(&chain_key) {
+    let (node_addr, node_id) = match root.lookup.lookup(&chain_key) {
         Some(a) => a,
         None => {
             tx.send_reply_msg(Message::FatalTerminate(FatalTerminate::NotThisRoot)).await?;
@@ -548,12 +562,27 @@ async fn inbox_subscribe<'b>(
     };
     
     // Reject the request if its from the wrong machine
-    if root.node_id != node_id {
-        tx.send_reply_msg(Message::FatalTerminate(FatalTerminate::RootRedirect {
-            actual: node_id,
-            expected: root.node_id
-        })).await?;
-        return Ok(());
+    if root.node_id != node_id
+    {
+        if redirect {
+            let relay_tx = super::redirect::redirect::<SessionContext>(
+                root,
+                node_addr,
+                hello_path,
+                chain_key,
+                from,
+                tx.take()).await?;
+            tx.set_relay(relay_tx);
+
+            return Ok(());
+        } else {
+            // Fail to redirect
+            tx.send_reply_msg(Message::FatalTerminate(FatalTerminate::RootRedirect {
+                actual: node_id,
+                expected: root.node_id
+            })).await?;
+            return Ok(());
+        }
     }
 
     // Create the open context
@@ -580,7 +609,7 @@ async fn inbox_subscribe<'b>(
                     tx.send_reply_msg(Message::FatalTerminate(FatalTerminate::Other {
                         err: err.clone()
                     })).await?;
-                    bail!(CommsErrorKind::RootServerError(err));
+                    bail!(CommsErrorKind::FatalError(err));
                 }
             };
             chain
@@ -608,11 +637,17 @@ async fn inbox_unsubscribe<'b>(
     _root: Arc<MeshRoot>,
     chain_key: ChainKey,
     _tx: &'b mut StreamTxChannel,
-    _session_context: Arc<SessionContext>,
+    context: Arc<SessionContext>,
 )
 -> Result<(), CommsError>
 {
     debug!(" unsubscribe: {}", chain_key.to_string());
+
+    // Clear the chain this is operating on
+    {
+        let mut guard = context.inside.lock();
+        guard.chain.take();
+    }
 
     Ok(())
 }
@@ -637,9 +672,9 @@ async fn inbox_packet<'b>(
         let pck = pck.packet;
 
         match pck.msg {
-            Message::Subscribe { chain_key, from } => {                    
+            Message::Subscribe { chain_key, from, allow_redirect: redirect } => {                    
                     let hello_path = tx.hello_path.clone();
-                    inbox_subscribe(root, hello_path.as_str(), chain_key, from, context, tx)
+                    inbox_subscribe(root, hello_path.as_str(), chain_key, from, redirect, context, tx)
                         .instrument(span!(Level::DEBUG, "subscribe"))
                         .await?;
                 },
@@ -654,7 +689,7 @@ async fn inbox_packet<'b>(
                         .await?;
                 },
             Message::Unlock { key }=> {
-                    inbox_unlock(context, key)
+                    inbox_unlock(context, key, tx)
                         .instrument(span!(Level::DEBUG, "unlock"))
                         .await?;
                 },

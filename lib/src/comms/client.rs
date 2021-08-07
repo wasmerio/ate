@@ -75,6 +75,7 @@ where M: Send + Sync + Serialize + DeserializeOwned + Default + Clone + 'static,
                 direction: TxDirection::Upcast(upstream),
                 hello_path: hello_path.clone(),
                 wire_format: conf.cfg_mesh.wire_format,
+                relay: None,
             },
         )
     }

@@ -22,6 +22,14 @@ pub(crate) enum TxDirection
     #[cfg(feature="enable_server")]
     Downcast(TxGroupSpecific),
     Upcast(Upstream),
+    Nullcast,
+}
+
+#[derive(Debug)]
+pub(crate) struct TxRelay
+{
+    pub direction: TxDirection,
+    pub wire_format: SerializationFormat,
 }
 
 #[derive(Debug)]
@@ -30,10 +38,31 @@ pub(crate) struct Tx
     pub hello_path: String,
     pub direction: TxDirection,
     pub wire_format: SerializationFormat,
+    pub relay: Option<TxRelay>,
 }
 
 impl Tx
 {
+    pub async fn send_relay_msg<M>(&mut self, msg: M) -> Result<(), CommsError>
+    where M: Send + Sync + Serialize + DeserializeOwned + Clone
+    {
+        if let Some(relay) = self.relay.as_mut() {
+            let pck = Packet::from(msg).to_packet_data(relay.wire_format)?;
+            match &mut relay.direction {
+                #[cfg(feature="enable_server")]
+                TxDirection::Downcast(tx) => {
+                    tx.send_reply(pck).await?;
+                },
+                TxDirection::Upcast(tx) => {
+                    tx.outbox.send(pck).await?;
+                },
+                TxDirection::Nullcast => {
+                }
+            }
+        }
+        Ok(())
+    }
+
     pub async fn send_reply(&mut self, pck: PacketData) -> Result<(), CommsError> {
         match &mut self.direction {
             #[cfg(feature="enable_server")]
@@ -43,6 +72,8 @@ impl Tx
             TxDirection::Upcast(tx) => {
                 tx.outbox.send(pck).await?;
             },
+            TxDirection::Nullcast => {
+            }
         };
         Ok(())
     }
@@ -75,6 +106,8 @@ impl Tx
             TxDirection::Upcast(tx) => {
                 tx.outbox.send(pck).await?;
             },
+            TxDirection::Nullcast => {
+            }
         };
         Ok(())
     }
@@ -107,6 +140,37 @@ impl Tx
             }
             _ => { }
         };
+    }
+
+    pub fn take(&mut self) -> Tx
+    {
+        let mut direction = TxDirection::Nullcast;
+        std::mem::swap(&mut self.direction, &mut direction);
+
+        let ret = Tx {
+            hello_path: self.hello_path.clone(),
+            direction,
+            wire_format: self.wire_format.clone(),
+            relay: None,
+        };
+        ret
+    }
+
+    pub fn replace(&mut self, mut tx: Tx) -> Tx
+    {
+        std::mem::swap(&mut self.hello_path, &mut tx.hello_path);
+        std::mem::swap(&mut self.direction, &mut tx.direction);
+        std::mem::swap(&mut self.wire_format, &mut tx.wire_format);
+        std::mem::swap(&mut self.relay, &mut tx.relay);
+        tx
+    }
+
+    pub fn set_relay(&mut self, mut tx: Tx)
+    {
+        self.relay.replace(TxRelay {
+            direction: tx.direction,
+            wire_format: tx.wire_format
+        });
     }
 }
 

@@ -39,4 +39,6 @@ pub use stream::StreamProtocol;
 
 #[cfg(feature="server")]
 pub(crate) use listener::ServerProcessor;
+#[cfg(feature="server")]
+pub(crate) use listener::ServerProcessorFascade;
 pub(crate) use helper::InboxProcessor;

@@ -60,7 +60,7 @@ where Self: Send + Sync,
     async fn shutdown(&self, addr: SocketAddr);
 }
 
-struct ServerProcessorFascade<M, C>
+pub(crate) struct ServerProcessorFascade<M, C>
 where M: Send + Sync + Serialize + DeserializeOwned + Clone + Default,
       C: Send + Sync + 'static,
 {
@@ -294,7 +294,8 @@ impl Listener
                 me_id: node_id,
                 me_tx: Arc::clone(&tx),
                 group: Arc::new(Mutex::new(group)),
-            })
+            }),
+            relay: None,
         };
 
         // The fascade makes the transmit object available

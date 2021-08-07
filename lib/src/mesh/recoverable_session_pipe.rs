@@ -136,6 +136,7 @@ impl RecoverableSessionPipe
         node_tx.send_reply_msg(Message::Subscribe {
             chain_key: self.key.clone(),
             from,
+            allow_redirect: true,
         }).await?;
         
         // Set the pipe and drop the lock so that events can be fed correctly

@@ -171,13 +171,11 @@ async fn test_mesh()
     }
 
     {
-        // -DISABLED- need to implement this in the future!
-        //
         // Find an address where the chain is 'not' owned which will mean the
         // server needs to do a cross connect in order to pass this test\
         // (this is needed for the WebAssembly model as this can not support
         //  client side load-balancing)
-        //cfg_mesh.force_connect = cfg_mesh.roots.iter().filter(|a| Some(*a) != chain_a.remote_addr()).map(|a| a.clone()).next();
+        cfg_mesh.force_connect = cfg_mesh.roots.iter().filter(|a| Some(*a) != chain_a.remote_addr()).map(|a| a.clone()).next();
         
         cfg_mesh.force_listen = None;
         cfg_mesh.force_client_only = true;
