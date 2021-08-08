@@ -5,6 +5,7 @@ use async_trait::async_trait;
 use fxhash::FxHashMap;
 use bytes::*;
 use tokio::io::Result;
+use std::pin::Pin;
 
 use crate::{crypto::*, redo::LogLookup};
 use crate::event::*;
@@ -47,6 +48,14 @@ for LogFileMemDb
     {
         self.header = header_bytes;
         Ok(())
+    }
+
+    fn backup(&mut self, _include_active_files: bool) -> Result<Pin<Box<dyn futures::Future<Output=Result<()>>>>>
+    {
+        let ret = async move {
+            Ok(())
+        };
+        Ok(Box::pin(ret))
     }
 
     async fn copy(&mut self) -> Result<Box<dyn LogFile>>

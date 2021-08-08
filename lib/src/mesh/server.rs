@@ -56,8 +56,8 @@ pub struct MeshRoute
 
 pub struct MeshChain
 {
-    chain: Weak<Chain>,
-    tx_group: Weak<Mutex<TxGroup>>,
+    chain: Arc<Chain>,
+    tx_group: Arc<Mutex<TxGroup>>,
 }
 
 pub struct MeshRoot
@@ -212,6 +212,37 @@ impl MeshRoot
         
         Ok(())
     }
+
+    pub async fn shutdown(self: &Arc<Self>)
+    {
+        TaskEngine::run_until(self.__shutdown()
+            .instrument(span!(Level::INFO, "shutdown"))
+            .instrument(span!(Level::INFO, "server"))
+        ).await
+    }
+
+    pub async fn __shutdown(self: &Arc<Self>)
+    {
+        {
+            let mut guard = self.listener.lock();
+            guard.take();
+        }
+
+        {
+            let mut guard = self.routes.lock();
+            guard.clear();
+        }
+
+        {
+            let mut guard = self.chains.lock().await;
+            for (_, v) in guard.drain() {
+                if let Err(err) = v.chain.shutdown().await {
+                    error!("failed to shutdown chain - {}", err);
+                }
+            }
+        }
+
+    }
 }
 
 fn disconnected(mut context: SessionContextProtected) -> Result<(), CommsError> {
@@ -286,12 +317,8 @@ async fn open_internal<'b>(
     {
         let chains = root.chains.lock().await;
         if let Some(chain) = chains.get(&route_chain) {
-            if let Some(group) = chain.tx_group.upgrade() {
-                if let Some(chain) = chain.chain.upgrade() {
-                    tx.replace_group(group).await;
-                    return Ok(chain);
-                }
-            }
+            tx.replace_group(Arc::clone(&chain.tx_group)).await;
+            return Ok(Arc::clone(&chain.chain));
         }
     }
 
@@ -368,23 +395,15 @@ async fn open_internal<'b>(
     match chains.entry(route_chain.clone()) {
         Entry::Occupied(o) => {
             let o = o.into_mut();
-            if let Some(group) = Weak::upgrade(&o.tx_group) {                
-                if let Some(chain) = o.chain.upgrade() {
-                    tx.replace_group(group).await;
-                    return Ok(chain);
-                }
-            }
-            tx.replace_group(Arc::clone(&new_tx_group)).await;
-            o.chain = Arc::downgrade(&new_chain);
-            o.tx_group = Arc::downgrade(&new_tx_group);
-            o
+            tx.replace_group(Arc::clone(&o.tx_group)).await;
+            return Ok(Arc::clone(&o.chain));
         },
         Entry::Vacant(v) =>
         {
             tx.replace_group(Arc::clone(&new_tx_group)).await;
             v.insert(MeshChain {
-                chain: Arc::downgrade(&new_chain),
-                tx_group: Arc::downgrade(&new_tx_group),  
+                chain: Arc::clone(&new_chain),
+                tx_group: new_tx_group,
             })
         }
     };

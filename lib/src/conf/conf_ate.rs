@@ -93,7 +93,7 @@ for ConfAte
             dns_server: "8.8.8.8".to_string(),
             recovery_mode: RecoveryMode::ReadOnlyAsync,
             backup_path: None,
-            backup_mode: BackupMode::None,
+            backup_mode: BackupMode::Full,
             compact_mode: CompactMode::Never,
             compact_bootstrap: false,
             sync_tolerance: Duration::from_secs(30),

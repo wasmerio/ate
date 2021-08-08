@@ -15,7 +15,7 @@
         + Add backup-to-path functionality which allows data to be stored and fetched from
           a backup remote folder
         + Modify chain creation path so that it first checks for backups to restore from
-          which thus allows for dynamic group of the mesh cluster (awesome!)
+          which thus allows for dynamic group of nodes in the mesh cluster (awesome!)
         + Creating auth-groups should check against domain names when they are not pre-qualified
           otherwise they need to be postfix with fcfs (first-come-first-serve) domain name end.
         + All databases that get created can be associated with the same group by using a path

@@ -170,6 +170,8 @@ async fn main_solo(solo: Solo, mut cfg_ate: ConfAte, auth: Option<url::Url>, tru
     while *exit.borrow() == false {
         exit.changed().await.unwrap();
     }
+    println!("Shutting down...");
+    server.shutdown().await;
     println!("Goodbye!");
     Ok(())
 }

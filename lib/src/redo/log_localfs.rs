@@ -2,6 +2,7 @@
 use tracing::{error, info, warn, debug};
 use error_chain::bail;
 use async_trait::async_trait;
+use std::pin::Pin;
 
 #[cfg(feature = "enable_caching")]
 use cached::Cached;
@@ -35,7 +36,8 @@ pub(crate) struct LogFileCache
 
 pub(super) struct LogFileLocalFs
 {
-    pub(crate) path: String,
+    pub(crate) log_path: String,
+    pub(crate) backup_path: Option<String>,
     pub(crate) temp: bool,
     pub(crate) lookup: FxHashMap<AteHash, LogLookup>,
     pub(crate) appender: LogAppender,
@@ -46,36 +48,59 @@ pub(super) struct LogFileLocalFs
 
 impl LogFileLocalFs
 {
-    pub(super) async fn new(temp_file: bool, path_log: String, restore_path: Option<String>, truncate: bool, _cache_size: usize, _cache_ttl: u64, header_bytes: Vec<u8>) -> Result<Box<LogFileLocalFs>>
+    pub(super) async fn new(temp_file: bool, path_log: String, backup_path: Option<String>, restore_path: Option<String>, truncate: bool, _cache_size: usize, _cache_ttl: u64, header_bytes: Vec<u8>) -> Result<Box<LogFileLocalFs>>
     {
         info!("open at {}", path_log);
-        
+
         // Load all the archives
         let mut archives = FxHashMap::default();
         let mut n = 0 as u32;
 
-        // If there are any backups then restore them (but do not override any local
-        // files that already exist)
-        if let Some(restore_path) = restore_path {
+        // If there are any backups then restore them and mark them as an
+        // archive file
+        if let Some(restore_path) = &restore_path {
+            let mut n = 0 as u32;
             loop
             {
-                let source = format!("{}.{}", restore_path.clone(), n + 1);
-                if std::path::Path::new(source.as_str()).exists() == false {
+                let source_path = format!("{}.{}", restore_path, n);
+                let source = std::path::Path::new(source_path.as_str());
+                if source.exists() == false {
                     break;
                 }
 
-                let dest = format!("{}.{}", path_log.clone(), n + 1);
-                if std::path::Path::new(source.as_str()).exists() == true {
+                let dest_path = format!("{}.{}", path_log, n);
+                let dest = std::path::Path::new(dest_path.as_str());
+                if dest.exists() == true && source.metadata()?.len() > dest.metadata()?.len() {
+                    n = n + 1;
                     continue;
                 }
 
-                if let Err(err) = std::fs::copy(source.clone(), dest.clone()) {
-                    warn!("error while restoring log file({}) - {}", source, err);
+                // If its a temp file then fail as this would be unsupported behaviour
+                if temp_file {
+                    return Err(tokio::io::Error::new(ErrorKind::AlreadyExists, "Can not start a temporary redo log when there are existing backup files."));
                 }
+
+                // We stage the file copy first so that if its interrupted that it will
+                // not cause a partially copied log file to be loaded or the restoration
+                // process from trying again
+                let dest_stage_path = format!("{}.{}.staged", restore_path, n);
+                let dest_stage = std::path::Path::new(dest_stage_path.as_str());
+                if let Err(err) = std::fs::copy(source, dest_stage) {
+                    warn!("error while restoring log file({}) - {}", source_path, err);
+                    return Err(err);
+                }
+                std::fs::rename(dest_stage, dest)?;
+                
+                // Add the file as pure archive with no appender
+                archives.insert(n , LogArchive::new(path_log.clone(), n).await?);
+                n = n + 1;
             }
 
         }
-        
+
+        // Now load any archives that exist but have not yet been loaded, archives
+        // exist when there is more than one file remaining thus the very last
+        // file is actually considered the active log file.
         loop
         {
             // If the next file does not exist then there are no more archives
@@ -110,7 +135,8 @@ impl LogFileLocalFs
         
         // Log file
         let ret = LogFileLocalFs {
-            path: path_log,
+            log_path: path_log,
+            backup_path: backup_path,
             temp: temp_file,
             lookup: FxHashMap::default(),
             appender,
@@ -256,7 +282,7 @@ for LogFileLocalFs
         
         // Create a new appender
         let (new_appender, new_archive) = LogAppender::new(
-            self.path.clone(),
+            self.log_path.clone(),
             false,
             next_index,
             &header_bytes[..]
@@ -268,6 +294,66 @@ for LogFileLocalFs
 
         // Success
         Ok(())
+    }
+
+    fn backup(&mut self, include_active_files: bool) -> Result<Pin<Box<dyn futures::Future<Output=Result<()>>>>>
+    {
+        // If this a temporary file then fail
+        if self.temp {
+            return Err(tokio::io::Error::new(ErrorKind::PermissionDenied, "Can not backup a temporary redo log - only persistent logs support this behaviour."));
+        }
+
+        // Make the actual backups but do it asynchronously
+        let mut delayed = Vec::new();
+        if let Some(restore_path) = &self.backup_path {
+            let end = if include_active_files {
+                self.appender.index + 1
+            } else {
+                self.appender.index
+            };
+            let mut n = 0 as u32;
+            while n < end
+            {
+                let source_path = format!("{}.{}", self.log_path, n);
+                let source = std::path::Path::new(source_path.as_str());
+                if source.exists() == false {
+                    break;
+                }
+
+                let dest_path = format!("{}.{}", restore_path, n);
+                let dest = std::path::Path::new(dest_path.as_str());
+                if dest.exists() == true && source.metadata()?.len() > dest.metadata()?.len() {
+                    n = n + 1;
+                    continue;
+                }
+
+                let dest_stage_path = format!("{}.{}.staged", restore_path, n);
+                delayed.push(async move {
+                    let source = std::path::Path::new(source_path.as_str());
+                    let dest = std::path::Path::new(dest_path.as_str());
+                    let dest_stage = std::path::Path::new(dest_stage_path.as_str());
+
+                    tokio::fs::copy(source, dest_stage).await?;
+                    std::fs::rename(dest_stage, dest)?;
+                    Ok(())
+                });
+                n = n + 1;
+            }
+        }
+
+        // Return a future that will complete all the IO copy operations
+        // (this is done outside this function to prevent the backup operation
+        //  from freezing the database while its executing)
+        let ret = async move {
+            for delayed in delayed {
+                if let Err(err) = delayed.await {
+                    warn!("error while backing up log file - {}", err);
+                    return Err(err);
+                }
+            }
+            Ok(())
+        };
+        Ok(Box::pin(ret))
     }
 
     async fn copy(&mut self) -> Result<Box<dyn LogFile>>
@@ -290,7 +376,8 @@ for LogFileLocalFs
 
         Ok(
             Box::new(LogFileLocalFs {
-                path: self.path.clone(),
+                log_path: self.log_path.clone(),
+                backup_path: self.backup_path.clone(),
                 temp: self.temp,
                 lookup: self.lookup.clone(),
                 appender: self.appender.clone().await?,
@@ -465,7 +552,7 @@ for LogFileLocalFs
             // Move the flipped logs over to replace the originals
             let mut n = 0;
             loop {
-                let path_from = format!("{}.{}", self.path.clone(), n);
+                let path_from = format!("{}.{}", self.log_path.clone(), n);
                 let path_to = format!("{}.{}", new_path, n);
 
                 if std::path::Path::new(path_from.as_str()).exists() == false {
@@ -488,7 +575,7 @@ for LogFileLocalFs
                 n = n + 1;
             }
         }
-        self.path = new_path.clone();
+        self.log_path = new_path.clone();
         Ok(())
     }
 
@@ -557,7 +644,7 @@ for LogFileLocalFs
         // Now delete all the log files
         let mut n = 0;
         loop {
-            let path_old = format!("{}.{}", self.path, n);
+            let path_old = format!("{}.{}", self.log_path, n);
             if std::path::Path::new(path_old.as_str()).exists() == true {
                 std::fs::remove_file(path_old)?;
             } else {
@@ -570,7 +657,7 @@ for LogFileLocalFs
 
     async fn begin_flip(&self, header_bytes: Vec<u8>) -> Result<Box<dyn LogFile>> {
         let ret = {
-            let path_flip = format!("{}.flip", self.path);
+            let path_flip = format!("{}.flip", self.log_path);
 
             #[cfg(feature = "enable_caching")]
             let (cache_size, cache_ttl) = {
@@ -586,7 +673,8 @@ for LogFileLocalFs
 
             LogFileLocalFs::new(
                 self.temp, 
-                path_flip, 
+                path_flip,
+                self.backup_path.clone(),
                 None,
                 true, 
                 cache_size, 

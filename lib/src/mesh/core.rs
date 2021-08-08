@@ -109,12 +109,10 @@ pub enum BackupMode
     // The system will not automatically backup data but it will restore data files from
     // the backup store before creating new empty log files. This is ideal for migration
     // environments or replicas.
-    RestoreOnly,
-    // Regular backups will be made to the target backup location whenever a log file
-    // rotate is actioned or the process shuts down however no automatic restoration
-    // will take place. This will protect your data however data recovery is a manual
-    // process.
-    BackupOnly,
+    Restore,
+    // Backups will be made whenever the log files rotate and when the system loads then
+    // the restoration folder will be checked before it brings online any backups.
+    Rotating,
     // ATE will automatically backup data to the backup location whenever the log files
     // rotate or the process shuts down. Upon bringing online a new chain-of-trust the
     // backup files will be checked first before starting a new log-file thus providing
@@ -131,14 +129,12 @@ for BackupMode
         match s {
             "off" => Ok(BackupMode::None),
             "none" => Ok(BackupMode::None),
-            "restore" => Ok(BackupMode::RestoreOnly),
-            "restore-only" => Ok(BackupMode::RestoreOnly),
-            "backup" => Ok(BackupMode::BackupOnly),
-            "backup-only" => Ok(BackupMode::BackupOnly),
+            "restore" => Ok(BackupMode::Restore),
+            "rotating" => Ok(BackupMode::Rotating),
             "full" => Ok(BackupMode::Full),
             "auto" => Ok(BackupMode::Full),
             "on" => Ok(BackupMode::Full),
-            _ => Err("valid values are 'none', 'restore-only', 'backup-only' and 'full'"),
+            _ => Err("valid values are 'none', 'restore', 'rotating' and 'full'"),
         }
     }
 }

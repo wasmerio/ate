@@ -31,6 +31,7 @@ pub(crate) struct ChainProtectedAsync
     pub(crate) disable_new_roots: bool,
     pub(crate) sync_tolerance: Duration,
     pub(crate) listeners: MultiMap<MetaCollection, ChainListener>,
+    pub(crate) is_shutdown: bool,
 }
 
 impl ChainProtectedAsync

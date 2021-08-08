@@ -6,6 +6,7 @@ use std::{collections::VecDeque};
 use tokio::io::Result;
 use tokio::io::Error;
 use tokio::io::ErrorKind;
+use std::pin::Pin;
 
 use crate::crypto::*;
 #[cfg(feature = "enable_local_fs")]
@@ -16,6 +17,7 @@ use crate::event::*;
 use crate::error::*;
 use crate::loader::*;
 use crate::redo::LogLookup;
+use crate::mesh::BackupMode;
 
 use super::*;
 use super::flip::RedoLogFlip;
@@ -40,7 +42,7 @@ pub struct RedoLog
 impl RedoLog
 {
     #[cfg(feature = "enable_local_fs")]
-    async fn new(path_log: Option<String>, restore_path: Option<String>, flags: OpenFlags, cache_size: usize, cache_ttl: u64, loader: Box<impl Loader>, header_bytes: Vec<u8>) -> std::result::Result<RedoLog, SerializationError>
+    async fn new(path_log: Option<String>, backup_path: Option<String>, restore_path: Option<String>, flags: OpenFlags, cache_size: usize, cache_ttl: u64, loader: Box<impl Loader>, header_bytes: Vec<u8>) -> std::result::Result<RedoLog, SerializationError>
     {
         // Now load the real thing
         let ret = RedoLog {
@@ -50,6 +52,7 @@ impl RedoLog
                     let mut log_file = LogFileLocalFs::new(
                         flags.temporal,
                         path_log,
+                        backup_path,
                         restore_path,
                         flags.truncate,
                         cache_size,
@@ -82,6 +85,10 @@ impl RedoLog
     #[cfg(feature = "enable_rotate")]
     pub async fn rotate(&mut self, header_bytes: Vec<u8>) -> Result<()> {
         Ok(self.log_file.rotate(header_bytes).await?)
+    }
+
+    pub fn backup(&mut self, include_active_files: bool) -> Result<Pin<Box<dyn futures::Future<Output=Result<()>>>>> {
+        Ok(self.log_file.backup(include_active_files)?)
     }
 
     pub async fn begin_flip(&mut self, header_bytes: Vec<u8>) -> Result<FlippedLogFile> {
@@ -222,7 +229,7 @@ impl RedoLog
             let _ = std::fs::create_dir_all(path.parent().unwrap().clone());
         }
 
-        let restore_path = {
+        let mut backup_path = {
             match cfg.backup_path.as_ref() {
                 Some(a) if a.ends_with("/") => Some(format!("{}{}.log", a, key_name)),
                 Some(a) => Some(format!("{}/{}.log", a, key_name)),
@@ -230,14 +237,23 @@ impl RedoLog
             }
         };
 
-        if let Some(restore_path) = restore_path.as_ref() {
-            let path = std::path::Path::new(restore_path);
+        if let Some(backup_path) = backup_path.as_ref() {
+            let path = std::path::Path::new(backup_path);
             let _ = std::fs::create_dir_all(path.parent().unwrap().clone());
         }
 
+        let mut restore_path = backup_path.clone();
+        match cfg.backup_mode {
+            BackupMode::None => { restore_path = None; backup_path = None; }
+            BackupMode::Restore => { backup_path = None; }
+            BackupMode::Rotating => { }
+            BackupMode::Full => { }
+        };
+        
         let log = {
             RedoLog::new(
                 path_log.clone(),
+                backup_path.clone(),
                 restore_path.clone(),
                 flags,
                 cfg.load_cache_size,

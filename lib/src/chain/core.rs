@@ -18,6 +18,7 @@ use crate::pipe::*;
 use crate::meta::*;
 use crate::spec::*;
 use crate::conf::ConfAte;
+use crate::mesh::BackupMode;
 use crate::redo::RedoLog;
 use crate::time::TimeKeeper;
 use crate::transaction::TransactionScope;
@@ -159,6 +160,29 @@ impl<'a> Chain
     {
         let guard = self.inside_async.read().await;
         guard.chain.timeline.pointers.get_pending_uploads()
+    }
+
+    pub(crate) async fn shutdown(&self) -> Result<(), tokio::io::Error>
+    {
+        self.run_async(self.__shutdown()).await
+    }
+
+    async fn __shutdown(&self) -> Result<(), tokio::io::Error>
+    {
+        let include_active_files = match self.cfg_ate.backup_mode {
+            BackupMode::None => { return Ok(()); },
+            BackupMode::Restore => { return Ok(()); },
+            BackupMode::Rotating => false,
+            BackupMode::Full => true,
+        };
+        
+        let mut single = self.single().await;
+        if single.inside_async.is_shutdown == false {
+            single.inside_async.is_shutdown = true;
+            
+            single.inside_async.chain.redo.backup(include_active_files)?.await?;
+        }
+        Ok(())
     }
 }
 

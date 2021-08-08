@@ -29,6 +29,7 @@ fn test_opts() -> Opts {
             remote: Url::parse("ws://tokera.com/db/").unwrap(),
             remote_name: Some("myfs".to_string()),
             log_path: Some("~/ate/fs".to_string()),
+            backup_path: None,
             recovery_mode: RecoveryMode::ReadOnlyAsync,
             passcode: None,
             temp: false,

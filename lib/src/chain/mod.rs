@@ -8,6 +8,7 @@ mod workers;
 mod compact;
 #[cfg(feature = "enable_rotate")]
 mod rotate;
+mod backup;
 
 pub use self::core::*;
 pub use new::*;

@@ -108,6 +108,8 @@ async fn main() -> Result<(), AteError>
             while *exit.borrow() == false {
                 exit.changed().await.unwrap();
             }
+            println!("Shutting down...");
+            server.shutdown().await;
             println!("Goodbye!");
         },
 

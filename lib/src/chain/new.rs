@@ -166,6 +166,7 @@ impl<'a> Chain
             disable_new_roots: false,
             sync_tolerance: builder.cfg_ate.sync_tolerance,
             listeners: MultiMap::new(),
+            is_shutdown: false,
         };
 
         // Check all the process events
