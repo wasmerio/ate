@@ -25,7 +25,7 @@ impl ChainFlow
         ChainFlow {
             cfg: cfg.clone(),
             regex_personal: Regex::new("^([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})/([a-z0-9\\.!#$%&'*+/=?^_`{|}~-]{1,})/([a-zA-Z0-9_]{1,})$").unwrap(),
-            regex_group: Regex::new("^([a-zA-Z0-9_]{0,})$").unwrap(),
+            regex_group: Regex::new("^([a-zA-Z0-9_]{1,})/([a-zA-Z0-9_]{1,})$").unwrap(),
             mode,
             url_auth,
             url_db,
@@ -104,10 +104,10 @@ for ChainFlow
         }
 
         // The path may match a group that was created
-        if let Some(_captures) = self.regex_group.captures(path.as_str())
+        if let Some(captures) = self.regex_group.captures(path.as_str())
         {
             // Get the auth
-            let group = path.clone();
+            let group = captures.get(0).unwrap().as_str().to_string();
             let auth = match &self.url_auth {
                 Some(a) => a.clone(),
                 None => {

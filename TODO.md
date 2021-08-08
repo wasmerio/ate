@@ -16,12 +16,11 @@
           a backup remote folder
         + Modify chain creation path so that it first checks for backups to restore from
           which thus allows for dynamic group of nodes in the mesh cluster (awesome!)
-        + Creating auth-groups should check against domain names when they are not pre-qualified
-          otherwise they need to be postfix with fcfs (first-come-first-serve) domain name end.
         + All databases that get created can be associated with the same group by using a path
           postfix of the group which allows multiple databases to use the same group
         + Add an (optional) terms and conditions check on user creation
-        + Add message-of-the-day on connecting to databases in ATE
+        + Add an (optional) message-of-the-day on connecting to databases in ATE
+        + Add an (optional) reject connection message from the server
 
 0.8.3   Tokera release.
 
