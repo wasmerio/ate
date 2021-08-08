@@ -20,7 +20,7 @@ async fn main() -> Result<(), AteError>
     #[cfg(not(feature="enable_dns"))]
     let cfg_mesh = ConfMesh::solo_from_url(&cfg_ate, &url)?;
     info!("create a persistent server");
-    let _server = create_persistent_centralized_server(&cfg_ate, &cfg_mesh).await?;
+    let server = create_persistent_centralized_server(&cfg_ate, &cfg_mesh).await?;
 
     info!("write some data to the server");    
 
@@ -45,6 +45,8 @@ async fn main() -> Result<(), AteError>
 
         assert_eq!(*dao, "my test string".to_string());
     }
-    
+ 
+    server.shutdown().await;
+
     Ok(())
 }

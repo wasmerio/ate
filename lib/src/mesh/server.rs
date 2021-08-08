@@ -213,6 +213,33 @@ impl MeshRoot
         Ok(())
     }
 
+    pub async fn clean(self: &Arc<Self>)
+    {
+        TaskEngine::run_until(self.__clean()
+            .instrument(span!(Level::INFO, "clean"))
+            .instrument(span!(Level::INFO, "server"))
+        ).await
+    }
+
+    pub async fn __clean(self: &Arc<Self>)
+    {
+        let mut shutdown_me = Vec::new();
+        let mut guard = self.chains.lock().await;
+        guard.retain(|k, v| {
+            if Arc::downgrade(&v.chain).strong_count() <= 1 {
+                shutdown_me.push(Arc::clone(&v.chain));
+                false
+            } else {
+                true
+            }
+        });
+        for chain in shutdown_me {
+            if let Err(err) = chain.shutdown().await {
+                error!("failed to shutdown chain - {}", err);
+            }
+        }
+    }
+
     pub async fn shutdown(self: &Arc<Self>)
     {
         TaskEngine::run_until(self.__shutdown()
@@ -241,7 +268,6 @@ impl MeshRoot
                 }
             }
         }
-
     }
 }
 
@@ -322,6 +348,7 @@ async fn open_internal<'b>(
         }
     }
 
+    // Determine the route (if any)
     let route = {
         let routes = root.routes.lock();
         match routes.get(&route_chain.route) {
@@ -331,6 +358,9 @@ async fn open_internal<'b>(
             }
         }
     };
+
+    // Perform a clean of any chains that are out of scope
+    root.__clean().await;
 
     // Get the configuration
     let cfg_ate = {
