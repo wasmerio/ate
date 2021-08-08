@@ -147,6 +147,10 @@ where D: Serialize
         self.attach_ext(parent.clone(), 0u64)
     }
 
+    pub fn attach_orphaned_ext(&mut self, parent: &PrimaryKey, collection_id: u64) -> std::result::Result<(), SerializationError> {
+        self.attach_ext(parent.clone(),collection_id)
+    }
+
     pub fn add_extra_metadata(&mut self, meta: CoreMetadata) -> std::result::Result<(), SerializationError>
     {
         self.inner.row.extra_meta.push(meta);

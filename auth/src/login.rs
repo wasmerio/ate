@@ -153,7 +153,7 @@ impl AuthService
         }
 
         // Return the session that can be used to access this user
-        warn!("login attempt accepted ({})", request.email);
+        info!("login attempt accepted ({})", request.email);
         Ok(LoginResponse {
             user_key,
             nominal_read: user.nominal_read,

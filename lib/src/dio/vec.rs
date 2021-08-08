@@ -108,6 +108,24 @@ impl<D> DaoVec<D>
 
 impl<D> DaoVec<D>
 {
+    pub fn new_orphaned(dio: &Arc<Dio>, parent: PrimaryKey, vec_id: u64) -> DaoVec<D> {
+        DaoVec {
+            state: DaoVecState::Saved(parent),
+            dio: DioWeak::from(dio),
+            vec_id: vec_id,
+            _phantom1: PhantomData,
+        }
+    }
+
+    pub fn new_orphaned_mut(dio: &Arc<DioMut>, parent: PrimaryKey, vec_id: u64) -> DaoVec<D> {
+        DaoVec {
+            state: DaoVecState::Saved(parent),
+            dio: DioWeak::from(&dio.dio),
+            vec_id: vec_id,
+            _phantom1: PhantomData,
+        }
+    }
+
     pub fn dio(&self) -> Option<Arc<Dio>> {
         match &self.dio {
             DioWeak::Uninitialized => None,
