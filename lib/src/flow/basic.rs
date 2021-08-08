@@ -11,6 +11,7 @@ use crate::chain::ChainKey;
 use crate::conf::ChainBuilder;
 use crate::error::*;
 use crate::trust::IntegrityMode;
+use crate::chain::Chain;
 
 pub struct OpenStaticBuilder
 {
@@ -62,6 +63,10 @@ for OpenStaticBuilder
         "/"
     }
 
+    async fn message_of_the_day(&self, _chain: &Arc<Chain>) -> Result<Option<String>, ChainCreationError> {
+        Ok(None)
+    }
+
     async fn open(&self, mut builder: ChainBuilder, key: &ChainKey) -> Result<OpenAction, ChainCreationError> {
         debug!("open_static: {}", key.to_string());
 
@@ -80,8 +85,14 @@ for OpenStaticBuilder
         });
 
         Ok(match &self.centralized_integrity {
-            true => OpenAction::CentralizedChain(builder.temporal(self.temporal).build().open(&key).await?),
-            false => OpenAction::DistributedChain(builder.temporal(self.temporal).build().open(&key).await?),
+            true => OpenAction::CentralizedChain
+            {
+                chain: builder.temporal(self.temporal).build().open(&key).await?,
+            },
+            false => OpenAction::DistributedChain
+            {
+                chain: builder.temporal(self.temporal).build().open(&key).await?,
+            },
         })
     }
 }

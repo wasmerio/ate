@@ -138,7 +138,8 @@ impl AuthService
             nominal_write: user.nominal_write,
             sudo_read: user.sudo_read,
             sudo_write: user.sudo_write,
-            authority: session
+            authority: session,
+            message_of_the_day: None,
         })
     }
 }
@@ -166,6 +167,11 @@ pub async fn login_command(username: String, password: String, code: Option<Stri
     // Attempt the login request with a 10 second timeout
     let response: Result<LoginResponse, LoginFailed> = chain.invoke(login).await?;
     let result = response?;
+
+    // Success
+    if let Some(message_of_the_day) = result.message_of_the_day {
+        eprintln!("{}", message_of_the_day);
+    }
     Ok(result.authority)
 }
 

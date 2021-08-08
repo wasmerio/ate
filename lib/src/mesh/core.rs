@@ -139,6 +139,13 @@ for BackupMode
     }
 }
 
+/// Result of opening a chain-of-trust
+pub struct OpenedChain
+{
+    pub chain: Arc<Chain>,
+    pub message_of_the_day: Option<String>,
+}
+
 #[derive(Default)]
 pub struct MeshHashTable
 {

@@ -42,6 +42,11 @@ for ChainFlow
         self.url_db.path()
     }
 
+    async fn message_of_the_day(&self, _chain: &Arc<Chain>) -> Result<Option<String>, ChainCreationError>
+    {
+        Ok(None)
+    }
+
     async fn open(&self, mut builder: ChainBuilder, key: &ChainKey) -> Result<OpenAction, ChainCreationError>
     {
         trace!("open_db: {}", key);
@@ -57,7 +62,9 @@ for ChainFlow
 
             // Check for very naughty parameters
             if email.contains("..") || dbname.contains("..") || email.contains("~") || dbname.contains("~") {
-                return Ok(OpenAction::Deny(format!("The chain-key ({}) contains forbidden characters.", key.to_string()).to_string()));
+                return Ok(OpenAction::Deny {
+                    reason: format!("The chain-key ({}) contains forbidden characters.", key.to_string()).to_string()
+                });
             }
 
             // Grab the public write key from the authentication server for this user
@@ -65,7 +72,9 @@ for ChainFlow
                 let advert = match ate_auth::query_command(Arc::clone(&self.registry), email.clone(), auth.clone()).await {
                     Ok(a) => a.advert,
                     Err(err) => {
-                        return Ok(OpenAction::Deny(format!("Failed to create the chain as the query to the authentication server failed - {}.", err.to_string()).to_string()));
+                        return Ok(OpenAction::Deny {
+                            reason: format!("Failed to create the chain as the query to the authentication server failed - {}.", err.to_string()).to_string()
+                        });
                     }
                 };
                 let root_key = advert.nominal_auth;
@@ -98,8 +107,12 @@ for ChainFlow
 
             // We have opened the chain
             return match self.mode {
-                TrustMode::Centralized => Ok(OpenAction::CentralizedChain(chain)),
-                TrustMode::Distributed => Ok(OpenAction::DistributedChain(chain)),
+                TrustMode::Centralized => Ok(OpenAction::CentralizedChain {
+                    chain
+                }),
+                TrustMode::Distributed => Ok(OpenAction::DistributedChain {
+                    chain
+                }),
             };
         }
 
@@ -111,7 +124,9 @@ for ChainFlow
             let auth = match &self.url_auth {
                 Some(a) => a.clone(),
                 None => {
-                    return Ok(OpenAction::Deny(format!("Failed to create the chain for group ({}) as the server has no authentication endpoint configured.", group)));
+                    return Ok(OpenAction::Deny {
+                        reason: format!("Failed to create the chain for group ({}) as the server has no authentication endpoint configured.", group)
+                    });
                 }
             };
 
@@ -127,22 +142,32 @@ for ChainFlow
             let advert = match advert {
                 Ok(a) => a,
                 Err(GroupDetailsFailed::NoAccess) => {
-                    return Ok(OpenAction::Deny(format!("Failed to create the chain as the caller has no access to the authorization group({}), contact the owner of the group to add this user to the delegate role of that group.", path)));
+                    return Ok(OpenAction::Deny {
+                        reason: format!("Failed to create the chain as the caller has no access to the authorization group({}), contact the owner of the group to add this user to the delegate role of that group.", path)
+                    });
                 },
                 Err(GroupDetailsFailed::NoMasterKey) => {
-                    return Ok(OpenAction::Deny(format!("Failed to create the chain as the server has not yet been properly initialized.")));
+                    return Ok(OpenAction::Deny {
+                        reason: format!("Failed to create the chain as the server has not yet been properly initialized.")
+                    });
                 },
                 Err(GroupDetailsFailed::GroupNotFound) => {
-                    return Ok(OpenAction::Deny(format!("Failed to create the chain as no authorization group exists with the same name({}), please create one and try again.", path)));
+                    return Ok(OpenAction::Deny {
+                        reason: format!("Failed to create the chain as no authorization group exists with the same name({}), please create one and try again.", path)
+                    });
                 },
                 Err(GroupDetailsFailed::InternalError(code)) => {
-                    return Ok(OpenAction::Deny(format!("Failed to create the chain as the authentication group query failed due to an internal error - code={}.", code)));
+                    return Ok(OpenAction::Deny {
+                        reason: format!("Failed to create the chain as the authentication group query failed due to an internal error - code={}.", code)
+                    });
                 }
             };
 
             let role = match advert.roles.iter().filter(|r| r.purpose == AteRolePurpose::Delegate).next() {
                 Some(a) => a,
-                None => { return Ok(OpenAction::Deny(format!("Failed to create the chain as the group has no delegate role."))); }
+                None => { return Ok(OpenAction::Deny {
+                    reason: format!("Failed to create the chain as the group has no delegate role.")
+                }); }
             };
 
             builder = builder.add_root_public_key(&role.write);
@@ -172,12 +197,18 @@ for ChainFlow
 
             // We have opened the chain
             return match self.mode {
-                TrustMode::Centralized => Ok(OpenAction::CentralizedChain(chain)),
-                TrustMode::Distributed => Ok(OpenAction::DistributedChain(chain)),
+                TrustMode::Centralized => Ok(OpenAction::CentralizedChain {
+                    chain
+                }),
+                TrustMode::Distributed => Ok(OpenAction::DistributedChain {
+                    chain
+                }),
             };
         }
 
         // Ask the authentication server for the public key for this user
-        return Ok(OpenAction::Deny(format!("The chain-key ({}) does not match a valid pattern - for private databases it must be in the format of /gmail.com/joe.blogs/mydb where the owner of this chain is the user joe.blogs@gmail.com. - for shared databases you must first create a group with the same name.", key.to_string()).to_string()));
+        return Ok(OpenAction::Deny {
+            reason: format!("The chain-key ({}) does not match a valid pattern - for private databases it must be in the format of /gmail.com/joe.blogs/mydb where the owner of this chain is the user joe.blogs@gmail.com. - for shared databases you must first create a group with the same name.", key.to_string()).to_string()
+        });
     }
 }

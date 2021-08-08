@@ -143,6 +143,16 @@ impl MeshSession
         Ok(chain)
     }
 
+    pub(super) async fn inbox_human_message(self: &Arc<MeshSession>, message: String, loader: &mut Option<Box<dyn Loader>>) -> Result<(), CommsError> {
+        trace!("human-message len={}",message.len());
+
+        if let Some(loader) = loader.as_mut() {
+            loader.human_message(message);
+        }
+
+        Ok(())
+    }
+
     pub(super) async fn inbox_events(self: &Arc<MeshSession>, evts: Vec<MessageEvent>, loader: &mut Option<Box<dyn Loader>>) -> Result<(), CommsError> {
         trace!("events cnt={}", evts.len());
 
@@ -352,6 +362,12 @@ impl MeshSession
                 => {
                     Self::inbox_start_of_history(self, size, from, to, loader, root_keys, integrity)
                         .instrument(span!(Level::DEBUG, "start-of-history"))
+                        .await?;
+                },
+            Message::HumanMessage { message }
+                => {
+                    Self::inbox_human_message(self, message, loader)
+                        .instrument(span!(Level::DEBUG, "human-message"))
                         .await?;
                 },
             Message::Events { commit: _, evts }

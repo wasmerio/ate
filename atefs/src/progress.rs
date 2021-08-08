@@ -32,6 +32,15 @@ for LoadProgress
 impl Loader
 for LoadProgress
 {
+    fn human_message(&mut self, message: String) {
+        if self.bar.is_some() {
+            self.msg_done.push_str("\n");
+            self.msg_done.push_str(message.as_str());
+        } else {
+            eprintln!("{}", message);
+        }
+    }
+
     async fn start_of_history(&mut self, size: usize)
     {
         let handle = ::std::io::stderr();

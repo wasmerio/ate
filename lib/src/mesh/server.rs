@@ -338,17 +338,9 @@ async fn open_internal<'b>(
     root: Arc<MeshRoot>,
     route_chain: RouteChain,
     tx: &'b mut Tx,
-) -> Result<Arc<Chain>, ChainCreationError>
+) -> Result<OpenedChain, ChainCreationError>
 {
     debug!("open_internal {} - {}", route_chain.route, route_chain.chain);
-
-    {
-        let chains = root.chains.lock().await;
-        if let Some(chain) = chains.get(&route_chain) {
-            tx.replace_group(Arc::clone(&chain.tx_group)).await;
-            return Ok(Arc::clone(&chain.chain));
-        }
-    }
 
     // Determine the route (if any)
     let route = {
@@ -360,6 +352,18 @@ async fn open_internal<'b>(
             }
         }
     };
+
+    {
+        let chains = root.chains.lock().await;
+        if let Some(chain) = chains.get(&route_chain) {
+            tx.replace_group(Arc::clone(&chain.tx_group)).await;
+            let route = route.lock().await;
+            return Ok(OpenedChain {
+                message_of_the_day: route.flow.message_of_the_day(&chain.chain).await?,
+                chain: Arc::clone(&chain.chain),
+            });
+        }
+    }
 
     // Perform a clean of any chains that are out of scope
     root.__clean().await;
@@ -400,21 +404,21 @@ async fn open_internal<'b>(
         let route = route.lock().await;
         debug!("open_flow: {}", route.flow_type);    
         match route.flow.open(builder, &route_chain.chain).await? {
-            OpenAction::PrivateChain { chain, session} => {
+            OpenAction::PrivateChain { chain, session } => {
                 let msg = Message::SecuredWith(session);
                 let pck = Packet::from(msg).to_packet_data(root.cfg_mesh.wire_format)?;
                 tx.send_reply(pck).await?;
                 chain
             },
-            OpenAction::DistributedChain(c) => {
-                c.single().await.set_integrity(IntegrityMode::Distributed);
-                c
+            OpenAction::DistributedChain { chain } => {
+                chain.single().await.set_integrity(IntegrityMode::Distributed);
+                chain
             },
-            OpenAction::CentralizedChain(c) => {
-                c.single().await.set_integrity(IntegrityMode::Centralized);
-                c
+            OpenAction::CentralizedChain { chain } => {
+                chain.single().await.set_integrity(IntegrityMode::Centralized);
+                chain
             },
-            OpenAction::Deny(reason) => {
+            OpenAction::Deny{ reason } => {
                 bail!(ChainCreationErrorKind::ServerRejected(FatalTerminate::Denied {
                     reason
                 }));
@@ -424,11 +428,11 @@ async fn open_internal<'b>(
     
     // Insert it into the cache so future requests can reuse the reference to the chain
     let mut chains = root.chains.lock().await;
-    match chains.entry(route_chain.clone()) {
+    let new_chain = match chains.entry(route_chain.clone()) {
         Entry::Occupied(o) => {
             let o = o.into_mut();
             tx.replace_group(Arc::clone(&o.tx_group)).await;
-            return Ok(Arc::clone(&o.chain));
+            o
         },
         Entry::Vacant(v) =>
         {
@@ -439,7 +443,12 @@ async fn open_internal<'b>(
             })
         }
     };
-    Ok(new_chain)
+    
+    let route = route.lock().await;
+    Ok(OpenedChain {
+        message_of_the_day: route.flow.message_of_the_day(&new_chain.chain).await?,
+        chain: Arc::clone(&new_chain.chain),
+    })
 }
 
 #[derive(Clone)]
@@ -643,7 +652,7 @@ async fn inbox_subscribe<'b>(
     };
 
     // If we can't find a chain for this subscription then fail and tell the caller
-    let chain = match open_internal(Arc::clone(&root), route.clone(), tx).await {
+    let opened_chain = match open_internal(Arc::clone(&root), route.clone(), tx).await {
         Err(ChainCreationError(ChainCreationErrorKind::NotThisRoot, _)) => {
             tx.send_reply_msg(Message::FatalTerminate(FatalTerminate::NotThisRoot)).await?;
             return Ok(());
@@ -666,6 +675,14 @@ async fn inbox_subscribe<'b>(
             chain
         }
     };
+    let chain = opened_chain.chain;
+
+    // If there is a message of the day then transmit it to the caller
+    if let Some(message_of_the_day) = opened_chain.message_of_the_day {
+        tx.send_reply_msg(Message::HumanMessage {
+            message: message_of_the_day
+        }).await?;
+    }
 
     // Update the context with the latest chain-key
     {

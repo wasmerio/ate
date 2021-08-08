@@ -19,7 +19,8 @@ pub struct LoginResponse
     pub nominal_write: PublicSignKey,
     pub sudo_read: ate::crypto::AteHash,
     pub sudo_write: PublicSignKey,
-    pub authority: AteSession
+    pub authority: AteSession,
+    pub message_of_the_day: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

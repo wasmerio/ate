@@ -19,6 +19,9 @@ pub trait Loader: Send + Sync
     /// Function invoked when the start of the history is being loaded
     async fn start_of_history(&mut self, _size: usize) { }
 
+    /// Human message sent from the server to this process
+    fn human_message(&mut self, _message: String) { }
+
     /// Events are being processed
     fn feed_events(&mut self, _evts: &Vec<EventData>) { }
 
@@ -59,6 +62,13 @@ for CompositionLoader
     {
         for loader in self.loaders.iter_mut() {
             loader.start_of_history(size).await;
+        }
+    }
+
+    fn human_message(&mut self, message: String)
+    {
+        for loader in self.loaders.iter_mut() {
+            loader.human_message(message.clone());
         }
     }
 

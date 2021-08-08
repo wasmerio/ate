@@ -129,6 +129,10 @@ pub(super) enum Message {
         allow_redirect: bool,
     },
 
+    HumanMessage {
+        message: String,
+    },
+
     Lock {
         key: PrimaryKey,
     },

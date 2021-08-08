@@ -40,6 +40,10 @@ for ChainFlow
         self.auth_url.path()
     }
 
+    async fn message_of_the_day(&self, _chain: &Arc<Chain>) -> Result<Option<String>, ChainCreationError> {
+        Ok(None)
+    }
+
     async fn open(&self, builder: ChainBuilder, key: &ChainKey) -> Result<OpenAction, ChainCreationError>
     {
         debug!("open_auth: {}", key);
@@ -55,7 +59,9 @@ for ChainFlow
                 .open(key)
                 .await?;
 
-            return Ok(OpenAction::DistributedChain(chain));
+            return Ok(OpenAction::DistributedChain {
+                chain: chain,
+            });
         }
         if self.regex_cmd.is_match(name)
         {
@@ -82,9 +88,11 @@ for ChainFlow
             return Ok(OpenAction::PrivateChain
             {
                 chain,
-                session: cmd_session
+                session: cmd_session,
             });
         }
-        Ok(OpenAction::Deny(format!("The chain-key ({}) does not match a valid chain supported by this server.", key.to_string()).to_string()))
+        Ok(OpenAction::Deny {
+            reason: format!("The chain-key ({}) does not match a valid chain supported by this server.", key.to_string()).to_string()
+        })
     }
 }

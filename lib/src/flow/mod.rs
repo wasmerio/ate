@@ -26,24 +26,32 @@ for TrustMode
     }
 }
 
+pub type MessageOfTheDay = Option<String>;
+
 pub enum OpenAction
 {
-    /// The open request will be denied
-    Deny(String),
+    /// The open request will be denied (with the following reason)
+    Deny {
+        reason: String
+    },
     /// The open action has resulted in a chain that can be consumed as a distributed chain
     /// (distributed chains can be validated without the need for a central authority as the
     ///  signatures are cryptographically signed)
-    DistributedChain(Arc<Chain>),
+    DistributedChain {
+        chain: Arc<Chain>,
+    },
     /// The open action has resulted in a chain that can be consumed as a centralized chain
     /// (centralized chains are higher performance as signatures are not needed to verify the
     ///  integrity of the tree however it requires the clients to trust the integrity checks
     ///  of the server they are connecting to)
-    CentralizedChain(Arc<Chain>),
+    CentralizedChain {
+        chain: Arc<Chain>,
+    },
     /// The open action has resulted in a private chain that can only be consumed if
     /// the caller has a copy of the encryption key
     PrivateChain {
         chain: Arc<Chain>,
-        session: AteSession
+        session: AteSession,
     },
 }
 
@@ -52,6 +60,8 @@ pub trait OpenFlow
 where Self: Send + Sync
 {
     async fn open(&self, builder: ChainBuilder, key: &ChainKey) -> Result<OpenAction, ChainCreationError>;
+
+    async fn message_of_the_day(&self, chain: &Arc<Chain>) -> Result<Option<String>, ChainCreationError>;
 
     fn hello_path(&self) -> &str;
 }
