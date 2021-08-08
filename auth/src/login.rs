@@ -43,7 +43,10 @@ impl AuthService
 
         let super_key = match self.compute_super_key(request.secret) {
             Some(a) => a,
-            None => { return Err(LoginFailed::NoMasterKey); }
+            None => {
+                warn!("login attempt denied ({}) - no master key", request.email);
+                return Err(LoginFailed::NoMasterKey);
+            }
         };
         let mut super_session = AteSession::default();
         super_session.user.add_read_key(&super_key);
@@ -60,23 +63,33 @@ impl AuthService
             let user = match dio.load::<User>(&user_key).await {
                 Ok(a) => a,
                 Err(LoadError(LoadErrorKind::NotFound(_), _)) => {
-                    return Err(LoginFailed::UserNotFound);
+                    warn!("login attempt denied ({}) - not found", request.email);
+                    return Err(LoginFailed::UserNotFound(request.email));
                 },
                 Err(LoadError(LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_)), _)) => {
+                    warn!("login attempt denied ({}) - wrong password", request.email);
                     return Err(LoginFailed::WrongPasswordOrCode);
                 },
                 Err(err) => {
+                    warn!("login attempt denied ({}) - error - ", err);
                     bail!(err);
                 }
             };
             
             // Check if the account is locked or not yet verified
             match user.status {
-                UserStatus::Locked => {
-                    return Err(LoginFailed::AccountLocked);
+                UserStatus::Locked(until) => {
+                    let local_now = chrono::Local::now();
+                    let utc_now = local_now.with_timezone(&chrono::Utc);
+                    if until > utc_now {
+                        let duration = until - utc_now;
+                        warn!("login attempt denied ({}) - account locked until {}", request.email, until);
+                        return Err(LoginFailed::AccountLocked(duration.to_std().unwrap()));
+                    }
                 },
                 UserStatus::Unverified => {
-                    return Err(LoginFailed::Unverified);
+                    warn!("login attempt denied ({}) - unverified", request.email);
+                    return Err(LoginFailed::Unverified(request.email));
                 },
                 UserStatus::Nominal => { },
             };
@@ -94,7 +107,7 @@ impl AuthService
         if let Some(code) = request.code {
             let super_super_key = match self.compute_super_key(super_key.clone()) {
                 Some(a) => a,
-                None => { return Err(LoginFailed::UserNotFound); }
+                None => { return Err(LoginFailed::UserNotFound(request.email)); }
             };
             super_session.user.add_read_key(&super_super_key);
 
@@ -102,16 +115,17 @@ impl AuthService
             if let Some(sudo) = match user.sudo.load().await {
                 Ok(a) => a,
                 Err(LoadError(LoadErrorKind::NotFound(_), _)) => {
-                    return Err(LoginFailed::UserNotFound);
+                    warn!("login attempt denied ({}) - user not found", request.email);
+                    return Err(LoginFailed::UserNotFound(request.email));
                 },
                 Err(LoadError(LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_)), _)) => {
+                    warn!("login attempt denied ({}) - wrong password (sudo)", request.email);
                     return Err(LoginFailed::WrongPasswordOrCode);
                 },
                 Err(err) => {
                     bail!(err);
                 }
             }
-
             {
                 // Check the code matches the authenticator code
                 let time = self.time_keeper.current_timestamp_as_duration()?;
@@ -120,6 +134,7 @@ impl AuthService
                 if google_auth.verify_code(sudo.secret.as_str(), code.as_str(), 3, time) {
                     debug!("code authenticated");
                 } else {
+                    warn!("login attempt denied ({}) - wrong code", request.email);
                     return Err(LoginFailed::WrongPasswordOrCode);
                 }
 
@@ -127,11 +142,13 @@ impl AuthService
                 session = compute_sudo_auth(&sudo.take(), session);
                 
             } else {
-                return Err(LoginFailed::UserNotFound);
+                warn!("login attempt denied ({}) - user not found (sudo)", request.email);
+                return Err(LoginFailed::UserNotFound(request.email));
             }
         }
 
         // Return the session that can be used to access this user
+        warn!("login attempt accepted ({})", request.email);
         Ok(LoginResponse {
             user_key,
             nominal_read: user.nominal_read,
@@ -144,8 +161,7 @@ impl AuthService
     }
 }
 
-#[allow(dead_code)]
-pub async fn login_command(username: String, password: String, code: Option<String>, auth: Url) -> Result<AteSession, LoginError>
+pub async fn login_command(username: String, password: String, code: Option<String>, auth: Url, print_message_of_the_day: bool) -> Result<AteSession, LoginError>
 {
     // Open a command chain
     let registry = ate::mesh::Registry::new(&conf_cmd()).await.cement();
@@ -168,10 +184,14 @@ pub async fn login_command(username: String, password: String, code: Option<Stri
     let response: Result<LoginResponse, LoginFailed> = chain.invoke(login).await?;
     let result = response?;
 
-    // Success
-    if let Some(message_of_the_day) = result.message_of_the_day {
-        eprintln!("{}", message_of_the_day);
+    // Display the message of the day
+    if print_message_of_the_day {
+        if let Some(message_of_the_day) = result.message_of_the_day {
+            eprintln!("{}", message_of_the_day);
+        }
     }
+
+    // Success
     Ok(result.authority)
 }
 
@@ -286,8 +306,8 @@ pub async fn main_login(
     };
 
     // Login using the authentication server which will give us a session with all the tokens
-    let session = login_command(username, password, None, auth).await?;
-    Ok(session)
+    let response = login_command(username, password, None, auth, true).await;
+    Ok(handle_login_response(response)?)
 }
 
 pub async fn main_sudo(
@@ -333,6 +353,28 @@ pub async fn main_sudo(
     };
 
     // Login using the authentication server which will give us a session with all the tokens
-    let session = login_command(username, password, Some(code), auth).await?;
-    Ok(session)
+    let response = login_command(username, password, Some(code), auth, true).await;
+    Ok(handle_login_response(response)?)
+}
+
+fn handle_login_response(response: Result<AteSession, LoginError>) -> Result<AteSession, LoginError>
+{
+    match response {
+        Ok(a) => Ok(a),
+        Err(LoginError(LoginErrorKind::AccountLocked(duration), _)) => {
+            eprintln!("Your account has been locked for {} hours", (duration.as_secs() as f32 / 3600f32));
+            std::process::exit(1);
+        },
+        Err(LoginError(LoginErrorKind::NotFound(username), _)) => {
+            eprintln!("Account does not exist ({})", username);
+            std::process::exit(1);
+        },
+        Err(LoginError(LoginErrorKind::Unverified(username), _)) => {
+            eprintln!("The account ({}) has not yet been verified - please check your email.", username);
+            std::process::exit(1);
+        },
+        Err(err) => {
+            bail!(err);
+        }
+    }
 }

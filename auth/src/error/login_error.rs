@@ -1,4 +1,5 @@
 use error_chain::error_chain;
+use std::time::Duration;
 
 use ::ate::prelude::*;
 use crate::commands::*;
@@ -25,17 +26,17 @@ error_chain! {
             description("login failed due to a timeout"),
             display("login failed due to a timeout"),
         }
-        NotFound {
+        NotFound(username: String) {
             description("login failed as the account does not exist"),
-            display("login failed as the account does not exist"),
+            display("login failed for {} as the account does not exist", username),
         }
-        AccountLocked {
-            description("login failed as the account is locked")
-            display("login failed as the account is locked")
+        AccountLocked(duration: Duration) {
+            description("login failed as the account is locked"),
+            display("login failed as the account is locked for {} hours", (duration.as_secs() as f32 / 3600f32)),
         }
-        Unverified {
+        Unverified(username: String) {
             description("login failed as the account is not yet verified")
-            display("login failed as the account is not yet verified")
+            display("login failed for {} as the account is not yet verified", username)
         }
         WrongPasswordOrCode {
             description("login failed due to an incorrect password or authentication code")
@@ -60,10 +61,10 @@ impl From<LoginFailed>
 for LoginError {
     fn from(err: LoginFailed) -> LoginError {
         match err {
-            LoginFailed::AccountLocked => LoginErrorKind::AccountLocked.into(),
+            LoginFailed::AccountLocked(duration) => LoginErrorKind::AccountLocked(duration).into(),
             LoginFailed::NoMasterKey => LoginErrorKind::NoMasterKey.into(),
-            LoginFailed::Unverified => LoginErrorKind::Unverified.into(),
-            LoginFailed::UserNotFound => LoginErrorKind::NotFound.into(),
+            LoginFailed::Unverified(username) => LoginErrorKind::Unverified(username).into(),
+            LoginFailed::UserNotFound(username) => LoginErrorKind::NotFound(username).into(),
             LoginFailed::WrongPasswordOrCode => LoginErrorKind::WrongPasswordOrCode.into(),
             LoginFailed::InternalError(code) => LoginErrorKind::InternalError(code).into(),
         }

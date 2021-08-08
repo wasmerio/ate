@@ -2,6 +2,7 @@
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use serde::*;
 use ate::prelude::*;
+use std::time::Duration;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct LoginRequest
@@ -26,10 +27,10 @@ pub struct LoginResponse
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum LoginFailed
 {
-    UserNotFound,
+    UserNotFound(String),
     WrongPasswordOrCode,
-    AccountLocked,
-    Unverified,
+    AccountLocked(Duration),
+    Unverified(String),
     NoMasterKey,
     InternalError(u16),
 }

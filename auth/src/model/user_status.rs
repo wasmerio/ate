@@ -7,7 +7,7 @@ pub enum UserStatus
 {
     Nominal,
     Unverified,
-    Locked,
+    Locked(chrono::DateTime<chrono::Utc>),
 }
 
 impl Default

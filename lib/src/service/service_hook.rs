@@ -138,14 +138,10 @@ impl ServiceHook
         let data_hash = AteHash::from_bytes(&data[..]);
 
         let mut auth = MetaAuthorization::default();
+        if let Some(key) = self.session.read_keys().into_iter().map(|a| a.clone()).next() {
+            auth.read = ReadOption::from_key(&key);
+        }
         auth.write = WriteOption::Nobody;
-
-        let parent = Some(MetaParent{ vec: 
-            MetaCollection {
-                parent_id: req,
-                collection_id: fastrand::u64(..),
-            }
-        });
 
         let mut extra_meta = Vec::new();
         extra_meta.push(CoreMetadata::Type(MetaType {
@@ -156,7 +152,7 @@ impl ServiceHook
         let mut state = dio.state.lock();
         state.dirty_header(RowHeader {
             key,
-            parent: parent.clone(),
+            parent: None,
             auth: auth.clone(),
         });
         state.dirty_row(RowData {
@@ -172,7 +168,7 @@ impl ServiceHook
             created: 0,
             updated: 0,
             extra_meta,
-            parent: parent.clone(),
+            parent: None,
             auth,
         });
         Ok(())
