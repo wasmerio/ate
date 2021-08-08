@@ -224,15 +224,17 @@ impl MeshRoot
     pub async fn __clean(self: &Arc<Self>)
     {
         let mut shutdown_me = Vec::new();
-        let mut guard = self.chains.lock().await;
-        guard.retain(|k, v| {
-            if Arc::downgrade(&v.chain).strong_count() <= 1 {
-                shutdown_me.push(Arc::clone(&v.chain));
-                false
-            } else {
-                true
-            }
-        });
+        {
+            let mut guard = self.chains.lock().await;
+            guard.retain(|_k, v| {
+                if Arc::downgrade(&v.chain).strong_count() <= 1 {
+                    shutdown_me.push(Arc::clone(&v.chain));
+                    false
+                } else {
+                    true
+                }
+            });
+        }
         for chain in shutdown_me {
             if let Err(err) = chain.shutdown().await {
                 error!("failed to shutdown chain - {}", err);
@@ -348,6 +350,9 @@ async fn open_internal<'b>(
         }
     }
 
+    // Perform a clean of any chains that are out of scope
+    root.__clean().await;
+
     // Determine the route (if any)
     let route = {
         let routes = root.routes.lock();
@@ -358,9 +363,6 @@ async fn open_internal<'b>(
             }
         }
     };
-
-    // Perform a clean of any chains that are out of scope
-    root.__clean().await;
 
     // Get the configuration
     let cfg_ate = {
