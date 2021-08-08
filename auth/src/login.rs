@@ -50,16 +50,26 @@ impl AuthService
         };
         let mut super_session = AteSession::default();
         super_session.user.add_read_key(&super_key);
+        if request.code.is_some() {
+            let super_super_key = match self.compute_super_key(super_key.clone()) {
+                Some(a) => a,
+                None => {
+                    warn!("login attempt denied ({}) - no master key (sudo)", request.email);
+                    return Err(LoginFailed::NoMasterKey);
+                }
+            };
+            super_session.user.add_read_key(&super_super_key);
+        }
 
         // Compute which chain the user should exist within
         let chain_key = chain_key_4hex(request.email.as_str(), Some("redo"));
         let chain = self.registry.open(&self.auth_url, &chain_key).await?;
+        let dio = chain.dio(&super_session).await;
 
         let user_key = PrimaryKey::from(request.email.clone());
         let user =
         {
             // Attempt to load the object (if it fails we will tell the caller)
-            let dio = chain.dio(&super_session).await;
             let user = match dio.load::<User>(&user_key).await {
                 Ok(a) => a,
                 Err(LoadError(LoadErrorKind::NotFound(_), _)) => {
@@ -105,12 +115,7 @@ impl AuthService
         // If a google authenticator code has been supplied then we need to try and load the
         // extra permissions from elevated rights
         if let Some(code) = request.code {
-            let super_super_key = match self.compute_super_key(super_key.clone()) {
-                Some(a) => a,
-                None => { return Err(LoginFailed::UserNotFound(request.email)); }
-            };
-            super_session.user.add_read_key(&super_super_key);
-
+        
             // Load the sudo object
             if let Some(sudo) = match user.sudo.load().await {
                 Ok(a) => a,
@@ -307,7 +312,7 @@ pub async fn main_login(
 
     // Login using the authentication server which will give us a session with all the tokens
     let response = login_command(username, password, None, auth, true).await;
-    Ok(handle_login_response(response)?)
+    Ok(handle_login_response(response, false)?)
 }
 
 pub async fn main_sudo(
@@ -354,15 +359,24 @@ pub async fn main_sudo(
 
     // Login using the authentication server which will give us a session with all the tokens
     let response = login_command(username, password, Some(code), auth, true).await;
-    Ok(handle_login_response(response)?)
+    Ok(handle_login_response(response, true)?)
 }
 
-fn handle_login_response(response: Result<AteSession, LoginError>) -> Result<AteSession, LoginError>
+fn handle_login_response(response: Result<AteSession, LoginError>, gave_code: bool) -> Result<AteSession, LoginError>
 {
     match response {
         Ok(a) => Ok(a),
         Err(LoginError(LoginErrorKind::AccountLocked(duration), _)) => {
             eprintln!("Your account has been locked for {} hours", (duration.as_secs() as f32 / 3600f32));
+            std::process::exit(1);
+        },
+        Err(LoginError(LoginErrorKind::WrongPasswordOrCode, _)) => {
+            if gave_code {
+                eprintln!("Either the password or verification code was incorrect");
+            } else {
+                eprintln!("The password was incorrect");
+            }
+            eprintln!("(Warning! Repeated failed attempts will trigger a short ban)");
             std::process::exit(1);
         },
         Err(LoginError(LoginErrorKind::NotFound(username), _)) => {
