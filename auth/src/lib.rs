@@ -44,3 +44,5 @@ pub use gather::main_gather;
 pub use opts::main_opts_group;
 pub use opts::main_opts_token;
 pub use opts::main_opts_user;
+
+pub static GENERIC_TERMS_AND_CONDITIONS: &str = include_str!("generic_terms.txt");

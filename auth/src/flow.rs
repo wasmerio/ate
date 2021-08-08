@@ -16,7 +16,7 @@ pub struct ChainFlow {
     regex_auth: Regex,
     regex_cmd: Regex,
     session: AteSession,
-    terms_and_conditions: Option<String>,
+    pub terms_and_conditions: Option<String>,
 }
 
 impl ChainFlow

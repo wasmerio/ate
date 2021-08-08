@@ -96,7 +96,8 @@ async fn main() -> Result<(), AteError>
             session.user.add_write_key(&root_write_key);
 
             // Create the server and listen
-            let flow = ChainFlow::new(&cfg_ate, root_write_key, session, &run.url);
+            let mut flow = ChainFlow::new(&cfg_ate, root_write_key, session, &run.url);
+            flow.terms_and_conditions = Some(ate_auth::GENERIC_TERMS_AND_CONDITIONS);
             let mut cfg_mesh = ConfMesh::solo_from_url(&cfg_ate, &run.url, &run.listen, run.node_id).await?;
             cfg_mesh.wire_protocol = StreamProtocol::parse(&run.url)?;
 
