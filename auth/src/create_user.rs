@@ -135,6 +135,7 @@ impl AuthService
             access: access,
             foreign: DaoForeign::default(),
             sudo: DaoRef::new(),
+            accepted_terms: DaoRef::new(),
             nominal_read: read_key.hash(),
             nominal_public_read: private_read_key.as_public_key(),
             nominal_write: write_key.as_public_key(),
@@ -168,6 +169,14 @@ impl AuthService
         let mut sudo = user.as_mut().sudo.store(&dio, sudo)?;
         sudo.auth_mut().read = ReadOption::from_key(&super_super_key);
         sudo.auth_mut().write = WriteOption::Any(vec![master_write_key.hash(), sudo_write_key.hash()]);
+
+        // Add the accepted terms and conditions to the database rrecord
+        if let Some(accepted_terms) = request.accepted_terms.as_ref() {
+            let accepted_terms = AcceptedTerms {
+                terms_and_conditions: accepted_terms.clone()
+            };
+            user.as_mut().accepted_terms.store(&dio, accepted_terms)?;
+        }
         
         // Create the advert object and save it using public read
         let advert_key_entropy = format!("advert@{}", request.email.clone()).to_string();

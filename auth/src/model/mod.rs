@@ -1,4 +1,5 @@
 mod advert;
+mod accepted_terms;
 mod authentication_method;
 mod authorization;
 mod company;
@@ -15,6 +16,7 @@ mod user_status;
 mod user;
 
 pub use advert::*;
+pub use accepted_terms::*;
 pub use authentication_method::*;
 pub use authorization::*;
 pub use company::*;
