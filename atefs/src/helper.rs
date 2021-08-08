@@ -1,10 +1,12 @@
 #[allow(unused_imports, dead_code)]
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
+use error_chain::bail;
 use ate::prelude::*;
 use std::io::ErrorKind;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::select;
+use ate::mesh::FatalTerminate;
 
 use crate::fs::AteFS;
 use crate::opts::*;
@@ -22,7 +24,8 @@ fn ctrl_channel() -> tokio::sync::watch::Receiver<bool> {
     receiver
 }
 
-pub async fn main_mount(mount: OptsMount, conf: ConfAte, group: Option<String>, session: AteSession, no_auth: bool) -> Result<(), AteError>
+pub async fn main_mount(mount: OptsMount, conf: ConfAte, group: Option<String>, session: AteSession, no_auth: bool)
+-> Result<(), AteError>
 {
     let uid = match mount.uid {
         Some(a) => a,
@@ -95,21 +98,42 @@ pub async fn main_mount(mount: OptsMount, conf: ConfAte, group: Option<String>, 
     let registry;
     let chain = match mount.remote_name {
         None => {
-            Arc::new(
+            Ok(Arc::new(
                 Chain::new_ext(
                     builder.clone(),
                     ChainKey::from("root"),
                     Some(Box::new(progress_local)),
                     true
                 ).await?
-            )
+            ))
         },
         Some(remote) => {
             registry = ate::mesh::Registry::new(&conf).await
                 .temporal(mount.temp);
             
-            registry.open_ext(&mount.remote, &ChainKey::from(remote), progress_local, progress_remote).await?
+            registry.open_ext(&mount.remote, &ChainKey::from(remote), progress_local, progress_remote).await
         },
+    };
+
+    // Perform specific error handling (otherwise let it propogate up)
+    let chain = match chain {
+        Ok(a) => a,
+        Err(ChainCreationError(ChainCreationErrorKind::ServerRejected(reason), _)) => {
+            match reason {
+                FatalTerminate::Denied { reason } => {
+                    eprintln!("Access to this file system was denied by the server");
+                    eprintln!("---");
+                    eprintln!("{}", reason);
+                    std::process::exit(1);
+                },
+                _ => {
+                    bail!(AteErrorKind::ChainCreationError(ChainCreationErrorKind::ServerRejected(reason)));
+                }
+            }
+        },
+        Err(err) => {
+            bail!(err);
+        }
     };
 
     // Compute the scope

@@ -9,6 +9,7 @@ pub struct CreateUserRequest
     pub auth: String,
     pub email: String,
     pub secret: EncryptKey,
+    pub accepted_terms: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -27,6 +28,7 @@ pub enum CreateUserFailed
     InvalidEmail,
     NoMoreRoom,
     NoMasterKey,
+    TermsAndConditions(String),
     InternalError(u16),
 }
 

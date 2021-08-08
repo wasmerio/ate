@@ -16,6 +16,7 @@ pub struct ChainFlow {
     regex_auth: Regex,
     regex_cmd: Regex,
     session: AteSession,
+    terms_and_conditions: Option<String>,
 }
 
 impl ChainFlow
@@ -28,6 +29,7 @@ impl ChainFlow
             regex_cmd: Regex::new("^cmd-[a-f0-9]{16}$").unwrap(),
             auth_url: auth_url.clone(),
             session,
+            terms_and_conditions: None,
         }
     }
 }
@@ -82,7 +84,7 @@ for ChainFlow
                 .await?;
                 
             // Add the services to this chain
-            service_auth_handlers(&self.cfg, cmd_session.clone(), self.auth_url.clone(), self.session.clone(), &Arc::clone(&chain)).await?;
+            service_auth_handlers(&self.cfg, cmd_session.clone(), self.auth_url.clone(), self.session.clone(), self.terms_and_conditions.clone(), &Arc::clone(&chain)).await?;
 
             // Return the chain to the caller
             return Ok(OpenAction::PrivateChain

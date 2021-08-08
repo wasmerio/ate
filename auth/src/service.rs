@@ -17,12 +17,13 @@ pub struct AuthService
     pub auth_url: url::Url,
     pub master_session: AteSession,
     pub time_keeper: TimeKeeper,
+    pub terms_and_conditions: Option<String>,
     pub registry: Arc<Registry>,
 }
 
 impl AuthService
 {
-    pub async fn new(cfg: &ConfAte, auth_url: url::Url, auth_session: AteSession) -> Result<Arc<AuthService>, TimeError>
+    pub async fn new(cfg: &ConfAte, auth_url: url::Url, auth_session: AteSession, terms_and_conditions: Option<String>) -> Result<Arc<AuthService>, TimeError>
     {
         let service = Arc::new(
             AuthService
@@ -31,16 +32,17 @@ impl AuthService
                 master_session: auth_session,
                 time_keeper:  TimeKeeper::new(cfg, 30000).await?,
                 registry: Registry::new(cfg).await.cement(),
+                terms_and_conditions,
             }
         );
         Ok(service)
     }
 }
 
-pub async fn service_auth_handlers(cfg: &ConfAte, cmd_session: AteSession, auth_url: url::Url, auth_session: AteSession, chain: &Arc<Chain>)
+pub async fn service_auth_handlers(cfg: &ConfAte, cmd_session: AteSession, auth_url: url::Url, auth_session: AteSession, terms_and_conditions: Option<String>, chain: &Arc<Chain>)
 -> Result<(), TimeError>
 {
-    let service = AuthService::new(cfg, auth_url, auth_session).await?;
+    let service = AuthService::new(cfg, auth_url, auth_session, terms_and_conditions).await?;
     chain.add_service(&cmd_session, service.clone(), AuthService::process_login);
     chain.add_service(&cmd_session, service.clone(), AuthService::process_create_user);
     chain.add_service(&cmd_session, service.clone(), AuthService::process_create_group);

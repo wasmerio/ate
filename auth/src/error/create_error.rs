@@ -46,6 +46,10 @@ error_chain! {
             description("create failed as the server has not been properly initialized")
             display("create failed as the server has not been properly initialized")
         }
+        TermsAndConditions(terms: String) {
+            description("create failed as the caller did not agree to the terms and conditions")
+            display("create failed as the caller did not agree to the terms and conditions")
+        }
         InternalError(code: u16) {
             description("create failed as the server experienced an internal error")
             display("create failed as the server experienced an internal error - code={}", code)
@@ -83,6 +87,7 @@ for CreateError {
             CreateUserFailed::NoMasterKey => CreateErrorKind::NoMasterKey.into(),
             CreateUserFailed::NoMoreRoom => CreateErrorKind::NoMoreRoom.into(),
             CreateUserFailed::InternalError(code) => CreateErrorKind::InternalError(code).into(),
+            CreateUserFailed::TermsAndConditions(terms) => CreateErrorKind::TermsAndConditions(terms).into(),
         }
     }
 }

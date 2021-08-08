@@ -41,6 +41,13 @@ impl AuthService
             }
         };
 
+        // If the terms and conditions don't match then reject it
+        if request.accepted_terms != self.terms_and_conditions {
+            if let Some(terms) = &self.terms_and_conditions {
+                return Err(CreateUserFailed::TermsAndConditions(terms.clone()));
+            }
+        }
+
         // Compute the super_key, super_super_key (elevated rights) and the super_session
         let key_size = request.secret.size();
         let super_key = match self.compute_super_key(request.secret) {
@@ -195,7 +202,7 @@ impl AuthService
 }
 
 #[allow(dead_code)]
-pub async fn create_user_command(username: String, password: String, auth: Url) -> Result<CreateUserResponse, CreateError>
+pub async fn create_user_command(username: String, password: String, auth: Url, accepted_terms: Option<String>) -> Result<CreateUserResponse, CreateError>
 {
     // Open a command chain
     let registry = ate::mesh::Registry::new(&conf_cmd()).await.cement();
@@ -216,6 +223,7 @@ pub async fn create_user_command(username: String, password: String, auth: Url) 
         auth,
         email: username.clone(),
         secret: read_key,
+        accepted_terms,
     };
 
     // Attempt the login request with a 10 second timeout
@@ -262,7 +270,40 @@ pub async fn main_create_user(
     };
 
     // Create a user using the authentication server which will give us a session with all the tokens
-    let result = create_user_command(username, password, auth).await?;
+    let result = match create_user_command(
+        username.clone(),
+        password.clone(),
+        auth.clone(),
+        None
+    ).await {
+        Ok(a) => a,
+        Err(CreateError(CreateErrorKind::TermsAndConditions(terms), _)) =>
+        {
+            // We need an agreement to the terms and conditions from the caller
+            println!("");
+            println!("{}", terms);
+            println!("");
+            println!("If you agree to the above terms and conditions then type the word 'agree' below");
+            
+            let mut s = String::new();
+            std::io::stdin().read_line(&mut s).expect("Did not enter a valid response");
+            let agreement = s.trim().to_string().to_lowercase();
+            if agreement != "agree" {
+                println!("You may only create an account by specifically agreeing to the terms");
+                println!("and conditions laid out above - this can only be confirmed if you");
+                println!("specifically type the word 'agree' which you did not enter hence");
+                println!("an account can not be created. If this is a mistake then please");
+                println!("try again.");
+                std::process::exit(1);
+            }
+
+            // Try again but this time with an aggrement to the terms and conditions
+            create_user_command(username, password, auth, Some(terms)).await?
+        },
+        Err(err) => {
+            bail!(err);
+        }
+    };
     println!("User created (id={})", result.key);
 
     // Display the QR code
