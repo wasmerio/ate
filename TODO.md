@@ -20,6 +20,8 @@
           otherwise they need to be postfix with fcfs (first-come-first-serve) domain name end.
         + All databases that get created can be associated with the same group by using a path
           postfix of the group which allows multiple databases to use the same group
+        + Add an (optional) terms and conditions check on user creation
+        + Add message-of-the-day on connecting to databases in ATE
 
 0.8.3   Tokera release.
 

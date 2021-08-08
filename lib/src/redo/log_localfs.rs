@@ -296,7 +296,7 @@ for LogFileLocalFs
         Ok(())
     }
 
-    fn backup(&mut self, include_active_files: bool) -> Result<Pin<Box<dyn futures::Future<Output=Result<()>>>>>
+    fn backup(&mut self, include_active_files: bool) -> Result<Pin<Box<dyn futures::Future<Output=Result<()>> + Send + Sync>>>
     {
         // If this a temporary file then fail
         if self.temp {

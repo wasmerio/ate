@@ -50,7 +50,7 @@ for LogFileMemDb
         Ok(())
     }
 
-    fn backup(&mut self, _include_active_files: bool) -> Result<Pin<Box<dyn futures::Future<Output=Result<()>>>>>
+    fn backup(&mut self, _include_active_files: bool) -> Result<Pin<Box<dyn futures::Future<Output=Result<()>> + Send + Sync>>>
     {
         let ret = async move {
             Ok(())

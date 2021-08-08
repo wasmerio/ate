@@ -350,9 +350,6 @@ async fn open_internal<'b>(
         }
     }
 
-    // Perform a clean of any chains that are out of scope
-    root.__clean().await;
-
     // Determine the route (if any)
     let route = {
         let routes = root.routes.lock();
@@ -363,6 +360,9 @@ async fn open_internal<'b>(
             }
         }
     };
+
+    // Perform a clean of any chains that are out of scope
+    root.__clean().await;
 
     // Get the configuration
     let cfg_ate = {

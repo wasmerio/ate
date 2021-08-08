@@ -17,7 +17,7 @@ where Self: Sync + Send
     #[cfg(feature = "enable_rotate")]
     async fn rotate(&mut self, header_bytes: Vec<u8>) -> Result<()>;
 
-    fn backup(&mut self, include_active_files: bool) -> Result<Pin<Box<dyn futures::Future<Output=Result<()>>>>>;
+    fn backup(&mut self, include_active_files: bool) -> Result<Pin<Box<dyn futures::Future<Output=Result<()>> + Send + Sync >>>;
 
     async fn copy(&mut self) -> Result<Box<dyn LogFile>>;
 
