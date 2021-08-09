@@ -174,6 +174,19 @@ impl<D> DaoVec<D>
         ret.attach_ext(parent_id, self.vec_id)?;
         Ok(ret)
     }
+
+    pub fn push_with_key(&self, trans: &Arc<DioMut>, data: D, key: PrimaryKey) -> Result<DaoMut<D>, SerializationError>
+    where D: Serialize + DeserializeOwned,
+    {
+        let parent_id = match &self.state {
+            DaoVecState::Unsaved => { bail!(SerializationErrorKind::SaveParentFirst); },
+            DaoVecState::Saved(a) => a.clone(),
+        };
+
+        let mut ret = trans.store_with_key(data, key)?;
+        ret.attach_ext(parent_id, self.vec_id)?;
+        Ok(ret)
+    }
 }
 
 pub struct Iter<D>
