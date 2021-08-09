@@ -8,3 +8,4 @@ mod test;
 pub use super::utils::test::*;
 pub use log::log_init;
 pub use log::obscure_error;
+pub use log::obscure_error_str;

@@ -30,3 +30,11 @@ where E: std::error::Error + Sized
     debug!("internal error - code={} - {}", hash, err);
     hash
 }
+
+pub fn obscure_error_str(err: &str) -> u16
+{
+    let err = err.to_string();
+    let hash = (fxhash::hash32(&err) % (u16::MAX as u32)) as u16;
+    debug!("internal error - code={} - {}", hash, err);
+    hash
+}
