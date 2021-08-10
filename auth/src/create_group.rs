@@ -29,8 +29,23 @@ impl AuthService
     {
         info!("create group: {}", request.group);
 
+        // First we query the user that needs to be added so that we can get their public encrypt key
+        let advert = match Arc::clone(&self).process_query(QueryRequest {
+            identity: request.identity.clone(),
+        }).await {
+            Ok(a) => Ok(a),
+            Err(QueryFailed::Banned) => Err(CreateGroupFailed::OperatorBanned),
+            Err(QueryFailed::NotFound) => Err(CreateGroupFailed::OperatorNotFound),
+            Err(QueryFailed::Suspended) => Err(CreateGroupFailed::AccountSuspended),
+            Err(QueryFailed::InternalError(code)) => Err(CreateGroupFailed::InternalError(code)),
+        }?.advert;
+
+        // Extract the read key(s) from the query
+        let request_nominal_read_key = advert.nominal_encrypt;
+        let request_sudo_read_key = advert.sudo_encrypt;
+
         // Make sure the group matches the regex and is valid
-        let regex = Regex::new("^/{0,1}([a-zA-Z0-9_]{0,})$").unwrap();
+        let regex = Regex::new("^/{0,1}([a-zA-Z0-9_\\.\\-]{1,})$").unwrap();
         if let Some(_captures) = regex.captures(request.group.as_str()) {
             if request.group.len() <= 0 {
                 return Err(CreateGroupFailed::InvalidGroupName);
@@ -49,7 +64,7 @@ impl AuthService
 
         // Load the master key which will be used to encrypt the group so that only
         // the authentication server can access it
-        let key_size = request.nominal_read_key.size();
+        let key_size = request_nominal_read_key.size();
         let master_key = match self.master_key() {
             Some(a) => a,
             None => { return Err(CreateGroupFailed::NoMasterKey); }
@@ -175,9 +190,9 @@ impl AuthService
                     write: role_write.clone()
                 })?;
                 if let AteRolePurpose::Owner = purpose {
-                    access.add(&request.sudo_read_key, request.identity.clone(), &owner_private_read)?;
+                    access.add(&request_sudo_read_key, request.identity.clone(), &owner_private_read)?;
                 } else if let AteRolePurpose::Delegate = purpose {
-                    access.add(&request.nominal_read_key, request.identity.clone(), &owner_private_read)?;
+                    access.add(&request_nominal_read_key, request.identity.clone(), &owner_private_read)?;
                 } else if let AteRolePurpose::Observer = purpose {
                     access.add(&delegate_private_read.as_public_key(), "delegate".to_string(), &owner_private_read)?;
                     access.add(&contributor_private_read.as_public_key(), "contributor".to_string(), &owner_private_read)?;
@@ -231,19 +246,10 @@ pub async fn create_group_command(group: String, auth: Url, username: String) ->
     let registry = ate::mesh::Registry::new( &conf_cmd()).await.cement();
     let chain = Arc::clone(&registry).open(&auth, &chain_key_cmd()).await?;
 
-    // First we query the user that needs to be added so that we can get their public encrypt key
-    let query = crate::query_command(Arc::clone(&registry), username.clone(), auth).await?;
-
-    // Extract the read key(s) from the query
-    let nominal_read_key = query.advert.nominal_encrypt;
-    let sudo_read_key = query.advert.sudo_encrypt;
-    
     // Make the create request and fire it over to the authentication server
     let create = CreateGroupRequest {
         group,
         identity: username.clone(),
-        nominal_read_key,
-        sudo_read_key,
     };
 
     let response: Result<CreateGroupResponse, CreateGroupFailed> = chain.invoke(create).await?;
@@ -252,11 +258,10 @@ pub async fn create_group_command(group: String, auth: Url, username: String) ->
     Ok(result)
 }
 
-pub async fn main_create_group(
+pub async fn main_create_group_prelude(
     group: Option<String>,
-    auth: Url,
     username: Option<String>
-) -> Result<AteSession, CreateError>
+) -> Result<(String, String), CreateError>
 {
     let group = match group {
         Some(a) => a,
@@ -280,9 +285,49 @@ pub async fn main_create_group(
         }
     };
 
-    // Create a user using the authentication server which will give us a session with all the tokens
-    let result = create_group_command(group, auth, username).await?;
-    println!("Group created (id={})", result.key);
+    Ok((group, username))
+}
 
+pub async fn main_create_group(
+    group: Option<String>,
+    auth: Url,
+    username: Option<String>
+) -> Result<AteSession, CreateError>
+{
+    let (group, username) = main_create_group_prelude(group, username).await?;
+
+    // Create a user using the authentication server which will give us a session with all the tokens
+    let result = match create_group_command(group, auth, username).await {
+        Ok(a) => a,
+        Err(CreateError(CreateErrorKind::OperatorBanned, _)) => {
+            eprintln!("Failed as the callers account is currently banned");
+            std::process::exit(1);
+        },
+        Err(CreateError(CreateErrorKind::OperatorNotFound, _)) => {
+            eprintln!("Failed as the callers account could not be found");
+            std::process::exit(1);
+        },
+        Err(CreateError(CreateErrorKind::AccountSuspended, _)) => {
+            eprintln!("Failed as the callers account is currently suspended");
+            std::process::exit(1);
+        },
+        Err(CreateError(CreateErrorKind::ValidationError(reason), _)) => {
+            eprintln!("{}", reason);
+            std::process::exit(1);
+        },
+        Err(CreateError(CreateErrorKind::AlreadyExists, _)) => {
+            eprintln!("The group with this name already exists");
+            std::process::exit(1);
+        },
+        Err(CreateError(CreateErrorKind::InvalidName, _)) => {
+            eprintln!("The group name you specified is invalid");
+            std::process::exit(1);
+        },
+        Err(err) => {
+            bail!(err);
+        }
+    };
+
+    println!("Group created (id={})", result.key);
     Ok(result.session)
 }

@@ -155,8 +155,10 @@ impl AuthService
                     sudo.as_mut().failed_attempts = sudo.failed_attempts + 1;
                     if sudo.failed_attempts % 5 == 0 {
                         let ban_time = if sudo.failed_attempts <= 5 {
-                            Duration::minutes(5)
+                            Duration::seconds(30)
                         } else  if sudo.failed_attempts <= 10 {
+                            Duration::minutes(5)
+                        } else  if sudo.failed_attempts <= 15 {
                             Duration::hours(1)
                         } else {
                             Duration::days(1)
@@ -437,8 +439,10 @@ async fn handle_login_response(
                 eprintln!("This account has been locked for {} days", (duration.as_secs() as u64 / 86400u64));
             } else if duration > Duration::hours(1).to_std().unwrap() {
                 eprintln!("This account has been locked for {} hours", (duration.as_secs() as u64 / 3600u64));
-            } else {
+            } else if duration > Duration::minutes(1).to_std().unwrap() {
                 eprintln!("This account has been locked for {} minutes", (duration.as_secs() as u64 / 60u64));
+            } else {
+                eprintln!("This account has been locked for {} seconds", (duration.as_secs() as u64));
             }
             std::process::exit(1);
         },

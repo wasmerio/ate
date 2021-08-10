@@ -8,8 +8,6 @@ pub struct CreateGroupRequest
 {
     pub group: String,
     pub identity: String,
-    pub nominal_read_key: PublicEncryptKey,
-    pub sudo_read_key: PublicEncryptKey,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -26,6 +24,10 @@ pub enum CreateGroupFailed
     NoMoreRoom,
     NoMasterKey,
     InvalidGroupName,
+    OperatorNotFound,
+    OperatorBanned,
+    AccountSuspended,
+    ValidationError(String),
     InternalError(u16),
 }
 

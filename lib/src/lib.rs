@@ -45,5 +45,6 @@ pub mod anti_replay;
 #[cfg(all(feature = "enable_server", feature = "enable_tcp" ))]
 pub mod flow;
 pub mod engine;
+pub mod dns;
 
 pub use utils::log_init;
