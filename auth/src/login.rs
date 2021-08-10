@@ -5,6 +5,7 @@ use std::{io::stdout, path::Path};
 use std::io::Write;
 use url::Url;
 use std::sync::Arc;
+use chrono::Duration;
 
 use ate::prelude::*;
 use ate::error::LoadError;
@@ -48,9 +49,9 @@ impl AuthService
                 return Err(LoginFailed::NoMasterKey);
             }
         };
-        let mut super_session = AteSession::default();
+        let mut super_session = self.master_session.clone();
         super_session.user.add_read_key(&super_key);
-        if request.code.is_some() {
+        if request.authenticator_code.is_some() {
             let super_super_key = match self.compute_super_key(super_key.clone()) {
                 Some(a) => a,
                 None => {
@@ -64,48 +65,56 @@ impl AuthService
         // Compute which chain the user should exist within
         let chain_key = chain_key_4hex(request.email.as_str(), Some("redo"));
         let chain = self.registry.open(&self.auth_url, &chain_key).await?;
-        let dio = chain.dio(&super_session).await;
+        let dio = chain.dio_full(&super_session).await;
 
+        // Attempt to load the object (if it fails we will tell the caller)
         let user_key = PrimaryKey::from(request.email.clone());
-        let user =
-        {
-            // Attempt to load the object (if it fails we will tell the caller)
-            let user = match dio.load::<User>(&user_key).await {
-                Ok(a) => a,
-                Err(LoadError(LoadErrorKind::NotFound(_), _)) => {
-                    warn!("login attempt denied ({}) - not found", request.email);
-                    return Err(LoginFailed::UserNotFound(request.email));
-                },
-                Err(LoadError(LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_)), _)) => {
-                    warn!("login attempt denied ({}) - wrong password", request.email);
-                    return Err(LoginFailed::WrongPasswordOrCode);
-                },
-                Err(err) => {
-                    warn!("login attempt denied ({}) - error - ", err);
-                    bail!(err);
+        let mut user = match dio.load::<User>(&user_key).await {
+            Ok(a) => a,
+            Err(LoadError(LoadErrorKind::NotFound(_), _)) => {
+                warn!("login attempt denied ({}) - not found", request.email);
+                return Err(LoginFailed::UserNotFound(request.email));
+            },
+            Err(LoadError(LoadErrorKind::TransformationError(TransformErrorKind::MissingReadKey(_)), _)) => {
+                warn!("login attempt denied ({}) - wrong password", request.email);
+                return Err(LoginFailed::WrongPasswordOrCode);
+            },
+            Err(err) => {
+                warn!("login attempt denied ({}) - error - ", err);
+                bail!(err);
+            }
+        };
+        
+        // Check if the account is locked or not yet verified
+        match user.status.clone() {
+            UserStatus::Locked(until) => {
+                let local_now = chrono::Local::now();
+                let utc_now = local_now.with_timezone(&chrono::Utc);
+                if until > utc_now {
+                    let duration = until - utc_now;
+                    warn!("login attempt denied ({}) - account locked until {}", request.email, until);
+                    return Err(LoginFailed::AccountLocked(duration.to_std().unwrap()));
                 }
-            };
-            
-            // Check if the account is locked or not yet verified
-            match user.status {
-                UserStatus::Locked(until) => {
-                    let local_now = chrono::Local::now();
-                    let utc_now = local_now.with_timezone(&chrono::Utc);
-                    if until > utc_now {
-                        let duration = until - utc_now;
-                        warn!("login attempt denied ({}) - account locked until {}", request.email, until);
-                        return Err(LoginFailed::AccountLocked(duration.to_std().unwrap()));
+            },
+            UserStatus::Unverified =>
+            {
+                match request.verification_code {
+                    Some(a) => {
+                        if Some(a.to_lowercase()) != user.verification_code.clone().map(|a| a.to_lowercase()) {
+                            warn!("login attempt denied ({}) - wrong password", request.email);
+                            return Err(LoginFailed::WrongPasswordOrCode);
+                        } else {
+                            user.as_mut().verification_code = None;
+                            user.as_mut().status = UserStatus::Nominal;
+                        }
+                    },
+                    None => {
+                        warn!("login attempt denied ({}) - unverified", request.email);
+                        return Err(LoginFailed::Unverified(request.email));
                     }
-                },
-                UserStatus::Unverified => {
-                    warn!("login attempt denied ({}) - unverified", request.email);
-                    return Err(LoginFailed::Unverified(request.email));
-                },
-                UserStatus::Nominal => { },
-            };
-
-            // Ok we have the user
-            user.take()
+                }
+            },
+            UserStatus::Nominal => { },
         };
 
         // Add all the authorizations
@@ -114,11 +123,11 @@ impl AuthService
 
         // If a google authenticator code has been supplied then we need to try and load the
         // extra permissions from elevated rights
-        if let Some(code) = request.code {
+        if let Some(code) = request.authenticator_code {
         
             // Load the sudo object
-            if let Some(sudo) = match user.sudo.load().await {
-                Ok(a) => a,
+            if let Some(mut sudo) = match user.sudo.load().await {
+                Ok(a) => a.map(|a| a.as_mut(&dio)),
                 Err(LoadError(LoadErrorKind::NotFound(_), _)) => {
                     warn!("login attempt denied ({}) - user not found", request.email);
                     return Err(LoginFailed::UserNotFound(request.email));
@@ -138,9 +147,39 @@ impl AuthService
                 let google_auth = google_authenticator::GoogleAuthenticator::new();
                 if google_auth.verify_code(sudo.secret.as_str(), code.as_str(), 3, time) {
                     debug!("code authenticated");
-                } else {
-                    warn!("login attempt denied ({}) - wrong code", request.email);
+                }
+                else
+                {
+                    // Increment the failed count - every 5 failed attempts then
+                    // ban the user for 30 mins to 1 day depending on severity.
+                    sudo.as_mut().failed_attempts = sudo.failed_attempts + 1;
+                    if sudo.failed_attempts % 5 == 0 {
+                        let ban_time = if sudo.failed_attempts <= 5 {
+                            Duration::minutes(5)
+                        } else  if sudo.failed_attempts <= 10 {
+                            Duration::hours(1)
+                        } else {
+                            Duration::days(1)
+                        };
+                        let local_now = chrono::Local::now();
+                        let utc_now = local_now.with_timezone(&chrono::Utc);
+                        if let Some(utc_ban) = utc_now.checked_add_signed(ban_time) {
+                            user.as_mut().status = UserStatus::Locked(utc_ban);
+                        }
+                    }
+                    dio.commit().await?;
+                    
+                    // Notify the caller that the login attempt has failed
+                    warn!("login attempt denied ({}) - wrong code - attempts={}", request.email, sudo.failed_attempts);
                     return Err(LoginFailed::WrongPasswordOrCode);
+                }
+
+                // If there are any failed attempts to login then clear them
+                if sudo.failed_attempts > 0 {
+                    sudo.as_mut().failed_attempts = 0;
+                }
+                if user.status != UserStatus::Nominal {
+                    user.as_mut().status = UserStatus::Nominal;
                 }
 
                 // Add the extra authentication objects from the sudo
@@ -151,8 +190,10 @@ impl AuthService
                 return Err(LoginFailed::UserNotFound(request.email));
             }
         }
+        dio.commit().await?;
 
         // Return the session that can be used to access this user
+        let user = user.take();
         info!("login attempt accepted ({})", request.email);
         Ok(LoginResponse {
             user_key,
@@ -166,7 +207,7 @@ impl AuthService
     }
 }
 
-pub async fn login_command(username: String, password: String, code: Option<String>, auth: Url, print_message_of_the_day: bool) -> Result<AteSession, LoginError>
+pub async fn login_command(username: String, password: String, authenticator_code: Option<String>, verification_code: Option<String>, auth: Url, print_message_of_the_day: bool) -> Result<AteSession, LoginError>
 {
     // Open a command chain
     let registry = ate::mesh::Registry::new(&conf_cmd()).await.cement();
@@ -182,7 +223,8 @@ pub async fn login_command(username: String, password: String, code: Option<Stri
     let login = LoginRequest {
         email: username.clone(),
         secret: read_key,
-        code,
+        authenticator_code,
+        verification_code
     };
 
     // Attempt the login request with a 10 second timeout
@@ -311,8 +353,8 @@ pub async fn main_login(
     };
 
     // Login using the authentication server which will give us a session with all the tokens
-    let response = login_command(username, password, None, auth, true).await;
-    Ok(handle_login_response(response, false)?)
+    let response = login_command(username.clone(), password.clone(), None, None, auth.clone(), true).await;
+    handle_login_response(response, username, password, None, auth).await
 }
 
 pub async fn main_sudo(
@@ -349,7 +391,7 @@ pub async fn main_sudo(
         Some(a) => a,
         None => {
             // When no code is supplied we will ask for it
-            eprint!("Code: ");
+            eprint!("Authenticator Code: ");
             stdout().lock().flush()?;
             let mut s = String::new();
             std::io::stdin().read_line(&mut s).expect("Did not enter a valid code");
@@ -358,23 +400,61 @@ pub async fn main_sudo(
     };
 
     // Login using the authentication server which will give us a session with all the tokens
-    let response = login_command(username, password, Some(code), auth, true).await;
-    Ok(handle_login_response(response, true)?)
+    let response = login_command(username.clone(), password.clone(), Some(code.clone()), None, auth.clone(), true).await;
+    handle_login_response(response, username, password, Some(code), auth).await
 }
 
-fn handle_login_response(response: Result<AteSession, LoginError>, gave_code: bool) -> Result<AteSession, LoginError>
+async fn handle_login_response(
+    mut response: Result<AteSession, LoginError>,
+    username: String,
+    password: String,
+    code: Option<String>,
+    auth: Url) -> Result<AteSession, LoginError>
 {
+    // If we are currently unverified then prompt for the verification code
+    let gave_code = code.is_some();
+    let mut was_unverified = false;
+    if let Err(LoginError(LoginErrorKind::Unverified(_), _)) = &response {
+        was_unverified = true;
+
+        // When no code is supplied we will ask for it
+        eprintln!("");
+        eprintln!("Check your email for a verification code and enter it below");
+        eprint!("Verification Code: ");
+        stdout().lock().flush()?;
+        let mut s = String::new();
+        std::io::stdin().read_line(&mut s).expect("Did not enter a valid code");
+        let verification_code = s.trim().to_string();
+
+        // Perform the login again but also supply the verification code
+        response = login_command(username, password, code, Some(verification_code), auth, true).await;
+    }
+
     match response {
         Ok(a) => Ok(a),
         Err(LoginError(LoginErrorKind::AccountLocked(duration), _)) => {
-            eprintln!("Your account has been locked for {} hours", (duration.as_secs() as f32 / 3600f32));
+            if duration > Duration::days(1).to_std().unwrap() {
+                eprintln!("This account has been locked for {} days", (duration.as_secs() as u64 / 86400u64));
+            } else if duration > Duration::hours(1).to_std().unwrap() {
+                eprintln!("This account has been locked for {} hours", (duration.as_secs() as u64 / 3600u64));
+            } else {
+                eprintln!("This account has been locked for {} minutes", (duration.as_secs() as u64 / 60u64));
+            }
             std::process::exit(1);
         },
         Err(LoginError(LoginErrorKind::WrongPasswordOrCode, _)) => {
-            if gave_code {
-                eprintln!("Either the password or verification code was incorrect");
+            if was_unverified {
+                if gave_code {
+                    eprintln!("Either the password, authenticator code or verification code was incorrect");
+                } else {
+                    eprintln!("Either the password or verification code was incorrect");
+                }
             } else {
-                eprintln!("The password was incorrect");
+                if gave_code {
+                    eprintln!("Either the password or authenticator code was incorrect");
+                } else {
+                    eprintln!("The password was incorrect");
+                }
             }
             eprintln!("(Warning! Repeated failed attempts will trigger a short ban)");
             std::process::exit(1);

@@ -25,6 +25,13 @@ impl AuthService
 {
     pub async fn process_create_user(self: Arc<Self>, request: CreateUserRequest) -> Result<CreateUserResponse, CreateUserFailed>
     {
+        Ok(self.process_create_user_internal(request, UserStatus::Nominal)
+            .await?
+            .0)
+    }
+
+    pub async fn process_create_user_internal(self: Arc<Self>, request: CreateUserRequest, initial_status: UserStatus) -> Result<(CreateUserResponse, DaoMut<User>), CreateUserFailed>
+    {
         info!("create user: {}", request.email);
 
         // Check the username matches the regex
@@ -40,13 +47,6 @@ impl AuthService
                 return Err(CreateUserFailed::NoMasterKey);
             }
         };
-
-        // If the terms and conditions don't match then reject it
-        if request.accepted_terms != self.terms_and_conditions {
-            if let Some(terms) = &self.terms_and_conditions {
-                return Err(CreateUserFailed::TermsAndConditions(terms.clone()));
-            }
-        }
 
         // Compute the super_key, super_super_key (elevated rights) and the super_session
         let key_size = request.secret.size();
@@ -108,6 +108,13 @@ impl AuthService
             return Err(CreateUserFailed::AlreadyExists);
         }
 
+        // If the terms and conditions don't match then reject it
+        if request.accepted_terms != self.terms_and_conditions {
+            if let Some(terms) = &self.terms_and_conditions {
+                return Err(CreateUserFailed::TermsAndConditions(terms.clone()));
+            }
+        }
+
         // Generate a QR code
         let google_auth = google_authenticator::GoogleAuthenticator::new();
         let secret = google_auth.create_secret(32);
@@ -123,6 +130,13 @@ impl AuthService
             private_read: sudo_private_read_key.clone(),
             write: sudo_write_key.clone()
         });
+
+        // Generate a verification code (if the inital state is not nominal)
+        let verification_code = if initial_status == UserStatus::Unverified {
+            Some(PrimaryKey::generate().as_hex_string().to_uppercase())
+        } else {
+            None
+        };
     
         // Create the user and save it
         let user = User {
@@ -130,7 +144,8 @@ impl AuthService
             email: request.email.clone(),
             uid,
             role: UserRole::Human,
-            status: UserStatus::Nominal,
+            status: initial_status,
+            verification_code,
             last_login: None,
             access: access,
             foreign: DaoForeign::default(),
@@ -165,6 +180,7 @@ impl AuthService
             groups: Vec::new(),
             access: sudo_access,
             qr_code: qr_code.clone(),
+            failed_attempts: 0u32,
         };
         let mut sudo = user.as_mut().sudo.store(&dio, sudo)?;
         sudo.auth_mut().read = ReadOption::from_key(&super_super_key);
@@ -201,12 +217,13 @@ impl AuthService
         let session = compute_sudo_auth(&sudo, session);
 
         // Return success to the caller
-        Ok(CreateUserResponse {
+        Ok((CreateUserResponse {
             key: user.key().clone(),
             qr_code: qr_code,
             qr_secret: secret.clone(),
             authority: session,
-        })
+            message_of_the_day: None,
+        }, user))
     }
 }
 
@@ -286,6 +303,11 @@ pub async fn main_create_user(
         None
     ).await {
         Ok(a) => a,
+        Err(CreateError(CreateErrorKind::AlreadyExists, _)) =>
+        {
+            eprintln!("An account already exists for this username");
+            std::process::exit(1);
+        }
         Err(CreateError(CreateErrorKind::TermsAndConditions(terms), _)) =>
         {
             // We need an agreement to the terms and conditions from the caller
@@ -298,11 +320,11 @@ pub async fn main_create_user(
             std::io::stdin().read_line(&mut s).expect("Did not enter a valid response");
             let agreement = s.trim().to_string().to_lowercase();
             if agreement != "agree" {
-                println!("You may only create an account by specifically agreeing to the terms");
-                println!("and conditions laid out above - this can only be confirmed if you");
-                println!("specifically type the word 'agree' which you did not enter hence");
-                println!("an account can not be created. If this is a mistake then please");
-                println!("try again.");
+                eprintln!("You may only create an account by specifically agreeing to the terms");
+                eprintln!("and conditions laid out above - this can only be confirmed if you");
+                eprintln!("specifically type the word 'agree' which you did not enter hence");
+                eprintln!("an account can not be created. If this is a mistake then please");
+                eprintln!("try again.");
                 std::process::exit(1);
             }
 
@@ -317,6 +339,10 @@ pub async fn main_create_user(
 
     // Display the QR code
     println!("");
+    if let Some(message_of_the_day) = &result.message_of_the_day {
+        println!("{}", message_of_the_day.as_str());
+        println!("");
+    }
     println!("Below is your Google Authenticator QR code - scan it on your phone and");
     println!("save it as this code is the only way you can recover the account.");
     println!("");

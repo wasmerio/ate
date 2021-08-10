@@ -18,7 +18,8 @@ pub struct CreateUserResponse
     pub key: PrimaryKey,
     pub qr_code: String,
     pub qr_secret: String,
-    pub authority: AteSession
+    pub authority: AteSession,
+    pub message_of_the_day: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

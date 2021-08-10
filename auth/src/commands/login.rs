@@ -9,7 +9,8 @@ pub struct LoginRequest
 {
     pub email: String,
     pub secret: EncryptKey,
-    pub code: Option<String>,
+    pub authenticator_code: Option<String>,
+    pub verification_code: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

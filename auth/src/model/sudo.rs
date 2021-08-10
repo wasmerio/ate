@@ -11,6 +11,7 @@ pub struct Sudo {
     pub google_auth: String,
     pub secret: String,
     pub qr_code: String,
+    pub failed_attempts: u32,
     pub access: Vec<Authorization>,
     pub groups: Vec<String>,
 }

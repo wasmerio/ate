@@ -11,6 +11,7 @@ pub struct User {
     pub email: String,
     pub person: DaoRef<Person>,
     pub accepted_terms: DaoRef<AcceptedTerms>,
+    pub verification_code: Option<String>,
     pub uid: u32,
     pub role: UserRole,    
     pub status: UserStatus,

@@ -2,7 +2,7 @@
 use tracing::{info, warn, debug, error, trace, instrument, span, Level};
 use serde::*;
 
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum UserStatus
 {
     Nominal,
