@@ -170,7 +170,7 @@ impl AuthService
         sudo.auth_mut().read = ReadOption::from_key(&super_super_key);
         sudo.auth_mut().write = WriteOption::Any(vec![master_write_key.hash(), sudo_write_key.hash()]);
 
-        // Add the accepted terms and conditions to the database rrecord
+        // Add the accepted terms and conditions to the datachain rrecord
         if let Some(accepted_terms) = request.accepted_terms.as_ref() {
             let accepted_terms = AcceptedTerms {
                 terms_and_conditions: accepted_terms.clone()

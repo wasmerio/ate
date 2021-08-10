@@ -344,7 +344,7 @@ worrying about also scaling the stateful elements (i.e. the disks)
 
 ### Stateless Mode
 
-When operating in this mode the ATE database is running locally in a temporary
+When operating in this mode the ATE datachain is running locally in a temporary
 folder where it stores all its local redo-logs. All data is persisted on ATE
 nodes running on long-term servers.
 
@@ -512,7 +512,8 @@ keys that are directly connected to the tail end of the chain-of-trust thus
 stealing the database does not allow access to read the data. An attacker must
 also break the chain-of-trust in order to get the decryption keys. In fact it
 is a perfectly reasonable design to store the distributed commit log in the public
-domain without significant confidentiality risks._
+domain without significant confidentiality risks, although one can still keep the
+logs secret if they wish._
 
 ### Weakness: Chain-of-trust has one or more coarse grained sections
 

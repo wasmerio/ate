@@ -343,7 +343,7 @@ for LogFileLocalFs
 
         // Return a future that will complete all the IO copy operations
         // (this is done outside this function to prevent the backup operation
-        //  from freezing the database while its executing)
+        //  from freezing the datachain while its executing)
         let ret = async move {
             for delayed in delayed {
                 if let Err(err) = delayed.await {

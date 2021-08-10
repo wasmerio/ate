@@ -15,7 +15,7 @@ impl<'a> Chain
         let delayed_operations = {
             // Switch to single-user mode while we make the rotation
             // of the log file - this will effectively freeze all IO
-            // operations on this database while the rotate happens
+            // operations on this datachain while the rotate happens
             let mut single = self.single().await;
 
             // Build the header

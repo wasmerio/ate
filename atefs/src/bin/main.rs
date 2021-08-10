@@ -100,7 +100,7 @@ async fn main() -> Result<(), CommandError> {
                     std::process::exit(1);
                 }
                 if mount.remote_name.is_some() {
-                    eprintln!("Using a passcode is not compatible with remotely hosted file-systems as the distributed databases need to make authentication checks");
+                    eprintln!("Using a passcode is not compatible with remotely hosted file-systems as the distributed datchain needs to make authentication checks");
                     std::process::exit(1);
                 }
 

@@ -166,7 +166,7 @@ This library is a way of working with data in modern distributed computing.
 
 ## Feature Flags
 
-- 'client'     - Client functionality that allows one to connect to ATE databases
+- 'client'     - Client functionality that allows one to connect to ATE datachains
                  and/or host them locally
 - 'server'     - Server functionality required to create and run ATE in distributed
                  mode with the data replicated on server nodes.

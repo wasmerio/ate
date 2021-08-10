@@ -1,10 +1,10 @@
-ATE Database
-===============
+ATE Datachain
+=============
 
-## What is ATE Database?
+## What is an ATE Datachain?
 
-ATE Database is a distributed redo log server that the ATE projects can use to
-remotely store their redo logs. ATE is designed to connect to remotely hosted
+ATE Datachain (database) is a distributed redo log server that the ATE projects can
+use to remotely store their redo logs. ATE is designed to connect to remotely hosted
 repositories of state for to meet integrity and availability non-functional
 requirements.
 
@@ -14,7 +14,7 @@ requirements.
 
 ## Summary
 
-ATE Database runs a server daemon that listens for connections from clients and serves
+ATE Datachains run a server daemon that listens for connections from clients and serves
 as a distributed redo log.
 
 Other projects use this backend for persistent storage - projects such as
@@ -39,7 +39,7 @@ Other projects use this backend for persistent storage - projects such as
 
 By default all wire messages are clear text but the events that are confidential are encrypted
 thus giving a good balance between security and speed however you may also increase the security
-of databases by using double-encryption. For instance if you specify --wire-encryption 128 then
+of datachains by using double-encryption. For instance if you specify --wire-encryption 128 then
 AteDB will negotiate AES 128bit symetric keys using a quantum resistant key exchange that supports
 perfect forward secrecy symentics.
 
@@ -73,7 +73,7 @@ In this mode it is not nessasary to also run wire encryption as all events that 
 confidentiallity and integrity are protected individually however one can reduce the changes of
 side channel attacks and denial of service risks through double-encryption.
 
-When running in 'distributed' mode the database will not make an authentication server requests
+When running in 'distributed' mode the datachain will not make an authentication server requests
 as there is nothing to gain from this or to validate using. All integrity is provided as a part
 of the events themselves. Hence in this mode the --auth setting has no effect
 
@@ -96,7 +96,7 @@ atedb solo
 ```
 
 ```sh
-# Starts a single instance database on the default port (5000) . This mode will use a
+# Starts a single instance datachain on the default port (5000) . This mode will use a
 # distributed trust model which means it does not need an authentication server and will
 # default to 128bit AES wire encryption
 atedb --trust distributed solo
@@ -158,7 +158,7 @@ OPTIONS:
             Address that DNS queries will be sent to [default: 8.8.8.8]
 
     -t, --trust <trust>
-            Trust mode that the database server will run under - valid values are either
+            Trust mode that the datachain server will run under - valid values are either
             'distributed' or 'centralized'. When running in 'distributed' mode the server itself
             does not need to be trusted in order to trust the data it holds however it has a
             significant performance impact on write operations while the 'centralized' mode gives
@@ -173,11 +173,11 @@ OPTIONS:
 
 SUBCOMMANDS:
     help    Prints this message or the help of the given subcommand(s)
-    solo    Runs a solo ATE database and listens for connections from clients
+    solo    Runs a solo ATE datachain and listens for connections from clients
 
 --------------------------------------------------------------------------
 
-Runs a solo ATE database and listens for connections from clients
+Runs a solo ATE datachain and listens for connections from clients
 
 USAGE:
     atedb solo [OPTIONS] [logs-path]
@@ -210,10 +210,10 @@ OPTIONS:
             ignored if you select a compact_mode that has no timer [default: 3600]
 
     -l, --listen <listen>
-            IP address that the database server will isten on [default: 0.0.0.0]
+            IP address that the datachain server will isten on [default: 0.0.0.0]
 
     -p, --port <port>
-            Port that the database server will listen on [default: 5000]
+            Port that the datachain server will listen on [default: 5000]
 
 
 ```

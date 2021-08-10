@@ -36,7 +36,7 @@ struct Opts {
     /// Disbles wire encryption which would otherwise be turned on when running in 'centralized' mode.
     #[clap(long)]
     no_wire_encryption: bool,
-    /// Trust mode that the database server will run under - valid values are either
+    /// Trust mode that the datachain server will run under - valid values are either
     /// 'distributed' or 'centralized'. When running in 'distributed' mode the
     /// server itself does not need to be trusted in order to trust the data it holds
     /// however it has a significant performance impact on write operations while the
@@ -60,7 +60,7 @@ enum SubCommand {
     #[clap()]
     Solo(Solo),
 }
-/// Runs a solo ATE database and listens for connections from clients
+/// Runs a solo ATE datachain and listens for connections from clients
 #[derive(Clap)]
 struct Solo {
     /// Path to the log files where all the file system data is stored
@@ -69,14 +69,14 @@ struct Solo {
     /// Path to the backup and restore location of log files
     #[clap(short, long)]
     backup_path: Option<String>,
-    /// Address that the database server(s) are listening and that
+    /// Address that the datachain server(s) are listening and that
     /// this server can connect to if the chain is on another mesh node
     #[clap(short, long, default_value = "ws://localhost:5000/db")]
     url: url::Url,
-    /// IP address that the database server will isten on
+    /// IP address that the datachain server will isten on
     #[clap(short, long, default_value = "::")]
     listen: IpAddr,
-    /// Ensures that this database runs as a specific node_id
+    /// Ensures that this datachain runs as a specific node_id
     #[clap(short, long)]
     node_id: Option<u32>,
     /// Mode that the compaction will run under (valid modes are 'never', 'modified', 'timer', 'factor', 'size', 'factor-or-timer', 'size-or-timer')

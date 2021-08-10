@@ -16,10 +16,10 @@
           a backup remote folder
         + Modify chain creation path so that it first checks for backups to restore from
           which thus allows for dynamic group of nodes in the mesh cluster (awesome!)
-        + All databases that get created can be associated with the same group by using a path
-          postfix of the group which allows multiple databases to use the same group
+        + All datachains that get created can be associated with the same group by using a path
+          postfix of the group which allows multiple datachains to use the same group
         + Add an (optional) terms and conditions check on user creation
-        + Add an (optional) message-of-the-day on connecting to databases in ATE
+        + Add an (optional) message-of-the-day on connecting to datachains in ATE
         + Add an (optional) reject connection message from the server
 
 0.8.3   Tokera release.
@@ -208,7 +208,7 @@ ate-2.0
   + relay - design time list of actors that will simply relay traffic without explicitely storing the chain
 - master topology is shifted-left into a configuration file that is design time which seeds the chain discovery workflow
 - chains are mapped to masters via a convention on the hash of the partition key for the first node in the chain
-- redo-logs are materialized into in-memory databases using materializers
+- redo-logs are materialized into in-memory datachains using materializers
 - when accessing the materialized view a context is supplied that holds user defined structured data
 - each event has a header that includes structured metadata about the data held in the event
 - events follow generics hence they are all strongly typed however the following defaults are available

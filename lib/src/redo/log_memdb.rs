@@ -88,7 +88,7 @@ for LogFileMemDb
         #[cfg(feature = "enable_super_verbose")]
         debug!("log-write: {:?} - {:?}", header, evt);
 
-        // If we are running as a memory database then store it in the RAM
+        // If we are running as a memory datachain then store it in the RAM
         self.memdb.insert(lookup, LogEntry {
             header: LogHeader {
                 offset: lookup.offset,
@@ -141,7 +141,7 @@ for LogFileMemDb
         };
         let _offset = lookup.offset;
 
-        // If we are running as a memory database then just lookup the value
+        // If we are running as a memory datachain then just lookup the value
         let result = match self.memdb.get(&lookup) {
             Some(a) => std::result::Result::<LogEntry, LoadError>::Ok(a.clone()),
             None => Err(LoadErrorKind::NotFoundByHash(hash).into())

@@ -15,7 +15,7 @@ particular varient has some unique qualities that differentiate it from others.
 ## Summary
 
 ATE File System uses FUSE to redirect file system commands to a user-space program that
-responds to IO. This user-space program queries an in-memory distributed database that
+responds to IO. This user-space program queries an in-memory distributed datachain that
 is synchronized with many consumers and producers. Data is replicated, encrypted, signed
 and multi-user safe.
 

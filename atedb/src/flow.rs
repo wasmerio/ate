@@ -208,7 +208,7 @@ for ChainFlow
 
         // Ask the authentication server for the public key for this user
         return Ok(OpenAction::Deny {
-            reason: format!("The chain-key ({}) does not match a valid pattern - for private databases it must be in the format of /gmail.com/joe.blogs/mydb where the owner of this chain is the user joe.blogs@gmail.com. - for shared databases you must first create a group with the same name.", key.to_string()).to_string()
+            reason: format!("The chain-key ({}) does not match a valid pattern - for private datachains it must be in the format of /gmail.com/joe.blogs/mydb where the owner of this chain is the user joe.blogs@gmail.com. - for shared datachains you must first create a group with the same name and then use the format /[group-name]/[chain-name].", key.to_string()).to_string()
         });
     }
 }

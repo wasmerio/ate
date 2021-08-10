@@ -408,7 +408,7 @@ impl DioMut
                 return Ok(())
             }
 
-            // Grab the rows from the state database
+            // Grab the rows from the state datachain
             let rows = state.store_ordered
                 .iter()
                 .filter(|a| state.deleted.contains(&a.key) == false)
