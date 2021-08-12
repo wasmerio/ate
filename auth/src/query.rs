@@ -27,8 +27,8 @@ impl AuthService
         info!("query user/group: {}", request.identity);
 
         // Compute which chain the user should exist within
-        let user_chain_key = chain_key_4hex(&request.identity, Some("redo"));
-        let chain = self.registry.open(&self.auth_url, &user_chain_key).await?;
+        let chain_key = chain_key_4hex(&request.identity, Some("redo"));
+        let chain = self.registry.open(&self.auth_url, &chain_key).await?;
         let dio = chain.dio(&self.master_session).await;
 
         // If it does not exist then fail

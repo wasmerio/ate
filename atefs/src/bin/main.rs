@@ -84,7 +84,7 @@ async fn main() -> Result<(), CommandError> {
                 eprintln!("In order to create groups you must use some form of authentication.");
                 std::process::exit(1);
             }
-            ate_auth::main_opts_group(opts_group, opts.token, opts.token_path, opts.auth).await?;
+            ate_auth::main_opts_group(opts_group, opts.token, opts.token_path, opts.auth, "Group").await?;
         },
         SubCommand::Mount(mount) =>
         {

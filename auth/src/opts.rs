@@ -214,11 +214,11 @@ pub async fn main_opts_user(opts_user: OptsUser, token: Option<String>, token_pa
     Ok(())
 }
 
-pub async fn main_opts_group(opts_group: OptsGroup, token: Option<String>, token_path: Option<String>, auth: url::Url) -> Result<(), AteError>{
+pub async fn main_opts_group(opts_group: OptsGroup, token: Option<String>, token_path: Option<String>, auth: url::Url, group_hint: &str) -> Result<(), AteError>{
     match opts_group.action {
         GroupAction::Create(action) => {
             let session = crate::main_session(token.clone(), token_path.clone(), Some(auth.clone()), true).await?;
-            let _session = crate::main_create_group(Some(action.group), auth, session.user.identity().map(|i| i.clone())).await?;
+            let _session = crate::main_create_group(Some(action.group), auth, session.user.identity().map(|i| i.clone()), group_hint).await?;
         },
         GroupAction::AddUser(action) => {
             let session = crate::main_session(token.clone(), token_path.clone(), Some(auth.clone()), true).await?;

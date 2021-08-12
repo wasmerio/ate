@@ -25,7 +25,7 @@ pub struct CreateUserResponse
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum CreateUserFailed
 {
-    AlreadyExists,
+    AlreadyExists(String),
     InvalidEmail,
     NoMoreRoom,
     NoMasterKey,

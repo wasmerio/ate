@@ -48,10 +48,10 @@ impl AuthService
         let regex = Regex::new("^/{0,1}([a-zA-Z0-9_\\.\\-]{1,})$").unwrap();
         if let Some(_captures) = regex.captures(request.group.as_str()) {
             if request.group.len() <= 0 {
-                return Err(CreateGroupFailed::InvalidGroupName);
+                return Err(CreateGroupFailed::InvalidGroupName("the group name you specified is not long enough".to_string()));
             }
         } else {
-            return Err(CreateGroupFailed::InvalidGroupName);
+            return Err(CreateGroupFailed::InvalidGroupName("the group name you specified is invalid".to_string()));
         }
 
         // Get the master write key
@@ -76,11 +76,16 @@ impl AuthService
         let dio = chain.dio_mut(&self.master_session).await;
 
         // Try and find a free GID
+        let gid_offset = u32::MAX as u64;
         let mut gid = None;
         for n in 0u32..50u32 {
-            let gid_test = estimate_group_name_as_gid(request.group.clone()) + n;
-            if gid_test < 1000 { continue; }
+            let mut gid_test = estimate_group_name_as_gid(request.group.clone());
+            if gid_test < 1000 { gid_test = gid_test + 1000; }
+            gid_test = gid_test + n;
             if dio.exists(&PrimaryKey::from(gid_test as u64)).await {
+                continue;
+            }
+            if dio.exists(&PrimaryKey::from(gid_test as u64 + gid_offset)).await {
                 continue;
             }
             gid = Some(gid_test);
@@ -96,7 +101,7 @@ impl AuthService
         // If it already exists then fail
         let group_key = PrimaryKey::from(request.group.clone());
         if dio.exists(&group_key).await {
-            return Err(CreateGroupFailed::AlreadyExists);
+            return Err(CreateGroupFailed::AlreadyExists("the group with this name already exists".to_string()));
         }
 
         // Generate the owner encryption keys used to protect this role
@@ -226,6 +231,21 @@ impl AuthService
         group.auth_mut().read = ReadOption::from_key(&master_key);
         group.auth_mut().write = WriteOption::Any(vec![master_write_key.hash(), owner_write.hash()]);
 
+        // Create the advert object and save it using public read
+        let advert_key_entropy = format!("advert@{}", request.group.clone()).to_string();
+        let advert_key = PrimaryKey::from(advert_key_entropy);
+        let advert = Advert {
+            identity: request.group.clone(),
+            id: AdvertId::GID(gid),
+            nominal_encrypt: observer_private_read.as_public_key(),
+            nominal_auth: contributor_write.as_public_key(),
+            sudo_encrypt: owner_private_read.as_public_key(),
+            sudo_auth: owner_write.as_public_key()
+        };
+        let mut advert = dio.store_with_key(advert, advert_key.clone())?;
+        advert.auth_mut().read = ReadOption::Everyone(None);
+        advert.auth_mut().write = WriteOption::Inherit;
+
         // Commit
         dio.commit().await?;
 
@@ -260,13 +280,14 @@ pub async fn create_group_command(group: String, auth: Url, username: String) ->
 
 pub async fn main_create_group_prelude(
     group: Option<String>,
-    username: Option<String>
+    username: Option<String>,
+    group_hint: &str,
 ) -> Result<(String, String), CreateError>
 {
     let group = match group {
         Some(a) => a,
         None => {
-            print!("Group: ");
+            print!("{}: ", group_hint);
             stdout().lock().flush()?;
             let mut s = String::new();
             std::io::stdin().read_line(&mut s).expect("Did not enter a valid group");
@@ -291,10 +312,11 @@ pub async fn main_create_group_prelude(
 pub async fn main_create_group(
     group: Option<String>,
     auth: Url,
-    username: Option<String>
+    username: Option<String>,
+    group_hint: &str,
 ) -> Result<AteSession, CreateError>
 {
-    let (group, username) = main_create_group_prelude(group, username).await?;
+    let (group, username) = main_create_group_prelude(group, username, group_hint).await?;
 
     // Create a user using the authentication server which will give us a session with all the tokens
     let result = match create_group_command(group, auth, username).await {
@@ -315,12 +337,12 @@ pub async fn main_create_group(
             eprintln!("{}", reason);
             std::process::exit(1);
         },
-        Err(CreateError(CreateErrorKind::AlreadyExists, _)) => {
-            eprintln!("The group with this name already exists");
+        Err(CreateError(CreateErrorKind::AlreadyExists(msg), _)) => {
+            eprintln!("{}", msg);
             std::process::exit(1);
         },
-        Err(CreateError(CreateErrorKind::InvalidName, _)) => {
-            eprintln!("The group name you specified is invalid");
+        Err(CreateError(CreateErrorKind::InvalidName(msg), _)) => {
+            eprintln!("{}", msg);
             std::process::exit(1);
         },
         Err(err) => {

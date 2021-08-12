@@ -87,8 +87,9 @@ impl AuthService
         // Try and find a free UID
         let mut uid = None;
         for n in 0u32..50u32 {
-            let uid_test = estimate_user_name_as_uid(request.email.clone()) + n;
-            if uid_test < 1000 { continue; }
+            let mut uid_test = estimate_user_name_as_uid(request.email.clone());
+            if uid_test < 1000 { uid_test = uid_test + 1000; }
+            uid_test = uid_test + n;
             if dio.exists(&PrimaryKey::from(uid_test as u64)).await {
                 continue;
             }
@@ -105,7 +106,7 @@ impl AuthService
         // If it already exists then fail
         let user_key = PrimaryKey::from(request.email.clone());
         if dio.exists(&user_key).await {
-            return Err(CreateUserFailed::AlreadyExists);
+            return Err(CreateUserFailed::AlreadyExists("an account already exists for this username".to_string()));
         }
 
         // If the terms and conditions don't match then reject it
@@ -198,8 +199,8 @@ impl AuthService
         let advert_key_entropy = format!("advert@{}", request.email.clone()).to_string();
         let advert_key = PrimaryKey::from(advert_key_entropy);
         let advert = Advert {
-            email: request.email.clone(),
-            uid,
+            identity: request.email.clone(),
+            id: AdvertId::UID(uid),
             nominal_encrypt: private_read_key.as_public_key(),
             nominal_auth: write_key.as_public_key(),
             sudo_encrypt: sudo_private_read_key.as_public_key(),
@@ -303,9 +304,9 @@ pub async fn main_create_user(
         None
     ).await {
         Ok(a) => a,
-        Err(CreateError(CreateErrorKind::AlreadyExists, _)) =>
+        Err(CreateError(CreateErrorKind::AlreadyExists(msg), _)) =>
         {
-            eprintln!("An account already exists for this username");
+            eprintln!("{}", msg);
             std::process::exit(1);
         }
         Err(CreateError(CreateErrorKind::TermsAndConditions(terms), _)) =>

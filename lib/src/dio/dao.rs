@@ -101,6 +101,16 @@ impl<D> Dao<D>
     pub fn take(self) -> D {
         self.row.data
     }
+
+    pub fn parent(&self) -> Option<MetaCollection>
+    {
+        self.row_header.parent.as_ref().map(|a| a.vec.clone())
+    }
+
+    pub fn parent_id(&self) -> Option<PrimaryKey>
+    {
+        self.row_header.parent.as_ref().map(|a| a.vec.parent_id.clone())
+    }
 }
 
 impl<D> DaoObj

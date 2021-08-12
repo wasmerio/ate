@@ -20,10 +20,10 @@ pub struct CreateGroupResponse
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum CreateGroupFailed
 {
-    AlreadyExists,
+    AlreadyExists(String),
     NoMoreRoom,
     NoMasterKey,
-    InvalidGroupName,
+    InvalidGroupName(String),
     OperatorNotFound,
     OperatorBanned,
     AccountSuspended,

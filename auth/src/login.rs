@@ -26,7 +26,7 @@ impl AuthService
         self.master_session.read_keys().map(|a| a.clone()).next()
     }
 
-    pub(crate) fn compute_super_key(&self, secret: EncryptKey) -> Option<EncryptKey>
+    pub fn compute_super_key(&self, secret: EncryptKey) -> Option<EncryptKey>
     {
         // Create a session with crypto keys based off the username and password
         let master_key = match self.master_session.read_keys().next() {
@@ -34,6 +34,18 @@ impl AuthService
             None => { return None; }
         };
         let super_key = AteHash::from_bytes_twice(master_key.value(), secret.value());
+        let super_key = EncryptKey::from_seed_bytes(super_key.to_bytes(), KeySize::Bit256);
+        Some(super_key)
+    }
+
+    pub fn compute_super_key_from_hash(&self, hash: AteHash) -> Option<EncryptKey>
+    {
+        // Create a session with crypto keys based off the username and password
+        let master_key = match self.master_session.read_keys().next() {
+            Some(a) => a.clone(),
+            None => { return None; }
+        };
+        let super_key = AteHash::from_bytes_twice(master_key.value(), hash.to_bytes());
         let super_key = EncryptKey::from_seed_bytes(super_key.to_bytes(), KeySize::Bit256);
         Some(super_key)
     }
@@ -389,6 +401,12 @@ pub async fn main_sudo(
         }
     };
 
+    // Perform a normal login to check everything is working ok
+    // (this will force a check on the verification status)
+    let response = login_command(username.clone(), password.clone(), None, None, auth.clone(), true).await;
+    let _ = handle_login_response(response, username.clone(), password.clone(), None, auth.clone()).await?;
+
+    // Now we get the authenticator code and try again (but this time with sudo)
     let code = match code {
         Some(a) => a,
         None => {
@@ -420,7 +438,6 @@ async fn handle_login_response(
         was_unverified = true;
 
         // When no code is supplied we will ask for it
-        eprintln!("");
         eprintln!("Check your email for a verification code and enter it below");
         eprint!("Verification Code: ");
         stdout().lock().flush()?;

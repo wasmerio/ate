@@ -133,6 +133,10 @@ impl<D> DaoVec<D>
         }
     }
 
+    pub fn vec_id(&self) -> u64 {
+        self.vec_id
+    }
+
     pub async fn iter(&self) -> Result<Iter<D>, LoadError>
     where D: DeserializeOwned
     {

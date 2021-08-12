@@ -38,9 +38,9 @@ error_chain! {
             description("create failed as the passwords did not match")
             display("create failed as the passwords did not match")
         }
-        AlreadyExists {
+        AlreadyExists(msg: String) {
             description("create failed as the account or group already exists")
-            display("create failed as the account or group already exists")
+            display("create failed - {}", msg)
         }
         InvalidEmail {
             description("create failed as the email address is invalid")
@@ -50,9 +50,9 @@ error_chain! {
             description("create failed as the account or group as there is no more room - try a different name")
             display("create failed as the account or group as there is no more room - try a different name")
         }
-        InvalidName {
+        InvalidName(msg: String) {
             description("create failed as the account or group name is invalid")
-            display("create failed as the account or group name is invalid")
+            display("create failed - {}", msg)
         }
         NoMasterKey {
             description("create failed as the server has not been properly initialized")
@@ -88,10 +88,10 @@ for CreateError {
             CreateGroupFailed::OperatorBanned => CreateErrorKind::OperatorBanned.into(),
             CreateGroupFailed::OperatorNotFound => CreateErrorKind::OperatorNotFound.into(),
             CreateGroupFailed::AccountSuspended => CreateErrorKind::AccountSuspended.into(),
-            CreateGroupFailed::AlreadyExists => CreateErrorKind::AlreadyExists.into(),
+            CreateGroupFailed::AlreadyExists(msg) => CreateErrorKind::AlreadyExists(msg).into(),
             CreateGroupFailed::NoMoreRoom => CreateErrorKind::NoMoreRoom.into(),
             CreateGroupFailed::NoMasterKey => CreateErrorKind::NoMasterKey.into(),
-            CreateGroupFailed::InvalidGroupName => CreateErrorKind::InvalidName.into(),
+            CreateGroupFailed::InvalidGroupName(msg) => CreateErrorKind::InvalidName(msg).into(),
             CreateGroupFailed::ValidationError(reason) => CreateErrorKind::ValidationError(reason).into(),
             CreateGroupFailed::InternalError(code) => CreateErrorKind::InternalError(code).into(),
         }
@@ -102,7 +102,7 @@ impl From<CreateUserFailed>
 for CreateError {
     fn from(err: CreateUserFailed) -> CreateError {
         match err {
-            CreateUserFailed::AlreadyExists => CreateErrorKind::AlreadyExists.into(),
+            CreateUserFailed::AlreadyExists(msg) => CreateErrorKind::AlreadyExists(msg).into(),
             CreateUserFailed::InvalidEmail => CreateErrorKind::InvalidEmail.into(),
             CreateUserFailed::NoMasterKey => CreateErrorKind::NoMasterKey.into(),
             CreateUserFailed::NoMoreRoom => CreateErrorKind::NoMoreRoom.into(),

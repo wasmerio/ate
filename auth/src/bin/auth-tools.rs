@@ -19,7 +19,7 @@ async fn main() -> Result<(), AteError>
             ate_auth::main_opts_user(opts_user, opts.token, opts.token_path, opts.auth).await?;
         },
         SubCommand::Group(opts_group) => {
-            ate_auth::main_opts_group(opts_group, opts.token, opts.token_path, opts.auth).await?;
+            ate_auth::main_opts_group(opts_group, opts.token, opts.token_path, opts.auth, "Group").await?;
         },
         SubCommand::Token(opts_token) => {
             ate_auth::main_opts_token(opts_token, opts.token, opts.token_path, opts.auth).await?;

@@ -14,7 +14,7 @@ pub enum WriteOption
     Everyone,
     Nobody,
     Specific(AteHash),
-    Any(Vec<AteHash>)
+    Any(Vec<AteHash>),
 }
 
 impl WriteOption

@@ -35,6 +35,17 @@ for SerializationFormat
 
 impl SerializationFormat
 {
+    pub fn iter() -> std::vec::IntoIter<SerializationFormat>
+    {
+        vec!
+        [
+            SerializationFormat::Json,
+            SerializationFormat::MessagePack,
+            SerializationFormat::Bincode
+        ]
+        .into_iter()
+    }
+
     pub fn serialize<T>(&self, val: &T) -> Result<Vec<u8>, SerializationError>
     where T: Serialize + ?Sized
     {

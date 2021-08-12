@@ -51,7 +51,7 @@ pub async fn test_create_user_and_group() -> Result<(), AteError>
 
     // Create the group
     let group = "mygroup".to_string();
-    let _session = crate::main_create_group(Some(group.clone()), auth.clone(), Some(username.clone())).await?;
+    let _session = crate::main_create_group(Some(group.clone()), auth.clone(), Some(username.clone()), "Group").await?;
 
     // Compute the code using the returned QR secret
     let timer = TimeKeeper::new(&cfg_ate, 30000).await?;

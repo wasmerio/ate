@@ -117,6 +117,10 @@ where D: Serialize
         Arc::clone(&self.trans)
     }
 
+    pub fn set_trans(&mut self, dio: &Arc<DioMut>) {
+        self.trans = Arc::clone(dio);
+    }
+
     pub fn delete(self) -> std::result::Result<(), SerializationError> {
         let key = self.key().clone();
         let mut state = self.trans.state.lock();

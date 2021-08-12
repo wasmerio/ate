@@ -4,9 +4,16 @@ use serde::*;
 use ate::crypto::*;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum AdvertId
+{
+    UID(u32),
+    GID(u32)
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Advert {
-    pub email: String,
-    pub uid: u32,
+    pub identity: String,
+    pub id: AdvertId,
     pub nominal_encrypt: PublicEncryptKey,
     pub nominal_auth: PublicSignKey,
     pub sudo_encrypt: PublicEncryptKey,
